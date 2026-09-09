@@ -377,11 +377,19 @@ struct PoseStage : AnalysisStage {
         }
         QElapsedTimer poseWall;
         poseWall.start();
-        ctx.detail->pose2d = ctx.job.poseTrackPath.isEmpty()
-                                 ? PoseRunner::run(*ctx.window, ctx.job.cameraSources.front(), opt)
-                                 : PoseRunner::loadFromJson(ctx.job.poseTrackPath,
-                                                            ctx.job.cameraSources.front());
+        if (!ctx.job.posePreloaded.frames.empty()) {
+            ctx.detail->pose2d = ctx.job.posePreloaded;            // version-gated reuse (analysis_versions.h)
+            ctx.detail->pose2d.camera = ctx.job.cameraSources.front();
+        } else {
+            ctx.detail->pose2d = ctx.job.poseTrackPath.isEmpty()
+                                     ? PoseRunner::run(*ctx.window, ctx.job.cameraSources.front(), opt)
+                                     : PoseRunner::loadFromJson(ctx.job.poseTrackPath,
+                                                                ctx.job.cameraSources.front());
+        }
         ctx.detail->timings.poseMs = int(poseWall.elapsed());
+        ctx.detail->versions.pose      = kPoseStageVersion;
+        ctx.detail->versions.poseModel = PoseRunner::modelIdentity(ctx.job.motionCaptureQuality);
+        ctx.detail->versions.poseScope = ctx.job.fullWindow ? QStringLiteral("full") : QStringLiteral("span");
         ctx.runnerOpt = std::move(opt);
     }
 };
@@ -467,13 +475,16 @@ struct BallStage : AnalysisStage {
     {
         QElapsedTimer ballWall;
         ballWall.start();
-        ctx.ball = !ctx.job.ballTrackPath.isEmpty()
+        ctx.ball = !ctx.job.ballPreloaded.frames.empty()
+            ? ctx.job.ballPreloaded                                  // version-gated reuse (analysis_versions.h)
+            : !ctx.job.ballTrackPath.isEmpty()
             ? BallRunner::loadFromJson(ctx.job.ballTrackPath, ctx.job.cameraSources.front())
             : (!ctx.job.ballTrack.frames.empty()
                    ? ctx.job.ballTrack
                    : BallRunner::run(*ctx.window, ctx.job.cameraSources.front(), ctx.detail->pose2d,
                                      *ctx.runnerOpt, ctx.job.ballSearchRoi, ctx.job.ballBaseline));
         ctx.detail->timings.ballMs = int(ballWall.elapsed());
+        ctx.detail->versions.ball = kBallStageVersion;
     }
 };
 
@@ -498,6 +509,7 @@ struct ShaftStage : AnalysisStage {
                                                 ctx.streams, ctx.segImu.value_or(Segmentation{}),
                                                 sub, ctx.hasImuStreams() ? nullptr : &strace);
         ctx.detail->timings.shaftMs = int(shaftWall.elapsed());
+        ctx.detail->versions.shaft = kShaftStageVersion;
         // Surface the resolved ball track for the replay overlay (design §9).
         ctx.detail->ball = *ctx.ball;
         if (!ctx.hasImuStreams())

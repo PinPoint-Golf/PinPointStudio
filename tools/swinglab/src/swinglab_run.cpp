@@ -282,12 +282,14 @@ int main(int argc, char **argv)
     QCommandLineOption optRefuseBeta("refuse-beta",
         "Madgwick gain for re-fusion (default = production 0.05; perturb to confirm "
         "the tool detects a parameter change).", "float");
+    QCommandLineOption optFullWindow("full-window", "Analyse the whole captured window (the in-app re-analyse convention) instead of the swing span");
+    QCommandLineOption optForce("force-rerun", "Re-run pose/ball even when the recorded analysis versions match (analysis_versions.h)");
     QCommandLineOption optWriteBack("write-back",
         "Re-analyse the swing exactly as the in-app ReanalysisController does "
         "(reanalyzeSwingDir, production defaults, no overrides) and write the fresh "
         "analysis back into the SOURCE swing.json, preserving capture/streams/review. "
         "Exclusive: every other option except the positional swing dir is ignored.");
-    cli.addOptions({ optOut, optParams, optTrace, optSession, optFaceOn, optImpact, optPose,
+    cli.addOptions({ optOut, optParams, optTrace, optSession, optFaceOn, optImpact, optPose, optForce, optFullWindow,
                      optBall, optRefuse, optRefuseBeta, optWriteBack });
     cli.process(app);
 
@@ -306,6 +308,8 @@ int main(int argc, char **argv)
     if (cli.isSet(optWriteBack)) {
         using namespace pinpoint::analysis;
         ReanalyzeOptions ropts;
+        ropts.forceRerun = cli.isSet(optForce);
+        ropts.fullWindow = cli.isSet(optFullWindow);
         // An EXPLICIT --session-type becomes the override (the option's default "1"
         // does not count) — the escape hatch for pre-reanalysis-era recordings that
         // never noted their session type. Everything else stays production-default.

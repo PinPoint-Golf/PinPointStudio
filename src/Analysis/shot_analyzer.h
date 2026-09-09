@@ -98,6 +98,12 @@ struct ShotAnalysisJob {
     // this JSON file instead of running ViTPose — synthetic-corpus injection
     // and pose-cache reuse during shaft tuning. Empty in production.
     QString poseTrackPath;
+    // Version-gated re-analysis (analysis_versions.h): a recorded pose / ball
+    // track reloaded from the swing's own analysis block when the producer that
+    // wrote it is the one that would run now. Non-empty ⇒ the stage reuses it and
+    // does not run the model / replay. Empty in live capture.
+    pinpoint::analysis::PoseTrack2D posePreloaded;
+    pinpoint::analysis::BallTrack2D ballPreloaded;
 
     // Face-on ball track (v3.4 design §9), resolved on the UI thread from the live
     // CameraInstance's ball accumulator or a recorded swing.json "ball" block.

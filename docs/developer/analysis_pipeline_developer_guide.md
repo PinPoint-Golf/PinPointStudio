@@ -596,6 +596,40 @@ as a bug.
 
 ---
 
+## 7a. Version-gated re-analysis (2026-09-09)
+
+Re-analysis used to re-run ViTPose, the ball replay and the shaft tracker every time —
+about 11 s of pose per swing on a CPU host — although nothing that produces them had
+changed. Each producer now has a version (`src/Analysis/analysis_versions.h`), the
+stages stamp them into `SwingAnalysis::versions`, and `serializeAnalysis` writes them
+as `analysis.versions`:
+
+```
+"versions": { "pose":  { "code": 1, "model": "vitpose-b-wholebody.onnx@360242862", "scope": "full" },
+              "ball":  { "code": 1 },
+              "shaft": { "code": 1 } }
+```
+
+On re-analysis (`reanalyzeSwingDir`) the recorded pose is reloaded
+(`PoseRunner::fromJsonObject` over the recorded `analysis` block) instead of running the
+model when its model file, `kPoseStageVersion` and scan scope match what would run now
+(a `full`-window record covers a `span` request, not the reverse) and no `pose.*` /
+`ball.*` / address-scan tuning override is in play. The recorded ball track is reloaded
+(`BallRunner::fromAnalysisJson`) on top of a reused pose when `kBallStageVersion`
+matches. The shaft tracker always re-runs: its version is stamped, but `analysis.club`
+is lossy (`onsetFloorFrame`, `addressPhaseFrame` are in-memory only) and has no
+deserialiser — that is the next saving (≈ 1 s) if it is ever wanted. `PoseSmooth` and
+everything downstream recompute from the reloaded tracks, so the output is byte-identical
+to a fresh run apart from `timings` (verified on 2026-09-09: 14.1 s → 0.96 s).
+
+**When you change a producer's output, bump its constant.** `kPoseStageVersion` for
+anything in `pose_runner` / the ViTPose decode, crop or two-pass logic; `kBallStageVersion`
+for `ball_runner`; `kShaftStageVersion` for the shaft tracker, the head pass and the ball
+anchor. A model file change is caught automatically (name and byte size). Swings analysed
+before this date have no block and re-run once; the write-back stamps them.
+`swinglab_run --write-back --full-window` is the library sweep (`--force-rerun` bypasses
+the gate; `ReanalyzeOptions::forceRerun` in code).
+
 ## 8. Testing
 
 The analyzer suite is standalone (own `main()`, CHECK macros — see

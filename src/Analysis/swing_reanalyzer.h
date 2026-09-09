@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include <QJsonObject>
+
 #include <QString>
 #include <QVariantMap>
 #include <optional>
@@ -58,6 +60,7 @@ struct LoadedSwing {
     std::optional<pinpoint::SwingWindow> window;   // disk-backed; streams on demand
     ShotAnalysisJob                      job;
     bool                                 usedRaw = false;  // any camera used the raw sidecar
+    QJsonObject                          analysisIn;       // the recorded analysis block (version-gated reuse)
 
     // The host-side orientation filter in force when this swing was CAPTURED, read
     // from streams[].device.orientationFilter of the host-fused lanes (a wG3 fuses
@@ -89,6 +92,11 @@ struct ReanalyzeOptions {
     // explicit re-analyse; SwingLab leaves it false to keep sweeps comparable
     // to production's live-capture bound unless a run opts in.
     bool        fullWindow = false;
+    // Version-gated reuse (analysis_versions.h): when the recorded analysis
+    // block's pose (model + code + scope) matches what would run now, the recorded
+    // pose is reloaded and ViTPose is not run; likewise the ball track when its
+    // version matches AND the pose is reused. true ⇒ always re-run everything.
+    bool        forceRerun = false;
 };
 
 struct ReanalyzeResult {

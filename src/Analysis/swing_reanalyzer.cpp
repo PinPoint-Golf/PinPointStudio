@@ -17,6 +17,9 @@
  */
 
 #include "swing_reanalyzer.h"
+#include "analysis_versions.h"
+#include "ball_runner.h"
+#include "pose_runner.h"
 
 #include <QFile>
 #include <QFileInfo>
@@ -268,6 +271,7 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
     }
     const QJsonObject analysisIn = root[QStringLiteral("analysis")].toObject();
     const QJsonObject captureIn  = root[QStringLiteral("capture")].toObject();
+    out.analysisIn = analysisIn;
 
     auto src = std::make_unique<SwingDiskSource>();
     std::vector<IndexEntry> entries;
@@ -762,6 +766,45 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
     if (!opts.poseTrackPath.isEmpty())
         ls.job.poseTrackPath = opts.poseTrackPath;
     ls.job.fullWindow = opts.fullWindow;
+    // ── Version-gated reuse (analysis_versions.h) ────────────────────────────
+    // The recorded pose is reloaded when its producer (model file, stage version,
+    // scan scope) is the one that would run now and no pose tuning override is in
+    // play; the recorded ball track likewise, but only on top of a reused pose
+    // (it was computed from that pose). The shaft tracker always re-runs (stamped,
+    // not yet reusable — see the header). Everything downstream is recomputed.
+    if (!opts.forceRerun) {
+        const QJsonObject ver  = ls.analysisIn[QStringLiteral("versions")].toObject();
+        const QJsonObject vp   = ver[QStringLiteral("pose")].toObject();
+        const QJsonObject vb   = ver[QStringLiteral("ball")].toObject();
+        const QString wantScope = ls.job.fullWindow ? QStringLiteral("full") : QStringLiteral("span");
+        bool poseOverride = false;
+        for (auto it = ls.job.tuningOverrides.cbegin(); it != ls.job.tuningOverrides.cend(); ++it)
+            if (it.key().startsWith(QLatin1String("pose.")) || it.key().startsWith(QLatin1String("shaft.addressScan"))
+                || it.key().startsWith(QLatin1String("shaft.addressStride")) || it.key().startsWith(QLatin1String("ball.")))
+                poseOverride = true;
+        const bool poseMatch = !poseOverride && !vp.isEmpty()
+            && vp[QStringLiteral("code")].toInt() == kPoseStageVersion
+            && vp[QStringLiteral("model")].toString() == PoseRunner::modelIdentity(ls.job.motionCaptureQuality)
+            // a full-window pose covers a span request; a span pose covers only a span request
+            && (vp[QStringLiteral("scope")].toString() == QLatin1String("full")
+                || vp[QStringLiteral("scope")].toString() == wantScope)
+            && !ls.job.cameraSources.empty();
+        if (poseMatch) {
+            ls.job.posePreloaded = PoseRunner::fromJsonObject(ls.analysisIn, ls.job.cameraSources.front());
+            if (ls.job.posePreloaded.frames.empty()) ls.job.posePreloaded = {};
+        }
+        const bool ballMatch = !ls.job.posePreloaded.frames.empty() && !vb.isEmpty()
+            && vb[QStringLiteral("code")].toInt() == kBallStageVersion
+            && ls.analysisIn.contains(QStringLiteral("ball"));
+        if (ballMatch) {
+            ls.job.ballPreloaded = BallRunner::fromAnalysisJson(ls.analysisIn[QStringLiteral("ball")].toObject(),
+                                                                ls.job.cameraSources.front());
+            if (ls.job.ballPreloaded.frames.empty()) ls.job.ballPreloaded = {};
+        }
+        ppInfo() << "[Reanalysis]" << swingDir << "reuse: pose"
+                 << (ls.job.posePreloaded.frames.empty() ? "re-run" : "recorded") << "ball"
+                 << (ls.job.ballPreloaded.frames.empty() ? "re-run" : "recorded") << "shaft re-run";
+    }
     // Fail closed on an unknown discipline rather than silently analysing as Wrist
     // and writing a wrong-discipline analysis block back (our exports always carry
     // capture.sessionType; swinglab_run resolves its own default before analyze()).

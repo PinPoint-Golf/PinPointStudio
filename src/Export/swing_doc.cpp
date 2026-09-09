@@ -178,6 +178,16 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
     };
     QJsonObject o;
     o[QStringLiteral("schema")] = QStringLiteral("pinpoint.analysis/3");
+    // Producer versions (analysis_versions.h): what produced pose / ball / shaft.
+    // Re-analysis reuses a recorded stage output when these match the code that
+    // would run now. Additive — absent on swings analysed before 2026-09-09.
+    if (a.versions.stamped())
+        o[QStringLiteral("versions")] = QJsonObject{
+            { QStringLiteral("pose"),  QJsonObject{ { QStringLiteral("code"),  a.versions.pose },
+                                                    { QStringLiteral("model"), a.versions.poseModel },
+                                                    { QStringLiteral("scope"), a.versions.poseScope } } },
+            { QStringLiteral("ball"),  QJsonObject{ { QStringLiteral("code"),  a.versions.ball } } },
+            { QStringLiteral("shaft"), QJsonObject{ { QStringLiteral("code"),  a.versions.shaft } } } };
     o[QStringLiteral("tier")]   = a.tier;
     o[QStringLiteral("score")]  = serializeScore(a.score);
 
@@ -620,11 +630,17 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
                 so.insert(QStringLiteral("act"), double(s.clubActivity));
             samples.append(so);
         }
-        o[QStringLiteral("ball")] = QJsonObject{
+        QJsonObject ballObj{
             { QStringLiteral("camera"),    int(a.ball.camera) },
             { QStringLiteral("valid"),     true },
             { QStringLiteral("launchTUs"), rel(a.ball.launchTUs) },
             { QStringLiteral("samples"),   samples } };
+        // Additive (2026-09-09): the pre-launch ball centre the impact anchor reads,
+        // so a reloaded track carries it (BallRunner::fromAnalysisJson).
+        if (a.ball.launchTUs >= 0)
+            ballObj.insert(QStringLiteral("launch"), QJsonObject{ { QStringLiteral("x"), a.ball.launchCenter.x() },
+                                                                  { QStringLiteral("y"), a.ball.launchCenter.y() } });
+        o[QStringLiteral("ball")] = ballObj;
     }
     return o;
 }

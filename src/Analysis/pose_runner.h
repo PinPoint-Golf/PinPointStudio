@@ -23,6 +23,7 @@
 // QtConcurrent analysis worker; honors the frozen-window read contract
 // (null-checked payloads, shared frame_decode, const reads only).
 
+#include <QJsonObject>
 #include <QString>
 #include <QVariantMap>
 #include <cstdint>
@@ -113,6 +114,13 @@ public:
     // files load fine, the tail stays default-initialized). Used to inject
     // synthetic tracks and to re-run shaft tuning without paying for the pose
     // pass. Returns an empty track on any parse problem.
+    // Same parser over an in-memory object (a swing.json `analysis` block or a
+    // {"frames":[...]} file) — version-gated re-analysis reloads the recorded pose.
+    static pinpoint::analysis::PoseTrack2D fromJsonObject(const QJsonObject &root,
+                                                          pinpoint::SourceId camera);
+    // "<model file>@<bytes>" for the ViTPose variant run() would pick for this
+    // quality tier on THIS host — the pose identity in analysis.versions.
+    static QString modelIdentity(const QString &motionCaptureQuality);
     static pinpoint::analysis::PoseTrack2D loadFromJson(const QString &file,
                                                         pinpoint::SourceId camera);
 

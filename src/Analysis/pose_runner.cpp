@@ -31,6 +31,7 @@ using pinpoint::analysis::PoseTrack2D;
 #include <vector>
 
 #include <QElapsedTimer>
+#include <QFileInfo>
 #include <QObject>
 
 #include "format_descriptor.h"
@@ -621,16 +622,50 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
 #include <QJsonDocument>
 #include <QJsonObject>
 
+QString PoseRunner::modelIdentity(const QString &motionCaptureQuality)
+{
+#if defined(HAVE_OPENCV) && defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
+    using ViTVariant = PoseEstimatorViTPose::ModelVariant;
+    const bool useLarge = pinpoint::pose::useVitPoseLarge(
+        motionCaptureQuality, PoseEstimatorViTPose::isVariantAvailable(ViTVariant::WholeBodyLarge));
+    const QString path = PoseEstimatorViTPose::modelPath(useLarge ? ViTVariant::WholeBodyLarge
+                                                                  : ViTVariant::WholeBodyB);
+    const QFileInfo fi(path);
+    return fi.fileName() + QLatin1Char('@') + QString::number(fi.exists() ? fi.size() : 0);
+#else
+    Q_UNUSED(motionCaptureQuality);
+    return QStringLiteral("none");
+#endif
+}
+
 pinpoint::analysis::PoseTrack2D PoseRunner::loadFromJson(const QString &file,
                                                          pinpoint::SourceId camera)
+{
+    QFile f(file);
+    if (!f.open(QIODevice::ReadOnly)) {
+        pinpoint::analysis::PoseTrack2D track; track.camera = camera; return track;
+    }
+    return fromJsonObject(QJsonDocument::fromJson(f.readAll()).object(), camera);
+}
+
+pinpoint::analysis::PoseTrack2D PoseRunner::fromJsonObject(const QJsonObject &root,
+                                                           pinpoint::SourceId camera)
 {
     using namespace pinpoint::analysis;
     PoseTrack2D track;
     track.camera = camera;
-    QFile f(file);
-    if (!f.open(QIODevice::ReadOnly))
-        return track;
-    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    // Provenance written by serializeAnalysis (decode mode when dark, the crop
+    // rect when one was applied) — restored so a reloaded track re-serialises
+    // identically to the run that produced it.
+    if (!root.contains(QStringLiteral("frames"))) {
+        const QJsonObject p2 = root[QStringLiteral("pose2d")].toObject();
+        if (p2.contains(QStringLiteral("decode"))) track.decode = p2[QStringLiteral("decode")].toString();
+        if (p2.contains(QStringLiteral("cropRect"))) {
+            const QJsonObject r = p2[QStringLiteral("cropRect")].toObject();
+            track.cropRect = QRectF(r[QStringLiteral("x")].toDouble(), r[QStringLiteral("y")].toDouble(),
+                                    r[QStringLiteral("w")].toDouble(), r[QStringLiteral("h")].toDouble());
+        }
+    }
     const QJsonArray frames = (root.contains(QStringLiteral("frames"))
                                    ? root[QStringLiteral("frames")]
                                    : root[QStringLiteral("pose2d")]

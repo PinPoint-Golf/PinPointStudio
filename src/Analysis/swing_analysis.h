@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "analysis_versions.h"
+
 #include <QHash>
 #include <QMetaType>
 #include <QPointF>
@@ -777,6 +779,7 @@ struct SwingAnalysis {
     ShaftTrack2D              shaft;   // face-on club track (check .valid before use)
     BallTrack2D               ball;    // face-on ball track for the replay overlay (empty ⇒ none)
     AnalysisTimings           timings; // per-stage wall times (telemetry); -1 = not measured
+    AnalysisVersions          versions; // producer versions (analysis_versions.h) — stamped by the stages, persisted, gate re-analysis reuse
 };
 
 } // namespace pinpoint::analysis

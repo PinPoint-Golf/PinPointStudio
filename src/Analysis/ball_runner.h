@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include <QJsonObject>
+
 // Offline ball-detection replay over the face-on camera of a frozen SwingWindow
 // (v3.4 design §9, plan §3 — the "important prerequisite" for archived swings
 // captured before the app recorded a live ball stream). Mirrors PoseRunner
@@ -44,6 +46,10 @@ public:
     // ball for the temporal matched filter to lock onto in a synthetic scene,
     // exactly the reason PoseRunner::loadFromJson() exists for pose. Returns
     // an empty track on any parse problem.
+    // The swing.json `analysis.ball` block (samples[] + launchTUs + launch{x,y}) —
+    // version-gated re-analysis reloads the recorded track instead of replaying.
+    static pinpoint::analysis::BallTrack2D fromAnalysisJson(const QJsonObject &ball,
+                                                            pinpoint::SourceId camera);
     static pinpoint::analysis::BallTrack2D loadFromJson(const QString &file,
                                                          pinpoint::SourceId camera);
 
