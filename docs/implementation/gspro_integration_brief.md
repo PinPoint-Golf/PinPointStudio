@@ -113,16 +113,30 @@ and it drives this connector exactly as a device would.
 #      Device    = GSPro Connect (R10, MLM2PRO, SkyTrak+, …)
 #      Port      = 921   (or 922, or anything above 1024)
 #      Interface = All interfaces
-#    The panel's status row should read "waiting for a launch monitor".
+#      Enabled   = on
+#    The panel's status row should read "Listening — no launch monitor yet".
 
-# 2. From the libgspro checkout, hit a ball at it:
+# 2. Play a launch monitor at it. In THIS repository, needing nothing built:
+python3 tools/launchmonitor/fake_gspro.py                     # a shot every 15 s, forever
+python3 tools/launchmonitor/fake_gspro.py --shots 5           # five, then disconnect
+python3 tools/launchmonitor/fake_gspro.py --club driver --interval 5
+python3 tools/launchmonitor/fake_gspro.py --wait 0            # skip the silent spell
+
+# 3. Or, from a libgspro checkout, replay REAL CLIENTS' byte patterns — which is the
+#    thing fake_gspro.py cannot do, because its shots are ours rather than a device's:
 cd ../libgspro
-python3 tools/gsp_shoot.py --port 921                                  # one [GSP] shot
 python3 tools/gsp_shoot.py --port 921 --fixture osp_shot.json          # a SkyTrak+ shot
-python3 tools/gsp_shoot.py --port 921 --style mlm --repeat 3           # three, as an MLM2PRO writes them
+python3 tools/gsp_shoot.py --port 921 --style mlm --repeat 3           # as an MLM2PRO writes them
 python3 tools/gsp_shoot.py --port 921 --bytewise --gap 0.01            # one byte at a time
-python3 tools/gsp_shoot.py --port 921 --heartbeat 5                    # connect and idle, no shots
+python3 tools/gsp_shoot.py --port 921 --heartbeat 5                    # connect and idle
 ```
+
+⚠ **The two are for different questions.** `fake_gspro.py` is the sibling of
+`fake_shot.py` and lives here: no dependencies at all, plausible shots, and the tool to
+reach for when the connector is not receiving and you need a half of the pair you can
+trust without building anything. `gsp_shoot.py` replays the **conformance fixtures** —
+sixteen real clients' byte patterns, including the ones that misspell a key or omit a
+block — and that is what proves the decoder rather than the plumbing.
 
 Each run connects, sends, reads the reply back through the library's own decoder and disconnects,
 so it exercises the whole path including the acknowledgement the device waits for. The panel's
@@ -134,10 +148,12 @@ the same way a GCQuad's would.
 because that combination means somebody else's real GSPro. Aiming it at `127.0.0.1` is always
 fine; aiming it across the network at a PinPoint bound to `0.0.0.0` needs the flag.
 
-Verified during development against a harness built from these exact sources: `gsp_shoot.py`
-on 921 → device enumerated (unnamed → `GSPro LM 1.1`) → readings with `carryDistance` absent
-where the fixture omits it, a measured `0.0` where the vendor's own example has zeros, and
-`smashFactor` derived only where both speeds are real.
+Verified against the running app: connect → silent (amber, *connecting…* in the home
+screen's device list) → named on the first message → shots acknowledged 200 and counted →
+disconnect drops the row, with the listener surviving all of it. And against a harness
+built from these exact sources: `carryDistance` absent where a fixture omits it, a measured
+`0.0` where the vendor's own example has zeros, and `smashFactor` derived only where both
+speeds are real.
 
 ### What the panel offers
 

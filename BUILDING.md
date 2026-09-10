@@ -651,6 +651,12 @@ The same fix-and-push rule applies: edit the sibling clone, never the fetched co
 `build/*/_deps/gspro-src`. The resolved version and commit appear in the configure log and the
 About box, because the dependency tracks a branch and a local checkout can override it.
 
+**To exercise the connector without a launch monitor**, `tools/launchmonitor/fake_gspro.py`
+plays one: it connects over the protocol and hits plausible shots at a running PinPoint, needs
+no dependencies at all (a socket and `json`), and is the sibling of `fake_shot.py` for the
+GCQuad path. `python3 tools/launchmonitor/fake_gspro.py --shots 5`, with the launch monitor set
+to GSPro Connect and switched on.
+
 The umbrella test suite resolves the library the same way and adds `-DPP_LIBGSPRO_DIR=<path>` for
 an explicit override; `ctest -R gspro` runs the link/ABI check — which is what makes "the
 dependency was added for Linux, macOS and Windows" a claim rather than an expectation, since no
