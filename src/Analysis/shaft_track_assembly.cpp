@@ -431,6 +431,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.snap.maxDeltaDeg", c.snap.maxDeltaDeg);
     apply(ov, "shaft.snap.minLineConf", c.snap.minLineConf);
     apply(ov, "shaft.snap.corridorHalfPx", c.snap.corridorHalfPx);
+    apply(ov, "shaft.snap.skipAddr", c.snap.skipAddr);
     apply(ov, "shaft.snap.skipBlur", c.snap.skipBlur);
     apply(ov, "shaft.snap.coarseStepPx", c.snap.coarseStepPx);
     apply(ov, "shaft.snap.coarseStepDeg", c.snap.coarseStepDeg);
@@ -2315,6 +2316,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             const bool visionTier = (s.flags & ShaftMeasured) || (s.flags & ShaftWedge);
             if (!visionTier) continue;                          // coasted/pred keep lineConf = -1
             const int i = sampleFrame[k];
+            if (cfg.snap.skipAddr && pm.phase[i] == SwingPhase::Addr) continue;
             if (cfg.snap.skipBlur && (pm.phase[i] == SwingPhase::Impact || pm.phase[i] == SwingPhase::Thru)) continue;
             cv::Mat g8 = frameSrc(i);
             if (g8.empty()) continue;                           // undecodable — no measurement

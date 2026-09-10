@@ -542,6 +542,10 @@ int main()
         ShaftV3Config cfgOff = cfg; cfgOff.snap.enabled = false; cfgOff.head.enabled = false;
         ShaftV3Config cfgOn  = cfgOff; cfgOn.snap.enabled = true;
         cfgOn.snap.maxOffsetPx = 22.0; cfgOn.snap.maxDeltaDeg = 20.0;  // admit the ~15° compromise tilt
+        // This case asserts the snap fires on EVERY measured frame, so the shipping
+        // phase skips (P6 flip: skipBlur on Impact/Thru, skipAddr on Addr) must be off
+        // here — they are policy about where snapping pays, not part of the mechanism.
+        cfgOn.snap.skipBlur = false; cfgOn.snap.skipAddr = false;
         ShaftDecideTrace trOn;
         const ShaftTrack2D off = decideTrack(render, tUs, gx, gy, phiRaw, joints, W, H, fps,
                                              {}, 1120.0, -1, cfgOff, nullptr, nullptr);

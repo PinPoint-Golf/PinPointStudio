@@ -43,7 +43,7 @@ namespace pinpoint::analysis {
 
 constexpr int kPoseStageVersion  = 1;
 constexpr int kBallStageVersion  = 1;
-constexpr int kShaftStageVersion = 1;
+constexpr int kShaftStageVersion = 2;
 
 struct AnalysisVersions {
     int     pose  = 0;          // 0 = unknown / not stamped

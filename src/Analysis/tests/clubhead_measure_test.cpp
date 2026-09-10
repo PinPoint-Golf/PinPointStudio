@@ -41,7 +41,11 @@ static void sobels(const cv::Mat &g32, cv::Mat &gx, cv::Mat &gy)
 
 int main()
 {
-    const ClubheadConfig cfg;
+    // These cases pin the terminus walk along ONE ray. The shipping default is now a
+    // ±30 px lateral band (P6 flip: on a bare club the centre ray from the off-axis
+    // pose anchor misses the club), which is a different scan and a different answer.
+    // Pin the centre ray here so the fixtures keep testing the walk, not the policy.
+    const ClubheadConfig cfg = [] { ClubheadConfig c; c.latMaxPx = 0.0; return c; }();
 
     // ── rayEdgeRadius geometry ───────────────────────────────────────────────
     std::printf("=== rayEdgeRadius ===\n");

@@ -67,20 +67,26 @@ enum class SwingPhase : uint8_t {
 // enabled=false ⇒ the pass is skipped and every emitted byte is identical to the
 // pre-snap tracker (soak contract). "shaft.snap.*" keys via fromOverrides.
 struct SnapConfig {
-    bool   enabled        = false;  // master gate — dark until the A2 corpus gate flips it
-    double maxOffsetPx    = 15.0;   // perpendicular search half-range (px)
-    double maxDeltaDeg    = 3.0;    // angular search half-range (deg)
+    bool   enabled        = true;   // DEFAULT ON (P6 flip): markerless profile below, graded 0909
+    double maxOffsetPx    = 45.0;   // perpendicular search half-range (px) — the pose grip anchor sits 39 px off the shaft axis
+    double maxDeltaDeg    = 10.0;   // angular search half-range (deg)
     double minLineConf    = 0.25;   // accept-snap floor on the ridge support under the line
     int    corridorHalfPx = 2;      // lateral half-width integrated along the candidate line (px)
     // Coarse-to-fine grid (cost): the full 1 px × 0.5° grid over ±45 px × ±10° is
     // 3,731 line integrals per sample (707 ms per swing, 0909); a coarse pass at
     // coarseStepPx × coarseStepDeg then the full grid within ±fineHalfPx × ±fineHalfDeg
     // of the best coarse cell is ~580. 0 = full grid (byte-identical).
-    double coarseStepPx   = 0.0;    // shaft.snap.coarseStepPx (e.g. 3)
-    double coarseStepDeg  = 1.5;    // shaft.snap.coarseStepDeg
+    double coarseStepPx   = 2.0;    // shaft.snap.coarseStepPx — 0 = full grid (byte-identical); 2 costs nothing measurable
+    double coarseStepDeg  = 1.0;    // shaft.snap.coarseStepDeg
     double fineHalfPx     = 6.0;    // shaft.snap.fineHalfPx
     double fineHalfDeg    = 2.0;    // shaft.snap.fineHalfDeg
-    bool   skipBlur       = false;  // (opt-in) no snap on Impact/Thru frames: the shaft is a fan there, and a
+    // Address (0909, 7 swings): the snap is worth −7.3° at P4 and −4.8° at P5, but at
+    // P1 it is net +1.5° over 7 marks — 4 worse, 2 better — and twice it re-registers
+    // onto the LEG (+9.0°, +10.0°), the same parallel-ridge failure the 3 July session
+    // shows on the lead arm. The club is static at address and the segment lock's own
+    // ball-pointed probe already owns that frame, so there is nothing to recover here.
+    bool   skipAddr       = true;   // DEFAULT ON: no snap on Addr frames (leg re-registration)
+    bool   skipBlur       = true;   // DEFAULT ON: no snap on Impact/Thru frames: the shaft is a fan there, and a
                                     // re-registration onto whatever ridge exists made the through-swing
                                     // agreement worse (6-iron 0909: 9.6° → 12.4°)
 };

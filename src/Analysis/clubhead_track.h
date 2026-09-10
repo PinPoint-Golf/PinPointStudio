@@ -86,8 +86,9 @@ struct ClubheadConfig {
     double edgeWidthBloom = 12.0;
     double edgeWidthBlade = 24.0;
     double ambigFloor     = 0.15;           // ambiguity conf floor: conf *= clamp(1−s2/s1, ambigFloor, 1)^0.5
-    double latMaxPx       = 0.0;            // lateral band half-width (px); 0 = centre ray (real blurred footage)
-    double latStepPx      = 4.0;            // shaft.head.latStepPx — offset spacing across the band (cost ∝ 2·latMaxPx/latStepPx + 1)
+    double latMaxPx       = 30.0;           // lateral band half-width (px); 0 = centre ray. DEFAULT 30 (P6 flip): on a bare
+                                            // club the centre ray from the off-axis pose anchor misses the club entirely
+    double latStepPx      = 8.0;            // shaft.head.latStepPx — offset spacing across the band (cost ∝ 2·latMaxPx/latStepPx + 1)
     double bgAlpha        = 0.02;           // BG_ALPHA — running-background EMA rate (B3 owns the running bg)
 
     // ── B2 ball-length model (replaces the Python self-fit) ──────────────────
@@ -139,7 +140,7 @@ struct ClubheadConfig {
     // same intensity evidence E2 credits. 0 = off (byte-identical).
     double ridgeThr          = 0.0;         // shaft.head.ridgeThr — hit if ridge > this (e.g. 0.3)
     double tauRidge          = 60.0;        // shaft.head.tauRidge — grey levels over the lateral background for ridge = 1
-    bool   projPrior         = false;       // shaft.head.projPrior (opt-in; grading)
+    bool   projPrior         = true;        // shaft.head.projPrior — DEFAULT ON (P6 flip)
     double projRatioMin      = 0.45;        // shaft.head.projRatioMin — clamp on reach/reachAddr
 
     // ── arm-length plausibility floor ────────────────────────────────────────

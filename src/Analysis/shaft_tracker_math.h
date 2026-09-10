@@ -133,7 +133,7 @@ RayProfile rayProfile(const cv::Mat& img32, double gx, double gy, double thetaRa
 // "shaft.seg.*" keys via ShaftV3Config::fromOverrides. enabled=false ⇒ the
 // tracker never calls the engine — byte-identical output.
 struct SegmentConfig {
-    bool  enabled      = false;
+    bool  enabled      = true;   // DEFAULT ON (P6 flip): the markerless stack, graded on the unmarked 6-iron 0909
     float rLo          = 4.0f;    // first radius (px)
     float eOn          = 30.0f;   // sample is BRIGHT (shaft) at e ≥ this
     float eOff         = 8.0f;    // sample is DARK at e ≤ this (E2's support threshold)
