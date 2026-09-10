@@ -521,14 +521,21 @@ unset(_wrist_origin)
 # exactly as libwrist and libppcp are — the two blocks above are the pattern and
 # this one deliberately does not invent a third.
 #
-# What it is FOR. Almost every launch monitor on the market ships, or has a
-# community bridge that ships, a GSPro Open Connect client: Garmin R10, Rapsodo
-# MLM2PRO, Square, SkyTrak, Uneekor, Bushnell, FlightScope, PiTrac. Speaking the
-# SERVER side of that one protocol reaches all of them with no per-device work,
-# which is why it is worth a dependency rather than a parser per device. It is
-# the second Kind of launch monitor connector beside GcQuad — see the library's
-# docs/design.md §6, which is written against THIS repository's
-# LaunchMonitorBase / LaunchMonitorReading / ShotPairing.
+# What it is FOR. Many launch monitors are reachable through a GSPro Open Connect
+# client somebody else has already written — the library's survey found seventeen,
+# five of them for the Garmin R10 alone, plus the Rapsodo MLM2PRO, a SkyTrak+ via
+# OpenSkyPlus, a Foresight GC2's serial feed, an SLX proxy, and PiTrac and
+# OpenFlight which are native clients. Speaking the SERVER side of that one
+# protocol reaches all of them with no per-device work, which is why it is worth a
+# dependency rather than a parser per device. It is the second Kind of launch
+# monitor connector beside GcQuad — see the library's docs/design.md §6, which is
+# written against THIS repository's LaunchMonitorBase / LaunchMonitorReading /
+# ShotPairing.
+#
+# ⚠ IT DOES NOT REPLACE THE GCQUAD CONNECTOR. Uneekor, Bushnell and Foresight ship
+# no Open Connect client at all — their connectors are closed and speak their own
+# vendors' simulators — so a GCQuad is still reached by watching FSX2020's
+# LastShot.CSV, and a Uneekor only by a third-party folder-watching bridge.
 #
 # ⚠ THE SAME SANS-I/O SPLIT, AND HERE IT IS THE POINT OF THE LIBRARY. It owns no
 # socket, thread, timer, clock or file: PinPoint supplies the QTcpServer, the
@@ -674,6 +681,8 @@ qt_add_executable(PinPointStudio
     src/LaunchMonitor/standalone_gate.h           src/LaunchMonitor/standalone_gate.cpp
     src/LaunchMonitor/gcquad_csv_parser.h        src/LaunchMonitor/gcquad_csv_parser.cpp
     src/LaunchMonitor/gcquad_monitor.h           src/LaunchMonitor/gcquad_monitor.cpp
+    src/LaunchMonitor/gspro_reading.h            src/LaunchMonitor/gspro_reading.cpp
+    src/LaunchMonitor/gspro_monitor.h            src/LaunchMonitor/gspro_monitor.cpp
     src/Gui/launchmonitor/launch_monitor_controller.h src/Gui/launchmonitor/launch_monitor_controller.cpp
     src/Audio/onset_detector.h
     src/Audio/acoustic_shot_detector.h src/Audio/acoustic_shot_detector.cpp

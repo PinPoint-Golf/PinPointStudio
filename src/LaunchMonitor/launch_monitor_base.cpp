@@ -26,6 +26,7 @@ QString kindKey(Kind k)
     switch (k) {
     case Kind::None:   return QStringLiteral("none");
     case Kind::GcQuad: return QStringLiteral("gcquad");
+    case Kind::GsPro:  return QStringLiteral("gspro");
     }
     return QStringLiteral("none");
 }
@@ -35,6 +36,8 @@ Kind kindFromKey(const QString &key)
     const QString k = key.trimmed().toLower();
     if (k == QLatin1String("gcquad"))
         return Kind::GcQuad;
+    if (k == QLatin1String("gspro"))
+        return Kind::GsPro;
     return Kind::None;
 }
 

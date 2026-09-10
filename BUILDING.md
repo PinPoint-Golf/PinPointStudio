@@ -528,7 +528,7 @@ Filter within any built tree with `ctest --test-dir <build> -R <regex>`.
 | **Shot impact-detector** | `src/IMU/tests` | 3 | IMU impact detector truth table (fires once; taps/waggles/swells rejected; refractory; orientation gate; back-dated `est_t`; 100↔200 Hz parity); `ImuIoWorker` thread/EventBuffer contract; ESKF gyro-unit pin. |
 | **Calibrated ball-detection** | `src/Pose/tests` | 3 | `ball_model.h` core (model fitting, theta, multi-cue scoring, gain invariance, drift); calibration protocol (round bookkeeping, profile save/load); `BallDetector` throttle contract. Needs OpenCV (core/imgproc/features2d). |
 | **Acoustic onset-detector** | `src/Audio/tests` | 1 | Onset detector truth table (click fires sample-accurately; speech/tone/ambient rejected; refractory; back-dating; reverb confirm; absolute amplitude gate). |
-| **Launch monitor** | `src/LaunchMonitor/tests` | 4 | `LastShot.CSV` parsing (columns matched by name not position, metric **and** imperial units as FSX2020 declares them, the three derived values, malformed/torn/short input) and shot attribution (`ShotPairing` arming and displacement, parking a reading until a `swingDir` exists, and the watermark that stops a stale file being claimed at startup). Plus the standalone gate — whether a reading nothing else saw becomes a shot of its own — exhaustive over all 2^7 precondition states, split out of the controller so it needs no CameraManager. GoogleTest; the pairing half writes its own fixtures into a `QTemporaryDir` and needs Qt6 Test for `QSignalSpy`. Plus the libgspro link/ABI check — that the GSPro dependency links, that its headers and archive agree, and that a whole protocol session runs with no socket and no clock. |
+| **Launch monitor** | `src/LaunchMonitor/tests` | 6 | `LastShot.CSV` parsing (columns matched by name not position, metric **and** imperial units as FSX2020 declares them, the three derived values, malformed/torn/short input) and shot attribution (`ShotPairing` arming and displacement, parking a reading until a `swingDir` exists, and the watermark that stops a stale file being claimed at startup). Plus the standalone gate — whether a reading nothing else saw becomes a shot of its own — exhaustive over all 2^7 precondition states, split out of the controller so it needs no CameraManager. GoogleTest; the pairing half writes its own fixtures into a `QTemporaryDir` and needs Qt6 Test for `QSignalSpy`. Plus the GSPro Open Connect connector: the libgspro link/ABI check (that the dependency links and its headers match its archive), the `gsp_message` → reading mapping against real clients' byte patterns (presence bits, a measured zero, a back/side-spin-only device, units, the derived values), and the listener itself over a loopback socket — a shot becoming a reading and being acknowledged, a heartbeat answered but not attributed, a message split across three writes, two devices at once, a client vanishing mid-message, and a bind conflict reported rather than swallowed. |
 | **In-app update** | `src/Update/tests` | 3 | Linux updater pure logic (version compare, AppImage asset selection across x86_64/aarch64, GPG VALIDSIG parse, placeholder-key refusal); `PlatformTarget` arch-token map + a tripwire on the **frozen** macOS appcast filenames (`appcast-mac.xml` must stay unsuffixed; arm64 is a separate file); `UpdateController` state-machine + relaunch session-safety policy + QML state-string contract, driven by a `FakeUpdateBackend`. GoogleTest; the policy test needs Qt6 Qml + Test. |
 
 Framework note: Buffer, Core, In-app update and Launch monitor use GoogleTest (fetched automatically); the other five use a self-contained `main()` + `CHECK`/`CHECK_NEAR` (no GoogleTest). `src/Buffer/tests` also builds `latency_benchmark`, intentionally **not** registered with CTest — run it by hand: `./build/tests/Buffer/latency_benchmark` (umbrella) or `./build/buffer-tests/tests/latency_benchmark` (standalone `-S src/Buffer`).
@@ -617,10 +617,17 @@ configure log (`PPCP transport: OpenSSL …, libppcp …`).
 ### Co-developing libgspro
 
 [libgspro](https://github.com/PinPoint-Golf/libgspro) is the sans-I/O C11 server for the **GSPro
-Open Connect v1** protocol — the protocol almost every launch monitor on the market either speaks
-natively or has a community bridge for (Garmin R10, Rapsodo MLM2PRO, Square, SkyTrak, Uneekor,
-Bushnell, FlightScope, PiTrac). Speaking the *server* side of it is what lets one connector
-receive shots from all of them, which is why it is a dependency rather than a parser per device.
+Open Connect v1** protocol. ⚠ Very few launch monitors speak it themselves — somebody wrote a
+bridge that speaks it on the device's behalf, and the library's survey found seventeen: five
+independent ones for the Garmin R10, two for the Rapsodo MLM2PRO, one for a SkyTrak+ via
+OpenSkyPlus, one off a Foresight GC2's serial feed, an SLX proxy, and PiTrac and OpenFlight which
+are native clients. Speaking the *server* side of it is what lets one connector receive shots from
+all of them, which is why it is a dependency rather than a parser per device.
+
+⚠ **Uneekor, Bushnell and Foresight ship no Open Connect client**, so this does not replace the
+GCQuad connector: those devices' own connectors are closed and speak their vendors' simulators,
+and a Uneekor is reachable only through a third-party bridge that watches Uneekor VIEW's shot
+folder.
 
 It is embedded **exactly as libwrist is**, with no differences: the repository is public, so it is
 fetched when no sibling checkout is present and the build works on a machine that has never heard

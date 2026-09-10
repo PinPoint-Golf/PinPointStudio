@@ -7,8 +7,9 @@
 #   • pairing — which swing a reading is attributed to: arming, displacement by
 #               the next shot, parking until a swingDir exists, and the watermark
 #               that stops a stale file being claimed at startup.
-#   • gspro   — the libgspro build dependency: that it links, that its headers and
-#               archive agree, and that a whole session runs with no socket.
+#   • gspro   — the libgspro build dependency (that it links and its headers match
+#               its archive), the gsp_message → reading mapping against real
+#               clients' byte patterns, and the listener itself over loopback.
 # Shared infra (Qt prefix, sanitizers via -DPP_SANITIZE, gtest, pp_add_test) lives
 # in tests/cmake/PinPointTests.cmake.
 #
@@ -28,7 +29,9 @@ set(SRC ${LM}/..)                          # src
 
 # PinPointTests.cmake finds only Core + Gui; suites add what else they need.
 # QSignalSpy (Qt6::Test) is how the pairing test observes readingAvailable.
-find_package(Qt6 REQUIRED COMPONENTS Test)
+# Qt6::Network is the GSPro listener's QTcpServer; the connector suite drives a
+# real client socket at it on loopback.
+find_package(Qt6 REQUIRED COMPONENTS Test Network)
 
 # --- LastShot.CSV parsing: columns, units, derivations, malformed input ----------
 # Pure functions only — no QObject, so no AUTOMOC.
@@ -87,3 +90,35 @@ pp_add_test(gspro_link_test
     LINK    gspro
     NO_QT
     GTEST)
+
+# --- gsp_message → LaunchMonitorReading ------------------------------------------
+# The pure half of the GSPro connector, the same split as the CSV parser above: no
+# socket, no settings, no clock, so every client quirk is covered against a JSON
+# string literal. Needs Qt for QString (the reading is full of them) but no event
+# loop and no QObject, so no AUTOMOC.
+pp_add_test(gspro_reading_test
+    SOURCES gspro_reading_test.cpp
+            ${LM}/gspro_reading.cpp
+            ${LM}/launch_monitor_reading.cpp
+    INCLUDE ${LM}
+    LINK    gspro
+    GTEST)
+
+# --- The listener, over a real loopback socket -----------------------------------
+# GsProMonitor is a QObject that owns a QTcpServer, so this needs AUTOMOC and an
+# event loop; the test drives a real client socket at it, which is the only way to
+# see what a launch monitor would see. The real log (pp_log_stream + PpMessageLog),
+# never pp_debug.cpp — that one drags in whisper/ggml for its installer.
+pp_add_test(gspro_monitor_test
+    SOURCES gspro_monitor_test.cpp
+            ${LM}/gspro_monitor.cpp
+            ${LM}/gspro_reading.cpp
+            ${LM}/launch_monitor_base.cpp
+            ${LM}/launch_monitor_reading.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+            ${LM}/gspro_monitor.h
+            ${LM}/launch_monitor_base.h
+    INCLUDE ${LM} ${SRC}/Core
+    LINK    gspro Qt6::Network Qt6::Test
+    GTEST_NO_MAIN AUTOMOC)

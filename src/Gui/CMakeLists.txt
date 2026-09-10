@@ -77,6 +77,11 @@ else()
         ${PP_ROOT}/src/LaunchMonitor/launch_monitor_factory.cpp
         ${PP_ROOT}/src/LaunchMonitor/gcquad_monitor.cpp
         ${PP_ROOT}/src/LaunchMonitor/gcquad_csv_parser.cpp
+        # ⚠ THE FACTORY REACHES EVERY CONNECTOR, so a second Kind lands here too:
+        # launch_monitor_factory.cpp constructs one of each, which is what makes it
+        # the file that pulls the whole set into any target that compiles it.
+        ${PP_ROOT}/src/LaunchMonitor/gspro_monitor.cpp
+        ${PP_ROOT}/src/LaunchMonitor/gspro_reading.cpp
         ${PP_ROOT}/src/Export/swing_doc.cpp
         ${PP_ROOT}/src/Export/swing_paths.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
@@ -125,8 +130,16 @@ else()
     # NOT linked against QuickShapes, deliberately — PpLmGraphicsBody's FLIGHT card draws with
     # Shape/ShapePath and that plugin resolves off the QML import path at run time exactly as it
     # does for the app, which also links only Qt6::Quick.
+    # ⚠ libgspro comes with the connector set above: GsProMonitor is a host for the
+    # protocol library, so anything compiling the factory links it. pp_require_gspro()
+    # resolves it the way the app does (sibling ../libgspro, an app build's _deps copy,
+    # else a fetch), so this suite still configures on a machine that has never built
+    # the app. Qt6::Network is the QTcpServer the connector owns.
+    pp_require_gspro()
+    find_package(Qt6 REQUIRED COMPONENTS Network)
     target_link_libraries(qml_ui_test PRIVATE
-        Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickTest Qt6::Multimedia Qt6::GuiPrivate)
+        Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickTest Qt6::Multimedia Qt6::GuiPrivate
+        Qt6::Network gspro)
 
     # Offscreen is set on the TEST, not asked of whoever runs it, so headless CI and a developer's
     # desk do the same thing and neither steals focus.

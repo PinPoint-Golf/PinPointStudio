@@ -18,6 +18,7 @@
 #include "launch_monitor_factory.h"
 
 #include "gcquad_monitor.h"
+#include "gspro_monitor.h"
 
 #include <QCoreApplication>
 
@@ -28,6 +29,8 @@ LaunchMonitorBase *makeLaunchMonitor(Kind kind, QObject *parent)
     switch (kind) {
     case Kind::GcQuad:
         return new GcQuadMonitor(parent);
+    case Kind::GsPro:
+        return new GsProMonitor(parent);
     case Kind::None:
         break;
     }
@@ -36,7 +39,7 @@ LaunchMonitorBase *makeLaunchMonitor(Kind kind, QObject *parent)
 
 QList<Kind> availableKinds()
 {
-    return { Kind::None, Kind::GcQuad };
+    return { Kind::None, Kind::GcQuad, Kind::GsPro };
 }
 
 QString kindLabel(Kind kind)
@@ -46,6 +49,13 @@ QString kindLabel(Kind kind)
         return QCoreApplication::translate("LaunchMonitor", "None");
     case Kind::GcQuad:
         return QCoreApplication::translate("LaunchMonitor", "Foresight GC Quad (FSX2020)");
+    case Kind::GsPro:
+        // Named for the PROTOCOL, not for a device: one connector receives from
+        // everything that has an Open Connect bridge, so naming any single device
+        // would send everyone else looking for their own. The three in brackets are
+        // the best-evidenced bridges rather than an exhaustive list — and
+        // deliberately not Uneekor or Bushnell, which ship no such client at all.
+        return QCoreApplication::translate("LaunchMonitor", "GSPro Connect (R10, MLM2PRO, SkyTrak+, …)");
     }
     return QCoreApplication::translate("LaunchMonitor", "None");
 }
@@ -57,6 +67,8 @@ QString kindShortLabel(Kind kind)
         return QString();
     case Kind::GcQuad:
         return QCoreApplication::translate("LaunchMonitor", "GC Quad");
+    case Kind::GsPro:
+        return QCoreApplication::translate("LaunchMonitor", "GSPro");
     }
     return QString();
 }
