@@ -122,10 +122,18 @@ Item {
 
     readonly property var deviceOptions: [
         { label: qsTr("None"),                        value: "none"   },
-        { label: qsTr("Foresight GC Quad (FSX2020)"), value: "gcquad" }
+        { label: qsTr("Foresight GC Quad (FSX2020)"), value: "gcquad" },
+        // ⚠ NAMED FOR THE PROTOCOL, NOT A DEVICE. One connector receives from
+        // everything that has an Open Connect bridge, so naming any single monitor
+        // would send everyone else looking for their own. The three in brackets are
+        // the best-evidenced bridges — deliberately not Uneekor or Bushnell, which
+        // ship no such client at all and are reached, if ever, the GCQuad way.
+        { label: qsTr("GSPro Connect (R10, MLM2PRO, SkyTrak+, …)"), value: "gspro" }
     ]
 
     readonly property bool configured: appSettings.launchMonitorKind !== "none"
+    readonly property bool isGcQuad:   appSettings.launchMonitorKind === "gcquad"
+    readonly property bool isGsPro:    appSettings.launchMonitorKind === "gspro"
 
     readonly property color statusColor:
         launchMonitor.state === "ready"   ? Theme.colorGood
@@ -202,7 +210,9 @@ Item {
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           qsTr("FSX2020 is Windows-only, but the folder it writes to can be a share — so this works from any machine that can see it")
+                        text:           root.isGsPro
+                                        ? qsTr("Launch monitors connect TO PinPoint over the network. Point the device's own app at this machine's address and the port below")
+                                        : qsTr("FSX2020 is Windows-only, but the folder it writes to can be a share — so this works from any machine that can see it")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -224,11 +234,14 @@ Item {
                 }
             }
 
-            // Folder
+            // Folder — the GCQuad's source. Hidden rather than disabled for the GSPro
+            // link: a listener has no folder, and a greyed-out folder picker invites
+            // the question "what should I put there?".
             RowLayout {
                 objectName: "setting_lmPath"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
+                visible: !root.isGsPro
                 opacity: root.configured ? 1.0 : 0.45
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
@@ -283,6 +296,157 @@ Item {
                         label:     qsTr("Open")
                         enabled:   root.configured && appSettings.launchMonitorPath !== ""
                         onClicked: Qt.openUrlExternally(appSettings.fileUrlFor(appSettings.launchMonitorPath))
+                    }
+                }
+            }
+
+            // ── The GSPro link: where devices connect ─────────────────────────────
+            // Port and interface, and then the devices actually on the link. A folder
+            // is configured and that is the end of it; a launch monitor CONNECTS, says
+            // who it is, and can go away again — so this half of the panel answers a
+            // question the GCQuad half does not have.
+            RowLayout {
+                objectName: "setting_lmGsProLink"
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+                visible: root.isGsPro
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+                    Text {
+                        text:           qsTr("Link")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        // ⚠ 921 is the protocol's own port and it is BELOW 1024, which
+                        // costs something on two of the three platforms. The panel says
+                        // so here rather than only in an error nobody sees until it
+                        // fails: on macOS "All interfaces" is what makes 921 work at
+                        // all, and on Linux there is one sysctl or a higher port.
+                        text:           qsTr("Launch monitors connect to this port. 921 is the protocol's default; below 1024 it needs \"All interfaces\" on macOS, or a sysctl on Linux — any port above 1024 works everywhere, set the same one in the device's app")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                        wrapMode:       Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                }
+
+                ColumnLayout {
+                    spacing: Theme.sp(6)
+                    RowLayout {
+                        spacing: Theme.sp(8)
+                        Text {
+                            text:           qsTr("Port")
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          Theme.colorText3
+                        }
+                        PpTextField {
+                            Layout.preferredWidth: Theme.sp(80)
+                            text:                  String(appSettings.gsProPort)
+                            inputMethodHints:      Qt.ImhDigitsOnly
+                            validator:             IntValidator { bottom: 1; top: 65535 }
+                            onEditingFinished:     appSettings.gsProPort = parseInt(text)
+                        }
+                    }
+                    PpComboBox {
+                        Layout.preferredWidth: Theme.sp(160)
+                        model: [ qsTr("All interfaces"), qsTr("This machine only") ]
+                        currentIndex: appSettings.gsProInterface === "loopback" ? 1 : 0
+                        onActivated: (index) => appSettings.gsProInterface = (index === 1 ? "loopback" : "any")
+                    }
+                }
+            }
+
+            // The devices on the link, enumerated as they connect.
+            ColumnLayout {
+                objectName: "setting_lmGsProDevices"
+                Layout.fillWidth: true
+                spacing: Theme.sp(6)
+                visible: root.isGsPro
+                property bool searchHighlight: false
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Text {
+                        text:           qsTr("Connected launch monitors")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Item { Layout.fillWidth: true }
+                    Text {
+                        text:           launchMonitor.deviceCount > 0
+                                        ? qsTr("%1 connected").arg(launchMonitor.deviceCount)
+                                        : qsTr("none yet")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          launchMonitor.deviceCount > 0 ? Theme.colorGood : Theme.colorText3
+                    }
+                }
+
+                // ⚠ EMPTY IS A STATE WORTH DRAWING. "Nothing here" and "we are not
+                // listening" look identical otherwise, and the second one has a cause
+                // the user can act on — which the status row above is already showing.
+                Text {
+                    visible:        launchMonitor.deviceCount === 0
+                    Layout.fillWidth: true
+                    text:           qsTr("Nothing has connected yet. Point the launch monitor's app at this machine and the port above.")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    color:          Theme.colorText3
+                    wrapMode:       Text.WordWrap
+                }
+
+                Repeater {
+                    model: launchMonitor.devices
+                    delegate: Rectangle {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        implicitHeight:   Theme.sp(34)
+                        color:            Theme.colorBg2
+                        radius:           Theme.radius
+                        border.width:     1
+                        border.color:     Theme.colorBorderMid
+
+                        RowLayout {
+                            anchors.fill:        parent
+                            anchors.leftMargin:  Theme.sp(10)
+                            anchors.rightMargin: Theme.sp(10)
+                            spacing:             Theme.sp(10)
+
+                            // Green once it has spoken; amber while it is still an
+                            // anonymous socket. The protocol has no handshake, so a
+                            // device can sit here unnamed for minutes and that is normal.
+                            Rectangle {
+                                width:  Theme.sp(8)
+                                height: Theme.sp(8)
+                                radius: Theme.sp(4)
+                                color:  modelData.identified ? Theme.colorGood : Theme.colorAttention
+                            }
+                            Text {
+                                text:           modelData.label
+                                font.family:    Theme.fontBody
+                                font.pixelSize: Theme.fontSzMicro
+                                color:          Theme.colorText
+                                elide:          Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                            Text {
+                                text:           modelData.shots === 1
+                                                ? qsTr("1 shot")
+                                                : qsTr("%1 shots").arg(modelData.shots)
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                color:          Theme.colorText3
+                            }
+                        }
                     }
                 }
             }

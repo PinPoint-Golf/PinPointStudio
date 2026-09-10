@@ -69,6 +69,10 @@ class AppSettings : public QObject
     // panel layouts in ViewLayout: which of two drawings of the same readings a golfer
     // prefers is a fact about them, not about whether they are capturing or reviewing.
     Q_PROPERTY(QString lmPanelMode READ lmPanelMode WRITE setLmPanelMode NOTIFY lmPanelModeChanged)
+    // The GSPro Open Connect link: the port launch monitors connect TO, and whether
+    // it is offered on every interface or only to this machine.
+    Q_PROPERTY(int     gsProPort      READ gsProPort      WRITE setGsProPort      NOTIFY gsProPortChanged)
+    Q_PROPERTY(QString gsProInterface READ gsProInterface WRITE setGsProInterface NOTIFY gsProInterfaceChanged)
     // The on-disk swing_NNNN dir designated as the wrist diagnostics "compare to reference" swing.
     Q_PROPERTY(QString wristReferenceSwingDir READ wristReferenceSwingDir WRITE setWristReferenceSwingDir NOTIFY wristReferenceSwingDirChanged)
     Q_PROPERTY(bool    timelineSnapToPhases READ timelineSnapToPhases WRITE setTimelineSnapToPhases NOTIFY timelineSnapToPhasesChanged)
@@ -496,6 +500,17 @@ public:
         m_launchMonitorPollMs       = ppSettings().value(QStringLiteral("launchmonitor/pollIntervalMs"), 250).toInt();
         m_launchMonitorChimeEnabled = ppSettings().value(QStringLiteral("launchmonitor/chimeEnabled"), true).toBool();
         m_launchMonitorStandalone   = ppSettings().value(QStringLiteral("launchmonitor/standaloneShots"), false).toBool();
+        // ⚠ THE GSPro LINK KEEPS ITS OWN KEYS RATHER THAN REUSING launchmonitor/path.
+        // That key holds the GCQuad's FOLDER; if the address lived there too, choosing
+        // one connector would destroy the other's configuration, and a user switching
+        // back would find the folder gone with nothing saying why.
+        m_gsProPort      = ppSettings().value(QStringLiteral("launchmonitor/gsproPort"), 921).toInt();
+        // "any" (every interface) | "loopback". ⚠ "any" is the default deliberately:
+        // the useful case is a bridge on a phone or a second machine, and on macOS it
+        // is also the only way to bind 921 without privileges (gspro_monitor.h).
+        m_gsProInterface = ppSettings().value(QStringLiteral("launchmonitor/gsproInterface"), QStringLiteral("any")).toString();
+        if (m_gsProInterface != QLatin1String("any") && m_gsProInterface != QLatin1String("loopback"))
+            m_gsProInterface = QStringLiteral("any");
 
         m_clubLenPrior = ppSettings().value(QStringLiteral("analysis/clubLenPrior"), QVariantMap{}).toMap();
     }
@@ -508,6 +523,8 @@ public:
     QString density()       const { return m_density; }
     QString timelineOrientation() const { return m_timelineOrientation; }
     QString lmPanelMode()   const { return m_lmPanelMode; }
+    int     gsProPort()      const { return m_gsProPort; }
+    QString gsProInterface() const { return m_gsProInterface; }
     QString wristReferenceSwingDir() const { return m_wristReferenceSwingDir; }
     bool    timelineSnapToPhases() const { return m_timelineSnapToPhases; }
     bool    metricsHidePlanned()  const { return m_metricsHidePlanned; }
@@ -1476,6 +1493,26 @@ public:
         ppSettings().setValue(QStringLiteral("launchmonitor/chimeEnabled"), v);
         emit launchMonitorChimeEnabledChanged();
     }
+    void setGsProPort(int v)
+    {
+        // ⚠ 0 IS NOT ALLOWED HERE even though the connector understands it as
+        // "let the kernel choose": a launch monitor has to be pointed at a port a
+        // human can type into its own app, and an ephemeral one changes every run.
+        v = qBound(1, v, 65535);
+        if (m_gsProPort == v) return;
+        m_gsProPort = v;
+        ppSettings().setValue(QStringLiteral("launchmonitor/gsproPort"), v);
+        emit gsProPortChanged();
+    }
+    void setGsProInterface(const QString &raw)
+    {
+        const QString v = (raw == QLatin1String("loopback")) ? raw : QStringLiteral("any");
+        if (m_gsProInterface == v) return;
+        m_gsProInterface = v;
+        ppSettings().setValue(QStringLiteral("launchmonitor/gsproInterface"), v);
+        emit gsProInterfaceChanged();
+    }
+
     void setLaunchMonitorStandalone(bool v)
     {
         if (m_launchMonitorStandalone == v) return;
@@ -1599,6 +1636,8 @@ signals:
     void launchMonitorPollMsChanged();
     void launchMonitorChimeEnabledChanged();
     void launchMonitorStandaloneChanged();
+    void gsProPortChanged();
+    void gsProInterfaceChanged();
     void clubLenPriorChanged();
 
 private:
@@ -1713,6 +1752,8 @@ private:
     int     m_launchMonitorPollMs = 250;
     bool    m_launchMonitorChimeEnabled = true;
     bool    m_launchMonitorStandalone = false;
+    int     m_gsProPort      = 921;
+    QString m_gsProInterface = QStringLiteral("any");
 
     QVariantMap m_clubLenPrior;
 

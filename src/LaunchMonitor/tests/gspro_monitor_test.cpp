@@ -379,6 +379,101 @@ TEST(GsProMonitor, ABarePortMeansThePortOnEveryInterface)
     m.stop();
 }
 
+TEST(GsProMonitor, EnumeratesEachDeviceAsItConnectsAndIdentifiesItself)
+{
+    // ⚠ THE QUESTION A FOLDER CANNOT ASK. The GCQuad path is configured and that
+    // is the end of it; here a device CONNECTS, says who it is, and can go away
+    // again — so "which launch monitors are on the link right now" has a changing
+    // answer, and the settings panel shows it beside the cameras and the IMUs.
+    Listener l;
+    QSignalSpy changed(&l.m, &GsProMonitor::clientsChanged);
+    EXPECT_TRUE(l.m.clients().isEmpty());
+
+    FakeClient a;
+    ASSERT_TRUE(a.connectTo(l.m.boundPort()));
+    ASSERT_TRUE(waitFor([&] { return l.m.clients().size() == 1; }));
+
+    // ⚠ CONNECTED IS NOT IDENTIFIED. The protocol has no handshake — a client may
+    // sit there for minutes before it says anything — so a socket with no name is
+    // an ordinary state the panel has to draw, not a fault.
+    {
+        const auto clients = l.m.clients();
+        EXPECT_FALSE(clients.at(0).identified);
+        EXPECT_TRUE(clients.at(0).deviceId.isEmpty());
+        EXPECT_FALSE(clients.at(0).peer.isEmpty()) << "the socket's address is known at once";
+        EXPECT_EQ(clients.at(0).shots, 0);
+        EXPECT_GT(clients.at(0).connectedAtMs, 0);
+        EXPECT_EQ(clients.at(0).lastMessageAtMs, 0) << "it has never spoken";
+    }
+
+    a.send(kShot);
+    ASSERT_TRUE(waitFor([&] { return l.m.clients().value(0).identified; }));
+    {
+        const auto clients = l.m.clients();
+        ASSERT_EQ(clients.size(), 1);
+        EXPECT_EQ(clients.at(0).deviceId.toStdString(), "TestMonitor");
+        EXPECT_EQ(clients.at(0).shots, 1);
+        EXPECT_EQ(clients.at(0).messages, 1);
+        EXPECT_GT(clients.at(0).lastMessageAtMs, 0);
+    }
+
+    // A second device, and the two are told apart.
+    FakeClient b;
+    ASSERT_TRUE(b.connectTo(l.m.boundPort()));
+    ASSERT_TRUE(waitFor([&] { return l.m.clients().size() == 2; }));
+    b.send(kHeartbeat);
+    ASSERT_TRUE(waitFor([&] {
+        const auto c = l.m.clients();
+        return c.size() == 2 && c.at(0).identified && c.at(1).identified;
+    }));
+    {
+        const auto clients = l.m.clients();
+        EXPECT_NE(clients.at(0).conn, clients.at(1).conn);
+        // ⚠ A HEARTBEAT COUNTS AS A MESSAGE AND NOT AS A SHOT, which is what makes
+        // "1 shot" on the panel mean a ball was struck.
+        const auto &second = clients.at(1);
+        EXPECT_EQ(second.messages, 1);
+        EXPECT_EQ(second.shots, 0);
+    }
+
+    // And it disappears when it goes away.
+    b.close();
+    ASSERT_TRUE(waitFor([&] { return l.m.clients().size() == 1; }));
+    EXPECT_EQ(l.m.clients().at(0).deviceId.toStdString(), "TestMonitor");
+    EXPECT_GT(changed.count(), 0) << "the panel is told rather than having to poll";
+}
+
+TEST(GsProMonitor, TheDeviceListIsEmptyWhenNothingIsListening)
+{
+    // A connector that has not been started must not report devices from a
+    // previous run, and must not crash when asked.
+    GsProMonitor m;
+    EXPECT_TRUE(m.clients().isEmpty());
+    EXPECT_EQ(m.connectionCount(), 0);
+    EXPECT_EQ(m.boundPort(), 0);
+}
+
+TEST(GsProSourcePath, TurnsTheTwoSettingsIntoOneAddress)
+{
+    using pinpoint::lm::gsProSourcePath;
+
+    EXPECT_EQ(gsProSourcePath(921, QStringLiteral("any")).toStdString(), "0.0.0.0:921");
+    EXPECT_EQ(gsProSourcePath(921, QStringLiteral("loopback")).toStdString(), "127.0.0.1:921");
+    EXPECT_EQ(gsProSourcePath(9210, QStringLiteral("any")).toStdString(), "0.0.0.0:9210");
+
+    // ⚠ ANYTHING THAT IS NOT "loopback" MEANS ALL INTERFACES. A value from a newer
+    // version, an empty setting or a typo must not silently produce the
+    // restrictive binding — which on macOS is also the one that cannot bind 921.
+    EXPECT_EQ(gsProSourcePath(921, QString()).toStdString(), "0.0.0.0:921");
+    EXPECT_EQ(gsProSourcePath(921, QStringLiteral("LOOPBACK")).toStdString(), "0.0.0.0:921");
+    EXPECT_EQ(gsProSourcePath(921, QStringLiteral("wifi-only")).toStdString(), "0.0.0.0:921");
+
+    // Clamped rather than refused: a listener on a sane port beats one that would
+    // not start because a digit was typed twice.
+    EXPECT_EQ(gsProSourcePath(0, QStringLiteral("any")).toStdString(), "0.0.0.0:1");
+    EXPECT_EQ(gsProSourcePath(999999, QStringLiteral("any")).toStdString(), "0.0.0.0:65535");
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);

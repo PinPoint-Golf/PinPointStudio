@@ -22,6 +22,8 @@
 #include "../../Export/swing_paths.h"
 
 #include <QObject>
+#include <QVariantList>
+#include <QVariantMap>
 #include <QString>
 
 class AppSettings;
@@ -61,6 +63,22 @@ class LaunchMonitorController : public QObject
     // A one-line summary of the last reading applied ("283 · Irn · 87.2 mph"), so the
     // settings panel can prove the connection works without opening a shot.
     Q_PROPERTY(QString lastReading  READ lastReading  NOTIFY lastReadingChanged)
+    // ── The devices actually on the link ────────────────────────────────────
+    // ⚠ A CONFIGURED CONNECTOR AND A CONNECTED DEVICE ARE DIFFERENT FACTS, and
+    // only the GSPro link can tell them apart: a folder is configured and that is
+    // the end of it, but a launch monitor CONNECTS, says who it is, and can go
+    // away again. So this is a list rather than a name, it is empty for the GCQuad
+    // path, and the panel shows it beside the cameras and the IMUs.
+    //
+    // Each entry: { deviceId, peer, shots, messages, identified, connectedAtMs,
+    // lastMessageAtMs, label }. `label` is what to show — the DeviceID once the
+    // device has spoken, "connecting…" before that.
+    Q_PROPERTY(QVariantList devices     READ devices     NOTIFY devicesChanged)
+    Q_PROPERTY(int          deviceCount READ deviceCount NOTIFY devicesChanged)
+    // True when this connector enumerates at all, so a panel can show the list for
+    // the GSPro link and the configured-folder line for the GCQuad without asking
+    // which kind it is holding.
+    Q_PROPERTY(bool         enumerates  READ enumerates  NOTIFY stateChanged)
 
 public:
     // athleteController and sessionController are needed only by the standalone path —
@@ -80,6 +98,21 @@ public:
     QString sourceText() const;
     QString deviceName() const;
     QString lastReading() const { return m_lastReading; }
+    QVariantList devices() const;
+    int          deviceCount() const { return devices().size(); }
+    bool         enumerates() const;
+
+    // ── PinPoint → the device ───────────────────────────────────────────────
+    // Club selection and session state travel OUT on a link that carries them:
+    // GSPro tells a launch monitor which club is in play so it can switch to
+    // putting mode, and an OSP-style client does not arm until it has seen a
+    // session start. Both are no-ops on a connector that cannot send (the GCQuad
+    // reads a file; there is nothing to tell it), so callers need not ask which
+    // connector is configured.
+    //
+    // `club` is a GSPro club code — "PT", "DR", "I7". Anything else clears it.
+    Q_INVOKABLE void setPlayerClub(const QString &club, bool leftHanded);
+    Q_INVOKABLE void setSessionActive(bool active);
 
 public slots:
     // ShotController::shotDetected. The extra arguments are ignored — which swing a
@@ -100,6 +133,7 @@ public slots:
 signals:
     void stateChanged();
     void lastReadingChanged();
+    void devicesChanged();
     // A reading has been WRITTEN to a shot. The toolbar dot and the chime hang off
     // this rather than off the file changing: the light means "brought in", not
     // "noticed", and a reading we could not attribute must not flash anything.
@@ -147,4 +181,9 @@ private:
     // The row the processor already created for a shot that produced no document.
     int                            m_destinationShotId = -1;
     QString                        m_lastReading;
+    // Remembered so a connector rebuilt from a settings change is told again
+    // without waiting for the next club selection.
+    QString                        m_club;
+    bool                           m_leftHanded    = false;
+    bool                           m_sessionActive = false;
 };

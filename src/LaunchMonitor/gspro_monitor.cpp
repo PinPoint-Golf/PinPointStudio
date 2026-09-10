@@ -55,6 +55,22 @@ QString formatEvent(const gsp_event &ev)
 
 } // namespace
 
+QString gsProSourcePath(int port, const QString &interfaceKey)
+{
+    // ⚠ "loopback" IS THE ONLY THING THAT MEANS LOOPBACK. Anything else — an empty
+    // setting, a value from a newer version, a typo — means all interfaces, which
+    // is the working default rather than the safe-looking one that cannot bind 921
+    // on a Mac at all (see the note at the top of this file).
+    const QString host = (interfaceKey == QLatin1String("loopback"))
+                             ? QStringLiteral("127.0.0.1")
+                             : QStringLiteral("0.0.0.0");
+    // A port outside the range is clamped rather than refused: the setting is a
+    // text field, and a listener on the default port is more useful than one that
+    // refused to start because somebody typed a digit too many.
+    const int p = qBound(1, port, 65535);
+    return QStringLiteral("%1:%2").arg(host).arg(p);
+}
+
 GsProMonitor::GsProMonitor(QObject *parent) : LaunchMonitorBase(parent)
 {
     // ⚠ SINGLE SHOT, AND RE-ARMED FROM next_due_us AFTER EVERY CALL IN. The
@@ -169,20 +185,39 @@ void GsProMonitor::start()
         // The reason is the platform's own words, and the hint is what turns
         // "Address already in use" into something actionable.
         QString why = m_server->errorString();
-        // ⚠ THE TWO FAILURES MEAN OPPOSITE THINGS AND THE FIX IS DIFFERENT, so
-        // they are told apart rather than both reported as "cannot bind".
+        // ⚠ THREE FAILURES, THREE DIFFERENT FIXES, and a host that reported them
+        // all as "cannot bind" would send the user to the wrong one every time.
         if (m_server->serverError() == QAbstractSocket::SocketAccessError && port < 1024) {
-            // macOS and Linux reserve ports below 1024 for root, and 921 is the
-            // vendor's Windows-born default. Running an unauthenticated listener
-            // as root is not the answer; moving the port is.
-            why += tr(" — ports below 1024 need administrator privileges on this "
-                      "platform. Choose a port above 1024 here and set the same port "
-                      "in the launch monitor's app; every client has that setting.");
+#if defined(Q_OS_MACOS)
+            // Measured on macOS 27: 0.0.0.0:921 binds as an ordinary user and
+            // 127.0.0.1:921 does not. So the RESTRICTIVE choice is the one that
+            // fails, and the first thing to offer is the permissive one.
+            if (m_address != QHostAddress::Any) {
+                why += tr(" — on macOS a port below 1024 can be bound on ALL INTERFACES "
+                          "but not on one address. Set the interface to \"All\", or "
+                          "choose a port above 1024 here and in the launch monitor's app.");
+            } else {
+                why += tr(" — ports below 1024 need privileges here. Choose a port above "
+                          "1024, in this panel and in the launch monitor's app.");
+            }
+#elif defined(Q_OS_LINUX)
+            why += tr(" — ports below 1024 are privileged on Linux. The preferred fix is "
+                      "to move the boundary rather than to grant this program anything:\n"
+                      "    sudo sysctl net.ipv4.ip_unprivileged_port_start=921\n"
+                      "Otherwise choose a port above 1024, here and in the launch "
+                      "monitor's app.");
+#else
+            why += tr(" — ports below 1024 need privileges here. Choose a port above "
+                      "1024, in this panel and in the launch monitor's app.");
+#endif
         } else if (m_server->serverError() == QAbstractSocket::AddressInUseError
                    && port == quint16(GSP_DEFAULT_PORT)) {
             why += tr(" — GSPro Connect itself listens on %1. Move one of them: GSPro to "
                       "%2 with <OpenAPIUseAltPort>true</OpenAPIUseAltPort>, or PinPoint to "
-                      "any free port above 1024.").arg(port).arg(int(GSP_ALT_PORT));
+                      "another port.").arg(port).arg(int(GSP_ALT_PORT));
+        } else if (m_server->serverError() == QAbstractSocket::AddressInUseError) {
+            why += tr(" — something else on this machine is already listening on %1.")
+                       .arg(port);
         }
         ppWarn() << "LaunchMonitor: GSPro listener cannot bind" << port << ":" << why;
         closeServer();
@@ -274,6 +309,7 @@ void GsProMonitor::onNewConnection()
         m_ids.insert(sock, conn);
         connect(sock, &QTcpSocket::readyRead,    this, &GsProMonitor::onReadyRead);
         connect(sock, &QTcpSocket::disconnected, this, &GsProMonitor::onDisconnected);
+        emit clientsChanged();
     }
     pump();
 }
@@ -318,6 +354,7 @@ void GsProMonitor::onDisconnected()
                                                   monotonicUs());
     }
     sock->deleteLater();
+    emit clientsChanged();
     pump();
 }
 
@@ -367,12 +404,18 @@ void GsProMonitor::pump()
                 reading->readAtMs   = QDateTime::currentMSecsSinceEpoch();
                 setState(State::Ready, QString());
                 emit readingAvailable(*reading);
+                emit clientsChanged();   // its shot count moved
                 break;
             }
             case GSP_EV_CLIENT_IDENTIFIED:
+                // ⚠ THE MOMENT A CONNECTION BECOMES A DEVICE. Until its first
+                // message a client is an anonymous socket — the protocol has no
+                // handshake and a client may say nothing for minutes — so this is
+                // where the panel's list gains a name to show.
                 m_lastDeviceId = QString::fromUtf8(e.u.connection.info.device_id);
                 setState(State::Ready, QString());
                 ppInfo() << "LaunchMonitor:" << formatEvent(e);
+                emit clientsChanged();
                 break;
             case GSP_EV_CONNECTION_OPENED:
             case GSP_EV_CONNECTION_CLOSED:
@@ -457,6 +500,43 @@ void GsProMonitor::setSessionActive(bool active)
                                        active ? GSP_SESSION_ACTIVE : GSP_SESSION_ENDED,
                                        monotonicUs());
     pump();
+}
+
+QList<GsProMonitor::Client> GsProMonitor::clients() const
+{
+    QList<Client> out;
+    if (!m_gs)
+        return out;
+
+    // ⚠ READ FROM THE LIBRARY, NOT FROM A TALLY OF OUR OWN. It is already counting
+    // messages, shots and protocol errors per connection, and it knows which
+    // DeviceID arrived first — a second count kept here would be a second thing to
+    // get wrong, and the two would disagree exactly when somebody was debugging.
+    gsp_conn_id ids[16];
+    const size_t n = gsp_server_connection_ids(m_gs, ids, 16);
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    const gsp_time_us nowUs = monotonicUs();
+
+    for (size_t i = 0; i < n && i < 16; ++i) {
+        gsp_connection_info info;
+        if (gsp_server_connection_info(m_gs, ids[i], &info) < GSP_OK)
+            continue;
+        Client c;
+        c.conn       = info.conn;
+        c.deviceId   = QString::fromUtf8(info.device_id);
+        c.peer       = QString::fromUtf8(info.peer);
+        c.messages   = int(info.messages);
+        c.shots      = int(info.shots);
+        c.identified = info.identified != 0;
+        // The library's clock is monotonic microseconds; the panel wants wall
+        // clock. Converted here, once, rather than storing a second timestamp.
+        c.connectedAtMs = nowMs - (nowUs - info.opened_us) / 1000;
+        c.lastMessageAtMs = (info.last_message_us == GSP_TIME_UNKNOWN)
+                                ? 0
+                                : nowMs - (nowUs - info.last_message_us) / 1000;
+        out.append(c);
+    }
+    return out;
 }
 
 quint16 GsProMonitor::boundPort() const

@@ -27,6 +27,8 @@
 #include "shot_list_model.h"
 #include "../../Export/swing_doc.h"
 
+#include "gspro_monitor.h"
+
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
@@ -52,6 +54,13 @@ LaunchMonitorController::LaunchMonitorController(AppSettings *settings, ShotList
         connect(m_settings, &AppSettings::launchMonitorPollMsChanged, this, [this]() {
             if (m_monitor) m_monitor->setPollIntervalMs(m_settings->launchMonitorPollMs());
         });
+        // The GSPro link's address. Both go through reconfigure() rather than a
+        // setSourcePath() poke, because changing either has to rebind the listener
+        // and the connector's own start/stop is what knows how.
+        connect(m_settings, &AppSettings::gsProPortChanged,
+                this, &LaunchMonitorController::reconfigure);
+        connect(m_settings, &AppSettings::gsProInterfaceChanged,
+                this, &LaunchMonitorController::reconfigure);
     }
 }
 
@@ -78,14 +87,89 @@ void LaunchMonitorController::reconfigure()
                 this, &LaunchMonitorController::onReadingAvailable);
         connect(m_monitor, &LaunchMonitorBase::stateChanged,
                 this, &LaunchMonitorController::stateChanged);
+        // ⚠ Only one connector enumerates, so only one has this signal. The cast
+        // is what keeps the base class out of it: a folder does not connect, and
+        // giving LaunchMonitorBase a virtual for a question one connector can
+        // answer would put an empty implementation in every future one.
+        if (auto *gs = qobject_cast<GsProMonitor *>(m_monitor)) {
+            connect(gs, &GsProMonitor::clientsChanged,
+                    this, &LaunchMonitorController::devicesChanged);
+        }
     }
 
     if (m_settings) {
         m_monitor->setPollIntervalMs(m_settings->launchMonitorPollMs());
-        m_monitor->setSourcePath(m_settings->launchMonitorPath());
+        // ⚠ THE SOURCE IS A FOLDER FOR ONE CONNECTOR AND AN ADDRESS FOR THE OTHER,
+        // and the base class anticipated exactly that ("either a watched path or a
+        // polled endpoint"). Composed here rather than stored composed, so the two
+        // settings stay independently editable and a port change cannot corrupt a
+        // path.
+        if (kind == Kind::GsPro) {
+            m_monitor->setSourcePath(gsProSourcePath(m_settings->gsProPort(),
+                                                     m_settings->gsProInterface()));
+        } else {
+            m_monitor->setSourcePath(m_settings->launchMonitorPath());
+        }
     }
     m_monitor->start();
+    // What PinPoint already knows, told again: a connector rebuilt by a settings
+    // change must not wait for the next club selection to learn the club.
+    if (!m_club.isEmpty() || m_sessionActive) {
+        setPlayerClub(m_club, m_leftHanded);
+        setSessionActive(m_sessionActive);
+    }
     emit stateChanged();
+    emit devicesChanged();
+}
+
+QVariantList LaunchMonitorController::devices() const
+{
+    QVariantList out;
+    auto *gs = qobject_cast<GsProMonitor *>(m_monitor);
+    if (!gs)
+        return out;                 // a folder does not enumerate
+
+    for (const auto &c : gs->clients()) {
+        QVariantMap m;
+        m[QStringLiteral("deviceId")]   = c.deviceId;
+        m[QStringLiteral("peer")]       = c.peer;
+        m[QStringLiteral("shots")]      = c.shots;
+        m[QStringLiteral("messages")]   = c.messages;
+        m[QStringLiteral("identified")] = c.identified;
+        m[QStringLiteral("connectedAtMs")]   = c.connectedAtMs;
+        m[QStringLiteral("lastMessageAtMs")] = c.lastMessageAtMs;
+        // ⚠ WHAT TO SHOW, decided here rather than in QML. A client is an
+        // anonymous socket until its first message — the protocol has no
+        // handshake and a device may say nothing for minutes — and "connecting…"
+        // is the honest label for that, not a blank row.
+        m[QStringLiteral("label")] = c.identified && !c.deviceId.isEmpty()
+                                         ? c.deviceId
+                                         : tr("connecting…");
+        out.append(m);
+    }
+    return out;
+}
+
+bool LaunchMonitorController::enumerates() const
+{
+    return qobject_cast<GsProMonitor *>(m_monitor) != nullptr;
+}
+
+void LaunchMonitorController::setPlayerClub(const QString &club, bool leftHanded)
+{
+    m_club       = club;
+    m_leftHanded = leftHanded;
+    // A no-op on a connector that cannot send, which is why the caller does not
+    // have to ask which one is configured.
+    if (auto *gs = qobject_cast<GsProMonitor *>(m_monitor))
+        gs->setPlayerClub(club, leftHanded);
+}
+
+void LaunchMonitorController::setSessionActive(bool active)
+{
+    m_sessionActive = active;
+    if (auto *gs = qobject_cast<GsProMonitor *>(m_monitor))
+        gs->setSessionActive(active);
 }
 
 bool LaunchMonitorController::configured() const

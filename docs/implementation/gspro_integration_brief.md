@@ -1,8 +1,9 @@
 # GSPro Open Connect integration — implementation brief
 
-**Status:** the dependency, the connector and its tests have landed — `120d4dd` (dependency and
-link check) and this commit (connector). **Not yet wired to the controller, the settings panel or
-QML**, so nothing in the running app can select it yet; §4 is what remains.
+**Status:** the dependency, the connector, the settings, the controller wiring and the device
+list have landed — `120d4dd` (dependency and link check), `79bc926` (connector) and this commit
+(settings, enumeration, club/session out). **Selectable in Settings → Devices → Launch monitor
+and testable with synthetic shots today**; §4 is what remains.
 **Scope:** add a second launch-monitor `Kind` that receives shots from *any* device speaking the
 GSPro Open Connect v1 protocol, over TCP, and turns them into `LaunchMonitorReading`s the shot
 pairing and the metric catalogue already understand.
@@ -49,7 +50,10 @@ this connector removes is the per-device work for everything that *does* have a 
 | `Kind::GsPro` | `launch_monitor_base.h/.cpp`, `launch_monitor_factory.cpp` | The settings token is `"gspro"`; the combo label names the **protocol**, not a device |
 | The mapping | `gspro_reading.h/.cpp` | `gsp_message` → `LaunchMonitorReading`, pure, no socket — the same split as `gcquad_csv_parser` |
 | The listener | `gspro_monitor.h/.cpp` | `GsProMonitor : LaunchMonitorBase` — a `QTcpServer`, the library handle, the connection table and one timer |
-| Tests | `src/LaunchMonitor/tests/` | The link/ABI check, the mapping against real clients' byte patterns, and the listener over a loopback socket (6 targets in the suite now) |
+| Settings | `app_settings.h`, `LaunchMonitorPanel.qml` | A port and an interface, kept apart from the GCQuad's folder key; the device list; the per-platform bind hints |
+| Enumeration | `gspro_monitor.h`, `launch_monitor_controller.h` | `clients()` → `devices` — who is on the link, named once they speak, with their shot counts |
+| Club and session out | `GsProMonitor::setPlayerClub/setSessionActive` | Reachable from the controller; not yet called by the app (§5) |
+| Tests | `src/LaunchMonitor/tests/` | The link/ABI check, the mapping against real clients' byte patterns, the listener over a loopback socket, the enumeration, and the settings→address decision (6 targets in the suite) |
 
 **The split is the point.** libgspro owns no socket, thread, timer, clock or file: it takes bytes
 and a `now` and hands back replies to write and events to handle. Everything below the JSON is
@@ -98,19 +102,73 @@ GSPro answers all of them with the same 200 as a real shot (§4.2) — so the ac
 library's business and the *distinction* is ours. A connector that conflated them would attribute
 an empty reading to a swing every few seconds.
 
-## 4. What remains
+## 4. Testing it with synthetic shots
 
-Nothing in the running app can select this yet. In rough order:
+⚠ **No launch monitor is needed and none has ever been used.** libgspro ships a launch-monitor
+simulator that sends the conformance fixtures — real clients' byte patterns — over a real socket,
+and it drives this connector exactly as a device would.
 
-1. **Controller wiring** — `LaunchMonitorController` (`src/Gui/launchmonitor/`) already binds a
-   `LaunchMonitorBase` and maps `State` to the strings QML switches on, so the connector arrives
-   with that for free. What it does not have: pushing the club selection and session start/stop
-   *out* to the device (`setPlayerClub`, `setSessionActive`).
-2. **Settings panel** — a port and an interface (all / loopback) where the GCQuad has a folder.
-   The bind error is the thing to surface prominently; see the privileged-port note above.
-3. **Windows firewall** — an inbound rule for the executable, or every device on another machine
+```sh
+# 1. In PinPoint: Settings → Devices → Launch monitor
+#      Device    = GSPro Connect (R10, MLM2PRO, SkyTrak+, …)
+#      Port      = 921   (or 922, or anything above 1024)
+#      Interface = All interfaces
+#    The panel's status row should read "waiting for a launch monitor".
+
+# 2. From the libgspro checkout, hit a ball at it:
+cd ../libgspro
+python3 tools/gsp_shoot.py --port 921                                  # one [GSP] shot
+python3 tools/gsp_shoot.py --port 921 --fixture osp_shot.json          # a SkyTrak+ shot
+python3 tools/gsp_shoot.py --port 921 --style mlm --repeat 3           # three, as an MLM2PRO writes them
+python3 tools/gsp_shoot.py --port 921 --bytewise --gap 0.01            # one byte at a time
+python3 tools/gsp_shoot.py --port 921 --heartbeat 5                    # connect and idle, no shots
+```
+
+Each run connects, sends, reads the reply back through the library's own decoder and disconnects,
+so it exercises the whole path including the acknowledgement the device waits for. The panel's
+**Connected launch monitors** list shows the client while it is connected — unnamed at first,
+then by its `DeviceID` once it has spoken, with its shot count — and each shot lands as a reading
+the same way a GCQuad's would.
+
+⚠ **`gsp_shoot.py` refuses port 921 on a NON-loopback address** unless told `--yes-i-mean-it`,
+because that combination means somebody else's real GSPro. Aiming it at `127.0.0.1` is always
+fine; aiming it across the network at a PinPoint bound to `0.0.0.0` needs the flag.
+
+Verified during development against a harness built from these exact sources: `gsp_shoot.py`
+on 921 → device enumerated (unnamed → `GSPro LM 1.1`) → readings with `carryDistance` absent
+where the fixture omits it, a measured `0.0` where the vendor's own example has zeros, and
+`smashFactor` derived only where both speeds are real.
+
+### What the panel offers
+
+| Setting | Key | Default | Note |
+|---|---|---|---|
+| Port | `launchmonitor/gsproPort` | 921 | The device's app must be set to the same one |
+| Interface | `launchmonitor/gsproInterface` | `any` | `any` \| `loopback`. ⚠ `any` is also what makes 921 bind on macOS |
+
+Kept apart from `launchmonitor/path`, which holds the GCQuad's folder: sharing one key would mean
+choosing one connector destroyed the other's configuration.
+
+⚠ **Port 921 is below 1024.** Windows does not care; macOS binds it on all interfaces and refuses
+it on any single address; Linux wants `sudo sysctl net.ipv4.ip_unprivileged_port_start=921`, which
+is preferred over granting the binary `CAP_NET_BIND_SERVICE` and far preferred over running as
+root. Any port above 1024 works everywhere with no administrator at all. The connector reports
+each failure with the fix for *that* failure.
+
+## 5. What remains
+
+1. **Club and session out of the app.** `LaunchMonitorController::setPlayerClub()` and
+   `setSessionActive()` exist, are `Q_INVOKABLE`, and reach the device — but nothing calls them
+   yet. They want binding to PinPoint's own club selection and to session start/stop, which is
+   where a device switches to putting mode and where an [OSP]-style client arms.
+2. **Windows firewall** — an inbound rule for the executable, or every device on another machine
    fails with "connection refused" and nothing distinguishes that from a device nobody switched
    on. The installer adds it; the panel should say whether it is present.
+3. **A `virtual` for enumeration, if a third connector ever needs it.** `devices` reaches
+   `GsProMonitor` through a `qobject_cast` in the controller, deliberately: a folder does not
+   connect, and putting `connectedDevices()` on `LaunchMonitorBase` would give every future
+   connector an empty override to write. If a second enumerating connector appears, that is the
+   moment to promote it — and it is a base-class change, so it is a conversation.
 4. **First contact.** ⚠ Nothing in either repository has met a launch monitor. The library's
    suite is 115 socket-free cases plus a host-transport family run against two adapters, and
    every fixture in it is a transcription of a client's *source*, not a capture off a wire. Three

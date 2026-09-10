@@ -73,19 +73,36 @@ namespace pinpoint::lm {
 // nothing here can tell the difference between that and a device nobody switched
 // on. Loopback stays available as the restrictive setting.
 //
-// ⚠ PORT 921 CANNOT BE BOUND BY AN ORDINARY USER ON macOS OR LINUX. It is below
-// 1024, so the kernel reserves it for root — the vendor chose it on Windows,
-// where no such rule exists. Binding it here fails with "permission denied" on
-// two of the three platforms PinPoint ships on, so the panel must offer a port
-// above 1024 and the device must be pointed at it (every client examined has a
-// port setting). This is not a thing to work around with privileges: an
-// unauthenticated listener is the last process that should be running as root.
+// ⚠ PORT 921 IS BELOW 1024, AND WHAT THAT COSTS DEPENDS ON THE PLATFORM AND ON
+// THE ADDRESS. Measured on macOS 27 as an ordinary user: 0.0.0.0:921 BINDS, while
+// 127.0.0.1:921 and a specific LAN address are refused with EACCES — so the
+// permissive all-interfaces bind works and the restrictive loopback-only one does
+// not, which is the opposite of the rule most people carry. Windows has no
+// privileged-port rule at all. On Linux the boundary is a setting:
 //
-// ⚠ AND ON WINDOWS IT IS OFTEN ALREADY HELD — by GSPro Connect itself, on the one
-// machine where somebody would run both. Both failures are reported as Error with
-// the platform's own reason and a hint that names the fix; a listener that
-// silently is not listening is indistinguishable from a device nobody switched
-// on, and the user would go looking at the device.
+//     sudo sysctl net.ipv4.ip_unprivileged_port_start=921
+//
+// which is PinPoint's preferred answer there — better than granting the binary
+// CAP_NET_BIND_SERVICE, which travels with it through updates nobody thought
+// about, and far better than running an unauthenticated listener as root. Moving
+// the port above 1024 on both sides is the fallback that needs no administrator
+// anywhere; every client examined has a port setting.
+//
+// ⚠ AND THE PORT IS OFTEN ALREADY HELD — by GSPro Connect itself, on the one
+// machine where somebody would run both. All three failures are reported as Error
+// with the platform's own reason and a hint naming the fix for THAT failure: a
+// listener that silently is not listening is indistinguishable from a device
+// nobody switched on, and the user would go looking at the device.
+// The two settings a user edits — a port and "all interfaces" or "this machine
+// only" — as the one string setSourcePath() takes.
+//
+// ⚠ A FREE FUNCTION BECAUSE THE DECISION IS TESTABLE AND THE GATHERING IS NOT.
+// The controller reads AppSettings, which needs the app; what it does with the two
+// values is four lines that can be got wrong (a bare port read as a host, loopback
+// silently becoming all interfaces) and those four lines are checked here. Same
+// split as decideStandalone() beside its controller.
+QString gsProSourcePath(int port, const QString &interfaceKey);
+
 class GsProMonitor : public LaunchMonitorBase
 {
     Q_OBJECT
@@ -128,11 +145,36 @@ public:
     // ── Introspection, for the settings panel and the tests ─────────────────
     quint16 boundPort() const;              // 0 when not listening
     int     connectionCount() const;
+
+    // One connected launch monitor, as the library knows it.
+    //
+    // ⚠ THIS IS WHY THE GSPro LINK IS ENUMERATED AND THE GCQUAD PATH IS NOT.
+    // A folder is configured; a launch monitor CONNECTS, says who it is, and can
+    // go away again — so "which devices are on the link right now" is a real
+    // question with a changing answer, and the panel shows it beside the cameras
+    // and the IMUs rather than showing only what was configured.
+    struct Client {
+        quint32 conn = 0;       // the id this connector chose for the socket
+        QString deviceId;       // what the client called itself; empty until it speaks
+        QString peer;           // "192.168.1.40:51022" — ⚠ personal data, design §9.2
+        int     messages = 0;   // every well-formed object, heartbeats included
+        int     shots    = 0;
+        bool    identified = false;
+        qint64  connectedAtMs = 0;
+        qint64  lastMessageAtMs = 0;   // 0 when it has never spoken
+    };
+    QList<Client> clients() const;
     // The last DeviceID any client identified itself with, empty until one does.
     // ⚠ Personal data in principle — a user-configured connector lets the user
     // type anything, and one device puts its serial here — so it reaches the log
     // through the library's redacting formatter, never raw.
     QString lastDeviceId() const { return m_lastDeviceId; }
+
+signals:
+    // A device connected, identified itself, or went away. The controller
+    // re-reads clients() on this; it is deliberately not carried in the signal,
+    // because a list that arrives by value invites a stale copy being kept.
+    void clientsChanged();
 
 private slots:
     void onNewConnection();
