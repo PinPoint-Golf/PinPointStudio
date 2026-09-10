@@ -225,6 +225,75 @@ function(pp_require_ppcp)
     set(ppcp_SOURCE_DIR "${ppcp_SOURCE_DIR}" PARENT_SCOPE)
 endfunction()
 
+# --- libgspro (lazy; defines the `gspro` target) -------------------------------
+# Shaped exactly like pp_require_wrist and pp_require_ppcp above, and for the
+# same reason: what a suite needs here is a TARGET, not an include dir. The
+# umbrella pulls in none of the app's dependencies, so it resolves its own — and
+# a standalone configure of src/LaunchMonitor/tests must get <gspro/gspro.h> and
+# libgspro.a without the app ever having been configured.
+#
+# Resolution order mirrors the app's (CMakeLists.txt): explicit -DPP_LIBGSPRO_DIR;
+# a sibling ../libgspro checkout, which WINS; any app build's FetchContent copy;
+# else fetch main from GitHub.
+#
+# ⚠ NEITHER OPTIONAL MODULE IS ASKED FOR. The library's reference socket
+# transport (GS_BUILD_NET) and .gswire recorder (GS_BUILD_RECORD) both default
+# OFF when embedded, and they stay off: PinPoint's connector owns a QTcpServer
+# and PinPoint owns its storage. They are set explicitly all the same, so a suite
+# never inherits a gate that belongs to the library rather than to us.
+set(PP_LIBGSPRO_DIR "" CACHE PATH "libgspro source root (dir containing CMakeLists.txt)")
+function(pp_require_gspro)
+    if(TARGET gspro)
+        return()
+    endif()
+
+    set(_gspro_src "")
+    if(PP_LIBGSPRO_DIR AND EXISTS "${PP_LIBGSPRO_DIR}/CMakeLists.txt")
+        set(_gspro_src "${PP_LIBGSPRO_DIR}")
+    elseif(EXISTS "${PP_REPO_ROOT}/../libgspro/CMakeLists.txt")
+        get_filename_component(_gspro_src "${PP_REPO_ROOT}/../libgspro" ABSOLUTE)
+    else()
+        file(GLOB _cand "${PP_REPO_ROOT}/build/*/_deps/gspro-src")
+        foreach(_c ${_cand})
+            if(EXISTS "${_c}/CMakeLists.txt")
+                set(_gspro_src "${_c}")
+                break()
+            endif()
+        endforeach()
+    endif()
+
+    if(_gspro_src)
+        message(STATUS "PinPointTests: libgspro from ${_gspro_src}")
+        set(FETCHCONTENT_SOURCE_DIR_GSPRO "${_gspro_src}" CACHE PATH "" FORCE)
+    else()
+        # Cleared rather than skipped: the branch above writes FORCE, so a build
+        # dir that once found a local source would keep using that path after it
+        # moved away. Same trap as libwrist and libppcp.
+        unset(FETCHCONTENT_SOURCE_DIR_GSPRO CACHE)
+        message(STATUS "PinPointTests: libgspro not found locally — fetching main")
+    endif()
+
+    set(GS_BUILD_TESTS  OFF CACHE BOOL "" FORCE)
+    set(GS_BUILD_TOOLS  OFF CACHE BOOL "" FORCE)
+    set(GS_BUILD_FFI    OFF CACHE BOOL "" FORCE)
+    set(GS_BUILD_NET    OFF CACHE BOOL "" FORCE)
+    set(GS_BUILD_RECORD OFF CACHE BOOL "" FORCE)
+
+    include(FetchContent)
+    FetchContent_Declare(gspro
+        GIT_REPOSITORY https://github.com/PinPoint-Golf/libgspro.git
+        GIT_TAG        main
+        GIT_SHALLOW    TRUE
+        EXCLUDE_FROM_ALL)
+
+    FetchContent_MakeAvailable(gspro)
+
+    # FetchContent sets this in the CALLING scope, which here is this function's;
+    # hoist it so a caller can read the resolved source (the same trap that made
+    # pp_ppcp_landed() answer OFF for everything, above).
+    set(gspro_SOURCE_DIR "${gspro_SOURCE_DIR}" PARENT_SCOPE)
+endfunction()
+
 # --- Which libppcp work packages have landed ----------------------------------
 # Team L runs one session ahead of this repository (plan §7), so a package we
 # code against may or may not exist in the checkout we build with. planned.h

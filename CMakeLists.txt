@@ -516,6 +516,99 @@ unset(_ppcp_local)
 unset(_ppcp_origin)
 unset(_wrist_origin)
 
+# ── libgspro — C11 sans-I/O server for the GSPro Open Connect v1 protocol ────
+# github.com/PinPoint-Golf/libgspro, MIT. The third sister project, embedded
+# exactly as libwrist and libppcp are — the two blocks above are the pattern and
+# this one deliberately does not invent a third.
+#
+# What it is FOR. Almost every launch monitor on the market ships, or has a
+# community bridge that ships, a GSPro Open Connect client: Garmin R10, Rapsodo
+# MLM2PRO, Square, SkyTrak, Uneekor, Bushnell, FlightScope, PiTrac. Speaking the
+# SERVER side of that one protocol reaches all of them with no per-device work,
+# which is why it is worth a dependency rather than a parser per device. It is
+# the second Kind of launch monitor connector beside GcQuad — see the library's
+# docs/design.md §6, which is written against THIS repository's
+# LaunchMonitorBase / LaunchMonitorReading / ShotPairing.
+#
+# ⚠ THE SAME SANS-I/O SPLIT, AND HERE IT IS THE POINT OF THE LIBRARY. It owns no
+# socket, thread, timer, clock or file: PinPoint supplies the QTcpServer, the
+# host clock and the storage, and drains the library. So the reference transport
+# (GS_BUILD_NET) and the .gswire recorder (GS_BUILD_RECORD) are NOT asked for
+# here — a Qt host has its own event loop and its own storage, and linking a
+# select() loop into an application that already has one is the mistake the
+# split exists to make impossible. Both default OFF when embedded; this comment
+# is why they are not turned on rather than an oversight.
+#
+# ⚠ SOURCE RESOLUTION: a sibling ../libgspro checkout WINS over GitHub, for the
+# same reason libwrist's and libppcp's do — the library is under active
+# co-development and its fixes are made and pushed from that clone. NEVER edit
+# the fetched copy under build/*/_deps/gspro-src: it is a shallow clone whose
+# update step overwrites local changes on reconfigure.
+#
+# ⚠ Unlike libppcp there is no PP_LIBGSPRO_FETCH switch: the repository IS
+# published, so a machine with no sibling checkout fetches it and the build works
+# for someone who has never heard of the library. That is the libwrist shape.
+option(PP_LIBGSPRO_LOCAL "Prefer a sibling ../libgspro checkout over GitHub" ON)
+
+set(_gspro_local "${CMAKE_CURRENT_SOURCE_DIR}/../libgspro")
+if(PP_LIBGSPRO_LOCAL AND EXISTS "${_gspro_local}/CMakeLists.txt")
+    get_filename_component(_gspro_local "${_gspro_local}" ABSOLUTE)
+    set(FETCHCONTENT_SOURCE_DIR_GSPRO "${_gspro_local}" CACHE PATH
+        "Local libgspro checkout to build against instead of fetching" FORCE)
+    set(_gspro_origin "local ${_gspro_local}")
+else()
+    # Cleared rather than merely not set: the branch above writes FORCE, so a
+    # build dir that once resolved the sibling still carries the path and
+    # -DPP_LIBGSPRO_LOCAL=OFF would be a silent no-op. Same trap as the two above.
+    unset(FETCHCONTENT_SOURCE_DIR_GSPRO CACHE)
+    unset(_gspro_local)
+    set(_gspro_origin "github main")
+endif()
+
+FetchContent_Declare(
+  gspro
+  # ⚠ Tracking a BRANCH while the integration lands, as libwrist does; to be
+  # pinned to a tag once the library stabilises. GIT_SHALLOW works with branches
+  # and tags but NOT a raw SHA. Ignored entirely when the sibling was found.
+  GIT_REPOSITORY https://github.com/PinPoint-Golf/libgspro.git
+  GIT_TAG        main
+  GIT_SHALLOW    TRUE
+  EXCLUDE_FROM_ALL
+)
+FetchContent_MakeAvailable(gspro)
+
+# Provenance, for the reason the other two have it: a branch upstream and a local
+# checkout able to win means "which libgspro built this?" is a question the About
+# box has to answer — and a launch monitor session traced back to a library build
+# is the difference between a bug report and a guess.
+file(STRINGS "${gspro_SOURCE_DIR}/include/gspro/version.h" _gspro_ver_line
+     REGEX "^#define[ \t]+GSP_VERSION_STRING")
+string(REGEX REPLACE ".*\"([^\"]+)\".*" "\\1" PP_LIBGSPRO_VERSION "${_gspro_ver_line}")
+execute_process(
+    COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY "${gspro_SOURCE_DIR}"
+    OUTPUT_VARIABLE _gspro_sha OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+execute_process(
+    COMMAND git status --porcelain
+    WORKING_DIRECTORY "${gspro_SOURCE_DIR}"
+    OUTPUT_VARIABLE _gspro_dirty OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+if(_gspro_sha)
+    if(_gspro_dirty)
+        string(APPEND _gspro_sha "-dirty")
+    endif()
+    if(_gspro_local)
+        string(APPEND PP_LIBGSPRO_VERSION " (${_gspro_sha}, local)")
+    else()
+        string(APPEND PP_LIBGSPRO_VERSION " (${_gspro_sha})")
+    endif()
+endif()
+message(STATUS "libgspro: ${PP_LIBGSPRO_VERSION} — ${_gspro_origin}")
+unset(_gspro_ver_line)
+unset(_gspro_sha)
+unset(_gspro_dirty)
+unset(_gspro_local)
+unset(_gspro_origin)
+
 # EventBuffer library — lock-free ring-buffer capture store
 add_subdirectory(src/Buffer)
 
@@ -1096,7 +1189,7 @@ else()
     message(STATUS "AssemblyAI: no API key configured")
 endif()
 
-target_link_libraries(PinPointStudio PRIVATE whisper samplerate wrist)
+target_link_libraries(PinPointStudio PRIVATE whisper samplerate wrist gspro)
 # libppcp, when it resolved (H0 above). Linked with nothing calling it yet: the
 # peer engine lands in H2. Its include/ is PUBLIC on the target, so <ppcp/ppcp.h>
 # resolves through the link and needs no include directory here — same as wrist.

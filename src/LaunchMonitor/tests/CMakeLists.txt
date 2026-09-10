@@ -7,6 +7,8 @@
 #   • pairing — which swing a reading is attributed to: arming, displacement by
 #               the next shot, parking until a swingDir exists, and the watermark
 #               that stops a stale file being claimed at startup.
+#   • gspro   — the libgspro build dependency: that it links, that its headers and
+#               archive agree, and that a whole session runs with no socket.
 # Shared infra (Qt prefix, sanitizers via -DPP_SANITIZE, gtest, pp_add_test) lives
 # in tests/cmake/PinPointTests.cmake.
 #
@@ -65,3 +67,23 @@ pp_add_test(gcquad_pairing_test
     INCLUDE ${LM} ${SRC}/Core
     LINK    Qt6::Test
     GTEST_NO_MAIN AUTOMOC)
+
+# --- libgspro links, and its headers match its archive ---------------------------
+# The GSPro Open Connect connector is the second Kind beside GcQuad, and until it
+# lands no PinPoint code references a libgspro symbol — so a dependency that
+# configures and compiles but fails to LINK would go unnoticed on every platform.
+# This target is what makes "the dependency is added" a claim rather than an
+# expectation, exactly as hackmotion_link_test does for libwrist.
+#
+# pp_require_gspro() resolves the library the way the app does: -DPP_LIBGSPRO_DIR,
+# a sibling ../libgspro checkout, an app build's _deps copy, else fetch main. So
+# this suite configures on a machine that has never built the app.
+#
+# NO_QT: the library is C11 with no Qt anywhere near it, and it opens no socket —
+# a whole session runs on a synthetic counter and byte strings.
+pp_require_gspro()
+pp_add_test(gspro_link_test
+    SOURCES gspro_link_test.cpp
+    LINK    gspro
+    NO_QT
+    GTEST)

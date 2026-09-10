@@ -486,7 +486,7 @@ cmake --build build/tests -j6
 ctest --test-dir build/tests --output-on-failure
 ```
 
-The Qt prefix is auto-resolved per platform; pass `-DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/<abi>` only if Qt is installed somewhere non-standard. Eigen and libwrist are found automatically (explicit `-DPP_EIGEN_DIR` / `-DPP_LIBWRIST_DIR`, then a sibling checkout or the app build's `build/*/_deps/…`, then a fetch) — configuring the app once first lets the tests reuse its copies with no extra download.
+The Qt prefix is auto-resolved per platform; pass `-DCMAKE_PREFIX_PATH=/path/to/Qt/6.11.x/<abi>` only if Qt is installed somewhere non-standard. Eigen, libwrist and libgspro are found automatically (explicit `-DPP_EIGEN_DIR` / `-DPP_LIBWRIST_DIR` / `-DPP_LIBGSPRO_DIR`, then a sibling checkout or the app build's `build/*/_deps/…`, then a fetch) — configuring the app once first lets the tests reuse its copies with no extra download.
 
 > **⚠ An incremental umbrella can report green while testing stale binaries.** Re-using an existing `build/tests` is fine for day-to-day iteration, but it will happily print `100% tests passed` over executables built from an older checkout. Observed 2026-08-16: a run over a pre-existing `build/tests` reported 134/134, and `rm -rf build/tests` followed by a clean reconfigure **at the same commit** immediately surfaced a failure. **Delete `build/tests` before any run whose result you intend to rely on** — cutting a release, confirming a fix, or declaring a suite green. The release runbooks now do this as part of the mandatory gate.
 
@@ -528,7 +528,7 @@ Filter within any built tree with `ctest --test-dir <build> -R <regex>`.
 | **Shot impact-detector** | `src/IMU/tests` | 3 | IMU impact detector truth table (fires once; taps/waggles/swells rejected; refractory; orientation gate; back-dated `est_t`; 100↔200 Hz parity); `ImuIoWorker` thread/EventBuffer contract; ESKF gyro-unit pin. |
 | **Calibrated ball-detection** | `src/Pose/tests` | 3 | `ball_model.h` core (model fitting, theta, multi-cue scoring, gain invariance, drift); calibration protocol (round bookkeeping, profile save/load); `BallDetector` throttle contract. Needs OpenCV (core/imgproc/features2d). |
 | **Acoustic onset-detector** | `src/Audio/tests` | 1 | Onset detector truth table (click fires sample-accurately; speech/tone/ambient rejected; refractory; back-dating; reverb confirm; absolute amplitude gate). |
-| **Launch monitor** | `src/LaunchMonitor/tests` | 3 | `LastShot.CSV` parsing (columns matched by name not position, metric **and** imperial units as FSX2020 declares them, the three derived values, malformed/torn/short input) and shot attribution (`ShotPairing` arming and displacement, parking a reading until a `swingDir` exists, and the watermark that stops a stale file being claimed at startup). Plus the standalone gate — whether a reading nothing else saw becomes a shot of its own — exhaustive over all 2^7 precondition states, split out of the controller so it needs no CameraManager. GoogleTest; the pairing half writes its own fixtures into a `QTemporaryDir` and needs Qt6 Test for `QSignalSpy`. |
+| **Launch monitor** | `src/LaunchMonitor/tests` | 4 | `LastShot.CSV` parsing (columns matched by name not position, metric **and** imperial units as FSX2020 declares them, the three derived values, malformed/torn/short input) and shot attribution (`ShotPairing` arming and displacement, parking a reading until a `swingDir` exists, and the watermark that stops a stale file being claimed at startup). Plus the standalone gate — whether a reading nothing else saw becomes a shot of its own — exhaustive over all 2^7 precondition states, split out of the controller so it needs no CameraManager. GoogleTest; the pairing half writes its own fixtures into a `QTemporaryDir` and needs Qt6 Test for `QSignalSpy`. Plus the libgspro link/ABI check — that the GSPro dependency links, that its headers and archive agree, and that a whole protocol session runs with no socket and no clock. |
 | **In-app update** | `src/Update/tests` | 3 | Linux updater pure logic (version compare, AppImage asset selection across x86_64/aarch64, GPG VALIDSIG parse, placeholder-key refusal); `PlatformTarget` arch-token map + a tripwire on the **frozen** macOS appcast filenames (`appcast-mac.xml` must stay unsuffixed; arm64 is a separate file); `UpdateController` state-machine + relaunch session-safety policy + QML state-string contract, driven by a `FakeUpdateBackend`. GoogleTest; the policy test needs Qt6 Qml + Test. |
 
 Framework note: Buffer, Core, In-app update and Launch monitor use GoogleTest (fetched automatically); the other five use a self-contained `main()` + `CHECK`/`CHECK_NEAR` (no GoogleTest). `src/Buffer/tests` also builds `latency_benchmark`, intentionally **not** registered with CTest — run it by hand: `./build/tests/Buffer/latency_benchmark` (umbrella) or `./build/buffer-tests/tests/latency_benchmark` (standalone `-S src/Buffer`).
@@ -548,6 +548,7 @@ The following are fetched at `cmake ..` time — no manual steps required:
 | libsamplerate 0.2.2 | Built from source | — | Always |
 | Eigen 3.4.0 | Header-only (IMU EKF) | ~few MB | Always |
 | libwrist (`main`) | Built from source (HackMotion wG3 wrist sensor) | ~2 MB | Always — unless a sibling `../libwrist` checkout is found, see below |
+| libgspro (`main`) | Built from source (GSPro Open Connect launch monitor server) | ~1 MB | Always — unless a sibling `../libgspro` checkout is found, see below |
 | `ggml-base.en.bin` | Whisper STT model (Hugging Face) | ~148 MB | Always |
 | MoveNet Lightning | ONNX pose model (Hugging Face) | ~9 MB | Always |
 | MoveNet Thunder | ONNX pose model (Hugging Face) | ~30 MB | Always |
@@ -612,6 +613,41 @@ PPCP transport is not built, so the app has no phone support. Pass `-DPP_LIBPPCP
 The same fix-and-push rule as libwrist applies: edit the sibling clone, never the fetched copy
 under `build/*/_deps/`. The resolved version and commit appear in the About box and in the
 configure log (`PPCP transport: OpenSSL …, libppcp …`).
+
+### Co-developing libgspro
+
+[libgspro](https://github.com/PinPoint-Golf/libgspro) is the sans-I/O C11 server for the **GSPro
+Open Connect v1** protocol — the protocol almost every launch monitor on the market either speaks
+natively or has a community bridge for (Garmin R10, Rapsodo MLM2PRO, Square, SkyTrak, Uneekor,
+Bushnell, FlightScope, PiTrac). Speaking the *server* side of it is what lets one connector
+receive shots from all of them, which is why it is a dependency rather than a parser per device.
+
+It is embedded **exactly as libwrist is**, with no differences: the repository is public, so it is
+fetched when no sibling checkout is present and the build works on a machine that has never heard
+of it.
+
+1. A sibling checkout at `../libgspro` — used automatically, and it **wins**:
+   ```
+   -- libgspro: 0.1.0 (48f70ed, local) — local /home/markl/Projects/libgspro
+   ```
+2. Otherwise `main` from GitHub, re-fetched on every reconfigure.
+
+Pass `-DPP_LIBGSPRO_LOCAL=OFF` to ignore a sibling checkout and always take upstream.
+
+⚠ **Neither of the library's optional modules is built.** It ships a reference socket transport
+(`GS_BUILD_NET`) and a `.gswire` byte recorder (`GS_BUILD_RECORD`); both stay off. PinPoint owns
+the `QTcpServer`, the host clock and the storage — that split is the whole point of a sans-I/O
+library, and linking a `select()` loop into an application that already has an event loop is the
+mistake it exists to make impossible.
+
+The same fix-and-push rule applies: edit the sibling clone, never the fetched copy under
+`build/*/_deps/gspro-src`. The resolved version and commit appear in the configure log and the
+About box, because the dependency tracks a branch and a local checkout can override it.
+
+The umbrella test suite resolves the library the same way and adds `-DPP_LIBGSPRO_DIR=<path>` for
+an explicit override; `ctest -R gspro` runs the link/ABI check — which is what makes "the
+dependency was added for Linux, macOS and Windows" a claim rather than an expectation, since no
+PinPoint code references a libgspro symbol until the connector lands.
 
 ---
 
