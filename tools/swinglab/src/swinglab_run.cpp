@@ -484,13 +484,24 @@ int main(int argc, char **argv)
         ShotAnalysisRunnerOptions opt;
         opt.impactUs   = job.impactUs;
         opt.handedness = job.handedness;
-        const PoseTrack2D pose = job.poseTrackPath.isEmpty()
-            ? PoseRunner::run(window, job.cameraSources.front(), opt)
-            : PoseRunner::loadFromJson(job.poseTrackPath, job.cameraSources.front());
+        // The trace is the PRODUCTION run's shaft stages re-run with sinks — it
+        // must see the analyzer's own pose, not a second independent one. The
+        // analyzer poses two-pass/span-bounded on a camera-only swing while a
+        // fresh run here is a plain full-window pass; the two grip tracks build
+        // DIFFERENT hands-only phase models, and on 2026-09-10 the trace's sane
+        // model masked a collapsed production one (unmarked 6-iron 0004/0005:
+        // no Backswing phase, 150–160° at P2 in result.json, 4° in the trace).
+        // Fresh run only when production produced no pose at all.
+        const bool reuseProd = result.detail && !result.detail->pose2d.frames.empty();
+        const PoseTrack2D pose = reuseProd ? result.detail->pose2d
+            : job.poseTrackPath.isEmpty()
+                ? PoseRunner::run(window, job.cameraSources.front(), opt)
+                : PoseRunner::loadFromJson(job.poseTrackPath, job.cameraSources.front());
         // v3.4 (plan §3): same 3-way ball resolution as WristAnalyzer::analyze()
         // — explicit --ball injection wins, else whatever the swing.json/job
         // already carries, else replay the production ball detector offline.
-        const BallTrack2D ball = !job.ballTrackPath.isEmpty()
+        const BallTrack2D ball = reuseProd ? result.detail->ball
+            : !job.ballTrackPath.isEmpty()
             ? BallRunner::loadFromJson(job.ballTrackPath, job.cameraSources.front())
             : (!job.ballTrack.frames.empty()
                    ? job.ballTrack

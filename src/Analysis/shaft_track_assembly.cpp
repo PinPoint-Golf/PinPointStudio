@@ -600,6 +600,24 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
             if (runs[i].first <= maxStart) { kept.push_back(runs[i]); keptChain.push_back(chain[i]); }
         if (!kept.empty()) { runs = std::move(kept); chain = std::move(keptChain); }
     }
+    // Run-candidacy clamp, EARLY side (2026-09-10, unmarked 6-iron 0004/0005):
+    // with a supplied impact, a run that ENDS before the A3 far edge
+    // (impact − bsMaxBeforeImpactUs) lies wholly inside the address hold — a
+    // waggle, never the takeaway — yet a 10-frame fidget ([50,59]) out-ranked a
+    // fragmented backswing against the downswing run and parked top in the
+    // address hold, leaving the swing with no Backswing phase at all (the DP
+    // then walks the backswing the wrong way under downswing constraints:
+    // 150–160° at P2). Mirror of the late-side clamp above, same keep-if-empty
+    // fallback; bsMaxBeforeImpactUs <= 0 disables it (byte-identical).
+    if (impactFrame >= 0 && cfg.bsMaxBeforeImpactUs > 0) {
+        const int farEdge = impactFrame
+                            - int(std::lround(double(cfg.bsMaxBeforeImpactUs) * 1e-6 * fps));
+        std::vector<std::pair<int, int>> kept;
+        std::vector<int> keptChain;
+        for (size_t i = 0; i < runs.size(); ++i)
+            if (runs[i].second >= farEdge) { kept.push_back(runs[i]); keptChain.push_back(chain[i]); }
+        if (!kept.empty()) { runs = std::move(kept); chain = std::move(keptChain); }
+    }
     if (runs.empty()) {
         m.phase.assign(nf, SwingPhase::Addr);
         m.bs0 = 0; m.top = nf / 2; m.impact = nf / 2; m.fin0 = nf - 1;
@@ -845,6 +863,26 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
         if (wb.second >= 0) m.onsetFloor = std::min(wb.second, onset);
     }
 
+    // Invariant backstop (2026-09-10): a top at or before the onset means the
+    // ranking never saw a backswing, and the repair's near-impact gate cannot
+    // see that (the top is FAR from impact) — the phase loop below would label
+    // everything from the onset to impact Downswing. Re-derive top the way the
+    // repair does, bounded BELOW by the onset: grip apex over
+    // [onset+1, impf−minDs], speed argmin within ±100 ms of it.
+    if (cfg.topRepairEnabled && top <= onset) {
+        const int minDs = int(std::lround(double(cfg.topRepairMinDownswingUs) * 1e-6 * fps));
+        const int lo = std::min(onset + 1, nf - 1), hi = std::clamp(impf - minDs, lo, nf - 1);
+        if (hi > lo) {
+            int apex = lo;
+            for (int f = lo; f <= hi; ++f) if (-gy[f] > -gy[apex]) apex = f;
+            const int K = std::max(1, int(std::lround(0.100 * fps)));
+            const int rLo = std::max(lo, apex - K), rHi = std::min(hi, apex + K);
+            int amin = rLo;
+            for (int f = rLo; f <= rHi; ++f) if (spdS[f] < spdS[amin]) amin = f;
+            if (m.topPreRepair < 0) m.topPreRepair = top;
+            top = amin;
+        }
+    }
     m.phase.resize(nf);
     for (int f = 0; f < nf; ++f) {
         if (f < onset) m.phase[f] = SwingPhase::Addr;
