@@ -71,6 +71,12 @@ class AppSettings : public QObject
     Q_PROPERTY(QString lmPanelMode READ lmPanelMode WRITE setLmPanelMode NOTIFY lmPanelModeChanged)
     // The GSPro Open Connect link: the port launch monitors connect TO, and whether
     // it is offered on every interface or only to this machine.
+    // ⚠ CONFIGURED AND ENABLED ARE DIFFERENT QUESTIONS. A user with GSPro running
+    // needs PinPoint's listener DORMANT — it cannot have port 921 while GSPro has
+    // it — and then wants it back an hour later without retyping the port or
+    // finding the folder again. So this switches the connector off while leaving
+    // every other setting exactly where it was.
+    Q_PROPERTY(bool    launchMonitorEnabled READ launchMonitorEnabled WRITE setLaunchMonitorEnabled NOTIFY launchMonitorEnabledChanged)
     Q_PROPERTY(int     gsProPort      READ gsProPort      WRITE setGsProPort      NOTIFY gsProPortChanged)
     Q_PROPERTY(QString gsProInterface READ gsProInterface WRITE setGsProInterface NOTIFY gsProInterfaceChanged)
     // The on-disk swing_NNNN dir designated as the wrist diagnostics "compare to reference" swing.
@@ -495,6 +501,12 @@ public:
         m_imuDataFormat         = ppSettings().value(QStringLiteral("storage/imuDataFormat"),         QStringLiteral("json")).toString();
         m_saveLaunchMonitorData = ppSettings().value(QStringLiteral("storage/saveLaunchMonitorData"), true).toBool();
 
+        // ⚠ DEFAULTS TRUE, AND THAT IS THE COMPATIBILITY-CRITICAL BIT. Every
+        // existing installation has a configured connector and no such key; a
+        // default of false would silently stop a GCQuad that has been working for
+        // months, with a panel that still says "gcquad" and a user with no reason
+        // to look here.
+        m_launchMonitorEnabled      = ppSettings().value(QStringLiteral("launchmonitor/enabled"), true).toBool();
         m_launchMonitorKind         = ppSettings().value(QStringLiteral("launchmonitor/kind"), QStringLiteral("none")).toString();
         m_launchMonitorPath         = normaliseLibraryPath(ppSettings().value(QStringLiteral("launchmonitor/path"), QStringLiteral("")).toString());
         m_launchMonitorPollMs       = ppSettings().value(QStringLiteral("launchmonitor/pollIntervalMs"), 250).toInt();
@@ -523,6 +535,7 @@ public:
     QString density()       const { return m_density; }
     QString timelineOrientation() const { return m_timelineOrientation; }
     QString lmPanelMode()   const { return m_lmPanelMode; }
+    bool    launchMonitorEnabled() const { return m_launchMonitorEnabled; }
     int     gsProPort()      const { return m_gsProPort; }
     QString gsProInterface() const { return m_gsProInterface; }
     QString wristReferenceSwingDir() const { return m_wristReferenceSwingDir; }
@@ -1493,6 +1506,13 @@ public:
         ppSettings().setValue(QStringLiteral("launchmonitor/chimeEnabled"), v);
         emit launchMonitorChimeEnabledChanged();
     }
+    void setLaunchMonitorEnabled(bool v)
+    {
+        if (m_launchMonitorEnabled == v) return;
+        m_launchMonitorEnabled = v;
+        ppSettings().setValue(QStringLiteral("launchmonitor/enabled"), v);
+        emit launchMonitorEnabledChanged();
+    }
     void setGsProPort(int v)
     {
         // ⚠ 0 IS NOT ALLOWED HERE even though the connector understands it as
@@ -1636,6 +1656,7 @@ signals:
     void launchMonitorPollMsChanged();
     void launchMonitorChimeEnabledChanged();
     void launchMonitorStandaloneChanged();
+    void launchMonitorEnabledChanged();
     void gsProPortChanged();
     void gsProInterfaceChanged();
     void clubLenPriorChanged();
@@ -1752,6 +1773,7 @@ private:
     int     m_launchMonitorPollMs = 250;
     bool    m_launchMonitorChimeEnabled = true;
     bool    m_launchMonitorStandalone = false;
+    bool    m_launchMonitorEnabled = true;
     int     m_gsProPort      = 921;
     QString m_gsProInterface = QStringLiteral("any");
 

@@ -197,7 +197,11 @@ Item {
                 RmDeviceCard {
                     deviceData: modelData
                     width: Theme.sp(280)
-                    onOpenSettingsRequested: root.navigateToSettings(modelData.kind === "Camera" ? 3 : 4)
+                    // 3 cameras, 4 IMUs, 7 launch monitor — see ScreenSettings.
+                    onOpenSettingsRequested: root.navigateToSettings(
+                        modelData.kind === "Camera"        ? 3
+                      : modelData.kind === "LaunchMonitor" ? 7
+                      :                                      4)
                 }
             }
 

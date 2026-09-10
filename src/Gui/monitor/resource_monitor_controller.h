@@ -83,6 +83,10 @@ public:
     // guarded member here would be a different class in different objects.
     // Null on a build with no PPCP, which is simply no phone rows.
     void setPhoneSource(QObject *src);
+    // The launch monitor connector, handed over as a plain QObject for the same
+    // reason the phone service is: this class reads its `devices` property and
+    // knows nothing about GSPro, sockets or connectors.
+    void setLaunchMonitorSource(QObject *src);
 
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void clearLog();
@@ -107,6 +111,7 @@ private:
     QVariantList   m_sources;
     QVariantList   m_devices;
     QPointer<QObject> m_phones;   // see setPhoneSource()
+    QPointer<QObject> m_launchMonitor;   // see setLaunchMonitorSource()
     QStringList    m_warnings;
     QList<quint64> m_timelineHistory;
     QVariantList   m_messageLog;

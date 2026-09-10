@@ -131,7 +131,18 @@ Item {
         { label: qsTr("GSPro Connect (R10, MLM2PRO, SkyTrak+, …)"), value: "gspro" }
     ]
 
-    readonly property bool configured: appSettings.launchMonitorKind !== "none"
+    // ⚠ THREE DIFFERENT QUESTIONS, and the panel needs all three. `chosen` is what
+    // the dropdown says; `enabled` is the switch; `configured` is both, which is
+    // the only one that means "there is a connector running". The editable rows
+    // follow `chosen` — a dormant link must stay editable, since setting it up
+    // while GSPro has the port is exactly when somebody would.
+    // ⚠ NOT `enabled`: that is Item's own property, and shadowing it here made Qt
+    // warn — rightly. A root Item whose `enabled` follows a setting would hand the
+    // whole panel's input handling to that setting, so switching the connector off
+    // would grey out the switch that turns it back on.
+    readonly property bool chosen:     appSettings.launchMonitorKind !== "none"
+    readonly property bool switchedOn: appSettings.launchMonitorEnabled
+    readonly property bool configured: root.chosen && root.switchedOn
     readonly property bool isGcQuad:   appSettings.launchMonitorKind === "gcquad"
     readonly property bool isGsPro:    appSettings.launchMonitorKind === "gspro"
 
@@ -234,6 +245,49 @@ Item {
                 }
             }
 
+            // ── The switch ────────────────────────────────────────────────────────
+            // Separate from the dropdown because "which device" and "is it running"
+            // are different decisions with different lifetimes. The case that forces
+            // it: GSPro itself wants port 921, so PinPoint's listener has to go
+            // dormant for an hour — and nobody should have to dismantle a working
+            // configuration to do that, or rebuild it afterwards.
+            RowLayout {
+                objectName: "setting_lmEnabled"
+                Layout.fillWidth: true
+                spacing: Theme.sp(16)
+                visible: root.chosen
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+                    Text {
+                        text:           qsTr("Enabled")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        text:           root.isGsPro
+                                        ? qsTr("Switch the link off to hand the port back — GSPro cannot use 921 while PinPoint is listening on it. Everything below is remembered, so switching it on again needs no setting up.")
+                                        : qsTr("Switch the connector off without losing its configuration. Nothing is watched and no readings arrive while it is off.")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                        wrapMode:       Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                }
+
+                TogglePill {
+                    checked:     appSettings.launchMonitorEnabled
+                    enabledPill: root.chosen
+                    onToggled:   (v) => appSettings.launchMonitorEnabled = v
+                    Layout.alignment: Qt.AlignVCenter
+                }
+            }
+
             // Folder — the GCQuad's source. Hidden rather than disabled for the GSPro
             // link: a listener has no folder, and a greyed-out folder picker invites
             // the question "what should I put there?".
@@ -242,7 +296,7 @@ Item {
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
                 visible: !root.isGsPro
-                opacity: root.configured ? 1.0 : 0.45
+                opacity: root.chosen ? 1.0 : 0.45
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
@@ -289,12 +343,12 @@ Item {
                     spacing: Theme.sp(6)
                     PpButton {
                         label:     qsTr("Change…")
-                        enabled:   root.configured
+                        enabled:   root.chosen
                         onClicked: folderDialog.open()
                     }
                     PpButton {
                         label:     qsTr("Open")
-                        enabled:   root.configured && appSettings.launchMonitorPath !== ""
+                        enabled:   root.chosen && appSettings.launchMonitorPath !== ""
                         onClicked: Qt.openUrlExternally(appSettings.fileUrlFor(appSettings.launchMonitorPath))
                     }
                 }
@@ -360,93 +414,6 @@ Item {
                         model: [ qsTr("All interfaces"), qsTr("This machine only") ]
                         currentIndex: appSettings.gsProInterface === "loopback" ? 1 : 0
                         onActivated: (index) => appSettings.gsProInterface = (index === 1 ? "loopback" : "any")
-                    }
-                }
-            }
-
-            // The devices on the link, enumerated as they connect.
-            ColumnLayout {
-                objectName: "setting_lmGsProDevices"
-                Layout.fillWidth: true
-                spacing: Theme.sp(6)
-                visible: root.isGsPro
-                property bool searchHighlight: false
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Text {
-                        text:           qsTr("Connected launch monitors")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Item { Layout.fillWidth: true }
-                    Text {
-                        text:           launchMonitor.deviceCount > 0
-                                        ? qsTr("%1 connected").arg(launchMonitor.deviceCount)
-                                        : qsTr("none yet")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          launchMonitor.deviceCount > 0 ? Theme.colorGood : Theme.colorText3
-                    }
-                }
-
-                // ⚠ EMPTY IS A STATE WORTH DRAWING. "Nothing here" and "we are not
-                // listening" look identical otherwise, and the second one has a cause
-                // the user can act on — which the status row above is already showing.
-                Text {
-                    visible:        launchMonitor.deviceCount === 0
-                    Layout.fillWidth: true
-                    text:           qsTr("Nothing has connected yet. Point the launch monitor's app at this machine and the port above.")
-                    font.family:    Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    color:          Theme.colorText3
-                    wrapMode:       Text.WordWrap
-                }
-
-                Repeater {
-                    model: launchMonitor.devices
-                    delegate: Rectangle {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        implicitHeight:   Theme.sp(34)
-                        color:            Theme.colorBg2
-                        radius:           Theme.radius
-                        border.width:     1
-                        border.color:     Theme.colorBorderMid
-
-                        RowLayout {
-                            anchors.fill:        parent
-                            anchors.leftMargin:  Theme.sp(10)
-                            anchors.rightMargin: Theme.sp(10)
-                            spacing:             Theme.sp(10)
-
-                            // Green once it has spoken; amber while it is still an
-                            // anonymous socket. The protocol has no handshake, so a
-                            // device can sit here unnamed for minutes and that is normal.
-                            Rectangle {
-                                width:  Theme.sp(8)
-                                height: Theme.sp(8)
-                                radius: Theme.sp(4)
-                                color:  modelData.identified ? Theme.colorGood : Theme.colorAttention
-                            }
-                            Text {
-                                text:           modelData.label
-                                font.family:    Theme.fontBody
-                                font.pixelSize: Theme.fontSzMicro
-                                color:          Theme.colorText
-                                elide:          Text.ElideRight
-                                Layout.fillWidth: true
-                            }
-                            Text {
-                                text:           modelData.shots === 1
-                                                ? qsTr("1 shot")
-                                                : qsTr("%1 shots").arg(modelData.shots)
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzMicro
-                                color:          Theme.colorText3
-                            }
-                        }
                     }
                 }
             }

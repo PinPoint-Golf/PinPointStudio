@@ -452,6 +452,22 @@ void ResourceMonitorController::refresh()
         for (const QVariant &p : phones) m_devices.append(p.toMap());
     }
 
+    // ── Launch monitors — one per device on the link ─────────────────────────
+    //
+    // ⚠ THESE ARE CONNECTIONS, NOT CONFIGURATION, which is why they are here at
+    // all. A GCQuad is a folder somebody typed in and appears in no list; a GSPro
+    // Open Connect device dials IN over TCP, says who it is, and hangs up — so it
+    // belongs beside the cameras and the phones, and it disappears from the list
+    // when it goes, like a camera unplugged.
+    //
+    // Appended verbatim, the phone rule: the connector already emits them in this
+    // list's key vocabulary, and a second shape here would be a second thing to
+    // keep in step.
+    if (m_launchMonitor) {
+        const QVariantList lms = m_launchMonitor->property("devices").toList();
+        for (const QVariant &l : lms) m_devices.append(l.toMap());
+    }
+
     // sourceAliases is now populated — build sources with alias-resolved names.
     buildSources();
 
@@ -551,6 +567,18 @@ void ResourceMonitorController::setPhoneSource(QObject *src)
     // refresh() on the screens' own two-second timer, the same cadence every
     // other row here arrives on, and a phone appearing a second late is not a
     // thing anybody can perceive.
+    refresh();
+}
+
+void ResourceMonitorController::setLaunchMonitorSource(QObject *src)
+{
+    if (m_launchMonitor == src) return;
+    m_launchMonitor = src;
+    // Same reasoning as setPhoneSource: no connection to a devicesChanged
+    // signal, because the screens rebuild this on their own two-second timer and
+    // a launch monitor appearing a second late is not perceptible. ⚠ The SETTINGS
+    // panel is the surface that wants it instantly, and that one is bound to the
+    // connector directly.
     refresh();
 }
 

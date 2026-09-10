@@ -983,6 +983,10 @@ int main(int argc, char *argv[])
     // cameras and the IMUs.  Handed over as a plain QObject: the monitor reads
     // its `phones` property and knows nothing about PPCP (see setPhoneSource).
     resourceMonitor.setPhoneSource(&ppcpHost);
+    // And a launch monitor that has dialled in is a device too — see
+    // setLaunchMonitorSource. Only the GSPro link enumerates; the GCQuad is a
+    // watched folder and has nothing to connect.
+    resourceMonitor.setLaunchMonitorSource(&launchMonitorController);
 
     // ── CORE §8.2 — the shot pipeline joins the arbiter here ────────────────
     //

@@ -453,6 +453,40 @@ TEST(GsProMonitor, TheDeviceListIsEmptyWhenNothingIsListening)
     EXPECT_EQ(m.boundPort(), 0);
 }
 
+TEST(GsProMonitor, StoppingHandsThePortBackToWhoeverWantsIt)
+{
+    // ⚠ THE WHOLE POINT OF THE ENABLE SWITCH. A user who wants to run GSPro itself
+    // has to give it port 921, and the panel's switch is how — so "stopped" has to
+    // mean the port is genuinely released, not merely that we stopped reading it.
+    // Nothing else in the suite would notice a listener that lingered.
+    quint16 port = 0;
+    {
+        GsProMonitor first;
+        first.setSourcePath(QStringLiteral("127.0.0.1:0"));
+        first.start();
+        ASSERT_EQ(first.state(), State::Waiting) << first.errorText().toStdString();
+        port = first.boundPort();
+        ASSERT_GT(port, 0);
+
+        // While it is up, nobody else can have the port.
+        GsProMonitor rival;
+        rival.setSourcePath(QStringLiteral("127.0.0.1:%1").arg(port));
+        rival.start();
+        EXPECT_EQ(rival.state(), State::Error);
+        rival.stop();
+
+        first.stop();
+    }
+
+    // And once it is down, they can.
+    GsProMonitor successor;
+    successor.setSourcePath(QStringLiteral("127.0.0.1:%1").arg(port));
+    successor.start();
+    EXPECT_EQ(successor.state(), State::Waiting)
+        << "the port was not released: " << successor.errorText().toStdString();
+    successor.stop();
+}
+
 TEST(GsProSourcePath, TurnsTheTwoSettingsIntoOneAddress)
 {
     using pinpoint::lm::gsProSourcePath;

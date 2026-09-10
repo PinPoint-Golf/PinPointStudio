@@ -694,6 +694,14 @@ Item {
                                     return d.transport === "cable" ? qsTr("Cable")
                                          : d.transport === "wifi"  ? qsTr("Wi-Fi")
                                          :                            qsTr("connected")
+                                // ⚠ AND A LAUNCH MONITOR HAS NO RATE EITHER — the
+                                // same trap as the phone above. One JSON object per
+                                // shot is not a stream, and "0 Hz" would be a number
+                                // invented for a device that never sends one. The
+                                // shot count is the fact this row can carry.
+                                if (d.kind === "LaunchMonitor")
+                                    return d.shots === 1 ? qsTr("1 shot")
+                                                         : qsTr("%1 shots").arg(d.shots || 0)
                                 return d.status === "connected" ? d.dataRateHz.toFixed(0) + " Hz" : qsTr("disconnected")
                             }
                             font.family:         Theme.fontData

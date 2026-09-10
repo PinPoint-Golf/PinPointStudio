@@ -99,6 +99,8 @@ public:
     QString deviceName() const;
     QString lastReading() const { return m_lastReading; }
     QVariantList devices() const;
+    // Split out only because stateLabel() would otherwise nest two questions.
+    QString      waitingLabel() const;
     int          deviceCount() const { return devices().size(); }
     bool         enumerates() const;
 

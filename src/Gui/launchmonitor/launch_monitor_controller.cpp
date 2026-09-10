@@ -47,6 +47,8 @@ LaunchMonitorController::LaunchMonitorController(AppSettings *settings, ShotList
     reconfigure();
 
     if (m_settings) {
+        connect(m_settings, &AppSettings::launchMonitorEnabledChanged,
+                this, &LaunchMonitorController::reconfigure);
         connect(m_settings, &AppSettings::launchMonitorKindChanged,
                 this, &LaunchMonitorController::reconfigure);
         connect(m_settings, &AppSettings::launchMonitorPathChanged,
@@ -72,7 +74,19 @@ LaunchMonitorController::~LaunchMonitorController()
 
 void LaunchMonitorController::reconfigure()
 {
-    const Kind kind = m_settings ? kindFromKey(m_settings->launchMonitorKind()) : Kind::None;
+    // ⚠ DORMANT IS BUILT OUT OF THE PARTS THAT ALREADY EXIST, not out of a fourth
+    // state. "Switched off" and "nothing configured" behave identically — no
+    // listener, no dot, no chime, no port held — so disabling resolves to
+    // Kind::None and the existing InertLaunchMonitor does the rest. The SETTINGS
+    // are untouched, which is the whole point: the port, the interface and the
+    // GCQuad's folder are all still there when it comes back on.
+    //
+    // ⚠ AND IT RELEASES PORT 921. That is why this connector needs the switch more
+    // than the GCQuad does: a user who wants GSPro itself to run has to hand the
+    // port back, and reconfiguring the connector to do it would lose the setup.
+    const bool enabled = !m_settings || m_settings->launchMonitorEnabled();
+    const Kind kind = (m_settings && enabled) ? kindFromKey(m_settings->launchMonitorKind())
+                                              : Kind::None;
 
     // Rebuild only when the kind actually changes; a path edit must not tear down and
     // recreate the connector, because that would re-prime the watermark and could lose
@@ -94,6 +108,11 @@ void LaunchMonitorController::reconfigure()
         if (auto *gs = qobject_cast<GsProMonitor *>(m_monitor)) {
             connect(gs, &GsProMonitor::clientsChanged,
                     this, &LaunchMonitorController::devicesChanged);
+            // ⚠ AND the status line, because stateLabel() reads deviceCount(): the
+            // moment a device connects the label stops saying "no launch monitor
+            // yet", and that happens before the library changes state.
+            connect(gs, &GsProMonitor::clientsChanged,
+                    this, &LaunchMonitorController::stateChanged);
         }
     }
 
@@ -142,9 +161,31 @@ QVariantList LaunchMonitorController::devices() const
         // anonymous socket until its first message — the protocol has no
         // handshake and a device may say nothing for minutes — and "connecting…"
         // is the honest label for that, not a blank row.
-        m[QStringLiteral("label")] = c.identified && !c.deviceId.isEmpty()
-                                         ? c.deviceId
-                                         : tr("connecting…");
+        const QString label = c.identified && !c.deviceId.isEmpty()
+                                  ? c.deviceId
+                                  : tr("connecting…");
+        m[QStringLiteral("label")] = label;
+
+        // ── The same row, in the resource monitor's vocabulary ──────────────
+        // ⚠ ONE MAP WITH BOTH SETS OF KEYS, not two models. A paired phone does
+        // exactly this — PpcpHostService::phones() emits rows the monitor
+        // appends VERBATIM — and the alternative is two lists of the same thing
+        // that can disagree about how many launch monitors are connected.
+        m[QStringLiteral("kind")]       = QStringLiteral("LaunchMonitor");
+        m[QStringLiteral("name")]       = label;
+        m[QStringLiteral("identifier")] = c.peer;
+        // "connected" is what the home screen's dot reads for green. An
+        // unidentified client is on the wire but has said nothing, so it is not
+        // green yet — the same distinction the settings panel draws in amber.
+        m[QStringLiteral("status")]     = c.identified ? QStringLiteral("connected")
+                                                       : QStringLiteral("connecting");
+        // ⚠ A LAUNCH MONITOR HAS NO RATE, and the phone row already carries the
+        // scar from claiming one: "0 Hz" is a number nobody asked for. Zero here,
+        // and the row's right-hand cell shows the shot count instead.
+        m[QStringLiteral("dataRateHz")] = 0.0;
+        m[QStringLiteral("hasWarning")] = false;
+        m[QStringLiteral("model")]      = deviceName();
+        m[QStringLiteral("backend")]    = QStringLiteral("GSPro Open Connect");
         out.append(m);
     }
     return out;
@@ -192,15 +233,41 @@ QString LaunchMonitorController::stateName() const
 
 QString LaunchMonitorController::stateLabel() const
 {
+    // ⚠ "SWITCHED OFF" AND "NOT CONFIGURED" ARE THE SAME STATE AND DIFFERENT
+    // FACTS. Dormant is deliberately built out of Kind::None (see reconfigure),
+    // which is right for behaviour and wrong for the label: a user who has just
+    // set a port and flicked the switch off must not be told their connector does
+    // not exist. The settings know which it is; the connector cannot.
+    const bool chosen = m_settings
+                        && kindFromKey(m_settings->launchMonitorKind()) != Kind::None;
+    const bool off    = chosen && m_settings && !m_settings->launchMonitorEnabled();
+
     if (!m_monitor)
-        return tr("Not configured");
+        return off ? tr("Switched off") : tr("Not configured");
     switch (m_monitor->state()) {
-    case State::Disabled: return tr("Not configured");
-    case State::Waiting:  return tr("Waiting for a shot");
+    case State::Disabled: return off ? tr("Switched off") : tr("Not configured");
+    case State::Waiting:  return waitingLabel();
     case State::Ready:    return tr("Connected");
-    case State::Error:    return tr("Cannot read the folder");
+    case State::Error:
+        // ⚠ A LISTENER HAS NO FOLDER. This string was written when there was one
+        // connector and it read a file; for the GSPro link the error is a bind
+        // failure, and telling somebody to check a folder would send them looking
+        // for something that does not exist.
+        return m_monitor->kind() == Kind::GsPro ? tr("Cannot listen")
+                                                : tr("Cannot read the folder");
     }
     return tr("Not configured");
+}
+
+QString LaunchMonitorController::waitingLabel() const
+{
+    // The GCQuad waits for a SHOT — it is watching a folder that is already there.
+    // The GSPro link waits for a DEVICE first, and only then for a shot, and the
+    // difference is the whole of what a user needs to know while nothing happens.
+    if (m_monitor && m_monitor->kind() == Kind::GsPro)
+        return deviceCount() > 0 ? tr("Waiting for a shot")
+                                 : tr("Listening — no launch monitor yet");
+    return tr("Waiting for a shot");
 }
 
 QString LaunchMonitorController::errorText() const

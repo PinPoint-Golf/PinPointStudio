@@ -176,6 +176,32 @@ Rectangle {
                     { key: qsTr("Ring size"),     value: d.ringCapacityStr,     cls: "neutral" }
                 )
                 return camRows
+            } else if (d.kind === "LaunchMonitor") {
+                // ⚠ ITS OWN ARM FOR THE REASON THE PHONE NEEDED ONE. This was a
+                // Camera / Phone / else-IMU branch, so a launch monitor would have
+                // been drawn with a battery gauge, a gimbal-drop count and a ring
+                // size — none of which it has. It carries no bytes into the
+                // EventBuffer at all: one JSON object per shot, over TCP, from a
+                // device that dialled in.
+                var lmRows = []
+                if (d.identifier)
+                    lmRows.push({ key: qsTr("Address"), value: d.identifier, cls: "neutral" })
+                lmRows.push(
+                    { key: qsTr("Connection"),
+                      // "connecting" is not a failure: the protocol has no
+                      // handshake, so a device is an anonymous socket until its
+                      // first message and may stay one for minutes.
+                      value: d.status === "connected" ? qsTr("Connected")
+                                                      : qsTr("Connected, not yet identified"),
+                      cls:   d.status === "connected" ? "good" : "neutral" },
+                    { key: qsTr("Protocol"), value: d.backend || qsTr("GSPro Open Connect"), cls: "neutral" },
+                    { key: qsTr("Shots"),    value: String(d.shots || 0),    cls: "neutral" },
+                    // Every well-formed object, heartbeats included — which is how
+                    // you tell "connected and chatting" from "connected and silent"
+                    // when no ball has been hit yet.
+                    { key: qsTr("Messages"), value: String(d.messages || 0), cls: "neutral" }
+                )
+                return lmRows
             } else if (d.kind === "Phone") {
                 // ⚠ ITS OWN ARM, AND IT NEEDED ONE.  This was a two-way branch
                 // — Camera or else-IMU — so a phone fell into the IMU side and
