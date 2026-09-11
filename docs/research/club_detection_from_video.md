@@ -1,11 +1,13 @@
-# Physics-Constrained Detection of a Golf Club from Fixed-Environment Video: Twelve Phases, and What Each One Taught
+# Physics-Constrained Detection of a Golf Club from Fixed-Environment Video: Thirteen Phases, and What Each One Taught
 
 *PinPoint shaftlab programme — research report covering the work from
 inception (first drafted 2026-07-05; reorganised into this phase narrative
-2026-08-10; corpus shape model added 2026-08-11). Empirical basis: hand-labelled swings 0008 and 0009, the c1
+2026-08-10; corpus shape model added 2026-08-11; the bare-club phase added
+2026-09-11). Empirical basis: hand-labelled swings 0008 and 0009, the c1
 multi-club corpus (100 clubhead labels), the tape_20260704 pilot and
 tape_20260705 instrumented corpora, the 2026-07-09 live-app corpus, and the
-61-swing five-session production corpus. Tooling: `tools/shaftlab/`,
+61-swing five-session production corpus, and the seven-swing unmarked 6-iron session
+of 2026-09-09 with its 64 hand marks. Tooling: `tools/shaftlab/`,
 `tools/swinglab/`. Supporting records live in `docs/design/` (the detector and
 tracking designs) and `docs/implementation/` (the per-session build records
 cited in the later phases).*
@@ -20,7 +22,7 @@ direction **θ**, its projected scale (which shrinks under foreshortening), and
 the clubhead position: the raw inputs to every coaching metric the product
 reports.
 
-The work divides into twelve phases, and the report is organised as their
+The work divides into thirteen phases, and the report is organised as their
 narrative because the single most useful thing in it is not any one method but
 the *sequence* — what each phase bought, and what it cost. In outline: a
 confidently-wrong first tracker that had to be pulled from the product; a
@@ -37,7 +39,13 @@ blur; an exposure-arc reading of motion blur that yields the impact zone's
 first physical velocity measurement; and then four phases of production work
 in which the method was made cheap, ported, anchored on the ball, and finally
 graded on an axis nobody had graded before — not θ, but the *instants at which
-θ is reported*.
+θ is reported*. The thirteenth phase then removes the instrument's own crutch:
+the retro-reflective tape, which the golfer could feel in the swing weight, was
+found to have never been what made the shaft bright, and a bare steel club is
+now measured better than the taped one was — 1.6° against 4.5° at the median —
+by a segment lock on the steel's own two ends, a line re-registration for the
+frames without one, and a head search that no longer assumes the pose anchor
+lies on the shaft.
 
 Two findings recur and are, we think, the report's durable contribution. The
 first is methodological: honesty bought by *abstention* — refusing to measure
@@ -214,6 +222,12 @@ which.
 - **The production corpus.** 61 swings across five sessions, with 13–14 carrying
   hand-marked video truth. This is the basis of Phase 12, and the first corpus
   large enough for a defect on a *third* of the swings to be visible at all.
+- **The unmarked 6-iron session.** Seven swings of a bare steel 6-iron in the
+  blacked-out studio, 2026-09-09, every one hand-marked at P1–P10 (64 marks, of
+  which 42 are *seen* — P1 to P6 — and 22 are *inferred*, because through impact
+  the shaft is invisible and the mark is a line drawn from the hands to the
+  clubhead). This is the gate population of Phase 13, standing in for the untaped
+  7-iron the design had asked for: the loft is immaterial to the question.
 
 Corpus discipline is strict for a reason we keep having to relearn: the
 residuals from a *single* swing must never be allowed to choose a model form,
@@ -253,6 +267,7 @@ is the one that gets acted on.*
 | Instrumented, multi-evidence fusion | band-tier 1.1–3.3°, ray-tier 0.4–0.8° | **zero adjudicated errors** | fast phases (down / through) | address, finish, impact ±10 fr |
 | Instrumented, constraint system + global solve | band 0.3° (0% >15°), ray 1.7° (3% >15°), 10-swing corpus | **zero flips, all 10 swings** | fast phases at **96% / 83%** measured coverage | impact ±10 fr, address scale |
 | Instrumented, exposure-arc velocity | *velocity*, not angle: an independent reading confirms the tracked ω-peak to **1.5°/fr median (3.6° max)** | n/a — corroborates, adds no new θ | impact ±10 fr **ω**: **71–92 mph** clubhead, every swing | still θ-ray-only at impact; scale at address |
+| **Bare steel, segment lock + snap + head band** (Phase 13) | **1.6° / 4.5°** p50 / p90 vs hand marks on an unmarked 6-iron; head 21 px; the *taped* club as shipped scores 4.5° / 26 px on the same kind of mark | none — the four catastrophic marks were a phase-model collapse, since fixed | takeaway → top → delivery, every marked position ≤ 4.3° | impact is *unmeasurable* on a bare club (the shaft is invisible; the marks there are constructions); the daylight session's lead-arm tail |
 
 ***Table 2.** The same picture read phase by phase — which detector can
 actually *measure* each part of the swing, and what the combination is fit
@@ -298,8 +313,14 @@ Two footnotes complete the picture, and both are results in their own right.
   because the per-frame statistics average over precisely the axis at fault. The
   first grading of the instants themselves (Phase 12) found three independent
   defects there, and the θ tables were unaffected by every one of them.
+- **The instrumented rows are no longer the ceiling.** Every "Instrumented"
+  row above needed the tape; the last row does not, and it is better than the
+  taped club *as the product ships it* on both direction and head position. The
+  band tier's 0.3° remains the finest measurement in the table, and Phase 13
+  kept it exactly — the one regression the corpus pass caught was the new
+  machinery touching band-locked frames, and those are now left alone.
 
-## 3. The programme in twelve phases
+## 3. The programme in thirteen phases
 
 The rest of the report is one section per phase, in the order they happened.
 Each says what we set out to do, what worked, and what did not — the failures
@@ -319,6 +340,7 @@ being, in this programme, considerably more instructive than the successes.
 | 10 | The far end and the true start | anchor the club's far end on the ball; find the true motion onset | the honesty clause passes 9 of 10; the swing boundary corrected by ~400 ms | the onset clamp quietly became a pin (found two phases later) |
 | 11 | The port and the pipeline | C++ port, then parallelise the production stages | numeric parity; 1.84× on the whole pipeline | INT8 quantisation and batched inference both measured as duds |
 | 12 | Grading *when* | grade the instants, not the angles | three defects found; delivery within 5 ms of truth on every labelled swing | the θ path never moved — every one of these had been invisible |
+| 13 | The bare club | lock on the steel's own two ends; re-register the line; search the head off the anchor | an unmarked club at 1.6° / 21 px, ahead of the taped one; a phase-model collapse and a lying trace found under it | the head placed from the terminus made the head worse; two snap guards rejected; the snap had been moving band-locked frames |
 ## 4. Phase 1 — The confidently wrong tracker, and the three rules it bought
 
 The programme has a founding failure that shaped everything after it. An
@@ -1730,9 +1752,248 @@ fabricated one.
 Both are the same statement in different phases — the boundary is now correct
 wherever the image contains the evidence to place it, and where it does not,
 the system says so.
-## 16. What the whole history says
+## 16. Phase 13 — The bare club
 
-### 16.1 Honesty by abstention versus honesty by discrimination
+Every accurate number in this report before now was measured on a club wearing
+retro-reflective tape. The tape was built as an *instrument* (Phase 3): it was
+never meant to be what the customer's club wore, and the design documents had
+always carried the untaped club as the strategic destination — the bridge, as
+§19 still put it before this phase, "from taped lab clubs to the unmarked clubs
+a customer actually owns", to be crossed by a learned component. This phase
+crossed it without one, and the reason it could is the report's next negative
+result: **the tape was never what made the shaft bright.**
+
+The trigger was mechanical, not optical. Five bands of tape on a 7-iron
+"drastically alter the swing weight", in the golfer's words, and the swing with
+them. The swingweight fulcrum sits 356 mm from the butt; the grip-side bands add
+almost nothing, but the three at the tip, 758–854 mm out, are precisely the
+change a player feels. The protocol's claim that the tape had "no swing-feel
+effect" had never been tested. So the question was put directly: could the same
+level of detection be had with no tape at all, from the steel's own reflection?
+
+### What the tape actually provided
+
+The first move was a measurement, not a design: probe the bare steel *between*
+the bands on the taped corpus itself — 83 swings, 21,635 frames — using the
+ridge-sweep evidence the tracker already scores. In the lit arc bare steel
+saturates at 255 exactly as tape does; at the top of the backswing, in the dark
+arc, it reads 35–90 over a 6–8 background where the bands read ~227 — a
+continuous line the evidence engine credits at 60–85 of a 90 clip in every phase
+but delivery (34). The brightness was never the tape's.
+
+What the tape uniquely provided, read off the code rather than the pixels, was
+four things: a **per-frame metric scale** and **butt offset** from the known band
+spacing; the **pin** that anchors the dynamic-programming solve to the band's
+direction; the **near-a-band clause** that alone lets a static frame — address
+hold, held finish — publish at all; and the **dense truth supply** of Phase 3.
+Not signal. A metric anchor, a pin, a publication licence, and a ruler.
+
+Two confounds had to be named before anything was graded, because both had
+already misled us. The only untaped full-resolution video in the library was a
+July session shot in a *daylight* room, while every taped session was blacked
+out — so the two bound the design from opposite sides and cannot be compared
+directly. And the corpus's own club labels were unreliable: the July "driver"
+sessions turned out, by their band-tier frames and iron head, to be the taped
+7-iron. Every result below is classified by evidence, never by label.
+
+### The steel's own two ends
+
+The replacement for the band's ruler is the steel itself. A bare shaft has two
+landmarks the image can resolve: where the steel begins — the grip end, or,
+when the hands cover it, the *hands' edge* — and where it ends at the hosel.
+Between them the club is a straight bright run of known millimetres, so a run
+found along a ray gives a scale and a butt offset the same way the bands did.
+This is the **segment lock**, and it was built the way Phase 5 taught: engine
+first, pinned bit-for-bit against the existing ridge score, then graded on the
+taped corpus where the band lock is a 0.3° reference *for the same frames*,
+before any unmarked club was looked at.
+
+That grading failed its first targets, and the corpus located both design
+errors on the same day. Locating the segment *before* the solve let a trouser
+crease or an arm with support 1.0 win the candidate pick, and the direction
+disagreed with the band on 28% of frames; and the grip-end landmark simply does
+not exist on the club in question — a light grip, hands covering it — so the
+scale was off by 28%. The change of shape was to probe *along the solve's own
+direction, after it* (the solve already sits 0.2° from the band; it does not
+need the segment's help to point, only to measure), and to accept the hands'
+edge as the onset at a measured offset. With that: direction 1.0° / 1.4°
+against the band, terminus −1 px, scale 6.2% at the median, and a full lock on
+40% of the taped corpus's span frames — 57% once the consumers were wired —
+against the band lock's 26%. On the marked club the bare steel is already the
+more available ruler.
+
+Then the unmarked club. The first attempt at its address was instructive: 30%
+of the address hold locked, which looked like a result until the probe was
+drawn — it was the trouser crease, because the solve's direction at address is
+a 90° clamp and a probe along a clamp locks whatever is under it. The address
+probe now points at the ball, the one thing at address that the real shaft
+points at and the leg does not (§19 had listed this as unbuilt), and the honest
+address rate is 6–9% on both clubs: bare steel on a lit mat has no contrast.
+
+### Three things the taped club had hidden
+
+The segment lock made the bare club *measurable*; three further changes made it
+*good*, and each of them had been standing in plain sight on the taped club
+where a band lock covered for it.
+
+**The drawn line was not on the club.** The pose estimator's grip anchor sits
+39 px from the shaft axis at the median, so every line the tracker drew started
+off the club. A line re-registration pass — search a perpendicular offset and a
+small rotation for the line that maximises the ridge integral — had been in the
+code since the first design and never turned on. Widened to 45 px and 10° to
+match the anchor's actual error, it took the 6-iron from 5.5° to 1.8° at the
+median, and the untaped 7-iron from 4.0° to 2.9°. It is switched off through
+impact and follow-through, where the shaft is a fan and a re-registration onto
+whatever ridge exists made things worse (9.6° → 12.4°).
+
+**The head search never looked at the club.** On a bare club the terminus walk
+stopped 60–80 px short of the head, at the last lit steel, on every frame. A
+diagnostic dump of one top-of-backswing frame showed why: the walk ran along
+the solve's ray from that off-axis anchor and *hit nothing beyond the hands* —
+the ray did not pass through the club. A lateral band of ±30 px, sampled at 8 px
+steps (cheaper *and* better than 4), found a continuous run to 291 px on the
+same frame, where the mark's head sits. Head error 58 → 29 px.
+
+**The full search was three quarters of the cost.** The widened re-registration
+is 3,731 line integrals per sample; a coarse grid at 2 px and 1° followed by the
+full grid within ±6 px and ±2° of the best coarse cell is ~580, and on all seven
+swings the output is byte-identical. The whole stack costs +0.5 s on a 5 s
+swing, of which the head band is the larger part.
+
+### What worked
+
+***Table 13.** The bare club against the taped one, hand-marked video truth,
+seen frames (P1–P6), sole-to-hosel convention removed. The "as shipped" row is
+the production tracker of 2026-09-09 on each club; the taped club's four
+band-tier marks alone score 0.4°.*
+
+| club, configuration | direction p50 / p90 | head p50 / p90 | marks |
+|---|---|---|---|
+| taped 7-iron, as shipped | 4.5° / 9.7° | 26 / 106 px | 36 |
+| taped 7-iron, new stack + band | 2.3° / 9.6° | 17 / 55 px | 36 |
+| untaped 7-iron (daylight), as shipped | 4.0° / 15.0° | 43 / 129 px | 60 |
+| untaped 7-iron (daylight), new stack | 3.0° / 13.6° | 29 / 139 px | 60 |
+| **unmarked 6-iron, new stack** | **1.6° / 4.5°** | **21 / 102 px** | 38\* |
+
+*\*38 of 42, for a reason that is itself a finding — see below.*
+
+The two halves of the stack do separable jobs, and they were graded apart
+because a combined number would have hidden it: the segment lock and the head
+band own the *head* (39 → 26 px, measured-head marks 8 → 15) and move the
+direction not at all, while the re-registration owns the *direction* (5.5° →
+1.6°) and does nothing for the head. The direction gain is concentrated where
+the club is hardest to see: all seven marks at the top of the backswing go from
+6.0–9.3° to 0.0–3.3°.
+
+The design's gate for switching the stack on by default was met on the 6-iron:
+downswing measured coverage 100% (≥ 90 required), through-impact 84.9% (≥ 75),
+finish frames published on every swing, direction 1.6° / 4.5° against a ≤ 2° /
+≤ 6° bar, every swing valid. It ships on; a customer's bare club is now measured
+better than our own instrument was.
+
+***Table 14.** The no-regression pass the flip owed the taped corpus, run
+afterwards: 61 pinned-pose swings, the last pre-flip commit as baseline, three
+configurations on one grip track per swing.*
+
+| baseline → new default | baseline | new |
+|---|---|---|
+| θ vs the band lock, 1,015 band frames, p50 / p90 | 0.26° / 0.49° | **0.26° / 0.49°** |
+| measured coverage, mean | 0.910 | **0.938** |
+| hand-mark seen frames (639), p50 / p90 | 0.7° / 28.3° | 0.5° / 28.7° |
+| Takeaway vs marked P1 (20), \|err\| p90 | 345 ms | **179 ms** |
+| Top vs P4 (14) · Impact vs P7 (14), \|err\| p90 | 58 ms · 7 ms | 58 ms · 7 ms |
+| published tracks byte-identical with every new key off | — | 56 / 61 |
+
+### What was under it
+
+Four of the 6-iron's 42 seen marks scored 60–160°, bit-identical with every new
+key off, and the gate report filed them as pre-existing failures of the solve.
+They were not. On every one the solve was *right* — 183° against a marked 177°
+— and the segment lock agreed with it; the published direction was 25°. Between
+the solve and the sample the **phase model** had labelled the entire backswing
+as Downswing: its two-longest-runs ranking had seated a ten-frame address
+*fidget*, 2.1 s before impact, beside the downswing run, because the backswing
+run never formed on a slow one-piece takeaway over a lerped grip. The top of
+the backswing became the speed minimum between the two — a frame in the
+address hold — and the solve, held to a downswing's transition kernel, walked
+the backswing the wrong way. The Phase 12 repair could not see it: its gate is
+*top too close to impact*, and this top was two seconds away.
+
+That it had never been seen is the phase's most consequential finding, and it
+is a tooling error of the class §17.2 already catalogues — recurring. The
+development tool's trace re-ran the pose: a second, independent inference,
+plain full-window, where production poses two-pass and span-bounded. Two grip
+tracks built two phase models; the trace's had a backswing run and a perfect
+solve beside a broken result, on every camera-only swing, by construction. The
+"trace disagrees with the persisted ladder, producer unlocated" lead that
+Phase 12 had left open was this. The trace now reuses the analyzer's own pose,
+and a traced run costs one inference instead of two.
+
+Two guards fixed the collapse: a run that *ends* before the onset clamp's far
+edge lies wholly in the address hold and can never be the takeaway, so it is
+dropped before the ranking (the mirror of the existing late-side clamp); and a
+top that lands at or before the onset is re-derived, bounded below by the onset
+— an invariant nobody had checked. On the two swings the clamp removes the
+fidget, the ranking falls to one run, and the Phase 12 repair does the rest.
+The 6-iron's p90 across all 42 marks went from 19.6° to 4.5°, the figure the
+gate report had only been able to reach by excluding four marks.
+
+Three further defects came out in the same pass, each a Phase 12 residual
+answered. The impact geometry's override had been two-sided, and on one swing
+it replaced an anchor 7 ms from truth with a crossing the solve reached 38
+frames late through the blur; both documented anchor failures leave the true
+impact at or *before* the emission, so the override can only pull earlier now
+(+254 → −7 ms). The five swings railing at the onset clamp's far edge were
+railing because the reseed's fallback walked back to a stillness the lerped grip
+never reaches — it now hands the walk-back the *end* of the backswing motion and
+lets the no-return scan find the takeaway (Takeaway |err| p90 345 → 179 ms).
+And the no-regression pass itself caught the one thing the hand marks could
+not: the re-registration had been moving *band-locked* frames — θ against the
+band lock 0.49° → 3.18° at p90, on every taped swing — because a mark made by
+eye has more noise than that. The band lock is a direct measurement; the snap
+is for frames without one; band frames are now excluded, and Table 14's first
+row reads unchanged to the hundredth.
+
+### What did not work
+
+Placing the head from the segment's terminus made the head *worse* (73 px
+against 58) and is off. The projection prior on the head pass, on its own, moved
+nothing on a bare club — the walk never offered the clubhead's blob as a
+candidate, so a prior that pulled the right way had nothing to pull. A ridge
+term for bloomed steel was added on the way and not needed. Two guards against
+the re-registration's one tail — on the daylight session it lands on the *lead
+arm* at the top and the leg at address, a parallel bright ridge 30–40 px from
+the shaft with the same line confidence — were tried and rejected: a confidence
+margin, because good and bad moves gain the same 0.1–0.2; a body-hull refusal,
+because the arm is not in the hull and the p90 got worse. A guard that works
+needs the elbow keypoint inside the tracker, which is not passed today. The
+tail costs 15 of 60 marks on that one daylight session and nothing on either
+blacked-out session, which is an argument about lighting as much as about
+guards.
+
+The design had also asked for a new capture — the same 7-iron, untaped, in the
+blacked-out room — before the flip. The bare 6-iron stood in for it: the loft is
+immaterial to whether steel can be found, and re-shooting for it would have
+bought nothing. The lesson is the same as Phase 12's about the microphone —
+the cheapest experiment is sometimes the one you decline to run.
+
+### What now binds
+
+Impact is *unmeasurable* on a bare club at this exposure, and the report should
+say so plainly: from P7 to P10 the shaft is a fan, the marks there are lines
+drawn from the hands to the clubhead, and the detector builds its line the same
+way, so the 9.4° "agreement" on those frames is two constructions coinciding,
+not evidence. The impact-zone metrics are neither improved nor validated by
+this phase. The daylight tail stands until the elbow is in the tracker. And the
+collapse was decided by *pose variance* — the persisted library, analysed on a
+different host, shows none of it on the same two swings, while a third swing
+there carries a ladder half a second early throughout — which is the sharpest
+statement yet of the limit §18 already names: the guarantee is about the code,
+not about a re-run.
+
+## 17. What the whole history says
+
+### 17.1 Honesty by abstention versus honesty by discrimination
 
 This is the central methodological finding, and it only becomes visible when
 you look at the entire history at once.
@@ -1780,7 +2041,7 @@ The point is not that the four laws are magic. It is that they are a *small*
 set of facts, each excluding a large family, and — unlike a guard — excluding it
 while leaving the real measurement in that same phase perfectly measurable.
 
-### 16.2 The catalogue of errors, by kind
+### 17.2 The catalogue of errors, by kind
 
 It is worth cataloguing the failures deliberately, because the *pattern* of
 them is one of the report's main results. They fall into four groups.
@@ -1823,7 +2084,11 @@ recurred in production tooling: the development tool writes its per-frame trace
 by running the tracker a *second* time, and on jitter-sensitive swings that
 re-run diverges from the shipping analysis — a divergence that was, for one
 session, misdiagnosed as a defect in the delivered result. A diagnostic that
-re-executes the pipeline is not observing the pipeline.
+re-executes the pipeline is not observing the pipeline. Phase 13 found the same
+error a level deeper and living longer: the trace re-ran the *pose* as well,
+in a different scan mode, so it had been tracing a different swing than the
+one shipped on every camera-only capture since the tool was written — and a
+collapsed phase model hid behind a perfect trace for a month.
 
 **Epistemic errors — the mistakes of belief.** "There is no ring light present"
 was confidently inferred from the absence of saturated blobs at address, and
@@ -1846,7 +2111,19 @@ three defects lived undisturbed for the whole programme in the gap between
 those two sentences, invisible to statistics that are bit-identical across all
 of them.
 
-## 17. Limitations and threats to validity
+Phase 13 adds two more members of the family. **The percentile artefact:** four
+catastrophic marks, unchanged by a change that compressed every other mark
+around them, made the p90 *rise* — a regression that was nothing but the
+distribution tightening onto its fixed outliers. Read a tail per mark against
+the baseline on the same frames before calling it a regression. And **the
+yardstick that cannot see the regression it is asked about:** a hand mark has
+two to four degrees of noise, so it cleared a change that had moved the taped
+club's band-locked frames by three; only the band lock itself, the 0.3°
+reference, could see that, and the pass that used it was the one the flip had
+shipped without. A validation regime can also pass because its labels are the
+right kind of object at the wrong *precision*.
+
+## 18. Limitations and threats to validity
 
 Honesty about the results demands honesty about their limits.
 
@@ -1879,7 +2156,19 @@ path did not move" holds only under pinned pose: with live pose the inference
 jitter alone can move an event by tens of milliseconds, so the guarantee is
 about the code, not about a re-run.
 
-## 18. Future work
+Phase 13's limits are the narrowest of all. One athlete, one bare club, seven
+swings, one evening's marks; the daylight session is the only untaped video
+from another lighting regime and it carries the phase's one known tail. The
+bare club's impact zone has no truth of the right kind at this exposure, so
+nothing this phase claims extends past P6. The band-lock yardstick that
+protects the taped corpus does not exist on a bare club, so the bare club's
+regressions can only ever be caught by hand marks — the very instrument shown
+here to be too coarse for a three-degree defect. And the phase-model collapse
+was decided by which pose a given host produced: the fix is graded on the pose
+that collapsed, and the library, analysed elsewhere, never showed it on those
+swings and shows a different collapse on another.
+
+## 19. Future work
 
 Two proposals from the original design remain unbuilt, and both are named here
 rather than in a phase because neither has been graded.
@@ -1901,9 +2190,12 @@ the truth is never fitted to the IMU — as a deliberate epistemic firewall.
 
 **A small learned component, kept on a short leash.** A heatmap keypoint
 network localising the clubhead's heel, toe and hosel, evaluated *only* inside
-the physics-defined region of interest, is the strategic payload of the whole
-programme: it is the bridge from taped lab clubs to the unmarked clubs a
-customer actually owns. It would be trained on a data flywheel — the stripe
+the physics-defined region of interest, was to be the bridge from taped lab
+clubs to the unmarked clubs a customer actually owns. Phase 13 crossed that
+bridge classically for the *shaft*; what remains for a learned component is the
+*head* — the bare club's head sits at 21 px against the taped club's 17, its
+p90 is a hundred pixels, and the terminus walk still stops at the last lit
+steel more often than at the clubhead. It would be trained on a data flywheel — the stripe
 truth supplying weak labels, a stratified human adjudication promoting a subset
 to gold, and blur augmentation synthesised from the *measured* angular
 velocity so the hard training examples match this camera's physics rather than
@@ -1917,6 +2209,24 @@ physics already deliver about 1° with zero flips, and a network there would add
 risk without adding accuracy.
 
 The remaining items, in rough gate order:
+
+- **The elbow inside the tracker.** The re-registration's only tail — the lead
+  arm at the top, the leg at address, on the daylight session — needs a guard
+  that refuses a snapped line running along the forearm, and the forearm is not
+  passed to the tracker today (only the hand direction and eight body joints
+  are). Confidence margins and body-hull refusals were both measured not to
+  work; distance to the elbow is the one test left that the counterfeit fails
+  and the shaft does not.
+
+- **The bare club's impact zone.** Phase 13 stops at P6 because past it the
+  bare shaft is a fan and no mark of the right kind exists. The exposure-arc
+  reading of Phase 7 and the blur wedge are the only instruments that see that
+  zone, and neither has been graded on a club without bands.
+
+- **Re-analysing the library on the fixed phase model.** One persisted swing
+  carries a ladder half a second early throughout; the collapse Phase 13 found
+  is pose-dependent, so the library should be re-run and re-scanned rather than
+  assumed clean.
 
 - **The still-hold redesign** in the passive tracker — cluster the still-run
   measurements, or split runs at confident θ jumps — to retire the falsified "a
@@ -1976,17 +2286,16 @@ The remaining items, in rough gate order:
   absolute foreshortening measure and letting us pool measurements across
   sessions — the far-end anchor of Phase 10, read for scale rather than angle.
 
-- **The address half of the ball anchor.** Phase 10 built the ball as a
-  *length* reference and Phase 12 built it as a *direction* at impact. Read at
-  address it remains unbuilt, and it is the one discriminator the mat-crossing
-  prior provably could not supply: the real shaft points at the ball, the leg
-  line does not.
+- **The address half of the ball anchor — built for the segment probe, not yet
+  for the solve.** Phase 13's address probe points at the ball, which is what
+  retired the trouser-crease lock; the solve's own address direction is still a
+  clamp. Reading the ball into the solve at address is the remaining half.
 
 - **Broader corpora**: multi-club, left-handed, and hard-frame-labelled.
 
-## 19. Conclusion
+## 20. Conclusion
 
-Across two detector families, three generations of method, twelve phases and
+Across two detector families, three generations of method, thirteen phases and
 roughly two dozen adjudicated counterfeits, the evidence supports a single
 conclusion. In a fixed, hostile capture environment, the discriminative power
 that generic computer vision lacks is available *for free* in the physics of
@@ -2022,6 +2331,18 @@ validation apparatus graded θ per frame and nothing graded *when*.
 
 Physics-first is not a property a detector acquires once. It is a question to
 be asked again at every layer that consumes the one below.
+
+The thirteenth phase closes the loop the third one opened. We built a taped
+instrument because bare steel was assumed too faint to measure, and the
+instrument's first job, in the end, was to prove that assumption false: the
+brightness had been the steel's all along, and what the tape had really
+supplied was a ruler and a pin. Replacing those with the steel's own two ends,
+a line that is actually on the club, and a head search that looks where the
+club is, a customer's unmarked club is now measured better than the instrument
+was. And the phase's most important finding was, once more, not in the
+detector: a phase model with no backswing in it, and a diagnostic that had been
+watching a different swing than the one it reported on. The tape came off; the
+question stayed the same.
 
 ## Appendix A — the old fix and constraint labels
 
