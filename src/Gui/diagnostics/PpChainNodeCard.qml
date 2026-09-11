@@ -100,7 +100,19 @@ Item {
     readonly property int tzHead:    Math.max(1, Math.round(Theme.fontSzHeading * fit))
 
     readonly property string kind:  node ? (node.kind || "live") : "live"
-    readonly property bool isLive:   kind === "live"
+    // ⚠ WATCHED DRAWS AS A READING, NOT AS AN ABSENCE. A condition the capture measured on every
+    // shot and that has not reached the pattern gate has a count, a run, a state on this swing
+    // and a strength — everything a live node has except the claim. It used to arrive here as a
+    // ghost and be drawn as a dashed blank saying its measure was planned, which is what a
+    // golfer would read as "the software cannot see this yet" about the one thing on the rail
+    // that had in fact been seen seven times out of seven.
+    //
+    // So it takes the LIVE body wholesale and is separated by weight: the mark says why there is
+    // no card, and the name is drawn in the secondary ink so a pattern still out-ranks it at a
+    // glance. That is the demotion the rail needed — quieter than an observed fault, and
+    // emphatically louder than nothing.
+    readonly property bool isWatched: kind === "watched"
+    readonly property bool isLive:   kind === "live" || isWatched
     readonly property bool isGhost:  kind === "ghost"
     readonly property bool isScreen: kind === "screenedRoot"
     readonly property bool isOutcome: kind === "outcome"
@@ -277,8 +289,10 @@ Item {
                 id: nodeName
                 objectName: "sdChainNodeName"
                 anchors.left: parent.left
-                anchors.right: pill.visible ? pill.left : parent.right
-                anchors.rightMargin: pill.visible ? root.px(7) : 0
+                anchors.right: meter.visible ? meter.left
+                             : pill.visible  ? pill.left
+                                             : parent.right
+                anchors.rightMargin: (meter.visible || pill.visible) ? root.px(7) : 0
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.node ? (root.node.name || "") : ""
                 // The outcome node is the miss the golfer declared and is the largest thing
@@ -288,7 +302,22 @@ Item {
                 font.family: Theme.fontBody
                 font.pixelSize: root.isOutcome ? root.tzHead : root.tzBody
                 font.weight: Theme.fontBodyWeight
-                color: root.isGhost ? Theme.colorText2 : Theme.colorText
+                color: (root.isGhost || root.isWatched) ? Theme.colorText2 : Theme.colorText
+            }
+            // The same meter the pattern cards carry, for the same reason: a node drawn on the
+            // rail and the card downstairs are the same reading, and one of them saying how
+            // far out while the other did not would make them look like two readings.
+            PpStrengthMeter {
+                id: meter
+                objectName: "sdChainNodeStrength"
+                anchors.right: pill.visible ? pill.left : parent.right
+                anchors.rightMargin: pill.visible ? root.px(7) : 0
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.isLive && known
+                level:   root.node ? (root.node.strength || 0) : 0
+                known:   root.node ? root.node.strengthKnown === true : false
+                caption: root.node ? (root.node.strengthText || "") : ""
+                fit: root.fit
             }
             Rectangle {
                 id: pill
@@ -319,7 +348,7 @@ Item {
         Text {
             objectName: "sdChainNodeMark"
             width: wide.width
-            visible: !root.isLive && text !== ""
+            visible: (!root.isLive || root.isWatched) && text !== ""
             text: root.node ? (root.node.mark || "") : ""
             wrapMode: Text.WordWrap
             font.family: Theme.fontData

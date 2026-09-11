@@ -763,6 +763,69 @@ int main()
               "coverage counts conditions with at least one assessable shot");
     }
 
+    // ── A measured condition below the gate is not a ghost ──────────────────────
+    {
+        auto node = [](const char *id, bool measurable, bool screened, bool asserted) {
+            NodeSpec n;
+            n.id = QString::fromLatin1(id);
+            n.measurable = measurable;
+            n.screened   = screened;
+            n.asserted   = asserted;
+            return n;
+        };
+
+        // Three ledgers over the same six shots: a pattern, a condition that fired twice and
+        // did not recur, and one that was read every time and never fired.
+        const auto ls = conditionLedgers(sessionOf({
+            plan("pattern",  { 1, 1, 1, 1, 0, 1 }),
+            plan("watching", { 1, 0, 0, 0, 0, 1 }),
+            plan("allClean", { 0, 0, 0, 0, 0, 0 }),
+        }), O);
+
+        check(chainNodeKind(node("pattern", true, false, false), &led(ls, "pattern"))
+                  == ChainNodeKind::LiveCard,
+              "a pattern is a live card");
+
+        // THE REGRESSION THIS BLOCK EXISTS FOR. Both of these used to come back Ghost, and the
+        // panel then told the golfer their measure was PLANNED — about conditions it had read on
+        // every shot of the session. Hanging back (3 of 7) and reverse pivot (0 of 7) are the
+        // two that exposed it on real data.
+        check(chainNodeKind(node("watching", true, false, false), &led(ls, "watching"))
+                  == ChainNodeKind::Watched,
+              "a measured condition below the pattern gate is Watched, not a ghost");
+        check(chainNodeKind(node("allClean", true, false, false), &led(ls, "allClean"))
+                  == ChainNodeKind::Watched,
+              "…and so is one that was measured on every shot and never fired");
+        check(led(ls, "allClean").assessable == 6 && led(ls, "allClean").fired == 0,
+              "…which is a node with six readings behind it, not an absence of one");
+
+        // The ghost that remains is the only one there ever should have been: nothing read.
+        check(chainNodeKind(node("never", false, false, false), nullptr) == ChainNodeKind::Ghost,
+              "a node this capture answered not once is the ghost");
+        check(chainNodeKind(node("never", false, false, true), nullptr) == ChainNodeKind::Ghost,
+              "…asserted or not");
+        // And the two kinds that outrank measurability are unchanged.
+        check(chainNodeKind(node("screen", false, true, false), nullptr)
+                  == ChainNodeKind::ScreenedRoot,
+              "a screened root is still a screened root");
+        NodeSpec out = node("miss", true, false, false);
+        out.outcomeId = QStringLiteral("miss");
+        check(chainNodeKind(out, &led(ls, "pattern")) == ChainNodeKind::Outcome,
+              "and an outcome is still the outcome");
+
+        // A Watched node still does NOT enter a chain: the rail is for patterns, and one shank
+        // must not drag a whole chain onto the screen. The kind changes what a node LOOKS like
+        // where it is drawn; it does not change what gets drawn.
+        std::vector<NodeSpec> nodes{ node("watching", true, false, false),
+                                     node("pattern",  true, false, false) };
+        std::vector<EdgeSpec> edges;
+        EdgeSpec e; e.from = QStringLiteral("watching"); e.to = QStringLiteral("pattern");
+        edges.push_back(e);
+        const ChainRails rails = extractChains(nodes, edges, ls, {}, O);
+        check(rails.chains.empty(),
+              "a watched parent does not put its pattern on a rail");
+    }
+
     // ── Rank-band hysteresis ────────────────────────────────────────────────────
     //
     // The golfer must never watch the app change its mind mid-thought (B8). A one-band

@@ -1077,7 +1077,18 @@ enum class ChainNodeKind {
     LiveCard,      // a measured condition at pattern tier
     Ghost,         // no measure: planned, or authored as asserted
     ScreenedRoot,  // does not vary shot to shot; needs a physical screen
-    Outcome        // the declared miss at the end of the chain
+    Outcome,       // the declared miss at the end of the chain
+    // ⚠ ADDED. A condition this capture MEASURED, on every shot it was tried, that has not
+    // reached the pattern gate — it fired and did not recur, or it never fired at all.
+    //
+    // It used to come out of here as a Ghost, and the panel then told the golfer its measure
+    // was PLANNED. Hanging back and reverse pivot are the two that exposed it: seven shots,
+    // seven readings each, one of them firing on three of them — and both drawn as work
+    // somebody has yet to build. "Nobody has written this measure", "this capture could not
+    // answer it" and "we measured it and it is not a pattern" are three different facts, and
+    // only the third is good news. Collapsing them into the dashed card cost the golfer the
+    // one reading they could act on.
+    Watched
 };
 
 struct ChainNode {
@@ -1113,8 +1124,13 @@ inline ChainNodeKind chainNodeKind(const NodeSpec &n, const ConditionLedger *l)
 {
     if (!n.outcomeId.isEmpty()) return ChainNodeKind::Outcome;
     if (n.screened)             return ChainNodeKind::ScreenedRoot;
+    // No reading at all on this capture. THE ONLY ghost there is.
     if (!n.measurable)          return ChainNodeKind::Ghost;
-    return (l && l->tier == Tier::Pattern) ? ChainNodeKind::LiveCard : ChainNodeKind::Ghost;
+    if (l && l->tier == Tier::Pattern) return ChainNodeKind::LiveCard;
+    // Measured and below the gate. It keeps its count, its run and its readings — what it does
+    // not get is a pattern card, because the evidence does not support the claim (§A3). That is
+    // a statement about the EVIDENCE and it is not the same statement as a ghost's.
+    return (l && l->assessable >= 1) ? ChainNodeKind::Watched : ChainNodeKind::Ghost;
 }
 
 // Pull this session's rails out of the authored graph.

@@ -211,6 +211,7 @@ QString chainNodeKindName(ChainNodeKind k)
     case ChainNodeKind::LiveCard:     return QStringLiteral("live");
     case ChainNodeKind::Ghost:        return QStringLiteral("ghost");
     case ChainNodeKind::ScreenedRoot: return QStringLiteral("screenedRoot");
+    case ChainNodeKind::Watched:      return QStringLiteral("watched");
     case ChainNodeKind::Outcome:      break;
     }
     return QStringLiteral("outcome");
@@ -1687,6 +1688,89 @@ void SessionDiagnosticsModel::buildChains()
 // outcome. The launch-monitor clause is the same clause in both cases, because it is the same
 // fact — this session carried a monitor, so a ball-flight claim is verifiable rather than
 // authored. The recurrence line beside it carries the count ("N of M measurable shots").
+// WHY THERE IS NO READING HERE — and it is FIVE answers, not one.
+//
+// ⚠ THIS USED TO SAY "ghost · measure planned" ABOUT EVERY NODE THAT WAS NOT ASSERTED, and that
+// is a claim about the MODEL made out of a fact about the CAPTURE. NodeSpec::measurable means
+// "this capture answered it" (marshalGraph says so deliberately) — which is the right test for
+// whether a node can carry a count, and no test at all of whether anybody has written the
+// measure. Hanging back and reverse pivot are the cases that exposed it: both are authored
+// `confirmedBy: measured` against live producers (pelvis lateral sway, thorax drift, secondary
+// axis tilt at P4 and P7), and both were being drawn as work somebody has yet to do.
+//
+// The difference matters because the READER CAN ACT ON ONE AND NOT THE OTHER. "The measure is
+// planned" is a roadmap item and nothing the golfer can do changes it. "This capture did not
+// answer it" is a face-on camera, a segmented P5, a launch monitor — a thing about today's
+// session, and the ledger rows already carry the mechanical reason in the vocabulary the review
+// strip prints. Saying the first when the second is true tells a golfer their equipment is fine
+// and the software is behind, when the truth is the exact reverse.
+//
+// The walk is the pack's own: condition → its detecting signals → their measures → the status
+// each measure carries. MeasureStatus already draws every distinction needed, so nothing is
+// invented here — it is read.
+QString SessionDiagnosticsModel::ghostMark(const QString &id, const NodeSpec *ns) const
+{
+    // The pack says outright that this one cannot be measured. Nothing below can override it.
+    if (ns && ns->asserted)
+        return QStringLiteral("no measure · authored as asserted");
+    if (!m_packProv)
+        return QStringLiteral("no reading on this capture");
+
+    const CharacteristicPack &pack = m_packProv->pack();
+    const Condition *c = pack.condition(id);
+
+    bool anyLive = false, anyExternal = false, anyNotCapturable = false, anySignal = false;
+    if (c) {
+        for (const QString &sid : c->detectedBy) {
+            const Signal *sig = pack.signal(sid);
+            if (!sig) continue;
+            for (const QString &mid : sig->measures) {
+                const Measure *m = pack.measure(mid);
+                if (!m) continue;
+                anySignal = true;
+                switch (m->status) {
+                case MeasureStatus::Live:           anyLive = true;          break;
+                case MeasureStatus::ExternalDevice: anyExternal = true;      break;
+                case MeasureStatus::NotCapturable:  anyNotCapturable = true; break;
+                case MeasureStatus::Planned:
+                case MeasureStatus::NoProducer:     break;
+                }
+            }
+        }
+    }
+
+    // THE CASE THIS FUNCTION EXISTS FOR. A live producer exists and this capture still answered
+    // nothing — so the honest mark names the capture, and names the REASON when the session
+    // carried rows that said one. The reason is the same mechanical sentence the review strip
+    // prints in the corridor slot, so the two surfaces cannot word it differently.
+    if (anyLive) {
+        const QString why = withheldReason(id);
+        return why.isEmpty() ? QStringLiteral("measured today · not answered on this capture")
+                             : QStringLiteral("measured today · %1").arg(why);
+    }
+    if (anyExternal)
+        return QStringLiteral("no measure · needs a device this session did not carry");
+    if (anyNotCapturable)
+        return QStringLiteral("no measure · no sensor here can resolve it");
+    // Either every measure behind it is Planned/NoProducer, or the pack authors no signal at
+    // all. Both are roadmap, and only now is that word the truth.
+    return anySignal ? QStringLiteral("no measure · a producer is planned")
+                     : QStringLiteral("no measure · none authored yet");
+}
+
+// The first reason this session gave for withholding a condition, or empty. Rows carry it per
+// shot (ConditionRow::notAssessableReason, never blank on a NotAssessable row); a node with no
+// reading has one on every shot it was tried, and they are the same sentence, so the first is
+// the answer. Linear over a session's shots, which is tens of rows.
+QString SessionDiagnosticsModel::withheldReason(const QString &id) const
+{
+    for (const ShotRecord &s : m_shots) {
+        const ConditionRow *r = rowFor(s, id);
+        if (r && !r->notAssessableReason.isEmpty()) return r->notAssessableReason;
+    }
+    return QString();
+}
+
 QString SessionDiagnosticsModel::markFor(const QString &id, ChainNodeKind kind,
                                          const NodeSpec *ns) const
 {
@@ -1695,8 +1779,7 @@ QString SessionDiagnosticsModel::markFor(const QString &id, ChainNodeKind kind,
         return (ns && ns->screenEntered) ? QStringLiteral("screened root · screen entered")
                                          : QStringLiteral("screened root · needs a physical screen");
     case ChainNodeKind::Ghost:
-        return (ns && ns->asserted) ? QStringLiteral("ghost · authored as asserted, no measure")
-                                    : QStringLiteral("ghost · measure planned");
+        return ghostMark(id, ns);
     case ChainNodeKind::Outcome: {
         const bool lm       = !m_lmShots.isEmpty();
         const bool declared = !m_declaredMiss.isEmpty() && id == m_declaredMiss;
@@ -1705,6 +1788,15 @@ QString SessionDiagnosticsModel::markFor(const QString &id, ChainNodeKind kind,
                       : QStringLiteral("declared miss");
         return lm ? QStringLiteral("outcome · launch-monitor verified")
                   : QStringLiteral("outcome · authored");
+    }
+    case ChainNodeKind::Watched: {
+        // MEASURED, AND THE EVIDENCE DOES NOT REACH THE CLAIM. Both halves are said, because
+        // the count beside it ("3 of 7 measurable shots") is a fact the golfer can act on and
+        // the absent card is one they would otherwise have to explain to themselves.
+        const ConditionLedger *l = ledger(id);
+        if (l && l->fired == 0)
+            return QStringLiteral("measured · clean on every measurable shot");
+        return QStringLiteral("measured · not yet a pattern");
     }
     case ChainNodeKind::LiveCard:
         break;

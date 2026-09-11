@@ -1742,6 +1742,52 @@ Item {
             compare(count.color, Theme.colorGood, "a swing that fired nothing says so in green")
         }
 
+        // A MEASURED CONDITION BELOW THE GATE IS NOT AN ABSENCE, and this is the regression
+        // test for the day it was drawn as one. Hanging back read on seven shots out of seven
+        // and fired on three; reverse pivot read on seven and fired on none. Both came back
+        // from chainNodeKind() as ghosts, so the panel drew a dashed blank and told the golfer
+        // their measure was planned — about the two things on the rail it had measured most.
+        function test_16b_aMeasuredConditionBelowTheGateIsDrawnAsAReading() {
+            const src = detailSource()
+            // The pack authors a live measure, the capture answered it every time, and the
+            // evidence does not reach the pattern gate. That is a `watched` node.
+            const rail = src.detail.causes[0]
+            rail.nodes[0] = chainNode("hanging_back", "Hanging back", "watched",
+                                      "measured · not yet a pattern",
+                                      { phase: "downswing · thorax drift",
+                                        recurrence: "3 of 7 measurable shots",
+                                        state: "fired", statePill: "FIRED",
+                                        strengthKnown: true, strength: 4,
+                                        strengthText: "4 of 5 · well outside the corridor",
+                                        ticks: [tick("fired"), tick("clean"), tick("fired"),
+                                                tick("clean"), tick("clean"), tick("clean"),
+                                                tick("fired")] })
+            rail.links = []
+            setSource(src)
+            laidOut()
+
+            const node = nodeById("hanging_back")
+            verify(node, "the watched node is drawn")
+            compare(node.kind, "watched")
+
+            // It keeps everything a reading has.
+            compare(one(node, "sdChainNodeRecurrence").text, "3 of 7 measurable shots",
+                    "its count is shown, because it has one")
+            compare(findAll(one(node, "sdChainNodeRun"), "sdTick").length, 7,
+                    "one tick per shot, exactly as a live node")
+            compare(one(node, "sdChainNodePill").children[0].text, "FIRED",
+                    "and what it did on this swing")
+            verify(shown(one(node, "sdChainNodeStrength")), "including how far out it was")
+
+            // ...and it is NOT drawn as an absence.
+            verify(!one(node, "sdChainGhostFrame").visible,
+                   "not dashed — a dashed frame means no evidence from this session")
+            verify(one(node, "sdChainNodeMark").text.indexOf("planned") < 0,
+                   "and it never claims its measure is planned")
+            compare(one(node, "sdChainNodeMark").text, "measured · not yet a pattern",
+                    "it says what is actually true of it")
+        }
+
         // ── the focus contract (design §A6) ──────────────────────────────────
 
         // The affordance has to be VISIBLE to be a contract anybody enters, and it has to say

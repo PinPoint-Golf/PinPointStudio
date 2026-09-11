@@ -451,6 +451,13 @@ private:
     // launch monitor verified says so on the same terms the declared miss always has.
     QString markFor(const QString &id, pinpoint::analysis::ChainNodeKind kind,
                     const pinpoint::analysis::NodeSpec *ns) const;
+    // Why a node carries no reading — five answers off the pack's own MeasureStatus, because
+    // "the measure is planned" and "this capture did not answer it" are different facts and only
+    // one of them is anybody's fault. See the .cpp: this is the bug hanging_back exposed.
+    QString ghostMark(const QString &id, const pinpoint::analysis::NodeSpec *ns) const;
+    // The first reason this session gave for withholding a condition, in the rows' own
+    // mechanical vocabulary. Empty when it never had a row.
+    QString withheldReason(const QString &id) const;
     // One line of evidence prose: the contingency sentence where an authored parent was actually
     // tested, the pack's consequence line otherwise. Never both, never manufactured.
     QString evidenceProse(const QString &id,
