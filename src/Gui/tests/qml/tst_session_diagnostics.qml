@@ -155,6 +155,39 @@ Item {
     // Two patterns, no authored edge between them — the Forming state's whole reason for
     // existing. The first card's run holds all three row states, including the one this
     // file is here to check.
+    // THE TWO PATTERN CARDS, shared. They were formingSource's alone while the chain rail was
+    // the Established body and the card row was the Forming stage's own arrangement. The cards
+    // are the body at every stage now, so the Established and review fixtures carry the same
+    // two — a source without them would be a panel the model cannot publish.
+    function patternCards() {
+        return [
+            { id: "casting", name: "Casting", consequence: "", tier: "pattern",
+              recurrence: "4 of 5 measurable shots", fired: 4, assessable: 5,
+              fresh: true, resolving: false, thisShot: "fired", statePill: "FIRED",
+              strengthKnown: true, strength: 4,
+              strengthText: "4 of 5 · well outside the corridor · 2.2× the distance to the corridor edge",
+              directionClaimed: true,
+              directionText: "Consistent direction: the high side on 92% of its firings.",
+              trend: "worsening", trendArrow: "↑", trendText: "worsening",
+              recencyText: "fired on the last measurable shot",
+              evidence: "Casting on 4 of the 5 swings where rushed transition fired — on 0 of the 1 where it did not.",
+              ticks: [tick("fired"), tick("notAssessable"), tick("fired"),
+                      tick("clean"), tick("fired")] },
+            { id: "face_roll", name: "Face roll through impact", consequence: "", tier: "pattern",
+              recurrence: "3 of 5 measurable shots", fired: 3, assessable: 5,
+              fresh: false, resolving: false, thisShot: "clean", statePill: "CLEAN",
+              strengthKnown: true, strength: 1,
+              strengthText: "1 of 5 · inside the corridor · 0.6× the distance to the corridor edge",
+              directionClaimed: false,
+              directionText: "Direction agreement 56%, below the 70% gate: dispersion, not a direction.",
+              trend: "stable", trendArrow: "", trendText: "trend after 6 measurable shots",
+              recencyText: "last fired 1 measurable shots ago",
+              evidence: "The face arrives at a different angle each time, which is why the miss has two sides.",
+              ticks: [tick("clean"), tick("fired"), tick("fired"),
+                      tick("fired"), tick("clean")] }
+        ]
+    }
+
     function formingSource(quiet) {
         return {
             stage: "forming",
@@ -170,35 +203,18 @@ Item {
                 closingLine: ""
             },
             thisShot: [
-                { id: "casting", name: "Casting", kind: "fired", tier: "pattern", focus: false },
-                { id: "face_roll", name: "Face roll through impact", kind: "fired", tier: "watching", focus: false },
+                { id: "casting", name: "Casting", kind: "fired", tier: "pattern", focus: false,
+                  strengthKnown: true, strength: 4,
+                  strengthText: "4 of 5 · well outside the corridor · 2.2× the distance to the corridor edge" },
+                { id: "face_roll", name: "Face roll through impact", kind: "fired", tier: "watching",
+                  focus: false, strengthKnown: true, strength: 2,
+                  strengthText: "2 of 5 · at the corridor edge · 1.1× the distance to the corridor edge" },
                 { kind: "notAssessable", name: "2 not assessable on this capture" }
             ],
             quiet: quiet,
             afterShotDelta: { headline: "2 of 5 conditions fired on this swing · 1 of them pattern",
                               note: "2 measures not assessable on this capture", surfaced: !quiet },
-            cards: [
-                { id: "casting", name: "Casting", consequence: "", tier: "pattern",
-                  recurrence: "4 of 5 measurable shots", fired: 4, assessable: 5,
-                  fresh: true, resolving: false, thisShot: "fired", statePill: "FIRED",
-                  directionClaimed: true,
-                  directionText: "Consistent direction: the high side on 92% of its firings.",
-                  trend: "worsening", trendArrow: "↑", trendText: "worsening",
-                  recencyText: "fired on the last measurable shot",
-                  evidence: "Casting on 4 of the 5 swings where rushed transition fired — on 0 of the 1 where it did not.",
-                  ticks: [tick("fired"), tick("notAssessable"), tick("fired"),
-                          tick("clean"), tick("fired")] },
-                { id: "face_roll", name: "Face roll through impact", consequence: "", tier: "pattern",
-                  recurrence: "3 of 5 measurable shots", fired: 3, assessable: 5,
-                  fresh: false, resolving: false, thisShot: "clean", statePill: "CLEAN",
-                  directionClaimed: false,
-                  directionText: "Direction agreement 56%, below the 70% gate: dispersion, not a direction.",
-                  trend: "stable", trendArrow: "", trendText: "trend after 6 measurable shots",
-                  recencyText: "last fired 1 measurable shots ago",
-                  evidence: "The face arrives at a different angle each time, which is why the miss has two sides.",
-                  ticks: [tick("clean"), tick("fired"), tick("fired"),
-                          tick("fired"), tick("clean")] }
-            ],
+            cards: patternCards(),
             watching: [
                 { id: "sway", name: "Lateral sway", recurrence: "1 of 5 measurable shots" },
                 { id: "flat_shoulder", name: "Flat shoulder plane", recurrence: "1 of 4 measurable shots" }
@@ -330,13 +346,15 @@ Item {
                 cadenceNote: "", coldLine: "", formingLine: "", closingLine: ""
             },
             thisShot: [
-                { id: "casting", name: "Casting", kind: "fired", tier: "pattern", focus: false },
+                { id: "casting", name: "Casting", kind: "fired", tier: "pattern", focus: false,
+                  strengthKnown: true, strength: 4,
+                  strengthText: "4 of 5 · well outside the corridor · 2.2× the distance to the corridor edge" },
                 { kind: "notAssessable", name: "2 not assessable on this capture" }
             ],
             quiet: false,
             afterShotDelta: { headline: "3 of 9 conditions fired on this swing · 2 of them patterns",
                               note: "", surfaced: true },
-            cards: [], expectations: [], bookends: [],
+            cards: patternCards(), expectations: [], bookends: [],
             chains: [chainA, chainB],
             unchained: [{ id: "face_roll", name: "Face roll through impact",
                           recurrence: "3 of 11 measurable shots" }],
@@ -816,7 +834,6 @@ Item {
             Theme.themeIndex = 5          // studio dark, the design's own frame
             Theme.fontScale = 1.0
             body.watchingExpanded = false
-            body.expandedChain = -1
             probe.readout = null
             probe.pipFixture = []
             probe.pipFired = 0
@@ -840,9 +857,8 @@ Item {
         // visibility swap over a Loader, and it is not assertable one item at a time.
         readonly property var compositionNames: [
             "sdThisShotStrip", "sdBookends", "sdColdBody", "sdCardsBody",
-            "sdEstablishedBody", "sdUnchainedRow", "sdWatchingRow", "sdCoverageLine",
-            "sdDriverFooter", "sdTenseFooter", "sdChainsFlick", "sdPatternCard",
-            "sdChainRail", "sdChainNode"
+            "sdUnchainedRow", "sdWatchingRow", "sdCoverageLine",
+            "sdDriverFooter", "sdTenseFooter", "sdPatternCard"
         ]
         function compositionSnapshot() {
             const out = []
@@ -857,6 +873,24 @@ Item {
         }
 
         // ── rail helpers ─────────────────────────────────────────────────────
+        //
+        // ⚠ THE RAIL IS NO LONGER A BODY, so its tests press it where it now lives: inside the
+        // condition detail, which draws the SAME PpChainRail over the SAME components. Nothing
+        // about what is asserted changed — the node kinds, the five link grades and the vertical
+        // form are the rail's own contract and the detail exercises every one of them. What
+        // changed is the route in, which is the point of the whole rework.
+        //
+        // Both non-primary paths are opened, because a collapsed path draws no rail and the
+        // grades that live on them (present-together, unanchored) would otherwise be untested.
+        function railStage() {
+            setSource(detailSource())
+            const d = one(body, "sdDetailBody")
+            d.expandedCause  = 1
+            d.expandedEffect = 1
+            laidOut()
+            return d
+        }
+
 
         function linkByGrade(grade) {
             const all = shownAll(body, "sdChainLink")
@@ -933,9 +967,13 @@ Item {
             verify(findAll(cards[1], "sdCardDirection")[0].text.indexOf("dispersion") >= 0,
                    "the withheld direction claim says so")
 
-            // The forming note that stops the flat row reading as a failed chain.
-            verify(one(body, "sdFormingNote").text.indexOf("no edge") >= 0,
-                   "the no-authored-edge line is on screen")
+            // The slot that used to explain the missing rail now carries the way to it. The
+            // no-authored-edge claim did not vanish with it — it is on the UNCHAINED row, per
+            // pattern, which is where a statement about conditions belongs.
+            verify(one(body, "sdFormingNote").text.indexOf("trace") >= 0,
+                   "the way into the causal chain is on screen")
+            verify(shown(one(body, "sdUnchainedRow")),
+                   "and the no-authored-edge claim is still made, on its own row")
         }
 
         // ── the run ──────────────────────────────────────────────────────────
@@ -1128,12 +1166,33 @@ Item {
             compare(one(body, "sdTitle").text, "SESSION DIAG.", "the title abbreviates, never elides")
             compare(one(body, "sdStageNote").visible, false, "the count line stands down")
 
+            // ONE CARD WIDE, and as deep as the panel allows. This used to assert one card and
+            // a "+1 more" tail, which was the single row's answer: it could show one of the two
+            // and had to count the other. The card row is a grid now — it took the height the
+            // chain rail used to — so at 396 x 560 both patterns are simply on screen. Reducing
+            // rather than shrinking is unchanged; there is just less to reduce.
+            compare(body._cardCols, 1, "the narrow arrangement is one card wide")
             const cards = visibleAll(body, "sdPatternCard")
-            compare(cards.length, 1, "one card fits")
-            verify(cards[0].width <= probe.width, "and it fits the width it was given")
-            // What did not fit is COUNTED, never silently dropped.
-            verify(one(body, "sdMoreTail").visible, "the pattern that did not fit is counted")
-            compare(one(body, "sdMoreTail").text, "+1 more")
+            compare(cards.length, 2, "and the column is deep enough for both")
+            verify(cards[0].width <= probe.width, "each fitting the width it was given")
+            verify(!one(body, "sdMoreTail").visible, "nothing is hidden, so nothing is counted")
+
+            // ...and what genuinely does not fit is still COUNTED, never silently dropped.
+            const many = formingSource(false)
+            many.cards = []
+            for (let i = 0; i < 9; ++i) {
+                const c = JSON.parse(JSON.stringify(patternCards()[0]))
+                c.id = "c" + i
+                c.name = "Condition " + i
+                many.cards.push(c)
+            }
+            setSource(many)
+            laidOut()
+            const shownCards = visibleAll(body, "sdPatternCard").length
+            verify(shownCards > 0 && shownCards < 9, "nine do not fit a 396 column, got "
+                                                     + shownCards)
+            verify(one(body, "sdMoreTail").visible, "so the remainder is counted")
+            compare(one(body, "sdMoreTail").text, "+" + (9 - shownCards) + " more")
         }
 
         // ── both Studio themes from one layout ───────────────────────────────
@@ -1174,28 +1233,33 @@ Item {
 
         // ── Established: the chain rail ──────────────────────────────────────
 
-        function test_14_establishedDrawsBothChainsAndOnlyTheEdgesTheModelAuthored() {
+        function test_14_theDrillInDrawsEveryPathAndOnlyTheEdgesTheModelAuthored() {
+            // The panel opens on the observed faults; the chain is what a card opens INTO.
             setSource(establishedSource(true))
+            verify(shown(one(body, "sdCardsBody")), "the cards are the body at Established")
+            compare(findAll(body, "sdChainRail").length, 0, "and no rail is drawn beside them")
 
-            verify(shown(one(body, "sdEstablishedBody")), "the rail is the body")
-            verify(!shown(one(body, "sdCardsBody")), "and the flat card row is gone")
+            railStage()
 
-            const rails = visibleAll(body, "sdChainRail")
-            compare(rails.length, 2, "both chains are drawn as rows")
+            const rails = shownAll(body, "sdDetailCauseRail")
+                              .concat(shownAll(body, "sdDetailEffectRail"))
+            compare(rails.length, 4, "two paths in, two out, all four open")
 
-            // Four nodes and three links, five nodes and four links. An edge is drawn ONLY
-            // where the model published one, so a rail can never join two nodes because they
-            // happened to be adjacent.
-            compare(findAll(rails[0], "sdChainNode").length, 4)
-            compare(findAll(rails[1], "sdChainNode").length, 5)
+            // Two nodes and one link, three and two, four and three, two and one. An edge is
+            // drawn ONLY where the model published one, so a rail can never join two nodes
+            // because they happened to be adjacent.
+            const counts = []
+            for (let i = 0; i < rails.length; ++i)
+                counts.push(findAll(rails[i], "sdChainNode").length)
+            compare(counts.join(","), "2,3,4,2")
             compare(visibleAll(body, "sdChainLink").length, 7,
-                    "three edges on chain A and four on chain B, and no others")
+                    "seven authored edges across the neighbourhood, and no others")
         }
 
         // §4.1's table, drawn. The word and the stroke are published together so a surface
         // cannot pick them independently; this is the half that checks the stroke arrives.
         function test_15_everyLinkGradeGetsItsOwnStroke() {
-            setSource(establishedSource(true))
+            railStage()
 
             const moved = linkByGrade("movedTogether")
             verify(moved, "the moved-together edge is on screen")
@@ -1241,7 +1305,7 @@ Item {
         // Chain B is the reason the honesty devices exist (brief §4). Each of the three
         // non-live kinds says a different thing and none of them borrows the live card.
         function test_16_ghostScreenedRootAndOutcomeAreEachDrawnAsThemselves() {
-            setSource(establishedSource(true))
+            railStage()
 
             const live = nodeById("casting")
             compare(live.kind, "live")
@@ -1272,7 +1336,7 @@ Item {
             compare(outcome.kind, "outcome")
             compare(one(outcome, "sdChainNodeName").text, "Slice")
             compare(one(outcome, "sdChainNodeMark").text, "declared miss · launch-monitor verified")
-            compare(one(outcome, "sdChainNodeRecurrence").text, "5 of 6 shots")
+            compare(one(outcome, "sdChainNodeRecurrence").text, "5 of 6 measurable shots")
         }
 
         // ── the driver footer ────────────────────────────────────────────────
@@ -1318,17 +1382,23 @@ Item {
 
         // ── 12c: the spine ───────────────────────────────────────────────────
 
-        function test_19_narrowTurnsTheRailAndCollapsesEveryChainButTheFirst() {
-            setSource(establishedSource(true))
+        // 12c's turn, where the rail lives now. The claim is unchanged and it is the rail's
+        // own: at 396 the rail runs top-to-bottom, one path is open and the rest are one line
+        // each, and opening one opens THE SAME rail in place rather than a different view
+        // (brief §8). The detail has always collapsed its non-primary paths exactly so.
+        function test_19_narrowTurnsTheRailAndCollapsesEveryPathButTheFirst() {
+            setSource(detailSource())
             probe.width = 396; probe.height = 560
-            wait(0)
+            laidOut()
 
             compare(body.compact, true)
-            const rails = visibleAll(body, "sdChainRail")
-            compare(rails.length, 1, "one chain open, the rest collapsed")
+            const rails = shownAll(body, "sdDetailCauseRail")
+                              .concat(shownAll(body, "sdDetailEffectRail"))
+            compare(rails.length, 2, "one path open per side, the rest collapsed")
             compare(rails[0].vertical, true, "and it is the vertical form")
-            compare(findAll(rails[0], "sdChainNodeDot").length, 4,
+            compare(findAll(rails[0], "sdChainNodeDot").length, 2,
                     "one line per node, mark carried by the dot")
+
             // The grade survives the collapse because it is carried by the stroke.
             const moved = linkByGrade("movedTogether")
             verify(moved, "the graded link survives the turn")
@@ -1336,29 +1406,28 @@ Item {
             compare(moved.strokeColor, Theme.colorAccent)
             compare(moved.hasArrow, true)
 
-            const collapsed = visibleAll(body, "sdChainCollapsed")
-            compare(collapsed.length, 1, "chain B is one line")
-            compare(one(collapsed[0], "sdChainCollapsedToggle").text, "OPEN ▸")
-            verify(one(collapsed[0], "sdChainCollapsedSummary").text.indexOf("Slice") >= 0,
-                   "the summary names what the chain ends in")
+            // The closed paths are one line apiece, and they say what they end in.
+            const frames = shownAll(body, "sdDetailPathFrame")
+            verify(frames.length >= 2, "the non-primary paths are still listed")
+            const toggles = shownAll(body, "sdDetailPathToggle")
+            let closed = 0
+            for (let i = 0; i < toggles.length; ++i)
+                if (toggles[i].text === "OPEN ▸") ++closed
+            compare(closed, 2, "one closed path on each side")
 
-            // Expanding opens THE SAME rail, in place, not a different view (brief §8).
-            mouseClick(collapsed[0])
-            wait(0)
-            compare(body.expandedChain, 1)
-            const openRails = visibleAll(body, "sdChainRail")
-            compare(openRails.length, 2, "the second rail opened where the summary was")
+            // Expanding opens THE SAME rail, in place.
+            const d = one(body, "sdDetailBody")
+            d.expandedCause = 1
+            laidOut()
+            const openRails = shownAll(body, "sdDetailCauseRail")
+                                  .concat(shownAll(body, "sdDetailEffectRail"))
+            compare(openRails.length, 3, "the second cause path opened where the summary was")
             compare(openRails[1].vertical, true)
-            compare(findAll(openRails[1], "sdChainNodeDot").length, 5,
+            compare(findAll(openRails[1], "sdChainNodeDot").length, 3,
                     "with every node the model authored, and no fewer")
-            compare(one(collapsed[0], "sdChainCollapsedToggle").text, "CLOSE ▴")
 
-            // 12c's footer keeps the driver and the screen and drops the ranking sentence.
-            verify(shown(one(body, "sdDriverName")), "the driver keeps its screen at 396")
-            verify(shown(one(body, "sdScreenCtaCompact")))
-            verify(!shown(one(body, "sdDriverWhy")))
-            compare(one(body, "sdCoverageLine").visible, true,
-                    "and the coverage line is stated at the bottom instead")
+            probe.width = 1168; probe.height = 560
+            wait(0)
         }
 
         // ── review: 13a ──────────────────────────────────────────────────────
@@ -1542,13 +1611,13 @@ Item {
             setReview(formingReviewSource(), wideReadout())
             laidOut()
 
-            compare(body.reachedEstablished, false, "the recorded stage is Forming, not Closing")
+            compare(body.header.reachedEstablished, false,
+                    "the recorded stage is Forming, not Closing")
             verify(!!body.chains && body.chains.length > 0,
                    "the chains are still published — unread in this composition, not withdrawn")
 
             verify(shown(one(body, "sdCardsBody")), "the flat card row is the body")
-            verify(!shown(one(body, "sdEstablishedBody")), "and no rail is drawn over it")
-            compare(visibleAll(body, "sdChainRail").length, 0)
+            compare(findAll(body, "sdChainRail").length, 0, "and no rail is drawn over it")
 
             // FULL CARDS, WITH THE RUNS. This is what the rail displaced.
             const cards = visibleAll(body, "sdPatternCard")
@@ -1569,10 +1638,15 @@ Item {
                 compare(pills[p].children[0].text, "FIRED HERE",
                         "pill " + p + " is in the review tense")
 
-            // ...and the sentence that stops the missing rail being read as a failure to find
-            // one. It survives the close, because the composition it explains does.
+            // ...and the slot that used to carry "No chain is drawn: the model authors no edge
+            // between these patterns". That sentence existed to stop a missing RAIL being read
+            // as the model failing to find a chain. No composition draws a rail now, so the
+            // sentence would be describing the layout in the voice reserved for the model —
+            // and the claim it was making is still made, per pattern, on the UNCHAINED row.
             compare(one(body, "sdFormingNote").text,
-                    "No chain is drawn: the model authors no edge between these patterns.")
+                    "tap a card to trace what the model says causes it")
+            verify(shown(one(body, "sdUnchainedRow")),
+                   "and the no-authored-edge claim is made where it belongs")
         }
 
         // ── defect 3: a finished session is not waiting for anything ─────────
@@ -1594,12 +1668,12 @@ Item {
         function test_24_theSelectedShotIsTheWideOutlinedTick() {
             setReview(reviewSource(), reviewReadout())
 
-            const node = nodeById("casting")
-            verify(node, "the reviewed session keeps its rail")
-            // The node carries a wide form and a 12c slim one, both instantiated; only the
-            // arrangement on screen is asked about.
-            const run = findAll(node, "sdTick").filter(t => shown(t))
-            compare(run.length, 6, "one tick per shot, and the selection adds none")
+            // The run is on the card, which is what a reviewed session draws — the same
+            // ticksFor() payload the rail used to carry, and the same rule about it.
+            const card = visibleAll(body, "sdPatternCard")[0]
+            verify(card, "the reviewed session keeps its cards")
+            const run = findAll(card, "sdTick").filter(t => shown(t))
+            compare(run.length, 5, "one tick per shot, and the selection adds none")
 
             const sel = run.filter(t => t.selected)
             compare(sel.length, 1, "exactly one selected tick")
@@ -1615,20 +1689,19 @@ Item {
             compare(sel[0].color, Theme.colorError)
         }
 
-        function test_25_nodesSayWhatHappenedHereAndAfter() {
+        function test_25_cardsSayWhatHappenedHereAndAfter() {
             setReview(reviewSource(), reviewReadout())
 
-            const node = nodeById("casting")
-            compare(one(node, "sdChainNodePill").children[0].text, "FIRED HERE",
+            const cards = visibleAll(body, "sdPatternCard")
+            compare(one(cards[0], "sdStatePill").children[0].text, "FIRED HERE",
                     "the pill is in the review tense")
-            compare(one(node, "sdChainNodeRecency").text, "3 more firings after this shot",
-                    "and the recency line answers 'was this the end of it, or the middle'")
+            compare(one(cards[0], "sdCardRecency").text, "3 more firings after this shot",
+                    "and the recency slot answers 'was this the end of it, or the middle'")
             // The session counts are untouched by the selection — the panel does not rewind.
-            compare(one(node, "sdChainNodeRecurrence").text, "4 of 6 measurable shots")
+            compare(one(cards[0], "sdCardRecurrence").text, "4 of 5 measurable shots")
 
-            const clean = nodeById("shaft_lean")
-            compare(one(clean, "sdChainNodePill").children[0].text, "CLEAN HERE")
-            compare(one(clean, "sdChainNodeRecency").text, "no firings after this shot")
+            compare(one(cards[1], "sdStatePill").children[0].text, "CLEAN HERE")
+            compare(one(cards[1], "sdCardRecency").text, "no firings after this shot")
         }
 
         // ── the carousel's half (brief §6.1) ─────────────────────────────────
@@ -1734,7 +1807,10 @@ Item {
         // not live do not: a ghost, a screened root and the declared outcome are things the
         // panel reports ABOUT, and a session cannot be run at one.
         function test_29_onlyLiveChainNodesOfferTheFocusContract() {
-            setSource(spied(establishedSource(true)))
+            setSource(spied(detailSource()))
+            const d = one(body, "sdDetailBody")
+            d.expandedCause = 1
+            d.expandedEffect = 1
             laidOut()
 
             const live = nodeById("casting")
@@ -1907,8 +1983,10 @@ Item {
             compare(probe.focusCalls, 1, "the chip declares")
             compare(probe.detailCalls, 1, "and opens nothing")
 
-            // A rail node carries the same pair, in the same order of precedence.
-            setSource(spied(establishedSource(true)))
+            // A rail node carries the same pair, in the same order of precedence — pressed
+            // inside the drill-in, which is where a rail node is reachable at all now.
+            setSource(spied(detailSource()))
+            one(body, "sdDetailBody").expandedCause = 1
             laidOut()
             probe.detailCalls = 0
             probe.focusCalls = 0
@@ -1948,7 +2026,7 @@ Item {
             laidOut()
 
             verify(shown(one(body, "sdDetailBody")), "the detail is the body")
-            verify(!shown(one(body, "sdEstablishedBody")), "and the rail composition stood down")
+            verify(!shown(one(body, "sdCardsBody")), "and the panel's own composition stood down")
             verify(!shown(one(body, "sdDriverFooter")), "so did the session's footer")
             verify(!shown(one(body, "sdCoverageLine")), "and its coverage line")
 
@@ -2025,7 +2103,6 @@ Item {
         // BACK is a visibility change, and the panel it returns to is the panel that was left.
         function test_40_backRestoresTheCompositionUntouched() {
             setSource(spied(establishedSource(true)))
-            body.expandedChain = -1
             body.watchingExpanded = true
             laidOut()
             const before = compositionSnapshot()

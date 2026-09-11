@@ -202,6 +202,7 @@ Rectangle {
         objectName: "sdCardTap"
         anchors.fill: parent
         enabled: root.interactive && !!root.card
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: root.detailRequested(root.card.id || "")
     }
@@ -301,6 +302,34 @@ Rectangle {
             color: Theme.colorText
         }
 
+        // ── what was read, and what it was tested against ────────────────────
+        //
+        // THE RECEIPT, and it is here because the card is now the drill-in's doorway. The meter
+        // in the header says HOW FAR out this swing sat; this says out of WHAT, in the measure's
+        // own units, which is the difference between a verdict and a reading. The model already
+        // published both strings (cardMap) — until now only the review strip drew them.
+        //
+        // It outranks the direction prose in the drop order below: a sentence about the session
+        // is what goes when the card is short, never the number this swing produced.
+        Text {
+            id: readingTxt
+            objectName: "sdCardReading"
+            width: col.width
+            visible: text !== "" && col.height - y - height >= run.height + trendRow.height + col.spacing
+            text: {
+                if (!root.card) return ""
+                const v = root.card.valueText || ""
+                const b = root.card.corridorText || ""
+                return (v === "" || b === "") ? (v || b) : (v + "  " + b)
+            }
+            elide: Text.ElideRight
+            font.family: Theme.fontData
+            font.pixelSize: root.tzMicro
+            color: root._pillState === "fired" ? Theme.colorError
+                 : root._pillState === "clean" ? Theme.colorText2
+                                               : Theme.colorText3
+        }
+
         // ── direction, or the sentence saying the direction claim is withheld ─
         //
         // THE FIRST THING TO GO WHEN THE CARD IS SHORT, and it goes before the run does. What
@@ -364,8 +393,10 @@ Rectangle {
                 objectName: "sdCardRecency"
                 anchors.left: trendTxt.right
                 anchors.leftMargin: root.px(8)
-                anchors.right: focusTag.visible ? focusTag.left : parent.right
-                anchors.rightMargin: focusTag.visible ? root.px(8) : 0
+                anchors.right: traceTag.visible ? traceTag.left
+                             : focusTag.visible ? focusTag.left
+                                                : parent.right
+                anchors.rightMargin: (traceTag.visible || focusTag.visible) ? root.px(8) : 0
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.card ? (root.card.firingsAfterText || root.card.recencyText || "") : ""
                 elide: Text.ElideRight
@@ -377,6 +408,25 @@ Rectangle {
             // reports. It is here rather than as a hover-only reveal because a contract the
             // golfer cannot see is a contract they will never declare, and nothing else on
             // this panel is discoverable by hovering.
+            // THE DRILL-IN, SAID OUT LOUD. The whole card has opened the condition since the
+            // tap was reassigned, and nothing on the card said so — an affordance the golfer
+            // cannot see is one they will never use, which is the same argument the FOCUS
+            // micro-label is here for. It matters more now than it did: the causal chain left
+            // the front page and this caret is the only route to it.
+            Text {
+                id: traceTag
+                objectName: "sdCardTraceTag"
+                anchors.right: focusTag.visible ? focusTag.left : parent.right
+                anchors.rightMargin: focusTag.visible ? root.px(8) : 0
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.interactive && !!root.card
+                text: qsTr("TRACE ▸")
+                font.family: Theme.fontData
+                font.pixelSize: root.tzCaption
+                font.letterSpacing: Theme.trackingLabel
+                color: cardTap.containsMouse ? Theme.colorAccent : Theme.colorText3
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            }
             Text {
                 id: focusTag
                 objectName: "sdCardFocusTag"

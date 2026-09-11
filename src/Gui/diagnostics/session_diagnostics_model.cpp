@@ -1287,16 +1287,19 @@ void SessionDiagnosticsModel::buildHeader()
     // small, do not fill the space with something that looks like a finding.
     h[QStringLiteral("coldLine")] =
         st == Stage::Cold ? QStringLiteral("Too few swings to call a pattern.") : QString();
-    // The Forming body line — the one that stops a reader assuming the model simply failed to
-    // find a chain. It did not fail; it authors no edge between these two.
+    // ⚠ THE FORMING LINE IS GONE, and its absence is the point.
     //
-    // It survives the close, because the composition it explains does. A session that never
-    // established keeps its flat card row when it is closed and when it is reviewed, and the
-    // sentence that says why there is no rail has to be there in every tense the card row is.
-    h[QStringLiteral("formingLine")] =
-        (st == Stage::Forming || !m_reachedEstablished) && patterns >= 2
-            ? QStringLiteral("No chain is drawn: the model authors no edge between these patterns.")
-            : QString();
+    // It read "No chain is drawn: the model authors no edge between these patterns", and it was
+    // true while the chain rail was the Established body: a flat card row THERE meant the model
+    // had found no edge, and without the sentence a reader would blame the panel. The rail is no
+    // longer a body — the chain is one tap behind a card — so a flat card row is now simply what
+    // the panel looks like. The sentence would be stating a fact about the LAYOUT in the voice
+    // the panel uses for facts about the MODEL, which is the one thing the header must never do.
+    //
+    // Nothing is lost by dropping it: the UNCHAINED PATTERN row one region below already names
+    // each pattern the model authors no peer edge for, per pattern, in words, and that row is
+    // where the claim belongs — it is a statement about conditions, not about a composition.
+    h[QStringLiteral("formingLine")] = QString();
     h[QStringLiteral("closingLine")] =
         st == Stage::Closing
             ? QStringLiteral("Counts are session totals; this shot is the wide tick. "
@@ -1982,14 +1985,19 @@ void SessionDiagnosticsModel::buildBookends()
             { QStringLiteral("worstShotId"),  bk.worstShotId },
             { QStringLiteral("bestShotId"),   bk.bestShotId },
             { QStringLiteral("representativeShotId"), bk.representativeShotId },
+            // ⚠ THE SHOT NUMBER LEADS. These three read in a cell the closing row divides
+            // between every pattern, and at a real session's twelve the label ran on long
+            // enough that elision ate the number — "most representative · sh…" — which is
+            // the one thing on the card a golfer can act on. Leading with it means the tail
+            // is what gets cut, and the tail is the word for what the number means.
             { QStringLiteral("worstText"),
-              QStringLiteral("worst · shot %1").arg(bk.worstShotId) },
+              QStringLiteral("worst %1").arg(bk.worstShotId) },
             { QStringLiteral("bestText"),
-              QStringLiteral("best · shot %1").arg(bk.bestShotId) },
+              QStringLiteral("best %1").arg(bk.bestShotId) },
             // The one that is the point: shown their most representative swing, a golfer
             // learns what their swing IS rather than what its range is.
             { QStringLiteral("representativeText"),
-              QStringLiteral("most representative · shot %1").arg(bk.representativeShotId) },
+              QStringLiteral("shot %1 · most representative").arg(bk.representativeShotId) },
         });
     }
 }

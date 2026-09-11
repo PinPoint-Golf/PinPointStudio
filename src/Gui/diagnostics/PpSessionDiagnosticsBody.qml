@@ -63,11 +63,11 @@ Rectangle {
 
     // Panel-local, and per brief §8 the only state this panel owns beyond the carousel's
     // selection and the cadence setting. Two collapsed regions, both of which open into the
-    // SAME content rather than a different view: Watching (n), and — in the 396 arrangement
-    // only — every chain after the first. (The miss picker below is a third, and it is a
-    // transient rather than a state: it is open only while it is being answered.)
+    // SAME content rather than a different view: Watching (n) is the one that remains, now
+    // that the collapsed chain rows have gone with the rail. (The miss picker below is a
+    // second, and it is a transient rather than a state: it is open only while it is being
+    // answered.)
     property bool watchingExpanded: false
-    property int  expandedChain: -1
 
     // Off on the auto-closing cast, where every affordance on the panel is a trap: the
     // surface is a glance and it is about to vanish under the pointer
@@ -182,7 +182,10 @@ Rectangle {
                 for (let j = 0; j < ns.length; ++j) take(ns[j].id)
             }
         }
-        if (root._railBody) { takeRail(); takeCards() } else { takeCards(); takeRail() }
+        // The card row is the body at every stage now, so it leads the sweep; anything that
+        // fired and is only on a rail (which is to say, only inside a drill-in) brings up the
+        // rear rather than being dropped — it still happened.
+        takeCards(); takeRail()
         for (let i = 0; i < fired.length; ++i) take(fired[i])
 
         // THE FOCUSED NODE LEADS. Under a focus contract its marker is the headline of the
@@ -298,51 +301,46 @@ Rectangle {
     // than dropped silently — a pattern that scrolled off the end still happened.
     readonly property int baseCardMinW: 300
     readonly property int _cardGap: px(8)
+    readonly property int _cardCols: {
+        if (width <= 0) return 1
+        const avail = width - 2 * px(10)
+        return Math.max(1, Math.floor((avail + _cardGap) / (px(baseCardMinW) + _cardGap)))
+    }
+    // ⚠ THE CARD ROW IS A GRID NOW, and that follows from the rail leaving the front page.
+    // One row of three was the right answer while the rail was the body and the cards were the
+    // Forming stage's preface to it; with the observed faults promoted to the front page, a
+    // single row showed three of a real session's twelve and counted the other nine in 8 px
+    // type — the panel's whole middle left empty under them. The cards take the height the rail
+    // used to, and "+N more" now means the session genuinely has more than the panel can hold.
+    readonly property int _cardH: px(150)
+    readonly property int _cardRows: {
+        if (_cardsAvailH <= 0) return 1
+        return Math.max(1, Math.floor((_cardsAvailH + _cardGap) / (_cardH + _cardGap)))
+    }
+    // What the body has left for cards once the SESSION PICTURE header is out of it. Bound to
+    // the body's own height rather than measured off the Grid, which would close a loop.
+    property int _cardsAvailH: 0
     readonly property int _cardsShown: {
         const n = cards ? cards.length : 0
         if (n <= 0 || width <= 0) return 0
-        const avail = width - 2 * px(10)
-        const perRow = Math.max(1, Math.floor((avail + _cardGap) / (px(baseCardMinW) + _cardGap)))
-        return Math.min(n, perRow)
+        return Math.min(n, _cardCols * _cardRows)
     }
     readonly property int _cardsHidden: (cards ? cards.length : 0) - _cardsShown
 
-    // ── how many chains the rail draws ───────────────────────────────────────
-    // The model sorts most-evidenced first (buildChains()), so taking the first two is a
-    // decision about a 560 px column and never about which chain matters. A session's
-    // authored neighbourhood can yield eighteen rails; what does not fit is COUNTED, exactly
-    // as the card row counts what it could not draw.
-    readonly property int _chainsShown: root.compact
-                                        ? (chains ? chains.length : 0)
-                                        : Math.min(chains ? chains.length : 0, 2)
-    readonly property int _chainsHidden: (chains ? chains.length : 0) - _chainsShown
-
-    // DID THE SESSION EVER ESTABLISH? Published by the model beside the displayed stage,
-    // because `stage` is frozen at Closing for anything closed or under review and cannot
-    // answer it. See buildHeader().
-    readonly property bool reachedEstablished:
-        isEstablished || (!!header && header.reachedEstablished === true)
-
-    // THE RAIL SURVIVES THE CLOSE — AND ONLY FOR A SESSION THAT EARNED ONE. A session that
-    // established still has its chain once it is finished, and 13a draws the reviewed shot
-    // against that rail; losing it at the close would mean the one arrangement review is FOR
-    // could never be reached.
-    //
-    // But `chains.length > 0` is NOT the test for having earned one. extractChains() publishes
-    // the authored neighbourhood around every pattern, so a Forming session with two unchained
-    // patterns still gets rails — ghosts, screened roots and unanchored links scaffolded around
-    // nodes that share no edge. Drawing those at the close replaces two full pattern cards,
-    // with the tick runs and the review pills that are the whole point of reading a shot inside
-    // the finished ledger, with slim node rows for a chain the model explicitly says it did not
-    // author (the UNCHAINED line, one row below, says so in words). Design 12a is unambiguous:
-    // Forming is "flat cards, no chain because these two patterns share no authored edge", and
-    // closing a Forming session does not turn it into an Established one.
-    //
-    // So the composition asks the RATCHET, which is the record of what the session achieved,
-    // and the chains stay published either way — unread in this arrangement, not withdrawn.
-    readonly property bool _railBody:
-        reachedEstablished && (isEstablished
-                               || (isClosing && !!chains && chains.length > 0))
+    // ── how many bookends the closing row draws ──────────────────────────────
+    // Same decision as the card row's and for the same reason, arrived at the hard way: the
+    // row divided its width between EVERY pattern, so a twelve-pattern session got twelve
+    // cells of about 160 px holding three lines of 8 px type, and every one of them elided
+    // into "most repr…". A cell that cannot be read is not a disclosure. The model orders the
+    // bookends as it orders everything else, so a prefix is a decision about space.
+    readonly property int _bookendMinW: 190
+    readonly property int _bookendsShown: {
+        const n = bookends ? bookends.length : 0
+        if (n <= 0 || width <= 0) return 0
+        const avail = width - 2 * px(10) - px(90)      // the row's margins and its label
+        return Math.max(1, Math.min(n, Math.floor(avail / px(_bookendMinW))))
+    }
+    readonly property int _bookendsHidden: (bookends ? bookends.length : 0) - _bookendsShown
 
     // driver.screenConditionId / screenRef — the only place the published surface carries a
     // screen ref for the screened-root node the rail draws.
@@ -690,7 +688,12 @@ Rectangle {
                 Text {
                     id: bookendsLabel
                     anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("SESSION\nBOOKENDS")
+                    // The tail is COUNTED in the label rather than dropped silently — the same
+                    // rule the card row's "+N more" keeps. A pattern whose bookends did not fit
+                    // still had a worst swing and a best one.
+                    text: root._bookendsHidden > 0
+                          ? qsTr("SESSION\nBOOKENDS · +%1").arg(root._bookendsHidden)
+                          : qsTr("SESSION\nBOOKENDS")
                     font.family: Theme.fontData
                     font.pixelSize: root.tzCaption
                     font.letterSpacing: Theme.trackingMicro
@@ -698,16 +701,17 @@ Rectangle {
                 }
 
                 Repeater {
-                    model: root.bookends
+                    model: root._bookendsShown
 
                     Item {
-                        required property var modelData
+                        required property int index
+                        readonly property var modelData: root.bookends[index]
                         objectName: "sdBookend"
 
                         // Even shares of what is left after the label and the gaps. Named
                         // through the Row's id: a Repeater delegate's `parent` is the Row at
                         // run time but the Repeater to anything reading the file.
-                        readonly property int _n: root.bookends ? root.bookends.length : 1
+                        readonly property int _n: root._bookendsShown
                         width: Math.max(0, (bookendsRow.width - bookendsLabel.width
                                             - bookendsRow.spacing * _n) / Math.max(1, _n))
                         height: bookendsRow.height
@@ -906,7 +910,7 @@ Rectangle {
             Item {
                 objectName: "sdCardsBody"
                 anchors.fill: parent
-                visible: !root.isCold && !root._railBody
+                visible: !root.isCold
 
                 Item {
                     id: pictureHeader
@@ -934,16 +938,27 @@ Rectangle {
                         anchors.right: moreTail.visible ? moreTail.left : parent.right
                         anchors.rightMargin: root.px(9)
                         anchors.baseline: pictureLabel.baseline
-                        // "no chain drawn: the model authors no edge between these two" —
-                        // the model did not FAIL to find a chain, and this is what stops
-                        // that being read into the flat card row.
-                        // ...and in review the closing sentence is stated ONCE, along the
-                        // bottom, where 13a puts it — saying it here as well would be the
-                        // same disclosure at two weights.
-                        text: root.header
-                              ? (root.header.formingLine
-                                 || (root.reviewing ? "" : (root.header.closingLine || "")))
-                              : ""
+                        // THE MODEL'S SENTENCE IF IT HAS ONE, AND THE WAY IN IF IT DOES NOT.
+                        //
+                        // The closing sentence is stated ONCE, along the bottom in review, where
+                        // 13a puts it — saying it here as well would be the same disclosure at
+                        // two weights. What fills the slot the rest of the time is the route to
+                        // the causal chain, which left this page and needs saying: the whole
+                        // card is the door, and TRACE ▸ on each card is the handle. An
+                        // affordance nobody can see is one nobody uses, which is the argument
+                        // the FOCUS micro-label was already here on.
+                        //
+                        // It is static UI text rather than the model's, and that is the line
+                        // §6.2 actually draws: the model owns every CLAIM ABOUT THE SESSION, and
+                        // this claims nothing about one. It says where the button is.
+                        text: {
+                            const closing = (root.header && !root.reviewing)
+                                            ? (root.header.closingLine || "") : ""
+                            if (closing !== "") return closing
+                            return root.interactive && root._cardsShown > 0
+                                   ? qsTr("tap a card to trace what the model says causes it")
+                                   : ""
+                        }
                         elide: Text.ElideRight
                         font.family: Theme.fontData
                         font.pixelSize: root.tzMicro
@@ -962,15 +977,21 @@ Rectangle {
                     }
                 }
 
-                Row {
+                Grid {
                     id: cardRow
                     objectName: "sdCardsRow"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: pictureHeader.bottom
                     anchors.topMargin: root.px(8)
-                    height: Math.min(root.px(150), Math.max(0, parent.height - pictureHeader.height - root.px(8)))
+                    height: Math.max(0, parent.height - pictureHeader.height - root.px(8))
+                    columns: root._cardCols
                     spacing: root._cardGap
+                    // The one place the available height is measured, and it is measured off the
+                    // Item this Grid is anchored inside — never off the Grid, whose own height
+                    // would then depend on the count it is being used to decide.
+                    onHeightChanged: root._cardsAvailH = height
+                    Component.onCompleted: root._cardsAvailH = height
 
                     Repeater {
                         model: root._cardsShown
@@ -983,229 +1004,43 @@ Rectangle {
                             pulseCue: root.pulseCue
                             onFocusToggled: (id, on) => root._declareFocus(id, on)
                             onDetailRequested: (id) => root._openDetail(id)
-                            width: Math.max(0, (cardRow.width - (root._cardsShown - 1) * cardRow.spacing)
-                                               / Math.max(1, root._cardsShown))
-                            height: cardRow.height
-                        }
-                    }
-                }
-            }
-
-            // ── Established, and Closing when there is a rail to draw ────────
-            Item {
-                objectName: "sdEstablishedBody"
-                anchors.fill: parent
-                visible: root._railBody
-
-                // ── wide: chains stacked as rows ─────────────────────────────
-                Column {
-                    id: wideChains
-                    anchors.fill: parent
-                    visible: !root.compact
-                    spacing: root.px(8)
-
-                    readonly property int _tailH: chainsTail.visible
-                                                  ? chainsTail.implicitHeight + root.px(4) : 0
-                    readonly property int _railH:
-                        root._chainsShown > 0
-                        ? Math.max(0, Math.floor((height - _tailH
-                                                  - (root._chainsShown - 1) * spacing)
-                                                 / root._chainsShown))
-                        : 0
-
-                    Repeater {
-                        model: root.compact ? 0 : root._chainsShown
-
-                        PpChainRail {
-                            required property int index
-                            width:  wideChains.width
-                            height: wideChains._railH
-                            chain:  root.chains[index]
-                            fit:    root.k
-                            interactive:       root.interactive
-                            pulseCue:          root.pulseCue
-                            screenConditionId: root._screenConditionId
-                            screenRef:         root._screenRef
-                            onScreenRequested: (ref, cond) => root.screenRequested(ref, cond)
-                            onFocusToggled:    (id, on) => root._declareFocus(id, on)
-                            onDetailRequested: (id) => root._openDetail(id)
-                        }
-                    }
-
-                    Text {
-                        id: chainsTail
-                        objectName: "sdChainsTail"
-                        width: parent.width
-                        visible: root._chainsHidden > 0
-                        horizontalAlignment: Text.AlignRight
-                        // The card row's own tail, verbatim: it counts and it does not decline
-                        // a noun, so "+1 more" is right at every count.
-                        text: qsTr("+%1 more").arg(root._chainsHidden)
-                        font.family: Theme.fontData
-                        font.pixelSize: root.tzCaption
-                        color: Theme.colorText3
-                    }
-                }
-
-                // ── 12c: the spine, turned on its side ───────────────────────
-                // A 560 px column cannot hold a vertical rail AND the strips around it, and
-                // the mock's answer is not pagination — it is that the rail scrolls and
-                // everything below it stays put. Paging a chain would break the one thing the
-                // rail is for, which is reading it as a single shape.
-                Flickable {
-                    id: narrowChains
-                    objectName: "sdChainsFlick"
-                    anchors.fill: parent
-                    visible: root.compact
-                    contentWidth: width
-                    contentHeight: narrowCol.implicitHeight
-                    clip: true
-                    boundsBehavior: Flickable.StopAtBounds
-
-                    Column {
-                        id: narrowCol
-                        width: narrowChains.width
-                        spacing: root.px(7)
-
-                        // The first chain is open, because a panel whose every chain is
-                        // collapsed has drawn no rail at all.
-                        PpChainRail {
-                            width:  narrowCol.width
-                            height: implicitHeight
-                            visible: root.compact && !!root.chains && root.chains.length > 0
-                            chain:  (root.chains && root.chains.length > 0) ? root.chains[0] : null
-                            fit:    root.k
-                            vertical: true
-                            interactive:       root.interactive
-                            pulseCue:          root.pulseCue
-                            screenConditionId: root._screenConditionId
-                            screenRef:         root._screenRef
-                            onScreenRequested: (ref, cond) => root.screenRequested(ref, cond)
-                            onFocusToggled:    (id, on) => root._declareFocus(id, on)
-                            onDetailRequested: (id) => root._openDetail(id)
-                        }
-
-                        Repeater {
-                            model: root.compact
-                                   ? Math.max(0, (root.chains ? root.chains.length : 0) - 1)
-                                   : 0
-
-                            Column {
-                                id: collapsedChain
-                                required property int index
-                                readonly property int chainIndex: index + 1
-                                readonly property bool open: root.expandedChain === chainIndex
-                                readonly property var chainData: root.chains[chainIndex]
-
-                                width: narrowCol.width
-                                spacing: root.px(7)
-
-                                Item {
-                                    objectName: "sdChainCollapsed"
-                                    width: parent.width
-                                    height: summaryCol.implicitHeight + 2 * root.px(8)
-
-                                    // Dashed for the same reason the Cold expectations are:
-                                    // this is a chain the panel has not drawn yet, not a
-                                    // finding of its own.
-                                    PpDashedFrame {
-                                        anchors.fill: parent
-                                        frameRadius: Theme.radius
-                                        strokeColor: Theme.colorBorderMid
-                                        dashOn:  Math.max(1, root.px(3))
-                                        dashOff: Math.max(1, root.px(3))
-                                    }
-
-                                    Column {
-                                        id: summaryCol
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
-                                        anchors.leftMargin:  root.px(9)
-                                        anchors.rightMargin: root.px(9)
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        spacing: root.px(4)
-
-                                        Item {
-                                            width: parent.width
-                                            height: chainLabel.implicitHeight
-
-                                            Text {
-                                                id: chainLabel
-                                                objectName: "sdChainCollapsedLabel"
-                                                anchors.left: parent.left
-                                                text: qsTr("CHAIN %1").arg(collapsedChain.chainIndex + 1)
-                                                font.family: Theme.fontData
-                                                font.pixelSize: root.tzCaption
-                                                font.letterSpacing: Theme.trackingMicro
-                                                color: Theme.colorText2
-                                            }
-                                            Text {
-                                                objectName: "sdChainCollapsedToggle"
-                                                anchors.right: parent.right
-                                                anchors.baseline: chainLabel.baseline
-                                                text: collapsedChain.open ? qsTr("CLOSE ▴")
-                                                                          : qsTr("OPEN ▸")
-                                                font.family: Theme.fontData
-                                                font.pixelSize: root.tzCaption
-                                                font.letterSpacing: Theme.trackingLabel
-                                                color: Theme.colorAccent
-                                            }
-                                        }
-
-                                        Text {
-                                            objectName: "sdChainCollapsedSummary"
-                                            width: parent.width
-                                            text: root._chainSummary(collapsedChain.chainData)
-                                            wrapMode: Text.WordWrap
-                                            lineHeight: 1.4
-                                            font.family: Theme.fontBody
-                                            font.pixelSize: root.tzMicro
-                                            font.weight: Theme.fontBodyWeight
-                                            color: Theme.colorText
-                                        }
-                                        Text {
-                                            objectName: "sdChainCollapsedNote"
-                                            width: parent.width
-                                            visible: text !== ""
-                                            text: root._chainNote(collapsedChain.chainData)
-                                            wrapMode: Text.WordWrap
-                                            lineHeight: 1.4
-                                            font.family: Theme.fontData
-                                            font.pixelSize: root.tzCaption
-                                            color: Theme.colorText3
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        onClicked: root.expandedChain =
-                                            collapsedChain.open ? -1 : collapsedChain.chainIndex
-                                    }
-                                }
-
-                                // Opening reveals THE SAME RAIL, in place — same nodes, same
-                                // links, same grades (brief §8). Nothing about the chain was
-                                // being withheld by the summary.
-                                PpChainRail {
-                                    width:  collapsedChain.width
-                                    height: visible ? implicitHeight : 0
-                                    visible: collapsedChain.open
-                                    chain:  collapsedChain.chainData
-                                    fit:    root.k
-                                    vertical: true
-                                    interactive:       root.interactive
-                                    pulseCue:          root.pulseCue
-                                    screenConditionId: root._screenConditionId
-                                    screenRef:         root._screenRef
-                                    onScreenRequested: (ref, cond) => root.screenRequested(ref, cond)
-                                    onFocusToggled:    (id, on) => root._declareFocus(id, on)
-                                    onDetailRequested: (id) => root._openDetail(id)
-                                }
+                            width: Math.max(0, (cardRow.width - (root._cardCols - 1) * cardRow.spacing)
+                                               / Math.max(1, root._cardCols))
+                            // The LAST ROW ABSORBS what the division left over, so the grid ends
+                            // flush with the body instead of on a strip of dead space — which is
+                            // the complaint that moved the rail off this page in the first place.
+                            height: {
+                                const rows = Math.max(1, Math.ceil(root._cardsShown / root._cardCols))
+                                const mine = Math.floor(index / root._cardCols)
+                                const even = Math.floor((cardRow.height - (rows - 1) * cardRow.spacing) / rows)
+                                if (mine < rows - 1) return even
+                                return Math.max(even, cardRow.height - (rows - 1) * (even + cardRow.spacing))
                             }
                         }
                     }
                 }
             }
+
+            // ⚠ THE CHAIN RAIL WAS A BODY HERE, and it is gone from this file rather than
+            // hidden in it. 215 lines: two stacked rails wide, the vertical form, the collapsed
+            // chain rows and the "+N more chains" tail.
+            //
+            // It did not survive contact with a real session. The mock's six patterns and one
+            // tidy chain became fifteen patterns and eighteen authored chains (build findings
+            // §7), and what filled the panel was everything the capture could NOT measure — a
+            // screened root carrying four lines of prose, a ghost card with an empty run, two
+            // unanchored links — while the conditions that actually fired were pushed into a
+            // third of the width. The unmeasured out-ranked the observed.
+            //
+            // THE CHAIN IS NOT LOST AND THIS IS NOT A DELETION OF THE IDEA. It is one tap
+            // behind any card, in PpConditionDetail, which draws the SAME rails out of the SAME
+            // components over a RICHER neighbourhood — the full authored ancestry and descent
+            // rather than the session's two best paths, with the unmeasured paths collapsed to
+            // one line apiece. A golfer who wants to know what caused a fault asks about that
+            // fault; they do not ask the panel to guess which two chains to open with.
+            //
+            // `chains` stays published and stays read — the unchained line and the driver
+            // footer are reductions over it. What ended is its claim on the panel's middle.
         }
 
         // ── unchained pattern ────────────────────────────────────────────────
