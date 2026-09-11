@@ -1072,6 +1072,66 @@ Item {
                    "and a card with no reading behind it draws no meter at all")
         }
 
+        // THE FRAME IS THE WAY IN. Twelve cards in one neutral grey gave the eye nothing to
+        // land on: a condition a mile outside its corridor was framed exactly like one that
+        // came in clean, and a six-character pill was the only thing between them. The frame
+        // now carries the firing at the meter's own step — so what is asserted here is that the
+        // two agree (one ramp, one step, no second scale to learn) and, just as importantly,
+        // that a clean card is NOT coloured. If everything is emphasised, nothing is.
+        function test_05c_theFrameCarriesTheFiringAndOnlyAFiring() {
+            function sameHue(a, b) {
+                return Math.abs(a.r - b.r) < 0.01 && Math.abs(a.g - b.g) < 0.01
+                    && Math.abs(a.b - b.b) < 0.01
+            }
+
+            setSource(formingSource(false))
+            const cards = visibleAll(body, "sdPatternCard")
+
+            // Card 0 fired at step 4; card 1 is clean.
+            const fired = cards[0], clean = cards[1]
+            verify(sameHue(fired.border.color, Theme.strengthColor(4)),
+                   "the fired card is framed in its own strength colour, got " + fired.border.color)
+            verify(fired.border.color.a > 0.8, "and a loud step is a loud frame")
+            verify(sameHue(fired.border.color,
+                           findAll(one(fired, "sdCardStrength"), "sdStrengthBar")[0].color),
+                   "the frame and the meter cannot disagree — one ramp, one step")
+
+            const wash = one(fired, "sdCardFiredWash")
+            verify(wash.visible, "and the card is washed in the same hue")
+            verify(wash.color.a < 0.15, "faintly — the frame carries the claim, not the fill")
+
+            // The alpha, not the item: a source swap destroys the delegate this came off, and a
+            // reference to a dead delegate reads as undefined rather than failing loudly.
+            const loudAlpha = fired.border.color.a
+
+            compare(clean.border.color, Theme.colorBorderMid,
+                    "a clean card keeps the neutral frame")
+            verify(!one(clean, "sdCardFiredWash").visible, "and is not washed")
+
+            // A quieter firing is a quieter frame, on the same ramp.
+            const s2 = formingSource(false)
+            s2.cards[0].strength = 1
+            setSource(s2)
+            laidOut()
+            const quiet = visibleAll(body, "sdPatternCard")[0]
+            verify(sameHue(quiet.border.color, Theme.strengthColor(1)),
+                   "step 1 is drawn in the good hue, not in red")
+            verify(quiet.border.color.a < loudAlpha,
+                   "and sits back from the card that fired hardest")
+
+            // No reading behind it, and it still fired: the fired colour, never a step it has
+            // not earned. Absent evidence must not be able to look like the loudest thing here.
+            const s3 = formingSource(false)
+            s3.cards[0].strengthKnown = false
+            s3.cards[0].strength = 0
+            setSource(s3)
+            laidOut()
+            const blind = visibleAll(body, "sdPatternCard")[0]
+            verify(sameHue(blind.border.color, Theme.colorError),
+                   "a firing with no step is framed as a plain firing")
+            verify(!shown(one(blind, "sdCardStrength")), "and draws no meter to go with it")
+        }
+
         // ── cadence ──────────────────────────────────────────────────────────
 
         function test_06_quietSwapsTheStripWithoutCollapsingIt() {
@@ -2063,6 +2123,19 @@ Item {
             mouseClick(watched[0])
             wait(0)
             compare(probe.lastDetailId, "sway", "the watching row opens its own condition")
+
+            // ...and so does a BOOKEND, which had carried a caret and done nothing when it was
+            // pressed. It matters more than it looks: the closing row names conditions that
+            // ranked below the card row's fold, so it is often the only place one is met at all.
+            setSource(spied(closingSource()))
+            laidOut()
+            const ends = shownAll(body, "sdBookend")
+            verify(ends.length >= 2, "the closing row is up")
+            probe.detailCalls = 0
+            mouseClick(ends[1])
+            wait(0)
+            compare(probe.detailCalls, 1, "a bookend asks for its condition's page")
+            compare(probe.lastDetailId, "face_roll", "with its own id, not the row's first")
         }
 
         // The page itself: the same cards, the same graded strokes, the same captions — the

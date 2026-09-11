@@ -110,11 +110,53 @@ Rectangle {
 
     objectName: "sdPatternCard"
 
+    // ── the frame carries the firing ─────────────────────────────────────────
+    //
+    // THE CARD ROW IS A DOZEN CARDS AND THE EYE NEEDS A WAY IN. Every card was framed in the
+    // same neutral grey, so a condition that fired a mile outside its corridor on this swing
+    // sat in exactly the frame of one that came in clean, and the only thing separating them
+    // was a pill the width of six characters. A casual reader — the golfer between balls, who
+    // is the reader this panel was built for — had no way to know where to look first.
+    //
+    // So the frame takes the strength meter's own colour, off the SAME ramp and the SAME step,
+    // which is what stops the two disagreeing: a card cannot be framed in red while its meter
+    // reads 1. Alpha climbs with the step, so "well outside" is a louder frame than "just past
+    // the edge" without introducing a second scale to learn.
+    //
+    // ONLY A FIRING COLOURS IT. A clean card keeps the neutral frame it always had, and that
+    // contrast is the whole mechanism — if everything is coloured then nothing is emphasised.
+    // Same for a card with no reading behind it: absent evidence must never be able to look
+    // like the loudest thing on the panel.
+    readonly property bool _firedHere: _pillState === "fired"
+    readonly property int  _strength:  card ? (card.strength || 0) : 0
+    readonly property bool _strengthKnown: card ? card.strengthKnown === true : false
+    // The fired colour where there is no step to read — the same fallback the chips use, so a
+    // measure graded against an authored number is still drawn as the firing it is.
+    readonly property color _frameColor: root._strengthKnown ? Theme.strengthColor(root._strength)
+                                                             : Theme.colorError
+
     color: Theme.colorSurface
     radius: Theme.radius
     border.width: 1
-    border.color: Theme.colorBorderMid
+    border.color: root._firedHere
+                  ? Qt.rgba(root._frameColor.r, root._frameColor.g, root._frameColor.b,
+                            root._strengthKnown ? Math.min(1.0, 0.38 + 0.12 * root._strength)
+                                                : 0.60)
+                  : Theme.colorBorderMid
     clip: true
+
+    // ...and the faintest wash of the same hue inside it, at the ~7% the fired chips and the
+    // review cells already use. The frame is what carries the claim; this is what makes a
+    // fired card read as a block rather than as an outline, which is what the eye actually
+    // catches at arm's length. Drawn as a child because the card's own `color` is the surface
+    // token and every other aesthetic follows it.
+    Rectangle {
+        objectName: "sdCardFiredWash"
+        anchors.fill: parent
+        radius: parent.radius
+        visible: root._firedHere
+        color: Qt.rgba(root._frameColor.r, root._frameColor.g, root._frameColor.b, 0.07)
+    }
 
     // The accent border, drawn OVER the resting one rather than replacing it: a Rectangle has
     // exactly one border and this card needs two states of it that cross-fade. Focused holds

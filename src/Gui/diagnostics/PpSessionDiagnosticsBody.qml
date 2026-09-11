@@ -716,6 +716,28 @@ Rectangle {
                                             - bookendsRow.spacing * _n) / Math.max(1, _n))
                         height: bookendsRow.height
 
+                        // ⚠ A BOOKEND OPENS ITS CONDITION, exactly as a card does.
+                        //
+                        // It carried a "▸" from the day it was drawn and did nothing when it was
+                        // pressed, which is worse than having no caret at all: the closing row
+                        // names conditions the card row may never have shown — the ones that
+                        // ranked below the fold — so it is often the only place a golfer meets
+                        // them, and it was the one place they could not follow one up.
+                        //
+                        // Same verb, same target, same destination: the card ASKS and the model
+                        // decides (_openDetail), and the page replaces the body in the middle of
+                        // the frame the way it does from anywhere else. A second route to one
+                        // page, not a second page.
+                        MouseArea {
+                            id: bookendTap
+                            objectName: "sdBookendTap"
+                            anchors.fill: parent
+                            enabled: root.interactive && !!modelData && !!modelData.id
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root._openDetail(modelData.id || "")
+                        }
+
                         Rectangle {
                             anchors.left: parent.left
                             width: 1
@@ -731,13 +753,18 @@ Rectangle {
                             spacing: root.px(2)
 
                             Text {
+                                objectName: "sdBookendName"
                                 width: parent.width
                                 text: (modelData.name || "") + " ▸"
                                 elide: Text.ElideRight
                                 font.family: Theme.fontData
                                 font.pixelSize: root.tzCaption
                                 font.letterSpacing: Theme.trackingLabel
-                                color: Theme.colorAccent
+                                // Lit on hover like the card's TRACE caret, so the affordance
+                                // answers the pointer rather than only claiming to.
+                                color: bookendTap.containsMouse ? Theme.colorText
+                                                                : Theme.colorAccent
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             }
                             Text {
                                 width: parent.width
