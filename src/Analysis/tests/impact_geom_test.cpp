@@ -177,6 +177,21 @@ int main()
         check(d.applied == kImpactGeomOverride && d.frame == 60 && d.tUs == geo.tUs,
               "implausible anchor overridden with the geometry");
 
+        // The override is ONE-SIDED (2026-09-10, 0703_0007): both documented
+        // anchor failures leave the true impact at or before the emission, so
+        // a crossing LATER than the emission by more than overrideUs is the
+        // geometry lagging through the impact blur — the emission stands, and
+        // it is not "corroborated" either (no retime). overrideLater restores
+        // the two-sided rule for A/B.
+        ImpactGeomResult late = geo; late.tUs = 85 * kDt; late.frame = 85;   // +125 ms past an f60 emission
+        d = decideImpactFrame(true, 60, late, t, rcfg);
+        check(d.applied == kImpactGeomKept && d.frame == 60 && d.tUs == 60 * kDt,
+              "geometry later than the emission by > overrideUs ⇒ kept, not retimed");
+        ImpactGeomConfig lcfg = cfg; lcfg.overrideLater = true;
+        d = decideImpactFrame(true, 60, late, t, lcfg);
+        check(d.applied == kImpactGeomOverride && d.frame == 85 && d.tUs == late.tUs,
+              "overrideLater restores the two-sided override");
+
         // No anchor: adopted.
         d = decideImpactFrame(false, -1, geo, t, cfg);
         check(d.applied == kImpactGeomAdopted && d.frame == 60 && d.tUs == geo.tUs,
@@ -199,6 +214,7 @@ int main()
         const ImpactGeomConfig def;
         check(def.enabled == true, "enabled defaults true (FLIPPED ON 2026-08-10, p7geo gate)");
         check(def.retime == false, "retime defaults false (measured not green — stays dark)");
+        check(def.overrideLater == false, "overrideLater defaults false (a later crossing never overrides the emission)");
         check(def.hystDeg == 8.0 && def.maxStepDeg == 120.0 && def.overrideUs == 100000
                   && def.windowUs == 600000,
               "tuning defaults pinned");

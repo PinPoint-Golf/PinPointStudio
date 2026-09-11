@@ -86,6 +86,13 @@ struct SnapConfig {
     // shows on the lead arm. The club is static at address and the segment lock's own
     // ball-pointed probe already owns that frame, so there is nothing to recover here.
     bool   skipAddr       = true;   // DEFAULT ON: no snap on Addr frames (leg re-registration)
+    // ...and on the first skipTakeawayUs of the Backswing: the onset lands within
+    // ±55 ms of the marked P1 (09-09, seven swings), so on the swings where it is
+    // EARLY the P1 frame is labelled Backswing, the Addr skip no longer covers it,
+    // and the snap re-registers onto the leg there (0004 P1 4.3° → 18.7° the moment
+    // the far-edge onset rail was fixed). The club has barely left the address
+    // line in that window and the snap earns nothing there (its gain is P3–P5).
+    int64_t skipTakeawayUs = 80000;
     bool   skipBlur       = true;   // DEFAULT ON: no snap on Impact/Thru frames: the shaft is a fan there, and a
                                     // re-registration onto whatever ridge exists made the through-swing
                                     // agreement worse (6-iron 0909: 9.6° → 12.4°)

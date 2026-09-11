@@ -424,6 +424,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.impactGeom.hystDeg", c.impactGeom.hystDeg);
     apply(ov, "shaft.impactGeom.maxStepDeg", c.impactGeom.maxStepDeg);
     apply(ov, "shaft.impactGeom.overrideUs", c.impactGeom.overrideUs);
+    apply(ov, "shaft.impactGeom.overrideLater", c.impactGeom.overrideLater);
     apply(ov, "shaft.impactGeom.windowUs", c.impactGeom.windowUs);
     // Layer A line re-registration («snap»): "shaft.snap.*" keys.
     apply(ov, "shaft.snap.enabled", c.snap.enabled);
@@ -432,6 +433,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.snap.minLineConf", c.snap.minLineConf);
     apply(ov, "shaft.snap.corridorHalfPx", c.snap.corridorHalfPx);
     apply(ov, "shaft.snap.skipAddr", c.snap.skipAddr);
+    apply(ov, "shaft.snap.skipTakeawayUs", c.snap.skipTakeawayUs);
     apply(ov, "shaft.snap.skipBlur", c.snap.skipBlur);
     apply(ov, "shaft.snap.coarseStepPx", c.snap.coarseStepPx);
     apply(ov, "shaft.snap.coarseStepDeg", c.snap.coarseStepDeg);
@@ -740,9 +742,20 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
                     if (runStart >= 0) {
                         reseedBs0 = runStart;
                     } else {
+                        // The candidate is the END of the backswing motion (the
+                        // last frame above swLow before the top dwell), not the
+                        // sub-swLow boundary behind it. On the lerped grip a
+                        // 2-4 px/f creep floor runs the whole address hold, so
+                        // that "rising boundary" is the deep pre-fidget stillness
+                        // half a second early, and A3 then pins the onset at its
+                        // far edge (09-09 0001/0004/0005/0007 and 0703_0007: onset
+                        // 0.5-0.6 s before the marked P1, the address frames
+                        // labelled Backswing). Handing walkBack the motion end
+                        // lets its no-return scan - whose horizon is b0 - find
+                        // the last address settle before the grip departs for
+                        // good, which is the takeaway.
                         int b = top;
-                        while (b > 0 && spdS[b] <  cfg.swLow) --b;
-                        while (b > 0 && spdS[b] >= cfg.swLow) --b;
+                        while (b > 0 && spdS[b] < cfg.swLow) --b;
                         reseedBs0 = b;
                     }
                 }
@@ -2354,7 +2367,9 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             const bool visionTier = (s.flags & ShaftMeasured) || (s.flags & ShaftWedge);
             if (!visionTier) continue;                          // coasted/pred keep lineConf = -1
             const int i = sampleFrame[k];
-            if (cfg.snap.skipAddr && pm.phase[i] == SwingPhase::Addr) continue;
+            if (cfg.snap.skipAddr && (pm.phase[i] == SwingPhase::Addr
+                                      || (pm.bs0 >= 0 && pm.bs0 < nf && i >= pm.bs0
+                                          && tUs[i] - tUs[pm.bs0] < cfg.snap.skipTakeawayUs))) continue;
             if (cfg.snap.skipBlur && (pm.phase[i] == SwingPhase::Impact || pm.phase[i] == SwingPhase::Thru)) continue;
             cv::Mat g8 = frameSrc(i);
             if (g8.empty()) continue;                           // undecodable — no measurement

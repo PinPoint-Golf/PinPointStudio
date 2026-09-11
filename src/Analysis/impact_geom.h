@@ -75,6 +75,16 @@ struct ImpactGeomConfig {
     double  hystDeg    = 8.0;      // hysteresis deadband each side of theta_ball (mirrors positions.hysteresisDeg)
     double  maxStepDeg = 120.0;    // adjacent-valid |d(theta-theta_ball)| beyond this = the ±180 seam passing, not a transit
     int64_t overrideUs = 100000;   // |t_geo - t_anchor| beyond this => anchor implausible => override
+    // Both documented anchor failures leave the true impact AT or BEFORE the
+    // emission (a 13-22 ms EARLY trigger; a nearest-frame mapping that lands
+    // LATE across a coverage gap), so a crossing LATER than the emission by
+    // more than overrideUs is the geometry lagging - the DP coasting through
+    // the impact blur at the P6 direction and only meeting theta_ball deep in
+    // the follow-through (0703_0007: +261 ms while the anchor sat 7 ms from
+    // truth) - never the anchor failing. Off (default): such a crossing does
+    // not override and the emission stands uncorroborated. On restores the
+    // two-sided rule (2026-08-10 behaviour) for A/B.
+    bool    overrideLater = false;
     int64_t windowUs   = 600000;   // anchor-centred search half-window; generous vs the observed
                                    // +362 ms worst clamp corruption, short of the address hold
 };
@@ -265,13 +275,14 @@ inline ImpactDecision decideImpactFrame(bool anchorPresent, int emitFrame,
         return d;
     }
     const int64_t tEmit = tUs[size_t(clampFrame(emitFrame))];
-    if (std::llabs(geo.tUs - tEmit) > cfg.overrideUs) {
+    const int64_t dt    = geo.tUs - tEmit;   // < 0: the geometry is EARLIER than the emission
+    if (dt < -cfg.overrideUs || (cfg.overrideLater && dt > cfg.overrideUs)) {
         d.frame   = clampFrame(geo.frame);
         d.tUs     = geo.tUs;
         d.applied = kImpactGeomOverride;
         return d;
     }
-    if (cfg.retime) {
+    if (std::llabs(dt) <= cfg.overrideUs && cfg.retime) {
         d.tUs     = geo.tUs;   // frame (the window bound) stays the emission's
         d.applied = kImpactGeomRetimed;
     }
