@@ -69,6 +69,63 @@ QString fmtNumber(double v, int decimals = 1)
     return (v < 0.0) ? QString(kMinus) + s : s;
 }
 
+// The corridor's shape as the ledger row records it — the one translation between
+// MeasureEvidence's two open-side flags and CorridorShape, so there is exactly one place
+// that decides what a missing scale means.
+CorridorShape corridorShapeOf(const MeasureEvidence &e)
+{
+    if (!e.hasCorridor) return CorridorShape::None;              // graded against a number
+    if (!(e.corridorHi - e.corridorLo > 0.0)) return CorridorShape::None;   // degenerate band
+    if (e.lowOpen && e.highOpen) return CorridorShape::None;     // nothing to normalise by
+    if (e.lowOpen)  return CorridorShape::Ceiling;
+    if (e.highOpen) return CorridorShape::Floor;
+    return CorridorShape::TwoSided;
+}
+
+// ── The strength meter's fields, written in ONE place ───────────────────────────────────
+//
+// Four surfaces draw this meter — the pattern card, the chain node, the review cell and the
+// this-shot chip — and they draw it about the same row. Published once, as a block, so a
+// card and the cell under it cannot end up disagreeing about how far out a swing was; the
+// same rule that gives recurrence exactly one wording.
+//
+// THE MODEL DECIDES THE STEP, THE PANEL PAINTS IT. severityLevel() is the ladder and it
+// lives in diagnostic_ledger.h beside the z it reads, not in QML JS (§6.2). The panel gets
+// an integer 0..5, a bool saying whether there is a reading behind it, and one sentence.
+//
+// `strengthKnown` false is drawn as NOTHING, never as a zero: a zero is "dead centre of the
+// corridor", which is the best news on the meter, and a measure the capture could not
+// assess must never be able to read as good news. Same rule as rule 1, one layer up.
+QString strengthPhrase(int level)
+{
+    switch (level) {
+    case 0:  return QStringLiteral("middle of the corridor");
+    case 1:  return QStringLiteral("inside the corridor");
+    case 2:  return QStringLiteral("at the corridor edge");
+    case 3:  return QStringLiteral("outside the corridor");
+    case 4:  return QStringLiteral("well outside the corridor");
+    default: return QStringLiteral("far outside the corridor");
+    }
+}
+
+void addStrength(QVariantMap &m, const ConditionRow *r)
+{
+    const RowStrength st = r ? rowStrength(*r) : RowStrength();
+    const int level = st.known ? severityLevel(st.excess) : 0;
+
+    m[QStringLiteral("strengthKnown")] = st.known;
+    m[QStringLiteral("strength")]      = level;
+    m[QStringLiteral("strengthExcess")]= st.known ? st.excess : 0.0;
+    // The one sentence, and it carries the number as well as the step: a meter read off a
+    // tooltip should not be less precise than the receipt two lines above it. 1.0 is the
+    // graded edge exactly, which is why the distance is quoted TO the edge rather than past
+    // it — the same quantity either side of the band, and no sign to misread.
+    m[QStringLiteral("strengthText")] =
+        st.known ? QStringLiteral("%1 of 5 · %2 · %3× the distance to the corridor edge")
+                       .arg(level).arg(strengthPhrase(level), fmtNumber(st.excess))
+                 : QString();
+}
+
 QString withUnit(const QString &s, const QString &unit)
 {
     return unit.isEmpty() ? s : s + unit;
@@ -394,6 +451,12 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
             r.corridorLo       = f.evidence.corridorLo;
             r.corridorHi       = f.evidence.corridorHi;
             r.z                = f.evidence.z;
+            // WHICH SIDE THE BAND IS OPEN, recorded here because this is the only place it is
+            // known: MeasureEvidence carries the flags, the ledger row carries the number they
+            // scale, and the strength meter downstream cannot read one without the other.
+            // Every branch that left z at 0 for want of a scale records None, so a meter is
+            // never drawn over a reading that was graded against an authored number.
+            r.corridorShape    = corridorShapeOf(f.evidence);
         }
         rec.rows.push_back(std::move(r));
     }
@@ -1272,6 +1335,7 @@ void SessionDiagnosticsModel::buildThisShot()
                 { QStringLiteral("tier"),  l ? tierTag(l->tier) : QStringLiteral("watching") },
                 { QStringLiteral("focus"), r.conditionId == m_focusConditionId },
             };
+            addStrength(chip, &r);
             firedList.append(chip);
             m_thisShot.append(chip);
             if (l && l->freshThisShot) {
@@ -1504,6 +1568,11 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
             c[QStringLiteral("valueText")]    = QStringLiteral("not measurable");
             c[QStringLiteral("corridorText")] = here ? here->notAssessableReason : QString();
         }
+        // HOW FAR OUT, beside WHETHER it was out. The pill says fired or clean and the two
+        // numbers above say what was read and what it was tested against; the meter is the
+        // third question a golfer asks and the only one the card could not answer — marginal,
+        // or a mile.
+        addStrength(c, here);
         if (m_reviewing || m_closed) {
             int after = 0;
             for (int i = fi + 1; i < int(l.run.size()); ++i)
@@ -1686,6 +1755,7 @@ QVariantMap SessionDiagnosticsModel::nodeMap(const QString &id, const NodeSpec *
                 : (hs == QLatin1String("fired") ? QStringLiteral("FIRED")
                  : hs == QLatin1String("clean") ? QStringLiteral("CLEAN")
                                                 : QStringLiteral("NOT MEASURED"));
+        addStrength(n, here);
 
         // WHAT HAPPENED TO THIS NODE AFTER THE SELECTED SWING. The question review asks is
         // whether the shot was typical, and typical is only defined against what came next — a
@@ -1710,6 +1780,7 @@ QVariantMap SessionDiagnosticsModel::nodeMap(const QString &id, const NodeSpec *
         n[QStringLiteral("ticks")]      = QVariantList();
         n[QStringLiteral("state")]      = QStringLiteral("notAssessable");
         n[QStringLiteral("statePill")]  = QStringLiteral("NOT MEASURED");
+        addStrength(n, nullptr);
         n[QStringLiteral("trend")]      = QStringLiteral("stable");
         n[QStringLiteral("trendArrow")] = QString();
     }
@@ -1994,6 +2065,7 @@ QVariantMap SessionDiagnosticsModel::shotReadout(int shotId) const
                                                   : missingReasonText(MissingKind::MetricNotProduced);
             c[QStringLiteral("reason")]       = c[QStringLiteral("corridorText")];
         }
+        addStrength(c, r);
         c[QStringLiteral("tierTag")]      = tierTag(l->tier);
         c[QStringLiteral("recurrence")]   = l->recurrence;
         c[QStringLiteral("ticks")]        = ticksFor(*l, idx);
@@ -2191,6 +2263,7 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
         header[QStringLiteral("statePill")]        = QStringLiteral("NOT MEASURED");
         header[QStringLiteral("valueText")]        = QStringLiteral("not measurable");
         header[QStringLiteral("corridorText")]     = QString();
+        addStrength(header, nullptr);
     }
     const ChainNodeKind selfKind = kindOf(conditionId);
     header[QStringLiteral("kind")] = chainNodeKindName(selfKind);

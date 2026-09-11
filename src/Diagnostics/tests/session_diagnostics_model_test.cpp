@@ -317,6 +317,24 @@ int main(int argc, char **argv)
         check(card.value(QStringLiteral("ticks")).toList().size() == kShots,
               "the tick run carries one tick per shot, never a gap");
 
+        // ── The strength meter's block (how far out, beside whether it was out) ──────
+        //
+        // PRESENT ON EVERY CARD, reading or no reading. The panel binds three properties, and
+        // a card that published none would leave the meter at step 0 — the middle of the
+        // corridor, which is the best news on the ladder. Absent evidence must never be able
+        // to reach it, which is rule 1 one layer up from the ledger.
+        check(card.contains(QStringLiteral("strengthKnown"))
+                  && card.contains(QStringLiteral("strength"))
+                  && card.contains(QStringLiteral("strengthText")),
+              "every card carries the strength block");
+        const bool cardStrengthKnown = card.value(QStringLiteral("strengthKnown")).toBool();
+        const int  cardStrength      = card.value(QStringLiteral("strength")).toInt();
+        check(cardStrength >= 0 && cardStrength <= 5, "…on the drawn 0..5 ladder");
+        check(cardStrengthKnown != card.value(QStringLiteral("strengthText")).toString().isEmpty(),
+              "…and its one sentence is there exactly when a reading is");
+        check(cardStrengthKnown || cardStrength == 0,
+              "no reading publishes no step, and the panel draws nothing for it");
+
         // ── The chain rail, and the honesty devices on it ────────────────────────────
         if (stageAfter == QLatin1String("established")) {
             check(!m->chains().isEmpty(), "Established draws at least one chain rail");
@@ -761,6 +779,24 @@ int main(int argc, char **argv)
                     na, static_cast<long long>(sparse.size()));
         check(na > 0, "the sparse capture leaves genuinely not-assessable rows");
         check(reasonsOk, "…and every one of them prints WHY, never a blank");
+        // …and no meter over any of them. A cell the capture could not answer drawn at step 0
+        // would say "dead centre of the corridor" about a measure nobody read.
+        bool naMeterOk = true;
+        for (const QVariant &cv : sparse) {
+            const QVariantMap c = cv.toMap();
+            if (c.value(QStringLiteral("state")).toString() != QStringLiteral("—")) continue;
+            if (c.value(QStringLiteral("strengthKnown")).toBool()) naMeterOk = false;
+        }
+        check(naMeterOk, "…and not one of them carries a strength for the meter to draw");
+        // …and the converse, which is what says the meter appears at all on a real capture:
+        // a corridor that came out of detection with no shape recorded would publish nothing
+        // anywhere, and every assertion above would still pass over an empty panel.
+        int measured = 0;
+        for (const QVariant &cv : conds)
+            if (cv.toMap().value(QStringLiteral("strengthKnown")).toBool()) ++measured;
+        std::printf("      %d of %lld cells carry a strength the meter can draw\n",
+                    measured, static_cast<long long>(conds.size()));
+        check(measured > 0, "a real capture's graded rows do carry one");
         check(m->shotReadout(kShots).value(QStringLiteral("note")).toString()
                   .contains(QLatin1String("not assessable on this capture")),
               "…and the strip says how many, in words");

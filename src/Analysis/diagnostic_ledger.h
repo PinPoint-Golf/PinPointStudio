@@ -80,6 +80,7 @@
 #include <QString>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -149,9 +150,33 @@ inline constexpr double kDiagWarmUpWeight = 0.5;
 // 95% one-sided normal deviate for the Wilson bound.
 inline constexpr double kDiagWilsonZ = 1.96;
 
+// ── The strength ladder (a DISPLAY scale, and not a gate) ───────────────────────
+//
+// Six steps, 0..5, off the row's corridor excess: 0 is the middle of the corridor and 5 is
+// well outside it. It exists because a firing drawn in one colour says THAT a condition was
+// out and never BY HOW MUCH, and "marginal" and "a mile out" are different coaching
+// problems wearing the same red.
+//
+// THIS LADDER MOVES NOTHING. It cannot reach a tier, a recurrence, a trend or a link — it is
+// read off a row that has already been graded, by the presentation layer, and severityLevel()
+// is a pure function of one number. That is deliberate and it is the same restraint rule 3
+// applies to the causal edges: a scale the golfer reads must not become a scale the model
+// argues from, or the panel starts ranking on the loudness of a single swing.
+//
+// WHY THE EDGE SITS AT STEP 2 rather than at step 1. Excess is measured from the middle of
+// the corridor, so the inside of the band has to be spendable too — a reading at 0.9 of the
+// way out is a different swing from one dead in the middle, and a meter that spent all six
+// steps outside the corridor would have nothing to say about the shots that did not fire.
+// Two steps in, four steps out, and the second boundary is exactly the graded edge.
+inline constexpr std::array<double, 5> kDiagSeveritySteps{ 0.5, 1.0, 1.5, 2.0, 3.0 };
+
 // diagnostics.json's schema tag. Bumped when the ROW shape changes, never when a gate
 // number moves — the file persists the evidence, and the gates are applied on read.
-inline constexpr int kDiagSchemaVersion = 1;
+// 2 added ConditionRow::corridorShape. A file written at 1 reads back with every shape
+// Unknown, which is exactly right: the writer did not record which side of the corridor was
+// open, so the strength meter withholds itself on that session's clean rows rather than
+// guessing. Fired rows are unaffected — their strength never needed the shape.
+inline constexpr int kDiagSchemaVersion = 2;
 
 // Every §4 tunable in one injectable bundle.
 struct LedgerOptions {
@@ -345,6 +370,47 @@ inline double fisherExactOneSided(int a, int b, int c, int d)
 // is the whole reason this is an enum rather than a bool.
 enum class ShotState { Fired, Clean, NotAssessable };
 
+// THE SHAPE OF THE CORRIDOR the row's z was measured against, recorded because |z| alone
+// cannot be read as "how far out" without it.
+//
+// MeasureEvidence's z is signed, monotone in the reading and |z| == 1 at the graded edge on
+// every shape — which is all the ledger's trend needs, and not enough for a strength meter.
+// On a FLOOR (the open side is high) a reading far ABOVE the aspiration point is the best
+// swing of the day and carries a large positive z; on a CEILING the mirror. A meter built on
+// |z| would paint those bright red. So the shape travels with the row and the excess is
+// taken on the graded side only.
+//
+// Unknown is the default and is NOT a synonym for TwoSided: it is what a row deserialised
+// from a schema-1 file gets, and it means the meter has nothing to stand on.
+enum class CorridorShape {
+    Unknown,    // not recorded (schema 1), or no evidence at all
+    None,       // graded against an authored number, a zero-width band, or open both ends
+    TwoSided,   // z == 0 at the middle, ±1 on each edge
+    Floor,      // the open side is HIGH; the graded edge is low, at z == -1
+    Ceiling,    // the open side is LOW;  the graded edge is high, at z == +1
+};
+
+inline QString corridorShapeToString(CorridorShape c)
+{
+    switch (c) {
+    case CorridorShape::None:     return QStringLiteral("none");
+    case CorridorShape::TwoSided: return QStringLiteral("twoSided");
+    case CorridorShape::Floor:    return QStringLiteral("floor");
+    case CorridorShape::Ceiling:  return QStringLiteral("ceiling");
+    case CorridorShape::Unknown:  break;
+    }
+    return QStringLiteral("unknown");
+}
+
+inline CorridorShape corridorShapeFromString(const QString &s)
+{
+    if (s == QStringLiteral("none"))     return CorridorShape::None;
+    if (s == QStringLiteral("twoSided")) return CorridorShape::TwoSided;
+    if (s == QStringLiteral("floor"))    return CorridorShape::Floor;
+    if (s == QStringLiteral("ceiling"))  return CorridorShape::Ceiling;
+    return CorridorShape::Unknown;      // anything unrecognised is "we did not record it"
+}
+
 // One condition's reading on one shot.
 struct ConditionRow {
     QString   conditionId;
@@ -358,6 +424,9 @@ struct ConditionRow {
     double  corridorLo = 0.0;
     double  corridorHi = 0.0;
     double  z          = 0.0;       // signed departure from the corridor, in sigma
+    // Which shape of corridor that z was taken against, so "how far out" can be read off it
+    // without mistaking a floor cleared by a mile for a fault. See CorridorShape.
+    CorridorShape corridorShape = CorridorShape::Unknown;
 
     QString contextId;              // the corridor's context (club, tee, …)
     bool    contextInferred = false;// carried into ranking as a confidence demotion
@@ -392,6 +461,62 @@ inline const ConditionRow *rowFor(const ShotRecord &shot, const QString &conditi
     for (const ConditionRow &r : shot.rows)
         if (r.conditionId == conditionId) return &r;
     return nullptr;
+}
+
+// ── Strength: how far out, on a scale the panel can draw ────────────────────────
+
+// One row's reading as a distance, in the row's own z units, ON THE GRADED SIDE ONLY.
+//
+//   known   false when there is nothing to stand on: a row the capture could not assess, a
+//           measure graded against an authored number rather than a band, a z that is not
+//           finite, or a CLEAN row off a schema-1 file whose corridor shape was never
+//           recorded. The meter draws nothing rather than a number it had to invent.
+//   excess  0 at the middle of a two-sided corridor (or at the aspiration point of a
+//           one-sided one), 1 exactly at the graded edge, and upwards from there.
+//
+// A FIRED ROW NEEDS NO SHAPE. A firing can only have happened on the graded side, so |z| is
+// the distance whichever way the band is open — which is what lets the meter work on every
+// session already on disk, including the ones written before the shape was recorded.
+struct RowStrength {
+    bool   known  = false;
+    double excess = 0.0;
+};
+
+inline RowStrength rowStrength(const ConditionRow &r)
+{
+    RowStrength out;
+    if (r.state == ShotState::NotAssessable) return out;      // rule 1: we did not look
+    if (!std::isfinite(r.z)) return out;
+    if (r.corridorShape == CorridorShape::None) return out;   // no band, no scale
+
+    if (r.state == ShotState::Fired) {                        // the graded side by definition
+        out.known  = true;
+        out.excess = std::fabs(r.z);
+        return out;
+    }
+
+    switch (r.corridorShape) {
+    case CorridorShape::TwoSided: out.known = true; out.excess = std::fabs(r.z);           break;
+    // The open side is not a distance from anything: a floor cleared by a mile is the best
+    // swing of the session, and it sits at 0 with the reading that hit the aspiration exactly.
+    case CorridorShape::Floor:    out.known = true; out.excess = std::max(0.0, -r.z);      break;
+    case CorridorShape::Ceiling:  out.known = true; out.excess = std::max(0.0,  r.z);      break;
+    case CorridorShape::Unknown:
+    case CorridorShape::None:     break;
+    }
+    return out;
+}
+
+// The excess on the drawn ladder. Monotone, saturating, and 0 only for a reading in the
+// middle — the top step is open-ended because "far outside" has no ceiling worth drawing.
+inline int severityLevel(double excess,
+                         const std::array<double, 5> &steps = kDiagSeveritySteps)
+{
+    if (!std::isfinite(excess)) return 0;
+    int level = 0;
+    for (double s : steps)
+        if (excess >= s) ++level;
+    return level;
 }
 
 // This shot's weight on the effective Wilson counts. Warm-up shots are DOWN-WEIGHTED,
@@ -1394,6 +1519,7 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
             ro[QStringLiteral("corridorLo")]      = r.corridorLo;
             ro[QStringLiteral("corridorHi")]      = r.corridorHi;
             ro[QStringLiteral("z")]               = r.z;
+            ro[QStringLiteral("corridorShape")]   = corridorShapeToString(r.corridorShape);
             ro[QStringLiteral("contextId")]       = r.contextId;
             ro[QStringLiteral("contextInferred")] = r.contextInferred;
             ro[QStringLiteral("material")]        = r.material;
@@ -1486,6 +1612,9 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
             r.corridorLo       = ro.value(QStringLiteral("corridorLo")).toDouble();
             r.corridorHi       = ro.value(QStringLiteral("corridorHi")).toDouble();
             r.z                = ro.value(QStringLiteral("z")).toDouble();
+            // Absent on a schema-1 file, and Unknown is the honest answer there.
+            r.corridorShape    = corridorShapeFromString(
+                                     ro.value(QStringLiteral("corridorShape")).toString());
             r.contextId        = ro.value(QStringLiteral("contextId")).toString();
             r.contextInferred  = ro.value(QStringLiteral("contextInferred")).toBool();
             r.material         = ro.value(QStringLiteral("material")).toBool(true);

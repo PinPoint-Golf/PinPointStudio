@@ -232,6 +232,11 @@ Item {
             phase: phase, measure: measure, recurrence: recurrence,
             state: state, statePill: pill, trend: trend, trendArrow: arrow,
             evidence: evidence,
+            strengthKnown: state !== "notAssessable",
+            strength: state === "fired" ? 3 : 0,
+            strengthText: state === "fired"
+                ? "3 of 5 · outside the corridor · 1.6× the distance to the corridor edge"
+                : "0 of 5 · middle of the corridor · 0.1× the distance to the corridor edge",
             ticks: [tick("fired"), tick("notAssessable"), tick("fired"),
                     tick("clean"), tick("fired"), tick("fired")]
         })
@@ -513,9 +518,34 @@ Item {
             { pill: "CLEAN HERE",   state: "clean",         after: "no firings after this shot" },
             { pill: "NOT MEASURED", state: "notAssessable", after: "no firings after this shot" }
         ]
+        // THE CARDS CARRY THE REVIEW TENSE TOO, and they are what the panel draws now: the
+        // pill says what happened HERE, the recency slot answers "was this the end of it or the
+        // middle", and the reviewed shot is the one wide tick inside the run. cardMap() keeps
+        // those three in step off one row, so a fixture that moved one without the others would
+        // be asserting a card the model cannot produce.
+        const cardHere = [
+            { pill: "FIRED HERE", state: "fired", after: "3 more firings after this shot" },
+            { pill: "CLEAN HERE", state: "clean", after: "no firings after this shot" }
+        ]
+        for (let i = 0; i < s.cards.length && i < cardHere.length; ++i) {
+            s.cards[i].statePill        = cardHere[i].pill
+            s.cards[i].thisShot         = cardHere[i].state
+            s.cards[i].firingsAfterText = cardHere[i].after
+            selectTickAt(s.cards[i], 2, cardHere[i].state)
+        }
+
         for (let i = 0; i < s.chains[0].nodes.length; ++i) {
             s.chains[0].nodes[i].statePill        = here[i].pill
             s.chains[0].nodes[i].firingsAfterText = here[i].after
+            // The meter reads the SAME row as the pill — nodeMap() publishes them together,
+            // so a fixture that moved one without the other would be a shape the model
+            // cannot produce.
+            s.chains[0].nodes[i].strengthKnown = here[i].state !== "notAssessable"
+            s.chains[0].nodes[i].strength      = here[i].state === "fired" ? 3 : 0
+            s.chains[0].nodes[i].strengthText  = here[i].state === "notAssessable" ? ""
+                : here[i].state === "fired"
+                    ? "3 of 5 · outside the corridor · 1.6× the distance to the corridor edge"
+                    : "0 of 5 · middle of the corridor · 0.1× the distance to the corridor edge"
             selectTickAt(s.chains[0].nodes[i], 2, here[i].state)
         }
         return s
@@ -535,6 +565,13 @@ Item {
             return { id: id, name: name, stateKind: kind, state: state,
                      valueText: val, corridorText: band,
                      reason: kind === "notAssessable" ? band : "",
+                     // Fired reads carry a loud meter, clean ones a quiet one, and the reads
+                     // the capture could not take carry none at all.
+                     strengthKnown: kind !== "notAssessable",
+                     strength: kind === "fired" ? 5 : 1,
+                     strengthText: kind === "notAssessable" ? ""
+                                 : kind === "fired" ? "5 of 5 · far outside the corridor · 3.4× the distance to the corridor edge"
+                                                    : "1 of 5 · inside the corridor · 0.6× the distance to the corridor edge",
                      tierTag: tier, tail: tail === true,
                      recurrence: "", ticks: [], selectedIndex: 8,
                      firingsAfter: 0, firingsAfterText: "no firings after this shot" }
@@ -645,6 +682,13 @@ Item {
             return { id: id, name: name, stateKind: kind, state: state,
                      valueText: val, corridorText: band,
                      reason: kind === "notAssessable" ? band : "",
+                     // Fired reads carry a loud meter, clean ones a quiet one, and the reads
+                     // the capture could not take carry none at all.
+                     strengthKnown: kind !== "notAssessable",
+                     strength: kind === "fired" ? 5 : 1,
+                     strengthText: kind === "notAssessable" ? ""
+                                 : kind === "fired" ? "5 of 5 · far outside the corridor · 3.4× the distance to the corridor edge"
+                                                    : "1 of 5 · inside the corridor · 0.6× the distance to the corridor edge",
                      tierTag: tier, tail: tail === true,
                      recurrence: "", ticks: [], selectedIndex: 5,
                      firingsAfter: 0, firingsAfterText: "no firings after this shot" }
@@ -919,6 +963,75 @@ Item {
             // Bottom-aligned: the short tick sits on the run's baseline, so the run reads as
             // a sequence with a weaker mark in it rather than one with a hole.
             compare(na.y + na.height, fired.y + fired.height)
+        }
+
+        // ── the strength meter ───────────────────────────────────────────────
+        //
+        // WHAT THE COLOUR ALONE COULD NOT SAY. A firing drawn red says THAT a reading was out
+        // of its corridor; the meter is the only thing on the panel that says by how much, so
+        // what is asserted here is that the bar COUNT tracks the model's step (colour is a
+        // second channel, never the only one), that the ramp runs green through amber to red,
+        // and — the one that matters — that a reading nobody took draws nothing rather than
+        // landing on step 0, which is the best news on the ladder.
+        function test_05b_theMeterSaysHowFarOutAndRefusesToGuess() {
+            setSource(formingSource(false))
+
+            const cards = visibleAll(body, "sdPatternCard")
+            const loud  = one(cards[0], "sdCardStrength")
+            const quiet = one(cards[1], "sdCardStrength")
+
+            verify(shown(loud), "the fired card carries a meter")
+            compare(findAll(loud, "sdStrengthBar").length, 5, "five steps, always drawn")
+
+            function lit(meter) {
+                const bars = findAll(meter, "sdStrengthBar")
+                let n = 0
+                for (let i = 0; i < bars.length; ++i)
+                    if (bars[i].opacity === 1.0) ++n
+                return n
+            }
+            compare(lit(loud), 4, "step 4 lights four of the five")
+            compare(lit(quiet), 1, "…and step 1 lights one")
+
+            // The ramp, off the theme rather than off a colour written here twice.
+            const loudBars = findAll(loud, "sdStrengthBar")
+            const quietBars = findAll(quiet, "sdStrengthBar")
+            compare(loudBars[0].color, Theme.strengthColor(4), "well outside is drawn in the warn hue")
+            compare(quietBars[0].color, Theme.strengthColor(1), "…and inside the corridor in the good one")
+            verify(!Qt.colorEqual(loudBars[0].color, quietBars[0].color),
+                   "the two do not read as the same strength")
+
+            // A RISING LADDER, so the meter cannot be mistaken for the tick run beside it.
+            verify(loudBars[4].height > loudBars[0].height, "the steps climb")
+
+            // Step 0 is not an empty meter: the unlit ladder goes green, because "dead centre
+            // of the corridor" and "we never read it" must not look alike.
+            const zero = { id: "z", name: "Z", tier: "pattern", recurrence: "1 of 5 measurable shots",
+                           fired: 1, assessable: 5, fresh: false, resolving: false,
+                           thisShot: "clean", statePill: "CLEAN",
+                           strengthKnown: true, strength: 0,
+                           strengthText: "0 of 5 · middle of the corridor · 0.1× the distance to the corridor edge",
+                           directionClaimed: true, directionText: "", trend: "stable",
+                           trendArrow: "", trendText: "stable", recencyText: "", evidence: "",
+                           ticks: [tick("clean")] }
+            const blind = JSON.parse(JSON.stringify(zero))
+            blind.id = "b"; blind.name = "B"
+            blind.strengthKnown = false; blind.strength = 0; blind.strengthText = ""
+
+            const s = formingSource(false)
+            s.cards = [zero, blind]
+            setSource(s)
+
+            const after = visibleAll(body, "sdPatternCard")
+            const zeroMeter = one(after[0], "sdCardStrength")
+            compare(lit(zeroMeter), 0, "step 0 lights nothing")
+            verify(Qt.colorEqual(findAll(zeroMeter, "sdStrengthBar")[0].color,
+                                 Qt.rgba(Theme.colorGood.r, Theme.colorGood.g,
+                                         Theme.colorGood.b, 0.35)),
+                   "…but the empty ladder is green, not grey")
+
+            verify(!shown(one(after[1], "sdCardStrength")),
+                   "and a card with no reading behind it draws no meter at all")
         }
 
         // ── cadence ──────────────────────────────────────────────────────────

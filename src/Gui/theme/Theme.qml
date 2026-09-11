@@ -532,6 +532,18 @@ QtObject {
         if (score < 75) return colorAttentionLight
         return colorGoodLight
     }
+    // Session-diagnostics strength ramp (PpStrengthMeter): the 0..5 step a reading sits at,
+    // off diagnostic_ledger.h's severityLevel(), to the status family the rest of the panel
+    // already uses for the same reading. Green inside the corridor, amber across its edge,
+    // orange-red and then red out beyond it — and the meter pairs it with a bar COUNT, so
+    // colour is never the only channel.
+    function strengthColor(level) {
+        if (level <= 1) return colorGood        // 0 dead centre, 1 inside the band
+        if (level <= 3) return colorAttention   // 2 at the edge, 3 outside it
+        if (level <= 4) return colorWarn        // well outside
+        return colorError                       // far outside
+    }
+
     // Band ranges for the filter chips, low→high.
     readonly property var qualityBands: [
         { lo: 0,  hi: 24,  label: "0–24"   },

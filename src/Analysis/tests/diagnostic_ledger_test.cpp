@@ -877,6 +877,7 @@ int main()
                 const ConditionRow &x = rebuilt[i].rows[k], &y = c.shots[i].rows[k];
                 if (x.conditionId != y.conditionId || x.state != y.state
                     || x.direction != y.direction || !near(x.z, y.z, 1e-9)
+                    || x.corridorShape != y.corridorShape
                     || x.notAssessableReason != y.notAssessableReason) rowsMatch = false;
             }
         }
@@ -906,6 +907,92 @@ int main()
         // An unknown state string reads as "we did not look", never as clean.
         check(shotStateFromString(QStringLiteral("gibberish")) == ShotState::NotAssessable,
               "an unrecognised state degrades to NotAssessable, not to Clean");
+    }
+
+    // ── Strength: the drawn ladder, and what it refuses to draw ─────────────────
+    {
+        auto row = [](ShotState st, double z, CorridorShape shape) {
+            ConditionRow r;
+            r.conditionId   = QStringLiteral("x");
+            r.state         = st;
+            r.z             = z;
+            r.corridorShape = shape;
+            r.corridorLo    = -2.0;
+            r.corridorHi    =  2.0;
+            return r;
+        };
+
+        // The ladder itself: 0 is the middle, the graded edge lands on 2, and the top step
+        // is open-ended. The boundaries are inclusive on the step they name.
+        check(severityLevel(0.0) == 0,   "excess 0 is step 0 — the middle of the corridor");
+        check(severityLevel(0.49) == 0,  "…and just under the first step is still 0");
+        check(severityLevel(0.5) == 1,   "the first step is inclusive");
+        check(severityLevel(0.999) == 1, "…and inside the band tops out at 1");
+        check(severityLevel(1.0) == 2,   "the graded edge is step 2, exactly");
+        check(severityLevel(1.5) == 3 && severityLevel(2.0) == 4, "…then 3 and 4 outside it");
+        check(severityLevel(3.0) == 5 && severityLevel(99.0) == 5, "…and 5 is open-ended");
+
+        // A two-sided corridor: |z|, either tail, the sign having nothing to say about how
+        // far out a swing was.
+        check(near(rowStrength(row(ShotState::Fired, 2.4, CorridorShape::TwoSided)).excess, 2.4, 1e-12),
+              "two-sided: the excess is |z|");
+        check(near(rowStrength(row(ShotState::Clean, -0.4, CorridorShape::TwoSided)).excess, 0.4, 1e-12),
+              "…on the low side as well as the high");
+
+        // THE TRAP THE SHAPE EXISTS FOR. On a floor, a reading far up the open side is the
+        // best swing of the day; |z| alone would paint it step 5, bright red.
+        const RowStrength openSide = rowStrength(row(ShotState::Clean, 4.0, CorridorShape::Floor));
+        check(openSide.known && near(openSide.excess, 0.0, 1e-12),
+              "a floor cleared by a mile sits at 0, not at 5");
+        check(near(rowStrength(row(ShotState::Clean, -1.2, CorridorShape::Floor)).excess, 1.2, 1e-12),
+              "…while a reading below its graded edge is 1.2 out");
+        check(near(rowStrength(row(ShotState::Clean, -3.0, CorridorShape::Ceiling)).excess, 0.0, 1e-12),
+              "and the ceiling is the mirror of it");
+        check(near(rowStrength(row(ShotState::Clean, 1.4, CorridorShape::Ceiling)).excess, 1.4, 1e-12),
+              "…out past the high edge by 1.4");
+
+        // A FIRING NEEDS NO SHAPE, which is what lets the meter work on sessions written
+        // before the shape was recorded: it can only have happened on the graded side.
+        const RowStrength firedBlind = rowStrength(row(ShotState::Fired, -2.6, CorridorShape::Unknown));
+        check(firedBlind.known && near(firedBlind.excess, 2.6, 1e-12),
+              "a fired row reads its strength with the shape unknown");
+        check(!rowStrength(row(ShotState::Clean, -2.6, CorridorShape::Unknown)).known,
+              "…and a clean one refuses to, rather than guessing which side was open");
+
+        // Nothing to stand on is drawn as nothing, never as step 0 — step 0 is the best news
+        // on the meter and a measure nobody read must not be able to reach it.
+        check(!rowStrength(row(ShotState::NotAssessable, 0.0, CorridorShape::TwoSided)).known,
+              "a row the capture could not assess has no strength");
+        check(!rowStrength(row(ShotState::Fired, 3.0, CorridorShape::None)).known,
+              "…nor has one graded against an authored number rather than a band");
+        check(!rowStrength(row(ShotState::Fired, std::numeric_limits<double>::quiet_NaN(),
+                               CorridorShape::TwoSided)).known,
+              "…nor has a z that is not finite");
+
+        // The ladder is a DISPLAY scale and reaches nothing. Two sessions identical but for
+        // their z magnitudes must reduce to the identical panel.
+        std::vector<Plan> loud  = { plan("a", { 1, 1, 0, 1, 0, 1 }) };
+        std::vector<Plan> quiet = loud;
+        loud[0].zs  = { 9.0, 8.5, 0.1, 7.7, 0.2, 9.9 };
+        quiet[0].zs = { 2.1, 2.0, 0.1, 2.2, 0.2, 2.05 };
+        const auto ll = conditionLedgers(sessionOf(loud), O);
+        const auto lq = conditionLedgers(sessionOf(quiet), O);
+        check(ll[0].tier == lq[0].tier && ll[0].fired == lq[0].fired
+                  && ll[0].recurrence == lq[0].recurrence
+                  && near(ll[0].wilsonLower, lq[0].wilsonLower, 1e-12),
+              "how far out a swing was cannot move a tier, a count or a bound");
+
+        // And the shape survives the round trip, or every clean row on a reloaded session
+        // silently loses its meter.
+        std::vector<ShotRecord> one(1);
+        one[0].shotId = 1;
+        one[0].rows = { row(ShotState::Clean, -0.6, CorridorShape::Floor) };
+        const auto back = fromJsonDocument(toJsonDocument(one, O));
+        check(back.size() == 1 && back[0].rows.size() == 1
+                  && back[0].rows[0].corridorShape == CorridorShape::Floor,
+              "the corridor shape survives serialisation");
+        check(corridorShapeFromString(QStringLiteral("gibberish")) == CorridorShape::Unknown,
+              "an unrecognised shape degrades to Unknown, which draws nothing");
     }
 
     // ── Never-do rule 1 — no percentage the n does not support ──────────────────

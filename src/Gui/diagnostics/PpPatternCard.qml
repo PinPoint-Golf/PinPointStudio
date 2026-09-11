@@ -226,7 +226,9 @@ Rectangle {
                 anchors.left: parent.left
                 // Past the NEW tag only while there is one — collapsing the tag's own width
                 // instead would make its implicitWidth depend on its width.
-                anchors.right: freshTag.visible ? freshTag.left : pill.left
+                anchors.right: freshTag.visible ? freshTag.left
+                             : meter.visible    ? meter.left
+                                                : pill.left
                 anchors.rightMargin: root.px(7)
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.card ? root.card.name : ""
@@ -239,7 +241,7 @@ Rectangle {
             Text {
                 id: freshTag
                 objectName: "sdCardFresh"
-                anchors.right: pill.left
+                anchors.right: meter.visible ? meter.left : pill.left
                 anchors.rightMargin: root.px(7)
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.card ? root.card.fresh === true : false
@@ -248,6 +250,20 @@ Rectangle {
                 font.pixelSize: root.tzCaption
                 font.letterSpacing: Theme.trackingMicro
                 color: Theme.colorAccent
+            }
+            // HOW FAR OUT, immediately left of WHETHER it was out. The two belong in one
+            // glance: the pill is the verdict and the meter is its size, and a reader who
+            // takes only the colour off the card still gets the verdict they always did.
+            PpStrengthMeter {
+                id: meter
+                objectName: "sdCardStrength"
+                anchors.right: pill.left
+                anchors.rightMargin: root.px(7)
+                anchors.verticalCenter: parent.verticalCenter
+                level:   root.card ? (root.card.strength || 0) : 0
+                known:   root.card ? root.card.strengthKnown === true : false
+                caption: root.card ? (root.card.strengthText || "") : ""
+                fit: root.fit
             }
             Rectangle {
                 id: pill

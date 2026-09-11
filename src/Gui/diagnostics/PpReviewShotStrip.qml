@@ -315,7 +315,8 @@ Item {
                                     id: cellName
                                     objectName: "sdReviewCellName"
                                     anchors.left: parent.left
-                                    anchors.right: cellMark.left
+                                    anchors.right: cellMeter.visible ? cellMeter.left
+                                                                     : cellMark.left
                                     anchors.rightMargin: root.px(6)
                                     anchors.top: parent.top
                                     text: cell.modelData.name || ""
@@ -324,6 +325,21 @@ Item {
                                     font.pixelSize: root.tzLabel
                                     font.weight: Theme.fontBodyWeight
                                     color: Theme.colorText
+                                }
+                                // OUT and IN say which side of the corridor; the meter says
+                                // how far. In review that is most of the question — whether
+                                // the swing being read was a near miss or the worst of the
+                                // session is not answerable off the word alone.
+                                PpStrengthMeter {
+                                    id: cellMeter
+                                    objectName: "sdReviewCellStrength"
+                                    anchors.right: cellMark.left
+                                    anchors.rightMargin: root.px(6)
+                                    anchors.verticalCenter: cellName.verticalCenter
+                                    level:   cell.modelData.strength || 0
+                                    known:   cell.modelData.strengthKnown === true
+                                    caption: cell.modelData.strengthText || ""
+                                    fit: root.fit
                                 }
                                 Text {
                                     id: cellMark

@@ -114,7 +114,10 @@ Item {
                     anchors.right: parent.right
                     anchors.baseline: headline.baseline
                     visible: !root.compact
-                    text: qsTr("dashed chip = one of your patterns · read it on its card")
+                    // THE METER'S ONLY LEGEND, and it is here rather than in a tooltip
+                    // because nothing else on this panel is discoverable by hovering and a
+                    // scale nobody can read is a scale that is not being read.
+                    text: qsTr("bars = how far outside the corridor · dashed chip = one of your patterns")
                     font.family: Theme.fontData
                     font.pixelSize: root.tzCaption
                     color: Theme.colorText3
@@ -181,6 +184,19 @@ Item {
                                 font.pixelSize: root.tzLabel
                                 font.weight: Theme.fontBodyWeight
                                 color: Theme.colorText
+                            }
+                            // The chip is the smallest surface the meter appears on, and it
+                            // is the one the golfer reads between balls — "that one fired"
+                            // and "that one fired HARD" being the difference they are
+                            // standing there asking about. Only a fired chip carries it: the
+                            // clean and not-assessable entries are counts, not readings.
+                            PpStrengthMeter {
+                                anchors.verticalCenter: parent.verticalCenter
+                                objectName: "sdChipStrength"
+                                level:   chip.modelData.strength || 0
+                                known:   chip.modelData.strengthKnown === true
+                                caption: chip.modelData.strengthText || ""
+                                fit: root.fit
                             }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
