@@ -381,6 +381,30 @@ int main(int argc, char **argv)
         }
         check(rankOk, "every card is badged, the badge never goes backwards, and an untied rank "
                       "is its own position in the row");
+
+        // ── The two filter facts, on a session built by the real pipeline ────────────
+        //
+        // IMPACT IS TWO QUESTIONS, NOT A SCORE — see buildCards() for why a ranked one would be
+        // a number nobody could defend. What is asserted is that both are published on every
+        // card, that they are STRUCTURAL claims off the pack rather than restatements of the
+        // session (a fault that reaches the ball does so whether or not it fired today), and
+        // that at least one card answers each — a filter that can only ever return everything
+        // or nothing is not a filter.
+        int reaches = 0, roots = 0;
+        bool factsOk = !ordered.isEmpty();
+        for (const QVariant &cv : ordered) {
+            const QVariantMap c = cv.toMap();
+            if (!c.contains(QStringLiteral("reachesBall")) || !c.contains(QStringLiteral("rootHere")))
+                factsOk = false;
+            if (c.value(QStringLiteral("reachesBall")).toBool()) ++reaches;
+            if (c.value(QStringLiteral("rootHere")).toBool())    ++roots;
+        }
+        check(factsOk, "every card says whether it reaches the ball and whether it is a root here");
+        std::printf("      %d of %lld patterns reach a ball-flight outcome; %d are roots\n",
+                    reaches, static_cast<long long>(ordered.size()), roots);
+        check(reaches > 0 && reaches < int(ordered.size()),
+              "the ball filter splits this session rather than returning all or nothing");
+        check(roots > 0, "…and at least one pattern is a root of the set");
         std::printf("      ranks: %s%s\n",
                     qPrintable(ordered.isEmpty() ? QString()
                                                  : ordered.first().toMap()

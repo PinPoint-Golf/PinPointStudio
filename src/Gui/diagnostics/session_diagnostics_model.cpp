@@ -1468,6 +1468,57 @@ void SessionDiagnosticsModel::buildCards()
     for (const ConditionLedger &l : m_ledgers)
         if (l.tier == Tier::Pattern && !ordered.contains(l.id)) ordered.push_back(l.id);
 
+    // ── the two filters: does it reach the ball, and is it a root here ──────────────
+    //
+    // IMPACT IS NOT SCORED, IT IS ASKED IN TWO BINARY QUESTIONS, and that is the whole design.
+    // The three quantities a ranked "impact" score would have to be built from are each unfit
+    // for it: Prominence is an unseated editorial prior about EVERYONE (its own header says so),
+    // a descendant count measures how much has been WRITTEN about a condition rather than how
+    // much it matters — reverse_spine_p4 authors zero effects, which is a gap and not a mild
+    // fault — and the pack itself calls ranking by graph topology a failure mode. A HIGH/MEDIUM/
+    // LOW badge over those inputs would be a number nobody could defend when asked why one fault
+    // outranked another, which is the one thing this panel may never publish.
+    //
+    // Two facts it CAN state plainly:
+    //
+    //   reachesBall — the pack authors a causal path from this condition to a ball-flight
+    //                 outcome. Structural, and deliberately so: an edge is an independent claim
+    //                 somebody wrote down. The WORDING must stay "no authored path to the ball"
+    //                 rather than "low impact", because a zero can be an authoring gap.
+    //   rootHere    — nothing among THIS session's own patterns is authored as causing it. The
+    //                 coach-useful split: roots are where work starts, symptoms follow them.
+    //
+    // Neither is evidence about this golfer, and neither pretends to be. The measure that WOULD
+    // be — an authored edge into an outcome graded Conditionally-dependent or Moved-together over
+    // this session's own shots — needs outcome data the capture does not always carry, and is
+    // gradeLinks()' job on the day it does.
+    m_reachesBall.clear();
+    m_rootHere.clear();
+    if (m_packProv) {
+        const CharacteristicPack &pack = m_packProv->pack();
+
+        QSet<QString> patternSet;
+        for (const ConditionLedger &l : m_ledgers)
+            if (l.tier == Tier::Pattern) patternSet.insert(l.id);
+
+        for (const QString &id : std::as_const(patternSet)) {
+            bool reaches = false;
+            const QSet<QString> below = causalClosure(pack, id, /*downstream*/ true);
+            for (const QString &d : below) {
+                const Condition *c = pack.condition(d);
+                if (c && c->kind == ConditionKind::Outcome) { reaches = true; break; }
+            }
+            m_reachesBall.insert(id, reaches);
+
+            bool caused = false;
+            for (const Edge &e : pack.edges) {
+                if (e.type != EdgeType::Causes || e.to != id) continue;
+                if (patternSet.contains(e.from)) { caused = true; break; }
+            }
+            m_rootHere.insert(id, !caused);
+        }
+    }
+
     // ── the rank badge (#1, #2, #3=, #3=, #5) ───────────────────────────────────────
     //
     // COMPETITION RANKING off the SCORES, not the positions — competitionRanks() owns the rule
@@ -1631,6 +1682,10 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
         // the ranked row at all — the detail's header card for a watched or unmeasured
         // condition has no rank to show, and must not borrow one.
         c[QStringLiteral("rankText")] = m_rankText.value(id);
+        // The two filter facts. Absent from both hashes for anything off the ranked row, which
+        // reads as false — a condition with no place in the row cannot be filtered into it.
+        c[QStringLiteral("reachesBall")] = m_reachesBall.value(id, false);
+        c[QStringLiteral("rootHere")]    = m_rootHere.value(id, false);
         if (m_reviewing || m_closed) {
             int after = 0;
             for (int i = fi + 1; i < int(l.run.size()); ++i)

@@ -69,6 +69,27 @@ Rectangle {
     // answered.)
     property bool watchingExpanded: false
 
+    // ── the card filter (panel-local, like the watching fold) ────────────────
+    //
+    // A VIEW STATE AND NOT A MODEL ONE, on the same terms as watchingExpanded: the model
+    // publishes the two FACTS (reachesBall, rootHere) and this decides which of them the reader
+    // is looking through. Nothing is withdrawn by filtering — the count in the header still
+    // speaks for the whole session, and a filtered-out pattern keeps its rank, which is why the
+    // badges read #1 #4 #7 under a filter rather than renumbering themselves. A rank is a place
+    // in the session's ranking, not a place in the current view of it.
+    property string cardFilter: "all"     // "all" | "ball" | "roots"
+    readonly property var _cardFilterChips: [
+        { key: "all",   label: qsTr("ALL") },
+        { key: "ball",  label: qsTr("REACHES THE BALL") },
+        { key: "roots", label: qsTr("ROOTS") }
+    ]
+    readonly property var _visibleCards: {
+        const cs = cards || []
+        if (cardFilter === "ball")  return cs.filter(function (c) { return c.reachesBall === true })
+        if (cardFilter === "roots") return cs.filter(function (c) { return c.rootHere === true })
+        return cs
+    }
+
     // Off on the auto-closing cast, where every affordance on the panel is a trap: the
     // surface is a glance and it is about to vanish under the pointer
     // (PpSessionDiagnosticsWindow.interactive). Nothing about what the panel SAYS changes.
@@ -316,7 +337,7 @@ Rectangle {
     // EVERY PATTERN IS LAID OUT. The area scrolls, so a prefix would be withholding rather than
     // fitting — and what is off the bottom of a Flickable is one flick away, which is not the
     // same thing as absent.
-    readonly property int _cardsShown: (cards && width > 0) ? cards.length : 0
+    readonly property int _cardsShown: (width > 0) ? _visibleCards.length : 0
     readonly property int _cardRows: Math.max(1, Math.ceil(_cardsShown / Math.max(1, _cardCols)))
 
     // The height the body has for cards. Read off the Flickable, which is anchored top and
@@ -988,9 +1009,65 @@ Rectangle {
                         font.letterSpacing: Theme.trackingMicro
                         color: Theme.colorText2
                     }
+                    // ── the filter, on the row it filters ────────────────────
+                    //
+                    // TWO QUESTIONS, NOT A SCORE. "Reaches the ball" is whether the pack authors
+                    // a causal path from this condition to a ball-flight outcome; "roots" is
+                    // whether anything among this session's own patterns is authored as causing
+                    // it. Both are the model's facts; which one the reader looks through is this
+                    // panel's business, which is why the state lives here and the facts do not.
+                    //
+                    // The chips are the panel's existing micro-label idiom (FOCUS ▸, TRACE ▸,
+                    // OPEN ▸) rather than a control from somewhere else: the accent says which
+                    // is on, and the row beneath answers immediately, so there is nothing to
+                    // learn. ALL is first and is the resting state — a panel that opened already
+                    // filtered would be hiding findings from a reader who never asked it to.
+                    Row {
+                        id: filterChips
+                        objectName: "sdCardFilter"
+                        anchors.left: pictureLabel.right
+                        anchors.leftMargin: root.px(12)
+                        // verticalCenter, NOT baseline: a Row has no baseline of its own, so
+                        // anchoring one puts the row's TOP on the label's baseline and drops the
+                        // chips a line below the header they belong to.
+                        anchors.verticalCenter: pictureLabel.verticalCenter
+                        spacing: root.px(10)
+                        visible: root.interactive && (root.cards ? root.cards.length > 1 : false)
+
+                        Repeater {
+                            // Hoisted, not inline: an array literal in a binding is a NEW array
+                            // every time the binding re-evaluates, so the chips would be torn
+                            // down and rebuilt under the pointer on every filter change.
+                            model: root._cardFilterChips
+
+                            Text {
+                                required property var modelData
+                                objectName: "sdCardFilterChip"
+                                readonly property bool on: root.cardFilter === modelData.key
+                                text: modelData.label
+                                font.family: Theme.fontData
+                                font.pixelSize: root.tzCaption
+                                font.letterSpacing: Theme.trackingLabel
+                                color: on ? Theme.colorAccent
+                                          : (chipTap.containsMouse ? Theme.colorText2
+                                                                   : Theme.colorText3)
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+                                MouseArea {
+                                    id: chipTap
+                                    anchors.fill: parent
+                                    anchors.margins: -root.px(4)
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.cardFilter = modelData.key
+                                }
+                            }
+                        }
+                    }
+
                     Text {
                         objectName: "sdFormingNote"
-                        anchors.left: pictureLabel.right
+                        anchors.left: filterChips.visible ? filterChips.right : pictureLabel.right
                         anchors.leftMargin: root.px(9)
                         anchors.right: moreTail.visible ? moreTail.left : parent.right
                         anchors.rightMargin: root.px(9)
@@ -1048,6 +1125,28 @@ Rectangle {
                 // review strip already keeps: bare Flickable, clipped, stopping at its bounds.
                 // "+N more" goes with it — nothing is hidden any more, and a tail that counted
                 // what you can simply scroll to would be a lie about the panel.
+                // A FILTER THAT EMPTIES THE ROW SAYS SO. An empty strip under a chip that is
+                // lit reads as a panel that has lost its cards; the sentence names the filter
+                // doing it and, for the ball filter, why a pattern can fail it — an unwritten
+                // edge is not the same claim as a harmless fault, and the panel must not let the
+                // reader take it for one.
+                Text {
+                    objectName: "sdCardFilterEmpty"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: pictureHeader.bottom
+                    anchors.topMargin: root.px(12)
+                    visible: root._cardsShown === 0 && !!root.cards && root.cards.length > 0
+                    wrapMode: Text.WordWrap
+                    text: root.cardFilter === "ball"
+                          ? qsTr("No pattern this session has an authored path to the ball. That is a statement about what the model has been written to claim, not about what these faults cost you.")
+                          : qsTr("Every pattern this session has another pattern authored as causing it.")
+                    font.family: Theme.fontBody
+                    font.pixelSize: root.tzLabel
+                    font.weight: Theme.fontBodyWeight
+                    color: Theme.colorText2
+                }
+
                 Flickable {
                     id: cardFlick
                     objectName: "sdCardsFlick"
@@ -1073,7 +1172,7 @@ Rectangle {
 
                             PpPatternCard {
                                 required property int index
-                                card: root.cards[index]
+                                card: root._visibleCards[index]
                                 fit: root.k
                                 interactive: root.interactive
                                 pulseCue: root.pulseCue

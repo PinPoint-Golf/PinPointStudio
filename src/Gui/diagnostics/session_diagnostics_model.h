@@ -459,6 +459,10 @@ private:
     // the condition detail also calls, so a card and its own page cannot disagree about where
     // it sits. Empty for anything not on the ranked row.
     QHash<QString, QString> m_rankText;
+    // The two filter facts, per ranked condition. Rebuilt in buildCards() beside the badge,
+    // because they are answers about the SESSION's pattern set and change with it.
+    QHash<QString, bool> m_reachesBall;
+    QHash<QString, bool> m_rootHere;
     // The first reason this session gave for withholding a condition, in the rows' own
     // mechanical vocabulary. Empty when it never had a row.
     QString withheldReason(const QString &id) const;

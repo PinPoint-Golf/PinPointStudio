@@ -162,7 +162,7 @@ Item {
     function patternCards() {
         return [
             { id: "casting", name: "Casting", consequence: "", tier: "pattern",
-              rankText: "#1",
+              rankText: "#1", reachesBall: true, rootHere: true,
               recurrence: "4 of 5 measurable shots", fired: 4, assessable: 5,
               fresh: true, resolving: false, thisShot: "fired", statePill: "FIRED",
               strengthKnown: true, strength: 4,
@@ -175,7 +175,7 @@ Item {
               ticks: [tick("fired"), tick("notAssessable"), tick("fired"),
                       tick("clean"), tick("fired")] },
             { id: "face_roll", name: "Face roll through impact", consequence: "", tier: "pattern",
-              rankText: "#2",
+              rankText: "#2", reachesBall: false, rootHere: false,
               recurrence: "3 of 5 measurable shots", fired: 3, assessable: 5,
               fresh: false, resolving: false, thisShot: "clean", statePill: "CLEAN",
               strengthKnown: true, strength: 1,
@@ -836,6 +836,7 @@ Item {
             Theme.themeIndex = 5          // studio dark, the design's own frame
             Theme.fontScale = 1.0
             body.watchingExpanded = false
+            body.cardFilter = "all"
             probe.readout = null
             probe.pipFixture = []
             probe.pipFired = 0
@@ -1357,6 +1358,69 @@ Item {
             verify(body._cardRowH >= Math.round(body._cardH * 0.66),
                    "a row is never squashed past the card's graceful floor, got "
                    + body._cardRowH + " against " + body._cardH)
+        }
+
+        // TWO QUESTIONS, NOT A SCORE. The filter asks whether the pack authors a path from a
+        // condition to the ball, and whether anything in this session's own pattern set causes
+        // it — both facts the model publishes, with the panel deciding only which is being
+        // looked through. What is asserted is that the row answers, that nothing is renumbered
+        // by filtering (a rank is a place in the SESSION's ranking, not in the current view of
+        // it), and that a filter which empties the row says so rather than going blank.
+        function test_11c_theFilterAsksTwoQuestionsAndRenumbersNothing() {
+            setSource(formingSource(false))
+            laidOut()
+
+            const chips = visibleAll(body, "sdCardFilterChip")
+            compare(chips.length, 3, "ALL, REACHES THE BALL, ROOTS")
+            compare(chips[0].text, "ALL")
+            compare(chips[0].color, Theme.colorAccent, "and ALL is the resting state")
+            compare(visibleAll(body, "sdPatternCard").length, 2, "with nothing filtered out")
+
+            // Card 0 reaches the ball and is a root; card 1 is neither.
+            mouseClick(chips[1])
+            laidOut()
+            let shownCards = visibleAll(body, "sdPatternCard")
+            compare(shownCards.length, 1, "only the pattern with an authored path to the ball")
+            compare(one(shownCards[0], "sdCardName").text, "Casting")
+            // THE STATE FIRST, THEN THE PAINT. The chip's colour crosses a Behavior, so one
+            // laidOut() after the press it is still mid-animation — chip 0 has not finished
+            // leaving the accent and chip 1 has not arrived. `on` is the claim; tryVerify is how
+            // you assert the paint that follows it without asserting a frame number.
+            compare(visibleAll(body, "sdCardFilterChip")[1].on, true,
+                    "the chip says which question is open")
+            tryVerify(function () {
+                return Qt.colorEqual(visibleAll(body, "sdCardFilterChip")[1].color,
+                                     Theme.colorAccent)
+            }, 2000, "…and the accent arrives on it")
+
+            // THE RANK IS NOT RENUMBERED. Filtering changes what is on screen and not where a
+            // pattern sits in the session — a #1 that became #1 by hiding its rivals would be
+            // the panel flattering the filter.
+            compare(one(shownCards[0], "sdCardRank").text, "#1")
+
+            mouseClick(visibleAll(body, "sdCardFilterChip")[2])
+            laidOut()
+            shownCards = visibleAll(body, "sdPatternCard")
+            compare(shownCards.length, 1, "roots only")
+            compare(one(shownCards[0], "sdCardName").text, "Casting")
+
+            mouseClick(visibleAll(body, "sdCardFilterChip")[0])
+            laidOut()
+            compare(visibleAll(body, "sdPatternCard").length, 2, "ALL puts them back")
+
+            // A FILTER THAT EMPTIES THE ROW SAYS SO, and says which claim it is making — an
+            // unwritten edge is not the same thing as a harmless fault.
+            const none = formingSource(false)
+            none.cards[0].reachesBall = false
+            none.cards[1].reachesBall = false
+            setSource(none)
+            laidOut()
+            mouseClick(visibleAll(body, "sdCardFilterChip")[1])
+            laidOut()
+            compare(visibleAll(body, "sdPatternCard").length, 0)
+            verify(shown(one(body, "sdCardFilterEmpty")), "the empty row explains itself")
+            verify(one(body, "sdCardFilterEmpty").text.indexOf("what the model has been written") >= 0,
+                   "…and does not let an unwritten edge read as a harmless fault")
         }
 
         // ── both Studio themes from one layout ───────────────────────────────
