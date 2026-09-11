@@ -335,6 +335,59 @@ int main(int argc, char **argv)
         check(cardStrengthKnown || cardStrength == 0,
               "no reading publishes no step, and the panel draws nothing for it");
 
+        // ── The order the cards come back in (the gate is evidence, the order is magnitude) ──
+        //
+        // Every card here has already passed the recurrence gate, so ranking them on the bound
+        // again asks a question that has been answered — and on a real capture it produces a
+        // tie: the 9 Sep session had EIGHT of twelve patterns on an identical 0.589, which left
+        // the row sorted by nothing at all. The order is magnitude now, and this is the
+        // assertion that says so on a session built by the real pipeline rather than a fixture.
+        const QVariantList ordered = m->cards();
+        bool orderOk = true;
+        double prev = std::numeric_limits<double>::infinity();
+        QStringList orderTrace;
+        for (const QVariant &cv : ordered) {
+            const QVariantMap c = cv.toMap();
+            // The published step is the per-shot one; the RANK reads the session-level median
+            // behind it, so this asserts the direction of travel rather than the exact number:
+            // a card cannot sit above one that goes further out when it goes.
+            const double e = c.value(QStringLiteral("sessionExcess")).toDouble();
+            orderTrace << QStringLiteral("%1:%2").arg(c.value(QStringLiteral("id")).toString())
+                                                  .arg(e, 0, 'f', 2);
+            if (e > prev + 1e-9) orderOk = false;
+            prev = e;
+        }
+        std::printf("      card order: %s\n", qPrintable(orderTrace.join(QStringLiteral(" "))));
+        check(orderOk, "the cards come back worst-first, by how far out each goes when it goes");
+
+        // ── The rank badge, and what it does about a tie ─────────────────────────────
+        //
+        // COMPETITION RANKING: #1 #2 #3= #3= #5. What is asserted is the contract rather than
+        // this session's particular numbers — the badge ascends with the row, a shared rank is
+        // marked on BOTH of its holders, and the rank after a tie skips by the size of it.
+        bool rankOk = !ordered.isEmpty(), sawTie = false;
+        int lastRank = 0, seen = 0;
+        for (const QVariant &cv : ordered) {
+            const QString t = cv.toMap().value(QStringLiteral("rankText")).toString();
+            ++seen;
+            if (!t.startsWith(QLatin1Char('#'))) { rankOk = false; break; }
+            const bool tied = t.endsWith(QLatin1Char('='));
+            const int r = QStringView{t}.mid(1, t.size() - (tied ? 2 : 1)).toInt();
+            if (r < 1 || r > ordered.size()) rankOk = false;
+            if (r < lastRank) rankOk = false;                 // never goes backwards
+            if (!tied && r != seen) rankOk = false;           // an untied rank IS its position
+            if (tied) sawTie = true;
+            lastRank = r;
+        }
+        check(rankOk, "every card is badged, the badge never goes backwards, and an untied rank "
+                      "is its own position in the row");
+        std::printf("      ranks: %s%s\n",
+                    qPrintable(ordered.isEmpty() ? QString()
+                                                 : ordered.first().toMap()
+                                                       .value(QStringLiteral("rankText")).toString()),
+                    sawTie ? " (with at least one tie)" : " (no ties this session)");
+
+
         // ── The chain rail, and the honesty devices on it ────────────────────────────
         if (stageAfter == QLatin1String("established")) {
             check(!m->chains().isEmpty(), "Established draws at least one chain rail");
@@ -901,11 +954,19 @@ int main(int argc, char **argv)
                 for (const QVariant &nv : nodes) {
                     const QVariantMap n = nv.toMap();
                     const QString kind = n.value(QStringLiteral("kind")).toString();
-                    if (kind != QLatin1String("live") && kind != QLatin1String("ghost")
+                    // FIVE KINDS, and `watched` is the one this list was missing: a condition
+                    // the capture measured that has not reached the pattern gate. It was added
+                    // with the kind itself and this assertion never saw one until the card order
+                    // changed which condition the detail opens on — a reminder that a list of
+                    // accepted values is only as good as the fixture that walks past it.
+                    if (kind != QLatin1String("live") && kind != QLatin1String("watched")
+                        && kind != QLatin1String("ghost")
                         && kind != QLatin1String("screenedRoot") && kind != QLatin1String("outcome"))
                         railsOk = false;
                     // Every honesty device the rail carries, carried here: a node the capture
                     // never measured SAYS SO, and every node has a pill rather than a blank.
+                    // A watched node says so too — "measured · not yet a pattern" — which is why
+                    // it is held to the same rule as the kinds that carry no reading.
                     if (kind != QLatin1String("live")
                         && n.value(QStringLiteral("mark")).toString().isEmpty()) railsOk = false;
                     if (n.value(QStringLiteral("statePill")).toString().isEmpty()) railsOk = false;

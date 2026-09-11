@@ -826,6 +826,96 @@ int main()
               "a watched parent does not put its pattern on a rail");
     }
 
+    // ── Firing excess: how far out it goes WHEN it goes ─────────────────────────
+    {
+        // Two conditions, identical rates, different magnitudes. The panel orders on this, so
+        // what matters is that it separates them at all — the bound cannot, because it is the
+        // same number for both.
+        Plan loud  = plan("loud",  { 1, 1, 0, 1, 0, 1 });
+        Plan mild  = plan("mild",  { 1, 1, 0, 1, 0, 1 });
+        loud.zs = { 4.0, 5.0, 0.2, 3.0, 0.3, 9.0 };
+        mild.zs = { 1.2, 1.4, 0.2, 1.3, 0.3, 1.1 };
+        const auto ls = conditionLedgers(sessionOf({ loud, mild }), O);
+
+        check(near(led(ls, "loud").wilsonLower, led(ls, "mild").wilsonLower, 1e-12),
+              "identical rates give identical bounds — the tie the order used to fall down on");
+        check(led(ls, "loud").firingExcessN == 4 && led(ls, "mild").firingExcessN == 4,
+              "every firing carried a gradeable reading");
+
+        // THE MEDIAN, NOT THE MEAN. loud's firings are 4, 5, 3, 9 — mean 5.25, median 4.5 — and
+        // the 9 is exactly the one wild swing a session panel must not rank on.
+        check(near(led(ls, "loud").firingExcess, 4.5, 1e-9), "loud's median firing sits at 4.5");
+        check(near(led(ls, "mild").firingExcess, 1.25, 1e-9), "mild's at 1.25");
+        check(led(ls, "loud").firingExcess > led(ls, "mild").firingExcess,
+              "…so magnitude separates what the bound could not");
+
+        // THE FIRINGS ONLY. The clean shots sit at 0.2 and 0.3 and would drag a condition that
+        // is dreadful when it appears down towards one that is mildly out every time.
+        check(led(ls, "loud").firingExcess > 3.0,
+              "the clean shots are not in it — they would have halved this");
+
+        // A condition that never fired has no magnitude, and says so rather than reading 0 as
+        // "dead centre" — which is the meter's own rule, one level up.
+        const auto none = conditionLedgers(sessionOf({ plan("never", { 0, 0, 0, 0, 0, 0 }) }), O);
+        check(led(none, "never").firingExcessN == 0 && led(none, "never").firingExcess == 0.0,
+              "a condition that never fired carries no firing excess");
+
+        // And the trap the shape exists for, one level up: a floor cleared on the open side is
+        // never a firing, so no ledger can collect it as one.
+        std::vector<ShotRecord> floorShots(1);
+        floorShots[0].shotId = 1;
+        ConditionRow good;
+        good.conditionId   = QStringLiteral("floor");
+        good.state         = ShotState::Clean;
+        good.z             = 6.0;                       // far up the OPEN side: the best swing
+        good.corridorShape = CorridorShape::Floor;
+        floorShots[0].rows.push_back(good);
+        const auto fl = conditionLedgers(floorShots, O);
+        check(led(fl, "floor").firingExcess == 0.0,
+              "a floor cleared by a mile contributes nothing to the ranking");
+    }
+
+    // ── The rank badge, and what it does about a tie ────────────────────────────
+    {
+        auto badges = [](std::vector<double> v) {
+            return competitionRanks(v).empty()
+                       ? QString()
+                       : [&] { QStringList out;
+                               for (const QString &b : competitionRanks(v)) out << b;
+                               return out.join(QChar(' ')); }();
+        };
+
+        // The shape the design asks for, spelled out.
+        check(badges({ 9.0, 8.0, 7.0, 7.0, 6.0 }) == QStringLiteral("#1 #2 #3= #3= #5"),
+              "a tie shares its rank, is marked on BOTH holders, and the next rank skips it");
+        check(badges({ 9.0, 8.0, 7.0, 6.0 }) == QStringLiteral("#1 #2 #3 #4"),
+              "…and with nothing tied the badge is simply the position");
+
+        // The awkward shapes, which are where a hand-rolled loop goes wrong.
+        check(badges({ 5.0, 5.0, 5.0 }) == QStringLiteral("#1= #1= #1="),
+              "everything tied is one rank, held by all of them");
+        check(badges({ 9.0, 8.0, 8.0 }) == QStringLiteral("#1 #2= #2="),
+              "a tie at the tail needs no rank after it to be marked");
+        check(badges({ 9.0, 9.0, 8.0 }) == QStringLiteral("#1= #1= #3"),
+              "a tie at the head pushes the next rank to 3, not to 2");
+        check(badges({ 9.0, 9.0, 8.0, 8.0, 7.0 }) == QStringLiteral("#1= #1= #3= #3= #5"),
+              "two separate ties each skip by their own size");
+        check(badges({ 4.0 }) == QStringLiteral("#1"), "one card is #1 and not #1=");
+        check(competitionRanks({}).empty(), "no cards, no badges");
+
+        // EQUALITY IS EXACT. Two scores a hair apart are two ranks, because a tolerance would
+        // not be transitive and the badge has no way to draw "sort of tied".
+        check(badges({ 5.0, 5.0 - 1e-6 }) == QStringLiteral("#1 #2"),
+              "a hair apart is not a tie");
+        check(badges({ 5.0, 5.0 - 1e-12 }) == QStringLiteral("#1= #1="),
+              "…but a float's worth of difference is");
+
+        // THE ORDER IS THE CALLER'S. The ranker trusts the row it is handed and never re-sorts,
+        // so a badge cannot walk backwards down the panel even if the scores are out of order.
+        check(badges({ 1.0, 2.0, 3.0 }) == QStringLiteral("#1 #2 #3"),
+              "an ascending score list still badges by position, never by re-sorting");
+    }
+
     // ── Rank-band hysteresis ────────────────────────────────────────────────────
     //
     // The golfer must never watch the app change its mind mid-thought (B8). A one-band

@@ -933,12 +933,33 @@ std::vector<RankedCondition> SessionDiagnosticsModel::rankScores() const
         if (l.tier != Tier::Pattern) continue;
         RankedCondition r;
         r.id = l.id;
-        // Evidence weight first — the Wilson bound is the ordinal the tier gate itself uses,
-        // so the card at the top is the one the session is most sure about.
-        r.score = l.wilsonLower;
-        // Then history, at a tenth of the weight: enough to break a tie between two equally
-        // evidenced patterns in favour of the one this golfer keeps producing, never enough
-        // to lift a weakly evidenced one over a strongly evidenced one.
+        // ⚠ THE GATE IS THE EVIDENCE TEST; THE ORDER IS THE MAGNITUDE.
+        //
+        // This ranked on the Wilson bound — how sure the session is that a condition RECURS —
+        // and on a real capture that key carries almost no information, because the conditions
+        // that reach this row mostly fire on every shot. Twelve patterns on the 9 Sep session
+        // produced EIGHT with an identical 0.589, so the sort had nothing to separate them and
+        // fell back on pack order, which hysteresis then froze. The card with the worst reading
+        // in the session sat fourth behind three milder ones. That is not a mis-sort, it is an
+        // unsorted row wearing a sort.
+        //
+        // Only pattern-tier conditions are ranked here, so every one of them has ALREADY passed
+        // the recurrence test — asking the order to re-litigate evidence is what produced the
+        // tie. So the primary key is how far out it goes when it goes, and the bound becomes
+        // the tiebreaker it is good at being.
+        //
+        // ⚠ AND THIS IS THE STRENGTH LADDER REACHING SOMETHING. The meter was published on the
+        // explicit promise that it could not move a tier, a recurrence, a trend or a link —
+        // and it still cannot; a display ORDER is none of those, and there is no path from one
+        // to any of them. But it is a deliberate loosening of "it reaches nothing" and it is
+        // written down here rather than left for a reader to discover.
+        r.score = l.firingExcess;
+        // The bound, scaled so it settles a near-tie on magnitude and never overturns a real
+        // difference in it: excess runs to several band-widths, this term to a tenth of one.
+        r.score += 0.10 * l.wilsonLower;
+        // Then history, at the same weight: enough to break a tie between two equally placed
+        // patterns in favour of the one this golfer keeps producing, never enough to lift a
+        // mild one over a severe one.
         r.score += 0.10 * profileBias(l.id);
         // And the two demotions the pack already carries. Immateriality is RANKING ONLY by
         // ContextBinding's own contract, and this is where it is allowed to act.
@@ -1447,6 +1468,30 @@ void SessionDiagnosticsModel::buildCards()
     for (const ConditionLedger &l : m_ledgers)
         if (l.tier == Tier::Pattern && !ordered.contains(l.id)) ordered.push_back(l.id);
 
+    // ── the rank badge (#1, #2, #3=, #3=, #5) ───────────────────────────────────────
+    //
+    // COMPETITION RANKING off the SCORES, not the positions — competitionRanks() owns the rule
+    // and the reasoning (diagnostic_ledger.h). Ties are rare now, which is itself the point:
+    // they were everywhere while the Wilson bound was the key, and the whole reason it changed.
+    QHash<QString, double> scoreOf;
+    for (const RankedCondition &r : rankScores()) scoreOf.insert(r.id, r.score);
+
+    m_rankText.clear();
+    {
+        QStringList patterns;
+        for (const QString &id : std::as_const(ordered)) {
+            const ConditionLedger *l = ledger(id);
+            if (l && l->tier == Tier::Pattern) patterns << id;
+        }
+        std::vector<double> scores;
+        scores.reserve(size_t(patterns.size()));
+        for (const QString &id : std::as_const(patterns)) scores.push_back(scoreOf.value(id, 0.0));
+
+        const std::vector<QString> badges = competitionRanks(scores);
+        for (int i = 0; i < patterns.size() && i < int(badges.size()); ++i)
+            m_rankText.insert(patterns.at(i), badges[size_t(i)]);
+    }
+
     for (const QString &id : std::as_const(ordered)) {
         const ConditionLedger *l = ledger(id);
         if (!l || l->tier != Tier::Pattern) continue;
@@ -1577,6 +1622,15 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
         // third question a golfer asks and the only one the card could not answer — marginal,
         // or a mile.
         addStrength(c, here);
+        // WHAT THE ROW IS ORDERED ON, published beside what this swing did. The meter's step is
+        // a fact about THIS shot; this is the session-level median behind the card's position,
+        // and a surface that wanted to explain the order — or a test that wants to assert it —
+        // should not have to re-derive it from the ticks.
+        c[QStringLiteral("sessionExcess")] = l.firingExcess;
+        // Its place in that order, as the badge draws it. Empty for a condition that is not on
+        // the ranked row at all — the detail's header card for a watched or unmeasured
+        // condition has no rank to show, and must not borrow one.
+        c[QStringLiteral("rankText")] = m_rankText.value(id);
         if (m_reviewing || m_closed) {
             int after = 0;
             for (int i = fi + 1; i < int(l.run.size()); ++i)

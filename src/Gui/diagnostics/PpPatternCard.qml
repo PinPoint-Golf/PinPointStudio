@@ -263,10 +263,30 @@ Rectangle {
             width: col.width
             height: nameText.implicitHeight
 
+            // ── where it sits in the row ─────────────────────────────────────
+            //
+            // FIRST THING ON THE CARD, because it is the answer to the question the card row is
+            // being read for. The order was already the panel's judgement about what matters
+            // most; saying it out loud costs four characters and saves the golfer counting
+            // cards. Equal scores share a rank and the badge says so with a trailing "=", which
+            // is the one case where the row's position would lie about the model's opinion.
+            Text {
+                id: rankTag
+                objectName: "sdCardRank"
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                visible: text !== ""
+                text: root.card ? (root.card.rankText || "") : ""
+                font.family: Theme.fontData
+                font.pixelSize: root.tzLabel
+                font.letterSpacing: Theme.trackingLabel
+                color: Theme.colorText3
+            }
             Text {
                 id: nameText
                 objectName: "sdCardName"
-                anchors.left: parent.left
+                anchors.left: rankTag.visible ? rankTag.right : parent.left
+                anchors.leftMargin: rankTag.visible ? root.px(7) : 0
                 // Past the NEW tag only while there is one — collapsing the tag's own width
                 // instead would make its implicitWidth depend on its width.
                 anchors.right: freshTag.visible ? freshTag.left

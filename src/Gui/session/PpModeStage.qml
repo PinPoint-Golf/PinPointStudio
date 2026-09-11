@@ -43,9 +43,21 @@ Item {
     // Layout resolves on the active session MODE, not the session type.
     readonly property string arrangement: ViewLayout.arrangementFor(SessionMode.mode)
 
+    // ⚠ THE ORDER IS THE PRIORITY, and session diagnostics leads it.
+    //
+    // This list is read three times — the tab strip's order, the split row's order, and which
+    // panel is DOMINANT in the stage arrangement (active[0] takes 62% of the width). So one
+    // ordering decides where the eye goes in every arrangement, which is why the swap is made
+    // here and not in three places.
+    //
+    // Camera led it because a session used to be a thing you watched. It is a thing you read
+    // now: the diagnostics panel is what says what keeps happening, and a golfer who has turned
+    // it on has said that is the question they came with. It only leads WHEN IT IS ON — `active`
+    // filters on ViewLayout.isPanelOn and on the host screen having wired a delegate — so a
+    // session without it is camera-first exactly as before, with nothing to notice.
     readonly property var _defs: [
-        { key: "camera",      label: qsTr("Camera"),                comp: cameraDelegate },
         { key: "sessionDiagnostics", label: qsTr("Session diagnostics"), comp: sessionDiagnosticsDelegate },
+        { key: "camera",      label: qsTr("Camera"),                comp: cameraDelegate },
         { key: "launchMonitor", label: qsTr("Launch monitor"),      comp: launchMonitorDelegate },
         { key: "wristMotion", label: qsTr("Wrist motion analysis"), comp: wristMotionDelegate },
         { key: "charts",      label: qsTr("Charts"),                comp: chartsDelegate },

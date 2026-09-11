@@ -577,6 +577,20 @@ struct ConditionLedger {
     bool freshThisShot   = false;   // crossed into Pattern within opt.freshWindow shots
     bool resolving       = false;   // Pattern && sinceLastFiring >= opt.resolvingWindow
 
+    // HOW FAR OUT IT GOES WHEN IT GOES, as the median corridor excess over this condition's
+    // FIRINGS — the session-level quantity behind the strength meter's per-shot step.
+    //
+    // The median and not the mean, and the firings and not every assessable shot. The mean is
+    // hostage to one wild swing, which is the thing a session panel must not rank on; and the
+    // clean shots would drag a condition that is dreadful when it appears down towards a
+    // condition that is mildly out every time, which inverts the question being asked.
+    //
+    // Read off rowStrength(), so there is one definition of "how far out" and the number the
+    // cards are ordered by cannot disagree with the bars drawn on them. Zero when the
+    // condition never fired or nothing gradeable was behind its firings.
+    double firingExcess = 0.0;
+    int    firingExcessN = 0;       // firings that carried a gradeable reading
+
     double directionAgreement = 1.0;// modal share among SIGNED firings
     int    modalDirection     = 0;  // +1 / −1 / 0 when unsigned or split dead level
     bool   directionClaimed   = true; // agreement >= gate; false ⇒ dispersion, not a
@@ -696,7 +710,7 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
         L.zRun.assign(size_t(std::max(n, 0)), std::numeric_limits<double>::quiet_NaN());
 
         int signedFirings = 0, positives = 0, negatives = 0;
-        std::vector<double> absZ, ordinal;
+        std::vector<double> absZ, ordinal, firingExcesses;
 
         for (int i = 0; i < n; ++i) {
             const ConditionRow *r = rowFor(shots[size_t(i)], id);
@@ -711,8 +725,18 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
                 absZ.push_back(std::fabs(r->z));
             }
             if (r->state != ShotState::Fired) continue;
+            {
+                const RowStrength st = rowStrength(*r);
+                if (st.known) firingExcesses.push_back(st.excess);
+            }
             if (r->direction > 0)      { ++positives; ++signedFirings; }
             else if (r->direction < 0) { ++negatives; ++signedFirings; }
+        }
+
+        L.firingExcessN = int(firingExcesses.size());
+        if (!firingExcesses.empty()) {
+            const double m = medianOf(firingExcesses);
+            L.firingExcess = std::isfinite(m) ? m : 0.0;
         }
 
         const TierSnapshot now = tierAtPrefix(L.run, weights, n, opt);
@@ -1359,6 +1383,44 @@ struct RankedCondition {
     QString id;
     double  score = 0.0;   // whatever the caller ranks on — severity, coverage, prevalence
 };
+
+// COMPETITION RANKING for a row already in display order: 1, 2, 3, 3, 5 — the badge the
+// cards draw as "#1 #2 #3= #3= #5".
+//
+// SCORES DECIDE, POSITIONS DO NOT. Two entries the ranking cannot separate are shown as equal
+// and the next rank skips past both, because numbering them 3 and 4 would assert an order
+// between two conditions that nothing in the session distinguishes — the same class of claim
+// as a percentage at n = 6, which rule 1 exists to keep off the panel.
+//
+// EQUALITY IS EXACT, to a float's tolerance, and that is a decision rather than laziness. A
+// "close enough" tolerance is not transitive — a ties b, b ties c, a does not tie c — and
+// there is no honest badge for that. The cost is that ties are rare; the benefit is that a
+// tie, when it is drawn, is true.
+//
+// Takes the scores IN THE ORDER THEY ARE DRAWN and trusts that order: the caller has already
+// decided it (hystereticOrder, below), and a ranker that re-sorted here could hand back a
+// badge that walked backwards down the row.
+inline std::vector<QString> competitionRanks(const std::vector<double> &scoresInOrder)
+{
+    const int n = int(scoresInOrder.size());
+    std::vector<int> rank(size_t(std::max(n, 0)), 0);
+    QHash<int, int> shared;
+    int current = 0;
+    for (int i = 0; i < n; ++i) {
+        if (i == 0 || std::fabs(scoresInOrder[size_t(i)] - scoresInOrder[size_t(i - 1)]) > 1e-9)
+            current = i + 1;
+        rank[size_t(i)] = current;
+        shared[current] = shared.value(current, 0) + 1;
+    }
+    std::vector<QString> out;
+    out.reserve(size_t(std::max(n, 0)));
+    for (int i = 0; i < n; ++i) {
+        const int r = rank[size_t(i)];
+        out.push_back(shared.value(r, 1) > 1 ? QStringLiteral("#%1=").arg(r)
+                                             : QStringLiteral("#%1").arg(r));
+    }
+    return out;
+}
 
 // Display order with RANK-BAND HYSTERESIS.
 //

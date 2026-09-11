@@ -455,6 +455,10 @@ private:
     // "the measure is planned" and "this capture did not answer it" are different facts and only
     // one of them is anybody's fault. See the .cpp: this is the bug hanging_back exposed.
     QString ghostMark(const QString &id, const pinpoint::analysis::NodeSpec *ns) const;
+    // id -> "#3=" for the ranked card row. Rebuilt in buildCards(), read by cardMap() — which
+    // the condition detail also calls, so a card and its own page cannot disagree about where
+    // it sits. Empty for anything not on the ranked row.
+    QHash<QString, QString> m_rankText;
     // The first reason this session gave for withholding a condition, in the rows' own
     // mechanical vocabulary. Empty when it never had a row.
     QString withheldReason(const QString &id) const;

@@ -30,9 +30,13 @@ Item {
     implicitWidth:  Theme.sp(300)
     implicitHeight: col.implicitHeight + Theme.sp(26)
 
+    // Session diagnostics leads, matching PpModeStage._defs. The two lists are read by different
+    // people at different moments — this one when you choose panels, that one when you look at
+    // them — and a tick list that ranked them differently from the stage would be the app
+    // disagreeing with itself about which question the session is about.
     readonly property var panelMeta: [
-        { key: "camera",      label: qsTr("Camera"),                ready: true  },
         { key: "sessionDiagnostics", label: qsTr("Session diagnostics"), ready: true },
+        { key: "camera",      label: qsTr("Camera"),                ready: true  },
         { key: "launchMonitor", label: qsTr("Launch monitor"),      ready: true  },
         { key: "wristMotion", label: qsTr("Wrist motion analysis"), ready: true  },
         { key: "carousel",    label: qsTr("Carousel"),              ready: true  },

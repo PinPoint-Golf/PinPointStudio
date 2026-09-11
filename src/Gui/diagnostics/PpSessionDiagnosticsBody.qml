@@ -313,19 +313,49 @@ Rectangle {
     // type — the panel's whole middle left empty under them. The cards take the height the rail
     // used to, and "+N more" now means the session genuinely has more than the panel can hold.
     readonly property int _cardH: px(150)
-    readonly property int _cardRows: {
-        if (_cardsAvailH <= 0) return 1
-        return Math.max(1, Math.floor((_cardsAvailH + _cardGap) / (_cardH + _cardGap)))
+    // EVERY PATTERN IS LAID OUT. The area scrolls, so a prefix would be withholding rather than
+    // fitting — and what is off the bottom of a Flickable is one flick away, which is not the
+    // same thing as absent.
+    readonly property int _cardsShown: (cards && width > 0) ? cards.length : 0
+    readonly property int _cardRows: Math.max(1, Math.ceil(_cardsShown / Math.max(1, _cardCols)))
+
+    // The height the body has for cards. Read off the Flickable, which is anchored top and
+    // bottom — its height comes from the body and never from its content, so nothing here can
+    // close a loop back through contentHeight.
+    readonly property int _cardsAvailH: cardFlick ? cardFlick.height : 0
+
+    // ⚠ WHOLE ROWS, NEVER A SLICE OF ONE. The panel was showing one row and three quarters:
+    // the second row's cards were cut off through their trend line, which reads as a rendering
+    // fault rather than as a scroll, and costs the reader the one row they can see at a glance.
+    //
+    // So the viewport is divided into a WHOLE NUMBER of rows and the row height is the quotient.
+    // ROUNDED, not floored, and that is the whole trick: at 1.75 design-heights of room, floor
+    // gives one enormous row and round gives two slightly tight ones, which is what a reader
+    // wants every time. Rounding also bounds the squash — a row can never be less than two
+    // thirds of the design height nor more than one and a half times it — and two thirds is
+    // about where the card's own drop ladder starts shedding its prose lines, which is a
+    // graceful way to lose the last sentence rather than a clipped one.
+    readonly property int _cardRowsVisible: {
+        if (_cardsAvailH <= 0 || _cardH <= 0) return 1
+        const fit = Math.round((_cardsAvailH + _cardGap) / (_cardH + _cardGap))
+        return Math.max(1, Math.min(_cardRows, fit))
     }
-    // What the body has left for cards once the SESSION PICTURE header is out of it. Bound to
-    // the body's own height rather than measured off the Grid, which would close a loop.
-    property int _cardsAvailH: 0
-    readonly property int _cardsShown: {
-        const n = cards ? cards.length : 0
-        if (n <= 0 || width <= 0) return 0
-        return Math.min(n, _cardCols * _cardRows)
+    // The row height: stretched to fill while everything fits, and the design's own 150 once it
+    // does not. See the delegate for why it is not stretched in the scrolling case.
+    //
+    // READ OFF THE FLICKABLE'S HEIGHT AS A BINDING, not recorded from a handler. It was a
+    // handler first, and the theme test caught what that costs: a property written by
+    // onHeightChanged holds the height it was last TOLD about, so a card kept the row height of
+    // the arrangement before last and the same panel measured two different geometries. The
+    // read is safe because the Flickable is anchored top and bottom — its height comes from the
+    // body, never from its content, so nothing here can close a loop through contentHeight.
+    // Every row the same height, and that height is the viewport divided by the rows it shows.
+    // A session with fewer rows than fit still fills the space rather than sitting in a strip
+    // with the panel's middle empty under it.
+    readonly property int _cardRowH: {
+        const gaps = (_cardRowsVisible - 1) * _cardGap
+        return Math.max(1, Math.floor((_cardsAvailH - gaps) / Math.max(1, _cardRowsVisible)))
     }
-    readonly property int _cardsHidden: (cards ? cards.length : 0) - _cardsShown
 
     // ── how many bookends the closing row draws ──────────────────────────────
     // Same decision as the card row's and for the same reason, arrived at the hard way: the
@@ -996,52 +1026,68 @@ Rectangle {
                         objectName: "sdMoreTail"
                         anchors.right: parent.right
                         anchors.baseline: pictureLabel.baseline
-                        visible: root._cardsHidden > 0
-                        text: qsTr("+%1 more").arg(root._cardsHidden)
+                        // NOT A COUNT ANY MORE. It used to say "+N more" about patterns the
+                        // row had no space for, which was true while they were unreachable. They
+                        // are one flick away now, so what the reader needs is to know the area
+                        // moves — the count of patterns is already in the header's own line.
+                        visible: cardFlick.contentHeight > cardFlick.height + 1
+                        text: qsTr("scroll for the rest")
                         font.family: Theme.fontData
                         font.pixelSize: root.tzMicro
                         color: Theme.colorText3
                     }
                 }
 
-                Grid {
-                    id: cardRow
-                    objectName: "sdCardsRow"
+                // ⚠ THE CARD ROW SCROLLS. Losing that was a regression and it was mine: the
+                // chain rail's body had a Flickable, so a session with more conditions than fit
+                // could be read all the way down, and when the rail came off this page the grid
+                // that replaced it took a prefix and counted the rest in 8 px type. A dozen
+                // patterns with six on screen means half the session is a number in the corner.
+                //
+                // So every pattern is laid out and the area flicks, on the house pattern the
+                // review strip already keeps: bare Flickable, clipped, stopping at its bounds.
+                // "+N more" goes with it — nothing is hidden any more, and a tail that counted
+                // what you can simply scroll to would be a lie about the panel.
+                Flickable {
+                    id: cardFlick
+                    objectName: "sdCardsFlick"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: pictureHeader.bottom
                     anchors.topMargin: root.px(8)
-                    height: Math.max(0, parent.height - pictureHeader.height - root.px(8))
-                    columns: root._cardCols
-                    spacing: root._cardGap
-                    // The one place the available height is measured, and it is measured off the
-                    // Item this Grid is anchored inside — never off the Grid, whose own height
-                    // would then depend on the count it is being used to decide.
-                    onHeightChanged: root._cardsAvailH = height
-                    Component.onCompleted: root._cardsAvailH = height
+                    anchors.bottom: parent.bottom
+                    contentWidth: width
+                    contentHeight: cardRow.implicitHeight
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
 
-                    Repeater {
-                        model: root._cardsShown
+                    Grid {
+                        id: cardRow
+                        objectName: "sdCardsRow"
+                        width: cardFlick.width
+                        columns: root._cardCols
+                        spacing: root._cardGap
 
-                        PpPatternCard {
-                            required property int index
-                            card: root.cards[index]
-                            fit: root.k
-                            interactive: root.interactive
-                            pulseCue: root.pulseCue
-                            onFocusToggled: (id, on) => root._declareFocus(id, on)
-                            onDetailRequested: (id) => root._openDetail(id)
-                            width: Math.max(0, (cardRow.width - (root._cardCols - 1) * cardRow.spacing)
-                                               / Math.max(1, root._cardCols))
-                            // The LAST ROW ABSORBS what the division left over, so the grid ends
-                            // flush with the body instead of on a strip of dead space — which is
-                            // the complaint that moved the rail off this page in the first place.
-                            height: {
-                                const rows = Math.max(1, Math.ceil(root._cardsShown / root._cardCols))
-                                const mine = Math.floor(index / root._cardCols)
-                                const even = Math.floor((cardRow.height - (rows - 1) * cardRow.spacing) / rows)
-                                if (mine < rows - 1) return even
-                                return Math.max(even, cardRow.height - (rows - 1) * (even + cardRow.spacing))
+                        Repeater {
+                            model: root._cardsShown
+
+                            PpPatternCard {
+                                required property int index
+                                card: root.cards[index]
+                                fit: root.k
+                                interactive: root.interactive
+                                pulseCue: root.pulseCue
+                                onFocusToggled: (id, on) => root._declareFocus(id, on)
+                                onDetailRequested: (id) => root._openDetail(id)
+                                width: Math.max(0, (cardRow.width - (root._cardCols - 1) * cardRow.spacing)
+                                                   / Math.max(1, root._cardCols))
+                                // TALLER ONLY WHEN THERE IS ROOM GOING SPARE. A session with two
+                                // patterns should not sit in a 150 px strip with the panel's whole
+                                // middle empty under it — that was the complaint that moved the
+                                // rail off this page. A session with twelve gets the design height
+                                // and the area scrolls, because stretching there would show fewer
+                                // cards for more scrolling, which is the worst of both.
+                                height: root._cardRowH
                             }
                         }
                     }

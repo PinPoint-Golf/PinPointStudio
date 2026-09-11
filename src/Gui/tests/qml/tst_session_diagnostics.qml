@@ -162,6 +162,7 @@ Item {
     function patternCards() {
         return [
             { id: "casting", name: "Casting", consequence: "", tier: "pattern",
+              rankText: "#1",
               recurrence: "4 of 5 measurable shots", fired: 4, assessable: 5,
               fresh: true, resolving: false, thisShot: "fired", statePill: "FIRED",
               strengthKnown: true, strength: 4,
@@ -174,6 +175,7 @@ Item {
               ticks: [tick("fired"), tick("notAssessable"), tick("fired"),
                       tick("clean"), tick("fired")] },
             { id: "face_roll", name: "Face roll through impact", consequence: "", tier: "pattern",
+              rankText: "#2",
               recurrence: "3 of 5 measurable shots", fired: 3, assessable: 5,
               fresh: false, resolving: false, thisShot: "clean", statePill: "CLEAN",
               strengthKnown: true, strength: 1,
@@ -1132,6 +1134,47 @@ Item {
             verify(!shown(one(blind, "sdCardStrength")), "and draws no meter to go with it")
         }
 
+        // THE BADGE IS THE FIRST THING ON THE CARD, because it is the answer to the question
+        // the row is being read for. What is asserted here is that it is drawn, that it leads
+        // the name rather than crowding it, and — the one that matters — that a card the model
+        // gave no rank draws nothing rather than inventing a position for itself.
+        function test_05d_theRankBadgeLeadsTheCard() {
+            setSource(formingSource(false))
+            const cards = visibleAll(body, "sdPatternCard")
+
+            compare(one(cards[0], "sdCardRank").text, "#1")
+            compare(one(cards[1], "sdCardRank").text, "#2")
+            verify(shown(one(cards[0], "sdCardRank")), "and it is on screen, not merely set")
+
+            // It LEADS: the name starts to the right of it, and does not sit on top of it.
+            const rank = one(cards[0], "sdCardRank")
+            const name = one(cards[0], "sdCardName")
+            verify(name.x >= rank.x + rank.width,
+                   "the name begins after the badge (" + name.x + " vs " + (rank.x + rank.width) + ")")
+
+            // A TIE IS MARKED ON BOTH HOLDERS. The model decides it; the card must not tidy the
+            // "=" away, because the row's position would then be asserting an order the ranking
+            // explicitly refused to make.
+            const tied = formingSource(false)
+            tied.cards[0].rankText = "#1="
+            tied.cards[1].rankText = "#1="
+            setSource(tied)
+            laidOut()
+            const both = visibleAll(body, "sdPatternCard")
+            compare(one(both[0], "sdCardRank").text, "#1=")
+            compare(one(both[1], "sdCardRank").text, "#1=")
+
+            // ...and no rank means no badge — a watched or unmeasured condition opened from its
+            // own page has no place in the row and must not borrow one.
+            const unranked = formingSource(false)
+            unranked.cards[0].rankText = ""
+            setSource(unranked)
+            laidOut()
+            const first = visibleAll(body, "sdPatternCard")[0]
+            verify(!shown(one(first, "sdCardRank")), "an unranked card draws no badge")
+            compare(one(first, "sdCardName").x, 0, "…and its name takes the leading edge back")
+        }
+
         // ── cadence ──────────────────────────────────────────────────────────
 
         function test_06_quietSwapsTheStripWithoutCollapsingIt() {
@@ -1237,7 +1280,10 @@ Item {
             verify(cards[0].width <= probe.width, "each fitting the width it was given")
             verify(!one(body, "sdMoreTail").visible, "nothing is hidden, so nothing is counted")
 
-            // ...and what genuinely does not fit is still COUNTED, never silently dropped.
+            // ...and what does not fit on screen is REACHABLE, not counted. Nine conditions in
+            // a 396 column is more than any viewport holds; every one is laid out and the area
+            // flicks to them, which is the behaviour the chain rail's body had and the card grid
+            // briefly lost when it replaced it.
             const many = formingSource(false)
             many.cards = []
             for (let i = 0; i < 9; ++i) {
@@ -1248,11 +1294,69 @@ Item {
             }
             setSource(many)
             laidOut()
-            const shownCards = visibleAll(body, "sdPatternCard").length
-            verify(shownCards > 0 && shownCards < 9, "nine do not fit a 396 column, got "
-                                                     + shownCards)
-            verify(one(body, "sdMoreTail").visible, "so the remainder is counted")
-            compare(one(body, "sdMoreTail").text, "+" + (9 - shownCards) + " more")
+            compare(visibleAll(body, "sdPatternCard").length, 9,
+                    "every pattern is laid out, not just the ones that fit")
+            const flick = one(body, "sdCardsFlick")
+            verify(flick.contentHeight > flick.height,
+                   "the content is taller than the viewport, so there is something to reach")
+            verify(one(body, "sdMoreTail").visible, "and the panel says the area moves")
+            compare(one(body, "sdMoreTail").text, "scroll for the rest")
+
+            // It actually scrolls, and the last card is reachable at the bottom of the run.
+            flick.contentY = flick.contentHeight - flick.height
+            laidOut()
+            const last = visibleAll(body, "sdPatternCard")[8]
+            const top  = last.mapToItem(flick, 0, 0).y
+            verify(top < flick.height && top + last.height > 0,
+                   "the ninth card is on screen once the area is scrolled to the bottom")
+        }
+
+        // WHOLE ROWS, NEVER A SLICE OF ONE. The panel was showing one row and three quarters —
+        // the second row's cards cut through their trend line, which a reader takes for a
+        // rendering fault rather than for a scroll. The viewport is divided into a whole number
+        // of rows now, so what is on screen is always readable and what is not is one flick
+        // away. This is the assertion that says the arithmetic rounds the right way: at just
+        // under two design heights of room the answer is two tight rows, never one huge one.
+        function test_11b_theViewportHoldsWholeRowsOfCards() {
+            const many = formingSource(false)
+            many.cards = []
+            for (let i = 0; i < 9; ++i) {
+                const c = JSON.parse(JSON.stringify(patternCards()[0]))
+                c.id = "c" + i
+                c.name = "Condition " + i
+                many.cards.push(c)
+            }
+            setSource(many)
+            laidOut()
+
+            const flick = one(body, "sdCardsFlick")
+            const rows  = body._cardRowsVisible
+            compare(body._cardCols, 3, "three columns at the design size")
+            compare(rows, 2, "and two whole rows of them in the height there is")
+
+            // The rows EXACTLY fill the viewport — no dead strip, no cut row. Integer division
+            // leaves at most a pixel per row.
+            const used = rows * body._cardRowH + (rows - 1) * body._cardGap
+            verify(Math.abs(used - flick.height) <= rows,
+                   "the visible rows fill the viewport (" + used + " vs " + flick.height + ")")
+
+            // The last visible row ends at the fold, and the row after it starts below it —
+            // which is what "no partial row" means when you say it in geometry.
+            const cards = visibleAll(body, "sdPatternCard")
+            compare(cards.length, 9, "every card is still laid out")
+            const lastVisible = cards[rows * body._cardCols - 1]
+            const firstBelow  = cards[rows * body._cardCols]
+            verify(lastVisible.mapToItem(flick, 0, lastVisible.height).y <= flick.height + 1,
+                   "the last visible row ends at or above the fold")
+            verify(firstBelow.mapToItem(flick, 0, 0).y >= flick.height - 1,
+                   "and the next row starts at or below it, never straddling")
+
+            // The squash is bounded by the rounding: a row is never less than two thirds of the
+            // design height, which is where the card's own drop ladder starts shedding prose
+            // rather than clipping it.
+            verify(body._cardRowH >= Math.round(body._cardH * 0.66),
+                   "a row is never squashed past the card's graceful floor, got "
+                   + body._cardRowH + " against " + body._cardH)
         }
 
         // ── both Studio themes from one layout ───────────────────────────────
@@ -1267,7 +1371,11 @@ Item {
             // 4 = studio light, 5 = studio dark.
             for (let t = 4; t <= 5; ++t) {
                 Theme.themeIndex = t
-                wait(0)
+                // SETTLED, not merely re-bound. A theme change re-runs the whole composition and
+                // the card area takes its height from the layout, so a geometry read one wait(0)
+                // in is a read of the arrangement mid-flight — which is how this test came to
+                // compare 423 against 340 and call it a theme difference.
+                laidOut()
 
                 const cards = visibleAll(body, "sdPatternCard")
                 compare(cards.length, 2, "theme " + t + ": both cards survive")
@@ -1420,6 +1528,12 @@ Item {
                     "so the panel does not state it twice")
 
             // The CTA asks; it does not run a screen. Brief §9 — that flow is not designed.
+            // PRESSED ONLY ONCE THE LAYOUT HAS SETTLED. The card area is a Flickable now, so
+            // the composition takes one more polish than it used to and the footer is still
+            // zero-wide two wait(0)s in — a press then lands on nothing. laidOut() is what this
+            // file already says to use before pressing anything, and this is the case that
+            // proves the rule rather than an exception to it.
+            laidOut()
             mouseClick(one(body, "sdDriverFooter"))
             compare(probe.lastScreenRef, "screen.pelvic_disassociation")
             compare(probe.lastScreenCondition, "pelvic_disassociation")
@@ -2318,9 +2432,13 @@ Item {
                     // SCROLLS (12c), so the things inside it are checked through the
                     // Flickable rather than against the panel — a node below the fold there
                     // is one scroll away, not one gone missing.
-                    const names = ["sdPatternCard", "sdExpectationCard", "sdThisShotStrip",
+                    // sdPatternCard is NOT in this list any more and sdCardsFlick is: the cards
+                    // scroll now, so a card below the fold is one flick away rather than one
+                    // drawn outside the panel. What still has to hold of them is checked against
+                    // their own Flickable, below.
+                    const names = ["sdExpectationCard", "sdThisShotStrip",
                                    "sdBookends", "sdColdBody", "sdCardsBody",
-                                   "sdChainsFlick", "sdDriverFooter",
+                                   "sdCardsFlick", "sdDriverFooter",
                                    "sdReviewStrip", "sdReviewGrid", "sdTenseFooter"]
                         .concat(body.compact ? []
                                              : ["sdChainRail", "sdChainNode", "sdChainLink"])
@@ -2336,6 +2454,24 @@ Item {
                             verify(tl.x >= -1 && tl.y >= -1, label + " starts inside the panel")
                             verify(br.x <= body.width + 1, label + " ends inside the panel")
                             verify(br.y <= body.height + 1, label + " fits the panel's height")
+                        }
+                    }
+
+                    // THE CARDS, THROUGH THEIR FLICKABLE. Below the fold is allowed and is the
+                    // point of it; hanging out SIDEWAYS is a layout fault at any scroll offset,
+                    // and so is a card starting above the top of the content.
+                    const flick = visibleAll(body, "sdCardsFlick")[0]
+                    if (flick) {
+                        const cards = visibleAll(body, "sdPatternCard")
+                        for (let j = 0; j < cards.length; ++j) {
+                            if (!shown(cards[j]) || cards[j].width <= 0) continue
+                            const tl = cards[j].mapToItem(flick, 0, 0)
+                            const br = cards[j].mapToItem(flick, cards[j].width, cards[j].height)
+                            const label = "source " + s + " at " + sizes[i][0] + "x" + sizes[i][1]
+                                        + ": sdPatternCard[" + j + "]"
+                            verify(tl.x >= -1, label + " starts inside its scroller")
+                            verify(br.x <= flick.width + 1, label + " ends inside its scroller")
+                            verify(tl.y >= -1, label + " starts at or below the top of the run")
                         }
                     }
                 }
