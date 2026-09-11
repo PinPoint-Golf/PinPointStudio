@@ -2367,6 +2367,12 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             const bool visionTier = (s.flags & ShaftMeasured) || (s.flags & ShaftWedge);
             if (!visionTier) continue;                          // coasted/pred keep lineConf = -1
             const int i = sampleFrame[k];
+            // Never re-register a BAND frame: the band lock is a direct measurement
+            // of the line at 0.3° (corpus-validated), and the snap's ridge search can
+            // only move it — on the 61-swing pinned-pose corpus it took θ vs the band
+            // lock from 0.26/0.49° to 0.61/3.18° p50/p90 (2026-09-10 §5.3 pass). The
+            // snap is for frames WITHOUT a lock.
+            if (tierOf[size_t(i)] == BAND) continue;
             if (cfg.snap.skipAddr && (pm.phase[i] == SwingPhase::Addr
                                       || (pm.bs0 >= 0 && pm.bs0 < nf && i >= pm.bs0
                                           && tUs[i] - tUs[pm.bs0] < cfg.snap.skipTakeawayUs))) continue;
