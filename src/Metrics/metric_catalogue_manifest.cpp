@@ -582,28 +582,90 @@ void installMetricManifest(MetricCatalogue &cat)
             "passing through zero as the body squares"),
         .signNegative = QString(),
         .phases = { P::Top, P::Impact },
-        // THE WORKED LADDER. A pelvis IMU measures the turn; a face-on camera estimates it from the
-        // hip span. Both rungs are live, both are stated here, and everything downstream follows —
-        // the shot resolves Measured or Bridged off whichever fires, a camera-only swing is told an
-        // IMU would measure it directly, and the directory can be filtered on either. This used to
-        // be an if/else in BodyRotationProvider with a flat `.requirement` beside it naming only the
-        // camera, so the catalogue could see the floor and never the rung above it.
+        // ⚠ THE SINGLE-CAMERA RUNG IS GONE. It estimated the turn from the collapse of the hip
+        // span — `acos(w/w_address)` — and it could not do the job. A cosine is flat where the
+        // swing lives: 2.1% of span scatter over STILL address frames (a real capture, 7 shots)
+        // is ±1.9° at 40° of turn and ±13.9° at 5°, and impact is where the pelvis passes through
+        // square. It also carries no sign, so the curve folded at the square-up instead of
+        // crossing it and every derivative across impact inverted. Rotation about the vertical
+        // axis needs a route that reads GEOMETRY — the IMU below, or the triangulated pair — and
+        // one view is not one of them. See body_rotation.cpp for the arithmetic.
         .routes = {
             via("pelvisImu", RM::Inertial, Direct, { .imuRoles = { R::Pelvis } },
                 QStringLiteral("measured directly from the pelvis IMU")),
             via("faceOn+dtl", RM::Triangulated, Direct,
                 { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("the hip line's bearing, triangulated from the calibrated pair — "
-                               "the turn read off geometry instead of inferred from foreshortening"), PLANNED),
-            via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
-                QStringLiteral("estimated from the collapse of the hip span in the face-on image")) },
+                               "the turn read off geometry instead of inferred from foreshortening"), PLANNED) },
         .usedBy = { QStringLiteral("characteristic:hip_spin_out"),
-                    QStringLiteral("characteristic:hip_stall"),
                     QStringLiteral("characteristic:hips_closed_at_impact"),
                     QStringLiteral("characteristic:sequence_order"),
                     QStringLiteral("characteristic:hips_too_open_at_impact"),
                     QStringLiteral("characteristic:late_pelvis_rotation"),
                     QStringLiteral("characteristic:hips_under_rotated_at_top") },
+    });
+
+    // ⚠ THE SIGNED READING, WHICH NOTHING PRODUCES YET — and it is a separate series rather
+    // than a mode of the one above, because it is a different quantity with a different domain.
+    //
+    // hip_stall used to rest on a RATE over the magnitude series, and that measure was wrong in a
+    // way no corridor could fix. `pelvisRotation` is deliberately the unsigned magnitude of turn
+    // away from address, so its curve folds through zero as the pelvis squares up — on real
+    // captures, within about 15 ms of impact. Since |x|' = sign(x)·x', a rate across P6→impact
+    // straddles that fold and reports the pelvis REVERSING at the very moment it is turning
+    // through square. Seven of seven shots on the 9 Sep session read between −34 and −357 °/s
+    // against a 150 °/s floor, so the condition fired every time by construction and ranked first
+    // on the panel. Two shots also read exactly 0.0, which is the camera tier's acos clamp
+    // saturating rather than a measurement.
+    //
+    // A LEVEL off the magnitude series is still sound — hips_closed_at_impact and the rest stay
+    // where they are. It is the DERIVATIVE that the fold destroys, and only a signed series can
+    // carry one. A bound pelvis IMU could deliver it honestly; the camera cannot, because a
+    // cosine carries no sign and body_rotation.h refuses to manufacture one from the phase ladder.
+    // So this sits on the roadmap with one characteristic blocked on it, which is exactly what the
+    // roadmap is for.
+    cat.addDescriptor({
+        .key = QStringLiteral("pelvisRotationSigned"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Pelvis rotation (signed)"),
+        .shortLabel = QStringLiteral("Pelvis turn ±"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Body rotation"),
+        .description = QStringLiteral(
+            "Pelvis turn about the body's vertical axis relative to address, SIGNED and LEAD-"
+            "RELATIVE: positive is turned toward the lead side (open), negative toward the trail "
+            "side (closed), passing through zero as the body squares up rather than folding at "
+            "it. The same physical quantity as Pelvis rotation, carrying the one piece of "
+            "information the magnitude reading throws away — and the only form of it a rate "
+            "through impact can be taken from."),
+        .howToRead = QStringLiteral(
+            "Read as a RATE through the strike: an efficient downswing has the pelvis still "
+            "turning open as the club arrives, and a stall is that rate collapsing. The magnitude "
+            "series cannot answer this — it folds at the square-up, so its derivative changes sign "
+            "exactly where the reading matters. Needs a bound pelvis IMU: a face-on camera "
+            "estimates turn from the collapse of the hip span, and a cosine carries no sign."),
+        // ⚠ LEAD-RELATIVE, AND MIRRORING IS THE PRODUCER'S JOB. The sign conventions doc's one
+        // invariant above all its rules: a sign's meaning never changes with handedness, and
+        // whatever transform holds that fixed belongs to the producer, never the reader. Said as
+        // "lead side" rather than "toward the target" on the doc's own instruction — the lead side
+        // is a property of the GOLFER where the target is a property of the shot, and the two come
+        // apart on a manipulated setup.
+        //
+        // This is the exact trap the doc names, and it is worth spelling out because the obvious
+        // implementation walks into it: an atan2 of the hip line's bearing "inverts for a
+        // left-handed golfer or a mirrored camera while describing the same posture". toeLineAngle
+        // is the one shipped metric that flips for that reason. trackBodyRotation() is already
+        // handed `leadIsLeft`, and lower_body_metrics.h carries the leadSign idiom (+1 when the
+        // lead side is image +x at address) — so the producer has what it needs and has no excuse.
+        .signPositive = QStringLiteral("the pelvis turned toward the LEAD side — open"),
+        .signNegative = QStringLiteral("the pelvis turned toward the TRAIL side — closed"),
+        .phases = { P::Delivery, P::Impact },
+        .routes = {
+            via("pelvisImu", RM::Inertial, Direct, { .imuRoles = { R::Pelvis } },
+                QStringLiteral("the pelvis medio-lateral axis carried into world by q_anat and "
+                               "projected into the horizontal plane, keeping the sign that the "
+                               "magnitude convention discards"), PLANNED) },
+        .usedBy = { QStringLiteral("characteristic:hip_stall") },
     });
 
     cat.addDescriptor({
@@ -634,10 +696,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn+dtl", RM::Triangulated, Direct,
                 { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("the shoulder line's bearing, triangulated from the calibrated "
-                               "pair — a real reading, though the IMU stays authoritative"), PLANNED),
-            via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
-                QStringLiteral("estimated from the collapse of the shoulder span in the face-on "
-                               "image")) },
+                               "pair — a real reading, though the IMU stays authoritative"), PLANNED) },
         .usedBy = { QStringLiteral("characteristic:abbreviated_finish"),
                     QStringLiteral("characteristic:sequence_order"),
                     QStringLiteral("characteristic:short_backswing"),
@@ -672,10 +731,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn+dtl", RM::Triangulated, Direct,
                 { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("both bearings triangulated from the calibrated pair, so the "
-                               "separation no longer inherits two foreshortening estimates"), PLANNED),
-            via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
-                QStringLiteral("estimated from both spans in the face-on image, so it inherits "
-                               "the weaker half")) },
+                               "separation no longer inherits two foreshortening estimates"), PLANNED), },
     });
 
     cat.addDescriptor({
@@ -705,10 +761,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the measured separation, less its value at the Top")),
             via("faceOn+dtl", RM::Triangulated, Direct,
                 { .faceOnCamera = true, .dtlCamera = true },
-                QStringLiteral("the triangulated separation, less its value at the Top"), PLANNED),
-            via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
-                QStringLiteral("the estimated separation less its value at the Top, so both "
-                               "spans' noise carries through")) },
+                QStringLiteral("the triangulated separation, less its value at the Top"), PLANNED) },
         .usedBy = { QStringLiteral("characteristic:xfactor_deficit"),
                     QStringLiteral("characteristic:excessive_separation_stretch") },
     });

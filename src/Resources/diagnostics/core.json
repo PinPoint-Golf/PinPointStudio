@@ -1476,7 +1476,7 @@
     {
       "id": "m_pelvisRotRateP6P7",
       "kind": "provided",
-      "metricKey": "pelvisRotation",
+      "metricKey": "pelvisRotationSigned",
       "reducer": {
         "kind": "rate",
         "anchor": "p6",
@@ -1485,9 +1485,10 @@
           "p7"
         ]
       },
-      "status": "live",
+      "status": "noProducer",
+      "gapReason": "Needs a SIGNED pelvis rotation, and nothing produces one. pelvisRotation is deliberately the unsigned MAGNITUDE of turn away from address (body_rotation.h), so the curve folds through zero as the pelvis squares up — which on real captures happens within ~15 ms of impact. Since |x|' = sign(x)x', a rate across p6 to p7 straddles that fold and reports the pelvis REVERSING at the moment it is in fact turning through square: seven of seven shots on the 9 Sep session read between -34 and -357 deg/s against a 150-250 floor, so the condition fired every time by construction. The camera tier cannot fix it — a cosine carries no sign and the producer refuses to manufacture one from the phase ladder — so this waits on a signed channel, which a bound pelvis IMU could deliver honestly — lead-relative, with the mirroring done by the producer, or it will invert for a left-handed golfer.",
       "shape": "floor",
-      "label": "Pelvis rotation rate, delivery to impact",
+      "label": "Pelvis rotation rate (signed series), delivery to impact",
       "unit": "°/s",
       "highMeans": "the pelvis still turning hard into impact rather than stalling"
     },

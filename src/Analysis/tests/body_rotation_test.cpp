@@ -137,91 +137,71 @@ int main()
 {
     std::printf("=== body rotation ===\n");
 
-    // ── 1. The camera tier inverts the cosine ──────────────────────────────────────────────────
+    // ── 1. A SINGLE CAMERA PRODUCES NOTHING, and that is the headline ──────────────────────────
+    //
+    // The camera tier estimated turn from the collapse of an image span. It was honest in intent,
+    // badged Bridged rather than Measured, and it carried a propagated sigma — and it still could
+    // not do the job, for two reasons that no corridor could fix:
+    //
+    //   A COSINE IS FLAT WHERE THE SWING LIVES. dtheta/dratio = 1/sin(theta), so on a real capture
+    //   (2026-09-09) the hip span's 2.1% scatter over STILL address frames became +/-1.9 deg at 40
+    //   deg of turn but +/-13.9 deg at 5 deg — and impact is where the pelvis passes through
+    //   square. Over a 41 ms delivery window that is +/-123 deg/s on a rate whose graded corridor
+    //   is 100 deg/s wide.
+    //
+    //   A COSINE CARRIES NO SIGN. It cannot say which way the body turned, so the curve folded at
+    //   the square-up instead of crossing it, and every derivative across impact inverted.
+    //
+    // Rotation about the body's vertical axis needs a route that reads GEOMETRY — a bound segment
+    // IMU, or the hip/shoulder line's bearing triangulated from a calibrated pair. One view is not
+    // one of them.
     {
         const PoseTrack2D t = turningTrack(45.0, 90.0, 40.0, 25.0);
         const BodyRotationResult r = trackBodyRotation(t, FusedStreams{}, kW, kH, true, ladder());
-        CHECK("valid", r.valid);
-        CHECK("pelvis came from the CAMERA", r.pelvis.tier == RotationTier::Foreshortening);
-        CHECK("thorax came from the CAMERA", r.thorax.tier == RotationTier::Foreshortening);
+        CHECK("a face-on track with no IMU resolves nothing", !r.valid);
+        CHECK("pelvis has no tier", r.pelvis.tier == RotationTier::None);
+        CHECK("thorax has no tier", r.thorax.tier == RotationTier::None);
 
+        // ABSENT, NEVER A CURVE OF ZEROS. A zeroed series would read as a golfer who does not turn.
         const auto series = buildBodyRotationSeries(r, ladder());
-        double v = 0.0;
-        CHECK("pelvisRotation at the top", sampleAt(find(series, "pelvisRotation"), Phase::Top, v));
-        CHECK("45° of hip turn is recovered", near(v, 45.0, 1.5));
-        CHECK("thoraxRotation at the top", sampleAt(find(series, "thoraxRotation"), Phase::Top, v));
-        // 90° drives the span to zero, where acos saturates — the producer's own stated weakness.
-        // Assert it lands high rather than exactly, which is the honest expectation.
-        CHECK("a full shoulder turn saturates near the ceiling", v > 80.0);
+        CHECK("pelvisRotation is absent", find(series, "pelvisRotation") == nullptr);
+        CHECK("thoraxRotation is absent",  find(series, "thoraxRotation") == nullptr);
+        CHECK("xFactor is absent",         find(series, "xFactor") == nullptr);
+        CHECK("xFactorStretch is absent",  find(series, "xFactorStretch") == nullptr);
     }
 
-    // ── 2. Address reads zero, and a span WIDER than address clamps rather than producing NaN ──
-    {
-        PoseTrack2D t;
-        for (int64_t us = 0; us < 400000; us += kFrameUs)
-            t.frames.push_back(makeTurned(us, 0.0, 0.0));
-        // A pose WIDER than the address reference: noise, or a golfer not square at address.
-        for (int64_t us = 800000; us < 1000000; us += kFrameUs)
-            t.frames.push_back(makeTurned(us, 0.0, 0.0, 0.14, 0.20));
-        const BodyRotationResult r = trackBodyRotation(t, FusedStreams{}, kW, kH, true, ladder());
-        const auto series = buildBodyRotationSeries(r, ladder());
-        double v = 0.0;
-        CHECK("pelvisRotation at address", sampleAt(find(series, "pelvisRotation"), Phase::Address, v));
-        CHECK("address is the zero of the curve", near(v, 0.0, 1.0));
-        bool finite = true;
-        for (double x : find(series, "pelvisRotation")->value)
-            finite = finite && std::isfinite(x) && x >= -0.001;
-        CHECK("an over-wide span clamps to zero turn, never NaN", finite);
-    }
-
-    // ── 3. THE MAGNITUDE CONVENTION ────────────────────────────────────────────────────────────
-    // Positive at the top AND positive at impact. This is what the shipped corridors require.
-    {
-        const PoseTrack2D t = turningTrack(45.0, 88.0, 40.0, 25.0);
-        const auto series = buildBodyRotationSeries(
-            trackBodyRotation(t, FusedStreams{}, kW, kH, true, ladder()), ladder());
-        double top = 0.0, imp = 0.0;
-        sampleAt(find(series, "pelvisRotation"), Phase::Top, top);
-        sampleAt(find(series, "pelvisRotation"), Phase::Impact, imp);
-        std::printf("    pelvis: top %.1f  impact %.1f\n", top, imp);
-        CHECK("turned AWAY at the top is positive", top > 40.0);
-        CHECK("turned OPEN at impact is ALSO positive", imp > 35.0);
-    }
-
-    // ── 4. A bound IMU beats the camera, PER SEGMENT ───────────────────────────────────────────
+    // ── 2. A bound IMU measures it ─────────────────────────────────────────────────────────────
     {
         const PoseTrack2D t = turningTrack(45.0, 88.0, 40.0, 25.0);
         std::vector<int64_t> grid;
         std::vector<double>  yaw;
         for (const PoseFrame2D &f : t.frames) {
             grid.push_back(f.t_us);
-            // Address at 0°, then a hard 30° turn — deliberately DIFFERENT from the 45° the camera
-            // would infer, so the assertion can only pass if the IMU actually won.
             yaw.push_back(f.t_us >= 800000 && f.t_us < 1000000 ? 30.0 : 0.0);
         }
-
         FusedStreams fs;
         fs.timeGrid = grid;
         fs.segments.push_back(yawStream(SegmentRole::Pelvis, grid, yaw));
 
         const BodyRotationResult r = trackBodyRotation(t, fs, kW, kH, true, ladder());
         CHECK("pelvis came from the IMU", r.pelvis.tier == RotationTier::Imu);
-        CHECK("thorax still came from the camera", r.thorax.tier == RotationTier::Foreshortening);
+        CHECK("the thorax has no IMU and so has nothing", r.thorax.tier == RotationTier::None);
 
         const auto series = buildBodyRotationSeries(r, ladder());
         double v = 0.0;
         CHECK("pelvisRotation at the top", sampleAt(find(series, "pelvisRotation"), Phase::Top, v));
-        CHECK("the IMU's 30°, not the camera's 45°", near(v, 30.0, 2.0));
-
+        CHECK("the IMU's 30 degrees", near(v, 30.0, 2.0));
         CHECK("the measured tier claims no error budget",
               !find(series, "pelvisRotation")->sigma.has_value());
-        CHECK("the estimated tier DOES carry one",
-              find(series, "thoraxRotation")->sigma.has_value());
+        // The chest is ABSENT rather than estimated — there is no estimator left to fall back to.
+        CHECK("thoraxRotation absent without its own IMU", find(series, "thoraxRotation") == nullptr);
+        CHECK("and no X-factor from half a pair", find(series, "xFactor") == nullptr);
     }
 
-    // ── 5. The IMU tier is a magnitude too ─────────────────────────────────────────────────────
-    // Yawing the other way must give the same number: the convention is one curve, not two tiers
-    // with two meanings.
+    // ── 3. The IMU tier is a MAGNITUDE ─────────────────────────────────────────────────────────
+    // Yawing the other way must read the same number: one curve, one meaning. This is the
+    // convention the shipped corridors rest on — m_pelvisRotP4 at +45 (turned away at the top) and
+    // m_pelvisRotP7 at +40 (turned open at impact) cannot both be positive on a signed curve.
     {
         const PoseTrack2D t = turningTrack(45.0, 88.0, 40.0, 25.0);
         std::vector<int64_t> grid;
@@ -242,15 +222,27 @@ int main()
         CHECK("turning either way reads the same magnitude", near(pos, neg, 0.5) && pos > 25.0);
     }
 
-    // ── 6. X-factor and its stretch ────────────────────────────────────────────────────────────
+    // ── 4. X-factor needs BOTH segments instrumented ───────────────────────────────────────────
     {
         const PoseTrack2D t = turningTrack(45.0, 85.0, 40.0, 25.0);
-        const auto series = buildBodyRotationSeries(
-            trackBodyRotation(t, FusedStreams{}, kW, kH, true, ladder()), ladder());
+        std::vector<int64_t> grid;
+        std::vector<double>  hip, chest;
+        for (const PoseFrame2D &f : t.frames) {
+            grid.push_back(f.t_us);
+            const bool atTop = f.t_us >= 800000 && f.t_us < 1000000;
+            hip.push_back(atTop ? 40.0 : 0.0);
+            chest.push_back(atTop ? 85.0 : 0.0);
+        }
+        FusedStreams fs;
+        fs.timeGrid = grid;
+        fs.segments.push_back(yawStream(SegmentRole::Pelvis, grid, hip));
+        fs.segments.push_back(yawStream(SegmentRole::Thorax, grid, chest));
 
+        const auto series = buildBodyRotationSeries(
+            trackBodyRotation(t, fs, kW, kH, true, ladder()), ladder());
         double xf = 0.0;
         CHECK("xFactor at the top", sampleAt(find(series, "xFactor"), Phase::Top, xf));
-        CHECK("chest minus pelvis at the top", xf > 25.0);
+        CHECK("chest minus pelvis at the top", near(xf, 45.0, 3.0));
 
         const MetricSeries *st = find(series, "xFactorStretch");
         CHECK("xFactorStretch emitted", st != nullptr);
@@ -259,45 +251,35 @@ int main()
         CHECK("the stretch is zero AT the top by construction", near(sTop, 0.0, 0.5));
     }
 
-    // ── 7. Refusals ────────────────────────────────────────────────────────────────────────────
+    // ── 5. Refusals ────────────────────────────────────────────────────────────────────────────
     {
-        // No pose and no trunk IMU is nothing at all.
         const BodyRotationResult none = trackBodyRotation(PoseTrack2D{}, FusedStreams{}, kW, kH,
                                                           true, ladder());
         CHECK("no pose and no IMU refuses", !none.valid);
 
-        // A sub-floor span cannot carry a cosine.
-        PoseTrack2D narrow;
-        for (int64_t us = 0; us < 400000; us += kFrameUs)
-            narrow.frames.push_back(makeTurned(us, 0.0, 0.0, 0.01, 0.01));
-        const BodyRotationResult r = trackBodyRotation(narrow, FusedStreams{}, kW, kH, true, ladder());
-        CHECK("a sub-floor span refuses both segments",
-              r.pelvis.tier == RotationTier::None && r.thorax.tier == RotationTier::None);
-
         // No Top means no anchor for the stretch — and the producer must not invent one.
         const PoseTrack2D t = turningTrack(45.0, 85.0, 40.0, 25.0);
+        std::vector<int64_t> grid;
+        std::vector<double>  hip, chest;
+        for (const PoseFrame2D &f : t.frames) {
+            grid.push_back(f.t_us);
+            const bool atTop = f.t_us >= 800000 && f.t_us < 1000000;
+            hip.push_back(atTop ? 40.0 : 0.0);
+            chest.push_back(atTop ? 85.0 : 0.0);
+        }
+        FusedStreams fs;
+        fs.timeGrid = grid;
+        fs.segments.push_back(yawStream(SegmentRole::Pelvis, grid, hip));
+        fs.segments.push_back(yawStream(SegmentRole::Thorax, grid, chest));
+
         const std::vector<PhaseEvent> noTop = {
             { Phase::Address, kAddressUs, 1.f, SegmentRole::Unknown },
             { Phase::Impact,  kImpactUs,  1.f, SegmentRole::Unknown } };
         const auto series = buildBodyRotationSeries(
-            trackBodyRotation(t, FusedStreams{}, kW, kH, true, noTop), noTop);
-        CHECK("no Top ⇒ no xFactorStretch", find(series, "xFactorStretch") == nullptr);
+            trackBodyRotation(t, fs, kW, kH, true, noTop), noTop);
+        CHECK("no Top => no xFactorStretch", find(series, "xFactorStretch") == nullptr);
         CHECK("but the turns themselves still land", find(series, "pelvisRotation") != nullptr);
     }
 
-    // ── 8. Only one segment instrumented, and only one visible ─────────────────────────────────
-    // A track with hips but no shoulders must still produce the pelvis. Half an answer is an
-    // answer; refusing the pair because one half is missing would throw away the half that is not.
-    {
-        PoseTrack2D t = turningTrack(45.0, 85.0, 40.0, 25.0);
-        for (PoseFrame2D &f : t.frames) { f.conf[kLSh] = 0.f; f.conf[kRSh] = 0.f; }
-        const BodyRotationResult r = trackBodyRotation(t, FusedStreams{}, kW, kH, true, ladder());
-        const auto series = buildBodyRotationSeries(r, ladder());
-        CHECK("pelvis still produced", find(series, "pelvisRotation") != nullptr);
-        CHECK("thorax absent, not zero", find(series, "thoraxRotation") == nullptr);
-        CHECK("no X-factor without both halves", find(series, "xFactor") == nullptr);
-    }
-
-    std::printf(g_fail == 0 ? "ALL PASS\n" : "%d FAILURE(S)\n", g_fail);
     return g_fail == 0 ? 0 : 1;
 }

@@ -389,8 +389,13 @@ int main(int argc, char **argv)
         check(countsMatch, "every device chip returns exactly the number it advertises");
 
         // A metric with two rungs is under its floor's chip and its upgrade's — one row, two
-        // answers, which is the whole reason a tag facet exists. pelvisRotation is the worked case:
-        // a face-on camera estimates it, a pelvis IMU measures it.
+        // answers, which is the whole reason a tag facet exists.
+        //
+        // ⚠ pelvisRotation USED TO BE the worked case for that, reading "needs a face-on camera,
+        // improved by body IMUs". The camera rung has been removed — a foreshortening estimate
+        // cannot carry a rotation, because a cosine is flat where the swing lives and carries no
+        // sign — so it now NEEDS the IMU and has nothing above it. The directory tells a golfer
+        // something different as a result, and that is the point of asserting it here.
         const auto rowKeys = [&m](const char *key, const char *value) {
             QVariantMap sel;
             sel.insert(QString::fromLatin1(key), QStringList{ QString::fromLatin1(value) });
@@ -401,12 +406,16 @@ int main(int argc, char **argv)
                 ids << rv.toMap().value(QStringLiteral("id")).toString();
             return ids;
         };
-        check(rowKeys("needsTags", "Face-on camera").contains(QStringLiteral("pelvisRotation")),
-              "pelvisRotation needs only the camera");
-        check(rowKeys("improvesTags", "Body IMUs").contains(QStringLiteral("pelvisRotation")),
-              "…and body IMUs are what would improve it");
-        check(!rowKeys("needsTags", "Body IMUs").contains(QStringLiteral("pelvisRotation")),
-              "…and it does NOT read as needing them, which the old flat requirement could not say");
+        check(rowKeys("needsTags", "Body IMUs").contains(QStringLiteral("pelvisRotation")),
+              "pelvisRotation needs the IMU that measures it");
+        check(!rowKeys("needsTags", "Face-on camera").contains(QStringLiteral("pelvisRotation")),
+              "…and no longer reads as something a single camera can deliver");
+        check(!rowKeys("improvesTags", "Body IMUs").contains(QStringLiteral("pelvisRotation")),
+              "…nor as something IMUs merely improve, now that they are the floor");
+
+        // A metric that still HAS two rungs, so the two-answer behaviour itself stays covered.
+        check(rowKeys("needsTags", "Face-on camera").contains(QStringLiteral("attackAngle")),
+              "a two-rung metric is still filed under its floor's chip");
 
         // The depth metrics are filterable as such. They used to state `minTier = Stereo3D`, which
         // no facet could read and no golfer could act on.
@@ -418,8 +427,11 @@ int main(int argc, char **argv)
         // a calibrated pair makes a few degrees better at the top.
         check(rowKeys("stereoTags", "Unlock it").contains(QStringLiteral("clubPath")),
               "clubPath: a second camera unlocks it");
-        check(rowKeys("stereoTags", "Improve it").contains(QStringLiteral("xFactor")),
-              "xFactor: a second camera improves it (authored rung)");
+        // xFactor was the "Improve it" exemplar while its floor was a foreshortening estimate and
+        // the triangulated pair sat above it. Its floor is the trunk IMUs now, and nothing a
+        // second camera does improves on a direct measurement — so it is no longer in that band.
+        check(!rowKeys("stereoTags", "Improve it").contains(QStringLiteral("xFactor")),
+              "xFactor: with an IMU floor a second camera adds nothing to improve");
         check(rowKeys("stereoTags", "Refine it").contains(QStringLiteral("shoulderPlaneAngle")),
               "shoulderPlaneAngle: a second camera refines it (derived from the projection)");
         const QStringList none = rowKeys("stereoTags", "Refine it")

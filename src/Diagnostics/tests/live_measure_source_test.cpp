@@ -466,7 +466,12 @@ int main(int argc, char **argv)
         // planned, because it reads oddly next to a measure that is deliberately normless: this
         // check equates "not live" with "nothing produces it", and a measure that DOES produce a
         // number while awaiting real norms would break that equation if it were parked as planned.
-        check(planned == 19, "19 shipped measures have no producer yet");
+        // 19 -> 20: m_pelvisRotRateP6P7 was retired to `noProducer` and re-pointed at a new series,
+        // `pelvisRotationSigned`, which nothing emits. The rate it asked for cannot be taken from
+        // the magnitude series it used to read — that curve folds through zero as the pelvis
+        // squares up, so |x|' = sign(x)x' inverts the reading at the exact instant the measure is
+        // about, and seven of seven shots on the 9 Sep session fired by construction.
+        check(planned == 20, "20 shipped measures have no producer yet");
         check(wrong == 0, "…and not one of them produced a value");
     }
 
@@ -514,7 +519,12 @@ int main(int argc, char **argv)
     // both signals on it are gone, so the condition has no detector and reports Unavailable. Its
     // sibling `off_balance_finish` is NOT in the delta: it kept `sig_offBalanceFinish` on
     // `m_comOverLeadFootFinish`, which this fixture carries, so it is still assessable.
-    check(cRich.assessable == 63, "rich_7iron: 63 of 157 conditions assessable (observed)");
+    // 63 -> 62 on 2026-09-12, and the one is `hip_stall`: its only signal read
+    // m_pelvisRotRateP6P7, which is now noProducer on a series nothing emits. The condition has no
+    // detector left and reports Unavailable — which is the point. It was firing on every shot of
+    // every camera-only session off the fold in an unsigned curve, and an Unavailable that says so
+    // is worth more than a pattern that is always there.
+    check(cRich.assessable == 62, "rich_7iron: 62 of 157 conditions assessable (observed)");
     // HOW MANY OF THOSE ANSWERS RESTED ON EVIDENCE THE CAPTURE DID NOT HAVE. A conjunction
     // settled by one known-false term is a real negative, but it is a different kind of "no"
     // from one where every term was read, and it can only ever be a no. Pinned because the
@@ -522,7 +532,7 @@ int main(int argc, char **argv)
     // and on real swings it is not: 3 of 54 here, 2 of 21 on lm_7iron, 0 of 2 on sparse_noclub.
     // If that starts climbing, the panel is answering more and more from less and less.
     check(cRich.assessedPartial == 1,
-          "rich_7iron: 1 of its 63 answers rests on a term it could not read (observed)");
+          "rich_7iron: 1 of its 62 answers rests on a term it could not read (observed)");
     // 38 -> 40 with the two new hipLineTilt measures. Both read a curve this fixture ALREADY
     // carries — the reduction samples the series itself at each segmented phase and does not need
     // the producer to have listed that phase — so a swing written by an older build gains them
@@ -532,7 +542,11 @@ int main(int argc, char **argv)
     // 40 -> 39 on 2026-09-04: `m_pelvisSwayFinish` was one of the live measures this fixture
     // resolved, and it was deleted as an out-of-domain reading. Nothing else moved — the three
     // remaining pelvisSway measures all sit inside P1-P7.
-    check(cRich.measures   == 53, "rich_7iron: 53 live measures resolved (observed)");
+    //
+    // 53 -> 52 on 2026-09-12: m_pelvisRotRateP6P7 resolved on this fixture and is no longer live.
+    // The three other pelvisRotation measures are LEVELS off the magnitude series and are
+    // untouched — it is the derivative the fold destroys, not the reading.
+    check(cRich.measures   == 52, "rich_7iron: 52 live measures resolved (observed)");
     // 12 → 14 on 2026-08-09: sig_launchLow/sig_launchHigh moved onto m_lmLaunchAngle (the
     // measured key this fixture actually carries), so launch_low and launch_high became
     // assessable on an LM-only capture.

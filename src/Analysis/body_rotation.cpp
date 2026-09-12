@@ -34,14 +34,6 @@ constexpr double kEps      = 1e-9;
 // this module answers on a legacy 17-keypoint track exactly as it does on a WholeBody one.
 constexpr int kLShoulder = 5, kRShoulder = 6, kLHip = 11, kRHip = 12;
 
-double spanPx(const PoseFrame2D &f, int a, int b, int frameW, int frameH, double confMin)
-{
-    if (f.conf[size_t(a)] < confMin || f.conf[size_t(b)] < confMin)
-        return -1.0;                                   // not measured this frame — NOT a zero span
-    const double dx = (f.kp[size_t(b)].x() - f.kp[size_t(a)].x()) * frameW;
-    const double dy = (f.kp[size_t(b)].y() - f.kp[size_t(a)].y()) * frameH;
-    return std::sqrt(dx * dx + dy * dy);
-}
 
 // Wrap an angle difference into (−π, π]. Used only by the IMU tier, where the projected axis
 // direction is a true angle and can cross the branch cut.
@@ -52,39 +44,39 @@ double wrapPi(double a)
     return a;
 }
 
-// ── The camera tier ────────────────────────────────────────────────────────────────────────────
+// ── THE CAMERA TIER IS GONE, and it is worth knowing what it was and why it went ───────────────
 //
-// Turn from the collapse of an image span. `w0` is the address span; values above it clamp to zero
-// turn rather than producing a NaN out of acos — a span that measures WIDER than address is noise
-// or a golfer who was not square at address, and in both cases the honest reading is "no turn
-// resolved", not an imaginary angle.
-void fillForeshortening(RotationChannel &out, const std::vector<PoseFrame2D> &frames, int a, int b,
-                        int frameW, int frameH, double w0, const BodyRotationConfig &cfg)
-{
-    if (w0 < cfg.minSpanPx)
-        return;                                        // denominator below its floor — refuse
-
-    std::vector<double> sigmas;
-    sigmas.reserve(frames.size());
-    for (const PoseFrame2D &f : frames) {
-        const double w = spanPx(f, a, b, frameW, frameH, cfg.confMin);
-        if (w < 0.0) continue;
-        const double ratio = std::clamp(w / w0, 0.0, 1.0);
-        const double theta = std::acos(ratio);          // radians, [0, π/2]
-        out.turn.push(f.t_us, theta * kRadToDeg);
-
-        // Propagate the span noise through dθ/dw = −1 / (w₀ · sin θ). The floor on sin θ is what
-        // keeps this finite as the body squares up; without it the reported uncertainty near zero
-        // turn is unbounded, which is true but useless.
-        const double s = std::max(std::sin(theta), cfg.sinFloor);
-        sigmas.push_back(cfg.spanNoisePx / (w0 * s) * kRadToDeg);
-    }
-    if (out.turn.empty())
-        return;
-
-    out.tier     = RotationTier::Foreshortening;
-    out.sigmaDeg = medianOfCopy(sigmas);
-}
+// It estimated turn from the collapse of an image span: `turn = acos(w(t) / w_address)`, the hip
+// span for the pelvis and the shoulder span for the thorax. Honest in intent, reported as Bridged
+// rather than Measured, and it carried a propagated sigma. It still could not do the job, and the
+// arithmetic says so rather than any opinion about cameras.
+//
+// A COSINE IS FLAT WHERE THE SWING LIVES. dθ/dratio = 1/sin θ, so the sensitivity diverges as the
+// body squares up. Measured on a real capture (2026-09-09, seven shots): the hip span scatters
+// 2.1% over 59 STILL address frames — ordinary pose jitter — and that propagates to
+//
+//     ±1.9° at 40° of turn   ±3.5° at 20°   ±7.0° at 10°   ±13.9° at 5°
+//
+// Near the top it is fine. Near impact — where the pelvis is passing through square, which is the
+// instant most of the interesting questions are asked about — it is not. Over a 41 ms P6→P7 window
+// two endpoint errors give ±123 °/s on a rate whose whole graded corridor is 100 °/s wide. The
+// noise was larger than the quantity.
+//
+// THE SAME CAPTURE SHOWED IT AS BIAS, not just noise: the address frame itself read 19° of turn,
+// and address is 0° by definition. And the impact span measured 95% of the address span, which the
+// cosine reads as 18°; a pelvis 40° open reads 77%. Whether that golfer was barely open or the
+// method could not see it is NOT DECIDABLE from one view, and that ambiguity is the whole finding.
+//
+// A COSINE ALSO CARRIES NO SIGN. The magnitude convention below was built around that, and it is
+// what made the series fold through zero at the square-up instead of crossing it — which quietly
+// destroyed every derivative taken across impact (hip_stall fired on 7 of 7 shots for that reason
+// alone, off |x|' = sign(x)·x').
+//
+// ROTATION ABOUT THE BODY'S VERTICAL AXIS NEEDS A ROUTE THAT READS GEOMETRY, not one that infers
+// it from foreshortening: a bound segment IMU, or the hip/shoulder line's bearing triangulated
+// from a calibrated pair. Both are declared in the catalogue. A single camera is not one of them,
+// and a metric that cannot say which way the body turned was never going to be rescued by a better
+// corridor.
 
 // ── The IMU tier ───────────────────────────────────────────────────────────────────────────────
 //
@@ -138,46 +130,17 @@ BodyRotationResult trackBodyRotation(const PoseTrack2D &pose, const FusedStreams
     const int64_t addressUs  = phaseTime(phases, Phase::Address, fallbackUs);
 
     // ── Address spans, robustly ────────────────────────────────────────────────────────────────
-    // Median over the confident frames inside the address window, falling back to the first N
-    // usable frames — the same robust-reference shape every neighbouring producer uses. A single
-    // address frame is one pose estimate and inherits all of its jitter, and this one number is the
-    // denominator of every subsequent turn.
-    if (frameW > 0 && frameH > 0 && !frames.empty()) {
-        std::vector<double> hips, shoulders;
-        const auto collect = [&](bool windowed) {
-            for (const PoseFrame2D &f : frames) {
-                if (windowed && (addressUs < 0 || std::llabs(f.t_us - addressUs) > cfg.addrWindowUs))
-                    continue;
-                const double h = spanPx(f, kLHip, kRHip, frameW, frameH, cfg.confMin);
-                const double s = spanPx(f, kLShoulder, kRShoulder, frameW, frameH, cfg.confMin);
-                if (h > 0.0) hips.push_back(h);
-                if (s > 0.0) shoulders.push_back(s);
-                if (!windowed && int(hips.size()) >= cfg.addrMinFrames
-                    && int(shoulders.size()) >= cfg.addrMinFrames)
-                    break;
-            }
-        };
-        collect(true);
-        if (hips.empty() && shoulders.empty())
-            collect(false);
-        res.addrHipSpanPx      = medianOfCopy(hips);
-        res.addrShoulderSpanPx = medianOfCopy(shoulders);
-    }
-
     // ── Per segment: the IMU if it is bound, the camera if it is not ───────────────────────────
     // Resolved INDEPENDENTLY per segment. A swing with a pelvis IMU and no thorax IMU gets a
     // measured pelvis and an estimated chest, which is the right answer — refusing the pair because
     // half of it could be better measured would throw away the half that could not.
+    // A BOUND IMU OR NOTHING. There is no camera fallback any more: a channel with no stream is
+    // left absent, and every measure over it reports "metric not produced on this capture" —
+    // which is the truthful answer for a single face-on view and was not the one being given.
     if (const SegmentStream *s = streams.streamFor(SegmentRole::Pelvis))
         fillFromImu(res.pelvis, *s, streams.timeGrid, addressUs);
-    if (res.pelvis.tier == RotationTier::None && frameW > 0 && frameH > 0)
-        fillForeshortening(res.pelvis, frames, kLHip, kRHip, frameW, frameH, res.addrHipSpanPx, cfg);
-
     if (const SegmentStream *s = streams.streamFor(SegmentRole::Thorax))
         fillFromImu(res.thorax, *s, streams.timeGrid, addressUs);
-    if (res.thorax.tier == RotationTier::None && frameW > 0 && frameH > 0)
-        fillForeshortening(res.thorax, frames, kLShoulder, kRShoulder, frameW, frameH,
-                           res.addrShoulderSpanPx, cfg);
 
     // The IMU tier writes onto the stream time grid, which is not the pose grid. Adopt whichever
     // grid actually carries samples so the resample target is never empty.

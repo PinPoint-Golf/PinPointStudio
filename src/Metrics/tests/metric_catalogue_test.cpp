@@ -71,7 +71,11 @@ int main()
         // existing key expressed) plus the three HackMotion rungs hm.leadWristFlexExt,
         // hm.leadWristRadUln and hm.forearmRotation.
         // 94 -> 95 with plumbBobDistance, the hip centre over the stance centre in inches.
-        checkEqI(static_cast<int>(cat.all().size()), 95, "descriptor count == 95");   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance
+        // 95 -> 96 with pelvisRotationSigned: the signed pelvis turn, which no existing key
+        // expressed. It is a SEPARATE series from pelvisRotation rather than a mode of it —
+        // a magnitude and a signed reading are different quantities, and only the signed one can
+        // carry a rate through impact.
+        checkEqI(static_cast<int>(cat.all().size()), 96, "descriptor count == 96");   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
                                "impactShaftLean", "stanceWidth",     "leadFootFlare",
@@ -108,7 +112,7 @@ int main()
 
     // 2. Type / group / scored filtering.
     {
-        checkEqI(countType(cat, MetricType::TimeSeries),  44, "TimeSeries count");   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
+        checkEqI(countType(cat, MetricType::TimeSeries),  45, "TimeSeries count");   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
         // 26, not 28: `shoulderAlignment` and `hipAlignment` were both PointInTime and both retired
         // as duplicates of a series the catalogue already carries.
         checkEqI(countType(cat, MetricType::PointInTime), 45, "PointInTime count");   // +17: a monitor reports one number per shot; +transitionPlaneDelta, +compoundMiss
@@ -129,7 +133,7 @@ int main()
         checkEqI(static_cast<int>(cat.query(hq).size()), 3, "group 'Head' == 3");
 
         MetricQuery brq; brq.group = QStringLiteral("Body rotation");
-        checkEqI(static_cast<int>(cat.query(brq).size()), 6, "group 'Body rotation' == 6");
+        checkEqI(static_cast<int>(cat.query(brq).size()), 7, "group 'Body rotation' == 7");   // +pelvisRotationSigned
 
         // Arm geometry (trail elbow height, swing width, arm-to-torso) is its own group rather
         // than being filed under wrist and forearm, which would mislabel it in the directory.
@@ -247,22 +251,33 @@ int main()
                   == MetricAvailability::Unavailable,
               "the upper body needs the camera");
 
-        // Body rotation: camera only ⇒ Bridged, and the reason names the METHOD rather than a
-        // missing device, because a value IS produced.
+        // ⚠ BODY ROTATION FROM A CAMERA ALONE IS UNAVAILABLE, and that is the change. It used to
+        // resolve Bridged off a foreshortening estimate — turn from the collapse of an image span.
+        // The estimate could not carry the readings taken from it: a cosine is flat where the
+        // swing lives (2.1% of span scatter is ±1.9° at 40° of turn but ±13.9° at 5°, and impact
+        // is where the pelvis passes through square), and it carries no sign at all, so every
+        // derivative across impact inverted. Rotation about the vertical axis needs a route that
+        // reads geometry — an IMU, or a triangulated pair — and Bridged is for a reading that is
+        // honest at reduced fidelity, not for one whose noise exceeds its corridor.
         const MetricAvailability est = cat.resolve(QStringLiteral("pelvisRotation"), cam);
-        check(est.state == MetricAvailability::Bridged, "pelvisRotation Bridged from the camera");
-        check(est.reason.contains(QStringLiteral("estimated")),
-              "…and says it was estimated, not that something is missing");
+        check(est.state == MetricAvailability::Unavailable,
+              "pelvisRotation is Unavailable from a face-on camera alone");
 
         ShotContext pelvisImu = wristShot({ SegmentRole::Pelvis }, /*faceOn*/ true);
         check(cat.resolve(QStringLiteral("pelvisRotation"), pelvisImu).state
                   == MetricAvailability::Measured,
-              "a bound pelvis IMU upgrades pelvisRotation to Measured");
+              "a bound pelvis IMU Measures pelvisRotation");
         check(cat.resolve(QStringLiteral("thoraxRotation"), pelvisImu).state
-                  == MetricAvailability::Bridged,
-              "…while the chest, uninstrumented, stays an estimate");
-        check(cat.resolve(QStringLiteral("xFactor"), pelvisImu).state == MetricAvailability::Bridged,
-              "…and the separation inherits the weaker half");
+                  == MetricAvailability::Unavailable,
+              "…while the chest, uninstrumented, has nothing to fall back to");
+        check(cat.resolve(QStringLiteral("xFactor"), pelvisImu).state
+                  == MetricAvailability::Unavailable,
+              "…and a separation cannot be had from half a pair");
+
+        // The signed series is nobody's today: no route emits it, however the shot is equipped.
+        check(cat.resolve(QStringLiteral("pelvisRotationSigned"), pelvisImu).state
+                  == MetricAvailability::Unavailable,
+              "pelvisRotationSigned awaits a producer, even with the IMU bound");
 
         ShotContext bothImu = wristShot({ SegmentRole::Pelvis, SegmentRole::Thorax }, false);
         check(cat.resolve(QStringLiteral("xFactor"), bothImu).state == MetricAvailability::Measured,
@@ -271,7 +286,7 @@ int main()
         ShotContext nothing = wristShot({}, /*faceOn*/ false);
         check(cat.resolve(QStringLiteral("pelvisRotation"), nothing).state
                   == MetricAvailability::Unavailable,
-              "no camera and no trunk IMU is genuinely Unavailable");
+              "and with neither, Unavailable for the plainer reason");
 
         // Club delivery: the measured head, and the ball only where it is genuinely needed.
         ShotContext club = wristShot({}, /*faceOn*/ true, /*club*/ true);
@@ -341,7 +356,9 @@ int main()
                              qPrintable(d->key), qPrintable(a.reason));
         }
         std::printf("    %d planned descriptors\n", planned);
-        checkEqI(planned, 17, "17 planned metrics — nothing produces them by any route");   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view
+        // 17 -> 18: pelvisRotationSigned. Nothing emits it — a bound pelvis IMU could, and the
+        // camera never can, because a cosine carries no sign.
+        checkEqI(planned, 18, "18 planned metrics — nothing produces them by any route");   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view
         checkEqI(unavailable, planned,
                  "every planned metric resolves Unavailable even with every device present");
         checkEqI(saysPlanned, planned,
@@ -416,23 +433,23 @@ int main()
         checkEqI(badOrder, 0, "every ladder is ordered best-first");
 
         // The floor is what the directory reports as "needs", and it is the LAST live rung.
+        //
+        // ⚠ THE FLOOR OF BODY ROTATION IS THE IMU NOW. It was the face-on camera, on a
+        // foreshortening estimate that has been removed — `acos(w/w0)` is flat where the swing
+        // lives and carries no sign, so it could not support the readings taken from it. What the
+        // directory tells a golfer changed with it: rotation is no longer something their phone
+        // can estimate, it is something a pelvis IMU measures.
         const MetricDescriptor *pr = cat.descriptor(QStringLiteral("pelvisRotation"));
-        check(pr->baselineRequirement().faceOnCamera,
-              "pelvisRotation's floor is the camera, not the IMU that measures it best");
-        check(pr->baselineRequirement().imuRoles.empty(), "…and the floor asks for no IMU at all");
-        // Its ceiling is BOTH rungs above the floor. Stereo triangulates the hip bearing instead of
-        // inferring it from foreshortening, which is a real improvement over `acos(w/w0)` — the
-        // design's "the second camera adds nothing" is measured against the IMU ideal, not against
-        // what a camera-only shot actually gets, and stating only the IMU here understated the
-        // catalogue's own ceiling.
-        const auto up = pr->upgradeDevices();
-        check(up.size() == 2, "…while its ceiling names both rungs above the camera");
-        bool hasImus = false, hasDtl = false;
-        for (CaptureDevice dv : up) {
-            if (dv == CaptureDevice::BodyImus)  hasImus = true;
-            if (dv == CaptureDevice::DtlCamera) hasDtl  = true;
-        }
-        check(hasImus && hasDtl, "…body IMUs and a down-the-line camera");
+        check(!pr->baselineRequirement().faceOnCamera,
+              "pelvisRotation's floor is no longer the camera");
+        check(!pr->baselineRequirement().imuRoles.empty(),
+              "…it is the IMU that actually measures it");
+        // One rung above the floor now: the triangulated pair, which reads the hip line's BEARING
+        // off geometry rather than inferring it from a collapsing span.
+        // NOTHING SITS ABOVE THE IMU. The triangulated pair is authored BELOW it in the ladder —
+        // an alternative for a shot with two cameras and no IMU, not an upgrade from one — so a
+        // golfer whose pelvis IMU is bound has nothing better to be sold.
+        check(pr->upgradeDevices().empty(), "…and nothing above it to be upgraded to");
 
         // The knees are the user-facing case for the whole change: readable face-on in principle,
         // properly resolvable only from down the line. Both rungs planned, so the metric is planned
@@ -477,7 +494,11 @@ int main()
         };
 
         check(gain("clubPath")  == SG::Unlocks,  "clubPath cannot be had without the second camera");
-        check(gain("xFactor")   == SG::Improves, "xFactor has an authored stereo rung above the span");
+        // xFactor's stereo rung used to sit above a foreshortening estimate, which is what
+        // `Improves` meant. With the estimate gone the pair does not improve on a reading — it
+        // UNLOCKS one, for a shot that has two cameras and no trunk IMUs.
+        check(gain("xFactor")   == SG::None,
+              "xFactor's floor is the trunk IMUs, which a second camera does not improve on");
         check(gain("shoulderPlaneAngle") == SG::Refines,
               "shoulderPlaneAngle is a projected line read at the Top — foreshortened, so refined");
 
@@ -516,19 +537,23 @@ int main()
     {
         const ShotContext cam = wristShot({}, /*faceOn*/ true);
         const MetricAvailability est = cat.resolve(QStringLiteral("pelvisRotation"), cam);
-        check(est.routeId == QStringLiteral("faceOn"), "the camera rung is the one that fired");
+        // NO RUNG FIRES on one camera any more — the estimate that used to answer here is gone.
+        check(est.state == MetricAvailability::Unavailable, "no rung fires on a face-on shot");
 
-        // THE BEST RUNG, NOT THE NEAREST — and pelvisRotation is the case that distinguishes them.
-        // Two rungs sit above the camera: a stereo pair (planned, and skipped for that reason) and
-        // a pelvis IMU. Even once the stereo producer lands, the hint must keep naming the IMU: it
-        // is cheaper, measures the turn outright rather than triangulating two points, and works on
-        // the one camera the owner already has. A nearest-rung walk would recommend a second camera
-        // to every face-on owner, which is the purchase the design argues hardest against.
-        check(est.upgrade.contains(QStringLiteral("Pelvis"))
-                  && est.upgrade.contains(QStringLiteral("measure it directly")),
-              "…and the shot is told a pelvis IMU would measure it directly");
-        check(!est.upgrade.contains(QStringLiteral("down-the-line")),
-              "…and NOT to go and buy a second camera, which is the weaker fix");
+        // THE BEST RUNG, NOT THE NEAREST, and pelvisRotation is still the case that distinguishes
+        // them: a stereo pair (planned, and skipped for that reason) and a pelvis IMU both sit
+        // above nothing. The hint must name the IMU — it is cheaper, measures the turn outright
+        // rather than triangulating two points, and works with the one camera the owner already
+        // has. A nearest-rung walk would recommend a second camera to every face-on owner, which
+        // is the purchase the design argues hardest against.
+        // The kit moved from an UPGRADE to a REQUIREMENT, and the machinery says so on its own:
+        // `upgrade` dangles something better than what you have, and when nothing answers at all
+        // there is nothing better — there is a missing instrument, which is what `reason` is for.
+        check(est.upgrade.isEmpty(), "…nothing is dangled as an upgrade, because nothing fired");
+        check(est.reason.contains(QStringLiteral("Pelvis")),
+              "…the reason names the pelvis IMU as the thing that is missing");
+        check(!est.reason.contains(QStringLiteral("down-the-line")),
+              "…and NOT a second camera, which is still the weaker fix");
 
         ShotContext pelvisImu = wristShot({ SegmentRole::Pelvis }, /*faceOn*/ true);
         const MetricAvailability best = cat.resolve(QStringLiteral("pelvisRotation"), pelvisImu);
