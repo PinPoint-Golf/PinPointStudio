@@ -1244,7 +1244,8 @@
       "mu": 0.0,
       "sigmaLo": 4.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "Grades a YAW — the shoulder line's bearing relative to the target line, open negative, closed positive — which nothing produces yet (m_shoulderAlignment is noProducer since 2026-09-14; see its gapReason). Until 2026-09-14 this row graded shoulderPlaneAngle at P1, the face-on TILT, and 0 +/- 4 deg on a tilt fires on every right-handed setup. The corridor is kept for the measure it names."
     },
     {
       "measure": "m_shoulderPlane",
@@ -1333,10 +1334,11 @@
     {
       "measure": "m_headSwayBack",
       "context": "any",
-      "mu": 4.0,
+      "mu": -4.0,
       "sigmaLo": 3.0,
       "unit": "cm",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN CORRECTED 2026-09-14. The producer emits headSway POSITIVE TOWARD THE LEAD SIDE (the same convention as pelvisSway, stated in its descriptor), and this row sat at +4 +/- 3 cm as though positive were \"off the ball\". The result was that a head moving a normal 3-5 cm AWAY from the target in the backswing read as 7-9 cm toward it, and head_drift_lead_backswing fired on 7 of 7 shots of the 9 Sep 2026 session while the video shows the head going the other way. Mirrored to -4 +/- 3 (the head 1-7 cm off the ball is the ideal band), with the two signals on it swapped to match. Still a heuristic figure; re-seat from a corpus."
     },
     {
       "measure": "m_headLiftDown",
@@ -1717,13 +1719,13 @@
       "citation": "Provisional. Delivery-parameter distributions in 10.3390/proceedings2060249 cover face angle, club path and attack angle across club types."
     },
     {
-      "measure": "m_handSpeedP6P7",
+      "measure": "m_clubheadPeakLead",
       "context": "any",
-      "mu": 20.0,
-      "sigmaLo": 40.0,
-      "unit": "mph/s",
+      "mu": 5.0,
+      "sigmaLo": 15.0,
+      "unit": "ms",
       "source": "heuristic",
-      "citation": "ESTIMATE, and a poor one: sigma is twice mu, which is not a corridor. Flagged for re-seating from a corpus. Do NOT attempt to source this from literature — the accessible figures are vendor and robot-test material, which this repo does not cite."
+      "citation": "Provisional, and seated on ONE golfer, which is why it is filed heuristic rather than seated: over 97 corpus and library swings with a club track (14 Sep 2026) the composed clubhead speed peaked a median 3.7 ms before impact, p25 0.3, p75 18.2, p95 48.7, mean 11.5 +/- 17.9. mu 5 puts the ideal at the ball; the ceiling grades only the early-peak tail, and the single tolerance of 15 ms is that tail's, so a peak at or after the impact anchor never fires. Nothing produces the measure yet; re-seat when it lands and a second golfer is in the corpus. Replaces the m_handSpeedP6P7 row (mu 20, sigma 40 mph/s), whose own citation called it \"not a corridor\" and whose measure the corpus showed fires on ordinary release-drag — see the measure's gapReason."
     },
     {
       "measure": "m_faceToPath",

@@ -43,9 +43,13 @@ static const Expect kExpected[] = {
       "spineForwardBend is 'the forward tilt of the trunk'; upright is less of it" },
     { "sig_ballTooClose",     Direction::Low,   "ballBodyDistance: 'higher means further away'" },
     { "sig_ballTooFar",       Direction::High,  "ballBodyDistance: 'higher means further away'" },
+    // On `shoulderLineYaw` since 2026-09-14, a planned series nothing emits yet. Until then the
+    // measure read shoulderPlaneAngle at P1 — the face-on TILT, which the grip sets at ~-10° on every
+    // right-handed setup — and the corridor fired "open" on square shoulders. The direction rows
+    // were right the whole time; it was the measure underneath that answered a different question.
     { "sig_alignmentOpen",    Direction::Low,
-      "shoulderAlignment: 'open is negative and closed is positive' — the club-path convention" },
-    { "sig_alignmentClosed",  Direction::High,  "shoulderAlignment: closed is the positive end" },
+      "shoulderLineYaw: 'OPEN IS NEGATIVE AND CLOSED IS POSITIVE, the club-path convention'" },
+    { "sig_alignmentClosed",  Direction::High,  "shoulderLineYaw: closed is the positive end" },
     // Ball position follows the OUTSIDE convention (0 % lead heel .. 100 % trail heel), not the
     // lead-positive one — see docs/design/pinpoint_sign_conventions.md rule 1. So forward is LOW.
     { "sig_ballForward",      Direction::Low,
@@ -152,8 +156,14 @@ static const Expect kExpected[] = {
     { "sig_headRiseDown",         Direction::High,
       "m_headLiftDown highMeans 'the head higher than address on the way down, rising out of the "
       "shot'; coming out of it IS that rise, so it is the high end" },
-    { "sig_excessiveHeadSway",    Direction::High,
-      "m_headSwayBack highMeans: 'the head further from the ball line, off the ball'" },
+    // ⚠ INVERTED UNTIL 2026-09-14, and this row was the inversion: it quoted a highMeans ("off the
+    // ball") that contradicted the producer. headSway's descriptor says POSITIVE IS TOWARD THE LEAD
+    // SIDE, the same convention as pelvisSway — so swaying off the ball is the LOW end, exactly as
+    // sig_sway is below for the pelvis. The fixture is only an authority when its `why` quotes the
+    // PRODUCER's convention, not a measure's paraphrase of it.
+    { "sig_excessiveHeadSway",    Direction::Low,
+      "headSway: 'POSITIVE IS TOWARD THE LEAD SIDE, the same displacement convention pelvis sway "
+      "follows'; off the ball is away from the lead side, so the low end" },
     { "sig_excessiveHeelLift",    Direction::High, "leadHeelLift measures a lift; more is more" },
     { "sig_shortBackswing",       Direction::Low,
       "thoraxRotation at the top: a short backswing is LESS turn" },
@@ -178,8 +188,12 @@ static const Expect kExpected[] = {
       "pelvisRotation at P5: spinning out is the pelvis ALREADY further open in early downswing" },
     { "sig_hipStall",             Direction::Low,
       "m_pelvisRotRateP6P7 highMeans: 'still turning hard into impact rather than stalling'" },
-    { "sig_deceleration",         Direction::Low,
-      "m_handSpeedP6P7 highMeans: 'the hands still accelerating into the ball'" },
+    // Moved off hand speed on 2026-09-14. The old row was directionally right about its measure and
+    // the measure was wrong about the swing: hand speed falls from delivery to impact in every good
+    // release (97 of 97 corpus swings, mean -106 mph/s), so its low tail was "the release working".
+    { "sig_deceleration",         Direction::High,
+      "clubheadPeakLead: 'HIGHER MEANS THE PEAK CAME EARLIER — more speed given up before the "
+      "ball'; quitting on it is the clubhead peaking early, the high end" },
 
     // ── content extension: impact ───────────────────────────────────────────
     { "sig_insufficientShaftLean", Direction::Low,
@@ -279,9 +293,12 @@ static const Expect kExpected[] = {
     { "sig_pelvisSinkBackswing",    Direction::Low,
       "m_pelvisLiftTop highMeans 'the pelvis higher than at address by the top'; sinking is lower "
       "than at address, the low end, where sig_trailHipHike takes the high" },
-    { "sig_headDriftLeadBackswing", Direction::Low,
-      "m_headSwayBack highMeans 'the head further from the ball line, off the ball' — i.e. toward "
-      "the TRAIL side; drifting toward the target is the low end" },
+    // The other tail of the row corrected above, and the one that did the damage: with the sign
+    // inverted this fired on 7 of 7 shots of the 9 Sep 2026 session for a head that the video shows
+    // moving 3-5 cm AWAY from the target. Toward the lead side is POSITIVE on the producer.
+    { "sig_headDriftLeadBackswing", Direction::High,
+      "headSway: 'POSITIVE IS TOWARD THE LEAD SIDE'; drifting toward the target IS that movement, "
+      "the high end, where sig_excessiveHeadSway (off the ball) takes the low" },
     // The SAME tail as sig_earlyExtension and on the same metric, over the backswing window
     // instead. Not a duplicate: m_pelvisThrustDown is the P5–P7 peak taken from address, so a
     // golfer who moves toward the ball going back and holds it reads as early extension without

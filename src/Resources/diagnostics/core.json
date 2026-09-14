@@ -96,15 +96,16 @@
     {
       "id": "m_shoulderAlignment",
       "kind": "provided",
-      "metricKey": "shoulderPlaneAngle",
+      "metricKey": "shoulderLineYaw",
       "reducer": {
         "kind": "at",
         "anchor": "p1"
       },
-      "status": "live",
-      "label": "Shoulder line tilt, at P1",
+      "status": "noProducer",
+      "label": "Shoulder line aim, at P1",
       "unit": "°",
-      "highMeans": "the trail shoulder sitting higher than the lead shoulder at address"
+      "highMeans": "the shoulder line aimed further right of the target — closed; open is negative and closed positive, the club-path convention",
+      "gapReason": "Aim is rotation about the body's vertical axis, and this measure read shoulderPlaneAngle at P1 instead — the shoulder line's TILT in the face-on image. The two are not the same quantity: a right-hander's trail hand sits lower on the grip, so the trail shoulder sits ~8-12 deg below the lead one at address on every square setup, and a corridor of 0 +/- 4 deg on that tilt fired alignment_open on 7 of 7 shots of the 9 Sep 2026 session (values -9 to -11 deg) while the video shows the shoulders square. The perspective effect the sign-conventions doc relies on — the shoulder further from the camera imaging higher — is real but an order of magnitude smaller than the grip tilt it is buried under, so the tilt cannot be corrected into an aim. Rotation about the vertical axis is not measurable from one camera (8524467); this waits on the triangulated pair, which reads the shoulder line's bearing as geometry. shoulderPlaneAngle at P1 remains a fine reading of the tilt itself, which is not this fault."
     },
     {
       "id": "m_spineBendAtAddress",
@@ -1303,9 +1304,9 @@
         ]
       },
       "status": "live",
-      "label": "Head sway away from the ball, address to the top",
+      "label": "Head sway, address to the top",
       "unit": "cm",
-      "highMeans": "the head further from the ball line, off the ball"
+      "highMeans": "the head further toward the LEAD side by the top — positive is toward the lead side, the same displacement convention pelvisSway follows; swaying OFF the ball, away from the target, is the negative end"
     },
     {
       "id": "m_headLiftDown",
@@ -1359,22 +1360,19 @@
       "highMeans": "the lead heel further off the ground"
     },
     {
-      "id": "m_handSpeedP6P7",
+      "id": "m_clubheadPeakLead",
       "kind": "provided",
-      "metricKey": "handSpeed",
+      "metricKey": "clubheadPeakLead",
       "reducer": {
-        "kind": "rate",
-        "anchor": "p6",
-        "window": [
-          "p6",
-          "p7"
-        ]
+        "kind": "at",
+        "anchor": "p7"
       },
-      "status": "live",
-      "shape": "floor",
-      "label": "Hand speed, rate of change from delivery to impact",
-      "unit": "mph/s",
-      "highMeans": "the hands still accelerating into the ball"
+      "status": "noProducer",
+      "gapReason": "Replaces m_handSpeedP6P7, a rate of hand speed from delivery to impact with a -20 mph/s floor, which the corpus shows cannot discriminate: over 97 swings with a club track (every corpus and library swing on 14 Sep 2026) the P6-to-P7 hand-speed rate was NEGATIVE ON ALL 97 — mean -106, sd 56, 5th-95th percentile -213 to -29 mph/s — because the hands peak 71 +/- 30 ms before impact and slow as the clubhead releases past them. That is the release working, not the golfer quitting, and the handSpeed descriptor already says so (\"the hands slowing lets the clubhead sling past\"). The 9 Sep session fired deceleration on 6 of 7 shots at -49 to -220 mph/s, i.e. on ordinary release-drag. Hand speed alone cannot separate release-drag from a genuine deceleration, and the P5-to-P6 window is no better (mean +31, sd 58, a quarter of good swings already negative). What DOES say \"quitting on it\" is the CLUBHEAD peaking before the ball: on the same 97 swings the composed clubhead speed peaks a median 3.7 ms before impact (p25 0.3, p75 18, p95 49), so a peak tens of milliseconds early is the fault and a peak at the ball is not. Not read off the existing clubheadSpeed series by a reducer because the series is windowed about instants and no reducer returns the TIME of an extremum; the producer must emit the lead as a number, from the domain-masked composed speed, in ms before the impact anchor.",
+      "shape": "ceiling",
+      "label": "Clubhead speed peak, lead on impact",
+      "unit": "ms",
+      "highMeans": "the clubhead reached its top speed further BEFORE the ball — speed given up before impact"
     },
     {
       "id": "m_clubheadSpeedImpact",
@@ -2575,7 +2573,7 @@
       "measures": [
         "m_headSwayBack"
       ],
-      "direction": "high"
+      "direction": "low"
     },
     {
       "id": "sig_excessiveHeelLift",
@@ -2637,9 +2635,9 @@
       "id": "sig_deceleration",
       "test": "outsideCorridor",
       "measures": [
-        "m_handSpeedP6P7"
+        "m_clubheadPeakLead"
       ],
-      "direction": "low"
+      "direction": "high"
     },
     {
       "id": "sig_insufficientShaftLean",
@@ -3118,7 +3116,7 @@
       "measures": [
         "m_headSwayBack"
       ],
-      "direction": "low"
+      "direction": "high"
     },
     {
       "id": "sig_hipsUnderRotatedTop",
@@ -5180,7 +5178,7 @@
         "sig_deceleration"
       ],
       "state": "draft",
-      "consequence": "The hands are slowing down before the ball rather than after it. Speed lost before impact is speed the ball never sees, and a decelerating strike is an inconsistent one.",
+      "consequence": "The clubhead reaches its top speed before the ball rather than at it. Speed given up before impact is speed the ball never sees, and a strike the club is slowing into is an inconsistent one. Read on the CLUBHEAD, not the hands: in every good release the hands slow through delivery so the clubhead can sling past them, so hand speed falling into impact is the swing working and cannot carry this fault.",
       "provenance": {
         "tier": "indirect",
         "citation": "10.1080/02640414.2010.507249",

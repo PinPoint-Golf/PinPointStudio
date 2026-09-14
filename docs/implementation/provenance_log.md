@@ -269,6 +269,38 @@ several, and §115's editorial rule — rank causes, do not assert one — appli
 
 ---
 
+## 6f. Three rows that fired by construction on the 9 Sep 2026 session (2026-09-14)
+
+An independent, eyes-on read of the seven 6-iron swings of 2026-09-09 was set beside the ledger the
+model wrote for them. Where both could see the same thing they agreed to the percentage point —
+sway, reverse spine at the top, lead knee working in, the compact top. Three of the model's
+pattern-tier findings the video flatly contradicted, and each turned out to be a row that could
+not have done anything else.
+
+- **`m_headSwayBack` — sign inverted against its producer.** `headSway` is emitted POSITIVE TOWARD
+  THE LEAD SIDE (its descriptor says so, the same convention as `pelvisSway`). The norm sat at
+  +4 ± 3 cm and the measure's `highMeans` read "off the ball", so a head moving a normal 3-5 cm away
+  from the target graded as 7-9 cm toward it and `head_drift_lead_backswing` fired 7 of 7. The
+  `axis_direction_test` fixture did not catch it because its `why` quoted the measure's own
+  paraphrase rather than the producer. Mirrored to −4 ± 3, the two signals swapped tails, and the
+  fixture rows now quote the descriptor. Still `heuristic`.
+- **`m_shoulderAlignment` — graded a tilt as an aim.** It read `shoulderPlaneAngle` at P1 with a
+  0 ± 4° corridor. A right-hander's trail hand sits lower on the grip, so the shoulder line tilts
+  ~8-12° on every square setup, and `alignment_open` fired 7 of 7 (−9 to −11°) over shoulders the
+  video shows square. Aim is a yaw, which one camera does not measure (8524467). The measure is
+  `noProducer` on the planned `shoulderLineYaw`; the norm row stays, now grading the yaw it names.
+- **`m_handSpeedP6P7` — a floor under a quantity that is always negative.** Its own citation said
+  "sigma is twice mu, which is not a corridor". The corpus said worse: over 97 swings with a club
+  track the delivery-to-impact hand-speed rate was negative on ALL 97 (mean −106, sd 56 mph/s), with
+  the hands peaking 71 ± 30 ms before impact — the release working, exactly as the `handSpeed`
+  descriptor describes. `deceleration` fired 6 of 7 on ordinary release-drag. The row is gone;
+  its replacement `m_clubheadPeakLead` (ms before impact that the composed clubhead speed peaked;
+  corpus median 3.7, p75 18, p95 49) is `noProducer` with a provisional ceiling norm of 5 + 15 ms,
+  filed `heuristic` because the 97 swings are one golfer.
+
+None of the three was a norm-vs-literature question, which is why they sit in this section rather
+than §1: two were a measure answering a different question from its condition, and one was a sign.
+
 ## 7. Leads encountered but NOT verified — do not cite from this list
 
 A citation must never be written from here. These were seen in reference lists and not confirmed

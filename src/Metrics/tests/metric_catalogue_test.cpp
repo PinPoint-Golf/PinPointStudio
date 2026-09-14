@@ -75,7 +75,11 @@ int main()
         // expressed. It is a SEPARATE series from pelvisRotation rather than a mode of it —
         // a magnitude and a signed reading are different quantities, and only the signed one can
         // carry a rate through impact.
-        checkEqI(static_cast<int>(cat.all().size()), 96, "descriptor count == 96");   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance
+        // 96 -> 98 on 2026-09-14 with shoulderLineYaw and clubheadPeakLead, both planned and both
+        // replacing a live measure that was grading the wrong quantity (see their descriptors and
+        // the pack's gapReasons): the shoulder line's AIM is not its face-on tilt, and the CLUBHEAD
+        // peaking early is not the hands slowing into impact.
+        checkEqI(static_cast<int>(cat.all().size()), 98, "descriptor count == 98");   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
                                "impactShaftLean", "stanceWidth",     "leadFootFlare",
@@ -115,7 +119,11 @@ int main()
         checkEqI(countType(cat, MetricType::TimeSeries),  45, "TimeSeries count");   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
         // 26, not 28: `shoulderAlignment` and `hipAlignment` were both PointInTime and both retired
         // as duplicates of a series the catalogue already carries.
-        checkEqI(countType(cat, MetricType::PointInTime), 45, "PointInTime count");   // +17: a monitor reports one number per shot; +transitionPlaneDelta, +compoundMiss
+        // 45 -> 47 on 2026-09-14, both PLANNED and both the honest replacement for a measure that
+        // was firing on the wrong quantity: `shoulderLineYaw` (aim is a bearing, and the tilt one
+        // camera reads is set by the grip) and `clubheadPeakLead` (the fault is the CLUBHEAD peaking
+        // early; hand speed falls into impact on every good release).
+        checkEqI(countType(cat, MetricType::PointInTime), 47, "PointInTime count");   // +17: a monitor reports one number per shot; +transitionPlaneDelta, +compoundMiss, +shoulderLineYaw, +clubheadPeakLead
         checkEqI(countType(cat, MetricType::Summary),      5, "Summary count");
         checkEqI(countType(cat, MetricType::Sequence),     1, "Sequence count (kinematicSequence)");
 
@@ -153,12 +161,23 @@ int main()
         // image-plane line as a series the catalogue already carried, read at other phases, which
         // metric_reducer.h exists to express. Two descriptors for one curve is two names for one
         // number. What is left is the elbow and foot lines.
+        // 2 -> 3 on 2026-09-14: `shoulderLineYaw` joins the elbow and foot lines. It is NOT the
+        // retired `shoulderAlignment` coming back under another name — that one was the image-plane
+        // tilt, and the tilt at address is the grip's doing (trail hand lower, trail shoulder ~10°
+        // lower), not the aim's. The yaw is the bearing of the line, a rotation about the vertical
+        // axis, which one camera does not measure; it is planned on the triangulated pair.
         MetricQuery alq; alq.group = QStringLiteral("Alignment");
-        checkEqI(static_cast<int>(cat.query(alq).size()), 2, "group 'Alignment' == 2");
+        checkEqI(static_cast<int>(cat.query(alq).size()), 3, "group 'Alignment' == 3");
         check(cat.descriptor(QStringLiteral("shoulderAlignment")) == nullptr,
               "shoulderAlignment retired — shoulderPlaneAngle is that line");
         check(cat.descriptor(QStringLiteral("hipAlignment")) == nullptr,
               "hipAlignment retired — hipLineTilt is that line");
+        check(cat.descriptor(QStringLiteral("shoulderLineYaw")) != nullptr
+                  && cat.descriptor(QStringLiteral("shoulderLineYaw"))->planned(),
+              "shoulderLineYaw exists and is planned — the tilt is not the aim");
+        check(cat.descriptor(QStringLiteral("clubheadPeakLead")) != nullptr
+                  && cat.descriptor(QStringLiteral("clubheadPeakLead"))->planned(),
+              "clubheadPeakLead exists and is planned — hand speed cannot carry deceleration");
 
         MetricQuery sq; sq.scored = true;
         checkEqI(static_cast<int>(cat.query(sq).size()), 4, "scored == true → 4 (wrist DOFs)");
@@ -358,7 +377,10 @@ int main()
         std::printf("    %d planned descriptors\n", planned);
         // 17 -> 18: pelvisRotationSigned. Nothing emits it — a bound pelvis IMU could, and the
         // camera never can, because a cosine carries no sign.
-        checkEqI(planned, 18, "18 planned metrics — nothing produces them by any route");   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view
+        // 18 -> 20 on 2026-09-14: shoulderLineYaw (a bearing; needs the calibrated pair) and
+        // clubheadPeakLead (the TIME of the clubhead speed peak, which no reducer returns and the
+        // club-track producer does not yet emit).
+        checkEqI(planned, 20, "20 planned metrics — nothing produces them by any route");   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view
         checkEqI(unavailable, planned,
                  "every planned metric resolves Unavailable even with every device present");
         checkEqI(saysPlanned, planned,
@@ -530,7 +552,11 @@ int main()
         // awkward one: turning the pelvis moves the APPARENT hip centre sideways in a face-on
         // image with no actual shift, so every reading past Address overstates the travel by a
         // term a calibrated pair would remove. Its howToRead says so in those words.
-        checkEqI(refines, 29, "29 projected readings taken past Address");
+        // 30 with clubheadPeakLead: its only route is the face-on club track at Impact, and the
+        // composed speed it takes the peak of is an in-plane estimate, so the pair refines it the
+        // same way it refines clubheadSpeed. shoulderLineYaw is NOT in this count — it is
+        // triangulated-only, and nothing can be refined that one view cannot read at all.
+        checkEqI(refines, 30, "30 projected readings taken past Address");
     }
 
     // 3d-quater. The upgrade hint — what more kit would buy, on a real shot.

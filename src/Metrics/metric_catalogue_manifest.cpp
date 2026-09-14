@@ -1234,8 +1234,45 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOnClub", RM::Projected, Direct, { .faceOnCamera = true, .clubTrack = true },
                 QStringLiteral("differentiated from the grip's path in the face-on image, scaled "
                                "by the ball-diameter ruler")) },
-        .usedBy = { QStringLiteral("chart:review"),
-                    QStringLiteral("characteristic:deceleration") },
+        // ⚠ NOT `characteristic:deceleration` any more. Hand speed falls from delivery to impact in
+        // EVERY good release — that is the sling described above — and over 97 corpus swings the
+        // P6→P7 rate was negative on all 97 (mean −106 ± 56 mph/s, hands peaking 71 ± 30 ms before
+        // the ball). A floor on it fired "quitting on it" on ordinary swings. The fault is the
+        // CLUBHEAD peaking early, which is `clubheadPeakLead` below.
+        .usedBy = { QStringLiteral("chart:review") },
+    });
+
+    // The timing of the clubhead's peak, as a number, because no reducer returns the TIME of an
+    // extremum and the question "did the club give up speed before the ball" is exactly that time.
+    // Planned on the club track alone: the composed, domain-masked clubheadSpeed series already
+    // exists (peak a median 3.7 ms before impact on the corpus, p95 49 ms), and the producer's whole
+    // job is to emit where that peak sat relative to the impact anchor.
+    cat.addDescriptor({
+        .key = QStringLiteral("clubheadPeakLead"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Clubhead peak lead"),
+        .shortLabel = QStringLiteral("Peak lead"),
+        .unit = QStringLiteral("ms"),
+        .group = QStringLiteral("Club & speed"),
+        .description = QStringLiteral(
+            "How long before impact the clubhead reached its top speed, in milliseconds. An "
+            "efficient swing delivers the club still accelerating, so the peak sits at the ball "
+            "and this reads near zero; a clubhead that peaked tens of milliseconds early has given "
+            "speed up before the strike, which is what a coach means by quitting on it."),
+        .howToRead = QStringLiteral(
+            "HIGHER MEANS THE PEAK CAME EARLIER — more speed given up before the ball. Near zero "
+            "is the ideal and small negatives (a peak read at or just past the anchor) are the "
+            "same thing seen through the impact window. Read it on the clubhead only: the HANDS "
+            "peak well before impact in every good release, so hand speed falling into the ball "
+            "is the swing working, not this fault. Needs face-on club tracking."),
+        .signPositive = QStringLiteral("the clubhead peaked earlier, further before the ball"),
+        .signNegative = QStringLiteral("the peak sat at, or just past, the impact anchor"),
+        .phases = { P::Impact },
+        .routes = {
+            via("faceOnClub", RM::Projected, Direct, { .faceOnCamera = true, .clubTrack = true },
+                QStringLiteral("the time of the composed clubhead speed's maximum over the "
+                               "domain-masked downswing, relative to the impact anchor"), PLANNED) },
+        .usedBy = { QStringLiteral("characteristic:deceleration") },
     });
 
     cat.addDescriptor({
@@ -1803,9 +1840,51 @@ void installMetricManifest(MetricCatalogue &cat)
     // `shoulderPlaneAngle`, the hip line's is `hipLineTilt` — differing only in which phases it was
     // read at, which metric_reducer.h exists to express: a series is what a producer produces, a
     // reducer is how it is sampled. Two descriptors for one curve would have been two names for one
-    // number, under two different sign conventions. The pack measures `m_shoulderAlignment` and
-    // `m_hipAlignment` now point at the surviving series.
+    // number, under two different sign conventions. The pack measure `m_hipAlignment` points at the
+    // surviving series.
+    //
+    // ⚠ `m_shoulderAlignment` DOES NOT, any more — and the reason is worth keeping next to the
+    // paragraph above, because that paragraph was right about the geometry and wrong about the
+    // physics. The shoulder line's image-plane tilt at address is not its aim. A right-hander's trail
+    // hand sits lower on the grip, so the trail shoulder sits ~8-12° below the lead one on every
+    // square setup, and that anatomical tilt buries the perspective effect (the further shoulder
+    // imaging higher) by an order of magnitude. Graded at 0 ± 4° it fired "shoulders open" on 7 of 7
+    // shots of the 9 Sep 2026 session over a visibly square setup. Aim is rotation about the body's
+    // vertical axis, which one camera does not measure (8524467), so the measure now reads the
+    // planned series below and says "not produced" until the triangulated pair lands. The hip line
+    // does not carry the same trap — nothing tilts the pelvis at address the way the grip tilts the
+    // shoulders — so `m_hipAlignment` stays on `hipLineTilt`.
 
+    cat.addDescriptor({
+        .key = QStringLiteral("shoulderLineYaw"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Shoulder line aim"),
+        .shortLabel = QStringLiteral("Shoulder aim"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Alignment"),
+        .description = QStringLiteral(
+            "Where the shoulder line points at address relative to the target line, in degrees: "
+            "the bearing of the line through the two shoulder joints in the horizontal plane. This "
+            "is the open / square / closed question a coach asks from behind the golfer, and it is "
+            "a rotation about the body's vertical axis — a different quantity from the shoulder "
+            "line's TILT, which a face-on camera reads directly and which is dominated at address "
+            "by the trail hand sitting lower on the grip."),
+        .howToRead = QStringLiteral(
+            "OPEN IS NEGATIVE AND CLOSED IS POSITIVE, the club-path convention: a line aimed left "
+            "of the target for a right-hander is open. A few degrees either way is ordinary; a "
+            "persistent open line starts the swing left before the club has moved. Needs the "
+            "calibrated camera pair — the bearing is depth, and one view has none of it."),
+        .signPositive = QStringLiteral("the shoulder line aimed right of the target — closed"),
+        .signNegative = QStringLiteral("the shoulder line aimed left of the target — open"),
+        .phases = { P::Address },
+        .routes = {
+            via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the shoulder joints triangulated from the calibrated pair, and the "
+                               "bearing of the line between them taken in the horizontal plane "
+                               "against the target line"), PLANNED) },
+        .usedBy = { QStringLiteral("characteristic:alignment_open"),
+                    QStringLiteral("characteristic:alignment_closed") },
+    });
 
     cat.addDescriptor({
         .key = QStringLiteral("elbowAlignment"),
@@ -2050,9 +2129,10 @@ void installMetricManifest(MetricCatalogue &cat)
             "horizontal shoulders. It is a consequence of how the golfer is built and how they set "
             "up as much as of what they did, so read it alongside address posture rather than on "
             "its own. POSITIVE MEANS THE TRAIL SHOULDER SITS ABOVE THE LEAD SHOULDER, the same "
-            "convention as the hip line. Needs a face-on camera. IT IS ALSO THE SHOULDER ALIGNMENT "
-            "READING: at address and impact the same line answers open / square / closed, which is "
-            "why `shoulderAlignment` is not a separate metric."),
+            "convention as the hip line. Needs a face-on camera. IT IS NOT THE SHOULDER ALIGNMENT "
+            "READING: at address the tilt is set by the trail hand sitting lower on the grip, not "
+            "by where the line is aimed, so open / square / closed is `shoulderLineYaw`, which "
+            "needs the second camera."),
         .signPositive = QStringLiteral("the TRAIL shoulder sits above the lead shoulder"),
         .signNegative = QStringLiteral("the lead shoulder sits above the trail shoulder"),
         .phases = { P::Address, P::Top, P::Impact },
@@ -2062,9 +2142,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the shoulder line's angle to horizontal, in the face-on image")) },
         .usedBy = { QStringLiteral("characteristic:flat_shoulder_plane"),
-                    QStringLiteral("characteristic:steep_shoulder_plane"),
-                    QStringLiteral("characteristic:alignment_open"),
-                    QStringLiteral("characteristic:alignment_closed") },
+                    QStringLiteral("characteristic:steep_shoulder_plane") },
     });
 
     cat.addDescriptor({

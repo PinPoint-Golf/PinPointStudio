@@ -51,15 +51,25 @@ frame handedness-free. The right-handed *glosses* — in-to-out, open, draw — 
 > metric that was geometrically identical to a body-line tilt the catalogue already carried —
 > `shoulderPlaneAngle` and `hipLineTilt` — read at a different phase. Two descriptors for one curve
 > is two names for one number, and worse here than usual, because the two carried OPPOSITE sign
-> conventions: closed-positive on one and trail-end-above-positive on the other. The measures
-> `m_shoulderAlignment` and `m_hipAlignment` now point at the surviving series and are stated in
-> ITS convention. `feetAlignment` survived as its own metric — the ankle line is genuinely not the
-> toe line — but moved to the body-line convention below for the same reason.
+> conventions: closed-positive on one and trail-end-above-positive on the other. The measure
+> `m_hipAlignment` now points at the surviving series and is stated in ITS convention.
+> `feetAlignment` survived as its own metric — the ankle line is genuinely not the toe line — but
+> moved to the body-line convention below for the same reason.
 >
 > A face-on camera reads the APPARENT line, not true target-line alignment. The reading is still
-> informative: a golfer on level ground with a foot set further from the camera shows that foot
-> higher in the image, so the image-plane tilt does carry open / closed. It is a proxy, and the
-> descriptors say so.
+> informative for the FEET and HIPS: a golfer on level ground with a foot set further from the
+> camera shows that foot higher in the image, so the image-plane tilt does carry open / closed. It
+> is a proxy, and the descriptors say so.
+>
+> **It is not informative for the shoulders, and `m_shoulderAlignment` came off `shoulderPlaneAngle`
+> on 2026-09-14.** The shoulder line at address is tilted by the grip — the trail hand sits lower,
+> so the trail shoulder sits ~8-12° below the lead one on every square right-handed setup — and
+> that anatomical tilt is an order of magnitude larger than the perspective effect the paragraph
+> above relies on. A corridor of 0 ± 4° on the tilt fired `alignment_open` on 7 of 7 shots of the
+> 9 Sep 2026 session over a visibly square setup. Aim is a rotation about the vertical axis, which
+> one camera cannot measure (8524467), so the measure now names `shoulderLineYaw` — the shoulder
+> line's bearing from the triangulated pair, open negative and closed positive per rule 1 — and
+> reports "not produced" until that lands.
 
 `toeLineAngle` is the one row here that is **not** comparable with an outside number: it is the
 apparent stance line as one camera sees it, not a measured aim, and its sign flips for a mirrored

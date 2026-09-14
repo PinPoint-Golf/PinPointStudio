@@ -471,7 +471,15 @@ int main(int argc, char **argv)
         // the magnitude series it used to read — that curve folds through zero as the pelvis
         // squares up, so |x|' = sign(x)x' inverts the reading at the exact instant the measure is
         // about, and seven of seven shots on the 9 Sep session fired by construction.
-        check(planned == 20, "20 shipped measures have no producer yet");
+        // 20 -> 22 on 2026-09-14, the same trade made twice more. m_shoulderAlignment is
+        // `noProducer` on the planned `shoulderLineYaw`: it had read shoulderPlaneAngle at P1, the
+        // face-on TILT, which the grip sets at ~-10° on every right-hander, so a 0 ± 4° corridor
+        // fired "open" on square shoulders. m_handSpeedP6P7 is GONE and m_clubheadPeakLead stands in
+        // its place, `noProducer` on a series nothing emits: the hands' delivery-to-impact rate is
+        // negative on every good release (97 of 97 corpus swings), so a floor under it graded the
+        // release working as the golfer quitting. Neither could be re-seated into honesty — both
+        // asked a question their series could not answer, which is what a gap row is for.
+        check(planned == 22, "22 shipped measures have no producer yet");
         check(wrong == 0, "…and not one of them produced a value");
     }
 
@@ -524,7 +532,15 @@ int main(int argc, char **argv)
     // detector left and reports Unavailable — which is the point. It was firing on every shot of
     // every camera-only session off the fold in an unsigned curve, and an Unavailable that says so
     // is worth more than a pattern that is always there.
-    check(cRich.assessable == 62, "rich_7iron: 62 of 157 conditions assessable (observed)");
+    // 62 -> 59 on 2026-09-14, and the three are the conditions whose measures came off a quantity
+    // that could not carry them. `alignment_open` and `alignment_closed` read m_shoulderAlignment,
+    // now noProducer on the planned `shoulderLineYaw`: it had been grading the shoulder line's
+    // face-on TILT at address, which the grip sets at ~-10° on every right-hander, so "open" fired
+    // on square shoulders (7 of 7 on the 9 Sep session). `deceleration` read m_handSpeedP6P7, a
+    // floor under the hands' delivery-to-impact rate — which is negative on every good release
+    // (97 of 97 corpus swings) — and now waits on `clubheadPeakLead`. All three report Unavailable
+    // with a gapReason that says why, which is the same trade hip_stall made two days earlier.
+    check(cRich.assessable == 59, "rich_7iron: 59 of 157 conditions assessable (observed)");
     // HOW MANY OF THOSE ANSWERS RESTED ON EVIDENCE THE CAPTURE DID NOT HAVE. A conjunction
     // settled by one known-false term is a real negative, but it is a different kind of "no"
     // from one where every term was read, and it can only ever be a no. Pinned because the
@@ -532,7 +548,7 @@ int main(int argc, char **argv)
     // and on real swings it is not: 3 of 54 here, 2 of 21 on lm_7iron, 0 of 2 on sparse_noclub.
     // If that starts climbing, the panel is answering more and more from less and less.
     check(cRich.assessedPartial == 1,
-          "rich_7iron: 1 of its 62 answers rests on a term it could not read (observed)");
+          "rich_7iron: 1 of its 59 answers rests on a term it could not read (observed)");
     // 38 -> 40 with the two new hipLineTilt measures. Both read a curve this fixture ALREADY
     // carries — the reduction samples the series itself at each segmented phase and does not need
     // the producer to have listed that phase — so a swing written by an older build gains them
@@ -546,7 +562,12 @@ int main(int argc, char **argv)
     // 53 -> 52 on 2026-09-12: m_pelvisRotRateP6P7 resolved on this fixture and is no longer live.
     // The three other pelvisRotation measures are LEVELS off the magnitude series and are
     // untouched — it is the derivative the fold destroys, not the reading.
-    check(cRich.measures   == 52, "rich_7iron: 52 live measures resolved (observed)");
+    //
+    // 52 -> 50 on 2026-09-14: m_shoulderAlignment and m_handSpeedP6P7 both resolved on this fixture
+    // and are no longer live — the first is noProducer, the second is gone. m_headSwayBack is NOT
+    // in the delta: its norm's sign was mirrored to match the producer, which changes what the
+    // value grades as, not whether it resolves.
+    check(cRich.measures   == 50, "rich_7iron: 50 live measures resolved (observed)");
     // 12 → 14 on 2026-08-09: sig_launchLow/sig_launchHigh moved onto m_lmLaunchAngle (the
     // measured key this fixture actually carries), so launch_low and launch_high became
     // assessable on an LM-only capture.
