@@ -26,8 +26,8 @@
 // The rail is collapsible: the chevron at the right of the top band folds the card
 // strip away and keeps the band (session/filter chips, action bar, transport), so the
 // controls survive while the stage above gets the estate back. That choice is
-// remembered per screen+mode (Wrist/Replay separately from GRF/Analyse) — the host
-// supplies its sessionType; see _collapseKey.
+// remembered per screen (Wrist separately from GRF) — the host supplies its
+// sessionType; see _collapseKey.
 
 import QtQuick
 import QtQuick.Controls.Basic
@@ -63,13 +63,23 @@ Item {
     // back to the stage. Public so a host can drive or restore it.
     property bool expanded: true
 
-    // Remembered per screen+mode, so Wrist/Replay and GRF/Analyse each keep their own
-    // answer: same appSettings.sectionCollapse map and same "<type>:<mode>:<section>"
-    // key the collapsible data-table and chart sections already use (true = collapsed;
-    // absent = expanded, so an existing install opens as it does today). Restored on
-    // creation AND whenever the key changes — the screens outlive a mode flip, so
-    // Replay↔Analyse must re-read rather than carry the old state across.
-    readonly property string _collapseKey: root.sessionType + ":" + SessionMode.mode + ":carousel"
+    // Remembered per SCREEN, in the same appSettings.sectionCollapse map the collapsible
+    // data-table and chart sections use (true = collapsed; absent = expanded, so an
+    // install that has never folded the strip opens as it does today). Restored on
+    // creation and whenever the key changes.
+    //
+    // ⚠ NOT per screen+mode, which is what it was and what made the memory read as
+    // broken: the app always starts in Capture, so a strip folded away in Replay — where
+    // the user actually sits — came back expanded on every launch and only folded once a
+    // session was picked and the mode flipped. It is one dock on one screen, so it gets
+    // one answer, and the mode half of the key is gone.
+    readonly property string _collapseKey: root.sessionType + ":carousel"
+    // The per-mode keys this replaces. Read only when the new key is absent, so an install
+    // that folded the strip before this change keeps the answer it gave; pruned when the
+    // new key is written so the map does not carry three dead entries per screen.
+    readonly property var _legacyCollapseKeys: [root.sessionType + ":0:carousel",
+                                                root.sessionType + ":1:carousel",
+                                                root.sessionType + ":2:carousel"]
     on_CollapseKeyChanged: root._restoreCollapse()
     Component.onCompleted:  root._restoreCollapse()
     // Persisting on the property (not in the button's handler) also captures a
@@ -79,13 +89,23 @@ Item {
 
     function _restoreCollapse() {
         if (root.sessionType < 0) return            // transient instance — keep the default
-        root.expanded = appSettings.sectionCollapse[root._collapseKey] !== true
+        var m = appSettings.sectionCollapse
+        var v = m[root._collapseKey]
+        if (v === undefined) {                      // pre-rename install — take its per-mode answer
+            for (var i = 0; i < root._legacyCollapseKeys.length; ++i) {
+                var lv = m[root._legacyCollapseKeys[i]]
+                if (lv !== undefined) { v = lv; break }
+            }
+        }
+        root.expanded = v !== true
     }
     function _persistCollapse() {
         if (root.sessionType < 0) return            // transient instance — don't persist
         var m = {}
         for (var k in appSettings.sectionCollapse) m[k] = appSettings.sectionCollapse[k]
         m[root._collapseKey] = !root.expanded
+        for (var i = 0; i < root._legacyCollapseKeys.length; ++i)
+            delete m[root._legacyCollapseKeys[i]]
         appSettings.sectionCollapse = m
     }
 
@@ -499,7 +519,15 @@ Item {
             showShots:      !root.expanded
             focusedShotId:  SessionMode.focusedShotId
             focusedSummary: root._focusSummary
-            onShotToggled:  (shotId, swingDir) => root._toggleShot(shotId, swingDir, null)
+            // Picking a swing is what the folded-strip picker is FOR, so the click that
+            // picks one closes it — the popover is a stand-in for the film strip, and a
+            // strip that stayed over the stage after the pick would hide the swing it
+            // just promoted. (Deselecting the on-stage swing closes it too: same click,
+            // same answer given.)
+            onShotToggled:  (shotId, swingDir) => {
+                root._toggleShot(shotId, swingDir, null)
+                filterPopup.close()
+            }
         }
         // Scroll the focused swing's chip into view — in a long session it can be
         // several rows down, and a picker that opens away from the current swing
