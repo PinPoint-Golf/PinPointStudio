@@ -1017,6 +1017,34 @@ pp_add_test(session_diagnostics_model_test
 set_tests_properties(session_diagnostics_model_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
+# regrade_ledger — re-reduce a session's diagnostics.json under the CURRENT pack, headlessly. The
+# model back-fills only shots it has never reduced (activateSession), so when the CONTENT moves the
+# ledgers on disk keep quoting the pack that wrote them; this sets each one aside as a dated backup
+# and lets the model re-ingest every shot. Same link line as the model test above, because it IS the
+# model — driven synchronously, exactly as the test drives it. Hand-rolled rather than pp_add_test
+# and NOT registered with ctest: it writes into the swing library. Precedent: rank_shift_report.
+add_executable(regrade_ledger
+    ${PP_REPO_ROOT}/tools/diagnostics/regrade_ledger.cpp
+    ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
+    ${DIAG}/live_measure_source.cpp ${DIAG}/measure_sample.cpp
+    ${DIAG}/characteristic_engine.cpp ${DIAG}/relation_resolver.cpp
+    ${DIAG}/screen_pack.cpp
+    ${DIAG_NORM}
+    ${DIAG}/resource_norm_provider.cpp ${DIAG}/file_norm_provider.cpp
+    ${DIAG}/merged_norm_provider.cpp
+    ${DIAG}/resource_pack_provider.cpp ${DIAG}/file_pack_provider.cpp
+    ${DIAG}/merged_pack_provider.cpp
+    ${SRC}/Export/swing_doc.cpp
+    ${SRC}/Export/swing_paths.cpp
+    ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+    ${SRC}/Core/pp_log_stream.cpp
+    ${SRC}/Core/PpMessageLog.cpp)
+target_include_directories(regrade_ledger PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor)
+target_link_libraries(regrade_ledger PRIVATE Qt6::Core Qt6::Gui Qt6::Qml)
+set_target_properties(regrade_ledger PROPERTIES AUTOMOC ON)
+pp_apply_sanitizers(regrade_ledger)
+# Note: intentionally NOT added to add_test() — manual run only; it rewrites diagnostics.json.
+
 # Every corridor signal points the way its own condition claims. An inverted signal does not fail
 # loudly — it fires on the wrong swings with correct-sounding text attached — so the fixture states
 # the expected direction and the catalogue quote that decides it. A new signal with no fixture row
