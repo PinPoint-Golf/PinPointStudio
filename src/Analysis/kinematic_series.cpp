@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <optional>
 
 namespace pinpoint::analysis {
 
@@ -217,6 +218,58 @@ MetricSeries makeSpeedSeries(const QString &key, const QString &label,
     return m;
 }
 
+// ── clubheadPeakLead: how long before the ball the clubhead stopped getting faster ──
+//
+// The TIME of the clubhead speed's maximum, in ms before `anchorUs`, as a single-sample
+// scalar (empty curve + one Impact phaseSample — the shape transitionPlaneDelta and every
+// setup metric use, so m_clubheadPeakLead's `at p7` reducer finds it in the phase grid).
+//
+// WHY A PRODUCER AND NOT A REDUCER. No reducer returns the time of an extremum — `extremum`
+// returns its value — and the question "did the club give up speed before the ball" is
+// exactly that time. It is read off the composed, domain-masked clubhead speed: the mask
+// ends the series at the P7 knot, so the departing side (an iron gives the ball a quarter
+// of the club's speed in two frames) can never be the peak, and the search runs from the
+// Top tick when the timeline has one — the backswing has its own, smaller peak, and a
+// series without a Top is searched whole rather than guessed at.
+//
+// The anchor is the same boundary the mask uses (the P7 knot, else the impact instant), so
+// a peak on the last valid sample reads as 0 ms and never as the ~3 ms knot-to-acoustic
+// offset. POSITIVE IS EARLIER: a clubhead that peaked 40 ms before the ball reads 40.
+//
+// Hand speed deliberately gets no such series. Hands peak ~70 ms before impact in every
+// good release (97 of 97 corpus swings) — that is the sling working, not a fault.
+std::optional<MetricSeries> peakLeadSeries(const MetricSeries &speed,
+                                           const std::vector<PhaseEvent> &phases,
+                                           int64_t anchorUs)
+{
+    if (anchorUs < 0 || speed.t_us.size() < 3) return std::nullopt;
+    int64_t fromUs = std::numeric_limits<int64_t>::min();
+    for (const PhaseEvent &e : phases)
+        if (e.phase == Phase::Top) { fromUs = e.t_us; break; }
+
+    int best = -1;
+    for (size_t i = 0; i < speed.t_us.size(); ++i) {
+        if (!speed.valid.empty() && speed.valid[i] == 0u) continue;
+        if (speed.t_us[i] < fromUs || speed.t_us[i] > anchorUs) continue;
+        if (best < 0 || speed.value[i] > speed.value[size_t(best)]) best = int(i);
+    }
+    // Fewer than three valid samples between Top and the anchor is a track that never
+    // covered the downswing; a peak "found" there would be the mask's edge, not the club's.
+    int nValid = 0;
+    for (size_t i = 0; i < speed.t_us.size(); ++i)
+        if ((speed.valid.empty() || speed.valid[i] != 0u)
+            && speed.t_us[i] >= fromUs && speed.t_us[i] <= anchorUs) ++nValid;
+    if (best < 0 || nValid < 3) return std::nullopt;
+
+    MetricSeries m;
+    m.key   = QStringLiteral("clubheadPeakLead");
+    m.label = QStringLiteral("Clubhead peak lead");
+    m.unit  = QStringLiteral("ms");
+    m.phaseSamples.push_back({ Phase::Impact, anchorUs,
+                               double(anchorUs - speed.t_us[size_t(best)]) / 1000.0, QString() });
+    return m;
+}
+
 // ── lag: lead forearm (elbow→wrist) vs shaft (grip→head) ─────────────────────
 // Interpolated lead-forearm direction (px) at time `t`; false if no confident cover.
 bool forearmDirAt(const PoseTrack2D &pose, int64_t t, int elbowKp, int wristKp,
@@ -334,6 +387,9 @@ std::vector<MetricSeries> buildKinematicSeries(const KinematicSeriesInputs &in)
                                   t, in.composed ? composedHeadSpeedMph(track, shaft, mPerPx)
                                                  : speedMph(t, hx, hy, mPerPx),
                                   in.phases, in.impactUs, boundaryUs));
+    if (std::optional<MetricSeries> lead =
+            peakLeadSeries(out.back(), in.phases, boundaryUs >= 0 ? boundaryUs : in.impactUs))
+        out.push_back(std::move(*lead));
     out.push_back(makeSpeedSeries(QStringLiteral("handSpeed"), QStringLiteral("Hand speed"),
                                   t, speedMph(t, gx, gy, mPerPx), in.phases, in.impactUs));
 

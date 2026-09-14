@@ -1244,9 +1244,10 @@ void installMetricManifest(MetricCatalogue &cat)
 
     // The timing of the clubhead's peak, as a number, because no reducer returns the TIME of an
     // extremum and the question "did the club give up speed before the ball" is exactly that time.
-    // Planned on the club track alone: the composed, domain-masked clubheadSpeed series already
-    // exists (peak a median 3.7 ms before impact on the corpus, p95 49 ms), and the producer's whole
-    // job is to emit where that peak sat relative to the impact anchor.
+    // Produced by the kinematics stage off the composed, domain-masked clubheadSpeed series
+    // (kinematic_series.cpp peakLeadSeries): the peak is searched from the Top tick to the P7
+    // knot, so the departing side of impact can never be it, and read in ms before that knot.
+    // On the corpus the peak sits a median 3.7 ms before impact, p95 49 ms.
     cat.addDescriptor({
         .key = QStringLiteral("clubheadPeakLead"),
         .type = MetricType::PointInTime,
@@ -1271,7 +1272,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("faceOnClub", RM::Projected, Direct, { .faceOnCamera = true, .clubTrack = true },
                 QStringLiteral("the time of the composed clubhead speed's maximum over the "
-                               "domain-masked downswing, relative to the impact anchor"), PLANNED) },
+                               "domain-masked downswing, relative to the impact anchor")) },
         .usedBy = { QStringLiteral("characteristic:deceleration") },
     });
 

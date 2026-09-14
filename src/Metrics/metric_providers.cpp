@@ -56,7 +56,11 @@ std::vector<QString> WristMetricProvider::provides() const
 std::vector<QString> KinematicSeriesProvider::provides() const
 {
     return { QStringLiteral("clubheadSpeed"), QStringLiteral("handSpeed"),
-             QStringLiteral("lagAngle") };
+             QStringLiteral("lagAngle"),
+             // The time of the clubhead speed's peak before the ball, as a scalar — read off
+             // the composed series by the same stage, which is why it is claimed here and
+             // not by a provider of its own (kinematic_series.cpp peakLeadSeries).
+             QStringLiteral("clubheadPeakLead") };
 }
 
 // ----------------------------------------------------------------------------- FootMetricProvider

@@ -1367,8 +1367,7 @@
         "kind": "at",
         "anchor": "p7"
       },
-      "status": "noProducer",
-      "gapReason": "Replaces m_handSpeedP6P7, a rate of hand speed from delivery to impact with a -20 mph/s floor, which the corpus shows cannot discriminate: over 97 swings with a club track (every corpus and library swing on 14 Sep 2026) the P6-to-P7 hand-speed rate was NEGATIVE ON ALL 97 — mean -106, sd 56, 5th-95th percentile -213 to -29 mph/s — because the hands peak 71 +/- 30 ms before impact and slow as the clubhead releases past them. That is the release working, not the golfer quitting, and the handSpeed descriptor already says so (\"the hands slowing lets the clubhead sling past\"). The 9 Sep session fired deceleration on 6 of 7 shots at -49 to -220 mph/s, i.e. on ordinary release-drag. Hand speed alone cannot separate release-drag from a genuine deceleration, and the P5-to-P6 window is no better (mean +31, sd 58, a quarter of good swings already negative). What DOES say \"quitting on it\" is the CLUBHEAD peaking before the ball: on the same 97 swings the composed clubhead speed peaks a median 3.7 ms before impact (p25 0.3, p75 18, p95 49), so a peak tens of milliseconds early is the fault and a peak at the ball is not. Not read off the existing clubheadSpeed series by a reducer because the series is windowed about instants and no reducer returns the TIME of an extremum; the producer must emit the lead as a number, from the domain-masked composed speed, in ms before the impact anchor.",
+      "status": "live",
       "shape": "ceiling",
       "label": "Clubhead speed peak, lead on impact",
       "unit": "ms",

@@ -479,7 +479,11 @@ int main(int argc, char **argv)
         // negative on every good release (97 of 97 corpus swings), so a floor under it graded the
         // release working as the golfer quitting. Neither could be re-seated into honesty — both
         // asked a question their series could not answer, which is what a gap row is for.
-        check(planned == 22, "22 shipped measures have no producer yet");
+        // 22 -> 21 the same day: m_clubheadPeakLead went live when the kinematics stage learned
+        // to emit the peak's timing. This fixture is a verbatim corpus copy from an older build,
+        // so it still carries no clubheadPeakLead key and the measure resolves nothing here —
+        // which is the honest state of every swing on disk until its next re-analysis.
+        check(planned == 21, "21 shipped measures have no producer yet");
         check(wrong == 0, "…and not one of them produced a value");
     }
 

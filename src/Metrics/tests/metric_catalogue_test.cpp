@@ -82,6 +82,7 @@ int main()
         checkEqI(static_cast<int>(cat.all().size()), 98, "descriptor count == 98");   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
+                               "clubheadPeakLead",
                                "impactShaftLean", "stanceWidth",     "leadFootFlare",
                                "trailFootFlare",  "toeLineAngle",    "leadHeelLift",
                                "ballPosition",
@@ -176,8 +177,9 @@ int main()
                   && cat.descriptor(QStringLiteral("shoulderLineYaw"))->planned(),
               "shoulderLineYaw exists and is planned — the tilt is not the aim");
         check(cat.descriptor(QStringLiteral("clubheadPeakLead")) != nullptr
-                  && cat.descriptor(QStringLiteral("clubheadPeakLead"))->planned(),
-              "clubheadPeakLead exists and is planned — hand speed cannot carry deceleration");
+                  && !cat.descriptor(QStringLiteral("clubheadPeakLead"))->planned(),
+              "clubheadPeakLead exists and is LIVE — the kinematics stage emits it; hand speed "
+              "cannot carry deceleration");
 
         MetricQuery sq; sq.scored = true;
         checkEqI(static_cast<int>(cat.query(sq).size()), 4, "scored == true → 4 (wrist DOFs)");
@@ -377,10 +379,10 @@ int main()
         std::printf("    %d planned descriptors\n", planned);
         // 17 -> 18: pelvisRotationSigned. Nothing emits it — a bound pelvis IMU could, and the
         // camera never can, because a cosine carries no sign.
-        // 18 -> 20 on 2026-09-14: shoulderLineYaw (a bearing; needs the calibrated pair) and
-        // clubheadPeakLead (the TIME of the clubhead speed peak, which no reducer returns and the
-        // club-track producer does not yet emit).
-        checkEqI(planned, 20, "20 planned metrics — nothing produces them by any route");   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view
+        // 18 -> 19 on 2026-09-14: shoulderLineYaw, a bearing, which needs the calibrated pair.
+        // clubheadPeakLead arrived planned the same day and went live within hours: the
+        // kinematics stage emits it off the composed clubhead speed (peakLeadSeries).
+        checkEqI(planned, 19, "19 planned metrics — nothing produces them by any route");   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view
         checkEqI(unavailable, planned,
                  "every planned metric resolves Unavailable even with every device present");
         checkEqI(saysPlanned, planned,

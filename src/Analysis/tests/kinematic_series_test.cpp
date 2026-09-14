@@ -116,7 +116,13 @@ int main()
         in.handedness = 1; in.clubLengthM = 1.0;
         const std::vector<MetricSeries> out = buildKinematicSeries(in);
 
-        CHECK("three series produced", out.size() == 3);
+        // Four since clubheadPeakLead: a constant-velocity track has a degenerate peak (the
+        // first sample), so the scalar exists but its VALUE is only checked in case 10 below.
+        CHECK("four series produced", out.size() == 4);
+        CHECK("clubheadPeakLead present, ms, scalar",
+              find(out, "clubheadPeakLead") && find(out, "clubheadPeakLead")->unit == QLatin1String("ms")
+                  && find(out, "clubheadPeakLead")->t_us.empty()
+                  && find(out, "clubheadPeakLead")->phaseSamples.size() == 1);
         const MetricSeries *ch = find(out, "clubheadSpeed");
         const MetricSeries *hd = find(out, "handSpeed");
         const MetricSeries *lg = find(out, "lagAngle");
@@ -170,7 +176,7 @@ int main()
         ShaftTrack2D shaft = makeShaft(N, 1000.0, 400.0, kPi / 2.0);
         KinematicSeriesInputs in; in.shaft = &shaft; in.pose = nullptr; in.impactUs = impactUs;
         const std::vector<MetricSeries> out = buildKinematicSeries(in);
-        CHECK("no pose ⇒ two series (speeds only)", out.size() == 2);
+        CHECK("no pose ⇒ three series (speeds and the peak lead, no lag)", out.size() == 3);
         CHECK("no pose ⇒ no lag", find(out, "lagAngle") == nullptr);
     }
 
@@ -264,6 +270,60 @@ int main()
         const MetricSeries *ch3 = find(out3, "clubheadSpeed");
         CHECK("composed: grip velocity adds vectorially (|1000 − 5000| px/s ⇒ 4 m/s)",
               ch3 && near(ch3->value[25], 4.0 * kMps2Mph, 1e-6));
+    }
+
+    // 10. clubheadPeakLead: the TIME of the clubhead speed's peak, in ms before the anchor.
+    //     A head path whose speed ramps up to 200 ms and back down: the peak sits at 200 ms,
+    //     impact at 300 ms ⇒ a lead of 100 ms (±1 grid step for the 3-tap smoothing). The
+    //     backswing decoy is a bigger burst BEFORE the Top tick at 100 ms, which the search
+    //     must ignore; with no Top on the timeline it is found instead. Samples past the
+    //     anchor are masked (composed) and can never be the peak.
+    {
+        const int n = 40;                       // 0..390 ms on the 10 ms grid
+        ShaftTrack2D shaft;
+        shaft.valid = true; shaft.frameWidth = 1000; shaft.frameHeight = 1000;
+        shaft.lengths.fusedPx = 1000.0;
+        double x = 100.0;
+        for (int i = 0; i < n; ++i) {
+            const double tMs = i * 10.0;
+            // px per 10 ms step: decoy burst 40..80 ms, then a triangle peaking at 200 ms.
+            double step = 2.0;
+            if (tMs >= 40.0 && tMs <= 80.0)  step = 30.0;
+            if (tMs > 100.0 && tMs <= 300.0) step = 2.0 + 20.0 * (1.0 - std::fabs(tMs - 200.0) / 100.0);
+            x += step;
+            ShaftSample2D e;
+            e.t_us = int64_t(i) * 10'000;
+            e.headPx = QPointF(x, 100.0);
+            e.gripPx = QPointF(50.0 + 0.2 * i, 300.0);
+            e.thetaRad = kPi / 2.0;
+            e.visibleLenPx = 1000.0;
+            shaft.samples.push_back(e);
+        }
+        KinematicSeriesInputs in;
+        in.shaft = &shaft; in.impactUs = 300'000; in.clubLengthM = 1.0;
+        PhaseEvent top; top.phase = Phase::Top; top.t_us = 100'000;
+        in.phases = { top };
+        const std::vector<MetricSeries> out = buildKinematicSeries(in);
+        const MetricSeries *pl = find(out, "clubheadPeakLead");
+        CHECK("peak lead produced", pl && pl->phaseSamples.size() == 1);
+        if (pl && !pl->phaseSamples.empty()) {
+            const double lead = pl->phaseSamples.front().value;
+            std::printf("      lead with Top tick: %.1f ms\n", lead);
+            CHECK("peak found at 200 ms ⇒ lead ≈ 100 ms (decoy before Top ignored)",
+                  std::fabs(lead - 100.0) <= 10.0);
+            CHECK("anchored at impact", pl->phaseSamples.front().t_us == 300'000
+                                           && pl->phaseSamples.front().phase == Phase::Impact);
+        }
+        // Without a Top tick the decoy burst (60 ms) is the maximum ⇒ lead ≈ 240 ms.
+        in.phases.clear();
+        const std::vector<MetricSeries> out2 = buildKinematicSeries(in);
+        const MetricSeries *pl2 = find(out2, "clubheadPeakLead");
+        CHECK("no Top ⇒ searched whole ⇒ decoy wins (lead ≈ 240 ms)",
+              pl2 && !pl2->phaseSamples.empty()
+                  && std::fabs(pl2->phaseSamples.front().value - 240.0) <= 10.0);
+        // No impact and no P7 knot ⇒ no anchor ⇒ nothing, never fabricated.
+        in.impactUs = -1;
+        CHECK("no anchor ⇒ no peak lead", find(buildKinematicSeries(in), "clubheadPeakLead") == nullptr);
     }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);
