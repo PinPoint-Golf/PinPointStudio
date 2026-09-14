@@ -82,20 +82,29 @@ inline QString clubStub() { return QStringLiteral("DRIVER"); }
 //                        until the shot is edited; without this step every unedited
 //                        camera swing read back as the stub.
 //   3. the stub        — nothing declared it. Pre-dates capture.club.name; unrecoverable.
-inline QString swingDocClub(const QJsonObject &root)
+// THE SAME RESOLUTION WITHOUT THE STUB — empty when nothing declared the club. For a PICKER
+// row the stub is a kindness (every row shows a club); for a CORRIDOR it is a lie: an
+// undeclared club graded as a driver is graded against driver ball position, driver stance
+// width, driver shaft lean and driver smash, and on 2026-09-14 that was 58 of 123 corpus
+// shots — every camera swing recorded before capture.club.name existed — firing
+// stance_narrow on 95 % and excessive_shaft_lean on 62 % of "driver" shots that were an
+// iron in the frame. The diagnostics phase grid reads THIS; an empty answer resolves to
+// the default (full-swing) context, whose corridors were authored not to know the club.
+inline QString swingDocDeclaredClub(const QJsonObject &root)
 {
     const QString review = root.value(QStringLiteral("review")).toObject()
                                .value(QStringLiteral("club")).toString().trimmed();
     if (!review.isEmpty())
         return review;
+    return root.value(QStringLiteral("capture")).toObject()
+               .value(QStringLiteral("club")).toObject()
+               .value(QStringLiteral("name")).toString().trimmed();
+}
 
-    const QString captured = root.value(QStringLiteral("capture")).toObject()
-                                 .value(QStringLiteral("club")).toObject()
-                                 .value(QStringLiteral("name")).toString().trimmed();
-    if (!captured.isEmpty())
-        return captured;
-
-    return clubStub();
+inline QString swingDocClub(const QJsonObject &root)
+{
+    const QString declared = swingDocDeclaredClub(root);
+    return declared.isEmpty() ? clubStub() : declared;
 }
 
 } // namespace pinpoint

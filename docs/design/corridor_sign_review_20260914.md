@@ -1,9 +1,58 @@
 # Corridors and sign conventions — a review against the corpus (2026-09-14)
 
-**Status: REVIEW. Nothing in this document has been applied.** It is the deliverable Mark asked for
-after the 9 Sep session comparison: every corridor and every sign convention the shipped pack grades
-on, read against what the corpus actually produces, with a recommendation per row. The decisions are
-to be taken together; §7 is the change list to decide over.
+**Status: APPLIED, 2026-09-14 (same day).** Mark approved all fourteen changes in §7 as a batch; §0
+below records what was actually done per item, where the implementation departed from the
+recommendation and why, and what the corpus reads after it. §§1-7 are left as written, as the record
+of the review that was decided over.
+
+## 0. What was applied
+
+| # | disposition | note |
+|---|---|---|
+| 1 | **done** | Grid rows p2-p8 mirrored, the two set signals swapped, descriptors and `wrist_angles.h` reworded. It went further than the norm grid: the wrist SCORER's fixtures, demo traces and two rules (F4 cast, F5 insufficient set: `below` → `above`) were authored in the same + = set sign and had to move with it, and `docs/reference/wristmetrics.md` said "hinge = ulnar". `insufficient_set` 10/10 → 0/10. |
+| 2 | **done, and a code fix with it** | The July swings had NO club declared; the picker's `DRIVER` **stub** was being graded. 56 swings now carry `review.club = "7 IRON"` (the app's own override; `corpus/relabel-20260914.json` lists them and how to reverse it), and `measure_sample.cpp` now reads `swingDocDeclaredClub()` so an undeclared club grades in the default context, never as a driver. Driver-context shots 64 → 8 (the LM-only session's, which are declared). |
+| 3 | **done** | `m_shoulderPlane` → noProducer on the planned `shoulderPlaneAngle3d`. `flat_shoulder_plane` 34/58 → not produced. |
+| 4 | **done** | `m_attackAngle` reads `lm.attackAngle` only; `m_lowPointAhead` gets plausibility caps ±10 in (the validator requires caps outside every row's 3σ band, so not the ±6 proposed). Attack conditions 82/119 → 0/29 (LM shots). ⚠ Residual: low point still fires on 30 of the 48 in-cap readings — the same tracker impact geometry as the lean bias (§0 item 12). Decide whether it goes LM-only too. |
+| 5 | **done** | `m_leadHandWidth` floor 65 → 90 ± 8. |
+| 6 | **done, seated** | Window P1-P3; seated at 46 ± 6 from 95 fresh shots (42-56 %). `disconnection` 96/96 → 0/95. |
+| 7 | **done** | `m_axisTiltImpact` 12/15/10/8 ± 6-8 by context. `reverse_spine_p7` 56/96 → 0/96 and with it the `reverse_pivot` conjunction 55 → 0; `reverse_spine_p4` stays at 94/96, which the video agrees with. |
+| 8 | **done, narrower than proposed** | `m_faceToPath` σ 1 → 1.5 (firing edge at the 3° the row's own citation names; `lm_corridor_test` re-pinned: 2.5 silent, 3.5 watch, 5 action). `m_lmLaunchDirection` left at σ 2: a 4° start-line miss on a driver is a miss. |
+| 9 | **done, the other route** | The producer's own comment argues a span gate is a domain question, not a validity one, so the LOW tail of `m_pelvisLiftTop` is declared unwatched with the reason, and `pelvis_sink_backswing` moved to a new `m_pelvisSinkTop`, noProducer on a planned `pelvisLiftBelt` (a tracked waistband edge) so the condition resolves and says why. 96/96 → not produced. |
+| 10 | **done** | `m_ballPosition` plausible −30..130 (outside every row's band). |
+| 11 | **done — it was the anchor** | The Finish tick lands 200-300 ms after impact while the body is still rotating; the balance curve read 50-60 % of stance from the lead ankle there and 16-25 % two hundred ms later. `lower_body_metrics.cpp` now stamps the Finish sample as the median of the valid samples 300-800 ms after the tick — the HELD finish — falling back to the tick when the capture ends sooner. ⚠ Residual: `off_balance_finish` still fires on 39/96 at the held finish (7-iron median 33 %, corridor 15 + 10). Either this golfer does hold his weight short of the lead foot or the corridor's 15 is wrong; one golfer cannot say which. |
+| 12 | **measured, carried as error** | Against 39 hand-marked P7 frames the tracker overshoots by a median +12° (sd 9.5) and it is NOT a timing offset (implied offset 0-20 ms; one session reads more lean 15 ms AFTER impact). The producer now stamps σ 9.5 on the series and every `m_impactShaftLean` row has σ 10 both sides, mu unchanged; a bias corrected in a norm would hide the fault. `excessive_shaft_lean` 42/96 → 9/96. The tracker fix (exposure smear at 6.5 ms? the P7 emission geometry?) is producer work still open. |
+| 13 | **done, seated** | Peak taken as the LAST sample within 97 % of the maximum (a club still at full speed into the ball reads 0 whatever a wobble did earlier); re-seated 3 + 15 ms from 96 fresh shots (median 2.5, p95 53 — a distinct top decile where the composed speed dips and recovers inside the last 60 ms). `deceleration` fires 15/96. |
+| 14 | **done** | Eight forearm-rotation rows carry an UNVERIFIED citation. |
+
+### The corpus after the batch (123 shots; before = the same fresh series under the pre-batch pack)
+
+| condition | before | after |
+|---|---|---|
+| reverse_spine_p4 | 94/96 | 94/96 |
+| sway | 62/96 | 62/96 |
+| lead_knee_drifts_in_at_top | 57/96 | 57/96 |
+| flying_elbow | 35/58 | 35/58 |
+| pelvis_sink_backswing | 96/96 | not produced |
+| disconnection | 96/96 | 0/95 |
+| flat_shoulder_plane | 34/58 | not produced |
+| reverse_spine_p7 / reverse_pivot | 56 / 55 | 0 / 0 |
+| stance_narrow | 61/96 | 27/96 |
+| excessive_shaft_lean | 42/96 | 9/96 |
+| attack_too_steep / _shallow | 53 / 29 of 119 | 0 / 0 of 29 |
+| insufficient_set | 10/10 | 0/10 |
+| low_point_behind_ball | 49/85 | 30/48 (residual, see item 4) |
+| off_balance_finish | 39/96 | 39/96 (residual, see item 11) |
+| deceleration | 1/7 | 15/96 |
+
+Per session the pattern count fell from 6-12 to 1-6, and the 9 Sep session reads three patterns —
+reverse spine at the top, lead knee working in, sway — which is the video's list and the lesson's.
+
+Tests: 190 of 190 (one networking suite is flaky and passes alone). Producers changed (finish sample,
+lean σ, peak plateau), so the corpus and the library 9 Sep session were re-analysed on the Mac and
+re-graded; every ledger's predecessor sits beside it as `diagnostics.json.pre-batch14`.
+
+---
+
 
 ## 1. Method
 

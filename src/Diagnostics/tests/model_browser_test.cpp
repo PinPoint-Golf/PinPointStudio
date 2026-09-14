@@ -2830,23 +2830,25 @@ int main(int argc, char **argv)
         }
 
         // ── the instrument ladder ────────────────────────────────────────────
-        const QString aa = QStringLiteral("m_attackAngle");
+        // m_lowPointAhead since 2026-09-14: m_attackAngle no longer carries a ladder — its camera
+        // fallback was cut, so it reads the launch monitor only.
+        const QString aa = QStringLiteral("m_lowPointAhead");
         if (!rowFor(m.rows(QStringLiteral("measures")), aa).isEmpty()) {
             const QVariantMap row = rowFor(m.rows(QStringLiteral("measures")), aa);
             const QVariantList cells = row.value(QStringLiteral("cells")).toList();
             bool showsLadder = false;
             for (const QVariant &cv : cells)
                 if (cv.toMap().value(QStringLiteral("text")).toString()
-                        .contains(QStringLiteral("lm.attackAngle → attackAngle")))
+                        .contains(QStringLiteral("lm.lowPointAhead → lowPointAhead")))
                     showsLadder = true;
             check(showsLadder, "the measures table shows the whole ladder, preferred rung first");
 
             // Every refusal the two registries between them require, asked HERE so an author meets
             // it while typing rather than when the library is next assembled.
-            check(!m.addPreferKey(aa, QStringLiteral("attackAngle"))
+            check(!m.addPreferKey(aa, QStringLiteral("lowPointAhead"))
                        .value(QStringLiteral("ok")).toBool(),
                   "a measure cannot prefer its own key over itself");
-            check(!m.addPreferKey(aa, QStringLiteral("lm.attackAngle"))
+            check(!m.addPreferKey(aa, QStringLiteral("lm.lowPointAhead"))
                        .value(QStringLiteral("ok")).toBool(),
                   "…nor one it already prefers");
             check(!m.addPreferKey(aa, QStringLiteral("no.such.metric"))
@@ -2863,7 +2865,7 @@ int main(int argc, char **argv)
             int illegal = 0, wrongUnit = 0;
             for (const QVariant &cv : offers) {
                 const QString key = cv.toMap().value(QStringLiteral("id")).toString();
-                if (key == QStringLiteral("attackAngle") || key == QStringLiteral("lm.attackAngle"))
+                if (key == QStringLiteral("lowPointAhead") || key == QStringLiteral("lm.lowPointAhead"))
                     ++illegal;
                 if (key == QStringLiteral("lm.strikeHeight")) ++wrongUnit;
             }
@@ -2871,10 +2873,10 @@ int main(int argc, char **argv)
             check(illegal == 0, "…offering neither its own key nor one already on the ladder");
             check(wrongUnit == 0, "…and nothing stated in another unit");
 
-            check(m.removePreferKey(aa, QStringLiteral("lm.attackAngle"))
+            check(m.removePreferKey(aa, QStringLiteral("lm.lowPointAhead"))
                       .value(QStringLiteral("ok")).toBool(),
                   "a rung can be taken off the ladder");
-            check(m.addPreferKey(aa, QStringLiteral("lm.attackAngle"))
+            check(m.addPreferKey(aa, QStringLiteral("lm.lowPointAhead"))
                       .value(QStringLiteral("ok")).toBool(),
                   "…and put back");
             check(m.undo().value(QStringLiteral("ok")).toBool(), "which undoes");

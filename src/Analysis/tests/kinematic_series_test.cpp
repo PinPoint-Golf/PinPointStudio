@@ -314,13 +314,43 @@ int main()
             CHECK("anchored at impact", pl->phaseSamples.front().t_us == 300'000
                                            && pl->phaseSamples.front().phase == Phase::Impact);
         }
-        // Without a Top tick the decoy burst (60 ms) is the maximum ⇒ lead ≈ 240 ms.
+        // Without a Top tick the decoy burst is the maximum. It is a PLATEAU (40-80 ms), and the
+        // lead is taken from the last sample still within 97 % of the peak, so it reads from the
+        // plateau's END: 300 − 80 = 220 ms, not the 240 an argmax on its first sample would give.
         in.phases.clear();
         const std::vector<MetricSeries> out2 = buildKinematicSeries(in);
         const MetricSeries *pl2 = find(out2, "clubheadPeakLead");
-        CHECK("no Top ⇒ searched whole ⇒ decoy wins (lead ≈ 240 ms)",
+        // The 5-tap position smooth and the 3-tap speed smooth round the plateau's shoulders, so
+        // its 97 % tail ends a sample or two before 80 ms: accept 220-240.
+        if (pl2 && !pl2->phaseSamples.empty())
+            std::printf("      lead without Top tick: %.1f ms\n", pl2->phaseSamples.front().value);
+        CHECK("no Top ⇒ searched whole ⇒ decoy plateau wins, read from near its end (lead 220-240 ms)",
               pl2 && !pl2->phaseSamples.empty()
-                  && std::fabs(pl2->phaseSamples.front().value - 240.0) <= 10.0);
+                  && pl2->phaseSamples.front().value >= 215.0 && pl2->phaseSamples.front().value <= 245.0);
+        // A club still at full speed into the ball reads ~0 whatever happened earlier: ramp the
+        // speed up and HOLD it to the anchor — the argmax could sit anywhere on the hold, the
+        // plateau rule reads the end of it.
+        {
+            ShaftTrack2D flat = shaft;
+            double xx = 100.0;
+            for (int i = 0; i < n; ++i) {
+                const double tMs = i * 10.0;
+                const double step = tMs <= 150.0 ? 2.0 + 20.0 * tMs / 150.0 : 22.0;
+                xx += step;
+                flat.samples[size_t(i)].headPx = QPointF(xx, 100.0);
+            }
+            KinematicSeriesInputs inF;
+            inF.shaft = &flat; inF.impactUs = 300'000; inF.clubLengthM = 1.0;
+            PhaseEvent topF; topF.phase = Phase::Top; topF.t_us = 100'000;
+            inF.phases = { topF };
+            const std::vector<MetricSeries> outF = buildKinematicSeries(inF);   // keep it alive
+            const MetricSeries *plF = find(outF, "clubheadPeakLead");
+            if (plF && !plF->phaseSamples.empty())
+                std::printf("      lead with speed held: %.1f ms\n", plF->phaseSamples.front().value);
+            CHECK("speed held to the ball ⇒ lead ≈ 0 (plateau read from its end)",
+                  plF && !plF->phaseSamples.empty()
+                      && std::fabs(plF->phaseSamples.front().value) <= 12.0);
+        }
         // No impact and no P7 knot ⇒ no anchor ⇒ nothing, never fabricated.
         in.impactUs = -1;
         CHECK("no anchor ⇒ no peak lead", find(buildKinematicSeries(in), "clubheadPeakLead") == nullptr);

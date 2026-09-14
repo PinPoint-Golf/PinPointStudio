@@ -60,7 +60,7 @@ int main()
 {
     std::printf("=== Wrist analysisDetail adapter ===\n");
 
-    const double radUln[8]  = { 0, 10, 28, 38, 38, 30, 8, 0 };
+    const double radUln[8]  = { 0, -10, -28, -38, -38, -30, -8, 0 };   // − = radial = set (2026-09-14)
     const double flexExt[8] = { 0, 1, 4, 9, 11, 12, 9, 4 };
     const double forearm[8] = { 0, -8, -16, -20, -12, -5, 1, 3 };
 
@@ -92,7 +92,7 @@ int main()
     // 1. Real values flow through to the cells.
     std::printf("-- 1. real values + RAG --\n");
     check(rag(r, PpJointDof::LeadWristRadUln, PpSwingPosition::P1) == PpRag::Ref, "radUln P1 → Ref");
-    checkNear("radUln P4 delta", r.row(PpJointDof::LeadWristRadUln).cells[3].deltaDeg, 38.0);
+    checkNear("radUln P4 delta", r.row(PpJointDof::LeadWristRadUln).cells[3].deltaDeg, -38.0);
     check(rag(r, PpJointDof::LeadWristRadUln, PpSwingPosition::P3) == PpRag::Green, "radUln P3 → Green");
     check(rag(r, PpJointDof::LeadForearmRot, PpSwingPosition::P4) == PpRag::Green, "forearm P4 → Green");
 

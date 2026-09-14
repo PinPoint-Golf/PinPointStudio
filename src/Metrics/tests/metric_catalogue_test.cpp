@@ -79,7 +79,10 @@ int main()
         // replacing a live measure that was grading the wrong quantity (see their descriptors and
         // the pack's gapReasons): the shoulder line's AIM is not its face-on tilt, and the CLUBHEAD
         // peaking early is not the hands slowing into impact.
-        checkEqI(static_cast<int>(cat.all().size()), 98, "descriptor count == 98");   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead
+        // 98 -> 100 on 2026-09-14 (the corridor review): shoulderPlaneAngle3d and pelvisLiftBelt,
+        // both planned, both naming what a retired face-on reading could not measure — the shoulder
+        // line at the top (foreshortened) and the pelvis's height (hip keypoints migrate).
+        checkEqI(static_cast<int>(cat.all().size()), 100, "descriptor count == 100");   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
                                "clubheadPeakLead",
@@ -117,7 +120,7 @@ int main()
 
     // 2. Type / group / scored filtering.
     {
-        checkEqI(countType(cat, MetricType::TimeSeries),  45, "TimeSeries count");   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
+        checkEqI(countType(cat, MetricType::TimeSeries),  47, "TimeSeries count");   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
         // 26, not 28: `shoulderAlignment` and `hipAlignment` were both PointInTime and both retired
         // as duplicates of a series the catalogue already carries.
         // 45 -> 47 on 2026-09-14, both PLANNED and both the honest replacement for a measure that
@@ -142,7 +145,7 @@ int main()
         checkEqI(static_cast<int>(cat.query(hq).size()), 3, "group 'Head' == 3");
 
         MetricQuery brq; brq.group = QStringLiteral("Body rotation");
-        checkEqI(static_cast<int>(cat.query(brq).size()), 7, "group 'Body rotation' == 7");   // +pelvisRotationSigned
+        checkEqI(static_cast<int>(cat.query(brq).size()), 8, "group 'Body rotation' == 8");   // +shoulderPlaneAngle3d   // +pelvisRotationSigned
 
         // Arm geometry (trail elbow height, swing width, arm-to-torso) is its own group rather
         // than being filed under wrist and forearm, which would mislabel it in the directory.
@@ -382,7 +385,10 @@ int main()
         // 18 -> 19 on 2026-09-14: shoulderLineYaw, a bearing, which needs the calibrated pair.
         // clubheadPeakLead arrived planned the same day and went live within hours: the
         // kinematics stage emits it off the composed clubhead speed (peakLeadSeries).
-        checkEqI(planned, 19, "19 planned metrics — nothing produces them by any route");   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view
+        // 19 -> 21 on 2026-09-14: shoulderPlaneAngle3d (the pair) and pelvisLiftBelt (a tracked
+        // waistband edge) — each the honest replacement for a face-on reading the corpus showed
+        // firing on every shot for a reason that was the camera, not the golfer.
+        checkEqI(planned, 21, "21 planned metrics — nothing produces them by any route");   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view
         checkEqI(unavailable, planned,
                  "every planned metric resolves Unavailable even with every device present");
         checkEqI(saysPlanned, planned,
@@ -558,7 +564,9 @@ int main()
         // composed speed it takes the peak of is an in-plane estimate, so the pair refines it the
         // same way it refines clubheadSpeed. shoulderLineYaw is NOT in this count — it is
         // triangulated-only, and nothing can be refined that one view cannot read at all.
-        checkEqI(refines, 30, "30 projected readings taken past Address");
+        // 31 with pelvisLiftBelt: a face-on line read at the Top, so the pair refines it like the
+        // other frontal-plane readings taken after the body has turned.
+        checkEqI(refines, 31, "31 projected readings taken past Address");
     }
 
     // 3d-quater. The upgrade hint — what more kit would buy, on a real shot.

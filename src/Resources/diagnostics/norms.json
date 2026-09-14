@@ -363,72 +363,79 @@
     {
       "measure": "m_leadWristRadUln_p2",
       "context": "any",
-      "mu": 10.0,
+      "mu": -10.0,
       "sigmaLo": 10.0,
-      "monitorLo": -5.0,
-      "monitorHi": 25.0,
+      "monitorLo": -25.0,
+      "monitorHi": 5.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN CORRECTED 2026-09-14. The producer (wrist_angles.h, hm_frame.h) emits + = ULNAR, − = RADIAL (ISB); cocking the club at the top is RADIAL deviation, so a set backswing reads NEGATIVE relative to address. This grid was authored with + = \"set\", the vendor's sign, and graded +38 at P4 while the ten wrist-sensor shots in the corpus read −40 to −53 — insufficient_set fired on 10 of 10 by construction and over_set could never fire (+45° of ulnar deviation at the top is beyond the joint). Rows p2..p8 mirrored; the magnitudes are unchanged and still heuristic. Corpus at P4 (one golfer, n=10): median −44."
     },
     {
       "measure": "m_leadWristRadUln_p3",
       "context": "any",
-      "mu": 28.0,
+      "mu": -28.0,
       "sigmaLo": 10.0,
-      "monitorLo": 13.0,
-      "monitorHi": 43.0,
+      "monitorLo": -43.0,
+      "monitorHi": -13.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN CORRECTED 2026-09-14. The producer (wrist_angles.h, hm_frame.h) emits + = ULNAR, − = RADIAL (ISB); cocking the club at the top is RADIAL deviation, so a set backswing reads NEGATIVE relative to address. This grid was authored with + = \"set\", the vendor's sign, and graded +38 at P4 while the ten wrist-sensor shots in the corpus read −40 to −53 — insufficient_set fired on 10 of 10 by construction and over_set could never fire (+45° of ulnar deviation at the top is beyond the joint). Rows p2..p8 mirrored; the magnitudes are unchanged and still heuristic. Corpus at P4 (one golfer, n=10): median −44."
     },
     {
       "measure": "m_leadWristRadUln_p4",
       "context": "any",
-      "mu": 38.0,
+      "mu": -38.0,
       "sigmaLo": 12.0,
-      "monitorLo": 21.0,
-      "monitorHi": 55.0,
+      "monitorLo": -55.0,
+      "monitorHi": -21.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN CORRECTED 2026-09-14. The producer (wrist_angles.h, hm_frame.h) emits + = ULNAR, − = RADIAL (ISB); cocking the club at the top is RADIAL deviation, so a set backswing reads NEGATIVE relative to address. This grid was authored with + = \"set\", the vendor's sign, and graded +38 at P4 while the ten wrist-sensor shots in the corpus read −40 to −53 — insufficient_set fired on 10 of 10 by construction and over_set could never fire (+45° of ulnar deviation at the top is beyond the joint). Rows p2..p8 mirrored; the magnitudes are unchanged and still heuristic. Corpus at P4 (one golfer, n=10): median −44."
     },
     {
       "measure": "m_leadWristRadUln_p5",
       "context": "any",
-      "mu": 38.0,
+      "mu": -38.0,
       "sigmaLo": 12.0,
-      "monitorLo": 21.0,
-      "monitorHi": 55.0,
+      "monitorLo": -55.0,
+      "monitorHi": -21.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN CORRECTED 2026-09-14. The producer (wrist_angles.h, hm_frame.h) emits + = ULNAR, − = RADIAL (ISB); cocking the club at the top is RADIAL deviation, so a set backswing reads NEGATIVE relative to address. This grid was authored with + = \"set\", the vendor's sign, and graded +38 at P4 while the ten wrist-sensor shots in the corpus read −40 to −53 — insufficient_set fired on 10 of 10 by construction and over_set could never fire (+45° of ulnar deviation at the top is beyond the joint). Rows p2..p8 mirrored; the magnitudes are unchanged and still heuristic. Corpus at P4 (one golfer, n=10): median −44."
     },
     {
       "measure": "m_leadWristRadUln_p6",
       "context": "any",
-      "mu": 30.0,
+      "mu": -30.0,
       "sigmaLo": 10.0,
-      "monitorLo": 15.0,
-      "monitorHi": 45.0,
+      "monitorLo": -45.0,
+      "monitorHi": -15.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN CORRECTED 2026-09-14. The producer (wrist_angles.h, hm_frame.h) emits + = ULNAR, − = RADIAL (ISB); cocking the club at the top is RADIAL deviation, so a set backswing reads NEGATIVE relative to address. This grid was authored with + = \"set\", the vendor's sign, and graded +38 at P4 while the ten wrist-sensor shots in the corpus read −40 to −53 — insufficient_set fired on 10 of 10 by construction and over_set could never fire (+45° of ulnar deviation at the top is beyond the joint). Rows p2..p8 mirrored; the magnitudes are unchanged and still heuristic. Corpus at P4 (one golfer, n=10): median −44."
     },
     {
       "measure": "m_leadWristRadUln_p7",
       "context": "any",
-      "mu": 8.0,
+      "mu": -8.0,
       "sigmaLo": 10.0,
-      "monitorLo": -7.0,
-      "monitorHi": 23.0,
+      "monitorLo": -23.0,
+      "monitorHi": 7.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN CORRECTED 2026-09-14. The producer (wrist_angles.h, hm_frame.h) emits + = ULNAR, − = RADIAL (ISB); cocking the club at the top is RADIAL deviation, so a set backswing reads NEGATIVE relative to address. This grid was authored with + = \"set\", the vendor's sign, and graded +38 at P4 while the ten wrist-sensor shots in the corpus read −40 to −53 — insufficient_set fired on 10 of 10 by construction and over_set could never fire (+45° of ulnar deviation at the top is beyond the joint). Rows p2..p8 mirrored; the magnitudes are unchanged and still heuristic. Corpus at P4 (one golfer, n=10): median −44."
     },
     {
       "measure": "m_leadWristRadUln_p8",
       "context": "any",
-      "mu": 0.0,
+      "mu": -0.0,
       "sigmaLo": 8.0,
       "monitorLo": -13.0,
       "monitorHi": 13.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN CORRECTED 2026-09-14. The producer (wrist_angles.h, hm_frame.h) emits + = ULNAR, − = RADIAL (ISB); cocking the club at the top is RADIAL deviation, so a set backswing reads NEGATIVE relative to address. This grid was authored with + = \"set\", the vendor's sign, and graded +38 at P4 while the ten wrist-sensor shots in the corpus read −40 to −53 — insufficient_set fired on 10 of 10 by construction and over_set could never fire (+45° of ulnar deviation at the top is beyond the joint). Rows p2..p8 mirrored; the magnitudes are unchanged and still heuristic. Corpus at P4 (one golfer, n=10): median −44."
     },
     {
       "measure": "m_leadForearmRot_p1",
@@ -438,7 +445,8 @@
       "monitorLo": -9.0,
       "monitorHi": 9.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN UNVERIFIED (2026-09-14). No swing in the corpus carries a forearm-rotation reading, so neither this row's sign nor its magnitude has been checked against data; the hinge grid beside it was found inverted against its producer on the first data that reached it. Treat as unaudited until a sensor session reads it."
     },
     {
       "measure": "m_leadForearmRot_p2",
@@ -448,7 +456,8 @@
       "monitorLo": -21.0,
       "monitorHi": 5.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN UNVERIFIED (2026-09-14). No swing in the corpus carries a forearm-rotation reading, so neither this row's sign nor its magnitude has been checked against data; the hinge grid beside it was found inverted against its producer on the first data that reached it. Treat as unaudited until a sensor session reads it."
     },
     {
       "measure": "m_leadForearmRot_p3",
@@ -458,7 +467,8 @@
       "monitorLo": -29.0,
       "monitorHi": -3.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN UNVERIFIED (2026-09-14). No swing in the corpus carries a forearm-rotation reading, so neither this row's sign nor its magnitude has been checked against data; the hinge grid beside it was found inverted against its producer on the first data that reached it. Treat as unaudited until a sensor session reads it."
     },
     {
       "measure": "m_leadForearmRot_p4",
@@ -468,7 +478,8 @@
       "monitorLo": -34.0,
       "monitorHi": -6.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN UNVERIFIED (2026-09-14). No swing in the corpus carries a forearm-rotation reading, so neither this row's sign nor its magnitude has been checked against data; the hinge grid beside it was found inverted against its producer on the first data that reached it. Treat as unaudited until a sensor session reads it."
     },
     {
       "measure": "m_leadForearmRot_p5",
@@ -478,7 +489,8 @@
       "monitorLo": -26.0,
       "monitorHi": 2.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN UNVERIFIED (2026-09-14). No swing in the corpus carries a forearm-rotation reading, so neither this row's sign nor its magnitude has been checked against data; the hinge grid beside it was found inverted against its producer on the first data that reached it. Treat as unaudited until a sensor session reads it."
     },
     {
       "measure": "m_leadForearmRot_p6",
@@ -488,7 +500,8 @@
       "monitorLo": -18.0,
       "monitorHi": 8.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN UNVERIFIED (2026-09-14). No swing in the corpus carries a forearm-rotation reading, so neither this row's sign nor its magnitude has been checked against data; the hinge grid beside it was found inverted against its producer on the first data that reached it. Treat as unaudited until a sensor session reads it."
     },
     {
       "measure": "m_leadForearmRot_p7",
@@ -498,7 +511,8 @@
       "monitorLo": -13.0,
       "monitorHi": 13.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN UNVERIFIED (2026-09-14). No swing in the corpus carries a forearm-rotation reading, so neither this row's sign nor its magnitude has been checked against data; the hinge grid beside it was found inverted against its producer on the first data that reached it. Treat as unaudited until a sensor session reads it."
     },
     {
       "measure": "m_leadForearmRot_p8",
@@ -508,7 +522,8 @@
       "monitorLo": -10.0,
       "monitorHi": 10.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SIGN UNVERIFIED (2026-09-14). No swing in the corpus carries a forearm-rotation reading, so neither this row's sign nor its magnitude has been checked against data; the hinge grid beside it was found inverted against its producer on the first data that reached it. Treat as unaudited until a sensor session reads it."
     },
     {
       "measure": "m_leadElbowFlex_p1",
@@ -895,7 +910,9 @@
       "sigmaLo": 14.0,
       "unit": "% stance width",
       "source": "heuristic",
-      "citation": "Club unknown, so a deliberately wide corridor spanning driver-to-wedge territory. The per-club rows below are the ones that should normally resolve. Provisional. PMID 30479527 and 10.1038/s41598-020-79091-7 quantify the address and impact consequences of ball-position shifts of about one ball radius — useful for sigma, not for mu."
+      "citation": "Club unknown, so a deliberately wide corridor spanning driver-to-wedge territory. The per-club rows below are the ones that should normally resolve. Provisional. PMID 30479527 and 10.1038/s41598-020-79091-7 quantify the address and impact consequences of ball-position shifts of about one ball radius — useful for sigma, not for mu. PLAUSIBILITY CAPS −30..130 (outside every row's 3σ band) added 2026-09-14: the corpus read −48 to +93 % on the stub-context driver shots; a ball a fifth of a stance beyond the lead heel is ball-detection error, not a setup.",
+      "plausibleLo": -30.0,
+      "plausibleHi": 130.0
     },
     {
       "measure": "m_ballPosition",
@@ -904,7 +921,9 @@
       "sigmaLo": 8.0,
       "unit": "% stance width",
       "source": "heuristic",
-      "citation": "Off the lead heel. Negative values are normal and legal here — forward of the lead heel is a real driver setup. Provisional. PMID 30479527 and 10.1038/s41598-020-79091-7 quantify the address and impact consequences of ball-position shifts of about one ball radius — useful for sigma, not for mu."
+      "citation": "Off the lead heel. Negative values are normal and legal here — forward of the lead heel is a real driver setup. Provisional. PMID 30479527 and 10.1038/s41598-020-79091-7 quantify the address and impact consequences of ball-position shifts of about one ball radius — useful for sigma, not for mu. PLAUSIBILITY CAPS −30..130 (outside every row's 3σ band) added 2026-09-14: the corpus read −48 to +93 % on the stub-context driver shots; a ball a fifth of a stance beyond the lead heel is ball-detection error, not a setup.",
+      "plausibleLo": -30.0,
+      "plausibleHi": 130.0
     },
     {
       "measure": "m_ballPosition",
@@ -913,7 +932,9 @@
       "sigmaLo": 9.0,
       "unit": "% stance width",
       "source": "heuristic",
-      "citation": "Provisional. PMID 30479527 and 10.1038/s41598-020-79091-7 quantify the address and impact consequences of ball-position shifts of about one ball radius — useful for sigma, not for mu."
+      "citation": "Provisional. PMID 30479527 and 10.1038/s41598-020-79091-7 quantify the address and impact consequences of ball-position shifts of about one ball radius — useful for sigma, not for mu. PLAUSIBILITY CAPS −30..130 (outside every row's 3σ band) added 2026-09-14: the corpus read −48 to +93 % on the stub-context driver shots; a ball a fifth of a stance beyond the lead heel is ball-detection error, not a setup.",
+      "plausibleLo": -30.0,
+      "plausibleHi": 130.0
     },
     {
       "measure": "m_ballPosition",
@@ -922,7 +943,9 @@
       "sigmaLo": 10.0,
       "unit": "% stance width",
       "source": "heuristic",
-      "citation": "Provisional. PMID 30479527 and 10.1038/s41598-020-79091-7 quantify the address and impact consequences of ball-position shifts of about one ball radius — useful for sigma, not for mu."
+      "citation": "Provisional. PMID 30479527 and 10.1038/s41598-020-79091-7 quantify the address and impact consequences of ball-position shifts of about one ball radius — useful for sigma, not for mu. PLAUSIBILITY CAPS −30..130 (outside every row's 3σ band) added 2026-09-14: the corpus read −48 to +93 % on the stub-context driver shots; a ball a fifth of a stance beyond the lead heel is ball-detection error, not a setup.",
+      "plausibleLo": -30.0,
+      "plausibleHi": 130.0
     },
     {
       "measure": "m_ballPosition",
@@ -931,7 +954,9 @@
       "sigmaLo": 10.0,
       "unit": "% stance width",
       "source": "heuristic",
-      "citation": "The middle of the stance. Provisional. PMID 30479527 and 10.1038/s41598-020-79091-7 quantify the address and impact consequences of ball-position shifts of about one ball radius — useful for sigma, not for mu."
+      "citation": "The middle of the stance. Provisional. PMID 30479527 and 10.1038/s41598-020-79091-7 quantify the address and impact consequences of ball-position shifts of about one ball radius — useful for sigma, not for mu. PLAUSIBILITY CAPS −30..130 (outside every row's 3σ band) added 2026-09-14: the corpus read −48 to +93 % on the stub-context driver shots; a ball a fifth of a stance beyond the lead heel is ball-detection error, not a setup.",
+      "plausibleLo": -30.0,
+      "plausibleHi": 130.0
     },
     {
       "measure": "m_clubheadSpeedImpact",
@@ -1282,10 +1307,11 @@
     {
       "measure": "m_leadHandWidth",
       "context": "any",
-      "mu": 65.0,
-      "sigmaLo": 10.0,
+      "mu": 90.0,
+      "sigmaLo": 8.0,
       "unit": "% arm length",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "RE-SEATED 2026-09-14 from 123 corpus shots (one golfer): the hands sit 86-125 % of arm length from the body at the top on every club (median 90-95), which is what a straight lead arm gives. The old floor at 65 graded a collapsed arm at 70 % as Ideal, so loss_of_width could not fire until the arm folded to 45 %. Floor: only the narrow tail grades. Heuristic — seated on one golfer."
     },
     {
       "measure": "m_xFactorStretch",
@@ -1369,41 +1395,41 @@
       "measure": "m_impactShaftLean",
       "context": "any",
       "mu": 5.0,
-      "sigmaLo": 4.0,
-      "sigmaHi": 6.0,
+      "sigmaLo": 10.0,
+      "sigmaHi": 10.0,
       "unit": "°",
       "source": "heuristic",
-      "citation": "The high tail is graded as of the unwatched-tails pass (excessive_shaft_lean), and is authored per context rather than inherited: more loft both expects and tolerates more lean, so a single asymmetry would give the wedge an iron's tolerance. Estimates, awaiting a corpus."
+      "citation": "SIGMA WIDENED TO 10 on 2026-09-14 — THE INSTRUMENT, NOT THE GOLFER. Against 39 hand-marked P7 frames (4 sessions, 2 clubs) the tracker's impact lean overshoots the grip-to-head chord by a median +12° with an sd of 9.5° (truth median 3.2°, tracker 14.0°), and the overshoot is NOT a timing offset: the implied offset scatters 0-20 ms and on one session the tracker reads MORE lean 15 ms after impact, when physics says less. A corridor cannot be narrower than the instrument reading it, so both tolerances are the measured error until the tracker's impact-frame shaft angle is fixed (candidates: exposure smear at 6.5 ms, the P7 emission geometry). mu is unchanged — correcting a bias in a norm would hide it. The series carries sigma 9.5 from the producer for the same reason."
     },
     {
       "measure": "m_impactShaftLean",
       "context": "driver",
       "mu": 0.0,
-      "sigmaLo": 4.0,
-      "sigmaHi": 6.0,
+      "sigmaLo": 10.0,
+      "sigmaHi": 10.0,
       "unit": "°",
       "source": "heuristic",
-      "citation": "The high tail is graded as of the unwatched-tails pass (excessive_shaft_lean), and is authored per context rather than inherited: more loft both expects and tolerates more lean, so a single asymmetry would give the wedge an iron's tolerance. Estimates, awaiting a corpus."
+      "citation": "SIGMA WIDENED TO 10 on 2026-09-14 — THE INSTRUMENT, NOT THE GOLFER. Against 39 hand-marked P7 frames (4 sessions, 2 clubs) the tracker's impact lean overshoots the grip-to-head chord by a median +12° with an sd of 9.5° (truth median 3.2°, tracker 14.0°), and the overshoot is NOT a timing offset: the implied offset scatters 0-20 ms and on one session the tracker reads MORE lean 15 ms after impact, when physics says less. A corridor cannot be narrower than the instrument reading it, so both tolerances are the measured error until the tracker's impact-frame shaft angle is fixed (candidates: exposure smear at 6.5 ms, the P7 emission geometry). mu is unchanged — correcting a bias in a norm would hide it. The series carries sigma 9.5 from the producer for the same reason."
     },
     {
       "measure": "m_impactShaftLean",
       "context": "iron",
       "mu": 8.0,
-      "sigmaLo": 4.0,
-      "sigmaHi": 6.0,
+      "sigmaLo": 10.0,
+      "sigmaHi": 10.0,
       "unit": "°",
       "source": "heuristic",
-      "citation": "The high tail is graded as of the unwatched-tails pass (excessive_shaft_lean), and is authored per context rather than inherited: more loft both expects and tolerates more lean, so a single asymmetry would give the wedge an iron's tolerance. Estimates, awaiting a corpus."
+      "citation": "SIGMA WIDENED TO 10 on 2026-09-14 — THE INSTRUMENT, NOT THE GOLFER. Against 39 hand-marked P7 frames (4 sessions, 2 clubs) the tracker's impact lean overshoots the grip-to-head chord by a median +12° with an sd of 9.5° (truth median 3.2°, tracker 14.0°), and the overshoot is NOT a timing offset: the implied offset scatters 0-20 ms and on one session the tracker reads MORE lean 15 ms after impact, when physics says less. A corridor cannot be narrower than the instrument reading it, so both tolerances are the measured error until the tracker's impact-frame shaft angle is fixed (candidates: exposure smear at 6.5 ms, the P7 emission geometry). mu is unchanged — correcting a bias in a norm would hide it. The series carries sigma 9.5 from the producer for the same reason."
     },
     {
       "measure": "m_impactShaftLean",
       "context": "wedge",
       "mu": 10.0,
-      "sigmaLo": 5.0,
-      "sigmaHi": 8.0,
+      "sigmaLo": 10.0,
+      "sigmaHi": 10.0,
       "unit": "°",
       "source": "heuristic",
-      "citation": "The high tail is graded as of the unwatched-tails pass (excessive_shaft_lean), and is authored per context rather than inherited: more loft both expects and tolerates more lean, so a single asymmetry would give the wedge an iron's tolerance. Estimates, awaiting a corpus."
+      "citation": "SIGMA WIDENED TO 10 on 2026-09-14 — THE INSTRUMENT, NOT THE GOLFER. Against 39 hand-marked P7 frames (4 sessions, 2 clubs) the tracker's impact lean overshoots the grip-to-head chord by a median +12° with an sd of 9.5° (truth median 3.2°, tracker 14.0°), and the overshoot is NOT a timing offset: the implied offset scatters 0-20 ms and on one session the tracker reads MORE lean 15 ms after impact, when physics says less. A corridor cannot be narrower than the instrument reading it, so both tolerances are the measured error until the tracker's impact-frame shaft angle is fixed (candidates: exposure smear at 6.5 ms, the P7 emission geometry). mu is unchanged — correcting a bias in a norm would hide it. The series carries sigma 9.5 from the producer for the same reason."
     },
     {
       "measure": "m_kneeFlexAddress",
@@ -1514,34 +1540,38 @@
     {
       "measure": "m_axisTiltImpact",
       "context": "any",
-      "mu": 25.0,
-      "sigmaLo": 8.0,
+      "mu": 12.0,
+      "sigmaLo": 6.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "RE-SEATED 2026-09-14 AS A 2-D QUANTITY. The old 25-30 ± 8 was the 3-D secondary-axis-tilt figure the literature reports; the producer is the face-on projection of the pelvis-to-shoulder-centre line, and at impact the shoulders are open so much of the lateral bend has rotated into depth. It read 4-9° on 100 % of 123 corpus shots (an independent pose measurement of the same swing gave 7°). Provisional, one golfer; the triangulated pair is the planned route to the 3-D number."
     },
     {
       "measure": "m_axisTiltImpact",
       "context": "driver",
-      "mu": 30.0,
+      "mu": 15.0,
       "sigmaLo": 8.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "RE-SEATED 2026-09-14 AS A 2-D QUANTITY. The old 25-30 ± 8 was the 3-D secondary-axis-tilt figure the literature reports; the producer is the face-on projection of the pelvis-to-shoulder-centre line, and at impact the shoulders are open so much of the lateral bend has rotated into depth. It read 4-9° on 100 % of 123 corpus shots (an independent pose measurement of the same swing gave 7°). Provisional, one golfer; the triangulated pair is the planned route to the 3-D number."
     },
     {
       "measure": "m_axisTiltImpact",
       "context": "iron",
-      "mu": 20.0,
-      "sigmaLo": 8.0,
+      "mu": 10.0,
+      "sigmaLo": 6.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "RE-SEATED 2026-09-14 AS A 2-D QUANTITY. The old 25-30 ± 8 was the 3-D secondary-axis-tilt figure the literature reports; the producer is the face-on projection of the pelvis-to-shoulder-centre line, and at impact the shoulders are open so much of the lateral bend has rotated into depth. It read 4-9° on 100 % of 123 corpus shots (an independent pose measurement of the same swing gave 7°). Provisional, one golfer; the triangulated pair is the planned route to the 3-D number."
     },
     {
       "measure": "m_axisTiltImpact",
       "context": "wedge",
-      "mu": 15.0,
-      "sigmaLo": 8.0,
+      "mu": 8.0,
+      "sigmaLo": 6.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "RE-SEATED 2026-09-14 AS A 2-D QUANTITY. The old 25-30 ± 8 was the 3-D secondary-axis-tilt figure the literature reports; the producer is the face-on projection of the pelvis-to-shoulder-centre line, and at impact the shoulders are open so much of the lateral bend has rotated into depth. It read 4-9° on 100 % of 123 corpus shots (an independent pose measurement of the same swing gave 7°). Provisional, one golfer; the triangulated pair is the planned route to the 3-D number."
     },
     {
       "measure": "m_spineSideBendTop",
@@ -1554,10 +1584,11 @@
     {
       "measure": "m_leadUpperArmToChest",
       "context": "any",
-      "mu": 25.0,
-      "sigmaLo": 12.0,
+      "mu": 46.0,
+      "sigmaLo": 6.0,
       "unit": "% shoulder width",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "SEATED 2026-09-14 under the P1-P3 window from 95 corpus shots (one golfer): the widest lead-upper-arm gap from the chest before the arms rise reads 42-56 % of shoulder width (7-iron median 45.5, 6-iron 52.5, gap wedge 49.6; within-session sd ~2.5). The old 25 ± 12 was authored for a P1-P4 window that measured arm elevation at the top (53-82 %, firing on 100 % of shots). Heuristic — one golfer; the high tail is disconnection, the low tail arms_over_connected."
     },
     {
       "measure": "m_comOverLeadFootFinish",
@@ -1656,7 +1687,9 @@
       "sigmaLo": 1.6,
       "unit": "in",
       "source": "heuristic",
-      "citation": "Re-expressed from centimetres to inches, no change of claim. The descriptor and docs/design/low_point_metric_design.md both state inches — the unit launch monitors quote — and sign-conventions rule 1 gives the outside convention the casting vote."
+      "citation": "Re-expressed from centimetres to inches, no change of claim. The descriptor and docs/design/low_point_metric_design.md both state inches — the unit launch monitors quote — and sign-conventions rule 1 gives the outside convention the casting vote. PLAUSIBILITY CAPS ±10 in (outside every row's 3σ band, as the validator requires) added 2026-09-14: the camera reading spanned −20 to +23 in over 123 corpus shots and flipped sign on the same swings when the shaft stage re-ran; no swing bottoms out half a metre from the ball. Beyond the cap the reading is Unavailable(implausible), not a finding.",
+      "plausibleLo": -10.0,
+      "plausibleHi": 10.0
     },
     {
       "measure": "m_lowPointAhead",
@@ -1664,7 +1697,10 @@
       "mu": -1.2,
       "sigmaLo": 1.6,
       "unit": "in",
-      "source": "heuristic"
+      "source": "heuristic",
+      "plausibleLo": -10.0,
+      "plausibleHi": 10.0,
+      "citation": "PLAUSIBILITY CAPS ±10 in (outside every row's 3σ band, as the validator requires) added 2026-09-14: the camera reading spanned −20 to +23 in over 123 corpus shots and flipped sign on the same swings when the shaft stage re-ran; no swing bottoms out half a metre from the ball. Beyond the cap the reading is Unavailable(implausible), not a finding."
     },
     {
       "measure": "m_lowPointAhead",
@@ -1672,7 +1708,10 @@
       "mu": 3.0,
       "sigmaLo": 1.6,
       "unit": "in",
-      "source": "heuristic"
+      "source": "heuristic",
+      "plausibleLo": -10.0,
+      "plausibleHi": 10.0,
+      "citation": "PLAUSIBILITY CAPS ±10 in (outside every row's 3σ band, as the validator requires) added 2026-09-14: the camera reading spanned −20 to +23 in over 123 corpus shots and flipped sign on the same swings when the shaft stage re-ran; no swing bottoms out half a metre from the ball. Beyond the cap the reading is Unavailable(implausible), not a finding."
     },
     {
       "measure": "m_lowPointAhead",
@@ -1680,7 +1719,10 @@
       "mu": 3.0,
       "sigmaLo": 2.0,
       "unit": "in",
-      "source": "heuristic"
+      "source": "heuristic",
+      "plausibleLo": -10.0,
+      "plausibleHi": 10.0,
+      "citation": "PLAUSIBILITY CAPS ±10 in (outside every row's 3σ band, as the validator requires) added 2026-09-14: the camera reading spanned −20 to +23 in over 123 corpus shots and flipped sign on the same swings when the shaft stage re-ran; no swing bottoms out half a metre from the ball. Beyond the cap the reading is Unavailable(implausible), not a finding."
     },
     {
       "measure": "m_attackAngle",
@@ -1689,7 +1731,7 @@
       "sigmaLo": 3.0,
       "unit": "°",
       "source": "heuristic",
-      "citation": "Provisional. Delivery-parameter distributions in 10.3390/proceedings2060249 cover face angle, club path and attack angle across club types."
+      "citation": "Provisional. Delivery-parameter distributions in 10.3390/proceedings2060249 cover face angle, club path and attack angle across club types. CAMERA FALLBACK REMOVED 2026-09-14: the projected attackAngle read −65 to +38° over 123 corpus shots and flipped shallow<->steep on the same swings across shaft-stage versions; the measure now reads lm.attackAngle only."
     },
     {
       "measure": "m_attackAngle",
@@ -1698,7 +1740,7 @@
       "sigmaLo": 3.0,
       "unit": "°",
       "source": "heuristic",
-      "citation": "Provisional. Delivery-parameter distributions in 10.3390/proceedings2060249 cover face angle, club path and attack angle across club types."
+      "citation": "Provisional. Delivery-parameter distributions in 10.3390/proceedings2060249 cover face angle, club path and attack angle across club types. CAMERA FALLBACK REMOVED 2026-09-14: the projected attackAngle read −65 to +38° over 123 corpus shots and flipped shallow<->steep on the same swings across shaft-stage versions; the measure now reads lm.attackAngle only."
     },
     {
       "measure": "m_attackAngle",
@@ -1707,7 +1749,7 @@
       "sigmaLo": 2.5,
       "unit": "°",
       "source": "heuristic",
-      "citation": "Provisional. Delivery-parameter distributions in 10.3390/proceedings2060249 cover face angle, club path and attack angle across club types."
+      "citation": "Provisional. Delivery-parameter distributions in 10.3390/proceedings2060249 cover face angle, club path and attack angle across club types. CAMERA FALLBACK REMOVED 2026-09-14: the projected attackAngle read −65 to +38° over 123 corpus shots and flipped shallow<->steep on the same swings across shaft-stage versions; the measure now reads lm.attackAngle only."
     },
     {
       "measure": "m_attackAngle",
@@ -1716,25 +1758,25 @@
       "sigmaLo": 3.0,
       "unit": "°",
       "source": "heuristic",
-      "citation": "Provisional. Delivery-parameter distributions in 10.3390/proceedings2060249 cover face angle, club path and attack angle across club types."
+      "citation": "Provisional. Delivery-parameter distributions in 10.3390/proceedings2060249 cover face angle, club path and attack angle across club types. CAMERA FALLBACK REMOVED 2026-09-14: the projected attackAngle read −65 to +38° over 123 corpus shots and flipped shallow<->steep on the same swings across shaft-stage versions; the measure now reads lm.attackAngle only."
     },
     {
       "measure": "m_clubheadPeakLead",
       "context": "any",
-      "mu": 5.0,
+      "mu": 3.0,
       "sigmaLo": 15.0,
       "unit": "ms",
       "source": "heuristic",
-      "citation": "Provisional, and seated on ONE golfer, which is why it is filed heuristic rather than seated: over 97 corpus and library swings with a club track (14 Sep 2026) the composed clubhead speed peaked a median 3.7 ms before impact, p25 0.3, p75 18.2, p95 48.7, mean 11.5 +/- 17.9. mu 5 puts the ideal at the ball; the ceiling grades only the early-peak tail, and the single tolerance of 15 ms is that tail's, so a peak at or after the impact anchor never fires. Nothing produces the measure yet; re-seat when it lands and a second golfer is in the corpus. Replaces the m_handSpeedP6P7 row (mu 20, sigma 40 mph/s), whose own citation called it \"not a corridor\" and whose measure the corpus showed fires on ordinary release-drag — see the measure's gapReason."
+      "citation": "RE-SEATED 2026-09-14 after the corpus re-analysis with the plateau rule (last sample within 97 % of the peak): 96 shots, median 2.5 ms, p25 1.3, p75 3.9, p95 53 — the top decile is a separate population where the composed speed dips and recovers inside the last 60 ms (tracker, plausibly), and the ceiling at 3 + 15 grades exactly that tail. One golfer; heuristic. Replaces the m_handSpeedP6P7 row (mu 20, sigma 40 mph/s), whose own citation called it \"not a corridor\" and whose measure the corpus showed fires on ordinary release-drag."
     },
     {
       "measure": "m_faceToPath",
       "context": "any",
       "mu": 0.0,
-      "sigmaLo": 1.0,
+      "sigmaLo": 1.5,
       "unit": "°",
       "source": "heuristic",
-      "citation": "THE FAULT LINE IS ±3°, AND SIGMA IS SET TO PUT IT THERE: one degree, so Action begins at exactly ±3 under the Standard policy (watchMaxZ = 3) and moves with the policy as every corridor in this pack does. Coaching judgement, not a fitted spread. Sigma was 2.0, which put the fault line at ±6° — a face six degrees across its own path is not a shot shape, it is a slice, so sig_openFaceToPath and sig_closedFaceToPath could barely fire. They now fire beyond ±3 rather than ±6, which is the intended consequence and the reason this row moved. NOT A CORRIDOR ON THE SHOT SHAPE, and it cannot be one: the same −2° is a push-draw off an in-to-out path and a pull-hook off a square one, and no corridor on a single measure can tell those apart. It grades how far the face and the path disagree, which is a fault on its own terms whichever way the ball then goes. Left at `any` rather than full_swing to match the m_clubPathAtImpact and m_launchDirection rows beside it, which means a putt inherits it — as it already did at 2.0. Distributional cross-check: delivery-parameter distributions in 10.3390/proceedings2060249 cover face angle, club path and attack angle across club types."
+      "citation": "SIGMA 1 -> 1.5 on 2026-09-14. The citation's intent was a fault line at ±3°; with the engine firing beyond 2σ, sigma 1 fired at 2°, which graded a quarter to a third of a good amateur's corpus shots as a miss. 1.5 puts the firing edge at the stated 3° and Action at 4.5°."
     },
     {
       "measure": "m_launchDirection",
@@ -1954,6 +1996,15 @@
       "unit": "yd",
       "source": "heuristic",
       "citation": "A DUFF GUARD, NOT A CARRY CORRIDOR, and the numbers are chosen so it can only ever say that. Carry is the most club- and athlete-dependent number in the pack — a lob wedge and a driver are 200 yards apart for the same golfer — so any corridor spanning the bag would grade a normal wedge as a fault. Set as a FLOOR at 40 yards, so a full swing has to be carrying under about 30 before sig_carryDeficit fires, which is a topped or duffed shot rather than a short one. There is no fault called too much carry, hence the floor. It exists because m_carryDistance went live with the launch monitor connector while its per-club evidence base did not, and the pack forbids a live corridor signal with no norm — without a row the signal would go dark, which is the worse failure because it is silent. At full_swing rather than any, deliberately: a chip or a pitch carries less than this by design. THE PER-CLUB ROWS ARE THE DEFERRED WORK and the ones that should actually diagnose a short carry — see the m_clubheadSpeedImpact rows for the shape that work takes."
+    },
+    {
+      "measure": "m_pelvisSinkTop",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 6.2,
+      "unit": "% stance width",
+      "source": "heuristic",
+      "citation": "Carried over from m_pelvisLiftTop (0 ± 6.2) for the measure that will read the belt line; nothing produces it yet."
     }
   ]
 }

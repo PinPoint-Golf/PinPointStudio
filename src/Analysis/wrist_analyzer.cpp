@@ -83,6 +83,15 @@ MetricSeries buildShaftLeanSeries(const ShaftTrack2D &shaft, int handedness,
     m.key   = QStringLiteral("impactShaftLean");
     m.label = QStringLiteral("Shaft lean");
     m.unit  = QStringLiteral("°");
+    // THE INSTRUMENT'S ERROR, measured rather than assumed. Against 39 hand-marked P7 frames
+    // (2026-09-14; four sessions, two clubs) the tracker's impact lean overshoots the grip-to-head
+    // chord by a median +12° with an sd of 9.5° — and the overshoot is NOT a timing offset (the
+    // implied offset scatters 0-20 ms, and one session reads MORE lean 15 ms after impact, when
+    // physics says less), so it cannot be corrected here by shifting the sample. σ carries the
+    // spread so no corridor grades this narrower than the instrument; the BIAS is deliberately not
+    // subtracted — a producer that quietly corrects itself hides the fault that needs fixing
+    // (candidates: the 6.5 ms exposure smear at impact, the P7 emission geometry).
+    m.sigma = 9.5;
 
     const double sgn = (handedness == 2) ? -1.0 : 1.0;
     int64_t bestDt = std::numeric_limits<int64_t>::max();

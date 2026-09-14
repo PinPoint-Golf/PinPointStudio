@@ -247,26 +247,38 @@ std::optional<MetricSeries> peakLeadSeries(const MetricSeries &speed,
     for (const PhaseEvent &e : phases)
         if (e.phase == Phase::Top) { fromUs = e.t_us; break; }
 
-    int best = -1;
+    int best = -1, nValid = 0;
     for (size_t i = 0; i < speed.t_us.size(); ++i) {
         if (!speed.valid.empty() && speed.valid[i] == 0u) continue;
         if (speed.t_us[i] < fromUs || speed.t_us[i] > anchorUs) continue;
+        ++nValid;
         if (best < 0 || speed.value[i] > speed.value[size_t(best)]) best = int(i);
     }
     // Fewer than three valid samples between Top and the anchor is a track that never
     // covered the downswing; a peak "found" there would be the mask's edge, not the club's.
-    int nValid = 0;
-    for (size_t i = 0; i < speed.t_us.size(); ++i)
-        if ((speed.valid.empty() || speed.valid[i] != 0u)
-            && speed.t_us[i] >= fromUs && speed.t_us[i] <= anchorUs) ++nValid;
     if (best < 0 || nValid < 3) return std::nullopt;
+
+    // THE PLATEAU, NOT THE ARGMAX. The composed speed flattens over the last ~60 ms before the
+    // ball, so a ±3 mph tracker wobble on a flat top can move the single highest sample by tens of
+    // milliseconds — one 9 Sep 2026 swing read 55 ms on the argmax where its speed had merely
+    // dipped 69→58→65 mph and recovered. What "the club stopped getting faster" means is the LAST
+    // instant the speed was still within a hair of its maximum, so the lead is taken from the last
+    // valid sample at or above 97 % of the peak: a club still at full speed into the ball reads 0
+    // whatever the wobble did earlier, and a club that genuinely fell away reads the fall.
+    const double floor = 0.97 * speed.value[size_t(best)];
+    int last = best;
+    for (size_t i = size_t(best); i < speed.t_us.size(); ++i) {
+        if (!speed.valid.empty() && speed.valid[i] == 0u) continue;
+        if (speed.t_us[i] > anchorUs) break;
+        if (speed.value[i] >= floor) last = int(i);
+    }
 
     MetricSeries m;
     m.key   = QStringLiteral("clubheadPeakLead");
     m.label = QStringLiteral("Clubhead peak lead");
     m.unit  = QStringLiteral("ms");
     m.phaseSamples.push_back({ Phase::Impact, anchorUs,
-                               double(anchorUs - speed.t_us[size_t(best)]) / 1000.0, QString() });
+                               double(anchorUs - speed.t_us[size_t(last)]) / 1000.0, QString() });
     return m;
 }
 

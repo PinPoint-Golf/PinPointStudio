@@ -55,7 +55,8 @@
 //
 // CHOSEN CONVENTION (PinPoint = ISB + golf coaching; docs/reference/wristmetrics.md):
 //   +flexion  = "bowed"   (lead wrist bowed toward the ground — the impact goal)
-//   +deviation= "ulnar"   (wrist "hinge"/cock)
+//   +deviation= "ulnar"   (toward the little finger — the wrist UN-cocked; the cock/hinge at the
+//                          top of the backswing is RADIAL and reads NEGATIVE)
 //   +pronation= "roll"    (forearm pronation)
 // User-facing names: bow/cup, hinge, roll.
 

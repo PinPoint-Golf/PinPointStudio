@@ -55,7 +55,7 @@ ankle, hip and spine (Wu et al. 2002, PMID 11934426).
 | Motion | Positive (good-side cue) | Negative |
 |---|---|---|
 | bow / cup (flex/ext) | **bowed** (flexion — desired at impact) | cupped (extension) |
-| hinge (rad/ulnar) | **ulnar** (wrist cock/hinge) | radial |
+| hinge (rad/ulnar) | **ulnar** (toward the little finger — the wrist UN-cocked) | radial (the cock/hinge at the top — reads NEGATIVE) |
 | roll (pron/sup) | **pronated** | supinated |
 
 This agrees with both ISB (flexion +) and golf coaching (a *bowed* lead wrist at impact is
@@ -84,7 +84,7 @@ Coaching/consumer terms mapped to the clinical axes (medium confidence — synth
 
 - **bow / cup** = flexion / extension. *Bowed* = flexion, *cupped* = extension (lead wrist),
   *flat* ≈ neutral.
-- **hinge** (wrist cock) = ulnar deviation.
+- **hinge** (wrist cock) = RADIAL deviation, which is the NEGATIVE end of `leadWristRadUln` (+ is ulnar, ISB). ⚠ Corrected 2026-09-14: this line, the norm grid, the scorer fixtures and two rules had all been authored as if the cock were the positive end; the first ten real wrist-sensor swings read −40 to −53° at the top.
 - **roll** = forearm pronation / supination.
 
 **Lead vs trail wrists differ statistically across all swing phases** (verified) — never

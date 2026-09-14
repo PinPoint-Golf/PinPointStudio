@@ -572,7 +572,10 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const P
     // THE shared resolver the summary uses (review.club, else capture.club.name, else the stub),
     // so a per-club draw-from filter buckets the two paths identically instead of splitting one
     // club into two.
-    grid.club = swingDocClub(root);
+    // DECLARED, not resolved: the picker's "DRIVER" stub must never pick a corridor. An
+    // undeclared club leaves this empty and contextIdForClub() answers the default context,
+    // whose rows were written for a swing of unknown club — see swingDocDeclaredClub().
+    grid.club = swingDocDeclaredClub(root);
 
     // Best-effort: a library on read-only media still browses, it just re-parses each time.
     QSaveFile out(sidePath);

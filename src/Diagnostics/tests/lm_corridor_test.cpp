@@ -245,10 +245,15 @@ int main()
     std::printf("\n-- face to path: the fault line is +/-3 degrees --\n");
     checkSilent(pack, *norms, "7-iron", "lm.faceToPath", 1.8,
                 "inside: the face and the path disagree, but not by much");
-    checkGrade(pack, *norms, "7-iron", "lm.faceToPath", 2.5, "watch",
-               "approaching the limit");
-    checkGrade(pack, *norms, "7-iron", "lm.faceToPath", 3.5, "action",
-               "a face three and a half degrees across its own path");
+    // Sigma 1 -> 1.5 on 2026-09-14: the row's own citation put the fault line at ±3°, but with
+    // the engine firing beyond 2σ a sigma of 1 fired at 2°, which graded a quarter to a third of
+    // a good amateur's corpus shots as a miss. The edge now sits where the citation said.
+    checkSilent(pack, *norms, "7-iron", "lm.faceToPath", 2.5,
+                "two and a half degrees is inside the fault line the row itself states");
+    checkGrade(pack, *norms, "7-iron", "lm.faceToPath", 3.5, "watch",
+               "a face three and a half degrees across its own path — past the line");
+    checkGrade(pack, *norms, "7-iron", "lm.faceToPath", 5.0, "action",
+               "five degrees across the path is a slice or a hook, not a shape");
 
     // THE CASE THAT CANNOT BE GRADED HERE, stated so nobody later reads the silence as a bug. Both
     // of these are face 2 degrees closed to path; the first is a push-draw that finishes near the

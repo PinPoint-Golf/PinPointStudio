@@ -252,13 +252,15 @@ void installMetricManifest(MetricCatalogue &cat)
             "about the dorsal-palmar axis. This is the axis that sets and stores wrist lag in the "
             "backswing and releases it through the strike."),
         .howToRead = QStringLiteral(
-            "+ is ulnar (hinged/cocked), − is radial. A large ulnar value at the top is normal and "
-            "desirable; better players hold less deviation into impact, where lower handicaps show "
+            "+ IS ULNAR (toward the little finger), − IS RADIAL (toward the thumb). THE COCK OF THE "
+            "WRIST AT THE TOP IS RADIAL, so a set backswing reads NEGATIVE relative to address and a "
+            "large negative value at the top is normal and desirable — the grid that once expected "
+            "+38 there was the vendor's sign. Better players hold less deviation into impact, where lower handicaps show "
             "noticeably less wandering. This is the least reliable IMU axis (~5° typical error), so "
             "trust the shape of the trend over any single value. Needs the lead-forearm and hand IMUs."),
         .flexPositive = true,
-        .signPositive = QStringLiteral("ulnar deviation — the wrist hinged or cocked"),
-        .signNegative = QStringLiteral("radial deviation"),
+        .signPositive = QStringLiteral("ulnar deviation — toward the little finger, the wrist UN-cocked"),
+        .signNegative = QStringLiteral("radial deviation — toward the thumb, the wrist cocked or hinged"),
         .phases = { P::Top, P::Impact },
         .scored = true,
         .routes = {
@@ -461,12 +463,13 @@ void installMetricManifest(MetricCatalogue &cat)
             "our own forearm-and-hand IMUs. The twin of `leadWristRadUln`, computed by the identical "
             "decomposition from the device's two units."),
         .howToRead = QStringLiteral(
-            "Read exactly as `leadWristRadUln`: + is ulnar (hinged/cocked), − is radial. This is our "
+            "Read exactly as `leadWristRadUln`: + is ulnar, − is radial, and the cock at the top is RADIAL "
+            "(negative). This is our "
             "least reliable axis on our own sensors, so the device's reading of it is the more "
             "interesting of the two. Needs a HackMotion wG3."),
         .flexPositive = true,
-        .signPositive = QStringLiteral("ulnar deviation — the wrist hinged or cocked"),
-        .signNegative = QStringLiteral("radial deviation"),
+        .signPositive = QStringLiteral("ulnar deviation — toward the little finger, the wrist UN-cocked"),
+        .signNegative = QStringLiteral("radial deviation — toward the thumb, the wrist cocked or hinged"),
         .phases = { P::Top, P::Impact },
         .routes = {
             via("hackMotion", RM::Device, Direct, { .hackMotion = true },
@@ -1023,8 +1026,37 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("vertical travel of the hip centre in the face-on image, against "
                                "the ground plane")) },
-        .usedBy = { QStringLiteral("characteristic:pelvis_sink_backswing"),
-                    QStringLiteral("characteristic:pelvis_rise_backswing") },
+        .usedBy = {                     QStringLiteral("characteristic:pelvis_rise_backswing") },
+    });
+
+    // The belt line's height — what `pelvis_sink_backswing` actually asks for. The hip keypoints
+    // cannot answer it: they sit on the visible trochanter/thigh crease and migrate DOWN the body
+    // as the pelvis turns and the lead knee flexes, so pelvisLift's low tail read 8-15 cm of
+    // "sink" on every corpus shot for a belt line the frames show 2-3 cm lower at most. Planned as
+    // a line tracked in its own right (the waistband edge), not inferred from two joints.
+    cat.addDescriptor({
+        .key = QStringLiteral("pelvisLiftBelt"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Pelvis lift (belt line)"),
+        .shortLabel = QStringLiteral("Belt lift"),
+        .unit = QStringLiteral("% stance width"),
+        .group = QStringLiteral("Pelvis & lateral"),
+        .description = QStringLiteral(
+            "How far the belt line has risen or dropped relative to address, as a percentage of "
+            "stance width — the pelvis's height read off a line the golfer actually wears rather "
+            "than off two joint estimates that move on the body as it turns."),
+        .howToRead = QStringLiteral(
+            "HIGHER MEANS THE PELVIS HAS RISEN, the same convention as pelvisLift. Read at the top: "
+            "a few percent either way is posture holding; a drop of a stance-fifth is a squat. "
+            "Needs a waistband edge the tracker can follow — a belt, or a taped line."),
+        .signPositive = QStringLiteral("the belt line rose"),
+        .signNegative = QStringLiteral("the belt line dropped"),
+        .phases = { P::Top },
+        .routes = {
+            via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
+                QStringLiteral("the waistband edge tracked as a line in the face-on image, its "
+                               "height against the address reference"), PLANNED) },
+        .usedBy = { QStringLiteral("characteristic:pelvis_sink_backswing") },
     });
 
     cat.addDescriptor({
@@ -1467,15 +1499,12 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the vertical velocity angle at impact, read in the face-on image "
                                "plane — which is the plane containing the target line, so this is "
                                "NOT a down-the-line metric")) },
-        .usedBy = { QStringLiteral("characteristic:attack_too_shallow"),
-                    QStringLiteral("characteristic:attack_too_steep"),
-                    // The upward and downward halves of the two low-point outcomes. `m_attackAngle`
-                    // PREFERS `lm.attackAngle` and falls back to this, so both keys carry the same
-                    // four names — the ladder is a choice of instrument, not of quantity, and a
-                    // directory that listed them on only one rung would understate whichever kit
-                    // the reader happens to own.
-                    QStringLiteral("characteristic:top"),
-                    QStringLiteral("characteristic:sky") },
+        // ⚠ NO CHARACTERISTIC READS THIS KEY ANY MORE (2026-09-14). `m_attackAngle` used to prefer
+        // `lm.attackAngle` and fall back to this; over 123 corpus shots the fallback read −65° to
+        // +38° and flipped shallow<->steep on the SAME swings when the shaft stage re-ran. The
+        // measure reads the launch monitor only until the tracker's impact geometry is validated
+        // against the hand-marked P7 truth. The series stays for the chart.
+        .usedBy = { QStringLiteral("chart:review") },
     });
 
     cat.addDescriptor({
@@ -2142,6 +2171,43 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the shoulder line's angle to horizontal, in the face-on image")) },
+        // ⚠ NOT flat_/steep_shoulder_plane any more. Those read this line AT THE TOP, where the thorax
+        // has turned 70-90° and the two shoulder joints foreshorten toward one image column (131 px
+        // at address -> 19-79 px on the 9 Sep 2026 swings, confidence ~0.5); atan(dy/dx) with dx near
+        // zero read 5° to 59° on swings of one shape. The P4 reading is `shoulderPlaneAngle3d` below,
+        // planned on the triangulated pair. Address and impact stay honest here.
+        .usedBy = { QStringLiteral("chart:review") },
+    });
+
+    // The shoulder line's inclination at the top as GEOMETRY — the reading `flat_shoulder_plane`
+    // and `steep_shoulder_plane` actually ask for. One camera cannot read it at P4 (see the note on
+    // shoulderPlaneAngle's usedBy): the line has rotated toward the optical axis and its image tilt
+    // is dominated by which of two near-coincident keypoints sits a few pixels higher.
+    cat.addDescriptor({
+        .key = QStringLiteral("shoulderPlaneAngle3d"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Shoulder plane angle (3-D)"),
+        .shortLabel = QStringLiteral("Shoulder plane 3-D"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Body rotation"),
+        .description = QStringLiteral(
+            "The angle the line through the two shoulder joints makes with the ground, in the "
+            "vertical plane that contains the line — how steeply the shoulders are turning, "
+            "wherever they are pointing. This is the number a coach means by shoulder plane at the "
+            "top, and it is the quantity the face-on `shoulderPlaneAngle` degrades into once the "
+            "thorax has turned."),
+        .howToRead = QStringLiteral(
+            "Read at the top. Lower means flatter, more horizontal shoulders; higher means steeper. "
+            "POSITIVE MEANS THE TRAIL SHOULDER SITS ABOVE THE LEAD SHOULDER, the same convention as "
+            "the face-on line. Needs the calibrated camera pair — the inclination lives in the "
+            "plane the shoulders have turned into, which one view has no depth to see."),
+        .signPositive = QStringLiteral("the TRAIL shoulder sits above the lead shoulder — a steeper turn"),
+        .signNegative = QStringLiteral("the lead shoulder sits above the trail shoulder"),
+        .phases = { P::Top },
+        .routes = {
+            via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the shoulder joints triangulated from the calibrated pair, and the "
+                               "line's inclination taken in its own vertical plane"), PLANNED) },
         .usedBy = { QStringLiteral("characteristic:flat_shoulder_plane"),
                     QStringLiteral("characteristic:steep_shoulder_plane") },
     });

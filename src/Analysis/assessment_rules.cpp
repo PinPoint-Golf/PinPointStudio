@@ -28,7 +28,7 @@ using Out = std::optional<std::pair<Sev, double>>;
 namespace {
 
 constexpr auto FE  = PpJointDof::LeadWristFlexExt;   // + bowed / − cupped
-constexpr auto RU  = PpJointDof::LeadWristRadUln;    // + ulnar (set/lag)
+constexpr auto RU  = PpJointDof::LeadWristRadUln;    // + ulnar, − radial — THE SET IS NEGATIVE (the cock at the top is radial)
 constexpr auto FA  = PpJointDof::LeadForearmRot;     // + pronation / − supination
 constexpr auto EL  = PpJointDof::LeadElbowFlex;      // + flexion magnitude
 constexpr auto TW  = PpJointDof::TrailWristFlexExt;  // trail "tray" extension (corroboration)
@@ -105,7 +105,10 @@ std::vector<RuleDef> defaultRuleDefs()
             if (der < c.tuning.flipWatchDeg) return std::make_pair(Sev::Watch, -der);
             return std::nullopt; } });
 
-    // F4 — Casting / early release: lead-wrist radial set dumped below corridor by P6.
+    // F4 — Casting / early release: lead-wrist radial set dumped by P6. The set is RADIAL and reads
+    // NEGATIVE (the producer is + = ulnar), so a dumped set sits ABOVE the corridor — less negative
+    // than the band. Until 2026-09-14 this read `below`, on a grid authored + = set; the grid and the
+    // fixtures were mirrored to the producer's sign together with this rule.
     r.push_back({ QStringLiteral("cast"), QStringLiteral("Early release (cast)"),
         QStringLiteral("power"), { RU }, { P5, P6 },
         { QStringLiteral("distance loss"), QStringLiteral("fat / thin") },
@@ -113,11 +116,12 @@ std::vector<RuleDef> defaultRuleDefs()
         QStringLiteral("Retain the trail-wrist bend and release the angle late, not from the top."), QString(),
         0.85f, 1.0, [](const RuleContext &c) -> Out {
             if (!c.ok(RU, P6) || !c.banded(RU, P6)) return std::nullopt;
-            const double mag = below(c, RU, P6);
+            const double mag = above(c, RU, P6);
             if (mag <= 0.0) return std::nullopt;
             return std::make_pair(c.rag(RU, P6) == PpRag::Red ? Sev::Fault : Sev::Watch, mag); } });
 
-    // F5 — Insufficient set: under-cocked radial deviation at the top.
+    // F5 — Insufficient set: under-cocked radial deviation at the top — ABOVE the corridor, for the
+    // same reason as F4: the cock is negative, so too little of it is the less-negative side.
     r.push_back({ QStringLiteral("insufficient_set"), QStringLiteral("Insufficient set"),
         QStringLiteral("power"), { RU }, { P4 },
         { QStringLiteral("narrow / short") },
@@ -125,7 +129,7 @@ std::vector<RuleDef> defaultRuleDefs()
         QStringLiteral("Set the club earlier and fuller into the top."), QString(),
         0.70f, 0.5, [](const RuleContext &c) -> Out {
             if (!c.ok(RU, P4) || !c.banded(RU, P4)) return std::nullopt;
-            const double mag = below(c, RU, P4);
+            const double mag = above(c, RU, P4);
             if (mag <= 0.0) return std::nullopt;
             return std::make_pair(c.rag(RU, P4) == PpRag::Red ? Sev::Fault : Sev::Watch, mag); } });
 

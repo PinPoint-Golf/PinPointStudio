@@ -585,6 +585,28 @@ std::vector<MetricSeries> buildLowerBodySeries(const LowerBodyResult &res,
             const std::optional<int64_t> t = phaseTimeOpt(phases, p);
             if (!t)
                 continue;
+            // THE FINISH IS HELD, NOT TICKED. The Finish phase lands 200-300 ms after impact, while
+            // the club is still swinging round and the body is still rotating onto the lead side;
+            // sampling the balance curve AT that tick read 50-60 % of stance from the lead ankle on
+            // finishes the video shows stacked over the lead foot, and the same curve read 16-25 %
+            // two hundred milliseconds later (corpus, 2026-09-14 — off_balance_finish fired on 71 %
+            // of 7-iron shots off the tick). So the Finish sample is the MEDIAN over the valid
+            // samples 300-800 ms after the tick — the held position a coach looks at — and only if
+            // the series covers that much; a capture that ends sooner falls back to the tick, which
+            // is honest about what it saw. Only Finish: every other phase is an instant.
+            if (p == Phase::Finish) {
+                std::vector<double> held;
+                for (size_t i = 0; i < grid.size(); ++i) {
+                    if (grid[i] < *t + 300'000 || grid[i] > *t + 800'000) continue;
+                    if (!m.valid.empty() && m.valid[i] == 0u) continue;
+                    held.push_back(vals[i]);
+                }
+                if (held.size() >= 3) {
+                    std::nth_element(held.begin(), held.begin() + held.size() / 2, held.end());
+                    m.phaseSamples.push_back({ p, *t + 550'000, held[held.size() / 2], QString() });
+                    continue;
+                }
+            }
             const int idx = nearestIndex(grid, *t);
             if (!m.valid.empty() && m.valid[size_t(idx)] == 0u)
                 continue;

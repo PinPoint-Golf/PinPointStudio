@@ -187,7 +187,29 @@
       "label": "Pelvis lift, change P1 to P4",
       "unit": "% stance width",
       "highMeans": "the pelvis higher than at address by the top",
-      "viewNeeded": "faceOn"
+      "viewNeeded": "faceOn",
+      "unwatchedTail": "low",
+      "unwatchedReason": "The low tail is the pelvis SINKING by the top, and it fired on 100 % of 123 corpus shots at 8-15 cm (−18 to −37 % of stance) while address-vs-top frames of the 9 Sep 2026 swing show the belt line 2-3 cm lower at most. The hip keypoints sit on the visible trochanter/thigh crease and migrate DOWN the body as the pelvis turns and the lead knee flexes, so a \"drop\" at the top is keypoint travel, not pelvis travel. Unwatched until the reading is validated against a taped belt line; the high tail (a rising pelvis) is kept because migration only lowers the reading."
+    },
+    {
+      "id": "m_pelvisSinkTop",
+      "kind": "provided",
+      "metricKey": "pelvisLiftBelt",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p4"
+        ]
+      },
+      "status": "noProducer",
+      "gapReason": "The pelvis SINKING by the top cannot be read off the hip keypoints: m_pelvisLiftTop's low tail fired on 100 % of 123 corpus shots at 8-15 cm of drop (−18 to −37 % of stance) while address-vs-top frames of the 9 Sep 2026 swing show the belt line 2-3 cm lower at most. The pose model places the hip keypoints on the visible trochanter/thigh crease, which migrates DOWN the body as the pelvis turns and the lead knee flexes — a drop in the reading, not in the pelvis. That tail is declared unwatched on m_pelvisLiftTop (a rising pelvis is still read there, because migration only lowers the number). This measure names what would answer it: the height of the belt line, tracked as a line rather than inferred from two joints.",
+      "label": "Pelvis sink, change P1 to P4 (belt line)",
+      "unit": "% stance width",
+      "highMeans": "the pelvis higher than at address by the top; sinking is the negative end",
+      "unwatchedTail": "high",
+      "unwatchedReason": "The high tail is the pelvis RISING, which is read on m_pelvisLiftTop (the hip keypoints only migrate downward, so a rise there is trusted); this measure exists for the sink alone."
     },
     {
       "id": "m_leadKneeDriftTop",
@@ -396,11 +418,12 @@
         "kind": "at",
         "anchor": "p4"
       },
-      "status": "live",
+      "status": "noProducer",
       "label": "",
-      "metricKey": "shoulderPlaneAngle",
+      "metricKey": "shoulderPlaneAngle3d",
       "highMeans": "a steeper, more vertical shoulder turn",
-      "unit": "°"
+      "unit": "°",
+      "gapReason": "shoulderPlaneAngle at P4 is the shoulder line's angle in the face-on IMAGE, and by the top the thorax has turned 70-90°, so the two shoulder joints foreshorten toward one column: on the seven 9 Sep 2026 swings their separation collapsed from 131 px at address to 19-79 px at confidence 0.40-0.54, and the \"plane \"angle\" read 5.7, 28.7, 4.6, 26.8, 8.2, 13.2 and 30.4° on swings of one shape. atan(dy/dx) with dx near zero is the camera, not the golfer — the same class as the rotation family retired in 8524467, an image-plane angle whose meaning is destroyed by the turn exactly where the condition reads it. The series stays honest at address and impact; the P4 reading waits on the triangulated pair, which measures the line as geometry."
     },
     {
       "id": "m_ballBodyGap",
@@ -707,7 +730,8 @@
       },
       "status": "live",
       "label": "Lead wrist hinge — change from address at P2",
-      "unit": "°"
+      "unit": "°",
+      "highMeans": "more ulnar (less cocked) than at address; the radial cock of the backswing is negative"
     },
     {
       "id": "m_leadWristRadUln_p3",
@@ -726,7 +750,8 @@
       },
       "status": "live",
       "label": "Lead wrist hinge — change from address at P3",
-      "unit": "°"
+      "unit": "°",
+      "highMeans": "more ulnar (less cocked) than at address; the radial cock of the backswing is negative"
     },
     {
       "id": "m_leadWristRadUln_p4",
@@ -746,7 +771,7 @@
       "status": "live",
       "label": "Lead wrist hinge — change from address at P4",
       "unit": "°",
-      "highMeans": "more wrist set at the top, the club hinged further up from address"
+      "highMeans": "LESS wrist set at the top — the lead wrist closer to its address hinge, or hinged the other way (ulnar); positive is ulnar on the producer, so the cocked, radial top of a normal backswing is the NEGATIVE end"
     },
     {
       "id": "m_leadWristRadUln_p5",
@@ -765,7 +790,8 @@
       },
       "status": "live",
       "label": "Lead wrist hinge — change from address at P5",
-      "unit": "°"
+      "unit": "°",
+      "highMeans": "more ulnar (less cocked) than at address; the radial cock of the backswing is negative"
     },
     {
       "id": "m_leadWristRadUln_p6",
@@ -784,7 +810,8 @@
       },
       "status": "live",
       "label": "Lead wrist hinge — change from address at P6",
-      "unit": "°"
+      "unit": "°",
+      "highMeans": "more ulnar (less cocked) than at address; the radial cock of the backswing is negative"
     },
     {
       "id": "m_leadWristRadUln_p7",
@@ -803,7 +830,8 @@
       },
       "status": "live",
       "label": "Lead wrist hinge — change from address at P7",
-      "unit": "°"
+      "unit": "°",
+      "highMeans": "more ulnar (less cocked) than at address; the radial cock of the backswing is negative"
     },
     {
       "id": "m_leadWristRadUln_p8",
@@ -822,7 +850,8 @@
       },
       "status": "live",
       "label": "Lead wrist hinge — change from address at P8",
-      "unit": "°"
+      "unit": "°",
+      "highMeans": "more ulnar (less cocked) than at address; the radial cock of the backswing is negative"
     },
     {
       "id": "m_leadForearmRot_p1",
@@ -1523,12 +1552,12 @@
         "kind": "extremum",
         "window": [
           "p1",
-          "p4"
+          "p3"
         ],
         "sense": "max"
       },
       "status": "live",
-      "label": "Widest lead-arm gap from the chest, address to the top",
+      "label": "Widest lead-arm gap from the chest, address to halfway back",
       "unit": "% shoulder width",
       "highMeans": "the lead arm running further from the chest — less connected"
     },
@@ -1652,19 +1681,15 @@
     {
       "id": "m_attackAngle",
       "kind": "provided",
-      "metricKey": "attackAngle",
-      "preferKeys": [
-        "lm.attackAngle"
-      ],
+      "metricKey": "lm.attackAngle",
       "reducer": {
         "kind": "at",
         "anchor": "p7"
       },
       "status": "live",
-      "label": "Angle of attack, at impact",
+      "label": "Angle of attack, at impact (launch monitor)",
       "unit": "°",
-      "highMeans": "a more upward strike — hitting up on the ball",
-      "viewNeeded": "downTheLine"
+      "highMeans": "a more upward strike — hitting up on the ball"
     },
     {
       "id": "m_launchDirection",
@@ -2356,7 +2381,7 @@
       "measures": [
         "m_leadWristRadUln_p4"
       ],
-      "direction": "low"
+      "direction": "high"
     },
     {
       "id": "sig_xfactorDeficit",
@@ -2982,14 +3007,6 @@
       "direction": "high"
     },
     {
-      "id": "sig_pelvisSinkBackswing",
-      "test": "outsideCorridor",
-      "measures": [
-        "m_pelvisLiftTop"
-      ],
-      "direction": "low"
-    },
-    {
       "id": "sig_inToOutPath",
       "test": "outsideCorridor",
       "measures": [
@@ -3059,7 +3076,7 @@
       "measures": [
         "m_leadWristRadUln_p4"
       ],
-      "direction": "high"
+      "direction": "low"
     },
     {
       "id": "sig_bowedLeadWrist",
@@ -3178,6 +3195,14 @@
       "test": "outsideCorridor",
       "measures": [
         "m_leadKneeDriftImpact"
+      ],
+      "direction": "low"
+    },
+    {
+      "id": "sig_pelvisSinkBackswing",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_pelvisSinkTop"
       ],
       "direction": "low"
     }
@@ -6217,13 +6242,12 @@
         "sig_pelvisSinkBackswing"
       ],
       "state": "active",
-      "consequence": "Losing pelvis height on the way back drops the whole swing centre before the downswing has started, and the height has to be found again on the way through. What the golfer sees is a strike that changes depth from swing to swing rather than one that is consistently heavy or thin.",
+      "consequence": "Losing pelvis height on the way back drops the whole swing centre before the downswing has started, and the height has to be found again on the way through. What the golfer sees is a strike that changes depth from swing to swing rather than one that is consistently heavy or thin. NOT PRODUCED TODAY: read on m_pelvisSinkTop, a belt-line height nothing tracks yet — the hip keypoints migrate down the thigh as the pelvis turns, and the reading they gave fired on every corpus shot for a drop the frames do not show (see the measure's gapReason).",
       "provenance": {
         "tier": "practice",
         "searchedOn": "2026-07-28",
         "searchTerms": "pelvis vertical displacement backswing squat golf swing centre height"
-      },
-      "axis": "pelvis_height_top"
+      }
     },
     {
       "id": "in_to_out_path",

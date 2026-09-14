@@ -314,7 +314,9 @@ int main(int argc, char **argv)
     // 135 -> 134 on 2026-09-04: `m_pelvisSwayFinish` deleted. It reduced pelvisSway at the FINISH,
     // and pelvisSway carries a P1-P7 phase domain — past impact the pelvis has turned, so its
     // lateral offset in a face-on image is the rotation and not the translation the measure named.
-    check(pack.measures.size() == 135, "…and 135 measures");
+    // 135 -> 136 on 2026-09-14: m_pelvisSinkTop, noProducer on a belt-line series (the hip keypoints
+    // cannot read a sink; see its gapReason).
+    check(pack.measures.size() == 136, "…and 136 measures");
     check(!norms->norms().norms.empty(), "the shipped norm set loaded");
 
     QTemporaryDir tmp;
@@ -397,9 +399,11 @@ int main(int argc, char **argv)
     {
         const LiveMeasureSource src(sparse, pack);
         check(src.grid().metrics.size() == 1, "exactly one metric reached the grid");
-        // No review block, so the club falls to the house-wide DRIVER stub — see
-        // LiveMeasureSource::club() for why this seam cannot tell that from a declared driver.
-        check(src.club() == QLatin1String("DRIVER"), "an undeclared club reads as the DRIVER stub");
+        // No review block and no captured club, so NOTHING declared it — and since 2026-09-14 the
+        // grid says so rather than borrowing the picker's DRIVER stub: 58 corpus shots that were an
+        // iron in the frame had been graded against driver corridors on that stub. An empty club
+        // resolves to the default context, whose rows were written for a swing of unknown club.
+        check(src.club().isEmpty(), "an undeclared club reads as no club at all, never as the stub");
         checkValue(src, "m_impactShaftLean", 163.63672117342375);
     }
 
@@ -483,7 +487,10 @@ int main(int argc, char **argv)
         // to emit the peak's timing. This fixture is a verbatim corpus copy from an older build,
         // so it still carries no clubheadPeakLead key and the measure resolves nothing here —
         // which is the honest state of every swing on disk until its next re-analysis.
-        check(planned == 21, "21 shipped measures have no producer yet");
+        // 21 -> 23 on 2026-09-14 (the corridor review): m_shoulderPlane is noProducer on the planned
+        // shoulderPlaneAngle3d (the face-on line at P4 is foreshortened into noise), and the new
+        // m_pelvisSinkTop waits on a belt-line series (the hip keypoints migrate as the pelvis turns).
+        check(planned == 23, "23 shipped measures have no producer yet");
         check(wrong == 0, "…and not one of them produced a value");
     }
 
@@ -544,7 +551,13 @@ int main(int argc, char **argv)
     // floor under the hands' delivery-to-impact rate — which is negative on every good release
     // (97 of 97 corpus swings) — and now waits on `clubheadPeakLead`. All three report Unavailable
     // with a gapReason that says why, which is the same trade hip_stall made two days earlier.
-    check(cRich.assessable == 59, "rich_7iron: 59 of 157 conditions assessable (observed)");
+    // 59 -> 56 on 2026-09-14 (the corridor review), and the three are attack_too_steep,
+    // attack_too_shallow and pelvis_sink_backswing. The first two read m_attackAngle, which no longer
+    // falls back to the camera's projected attack angle (−65° to +38° over the corpus) and this
+    // fixture has no launch monitor; the third moved to m_pelvisSinkTop, noProducer on a belt-line
+    // series. `top` and `sky` are NOT in the delta: each is a conjunction with another term this
+    // fixture assessed and found false, which settles the AND whatever the attack term would say.
+    check(cRich.assessable == 56, "rich_7iron: 56 of 157 conditions assessable (observed)");
     // HOW MANY OF THOSE ANSWERS RESTED ON EVIDENCE THE CAPTURE DID NOT HAVE. A conjunction
     // settled by one known-false term is a real negative, but it is a different kind of "no"
     // from one where every term was read, and it can only ever be a no. Pinned because the
@@ -552,7 +565,7 @@ int main(int argc, char **argv)
     // and on real swings it is not: 3 of 54 here, 2 of 21 on lm_7iron, 0 of 2 on sparse_noclub.
     // If that starts climbing, the panel is answering more and more from less and less.
     check(cRich.assessedPartial == 1,
-          "rich_7iron: 1 of its 59 answers rests on a term it could not read (observed)");
+          "rich_7iron: 1 of its 56 answers rests on a term it could not read (observed)");
     // 38 -> 40 with the two new hipLineTilt measures. Both read a curve this fixture ALREADY
     // carries — the reduction samples the series itself at each segmented phase and does not need
     // the producer to have listed that phase — so a swing written by an older build gains them
@@ -571,7 +584,9 @@ int main(int argc, char **argv)
     // and are no longer live — the first is noProducer, the second is gone. m_headSwayBack is NOT
     // in the delta: its norm's sign was mirrored to match the producer, which changes what the
     // value grades as, not whether it resolves.
-    check(cRich.measures   == 50, "rich_7iron: 50 live measures resolved (observed)");
+    //
+    // 50 -> 49 on 2026-09-14: m_attackAngle no longer resolves off the camera series.
+    check(cRich.measures   == 49, "rich_7iron: 49 live measures resolved (observed)");
     // 12 → 14 on 2026-08-09: sig_launchLow/sig_launchHigh moved onto m_lmLaunchAngle (the
     // measured key this fixture actually carries), so launch_low and launch_high became
     // assessable on an LM-only capture.
@@ -631,7 +646,10 @@ int main(int argc, char **argv)
               "…and neither does the low tail of the same axis");
         check(hi && hi->evidence.hasEvidence && near(hi->evidence.value, 12.5, 1e-6),
               "the NotFired finding still carries the 12.5° it was judged on");
-        check(hi && hi->evidence.hasCorridor && near(hi->evidence.corridorHi, 14.0),
+        // 14 -> 18 on 2026-09-14: the iron row's tolerance is the INSTRUMENT's now — the tracker's
+        // impact lean overshoots 39 hand-marked frames by a median 12° with an sd of 9.5°, so both
+        // sides widened to 10 (mu 8 unchanged). The corridor cannot be narrower than the reading.
+        check(hi && hi->evidence.hasCorridor && near(hi->evidence.corridorHi, 18.0),
               "…and the corridor it was tested against");
 
         // A FIRING that carries its own evidence, which the shaft-lean case used to supply.

@@ -226,12 +226,12 @@ int main(int argc, char **argv)
     // section grows a row without anything else being touched. A delta, never an absolute — the
     // section list will keep growing and a pinned row count would be wrong the first time it did.
     {
-        const QString aa = QStringLiteral("m_attackAngle");
+        const QString aa = QStringLiteral("m_lowPointAhead");   // m_attackAngle lost its ladder 2026-09-14
         root->setProperty("selectedType", QStringLiteral("measures"));
         root->setProperty("selectedId", aa);
         const int before = rowCount();
         if (before > 0) {
-            check(browser->removePreferKey(aa, QStringLiteral("lm.attackAngle"))
+            check(browser->removePreferKey(aa, QStringLiteral("lm.lowPointAhead"))
                       .value(QStringLiteral("ok")).toBool(),
                   "a rung comes off the ladder");
             check(rowCount() == before - 1, "and the measure's pane loses the row");

@@ -70,7 +70,9 @@ static const Expect kExpected[] = {
       "detection 'all' — the conjunction needs both ends of the swing wrong before it fires, which "
       "is why this signal names its phase" },
     { "sig_lossOfWidth",      Direction::Low,   "leadHandWidth: 'lower means narrower'" },
-    { "sig_flatShoulderPlane",Direction::Low,   "shoulderPlaneAngle: 'lower means flatter'" },
+    // On `shoulderPlaneAngle3d` since 2026-09-14, planned on the pair; the face-on line at P4 is
+    // foreshortened into noise. Same convention, so the tails are unchanged.
+    { "sig_flatShoulderPlane",Direction::Low,   "shoulderPlaneAngle3d: 'Lower means flatter'" },
     { "sig_flyingElbow",      Direction::High,
       "trailElbowHeight: 'higher means the elbow has risen further above the shoulder line'" },
     // Moved off pelvisLift, which is the pelvis CENTRE rising, onto the hip LINE. One hip riding up
@@ -110,8 +112,13 @@ static const Expect kExpected[] = {
     // ── impact / follow-through ─────────────────────────────────────────────
     { "sig_scooping",         Direction::Low,
       "leadWristFlexExt: '+ is bowed/flexed, - is cupped/extended'; scooping ADDS loft, so cupped" },
-    { "sig_insufficientSet",  Direction::Low,
-      "leadWristRadUln is the HINGE; less set is less of it" },
+    // ⚠ INVERTED UNTIL 2026-09-14, and this row was the inversion: "less set is less of it" assumed
+    // the producer's + was the set. It is not: leadWristRadUln is '+ IS ULNAR, − IS RADIAL' and 'THE
+    // COCK OF THE WRIST AT THE TOP IS RADIAL', so a set backswing reads NEGATIVE and less set is the
+    // HIGH end. The norm grid had the same inversion (+38 at P4 against a corpus at −44).
+    { "sig_insufficientSet",  Direction::High,
+      "leadWristRadUln: '+ IS ULNAR … THE COCK OF THE WRIST AT THE TOP IS RADIAL' — less cock is less "
+      "negative, the high end" },
     { "sig_chickenWing",      Direction::High,
       "leadArmToTorso: 'a rising angle there means the arm is separating from the body'" },
     { "sig_lateBuckle",       Direction::High,  "leadKneeFlexion: 'higher means more bend'" },
@@ -278,8 +285,8 @@ static const Expect kExpected[] = {
       "into the ball'; diving IS that dip, so it is the high end. The measure takes the MAXIMUM "
       "between P5 and P6: a dip is a peak, and it happens in the transition" },
     { "sig_steepShoulderPlane",     Direction::High,
-      "m_shoulderPlane highMeans 'a steeper, more vertical shoulder turn'; steep is the high end, "
-      "where sig_flatShoulderPlane takes the low" },
+      "shoulderPlaneAngle3d: 'higher means steeper'; steep is the high end, where "
+      "sig_flatShoulderPlane takes the low" },
     { "sig_excessiveAxisTiltTop",   Direction::High,
       "m_axisTiltAtTop highMeans 'more tilt away from the target at the top'; excessive tilt is the "
       "high end, where sig_reverseSpineP4 (too little) takes the low" },
@@ -290,9 +297,11 @@ static const Expect kExpected[] = {
       "m_pelvisSwayBack highMeans 'the pelvis further toward the lead side during the backswing'; "
       "drifting lead-side going back is the high end, where sig_sway (toward the trail side) takes "
       "the low" },
+    // On m_pelvisSinkTop since 2026-09-14, a planned belt-line series: the low tail of
+    // m_pelvisLiftTop is unwatched — the hip keypoints migrate down the thigh as the pelvis
+    // turns, and the reading fired on every corpus shot for a drop the frames do not show.
     { "sig_pelvisSinkBackswing",    Direction::Low,
-      "m_pelvisLiftTop highMeans 'the pelvis higher than at address by the top'; sinking is lower "
-      "than at address, the low end, where sig_trailHipHike takes the high" },
+      "pelvisLiftBelt: 'HIGHER MEANS THE PELVIS HAS RISEN'; sinking is the low end" },
     // The other tail of the row corrected above, and the one that did the damage: with the sign
     // inverted this fired on 7 of 7 shots of the 9 Sep 2026 session for a head that the video shows
     // moving 3-5 cm AWAY from the target. Toward the lead side is POSITIVE on the producer.
@@ -361,9 +370,9 @@ static const Expect kExpected[] = {
     { "sig_excessiveLag",           Direction::High,
       "m_lagAngleDown highMeans 'more angle retained between the lead arm and the shaft in the "
       "downswing'; holding it too long is the high end, where sig_casting takes the low" },
-    { "sig_overSet",                Direction::High,
-      "m_leadWristRadUln_p4 highMeans 'more wrist set at the top, the club hinged further up from "
-      "address'; over-set is the high end, where sig_insufficientSet takes the low" },
+    { "sig_overSet",                Direction::Low,
+      "leadWristRadUln: the cock is RADIAL and negative, so over-set is MORE negative, the low end, "
+      "where sig_insufficientSet takes the high" },
     { "sig_bowedLeadWrist",         Direction::High,
       "m_leadWristFlexExt_p7 reads leadWristFlexExt, whose high end is a more bowed lead wrist, less "
       "cupped; the pair reads the CHANGE from address, so gaining bow into impact is the high end "

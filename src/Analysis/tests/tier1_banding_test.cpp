@@ -86,10 +86,11 @@ int main()
     {
         std::printf("-- 3. demo swing spot checks --\n");
         const PpWristAssessmentResult r = WristAssessmentEngine::assess(makeMockupDemoSwing(), provider);
-        // radUln @P6: Δ 14 vs green [20,40] amber [15,45] → below amber → Red.
+        // radUln @P6: Δ −14 vs green [−40,−20] amber [−45,−15] → short of amber → Red. (The set
+        // is NEGATIVE since 2026-09-14: the producer is + = ulnar and the cock is radial.)
         check(rag(r, PpJointDof::LeadWristRadUln, PpSwingPosition::P6) == PpRag::Red,
               "demo radUln P6 (lag dumped) → Red");
-        // radUln @P3: Δ 25 vs green [18,38] → Green.
+        // radUln @P3: Δ −25 vs green [−38,−18] → Green.
         check(rag(r, PpJointDof::LeadWristRadUln, PpSwingPosition::P3) == PpRag::Green,
               "demo radUln P3 → Green");
         // flexExt @P3: Δ −8 vs green [−7,11] amber [−12,16] → just below green → Amber.

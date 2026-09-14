@@ -56,9 +56,13 @@ inline const std::vector<DofTrace> &cleanTraces()
 {
     static const std::vector<DofTrace> kTraces = {
         // lead wrist radial–ulnar (lag): retains the angle into P6 — no early collapse.
+        // ⚠ NEGATIVE IS THE SET. The producer (wrist_angles.h) is + = ulnar, − = radial, and the
+        // cock at the top is RADIAL; these traces were authored + = set (the vendor's sign) and
+        // mirrored on 2026-09-14 with the norm grid, after ten real wrist-sensor swings read −44
+        // at the top against a corridor at +38.
         { PpJointDof::LeadWristRadUln,
           { true, true, true, true, true, true, true, true },
-          { 0, 10, 28, 38, 38, 30, 8, 0 }, 0.86f },
+          { 0, -10, -28, -38, -38, -30, -8, 0 }, 0.86f },
         // lead wrist flex–ext (face): stays flexed into impact — no flip.
         { PpJointDof::LeadWristFlexExt,
           { true, true, true, true, true, true, true, true },
@@ -156,8 +160,8 @@ inline FixtureWristAngleSource makeCastSwing()
 {
     std::vector<DofTrace> t = cleanTraces();
     DofTrace &radUln = detail::traceFor(t, PpJointDof::LeadWristRadUln);
-    radUln.anchor[idx(PpSwingPosition::P5)] = 14;   // lag dumped early
-    radUln.anchor[idx(PpSwingPosition::P6)] = 2;    // ~retention checkpoint far below corridor
+    radUln.anchor[idx(PpSwingPosition::P5)] = -14;  // lag dumped early (the set is negative)
+    radUln.anchor[idx(PpSwingPosition::P6)] = -2;   // ~retention checkpoint far short of the corridor
     return buildFixtureSource(t, PpHandedness::Right);
 }
 
@@ -222,7 +226,7 @@ inline const std::vector<DofTrace> &mockupDemoTraces()
     static const std::vector<DofTrace> kTraces = {
         { PpJointDof::LeadWristRadUln,
           { true, true, true, true, true, true, true, true },
-          { 0, 8, 25, 34, 28, 14, 6, -2 }, 0.86f },
+          { 0, -8, -25, -34, -28, -14, -6, 2 }, 0.86f },   // − = radial = set (2026-09-14)
         { PpJointDof::LeadWristFlexExt,
           { true, true, true, true, true, true, true, true },
           { 0, -3, -8, -12, -6, 2, -7, -14 }, 0.84f },
