@@ -25,7 +25,7 @@
 #include <QStringList>
 #include <QVariantMap>
 
-namespace pinpoint::analysis { struct SwingAnalysis; }
+namespace pinpoint::analysis { struct SwingAnalysis; struct ImpactTrack2D; }
 
 namespace pinpoint {
 
@@ -41,6 +41,15 @@ struct CaptureIntegrityVerdict;   // Analysis/capture_integrity_check.h — same
 // `filter` describes the sources that WERE checked, not every IMU lane in the
 // window, and `sourcesChecked` is the field that says how many that was.
 QJsonObject imuIntegrityJson(const ImuRefusionVerdict &v);
+
+// The impact camera's track (analysis.impact, impact_camera_design.md §7):
+// per-frame ball + club in the clip's normalised coordinates, the departure
+// instant and the fitted path. ONE builder for the doc and the live detail
+// (shot_processor toAnalysisDetail), so the overlay reads one shape. Times
+// follow serializeAnalysis's rule: absolute values (≥ windowT0) are made
+// window-relative, already-relative ones pass through; windowT0 = 0 keeps
+// the live domain.
+QJsonObject impactTrackJson(const analysis::ImpactTrack2D &t, qint64 windowT0);
 
 // Patch a manifest that is about to be written back so its "imuIntegrity" block
 // reflects THIS pass rather than whatever capture concluded.

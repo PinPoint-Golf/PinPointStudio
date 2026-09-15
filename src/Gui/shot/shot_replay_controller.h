@@ -47,6 +47,12 @@ class ShotReplayController : public QObject
     // The impact clip's own transport (it loops independently of the window —
     // impact_camera_design.md §10.2): false while held by toggleImpactLoop().
     Q_PROPERTY(bool         impactLoopPlaying READ impactLoopPlaying NOTIFY impactLoopPlayingChanged)
+    // The impact clip's own playhead (window-relative µs; -1 = no impact clip)
+    // — it loops on its own clock, so the window playhead is not where it is.
+    Q_PROPERTY(qint64       impactPositionUs READ impactPositionUs NOTIFY positionChanged)
+    // The clip's own scrub range (-1 when no impact clip).
+    Q_PROPERTY(qint64       impactLoopStartUs READ impactLoopStartUs NOTIFY spanChanged)
+    Q_PROPERTY(qint64       impactLoopEndUs   READ impactLoopEndUs   NOTIFY spanChanged)
     Q_PROPERTY(int          shotId         READ shotId         NOTIFY activeChanged)
     // On-disk folder of the focused (replaying/scrubbing) shot, for the data viewer.
     // Empty when no replay is active — the viewer then falls back to the carousel's
@@ -96,6 +102,11 @@ public:
     Q_INVOKABLE void endScrub()                   { m_source->endScrub(); }
     Q_INVOKABLE void toggleImpactLoop()           { m_source->toggleImpactLoop(); }
     bool impactLoopPlaying() const                { return m_source->impactLoopPlaying(); }
+    qint64 impactPositionUs() const               { return m_source->impactPositionUs(); }
+    qint64 impactLoopStartUs() const              { return m_source->impactLoopStartUs(); }
+    qint64 impactLoopEndUs() const                { return m_source->impactLoopEndUs(); }
+    Q_INVOKABLE void seekImpactToUs(qint64 us)    { m_source->seekImpactToUs(us); }
+    Q_INVOKABLE void stepImpactFrame(int delta)   { m_source->stepImpactFrame(delta); }
 
     // Bind a QML VideoOutput's sink to stream `index` (face-on = 0). Persists
     // across shots (the VideoOutput outlives a single replay), so it may be called

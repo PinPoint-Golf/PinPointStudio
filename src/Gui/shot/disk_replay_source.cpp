@@ -40,6 +40,16 @@ constexpr qint64 kSlaveResyncMs = 120;
 
 constexpr int kPerspectiveFaceOn = 2;   // CameraInstance::FaceOn
 constexpr int kPerspectiveImpact = 4;   // CameraInstance::Impact — the looping impact clip
+// The impact clip runs this much slower than the window's capture-time speed
+// (applyPlaybackRates): the interesting part is ~40 ms of capture time.
+// The impact clip's replay pace, as a fraction of real time — FIXED, not the
+// transport's speed: the club is in the strip for ~60 ms of capture time, and
+// at the window's ×1 or ×¼ that is a flicker (the rate then hit the player's
+// clamp either way, which is why "3× slower" changed nothing, 2026-09-15).
+// 1/50 puts each 591 fps frame on screen for ~85 ms — a readable flipbook.
+constexpr double kImpactLoopSpeed = 1.0 / 50.0;
+// Frames of context kept either side of the action when the loop is trimmed.
+constexpr int    kImpactLoopPadFrames = 4;
 
 // Window-relative µs from an analysis t_us. Live captures write ABSOLUTE
 // (t0-based) analysis t_us, but re-analysed swings write WINDOW-RELATIVE ones
@@ -310,6 +320,30 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
             ball[QStringLiteral("samples")] = samples;
             m_analysisDetail.insert(QStringLiteral("ball"), ball);
         }
+        // The impact camera's track (impact_camera_design.md §7): samples and
+        // the departure instant are window-relative already, like everything
+        // else in the block, so re-time them the same way.
+        if (an.contains(QStringLiteral("impact"))) {
+            const QJsonObject io = an[QStringLiteral("impact")].toObject();
+            QVariantMap impact = io.toVariantMap();
+            QVariantList samples;
+            for (const QJsonValue &sv2 : io[QStringLiteral("samples")].toArray())
+                samples.append(relTimedMap(sv2.toObject(), t0));
+            impact[QStringLiteral("samples")] = samples;
+            if (io.contains(QStringLiteral("ballLeaveTUs")))
+                impact[QStringLiteral("ballLeaveTUs")] =
+                    static_cast<qlonglong>(relUs(io[QStringLiteral("ballLeaveTUs")], t0));
+            if (io.contains(QStringLiteral("path"))) {
+                const QJsonObject po = io[QStringLiteral("path")].toObject();
+                QVariantMap path = po.toVariantMap();
+                QVariantList pts;
+                for (const QJsonValue &pv : po[QStringLiteral("points")].toArray())
+                    pts.append(relTimedMap(pv.toObject(), t0));
+                path[QStringLiteral("points")] = pts;   // ribbon / arc carry no times: verbatim
+                impact[QStringLiteral("path")] = path;
+            }
+            m_analysisDetail.insert(QStringLiteral("impact"), impact);
+        }
     }
     if (m_impactUs < 0) {
         const QJsonObject thumb = root[QStringLiteral("thumbnail")].toObject();
@@ -371,6 +405,8 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
         st.playbackFps = pending[i].fps;
         st.file        = pending[i].file;
         st.loop        = haveFullStream && pending[i].perspective == kPerspectiveImpact;
+        st.loopStartUs = st.tUs.front();
+        st.loopEndUs   = st.tUs.back();
         st.captureFps  = (st.tUs.size() > 1 && st.tUs.back() > st.tUs.front())
                              ? double(st.tUs.size() - 1) * 1e6 / double(st.tUs.back() - st.tUs.front())
                              : 0.0;
@@ -428,6 +464,31 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
     }
     playPlayers();
 
+    // Trim the loop to the action when the impact track says where it is:
+    // the first frame with a club to the last with a club or a departed ball,
+    // padded a few frames either side.
+    {
+        const QVariantMap im = m_analysisDetail.value(QStringLiteral("impact")).toMap();
+        const QVariantList samples = im.value(QStringLiteral("samples")).toList();
+        const qint64 leave = im.value(QStringLiteral("ballLeaveTUs"), -1).toLongLong();
+        qint64 lo = -1, hi = -1;
+        for (const QVariant &v : samples) {
+            const QVariantMap sm = v.toMap();
+            const qint64 t = sm.value(QStringLiteral("t_us")).toLongLong();
+            const bool action = sm.contains(QStringLiteral("hx"))
+                             || (leave >= 0 && t >= leave && sm.contains(QStringLiteral("bx")));
+            if (!action) continue;
+            if (lo < 0 || t < lo) lo = t;
+            if (hi < 0 || t > hi) hi = t;
+        }
+        for (Stream &st : m_streams) {
+            if (!st.loop || lo < 0 || hi <= lo || st.tUs.size() < 2) continue;
+            const qint64 period = std::max<qint64>(1, (st.tUs.back() - st.tUs.front()) / qint64(st.tUs.size() - 1));
+            st.loopStartUs = std::max<qint64>(st.tUs.front(), lo - kImpactLoopPadFrames * period);
+            st.loopEndUs   = std::min<qint64>(st.tUs.back(),  hi + kImpactLoopPadFrames * period);
+        }
+    }
+
     m_loaded = true;
     setPositionUs(m_playStartUs);
     emit spanChanged();
@@ -470,6 +531,68 @@ void DiskReplaySource::unload()
     emit spanChanged();
 }
 
+void DiskReplaySource::refreshImpactPosition()
+{
+    qint64 pos = -1;
+    for (size_t i = 0; i < m_streams.size(); ++i)
+        if (m_streams[i].loop && m_streams[i].player) {
+            pos = captureUsForStream(int(i), m_streams[i].player->position());
+            break;
+        }
+    m_impactPosUs = pos;   // positionChanged (emitted by the caller) carries it
+}
+
+int DiskReplaySource::loopStreamIndex() const
+{
+    for (size_t i = 0; i < m_streams.size(); ++i)
+        if (m_streams[i].loop && m_streams[i].player) return int(i);
+    return -1;
+}
+
+qint64 DiskReplaySource::impactLoopStartUs() const
+{
+    const int i = loopStreamIndex();
+    return i < 0 ? -1 : m_streams[i].loopStartUs;
+}
+
+qint64 DiskReplaySource::impactLoopEndUs() const
+{
+    const int i = loopStreamIndex();
+    return i < 0 ? -1 : m_streams[i].loopEndUs;
+}
+
+void DiskReplaySource::seekImpactToUs(qint64 us)
+{
+    const int i = loopStreamIndex();
+    if (!m_loaded || i < 0)
+        return;
+    Stream &s = m_streams[i];
+    us = std::clamp<qint64>(us, s.tUs.front(), s.tUs.back());
+    if (!m_loopHeld) {
+        m_loopHeld = true;          // scrubbing by hand is a hold
+        emit impactLoopPlayingChanged();
+    }
+    if (s.player->playbackState() != QMediaPlayer::PausedState)
+        s.player->pause();
+    s.player->setPosition(mp4MsForStream(i, us));
+    // Report the frame asked for, not the player's lagging read: the slider
+    // and the overlay follow this the instant the drag moves.
+    m_impactPosUs = captureUsForStream(i, mp4MsForStream(i, us));
+    emit positionChanged();
+}
+
+void DiskReplaySource::stepImpactFrame(int delta)
+{
+    const int i = loopStreamIndex();
+    if (!m_loaded || i < 0 || delta == 0)
+        return;
+    const Stream &s = m_streams[i];
+    auto it = std::lower_bound(s.tUs.begin(), s.tUs.end(), m_impactPosUs);
+    long idx = (it == s.tUs.end()) ? long(s.tUs.size()) - 1 : long(it - s.tUs.begin());
+    idx = std::clamp<long>(idx + delta, 0, long(s.tUs.size()) - 1);
+    seekImpactToUs(s.tUs[size_t(idx)]);
+}
+
 void DiskReplaySource::playPlayers()
 {
     for (Stream &s : m_streams)
@@ -486,17 +609,33 @@ void DiskReplaySource::toggleImpactLoop()
     if (!any)
         return;
     m_loopHeld = !m_loopHeld;
+    // Hold ON the frame worth looking at: the last one with the ball still at
+    // rest and the head at it (analysis.impact.ballLeaveTUs, one frame back),
+    // else the arbiter's instant. A loop caught wherever the click landed
+    // showed an empty strip more often than not (2026-09-15).
+    qint64 holdUs = m_impactUs;
+    const QVariantMap im = m_analysisDetail.value(QStringLiteral("impact")).toMap();
+    if (im.contains(QStringLiteral("ballLeaveTUs")))
+        holdUs = im.value(QStringLiteral("ballLeaveTUs")).toLongLong();
     for (size_t i = 0; i < m_streams.size(); ++i) {
         Stream &s = m_streams[i];
         if (!s.loop) continue;
         if (m_loopHeld) {
-            s.player->pause();
+            if (holdUs >= 0 && s.tUs.size() > 1) {
+                const qint64 period = std::max<qint64>(1, (s.tUs.back() - s.tUs.front()) / qint64(s.tUs.size() - 1));
+                s.player->pause();
+                s.player->setPosition(mp4MsForStream(int(i), holdUs - period));
+            } else {
+                s.player->pause();
+            }
         } else if (m_playing) {
             // Release re-phased to the playhead, then let it run.
             s.player->setPosition(mp4MsForStream(int(i), loopClipUsFor(int(i), m_positionUs)));
             s.player->play();
         }
     }
+    refreshImpactPosition();
+    emit positionChanged();
     emit impactLoopPlayingChanged();
 }
 
@@ -538,6 +677,7 @@ void DiskReplaySource::seekToUs(qint64 us)
         return;
     us = std::clamp(us, m_startUs, m_endUs);
     seekPlayersTo(us);
+    refreshImpactPosition();
     setPositionUs(us);
 }
 
@@ -554,7 +694,7 @@ void DiskReplaySource::stepFrame(int delta)
     if (s.tUs.empty())
         return;
     // Locate the current frame, then offset by delta and seek to its capture µs.
-    long idx = std::lround(double(s.player->position()) / 1000.0 * s.playbackFps);
+    long idx = long(std::floor(double(s.player->position()) / 1000.0 * s.playbackFps));
     idx = std::clamp<long>(idx + delta, 0, long(s.tUs.size()) - 1);
     seekToUs(s.tUs[idx]);
 }
@@ -614,6 +754,7 @@ void DiskReplaySource::onTick()
 
     QMediaPlayer *master = m_streams.front().player;
     const qint64 captureUs = captureUsForStream(0, master->position());
+    refreshImpactPosition();
     setPositionUs(captureUs);
 
     // Trim-end auto-stop: only when the play window is genuinely narrower than the
@@ -652,7 +793,10 @@ qint64 DiskReplaySource::captureUsForStream(int streamIdx, qint64 mp4Ms) const
     const Stream &s = m_streams[streamIdx];
     if (s.tUs.empty())
         return m_startUs;
-    long idx = std::lround(double(mp4Ms) / 1000.0 * s.playbackFps);
+    // The frame ON SCREEN at a position is the one whose interval contains
+    // it (floor), and seeks land mid-frame (mp4MsForStream) — rounding both
+    // ways put the impact overlay one frame ahead of the picture (2026-09-15).
+    long idx = long(std::floor(double(mp4Ms) / 1000.0 * s.playbackFps));
     idx = std::clamp<long>(idx, 0, long(s.tUs.size()) - 1);
     return s.tUs[idx];
 }
@@ -671,7 +815,7 @@ qint64 DiskReplaySource::mp4MsForStream(int streamIdx, qint64 captureUs) const
         const long hi = long(it - s.tUs.begin());
         idx = (captureUs - s.tUs[hi - 1] <= s.tUs[hi] - captureUs) ? hi - 1 : hi;
     }
-    return std::lround(double(idx) / s.playbackFps * 1000.0);
+    return std::lround((double(idx) + 0.5) / s.playbackFps * 1000.0);   // mid-frame: lands ON frame idx
 }
 
 void DiskReplaySource::seekPlayersTo(qint64 captureUs)
@@ -699,11 +843,14 @@ qint64 DiskReplaySource::loopClipUsFor(int streamIdx, qint64 captureUs) const
     const Stream &s = m_streams[streamIdx];
     if (s.tUs.size() < 2)
         return s.tUs.empty() ? m_startUs : s.tUs.front();
-    const qint64 first  = s.tUs.front();
-    const qint64 last   = s.tUs.back();
-    const qint64 period = std::max<qint64>(1, (last - first) / qint64(s.tUs.size() - 1));
+    const qint64 period = std::max<qint64>(1, (s.tUs.back() - s.tUs.front()) / qint64(s.tUs.size() - 1));
+    const qint64 first  = s.loopStartUs;
+    const qint64 last   = std::max(s.loopEndUs, first);
     const qint64 dur    = std::max<qint64>(1, last - first + period);
-    const qint64 local  = ((captureUs - first) % dur + dur) % dur;
+    // The loop runs at its OWN pace (kImpactLoopSpeed), so its phase is the
+    // window playhead scaled to that pace, not the playhead itself.
+    const qint64 scaled = qint64(double(captureUs - first) * (kImpactLoopSpeed / std::max(0.01, m_speed)));
+    const qint64 local  = ((scaled % dur) + dur) % dur;
     return first + local;
 }
 
@@ -715,12 +862,14 @@ void DiskReplaySource::applyPlaybackRates()
     // A looping impact clip is NOT stretched to the window (it would smear a
     // 300 ms clip across the whole replay): it runs at the same capture-time
     // speed as everyone else, m_speed × its own capture fps over the container
-    // fps — so at quarter speed a 591 fps clip loops in ~1.2 s of wall time.
+    // fps. The looping impact clip is the exception to the exception: it runs
+    // at kImpactLoopSpeed of real time whatever the transport says, over the
+    // trimmed band its impact track marks (see load()).
     const double desiredWallSec = std::max(0.001, double(m_endUs - m_startUs) / 1e6 / m_speed);
     for (Stream &s : m_streams) {
         double rate;
         if (s.loop && s.captureFps > 0.0)
-            rate = m_speed * s.captureFps / s.playbackFps;
+            rate = kImpactLoopSpeed * s.captureFps / s.playbackFps;
         else
             rate = double(s.tUs.size()) / s.playbackFps / desiredWallSec;
         s.player->setPlaybackRate(std::clamp(rate, 0.05, 8.0));

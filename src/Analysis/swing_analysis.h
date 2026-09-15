@@ -489,6 +489,80 @@ struct BallTrack2D {
     QPointF launchCenter;       // ball position at the last pre-launch frame
 };
 
+// One frame of the impact camera's clip (impact_camera_design.md §7, §10.3):
+// the ball and the club as the ImpactRunner saw them. Coordinates are
+// normalised to the CLIP frame (x / width, y / height; radius / width) — the
+// clip is a sensor crop with its own geometry, never the face-on frame's.
+struct ImpactSample2D {
+    int64_t t_us       = 0;
+    bool    ballFound  = false;
+    QPointF ball;               // centre
+    float   ballR      = 0.f;   // radius, / width
+    bool    clubFound  = false;
+    // The head, as far as the light shows it: the centroid of the club's
+    // off-shaft pixels plus the sole/crown glints in a head-sized window
+    // beyond the hosel (headSeen); the hosel itself when nothing showed. The
+    // head BODY is at mat level under a 100 µs exposure and never appears in
+    // the difference image (measured 2026-09-15), so this is glints, not a
+    // silhouette, until the head is lit.
+    QPointF head;
+    bool    headSeen   = false;
+    bool    atEdge     = false; // the component touches the frame border — partly out of
+                                // view, so its points are drawn but never fitted
+    QPointF shaftA;             // shaft segment, grip side …
+    QPointF shaftB;             // … the hosel (the shaft's low end)
+    // The club's outline on the tile: the convex hull of everything the light
+    // showed of it (shaft, neck, head glints), normalised. Empty when no club.
+    std::vector<QPointF> outline;
+};
+
+// One synthesised clubhead position (impact_camera_design.md §7): the
+// smoothed hosel plus the club's rigid head offset, on one run frame.
+struct ImpactPathPoint {
+    int64_t t_us = 0;
+    QPointF head;               // normalised to the clip frame
+    QPointF hosel;              // the smoothed hosel the head hangs off
+    double  thetaRad = 0.0;     // smoothed shaft angle, image axes, +y down
+};
+
+// The impact camera's track: per-frame ball + club, the departure instant and
+// the SYNTHESISED head path. Empty / !valid ⇒ no impact camera ran (every
+// swing before 2026-09-15). The path is not a fit through detections: it is
+// robust quadratics in TIME for the hosel and the shaft angle over the run
+// (outliers dropped), plus the head as a rigid offset from the hosel in the
+// club's own frame, self-calibrated from weak foreground gathered inside the
+// predicted head disc on every frame (a feedback loop; a generic prior when
+// too few frames show anything). mmPerPx comes from the resting ball's
+// diameter (42.67 mm).
+struct ImpactTrack2D {
+    pinpoint::SourceId camera = pinpoint::kInvalidSourceId;
+    bool    valid   = false;
+    int     width   = 0;
+    int     height  = 0;
+    std::vector<ImpactSample2D> frames;
+    int64_t ballLeaveTUs = -1;  // first frame the resting ball has left its spot; -1 = never seen
+    QPointF ballRest;           // the resting ball, normalised; valid when ballRestR > 0
+    float   ballRestR = 0.f;
+    double  mmPerPx   = 0.0;    // 0 = no resting ball to scale from
+    bool    pathValid = false;
+    std::vector<ImpactPathPoint> path;   // one per run frame, in time order
+    // The arc itself (normalised): the hosel's y = arcA·x² + arcB·x + arcC and
+    // the shaft angle θ = thetaAtX0 + thetaSlopePerX·x, robustly fitted over
+    // the run — the space-domain model the head path is built on (and the
+    // tangent at the ball for attack angle, §4, comes from).
+    double  arcA = 0.0, arcB = 0.0, arcC = 0.0;
+    double  thetaAtX0 = 0.0, thetaSlopePerX = 0.0;
+    std::vector<QPointF> ribbon;         // the head along the arc, 64 samples over the run's span
+    double  pathHalfWidth = 0.0;         // the ribbon's half-width, / width (≈ 30 mm)
+    double  headAlongPx   = 0.0;         // the rigid head offset from the hosel: along the shaft …
+    double  headAcrossPx  = 0.0;         // … and across it (toe side), px
+    bool    headOffsetAssumed = true;    // the prior, not evidence (< 3 frames showed a head)
+    int     headEvidenceFrames = 0;
+    int     hoselFitFrames = 0;          // hosels the smooth fit kept …
+    int     hoselDropped   = 0;          // … and dropped as broken measurements
+    double  hoselResidualRmsPx = 0.0;
+};
+
 // The persisted LIVE empty-mat baseline, resolved from swing.json
 // setup.ballDetection.baseline. Lets offline re-analysis (BallRunner) reconstruct
 // the exact baseline the studio session learned instead of self-seeding over the
@@ -749,6 +823,7 @@ struct AnalysisTimings {
     int poseMs  = -1;
     int ballMs  = -1;
     int shaftMs = -1;
+    int impactMs = -1;
     int totalMs = -1;
 };
 
@@ -778,6 +853,7 @@ struct SwingAnalysis {
     PoseTrack2D               pose2d;  // face-on offline pose (empty when no camera ran)
     ShaftTrack2D              shaft;   // face-on club track (check .valid before use)
     BallTrack2D               ball;    // face-on ball track for the replay overlay (empty ⇒ none)
+    ImpactTrack2D             impact;  // the impact camera's ball + club track (check .valid)
     AnalysisTimings           timings; // per-stage wall times (telemetry); -1 = not measured
     AnalysisVersions          versions; // producer versions (analysis_versions.h) — stamped by the stages, persisted, gate re-analysis reuse
 };

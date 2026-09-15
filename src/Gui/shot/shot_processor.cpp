@@ -506,6 +506,11 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                           { QStringLiteral("launchTUs"), static_cast<qlonglong>(a.ball.launchTUs) },
                           { QStringLiteral("samples"),   samples } });
     }
+    // The impact camera's track (impact_camera_design.md §7): the SAME object
+    // the doc writes, absolute t_us (the live playhead's domain), so the
+    // impact overlay reads one shape from both surfaces.
+    if (a.impact.valid)
+        detail.insert(QStringLiteral("impact"), pinpoint::impactTrackJson(a.impact, 0).toVariantMap());
     return detail;
 }
 
@@ -993,6 +998,9 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
         } else {
             job.cameraSources.push_back(track.sourceId);
         }
+        // The impact camera's clip feeds the ImpactRunner (impact_camera_design.md §7).
+        if (track.ctrl->perspective() == CameraInstance::Impact)
+            job.impactSource = track.sourceId;
     }
 
     // IMU and marker sources discovered from the window's own formats.

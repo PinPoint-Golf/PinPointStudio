@@ -490,6 +490,26 @@ Per-frame face-on ball position, drawn by the replay ball overlay (mirrors the l
 
 > The same per-frame track may also appear as a **raw `kind: "ball"` stream** (schema `ball_v2`, `layout: "found,x,y,r,conf"`, with a `frames{t_us,data}` block and optional `launch{t_us,x,y}`) — the offline re-analysis input, distinct from this analyzed `analysis.ball` block. Rare in practice; consumers that read `analysis.*` can ignore it.
 
+### `impact` — the impact camera's track (`ImpactTrack2D`)
+
+Per-frame ball and club in the **impact camera's clip** (`setup.perspective` 4, `impact_camera_design.md` §7, §10.3), produced by `ImpactRunner` from the clip alone (no pose). Added 2026-09-15. Coordinates are normalised 0..1 to the **clip frame** (`x / width`, `y / height`, radii `/ width`) — the clip is a sensor crop with its own geometry, never the face-on frame's. Drawn by the impact tile's overlay at the clip's own looping playhead. Absent block ⇒ no impact camera ran.
+
+| Field | Type | Notes |
+|---|---|---|
+| `camera` | int | SourceId of the impact stream. |
+| `valid` | bool | Always true when the block is present. |
+| `width` / `height` | int | The clip frame the coordinates are normalised to. |
+| `mmPerPx` | float | Frame scale from the resting ball's diameter (42.67 mm); `0` when no resting ball was found. |
+| `ballRest` | obj, optional | `{x, y, r}` — the resting ball in the clip's opening frames. |
+| `ballLeaveTUs` | int µs, optional | Window-relative instant of the first frame the resting ball's spot had gone dark — the clip's own impact evidence (it has run 5–10 ms **before** `capture.impactUs` on every 2026-09-15 swing). |
+| `path` | obj, optional | The **synthesised** clubhead path (`kind` `synth`), not a fit through detections: robust quadratics in time for the hosel and the shaft angle over the run (30 frames before departure to 3 after, edge frames predicted but never fitted, broken hosels dropped), plus the head as a rigid offset from the hosel in the club's own frame (`headAlongPx`, `headAcrossPx`), self-calibrated by a feedback loop that gathers weak foreground inside the predicted head disc on every frame (`headEvidence` frames; `headAssumed` true when fewer than three showed anything and the generic 30/35 mm prior stands). `arc` `{a, b, c, thetaAtX0, thetaSlopePerX}` is the space-domain model (normalised: hosel `y = a·x² + b·x + c`, shaft angle `θ = thetaAtX0 + thetaSlopePerX·x`) the head path is built on; `ribbon[]` `{x, y}` is the head along it, 64 samples over the run's span — what the tile draws. `points[]` are `{t_us, x, y, hx, hy, th}` — one per run frame: the synthesised head, the smoothed hosel it hangs off and the smoothed shaft angle. `halfWidth` (/ width) is the ribbon the tile draws (≈ 30 mm). `hoselFit`/`hoselDropped`/`hoselResRmsPx` say how the smooth fit went. Proven in `tools/impactlab` before the C++ port. |
+| `samples[].t_us` | int µs | Window-relative frame time; one sample per clip frame. |
+| `samples[].bx/by/br` | float, optional | Ball centre + radius when the ball was found this frame (at rest, then tracked after departure until it leaves the frame). |
+| `samples[].hx/hy`, `samples[].hs` | float, bool, optional | The head as far as the light showed it: the centroid of the club's off-shaft pixels plus the sole/crown glints in a head-sized window beyond the hosel (`hs` true), else the hosel itself. The head body is at mat level under a 100 µs exposure and never appears in the difference image, so this is glints, not a silhouette, until the head is lit. |
+| `samples[].sax/say/sbx/sby` | float, optional | The shaft segment, grip side → the hosel (`sbx/sby` is the shaft's low end). |
+| `samples[].edge` | bool, optional | `true` when the club component touches the left, right or bottom of the frame (partly out of view); drawn, never fitted. |
+| `samples[].poly` | float[], optional | The club's outline: the convex hull of everything the light showed of it (shaft, neck, head glints), as `[x, y, x, y, …]` normalised. |
+
 ### `bindings[]` (IMU only)
 
 Per-device calibration snapshot (serial-keyed), so the offline runner can re-fuse with the exact anatomical transforms the app used.
@@ -580,6 +600,7 @@ A lean, regenerable cache of just the scalars the session picker needs, so openi
 | 2026-07-09 | Clubhead Stage-2 head pass: `capture.club.hoselFromButtMm` + `analysis.club.samples[].headConf`/`headSigma` (measured-head confidence + posterior σ) added, and `ShaftSampleFlags` gained `0x80` `HeadOffFrame`. The head pass (`shaft.head.enabled`) defaults ON from this date, so new Wrist swings carry real values. Additive — no schema-version bump. |
 | 2026-07-09 | `analysis.timings` added (per-stage analyzer wall times: `poseMs`/`ballMs`/`shaftMs`/`totalMs`). Additive — no schema-version bump. |
 | 2026-07-10 | `setup.ballDetection.baseline` object + `<alias>.ballbase.f32` sidecar added (persisted live empty-mat ball baseline for offline re-analysis). Additive — no schema-version bump. |
+| 2026-09-15 | `analysis.impact` added (the impact camera's ball + club track and path, `ImpactRunner`), `analysis.versions.impact`, `analysis.timings.impactMs`; the impact stream's `capture` gained `gainDb`/`gainSource`/`gamma`/`strobe`/`viewGain`/`note`/`measuredFps`. Additive — no schema-version bump. |
 | 2026-07-10 | Club-length fusion: `capture.club.name` + `capture.club.lengthPrior` (recorded prior for deterministic re-analysis) and `analysis.club.lengths` (fused length ± σ + confidence) added. Additive — no schema-version bump. |
 | 2026-07-11 | Shaft Layer A snap: `analysis.club.samples[].lineConf` (ridge support under the drawn line) added. Written only on vision-tier samples when the snap pass ran (`absent ⇒ −1`), so a snap-off run stays byte-identical. Additive — no schema-version bump. |
 | 2026-07-11 | Shaft Layer B positions: `analysis.club.positions[]` (coaching P-positions P1–P8, `shaft_position_first`) added — P2/P6/P8 are image-plane shaft-parallel crossings (accepted face-on coaching practice, not 3-D geometry). Written only when non-empty (extraction off ⇒ absent, byte-identical). Additive — no schema-version bump. |

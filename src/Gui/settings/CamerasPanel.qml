@@ -27,6 +27,11 @@ Item {
 
     // Index of the camera row whose ROI panel is currently open (-1 = none).
     property int openRoiIndex: -1
+    // Which camera row has its impact TUNING section open; -1 = none. Same
+    // pattern as openRoiIndex, and for the same reason: a settings write can
+    // rebuild the rows, and a per-row flag would close the section under the
+    // operator's cursor on every chip click.
+    property int openTuningIndex: -1
     // Index of the camera whose ball-detection (hitting area + calibration)
     // panel is expanded; -1 = none. Same pattern as openRoiIndex.
     property int openBallIndex: -1
@@ -233,6 +238,7 @@ Item {
                                                                          : localPreviewInstance)
 
         readonly property bool roiOpen: root.openRoiIndex === camData.index
+        readonly property bool tuningOpen: root.openTuningIndex === camData.index
         readonly property bool ballOpen: root.openBallIndex === camData.index
 
         // The club/ball impact camera: its row swaps the frame-rate chips for
@@ -1075,6 +1081,80 @@ Item {
                 }
             }
 
+            // Everything else about the impact camera lives behind this
+            // disclosure: exposure, gain, gamma, view, strobe, levels and the
+            // note are for the operator tuning a room, not for choosing a
+            // camera, and they overwhelm the row when always shown. The crop,
+            // rate and resolution (the mode chips above, and Set crop) stay.
+            ColumnLayout {
+                spacing: Theme.sp(4)
+                Layout.alignment: Qt.AlignTop
+                TuneHeading { text: qsTr("TUNING") }
+                Rectangle {
+                    id: tuningToggle
+                    width:  tuningToggleRow.implicitWidth + Theme.sp(20)
+                    height: Theme.sp(24)
+                    radius: Theme.radius
+                    color:  camRow.tuningOpen ? Theme.colorAccentLight
+                          : tuningToggleArea.containsMouse
+                              ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                              : "transparent"
+                    border.width: 1
+                    border.color: camRow.tuningOpen ? Theme.colorAccent
+                                : tuningToggleArea.containsMouse ? Theme.colorAccentMid
+                                : Theme.colorBorderStrong
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+                    Row {
+                        id: tuningToggleRow
+                        anchors.centerIn: parent
+                        spacing: Theme.sp(6)
+                        Text {
+                            text:           camRow.tuningOpen ? "▾" : "▸"
+                            font.family:    Theme.fontSymbol
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          camRow.tuningOpen ? Theme.colorAccent : Theme.colorText2
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text:           camRow.tuningOpen ? qsTr("Hide exposure, gain and light")
+                                                              : qsTr("Exposure, gain and light")
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          camRow.tuningOpen ? Theme.colorAccent : Theme.colorText2
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                    MouseArea {
+                        id: tuningToggleArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
+                        onClicked: root.openTuningIndex = camRow.tuningOpen ? -1 : camData.index
+                    }
+                }
+                Text {
+                    text: qsTr("Defaults suit the studio; open this to tune to a room.")
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
+                    color: Theme.colorText3; wrapMode: Text.WordWrap
+                    Layout.preferredWidth: Theme.sp(200)
+                }
+            }
+
+            Item { Layout.fillWidth: true }
+          }
+
+          // ── The tuning section (collapsed by default) ─────────────────────
+          ColumnLayout {
+            id: tuningSection
+            visible: camRow.tuningOpen
+            Layout.fillWidth: true
+            spacing: Theme.sp(14)
+
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.sp(24)
+
             // Exposure chips — the impact camera's locked exposure ────────────
             ColumnLayout {
                 visible: camRow.isImpact
@@ -1357,6 +1437,7 @@ Item {
                     Layout.fillWidth: true
                 }
             }
+          }
           }
         }
 

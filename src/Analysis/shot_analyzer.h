@@ -41,6 +41,10 @@ struct ShotAnalysisJob {
 
     std::vector<pinpoint::SourceId> cameraSources;  // exported cameras, face-on first
     int faceOnCameraCount = 0;  // leading cameraSources entries that are face-on
+    // The impact camera (perspective Impact, impact_camera_design.md §10): its
+    // clip feeds the ImpactRunner and nothing else — it is never a face-on
+    // candidate and never runs pose. Invalid when no camera holds the placement.
+    pinpoint::SourceId impactSource = pinpoint::kInvalidSourceId;
     std::vector<pinpoint::SourceId> imuSources;     // IMU sources present in the window
     pinpoint::SourceId markerSourceId = pinpoint::kInvalidSourceId;  // shot_marker_v1 source
 

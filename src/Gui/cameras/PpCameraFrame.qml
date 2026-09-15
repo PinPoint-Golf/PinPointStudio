@@ -97,6 +97,7 @@ Item {
     property bool showPerspectiveBadge: true
     property bool showStatsOverlay:     true   // resolution / fps
     property bool showReplayOverlay:    true   // analyzed skeleton + club shaft during replay
+    property bool showImpactOverlay:    true   // the impact clip's ball / club / path (impact tile)
     property bool showPredictedShaft:   false  // R7 dev overlay: dashed ghost of the kinematic-model club
     property bool showPredictedEnvelope:false  // R7 dev overlay: faint ±k·σ_β kinematic cone (needs showPredictedShaft)
     // Layer C dev overlay (shaft_position_first §2): dim synthesized-tier ghost
@@ -979,6 +980,128 @@ Item {
                 var gy = function(j) { return kps[j].y * cr.height + cr.y }
                 var gs = function(j) { return kps[j].score }
                 root.paintBlueprint(ctx, cr, gx, gy, gs, 1.0, undefined, kps.length)
+            }
+        }
+
+        // ── Impact overlay: the ball, the club and its path in the impact clip ──
+        // Drawn from analysis.impact (ImpactRunner, impact_camera_design.md §7)
+        // on the impact tile only, at the CLIP's own playhead: the clip loops on
+        // its own clock (and can be held), so the window playhead is not where
+        // it is. The disk replay reports that playhead; the live post-shot
+        // transient wraps the window playhead the same way ShotProcessor does.
+        Canvas {
+            id: impactOverlay
+            anchors.fill: parent
+            z: 21
+            readonly property var _impact: {
+                var d = root._replayDetail
+                return (d && d.impact && d.impact.valid && d.impact.samples && d.impact.samples.length)
+                       ? d.impact : null
+            }
+            // Its own gate, not showReplayOverlay: the picture-in-picture turns
+            // the body/club overlay off (there is no body in the strip) and the
+            // first build inherited that and drew nothing (2026-09-15).
+            visible: root.showImpactOverlay && root._replayActive
+                     && root._replayPerspective === CameraInstance.Impact && _impact !== null
+
+            // The clip-local time to draw at.
+            function _clipTime() {
+                if (root._isReplay && shotReplay.impactPositionUs >= 0)
+                    return shotReplay.impactPositionUs
+                var s = _impact.samples
+                var first = s[0].t_us, last = s[s.length - 1].t_us
+                if (s.length < 2 || last <= first) return first
+                var period = Math.max(1, (last - first) / (s.length - 1))
+                var dur = last - first + period
+                var t = root._replayPlayheadUs
+                var local = ((t - first) % dur + dur) % dur
+                return first + local
+            }
+            // Greatest sample index with t_us <= t.
+            function _indexAt(t) {
+                var arr = _impact.samples
+                var lo = 0, hi = arr.length - 1
+                if (t <= arr[0].t_us) return 0
+                if (t >= arr[hi].t_us) return hi
+                while (hi - lo > 1) {
+                    var mid = (lo + hi) >> 1
+                    if (arr[mid].t_us <= t) lo = mid; else hi = mid
+                }
+                return lo
+            }
+
+            Connections {
+                target: shotProcessor
+                enabled: !root._isReplay
+                function onReplayPositionChanged() { if (impactOverlay.visible) impactOverlay.requestPaint() }
+            }
+            Connections {
+                target: shotReplay
+                enabled: root._isReplay
+                function onPositionChanged() { if (impactOverlay.visible) impactOverlay.requestPaint() }
+            }
+            onVisibleChanged: if (visible) requestPaint()
+            on_ImpactChanged: if (visible) requestPaint()
+
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.clearRect(0, 0, width, height)
+                var im = _impact
+                if (!im) return
+                var cr = Qt.rect(root.videoInset + videoOut.contentRect.x,
+                                 root.videoInset + videoOut.contentRect.y,
+                                 videoOut.contentRect.width, videoOut.contentRect.height)
+                if (cr.width <= 0 || cr.height <= 0) return
+                var X = function(nx) { return cr.x + nx * cr.width }
+                var Y = function(ny) { return cr.y + ny * cr.height }
+                var accent = Theme.colorAccent
+                var lw = Math.max(1, cr.height / 160)
+                ctx.lineCap = "round"; ctx.lineJoin = "round"
+
+                // The swept space: a translucent ribbon of head half-width
+                // along the synthesised head path, and its centre line.
+                var s = im.samples
+                var p = im.path
+                // v0.1 (Mark, 2026-09-15): the central arc alone, translucent —
+                // no band, no edges, no ghosts. The head's ring and cross ride
+                // it; the ball keeps its outline. Everything at half opacity so
+                // the footage reads first.
+                var rib = (p && p.ribbon && p.ribbon.length >= 2) ? p.ribbon : (p && p.points ? p.points : null)
+                if (rib && rib.length >= 2) {
+                    ctx.lineCap = "round"; ctx.lineJoin = "round"
+                    ctx.strokeStyle = Qt.rgba(accent.r, accent.g, accent.b, 0.5)
+                    ctx.lineWidth = lw
+                    ctx.beginPath()
+                    for (var k = 0; k < rib.length; ++k) {
+                        if (k === 0) ctx.moveTo(X(rib[k].x), Y(rib[k].y)); else ctx.lineTo(X(rib[k].x), Y(rib[k].y))
+                    }
+                    ctx.stroke()
+                }
+                // This frame: the ball outlined, and the head on the arc.
+                var idx = _indexAt(_clipTime())
+                var f = s[idx]
+                ctx.strokeStyle = Qt.rgba(accent.r, accent.g, accent.b, 0.5)
+                ctx.lineWidth = lw * 1.4
+                if (f.bx !== undefined) {
+                    ctx.beginPath()
+                    ctx.arc(X(f.bx), Y(f.by), f.br * cr.width + lw, 0, 2 * Math.PI)
+                    ctx.stroke()
+                }
+                // This frame's synthesised head: a cross on the arc — never the
+                // raw measurement, which is exactly what jumps on the contact
+                // frames. (The ring of head half-width went in v0.1: Mark.)
+                if (p && p.points && p.points.length) {
+                    var pk = -1
+                    for (var j = 0; j < p.points.length; ++j)
+                        if (p.points[j].t_us <= f.t_us + 1) pk = j
+                    if (pk >= 0 && Math.abs(p.points[pk].t_us - f.t_us) < 1000) {
+                        var hp = p.points[pk]
+                        ctx.beginPath()
+                        ctx.moveTo(X(hp.x) - lw * 3, Y(hp.y)); ctx.lineTo(X(hp.x) + lw * 3, Y(hp.y))
+                        ctx.moveTo(X(hp.x), Y(hp.y) - lw * 3); ctx.lineTo(X(hp.x), Y(hp.y) + lw * 3)
+                        ctx.stroke()
+                    }
+                }
             }
         }
 

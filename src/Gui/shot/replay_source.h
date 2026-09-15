@@ -99,6 +99,19 @@ public:
     // playing() of a source with no looping stream is true (nothing to hold).
     virtual bool impactLoopPlaying() const   = 0;
     virtual void toggleImpactLoop()          = 0;
+    // The impact clip's OWN playhead, window-relative µs — what its tile is
+    // showing right now, which differs from positionUs() because the clip loops
+    // (and can be held). -1 when there is no looping stream. The impact overlay
+    // indexes the impact track by this, never by the window playhead.
+    virtual qint64 impactPositionUs() const  = 0;
+    // The clip's loop band (window-relative µs; -1 when no looping stream) —
+    // the impact tile's own scrub range.
+    virtual qint64 impactLoopStartUs() const = 0;
+    virtual qint64 impactLoopEndUs() const   = 0;
+    // Scrub the clip by hand: holds the loop (if it was not already held) and
+    // shows the frame at `us`, or the frame `delta` frames from the current one.
+    virtual void seekImpactToUs(qint64 us)   = 0;
+    virtual void stepImpactFrame(int delta)  = 0;
 
 signals:
     void positionChanged();

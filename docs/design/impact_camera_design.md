@@ -489,7 +489,10 @@ were not swings at all (the view blocked, and the ring light sitting in front of
 in every measurable swing the ball left the frame 3–6 frames (5–10 ms) *before* the acoustic
 anchor; that timing question is open and separate.
 
-**What the impact row in Settings → Cameras now carries**, all persisted per camera and, for
+**What the impact row in Settings → Cameras now carries.** The mode chips (crop size, rate,
+resolution) and Set crop stay on the row; everything below sits behind a **TUNING** disclosure,
+closed by default — it is for the operator tuning a room, not for choosing a camera, and shown
+always it overwhelmed the row (Mark, 2026-09-15). All persisted per camera and, for
 the ones the camera holds, written the moment they are clicked while it streams (`applyLiveTuning`
 on the backend's thread — ExposureTime, Gain and Gamma are all writable during acquisition) and
 primed again at the next connect:
@@ -528,14 +531,64 @@ frame-rate node read at start: the node reported 30 for five of the session's cl
 frames arrived at 592, and the stamped rate said 30. The impact clip also encodes at its own
 quality (CRF 12, or lossless when the library is): ~180 frames of 640×240, a few MB.
 
-**Replay.** The picture-in-picture has its own play/pause. The clip loops on its own clock
-(§10.2), so the main transport's pause never held it still; the button holds the loop on a
-frame while the window keeps playing, and releases it re-phased to the playhead.
+**Replay.** The picture-in-picture has its own transport along its bottom edge: play/pause
+holds the loop on the impact frame, ◂ ▸ step one clip frame, and a slider scrubs the loop band
+by hand. The clip loops at a FIXED 1/50 of real time over the band its track marks (the club
+and ball in view, four frames of context), not at the window's speed: the interesting part is
+~60 ms of capture time, and at the window's ×¼ or ×1 it was a flicker.
 
-**Still ahead:** the ball detector on the tile (found + diameter in px, which is the mm-per-pixel
-scale for free, since the ball is 42.7 mm) — deferred until recordings under the new light are
-worth looking at, with low point and attack angle to follow on the same clips. And the light
-itself, which no setting supplies: §1's two 100 W floods at half a metre concentrated on the
+**The second session, same day, at 12 dB / 0.7 / 102 µs (driver):** the club is legible in the
+raw frames — shaft, head shape, the ball's dimples — and the CRF 12 clip has no macroblocks. The
+levels moved the wrong way for a different reason: the ring light was off the ball, so the mat sat
+at 6–8, the ball's peak at ~58 and nothing clipped; the frame uses the bottom quarter of its
+range. The camera's own answer is the rest of its gain (the chips run to the node's maximum) and,
+for a driver, a *shorter* exposure than 102 µs (§1: ≤ 50 µs for 2 px at driver speed) — both of
+which need the light §1 describes before they cost nothing.
+
+**The track (built 2026-09-15, `ImpactRunner`, analysis stage "Impact").** From the clip alone:
+a per-pixel median background over the opening frames (the resting ball is part of it) with a
+spread mask for anything that flickers at the frame edge; the resting ball as the bright round
+blob in that background, whose 42.67 mm diameter scales the frame; foreground as frame −
+background over a noise-scaled threshold; the club as the largest non-ball component, its
+principal axis the shaft and the shaft's low end the **hosel** — the tracked point, because it is
+on every frame the shaft is, whereas the head body is dark under a 100 µs exposure and shows only
+as an edge that comes and goes (kept as a separate marker when it does); departure as the first
+frame the resting ball's spot goes dark; the ball afterwards as the round blob nearest its
+predicted position — and then the path is **synthesised**, not fitted through detections
+(Mark, 2026-09-15: detection is too error-prone for the club to be highlighted frame by frame;
+the space the head travels through wants a smooth curve and a feedback loop). Robust quadratics
+in time for the hosel and the shaft angle over the run (30 frames before departure to 3 after,
+edge frames predicted but never fitted, hosels more than max(8 px, 3 MAD) off the fit dropped —
+the club touching the ball shortens the shaft and the "hosel" jumps up it); the head as a rigid
+offset from the hosel in the club's own frame, the shaft tracker's trick, self-calibrated by a
+feedback loop: predict the head disc on every frame from the smoothed hosel and angle, gather all
+WEAK foreground inside it (sole and crown glints never seed a component on their own), take the
+centroid, re-estimate the offset as the median over frames, twice; a generic 30/35 mm prior when
+fewer than three frames show anything. On the studio driver the loop finds +40 mm along the
+shaft and +20 mm toward the toe on every swing, which is what a driver head is from its hosel —
+the agreement between swings is the evidence. Written as `analysis.impact` and drawn on the
+impact tile at the clip's **own** playhead (it loops, and can be held). **v0.1 (Mark, end of 2026-09-15): the central arc alone, translucent,
+this frame's synthesised head as a ring with a cross riding it, and the ball's outline — at half
+opacity, so the footage reads first.** The band of head half-width, its edges, the ghosted heads,
+the raw shaft/hosel and the hull are all in the data (`analysis.impact`) and the lab, not on the
+tile. And the model is an ARC IN SPACE, not a fit in time: the hosel's y as one robust quadratic
+in x over the whole run (1.4–3.3 px rms on all thirteen studio swings — the proof it is an arc),
+the shaft angle as one robust line in x, and time only placing the club along the arc per frame
+(a local fit of x(t)). The first version fitted the angle locally in time and it swung 15° over
+the contact frames, which at 35 px of head offset put a 9 px wobble in the head — the "jittery
+noise" of the first screenshots. The head BODY is
+at mat level under a 100 µs exposure and never appears in the difference image (measured):
+nothing is drawn as a head silhouette until the head is lit. All of this was proven first in
+`tools/impactlab/impact_review.py` (contact sheets + a metrics line per swing; `--from-json`
+checks the C++ stage against the lab), the shaftlab rule. On the first thirteen swings: the resting ball on all thirteen
+(1.12–1.15 mm/px), departure seen on all, and the departure ran 5–10 ms before `capture.impactUs`
+on every one — the acoustic anchor question is now measurable per swing. The loop itself now runs three times slower than
+the window's capture-time speed — the six head positions before the ball are 40 ms of capture
+time, unreadable at the old rate. What this does not yet do: attack angle, low point and
+high/low strike from the arc's tangent at the ball (§4), which is the next step now the inputs
+exist, and the ball's own launch direction and speed from the post-departure samples.
+
+**Still ahead:** the light itself, which no setting supplies: §1's two 100 W floods at half a metre concentrated on the
 patch, a large diffuse source near the camera axis rather than a small one so the club's mirror
 reflection lands in the lens from more head orientations, or a lit white board behind the ball
 for a silhouette that does not depend on the club's finish at all.

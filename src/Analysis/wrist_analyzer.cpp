@@ -32,6 +32,7 @@
 #include "ball_position.h"
 #include "ball_runner.h"
 #include "body_rotation.h"
+#include "impact_runner.h"
 #include "club_delivery.h"
 #include "event_refine.h"
 #include "foot_metrics.h"
@@ -494,6 +495,28 @@ struct BallStage : AnalysisStage {
                                      *ctx.runnerOpt, ctx.job.ballSearchRoi, ctx.job.ballBaseline));
         ctx.detail->timings.ballMs = int(ballWall.elapsed());
         ctx.detail->versions.ball = kBallStageVersion;
+    }
+};
+
+// 6b. Impact camera track (impact_camera_design.md §7, §10.3): the ball and the
+//     club in the impact clip, and the club's path. Gated on the DATA — a
+//     window holding frames from a camera in the Impact placement — never on
+//     the session or on the face-on stages (it needs no pose). Empty is a
+//     valid no-op: the overlay draws nothing and the doc carries no block.
+struct ImpactStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("Impact"); }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        return ctx.window && ctx.job.impactSource != pinpoint::kInvalidSourceId
+            && !ctx.window->entriesFor(ctx.job.impactSource).empty();
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        QElapsedTimer wallImpact;
+        wallImpact.start();
+        ctx.detail->impact = ImpactRunner::run(*ctx.window, ctx.job.impactSource, ctx.job.impactUs);
+        ctx.detail->timings.impactMs = int(wallImpact.elapsed());
+        ctx.detail->versions.impact = kImpactStageVersion;
     }
 };
 
@@ -1365,6 +1388,7 @@ SessionProfile wristProfile()
     p.stages.push_back(std::make_unique<PoseStage>());
     p.stages.push_back(std::make_unique<PoseSmoothStage>());
     p.stages.push_back(std::make_unique<BallStage>());
+    p.stages.push_back(std::make_unique<ImpactStage>());
     p.stages.push_back(std::make_unique<ShaftStage>());
     p.stages.push_back(std::make_unique<SegResolveStage>());
     p.stages.push_back(std::make_unique<ShaftLeanStage>());
@@ -1444,6 +1468,7 @@ SessionProfile cameraKinematicsProfile()
     p.stages.push_back(std::make_unique<PoseStage>());
     p.stages.push_back(std::make_unique<PoseSmoothStage>());
     p.stages.push_back(std::make_unique<BallStage>());
+    p.stages.push_back(std::make_unique<ImpactStage>());
     p.stages.push_back(std::make_unique<ShaftStage>());
     p.stages.push_back(std::make_unique<SegResolveStage>());
     // PositionsLadder is data-gated (positions + ladder present), not

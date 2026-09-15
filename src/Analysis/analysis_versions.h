@@ -44,11 +44,16 @@ namespace pinpoint::analysis {
 constexpr int kPoseStageVersion  = 1;
 constexpr int kBallStageVersion  = 1;
 constexpr int kShaftStageVersion = 2;
+// impact — kImpactStageVersion (bump when impact_runner changes its output).
+//          Stamped; never reused — the stage is a few hundred ms and a
+//          re-analysis is exactly when a better detector should get its chance.
+constexpr int kImpactStageVersion = 1;
 
 struct AnalysisVersions {
     int     pose  = 0;          // 0 = unknown / not stamped
     int     ball  = 0;
     int     shaft = 0;
+    int     impact = 0;
     QString poseModel;          // "<file>@<bytes>" of the ViTPose model that ran
     QString poseScope;          // "span" | "full"
     bool stamped() const { return pose > 0; }

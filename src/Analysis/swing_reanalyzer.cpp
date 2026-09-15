@@ -288,7 +288,7 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
     // recorded an empty filter" — only the second is a refusal to be preserved.
     bool     sawHostFusedLane = false;
 
-    struct VidTmp { SourceId id; bool faceOn; };
+    struct VidTmp { SourceId id; bool faceOn; bool impact = false; };
     std::vector<VidTmp> vids;
 
     for (const QJsonValue& sv : root[QStringLiteral("streams")].toArray()) {
@@ -434,7 +434,11 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
             tMax = std::max(tMax, tUs.back());
 
             src->addCamera(id, std::move(reader));
-            vids.push_back({ id, faceOn });
+            // The impact camera (setup.perspective 4): the ImpactRunner's source,
+            // never a face-on candidate (impact_camera_design.md §10).
+            const bool impact = s.contains(QStringLiteral("setup"))
+                && s[QStringLiteral("setup")].toObject()[QStringLiteral("perspective")].toInt() == 4;
+            vids.push_back({ id, faceOn && !impact, impact });
 
         } else if (kind == QLatin1String("imu")) {
             const QJsonObject samples = s[QStringLiteral("samples")].toObject();
@@ -613,6 +617,8 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
         } else {
             job.cameraSources.push_back(v.id);
         }
+        if (v.impact)
+            job.impactSource = v.id;
     }
 
     // Match the live window's time-ordered index (stable: per-source order kept).

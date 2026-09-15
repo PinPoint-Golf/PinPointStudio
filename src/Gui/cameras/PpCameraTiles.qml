@@ -338,31 +338,94 @@ Item {
             }
         }
 
-        // The clip's own transport: it loops on its own clock, so the main
-        // play/pause leaves it running — this holds it on a frame (and lets
-        // the operator step the window to it) and releases it re-phased.
+        // The clip's own transport, along the bottom of the box: it loops on
+        // its own clock, so the main transport cannot hold or scrub it. Play /
+        // pause holds the loop (on the impact frame), ◂ ▸ step one clip frame,
+        // and the slider scrubs the loop band by hand; any of the three holds.
         Rectangle {
+            id: pipBar
             visible: root._replay && pip.active
             anchors.left:   parent.left
+            anchors.right:  parent.right
             anchors.bottom: parent.bottom
-            anchors.margins: Theme.sp(6)
-            width: Theme.sp(26); height: Theme.sp(26)
-            radius: Theme.radius
+            height: Theme.sp(22)
             z: 11   // over the move/resize MouseArea
-            color: loopBtnMa.containsMouse ? Theme.colorBg3 : Qt.rgba(0, 0, 0, 0.55)
-            border.width: 1
-            border.color: Theme.colorAccentMid
-            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-            Text {
-                anchors.centerIn: parent
-                text: shotReplay.impactLoopPlaying ? "⏸" : "▶"
-                font.family: Theme.fontSymbol
-                font.pixelSize: Theme.sp(12)
-                color: Theme.colorText
+            color: Qt.rgba(0, 0, 0, 0.6)
+
+            readonly property real  t0:   shotReplay.impactLoopStartUs
+            readonly property real  t1:   shotReplay.impactLoopEndUs
+            readonly property real  pos:  shotReplay.impactPositionUs
+            readonly property real  frac: (t1 > t0 && pos >= 0) ? Math.max(0, Math.min(1, (pos - t0) / (t1 - t0))) : 0
+
+            component PipBtn: Rectangle {
+                property string glyph: ""
+                signal acted()
+                width: Theme.sp(20); height: Theme.sp(18); radius: Theme.radius - 1
+                color: pbma.containsMouse ? Theme.colorBg3 : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: parent.glyph
+                    font.family: Theme.fontSymbol
+                    font.pixelSize: Theme.sp(11)
+                    color: Theme.colorText
+                }
+                PpPressable { id: pbma; onClicked: parent.acted() }
             }
-            PpPressable {
-                id: loopBtnMa
-                onClicked: shotReplay.toggleImpactLoop()
+
+            Row {
+                id: pipBtns
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.sp(4)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Theme.sp(2)
+                PipBtn { glyph: shotReplay.impactLoopPlaying ? "⏸" : "▶"; onActed: shotReplay.toggleImpactLoop() }
+                PipBtn { glyph: "◂"; onActed: shotReplay.stepImpactFrame(-1) }
+                PipBtn { glyph: "▸"; onActed: shotReplay.stepImpactFrame(1) }
+            }
+
+            // The scrub track — the loop band, with the clip's own playhead.
+            Item {
+                id: pipTrack
+                anchors.left: pipBtns.right
+                anchors.right: parent.right
+                anchors.leftMargin: Theme.sp(8)
+                anchors.rightMargin: Theme.sp(10)
+                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.left: parent.left; anchors.right: parent.right
+                    height: 2
+                    color: Theme.colorBorderStrong
+                }
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.left: parent.left
+                    width: pipBar.frac * parent.width
+                    height: 2
+                    color: Theme.colorAccent
+                }
+                Rectangle {
+                    x: pipBar.frac * parent.width - width / 2
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Theme.sp(10); height: Theme.sp(10); radius: width / 2
+                    color: Theme.colorAccent
+                    border.width: 1
+                    border.color: Theme.colorBg
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    preventStealing: true
+                    cursorShape: Qt.PointingHandCursor
+                    function scrubTo(mx) {
+                        if (!(pipBar.t1 > pipBar.t0)) return
+                        var f = Math.max(0, Math.min(1, mx / width))
+                        shotReplay.seekImpactToUs(pipBar.t0 + f * (pipBar.t1 - pipBar.t0))
+                    }
+                    onPressed: (m) => scrubTo(m.x)
+                    onPositionChanged: (m) => { if (pressed) scrubTo(m.x) }
+                }
             }
         }
 

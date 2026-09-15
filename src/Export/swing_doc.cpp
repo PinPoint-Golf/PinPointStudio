@@ -187,7 +187,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
                                                     { QStringLiteral("model"), a.versions.poseModel },
                                                     { QStringLiteral("scope"), a.versions.poseScope } } },
             { QStringLiteral("ball"),  QJsonObject{ { QStringLiteral("code"),  a.versions.ball } } },
-            { QStringLiteral("shaft"), QJsonObject{ { QStringLiteral("code"),  a.versions.shaft } } } };
+            { QStringLiteral("shaft"), QJsonObject{ { QStringLiteral("code"),  a.versions.shaft } } },
+            { QStringLiteral("impact"), QJsonObject{ { QStringLiteral("code"), a.versions.impact } } } };
     o[QStringLiteral("tier")]   = a.tier;
     o[QStringLiteral("score")]  = serializeScore(a.score);
 
@@ -292,6 +293,7 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
             { QStringLiteral("poseMs"),  a.timings.poseMs },
             { QStringLiteral("ballMs"),  a.timings.ballMs },
             { QStringLiteral("shaftMs"), a.timings.shaftMs },
+            { QStringLiteral("impactMs"), a.timings.impactMs },
             { QStringLiteral("totalMs"), a.timings.totalMs } };
 
     // Additive segmentation block (v3 G2, design A.7): the swing bounds +
@@ -642,8 +644,13 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
                                                                   { QStringLiteral("y"), a.ball.launchCenter.y() } });
         o[QStringLiteral("ball")] = ballObj;
     }
+    // The impact camera's track (impact_camera_design.md §7) — absent when no
+    // impact camera ran. Same object the live detail carries (impactTrackJson).
+    if (a.impact.valid)
+        o[QStringLiteral("impact")] = impactTrackJson(a.impact, windowT0);
     return o;
 }
+
 
 // ── summary sidecar ─────────────────────────────────────────────────────────
 //
@@ -872,6 +879,81 @@ bool writeSummaryFile(const SwingSummary &s, QString *error)
 }
 
 } // namespace
+
+QJsonObject impactTrackJson(const analysis::ImpactTrack2D &t, qint64 windowT0)
+{
+    // Same domain rule as serializeAnalysis: only an absolute value is shifted.
+    auto rel = [windowT0](int64_t v) -> qint64 {
+        const qint64 tt = static_cast<qint64>(v);
+        return tt >= windowT0 ? tt - windowT0 : tt;
+    };
+    QJsonArray samples;
+    for (const analysis::ImpactSample2D &s : t.frames) {
+        QJsonObject so{ { QStringLiteral("t_us"), rel(s.t_us) } };
+        if (s.ballFound) {
+            so.insert(QStringLiteral("bx"), s.ball.x());
+            so.insert(QStringLiteral("by"), s.ball.y());
+            so.insert(QStringLiteral("br"), double(s.ballR));
+        }
+        if (s.clubFound) {
+            so.insert(QStringLiteral("hx"), s.head.x());
+            so.insert(QStringLiteral("hy"), s.head.y());
+            if (s.headSeen)
+                so.insert(QStringLiteral("hs"), true);
+            if (s.atEdge)
+                so.insert(QStringLiteral("edge"), true);
+            if (!s.outline.empty()) {
+                QJsonArray poly;
+                for (const QPointF &p : s.outline) { poly.append(p.x()); poly.append(p.y()); }
+                so.insert(QStringLiteral("poly"), poly);
+            }
+            so.insert(QStringLiteral("sax"), s.shaftA.x());
+            so.insert(QStringLiteral("say"), s.shaftA.y());
+            so.insert(QStringLiteral("sbx"), s.shaftB.x());
+            so.insert(QStringLiteral("sby"), s.shaftB.y());
+        }
+        samples.append(so);
+    }
+    QJsonObject o{
+        { QStringLiteral("camera"),  int(t.camera) },
+        { QStringLiteral("valid"),   t.valid },
+        { QStringLiteral("width"),   t.width },
+        { QStringLiteral("height"),  t.height },
+        { QStringLiteral("mmPerPx"), t.mmPerPx },
+        { QStringLiteral("samples"), samples } };
+    if (t.ballLeaveTUs >= 0)
+        o.insert(QStringLiteral("ballLeaveTUs"), rel(t.ballLeaveTUs));
+    if (t.ballRestR > 0.f)
+        o.insert(QStringLiteral("ballRest"), QJsonObject{ { QStringLiteral("x"), t.ballRest.x() },
+                                                          { QStringLiteral("y"), t.ballRest.y() },
+                                                          { QStringLiteral("r"), double(t.ballRestR) } });
+    if (t.pathValid) {
+        QJsonArray pts;
+        for (const analysis::ImpactPathPoint &p : t.path)
+            pts.append(QJsonObject{ { QStringLiteral("t_us"), rel(p.t_us) },
+                                    { QStringLiteral("x"),  p.head.x() },  { QStringLiteral("y"),  p.head.y() },
+                                    { QStringLiteral("hx"), p.hosel.x() }, { QStringLiteral("hy"), p.hosel.y() },
+                                    { QStringLiteral("th"), p.thetaRad } });
+        QJsonArray ribbon;
+        for (const QPointF &q : t.ribbon)
+            ribbon.append(QJsonObject{ { QStringLiteral("x"), q.x() }, { QStringLiteral("y"), q.y() } });
+        o.insert(QStringLiteral("path"), QJsonObject{
+            { QStringLiteral("kind"),           QStringLiteral("synth") },
+            { QStringLiteral("points"),         pts },
+            { QStringLiteral("ribbon"),         ribbon },
+            { QStringLiteral("arc"),            QJsonObject{ { QStringLiteral("a"), t.arcA }, { QStringLiteral("b"), t.arcB }, { QStringLiteral("c"), t.arcC },
+                                                             { QStringLiteral("thetaAtX0"), t.thetaAtX0 }, { QStringLiteral("thetaSlopePerX"), t.thetaSlopePerX } } },
+            { QStringLiteral("halfWidth"),      t.pathHalfWidth },
+            { QStringLiteral("headAlongPx"),    t.headAlongPx },
+            { QStringLiteral("headAcrossPx"),   t.headAcrossPx },
+            { QStringLiteral("headAssumed"),    t.headOffsetAssumed },
+            { QStringLiteral("headEvidence"),   t.headEvidenceFrames },
+            { QStringLiteral("hoselFit"),       t.hoselFitFrames },
+            { QStringLiteral("hoselDropped"),   t.hoselDropped },
+            { QStringLiteral("hoselResRmsPx"),  t.hoselResidualRmsPx } });
+    }
+    return o;
+}
 
 bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &rawManifest,
                                     const analysis::SwingAnalysis *analysis, QString *error,
@@ -1447,6 +1529,9 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
         if (an.contains(QStringLiteral("ball")))
             ps.analysisDetail.insert(QStringLiteral("ball"),
                                      an[QStringLiteral("ball")].toObject().toVariantMap());
+        if (an.contains(QStringLiteral("impact")))
+            ps.analysisDetail.insert(QStringLiteral("impact"),
+                                     an[QStringLiteral("impact")].toObject().toVariantMap());
         if (an.contains(QStringLiteral("segmentation")))
             ps.analysisDetail.insert(QStringLiteral("segmentation"),
                                      an[QStringLiteral("segmentation")].toObject().toVariantMap());

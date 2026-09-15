@@ -66,6 +66,11 @@ public:
     void endScrub() override;
     bool impactLoopPlaying() const override { return !m_loopHeld; }
     void toggleImpactLoop() override;
+    qint64 impactPositionUs() const override { return m_impactPosUs; }
+    qint64 impactLoopStartUs() const override;
+    qint64 impactLoopEndUs() const override;
+    void seekImpactToUs(qint64 us) override;
+    void stepImpactFrame(int delta) override;
 
 private slots:
     void onTick();
@@ -83,6 +88,12 @@ private:
         // the playhead crosses impact (impact_camera_design.md §10.2).
         bool                 loop       = false;
         double               captureFps = 0.0; // from the stream's own t_us
+        // The loop's own band, window-relative µs (defaults to the clip's first
+        // and last frame): trimmed to the frames the club and the ball are in
+        // view on when analysis.impact says where those are, so a 300 ms keep
+        // band does not loop 230 ms of empty mat.
+        qint64               loopStartUs = 0;
+        qint64               loopEndUs   = 0;
     };
 
     void setPlaying(bool p);
@@ -99,6 +110,11 @@ private:
     // the tick stops re-phasing it until released. Cleared on load.
     bool        m_loopHeld = false;
     void playPlayers();   // play every stream, honouring the loop hold
+    // The looping clip's own playhead (see impactPositionUs), refreshed with
+    // the tick from its player's position; -1 = no looping stream.
+    qint64      m_impactPosUs = -1;
+    void refreshImpactPosition();
+    int  loopStreamIndex() const;   // -1 when no looping stream
     double      m_speed    = 0.25;   // capture-time multiplier, 0.1..1
     bool        m_wasPlayingBeforeScrub = false;
     qint64      m_startUs    = 0;
