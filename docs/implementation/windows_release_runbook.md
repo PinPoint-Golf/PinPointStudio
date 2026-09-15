@@ -239,6 +239,47 @@ installer, verifies the signature, and relaunches on the new version — no UAC 
 
 ---
 
+## Local release — promote a build to the production account on THIS PC
+
+For testing a change under the production setup (the other Windows account that runs
+the official binary) without a GitHub release. Not for every change; for the ones that
+need the real rig, real settings and the real install. Nothing here is signed,
+appcast-ed or uploaded, and nothing here bumps the version.
+
+**Why it is an installer and not a file copy.** The official copy is a per-user Inno
+install under that account's `%LOCALAPPDATA%\Programs\PinPointStudio`, which no other
+account can write into. The same installer a release produces, run *from that account*,
+upgrades it in place with no admin prompt and keeps the uninstall log honest.
+
+```powershell
+# from the dev account, in the repo root — builds Release + the -core installer
+# (incremental in build\Release-Installer) and stages it for the other account
+powershell -ExecutionPolicy Bypass -File packaging\local_release.ps1
+#   -Components both     when the CUDA/cuDNN runtime itself changed (~1.7 GB)
+#   -InstallHere         also upgrade THIS account's install silently, as a smoke test
+```
+
+It stages `C:\PinPointStudio\local-release\PinPointStudioSetup-<ver>-core-local-<sha>.exe`
+and writes `LATEST.txt` beside it (commit, time, and whether the tree had uncommitted changes).
+
+Then, **signed in as the production account:** run that file (Next/Next, it upgrades in
+place), or unattended:
+```powershell
+"C:\PinPointStudio\local-release\<file>.exe" /SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS
+```
+
+Notes:
+- **Same version number on purpose.** A local release carries the last official
+  `version.h`, so About reads the same and WinSparkle sees an equal build number and
+  offers nothing. The sha in the file name is the only identity — put it in the bug
+  report. Bump `BUILD` only for an official release, exactly as above.
+- **The next official release lands over it normally** (its `BUILD` is higher).
+- **Never sign or upload a local build**, and never copy its files into another
+  account's profile by hand — the installer is the contract.
+- Prereqs are the runbook's own (VS, Qt 6.11 MSVC, Inno Setup 6, vcpkg OpenSSL); the
+  script picks the newest installed Qt kit, since `build_installer.ps1`'s default names
+  one this box may not have.
+
 ## Quick checklist (per release)
 
 - [ ] Bump `PINPOINT_VERSION_BUILD` (+ MAJOR/MINOR/POSTFIX) in `version.h`, commit, push
