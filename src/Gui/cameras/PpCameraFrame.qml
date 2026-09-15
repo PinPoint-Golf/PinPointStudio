@@ -44,6 +44,15 @@ Item {
     property int replayStreamIndex: -1
     readonly property bool _isReplay: replayStreamIndex >= 0
 
+    // Display stretch on the picture (impact_camera_design.md §10.3): a plain
+    // multiply, clipped at white, so a 70 µs impact frame can be aimed on the
+    // tile. 1 = off (no effect item is even rendered). Never touches the
+    // recorded pixels; the level readout below reads the raw frame, not this.
+    property real viewGain: 1.0
+    // Pixel-level readout on the stats pill (impact camera only): what the
+    // raw frame's median, 99.9th percentile and clipped fraction are.
+    property bool showLevels: true
+
     // Replay-overlay source — resolves to the disk replay (Review tile) or the
     // live in-window transient (Capture tile), so the analyzed skeleton/club
     // overlay reads ONE set of values regardless of which surface is driving it.
@@ -783,6 +792,29 @@ Item {
             visible: root.instance !== null && root.instance.needsDebayer
         }
 
+        // ── View gain (impact tile) ───────────────────────────────────────
+        // Renders whichever of the two video items is live through a multiply
+        // shader; the source is hidden while the effect stands in for it, and
+        // nothing here exists at gain 1. Same item geometry, so every overlay
+        // that maps through contentRect is unaffected.
+        ShaderEffectSource {
+            id: gainSource
+            readonly property bool wanted: root.viewGain > 1.001
+            sourceItem: !wanted ? null : (root._useBayer ? bayerView : videoOut)
+            hideSource: wanted
+            live: true
+            visible: false
+        }
+        ShaderEffect {
+            visible: gainSource.wanted
+            anchors.fill: parent
+            anchors.margins: root.videoInset
+            property variant source: gainSource
+            property real gain: root.viewGain
+            vertexShader:   "qrc:/shaders/src/Shaders/viewgain.vert.qsb"
+            fragmentShader: "qrc:/shaders/src/Shaders/viewgain.frag.qsb"
+        }
+
         // ── Placeholder states ────────────────────────────────────────────
         // Not connected: dim frame with the camera name; the layout doesn't
         // jump when video starts. Connected but idle: "No camera feed".
@@ -883,6 +915,14 @@ Item {
                       + (root.instance.configuredFps > 0
                              ? root.instance.configuredFps
                              : root.instance.cameraFps).toFixed(0) + " fps"
+                      // The impact camera's levels (impact_camera_design.md
+                      // §10.3): mat / brightest / clipped, on the RAW frame.
+                      + (root.showLevels && root.instance.perspective === CameraInstance.Impact
+                             ? "   bg " + root.instance.levelBackground.toFixed(0)
+                               + "  peak " + root.instance.levelPeak.toFixed(0)
+                               + "  clip " + (root.instance.levelClipped * 100).toFixed(1) + "%"
+                               + (root.viewGain > 1.001 ? "  view ×" + root.viewGain : "")
+                             : "")
                 color: Theme.colorText
                 font.family: Theme.fontData
                 font.pixelSize: Theme.fontSzMicro

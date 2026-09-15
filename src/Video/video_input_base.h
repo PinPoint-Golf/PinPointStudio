@@ -123,6 +123,34 @@ public:
     virtual void setCaptureRate(double) {}
     virtual void setExposureUs(double) {}
 
+    // The impact camera's tuning beyond exposure (impact_camera_design.md
+    // §10.3). Sensor gain in dB, auto-gain off (< 0 = leave the camera alone):
+    // applied before the ADC, so it lifts a dark club body above the 8-bit
+    // floor rather than stretching a floor that is already there. In-camera
+    // gamma (0 = leave alone): applied to the sensor's full bit depth, so a
+    // value below 1 lifts the shadows the club lives in while the ball stays
+    // unclipped. The strobe output: Line1 driven by ExposureActive, for an
+    // LED strobe driver. Primed before start() like the rate and exposure;
+    // same threading rule as setCropRegion(). Defaults are no-ops.
+    virtual void setGainDb(double) {}
+    virtual void setGamma(double) {}
+    virtual void setStrobeOutput(bool) {}
+
+    // Re-tune a STREAMING camera. ExposureTime, Gain and Gamma are writable
+    // during acquisition on GenICam cameras, so the operator can turn a knob
+    // and watch the tile instead of reconnecting. exposureUs ≤ 0, gainDb < 0
+    // and gamma ≤ 0 are each skipped. Returns false when nothing could be
+    // written (not streaming, no such nodes). Must be called on the object's
+    // thread — CameraInstance invokes it there.
+    virtual bool applyLiveTuning(double /*exposureUs*/, double /*gainDb*/, double /*gamma*/) { return false; }
+
+    // What the camera actually holds after the last prime or live apply, read
+    // back from the device (a write is clamped to the node's range, so the
+    // request is not the fact). -1 dB / 0 gamma = unknown or never written.
+    // Recorded per clip as provenance next to the measured exposure.
+    virtual double appliedGainDb() const { return -1.0; }
+    virtual double appliedGamma()  const { return 0.0; }
+
     // Query what this camera can do. Returns a default-constructed
     // CameraCapabilities (all fields Unavailable / zero) if the camera has
     // not been opened yet or the backend does not support introspection.

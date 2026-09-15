@@ -64,6 +64,8 @@ public:
     void setSpeed(double speed) override;
     void beginScrub() override;
     void endScrub() override;
+    bool impactLoopPlaying() const override { return !m_loopHeld; }
+    void toggleImpactLoop() override;
 
 private slots:
     void onTick();
@@ -93,6 +95,10 @@ private:
 
     bool        m_loaded   = false;
     bool        m_playing  = false;
+    // The impact clip's own hold (toggleImpactLoop): its player is paused and
+    // the tick stops re-phasing it until released. Cleared on load.
+    bool        m_loopHeld = false;
+    void playPlayers();   // play every stream, honouring the loop hold
     double      m_speed    = 0.25;   // capture-time multiplier, 0.1..1
     bool        m_wasPlayingBeforeScrub = false;
     qint64      m_startUs    = 0;

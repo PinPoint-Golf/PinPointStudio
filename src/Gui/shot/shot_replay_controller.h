@@ -44,6 +44,9 @@ class ShotReplayController : public QObject
     Q_OBJECT
     Q_PROPERTY(bool         active         READ active         NOTIFY activeChanged)
     Q_PROPERTY(bool         playing        READ playing        NOTIFY playingChanged)
+    // The impact clip's own transport (it loops independently of the window —
+    // impact_camera_design.md §10.2): false while held by toggleImpactLoop().
+    Q_PROPERTY(bool         impactLoopPlaying READ impactLoopPlaying NOTIFY impactLoopPlayingChanged)
     Q_PROPERTY(int          shotId         READ shotId         NOTIFY activeChanged)
     // On-disk folder of the focused (replaying/scrubbing) shot, for the data viewer.
     // Empty when no replay is active — the viewer then falls back to the carousel's
@@ -91,6 +94,8 @@ public:
     Q_INVOKABLE void setSpeed(double speed)       { m_source->setSpeed(speed); }
     Q_INVOKABLE void beginScrub()                 { m_source->beginScrub(); }
     Q_INVOKABLE void endScrub()                   { m_source->endScrub(); }
+    Q_INVOKABLE void toggleImpactLoop()           { m_source->toggleImpactLoop(); }
+    bool impactLoopPlaying() const                { return m_source->impactLoopPlaying(); }
 
     // Bind a QML VideoOutput's sink to stream `index` (face-on = 0). Persists
     // across shots (the VideoOutput outlives a single replay), so it may be called
@@ -110,6 +115,7 @@ public:
 signals:
     void activeChanged();
     void playingChanged();
+    void impactLoopPlayingChanged();
     void positionChanged();
     void spanChanged();
     void speedChanged();

@@ -115,6 +115,18 @@ class CameraInstance : public QObject
     Q_PROPERTY(int    frameWidth         READ frameWidth          NOTIFY frameSizeChanged)
     Q_PROPERTY(int    frameHeight        READ frameHeight         NOTIFY frameSizeChanged)
     Q_PROPERTY(double configuredFps     READ configuredFps       NOTIFY frameSizeChanged)
+    // What the camera holds after the last prime / live re-tune, read back
+    // from the device (-1 dB / 0 = unknown). Impact camera only in practice.
+    Q_PROPERTY(double appliedGainDb     READ appliedGainDb       NOTIFY appliedTuningChanged)
+    Q_PROPERTY(double appliedGamma      READ appliedGamma        NOTIFY appliedTuningChanged)
+    // Pixel levels of the live frame, 0..255, refreshed a few times a second
+    // for the impact camera (impact_camera_design.md §10.3): the median
+    // (the mat), the 99.9th percentile (the brightest thing that is not a
+    // handful of hot pixels) and the fraction at or above 250 (clipped).
+    // Without a number, tuning the light is guessing.
+    Q_PROPERTY(double levelBackground   READ levelBackground     NOTIFY levelsChanged)
+    Q_PROPERTY(double levelPeak         READ levelPeak           NOTIFY levelsChanged)
+    Q_PROPERTY(double levelClipped      READ levelClipped        NOTIFY levelsChanged)
     Q_PROPERTY(bool   isReplaying       READ isReplaying         NOTIFY isReplayingChanged)
     // The message from the most recent failed start()/preview attempt — e.g.
     // "PPCP camera: no peer attached" while the owning phone isn't connected,
@@ -137,6 +149,16 @@ public:
     // under 2 px at ~1 mm/px (impact_camera_design.md §1). CamerasPanel.qml
     // carries the same default for its chips.
     static constexpr double kImpactDefaultExposureUs = 70.0;
+    // The impact camera's tuning defaults, set from the 2026-09-15 studio
+    // recordings (impact_camera_design.md §10.3): at 70 µs under a ring light
+    // the mat sat at 5–8 of 255, the club body at 10–30 and the ball at
+    // 100–250. 12 dB (4×) lifts the club body to ~100 before the ADC; gamma
+    // 0.7 lifts the shadows on the sensor's full bit depth while the ball
+    // stays where it is. The view gain is a display stretch only, 1× because
+    // the two above already put the club where the eye can see it.
+    static constexpr double kImpactDefaultGainDb   = 12.0;
+    static constexpr double kImpactDefaultGamma    = 0.7;
+    static constexpr double kImpactDefaultViewGain = 1.0;
 
     explicit CameraInstance(QObject *parent = nullptr);
     explicit CameraInstance(const Device &device,
@@ -273,6 +295,18 @@ public:
 #endif
     Q_INVOKABLE void setCropRoi(QRectF roi); // frame crop for storage / ring-buffer sizing
     Q_INVOKABLE void clearCropRoi();
+    // Re-tune the STREAMING camera (exposure µs, gain dB, gamma; ≤ 0 / < 0
+    // skips that one) so Settings can turn a knob and watch the tile. Also
+    // becomes what the next connect primes, so the clip records what was on.
+    // No-op for a backend without live tuning (the log says so).
+    Q_INVOKABLE void applyLiveTuning(double exposureUs, double gainDb, double gamma);
+    double appliedGainDb()   const;
+    double appliedGamma()    const;
+    double requestedGainDb() const { return m_captureGainDb; }
+    double requestedGamma()  const { return m_captureGamma; }
+    double levelBackground() const { return m_levelBackground; }
+    double levelPeak()       const { return m_levelPeak; }
+    double levelClipped()    const { return m_levelClipped; }
 
     VideoPreprocessorBase *preprocessor() const;
 
@@ -293,6 +327,8 @@ signals:
     void poseEnabledChanged();
     void ballEnabledChanged();
     void perspectiveChanged();
+    void appliedTuningChanged();
+    void levelsChanged();
     void isMirroredChanged();
     void roiChanged();
     void cropRoiChanged();
@@ -502,4 +538,21 @@ private:
     // default would hold 1.7 s, not 5.
     double             m_captureFps        = 0.0;
     double             m_captureExposureUs = 0.0;
+    // Gain / gamma / strobe pushed with them (impact_camera_design.md §10.3);
+    // -1 / 0 / false = leave the camera alone. Exposure, gain and gamma are
+    // also re-written live by applyLiveTuning(), which updates these so the
+    // next connect primes what the operator last saw.
+    double             m_captureGainDb     = -1.0;
+    double             m_captureGamma      = 0.0;
+    bool               m_captureStrobe     = false;
+    // Push crop, rate, exposure, gain, gamma and strobe to the backend —
+    // called on the backend's thread immediately before start().
+    void primeBackend();
+
+    // Live pixel levels (see the Q_PROPERTYs) — main-thread, throttled.
+    void updateLevels(const uchar *data, int width, int height, int stride);
+    double             m_levelBackground   = 0.0;
+    double             m_levelPeak         = 0.0;
+    double             m_levelClipped      = 0.0;
+    qint64             m_levelsLastMs      = 0;
 };

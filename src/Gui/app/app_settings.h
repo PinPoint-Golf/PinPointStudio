@@ -217,6 +217,14 @@ class AppSettings : public QObject
     // Locked exposure (microseconds) per cameraKey — the impact camera's
     // (impact_camera_design.md §10.2); other cameras keep auto-exposure.
     Q_PROPERTY(QVariantMap cameraExposureUs    READ cameraExposureUs    WRITE setCameraExposureUs    NOTIFY cameraExposureUsChanged)
+    // The impact camera's tuning beyond exposure, per cameraKey
+    // (impact_camera_design.md §10.3): { gainDb, gamma, viewGain, strobe,
+    // note }. gainDb/gamma are written to the camera; viewGain is a display
+    // stretch on the tile and the replay (never baked into the pixels);
+    // strobe enables the Line1 ExposureActive output; note is free text
+    // (lens, aperture, light) stamped into every clip. Missing members take
+    // CameraInstance::kImpactDefault* — set from the 2026-09-15 recordings.
+    Q_PROPERTY(QVariantMap cameraTuning        READ cameraTuning        WRITE setCameraTuning        NOTIFY cameraTuningChanged)
     // The impact camera's picture-in-picture box over the camera tiles
     // (PpCameraTiles.qml): { x, y, w } normalised — w as a fraction of the
     // tile area's width, x/y as fractions of the free range. Empty = default.
@@ -468,6 +476,7 @@ public:
         m_cameraFixedInPlace = ppSettings().value(QStringLiteral("camera/fixedInPlace"), QVariantMap{}).toMap();
         m_cameraAlias        = ppSettings().value(QStringLiteral("camera/alias"),        QVariantMap{}).toMap();
         m_cameraExposureUs   = ppSettings().value(QStringLiteral("camera/exposureUs"),   QVariantMap{}).toMap();
+        m_cameraTuning       = ppSettings().value(QStringLiteral("camera/tuning"),       QVariantMap{}).toMap();
         m_impactPipRect      = ppSettings().value(QStringLiteral("camera/impactPip"),    QVariantMap{}).toMap();
 
         m_imuExcluded             = ppSettings().value(QStringLiteral("imu/excluded"),             QStringList{}).toStringList();
@@ -626,6 +635,7 @@ public:
     bool        cameraSyncEnabled()  const { return m_cameraSyncEnabled; }
     QVariantMap cameraFixedInPlace() const { return m_cameraFixedInPlace; }
     QVariantMap cameraExposureUs()   const { return m_cameraExposureUs; }
+    QVariantMap cameraTuning()       const { return m_cameraTuning; }
     QVariantMap impactPipRect()      const { return m_impactPipRect; }
     QVariantMap cameraAlias()        const { return m_cameraAlias; }
 
@@ -1173,6 +1183,14 @@ public:
         emit cameraExposureUsChanged();
     }
 
+    void setCameraTuning(const QVariantMap &v)
+    {
+        if (m_cameraTuning == v) return;
+        m_cameraTuning = v;
+        ppSettings().setValue(QStringLiteral("camera/tuning"), v);
+        emit cameraTuningChanged();
+    }
+
     void setImpactPipRect(const QVariantMap &v)
     {
         if (m_impactPipRect == v) return;
@@ -1646,6 +1664,7 @@ signals:
     void cameraBallRoiChanged();
     void cameraAliasChanged();
     void cameraExposureUsChanged();
+    void cameraTuningChanged();
     void impactPipRectChanged();
     void imuExcludedChanged();
     void imuPlacementChanged();
@@ -1762,6 +1781,7 @@ private:
     QVariantMap m_cameraBallRoi;
     QVariantMap m_cameraAlias;
     QVariantMap m_cameraExposureUs;
+    QVariantMap m_cameraTuning;
     QVariantMap m_impactPipRect;
 
     QStringList m_imuExcluded;

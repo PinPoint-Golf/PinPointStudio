@@ -23,6 +23,7 @@
 #include "source_descriptor.h"
 #include <cstring>
 #include <utility>
+#include <QDateTime>
 #include <QVideoFrameFormat>
 #include <QVideoSink>
 
@@ -143,6 +144,12 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
             m_captureFps = appSettings->cameraTargetFps().value(key).toDouble();
             m_captureExposureUs =
                 appSettings->cameraExposureUs().value(key, kImpactDefaultExposureUs).toDouble();
+            // Gain / gamma / strobe (impact_camera_design.md §10.3); a member
+            // the operator never touched takes the default.
+            const QVariantMap tuning = appSettings->cameraTuning().value(key).toMap();
+            m_captureGainDb = tuning.value(QStringLiteral("gainDb"), kImpactDefaultGainDb).toDouble();
+            m_captureGamma  = tuning.value(QStringLiteral("gamma"),  kImpactDefaultGamma).toDouble();
+            m_captureStrobe = tuning.value(QStringLiteral("strobe"), false).toBool();
         }
     }
 
@@ -1032,6 +1039,79 @@ void CameraInstance::clearCropRoi()
     emit cropRoiChanged();
 }
 
+// Backend thread. The crop, and the impact camera's rate, exposure, gain,
+// gamma and strobe — all "0 / -1 / false = leave the camera alone" for every
+// other camera (impact_camera_design.md §10.2, §10.3).
+void CameraInstance::primeBackend()
+{
+    m_videoInput->setCropRegion(m_activeCropRoi);
+    m_videoInput->setCaptureRate(m_captureFps);
+    m_videoInput->setExposureUs(m_captureExposureUs);
+    m_videoInput->setGainDb(m_captureGainDb);
+    m_videoInput->setGamma(m_captureGamma);
+    m_videoInput->setStrobeOutput(m_captureStrobe);
+}
+
+void CameraInstance::applyLiveTuning(double exposureUs, double gainDb, double gamma)
+{
+    // Remember for the next connect FIRST — the operator's last knob position
+    // is what a reconnect must reproduce, whether or not the live write lands.
+    if (exposureUs > 0.0) m_captureExposureUs = exposureUs;
+    if (gainDb >= 0.0)    m_captureGainDb     = gainDb;
+    if (gamma > 0.0)      m_captureGamma      = gamma;
+    if (!m_videoInput)
+        return;
+    QPointer<CameraInstance> self(this);
+    QMetaObject::invokeMethod(m_videoInput, [self, exposureUs, gainDb, gamma]() {
+        if (!self) return;
+        const bool ok = self->m_videoInput->applyLiveTuning(exposureUs, gainDb, gamma);
+        if (!ok)
+            ppWarn() << "[CameraInstance]" << self->m_deviceDescription
+                     << "live tuning not applied (camera not streaming, or the backend"
+                     << "cannot re-tune live); it takes effect on the next connect";
+        QMetaObject::invokeMethod(QCoreApplication::instance(), [self]() {
+            if (self) emit self->appliedTuningChanged();
+        }, Qt::QueuedConnection);
+    }, Qt::QueuedConnection);
+}
+
+double CameraInstance::appliedGainDb() const { return m_videoInput ? m_videoInput->appliedGainDb() : -1.0; }
+double CameraInstance::appliedGamma()  const { return m_videoInput ? m_videoInput->appliedGamma()  : 0.0; }
+
+// Main thread, ≤ ~8 Hz. A 256-bin histogram over every other row and column
+// of the frame: cheap at 640×240, and the statistics are unaffected by the
+// stride. Raw Bayer is read as luma, which is what the exporter's greyscale
+// preview shows too.
+void CameraInstance::updateLevels(const uchar *data, int width, int height, int stride)
+{
+    if (!data || width <= 0 || height <= 0 || m_perspective != Impact)
+        return;
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - m_levelsLastMs < 125)
+        return;
+    m_levelsLastMs = now;
+
+    uint32_t hist[256] = {};
+    uint32_t n = 0;
+    for (int y = 0; y < height; y += 2) {
+        const uchar *row = data + static_cast<size_t>(y) * stride;
+        for (int x = 0; x < width; x += 2) { ++hist[row[x]]; ++n; }
+    }
+    if (n == 0) return;
+    auto percentile = [&](double p) {
+        const uint32_t target = static_cast<uint32_t>(p * n);
+        uint32_t acc = 0;
+        for (int v = 0; v < 256; ++v) { acc += hist[v]; if (acc >= target) return double(v); }
+        return 255.0;
+    };
+    uint32_t clipped = 0;
+    for (int v = 250; v < 256; ++v) clipped += hist[v];
+    m_levelBackground = percentile(0.50);
+    m_levelPeak       = percentile(0.999);
+    m_levelClipped    = double(clipped) / double(n);
+    emit levelsChanged();
+}
+
 bool   CameraInstance::ballDetected()        const { return m_ballDetected; }
 double CameraInstance::ballX()               const { return m_ballX; }
 double CameraInstance::ballY()               const { return m_ballY; }
@@ -1304,9 +1384,7 @@ void CameraInstance::startRecording()
             QMetaObject::invokeMethod(self->m_videoInput, [self]() {
                 if (!self)
                     return;
-                self->m_videoInput->setCropRegion(self->m_activeCropRoi);
-                self->m_videoInput->setCaptureRate(self->m_captureFps);
-                self->m_videoInput->setExposureUs(self->m_captureExposureUs);
+                self->primeBackend();
                 if (!self->m_videoInput->start(self->m_deviceId)) {
                     // Revert the optimistic recording state (non-macOS path
                     // does the same via its queued failure hop).
@@ -1341,10 +1419,8 @@ void CameraInstance::startRecording()
     QMetaObject::invokeMethod(m_videoInput, [this]() {
         // Prime the hardware ROI (no-op for software-cropped backends) with
         // the ctor-frozen crop before starting the device, and the impact
-        // camera's rate and exposure (0 = leave the camera alone).
-        m_videoInput->setCropRegion(m_activeCropRoi);
-        m_videoInput->setCaptureRate(m_captureFps);
-        m_videoInput->setExposureUs(m_captureExposureUs);
+        // camera's rate, exposure and tuning (0 = leave the camera alone).
+        primeBackend();
         if (m_videoInput->start(m_deviceId))
             return;
 
@@ -1465,6 +1541,18 @@ void CameraInstance::drainDisplayFrame()
     }
     if (f.isValid())
         m_lastDeliveredFrame = f;   // ground truth for updateBufferDescriptor()
+    // Levels for a pre-decoded greyscale feed (an industrial Mono8 camera); a
+    // colour webcam is never the impact camera, so its formats are skipped.
+    if (f.isValid() && m_perspective == Impact
+        && (f.pixelFormat() == QVideoFrameFormat::Format_Y8
+            || f.pixelFormat() == QVideoFrameFormat::Format_NV12
+            || f.pixelFormat() == QVideoFrameFormat::Format_YUV420P)) {
+        QVideoFrame m = f;
+        if (m.map(QVideoFrame::ReadOnly)) {
+            updateLevels(m.bits(0), m.width(), m.height(), m.bytesPerLine(0));
+            m.unmap();
+        }
+    }
     onVideoFrame(f);
 
     // Stamp the buffer descriptor's pixel format + resolution from the first real
@@ -1493,6 +1581,8 @@ void CameraInstance::drainRawFrame()
     if (!raw.isNull()) {
         stampBufferDescriptorFromRaw(raw);
         refreshExposure(raw.exposureUs, raw.exposureAuto);  // track auto-exposure drift
+        updateLevels(reinterpret_cast<const uchar *>(raw.data.constData()),
+                     raw.width, raw.height, raw.width);      // packed, stride == width
     }
 
     if (m_replaying || raw.isNull())  // suppress live feed during replay
@@ -1828,7 +1918,12 @@ void CameraInstance::updateBufferDescriptor()
     cfmt.height       = static_cast<uint32_t>(h);
     cfmt.max_payload_bytes     = static_cast<uint32_t>(w) * static_cast<uint32_t>(h) * 4u;
     cfmt.typical_payload_bytes = cfmt.max_payload_bytes;
-    const double fps           = sf.streamFrameRate() > 0.0 ? sf.streamFrameRate() : 30.0;
+    // The rate the camera was ASKED for wins over what the stream reports: a
+    // GenICam frame-rate node reads back the firmware's idle value when rate
+    // control is toggled around the read (30 on a Chameleon3 asked for 591 —
+    // the 2026-09-15 session stamped five impact clips at 30 fps that way).
+    const double fps           = m_captureFps > 0.0 ? m_captureFps
+                               : sf.streamFrameRate() > 0.0 ? sf.streamFrameRate() : 30.0;
     cfmt.fps_numerator   = static_cast<uint32_t>(fps * 1000.0);
     cfmt.fps_denominator = 1000;
 
@@ -1900,7 +1995,14 @@ void CameraInstance::stampBufferDescriptorFromRaw(const RawVideoFrame &raw)
     cfmt.max_payload_bytes     = cfmt.width * cfmt.height;
     cfmt.typical_payload_bytes = cfmt.max_payload_bytes;
     cfmt.plane_strides[0]      = cfmt.width;   // packed — consumers must not guess
-    const double fps = m_configuredFps > 0.0 ? m_configuredFps : 30.0;
+    // The requested rate wins over the capability read — see updateBufferDescriptor().
+    const double fps = m_captureFps > 0.0 ? m_captureFps
+                     : m_configuredFps > 0.0 ? m_configuredFps : 30.0;
+    if (m_captureFps > 0.0 && m_configuredFps > 0.0
+        && std::abs(m_configuredFps - m_captureFps) > 1.0)
+        ppWarn() << "[CameraInstance]" << m_deviceDescription << "frame-rate node reads"
+                 << m_configuredFps << "fps; stamping the requested" << m_captureFps
+                 << "— the clip's measuredFps is the truth";
     cfmt.fps_numerator   = static_cast<uint32_t>(fps * 1000.0);
     cfmt.fps_denominator = 1000;
     // Exposure measured from the frame's chunk data (Spinnaker), else fps-derived.

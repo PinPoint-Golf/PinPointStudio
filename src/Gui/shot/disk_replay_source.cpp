@@ -112,7 +112,7 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
     qint64 spanEnd   = std::numeric_limits<qint64>::min();
     struct PendingStream {
         QString file; double fps; std::vector<int64_t> tUs;
-        int perspective; double aspect;
+        int perspective; double aspect; double viewGain = 1.0;
     };
     std::vector<PendingStream> pending;
 
@@ -142,6 +142,11 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
         const double sw = src.value(QStringLiteral("width")).toDouble();
         const double sh = src.value(QStringLiteral("height")).toDouble();
         ps.aspect = (sw > 0.0 && sh > 0.0) ? sw / sh : 16.0 / 9.0;
+        // The impact clip's recorded display stretch (capture.viewGain); a
+        // clip from before the field, or any other stream, gets none.
+        ps.viewGain = s[QStringLiteral("capture")].toObject()
+                       .value(QStringLiteral("viewGain")).toDouble(1.0);
+        if (!(ps.viewGain >= 1.0)) ps.viewGain = 1.0;
 
         pending.push_back(std::move(ps));
     }
@@ -357,7 +362,7 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
         const bool faceOn = pending[i].perspective == kPerspectiveFaceOn;
         m_streamInfo.append(ReplayStreamInfo{
             int(i), pending[i].perspective, pending[i].aspect,
-            faceOn && hasAnalysis });
+            faceOn && hasAnalysis, pending[i].viewGain });
 
         if (i >= m_streams.size())
             m_streams.push_back(Stream{});
@@ -417,8 +422,11 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
         st.player->setSource(QUrl::fromLocalFile(swingDir + QStringLiteral("/") + pending[i].file));
     }
     applyPlaybackRates();
-    for (Stream &st : m_streams)
-        st.player->play();
+    if (m_loopHeld) {           // a hold never outlives the clip it was on
+        m_loopHeld = false;
+        emit impactLoopPlayingChanged();
+    }
+    playPlayers();
 
     m_loaded = true;
     setPositionUs(m_playStartUs);
@@ -454,8 +462,42 @@ void DiskReplaySource::unload()
     m_pendingStartSeekUs = -1;
     m_endedAtTrim = false;
     m_loaded     = false;
+    if (m_loopHeld) {
+        m_loopHeld = false;
+        emit impactLoopPlayingChanged();
+    }
     setPlaying(false);
     emit spanChanged();
+}
+
+void DiskReplaySource::playPlayers()
+{
+    for (Stream &s : m_streams)
+        if (!(s.loop && m_loopHeld))
+            s.player->play();
+}
+
+void DiskReplaySource::toggleImpactLoop()
+{
+    if (!m_loaded)
+        return;
+    bool any = false;
+    for (Stream &s : m_streams) any = any || s.loop;
+    if (!any)
+        return;
+    m_loopHeld = !m_loopHeld;
+    for (size_t i = 0; i < m_streams.size(); ++i) {
+        Stream &s = m_streams[i];
+        if (!s.loop) continue;
+        if (m_loopHeld) {
+            s.player->pause();
+        } else if (m_playing) {
+            // Release re-phased to the playhead, then let it run.
+            s.player->setPosition(mp4MsForStream(int(i), loopClipUsFor(int(i), m_positionUs)));
+            s.player->play();
+        }
+    }
+    emit impactLoopPlayingChanged();
 }
 
 // ---------------------------------------------------------------------------
@@ -472,14 +514,14 @@ void DiskReplaySource::togglePlay()
         m_endedAtTrim = false;
         seekPlayersTo(m_playStartUs);
         setPositionUs(m_playStartUs);
-        for (Stream &s : m_streams) s.player->play();
+        playPlayers();
         setPlaying(true);
         m_timer->start();
     } else if (m_playing) {
         for (Stream &s : m_streams) s.player->pause();
         setPlaying(false);
     } else {
-        for (Stream &s : m_streams) s.player->play();
+        playPlayers();
         setPlaying(true);
         m_timer->start();
     }
@@ -544,7 +586,7 @@ void DiskReplaySource::endScrub()
         return;
     if (m_wasPlayingBeforeScrub && m_positionUs < m_playEndUs - 1) {
         m_endedAtTrim = false;   // scrubbing back inside the window re-arms the trim stop
-        for (Stream &s : m_streams) s.player->play();
+        playPlayers();
         setPlaying(true);
     }
     m_wasPlayingBeforeScrub = false;
@@ -592,6 +634,8 @@ void DiskReplaySource::onTick()
     // length, so the impact frame lands as the playhead crosses impact and the
     // loop runs around it the rest of the time. Same drift threshold.
     for (size_t i = 1; i < m_streams.size(); ++i) {
+        if (m_streams[i].loop && m_loopHeld)
+            continue;   // held still on purpose — re-phased on release
         const qint64 target = mp4MsForStream(int(i), m_streams[i].loop
                                                          ? loopClipUsFor(int(i), captureUs)
                                                          : captureUs);
@@ -633,6 +677,8 @@ qint64 DiskReplaySource::mp4MsForStream(int streamIdx, qint64 captureUs) const
 void DiskReplaySource::seekPlayersTo(qint64 captureUs)
 {
     for (size_t i = 0; i < m_streams.size(); ++i) {
+        if (m_streams[i].loop && m_loopHeld)
+            continue;   // a held loop keeps its frame through a scrub
         QMediaPlayer *p = m_streams[i].player;
         // A stopped player (clip ran to its end) won't render a seek — pause it
         // first so scrubbing while not playing still updates the frame.

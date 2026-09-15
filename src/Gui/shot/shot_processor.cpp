@@ -90,6 +90,12 @@ constexpr int kPostRollAcousticMs = 1250;
 constexpr int64_t kImpactKeepBeforeUs   = 200'000;
 constexpr int64_t kImpactKeepAfterUs    = 100'000;
 constexpr int64_t kImpactKeepFallbackUs = 500'000;
+// The clip's own encoder quality (x264 CRF; lower is better, 0 lossless):
+// the library's "medium" 23 turned the 2026-09-15 clips, dark at 70 µs, into
+// 16-px macroblocks at ~137 kbps. 12 is visually lossless and the clip is
+// ~180 frames of 640×240, so it costs a few MB. A lossless library setting
+// stays lossless (min).
+constexpr int     kImpactClipCrf        = 12;
 
 // ── Deferred gather (deferred_sources_design.md §4.1, brief Phase E) ────────
 //
@@ -1467,6 +1473,26 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
             }
             cam.keepStartUs = lo;
             cam.keepEndUs   = hi;
+        }
+        if (cam.perspective == CameraInstance::Impact) {
+            // Tuning provenance (impact_camera_design.md §10.3): what the
+            // camera held if it told us, else what it was asked for.
+            const double heldGain  = track.ctrl->appliedGainDb();
+            const double heldGamma = track.ctrl->appliedGamma();
+            cam.gainDb     = heldGain >= 0.0 ? heldGain : track.ctrl->requestedGainDb();
+            cam.gamma      = heldGamma > 0.0 ? heldGamma : track.ctrl->requestedGamma();
+            cam.gainSource = (heldGain >= 0.0) ? QStringLiteral("applied")
+                                               : QStringLiteral("requested");
+            const QVariantMap tuning = s->cameraTuning().value(track.ctrl->cameraKey()).toMap();
+            cam.strobe   = tuning.value(QStringLiteral("strobe"), false).toBool();
+            cam.viewGain = tuning.value(QStringLiteral("viewGain"),
+                                        CameraInstance::kImpactDefaultViewGain).toDouble();
+            cam.note     = tuning.value(QStringLiteral("note")).toString().trimmed();
+            // Near-lossless for the clip: the library's quality is for a 4 s
+            // full-frame swing, and it turned a dark 640×240 strip into 16-px
+            // blocks (2026-09-15). ~180 frames — a few MB at most. Lossless
+            // (0) stays lossless.
+            cam.crf = std::min(job.crf, kImpactClipCrf);
         }
         // The v2 temporal detector carries no calibration profile, so the
         // CamRecord ball-calibration fields keep their defaults (uncalibrated).

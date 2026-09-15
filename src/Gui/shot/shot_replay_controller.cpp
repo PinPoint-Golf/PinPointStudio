@@ -35,6 +35,8 @@ ShotReplayController::ShotReplayController(AppSettings *appSettings, QObject *pa
     connect(m_source.get(), &ReplaySource::positionChanged, this, &ShotReplayController::positionChanged);
     connect(m_source.get(), &ReplaySource::spanChanged,     this, &ShotReplayController::spanChanged);
     connect(m_source.get(), &ReplaySource::playingChanged,  this, &ShotReplayController::playingChanged);
+    connect(m_source.get(), &ReplaySource::impactLoopPlayingChanged,
+            this, &ShotReplayController::impactLoopPlayingChanged);
     connect(m_source.get(), &ReplaySource::speedChanged,    this, &ShotReplayController::speedChanged);
     connect(m_source.get(), &ReplaySource::failed,          this, &ShotReplayController::replayFailed);
     connect(m_source.get(), &ReplaySource::aborted,         this, &ShotReplayController::onAborted);
@@ -56,7 +58,8 @@ QVariantList ShotReplayController::streams() const
             { QStringLiteral("index"),       s.index },
             { QStringLiteral("perspective"), s.perspective },
             { QStringLiteral("aspect"),      s.aspect },
-            { QStringLiteral("hasAnalysis"), s.hasAnalysis } });
+            { QStringLiteral("hasAnalysis"), s.hasAnalysis },
+            { QStringLiteral("viewGain"),    s.viewGain } });
     return out;
 }
 

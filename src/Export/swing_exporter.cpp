@@ -238,7 +238,7 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         cfg.width   = outW;
         cfg.height  = outH;
         cfg.out_fps = 30;
-        cfg.crf     = job.crf;
+        cfg.crf     = cam.crf >= 0 ? cam.crf : job.crf;   // per-stream override (impact clip)
         cfg.preset  = "medium";
         cfg.path    = QString(job.swingDir + QLatin1Char('/') + cam.fileName).toStdString();
         if (!encoder->open(cfg)) {
@@ -420,6 +420,35 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                 captureObj[QStringLiteral("exposureAuto")] =
                     (rec.fmt->exposure_source == ExposureSource::MeasuredAuto);
         }
+        // The rate the frames actually arrived at (median inter-frame
+        // interval), beside the nominal fps_num/den — the nominal is what the
+        // camera was asked for or reported, and a frame-rate node has been
+        // caught reporting 30 for a camera delivering 591 (2026-09-15).
+        if (rec.tUs.size() >= 8) {
+            std::vector<int64_t> dts;
+            dts.reserve(rec.tUs.size() - 1);
+            for (size_t i = 1; i < rec.tUs.size(); ++i)
+                dts.push_back(rec.tUs[i] - rec.tUs[i - 1]);
+            std::nth_element(dts.begin(), dts.begin() + dts.size() / 2, dts.end());
+            const int64_t medianDt = dts[dts.size() / 2];
+            if (medianDt > 0)
+                captureObj[QStringLiteral("measuredFps")] =
+                    std::round(1e6 / double(medianDt) * 10.0) / 10.0;
+        }
+        // The impact camera's tuning (impact_camera_design.md §10.3) —
+        // additive, written only where set so every other stream stays clean.
+        if (rec.cam->gainDb >= 0.0) {
+            captureObj[QStringLiteral("gainDb")]     = rec.cam->gainDb;
+            captureObj[QStringLiteral("gainSource")] = rec.cam->gainSource;
+        }
+        if (rec.cam->gamma > 0.0)
+            captureObj[QStringLiteral("gamma")] = rec.cam->gamma;
+        if (rec.cam->perspective == 4) {   // Impact — the strobe and the view are its own
+            captureObj[QStringLiteral("strobe")]   = rec.cam->strobe;
+            captureObj[QStringLiteral("viewGain")] = rec.cam->viewGain;
+        }
+        if (!rec.cam->note.isEmpty())
+            captureObj[QStringLiteral("note")] = rec.cam->note;
         s[QStringLiteral("capture")] = captureObj;
         // Camera setup at capture time (additive). perspectiveName saves
         // readers a magic-number table; fixedInPlace is the camera-side

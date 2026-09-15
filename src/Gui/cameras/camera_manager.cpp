@@ -234,6 +234,9 @@ QVariantList CameraManager::cameraList() const
         }
         entry[QStringLiteral("impactModes")]   = impactModes;
         entry[QStringLiteral("impactCapable")] = !impactModes.isEmpty();
+        // The sensor's gain range in dB, for the impact row's GAIN chips
+        // (impact_camera_design.md §10.3); 0 max = the camera has no gain node.
+        entry[QStringLiteral("gainMaxDb")] = cap.gain.readable ? cap.gain.range.max : 0.0;
 
         // --- Ring buffer sizing fields (mirror CameraInstance's allocation logic) ---
         // Slot width/height: largest supported resolution, not just the default.

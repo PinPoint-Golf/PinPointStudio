@@ -309,6 +309,12 @@ Item {
                 showBallOverlay:     false
                 showPoseOverlay:     false
                 showReplayOverlay:   false
+                // The operator's display stretch (Settings → Cameras → VIEW).
+                viewGain: {
+                    if (!camData) return 1
+                    var t = appSettings.cameraTuning[camData.cameraKey]
+                    return (t && t.viewGain > 1) ? t.viewGain : 1
+                }
             }
         }
 
@@ -326,6 +332,37 @@ Item {
                 showPerspectiveBadge: false
                 showReplayOverlay:    false
                 annotationsEnabled:   false
+                // The stretch the clip was recorded under (capture.viewGain),
+                // so it looks on replay as it did live.
+                viewGain: (pip.replayData && pip.replayData.viewGain > 1) ? pip.replayData.viewGain : 1
+            }
+        }
+
+        // The clip's own transport: it loops on its own clock, so the main
+        // play/pause leaves it running — this holds it on a frame (and lets
+        // the operator step the window to it) and releases it re-phased.
+        Rectangle {
+            visible: root._replay && pip.active
+            anchors.left:   parent.left
+            anchors.bottom: parent.bottom
+            anchors.margins: Theme.sp(6)
+            width: Theme.sp(26); height: Theme.sp(26)
+            radius: Theme.radius
+            z: 11   // over the move/resize MouseArea
+            color: loopBtnMa.containsMouse ? Theme.colorBg3 : Qt.rgba(0, 0, 0, 0.55)
+            border.width: 1
+            border.color: Theme.colorAccentMid
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            Text {
+                anchors.centerIn: parent
+                text: shotReplay.impactLoopPlaying ? "⏸" : "▶"
+                font.family: Theme.fontSymbol
+                font.pixelSize: Theme.sp(12)
+                color: Theme.colorText
+            }
+            PpPressable {
+                id: loopBtnMa
+                onClicked: shotReplay.toggleImpactLoop()
             }
         }
 

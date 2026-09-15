@@ -59,6 +59,22 @@ struct SwingExportCamera {
     // and records the band as the stream's "clip" object.
     qint64   keepStartUs  = -1;
     qint64   keepEndUs    = -1;
+    // The impact camera's tuning (impact_camera_design.md §10.3), stamped into
+    // the stream's "capture" object so a clip says what the camera and the
+    // room were doing. gainDb/gamma are what the camera HELD (read back after
+    // the write) when gainSource is "applied", else the requested values.
+    // -1 / 0 = not written. viewGain is the display stretch the operator had
+    // on the tile (never in the pixels); note is their free text (lens,
+    // aperture, light). crf ≥ 0 overrides the job's encoder quality for this
+    // one stream: a dark 640×240 clip at the library's default quantises into
+    // 16-px blocks, and it is six seconds long, so near-lossless is cheap.
+    double   gainDb       = -1.0;
+    double   gamma        = 0.0;
+    QString  gainSource;
+    bool     strobe       = false;
+    double   viewGain     = 1.0;
+    QString  note;
+    int      crf          = -1;
     // Ball-detection provenance (ball_detection_calibration.md §7): whether
     // the environment-calibrated detector was active on this stream, its
     // validation margin / timestamp, and the drift severity at capture.

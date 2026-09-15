@@ -127,6 +127,22 @@ bool VideoInputAravis::start(const QString &deviceId)
         arv_camera_set_exposure_time(cam, m_exposureUs, nullptr);
         ppInfo() << "[VideoInputAravis] Exposure locked:" << m_exposureUs << "us";
     }
+    // Gain, gamma (impact_camera_design.md §10.3) — the same writes the live
+    // re-tune makes. Strobe: Line1 output driven by ExposureActive.
+    writeTuning(cam, 0.0, m_gainDb, m_gamma);
+    if (m_strobe) {
+        GError *serr = nullptr;
+        arv_camera_set_string(cam, "LineSelector", "Line1", &serr);
+        if (!serr) arv_camera_set_string(cam, "LineMode", "Output", &serr);
+        if (!serr) arv_camera_set_string(cam, "LineSource", "ExposureActive", &serr);
+        if (serr) {
+            ppWarn() << "[VideoInputAravis] Strobe requested but Line1 could not be set:"
+                     << serr->message;
+            g_clear_error(&serr);
+        } else {
+            ppInfo() << "[VideoInputAravis] Strobe: Line1 = ExposureActive";
+        }
+    }
     if (m_captureFps > 0.0) {
         arv_camera_set_frame_rate(cam, m_captureFps, nullptr);
         ppInfo() << "[VideoInputAravis] Frame rate requested:" << m_captureFps
@@ -415,6 +431,58 @@ CameraCapabilities VideoInputAravis::queryCapabilities() const
 #endif
 
     return caps;
+}
+
+void VideoInputAravis::writeTuning(void *camera, double exposureUs, double gainDb, double gamma)
+{
+#ifdef HAVE_ARAVIS
+    ArvCamera *cam = static_cast<ArvCamera *>(camera);
+    if (!cam) return;
+    GError *err = nullptr;
+    if (exposureUs > 0.0) {
+        arv_camera_set_exposure_time_auto(cam, ARV_AUTO_OFF, nullptr);
+        arv_camera_set_exposure_time(cam, exposureUs, &err);
+        if (err) { ppWarn() << "[VideoInputAravis] exposure write failed:" << err->message; g_clear_error(&err); }
+        else       ppInfo() << "[VideoInputAravis] Exposure:" << arv_camera_get_exposure_time(cam, nullptr) << "us";
+    }
+    if (gainDb >= 0.0) {
+        arv_camera_set_gain_auto(cam, ARV_AUTO_OFF, nullptr);
+        arv_camera_set_gain(cam, gainDb, &err);
+        if (err) { ppWarn() << "[VideoInputAravis] gain write failed:" << err->message; g_clear_error(&err); }
+        else {
+            const double held = arv_camera_get_gain(cam, nullptr);
+            m_appliedGainDb.store(held, std::memory_order_relaxed);
+            ppInfo() << "[VideoInputAravis] Gain:" << held << "dB (requested" << gainDb << ")";
+        }
+    }
+    if (gamma > 0.0) {
+        // The enable node under either spelling; a camera without one ignores it.
+        arv_camera_set_boolean(cam, "GammaEnable", TRUE, nullptr);
+        arv_camera_set_boolean(cam, "GammaEnabled", TRUE, nullptr);
+        arv_camera_set_float(cam, "Gamma", gamma, &err);
+        if (err) { ppWarn() << "[VideoInputAravis] gamma write failed:" << err->message; g_clear_error(&err); }
+        else {
+            const double held = arv_camera_get_float(cam, "Gamma", nullptr);
+            m_appliedGamma.store(held, std::memory_order_relaxed);
+            ppInfo() << "[VideoInputAravis] Gamma:" << held << "(requested" << gamma << ")";
+        }
+    }
+#else
+    Q_UNUSED(camera) Q_UNUSED(exposureUs) Q_UNUSED(gainDb) Q_UNUSED(gamma)
+#endif
+}
+
+bool VideoInputAravis::applyLiveTuning(double exposureUs, double gainDb, double gamma)
+{
+#ifdef HAVE_ARAVIS
+    if (!m_camera || !m_streaming)
+        return false;
+    writeTuning(m_camera, exposureUs, gainDb, gamma);
+    return true;
+#else
+    Q_UNUSED(exposureUs) Q_UNUSED(gainDb) Q_UNUSED(gamma)
+    return false;
+#endif
 }
 
 void VideoInputAravis::captureLoop()

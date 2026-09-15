@@ -35,6 +35,10 @@ struct ReplayStreamInfo {
     int    perspective = -1;       // swing.json setup.perspective (0..4); 2 = FaceOn, 4 = Impact
     double aspect      = 16.0 / 9.0;   // source width / height
     bool   hasAnalysis = false;    // face-on stream that carries pose/club detail
+    // The display stretch the operator had on the impact tile when the clip
+    // was recorded (capture.viewGain, impact_camera_design.md §10.3); 1 = none.
+    // Replay applies the same stretch so the clip looks as it did live.
+    double viewGain    = 1.0;
 };
 
 // Abstract replay source — the thing ShotReplayController drives. Same abstract-
@@ -89,6 +93,12 @@ public:
     virtual void setSpeed(double speed)      = 0;
     virtual void beginScrub()                = 0;
     virtual void endScrub()                  = 0;
+    // The impact clip loops on its own clock (impact_camera_design.md §10.2),
+    // so the main transport's pause is not enough to hold it still: this holds
+    // the loop while the window keeps playing, and releases it re-phased.
+    // playing() of a source with no looping stream is true (nothing to hold).
+    virtual bool impactLoopPlaying() const   = 0;
+    virtual void toggleImpactLoop()          = 0;
 
 signals:
     void positionChanged();
@@ -105,6 +115,7 @@ signals:
     // after a post-shot auto-replay; a user-initiated replay reaching its end
     // emits it too, but the host gates the action on its own intent flag.
     void playbackEnded();
+    void impactLoopPlayingChanged();
 };
 
 // Factory — today only the disk-backed source. The owner holds the returned

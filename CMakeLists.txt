@@ -777,6 +777,16 @@ qt6_add_shaders(PinPointStudio "topo_shaders"
         "src/Shaders/topo.frag"
 )
 
+qt6_add_shaders(PinPointStudio "viewgain_shaders"
+    BATCHABLE
+    PRECOMPILE
+    OPTIMIZED
+    PREFIX "/shaders"
+    FILES
+        "src/Shaders/viewgain.vert"
+        "src/Shaders/viewgain.frag"
+)
+
 target_compile_definitions(PinPointStudio PRIVATE
     QT_APPLICATION_NAME="PinPointStudio"
 )

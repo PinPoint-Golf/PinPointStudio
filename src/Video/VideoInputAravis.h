@@ -51,9 +51,20 @@ public:
     // Frame rate / exposure applied on the next start(); 0 = backend default.
     void setCaptureRate(double fps) override { m_captureFps = fps; }
     void setExposureUs(double us)   override { m_exposureUs = us; }
+    // Gain / Gamma / Line1 strobe applied on the next start() (impact camera
+    // tuning, impact_camera_design.md §10.3); -1 dB / 0 gamma = leave alone.
+    void setGainDb(double db)       override { m_gainDb = db; }
+    void setGamma(double g)         override { m_gamma = g; }
+    void setStrobeOutput(bool on)   override { m_strobe = on; }
+    bool applyLiveTuning(double exposureUs, double gainDb, double gamma) override;
+    double appliedGainDb() const override { return m_appliedGainDb.load(std::memory_order_relaxed); }
+    double appliedGamma()  const override { return m_appliedGamma.load(std::memory_order_relaxed); }
 
 private:
     void captureLoop();
+    // Writes whichever of exposure / gain / gamma is asked for to the open
+    // camera and reads the held values back. Used at start() and live.
+    void writeTuning(void *camera, double exposureUs, double gainDb, double gamma);
 
     void *m_camera    = nullptr; // ArvCamera*
     void *m_stream    = nullptr; // ArvStream*
@@ -65,4 +76,9 @@ private:
     QRectF m_cropRegion;         // normalized crop; empty = full sensor
     double m_captureFps = 0.0;   // requested frame rate; 0 = the 60 fps default below
     double m_exposureUs = 0.0;   // requested exposure (auto off); 0 = camera default
+    double m_gainDb     = -1.0;  // requested gain in dB (auto off); < 0 = camera default
+    double m_gamma      = 0.0;   // requested gamma; 0 = camera default
+    bool   m_strobe     = false; // Line1 = ExposureActive output
+    std::atomic<double> m_appliedGainDb{-1.0};
+    std::atomic<double> m_appliedGamma{0.0};
 };

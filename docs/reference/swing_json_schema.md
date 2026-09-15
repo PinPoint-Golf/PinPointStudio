@@ -159,6 +159,11 @@ An array with one entry per camera or IMU. `kind` discriminates.
 | `frames.t_us` | int[] µs | Window-relative per-frame capture times — the replay master clock and the domain analysis samples align to. `count` = frame total. |
 | `capture.fps_num/den` | int | True frame rate (`fps_num/fps_den`) from clip metadata; the analysis timebase. |
 | `capture.exposureUs` | float µs | Exposure — used by the shaft tracker's blur model. |
+| `capture.measuredFps` | float, optional | The rate the frames actually arrived at: `1e6 /` the median inter-frame interval of `frames.t_us`, to 0.1 fps. Written when the stream has ≥ 8 frames. The truth when `fps_num/den` (what the camera was asked for) is in doubt — a GenICam frame-rate node has reported 30 for a camera delivering 591. |
+| `capture.gainDb`, `capture.gainSource` | float dB, str, optional | Sensor gain on the stream (`impact_camera_design.md` §10.3). `gainSource` is `applied` when the value was read back from the camera after the write (the node clamps), `requested` when only the request is known. Absent when gain was never written (every non-impact camera, and impact clips before 2026-09-15). |
+| `capture.gamma` | float, optional | In-camera gamma held on the stream; absent when never written. |
+| `capture.strobe`, `capture.viewGain` | bool, float | Impact stream only: whether Line1 carried ExposureActive, and the display stretch the operator had on the tile (replay applies the same; 1 = none). Never in the pixels. |
+| `capture.note` | str, optional | The operator's free text for the camera (lens, aperture, light), stamped from Settings → Cameras. |
 | `playback.fps` | int | Container playback rate only (casual scrub speed), **not** the analysis rate. |
 | `clip` | object, optional | `{ start_us, end_us }` window-relative: present only on the impact camera's stream (`setup.perspective` 4), whose export is trimmed to this band around `capture.impactUs` (`impact_camera_design.md` §10.2). Says the short `frames.t_us` is a deliberate clip, not a capture gap; replay loops such a stream instead of syncing it. Absent on every other stream. |
 | `processing.demosaic` | str | `EA` (edge-aware) / `bilinear` / `none`. |

@@ -462,6 +462,84 @@ requirements fail on the device, not on the transport: every iPhone camera is a 
 positions in the field — a mean direction, not a tangent. The shortest exposure it locks is
 1/8000 s (125 µs), above the 70 µs budget besides. A phone stays the DTL camera.
 
+### 10.3 Tuning to the room — what the first recordings showed, and what was built (2026-09-15)
+
+**The first session.** Thirteen swings on the tripod Chameleon3 in the §10.2 mode, eight at
+70 µs and five at 102 µs, under a ring light aimed at the ball plus the room's floods. The ball
+was plain in every clip and the club was not — until the frames were stretched 12×, at which
+point the shaft, the head and the ball's dimples were all there, sharp, at 592 fps. The levels
+were the whole story:
+
+| Thing in the frame | Level, of 255 |
+|---|---|
+| The mat | 5–8 |
+| Club head and shaft body | 10–30 |
+| Specular glint on the shaft | 100–250, some frames only |
+| The ball | 100–250 |
+
+So the camera was two orders of magnitude short of light, exactly as §1 warned, and the
+ring light could never close it: full scale at 70 µs and f/2 needs direct-sunlight illuminance
+on the patch (over 100 000 lux); a ring light spread over the mat from a metre away is around
+1 000. The ball only shows because it is matte white and returns the on-axis light from any
+angle, where polished steel returns it only in the mirror direction. Two things compounded it:
+the app never set the camera's **gain** (the driver enumerated the node and nothing wrote it),
+and the clip's encoder ran at the library's default quality, which quantised a frame this dark
+into 16-px macroblocks at ~137 kbps — nothing in post could get that back. Two of the thirteen
+were not swings at all (the view blocked, and the ring light sitting in front of the lens), and
+in every measurable swing the ball left the frame 3–6 frames (5–10 ms) *before* the acoustic
+anchor; that timing question is open and separate.
+
+**What the impact row in Settings → Cameras now carries**, all persisted per camera and, for
+the ones the camera holds, written the moment they are clicked while it streams (`applyLiveTuning`
+on the backend's thread — ExposureTime, Gain and Gamma are all writable during acquisition) and
+primed again at the next connect:
+
+- **Gain** (dB; auto-gain off). Applied before the ADC, so it lifts a club body at 25 above the
+  8-bit floor instead of stretching a floor that is already there. Chips run to the camera's own
+  maximum (`gainMaxDb` from the capability query). The row also shows what the camera *holds*,
+  read back after the write, because the node clamps.
+- **Gamma** (in-camera). Applied on the sensor's full bit depth before the 8-bit output, so a
+  value below 1 lifts the shadows the club lives in while the ball stays where it is — a better
+  "software gain" than any multiply on 8-bit data.
+- **Exposure** as a free value beside the 30/50/70/100 chips: once gain is in play the right
+  exposure is whatever the blur budget allows for the club in hand.
+- **View gain** (×1–×16). A display stretch on the tile and on replay (`viewgain.frag`, a
+  multiply clipped at white over the video item), never in the recorded pixels. What lets a
+  70 µs tile be aimed at all. Stamped into the clip so replay shows what live showed.
+- **Levels.** Median (the mat), 99.9th percentile (the brightest thing that is not a hot pixel)
+  and the clipped fraction of the *raw* frame, a few times a second, on the tile's stats pill and
+  on the row. Without a number, tuning the light is guessing; the target is the mat under 40,
+  the peak near 250 with almost nothing clipped, the club body then around 100.
+- **Strobe.** Line1 as an output carrying ExposureActive (`LineSelector`/`LineMode`/
+  `LineSource`), for the LED strobe §11 step 4 names. Next connect.
+- **Note.** Free text — lens, aperture, light — stamped into every clip, since a clip's date
+  says when it was made and nothing else about the room.
+
+**Defaults, from the table above:** gain **12 dB** (4×: the club body from ~25 to ~100 at
+70 µs), gamma **0.7**, view gain **×1** (the two above already put the club where the eye can
+see it), strobe off. The ball clips at any gain that makes the club visible under a ring light;
+that is the ring light's geometry, not a reason to lower the gain — floods change the ratio.
+
+**Provenance.** The stream's `capture` object gains `gainDb` + `gainSource` (`applied` when
+read back from the camera, `requested` otherwise), `gamma`, `strobe`, `viewGain`, `note`, and
+`measuredFps` — the median inter-frame interval of `frames.t_us`, beside the nominal
+`fps_num/den`. The nominal is now the rate the camera was *asked* for rather than what its
+frame-rate node read at start: the node reported 30 for five of the session's clips while the
+frames arrived at 592, and the stamped rate said 30. The impact clip also encodes at its own
+quality (CRF 12, or lossless when the library is): ~180 frames of 640×240, a few MB.
+
+**Replay.** The picture-in-picture has its own play/pause. The clip loops on its own clock
+(§10.2), so the main transport's pause never held it still; the button holds the loop on a
+frame while the window keeps playing, and releases it re-phased to the playhead.
+
+**Still ahead:** the ball detector on the tile (found + diameter in px, which is the mm-per-pixel
+scale for free, since the ball is 42.7 mm) — deferred until recordings under the new light are
+worth looking at, with low point and attack angle to follow on the same clips. And the light
+itself, which no setting supplies: §1's two 100 W floods at half a metre concentrated on the
+patch, a large diffuse source near the camera axis rather than a small one so the club's mirror
+reflection lands in the lens from more head orientations, or a lit white board behind the ball
+for a silhouette that does not depend on the club's finish at all.
+
 ## 11. Order of work
 
 1. **Overlap session** (§10.1) — decides whether the tripod camera is free.

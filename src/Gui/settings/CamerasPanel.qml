@@ -79,10 +79,87 @@ Item {
         appSettings.cameraRoi = roiMap
     }
 
-    function setImpactExposure(cameraKey, us) {
+    function setImpactExposure(cameraKey, us, liveInstance) {
         var map = appSettings.cameraExposureUs
         map[cameraKey] = us
         appSettings.cameraExposureUs = map
+        // A streaming camera takes it now (impact_camera_design.md §10.3);
+        // otherwise the next connect primes it.
+        if (liveInstance && liveInstance.isRecording)
+            liveInstance.applyLiveTuning(us, -1, 0)
+    }
+
+    // ── Impact camera tuning (impact_camera_design.md §10.3) ─────────────────
+    // gainDb / gamma go to the camera (live when it streams, else at the next
+    // connect); viewGain is a display stretch on the tile and the replay;
+    // strobe drives Line1 at the next connect; note is stamped into the clip.
+    // Defaults are CameraInstance's, set from the 2026-09-15 recordings.
+    readonly property double impactDefaultGainDb:   12
+    readonly property double impactDefaultGamma:    0.7
+    readonly property double impactDefaultViewGain: 1
+
+    function impactTuning(cameraKey, member, fallback) {
+        var t = appSettings.cameraTuning[cameraKey]
+        return (t && t[member] !== undefined) ? t[member] : fallback
+    }
+
+    function setImpactTuning(cameraKey, member, value, liveInstance) {
+        var map = appSettings.cameraTuning
+        var t = map[cameraKey] ? Object.assign({}, map[cameraKey]) : {}
+        t[member] = value
+        map[cameraKey] = t
+        appSettings.cameraTuning = map
+        if (liveInstance && liveInstance.isRecording) {
+            if (member === "gainDb") liveInstance.applyLiveTuning(0, value, 0)
+            if (member === "gamma")  liveInstance.applyLiveTuning(0, -1, value)
+        }
+    }
+
+    // A selectable chip for the tuning rows — the same look as the mode and
+    // exposure chips, without the per-group copy of the Rectangle.
+    component TuneChip: Rectangle {
+        id: tchip
+        property string label: ""
+        property bool   selected: false
+        signal clicked()
+        width:  tchipLabel.implicitWidth + Theme.sp(20)
+        height: Theme.sp(24)
+        radius: Theme.radius
+        color:  selected ? Theme.colorAccentLight
+              : tchipArea.containsMouse
+                  ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                  : "transparent"
+        border.width: 1
+        border.color: selected ? Theme.colorAccent
+                    : tchipArea.containsMouse ? Theme.colorAccentMid
+                    : Theme.colorBorderStrong
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+        Text {
+            id: tchipLabel
+            anchors.centerIn: parent
+            text:           tchip.label
+            font.family:    Theme.fontData
+            font.pixelSize: Theme.fontSzMicro
+            color:          tchip.selected ? Theme.colorAccent : Theme.colorText2
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+        }
+        MouseArea {
+            id: tchipArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape:  Qt.PointingHandCursor
+            onClicked: tchip.clicked()
+        }
+    }
+
+    // A micro heading over a chip group.
+    component TuneHeading: Text {
+        font.family:    Theme.fontData
+        font.pixelSize: Theme.fontSzMicro
+        font.letterSpacing: Theme.trackingMicro
+        font.capitalization: Font.AllUppercase
+        color:          Theme.colorText3
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -877,7 +954,7 @@ Item {
         // Its own row beneath the body row: two chip groups with their notes
         // would push the body row's action buttons (Set crop, which is how
         // the strip is positioned over the ball) off the clipped right edge.
-        RowLayout {
+        ColumnLayout {
             id: impactRow
             anchors.top:    bodyRow.bottom
             anchors.left:   parent.left
@@ -886,8 +963,14 @@ Item {
             anchors.rightMargin: Theme.sp(14)
             height: (camData.enabled && camRow.isImpact) ? implicitHeight + Theme.sp(24) : 0
             visible: camData.enabled && camRow.isImpact
-            spacing: Theme.sp(24)
+            spacing: Theme.sp(14)
             clip: true
+
+          // Row 1: the mode and the exposure — what makes the camera an impact
+          // camera at all. Row 2: the tuning that makes the club visible in it.
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.sp(24)
 
             // Impact mode chips — crop size × rate, as the camera reported them
             // at enumeration (impact_camera_design.md §3.1, §10.2) ───────────
@@ -1054,25 +1137,227 @@ Item {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape:  Qt.PointingHandCursor
-                                onClicked: root.setImpactExposure(camData.cameraKey, expChip.modelData)
+                                onClicked: root.setImpactExposure(camData.cameraKey, expChip.modelData, camRow.realInstance)
                             }
+                        }
+                    }
+
+                    // Any value: once gain is in play the right exposure is
+                    // whatever the blur budget allows for the club in hand.
+                    PpTextField {
+                        id: expField
+                        width:  Theme.sp(72)
+                        height: Theme.sp(24)
+                        implicitHeight: Theme.sp(24)
+                        leftPadding: Theme.sp(8); rightPadding: Theme.sp(8)
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        placeholderText: qsTr("µs")
+                        text: exposureRow.selectedUs.toFixed(0)
+                        validator: DoubleValidator { bottom: 5; top: 50000; decimals: 1 }
+                        onEditingFinished: {
+                            var v = parseFloat(text)
+                            if (!(v > 0) || Math.abs(v - exposureRow.selectedUs) < 0.05) return
+                            root.setImpactExposure(camData.cameraKey, v, camRow.realInstance)
                         }
                     }
                 }
 
                 Text {
-                    text: qsTr("Locked, auto-exposure off. 70 µs or less keeps blur under 2 px at 1 mm per pixel — the light has to follow.")
+                    text: qsTr("Locked, auto-exposure off. 70 µs or less keeps blur under 2 px at 1 mm per pixel — the light has to follow. Takes effect now on a streaming camera.")
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
                     font.italic:    true
                     color:          Theme.colorText3
                     wrapMode:       Text.WordWrap
-                    Layout.preferredWidth: Theme.sp(180)
+                    Layout.preferredWidth: Theme.sp(260)
                 }
             }
 
 
             Item { Layout.fillWidth: true }
+          }
+
+          // ── Row 2: gain, gamma, view gain, strobe — tuning to the room ────
+          // (impact_camera_design.md §10.3). Gain and gamma write to the
+          // camera the moment they are clicked when it streams; the tile's
+          // level readout (bg / peak / clip) is what to watch.
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.sp(24)
+
+            // Sensor gain — before the ADC, so it lifts the club above the
+            // 8-bit floor. Chips to the camera's own maximum.
+            ColumnLayout {
+                spacing: Theme.sp(4)
+                Layout.alignment: Qt.AlignTop
+                TuneHeading { text: qsTr("GAIN") }
+                Row {
+                    id: gainRow
+                    spacing: Theme.sp(4)
+                    readonly property double selected:
+                        root.impactTuning(camData.cameraKey, "gainDb", root.impactDefaultGainDb)
+                    readonly property double maxDb: camData.gainMaxDb > 0 ? camData.gainMaxDb : 24
+                    Repeater {
+                        model: [0, 6, 12, 18, 24, 30, 36, 42, 48].filter(function(v) { return v <= gainRow.maxDb + 0.5 })
+                        delegate: TuneChip {
+                            required property var modelData
+                            label:    modelData + qsTr(" dB")
+                            selected: Math.abs(gainRow.selected - modelData) < 0.5
+                            onClicked: root.setImpactTuning(camData.cameraKey, "gainDb", modelData, camRow.realInstance)
+                        }
+                    }
+                }
+                Text {
+                    text: {
+                        var inst = camRow.realInstance
+                        var held = (inst && inst.appliedGainDb >= 0) ? qsTr("Camera holds %1 dB. ").arg(inst.appliedGainDb.toFixed(1)) : ""
+                        return held + qsTr("12 dB is 4×: the club body from ~25 to ~100 of 255 at 70 µs (2026-09-15). Auto-gain off.")
+                    }
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
+                    color: Theme.colorText3; wrapMode: Text.WordWrap
+                    Layout.preferredWidth: Theme.sp(300)
+                }
+            }
+
+            // In-camera gamma — applied on the sensor's full bit depth, so
+            // below 1 lifts the shadows the club lives in without clipping
+            // the ball.
+            ColumnLayout {
+                spacing: Theme.sp(4)
+                Layout.alignment: Qt.AlignTop
+                TuneHeading { text: qsTr("GAMMA") }
+                Row {
+                    id: gammaRow
+                    spacing: Theme.sp(4)
+                    readonly property double selected:
+                        root.impactTuning(camData.cameraKey, "gamma", root.impactDefaultGamma)
+                    Repeater {
+                        model: [1.0, 0.8, 0.7, 0.6, 0.5]
+                        delegate: TuneChip {
+                            required property var modelData
+                            label:    modelData.toFixed(1)
+                            selected: Math.abs(gammaRow.selected - modelData) < 0.05
+                            onClicked: root.setImpactTuning(camData.cameraKey, "gamma", modelData, camRow.realInstance)
+                        }
+                    }
+                }
+                Text {
+                    text: qsTr("Lifts shadows before the 8-bit output; 1.0 is linear.")
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
+                    color: Theme.colorText3; wrapMode: Text.WordWrap
+                    Layout.preferredWidth: Theme.sp(200)
+                }
+            }
+
+            // View gain — the tile and the replay only. The recorded pixels
+            // are never touched; the level readout ignores it.
+            ColumnLayout {
+                spacing: Theme.sp(4)
+                Layout.alignment: Qt.AlignTop
+                TuneHeading { text: qsTr("VIEW") }
+                Row {
+                    id: viewRow
+                    spacing: Theme.sp(4)
+                    readonly property double selected:
+                        root.impactTuning(camData.cameraKey, "viewGain", root.impactDefaultViewGain)
+                    Repeater {
+                        model: [1, 2, 4, 8, 16]
+                        delegate: TuneChip {
+                            required property var modelData
+                            label:    "×" + modelData
+                            selected: Math.abs(viewRow.selected - modelData) < 0.5
+                            onClicked: root.setImpactTuning(camData.cameraKey, "viewGain", modelData, null)
+                        }
+                    }
+                }
+                Text {
+                    text: qsTr("Display stretch only — for aiming a dark tile. Stamped into the clip and used on replay.")
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
+                    color: Theme.colorText3; wrapMode: Text.WordWrap
+                    Layout.preferredWidth: Theme.sp(200)
+                }
+            }
+
+            // Strobe — Line1 carries ExposureActive for an LED strobe driver.
+            ColumnLayout {
+                spacing: Theme.sp(4)
+                Layout.alignment: Qt.AlignTop
+                TuneHeading { text: qsTr("STROBE") }
+                TogglePill {
+                    checked: root.impactTuning(camData.cameraKey, "strobe", false)
+                    onToggled: (v) => root.setImpactTuning(camData.cameraKey, "strobe", v, null)
+                }
+                Text {
+                    text: qsTr("Line1 = exposure active. Next connect.")
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
+                    color: Theme.colorText3; wrapMode: Text.WordWrap
+                    Layout.preferredWidth: Theme.sp(150)
+                }
+            }
+
+            Item { Layout.fillWidth: true }
+          }
+
+          // ── Row 3: the live levels and the note ──────────────────────────
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.sp(24)
+
+            // What the raw frame measures right now, if the camera streams:
+            // the number that turns tuning from guessing into a procedure.
+            ColumnLayout {
+                spacing: Theme.sp(4)
+                Layout.alignment: Qt.AlignTop
+                TuneHeading { text: qsTr("LEVELS") }
+                Text {
+                    readonly property var inst: camRow.realInstance
+                    text: (inst && inst.isRecording)
+                          ? qsTr("mat %1   peak %2   clipped %3%")
+                                .arg(inst.levelBackground.toFixed(0))
+                                .arg(inst.levelPeak.toFixed(0))
+                                .arg((inst.levelClipped * 100).toFixed(1))
+                          : qsTr("— (camera not streaming)")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzBody
+                    color:          Theme.colorText
+                }
+                Text {
+                    text: qsTr("Aim for the mat under 40 and the peak near 250 with almost nothing clipped; the club body then sits around 100.")
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
+                    color: Theme.colorText3; wrapMode: Text.WordWrap
+                    Layout.preferredWidth: Theme.sp(300)
+                }
+            }
+
+            // Free text stamped into every clip: what the camera cannot read.
+            ColumnLayout {
+                spacing: Theme.sp(4)
+                Layout.alignment: Qt.AlignTop
+                Layout.fillWidth: true
+                TuneHeading { text: qsTr("NOTE") }
+                PpTextField {
+                    id: noteField
+                    Layout.fillWidth: true
+                    Layout.maximumWidth: Theme.sp(520)
+                    height: Theme.sp(28)
+                    implicitHeight: Theme.sp(28)
+                    font.pixelSize: Theme.fontSzMicro
+                    placeholderText: qsTr("Lens, aperture, light — e.g. 8 mm f/1.4, two 100 W floods at 0.5 m")
+                    text: root.impactTuning(camData.cameraKey, "note", "")
+                    onEditingFinished: {
+                        if (text === root.impactTuning(camData.cameraKey, "note", "")) return
+                        root.setImpactTuning(camData.cameraKey, "note", text, null)
+                    }
+                }
+                Text {
+                    text: qsTr("Recorded on every clip, so a September clip and a July one can be told apart by more than the date.")
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
+                    color: Theme.colorText3; wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                }
+            }
+          }
         }
 
         // ── ROI panel ────────────────────────────────────────────────────────

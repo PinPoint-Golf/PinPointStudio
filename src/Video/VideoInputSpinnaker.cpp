@@ -283,6 +283,43 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
                          << (IsAvailable(ptrExp) && IsReadable(ptrExp) ? ptrExp->GetValue() : 0.0) << "us";
             }
         }
+        // Gain and gamma (impact_camera_design.md §10.3) — the same nodes the
+        // live re-tune writes, so start() and a knob turn agree by construction.
+        writeTuningNodes(&nodeMap, 0.0, m_gainDb, m_gamma);
+        // Strobe: Line1 is a dedicated output on the Chameleon3 (§3.1) and
+        // ExposureActive on it is what an LED strobe driver hangs off. Left
+        // alone unless asked, so a camera that was never strobed is untouched.
+        if (m_strobe) {
+            bool ok = false;
+            CEnumerationPtr ptrLineSel = nodeMap.GetNode("LineSelector");
+            if (IsAvailable(ptrLineSel) && IsWritable(ptrLineSel)) {
+                CEnumEntryPtr line1 = ptrLineSel->GetEntryByName("Line1");
+                if (IsAvailable(line1) && IsReadable(line1)) {
+                    ptrLineSel->SetIntValue(line1->GetValue());
+                    nodeMap.InvalidateNodes();
+                    CEnumerationPtr ptrLineMode = nodeMap.GetNode("LineMode");
+                    if (IsAvailable(ptrLineMode) && IsWritable(ptrLineMode)) {
+                        CEnumEntryPtr out = ptrLineMode->GetEntryByName("Output");
+                        if (IsAvailable(out) && IsReadable(out))
+                            ptrLineMode->SetIntValue(out->GetValue());
+                    }
+                    nodeMap.InvalidateNodes();
+                    CEnumerationPtr ptrLineSrc = nodeMap.GetNode("LineSource");
+                    if (IsAvailable(ptrLineSrc) && IsWritable(ptrLineSrc)) {
+                        CEnumEntryPtr expActive = ptrLineSrc->GetEntryByName("ExposureActive");
+                        if (IsAvailable(expActive) && IsReadable(expActive)) {
+                            ptrLineSrc->SetIntValue(expActive->GetValue());
+                            ok = true;
+                        }
+                    }
+                }
+            }
+            if (ok)
+                ppInfo() << "[VideoInputSpinnaker] Strobe: Line1 = ExposureActive";
+            else
+                ppWarn() << "[VideoInputSpinnaker] Strobe requested but Line1/LineMode/LineSource"
+                         << "could not be set; no strobe output";
+        }
         if (m_captureFps > 0.0) {
             // Manual rate control, under either firmware's spelling: SFNC
             // AcquisitionFrameRateEnable (Blackfly S), or the legacy
@@ -722,6 +759,93 @@ CameraCapabilities VideoInputSpinnaker::queryCapabilities() const
 #endif
 
     return caps;
+}
+
+void VideoInputSpinnaker::writeTuningNodes(void *nodeMapPtr, double exposureUs,
+                                           double gainDb, double gamma)
+{
+#ifdef HAVE_SPINNAKER
+    INodeMap &nodeMap = *static_cast<INodeMap *>(nodeMapPtr);
+    // Exposure: auto off first, or the node is read-only (the same rule
+    // start() applies, see its ORDER note).
+    if (exposureUs > 0.0) {
+        CEnumerationPtr ptrExpAuto = nodeMap.GetNode("ExposureAuto");
+        if (IsAvailable(ptrExpAuto) && IsWritable(ptrExpAuto)) {
+            CEnumEntryPtr off = ptrExpAuto->GetEntryByName("Off");
+            if (IsAvailable(off) && IsReadable(off))
+                ptrExpAuto->SetIntValue(off->GetValue());
+        }
+        nodeMap.InvalidateNodes();
+        CFloatPtr ptrExp = nodeMap.GetNode("ExposureTime");
+        if (IsAvailable(ptrExp) && IsWritable(ptrExp)) {
+            ptrExp->SetValue(qBound(ptrExp->GetMin(), exposureUs, ptrExp->GetMax()));
+            ppInfo() << "[VideoInputSpinnaker] Exposure:" << ptrExp->GetValue() << "us";
+        } else {
+            ppWarn() << "[VideoInputSpinnaker] ExposureTime not writable; exposure unchanged";
+        }
+    }
+    // Gain: GainAuto Off, then Gain (dB). The node clamps, so read it back.
+    if (gainDb >= 0.0) {
+        CEnumerationPtr ptrGainAuto = nodeMap.GetNode("GainAuto");
+        if (IsAvailable(ptrGainAuto) && IsWritable(ptrGainAuto)) {
+            CEnumEntryPtr off = ptrGainAuto->GetEntryByName("Off");
+            if (IsAvailable(off) && IsReadable(off))
+                ptrGainAuto->SetIntValue(off->GetValue());
+        }
+        nodeMap.InvalidateNodes();
+        CFloatPtr ptrGain = nodeMap.GetNode("Gain");
+        if (IsAvailable(ptrGain) && IsWritable(ptrGain)) {
+            ptrGain->SetValue(qBound(ptrGain->GetMin(), gainDb, ptrGain->GetMax()));
+            const double held = ptrGain->GetValue();
+            m_appliedGainDb.store(held, std::memory_order_relaxed);
+            ppInfo() << "[VideoInputSpinnaker] Gain:" << held << "dB (requested" << gainDb
+                     << ", range" << ptrGain->GetMin() << ".." << ptrGain->GetMax() << ")";
+        } else {
+            ppWarn() << "[VideoInputSpinnaker] Gain not writable; gain unchanged";
+        }
+    }
+    // Gamma: the enable node under either spelling (SFNC GammaEnable, legacy
+    // GammaEnabled on the Chameleon3), then the value.
+    if (gamma > 0.0) {
+        for (const char *name : { "GammaEnable", "GammaEnabled" }) {
+            CBooleanPtr ptrEnable = nodeMap.GetNode(name);
+            if (IsAvailable(ptrEnable) && IsWritable(ptrEnable))
+                ptrEnable->SetValue(true);
+        }
+        nodeMap.InvalidateNodes();
+        CFloatPtr ptrGamma = nodeMap.GetNode("Gamma");
+        if (IsAvailable(ptrGamma) && IsWritable(ptrGamma)) {
+            ptrGamma->SetValue(qBound(ptrGamma->GetMin(), gamma, ptrGamma->GetMax()));
+            const double held = ptrGamma->GetValue();
+            m_appliedGamma.store(held, std::memory_order_relaxed);
+            ppInfo() << "[VideoInputSpinnaker] Gamma:" << held << "(requested" << gamma << ")";
+        } else {
+            ppWarn() << "[VideoInputSpinnaker] Gamma not writable; gamma unchanged";
+        }
+    }
+#else
+    Q_UNUSED(nodeMapPtr) Q_UNUSED(exposureUs) Q_UNUSED(gainDb) Q_UNUSED(gamma)
+#endif
+}
+
+bool VideoInputSpinnaker::applyLiveTuning(double exposureUs, double gainDb, double gamma)
+{
+#ifdef HAVE_SPINNAKER
+    CameraPtr *camera = static_cast<CameraPtr *>(m_camera);
+    if (!camera || !m_streaming)
+        return false;
+    try {
+        INodeMap &nodeMap = (*camera)->GetNodeMap();
+        writeTuningNodes(&nodeMap, exposureUs, gainDb, gamma);
+        return true;
+    } catch (Spinnaker::Exception &e) {
+        ppWarn() << "[VideoInputSpinnaker] live tuning failed:" << e.what();
+        return false;
+    }
+#else
+    Q_UNUSED(exposureUs) Q_UNUSED(gainDb) Q_UNUSED(gamma)
+    return false;
+#endif
 }
 
 void VideoInputSpinnaker::captureLoop()
