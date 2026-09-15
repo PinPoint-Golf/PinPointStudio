@@ -8,6 +8,10 @@ off the frames, and how it is validated. The stated motive is a **low-cost route
 for users whose launch monitor reports ball data only**.
 **Not in scope:** capture-stack integration (which backend, which ring), the analysis stage that
 consumes the clip, the UI. Those are named where they matter (§8) and designed later.
+**Update 2026-09-15:** the ROI frame-rate probe §3 asked for has been run on both studio
+Chameleon3s — §3.1. The 420 fps the design was written around is now a measured 591 fps at a
+240-row ROI (612 fps at ≤ 224 rows), at any width up to the full 1280; §1, §2, §10 and §11 carry
+the measured figures alongside the original ones.
 
 ---
 
@@ -35,6 +39,12 @@ consumes the clip, the UI. Those are named where they matter (§8) and designed 
    outputs has a criterion we already own (§9). In the studio that means the tripod Chameleon3
    becomes the impact camera and an iPhone takes over DTL — **after** an overlap session shows
    the phone's rolling shutter does not cost more than its frame rate buys (§10).
+5. **The Chameleon3 clears the frame-rate gate with room to spare (measured, §3.1).** Both
+   studio cameras deliver 591 fps at 240 rows and 612 fps at ≤ 224 rows, at 70 µs exposure,
+   at any width up to 1280 — the rate depends on rows only — with no incomplete frames while
+   the other camera streams full-frame beside it. Exposure goes down to 6.4 µs. The chosen
+   mode is **640×240 at 591 fps, 50–70 µs, ~1 mm/px** (§10.2). What remains is what §1 said
+   remains: light, and a lens for the mount distance.
 
 ---
 
@@ -42,15 +52,15 @@ consumes the clip, the UI. Those are named where they matter (§8) and designed 
 
 Everything below follows from a few numbers. 7-iron at 80 mph (36 m/s); driver in brackets.
 
-| Quantity | Value |
-|---|---|
-| Head travel per frame at 420 fps | 86 mm (107 mm) |
-| Ball–face contact time | ~0.45 ms — **never** a frame during contact at this rate |
-| Blur per 100 µs of exposure | 3.6 mm (4.5 mm) |
-| Exposure for ≤ 2 px blur at ~1 mm/px | **≤ 70 µs** (≤ 50 µs) |
-| Head positions in a 400 mm field | 4–5 before impact, 2–3 after |
-| Ball travel per frame after impact | ~110 mm (~145 mm) — 1–2 frames in the field |
-| Raw data rate, mono 8-bit | ~32 MB/s — any USB 2 link |
+| Quantity | Value at the 420 fps design point | Chameleon3 at 591 fps (measured, §3.1) |
+|---|---|---|
+| Head travel per frame | 86 mm (107 mm) | 61 mm (76 mm) |
+| Ball–face contact time | ~0.45 ms — **never** a frame during contact at this rate | 0.45 ms — 27% odds of one; still never relied on |
+| Blur per 100 µs of exposure | 3.6 mm (4.5 mm) | same — exposure, not rate |
+| Exposure for ≤ 2 px blur at ~1 mm/px | **≤ 70 µs** (≤ 50 µs) | same; the camera's floor is 6.4 µs |
+| Head positions in a 400 mm field | 4–5 before impact, 2–3 after | 6–7 before, 3–4 after |
+| Ball travel per frame after impact | ~110 mm (~145 mm) — 1–2 frames in the field | ~78 mm (~103 mm) — 2–3 frames |
+| Raw data rate, mono 8-bit | ~32 MB/s — any USB 2 link | Bayer 8-bit: 45 MB/s at 320×240, 181 MB/s at 1280×240 |
 
 Two consequences:
 
@@ -85,6 +95,7 @@ frames close to the ball, so it is the easier one to make work.
 |---|---|---|---|---|
 | 240 (phone) | 2 | 11% | no — a tangent cannot be fitted, only a biased mean direction | what users already have |
 | **420–500** | **4–5** | 19% | **yes, with exposure ≤ 70 µs** | a 5-frame flipbook — see §7 |
+| **591** (Chameleon3, 240-row ROI, measured §3.1) | **6–7** | 27% | **yes** — the exposure is available; the light is the question | 6–7 frames; the same flipbook, one step finer |
 | 1000 | 11 | 45% | marginally better, usually at a resolution cost | 11 frames; still stepped viewing |
 | 2200+ | 25+ | 100% | no further gain | watchable compression video; different hardware class and cost |
 
@@ -112,16 +123,89 @@ face. Watchable impact video starts around 2000 fps. Nothing at this cost point 
 - **Field of view ~400 mm** along the direction of head travel (the frame's long axis), ~300 mm
   across. Tighter buys pixel scale but loses positions; §2's rule is the arbiter.
 
-**A cropped Chameleon3 is a candidate.** The studio's CM3-U3-13Y3C (PYTHON 1300, global shutter,
-1280×1024 at 150.7 fps) reads rows at a fixed ~6.6 µs each — 1024 rows is where its 150 fps comes
-from — so a 240-row ROI is ~1.6 ms of readout plus overhead, comfortably past 420 fps *at the
-sensor*. Whether the camera's firmware caps below that is not something to assume:
-`VideoInputSpinnaker` applies the ROI first and then probes `AcquisitionFrameRate`'s true hardware
-max with rate control enabled (`VideoInputSpinnaker.cpp` ~L533), so the answer is one probe away
-and is what the Cameras panel reports. Its exposure node goes well below 70 µs. Two costs: it is a
-Bayer sensor (sensitivity and edge sharpness below a mono part), and a 320-px crop behind the
-present lens at the present distance is ~2 mm/px over ~620 mm — it needs a longer lens or a closer
-mount, and it then stops being a body camera. A third Chameleon3, not a re-tasked one.
+**A cropped Chameleon3 is the candidate, and it has now been measured (§3.1).** The studio's
+CM3-U3-13Y3C (PYTHON 1300, global shutter, 1280×1024 at 149 fps delivered) reads at 6.39 µs per
+row plus 158 µs per frame — 1024 rows is where its 150 fps comes from — and its firmware floors
+the frame period at 1.635 ms (611.7 fps). A 240-row ROI delivers 591 fps; ≤ 224 rows delivers
+the 611.7 cap. Width has no effect on the rate at all. The exposure node goes down to 6.4 µs, and
+70 µs streams at the full rate. Two costs stand: it is a Bayer sensor (sensitivity and edge
+sharpness below a mono part), and a 320-px crop behind the present lens at the present distance is
+~2 mm/px over ~620 mm — it needs a longer lens or a closer mount, and it then stops being a body
+camera. A third Chameleon3, not a re-tasked one.
+
+### 3.1 Measured: the studio Chameleon3s under a cropped ROI (2026-09-15)
+
+Both studio cameras — CM3-U3-13Y3C, serials 18277032 and 17453937, firmware 1.13.3.00, Spinnaker
+4.3.0.190 on the Windows PC — were probed with `tools/probes/chameleon3_roi_probe.cpp` (build and
+run notes at the top of the file). Method: BayerRG8, the pixel format the capture path uses;
+ExposureAuto off; AcquisitionFrameRateEnable on; ExposureTime written, then AcquisitionFrameRate
+written to its own maximum; 40 stream buffers as in `VideoInputSpinnaker`; each ROI streamed for
+2 s. The delivered rate comes from the camera's own frame timestamps and agrees with the host-side
+frame count to 0.1%; incomplete frames were counted. The two cameras agree to 0.1 fps on every
+row, so one table serves both:
+
+| Rows (1280 wide, 70 µs exposure) | Node's max (fps) | Delivered (fps) | Frame period |
+|---|---|---|---|
+| 1024 (full frame) | 150.7 | 149.3 | 6.70 ms |
+| 720 | 213.1 | 210.2 | 4.76 ms |
+| 480 | 316.4 | 310.1 | 3.22 ms |
+| 400 | 377.3 | 368.5 | 2.71 ms |
+| 320 | 467.4 | 454.0 | 2.20 ms |
+| 280 | 530.8 | 513.6 | 1.95 ms |
+| 260 | 569.4 | 549.6 | 1.82 ms |
+| **240** | 611.7 | **591.1** | 1.69 ms |
+| 232 | 611.7 | 609.5 | 1.64 ms |
+| ≤ 224 | 611.7 | **611.7** | 1.635 ms — the firmware floor |
+
+- **Rows are the whole story; width is free.** 1280×240, 640×240 and 320×240 all deliver
+  591.1 fps; 1280×480 and 640×480 both deliver 310.1. Delivered period ≈ 158 µs + 6.39 µs × rows,
+  floored at 1.635 ms, so the 611.7 fps cap is reached at about 230 rows and below. The 320×240 in
+  this document's title is therefore not a frame-rate choice — 1280×240 runs at the same rate — it
+  is a field-of-view and light choice (§1: the lit area scales with the field).
+- **The node over-reports.** AcquisitionFrameRate's maximum sits 1–3.5% above what is delivered
+  off the cap (611.7 reported at 240 rows, 591.1 delivered) and is exact on it. The Cameras panel,
+  which reads that node, will say 611.7 for a 240-row ROI. Plan on the delivered column; the camera
+  timestamps are the truth, and they are what the capture path records.
+- **Exposure.** Floor 6.4 µs. 50 µs and 70 µs both stream at the full 591 fps with zero incomplete
+  frames, so the ≤ 70 µs budget of §1 is available and the light question is exactly as §1 states
+  it. (At the 6.4 µs floor a 240-row ROI reaches the 611.7 cap; from 50 µs to the ceiling it is
+  591.1 — the exposure costs one small step near the cap and nothing elsewhere.) The ceiling is
+  the node's frame period minus 63 µs (1571 µs at the cap). Writing a rate the
+  current exposure cannot fit clamps the exposure down (6570 µs became 1571 µs at 240 rows); by
+  the same rule, a 6.57 ms exposure holds any ROI to ~150 fps. The fast rate needs the short
+  exposure *and* rate control enabled with the rate written — a cropped ROI alone does nothing.
+- **A note for the capture path.** When AcquisitionFrameRate's maximum was read straight after the
+  Width/Height write, it was one ROI stale: the rate applied was the previous ROI's maximum and the
+  delivered rate followed it, in every row of a sweep. A write to ExposureTime in between refreshed
+  it. `VideoInputSpinnaker` applies the ROI and later toggles AcquisitionFrameRateEnable before
+  reading the maximum (~L538); whether that toggle refreshes the cache the way the exposure write
+  did was not tested, and should be, before the Cameras panel's figure is trusted for a cropped ROI.
+- **Binning is the other 320×240.** BinningVertical = 2 sets both axes (BinningHorizontal is
+  read-only and follows it): 640×512 over the full field at 470–475 fps delivered, pixel format still BayerRG8 (the
+  colour correctness of a binned Bayer frame was not checked by eye). So on this camera both
+  answers to "which 320×240 is it?" exist and are told apart by the Width/Height/Binning nodes: a
+  crop keeps the pixel scale and shrinks the field; a bin keeps the field and halves the scale.
+  Binned-and-cropped was not measured.
+- **Link budget.** DeviceLinkThroughputLimit is 198.1 MB/s and already at its maximum. Full frame
+  at 149 fps is 195 MB/s; 1280×240 at 591 fps is 181 MB/s; 320×240 at 591 fps is 45 MB/s. **Both
+  cameras streaming at once** on the Windows PC — one full-frame at 149 fps, the other a strip at
+  its maximum — ran 4 s with zero incomplete frames on either, for strips of 1280×240, 1280×480,
+  640×240 and 320×240. Not checked: whether the two cameras share a host controller, and behaviour
+  over a session rather than 4 s.
+- **Strobe and trigger.** Line1 is a dedicated output with sources ExposureActive,
+  ExternalTriggerActive and UserOutput1; Line2 and Line3 switch between input and output; Line0 is
+  input-only. TriggerSource offers Software, Line0, Line2 and Line3; ExposureMode offers Timed and
+  TriggerWidth. The strobe of §11 step 4 can be driven from Line1 with no camera-side hardware.
+
+**What changes in the design.** Nothing in the argument; several numbers. The per-frame
+quantities at 591 fps are the third column of the §1 table: 61 mm of head travel, 6–7 pre-impact
+positions in 400 mm, a 27% chance of a frame during contact. §2's rule — at least 4–5 positions at
+~1 mm/px, then spend on exposure and light — is met with margin, and because width is free the
+field can grow along the head's travel at no rate cost if the light can follow: 1280 px at
+~1 mm/px is about 21 head positions per swing, but four times the lit area of a 320-px field and
+181 MB/s on the link. The frame-rate gate in §11 step 2 is passed. Frame integrity — no drops, no
+duplicates — is established on the bench, so the dropped-ball test's remaining job is the pixel
+scale and the physical blur.
 
 ## 4. Placement A — face-on zoom, at ground level beside the face-on camera
 
@@ -257,12 +341,15 @@ camera) and iPhones that pair over PPCP. The intended layout:
 | Position | Device | Role | Why this device |
 |---|---|---|---|
 | **Face-on** | wall-mounted Chameleon3, 1280×1024 @ 150 fps | unchanged: pose, shaft, ball ruler, `lowPointAhead` | already mounted; global shutter; the pipeline was tuned on its frames |
-| **Impact** | tripod Chameleon3, 320×240 ROI @ ≥ 420 fps | §4 face-on zoom: attack angle, low point, high/low strike | global shutter, exposure locks well below 70 µs, the ROI path already exists (§3); on the **same bearing** as the face-on camera, so the impact inset overlays the wide arc with no transform |
+| **Impact** | tripod Chameleon3, **640×240 crop @ 591 fps, 50–70 µs, ~1 mm/px** (§10.2; 612 fps at ≤ 224 rows, any width up to 1280) | §4 face-on zoom: attack angle, low point, high/low strike | global shutter; exposure floor 6.4 µs; the ROI rate is measured, not assumed (§3.1); the ROI path already exists (§3); on the **same bearing** as the face-on camera, so the impact inset overlays the wide arc with no transform |
 | **DTL** | iPhone via PPCP, portrait 1080×1920 @ 240 fps | pose, shaft plane, the rotation and over-the-top family | portrait suits the DTL frame; ~2× the vertical pixel density of the Chameleon3 over the same field; 4.2 ms exposure is shorter than the Chameleon3's current 6.6 ms; pairing, host-driven capture, the clip leg and sync convergence all work as of September 2026 |
 
-**Impact tripod placement.** Ground level, face-on side, centred on the ball. A 320-px crop is a
-quarter of the present field, so the existing lens at about **two thirds of the face-on camera's
-distance** gives the ~400 mm field §3 wants. A camera on the face-on bearing under two metres
+**Impact tripod placement.** Ground level, face-on side, the ball about 60% of the way across
+the frame so most of the width is before impact. A 640-px crop is half the present width, so the
+existing lens at about **two thirds of the face-on camera's distance** gives ~1 mm/px and a
+~640 × 240 mm field (§10.2). The rate does not care about width (§3.1), so the crop can be as
+wide as the light allows: 1280×240 at the same distance is the full present width over a 240-row
+band, still 591 fps, at 181 MB/s on the link. A camera on the face-on bearing under two metres
 from the ball is where a sharp shank goes; the GCQuad lives in the same place and takes the
 occasional hit, so a low mount and a small guard are the answer, not a different bearing.
 
@@ -292,14 +379,58 @@ baselines. A delivery-window shaft-angle offset that grows with clubhead speed i
 shutter's signature. If the phone holds, retask the tripod camera; if it does not, both cameras
 are still where they were and nothing has been lost.
 
+### 10.2 The chosen mode — 640×240 at 591 fps, and why not 320×240 at 420
+
+The design was written around 320×240 at 420 fps. With §3.1 measured, the chosen mode is:
+
+| Setting | Chosen | Fallback |
+|---|---|---|
+| ROI | 640×240 crop, ball at ~60% across | 640×320 @ 454 fps if vertical framing is tight |
+| Rate | 591 fps (the rows' maximum) | 454 fps |
+| Exposure | 50–70 µs, locked | same |
+| Scale | ~1 mm/px via lens and distance | same |
+| Binning | off | off |
+
+- **591 fps, not 420.** The rate is set by the row count alone, so any crop of ≤ 240 rows runs
+  at 591 fps whether asked for or not. At a fixed 70 µs exposure a higher rate costs no light,
+  and the clip is short (±100 ms ≈ 120 frames × 154 KB ≈ 18 MB), so the extra frames are free.
+  The 420 estimate was right about what the fit needs — 4–5 head positions before the ball. At
+  591 fps over a 400 mm run there are 6–7, the tangent fit tightens by roughly √(n), and the
+  ball gets 2–3 frames in the field instead of 1–2, which sharpens the sub-frame impact instant
+  (§4). The only reason to choose a lower rate deliberately is to buy rows.
+- **240 rows, not fewer.** 224 rows buys 3.5% more rate for 16 mm of vertical field; not worth
+  it. At 1 mm/px, 240 mm has to hold the mat, a teed driver ball, a driver head ~110 mm tall,
+  and the arc's rise over the field (~35 mm over 640 mm at a 1.5 m radius). That fits without
+  much spare. If a driver on a high tee will not frame, go to 320 rows at 454 fps — still above
+  the design point, and the right trade. Never go below 240 rows for rate.
+- **640 wide, not 320.** Width is free in rate, and 640 mm along the travel roughly doubles the
+  pre-impact positions (from ~4 to ~7–8 at 61 mm/frame with the ball placed off-centre), so the
+  arc's curvature comes from the data rather than an assumed radius. The costs are light — the
+  extra area must be lit, or it is dark pixels that cost nothing — and data: 91 MB/s instead of
+  45, a 5 s pre-allocated ring of ~450 MB instead of ~230 MB. Not 1280 wide: 181 MB/s and a
+  ~900 MB ring for a strip the floods will not cover, and a 1.28 m field rises ~137 mm over its
+  length, which eats the rows.
+- **No binning.** Bin 2 gives the whole sensor at ~475 fps but halves the scale to ~2 mm/px. The
+  fit gains linearly from scale and only as √(n) from rate (§2), so binning is the wrong side of
+  that trade.
+- **50–70 µs.** ≤ 2 px of blur at 1 mm/px (§1). The rate does not move anywhere in that range
+  (§3.1). The 6.4 µs floor is irrelevant; there is no light for it.
+
+What this does not settle is the light: at 70 µs the floods or strobe must bring a 640 × 240 mm
+patch to a usable level on a Bayer sensor, which is the blur-and-level measurement §11 step 2
+still asks for before any fitting is written.
+
 ## 11. Order of work
 
 1. **Overlap session** (§10.1) — decides whether the tripod camera is free.
-2. **Impact camera** — the tripod Chameleon3 as the §4 face-on zoom. Gate on the ROI frame-rate
-   probe (§3), the dropped-ball fps/scale check and a measured blur ≤ 2 px before any fitting is
-   written.
+2. **Impact camera** — the tripod Chameleon3 as the §4 face-on zoom, in the §10.2 mode
+   (640×240 at 591 fps, 50–70 µs). The ROI frame-rate gate is
+   passed (§3.1: 591 fps at 240 rows, no dropped or duplicated frames on the bench). Still to
+   gate on: the dropped-ball scale check and a measured blur ≤ 2 px before any fitting is
+   written — the drop's fps job is done, its scale job is not.
 3. **Overhead** — path and heel/toe; unlocks §6. A third camera, not a re-tasked one.
 4. **Strobe** — only if continuous light cannot reach the exposure budget, or the golfer objects
-   to the floods.
+   to the floods. Line1 on the Chameleon3 is a dedicated output that carries ExposureActive
+   (§3.1), so the camera side needs no extra hardware.
 
 Nothing in 1–4 touches the session wizard or the wide-camera pipeline.
