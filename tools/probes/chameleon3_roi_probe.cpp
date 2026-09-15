@@ -14,9 +14,14 @@
 //                                                     at its max, 1 a WxH strip at its max
 //
 // Method notes that matter for the numbers:
-//  - ExposureTime is written BEFORE AcquisitionFrameRate. Read straight after the Width/Height
-//    write, the rate node's max is one ROI stale (the previous ROI's max gets applied). An
-//    exposure write in between refreshes it.
+//  - ExposureTime is written BEFORE AcquisitionFrameRate (a rate the exposure cannot fit clamps
+//    the exposure down). Read straight after the Width/Height write, the rate node's max is one
+//    ROI stale: the write does not invalidate the GenApi cache. This sweep reads fresh only
+//    because the previous step's rate write invalidated it; nodeMap.InvalidateNodes() after the
+//    ROI write is the reliable refresh (it is what the app does).
+//  - This firmware (1.13.3.00) has no AcquisitionFrameRateEnable node; the legacy
+//    AcquisitionFrameRateAuto=Off is what enables manual rate here, and ExposureTime is
+//    read-only until ExposureAuto is Off.
 //  - Delivered fps comes from the camera's frame timestamps (ns on USB3); the host-side count
 //    agrees to 0.1%. The node's max over-reports the delivered rate by 1–3.5% off the cap.
 //  - Camera state (ROI, exposure, rate enable, binning) is restored on exit; Chameleon3 settings

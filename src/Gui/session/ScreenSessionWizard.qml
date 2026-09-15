@@ -1013,6 +1013,8 @@ Item {
                                                 return qsTr("Face-on camera — %1").arg(name)
                                             if (modelData.persp === CameraInstance.DownTheLine)
                                                 return qsTr("Down-the-line camera — %1").arg(name)
+                                            if (modelData.persp === CameraInstance.Impact)
+                                                return qsTr("Impact camera — %1").arg(name)
                                             return qsTr("Camera — %1").arg(name)
                                         }
 

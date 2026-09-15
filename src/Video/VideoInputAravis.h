@@ -48,6 +48,9 @@ public:
     // GenICam region (ROI) is applied in hardware on the next start().
     bool supportsHardwareCrop() const override { return true; }
     void setCropRegion(const QRectF &norm) override { m_cropRegion = norm; }
+    // Frame rate / exposure applied on the next start(); 0 = backend default.
+    void setCaptureRate(double fps) override { m_captureFps = fps; }
+    void setExposureUs(double us)   override { m_exposureUs = us; }
 
 private:
     void captureLoop();
@@ -60,4 +63,6 @@ private:
     // The running captureLoop(); stop() joins it before freeing the stream.
     QFuture<void> m_captureFuture;
     QRectF m_cropRegion;         // normalized crop; empty = full sensor
+    double m_captureFps = 0.0;   // requested frame rate; 0 = the 60 fps default below
+    double m_exposureUs = 0.0;   // requested exposure (auto off); 0 = camera default
 };

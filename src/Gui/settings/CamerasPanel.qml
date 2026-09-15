@@ -45,6 +45,46 @@ Item {
         }
     }
 
+    // ── Impact camera mode (impact_camera_design.md §10.2) ───────────────────
+    //
+    // A mode is a crop SIZE plus a rate; the crop's position is placed in the
+    // crop editor like any other crop. The exposure is a third, separate chip
+    // because it is what makes the mode usable (≤ 70 µs, or the head is a
+    // streak), and its default is the design's.
+    //
+    // ⚠ Plain values only — no camData, no camRow — because writing
+    // appSettings.cameraRoi rebuilds every camera row synchronously (see the
+    // crop button's note) and the calling delegate's context is gone by the
+    // time the write returns. These live on the panel root, which survives,
+    // and cameraRoi is written LAST.
+    readonly property double impactDefaultExposureUs: 70
+
+    function applyImpactMode(cameraKey, camIndex, maxW, maxH, mode, liveInstance) {
+        if (!mode || !(maxW > 0) || !(maxH > 0)) return
+        var w = Math.min(1.0, mode.w / maxW)
+        var h = Math.min(1.0, mode.h / maxH)
+        var roiMap = appSettings.cameraRoi
+        var cur = roiMap[cameraKey]
+        // Keep the operator's placement when the new size still fits there;
+        // otherwise centre it.
+        var x = (cur && cur.x + w <= 1.0) ? cur.x : (1.0 - w) / 2.0
+        var y = (cur && cur.y + h <= 1.0) ? cur.y : (1.0 - h) / 2.0
+        var fpsMap = appSettings.cameraTargetFps
+        fpsMap[cameraKey] = mode.fps
+        appSettings.cameraTargetFps = fpsMap
+        cameraManager.setTargetFps(camIndex, mode.fps)
+        if (liveInstance)
+            liveInstance.setCropRoi(Qt.rect(x, y, w, h))
+        roiMap[cameraKey] = { x: x, y: y, w: w, h: h }
+        appSettings.cameraRoi = roiMap
+    }
+
+    function setImpactExposure(cameraKey, us) {
+        var map = appSettings.cameraExposureUs
+        map[cameraKey] = us
+        appSettings.cameraExposureUs = map
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Inline component — reusable toggle pill
     // ─────────────────────────────────────────────────────────────────────────
@@ -118,6 +158,12 @@ Item {
         readonly property bool roiOpen: root.openRoiIndex === camData.index
         readonly property bool ballOpen: root.openBallIndex === camData.index
 
+        // The club/ball impact camera: its row swaps the frame-rate chips for
+        // the modes the camera itself reported at enumeration (crop × rate)
+        // and adds a locked-exposure chip.
+        readonly property bool isImpact:    camData.perspective === CameraInstance.Impact
+        readonly property var  impactModes: camData.impactModes || []
+
         // Effective fps for storage calculations:
         // priority: user-set target → live measured configuredFps → capability maxFps → 30
         readonly property double currentFps: {
@@ -129,8 +175,8 @@ Item {
         }
 
         implicitHeight: camRow.roiOpen
-                            ? headerRow.height + bodyRow.height + roiPanel.height
-                            : headerRow.height + (camData.enabled ? bodyRow.height : excludedNote.height)
+                            ? headerRow.height + bodyRow.height + impactRow.height + roiPanel.height
+                            : headerRow.height + (camData.enabled ? bodyRow.height : excludedNote.height) + impactRow.height
                               + (camRow.ballOpen ? ballPanel.height : 0)
 
         Behavior on implicitHeight { NumberAnimation { duration: Theme.durationFast } }
@@ -350,13 +396,23 @@ Item {
                     implicitWidth: Theme.sp(168)
 
                     // Any number of cameras may share a perspective (e.g. two
-                    // face-on cameras in one session).
-                    readonly property var viewOptions: [
-                        { label: qsTr("— Unassigned —"), perspective: CameraInstance.None },
-                        { label: qsTr("Face-on"),         perspective: CameraInstance.FaceOn },
-                        { label: qsTr("Down-the-line"),   perspective: CameraInstance.DownTheLine },
-                        { label: qsTr("Other"),           perspective: CameraInstance.Other }
-                    ]
+                    // face-on cameras in one session) — except Club/Ball
+                    // Impact, which exactly one camera holds (assignPerspective
+                    // clears it elsewhere) and which is only offered to a
+                    // camera that reaches 420 fps at some crop
+                    // (impact_camera_design.md §2). A phone over PPCP never
+                    // does: ≤ 240 fps and a rolling shutter.
+                    readonly property var viewOptions: {
+                        var opts = [
+                            { label: qsTr("— Unassigned —"), perspective: CameraInstance.None },
+                            { label: qsTr("Face-on"),         perspective: CameraInstance.FaceOn },
+                            { label: qsTr("Down-the-line"),   perspective: CameraInstance.DownTheLine }
+                        ]
+                        if (camData.impactCapable || camData.perspective === CameraInstance.Impact)
+                            opts.push({ label: qsTr("Club/Ball Impact"), perspective: CameraInstance.Impact })
+                        opts.push({ label: qsTr("Other"), perspective: CameraInstance.Other })
+                        return opts
+                    }
 
                     model: viewOptions.map(function(o) { return o.label })
 
@@ -381,12 +437,29 @@ Item {
 
                     onActivated: (idx) => {
                         var p = viewOptions[idx].perspective
-                        var map = appSettings.cameraPerspective
-                        if (p !== CameraInstance.None) map[camData.cameraKey] = p
-                        else delete map[camData.cameraKey]
-                        appSettings.cameraPerspective = map
-                        if (camRow.realInstance)
-                            cameraManager.setPerspective(camRow.realInstance, p)
+                        // Both assignPerspective and applyImpactMode rebuild
+                        // the rows synchronously (cameraListChanged) — read
+                        // everything into locals FIRST, write after.
+                        var panelRoot = root
+                        var mgr       = cameraManager
+                        var key       = camData.cameraKey
+                        var camIndex  = camData.index
+                        var maxW      = camData.maxWidth
+                        var maxH      = camData.maxHeight
+                        var modes     = camRow.impactModes
+                        var inst      = camRow.realInstance
+                        var storedFps = appSettings.cameraTargetFps[key]
+                        var expUnset  = appSettings.cameraExposureUs[key] === undefined
+                        if (p === CameraInstance.Impact) {
+                            // First assignment seeds the recommended mode and
+                            // exposure, so the camera is usable with no
+                            // further click (impact_camera_design.md §10.2).
+                            if (expUnset)
+                                panelRoot.setImpactExposure(key, panelRoot.impactDefaultExposureUs)
+                            if (!(storedFps >= 420) && modes.length > 0)
+                                panelRoot.applyImpactMode(key, camIndex, maxW, maxH, modes[0], inst)
+                        }
+                        mgr.assignPerspective(key, p)
                     }
                 }
             }
@@ -450,8 +523,10 @@ Item {
                 }
             }
 
-            // Frame rate chips ────────────────────────────────────────────────
+            // Frame rate chips (every camera but the impact camera, whose rate
+            // is part of its mode below) ─────────────────────────────────────
             ColumnLayout {
+                visible: !camRow.isImpact
                 spacing: Theme.sp(4)
                 Layout.alignment: Qt.AlignTop
 
@@ -798,10 +873,212 @@ Item {
             }
         }
 
+        // ── Impact row — the impact camera's mode and exposure ───────────────
+        // Its own row beneath the body row: two chip groups with their notes
+        // would push the body row's action buttons (Set crop, which is how
+        // the strip is positioned over the ball) off the clipped right edge.
+        RowLayout {
+            id: impactRow
+            anchors.top:    bodyRow.bottom
+            anchors.left:   parent.left
+            anchors.right:  parent.right
+            anchors.leftMargin:  Theme.sp(14)
+            anchors.rightMargin: Theme.sp(14)
+            height: (camData.enabled && camRow.isImpact) ? implicitHeight + Theme.sp(24) : 0
+            visible: camData.enabled && camRow.isImpact
+            spacing: Theme.sp(24)
+            clip: true
+
+            // Impact mode chips — crop size × rate, as the camera reported them
+            // at enumeration (impact_camera_design.md §3.1, §10.2) ───────────
+            ColumnLayout {
+                visible: camRow.isImpact
+                spacing: Theme.sp(4)
+                Layout.alignment: Qt.AlignTop
+
+                Text {
+                    text:           qsTr("IMPACT MODE")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    font.letterSpacing: Theme.trackingMicro
+                    font.capitalization: Font.AllUppercase
+                    color:          Theme.colorText3
+                }
+
+                Flow {
+                    id: modeFlow
+                    spacing: Theme.sp(4)
+                    Layout.preferredWidth: Theme.sp(520)
+
+                    readonly property var    storedRoi: appSettings.cameraRoi[camData.cameraKey]
+                    readonly property double storedFps: {
+                        var v = appSettings.cameraTargetFps[camData.cameraKey]
+                        return (v !== undefined && v > 0) ? v : 0
+                    }
+
+                    Repeater {
+                        model: camRow.impactModes
+
+                        delegate: Rectangle {
+                            id: modeChip
+                            required property var modelData
+                            required property int index
+
+                            // Selected when the stored crop is this size (to the
+                            // node increment) and the stored rate is this rate.
+                            readonly property bool isSelected: {
+                                var r = modeFlow.storedRoi
+                                if (!r) return false
+                                return Math.abs(r.w * (camData.maxWidth  || 0) - modelData.w) < 8
+                                    && Math.abs(r.h * (camData.maxHeight || 0) - modelData.h) < 8
+                                    && Math.abs(modeFlow.storedFps - modelData.fps) < 1
+                            }
+
+                            width:  modeLabel.implicitWidth + Theme.sp(20)
+                            height: Theme.sp(24)
+                            radius: Theme.radius
+                            color:  isSelected ? Theme.colorAccentLight
+                                  : modeArea.containsMouse
+                                      ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                      : "transparent"
+                            border.width: 1
+                            border.color: isSelected ? Theme.colorAccent
+                                        : modeArea.containsMouse ? Theme.colorAccentMid
+                                        : Theme.colorBorderStrong
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                            Text {
+                                id: modeLabel
+                                anchors.centerIn: parent
+                                text:           modelData.w + "×" + modelData.h + "  "
+                                                + Math.round(modelData.fps) + qsTr(" fps")
+                                                + (modeChip.index === 0 ? "  ★" : "")
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                color:          modeChip.isSelected ? Theme.colorAccent : Theme.colorText2
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            }
+
+                            MouseArea {
+                                id: modeArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape:  Qt.PointingHandCursor
+                                onClicked: {
+                                    // applyImpactMode rebuilds the rows — locals first.
+                                    var panelRoot = root
+                                    var key       = camData.cameraKey
+                                    var camIndex  = camData.index
+                                    var maxW      = camData.maxWidth
+                                    var maxH      = camData.maxHeight
+                                    var mode      = modeChip.modelData
+                                    var inst      = camRow.realInstance
+                                    panelRoot.applyImpactMode(key, camIndex, maxW, maxH, mode, inst)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    text: qsTr("Rates are the camera's advertised maximum at that crop; delivered runs a few percent lower. ★ is the recommended mode. Use Set crop to place the box over the ball, about 60% of the way across. Applies on the next connect.")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    font.italic:    true
+                    color:          Theme.colorText3
+                    wrapMode:       Text.WordWrap
+                    Layout.preferredWidth: Theme.sp(520)
+                }
+            }
+
+            // Exposure chips — the impact camera's locked exposure ────────────
+            ColumnLayout {
+                visible: camRow.isImpact
+                spacing: Theme.sp(4)
+                Layout.alignment: Qt.AlignTop
+
+                Text {
+                    text:           qsTr("EXPOSURE")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    font.letterSpacing: Theme.trackingMicro
+                    font.capitalization: Font.AllUppercase
+                    color:          Theme.colorText3
+                }
+
+                Row {
+                    id: exposureRow
+                    spacing: Theme.sp(4)
+
+                    readonly property double selectedUs: {
+                        var v = appSettings.cameraExposureUs[camData.cameraKey]
+                        return (v !== undefined && v > 0) ? v : root.impactDefaultExposureUs
+                    }
+
+                    Repeater {
+                        model: [30, 50, 70, 100]
+
+                        delegate: Rectangle {
+                            id: expChip
+                            required property var modelData
+
+                            readonly property bool isSelected: Math.abs(exposureRow.selectedUs - modelData) < 0.5
+
+                            width:  expLabel.implicitWidth + Theme.sp(20)
+                            height: Theme.sp(24)
+                            radius: Theme.radius
+                            color:  isSelected ? Theme.colorAccentLight
+                                  : expArea.containsMouse
+                                      ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                                      : "transparent"
+                            border.width: 1
+                            border.color: isSelected ? Theme.colorAccent
+                                        : expArea.containsMouse ? Theme.colorAccentMid
+                                        : Theme.colorBorderStrong
+                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+                            Text {
+                                id: expLabel
+                                anchors.centerIn: parent
+                                text:           modelData + qsTr(" µs")
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                color:          expChip.isSelected ? Theme.colorAccent : Theme.colorText2
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            }
+
+                            MouseArea {
+                                id: expArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape:  Qt.PointingHandCursor
+                                onClicked: root.setImpactExposure(camData.cameraKey, expChip.modelData)
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    text: qsTr("Locked, auto-exposure off. 70 µs or less keeps blur under 2 px at 1 mm per pixel — the light has to follow.")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    font.italic:    true
+                    color:          Theme.colorText3
+                    wrapMode:       Text.WordWrap
+                    Layout.preferredWidth: Theme.sp(180)
+                }
+            }
+
+
+            Item { Layout.fillWidth: true }
+        }
+
         // ── ROI panel ────────────────────────────────────────────────────────
         Item {
             id: roiPanel
-            anchors.top:   bodyRow.bottom
+            anchors.top:   impactRow.bottom
             anchors.left:  parent.left
             anchors.right: parent.right
             height: camRow.roiOpen ? roiPanelContent.implicitHeight : 0

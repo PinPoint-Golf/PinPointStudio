@@ -28,6 +28,14 @@
 #include "../Video/frame_crop.h"
 #include <algorithm>
 
+namespace {
+// The impact camera needs ≥ 4–5 head positions before the ball at ~1 mm/px,
+// which is 420 fps (impact_camera_design.md §2). A crop that cannot reach it
+// is not offered as a mode; a camera with no such crop cannot be the impact
+// camera.
+constexpr double kImpactMinFps = 420.0;
+} // namespace
+
 CameraManager::CameraManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, QObject *parent)
     : QObject(parent)
     , m_eventBuffer(buffer)
@@ -203,6 +211,30 @@ QVariantList CameraManager::cameraList() const
         entry[QStringLiteral("sessionEnabled")] = !m_sessionExcluded.contains(key);
         entry[QStringLiteral("perspective")] = perspMap.value(key, 0).toInt();
 
+        // Impact-camera modes: the crops the backend probed at enumeration
+        // (video_input_factory.cpp) that reach the 420 fps the impact camera
+        // needs (impact_camera_design.md §2), in recommended order; a camera
+        // that fast at full frame qualifies on its own. Empty ⇒ Settings does
+        // not offer the placement. A phone over PPCP declares ≤ 240 fps and a
+        // rolling shutter, so it never qualifies.
+        QVariantList impactModes;
+        const QVariantList probed =
+            cap.extensions.value(QStringLiteral("impact.modes")).toList();
+        for (const QVariant &v : probed) {
+            const QVariantMap m = v.toMap();
+            if (m.value(QStringLiteral("fps")).toDouble() >= kImpactMinFps)
+                impactModes.append(m);
+        }
+        if (cap.frameRate.range.max >= kImpactMinFps && sensorW > 0) {
+            QVariantMap full;
+            full[QStringLiteral("w")]   = sensorW;
+            full[QStringLiteral("h")]   = sensorH;
+            full[QStringLiteral("fps")] = cap.frameRate.range.max;
+            impactModes.append(full);
+        }
+        entry[QStringLiteral("impactModes")]   = impactModes;
+        entry[QStringLiteral("impactCapable")] = !impactModes.isEmpty();
+
         // --- Ring buffer sizing fields (mirror CameraInstance's allocation logic) ---
         // Slot width/height: largest supported resolution, not just the default.
         int slotW = 0, slotH = 0;
@@ -235,6 +267,11 @@ QVariantList CameraManager::cameraList() const
         if (cam.device.backend == VideoInputFactory::Backend::Aravis ||
             cam.device.backend == VideoInputFactory::Backend::Spinnaker)
             slotFps = 200.0;
+        // ...except the impact camera, whose ring is sized for its own rate
+        // (CameraInstance's descriptor does the same).
+        if (entry[QStringLiteral("perspective")].toInt() == CameraInstance::Impact
+            && cam.targetFps > slotFps)
+            slotFps = cam.targetFps;
 
         entry[QStringLiteral("slotWidth")]        = slotW;
         entry[QStringLiteral("slotHeight")]       = slotH;
@@ -594,7 +631,8 @@ void CameraManager::setLivePoseEnabled(bool on)
         return;
     m_livePoseEnabled = on;
     for (auto &cam : m_cameras) {
-        if (cam.controller)
+        // The impact camera never runs pose (see createController).
+        if (cam.controller && cam.controller->perspective() != CameraInstance::Impact)
             cam.controller->setPoseEnabled(on);
     }
     emit livePoseEnabledChanged();
@@ -664,6 +702,42 @@ void CameraManager::setPerspective(QObject *rawController, int perspective)
     // Any number of cameras may share a perspective (e.g. two face-on cameras
     // in one session) — assignment is per-camera, nothing is cleared.
     target->setPerspective(perspective);
+    emit cameraListChanged();
+}
+
+void CameraManager::assignPerspective(const QString &key, int perspective)
+{
+    if (key.isEmpty()) return;
+
+    AppSettings  fallback;
+    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+    QVariantMap map = s->cameraPerspective();
+
+    // Impact is exclusive: strip it from every other camera, persisted and live.
+    if (perspective == CameraInstance::Impact) {
+        for (auto it = map.begin(); it != map.end();) {
+            if (it.key() != key && it.value().toInt() == CameraInstance::Impact)
+                it = map.erase(it);
+            else
+                ++it;
+        }
+        for (const auto &cam : m_cameras) {
+            if (cam.controller && cameraKey(cam) != key
+                && cam.controller->perspective() == CameraInstance::Impact)
+                cam.controller->setPerspective(CameraInstance::None);
+        }
+    }
+
+    if (perspective != CameraInstance::None)
+        map[key] = perspective;
+    else
+        map.remove(key);
+    s->setCameraPerspective(map);
+
+    for (const auto &cam : m_cameras) {
+        if (cam.controller && cameraKey(cam) == key)
+            cam.controller->setPerspective(perspective);
+    }
     emit cameraListChanged();
 }
 
@@ -852,6 +926,11 @@ CameraInstance *CameraManager::createController(const Device &device)
         int p = perspMap.value(key).toInt();
         if (p > 0)
             ctrl->setPerspective(p);
+        // The impact camera sees a 240-row strip of club and ball at ~600 fps:
+        // there is no body in it to estimate a pose on, and the pose pipeline
+        // would only burn a core. Off for good (setLivePoseEnabled skips it).
+        if (p == CameraInstance::Impact)
+            ctrl->setPoseEnabled(false);
     }
 
     const QVariantMap mirrorMap = cs->cameraIsMirrored();

@@ -214,6 +214,9 @@ class AppSettings : public QObject
     Q_PROPERTY(bool        cameraSyncEnabled   READ cameraSyncEnabled   WRITE setCameraSyncEnabled   NOTIFY cameraSyncEnabledChanged)
     Q_PROPERTY(QVariantMap cameraFixedInPlace  READ cameraFixedInPlace  WRITE setCameraFixedInPlace  NOTIFY cameraFixedInPlaceChanged)
     Q_PROPERTY(QVariantMap cameraAlias         READ cameraAlias         WRITE setCameraAlias         NOTIFY cameraAliasChanged)
+    // Locked exposure (microseconds) per cameraKey — the impact camera's
+    // (impact_camera_design.md §10.2); other cameras keep auto-exposure.
+    Q_PROPERTY(QVariantMap cameraExposureUs    READ cameraExposureUs    WRITE setCameraExposureUs    NOTIFY cameraExposureUsChanged)
     Q_PROPERTY(QStringList imuExcluded            READ imuExcluded            WRITE setImuExcluded            NOTIFY imuExcludedChanged)
     Q_PROPERTY(QVariantMap imuAlias               READ imuAlias               WRITE setImuAlias               NOTIFY imuAliasChanged)
     Q_PROPERTY(QVariantMap imuCalibration         READ imuCalibration         WRITE setImuCalibration         NOTIFY imuCalibrationChanged)
@@ -460,6 +463,7 @@ public:
         m_cameraSyncEnabled  = ppSettings().value(QStringLiteral("camera/syncEnabled"),    true).toBool();
         m_cameraFixedInPlace = ppSettings().value(QStringLiteral("camera/fixedInPlace"), QVariantMap{}).toMap();
         m_cameraAlias        = ppSettings().value(QStringLiteral("camera/alias"),        QVariantMap{}).toMap();
+        m_cameraExposureUs   = ppSettings().value(QStringLiteral("camera/exposureUs"),   QVariantMap{}).toMap();
 
         m_imuExcluded             = ppSettings().value(QStringLiteral("imu/excluded"),             QStringList{}).toStringList();
         m_imuPlacement            = ppSettings().value(QStringLiteral("imu/placement"),            QVariantMap{}).toMap();
@@ -616,6 +620,7 @@ public:
     double      cameraPreroll()      const { return m_cameraPreroll; }
     bool        cameraSyncEnabled()  const { return m_cameraSyncEnabled; }
     QVariantMap cameraFixedInPlace() const { return m_cameraFixedInPlace; }
+    QVariantMap cameraExposureUs()   const { return m_cameraExposureUs; }
     QVariantMap cameraAlias()        const { return m_cameraAlias; }
 
     QVariantMap sessionGoalsByType() const { return m_sessionGoalsByType; }
@@ -1154,6 +1159,14 @@ public:
         emit cameraRoiChanged();
     }
 
+    void setCameraExposureUs(const QVariantMap &v)
+    {
+        if (m_cameraExposureUs == v) return;
+        m_cameraExposureUs = v;
+        ppSettings().setValue(QStringLiteral("camera/exposureUs"), v);
+        emit cameraExposureUsChanged();
+    }
+
     void setCameraPerspective(const QVariantMap &v)
     {
         if (m_cameraPerspective == v) return;
@@ -1618,6 +1631,7 @@ signals:
     void cameraFixedInPlaceChanged();
     void cameraBallRoiChanged();
     void cameraAliasChanged();
+    void cameraExposureUsChanged();
     void imuExcludedChanged();
     void imuPlacementChanged();
     void imuOutputRateHzChanged();
@@ -1732,6 +1746,7 @@ private:
     QVariantMap m_cameraFixedInPlace;
     QVariantMap m_cameraBallRoi;
     QVariantMap m_cameraAlias;
+    QVariantMap m_cameraExposureUs;
 
     QStringList m_imuExcluded;
     QVariantMap m_imuPlacement;

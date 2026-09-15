@@ -398,6 +398,7 @@ Item {
 
         readonly property string perspLabel: perspective === CameraInstance.FaceOn ? qsTr("Face-on")
                                             : perspective === CameraInstance.DownTheLine ? qsTr("Down-the-line")
+                                            : perspective === CameraInstance.Impact ? qsTr("Club/Ball Impact")
                                             : qsTr("Unassigned")
         height: Theme.sp(60) + (camRow.torchRefusal !== "" ? Theme.sp(16) : 0)
 

@@ -257,6 +257,60 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
         // Hardware ROI (or full sensor) — must precede BeginAcquisition().
         applySpinnakerRoi(nodeMap, m_cropRegion);
 
+        // The impact camera's rate and locked exposure (0 = leave alone).
+        // ⚠ ORDER: ROI, then exposure, then rate, with InvalidateNodes()
+        // between. The rate node's maximum depends on the ROI but a
+        // Width/Height write does not invalidate its cache, so the first read
+        // after it is one ROI stale; ExposureTime is read-only until
+        // ExposureAuto is Off and its access mode is cached the same way; and
+        // a rate the exposure cannot fit clamps the exposure down silently,
+        // so the exposure goes first on purpose. Measured on both studio
+        // Chameleon3s, 2026-09-15 (impact_camera_design.md §3.1).
+        if (m_exposureUs > 0.0) {
+            CEnumerationPtr ptrExpAuto = nodeMap.GetNode("ExposureAuto");
+            if (IsAvailable(ptrExpAuto) && IsWritable(ptrExpAuto)) {
+                CEnumEntryPtr off = ptrExpAuto->GetEntryByName("Off");
+                if (IsAvailable(off) && IsReadable(off))
+                    ptrExpAuto->SetIntValue(off->GetValue());
+            }
+            nodeMap.InvalidateNodes();
+            CFloatPtr ptrExp = nodeMap.GetNode("ExposureTime");
+            if (IsAvailable(ptrExp) && IsWritable(ptrExp)) {
+                ptrExp->SetValue(qBound(ptrExp->GetMin(), m_exposureUs, ptrExp->GetMax()));
+                ppInfo() << "[VideoInputSpinnaker] Exposure locked:" << ptrExp->GetValue() << "us";
+            } else {
+                ppWarn() << "[VideoInputSpinnaker] ExposureTime not writable; exposure stays"
+                         << (IsAvailable(ptrExp) && IsReadable(ptrExp) ? ptrExp->GetValue() : 0.0) << "us";
+            }
+        }
+        if (m_captureFps > 0.0) {
+            // Manual rate control, under either firmware's spelling: SFNC
+            // AcquisitionFrameRateEnable (Blackfly S), or the legacy
+            // AcquisitionFrameRateAuto=Off + AcquisitionFrameRateEnabled
+            // (Chameleon3 — which has no node of the SFNC name).
+            CEnumerationPtr ptrFpsAuto = nodeMap.GetNode("AcquisitionFrameRateAuto");
+            if (IsAvailable(ptrFpsAuto) && IsWritable(ptrFpsAuto)) {
+                CEnumEntryPtr off = ptrFpsAuto->GetEntryByName("Off");
+                if (IsAvailable(off) && IsReadable(off))
+                    ptrFpsAuto->SetIntValue(off->GetValue());
+            }
+            for (const char *name : { "AcquisitionFrameRateEnable", "AcquisitionFrameRateEnabled" }) {
+                CBooleanPtr ptrFpsEnable = nodeMap.GetNode(name);
+                if (IsAvailable(ptrFpsEnable) && IsWritable(ptrFpsEnable))
+                    ptrFpsEnable->SetValue(true);
+            }
+            nodeMap.InvalidateNodes();
+            CFloatPtr ptrFps = nodeMap.GetNode("AcquisitionFrameRate");
+            if (IsAvailable(ptrFps) && IsWritable(ptrFps)) {
+                const double maxFps = ptrFps->GetMax();
+                ptrFps->SetValue(qBound(ptrFps->GetMin(), m_captureFps, maxFps));
+                ppInfo() << "[VideoInputSpinnaker] Frame rate:" << ptrFps->GetValue()
+                         << "fps (requested" << m_captureFps << ", max at this ROI" << maxFps << ")";
+            } else {
+                ppWarn() << "[VideoInputSpinnaker] AcquisitionFrameRate not writable; rate stays at the camera's own";
+            }
+        }
+
         // Increase the image buffer pool. StreamBufferCount lives in the
         // TL Stream node map (transport layer), NOT the device node map.
         // Default pool size is typically 10; raw Bayer (1 byte/pixel) fills

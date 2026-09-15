@@ -117,7 +117,23 @@ bool VideoInputAravis::start(const QString &deviceId)
                      << "at" << rx << "," << ry;
         }
     }
-    arv_camera_set_frame_rate(cam, 60.0, nullptr);        // Target 60 FPS
+    // The impact camera's locked exposure and rate (impact_camera_design.md
+    // §10.2); every other camera keeps the 60 fps default. Exposure before
+    // rate: a rate the exposure cannot fit clamps the exposure down.
+    // ⚠ Untested on hardware as of 2026-09-15 — the Windows/Spinnaker path is
+    // the one that was measured; this mirrors it.
+    if (m_exposureUs > 0.0) {
+        arv_camera_set_exposure_time_auto(cam, ARV_AUTO_OFF, nullptr);
+        arv_camera_set_exposure_time(cam, m_exposureUs, nullptr);
+        ppInfo() << "[VideoInputAravis] Exposure locked:" << m_exposureUs << "us";
+    }
+    if (m_captureFps > 0.0) {
+        arv_camera_set_frame_rate(cam, m_captureFps, nullptr);
+        ppInfo() << "[VideoInputAravis] Frame rate requested:" << m_captureFps
+                 << "fps, camera reports" << arv_camera_get_frame_rate(cam, nullptr);
+    } else {
+        arv_camera_set_frame_rate(cam, 60.0, nullptr);    // Target 60 FPS
+    }
     arv_camera_set_pixel_format(cam, ARV_PIXEL_FORMAT_MONO_8, nullptr); // Raw Bayer or Mono
 
     // Create stream

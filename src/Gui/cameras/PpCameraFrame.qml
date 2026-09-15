@@ -852,6 +852,7 @@ Item {
                 text: !root.instance ? ""
                     : root.instance.perspective === CameraInstance.DownTheLine ? "DTL"
                     : root.instance.perspective === CameraInstance.FaceOn ? "Face On"
+                    : root.instance.perspective === CameraInstance.Impact ? "Impact"
                     : "Other"
                 color: Theme.colorAccent
                 font.family: Theme.fontData

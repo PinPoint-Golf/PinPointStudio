@@ -161,7 +161,7 @@ An array with one entry per camera or IMU. `kind` discriminates.
 | `capture.exposureUs` | float µs | Exposure — used by the shaft tracker's blur model. |
 | `playback.fps` | int | Container playback rate only (casual scrub speed), **not** the analysis rate. |
 | `processing.demosaic` | str | `EA` (edge-aware) / `bilinear` / `none`. |
-| `setup.perspective` | int | `0` None · `1` DownTheLine · **`2` FaceOn** · `3` Other. `perspectiveName` is the label. The shaft tracker + body viz key on perspective 2. May be `null` on older exports. |
+| `setup.perspective` | int | `0` None · `1` DownTheLine · **`2` FaceOn** · `3` Other · `4` Impact (the club/ball impact camera, `impact_camera_design.md` §10). `perspectiveName` is the label. The shaft tracker + body viz key on perspective 2. May be `null` on older exports. |
 | `setup.mirrored` | bool | Webcam mirror flag (affects pose/shaft chirality). |
 | `setup.fixedInPlace` | bool | Camera-fixed calibration state. |
 

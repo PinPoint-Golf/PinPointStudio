@@ -133,6 +133,17 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
             if (pp_crop::cropIsActive(roi))
                 m_cropRoi = roi.intersected(QRectF(0.0, 0.0, 1.0, 1.0));
         }
+
+        // The impact camera's mode is a crop (above) plus a rate and a locked
+        // exposure. Read them here, before registration, because the rate
+        // sizes the ring. Buffer-backed instances only: a settings preview
+        // shows the full sensor at the camera's own exposure so the crop box
+        // can be placed on a bright picture.
+        if (buffer && appSettings->cameraPerspective().value(key).toInt() == Impact) {
+            m_captureFps = appSettings->cameraTargetFps().value(key).toDouble();
+            m_captureExposureUs =
+                appSettings->cameraExposureUs().value(key, kImpactDefaultExposureUs).toDouble();
+        }
     }
 
     // Register the source before EventBuffer::start() is called in main().
@@ -270,6 +281,15 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
             // 150 fps (150*5=750 frames > 512 ring capacity).
             cfmt.fps_numerator   = 200;
             cfmt.fps_denominator = 1;
+            // The impact camera runs well past 200 (591 fps at a 240-row
+            // crop on a Chameleon3): size its ring for the rate it will be
+            // asked for, or 5 s of window becomes 1.7 s and the pre-roll
+            // is overwritten before the shot lands.
+            if (m_captureFps > 200.0) {
+                fps                  = m_captureFps;
+                cfmt.fps_numerator   = static_cast<uint32_t>(m_captureFps * 1000.0);
+                cfmt.fps_denominator = 1000;
+            }
             break;
         default:
             desc.format.device = pinpoint::DeviceKind::Camera_UVC;
@@ -1285,6 +1305,8 @@ void CameraInstance::startRecording()
                 if (!self)
                     return;
                 self->m_videoInput->setCropRegion(self->m_activeCropRoi);
+                self->m_videoInput->setCaptureRate(self->m_captureFps);
+                self->m_videoInput->setExposureUs(self->m_captureExposureUs);
                 if (!self->m_videoInput->start(self->m_deviceId)) {
                     // Revert the optimistic recording state (non-macOS path
                     // does the same via its queued failure hop).
@@ -1318,8 +1340,11 @@ void CameraInstance::startRecording()
 
     QMetaObject::invokeMethod(m_videoInput, [this]() {
         // Prime the hardware ROI (no-op for software-cropped backends) with
-        // the ctor-frozen crop before starting the device.
+        // the ctor-frozen crop before starting the device, and the impact
+        // camera's rate and exposure (0 = leave the camera alone).
         m_videoInput->setCropRegion(m_activeCropRoi);
+        m_videoInput->setCaptureRate(m_captureFps);
+        m_videoInput->setExposureUs(m_captureExposureUs);
         if (m_videoInput->start(m_deviceId))
             return;
 

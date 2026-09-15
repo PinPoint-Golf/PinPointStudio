@@ -176,10 +176,16 @@ row, so one table serves both:
   exposure *and* rate control enabled with the rate written — a cropped ROI alone does nothing.
 - **A note for the capture path.** When AcquisitionFrameRate's maximum was read straight after the
   Width/Height write, it was one ROI stale: the rate applied was the previous ROI's maximum and the
-  delivered rate followed it, in every row of a sweep. A write to ExposureTime in between refreshed
-  it. `VideoInputSpinnaker` applies the ROI and later toggles AcquisitionFrameRateEnable before
-  reading the maximum (~L538); whether that toggle refreshes the cache the way the exposure write
-  did was not tested, and should be, before the Cameras panel's figure is trusted for a cropped ROI.
+  delivered rate followed it, in every row of a sweep. The cause is the GenApi node cache — a
+  Width/Height write does not invalidate the rate node's cached maximum — and the fix is
+  `InvalidateNodes()` on the node map after the write, which reads fresh every time, under auto
+  or locked exposure alike (a same-value ExposureTime write, first thought to refresh it, does
+  not; the rate write of the previous sweep step had). Two further firmware facts, found when the
+  first build of the Settings placement offered nothing: this camera has **no**
+  AcquisitionFrameRateEnable node — it has the legacy AcquisitionFrameRateEnabled and
+  AcquisitionFrameRateAuto, so the app's guarded write to the SFNC name had always been a silent
+  no-op — and ExposureTime is read-only until ExposureAuto is Off. `VideoInputSpinnaker::start()`
+  and the enumerate-time probe in `video_input_factory.cpp` now do all three.
 - **Binning is the other 320×240.** BinningVertical = 2 sets both axes (BinningHorizontal is
   read-only and follows it): 640×512 over the full field at 470–475 fps delivered, pixel format still BayerRG8 (the
   colour correctness of a binned Bayer frame was not checked by eye). So on this camera both
@@ -419,6 +425,26 @@ The design was written around 320×240 at 420 fps. With §3.1 measured, the chos
 What this does not settle is the light: at 70 µs the floods or strobe must bring a 640 × 240 mm
 patch to a usable level on a Bayer sensor, which is the blur-and-level measurement §11 step 2
 still asks for before any fitting is written.
+
+**In Settings → Cameras (built 2026-09-15).** The VIEW selector gains **Club/Ball Impact**. It is
+offered only to a camera that reaches 420 fps at some crop, which the backend establishes at
+enumeration by probing the candidate crops (640×240, 640×320, 1280×240, 320×240, 640×480) on
+the camera's own rate node — nodes only, no acquisition — and publishing each one's advertised
+maximum. Exactly one camera holds the placement: assigning it clears it from any other. On first
+assignment the row seeds the recommended mode and a 70 µs exposure; the row then shows IMPACT
+MODE chips (crop × rate, ★ on the recommended one) in place of the frame-rate chips, and an
+EXPOSURE chip row (30/50/70/100 µs). A mode sets the crop *size* and the rate; the crop's
+*position* is placed in the ordinary crop editor. All three apply at the next connect, in the
+order ROI → exposure → rate (§3.1's stale-max and exposure-clamp rules), and the ring is sized
+for the mode's rate rather than the 200 fps GenICam default. Pose estimation is off for the
+impact camera. The rate the chips show is the camera's advertised maximum; the delivered rate
+(§3.1's table) is what the tile's live counter reports.
+
+**An iPhone over PPCP is not a candidate,** and the selector does not offer it one. Two of §3's
+requirements fail on the device, not on the transport: every iPhone camera is a rolling shutter
+(§10.1), and the fastest declared profile is 240 fps at 1080p, which §2 puts at two head
+positions in the field — a mean direction, not a tangent. The shortest exposure it locks is
+1/8000 s (125 µs), above the 70 µs budget besides. A phone stays the DTL camera.
 
 ## 11. Order of work
 

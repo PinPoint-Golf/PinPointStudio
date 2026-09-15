@@ -127,8 +127,16 @@ public:
     // Perspective values — matches the perspective badge in PpCameraFrame.qml.
     // Registered with QML (CameraInstance.FaceOn etc.) — use the enum names in
     // QML, never the raw integers.
-    enum Perspective { None = 0, DownTheLine = 1, FaceOn = 2, Other = 3 };
+    // Impact is the club/ball impact camera (impact_camera_design.md §10): a
+    // small, fast crop aimed at the ball. At most ONE camera holds it —
+    // CameraManager::assignPerspective clears it from every other camera.
+    enum Perspective { None = 0, DownTheLine = 1, FaceOn = 2, Other = 3, Impact = 4 };
     Q_ENUM(Perspective)
+
+    // The impact camera's exposure when none is stored: ≤ 70 µs keeps blur
+    // under 2 px at ~1 mm/px (impact_camera_design.md §1). CamerasPanel.qml
+    // carries the same default for its chips.
+    static constexpr double kImpactDefaultExposureUs = 70.0;
 
     explicit CameraInstance(QObject *parent = nullptr);
     explicit CameraInstance(const Device &device,
@@ -485,4 +493,13 @@ private:
     int                m_sensorHeight       = 0;
     int                m_expectedCropWidth  = 0;     // ceil16(crop x sensor); 0 = no crop
     int                m_expectedCropHeight = 0;
+
+    // Capture rate and exposure pushed to the backend at connect, frozen at
+    // construction like the crop. 0 = leave the camera at its own settings
+    // (every camera today except the impact camera, whose mode is a crop AND
+    // a rate AND a locked exposure — impact_camera_design.md §10.2). The
+    // rate also sizes the ring: a 591 fps source on the 200 fps GenICam
+    // default would hold 1.7 s, not 5.
+    double             m_captureFps        = 0.0;
+    double             m_captureExposureUs = 0.0;
 };

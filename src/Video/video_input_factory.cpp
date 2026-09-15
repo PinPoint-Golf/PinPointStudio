@@ -19,6 +19,8 @@
 #include "video_input_factory.h"
 #include "video_input.h"
 #include "camera_capabilities.h"
+#include <QStringList>
+#include <algorithm>
 #include "../Core/device_enumerator.h"
 
 #ifdef Q_OS_MACOS
@@ -170,6 +172,52 @@ void VideoInputFactory::enumerateDevices()
             caps.roi.offsetXRange = { 0, wMax, wInc, 0 };
             caps.roi.offsetYRange = { 0, hMax, hInc, 0 };
 
+            // --- Frame rate at full sensor, and at the impact-camera crops ---
+            // Mirrors the Spinnaker block below (impact_camera_design.md
+            // §10.2): reset to the full sensor first (the camera keeps its
+            // last ROI), read the full-frame bounds, then each candidate
+            // crop's bounds, and leave the region at full sensor — start()
+            // rewrites it. ⚠ Untested on hardware as of 2026-09-15; the
+            // Spinnaker path is the measured one.
+            if (wMax > 0 && hMax > 0) {
+                auto rateAt = [&](gint w, gint h, double &maxOut) -> bool {
+                    GError *rErr = nullptr;
+                    arv_camera_set_region(cam, 0, 0, w, h, &rErr);
+                    if (rErr) { g_clear_error(&rErr); return false; }
+                    double fMin = 0.0, fMax = 0.0;
+                    arv_camera_get_frame_rate_bounds(cam, &fMin, &fMax, &rErr);
+                    if (rErr) { g_clear_error(&rErr); return false; }
+                    maxOut = fMax;
+                    return fMax > 0.0;
+                };
+                double fullMax = 0.0;
+                if (rateAt(wMax, hMax, fullMax)) {
+                    caps.frameRate.kind               = CapabilityKind::Range;
+                    caps.frameRate.readable           = true;
+                    caps.frameRate.writable           = true;
+                    caps.frameRate.range.max          = fullMax;
+                    caps.frameRate.range.defaultValue = arv_camera_get_frame_rate(cam, nullptr);
+                }
+                static const gint kProbe[][2] = {
+                    {640, 240}, {640, 320}, {1280, 240}, {320, 240}, {640, 480}
+                };
+                QVariantList modes;
+                for (const auto &m : kProbe) {
+                    if (m[0] > wMax || m[1] > hMax) continue;
+                    const gint w = std::max(wMin, (m[0] / std::max(1, wInc)) * std::max(1, wInc));
+                    const gint h = std::max(hMin, (m[1] / std::max(1, hInc)) * std::max(1, hInc));
+                    double fMax = 0.0;
+                    if (!rateAt(w, h, fMax)) continue;
+                    QVariantMap mode;
+                    mode[QStringLiteral("w")]   = w;
+                    mode[QStringLiteral("h")]   = h;
+                    mode[QStringLiteral("fps")] = fMax;
+                    modes.append(mode);
+                }
+                arv_camera_set_region(cam, 0, 0, wMax, hMax, nullptr);
+                caps.extensions[QStringLiteral("impact.modes")] = modes;
+            }
+
             guint nFormats = 0;
             const char **fmts = arv_camera_dup_available_pixel_formats_as_strings(cam, &nFormats, nullptr);
             if (fmts) {
@@ -308,13 +356,55 @@ void VideoInputFactory::enumerateDevices()
                 // (auto rate), which causes GetMax() to return the
                 // exposure-limited rate rather than the hardware maximum.
                 // Enable it briefly to read the true hardware max, then restore.
+                // ⚠ Two spellings: Blackfly S firmware has the SFNC
+                // AcquisitionFrameRateEnable; Chameleon3 / legacy FLIR firmware
+                // has AcquisitionFrameRateEnabled + AcquisitionFrameRateAuto
+                // and no node of the SFNC name at all (checked on the studio
+                // CM3-U3-13Y3C, fw 1.13.3.00, 2026-09-15). Touch whichever exists.
                 CBooleanPtr ptrFpsEnable = nodeMap.GetNode("AcquisitionFrameRateEnable");
+                if (!IsAvailable(ptrFpsEnable))
+                    ptrFpsEnable = nodeMap.GetNode("AcquisitionFrameRateEnabled");
                 bool restoredFpsEnable = false;
                 if (IsAvailable(ptrFpsEnable) && IsWritable(ptrFpsEnable)
                         && !ptrFpsEnable->GetValue()) {
                     ptrFpsEnable->SetValue(true);
                     restoredFpsEnable = true;
                 }
+
+                // ⚠ The rate's maximum ALSO depends on the ROI, and the camera
+                // keeps its ROI across app runs: after an impact session a
+                // 240-row crop is still programmed and the "full-frame" max
+                // would read 611.7, not 150.7. Reset to the full sensor before
+                // reading, and leave it there — start() rewrites the ROI anyway.
+                // AND a Width/Height write does not invalidate the rate node's
+                // cached maximum, so the first read after it is one ROI stale;
+                // InvalidateNodes() after the write is what refreshes it. Both
+                // measured on the studio Chameleon3s, 2026-09-15
+                // (impact_camera_design.md §3.1).
+                CIntegerPtr ptrOX  = nodeMap.GetNode("OffsetX");
+                CIntegerPtr ptrOY  = nodeMap.GetNode("OffsetY");
+                const bool roiWritable = IsAvailable(ptrW) && IsWritable(ptrW)
+                                      && IsAvailable(ptrH) && IsWritable(ptrH);
+                const int64_t sensorW = caps.resolution.widthRange.max;
+                const int64_t sensorH = caps.resolution.heightRange.max;
+                auto setRegion = [&](int64_t w, int64_t h) {
+                    // Offsets to minimum first so a stale offset never clamps
+                    // the size; snapped down to the node increments.
+                    if (IsAvailable(ptrOX) && IsWritable(ptrOX)) ptrOX->SetValue(ptrOX->GetMin());
+                    if (IsAvailable(ptrOY) && IsWritable(ptrOY)) ptrOY->SetValue(ptrOY->GetMin());
+                    auto snap = [](int64_t v, int64_t inc, int64_t lo, int64_t hi) {
+                        inc = inc > 0 ? inc : 1;
+                        v   = v < lo ? lo : (v > hi ? hi : v);
+                        return lo + ((v - lo) / inc) * inc;
+                    };
+                    ptrW->SetValue(snap(w, ptrW->GetInc(), ptrW->GetMin(), ptrW->GetMax()));
+                    ptrH->SetValue(snap(h, ptrH->GetInc(), ptrH->GetMin(), ptrH->GetMax()));
+                    nodeMap.InvalidateNodes();   // the rate's max is cached across this write
+                };
+                if (roiWritable && sensorW > 0) {
+                    try { setRegion(sensorW, sensorH); } catch (...) {}
+                }
+
                 CFloatPtr ptrFps = nodeMap.GetNode("AcquisitionFrameRate");
                 if (IsAvailable(ptrFps) && IsReadable(ptrFps)) {
                     caps.frameRate.kind               = CapabilityKind::Range;
@@ -325,6 +415,47 @@ void VideoInputFactory::enumerateDevices()
                     caps.frameRate.range.step         = 0;
                     caps.frameRate.range.defaultValue = ptrFps->GetValue();
                 }
+
+                // --- Impact-camera crops (impact_camera_design.md §10.2) ---
+                // A row-readout sensor gets faster as the crop gets shorter, and
+                // only the camera knows by how much: 591 fps at 240 rows on a
+                // Chameleon3 whose full frame is 150. Probe the candidate impact
+                // crops here (nodes only, no acquisition) and publish each one's
+                // advertised maximum so Settings offers modes with real numbers.
+                // Recommended order first (640×240 — §10.2); CameraManager drops
+                // the ones under 420 fps. The advertised figure runs 1–3.5%
+                // above delivered off the firmware cap (§3.1).
+                if (roiWritable && sensorW > 0 && IsAvailable(ptrFps) && IsReadable(ptrFps)) {
+                    static const int kProbe[][2] = {
+                        {640, 240}, {640, 320}, {1280, 240}, {320, 240}, {640, 480}
+                    };
+                    QVariantList modes;
+                    for (const auto &m : kProbe) {
+                        if (m[0] > sensorW || m[1] > sensorH) continue;
+                        try {
+                            setRegion(m[0], m[1]);
+                            QVariantMap mode;
+                            mode[QStringLiteral("w")]   = int(ptrW->GetValue());
+                            mode[QStringLiteral("h")]   = int(ptrH->GetValue());
+                            mode[QStringLiteral("fps")] = ptrFps->GetMax();
+                            modes.append(mode);
+                        } catch (...) {}
+                    }
+                    try { setRegion(sensorW, sensorH); } catch (...) {}
+                    caps.extensions[QStringLiteral("impact.modes")] = modes;
+                    QStringList summary;
+                    for (const QVariant &v : modes) {
+                        const QVariantMap m = v.toMap();
+                        summary << QStringLiteral("%1x%2@%3")
+                                       .arg(m.value(QStringLiteral("w")).toInt())
+                                       .arg(m.value(QStringLiteral("h")).toInt())
+                                       .arg(m.value(QStringLiteral("fps")).toDouble(), 0, 'f', 1);
+                    }
+                    ppInfo() << "[VideoInputFactory] Spinnaker" << model << serial
+                             << "full-frame max" << caps.frameRate.range.max
+                             << "fps; impact crops:" << summary.join(QLatin1String(", "));
+                }
+
                 if (restoredFpsEnable && IsAvailable(ptrFpsEnable) && IsWritable(ptrFpsEnable))
                     ptrFpsEnable->SetValue(false);
 

@@ -139,6 +139,11 @@ public slots:
     // Sets the perspective on one camera. Any number of cameras may share a
     // perspective (e.g. two face-on cameras in one session).
     Q_INVOKABLE void setPerspective(QObject *controller, int perspective);
+    // Assigns a perspective by camera key: persists it, pushes it to the live
+    // instance, and — for Impact only — clears Impact from every other camera.
+    // One impact camera is all the analysis can use and two would fight over
+    // the same crop-and-rate mode; face-on/DTL/Other stay shareable as above.
+    Q_INVOKABLE void assignPerspective(const QString &cameraKey, int perspective);
     Q_INVOKABLE void setIsMirrored(QObject *controller, bool mirrored);
 
     // Sets the hitting-area ROI on one camera and persists it per cameraKey.

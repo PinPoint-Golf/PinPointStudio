@@ -195,7 +195,7 @@ QtObject {
 
         { panelIndex: 3, panelLabel: qsTr("Cameras"),     groupLabel: qsTr("Camera device settings"),
           label: qsTr("Camera view assignment"),           subtitle: qsTr("Assign each camera to a perspective"),
-          actions: "View Face-on Down-the-line perspective unassigned Other",
+          actions: "View Face-on Down-the-line perspective unassigned Other Impact Club/Ball Impact",
           itemId: "" },
 
         { panelIndex: 3, panelLabel: qsTr("Cameras"),     groupLabel: qsTr("Camera device settings"),

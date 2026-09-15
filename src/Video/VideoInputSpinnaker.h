@@ -50,6 +50,10 @@ public:
     // GenICam OffsetX/OffsetY/Width/Height nodes applied on the next start().
     bool supportsHardwareCrop() const override { return true; }
     void setCropRegion(const QRectF &norm) override { m_cropRegion = norm; }
+    // AcquisitionFrameRate / ExposureTime written on the next start(), after
+    // the ROI (the rate's maximum depends on it). 0 = leave the camera alone.
+    void setCaptureRate(double fps) override { m_captureFps = fps; }
+    void setExposureUs(double us)   override { m_exposureUs = us; }
 
 private:
     void captureLoop();
@@ -65,6 +69,8 @@ private:
     int   m_bayerPattern = 0;   // RawVideoFrame::BayerPattern int, valid when Bayer format selected
     bool  m_emitRaw      = false; // true when camera runs a Bayer pixel format
     QRectF m_cropRegion;          // normalized crop; empty = full sensor
+    double m_captureFps = 0.0;    // requested AcquisitionFrameRate; 0 = camera default
+    double m_exposureUs = 0.0;    // requested ExposureTime (auto off); 0 = camera default
 
     // Exposure chunk data (set in start(), read in captureLoop()).
     bool  m_chunkExposureEnabled = false; // ChunkExposureTime successfully enabled

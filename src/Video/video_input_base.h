@@ -114,6 +114,15 @@ public:
     // start lambda. Default is a no-op (software-cropped backends).
     virtual void setCropRegion(const QRectF &) {}
 
+    // Frame rate (fps) and exposure (microseconds) to apply on the NEXT
+    // start(), for backends that can set them (GenICam). 0 means leave the
+    // camera as it is, which is what every camera gets except the impact
+    // camera (impact_camera_design.md §10.2: a crop, a rate AND a locked
+    // exposure make the mode). A non-zero exposure turns auto-exposure off.
+    // Same threading rule as setCropRegion(). Default is a no-op.
+    virtual void setCaptureRate(double) {}
+    virtual void setExposureUs(double) {}
+
     // Query what this camera can do. Returns a default-constructed
     // CameraCapabilities (all fields Unavailable / zero) if the camera has
     // not been opened yet or the backend does not support introspection.

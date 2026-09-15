@@ -410,8 +410,8 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         // Camera setup at capture time (additive). perspectiveName saves
         // readers a magic-number table; fixedInPlace is the camera-side
         // "calibrated" signal SwingLab filters on.
-        static const char* kPerspectiveNames[] = {"None", "DownTheLine", "FaceOn", "Other"};
-        const int pi = (rec.cam->perspective >= 0 && rec.cam->perspective <= 3)
+        static const char* kPerspectiveNames[] = {"None", "DownTheLine", "FaceOn", "Other", "Impact"};
+        const int pi = (rec.cam->perspective >= 0 && rec.cam->perspective <= 4)
                            ? rec.cam->perspective : 0;
         QJsonObject ballDetection{
             {QStringLiteral("calibrated"),     rec.cam->ballCalibrated},
