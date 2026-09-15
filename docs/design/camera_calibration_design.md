@@ -21,6 +21,13 @@ can get *more* than the board gives for 3-D fusion, with a ball wand. §3.3 is n
 §3.4 says how intrinsics are fetched, stored, bound and used — and corrects the assumption that a
 phone delivers them per frame, which is false at 240 fps — §4.4–§4.7 are new, §6.3–§6.4 are new,
 and §10–§12 are revised to match.
+**Revised 2026-09-15:** the impact camera (§4.8, stages 13–14, §11 items 11–16).
+- **The finding behind it:** the first graded impact-camera session showed a ball-diameter ruler is not
+  good enough for speeds and angles at the ball: ±10 % from the threshold on a dim ball, and ~9° of
+  launch angle lost to a tilted mount.
+- **What it adds:** a ChArUco card solved for pose in the measurement plane, for a face-on floor mount
+  (built first) and an elevated path camera (a tripod at 1–2 m looking down from the face-on side, to validate path). The ball is kept as a relative ruler and verifier, and the launch
+  monitor as a health check that is never fitted.
 
 ---
 
@@ -452,6 +459,128 @@ Its second role matters more than its first: the per-shot shaft-length and limb-
 are a **calibration-health indicator** (§7.2). The failure mode of improvised calibration is not
 inaccuracy; it is *undetected* inaccuracy, and this is what detects it.
 
+### 4.8 ⭐ The impact camera — a card at the ball, in the plane the metric lives in
+
+*Added 2026-09-15.* The impact camera ([impact_camera_design.md](impact_camera_design.md)) is a
+640 × 240 strip at 592 fps centred on the ball. It is the one camera in the bay whose numbers are
+speeds and angles at the ball, rather than overlays and body angles, and it needs its own treatment.
+
+**Why the ball alone is not enough — the first graded attempt, 2026-09-15.**
+- **Setup:** the camera was on a tripod as low as the tripod went, looking down at the ball, with a
+  launch monitor on the same swings. Mark has set that session aside as a rig to learn from, not data.
+- **Absolute ruler:** the ball's diameter in pixels on a dim, top-lit ball moved **±10 % with the
+  detection threshold**, and the resting ball was under-measured outright. Ball speed read **1.3–1.5 ×**
+  the launch monitor on the detector's own resting radius, and 1.06–1.25 × on an edge-measured one.
+  §4.2's ±2.5 % assumes ±1 px on a well-lit edge. A dim ball's edge is not one.
+- **Tilt:** launch angle read **~9° low on every swing**. A camera looking down at a plane it is not
+  square to turns motion out of that plane into motion within it, and no single-view correction
+  recovers it.
+
+⛔ So **the impact camera's metrics do not go live on G1.** The ball stays in the loop as a *relative*
+ruler and a verifier (below), never as the scale.
+
+**Two placements, one method.** Both are designed; the face-on floor mount is built first because it is
+the only one that gives launch angle and full ball speed.
+
+| | **A — face-on, just above the floor** (first) | **B — elevated, looking down from the face-on side** (second: a tripod at 1–2 m, to validate path) |
+|---|---|---|
+| Measurement plane P | the vertical plane containing the target line, through the ball centre | the horizontal plane at the mat |
+| Card | stood **upright**, printed face on the target line through the ball spot | laid **flat** on the mat, origin tick on the ball spot, x arrow toward the target |
+| Target-line axis from | the card's base edge on the mat (horizontal); the mat's level is §11's to check | ⭐ **an alignment stick along the target line in view**: a ~600 px line fit, ~0.1°. The card's printed arrow is only as good as the operator's eye (±1–2°), and club path needs ≤ 0.5° |
+| Gives | ball speed, launch angle, clubhead speed, attack angle, low point, high/low strike | club path, heel/toe strike, launch direction, horizontal ball and clubhead speed |
+| Never gives | path, face | launch angle, attack angle, low point; **full** ball speed without a launch angle from elsewhere (a 30° wedge launch reads 13 % low horizontally) |
+| Lens for ~1 mm/px | f ≈ 4.8 µm × range: ~8 mm at ~1.6 m (preferred), ~4.8 mm at 1 m | ~8 mm at a ~1.5 m slant range |
+
+**The card.** A4 landscape on 5 mm foam board:
+- **Pattern:** ChArUco 7 × 5, 40 mm squares, 30 mm markers, `DICT_4X4_50`. That is 280 × 200 mm, which
+  fits the 240 mm strip at ~1 mm/px with its base on the mat.
+- **Resolution:** at that scale a marker cell is ~5 px, still decodable, and corners localise to
+  ~0.2–0.3 px. Partial views still solve (§4.1).
+- **Face-on card:** stands in a right-angle foot (a book end, or a printed bracket) so it is upright.
+  A printed tick at x = 0 marks where the ball centre goes, so the solved frame has its origin at the
+  ball spot on the mat and the ball centre at (0, 21.3 mm).
+
+⛔ **Solve a pose, not a homography.** With the bound intrinsics (§3.4), `solvePnP` on the card corners
+gives the camera's full pose relative to P, not just an image→P map. That matters because much of what
+is measured is *not* in P:
+- **The ball** placed nearer or further than the spot sits in a parallel plane at offset d.
+- **The tracked hosel** sits ~30–45 mm further from a face-on lens than the face centre (heel side,
+  toward the golfer). Mapped into P that is ~4 % of speed at 1 m and ~2.5 % at 1.6 m.
+- **Placement B heights:** the ball centre is at +21 mm, a teed driver ball +50 mm, the head's top line
+  +40–60 mm. At B's ~1.5 m slant range that is 1.4–4 %, so each is mapped at its own height.
+
+With a pose, each of these is a ray–plane intersection at a stated offset. With only a homography, each
+is a silent scale error.
+
+**Intrinsics.**
+- **I1:** pixel pitch (the Chameleon3's PYTHON 1300 is 4.8 µm) and the typed focal length.
+- **The crop:** its position shifts `cx, cy` and never `f` (§3.4: store the invariants, derive per mode).
+- ⭐ **Prefer the longer lens further back:** less barrel distortion across the strip, a smaller
+  perspective ramp as the ball moves in depth, and further from a shank. A lens shorter than ~6 mm gets
+  the I2 board solve before its G record is trusted.
+
+**Mounting tolerances for placement A, and what each buys:**
+
+| | Tolerance | Because |
+|---|---|---|
+| Pitch (looking up/down) | ≤ 3° | The pose corrects it for points in P. For motion *out* of P (a ±5° start direction is ±9 % of the ball's speed sideways), tilt leaks that sideways motion into vertical as sin τ: ~0.2° of launch at 2°, several degrees at the 15 Sept tripod's angle |
+| Yaw (axis vs square to the target line) | ≤ 5° | Leaks sideways motion into horizontal: < 1 % of speed |
+| Roll | anything the framing allows | Fully corrected by the pose |
+| Lens height | ball centre to ~100 mm above the mat | Keeps the ball and the bottom of the arc near the optical axis |
+| Range | ≥ 1.5 m with f ≈ 8 mm | A ball starting 5° off line moves ~22 mm in depth across the track: a 1.4 % scale ramp at 1.6 m, 2.2 % at 1 m |
+| Ball position in frame | ~60 % across, the larger share on the club's approach side | 6–7 head frames before impact instead of 4 |
+| Guard | a low shield in front of the lens | It is in the shank zone, as the GCQuad is |
+
+**For placement B:** a tripod at 1–2 m on the face-on side, looking down at ε ≥ 45° (≥ 60° preferred).
+Its job is to validate and verify path estimates, ours and `lm.clubPath`.
+
+⛔ **An angled view mixes the head's vertical motion into the in/out motion path is made of.** The
+image's vertical velocity is v_inout·sin ε + v_vertical·cos ε.
+- **Uncorrected, at 60°:** a −4° attack angle reads as ~2° of path, and a 30° launch as ~19° of launch
+  direction.
+- **So B is solved jointly with A, in the bay frame.** A measures the vertical motion (attack angle; the
+  ball's launch angle), and B's in/out velocity is recovered with it removed. A 1° error in A costs
+  ~0.6° of path at 60°, 1° at 45°, and nothing as ε → 90°.
+- **Without A, B's path is withheld.** It is never corrected with `lm.attackAngle`: B is the check on
+  the monitor's path, and borrowing the monitor's angle couples the errors being checked.
+- **Why steeper is better:** in/out resolution scales with sin ε (−13 % at 60°), and the card on the
+  mat is well conditioned at these angles.
+
+**Per-shot corrections and checks, from the clip itself:**
+
+1. ⭐ **The ball as a *relative* ruler.** When the card is solved, the record also stores the ball's
+   detected diameter at address, under the same detector and light. Per shot, D_cal / D_shot gives the
+   ball's range and so its offset d. A same-detector ratio cancels the threshold bias that sank the
+   absolute ruler. Its repeatability is §11's to measure, and it is the uncertainty carried on d.
+2. **A static tag.** One 30 mm ArUco tag fixed in view (the mat edge, a floor block). This is §7.1's
+   fiducial with an identity. Its pose in each clip's background frame, compared with the record, is
+   the bump check. A moved camera invalidates the record and says so (§7.3).
+3. **Time base.**
+   - Camera timestamps, measured frame rate against nominal, and gaps counted.
+   - Speeds differentiate against frame index × the median period, because single timestamps jitter
+     ±0.4 ms on the Chameleon3.
+4. **Blur.** Ball-limb edge spread along versus across its motion (§5.5): directional blur is the
+   exposure, isotropic blur is focus.
+5. ⭐ **The launch monitor, where present, is a health check and never a fit.** Per shot it records the
+   ball-speed ratio and launch-angle bias (A), or the launch-direction bias (B), beside the calibration
+   verdict. Fitting to it would make every later grade circular.
+
+**A dropped ball** through P verifies the vertical (~0.2° from a 30-frame track), not the scale: g over
+the ~55 ms a dropped ball spends crossing a 240 mm strip is only good to ±8 %.
+
+**Both impact cameras land in the bay frame.** Both cards use the ball spot as origin and the target
+line as x, so the two impact records and the wide cameras' G2/G3 frame (§6.3) agree without
+co-visibility. Placement B's path and placement A's attack angle then compose into club delivery at the
+ball in 3-D.
+
+**Tiers for the impact camera.**
+- **G4, the card:** the precise path, and the one the metrics are designed around.
+- **G2, no printer:** two alignment sticks with tape marks every 100 mm, one upright on the ball spot
+  and one along the target line. For placement A both lie in P (~1 % scale, ~0.3°); for placement B the
+  line stick lies on the mat and the marks give scale. Recorded as G2.
+- **G1, ball only:** the impact metrics are withheld with the reason shown ("impact camera not
+  calibrated").
+
 ---
 
 ## 5. Focus
@@ -739,6 +868,8 @@ Each stage is independently useful, and nothing later is needed for something ea
 | **10** | **Break the plane (G3)** — a vertical stick, a typed camera height, and gravity consumed from the phone's metadata stream. | Small increments on 9; the vertical stick is the one that pays. |
 | **11** | **Board extrinsics (G4)** — the §6.1 ceremony. | Now a modest increment on 7 + 9, for the operator who owns a board and wants ±mm at the ball. |
 | **12** | **Wand + bundle adjustment (G5)**, shaft/limb-length refinement, per-shot residual health. | The real unlock for 3-D fusion of pose and shaft. Needs the printed collars and a sync check (§4.6). |
+| **13** | **Impact camera card calibration (§4.8)**, placement A (face-on floor) first. The card is detected in a calibration clip, the pose solved against the bound I1 record, the reference ball diameter at address stored, and one 30 mm tag registered. Then placement B (a tripod at 1–2 m on the face-on side, looking down; card flat plus a target-line stick; path solved jointly with A). | Needs only 2 and 3, so it can **precede 4–12**. The impact camera's speeds and angles gate on it, and nothing else in the bay does. |
+| **14** | **Impact per-clip checks (§4.8):** the ball diameter ratio and its offset, the tag pose against the record, time-base gaps, blur anisotropy, and the launch-monitor residual where a monitor is present. Each is recorded on the swing beside the verdict. | The impact camera's §7. Without it a knocked tripod is invisible, which is the failure the first attempt had. |
 
 ---
 
@@ -768,6 +899,25 @@ Each stage is independently useful, and nothing later is needed for something ea
     settles it, and tells us whether the 240 fps mode narrows the view as expected.
 9. **Wand detection in motion** at 150 and 240 fps — ball-detector hit rate and centre σ at 1 m/s,
    and the actual rolling-shutter smear on the phone against its declared `readout_ns`.
+11. **Impact card solve repeatability (§4.8).** Take the card out of its foot and re-seat it five times.
+    The spread of the solved scale and plane is the impact camera's G4 uncertainty.
+12. **Ball-diameter *ratio* repeatability at address on the impact camera,** same light:
+    - twenty shots at the spot, then the ball deliberately ±25 mm from it;
+    - compare with the card-solved depth.
+
+    It sets the σ carried on every shot's depth offset.
+13. **The chosen lens's distortion across the strip:** the card's straight edges laid across the full
+    width. It decides whether I1 is enough or the lens needs I2 first.
+14. **Mat level and the card's lean in its foot,** with a spirit level or a phone. This is the horizontal
+    reference's σ, and it lands one-for-one on launch angle and attack angle.
+15. **What a level floor camera sees behind the ball:** the golfer's feet and the trail heel lifting
+    through impact. Does the club track survive them?
+16. **The first graded impact session, as a protocol, not an ad-hoc recording:**
+    - **Rig:** the calibrated face-on floor mount, the tag in view, the launch monitor on.
+    - **Swings:** a dozen each with a wedge and a 7-iron, labelled correctly.
+    - **Checks:** a dropped-ball vertical check before and after.
+    - **Grading:** ball speed, launch angle, clubhead speed and attack angle against the monitor, reported
+      with the calibration's own σ beside them.
 
 ---
 

@@ -12,6 +12,17 @@ consumes the clip, the UI. Those are named where they matter (§8) and designed 
 Chameleon3s — §3.1. The 420 fps the design was written around is now a measured 591 fps at a
 240-row ROI (612 fps at ≤ 224 rows), at any width up to the full 1280; §1, §2, §10 and §11 carry
 the measured figures alongside the original ones.
+**Update 2026-09-15 (evening) — placement decided, calibration made a precondition.** Both placements
+are designed: **the face-on floor mount (§4) is built first**, because it is the only one that gives
+launch angle and full ball speed. The elevated path camera (§5) follows: a tripod at 1–2 m looking
+down from the face-on side, to validate and verify path estimates, solved jointly with the floor
+camera.
+- **Why calibration comes first:** a first graded session, a tripod as low as it went looking down,
+  with the launch monitor alongside, showed the ball-diameter ruler this document leaned on (§4
+  "Scale") is not good enough. It read ball speed 1.3–1.5 × the monitor, and launch angle ~9° low.
+- **What changes:** every speed and angle here now needs the card calibration of
+  [camera_calibration_design.md](camera_calibration_design.md) §4.8. The ball stays as a relative
+  ruler and a verifier. The session itself was set aside as a rig lesson, not data.
 
 ---
 
@@ -26,7 +37,8 @@ the measured figures alongside the original ones.
    update; [camera_calibration_design.md](camera_calibration_design.md) §7). This camera
    reproduces that problem exactly unless §3 is honoured.
 2. **No single placement gives all three asked-for quantities.** A ground-level **face-on zoom**
-   gives attack angle, low point and high/low strike. An **overhead** gives club path and
+   gives attack angle, low point and high/low strike. A camera **looking down on the ball** (§5: a
+   tripod at 1–2 m on the face-on side, to validate path) gives club path and
    heel/toe strike. Face angle should come from *neither* camera: with path measured, it falls
    out of the launch monitor's launch direction on a well-conditioned equation (§6).
 3. **420 fps is the right rate for the metrics, and the right rate for the visual only because
@@ -34,7 +46,7 @@ the measured figures alongside the original ones.
    there is never a frame with the ball on the face. The product is the frames *plus* the fitted
    arc, the ghosted head positions and the marked impact instant — which are the metric
    pipeline's own outputs, so there is no separate visual layer to build (§7).
-4. **Build the face-on zoom first, the overhead second.** The face-on is a ground mount beside
+4. **Build the face-on zoom first, the elevated path camera second.** The face-on is a ground mount beside
    hardware we already have, it is the clip people want to look at, and every one of its
    outputs has a criterion we already own (§9). In the studio that means the tripod Chameleon3
    becomes the impact camera and an iPhone takes over DTL — **after** an overlap session shows
@@ -227,29 +239,89 @@ containing the target line: the arc's vertical profile, the ball, the mat surfac
 | **Low point ahead** | vertex of the same fit | becomes a *measured* vertex for irons; for a driver (+AoA) the vertex sits before the ball, still inside a 400 mm field. Replaces the P7-pinned interpolation vertex that `lowPointAhead` reads today, with its frozen σ = 2.0 in |
 | **Impact instant** | first frame with the ball displaced, minus displacement ÷ the LM's ball speed | sub-frame, ~0.1 ms; a clip-local anchor that needs no cross-camera sync |
 | **High/low strike** | fitted head (leading edge / face centre) evaluated at that instant, vertically against the ball centre | same axis as `lm.strikeHeight`; always an extrapolation, never observed (§7) |
-| **Clubhead speed at the ball** | frame-to-frame head displacement on the fit | a check on the composed speed, not a replacement |
+| **Clubhead speed at the ball** | head velocity at the contact instant from a one-sided fit over the pre-contact frames, in plane millimetres, the hosel's depth offset applied | the camera-available rung on `clubheadSpeed`, graded against `lm.clubheadSpeed` as the composed speed was |
+| **Ball speed** | robust line (Theil–Sen) through the in-flight ball centres against frame index × median period, in plane millimetres | graded against `lm.ballSpeed`. A ±5° start direction costs 0.4 %; per-frame pairs are useless (timestamps jitter ±0.4 ms) |
+| **Launch angle** | the same line's direction in P | graded against `lm.launchAngle`. Only this placement gives it (§5 cannot) |
 | **Shaft lean at impact** | shaft line in the last pre-impact frame | bonus; foreshortening is small in this view |
 
 **What it cannot give:** path. In/out motion is along the optical axis. (At very short range
 the head's apparent size changes with depth, and a close-mounted camera *could* read a
 ±1–2° path from scale — the GCQuad geometry — but that is a stretch, not a plan.)
 
-**Scale** comes from the ball itself, exactly as today: `mmPerPx = kBallDiameterMm /
-(2·radiusPx)` at the ball's depth (`ball_temporal.h`). The head is at the same depth to within
-a few centimetres, so the ruler is good to a couple of percent without a calibration board.
+**Scale comes from the card calibration, not from the ball** (corrected 2026-09-15). This section used
+to say the ball-diameter ruler was good to a couple of percent without a board.
 
-## 5. Placement B — overhead, looking straight down
+*What the first graded session showed.* On a dim, top-lit ball the detected diameter moves ±10 % with
+the threshold. Ball speed read 1.3–1.5 × the launch monitor on it. What replaces it,
+[camera_calibration_design.md](camera_calibration_design.md) §4.8:
+- **The card.** A ChArUco card stood upright in P, the vertical plane through the ball along the target
+  line, is solved for the camera's pose. Every measurement is then made in millimetres in P, or in a
+  plane parallel to it at a stated offset.
+- **The ball, per shot.** Its diameter *relative to its reading at calibration time* gives its depth
+  offset from P. The same detector under the same light cancels the threshold bias.
+- **The hosel.** It is ~30–45 mm further from the lens than the face centre, so it is mapped at that
+  offset.
+- **A fixed tag** in view catches a bumped camera.
 
-Ceiling mount above the ball, optical axis vertical, the frame's long axis along the target
-line. The follow-through rises on the target side and the top of the backswing is behind the
-golfer, so nothing in a normal swing reaches a camera at 2.5 m directly above the ball; hands
-and head at impact are 50+ cm inside the ball and outside the field.
+**Mounting** (tolerances in §4.8):
+- **Position:** level, within 3° of pitch, and square to the target line within 5°. Lens between ball
+  height and ~100 mm above the mat.
+- **Lens and framing:** ≥ 1.5 m back with an ~8 mm lens, ball ~60 % across.
+- **Guard:** a low guard in front of the lens.
+
+⚠ **Two things a level floor camera sees that the tilted tripod did not.** Both are for the first
+calibrated session to measure ([camera_calibration_design.md](camera_calibration_design.md) §11,
+items 15–16):
+- **The golfer's feet**, 300–500 mm behind the ball and inside the 240 mm strip, with the trail heel
+  lifting through impact. The background model is built at address, so the heel's rise is foreground
+  near the arc bottom.
+- **The room beyond the golfer.**
+
+## 5. Placement B — elevated, looking down from the face-on side (a tripod at 1–2 m)
+
+A tripod on the face-on side, the camera 1–2 m up and looking down at the ball at ≥ 45° (≥ 60°
+preferred), the frame's long axis along the target line.
+- **Its job (Mark, 2026-09-15):** to validate and verify path estimates, ours and `lm.clubPath`. It
+  is a check, not a production source.
+- **Why a tripod:** the original idea was a ceiling mount looking straight down. A tripod is what the
+  studio will actually use, and the angle it looks down at has a price, set out below.
+- **What stays out of view:** from above and in front of the ball, the golfer's hands and body at
+  impact (50+ cm inside the ball) stay out of the strip. At 60° the strip covers only ~±140 mm of
+  ground either side of the ball, so the feet are out too.
+- **What it sees of the head:** the toe-and-crown side, nearest the lens.
 
 | Quantity | Read | Note |
 |---|---|---|
-| **Club path** | tangent at the ball's position of a curved fit through the ground-plane head positions | `clubPath` sign per [pinpoint_sign_conventions.md](pinpoint_sign_conventions.md): + is the head travelling right of the target line |
+| **Club path** | tangent at the ball's position of a curved fit through the ground-plane head positions, with the head's vertical motion (from placement A, in the bay frame) removed first — see the mount notes below | `clubPath` sign per [pinpoint_sign_conventions.md](pinpoint_sign_conventions.md): + is the head travelling right of the target line |
 | **Heel/toe strike** | fitted head at the impact instant (§4's method — the ball is visible from above too) against the ball centre, along the face's heel–toe axis | same axis as `lm.strikeLocation`, toe +; perspective between head height and ground plane is a few percent — calibrate on lines drawn on the mat, accept ~3 mm |
 | **Launch direction** | ball track over its 1–2 frames in the field | a cross-check on `lm.launchDirection`, marginal at this field size |
+| **Clubhead speed** | head velocity in the ground plane at the contact instant | attack angle costs < 0.5 % at −5°; the head's top line is mapped at its height (+40–60 mm) |
+| **Ball speed (horizontal only)** | the ball line's ground-plane velocity | ⛔ **not ball speed.** It is v·cos(launch): 13 % low at a 30° wedge launch. It needs a launch angle from placement A or a monitor before it is a speed. The ball also rises toward the lens (~120 mm over the track; ~7 % of range at a 1.5 m slant range looking down at 60°), mapped at a height from that same launch angle |
+
+**Cannot give:** launch angle, attack angle, low point, and on its own a full ball speed. The ball's
+apparent growth as it rises is ~2 px over the track, not a measurement.
+
+**Calibration and mounting** ([camera_calibration_design.md](camera_calibration_design.md) §4.8):
+- **The card, for scale and tilt:** a ChArUco card flat on the mat, origin tick on the ball spot. It is
+  solved for pose.
+- **An alignment stick for direction:** the stick along the target line in view gives the target-line
+  direction to ~0.1°. The card's printed arrow is only as good as the operator's eye (±1–2°), and club
+  path needs ≤ 0.5°.
+- **The mount:** a tripod on the face-on side, 1–2 m up, looking down at ≥ 45° (≥ 60° preferred).
+  An ~8 mm lens gives ~1 mm/px at a ~1.5 m slant range. Heights (ball centre, a teed ball, the head's
+  top line) are mapped as offset planes, not squeezed into the mat's.
+- ⛔ **Path is solved jointly with placement A.** Looking down at an angle ε, the image's vertical mixes
+  in/out motion (× sin ε) with vertical motion (× cos ε).
+  - **The size of it at 60°:** a −4° attack angle alone reads as ~2° of path, and a 30° launch as ~19°
+    of launch direction.
+  - **The fix:** placement A measures that vertical motion in the same bay frame, and B's in/out
+    velocity is recovered with it removed. A 1° error in A's angle costs ~0.6° of path at 60°, 1° at
+    45°, and nothing as ε → 90°.
+  - **Without A:** B's path is withheld. It is never corrected with `lm.attackAngle`, because B is the
+    check on the monitor's path, and borrowing its attack angle would couple the two instruments'
+    errors.
+  - **Resolution:** in/out resolution scales with sin ε (−13 % at 60°), another reason to look down
+    steeply.
 
 **Do not take face angle from the top line seen from above.** The heel–toe edge's projection onto
 the ground is *not* perpendicular to the face normal's projection unless the toe and heel are at
@@ -330,6 +402,8 @@ height. It is the criterion for everything here except low point, which it does 
 
 | Quantity | Criterion | Method |
 |---|---|---|
+| Ball speed, launch angle | `lm.ballSpeed`, `lm.launchAngle` | ratio and bias ± SD per club, reported beside the card calibration's own σ. The launch monitor is a criterion and a per-shot health check, **never fitted to** (calibration §4.8) |
+| Clubhead speed | `lm.clubheadSpeed` | ratio ± SD, the way the composed speed earned its 0.959 ± 0.022 |
 | Attack angle | `lm.attackAngle` | limits of agreement across sessions and clubs, as for `clubheadSpeed` |
 | Club path | `lm.clubPath` | same |
 | Face, face-to-path (derived, §6) | `lm.faceAngle`, `lm.faceToPath` | same; a bias here is a bias in *k*, and *k* is per-loft |
@@ -350,8 +424,18 @@ camera) and iPhones that pair over PPCP. The intended layout:
 | **Impact** | tripod Chameleon3, **640×240 crop @ 591 fps, 50–70 µs, ~1 mm/px** (§10.2; 612 fps at ≤ 224 rows, any width up to 1280) | §4 face-on zoom: attack angle, low point, high/low strike | global shutter; exposure floor 6.4 µs; the ROI rate is measured, not assumed (§3.1); the ROI path already exists (§3); on the **same bearing** as the face-on camera, so the impact inset overlays the wide arc with no transform |
 | **DTL** | iPhone via PPCP, portrait 1080×1920 @ 240 fps | pose, shaft plane, the rotation and over-the-top family | portrait suits the DTL frame; ~2× the vertical pixel density of the Chameleon3 over the same field; 4.2 ms exposure is shorter than the Chameleon3's current 6.6 ms; pairing, host-driven capture, the clip leg and sync convergence all work as of September 2026 |
 
-**Impact tripod placement.** Ground level, face-on side, the ball about 60% of the way across
-the frame so most of the width is before impact. A 640-px crop is half the present width, so the
+**Impact camera mount** (revised 2026-09-15; tolerances in
+[camera_calibration_design.md](camera_calibration_design.md) §4.8).
+- **Where:** a floor mount (a plate or a clamp arm on a floor block), not a tripod at its lowest
+  setting. Face-on side, the ball about 60 % of the way across the frame so most of the width is
+  before impact.
+- **Level and square:** lens between ball height and ~100 mm above the mat, level within 3°, square to
+  the target line within 5°.
+- **What went wrong on 15 Sept:** a tripod as low as it would go, looking down at the ball. That lost
+  ~9° of launch angle to the tilt, and the session was set aside.
+- **Calibration:** the ChArUco card is solved in place (§4) before any metric is read.
+
+A 640-px crop is half the present width, so the
 existing lens at about **two thirds of the face-on camera's distance** gives ~1 mm/px and a
 ~640 × 240 mm field (§10.2). The rate does not care about width (§3.1), so the crop can be as
 wide as the light allows: 1280×240 at the same distance is the full present width over a 240-row
@@ -537,12 +621,12 @@ by hand. The clip loops at a FIXED 1/50 of real time over the band its track mar
 and ball in view, four frames of context), not at the window's speed: the interesting part is
 ~60 ms of capture time, and at the window's ×¼ or ×1 it was a flicker.
 
-**The second session, same day, at 12 dB / 0.7 / 102 µs (driver):** the club is legible in the
+**The second session, same day, at 12 dB / 0.7 / 102 µs (wedge pitches, 40–50 yards):** the club is legible in the
 raw frames — shaft, head shape, the ball's dimples — and the CRF 12 clip has no macroblocks. The
 levels moved the wrong way for a different reason: the ring light was off the ball, so the mat sat
 at 6–8, the ball's peak at ~58 and nothing clipped; the frame uses the bottom quarter of its
 range. The camera's own answer is the rest of its gain (the chips run to the node's maximum) and,
-for a driver, a *shorter* exposure than 102 µs (§1: ≤ 50 µs for 2 px at driver speed) — both of
+for a full driver swing, a *shorter* exposure than 102 µs (§1: ≤ 50 µs for 2 px at driver speed) — both of
 which need the light §1 describes before they cost nothing.
 
 **The track (built 2026-09-15, `ImpactRunner`, analysis stage "Impact").** From the clip alone:
@@ -564,9 +648,12 @@ offset from the hosel in the club's own frame, the shaft tracker's trick, self-c
 feedback loop: predict the head disc on every frame from the smoothed hosel and angle, gather all
 WEAK foreground inside it (sole and crown glints never seed a component on their own), take the
 centroid, re-estimate the offset as the median over frames, twice; a generic 30/35 mm prior when
-fewer than three frames show anything. On the studio driver the loop finds +40 mm along the
-shaft and +20 mm toward the toe on every swing, which is what a driver head is from its hosel —
-the agreement between swings is the evidence. Written as `analysis.impact` and drawn on the
+fewer than three frames show anything. On the 2026-09-15 session — 40–50 yard pitches with a wedge, not the driver the capture's club
+label claims (corpus club labels are unreliable; Mark confirmed the club. The 45–55 mph ball speed
+the track gave was read on the uncalibrated ball ruler and settles nothing — see the evening note at
+the end of this section)
+— the loop finds ~37 mm along the shaft and a few mm across on every swing, which is a wedge blade
+from its hosel; the agreement between swings is the evidence. Written as `analysis.impact` and drawn on the
 impact tile at the clip's **own** playhead (it loops, and can be held). **v0.1 (Mark, end of 2026-09-15): the central arc alone, translucent,
 this frame's synthesised head as a ring with a cross riding it, and the ball's outline — at half
 opacity, so the footage reads first.** The band of head half-width, its edges, the ghosted heads,
@@ -585,8 +672,30 @@ checks the C++ stage against the lab), the shaftlab rule. On the first thirteen 
 on every one — the acoustic anchor question is now measurable per swing. The loop itself now runs three times slower than
 the window's capture-time speed — the six head positions before the ball are 40 ms of capture
 time, unreadable at the old rate. What this does not yet do: attack angle, low point and
-high/low strike from the arc's tangent at the ball (§4), which is the next step now the inputs
-exist, and the ball's own launch direction and speed from the post-departure samples.
+high/low strike from the arc's tangent at the ball (§4), and the ball's own launch direction and speed
+from the post-departure samples. **These wait for the card calibration** (evening note below).
+
+**The first graded attempt, evening of 2026-09-15 — set aside, and what it taught.** Seven full
+pitching-wedge swings with the GCQuad, camera on a tripod as low as it went, looking down. Mark set
+the session aside as a rig mistake, not data.
+
+What it established, all of which the design now carries:
+1. **The resting-ball scale is not a scale.**
+   - The detected resting diameter was well under the ball's real image, and ball speed read 1.3–1.5 ×
+     the monitor.
+   - Even a careful edge measure moves ±10 % with the threshold on a dim, top-lit ball.
+   - → the card calibration (§4, calibration §4.8); the ball kept as a relative ruler.
+2. **A tilted camera loses the angle.** Launch read ~9° low on every swing. → the level floor mount
+   and its tolerances.
+3. **Pairwise ball speeds are useless.** Per-frame timestamps jitter ±0.4 ms (1.2–2.2 ms intervals
+   against 1.69 ms), and centroids alternate between blob and predicted-disc detections. → a robust
+   line against frame index × median period (§4 table).
+4. **Framing decides the club.** With the ball ~40 % across, the club showed on only 4–6 frames (one
+   swing none). → the ball ~60 % across.
+5. **Club speed from `path.points` sags into departure.** The loess x(t) smooths across the contact
+   step. → a one-sided pre-contact fit (§4 table).
+6. **Attack angle must be the head's direction, not the hosel arc's.** θ turns with x (−2.5° hosel
+   against ≈ −3.7° head on one 15 Sept pitch).
 
 **Still ahead:** the light itself, which no setting supplies: §1's two 100 W floods at half a metre concentrated on the
 patch, a large diffuse source near the camera axis rather than a small one so the club's mirror
@@ -596,12 +705,21 @@ for a silhouette that does not depend on the club's finish at all.
 ## 11. Order of work
 
 1. **Overlap session** (§10.1) — decides whether the tripod camera is free.
-2. **Impact camera** — the tripod Chameleon3 as the §4 face-on zoom, in the §10.2 mode
-   (640×240 at 591 fps, 50–70 µs). The ROI frame-rate gate is
-   passed (§3.1: 591 fps at 240 rows, no dropped or duplicated frames on the bench). Still to
-   gate on: the dropped-ball scale check and a measured blur ≤ 2 px before any fitting is
-   written — the drop's fps job is done, its scale job is not.
-3. **Overhead** — path and heel/toe; unlocks §6. A third camera, not a re-tasked one.
+2. **Impact camera** — a floor-mounted Chameleon3, level and square (§4; not a tripod at its lowest),
+   as the §4 face-on zoom, in the §10.2 mode (640×240 at 591 fps, 50–70 µs).
+   - **Passed:** the ROI frame-rate gate (§3.1: 591 fps at 240 rows, no dropped or duplicated frames
+     on the bench).
+   - **Still to gate on:** a measured blur ≤ 2 px.
+   - **Superseded 2026-09-15:** the dropped ball is no longer the scale check. It verifies the vertical;
+     the scale comes from step 2a.
+   2a. **Card calibration** ([camera_calibration_design.md](camera_calibration_design.md) §4.8, stages
+       13–14). The ChArUco card is solved for pose in the flight plane, the ball's reference diameter
+       stored, and the tag registered. **No speed or angle is read before it.**
+   2b. **The first graded session** (calibration §11 item 16). Wedge and 7-iron, launch monitor on,
+       labels correct. Then the estimators of §4's table, in plane millimetres, graded against `lm.*`.
+3. **Elevated path camera (§5)** — a tripod 1–2 m up on the face-on side, looking down. It gives path
+   and heel/toe, solved jointly with the face-on floor camera, **to validate and verify path
+   estimates** (ours and `lm.clubPath`), and unlocks §6. A third camera, not a re-tasked one.
 4. **Strobe** — only if continuous light cannot reach the exposure budget, or the golfer objects
    to the floods. Line1 on the Chameleon3 is a dedicated output that carries ExposureActive
    (§3.1), so the camera side needs no extra hardware.
