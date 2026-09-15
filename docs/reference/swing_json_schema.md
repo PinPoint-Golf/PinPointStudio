@@ -160,6 +160,7 @@ An array with one entry per camera or IMU. `kind` discriminates.
 | `capture.fps_num/den` | int | True frame rate (`fps_num/fps_den`) from clip metadata; the analysis timebase. |
 | `capture.exposureUs` | float µs | Exposure — used by the shaft tracker's blur model. |
 | `playback.fps` | int | Container playback rate only (casual scrub speed), **not** the analysis rate. |
+| `clip` | object, optional | `{ start_us, end_us }` window-relative: present only on the impact camera's stream (`setup.perspective` 4), whose export is trimmed to this band around `capture.impactUs` (`impact_camera_design.md` §10.2). Says the short `frames.t_us` is a deliberate clip, not a capture gap; replay loops such a stream instead of syncing it. Absent on every other stream. |
 | `processing.demosaic` | str | `EA` (edge-aware) / `bilinear` / `none`. |
 | `setup.perspective` | int | `0` None · `1` DownTheLine · **`2` FaceOn** · `3` Other · `4` Impact (the club/ball impact camera, `impact_camera_design.md` §10). `perspectiveName` is the label. The shaft tracker + body viz key on perspective 2. May be `null` on older exports. |
 | `setup.mirrored` | bool | Webcam mirror flag (affects pose/shaft chirality). |

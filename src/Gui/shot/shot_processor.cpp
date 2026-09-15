@@ -75,6 +75,22 @@ constexpr int kPostRollPoseMs     = 1250;
 constexpr int kPostRollBallMs     = 1250;
 constexpr int kPostRollAcousticMs = 1250;
 
+// ── The impact camera's keep band (impact_camera_design.md §10.2) ───────────
+//
+// The club crosses a 640 mm field in ~18 ms and the ball is gone in ~10 ms, so
+// the frames that contain either sit within ~40 ms before and ~30 ms after
+// impact. The band is wider than that for the anchor, not the physics: the
+// arbiter's impactUs runs a uniform 13–22 ms EARLY against video truth
+// (impact_geom.h), and on 3 of 14 truth swings the nearest-frame mapping was
+// >230 ms late. 200 ms before / 100 ms after is ~180 frames at 591 fps — a
+// 6 s clip in the 30 fps container instead of 79 s. If the band catches no
+// frame at all (a gross anchor miss, or the lane simply not covering impact),
+// it widens to ±500 ms; if THAT is empty the export keeps the whole lane and
+// says so, rather than silently shipping a clip with no impact in it.
+constexpr int64_t kImpactKeepBeforeUs   = 200'000;
+constexpr int64_t kImpactKeepAfterUs    = 100'000;
+constexpr int64_t kImpactKeepFallbackUs = 500'000;
+
 // ── Deferred gather (deferred_sources_design.md §4.1, brief Phase E) ────────
 //
 // A pull takes about as long as its window spans and the library serialises
@@ -825,6 +841,7 @@ void ShotProcessor::finishGatherAndLaunch()
         track.ctrl     = ctrl;
         track.sourceId = sid;
         track.entries  = std::move(entries);
+        track.loop     = (ctrl->perspective() == CameraInstance::Impact);
         // Freeze the ball-detector accumulator NOW (design §9): both job builders
         // run 12–37 s later (from onAnalysisFinished), by when the live deque has
         // scrolled to post-shot junk and a phantom re-launch may have overwritten
@@ -1423,6 +1440,34 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         cam.mirrored     = track.ctrl->isMirrored();
         cam.fixedInPlace = s->cameraFixedInPlace()
                                .value(track.ctrl->cameraKey()).toBool();
+        // The impact camera's keep band — see kImpactKeepBeforeUs. Absolute
+        // buffer-clock, the domain of both m_impactUs and the entries.
+        if (cam.perspective == CameraInstance::Impact && m_impactUs >= 0) {
+            auto countIn = [&](int64_t lo, int64_t hi) {
+                size_t n = 0;
+                for (const auto &e : track.entries)
+                    if (e.timestamp_us >= lo && e.timestamp_us <= hi) ++n;
+                return n;
+            };
+            int64_t lo = m_impactUs - kImpactKeepBeforeUs;
+            int64_t hi = m_impactUs + kImpactKeepAfterUs;
+            if (countIn(lo, hi) == 0) {
+                lo = m_impactUs - kImpactKeepFallbackUs;
+                hi = m_impactUs + kImpactKeepFallbackUs;
+                if (countIn(lo, hi) == 0) {
+                    ppWarn() << "[ShotProcessor] impact camera" << name
+                             << "has no frame within ±" << kImpactKeepFallbackUs / 1000
+                             << "ms of impact — exporting its whole lane";
+                    lo = hi = -1;
+                } else {
+                    ppWarn() << "[ShotProcessor] impact camera" << name
+                             << "has no frame in the impact band — widened to ±"
+                             << kImpactKeepFallbackUs / 1000 << "ms";
+                }
+            }
+            cam.keepStartUs = lo;
+            cam.keepEndUs   = hi;
+        }
         // The v2 temporal detector carries no calibration profile, so the
         // CamRecord ball-calibration fields keep their defaults (uncalibrated).
         // Recording the v2 auto-detected ball position (locked centre + satFrac)
@@ -2156,6 +2201,24 @@ void ShotProcessor::onReplayTick()
     }
 
     for (ReplayTrack &track : m_replayTracks) {
+        if (track.loop && track.entries.size() > 1) {
+            // The impact camera loops its keep band on its own clock, in phase
+            // with the playhead: the loop's local time is the playhead's
+            // distance from the band's first frame, wrapped at the band's
+            // length, so the band's impact frame is on screen exactly when the
+            // playhead crosses impact and the loop runs around it otherwise.
+            const int64_t first  = track.entries.front().timestamp_us;
+            const int64_t last   = track.entries.back().timestamp_us;
+            const int64_t period = std::max<int64_t>(1, (last - first) / int64_t(track.entries.size() - 1));
+            const int64_t dur    = std::max<int64_t>(1, last - first + period);
+            const int64_t local  = ((pos - first) % dur + dur) % dur;
+            const int64_t want   = first + local;
+            auto it = std::upper_bound(track.entries.begin(), track.entries.end(), want,
+                                       [](int64_t t, const pinpoint::IndexEntry &e) {
+                                           return t < e.timestamp_us;
+                                       });
+            track.idx = (it == track.entries.begin()) ? 0 : size_t(it - track.entries.begin()) - 1;
+        } else {
         // Advance to the newest frame whose offset from the first entry <= virtual time.
         while (track.idx + 1 < track.entries.size()) {
             const int64_t nextOffset =
@@ -2164,6 +2227,7 @@ void ShotProcessor::onReplayTick()
                 ++track.idx;
             else
                 break;
+        }
         }
 
         const auto &entry  = track.entries[track.idx];

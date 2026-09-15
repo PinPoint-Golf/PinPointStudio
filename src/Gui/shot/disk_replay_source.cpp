@@ -39,6 +39,7 @@ namespace {
 constexpr qint64 kSlaveResyncMs = 120;
 
 constexpr int kPerspectiveFaceOn = 2;   // CameraInstance::FaceOn
+constexpr int kPerspectiveImpact = 4;   // CameraInstance::Impact — the looping impact clip
 
 // Window-relative µs from an analysis t_us. Live captures write ABSOLUTE
 // (t0-based) analysis t_us, but re-analysed swings write WINDOW-RELATIVE ones
@@ -142,8 +143,6 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
         const double sh = src.value(QStringLiteral("height")).toDouble();
         ps.aspect = (sw > 0.0 && sh > 0.0) ? sw / sh : 16.0 / 9.0;
 
-        spanStart = std::min<qint64>(spanStart, ps.tUs.front());
-        spanEnd   = std::max<qint64>(spanEnd,   ps.tUs.back());
         pending.push_back(std::move(ps));
     }
 
@@ -151,6 +150,21 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
         ppWarn() << "[ShotReplay] no playable video stream in" << swingDir;
         unload();        // fully clear → streamCount() == 0 (controller clears active)
         return false;
+    }
+
+    // The impact camera's clip loops on its own clock (Stream::loop): it must
+    // not become the master (stream 0 drives the playhead, the trim logic and
+    // frame stepping) and must not widen the span. Order the full-window
+    // streams first, and take the span from them alone. A swing whose ONLY
+    // stream is the impact clip plays it as an ordinary stream.
+    std::stable_partition(pending.begin(), pending.end(),
+                          [](const PendingStream &p) { return p.perspective != kPerspectiveImpact; });
+    const bool haveFullStream = pending.front().perspective != kPerspectiveImpact;
+    for (const PendingStream &p : pending) {
+        if (haveFullStream && p.perspective == kPerspectiveImpact)
+            continue;
+        spanStart = std::min<qint64>(spanStart, p.tUs.front());
+        spanEnd   = std::max<qint64>(spanEnd,   p.tUs.back());
     }
 
     m_speed      = std::clamp(speed, 0.1, 1.0);
@@ -351,6 +365,10 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
         st.tUs         = std::move(pending[i].tUs);
         st.playbackFps = pending[i].fps;
         st.file        = pending[i].file;
+        st.loop        = haveFullStream && pending[i].perspective == kPerspectiveImpact;
+        st.captureFps  = (st.tUs.size() > 1 && st.tUs.back() > st.tUs.front())
+                             ? double(st.tUs.size() - 1) * 1e6 / double(st.tUs.back() - st.tUs.front())
+                             : 0.0;
 
         if (!st.player) {
             st.player = new QMediaPlayer(this);
@@ -394,6 +412,8 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
         if (int(i) < m_sinks.size() && m_sinks[int(i)])
             st.player->setVideoSink(m_sinks[int(i)]);
 
+        // Loops must be set before the source for the backend to honour them.
+        st.player->setLoops(st.loop ? QMediaPlayer::Infinite : QMediaPlayer::Once);
         st.player->setSource(QUrl::fromLocalFile(swingDir + QStringLiteral("/") + pending[i].file));
     }
     applyPlaybackRates();
@@ -567,8 +587,14 @@ void DiskReplaySource::onTick()
     }
 
     // Keep slave cameras on the master's capture clock (R4); cheap no-op for one.
+    // A looping impact clip is kept in PHASE instead: its wanted clip time is
+    // the playhead's distance from the clip's first frame wrapped at the clip's
+    // length, so the impact frame lands as the playhead crosses impact and the
+    // loop runs around it the rest of the time. Same drift threshold.
     for (size_t i = 1; i < m_streams.size(); ++i) {
-        const qint64 target = mp4MsForStream(int(i), captureUs);
+        const qint64 target = mp4MsForStream(int(i), m_streams[i].loop
+                                                         ? loopClipUsFor(int(i), captureUs)
+                                                         : captureUs);
         if (std::llabs(m_streams[i].player->position() - target) > kSlaveResyncMs)
             m_streams[i].player->setPosition(target);
     }
@@ -612,8 +638,27 @@ void DiskReplaySource::seekPlayersTo(qint64 captureUs)
         // first so scrubbing while not playing still updates the frame.
         if (p->playbackState() == QMediaPlayer::StoppedState)
             p->pause();
-        p->setPosition(mp4MsForStream(int(i), captureUs));
+        p->setPosition(mp4MsForStream(int(i), m_streams[i].loop
+                                                  ? loopClipUsFor(int(i), captureUs)
+                                                  : captureUs));
     }
+}
+
+qint64 DiskReplaySource::loopClipUsFor(int streamIdx, qint64 captureUs) const
+{
+    // Map a window playhead onto a looping clip: distance from the clip's first
+    // frame, wrapped at the clip's length (one frame period past its last
+    // frame, so the last frame gets its share of time). captureUs == impact ⇒
+    // the clip's own impact frame, by construction.
+    const Stream &s = m_streams[streamIdx];
+    if (s.tUs.size() < 2)
+        return s.tUs.empty() ? m_startUs : s.tUs.front();
+    const qint64 first  = s.tUs.front();
+    const qint64 last   = s.tUs.back();
+    const qint64 period = std::max<qint64>(1, (last - first) / qint64(s.tUs.size() - 1));
+    const qint64 dur    = std::max<qint64>(1, last - first + period);
+    const qint64 local  = ((captureUs - first) % dur + dur) % dur;
+    return first + local;
 }
 
 void DiskReplaySource::applyPlaybackRates()
@@ -621,10 +666,18 @@ void DiskReplaySource::applyPlaybackRates()
     // Each MP4 is 30 fps, so its native duration is frameCount/fps. Scale every
     // stream so the whole window replays over the same wall time → m_speed ×
     // capture speed (1.0 = real time), fps-independent, all finishing together.
+    // A looping impact clip is NOT stretched to the window (it would smear a
+    // 300 ms clip across the whole replay): it runs at the same capture-time
+    // speed as everyone else, m_speed × its own capture fps over the container
+    // fps — so at quarter speed a 591 fps clip loops in ~1.2 s of wall time.
     const double desiredWallSec = std::max(0.001, double(m_endUs - m_startUs) / 1e6 / m_speed);
     for (Stream &s : m_streams) {
-        const double nativeWallSec = double(s.tUs.size()) / s.playbackFps;
-        s.player->setPlaybackRate(std::clamp(nativeWallSec / desiredWallSec, 0.05, 8.0));
+        double rate;
+        if (s.loop && s.captureFps > 0.0)
+            rate = m_speed * s.captureFps / s.playbackFps;
+        else
+            rate = double(s.tUs.size()) / s.playbackFps / desiredWallSec;
+        s.player->setPlaybackRate(std::clamp(rate, 0.05, 8.0));
     }
 }
 

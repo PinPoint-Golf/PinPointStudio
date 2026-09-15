@@ -229,6 +229,11 @@ private:
         std::vector<pinpoint::IndexEntry>  entries;
         size_t                             idx      = 0;
         BallSnapshot                       ball;   // frozen at window capture
+        // The impact camera (impact_camera_design.md §10.2): its entries are
+        // the keep band around impact, and in the post-shot replay it LOOPS
+        // on its own clock rather than following the playhead — phased so
+        // its impact frame shows as the playhead crosses impact.
+        bool                               loop     = false;
     };
 
     int  m_lastShotId = -1;

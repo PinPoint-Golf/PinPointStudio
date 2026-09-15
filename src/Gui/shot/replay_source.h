@@ -32,7 +32,7 @@ class QVideoSink;
 // missing (no face-on stream → no club overlay; unknown aspect → 16:9).
 struct ReplayStreamInfo {
     int    index       = 0;        // stream index (== setVideoSink index)
-    int    perspective = -1;       // swing.json setup.perspective (0..3); 2 = FaceOn
+    int    perspective = -1;       // swing.json setup.perspective (0..4); 2 = FaceOn, 4 = Impact
     double aspect      = 16.0 / 9.0;   // source width / height
     bool   hasAnalysis = false;    // face-on stream that carries pose/club detail
 };

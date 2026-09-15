@@ -74,6 +74,13 @@ private:
         std::vector<int64_t> tUs;            // window-relative frame stamps (µs)
         double               playbackFps = 30.0;
         QString              file;           // current source filename (for error logs across reuse)
+        // The impact camera's clip (setup.perspective == 4): a few hundred ms
+        // around impact at ~600 fps. It is never the master, never widens the
+        // span, and plays as an infinite LOOP at the same capture-time speed as
+        // the rest, re-phased each tick so its impact frame is on screen when
+        // the playhead crosses impact (impact_camera_design.md §10.2).
+        bool                 loop       = false;
+        double               captureFps = 0.0; // from the stream's own t_us
     };
 
     void setPlaying(bool p);
@@ -82,6 +89,7 @@ private:
     void applyPlaybackRates();               // per-stream rate from m_speed + span
     qint64 captureUsForStream(int streamIdx, qint64 mp4Ms) const;
     qint64 mp4MsForStream(int streamIdx, qint64 captureUs) const;
+    qint64 loopClipUsFor(int streamIdx, qint64 captureUs) const;   // playhead → looping clip time
 
     bool        m_loaded   = false;
     bool        m_playing  = false;

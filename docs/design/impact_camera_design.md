@@ -440,6 +440,22 @@ for the mode's rate rather than the 200 fps GenICam default. Pose estimation is 
 impact camera. The rate the chips show is the camera's advertised maximum; the delivered rate
 (§3.1's table) is what the tile's live counter reports.
 
+**What is kept, and how it replays (built 2026-09-16).** The impact camera's frames go into the
+ring and the 4 s swing window like any other camera's, and the window needs no change: a lane
+may cover any sub-range of the window. The trim is at **export only**, the one exception to the
+"exports are never trimmed" rule: `ShotProcessor::buildSwingExportJob` gives an Impact-perspective
+camera a keep band of **impact − 200 ms .. + 100 ms** on the arbiter's instant (the physics needs
+~40 ms before and ~30 ms after; the rest is for the anchor, which runs 13–22 ms early and, rarely,
+hundreds late — `impact_geom.h`), widening to ± 500 ms if the band catches nothing and keeping the
+whole lane if even that is empty. `SwingExporter` drops entries outside the band and writes the band
+as the stream's `clip` object in swing.json. ~180 frames at 591 fps: a 6 s file at the 30 fps
+container rate instead of 79 s, ~21 MB of raw sidecar instead of ~360. On replay the clip is never
+the master and never widens the span; it **loops** at the same capture-time speed as the other
+tiles (quarter speed ⇒ one loop per ~1.2 s), re-phased every tick so that its impact frame is on
+screen at the moment the playhead crosses impact and the loop runs around it otherwise. The live
+post-shot replay does the same with its in-window track. Frame stepping steps the master; per-tile
+stepping at the impact camera's own rate (§7) is still to do.
+
 **An iPhone over PPCP is not a candidate,** and the selector does not offer it one. Two of §3's
 requirements fail on the device, not on the transport: every iPhone camera is a rolling shutter
 (§10.1), and the fastest declared profile is 240 fps at 1080p, which §2 puts at two head

@@ -217,6 +217,10 @@ class AppSettings : public QObject
     // Locked exposure (microseconds) per cameraKey — the impact camera's
     // (impact_camera_design.md §10.2); other cameras keep auto-exposure.
     Q_PROPERTY(QVariantMap cameraExposureUs    READ cameraExposureUs    WRITE setCameraExposureUs    NOTIFY cameraExposureUsChanged)
+    // The impact camera's picture-in-picture box over the camera tiles
+    // (PpCameraTiles.qml): { x, y, w } normalised — w as a fraction of the
+    // tile area's width, x/y as fractions of the free range. Empty = default.
+    Q_PROPERTY(QVariantMap impactPipRect       READ impactPipRect       WRITE setImpactPipRect       NOTIFY impactPipRectChanged)
     Q_PROPERTY(QStringList imuExcluded            READ imuExcluded            WRITE setImuExcluded            NOTIFY imuExcludedChanged)
     Q_PROPERTY(QVariantMap imuAlias               READ imuAlias               WRITE setImuAlias               NOTIFY imuAliasChanged)
     Q_PROPERTY(QVariantMap imuCalibration         READ imuCalibration         WRITE setImuCalibration         NOTIFY imuCalibrationChanged)
@@ -464,6 +468,7 @@ public:
         m_cameraFixedInPlace = ppSettings().value(QStringLiteral("camera/fixedInPlace"), QVariantMap{}).toMap();
         m_cameraAlias        = ppSettings().value(QStringLiteral("camera/alias"),        QVariantMap{}).toMap();
         m_cameraExposureUs   = ppSettings().value(QStringLiteral("camera/exposureUs"),   QVariantMap{}).toMap();
+        m_impactPipRect      = ppSettings().value(QStringLiteral("camera/impactPip"),    QVariantMap{}).toMap();
 
         m_imuExcluded             = ppSettings().value(QStringLiteral("imu/excluded"),             QStringList{}).toStringList();
         m_imuPlacement            = ppSettings().value(QStringLiteral("imu/placement"),            QVariantMap{}).toMap();
@@ -621,6 +626,7 @@ public:
     bool        cameraSyncEnabled()  const { return m_cameraSyncEnabled; }
     QVariantMap cameraFixedInPlace() const { return m_cameraFixedInPlace; }
     QVariantMap cameraExposureUs()   const { return m_cameraExposureUs; }
+    QVariantMap impactPipRect()      const { return m_impactPipRect; }
     QVariantMap cameraAlias()        const { return m_cameraAlias; }
 
     QVariantMap sessionGoalsByType() const { return m_sessionGoalsByType; }
@@ -1167,6 +1173,14 @@ public:
         emit cameraExposureUsChanged();
     }
 
+    void setImpactPipRect(const QVariantMap &v)
+    {
+        if (m_impactPipRect == v) return;
+        m_impactPipRect = v;
+        ppSettings().setValue(QStringLiteral("camera/impactPip"), v);
+        emit impactPipRectChanged();
+    }
+
     void setCameraPerspective(const QVariantMap &v)
     {
         if (m_cameraPerspective == v) return;
@@ -1632,6 +1646,7 @@ signals:
     void cameraBallRoiChanged();
     void cameraAliasChanged();
     void cameraExposureUsChanged();
+    void impactPipRectChanged();
     void imuExcludedChanged();
     void imuPlacementChanged();
     void imuOutputRateHzChanged();
@@ -1747,6 +1762,7 @@ private:
     QVariantMap m_cameraBallRoi;
     QVariantMap m_cameraAlias;
     QVariantMap m_cameraExposureUs;
+    QVariantMap m_impactPipRect;
 
     QStringList m_imuExcluded;
     QVariantMap m_imuPlacement;

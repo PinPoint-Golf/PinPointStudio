@@ -69,8 +69,29 @@ Item {
     on_ReplayHereChanged: Qt.callLater(root._syncReplayArmed)
     Component.onCompleted:  Qt.callLater(root._syncReplayArmed)
 
-    readonly property var _liveCameras:
+    // Every session-enabled camera, and the same list without the impact camera
+    // — the row shows the latter; the impact camera floats over it (see the
+    // picture-in-picture Item below).
+    readonly property var _liveAll:
         cameraManager.cameraList.filter(function(c) { return c.sessionEnabled })
+    readonly property var _liveCameras:
+        root._liveAll.filter(function(c) { return c.perspective !== CameraInstance.Impact })
+    readonly property var _liveImpact: {
+        var l = root._liveAll
+        for (var i = 0; i < l.length; ++i)
+            if (l[i].perspective === CameraInstance.Impact) return l[i]
+        return null
+    }
+    // Replay streams likewise: the loaded swing's non-impact streams fill the
+    // row; its impact stream (setup.perspective 4), if any, floats.
+    readonly property var _replayStreams:
+        shotReplay.streams.filter(function(s) { return s.perspective !== CameraInstance.Impact })
+    readonly property var _replayImpact: {
+        var s = shotReplay.streams
+        for (var i = 0; i < s.length; ++i)
+            if (s[i].perspective === CameraInstance.Impact) return s[i]
+        return null
+    }
 
     readonly property var _replaySeries:
         (shotProcessor.replayAnalysisDetail && shotProcessor.replayAnalysisDetail.series)
@@ -143,7 +164,7 @@ Item {
         // only once arming has settled (see _replayArmed) so a torn-down panel during
         // the Capture→Replay transition never spawns a transient tile.
         Repeater {
-            model: root._replayArmed ? shotReplay.streams : []
+            model: root._replayArmed ? root._replayStreams : []
             delegate: PpCameraFrame {
                 required property var modelData
                 Layout.fillHeight: true
@@ -200,11 +221,225 @@ Item {
         }
     }
 
+    // ── Impact camera — picture-in-picture over the other tiles ─────────────
+    // A 640×240 strip at ~600 fps (impact_camera_design.md §10.2) is 2.7:1: in
+    // the row it would claim a whole tile's height for a few frames of content
+    // and squeeze the cameras that carry the swing. It floats over the cluster
+    // instead — movable, corner-resizable with its aspect locked, and never
+    // closable: like every tile it follows the selected cameras / the loaded
+    // swing. Its place and size are remembered (appSettings.impactPipRect).
+    Item {
+        id: pip
+        readonly property var  liveData:   root._replay ? null : root._liveImpact
+        readonly property var  replayData: root._replayArmed ? root._replayImpact : null
+        readonly property bool active:     root._replay ? replayData !== null : liveData !== null
+        visible: active
+        z: 40   // over the tiles, under the telestrator chrome (50)
+
+        // The stage area the box lives in — the tile row's own box.
+        readonly property real areaX: root._leftGutter
+        readonly property real areaY: Theme.sp(12)
+        readonly property real areaW: Math.max(1, root.width  - root._leftGutter - Theme.sp(12))
+        readonly property real areaH: Math.max(1, root.height - Theme.sp(24))
+
+        // Remembered geometry, normalised so it survives any window size: w is
+        // the width as a fraction of the area width; x and y are the position as
+        // a fraction of the FREE range (0 = left/top edge, 1 = right/bottom
+        // edge), so the box can never end up off-stage. Default: 38 % wide,
+        // bottom-right — a picture-in-picture that leaves the swing cameras
+        // the room they need, big enough that a 240-row strip is readable.
+        readonly property var  stored:   appSettings.impactPipRect
+        readonly property real minFracW: 0.18
+        readonly property real maxFracW: 0.75
+        property real fracW: (stored && stored.w > 0) ? stored.w : 0.38
+        property real fracX: (stored && stored.x !== undefined) ? stored.x : 1.0
+        property real fracY: (stored && stored.y !== undefined) ? stored.y : 1.0
+
+        readonly property real aspect: (pipLoader.item && pipLoader.item.videoAspect > 0)
+                                       ? pipLoader.item.videoAspect : 8.0 / 3.0
+        readonly property real wantW: Math.max(minFracW, Math.min(maxFracW, fracW)) * areaW
+        width:  Math.max(1, Math.min(wantW, areaH * aspect))   // never taller than the stage
+        height: width / aspect
+        x: areaX + Math.max(0, Math.min(1, fracX)) * Math.max(0, areaW - width)
+        y: areaY + Math.max(0, Math.min(1, fracY)) * Math.max(0, areaH - height)
+
+        function persist() {
+            appSettings.impactPipRect = { x: pip.fracX, y: pip.fracY, w: pip.fracW }
+        }
+
+        // Halo so the box reads as floating over the footage beneath.
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: -Theme.sp(3)
+            radius: Theme.radius
+            color: "black"
+            opacity: 0.55
+        }
+
+        Loader {
+            id: pipLoader
+            anchors.fill: parent
+            active: pip.active
+            sourceComponent: root._replay ? pipReplayFrame : pipLiveFrame
+        }
+
+        Component {
+            id: pipLiveFrame
+            PpCameraFrame {
+                readonly property var camData: pip.liveData
+                placeholderAspect: {
+                    if (!camData) return 8.0 / 3.0
+                    const roi = appSettings.cameraRoi[camData.cameraKey]
+                    if (roi && roi.w > 0 && roi.h > 0 && camData.maxWidth > 0 && camData.maxHeight > 0)
+                        return (camData.maxWidth * roi.w) / (camData.maxHeight * roi.h)
+                    return (camData.initialWidth > 0 && camData.initialHeight > 0)
+                           ? camData.initialWidth / camData.initialHeight : 8.0 / 3.0
+                }
+                instance: {
+                    if (!camData) return null
+                    var insts = cameraManager.instances
+                    for (var i = 0; i < insts.length; ++i)
+                        if (insts[i].cameraKey === camData.cameraKey) return insts[i]
+                    return null
+                }
+                displayName: camData ? (camData.alias !== "" ? camData.alias : camData.description) : ""
+                // No body in a 240-row strip: no hitting area, pose or ball chrome.
+                showHittingArea:     false
+                showHittingAreaHint: false
+                showBallOverlay:     false
+                showPoseOverlay:     false
+                showReplayOverlay:   false
+            }
+        }
+
+        Component {
+            id: pipReplayFrame
+            PpCameraFrame {
+                replayStreamIndex: pip.replayData ? pip.replayData.index : -1
+                placeholderAspect: (pip.replayData && pip.replayData.aspect > 0)
+                                   ? pip.replayData.aspect : 8.0 / 3.0
+                displayName: qsTr("Impact")
+                showHittingArea:      false
+                showHittingAreaHint:  false
+                showPoseOverlay:      false
+                showStatsOverlay:     false
+                showPerspectiveBadge: false
+                showReplayOverlay:    false
+                annotationsEnabled:   false
+            }
+        }
+
+        // Outline on top of the frame's own chrome.
+        Rectangle {
+            anchors.fill: parent
+            radius: Theme.radius
+            color: "transparent"
+            border.width: 1
+            border.color: pipMouse.containsMouse ? Theme.colorAccent : Theme.colorAccentMid
+            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+        }
+
+        // Move anywhere on the box; resize from a corner, aspect locked, the
+        // opposite corner held still. Same zone scheme as the crop editor.
+        MouseArea {
+            id: pipMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            preventStealing: true
+            z: 10
+
+            readonly property real hr: Theme.sp(18)
+            property string mode: "none"
+            property real   pressRootX: 0
+            property real   pressRootY: 0
+            property real   startX: 0
+            property real   startY: 0
+            property real   startW: 0
+            property real   startH: 0
+
+            function zone(mx, my) {
+                const w = pip.width, h = pip.height
+                if (mx < hr     && my < hr)     return "tl"
+                if (mx > w - hr && my < hr)     return "tr"
+                if (mx < hr     && my > h - hr) return "bl"
+                if (mx > w - hr && my > h - hr) return "br"
+                return "move"
+            }
+            cursorShape: {
+                switch (mode !== "none" ? mode : zone(mouseX, mouseY)) {
+                case "tl": case "br": return Qt.SizeFDiagCursor
+                case "tr": case "bl": return Qt.SizeBDiagCursor
+                default:              return Qt.SizeAllCursor
+                }
+            }
+
+            // Place the box's top-left at root coords (px, py) with width w,
+            // clamped to the stage; writes the normalised fractions the
+            // geometry bindings read.
+            function place(px, py, w) {
+                w = Math.max(pip.minFracW * pip.areaW, Math.min(pip.maxFracW * pip.areaW, w))
+                w = Math.min(w, pip.areaH * pip.aspect)
+                const h = w / pip.aspect
+                const freeW = Math.max(0, pip.areaW - w)
+                const freeH = Math.max(0, pip.areaH - h)
+                pip.fracW = w / pip.areaW
+                pip.fracX = freeW > 0 ? Math.max(0, Math.min(1, (px - pip.areaX) / freeW)) : 0
+                pip.fracY = freeH > 0 ? Math.max(0, Math.min(1, (py - pip.areaY) / freeH)) : 0
+            }
+
+            onPressed: (m) => {
+                mode = zone(m.x, m.y)
+                const p = mapToItem(root, m.x, m.y)
+                pressRootX = p.x; pressRootY = p.y
+                startX = pip.x; startY = pip.y; startW = pip.width; startH = pip.height
+            }
+            onPositionChanged: (m) => {
+                if (mode === "none") return
+                const p  = mapToItem(root, m.x, m.y)
+                const dx = p.x - pressRootX
+                const dy = p.y - pressRootY
+                switch (mode) {
+                case "move":
+                    place(startX + dx, startY + dy, startW)
+                    break
+                case "br": {                       // top-left held
+                    const w = Math.max(startW + dx, startH + dy > 0 ? (startH + dy) * pip.aspect : 0)
+                    place(startX, startY, w)
+                    break
+                }
+                case "tl": {                       // bottom-right held
+                    const w = Math.max(startW - dx, (startH - dy) * pip.aspect)
+                    const wc = Math.max(pip.minFracW * pip.areaW, Math.min(pip.maxFracW * pip.areaW, w))
+                    place(startX + startW - wc, startY + startH - wc / pip.aspect, wc)
+                    break
+                }
+                case "tr": {                       // bottom-left held
+                    const w = Math.max(startW + dx, (startH - dy) * pip.aspect)
+                    const wc = Math.max(pip.minFracW * pip.areaW, Math.min(pip.maxFracW * pip.areaW, w))
+                    place(startX, startY + startH - wc / pip.aspect, wc)
+                    break
+                }
+                case "bl": {                       // top-right held
+                    const w = Math.max(startW - dx, (startH + dy) * pip.aspect)
+                    const wc = Math.max(pip.minFracW * pip.areaW, Math.min(pip.maxFracW * pip.areaW, w))
+                    place(startX + startW - wc, startY, wc)
+                    break
+                }
+                }
+            }
+            onReleased: {
+                if (mode !== "none") pip.persist()
+                mode = "none"
+            }
+            onCanceled: { mode = "none" }
+        }
+    }
+
     // Capture empty-state: no cameras enabled.
     Column {
         anchors.centerIn: parent
         spacing: Theme.sp(6)
-        visible: !root._replay && root._liveCameras.length === 0
+        visible: !root._replay && root._liveCameras.length === 0 && root._liveImpact === null
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text: qsTr("No cameras enabled")

@@ -168,7 +168,21 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
     cv::Mat bgr;      // single reused BGR scratch across all cameras
     cv::Mat scaled;   // reused downscale scratch (only used when resizing)
     for (const SwingExportCamera& cam : job.cameras) {
-        const auto entries = window.entriesFor(cam.sourceId);
+        auto entries = window.entriesFor(cam.sourceId);
+        // The impact camera's keep band (SwingExportCamera::keepStartUs): the
+        // only camera whose export is trimmed. Everything else keeps every frame.
+        if (cam.keepStartUs >= 0 && cam.keepEndUs >= cam.keepStartUs) {
+            const size_t before = entries.size();
+            entries.erase(std::remove_if(entries.begin(), entries.end(),
+                                         [&](const IndexEntry& e) {
+                                             return e.timestamp_us < cam.keepStartUs
+                                                 || e.timestamp_us > cam.keepEndUs;
+                                         }),
+                          entries.end());
+            ppInfo() << "[SwingExport]" << cam.alias << ": impact keep band"
+                     << (cam.keepStartUs - t0) / 1000 << ".." << (cam.keepEndUs - t0) / 1000
+                     << "ms keeps" << entries.size() << "of" << before << "frames";
+        }
         if (entries.empty()) {
             ppWarn() << "[SwingExport] no frames for camera" << cam.alias << "— skipping";
             continue;
@@ -484,6 +498,14 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             {QStringLiteral("ballDetection"),   ballDetection},
         };
         s[QStringLiteral("playback")] = QJsonObject{{QStringLiteral("fps"), 30}};
+        // The impact camera's keep band, window-relative — says the stream is a
+        // deliberate clip of the window, not a capture gap (replay loops it).
+        if (rec.cam->keepStartUs >= 0 && rec.cam->keepEndUs >= rec.cam->keepStartUs) {
+            s[QStringLiteral("clip")] = QJsonObject{
+                {QStringLiteral("start_us"), static_cast<qint64>(rec.cam->keepStartUs - t0)},
+                {QStringLiteral("end_us"),   static_cast<qint64>(rec.cam->keepEndUs   - t0)},
+            };
+        }
         s[QStringLiteral("processing")] = QJsonObject{
             {QStringLiteral("demosaic"), QString::fromLatin1(rec.demosaicTag)},
             {QStringLiteral("restorer"), QStringLiteral("none")},

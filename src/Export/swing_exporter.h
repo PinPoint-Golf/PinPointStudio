@@ -42,11 +42,23 @@ struct SwingExportCamera {
     QString  alias;        // human label recorded in swing.json
     QString  fileName;     // "<alias>.mp4"
     // Camera setup at capture time (stream "setup" object): CameraInstance
-    // perspective enum (None 0, DownTheLine 1, FaceOn 2, Other 3), mirroring,
-    // and the AppSettings fixed-in-place flag (the camera-side "calibrated").
+    // perspective enum (None 0, DownTheLine 1, FaceOn 2, Other 3, Impact 4),
+    // mirroring, and the AppSettings fixed-in-place flag (the camera-side
+    // "calibrated").
     int      perspective  = 0;
     bool     mirrored     = false;
     bool     fixedInPlace = false;
+    // Keep range, absolute buffer-clock µs; -1 = keep every captured frame
+    // (the rule below for every camera). THE ONE EXCEPTION TO "EXPORTS ARE NEVER
+    // TRIMMED": the impact camera (impact_camera_design.md §10.2) records a
+    // 640×240 strip at ~600 fps whose only content is the few frames of club and
+    // ball around impact — ungated, its 4 s window is ~2400 frames, a 79 s file
+    // at the 30 fps container rate, and ~360 MB of raw sidecar per shot. The
+    // shot processor sets this band around the arbiter's impact instant for an
+    // Impact-perspective camera only; the exporter drops entries outside it
+    // and records the band as the stream's "clip" object.
+    qint64   keepStartUs  = -1;
+    qint64   keepEndUs    = -1;
     // Ball-detection provenance (ball_detection_calibration.md §7): whether
     // the environment-calibrated detector was active on this stream, its
     // validation margin / timestamp, and the drift severity at capture.
