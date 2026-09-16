@@ -28,6 +28,15 @@ and §10–§12 are revised to match.
 - **What it adds:** a ChArUco card solved for pose in the measurement plane, for a face-on floor mount
   (built first) and an elevated path camera (a tripod at 1–2 m looking down from the face-on side, to validate path). The ball is kept as a relative ruler and verifier, and the launch
   monitor as a health check that is never fitted.
+**Revised 2026-09-16:** the board is a real object now, and the bay is a real size. Mark's cabin is
+5 × 4 m; the face-on and DTL cameras stand **1.5–2 m from the golfer**, so the ball is ~1–1.5 m from
+the face-on lens and ~1.5–2 m from the DTL lens. The worked examples in §4.4 and §4.5 were written
+for a camera at 3 m and are re-scaled to that. §4.1 now records what a board can and cannot do at
+those distances (legibility in pixels per marker cell, not metres), **the board chosen to order**
+(JD Photo Data, 200 × 300 mm Dibond, the §4.8 card exactly), and **an idealised specification for
+this cabin** — two cards and a tag strip on one sheet, with the print files under `docs/design/charuco-print/`.
+§4.8's card is now that board rather than an A4 print on foam, §6.1 says which cameras can and
+cannot "take turns" on it, and §11 items 4, 6 and 7 are updated.
 
 ---
 
@@ -261,7 +270,7 @@ asks, once: **what have you got?** — and presents the answer as two setups rat
 
 A checkerboard with ArUco markers in the white squares. ⛔ **Preferred over a plain checkerboard for
 one decisive reason:** every corner has a unique identity, so a *partial* view still contributes.
-A board large enough to fill a face-on camera at 3 m will not sit wholly inside a down-the-line
+A board large enough to fill a face-on camera will not sit wholly inside a down-the-line
 camera's frame, and a plain checkerboard contributes nothing unless the whole board is visible.
 
 - **Definition**: squares across/down, square size in mm, marker size in mm, dictionary. Entered
@@ -271,6 +280,106 @@ camera's frame, and a plain checkerboard contributes nothing unless the whole bo
 - **What it is for now.** Intrinsics with distortion (I2), once per camera and lens — and ±mm pose
   at the ball (G4) for the operator who wants it. It is no longer the only route to a bay frame:
   §4.4 gets there with two sticks, and §4.6 gets *past* it for the swing volume.
+
+#### 4.1.1 What a board can and cannot do in this cabin (2026-09-16)
+
+⭐ **Legibility is set by pixels per marker cell at the board, not by metres.** A `DICT_4X4` marker
+is six cells across including its border, so a 30 mm marker has 5 mm cells. ArUco decodes at
+~3 px per cell and is reliable at ~5; a ChArUco corner then refines to ~0.2–0.3 px. The pixel scale at
+the ball is fixed by the job the camera already has — framing a whole swing — and is roughly
+**0.8–1.2 px/mm on a 1920 px phone and 0.5–0.8 px/mm on the 1280 px Chameleon3**, whatever lens
+gets it there. A flat board is foreshortened by the sine of the grazing angle on top of that.
+
+| Camera and board placement, 40 mm squares / 30 mm markers | phone class | Chameleon3 class | verdict |
+|---|---|---|---|
+| **Intrinsics:** board held upright 1.2–1.5 m from any lens | 5.5–7 px per cell | 4.5–6 | fine, every position |
+| Impact camera, placement A: card upright on the mat at ~1 mm/px | 5 | 5 | fine — designed for it |
+| Impact camera, placement B: card flat, 1.5 m slant, 60° down | 4.8 | 4.8 | fine |
+| Face-on at 1–1.5 m from the ball, board **upright** at the ball facing it | 4–6 | 2.5–4 | phone fine, FLIR marginal |
+| Face-on, board **flat** at the ball, lens ~1 m up (35–45° grazing) | 2.5–4 | 1.5–2.5 | marginal at best |
+| DTL at 1.5–2 m from the ball, board upright, turned to face it | 3–5 | 2–3.5 | marginal |
+| DTL, board **flat** at the ball (~30° grazing) | 1.5–2.5 | 1–2 | **no** |
+| Overhead straight down from ~2.5 m, board flat | ~3.3 | ~2 | marginal / no |
+| Rear diagonal or isometric at ~3 m slant, board flat | ~1.2 | <1 | **no** |
+
+What follows from the table:
+- **Intrinsics are the board's real job, and this cabin makes them matter more, not less.** Framing a
+  swing from 1.5 m needs ~80° of view — a 4–5 mm C-mount on the Chameleon3, well under the ~6 mm
+  below which §4.8 makes the I2 solve mandatory before a geometry record is trusted. A wide lens has
+  real barrel distortion and a phone's declared field of view says nothing about it. The board fixes
+  that once per lens, held at arm's length, and the position of the camera is irrelevant to it.
+- **G4 pose at the ball from the wide cameras is not a board job, at any size.** Flat at the ball the
+  markers are unreadable from the DTL and marginal from the face-on, and a board upright can face
+  one camera at a time. Their 400 × 600 sheet with 65 mm squares reaches ~1.7 px per cell flat from
+  the DTL — still no — and stops being an impact card. The sticks (§4.4) and the wand (§4.6) remain
+  the geometry path for those cameras; §6.1 says which cameras can share a board.
+- ⚠ The grazing angles here are **estimates from the stated distances and a guessed ~1 m lens height**;
+  §11 item 6 still wants the tape measure.
+
+#### 4.1.2 The board chosen to order (2026-09-16)
+
+JD Photo Data, *Inkjet Printed ChArUco Target*, 3 mm aluminium composite (Dibond), **200 × 300 mm,
+High Resolution** (3.7 pl: features ±0.2 mm, pitch ±0.1 mm, overall ±0.5 mm, edge roughness ±0.06 mm),
+standard inspection, £101 + VAT. The pattern is free text on their order form and is ours:
+
+- **ChArUco 7 × 5 squares, 40 mm squares, 30 mm markers, `DICT_4X4_50`, ids 0–16 in OpenCV order,
+  black square top-left, landscape** — 280 × 200 mm, centred with 10 mm side margins and **flush to
+  the bottom edge**, which is the edge that stands on the mat. This is the §4.8 card exactly.
+- Print-ready file generated with OpenCV 4.14 and verified to decode all 17 markers and all 24
+  corners when resampled to the impact camera's ~1 mm/px:
+  [`charuco-print/charuco_7x5_40mm_30mm_4x4_50_300x200mm_600dpi.pdf`](charuco-print/charuco_7x5_40mm_30mm_4x4_50_300x200mm_600dpi.pdf) (and `.png`).
+- **Why these choices.** 200 mm tall fits the 240-row strip upright; 5 rows (odd) sidesteps the
+  OpenCV ≥ 4.6 legacy-pattern origin ambiguity that an even count reopens; `DICT_4X4` has the fewest
+  bits per marker and therefore the largest cells for the size; High Resolution's ±0.06 mm edge
+  roughness is a quarter of the corner σ where Standard's ±0.2 mm would equal it, for £11.40; the
+  £50 measurement certificate only documents what the stated tolerance already gives spec 5.9's
+  mandatory uncertainty. Dibond is flatter and stiffer than the foam board §4.8 first assumed, at
+  ~230 g.
+- **Ask the printer for a matt white face** — the impact strobe sits near the lens axis and a gloss
+  varnish throws a hotspot into the white squares — and to print from the supplied file, so the ids
+  and layout the app is told are the ids and layout on the board.
+- **Two small departures from §4.8 as first written:** the pattern is flush to the base so there is
+  no margin for the printed origin tick (the ball spot is the centre of the base edge, scribed), and
+  the foot's slot is 3 mm, not 5.
+
+#### 4.1.3 The idealised board for this cabin
+
+Specified from the requirements rather than the catalogue. Three numbers define it: the marker cell
+must be ≥ 5 px in the **coarsest view it must serve**; the card must fit the **smallest window it
+must serve**; and it must carry enough corners for a once-per-lens intrinsics solve. For this cabin
+the coarsest view is the impact strip at ~1 mm/px (5 mm cells → 30 mm markers), the smallest window
+is the 240-row strip with the base on the mat (≤ 205 mm tall), and 24 corners over ~30 views is a
+sound intrinsics solve. The view it deliberately does **not** serve is the DTL's flat view of the
+ball spot, which would need ≥ 65 mm squares, cannot fit the strip, and is coplanar-limited anyway.
+
+**One sheet, 300 × 450 mm, 3 mm matt white Dibond, High Resolution, cut into three:**
+
+| Piece | Size | Pattern | Purpose |
+|---|---|---|---|
+| **Card A** | 300 × 205 mm | ChArUco 7 × 5, 40 mm squares, 30 mm markers, `DICT_4X4_50` **ids 0–16**, pattern 280 × 200 flush to a **5 mm base margin** carrying a printed origin tick at the centre and corner ticks at x = ±140 | the upright face-on card of §4.8 placement A; the same card, held, for every lens's intrinsics |
+| **Card B** | 300 × 205 mm | identical geometry, **ids 17–33** | flat on the mat for placement B, and for any elevated camera looking down at ≥ 45° |
+| **Tag strip** | 300 × 40 mm, cut into seven 40 mm tiles | seven 30 mm ArUco tags, `DICT_4X4_50` **ids 40–46**, 5 mm quiet zone each | §7.1's static fiducials: one per camera, fixed in view for the bump check |
+
+Why this is the ideal and not just more of the same:
+- **Distinct ids let both cards sit at the ball at once** — A stands on B, its base 3 mm above the mat
+  and the record says so — so a camera that sees both measures the A–B relation directly, and the
+  §4.8 joint solve of path (B) and attack angle (A) no longer rests on two separately placed
+  origins agreeing by construction.
+- **The printed origin tick and base margin** put the ball spot on the card rather than on a scribe
+  line, and the 5 mm margin keeps the bottom row's corners off the cut edge.
+- **The tags come from the same dictionary and the same sheet**, so the app holds one dictionary,
+  one id map and one uncertainty for everything printed in the bay. 50 ids is enough: 34 used by the
+  cards, 7 by the tags, 9 spare.
+- **It is the same geometry as the §4.1.2 board**, so the 200 × 300 board, if that is what arrives first, is card A of
+  this sheet with ids 0–16, and nothing in the app definition changes when the sheet replaces it.
+
+Print-ready file, generated and verified (both cards decode 24 corners with their own ids, all seven
+tags decode, at 1 mm/px and at 0.6 px/mm):
+[`charuco-print/charuco_cabin_sheet_300x450_two_cards_plus_tags_600dpi.pdf`](charuco-print/charuco_cabin_sheet_300x450_two_cards_plus_tags_600dpi.pdf) (and `.png`).
+It is the 300 × 450 option on the same order form, £129 + VAT; JD cut to size on request, and 3 mm
+Dibond scores and snaps if not. ⚠ If a floor board legible to the DTL is ever wanted, that is a
+**second, separate** object — 400 × 600, 6 × 9 at 65 mm, 50 mm markers — and it buys a coplanar
+±15–30 mm pose the sticks already give.
 
 ### 4.2 Known-size object — scale for everyone (G1)
 
@@ -334,23 +443,28 @@ to infinity: a sanity check against I1, never a calibration.)
 knows the *view*), and **which end of the target-line stick is the target end.** Together they
 resolve the plane's two-fold pose ambiguity, label which stick is which, and cost nothing. Ask.
 
-**What it is worth — worked for 1920 px, ~60° HFOV (`f` ≈ 1660 px), a camera at 3 m:**
+**What it is worth — worked for this cabin (2026-09-16): a 1920 px phone framing the swing from
+1.5–2 m, which puts ~0.8–1.2 px/mm at the ball.** (The first draft worked it for a camera at 3 m
+with `f` ≈ 1660 px; the answer barely moves, because σ in millimetres is what matters.)
 
-Angular error ≈ (σ / f) · (d / L) / √N.
+Angular error ≈ (σ_mm / L) / √N, with σ_mm = σ_px / (px per mm).
 
 | | σ | L | N | Rotation |
 |---|---|---|---|---|
-| sticks | ~4 px on an endpoint | 1.22 m | 4 | **~0.15°** |
-| A3 ChArUco | ~0.2 px on a corner | 0.4 m | 24 | ~0.01° |
+| sticks | ~4 px on an endpoint ≈ 4–5 mm | 1.22 m | 4 | **~0.1°** |
+| the §4.1 card | ~0.2 px on a corner ≈ 0.2 mm | 0.28 m | 24 | ~0.01° |
 
-Fifteen times worse per point, but the sticks' three-times-larger extent claws most of it back.
-0.15° is not disqualifying.
+Fifteen times worse per point, but the sticks' four-times-larger extent claws most of it back.
+0.1° is not disqualifying.
 
 **Position is the problem, and it is the whole story.** A plane seen at grazing incidence is badly
-conditioned along the view direction. Cameras 1–1.5 m up at 3 m see the floor at ~20°, and a flat
-reference at that angle localises depth at roughly **±25–50 mm**. A board held at 45° or more
-localises it at ±1–4 mm. That ten-to-thirty-fold gap is **coplanarity plus grazing angle, not point
-count** — which is exactly why §4.5 breaks the plane rather than adding more sticks to it.
+conditioned along the view direction. In this cabin a face-on lens ~1 m up and 1–1.5 m from the ball
+sees the mat at ~35–45°, the DTL at 1.5–2 m sees it at ~30°; the first draft's 3 m camera saw it at
+~20°, where a flat reference localised depth at roughly **±25–50 mm**. The steeper angles here
+roughly halve that, to perhaps **±15–30 mm** — an estimate until §11 item 6 is measured — and a board
+held at 45° or more to the view localises it at ±1–4 mm. That ten-fold gap is **coplanarity plus
+grazing angle, not point count** — which is exactly why §4.5 breaks the plane rather than adding
+more sticks to it.
 
 ⚠ **The honest caveat.** Our face-on shaft detection sits at 0.49° RMSE. A 0.15° rotation error is
 comfortably below that; a 40 mm position error becomes the dominant term in anything that
@@ -383,9 +497,9 @@ The additional information the operator can give, ordered by value per unit of f
    collapses the depth error from ~40 mm to ~5–8 mm. **If the operator will do exactly one thing
    beyond the T, it is this, not a third stick on the floor.**
 4. **The ball.** 42.67 mm, spherical so its apparent diameter is orientation-free, and detected
-   already (§4.3). Range from apparent size is weak — at 3 m and ~27 px across, ±0.5 px is ±2 % of
-   range, ±60 mm — but it is a free consistency check on the plane fit, and it anchors scale at the
-   one point that matters.
+   already (§4.3). Range from apparent size is weak — at this cabin's 1–1.5 m the ball is ~35–50 px
+   across, and ±0.5 px is ±1–1.5 % of range, ±15–20 mm — but it is a free consistency check on the
+   plane fit, and it anchors scale at the one point that matters.
 5. **The role and target-end declaration** of §4.4. Low metric value, high robustness value, zero
    cost. Required rather than optional.
 
@@ -491,14 +605,19 @@ the only one that gives launch angle and full ball speed.
 | Never gives | path, face | launch angle, attack angle, low point; **full** ball speed without a launch angle from elsewhere (a 30° wedge launch reads 13 % low horizontally) |
 | Lens for ~1 mm/px | f ≈ 4.8 µm × range: ~8 mm at ~1.6 m (preferred), ~4.8 mm at 1 m | ~8 mm at a ~1.5 m slant range |
 
-**The card.** A4 landscape on 5 mm foam board:
-- **Pattern:** ChArUco 7 × 5, 40 mm squares, 30 mm markers, `DICT_4X4_50`. That is 280 × 200 mm, which
-  fits the 240 mm strip at ~1 mm/px with its base on the mat.
+**The card.** *Was* "A4 landscape on 5 mm foam board"; since 2026-09-16 it is the §4.1.2 board of
+§4.1.2 — 200 × 300 mm, 3 mm Dibond, the same pattern — and ideally card A of the §4.1.3 sheet:
+- **Pattern:** ChArUco 7 × 5, 40 mm squares, 30 mm markers, `DICT_4X4_50`, ids 0–16. That is
+  280 × 200 mm, which fits the 240 mm strip at ~1 mm/px with its base on the mat.
 - **Resolution:** at that scale a marker cell is ~5 px, still decodable, and corners localise to
-  ~0.2–0.3 px. Partial views still solve (§4.1).
-- **Face-on card:** stands in a right-angle foot (a book end, or a printed bracket) so it is upright.
-  A printed tick at x = 0 marks where the ball centre goes, so the solved frame has its origin at the
-  ball spot on the mat and the ball centre at (0, 21.3 mm).
+  ~0.2–0.3 px. Partial views still solve (§4.1). Verified on the print file at 1 mm/px: 17 of 17
+  markers, 24 of 24 corners.
+- **Face-on card:** stands in a right-angle foot (a book end, or a printed bracket with a **3 mm**
+  slot) so it is upright. The ball spot is the centre of the base edge: a printed tick on the
+  idealised card, a scribed one on the §4.1.2 board, whose pattern is flush to the base. The solved
+  frame has its origin at the ball spot on the mat and the ball centre at (0, 21.3 mm). When card B
+  lies under it (§4.1.3) the base is 3 mm up and the record carries that.
+- **Matt face.** The strobe sits near the lens axis; a gloss card puts a hotspot in the white squares.
 
 ⛔ **Solve a pose, not a homography.** With the bound intrinsics (§3.4), `solvePnP` on the card corners
 gives the camera's full pose relative to P, not just an image→P map. That matters because much of what
@@ -676,6 +795,15 @@ axis along the target line, and the bay frame is the frame the golf metrics alre
 
 The two conditions are checkable, and §7 checks them: the board must not move between observations,
 and no camera may move afterwards.
+
+⚠ **Who can actually take a turn, at this cabin's distances (§4.1.1).** A flat board at the ball is
+legible to an elevated camera looking down at ≥ 45° (the §4.8 placement B tripod, an overhead on a
+short pole) and, marginally, to a phone face-on at ~1 m. It is **not** legible to the DTL at
+1.5–2 m, nor to a rear diagonal or an isometric camera, and no catalogue size fixes that — a
+65 mm-square floor board reaches ~1.7 px per marker cell from the DTL. So "the cameras take turns"
+holds among the cameras that see the board within ~45–55° of its normal; the rest land in the same
+frame by the T of sticks (§6.3), which is the shared reference this bay actually uses. The board's
+frame and the sticks' frame coincide by construction: origin at the ball spot, x along the target line.
 
 ### 6.2 What each camera contributes
 
@@ -885,13 +1013,19 @@ Each stage is independently useful, and nothing later is needed for something ea
    artefact plus an exposure problem, and §5.6 is the whole answer.
 3. **Whether the phone can detect ChArUco corners at capture resolution without disturbing
    capture.** Decides whether stage 8 is a background task or a separate mode.
-4. **Board size and square pitch** for the actual distances in the bay.
+4. **Board size and square pitch** for the actual distances in the bay. *Settled 2026-09-16 (§4.1.1–
+   §4.1.3): 40 mm squares, 30 mm `DICT_4X4_50` markers; the board is an intrinsics and placement-B
+   tool, not a floor board for the DTL.* What is still open is the marginal rows of the §4.1.1 table
+   — a phone face-on reading the flat card, the Chameleon3 reading it upright — which one capture
+   each will turn into a yes or a no.
 5. **Ball-diameter detection repeatability** at address — it sets the uncertainty on tier G1, and
    G1 is the path most operators will be on.
-6. **The actual camera heights and grazing angles in the bay.** The ±25–50 mm of §4.4 assumes ~20°;
-   the number moves fast with angle, and a tape measure settles it in a minute.
-7. **Endpoint localisation σ on a real stick at 3 m** — the 4 px assumed in §4.4 sets every G2
-   figure. Measure it on both a stick end and a clubhead, since the clubhead is the fallback.
+6. **The actual camera heights and grazing angles in the bay.** The distances are known (face-on and
+   DTL 1.5–2 m from the golfer, 2026-09-16); the lens heights are a guess of ~1 m, so the ~35–45°
+   and ~30° grazing angles in §4.4 and §4.1.1 and the ±15–30 mm that follows are estimates. The
+   number moves fast with angle, and a tape measure settles it in a minute.
+7. **Endpoint localisation σ on a real stick at the cabin's 1.5–2 m** — the 4 px assumed in §4.4
+   sets every G2 figure. Measure it on both a stick end and a clubhead, since the clubhead is the fallback.
 8. **Vanishing-point `f` against the phone's declared `f`.** If they agree to a few percent the
    sanity check is worth showing; if not, it is worth knowing why before anyone trusts either.
 10. **`videoFieldOfView` against the delivered matrix at 120 fps, and the 240 fps crop.** The
