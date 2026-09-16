@@ -18,6 +18,7 @@
 
 #include "disk_replay_source.h"
 
+#include <QElapsedTimer>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -106,6 +107,7 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
     // it again here was a third full pass over the same pose track on the GUI thread — the freeze the
     // user sees at the end of a shot. An empty answer means any other caller, and we read the file.
     QJsonObject root = pinpoint::SwingDocWriter::takeJustWritten(swingDir);
+    const bool usedCachedDocument = !root.isEmpty();
     if (root.isEmpty()) {
         QFile f(swingDir + QStringLiteral("/swing.json"));
         if (!f.open(QIODevice::ReadOnly)) {
@@ -194,6 +196,12 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
     m_startUs    = spanStart;
     m_endUs      = std::max(spanEnd, spanStart + 1);
     m_positionUs = m_startUs;
+
+    // ⏱ The replay's own rebuild of the same pose payload the shot processor just built — the other
+    // half of the end-of-shot cost, and on the GUI thread like everything else here. Timed so the next
+    // cut is chosen from numbers (Mark, 2026-09-16: the freeze survived moving the write).
+    QElapsedTimer replayPhase;
+    replayPhase.start();
 
     // ── Analysis detail, offset to the window-relative (0-based) domain ─────
     m_analysisDetail = QVariantMap{};
@@ -505,7 +513,9 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
     m_timer->start();
 
     ppInfo() << "[ShotReplay] replaying" << swingDir << "—" << int(m_streams.size())
-             << "stream(s), window" << (m_endUs - m_startUs) / 1000 << "ms";
+             << "stream(s), window" << (m_endUs - m_startUs) / 1000 << "ms"
+             << "| load on the GUI thread:" << replayPhase.elapsed() << "ms"
+             << (usedCachedDocument ? "(document already in hand)" : "(parsed from disk)");
     return true;
 }
 

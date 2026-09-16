@@ -567,6 +567,25 @@ ShotProcessor::ShotProcessor(pinpoint::EventBuffer *buffer,
     connect(&m_segmentationWatcher,
             &QFutureWatcher<pinpoint::analysis::Segmentation>::finished,
             this, &ShotProcessor::onSegmentationFinished);
+    connect(&m_docWriteWatcher, &QFutureWatcher<SwingDocWriteResult>::finished,
+            this, &ShotProcessor::onSwingDocWritten);
+
+    // The UI-thread stall watchdog — see m_uiStallTimer. 50 ms ticks; anything later than 250 ms is a
+    // stall the user can see (the video stops), so it is logged with how long the thread was gone.
+    // Runs for the whole session, not just around a shot: the point is to catch it wherever it happens.
+    m_uiStallClock.start();
+    m_uiStallLastTickMs = m_uiStallClock.elapsed();
+    m_uiStallTimer.setSingleShot(false);
+    m_uiStallTimer.setInterval(50);
+    connect(&m_uiStallTimer, &QTimer::timeout, this, [this]() {
+        const qint64 now  = m_uiStallClock.elapsed();
+        const qint64 gap  = now - m_uiStallLastTickMs;
+        m_uiStallLastTickMs = now;
+        if (gap >= 250)
+            ppWarn() << "[UiStall] the GUI thread was blocked for" << gap
+                     << "ms — state" << stateName();
+    });
+    m_uiStallTimer.start();
 }
 
 ShotProcessor::~ShotProcessor()
@@ -1989,91 +2008,155 @@ void ShotProcessor::maybeJoin()
     // re-analysed offline — so the carousel item is flagged (⚠) and an "imuIntegrity"
     // block is persisted to swing.json. Only meaningful for the Madgwick default (the
     // only exactly-warm-startable filter); skip under ESKF to avoid a false warning.
-    bool imuDataWarning = false;
-    if (m_swingWindow
-        && (!m_appSettings
-            || m_appSettings->imuOrientationFilter().compare(QStringLiteral("ESKF"),
-                                                             Qt::CaseInsensitive) != 0)) {
-        const pinpoint::ImuRefusionVerdict v = pinpoint::checkImuRefusion(*m_swingWindow);
-        if (v.sourcesChecked > 0) {
-            imuDataWarning = v.warns();
-            // Shared with the re-analysis write-back (swing_doc.h) so the two
-            // producers of this block cannot drift.
-            m_exportManifest[QStringLiteral("imuIntegrity")] = pinpoint::imuIntegrityJson(v);
-            if (imuDataWarning)
-                ppInfo() << "[ShotProcessor] IMU re-fusion parity FAILED — worst"
-                         << v.worstMaxDeg << "deg over" << v.sourcesChecked
-                         << "source(s); shot flagged not re-analysable";
-        }
-    }
-    // Capture data-integrity (frame-timestamp holes in the camera lanes): the host
-    // stalled and frames are missing. m_impactUs is absolute buffer-clock, the live
-    // window's own domain, so the verdict knows whether the swing itself or only the
-    // follow-through lost frames. Persisted beside imuIntegrity; the carousel ⚠ and
-    // the session ledger's exclusion both read the two blocks through
-    // dataWarningDetailFrom, so the rule lives in one place.
-    if (m_swingWindow) {
-        const pinpoint::CaptureIntegrityVerdict cv =
-            pinpoint::checkCaptureIntegrity(*m_swingWindow, m_impactUs);
-        if (cv.camerasChecked > 0) {
-            m_exportManifest[QStringLiteral("captureIntegrity")] = pinpoint::captureIntegrityJson(cv);
-            if (cv.warns())
-                ppWarn() << "[ShotProcessor] capture lost" << cv.framesLost << "frame(s) in"
-                         << cv.holes << "hole(s), worst" << cv.worstHoleMs << "ms,"
-                         << (cv.preImpact ? "before impact" : "after impact")
-                         << "— shot flagged and excluded from the session assessment";
-        }
-    }
-    const QVariantMap dataWarningDetail = pinpoint::dataWarningDetailFrom(m_exportManifest);
-    const bool        dataWarning       = !dataWarningDetail.isEmpty();
-
-    // The club this shot was hit with: the session's active club (Home CLUB chip →
-    // SessionController.activeClub, seeded from the athlete's preferred club), else the
-    // athlete's preferred club, else the stub. Resolved BEFORE the document is written —
-    // it goes into swing.json as well as onto the carousel row, and a club that reached
-    // only the row was lost the moment the session reloaded from disk.
+    // ── Everything below runs OFF the GUI thread ───────────────────────────────────────────────────
+    //
+    // The two integrity checks and the write of swing.json used to run right here, on the UI thread,
+    // and the user watched the app stop: the document is ~28 MB on a wrist swing (analysis.pose2d
+    // alone is ~13 MB), it is serialised INDENTED, and the library is a network share. The re-fusion
+    // check re-runs a full Madgwick pass over every IMU sample; the capture check walks every frame
+    // timestamp in every lane. None of it needs the GUI thread, and the freeze landed with the replay
+    // on screen, which is the worst moment to stop moving.
+    //
+    // Nothing is announced until it returns (onSwingDocWritten): the carousel row, the terminal
+    // statement and the replay promotion are all claims about what survives a restart. In flight the UI
+    // says nothing; a failed write is surfaced when it lands, as the shot's terminal statement.
+    //
+    // The worker borrows the window (checks) and m_analysisResult.detail (write). Both stay alive
+    // because the processor remains in State::Processing until the handler runs — a new shot clears
+    // them and cannot start from here — and finishNowBlocking() joins this watcher on teardown.
+    const bool skipRefusion =
+        m_appSettings
+        && m_appSettings->imuOrientationFilter().compare(QStringLiteral("ESKF"),
+                                                         Qt::CaseInsensitive) == 0;
+    const pinpoint::PersistPath persist = pinpoint::persistPathFor(join);
+    // Resolved on this thread because it reads the session and athlete models: the session's active
+    // club, else the athlete's preferred one, else the stub. It goes into the document AND onto the
+    // carousel row — a club that reached only the row was lost the moment the session reloaded.
     QString shotClub = m_session ? m_session->activeClub() : QString();
     if (shotClub.isEmpty() && m_athlete)
         shotClub = m_athlete->effectivePrimaryClub(m_athlete->currentUuid());
     if (shotClub.isEmpty())
         shotClub = pinpoint::clubStub();
+    // A degraded persist (export failed, analysis did not) writes a synthesised header instead of the
+    // exporter's manifest. Built here: it reads members, and it is cheap.
+    const QJsonObject synthManifest = (persist == pinpoint::PersistPath::AnalysisOnlyDocument)
+                                          ? buildSynthManifest() : QJsonObject{};
 
-    // The ONE unified swing.json (raw manifest + inline "analysis"), written here on the
-    // GUI thread now that both workers have finished — no parallel-write race (the workers
-    // wrote only media + returned values). savedSwingDir is set only when a swing.json was
-    // actually written, so the carousel row links to a real file (rating/note write-through,
-    // reload) and an unwritten shot stays in-memory only.
+    m_docWriteInFlight = true;
+    m_docWriteWatcher.setFuture(QtConcurrent::run(
+        [this, persist, shotClub, synthManifest, skipRefusion]() -> SwingDocWriteResult {
+            SwingDocWriteResult out;
+            out.manifest = m_exportManifest;
+
+            // IMU data-integrity (offline re-fusion parity): re-fuse each IMU source from its recorded
+            // raw accel+gyro and confirm it reproduces the stored quaternion. A mismatch means the IMU
+            // record is internally inconsistent — the shot cannot be re-analysed offline — so the
+            // carousel item is flagged (⚠) and the block is persisted. Only meaningful for the Madgwick
+            // default (the only exactly-warm-startable filter); skipped under ESKF to avoid a false
+            // warning.
+            if (m_swingWindow && !skipRefusion) {
+                const pinpoint::ImuRefusionVerdict v = pinpoint::checkImuRefusion(*m_swingWindow);
+                if (v.sourcesChecked > 0) {
+                    // Shared with the re-analysis write-back (swing_doc.h) so the two producers of this
+                    // block cannot drift.
+                    out.manifest[QStringLiteral("imuIntegrity")] = pinpoint::imuIntegrityJson(v);
+                    if (v.warns())
+                        ppInfo() << "[ShotProcessor] IMU re-fusion parity FAILED — worst"
+                                 << v.worstMaxDeg << "deg over" << v.sourcesChecked
+                                 << "source(s); shot flagged not re-analysable";
+                }
+            }
+            // Capture data-integrity (frame-timestamp holes in the camera lanes): the host stalled and
+            // frames are missing. m_impactUs is absolute buffer-clock, the live window's own domain, so
+            // the verdict knows whether the swing itself or only the follow-through lost frames.
+            // Persisted beside imuIntegrity; the carousel ⚠ and the session ledger's exclusion both read
+            // the two blocks through dataWarningDetailFrom, so the rule lives in one place.
+            if (m_swingWindow) {
+                const pinpoint::CaptureIntegrityVerdict cv =
+                    pinpoint::checkCaptureIntegrity(*m_swingWindow, m_impactUs);
+                if (cv.camerasChecked > 0) {
+                    out.manifest[QStringLiteral("captureIntegrity")] =
+                        pinpoint::captureIntegrityJson(cv);
+                    if (cv.warns())
+                        ppWarn() << "[ShotProcessor] capture lost" << cv.framesLost << "frame(s) in"
+                                 << cv.holes << "hole(s), worst" << cv.worstHoleMs << "ms,"
+                                 << (cv.preImpact ? "before impact" : "after impact")
+                                 << "— shot flagged and excluded from the session assessment";
+                }
+            }
+            out.dataWarningDetail = pinpoint::dataWarningDetailFrom(out.manifest);
+
+            // The ONE unified swing.json (raw manifest + inline "analysis"). No parallel-write race:
+            // the export worker wrote only media and returned, and the analyzer returned a value.
+            if (persist == pinpoint::PersistPath::FullDocument) {
+                out.wrote = pinpoint::SwingDocWriter::writeSwingJson(
+                    m_swingDir, out.manifest,
+                    m_analysisResult.detail ? m_analysisResult.detail.get() : nullptr,
+                    &out.error, shotClub);
+            } else if (persist == pinpoint::PersistPath::AnalysisOnlyDocument) {
+                // Degraded persist: export failed/skipped but analysis succeeded — write a minimal,
+                // analysis-only swing.json so the shot reloads after a restart.
+                QJsonObject synth = synthManifest;
+                for (const QString &k : { QStringLiteral("imuIntegrity"),
+                                          QStringLiteral("captureIntegrity") })
+                    if (out.manifest.contains(k))
+                        synth[k] = out.manifest[k];
+                out.wrote = pinpoint::SwingDocWriter::writeSwingJson(
+                    m_swingDir, synth, m_analysisResult.detail.get(), &out.error, shotClub);
+            }
+            return out;
+        }));
+}
+
+// The document is written (or it is not). Everything the shot is ANNOUNCED as happens here — see
+// SwingDocWriteResult. Runs on the GUI thread, strictly after the worker lambda returned.
+void ShotProcessor::onSwingDocWritten()
+{
+    if (!m_docWriteInFlight)
+        return;                     // a queued delivery after finishNowBlocking() — no-op
+    m_docWriteInFlight = false;
+    if (m_state != State::Processing)
+        return;                     // aborted underneath us
+
+    const SwingDocWriteResult res = m_docWriteWatcher.result();
+    // The manifest now carries the integrity blocks the checks added; later readers (the degraded
+    // persist path, re-analysis write-back) must see them.
+    m_exportManifest = res.manifest;
+
+    pinpoint::ShotJoinInputs join;
+    join.analysis            = m_analysisOutcome;
+    join.mediaExport         = m_exportOutcome;
+    join.hasAnalysisDetail   = static_cast<bool>(m_analysisResult.detail);
+    join.swingDirAllocated   = !m_swingDir.isEmpty();
+    join.skipAnalysisCapture = m_skipAnalysisCapture;
+    join.hasReplayTracks     = !m_replayTracks.empty();
+
+    const bool analysisOk = m_analysisOutcome == Outcome::Succeeded;
+    const bool exportOk   = m_exportOutcome   == Outcome::Succeeded;
+    const QVariantMap dataWarningDetail = res.dataWarningDetail;
+    const bool        dataWarning       = !dataWarningDetail.isEmpty();
+
+    // savedSwingDir is set only when a swing.json was actually written, so the carousel row links to a
+    // real file (rating/note write-through, reload) and an unwritten shot stays in-memory only.
     QString savedSwingDir;
-    const pinpoint::PersistPath persist = pinpoint::persistPathFor(join);
-    if (persist == pinpoint::PersistPath::FullDocument) {
-        QString werr;
-        if (pinpoint::SwingDocWriter::writeSwingJson(
-                m_swingDir, m_exportManifest,
-                analysisOk && m_analysisResult.detail ? m_analysisResult.detail.get() : nullptr,
-                &werr, shotClub)) {
-            savedSwingDir = m_swingDir;
-            ppInfo() << "[SwingDoc] wrote" << m_swingDir + QStringLiteral("/swing.json")
-                     << (analysisOk ? "(with analysis)" : "(raw only)");
-        } else {
-            ppError() << "[SwingDoc]" << werr;
-        }
-    } else if (persist == pinpoint::PersistPath::AnalysisOnlyDocument) {
-        // Degraded persist: export failed/skipped but analysis succeeded — write a
-        // minimal, analysis-only swing.json so the shot reloads after a restart.
-        QString werr;
-        QJsonObject synthManifest = buildSynthManifest();
-        if (m_exportManifest.contains(QStringLiteral("imuIntegrity")))
-            synthManifest[QStringLiteral("imuIntegrity")] = m_exportManifest[QStringLiteral("imuIntegrity")];
-        if (m_exportManifest.contains(QStringLiteral("captureIntegrity")))
-            synthManifest[QStringLiteral("captureIntegrity")] = m_exportManifest[QStringLiteral("captureIntegrity")];
-        if (pinpoint::SwingDocWriter::writeSwingJson(
-                m_swingDir, synthManifest, m_analysisResult.detail.get(), &werr, shotClub)) {
-            savedSwingDir = m_swingDir;
-            ppInfo() << "[SwingDoc] wrote analysis-only" << m_swingDir + QStringLiteral("/swing.json");
-        } else {
-            ppError() << "[SwingDoc] (degraded)" << werr;
-        }
+    if (res.wrote) {
+        savedSwingDir = m_swingDir;
+        ppInfo() << "[SwingDoc] wrote" << m_swingDir + QStringLiteral("/swing.json")
+                 << (analysisOk ? "(with analysis)" : "(raw only)");
+    } else if (!res.error.isEmpty()) {
+        ppError() << "[SwingDoc]" << res.error;
     }
+
+    // The club the document records, read back from it rather than re-resolved: the row and the file
+    // must name the same club, and the worker already settled it.
+    const QString shotClub = pinpoint::swingDocClub(res.manifest);
+
+    // ⏱ What this handler costs, per phase. The write is off the GUI thread now; the rebuilds of the
+    // pose payload are not, and the end-of-shot freeze survived moving the write (Mark, 2026-09-16), so
+    // the next cut has to be chosen from numbers rather than from reading the code. One line per shot.
+    QElapsedTimer phase;
+    phase.start();
+    const qint64 tStart = phase.elapsed();
 
     // The shot happened — it always lands on the carousel, with whatever the pipeline
     // produced, carrying the same shotClub the document above records. The user can still
@@ -2084,7 +2167,9 @@ void ShotProcessor::maybeJoin()
     m_replayAnalysisDetail = (analysisOk && m_analysisResult.detail)
                                  ? toAnalysisDetail(*m_analysisResult.detail)
                                  : QVariantMap{};
+    const qint64 tDetail = phase.elapsed();
     emit replayAnalysisDetailChanged();
+    const qint64 tEmit = phase.elapsed();
 
     int newShotId = -1;
     if (m_shotModel) {
@@ -2102,6 +2187,13 @@ void ShotProcessor::maybeJoin()
                              m_replayAnalysisDetail,
                              dataWarning, dataWarningDetail);
     }
+
+    const qint64 tRow = phase.elapsed();
+    ppInfo() << "[ShotProcessor] join tail on the GUI thread:"
+             << "analysisDetail" << (tDetail - tStart) << "ms,"
+             << "notify" << (tEmit - tDetail) << "ms,"
+             << "addShot" << (tRow - tEmit) << "ms,"
+             << "total" << tRow << "ms";
 
     m_lastShotId = newShotId;
 
@@ -2370,11 +2462,17 @@ void ShotProcessor::finishNowBlocking()
         m_analysisWatcher.waitForFinished();
     if (m_swingSaveInFlight)
         m_swingSaveWatcher.waitForFinished();
+    // ⚠ AND THE DOCUMENT WRITER. It borrows the window (integrity checks) and the analysis detail
+    // (the write itself), both of which the caller is about to invalidate — and a shot whose write was
+    // abandoned here would vanish at the next restart having been recorded, encoded and analysed.
+    if (m_docWriteInFlight)
+        m_docWriteWatcher.waitForFinished();
     // The queued finished() handlers will still be delivered later; flag-off
     // makes them no-ops.
     m_segmentationInFlight = false;
     m_analysisInFlight  = false;
     m_swingSaveInFlight = false;
+    m_docWriteInFlight  = false;
 
     m_swingWindow.reset();
     m_replayTracks.clear();

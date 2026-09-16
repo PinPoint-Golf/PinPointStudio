@@ -98,6 +98,21 @@ public:
     // stays disarmed across it for free.
     enum class State { Idle, PostRoll, Gathering, Processing, Replaying };
 
+    // What the swing-document worker did. The data-integrity checks and the write of swing.json all run
+    // OFF the GUI thread (2026-09-16): the document is ~28 MB on a wrist swing and serialising it,
+    // indented, to a library on a network share froze the UI at the end of every shot — with the replay
+    // on screen, which is where it was most obvious.
+    //
+    // Nothing is announced until this comes back: the carousel row, the terminal statement and the
+    // replay promotion all say what SURVIVES A RESTART, and a shot cannot be called saved before its
+    // document is committed. In flight the UI says nothing at all; a failure is surfaced when it lands.
+    struct SwingDocWriteResult {
+        bool        wrote = false;      // a swing.json was actually committed
+        QString     error;              // why not, when !wrote
+        QJsonObject manifest;           // the manifest WITH the integrity blocks the checks added
+        QVariantMap dataWarningDetail;  // dataWarningDetailFrom(manifest) — empty when nothing warns
+    };
+
     ShotProcessor(pinpoint::EventBuffer *buffer,
                   CameraManager         *cameraManager,
                   ImuManager            *imuManager,
@@ -200,6 +215,10 @@ private slots:
     void onSegmentationFinished();
     void onAnalysisFinished();
     void onSwingSaveFinished();
+    // The swing document has been written (or failed to be). Everything the shot is announced as —
+    // the carousel row, shotProcessed/shotFailed, the outcome toast, the replay promotion — happens
+    // here, because until this returns none of it is true yet.
+    void onSwingDocWritten();
     void onReplayTick();
 
 private:
@@ -289,6 +308,17 @@ private:
     // path that abandons a gather must reset it, or the buffer can never resume.
     std::unique_ptr<const pinpoint::SwingPayloadSource> m_ringSource;
     QTimer  m_gatherTimer;          // polls the deferred sources during Gathering
+
+    // ⏱ THE UI-THREAD STALL WATCHDOG (2026-09-16). A repeating timer on the GUI thread: if a tick
+    // arrives late, the thread was blocked for the difference, and the log says so with a timestamp.
+    //
+    // It exists because three rounds of "this code looks expensive" were wrong — the pose rebuilds it
+    // blamed measure 64 ms together on the real 28 MB document, nowhere near the freeze Mark sees. This
+    // measures the SYMPTOM instead of a suspect: whatever blocks the thread, the stall is recorded, and
+    // the surrounding log lines say what was happening at that moment.
+    QTimer        m_uiStallTimer;
+    QElapsedTimer m_uiStallClock;
+    qint64        m_uiStallLastTickMs = 0;
     qint64  m_gatherDeadlineMs = 0; // QDateTime msecs; the wait is bounded
     // ⚠ FROZEN AT THE PAUSE INSTANT, NOT READ AFTER THE GATHER. The window is a
     // TRAILING span, so computing it from a post-gather `now` would slide it
@@ -340,6 +370,12 @@ private:
     QFutureWatcher<ShotAnalysisResult>          m_analysisWatcher;
     bool    m_swingSaveInFlight = false;
     bool    m_analysisInFlight  = false;
+    // The document writer (SwingDocWriteResult). It borrows &*m_swingWindow for the integrity checks
+    // and m_analysisResult.detail for the write, so — like the two above — finishNowBlocking() must
+    // join it, and the processor stays in State::Processing until it returns, which is what keeps both
+    // of those alive (a new shot clears them, and it cannot start from Processing).
+    QFutureWatcher<SwingDocWriteResult> m_docWriteWatcher;
+    bool    m_docWriteInFlight = false;
     Outcome m_exportOutcome     = Outcome::Pending;
     Outcome m_analysisOutcome   = Outcome::Pending;
     // Corpus capture: saveRawFrames && skipAnalysisForRawCapture, resolved per shot
