@@ -31,6 +31,7 @@
 #include <limits>
 
 #include "../Core/pp_debug.h"
+#include "../../Export/swing_doc.h"   // takeJustWritten — the document we may have just written
 
 namespace {
 
@@ -100,12 +101,19 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
     if (swingDir.isEmpty())
         return false;
 
-    QFile f(swingDir + QStringLiteral("/swing.json"));
-    if (!f.open(QIODevice::ReadOnly)) {
-        ppWarn() << "[ShotReplay] cannot open" << f.fileName();
-        return false;   // bad path: leave any current replay intact
+    // The document, without fetching and re-parsing it when we are the ones who just wrote it. On the
+    // live path this runs microseconds after ShotProcessor committed ~28 MB to the library, and parsing
+    // it again here was a third full pass over the same pose track on the GUI thread — the freeze the
+    // user sees at the end of a shot. An empty answer means any other caller, and we read the file.
+    QJsonObject root = pinpoint::SwingDocWriter::takeJustWritten(swingDir);
+    if (root.isEmpty()) {
+        QFile f(swingDir + QStringLiteral("/swing.json"));
+        if (!f.open(QIODevice::ReadOnly)) {
+            ppWarn() << "[ShotReplay] cannot open" << f.fileName();
+            return false;   // bad path: leave any current replay intact
+        }
+        root = QJsonDocument::fromJson(f.readAll()).object();
     }
-    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
     if (root.isEmpty())
         return false;
 

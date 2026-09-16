@@ -581,7 +581,10 @@ int main()
         if (!f.open(QIODevice::ReadOnly)) return 1;
         const QJsonObject s = QJsonDocument::fromJson(f.readAll()).object();
         f.close();
-        check(s[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.swingsummary/3"),
+        // /4 (2026-09-16): + metrics, rating, note, lmDeviceKind, dataWarningDetail — the rest of what
+        // a carousel row shows, so loading a session never fat-parses. Bumping the tag is what makes
+        // every /3 sidecar in an existing library miss and rewrite itself.
+        check(s[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.swingsummary/4"),
               "sidecar schema tag");
         const QFileInfo srcInfo(dir + QStringLiteral("/swing.json"));
         const QJsonObject src = s[QStringLiteral("source")].toObject();
@@ -607,6 +610,16 @@ int main()
         check(lean.hasVideo == fat.hasVideo,             "parity hasVideo");
         check(lean.thumbnailPath == fat.thumbnailPath,   "parity thumbnailPath");
         check(lean.score == fat.score,                   "parity score");
+        // The /4 row fields. A carousel row is rebuilt from whichever of these two reads answered, and
+        // its card fills every required property from a model role — so a sidecar that dropped these
+        // would blank the metric chips, the stars and the warning tooltip on every reloaded shot, which
+        // is exactly the regression the cheap session load could otherwise introduce.
+        check(lean.metrics == fat.metrics,                     "parity metrics (the card's chips)");
+        check(lean.rating == fat.rating,                       "parity rating");
+        check(lean.note == fat.note,                           "parity note");
+        check(lean.lmDeviceKind == fat.lmDeviceKind,           "parity lmDeviceKind");
+        check(lean.dataWarning == fat.dataWarning,             "parity dataWarning");
+        check(lean.dataWarningDetail == fat.dataWarningDetail, "parity dataWarningDetail");
 
         // Delete it: the fallback must produce identical values AND self-heal.
         QFile::remove(sumPath);

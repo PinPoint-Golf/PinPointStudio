@@ -24,6 +24,7 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QMutex>
 #include <QSaveFile>
 #include <QSet>
 #include <QTimeZone>
@@ -665,7 +666,10 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
 // the stub. A /1 sidecar cached the review-or-stub answer, and its size+mtime guard still
 // matches (the fix changed no swing.json), so bumping the schema is the ONLY thing that
 // retires the stale "DRIVER" it holds for every camera swing that was never edited.
-constexpr auto kSummarySchema = "pinpoint.swingsummary/3";   // /3: + dataWarning
+// /4: + metrics, rating, note, lmDeviceKind, dataWarningDetail — everything a carousel row shows, so
+// loading a session never has to fat-parse (2026-09-16). Pure cache: an older sidecar simply fails the
+// schema check and is rewritten from the document.
+constexpr auto kSummarySchema = "pinpoint.swingsummary/4";
 
 QString summaryPath(const QString &swingDir) { return swingDir + QStringLiteral("/swing_summary.json"); }
 QString sourcePath (const QString &swingDir) { return swingDir + QStringLiteral("/swing.json"); }
@@ -764,6 +768,48 @@ QJsonArray lmMetricEntries(const lm::LaunchMonitorReading &reading, qint64 impac
     return metrics;
 }
 
+// The carousel's metric chips: each metric's value at Impact, formatted in its own unit.
+//
+// ⚠ ONE IMPLEMENTATION, called by the full reader AND the summary (2026-09-16). The chips are what a
+// row shows whether it was rebuilt from the document or from the sidecar, and two copies of this
+// formatting would drift into two different-looking cards for the same swing.
+QVariantMap impactMetricsFromAnalysis(const QJsonObject &an)
+{
+    QVariantMap metrics;
+    for (const QJsonValue &mv : an[QStringLiteral("metrics")].toArray()) {
+        const QJsonObject m = mv.toObject();
+        bool found = false;
+        double impact = 0.0;
+        for (const QJsonValue &sv : m[QStringLiteral("phaseSamples")].toArray()) {
+            const QJsonObject s = sv.toObject();
+            if (s[QStringLiteral("phase")].toInt() == int(analysis::Phase::Impact)) {
+                impact = s[QStringLiteral("value")].toDouble(); found = true; break;
+            }
+        }
+        if (!found)
+            continue;
+        // Format against the metric's OWN unit. This loop sees every detail series, not just the
+        // signed-degree wrist ones, so hardcoding "°" rendered a ×frame heel lift or an mph clubhead
+        // speed as "+0°". Degrees keep their exact previous formatting (signed, rounded) so the wrist
+        // metrics that drive the carousel are unchanged; everything else reads in the unit it was
+        // actually measured in.
+        const QString unit = m[QStringLiteral("unit")].toString();
+        QString val;
+        if (unit == QStringLiteral("°")) {
+            const long r = std::lround(impact);
+            val = (r > 0 ? QStringLiteral("+") : QString()) + QString::number(r) + unit;
+        } else {
+            // 2 sf past the point for small magnitudes, whole numbers for large ones (mm, ms) — and no
+            // forced "+", which is meaningless for a ratio, a percentage or a speed.
+            val = QString::number(impact, 'f', std::abs(impact) < 100.0 ? 2 : 0) + unit;
+        }
+        metrics.insert(m[QStringLiteral("key")].toString(),
+                       QVariantMap{ { QStringLiteral("label"), m[QStringLiteral("label")].toString() },
+                                    { QStringLiteral("value"), val } });
+    }
+    return metrics;
+}
+
 SwingSummary summaryFromRoot(const QJsonObject &root, const QString &swingDir)
 {
     SwingSummary s;
@@ -802,18 +848,61 @@ SwingSummary summaryFromRoot(const QJsonObject &root, const QString &swingDir)
                         + thumb[QStringLiteral("file")].toString(QStringLiteral("thumb.jpg"));
 
     if (root.contains(QStringLiteral("analysis"))) {
+        const QJsonObject an = root[QStringLiteral("analysis")].toObject();
         // "score" is a bare int in /2 docs, a ScoreBreakdown object in /3+ (design §B.0a).
-        const QJsonValue scoreVal = root[QStringLiteral("analysis")].toObject()[QStringLiteral("score")];
+        const QJsonValue scoreVal = an[QStringLiteral("score")];
         s.score = scoreVal.isObject()
                       ? scoreVal.toObject()[QStringLiteral("overall")].toInt()
                       : scoreVal.toInt();
+        // The chips, from the same helper the full reader uses. Reads only metrics[] — the pose track
+        // this summary exists to avoid is never touched.
+        s.metrics = impactMetricsFromAnalysis(an);
     }
     // The data warning is read from the same two blocks the full reader uses, so the
     // ledger's cheap path and the carousel's fat path can never disagree about it.
-    s.dataWarning = !dataWarningDetailFrom(root).isEmpty();
+    s.dataWarningDetail = dataWarningDetailFrom(root);
+    s.dataWarning       = !s.dataWarningDetail.isEmpty();
+
+    // User review (stars, note) — the same block updateReview() writes through.
+    if (root.contains(QStringLiteral("review"))) {
+        const QJsonObject rv = root[QStringLiteral("review")].toObject();
+        s.rating = std::clamp(rv[QStringLiteral("rating")].toInt(), 0, 5);
+        s.note   = rv[QStringLiteral("note")].toString();
+    }
+    // Which device measured it, for the row's caption.
+    s.lmDeviceKind = root[QStringLiteral("launchMonitor")].toObject()
+                         [QStringLiteral("kind")].toString();
 
     s.ok = true;
     return s;
+}
+
+// ── The just-written document (see SwingDocWriter::takeJustWritten) ─────────────────────────────
+//
+// One entry, because one is all the live path needs: write a swing, replay it. Guarded by a mutex —
+// the writers run on the GUI thread today, but nothing in the signature says so, and handing a
+// half-assigned QJsonObject to a reader would be a nasty way to find that out.
+//
+// ⚠ TAKING IT CLEARS IT, and every rewrite of a document drops it. A cached root that outlived its
+// file would replay yesterday's analysis of today's swing, which is worse than the parse it saves.
+QMutex           g_justWrittenMutex;
+QString          g_justWrittenDir;
+QJsonObject      g_justWrittenRoot;
+
+void setJustWritten(const QString &swingDir, const QJsonObject &root)
+{
+    QMutexLocker lk(&g_justWrittenMutex);
+    g_justWrittenDir  = swingDir;
+    g_justWrittenRoot = root;
+}
+
+void clearJustWritten(const QString &swingDir)
+{
+    QMutexLocker lk(&g_justWrittenMutex);
+    if (g_justWrittenDir == swingDir) {
+        g_justWrittenDir.clear();
+        g_justWrittenRoot = QJsonObject{};
+    }
 }
 
 SwingSummary summaryFromShot(const PersistedShot &ps)
@@ -829,6 +918,14 @@ SwingSummary summaryFromShot(const PersistedShot &ps)
     s.thumbnailPath  = ps.thumbnailPath;
     s.score          = ps.score;
     s.dataWarning    = ps.dataWarning;
+    // The row fields (schema /4). The shot has already been parsed here, so these are copies rather
+    // than work — and without them a sidecar written on the live path would send the next session load
+    // back to the full parse this exists to avoid.
+    s.metrics           = ps.metrics;
+    s.rating            = ps.rating;
+    s.note              = ps.note;
+    s.lmDeviceKind      = ps.lmDeviceKind;
+    s.dataWarningDetail = ps.dataWarningDetail;
     return s;
 }
 
@@ -862,6 +959,14 @@ bool writeSummaryFile(const SwingSummary &s, QString *error)
         { QStringLiteral("thumbnailFile"),  thumbFile },
         { QStringLiteral("score"),          s.score },
         { QStringLiteral("dataWarning"),    s.dataWarning },
+        // Schema /4 — the rest of what a carousel row shows, so a session load never fat-parses.
+        // Written even when empty: absent and empty mean the same thing to the reader, and a row
+        // rebuilt from this must look exactly like one rebuilt from the document.
+        { QStringLiteral("metrics"),          QJsonObject::fromVariantMap(s.metrics) },
+        { QStringLiteral("rating"),           s.rating },
+        { QStringLiteral("note"),             s.note },
+        { QStringLiteral("lmDeviceKind"),     s.lmDeviceKind },
+        { QStringLiteral("dataWarningDetail"),QJsonObject::fromVariantMap(s.dataWarningDetail) },
     };
 
     const QString path = summaryPath(s.swingDir);
@@ -1049,6 +1154,10 @@ bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &
     // a failure here only means the picker re-derives it on demand. Must follow commit(),
     // so the guard records the committed file's final size and mtime.
     writeSummaryFile(summaryFromRoot(root, swingDir), nullptr);
+    // …and keep the document itself for whoever reads it next, which on the live path is the replay,
+    // microseconds later. See takeJustWritten(): this saves a fetch and a full re-parse of the ~28 MB
+    // we just serialised, on the GUI thread, off the share.
+    setJustWritten(swingDir, root);
     return true;
 }
 
@@ -1179,6 +1288,10 @@ bool SwingDocWriter::updateStreamOrigin(const QString &swingDir, const QString &
 
     // Must follow commit(): the guard records the committed file's size and mtime.
     writeSummaryFile(summaryFromRoot(root, swingDir), nullptr);
+    // This document just changed underneath any copy writeSwingJson() kept (takeJustWritten). Drop it:
+    // a cached root older than its file would replay the wrong analysis, which is far worse than the
+    // parse the cache saves.
+    clearJustWritten(swingDir);
     return true;
 }
 
@@ -1239,6 +1352,10 @@ bool SwingDocWriter::updateReview(const QString &swingDir, int rating, const QSt
     // would invalidate the existing sidecar. Refresh it from the document we already hold
     // rather than leaving a stale guard for the picker to trip over.
     writeSummaryFile(summaryFromRoot(root, swingDir), nullptr);
+    // This document just changed underneath any copy writeSwingJson() kept (takeJustWritten). Drop it:
+    // a cached root older than its file would replay the wrong analysis, which is far worse than the
+    // parse the cache saves.
+    clearJustWritten(swingDir);
     return true;
 }
 
@@ -1315,6 +1432,10 @@ bool SwingDocWriter::updateLaunchMonitor(const QString &swingDir,
     // grid sidecar is not rewritten here — it is regenerated on demand, and it MUST
     // be, since the readings we just added are new rows in it.
     writeSummaryFile(summaryFromRoot(root, swingDir), nullptr);
+    // This document just changed underneath any copy writeSwingJson() kept (takeJustWritten). Drop it:
+    // a cached root older than its file would replay the wrong analysis, which is far worse than the
+    // parse the cache saves.
+    clearJustWritten(swingDir);
     return true;
 }
 
@@ -1424,6 +1545,10 @@ bool SwingDocWriter::writeDeviceOnlySwing(const QString &swingDir,
     }
 
     writeSummaryFile(summaryFromRoot(root, swingDir), nullptr);
+    // This document just changed underneath any copy writeSwingJson() kept (takeJustWritten). Drop it:
+    // a cached root older than its file would replay the wrong analysis, which is far worse than the
+    // parse the cache saves.
+    clearJustWritten(swingDir);
     return true;
 }
 
@@ -1542,42 +1667,9 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
             ps.analysisDetail.insert(QStringLiteral("timings"),
                                      an[QStringLiteral("timings")].toObject().toVariantMap());
 
-        // Flat metrics: each metric's value at Impact, signed degrees.
-        QVariantMap metrics;
-        for (const QJsonValue &mv : an[QStringLiteral("metrics")].toArray()) {
-            const QJsonObject m = mv.toObject();
-            bool found = false;
-            double impact = 0.0;
-            for (const QJsonValue &sv : m[QStringLiteral("phaseSamples")].toArray()) {
-                const QJsonObject s = sv.toObject();
-                if (s[QStringLiteral("phase")].toInt() == int(analysis::Phase::Impact)) {
-                    impact = s[QStringLiteral("value")].toDouble(); found = true; break;
-                }
-            }
-            if (!found)
-                continue;
-            // Format against the metric's OWN unit. This loop sees every detail
-            // series, not just the signed-degree wrist ones, so hardcoding "°"
-            // rendered a ×frame heel lift or an mph clubhead speed as "+0°".
-            // Degrees keep their exact previous formatting (signed, rounded) so
-            // the wrist metrics that drive the carousel are unchanged; everything
-            // else now reads in the unit it was actually measured in.
-            const QString unit = m[QStringLiteral("unit")].toString();
-            QString val;
-            if (unit == QStringLiteral("°")) {
-                const long r = std::lround(impact);
-                val = (r > 0 ? QStringLiteral("+") : QString()) + QString::number(r) + unit;
-            } else {
-                // 2 sf past the point for small magnitudes, whole numbers for
-                // large ones (mm, ms) — and no forced "+", which is meaningless
-                // for a ratio, a percentage or a speed.
-                val = QString::number(impact, 'f', std::abs(impact) < 100.0 ? 2 : 0) + unit;
-            }
-            metrics.insert(m[QStringLiteral("key")].toString(),
-                           QVariantMap{ { QStringLiteral("label"), m[QStringLiteral("label")].toString() },
-                                        { QStringLiteral("value"), val } });
-        }
-        ps.metrics = metrics;
+        // Flat metrics: each metric's value at Impact, in its own unit. Shared with the summary
+        // sidecar so a row rebuilt either way shows identical chips.
+        ps.metrics = impactMetricsFromAnalysis(an);
     }
 
     // User review (rating/note/club) — written through by updateReview after edits.
@@ -1599,6 +1691,19 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
 
     ps.ok = true;
     return ps;
+}
+
+QJsonObject SwingDocWriter::takeJustWritten(const QString &swingDir)
+{
+    QMutexLocker lk(&g_justWrittenMutex);
+    if (swingDir.isEmpty() || g_justWrittenDir != swingDir)
+        return {};
+    // Hand it over and forget it: one reader, once. A second caller reads the file, which is the
+    // same document — the cache is an optimisation, never a source of truth.
+    const QJsonObject root = g_justWrittenRoot;
+    g_justWrittenDir.clear();
+    g_justWrittenRoot = QJsonObject{};
+    return root;
 }
 
 bool SwingDocReader::writeSwingSummary(const PersistedShot &shot, QString *error)
@@ -1644,6 +1749,13 @@ SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writ
             s.thumbnailPath  = tf.isEmpty() ? QString() : swingDir + QStringLiteral("/") + tf;
             s.score          = root[QStringLiteral("score")].toInt();
             s.dataWarning    = root[QStringLiteral("dataWarning")].toBool(false);
+            // Schema /4 row fields. An older sidecar never reaches here — the schema check above
+            // rejects it — so these are always present, and an empty object is a real empty.
+            s.metrics           = root[QStringLiteral("metrics")].toObject().toVariantMap();
+            s.rating            = std::clamp(root[QStringLiteral("rating")].toInt(), 0, 5);
+            s.note              = root[QStringLiteral("note")].toString();
+            s.lmDeviceKind      = root[QStringLiteral("lmDeviceKind")].toString();
+            s.dataWarningDetail = root[QStringLiteral("dataWarningDetail")].toObject().toVariantMap();
             s.fromSidecar    = true;
             s.ok             = true;
             return s;

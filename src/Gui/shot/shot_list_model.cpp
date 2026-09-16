@@ -206,18 +206,21 @@ void ShotListModel::loadSessionDir(const QString &dir)
     clear();
     if (dir.isEmpty())
         return;
+    // ⚠ THE CHEAP READ, and it has to be (2026-09-16). This ran the FULL parse on every swing in
+    // the session — ~28 MB of document each, whose analysis.pose2d alone is ~13 MB, deep-converted
+    // to QVariant — on the GUI thread, over a network share, in a debug build. Ending a session
+    // froze the UI for ~10 s and grew with every shot taken. The summary sidecar carries everything
+    // a row shows; the only thing it omits is analysisDetail, whose single consumer
+    // (analysisDetailForSwingDir) parses on demand.
     for (const QString &sd : pinpoint::SwingDocReader::findSwingDirs(dir)) {
-        const pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(sd);
-        if (!ps.ok)
+        const pinpoint::SwingSummary s = pinpoint::SwingDocReader::readSwingSummary(sd);
+        if (!s.ok)
             continue;
-        // Index while the document is in hand — this is the live session, the one the
-        // picker is most likely to be asked about first.
-        pinpoint::SwingDocReader::writeSwingSummary(ps);
-        addPersistedShot(ps.swingDir, ps.ordinal, ps.timestampLabel, ps.club, ps.hasVideo,
-                         ps.thumbnailPath.isEmpty() ? QUrl()
-                                                    : QUrl::fromLocalFile(ps.thumbnailPath),
-                         ps.score, ps.rating, ps.note, ps.metrics, ps.analysisDetail,
-                         ps.dataWarning, ps.lmDeviceKind, ps.dataWarningDetail);
+        addPersistedShot(s.swingDir, s.ordinal, s.timestampLabel, s.club, s.hasVideo,
+                         s.thumbnailPath.isEmpty() ? QUrl()
+                                                   : QUrl::fromLocalFile(s.thumbnailPath),
+                         s.score, s.rating, s.note, s.metrics, QVariantMap{},
+                         s.dataWarning, s.lmDeviceKind, s.dataWarningDetail);
     }
 }
 

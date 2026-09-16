@@ -107,6 +107,18 @@ public:
                                QString *error = nullptr,
                                const QString &club = QString());
 
+    // ⚠ THE DOCUMENT WE JUST WROTE, kept so the next reader does not fetch and re-parse it
+    // (2026-09-16). At the end of a shot the GUI thread serialised ~28 MB, wrote it to the library —
+    // a network share in the studio — and then the replay immediately read the same file back and
+    // parsed it again, a third full pass over the same pose track while the user waited.
+    //
+    // Exactly one entry, keyed by swing directory, holding the root writeSwingJson() already had in
+    // hand. Every writer that rewrites a document invalidates it, so a cached copy can never be older
+    // than the file, and TAKING IT CLEARS IT — one reader, once. Empty for a swing written by another
+    // process or a previous run: callers fall back to reading the file, which is always correct and
+    // only slower.
+    static QJsonObject takeJustWritten(const QString &swingDir);
+
     // Write-through of the user's review (rating 0–5, free-text note, club) into
     // an existing <swingDir>/swing.json: reads the doc, replaces the additive
     // "review" block, atomic rewrite (QSaveFile). Called from the shot model's
@@ -315,6 +327,20 @@ struct SwingSummary {
     // session ledger judges shots from this cheap read and must never count one whose
     // recording is known to be broken.
     bool    dataWarning = false;
+    // ⚠ WHAT A CAROUSEL ROW NEEDS, added 2026-09-16 so ending a session stops fat-parsing every
+    // swing (~28 MB each, seconds apiece in a debug build over a share). The card's required
+    // properties are filled from model roles, so a row rebuilt without these loses its metric
+    // chips, its stars and its warning tooltip — which is why they live here rather than the
+    // session load simply dropping them. All small: metrics is a few dozen key→{label,value}.
+    //
+    // analysisDetail is deliberately NOT here — the multi-MB pose track is the thing this read
+    // exists to avoid. A reloaded row carries none, and its one consumer
+    // (ShotListModel::analysisDetailForSwingDir) already falls back to the full parse on demand.
+    QVariantMap metrics;
+    int         rating = 0;         // 0–5 user stars, from the "review" block
+    QString     note;               // free-text user note, same block
+    QString     lmDeviceKind;       // launchMonitor.kind token, empty when no device block
+    QVariantMap dataWarningDetail;  // the facts behind dataWarning (empty when there is none)
     // Provenance, never persisted: true when this came from the sidecar, false when the
     // full swing.json had to be parsed. Lets the parity test prove it actually exercised
     // the cheap path — a bug that always fell back would otherwise pass silently while
