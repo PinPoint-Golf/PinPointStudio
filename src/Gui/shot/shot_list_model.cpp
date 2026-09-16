@@ -53,7 +53,7 @@ QVariant ShotListModel::data(const QModelIndex &index, int role) const
     case RatingRole:          return s.rating;
     case NoteRole:            return s.note;
     case MetricsRole:         return s.metrics;
-    case AnalysisDetailRole:  return s.analysisDetail;
+    case AnalysisDetailRole:  return QVariant::fromValue(s.analysisDetail.js());   // by reference — qml_payload.h
     case SwingDirRole:        return s.swingDir;
     case DataWarningRole:     return s.dataWarning;
     case DataWarningDetailRole: return s.dataWarningDetail;
@@ -443,7 +443,7 @@ QVariantMap ShotListModel::previousAnalysisDetail(const QString &swingDir) const
         if (m_shots.at(i).swingDir != swingDir)
             continue;
         const int older = i + 1;               // newest-first → the next row is the previous swing
-        return (older < m_shots.size()) ? m_shots.at(older).analysisDetail : QVariantMap{};
+        return (older < m_shots.size()) ? m_shots.at(older).analysisDetail.map() : QVariantMap{};
     }
     return {};
 }
@@ -454,7 +454,7 @@ QVariantMap ShotListModel::analysisDetailForSwingDir(const QString &swingDir) co
         return {};
     for (const Shot &s : m_shots)
         if (s.swingDir == swingDir)
-            return s.analysisDetail;
+            return s.analysisDetail.map();
     // Not in this list is not "does not exist" — see the header. The row is the fast path
     // (it is already parsed); the document is the truth.
     const pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(swingDir);

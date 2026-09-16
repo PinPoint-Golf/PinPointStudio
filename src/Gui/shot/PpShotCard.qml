@@ -49,7 +49,8 @@ Rectangle {
     required property int    rating
     required property string note
     required property var    metrics
-    required property var    analysisDetail
+    // No `analysisDetail` here on purpose: the card never read it, and as a required property it
+    // still pulled the whole ~650k-node role value into every delegate (see qml_payload.h).
     required property string swingDir
     required property bool   dataWarning   // an integrity block warns (frames lost in capture, or IMU re-fusion)
     required property var    dataWarningDetail   // { capture, imu, framesLost, worstHoleMs, preImpact, … }

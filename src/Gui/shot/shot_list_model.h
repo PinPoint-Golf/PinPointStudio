@@ -17,6 +17,8 @@
  */
 
 #pragma once
+#include "qml_payload.h"
+
 #include <QAbstractListModel>
 #include <QUrl>
 #include <QVariantList>
@@ -183,7 +185,9 @@ private:
         int          rating = 0;      // 0–5 user stars
         QString      note;
         QVariantMap  metrics;         // key → { label, value }
-        QVariantMap  analysisDetail;  // { tier, overall, series:[…], phases:[…] } for the graph
+        QmlPayload   analysisDetail;  // { tier, overall, series:[…], phases:[…] } — ~650k nodes on a
+                                      // live shot; the role hands QML ONE JavaScript object per row
+                                      // rather than a copy per read (see qml_payload.h)
         QString      swingDir;        // on-disk folder, for reloaded shots (replay-from-MP4 later)
         bool         dataWarning = false;  // an integrity block warns (swing_doc.h dataWarningDetailFrom)
         QVariantMap  dataWarningDetail;    // its facts: { capture, imu, framesLost, worstHoleMs, … }

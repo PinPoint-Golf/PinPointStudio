@@ -18,8 +18,11 @@
 
 #pragma once
 
+#include "qml_payload.h"
+
 #include <QElapsedTimer>
 #include <QFutureWatcher>
+#include <QJSValue>
 #include <QObject>
 #include <QTimer>
 #include <QVariantMap>
@@ -85,7 +88,10 @@ class ShotProcessor : public QObject
     Q_PROPERTY(qint64  replayImpactUs   READ replayImpactUs   NOTIFY replaySpanChanged)
     // The analyzed swing detail of the shot currently replaying — the ScreenWrist
     // in-replay graph binds to it (same shape as ShotListModel's analysisDetail role).
-    Q_PROPERTY(QVariantMap replayAnalysisDetail READ replayAnalysisDetail NOTIFY replayAnalysisDetailChanged)
+    // ⚠ QJSValue, NOT QVariantMap — ~650k nodes, converted to JavaScript once per shot and
+    // handed to every reader by reference. As a QVariantMap it was copied on EVERY read
+    // (~18 per shot) and froze the studio's GUI for 7.8 s per shot. See qml_payload.h.
+    Q_PROPERTY(QJSValue replayAnalysisDetail READ replayAnalysisDetailJs NOTIFY replayAnalysisDetailChanged)
     // The active session folder (absolute path), chosen at session start via
     // beginSessionFolder(). "" when no explicit session is in progress.
     Q_PROPERTY(QString activeSessionDir READ activeSessionDir NOTIFY activeSessionDirChanged)
@@ -130,7 +136,8 @@ public:
     qint64  replayStartUs()    const { return m_replayWindowStartUs; }
     qint64  replayEndUs()      const { return m_replayWindowEndUs; }
     qint64  replayImpactUs()   const { return m_impactUs; }
-    QVariantMap replayAnalysisDetail() const { return m_replayAnalysisDetail; }
+    QVariantMap replayAnalysisDetail()   const { return m_replayAnalysisDetail.map(); }   // C++ readers
+    QJSValue    replayAnalysisDetailJs() const { return m_replayAnalysisDetail.js(); } // the QML property
     double  analysisProgress() const { return m_analysisProgress; }
     QString activeSessionDir() const { return m_swingPaths.currentSessionDir(); }
     // False when beginSessionFolder() could not create the session folder — the
@@ -341,7 +348,7 @@ private:
     int64_t       m_replayWindowStartUs = 0;
     int64_t       m_replayWindowEndUs   = 0;
     int64_t       m_replayPositionUs    = 0;   // published playhead (window µs)
-    QVariantMap   m_replayAnalysisDetail;      // detail of the shot being replayed
+    QmlPayload    m_replayAnalysisDetail;      // detail of the shot being replayed (see qml_payload.h)
     QElapsedTimer m_replayElapsed;
     QTimer       *m_replayTimer = nullptr;
 

@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include "qml_payload.h"
 #include "replay_source.h"
 
 #include <QObject>
@@ -67,7 +68,10 @@ class ShotReplayController : public QObject
     Q_PROPERTY(qint64       startUs        READ startUs        NOTIFY spanChanged)
     Q_PROPERTY(qint64       endUs          READ endUs          NOTIFY spanChanged)
     Q_PROPERTY(qint64       impactUs       READ impactUs       NOTIFY spanChanged)
-    Q_PROPERTY(QVariantMap  analysisDetail READ analysisDetail NOTIFY activeChanged)
+    // ⚠ QJSValue, NOT QVariantMap: the disk shot's detail is the same ~650k-node shape the live
+    // one is, read by every replay tile, chart and panel. Converted once per start(), shared by
+    // reference after that — as a QVariantMap it was copied on every read. See qml_payload.h.
+    Q_PROPERTY(QJSValue     analysisDetail READ analysisDetailJs NOTIFY activeChanged)
 
 public:
     // appSettings supplies the global replay-trim flag (replayTrimToSwing), read at
@@ -85,7 +89,8 @@ public:
     qint64       startUs()        const { return m_source->startUs(); }
     qint64       endUs()          const { return m_source->endUs(); }
     qint64       impactUs()       const { return m_source->impactUs(); }
-    QVariantMap  analysisDetail() const { return m_source->analysisDetail(); }
+    QVariantMap  analysisDetail()   const { return m_source->analysisDetail(); }   // C++ readers
+    QJSValue     analysisDetailJs() const { return m_analysisDetail.js(); }    // the QML property
     double       speed()          const { return m_source->speed(); }
 
     // Start replaying the shot at `swingDir` for carousel row `shotId`. `speed`
@@ -138,8 +143,12 @@ signals:
 
 private:
     void onAborted();
+    // Re-snapshots the source's detail for the QML property. Called before EVERY activeChanged
+    // emit, which is the property's notify: a load, a failed load and a stop all change it.
+    void refreshAnalysisDetail() { m_analysisDetail.set(m_source->analysisDetail()); }
 
     AppSettings                  *m_appSettings = nullptr;
+    QmlPayload                    m_analysisDetail;   // see qml_payload.h
     bool                          m_active = false;
     int                           m_shotId = -1;
     QString                       m_swingDir;

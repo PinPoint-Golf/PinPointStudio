@@ -58,7 +58,6 @@ Item {
         rating:          3
         note:            ""
         metrics:         ({})
-        analysisDetail:  ({})
         swingDir:        "/s/swing_0007"
         dataWarning:     false
         dataWarningDetail: ({})

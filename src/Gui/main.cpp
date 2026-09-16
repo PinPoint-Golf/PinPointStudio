@@ -40,6 +40,7 @@
 #include "app_settings.h"
 #include "notification_center.h"
 #ifdef HAVE_PPCP_TRANSPORT
+#include "shot/qml_payload.h"
 #include "shot/ppcp_clip_filer.h"
 #endif
 #include "app_info.h"
@@ -797,6 +798,10 @@ int main(int argc, char *argv[])
                      &llmController,  &LlmController::refreshCloudAvailability);
 
     QQmlApplicationEngine engine;
+    // Every QML-facing swing payload (pose tiers, club/ball tracks, metric series) converts into
+    // THIS engine once and is shared by reference from then on — see qml_payload.h for why a
+    // QVariantMap property froze the studio for 7.8 s per shot. Must precede the first load().
+    QmlPayload::setEngine(&engine);
     // Markup Lab frame source — engine takes ownership of the provider; the
     // controller keeps a non-owning pointer to push decoded frames into it.
     auto *markupProvider = new MarkupImageProvider();

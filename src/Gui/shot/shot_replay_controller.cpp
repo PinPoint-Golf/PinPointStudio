@@ -73,6 +73,7 @@ bool ShotReplayController::start(int shotId, const QString &swingDir, double spe
         m_shotId   = shotId;
         m_swingDir = swingDir;
         m_active   = true;
+        refreshAnalysisDetail();
         emit activeChanged();   // covers streams / analysisDetail / swingDir / shotId
         return true;
     }
@@ -84,6 +85,7 @@ bool ShotReplayController::start(int shotId, const QString &swingDir, double spe
         m_active   = false;
         m_shotId   = -1;
         m_swingDir.clear();
+        refreshAnalysisDetail();
         emit activeChanged();
     }
     return false;
@@ -97,6 +99,7 @@ void ShotReplayController::stop()
     m_active   = false;
     m_shotId   = -1;
     m_swingDir.clear();
+    refreshAnalysisDetail();
     emit activeChanged();
 }
 
@@ -108,6 +111,7 @@ void ShotReplayController::onAborted()
     m_active   = false;
     m_shotId   = -1;
     m_swingDir.clear();
+    refreshAnalysisDetail();
     emit activeChanged();
 }
 

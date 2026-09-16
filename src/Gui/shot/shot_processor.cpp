@@ -2151,9 +2151,11 @@ void ShotProcessor::onSwingDocWritten()
     // must name the same club, and the worker already settled it.
     const QString shotClub = pinpoint::swingDocClub(res.manifest);
 
-    // ⏱ What this handler costs, per phase. The write is off the GUI thread now; the rebuilds of the
-    // pose payload are not, and the end-of-shot freeze survived moving the write (Mark, 2026-09-16), so
-    // the next cut has to be chosen from numbers rather than from reading the code. One line per shot.
+    // ⏱ What this handler costs, per phase, one line per shot. `notify` is the emit below and everything
+    // QML does synchronously inside it: the bindings re-evaluate and, on the first read, the detail is
+    // converted to JavaScript ONCE (qml_payload.h). Before that type existed the conversion ran on every
+    // read — ~18 of them — and this line read `notify 7773 ms` on the studio (16 Sept 2026). If it ever
+    // climbs back into the seconds, a new QVariantMap-sized reader has appeared; find it, don't retune.
     QElapsedTimer phase;
     phase.start();
     const qint64 tStart = phase.elapsed();
@@ -2164,9 +2166,9 @@ void ShotProcessor::onSwingDocWritten()
     //
     // Publish the analyzed detail of the shot about to replay (the ScreenWrist in-replay
     // graph binds to it) before addShot, so it's ready when REPLAYING begins.
-    m_replayAnalysisDetail = (analysisOk && m_analysisResult.detail)
-                                 ? toAnalysisDetail(*m_analysisResult.detail)
-                                 : QVariantMap{};
+    m_replayAnalysisDetail.set((analysisOk && m_analysisResult.detail)
+                                   ? toAnalysisDetail(*m_analysisResult.detail)
+                                   : QVariantMap{});
     const qint64 tDetail = phase.elapsed();
     emit replayAnalysisDetailChanged();
     const qint64 tEmit = phase.elapsed();
@@ -2184,7 +2186,7 @@ void ShotProcessor::onSwingDocWritten()
                              analysisOk ? m_analysisResult.tracePoints : QVariantList{},
                              analysisOk ? m_analysisResult.score : 0,
                              analysisOk ? m_analysisResult.metrics : QVariantMap{},
-                             m_replayAnalysisDetail,
+                             m_replayAnalysisDetail.map(),
                              dataWarning, dataWarningDetail);
     }
 

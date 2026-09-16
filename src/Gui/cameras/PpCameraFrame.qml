@@ -57,6 +57,7 @@ Item {
     // live in-window transient (Capture tile), so the analyzed skeleton/club
     // overlay reads ONE set of values regardless of which surface is driving it.
     readonly property bool _replayActive:     _isReplay ? shotReplay.active        : shotProcessor.isReplaying
+    // Both sources publish ONE shared JavaScript object per shot (qml_payload.h) — read-only.
     readonly property var  _replayDetail:     _isReplay ? shotReplay.analysisDetail : shotProcessor.replayAnalysisDetail
     readonly property real _replayPlayheadUs: _isReplay ? shotReplay.positionUs     : shotProcessor.replayPositionUs
     readonly property int  _replayPerspective: _isReplay

@@ -93,6 +93,8 @@ Item {
         return null
     }
 
+    // replayAnalysisDetail is a QJSValue shared by reference (qml_payload.h): reading it three
+    // times here costs nothing. As a QVariantMap each read copied ~650k nodes — never go back.
     readonly property var _replaySeries:
         (shotProcessor.replayAnalysisDetail && shotProcessor.replayAnalysisDetail.series)
         ? shotProcessor.replayAnalysisDetail.series : []
