@@ -37,6 +37,12 @@ target_link_libraries(event_buffer_test PRIVATE pinpoint_buffer GTest::gtest_mai
 pinpoint_apply_sanitizers(event_buffer_test)
 add_test(NAME event_buffer_test COMMAND event_buffer_test)
 
+# device_clock_mapper_test — camera clock → host clock (event_buffer_design.md §9)
+add_executable(device_clock_mapper_test device_clock_mapper_test.cpp)
+target_link_libraries(device_clock_mapper_test PRIVATE pinpoint_buffer GTest::gtest_main)
+pinpoint_apply_sanitizers(device_clock_mapper_test)
+add_test(NAME device_clock_mapper_test COMMAND device_clock_mapper_test)
+
 # swing_window_test
 add_executable(swing_window_test swing_window_test.cpp)
 target_link_libraries(swing_window_test PRIVATE pinpoint_buffer GTest::gtest_main)

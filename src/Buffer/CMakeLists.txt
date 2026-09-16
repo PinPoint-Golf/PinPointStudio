@@ -14,6 +14,7 @@ add_library(pinpoint_buffer
     event_buffer.cpp
     swing_window.cpp
     thread_policy.cpp
+    device_clock_mapper.cpp
 )
 
 target_include_directories(pinpoint_buffer
