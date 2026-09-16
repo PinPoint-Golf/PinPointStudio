@@ -29,7 +29,7 @@
 // walks the whole tree and allocates a fresh JavaScript object for every node. There is no
 // sharing and no caching — `a && a.series ? a.series : []` is THREE complete copies, and every
 // binding in every live tile is another. The analysis detail of one swing is ~650k nodes (the
-// 240 Hz synth pose tier alone is 380k), it had ~18 readers across the two session screens the
+// 240 Hz synth pose tier alone is 380k; ~275k without it), it had ~18 readers across the two session screens the
 // StackLayout keeps alive, and the whole cascade runs synchronously inside the notify emit, on
 // the GUI thread, with the video stopped.
 //

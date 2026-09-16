@@ -296,6 +296,17 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
                     smoothed.append(relTimedMap(sv2.toObject(), t0));
                 pose2d.insert(QStringLiteral("smoothed"), smoothed);
             }
+            // Dense 240 Hz VIZ-tier pose synth (pose_synthesis.h), re-timed like `smoothed`.
+            // Present only when the analyzer ran the synthesiser. The live bridge
+            // (shot_processor.cpp toAnalysisDetail) forwards the same block, so a live shot and
+            // its reloaded self show the same body scrub. It was persisted but never read
+            // until 16 Sept 2026 — see the note there.
+            if (p2.contains(QStringLiteral("synth"))) {
+                QVariantList synth;
+                for (const QJsonValue &sv3 : p2[QStringLiteral("synth")].toArray())
+                    synth.append(relTimedMap(sv3.toObject(), t0));
+                pose2d.insert(QStringLiteral("synth"), synth);
+            }
             m_analysisDetail.insert(QStringLiteral("pose2d"), pose2d);
         }
         if (an.contains(QStringLiteral("club"))) {

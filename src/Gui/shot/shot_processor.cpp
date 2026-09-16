@@ -388,6 +388,32 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
             }
             pose2d.insert(QStringLiteral("smoothed"), smoothed);
         }
+        // Dense VIZ-tier pose synth (pose_synthesis.h): the smoothed skeleton on a fixed 240 Hz
+        // grid so the body overlays scrub as smoothly as the club fan. Same lean shape the
+        // swing.json writer persists — { t_us, kp[x,y,c]×133 }, no tier/sigma, no hands — and
+        // the same conditional presence, so a live shot and its reloaded self agree
+        // (disk_replay_source.cpp forwards the persisted block the same way). Viz-only: metrics
+        // never read it, and the triangulation work will read `smoothed`, which carries the
+        // per-joint honesty this tier deliberately drops. Until 16 Sept 2026 the analyzer
+        // computed and the writer stored this tier, but neither bridge forwarded it, so the
+        // overlay's dense body mode had never once run — a silent no-op, not a design choice.
+        if (!a.pose2d.smoothedSynth.empty()) {
+            QVariantList synth;
+            synth.reserve(int(a.pose2d.smoothedSynth.size()));
+            for (const PoseFrame2D &f : a.pose2d.smoothedSynth) {
+                QVariantList kp;
+                kp.reserve(kWholeBodyJoints * 3);
+                for (int j = 0; j < kWholeBodyJoints; ++j) {
+                    kp.append(f.kp[size_t(j)].x());
+                    kp.append(f.kp[size_t(j)].y());
+                    kp.append(double(f.conf[size_t(j)]));
+                }
+                synth.append(QVariantMap{
+                    { QStringLiteral("t_us"), static_cast<qlonglong>(f.t_us) },
+                    { QStringLiteral("kp"),   kp } });
+            }
+            pose2d.insert(QStringLiteral("synth"), synth);
+        }
         detail.insert(QStringLiteral("pose2d"), pose2d);
     }
     if (a.shaft.valid && !a.shaft.samples.empty()
