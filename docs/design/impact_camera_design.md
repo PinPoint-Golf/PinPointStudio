@@ -687,9 +687,15 @@ What it established, all of which the design now carries:
    - → the card calibration (§4, calibration §4.8); the ball kept as a relative ruler.
 2. **A tilted camera loses the angle.** Launch read ~9° low on every swing. → the level floor mount
    and its tolerances.
-3. **Pairwise ball speeds are useless.** Per-frame timestamps jitter ±0.4 ms (1.2–2.2 ms intervals
-   against 1.69 ms), and centroids alternate between blob and predicted-disc detections. → a robust
-   line against frame index × median period (§4 table).
+3. **Pairwise ball speeds are useless** on these clips. Per-frame timestamps jitter ±0.4 ms (1.2–2.2 ms
+   intervals against a true 1.69 ms) while the ball moves an even 38–39 px per frame, and centroids
+   alternate between blob and predicted-disc detections. → a robust line against frame index × median
+   period (§4 table).
+   - **Root cause, found 2026-09-16 and fixed at source:** the jitter was not the camera. Frames were
+     stamped when they reached the app, after the transfer, the driver and a queued hop; the camera's own
+     timestamps are steady to 1–2 µs. Clips recorded from now on carry the camera's clock
+     (`event_buffer_design.md` §9, `capture.timestampSource`), so the frame-index workaround is belt and
+     braces rather than a necessity — and ball speed from these older clips still needs it.
 4. **Framing decides the club.** With the ball ~40 % across, the club showed on only 4–6 frames (one
    swing none). → the ball ~60 % across.
 5. **Club speed from `path.points` sags into departure.** The loess x(t) smooths across the contact

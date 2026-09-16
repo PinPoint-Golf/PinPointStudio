@@ -30,6 +30,9 @@
 #include <vector>
 
 #include "types.h"
+// DeviceClockStats — the camera clock → host clock mapping recorded on every stream
+// (event_buffer_design.md §9).
+#include "device_clock_mapper.h"
 
 namespace pinpoint {
 
@@ -71,6 +74,14 @@ struct SwingExportCamera {
     double   gainDb       = -1.0;
     double   gamma        = 0.0;
     QString  gainSource;
+    // How this stream's frames were timestamped (event_buffer_design.md §9): "device" when the camera's
+    // own clock was mapped onto ours, "devicePts" for a platform instant already on it, "hostArrival"
+    // when there was nothing but arrival time — which is what every local camera had before 2026-09-16,
+    // and what an absent field means on an older swing. `clock` carries how well that mapping was doing;
+    // `hasClock` false leaves the whole block out.
+    QString  timestampSource;
+    bool     hasClock = false;
+    pinpoint::DeviceClockStats clock;
     bool     strobe       = false;
     double   viewGain     = 1.0;
     QString  note;

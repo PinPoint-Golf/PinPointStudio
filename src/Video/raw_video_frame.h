@@ -20,6 +20,7 @@
 
 #include <QByteArray>
 #include <QMetaType>
+#include "frame_timing.h"
 
 // Lightweight container for a single raw (un-demosaiced) video frame.
 // Used to pass Bayer data from the capture loop to the GPU display item
@@ -33,6 +34,9 @@ struct RawVideoFrame {
     BayerPattern pattern = BayerPattern::RG;
     double       exposureUs   = 0.0; // per-frame exposure from Spinnaker chunk data, us; 0 = unknown
     int          exposureAuto = -1;  // -1 unknown, 0 Off/manual, 1 Continuous/Once (auto)
+    // When this frame was EXPOSED, on the host clock, plus what it cost to get here (frame_timing.h).
+    // Travels with the frame because a side channel read after the queued hop can belong to a later one.
+    FrameTiming  timing;
 
     bool isNull() const { return data.isEmpty() || width <= 0 || height <= 0; }
 

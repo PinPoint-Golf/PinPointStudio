@@ -306,7 +306,15 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
         desc.window_duration          = std::chrono::milliseconds(5000);
         desc.expected_interarrival_us =
             std::chrono::microseconds(static_cast<int64_t>(1'000'000.0 / fps));
-        desc.sync_source              = pinpoint::SyncSource::SoftwareTimestamp;
+        // A backend that reads the camera's own clock stamps frames from it (event_buffer_design.md §9);
+        // the rest stamp arrival. Keyed on the backend rather than a live probe because the source is
+        // registered before the first frame — and it is a property of the transport, not of this stream.
+        desc.sync_source =
+            (device.backend == VideoInputFactory::Backend::Spinnaker
+             || device.backend == VideoInputFactory::Backend::Aravis
+             || device.backend == VideoInputFactory::Backend::AppleAVFoundation)
+                ? pinpoint::SyncSource::HardwarePts
+                : pinpoint::SyncSource::SoftwareTimestamp;
 
         ppInfo() << "[CameraInstance] registering buffer source:"
                  << device.description
@@ -735,7 +743,7 @@ void CameraInstance::connectVideoInput()
     // stamping, replay, tile aspect — follows the cropped frame automatically.
     VideoInputBase *const input = m_videoInput;   // as hwCrop: per backend instance
     connect(m_videoInput, &VideoInputBase::videoFrameReady,
-            this, [this, hwCrop, input](const QVideoFrame &frame) {
+            this, [this, hwCrop, input](const QVideoFrame &frame, const FrameTiming &timing) {
                 m_frameCaptureCount.fetch_add(1, std::memory_order_relaxed);
 
                 // One capture-clock reading for this frame, sampled before any
@@ -743,12 +751,16 @@ void CameraInstance::connectVideoInput()
                 // pose/ball throttle so both land on the buffer clock at offset
                 // zero (ball samples align with window frame timestamps).
                 //
-                // A backend that knows WHEN the frame was exposed says so, and
-                // is believed (work package H4): arrival time is a good enough
-                // proxy for a camera on this machine's bus and a bad one for a
-                // frame that crossed a link. 0 means the backend has no instant
-                // of its own, which is every local camera.
-                qint64 frameTUs = input->lastFrameInstantUs();
+                // A backend that knows WHEN the frame was exposed says so, and is believed. That used to
+                // be no local camera at all — arrival was treated as a good enough proxy for a camera on
+                // this machine's bus, and it was not: the delivery path added a variable few ms
+                // (event_buffer_design.md §9, 2026-09-16). Now a GenICam or AVFoundation frame carries
+                // its exposure instant; 0 still means the backend has none.
+                // The frame's own capture instant wins: a camera clock mapped onto ours (Spinnaker,
+                // Aravis) or a platform presentation time (AVFoundation), taken before the queue hop
+                // that used to add its latency here. Then the PPCP side channel, then arrival.
+                qint64 frameTUs = timing.captureUs;
+                if (frameTUs == 0) frameTUs = input->lastFrameInstantUs();
                 if (frameTUs == 0) frameTUs = pinpoint::EventBuffer::nowMicros();
 
                 // Software crop: engages when a crop is configured, the
@@ -808,8 +820,10 @@ void CameraInstance::connectVideoInput()
                 m_frameCaptureCount.fetch_add(1, std::memory_order_relaxed);
 
                 // One capture-clock reading for this frame — see the QVideoFrame
-                // path above, including why a backend's own instant wins.
-                qint64 frameTUs = input->lastFrameInstantUs();
+                // path above, including why a backend's own instant wins. A raw
+                // frame carries its instant in the frame itself.
+                qint64 frameTUs = frame.timing.captureUs;
+                if (frameTUs == 0) frameTUs = input->lastFrameInstantUs();
                 if (frameTUs == 0) frameTUs = pinpoint::EventBuffer::nowMicros();
 
                 // Software crop fallback — same rule as the QVideoFrame path.
@@ -2020,6 +2034,11 @@ void CameraInstance::stampBufferDescriptorFromRaw(const RawVideoFrame &raw)
              << m_deviceDescription << raw.width << "x" << raw.height
              << "@" << fps << "fps pattern:" << static_cast<int>(raw.pattern)
              << "-> pinpointFmt:" << static_cast<int>(pixfmt);
+}
+
+bool CameraInstance::clockStats(pinpoint::DeviceClockStats *out) const
+{
+    return m_videoInput && m_videoInput->clockStats(out);
 }
 
 // Refresh just the exposure fields of the already-stamped descriptor when a

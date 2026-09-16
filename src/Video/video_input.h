@@ -19,6 +19,7 @@
 #pragma once
 
 #include "video_input_base.h"
+#include "device_clock_mapper.h"
 #include <QCamera>
 #include <QCameraDevice>
 #include <QVideoFrameFormat>
@@ -73,12 +74,17 @@ public:
     // Hint for resolution / pixel format; the camera may ignore it.
     void setPreferredFormat(const QVideoFrameFormat &format);
 
+    // Qt Multimedia hands us no capture instant, so frames are stamped on ARRIVAL — but at the sink's
+    // own emission, before the hop onto this object's thread, which is the earliest point there is.
+    bool clockStats(pinpoint::DeviceClockStats *out) const override;
+
 private slots:
     void onCameraActiveChanged(bool active);
     void onCameraErrorOccurred(QCamera::Error error, const QString &errorString);
-    void onVideoFrameChanged(const QVideoFrame &frame);
+    void onVideoFrameChanged(const QVideoFrame &frame, qint64 arrivalUs);
 
 private:
+    pinpoint::DeviceClockMapper m_clock;
     QCamera              *m_camera  = nullptr;
     QMediaCaptureSession *m_session = nullptr;
     QVideoSink           *m_sink    = nullptr;

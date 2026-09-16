@@ -21,6 +21,7 @@
 #include <atomic>
 
 #include "video_input_base.h"
+#include "device_clock_mapper.h"
 
 // Private implementation — defined only in VideoInputApple.mm so that
 // Objective-C types never leak into C++ translation units.
@@ -52,11 +53,19 @@ public:
     QVideoFrameFormat frameFormat() const override;
     CameraCapabilities queryCapabilities() const override;
 
-    // Called by the Obj-C sample-buffer delegate — not for external use.
-    void onFrameCaptured(const QVideoFrame &frame);
+    // Called by the Obj-C sample-buffer delegate — not for external use. `captureUs` is the sample's
+    // presentation time converted to the host clock (0 when the platform gave none) and `arrivalUs` is
+    // when the delegate got it.
+    void onFrameCaptured(const QVideoFrame &frame, qint64 captureUs, qint64 arrivalUs);
+
+    // AVFoundation presentation times are already on the host clock, so they need no fit — but they go
+    // through the mapper anyway for its monotonic guarantee and its delivery-lag statistics.
+    bool providesDeviceTimestamps() const override { return true; }
+    bool clockStats(pinpoint::DeviceClockStats *out) const override;
 
 private:
     VideoInputApplePrivate *d = nullptr;
+    pinpoint::DeviceClockMapper m_clock;
 
     // Dimensions of the most recently delivered frame (ground truth for the
     // negotiated capture size). Written on the AVFoundation delivery thread,

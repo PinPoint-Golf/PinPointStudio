@@ -22,6 +22,7 @@
 
 #include "VideoInputApple.h"
 
+#include "event_buffer.h"
 #include <QImage>
 #include <QVideoFrame>
 #include <QVideoFrameFormat>
@@ -47,6 +48,8 @@ struct VideoInputApplePrivate {
 // Atomic so the C++ side can nil it from stop() while the capture queue
 // may still be mid-callback.
 @property (atomic, assign) VideoInputApple *owner;
+// The clock the session's presentation timestamps are on, for converting them to host time.
+@property (atomic, assign) CMClockRef sessionClock;
 @end
 
 @implementation VideoInputAppleDelegate
@@ -58,6 +61,9 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
     Q_UNUSED(output)
     Q_UNUSED(connection)
 
+    // Arrival first, before any work — the delivery lag is measured from here.
+    const qint64 arrivalUs = pinpoint::EventBuffer::nowMicros();
+
     VideoInputApple *owner = self.owner;
     if (!owner)
         return;
@@ -65,6 +71,22 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
     CVImageBufferRef buf = CMSampleBufferGetImageBuffer(sampleBuffer);
     if (!buf)
         return;
+
+    // When the frame was EXPOSED. The presentation timestamp is on the session's clock; converted to
+    // the host time clock it is mach_absolute_time seconds, which is what steady_clock counts on macOS —
+    // the clock EventBuffer stamps with. 0 when the platform gives us nothing to convert.
+    qint64 captureUs = 0;
+    {
+        const CMTime pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+        CMClockRef src = self.sessionClock;
+        if (src && CMTIME_IS_VALID(pts)) {
+            const CMTime host = CMSyncConvertTime(pts, src, CMClockGetHostTimeClock());
+            if (CMTIME_IS_VALID(host)) {
+                const double secs = CMTimeGetSeconds(host);
+                if (secs > 0.0) captureUs = static_cast<qint64>(llround(secs * 1e6));
+            }
+        }
+    }
 
     CVPixelBufferLockBaseAddress(buf, kCVPixelBufferLock_ReadOnly);
 
@@ -79,7 +101,7 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
 
     CVPixelBufferUnlockBaseAddress(buf, kCVPixelBufferLock_ReadOnly);
 
-    owner->onFrameCaptured(QVideoFrame(copy));
+    owner->onFrameCaptured(QVideoFrame(copy), captureUs, arrivalUs);
 }
 
 @end
@@ -162,6 +184,13 @@ bool VideoInputApple::start(const QString &deviceId)
 
         VideoInputAppleDelegate *delegate = [[VideoInputAppleDelegate alloc] init];
         delegate.owner = this;
+        // The clock the sample buffers' presentation times are on. Without it a frame cannot be placed on
+        // our clock at all, and the delegate falls back to arrival time.
+        m_clock.reset();
+        if (@available(macOS 12.3, *))
+            delegate.sessionClock = session.synchronizationClock;
+        else
+            delegate.sessionClock = CMClockGetHostTimeClock();
         [output setSampleBufferDelegate:delegate
                                   queue:dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0)];
 
@@ -233,13 +262,30 @@ QVideoFrameFormat VideoInputApple::frameFormat() const
     return QVideoFrameFormat{};
 }
 
-void VideoInputApple::onFrameCaptured(const QVideoFrame &frame)
+void VideoInputApple::onFrameCaptured(const QVideoFrame &frame, qint64 captureUs, qint64 arrivalUs)
 {
     // Cache the delivered size so queryCapabilities() can report the true
     // negotiated resolution (used to size/decode buffered frames for replay).
     m_activeWidth.store(frame.width(),  std::memory_order_relaxed);
     m_activeHeight.store(frame.height(), std::memory_order_relaxed);
-    emit videoFrameReady(frame);
+
+    // The presentation time is already on the host clock, so there is nothing to fit — but it still goes
+    // through the mapper, which keeps the stamps strictly increasing and never later than arrival, and
+    // records what the delivery cost.
+    FrameTiming timing;
+    timing.arrivalUs = arrivalUs;
+    timing.captureUs = m_clock.mapDirect(captureUs > 0 ? captureUs : arrivalUs, arrivalUs,
+                                         captureUs > 0 ? pinpoint::ClockMapMethod::DevicePts
+                                                       : pinpoint::ClockMapMethod::HostArrival);
+    timing.source    = captureUs > 0 ? FrameTiming::Source::DevicePts : FrameTiming::Source::HostArrival;
+    emit videoFrameReady(frame, timing);
+}
+
+bool VideoInputApple::clockStats(pinpoint::DeviceClockStats *out) const
+{
+    if (!out) return false;
+    *out = m_clock.stats();
+    return out->frames > 0;
 }
 
 CameraCapabilities VideoInputApple::queryCapabilities() const

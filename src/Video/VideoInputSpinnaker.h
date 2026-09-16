@@ -19,6 +19,7 @@
 #pragma once
 
 #include "video_input_base.h"
+#include "device_clock_mapper.h"
 
 #include <QFuture>
 #include <atomic>
@@ -60,6 +61,15 @@ public:
     void setGamma(double g)         override { m_gamma = g; }
     void setStrobeOutput(bool on)   override { m_strobe = on; }
     bool applyLiveTuning(double exposureUs, double gainDb, double gamma) override;
+
+    // The camera's own clock stamps its frames (camera_clock_probe, 2026-09-15): a GenICam timestamp in
+    // ns, latched against ours before acquisition and tracked by the lower-envelope fit.
+    bool providesDeviceTimestamps() const override { return true; }
+    bool clockStats(pinpoint::DeviceClockStats *out) const override;
+
+    // Latch brackets taken at start(). The fastest of them pins the clocks; more than a couple of dozen
+    // buys nothing and 200 of them, mid-stream, disturbed the camera (camera_clock_probe, 2026-09-15).
+    static constexpr int kClockLatchBrackets = 24;
     double appliedGainDb() const override { return m_appliedGainDb.load(std::memory_order_relaxed); }
     double appliedGamma()  const override { return m_appliedGamma.load(std::memory_order_relaxed); }
 
@@ -92,6 +102,10 @@ private:
     std::atomic<double> m_appliedGamma{0.0};
 
     // Exposure chunk data (set in start(), read in captureLoop()).
+    // The camera clock → host clock mapping. Fed on the capture thread, read for provenance from
+    // whichever thread asks; reset at every start().
+    pinpoint::DeviceClockMapper m_clock;
+
     bool  m_chunkExposureEnabled = false; // ChunkExposureTime successfully enabled
     int   m_exposureAuto         = -1;    // cached ExposureAuto mode: -1 unknown, 0 Off, 1 auto
     // Most recent per-frame exposure, published for the QVideoFrame-path virtuals.

@@ -21,6 +21,7 @@ const char *clockMapMethodName(ClockMapMethod m)
     case ClockMapMethod::Envelope:  return "envelope";
     case ClockMapMethod::Latch:     return "latch";
     case ClockMapMethod::DevicePts: return "devicePts";
+    case ClockMapMethod::HostArrival: return "hostArrival";
     }
     return "none";
 }
@@ -290,10 +291,11 @@ int64_t DeviceClockMapper::map(int64_t deviceNs, int64_t arrivalUs, int64_t fram
     return out;
 }
 
-int64_t DeviceClockMapper::mapDirect(int64_t captureUs, int64_t arrivalUs, int64_t frameId)
+int64_t DeviceClockMapper::mapDirect(int64_t captureUs, int64_t arrivalUs, ClockMapMethod method,
+                                     int64_t frameId)
 {
     std::lock_guard<std::mutex> lk(m_mutex);
-    m_method = ClockMapMethod::DevicePts;
+    m_method = method;
     if (!m_haveOrigin) { m_haveOrigin = true; ++m_streams; }
     int64_t out = captureUs;
     if (out > arrivalUs) { out = arrivalUs; ++m_clampArrival; }

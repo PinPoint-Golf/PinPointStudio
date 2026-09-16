@@ -872,6 +872,32 @@ The golden rule: `nowMicros()` is the **first executable statement** in every de
 
 Device PTS → monotonic conversion: anchor first-packet `device_pts_0` and `monotonic_t_0 = nowMicros()`. Subsequent: `ts = monotonic_t_0 + (device_pts - device_pts_0) * scale`. Re-anchor every few seconds with a low-pass filter to prevent drift.
 
+**Built 2026-09-16 — and what was wrong before it.** Until then §9.2 was aspirational for every local
+camera: the stamp was taken in `CameraInstance`'s handler, after the USB transfer, the driver, a copy and
+a `Qt::QueuedConnection` hop, and no backend read a camera timestamp at all. Measured on the studio
+Chameleon3s (`tools/probes/camera_clock_probe.cpp`):
+
+| | Camera's own timestamps | Host arrival |
+|---|---|---|
+| Interval spread (SD) | 1–2 µs | 45 µs (strip, idle) … 1.9 ms (full frame, two cameras) |
+| Worst delivery lag | — | 154 ms (p99 75 ms) at full frame |
+| Drift against `steady_clock` | 0.5–1.4 ppm | — |
+
+The camera's clock also answers the question arrival cannot: `TimestampLatch` (read back from
+`Timestamp` on this firmware, ns, same clock as the frame stamps) pins the **minimum delivery latency** —
+1.7 ms for a 640×240 strip, 6.8 ms at full frame. The frame stamp marks the **end of the exposure**
+(a 1 ms vs 6 ms exposure moved the offset 0.12 ms, not 5 ms), so the capture instant recorded is
+`timestamp − exposure/2`, the middle of the exposure.
+
+`src/Buffer/device_clock_mapper.{h,cpp}` is the mapping, ported from libwrist's `wr_fit`: a **lower
+envelope** rather than least squares (delivery delay is one-sided, so least squares biases the line by the
+MEAN delay), with the **rate fitted** and pooled across a rolling window, the latch calibrating the
+constant, corrections **slewed** so a stamp never steps backwards, and stamps never later than arrival.
+Backends stamp at the earliest point they have the frame and carry the instant ON the frame
+(`FrameTiming`), because a "last frame instant" getter read after a queue hop can belong to a later frame
+at 592 fps. ⚠ Latch only BEFORE `BeginAcquisition`: a burst of latches mid-stream disturbed the camera's
+own frame spacing. Every swing records `capture.timestampSource` and `capture.clockMap`.
+
 ### 9.3 Thread Priority (Reduces Jitter)
 
 See Section 11. Elevated capture thread priority reduces callback scheduling jitter. On Windows and macOS this is free (unprivileged). On Linux it requires `CAP_SYS_NICE`.

@@ -36,10 +36,17 @@ signatures and contract claims below were grounded in the code at planning time;
 ## 1. The one fact that shapes the whole design — the clock model
 
 `EventBuffer::nowMicros()` is a **single monotonic `steady_clock` in µs**, shared by *every* source
-(`src/Buffer/event_buffer.cpp:313-316`). Every source stamps its `IndexEntry.timestamp_us` at
-**host-arrival time** (`acquireWriteSlot`/`publish`), **not** capture time, and there is **no per-source
-latency compensation** anywhere (camera `camera_instance.cpp:1485,1517`, IMU `imu_instance.cpp:277`,
-marker `shot_controller.cpp:138`). Implications:
+(`src/Buffer/event_buffer.cpp:313-316`). The IMU, the audio detector and the marker source stamp their
+`IndexEntry.timestamp_us` at **host-arrival time** (`acquireWriteSlot`/`publish`), **not** capture time,
+with **no per-source latency compensation** (IMU `imu_instance.cpp:277`, marker
+`shot_controller.cpp:138`).
+
+⚠ **Cameras changed on 2026-09-16** (`event_buffer_design.md` §9). A local camera's frames now carry the
+instant the camera EXPOSED them — its own clock mapped onto this one, or a platform presentation time —
+so a camera stamp is no longer an arrival stamp. Each swing records which it is
+(`capture.timestampSource`) and what the delivery cost (`capture.clockMap.lagP50Us`). Everything below
+still holds for the other sources; where it says "camera latency", that latency is now measured and
+removed rather than baked in. Implications:
 
 1. **Cross-modal timestamps are directly comparable** — fusion can compare instants without clock sync.
    The "few-hundred-ms audio/IMU offset" from the literature is not a clock skew here; it's each

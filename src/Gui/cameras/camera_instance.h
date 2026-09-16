@@ -34,6 +34,7 @@
 #include <atomic>
 #include <deque>
 
+#include "device_clock_mapper.h"
 #include "device_enumerator.h"
 #include "format_descriptor.h"
 #include "raw_video_frame.h"
@@ -300,6 +301,11 @@ public:
     // becomes what the next connect primes, so the clip records what was on.
     // No-op for a backend without live tuning (the log says so).
     Q_INVOKABLE void applyLiveTuning(double exposureUs, double gainDb, double gamma);
+    // How this camera's frames are being timestamped — the backend's camera clock → host clock mapping
+    // and its health (event_buffer_design.md §9). False when the backend has no mapping, in which case
+    // the frames carry arrival time as they always did. Recorded on every swing.
+    bool clockStats(pinpoint::DeviceClockStats *out) const;
+
     double appliedGainDb()   const;
     double appliedGamma()    const;
     double requestedGainDb() const { return m_captureGainDb; }

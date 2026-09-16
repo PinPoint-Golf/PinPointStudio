@@ -171,6 +171,12 @@ RawVideoFrame cropRawFrame(const RawVideoFrame &src, const QRectF &norm)
     out.width   = r.width();
     out.height  = r.height();
     out.pattern = src.pattern;
+    // Per-frame facts survive the crop. They did not before 2026-09-15: a cropped frame arrived with
+    // exposure 0 (so the descriptor never refreshed from chunk data) and, once frames carried their own
+    // capture instant, would have arrived with no instant either — which is the impact camera's whole feed.
+    out.exposureUs   = src.exposureUs;
+    out.exposureAuto = src.exposureAuto;
+    out.timing       = src.timing;
     out.data.resize(r.width() * r.height());
 
     const char *s = src.data.constData() + r.y() * src.width + r.x();

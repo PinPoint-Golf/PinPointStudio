@@ -19,6 +19,7 @@
 #pragma once
 
 #include "video_input_base.h"
+#include "device_clock_mapper.h"
 
 #include <QFuture>
 #include <atomic>
@@ -57,6 +58,11 @@ public:
     void setGamma(double g)         override { m_gamma = g; }
     void setStrobeOutput(bool on)   override { m_strobe = on; }
     bool applyLiveTuning(double exposureUs, double gainDb, double gamma) override;
+
+    // Aravis delivers the camera's own buffer timestamp (ns), mapped onto our clock by the same fit the
+    // Spinnaker path uses. ⚠ UNTESTED ON HARDWARE, as the rest of this backend is.
+    bool providesDeviceTimestamps() const override { return true; }
+    bool clockStats(pinpoint::DeviceClockStats *out) const override;
     double appliedGainDb() const override { return m_appliedGainDb.load(std::memory_order_relaxed); }
     double appliedGamma()  const override { return m_appliedGamma.load(std::memory_order_relaxed); }
 
@@ -73,6 +79,8 @@ private:
     std::atomic_bool m_abort{false};
     // The running captureLoop(); stop() joins it before freeing the stream.
     QFuture<void> m_captureFuture;
+    // The camera clock → host clock mapping; fed on the capture thread, reset at every start().
+    pinpoint::DeviceClockMapper m_clock;
     QRectF m_cropRegion;         // normalized crop; empty = full sensor
     double m_captureFps = 0.0;   // requested frame rate; 0 = the 60 fps default below
     double m_exposureUs = 0.0;   // requested exposure (auto off); 0 = camera default

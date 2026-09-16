@@ -22,7 +22,10 @@
 #include <QRectF>
 #include <QVideoFrameFormat>
 #include "raw_video_frame.h"
+#include "frame_timing.h"
 #include "camera_capabilities.h"
+
+namespace pinpoint { struct DeviceClockStats; }   // device_clock_mapper.h — by pointer, see clockStats()
 
 // Abstract base for camera / video capture.
 //
@@ -158,9 +161,20 @@ public:
     // or after start() to read live/active values from the device.
     virtual CameraCapabilities queryCapabilities() const = 0;
 
+    // True when this backend stamps frames from the CAMERA's clock (a GenICam timestamp mapped onto
+    // ours, or a platform presentation time), rather than from their arrival here. The source
+    // descriptor's sync_source follows it, and a swing records which kind of stamp it carries.
+    virtual bool providesDeviceTimestamps() const { return false; }
+
+    // How that mapping is doing — skew, residuals, the delivery lag it removed, dropped frames. False
+    // when the backend has no mapping at all. Declared by pointer so this header needs no Buffer include.
+    virtual bool clockStats(pinpoint::DeviceClockStats *) const { return false; }
+
 signals:
-    // Emitted for every decoded camera frame (non-Bayer backends).
-    void videoFrameReady(const QVideoFrame &frame);
+    // Emitted for every decoded camera frame (non-Bayer backends). `timing` says when the frame was
+    // EXPOSED (frame_timing.h); it is defaulted so a backend with nothing to say — a preview frame, a
+    // webcam — emits exactly as before and CameraInstance falls back to arrival time.
+    void videoFrameReady(const QVideoFrame &frame, const FrameTiming &timing = FrameTiming());
 
     // Emitted by Bayer backends instead of videoFrameReady.  Data is packed
     // (stride == width) so the GPU upload path needs no row-stride adjustment.

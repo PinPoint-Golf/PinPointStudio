@@ -27,6 +27,7 @@
 
 #include "VideoInputSpinnaker.h"
 #include "spinnaker_runtime.h"
+#include "event_buffer.h"
 #include "frame_crop.h"
 #include "raw_video_frame.h"
 #include <QVideoFrame>
@@ -35,6 +36,7 @@
 #include <QtConcurrent>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 #ifdef HAVE_SPINNAKER
 using namespace Spinnaker;
@@ -406,6 +408,42 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
         }
         ppDebug() << "[VideoInputSpinnaker] Chunk exposure enabled:" << m_chunkExposureEnabled
                  << "ExposureAuto mode:" << m_exposureAuto;
+
+        // --- The camera's clock against ours (event_buffer_design.md §9) ---
+        // TimestampLatch samples the camera's counter on command; bracketing it between two host reads
+        // pins the two clocks together to about half the round trip. This firmware answers with
+        // `Timestamp` rather than the SFNC `TimestampLatchValue` (camera_clock_probe, 2026-09-15), and
+        // both it and the frame timestamps are ns on one clock, so the latch measures exactly what the
+        // frames cannot say for themselves: the delivery latency to subtract.
+        //
+        // ⚠ BEFORE BeginAcquisition, and briefly. A burst of latches DURING streaming disturbed the
+        // camera's own frame spacing (a ~20 ms gap) and widened the bracket to ~0.5 ms. Idle, the
+        // fastest bracket is ~210 µs. The counter free-runs whether or not acquisition is on and never
+        // resets, so latching first costs nothing.
+        m_clock.reset();
+        {
+            CCommandPtr latch  = nodeMap.GetNode("TimestampLatch");
+            CIntegerPtr tsNode = nodeMap.GetNode("TimestampLatchValue");
+            if (!IsAvailable(tsNode) || !IsReadable(tsNode))
+                tsNode = nodeMap.GetNode("Timestamp");
+            if (IsAvailable(latch) && IsWritable(latch) && IsAvailable(tsNode) && IsReadable(tsNode)) {
+                qint64 bestRttUs = std::numeric_limits<qint64>::max(), bestHostUs = 0, bestValueNs = 0;
+                for (int i = 0; i < kClockLatchBrackets; ++i) {
+                    const qint64 h0 = pinpoint::EventBuffer::nowMicros();
+                    latch->Execute();
+                    const qint64 v  = static_cast<qint64>(tsNode->GetValue());
+                    const qint64 h1 = pinpoint::EventBuffer::nowMicros();
+                    if (h1 - h0 < bestRttUs) { bestRttUs = h1 - h0; bestHostUs = (h0 + h1) / 2; bestValueNs = v; }
+                }
+                m_clock.seedLatch(bestHostUs, bestValueNs, bestRttUs);
+                ppInfo() << "[VideoInputSpinnaker] clock latched:" << kClockLatchBrackets
+                         << "brackets, best round trip" << bestRttUs << "us";
+            } else {
+                ppInfo() << "[VideoInputSpinnaker] no TimestampLatch on this camera — frame timestamps "
+                            "will be mapped by their arrival envelope, and the delivery latency stays "
+                            "in the stamp";
+            }
+        }
 
         (*camera)->BeginAcquisition();
         m_streaming = true;
@@ -848,6 +886,13 @@ bool VideoInputSpinnaker::applyLiveTuning(double exposureUs, double gainDb, doub
 #endif
 }
 
+bool VideoInputSpinnaker::clockStats(pinpoint::DeviceClockStats *out) const
+{
+    if (!out) return false;
+    *out = m_clock.stats();
+    return out->frames > 0;
+}
+
 void VideoInputSpinnaker::captureLoop()
 {
 #ifdef HAVE_SPINNAKER
@@ -857,6 +902,10 @@ void VideoInputSpinnaker::captureLoop()
     while (!m_abort && camera) {
         try {
             ImagePtr pResultImage = (*camera)->GetNextImage(1000);
+            // ⚠ ARRIVAL IS THE FIRST STATEMENT after the frame is in hand. Everything below — the chunk
+            // read, the copy, the queued hop to the object's thread — costs time that used to end up in
+            // the frame's timestamp.
+            const qint64 arrivalUs = pinpoint::EventBuffer::nowMicros();
             if (pResultImage->IsIncomplete()) {
                 ppDebug() << "[VideoInputSpinnaker] Incomplete image, status"
                          << pResultImage->GetImageStatus();
@@ -873,6 +922,23 @@ void VideoInputSpinnaker::captureLoop()
             }
             m_lastExposureUs.store(chunkExpUs, std::memory_order_relaxed);
             m_lastExposureAuto.store(m_exposureAuto, std::memory_order_relaxed);
+
+            // ── When this frame was exposed ────────────────────────────────────────────────────────
+            // The camera's own timestamp, mapped onto our clock. It marks the END of the exposure
+            // (camera_clock_probe, 2026-09-15: the offset moved 0.12 ms between a 1 ms and a 6 ms
+            // exposure, not 5 ms), so the middle of the exposure — the instant a moving clubhead is at
+            // the position this frame shows — is half an exposure earlier. That is 3.3 ms on the face-on
+            // camera's 6.5 ms exposure and 51 µs on the impact camera's 102 µs.
+            FrameTiming timing;
+            timing.arrivalUs = arrivalUs;
+            timing.deviceNs  = static_cast<qint64>(pResultImage->GetTimeStamp());
+            timing.frameId   = static_cast<qint64>(pResultImage->GetFrameID());
+            if (timing.deviceNs > 0) {
+                const double expUs = chunkExpUs > 0.0 ? chunkExpUs : m_exposureUs;
+                const qint64 midNs = timing.deviceNs - static_cast<qint64>(std::llround(expUs * 500.0));
+                timing.captureUs = m_clock.map(midNs, arrivalUs, timing.frameId);
+                timing.source    = FrameTiming::Source::Device;
+            }
 
             const size_t width  = pResultImage->GetWidth();
             const size_t height = pResultImage->GetHeight();
@@ -894,6 +960,7 @@ void VideoInputSpinnaker::captureLoop()
                 rawFrame.pattern     = static_cast<RawVideoFrame::BayerPattern>(m_bayerPattern);
                 rawFrame.exposureUs  = chunkExpUs;
                 rawFrame.exposureAuto = m_exposureAuto;
+                rawFrame.timing       = timing;   // when it was EXPOSED — travels with the frame
                 rawFrame.data.resize(static_cast<qsizetype>(width * height));
                 char *dst = rawFrame.data.data();
                 if (stride == width) {
@@ -927,8 +994,8 @@ void VideoInputSpinnaker::captureLoop()
                 pResultImage->Release();
 
                 QVideoFrame frame(img);
-                QMetaObject::invokeMethod(this, [this, frame]() {
-                    emit videoFrameReady(frame);
+                QMetaObject::invokeMethod(this, [this, frame, timing]() {
+                    emit videoFrameReady(frame, timing);
                 }, Qt::QueuedConnection);
             }
 

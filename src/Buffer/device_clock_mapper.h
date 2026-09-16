@@ -64,6 +64,10 @@ enum class ClockMapMethod : uint8_t {
     Envelope,   // lower-envelope line; the minimum transfer latency is NOT removed
     Latch,      // envelope for drift, a TimestampLatch bracket for the constant
     DevicePts,  // the backend supplied an instant already on the host clock (AVFoundation PTS)
+    // No capture instant exists anywhere in the path — the frame is stamped when it reached us, which is
+    // what EVERY local camera did before 2026-09-16 and what a plain webcam still does. Recorded so a
+    // swing says so rather than implying a camera clock it never had.
+    HostArrival,
 };
 
 const char *clockMapMethodName(ClockMapMethod m);
@@ -121,9 +125,11 @@ public:
     // capture instant on the host clock.
     int64_t map(int64_t deviceNs, int64_t arrivalUs, int64_t frameId = -1);
 
-    // A backend whose timestamp is already on the host clock (AVFoundation PTS): no fit, but the same
-    // monotonic guarantee and the same lag statistics.
-    int64_t mapDirect(int64_t captureUs, int64_t arrivalUs, int64_t frameId = -1);
+    // A backend with nothing to fit: either its timestamp is already on the host clock (AVFoundation PTS)
+    // or there is no capture instant at all and the frame is stamped on arrival. Same monotonic
+    // guarantee, same lag statistics. `method` is what the swing will record, so it is the CALLER's to
+    // state — a webcam stamped on arrival must not come out claiming a device clock.
+    int64_t mapDirect(int64_t captureUs, int64_t arrivalUs, ClockMapMethod method, int64_t frameId = -1);
 
     DeviceClockStats stats() const;
 

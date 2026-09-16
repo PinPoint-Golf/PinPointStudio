@@ -225,7 +225,10 @@ inherits any impact error.
 
 **G3 — Clock alignment is assumed, not estimated.** WitMotion BLE delivery has known jitter and
 batching (ODR batching above 50 Hz), so per-sample `tUs` is arrival-time-ish; the camera path is
-hardware-stamped. A per-swing IMU↔camera time-offset bias directly skews every event-relative
+hardware-stamped — **true since 2026-09-16 and not before**, when local cameras started carrying the
+camera's own clock rather than the instant their frames reached the app (`event_buffer_design.md` §9).
+Camera time therefore moved earlier by each camera's delivery lag, which is what the IMU is compared
+against here. A per-swing IMU↔camera time-offset bias directly skews every event-relative
 metric sample (a 20 ms bias at ~2000 °/s hand rotation near impact ≈ tens of degrees at the
 sampled instant). Nothing measures or corrects it.
 

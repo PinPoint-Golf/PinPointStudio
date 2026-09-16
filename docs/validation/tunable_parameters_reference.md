@@ -931,6 +931,34 @@ persisted `value[]`. The measured ΔP4 (median 0.12 σ, max 0.34 σ) is what kee
 old smoothing, and a systematic shift there would have put it in scope rather than being absorbed
 silently. Re-check that if the full-corpus confirmation moves P4 further.
 
+### 2.20 Constants tuned on ARRIVAL-STAMPED camera frames (2026-09-16) — measure before trusting
+
+⚠ **Not a parameter group: a list of parameters whose evidence moved under them.** Until 2026-09-16
+every local camera frame was stamped when it reached the app, so its timestamp was late by the delivery
+path — a few ms, jittering ±0.4 ms on the impact camera and up to 150 ms on a stalled host. Frames now
+carry the camera's own clock (`event_buffer_design.md` §9). Camera time therefore moved EARLIER relative
+to the IMU, the audio and the other cameras by roughly that camera's mean delivery lag, which each swing
+now records as `capture.clockMap.lagP50Us`.
+
+**Nothing below was changed with the timestamp work** — changing a constant in the same breath as the
+evidence under it is how a bias hides. Each needs re-measuring on a session recorded after the switch.
+
+| Constant / figure | Where | Why it moves |
+|---|---|---|
+| `kBallLaunchLatencyUs` (24 ms) | `src/Pose/ball_detector.cpp` | The live ball-launch estimate back-dates from the frame's time; that time is now earlier, so the same constant over-back-dates by the old lag. **The one with a live consequence** (shot detection), so measure it first. |
+| The acoustic back-date (residual + mic travel) | `src/Gui/main.cpp`, `app_settings.h` | Calibrated against video truth marked on arrival-stamped frames. |
+| "The anchor runs 13–22 ms early" | `src/Analysis/impact_geom.h` | Same truth, same shift — part of that "early" was the camera being late. The `overrideLater=false` choice rests on it. |
+| `kinematics::kComposed` 0.959 ± 0.022 of the launch monitor | `pp_tuned_constants.h` | Clubhead speed differentiates per-frame timestamps; the jitter it was graded under is gone. |
+| `poseSmooth.adapt.aRef` (§2.19) | `pp_tuned_constants.h` | The adaptive window scales on acceleration in px/s², which timestamp jitter inflated. |
+| IMU P6 proxy bias (−39…−61 ms) | `docs/design/timeline-fusion.md` | Measured camera-vs-IMU; the camera side moved. |
+| `ballLeaveTUs` vs `capture.impactUs` (5–10 ms early) | `docs/reference/swing_json_schema.md` | Will move further ahead by the impact camera's lag. |
+| `captureIntegrity` capture holes | `src/Analysis/capture_integrity_check.h` | A gap now means exposures that never happened, not a host stall — stalls show up in `clockMap.lagP99Us` instead. |
+
+**Mixed corpora:** a swing with no `capture.timestampSource` is arrival-stamped. Do not compare its
+timings against a newer swing's without allowing for that camera's lag.
+
+---
+
 ## 3. The frozen-defaults header — the single freeze edit-point
 
 `src/Core/pp_tuned_constants.h` (`namespace pinpoint::tuned`) is the **single source of truth** for every

@@ -213,7 +213,8 @@ TEST(DeviceClockMapper, DirectInstantsKeepTheGuaranteesAndTheLag)
     for (int64_t f = 0; f < 600; ++f) {
         const int64_t cap = 1'000'000 + f * 16'667;
         const int64_t arr = cap + 3'000 + (f % 7) * 100;
-        const int64_t out = m.mapDirect(f == 300 ? cap - 50'000 : cap, arr, f);   // one PTS goes backwards
+        const int64_t out = m.mapDirect(f == 300 ? cap - 50'000 : cap, arr,       // one PTS goes backwards
+                                        ClockMapMethod::DevicePts, f);
         ASSERT_GT(out, prev); prev = out;
     }
     const DeviceClockStats s = m.stats();

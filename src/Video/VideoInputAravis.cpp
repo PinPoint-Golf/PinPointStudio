@@ -24,6 +24,7 @@
 #endif
 
 #include "VideoInputAravis.h"
+#include "event_buffer.h"
 #include "frame_crop.h"
 #include <QVideoFrame>
 #include <QDateTime>
@@ -167,6 +168,7 @@ bool VideoInputAravis::start(const QString &deviceId)
         arv_stream_push_buffer(stream, arv_buffer_new(arv_camera_get_payload(cam, nullptr), nullptr));
     }
 
+    m_clock.reset();                 // a fresh camera clock → host clock fit for this stream
     arv_camera_start_acquisition(cam, nullptr);
     m_streaming = true;
     m_state = State::Active;
@@ -485,6 +487,13 @@ bool VideoInputAravis::applyLiveTuning(double exposureUs, double gainDb, double 
 #endif
 }
 
+bool VideoInputAravis::clockStats(pinpoint::DeviceClockStats *out) const
+{
+    if (!out) return false;
+    *out = m_clock.stats();
+    return out->frames > 0;
+}
+
 void VideoInputAravis::captureLoop()
 {
 #ifdef HAVE_ARAVIS
@@ -497,7 +506,26 @@ void VideoInputAravis::captureLoop()
         // blocking pop would never observe m_abort.
         ArvBuffer *buffer = arv_stream_timeout_pop_buffer(stream, 100000);
         if (buffer) {
+            // Arrival first, before any work: the frame is in hand here and everything after costs time.
+            const qint64 arrivalUs = pinpoint::EventBuffer::nowMicros();
             if (arv_buffer_get_status(buffer) == ARV_BUFFER_STATUS_SUCCESS) {
+                // When the camera exposed it. arv_buffer_get_timestamp is the DEVICE clock in ns;
+                // arv_buffer_get_system_timestamp is deliberately not used — that is the host WALL clock,
+                // which is not the monotonic clock everything else here is stamped on.
+                //
+                // The GenICam stamp marks the end of the exposure (measured on the Chameleon3s over
+                // Spinnaker), so the middle of the exposure is half an exposure earlier. m_exposureUs is
+                // what this backend asked for; Aravis has no per-frame chunk exposure here.
+                FrameTiming timing;
+                timing.arrivalUs = arrivalUs;
+                timing.deviceNs  = static_cast<qint64>(arv_buffer_get_timestamp(buffer));
+                timing.frameId   = static_cast<qint64>(arv_buffer_get_frame_id(buffer));
+                if (timing.deviceNs > 0) {
+                    const qint64 midNs = timing.deviceNs
+                                       - static_cast<qint64>(std::llround(m_exposureUs * 500.0));
+                    timing.captureUs = m_clock.map(midNs, arrivalUs, timing.frameId);
+                    timing.source    = FrameTiming::Source::Device;
+                }
                 size_t size;
                 const void *data = arv_buffer_get_data(buffer, &size);
                 int width, height;
@@ -513,8 +541,8 @@ void VideoInputAravis::captureLoop()
                 QImage img((const uchar*)data, width, height, width, QImage::Format_Grayscale8);
                 QVideoFrame frame(img.copy()); // Copy data to ensure it stays valid
 
-                QMetaObject::invokeMethod(this, [this, frame]() {
-                    emit videoFrameReady(frame);
+                QMetaObject::invokeMethod(this, [this, frame, timing]() {
+                    emit videoFrameReady(frame, timing);
                 }, Qt::QueuedConnection);
             }
             arv_stream_push_buffer(stream, buffer);

@@ -18,6 +18,7 @@
 
 #include "video_input.h"
 #include "../Core/device_enumerator.h"
+#include "event_buffer.h"
 
 #include <QCamera>
 #include <QMediaCaptureSession>
@@ -283,10 +284,20 @@ bool VideoInput::start(const QString &deviceId)
     connect(m_camera, &QCamera::errorOccurred,
             this, &VideoInput::onCameraErrorOccurred);
     // QVideoSink may emit from any thread; queue to stay on our thread.
-    connect(m_sink, &QVideoSink::videoFrameChanged,
-            this, &VideoInput::onVideoFrameChanged,
-            Qt::QueuedConnection);
+    //
+    // ⚠ The ARRIVAL STAMP IS TAKEN HERE, in a direct-connected lambda, not in the slot: Qt Multimedia
+    // gives us no capture instant, so arrival is all there is, and taking it after the queue hop would
+    // add the event loop's own latency to every frame's timestamp.
+    connect(m_sink, &QVideoSink::videoFrameChanged, this,
+            [this](const QVideoFrame &frame) {
+                const qint64 arrivalUs = pinpoint::EventBuffer::nowMicros();
+                QMetaObject::invokeMethod(this, [this, frame, arrivalUs]() {
+                    onVideoFrameChanged(frame, arrivalUs);
+                }, Qt::QueuedConnection);
+            },
+            Qt::DirectConnection);
 
+    m_clock.reset();                 // fresh lag statistics for this stream
     m_camera->start();
 
     return true;
@@ -376,10 +387,25 @@ void VideoInput::onCameraErrorOccurred(QCamera::Error error, const QString &erro
     }
 }
 
-void VideoInput::onVideoFrameChanged(const QVideoFrame &frame)
+void VideoInput::onVideoFrameChanged(const QVideoFrame &frame, qint64 arrivalUs)
 {
-    if (frame.isValid())
-        emit videoFrameReady(frame);
+    if (!frame.isValid())
+        return;
+    // Nothing here knows when the sensor exposed this frame, so the stamp is its arrival at the sink —
+    // taken before the hop onto this thread. The mapper adds the monotonic guarantee and counts the lag,
+    // which is 0 by construction on this path and says so.
+    FrameTiming timing;
+    timing.arrivalUs = arrivalUs;
+    timing.captureUs = m_clock.mapDirect(arrivalUs, arrivalUs, pinpoint::ClockMapMethod::HostArrival);
+    timing.source    = FrameTiming::Source::HostArrival;
+    emit videoFrameReady(frame, timing);
+}
+
+bool VideoInput::clockStats(pinpoint::DeviceClockStats *out) const
+{
+    if (!out) return false;
+    *out = m_clock.stats();
+    return out->frames > 0;
 }
 
 CameraCapabilities VideoInput::queryCapabilities() const

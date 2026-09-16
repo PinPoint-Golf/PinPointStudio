@@ -1454,6 +1454,26 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         cam.mirrored     = track.ctrl->isMirrored();
         cam.fixedInPlace = s->cameraFixedInPlace()
                                .value(track.ctrl->cameraKey()).toBool();
+        // Timestamp provenance, for EVERY camera (event_buffer_design.md §9): which clock stamped these
+        // frames and how the mapping onto ours was doing. A backend with no mapping leaves both out, and
+        // the stream reads as arrival-stamped.
+        {
+            pinpoint::DeviceClockStats cs;
+            if (track.ctrl->clockStats(&cs) && cs.method != pinpoint::ClockMapMethod::None) {
+                cam.hasClock = true;
+                cam.clock    = cs;
+                switch (cs.method) {
+                case pinpoint::ClockMapMethod::DevicePts:
+                    cam.timestampSource = QStringLiteral("devicePts"); break;
+                case pinpoint::ClockMapMethod::HostArrival:
+                    cam.timestampSource = QStringLiteral("hostArrival"); break;
+                default:
+                    cam.timestampSource = QStringLiteral("device"); break;
+                }
+            }
+            // No mapping at all (a PPCP peer's camera maps its own clock elsewhere): the field is left
+            // out rather than asserted, and an absent field reads as arrival-stamped.
+        }
         // The impact camera's keep band — see kImpactKeepBeforeUs. Absolute
         // buffer-clock, the domain of both m_impactUs and the entries.
         if (cam.perspective == CameraInstance::Impact && m_impactUs >= 0) {

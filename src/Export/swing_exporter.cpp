@@ -443,6 +443,36 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         }
         if (rec.cam->gamma > 0.0)
             captureObj[QStringLiteral("gamma")] = rec.cam->gamma;
+        // How the frames were timestamped, and how well (event_buffer_design.md §9). Absent means the
+        // stream was stamped on arrival, which is every swing before 2026-09-16.
+        if (!rec.cam->timestampSource.isEmpty())
+            captureObj[QStringLiteral("timestampSource")] = rec.cam->timestampSource;
+        if (rec.cam->hasClock) {
+            const pinpoint::DeviceClockStats &c = rec.cam->clock;
+            QJsonObject clockMap{
+                {QStringLiteral("method"),        QString::fromLatin1(pinpoint::clockMapMethodName(c.method))},
+                {QStringLiteral("skewPpm"),       std::round(c.skewPpm * 100.0) / 100.0},
+                {QStringLiteral("fitSpanS"),      std::round(c.fitSpanS * 10.0) / 10.0},
+                {QStringLiteral("residualP50Us"), static_cast<qint64>(c.residualP50Us)},
+                {QStringLiteral("residualP99Us"), static_cast<qint64>(c.residualP99Us)},
+                // What the delivery path cost — arrival minus the exposure instant. This is the jitter
+                // that used to BE the timestamp.
+                {QStringLiteral("lagP50Us"),      static_cast<qint64>(c.lagP50Us)},
+                {QStringLiteral("lagP99Us"),      static_cast<qint64>(c.lagP99Us)},
+                {QStringLiteral("lagMaxUs"),      static_cast<qint64>(c.lagMaxUs)},
+                {QStringLiteral("frames"),        static_cast<qint64>(c.frames)},
+                {QStringLiteral("droppedFrames"), static_cast<qint64>(c.frameIdGaps)},
+            };
+            if (c.latchRttUs >= 0)      clockMap[QStringLiteral("latchRttUs")]   = static_cast<qint64>(c.latchRttUs);
+            if (c.minLatencyUs >= 0)    clockMap[QStringLiteral("minLatencyUs")] = static_cast<qint64>(c.minLatencyUs);
+            if (c.streams > 1)          clockMap[QStringLiteral("streams")]      = static_cast<qint64>(c.streams);
+            if (c.shortBaseline)        clockMap[QStringLiteral("shortBaseline")] = true;
+            if (c.degenerate)           clockMap[QStringLiteral("degenerate")]    = true;
+            if (c.implausible)          clockMap[QStringLiteral("implausibleRate")] = true;
+            if (c.clampedMonotonic > 0) clockMap[QStringLiteral("clampedMonotonic")] = static_cast<qint64>(c.clampedMonotonic);
+            if (c.clampedToArrival > 0) clockMap[QStringLiteral("clampedToArrival")] = static_cast<qint64>(c.clampedToArrival);
+            captureObj[QStringLiteral("clockMap")] = clockMap;
+        }
         if (rec.cam->perspective == 4) {   // Impact — the strobe and the view are its own
             captureObj[QStringLiteral("strobe")]   = rec.cam->strobe;
             captureObj[QStringLiteral("viewGain")] = rec.cam->viewGain;
