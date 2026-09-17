@@ -738,6 +738,47 @@ inline constexpr double       kSpanNoisePx   = 3.0;     // bodyRotation.spanNois
 inline constexpr double       kSinFloor      = 0.0872;  // bodyRotation.sinFloor — sin 5°
 } // namespace bodyRotation
 
+// --- Kinematic sequence (src/Analysis/segment_rates.h) -----------------------
+// Four segment angular-speed series and the ordered peaks over them, from an IMU,
+// a calibrated pair or a single face-on camera. Consumed by
+// SegmentRatesConfig::fromOverrides via "sequence.*" dotted keys.
+//
+// kDerivWindowMs is the ONE smoothing window every route shares, in TIME, so a
+// 120 fps camera and a 200 Hz IMU blur a peak alike (angular_rate.h). 25 ms is
+// narrow enough to keep Cheetham's 19 ms pelvis→thorax gap visible and wide enough
+// to hold three camera frames. kMaxPlaceSigmaMs is twice the professional pelvis
+// timing SD (Cheetham 2008, ±19 ms): a node less certain than that is emitted
+// `unresolved` rather than placed. kSpanNoisePx / kSinFloor are body_rotation's
+// figures (the 2026-09-09 measurement: 2.1 % span jitter over 59 still frames).
+namespace sequence {
+inline constexpr bool         kEnabled           = true;     // sequence.enabled
+inline constexpr double       kDerivWindowMs     = 25.0;     // sequence.derivWindowMs
+inline constexpr double       kMaxPlaceSigmaMs   = 40.0;     // sequence.maxPlaceSigmaMs
+inline constexpr double       kSigmaK            = 1.0;      // sequence.sigmaK
+inline constexpr double       kConfMin           = 0.30;     // sequence.confMin
+inline constexpr int          kAddrMinFrames     = 5;        // sequence.addrMinFrames
+inline constexpr std::int64_t kAddrWindowUs      = 250000;   // sequence.addrWindowUs
+inline constexpr double       kSpanNoisePx       = 3.0;      // sequence.spanNoisePx
+inline constexpr double       kSinFloor          = 0.0872;   // sequence.sinFloor — sin 5°
+inline constexpr double       kMinSpanPx         = 30.0;     // sequence.minSpanPx
+inline constexpr double       kPlaneRatioFloor   = 0.20;     // sequence.planeRatioFloor
+inline constexpr double       kNoPlaneRelSigma   = 0.15;     // sequence.noPlaneRelSigma — [k, 1/k] folded into σ
+inline constexpr double       kShaftThetaSigmaRad = 0.0087;  // sequence.shaftThetaSigmaRad — 0.5°
+inline constexpr double       kKpSigmaPx         = 3.0;      // sequence.kpSigmaPx
+inline constexpr double       kGyroNoiseDps      = 2.0;      // sequence.gyroNoiseDps
+// The two gates the 2026-09-17 corpus pass (kinematic_sequence_design.md §12) made necessary:
+//   kFaceOnTrunkPlacement — whether the face-on pelvis / thorax nodes may be PLACED at all. OFF
+//     until the §9 truth capture has shown their timing σ to be honest: on real spans the unfolded
+//     cosine spikes where the span crosses its address width, and a spike has the high curvature
+//     that makes the σ_t formula report a confident instant. The series are still produced and
+//     charted; the nodes read "unresolved". Flip after the gate, per segment if need be.
+//   kMinCredibleClubMph — the club node is placed only when the same track's clubhead speed at
+//     impact is credible; a 23 mph "impact" is a broken track, and its shaft-angle rate is the
+//     synth tier's straight line between anchors, not a swing.
+inline constexpr bool         kFaceOnTrunkPlacement = false;  // sequence.faceOnTrunkPlacement
+inline constexpr double       kMinCredibleClubMph   = 40.0;   // sequence.minCredibleClubMph
+} // namespace sequence
+
 // --- Club delivery from a face-on camera (src/Analysis/club_delivery.h) -------
 // shaftAngleVsHorizontal / attackAngle read off the MEASURED clubhead terminus;
 // lowPointAhead read off the SYNTHESIZED ARC instead (see club_delivery.h "Two

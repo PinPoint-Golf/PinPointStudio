@@ -1684,6 +1684,92 @@ int main()
         checkEqI("no phases ⇒ Full alone", cm.segments(QVariantList{}, 2500000).size(), 1);
     }
 
+    // ── sequenceRows / sequenceVerdictText / sequenceRouteText: the strip's three answers ─────
+    //
+    // The map is the shape kinematic_sequence_json.h writes. What is at risk is the WALK — placed
+    // nodes in the sequence's own order, each carrying the gap to the next, then the unplaced tail
+    // — and the string rules, which exist nowhere else and can be asserted nowhere else.
+    {
+        const auto node = [](const char *seg, bool placed, double before, double tSig, double peak,
+                             double pSig, const char *route, const char *quality) {
+            return QVariantMap{ { QStringLiteral("segment"),        QString::fromLatin1(seg) },
+                                { QStringLiteral("placed"),         placed },
+                                { QStringLiteral("tPeakUs"),        1000000 - qlonglong(before * 1000) },
+                                { QStringLiteral("beforeImpactMs"), before },
+                                { QStringLiteral("peakDps"),        peak },
+                                { QStringLiteral("tSigmaMs"),       tSig },
+                                { QStringLiteral("peakSigmaDps"),   pSig },
+                                { QStringLiteral("routeId"),        QString::fromLatin1(route) },
+                                { QStringLiteral("quality"),        QString::fromLatin1(quality) } };
+        };
+        // A pro-shaped swing with the thorax unplaced from the camera: pelvis (IMU) 87 ms before
+        // impact, arm 65 ms, club at the ball — placed order pelvis, leadArm, club.
+        QVariantMap ks{
+            { QStringLiteral("impactUs"), 1000000 },
+            { QStringLiteral("nodes"), QVariantList{
+                  node("pelvis",  true,  87.0, 12.0, 480.0, 20.0, "pelvisImu",  "direct"),
+                  node("thorax",  false, 40.0, 95.0, 600.0, 90.0, "faceOn",     "estimated"),
+                  node("leadArm", true,  65.0,  9.0, 980.0, 30.0, "faceOn",     "estimated"),
+                  node("club",    true,   0.0,  4.0, 2250.0, 40.0, "faceOnClub", "estimated") } },
+            { QStringLiteral("order"),   QVariantList{ QStringLiteral("pelvis"), QStringLiteral("leadArm"),
+                                                       QStringLiteral("club") } },
+            { QStringLiteral("gapsMs"),  QVariantList{ 22.0, 65.0 } },
+            { QStringLiteral("gainsDps"), QVariantList{ 500.0, 1270.0 } },
+            { QStringLiteral("orderResolved"), true },
+            { QStringLiteral("verdict"), QStringLiteral("partial") },
+            { QStringLiteral("routeSummary"), QStringLiteral("mixed") } };
+
+        const QVariantList rows = cm.sequenceRows(ks);
+        checkEqI("four rows: three placed + the unplaced tail", rows.size(), 4);
+        const auto seg = [&rows](int i) { return rows.at(i).toMap().value(QStringLiteral("segment")).toString(); };
+        checkStr("row 0 is the first placed node",  seg(0), "pelvis");
+        checkStr("row 1 follows the sequence order", seg(1), "leadArm");
+        checkStr("row 2 is the last placed",         seg(2), "club");
+        checkStr("row 3 is the unplaced thorax",     seg(3), "thorax");
+        checkTrue("the tail row says unplaced",
+                  rows.at(3).toMap().value(QStringLiteral("placed")).toBool() == false);
+        checkEqD("gap 0 → 1 is the sequence's own",  rows.at(0).toMap().value(QStringLiteral("gapMs")).toDouble(), 22.0);
+        checkEqD("gap 1 → 2 likewise",               rows.at(1).toMap().value(QStringLiteral("gapMs")).toDouble(), 65.0);
+        checkEqD("the last placed row has no gap",   rows.at(2).toMap().value(QStringLiteral("gapMs")).toDouble(), -1.0);
+        checkEqD("an unplaced row has no gap",       rows.at(3).toMap().value(QStringLiteral("gapMs")).toDouble(), -1.0);
+        checkStr("label is the coach's word",   rows.at(3).toMap().value(QStringLiteral("label")).toString(), "Chest");
+        checkStr("an IMU rung reads inertial",  rows.at(0).toMap().value(QStringLiteral("method")).toString(), "inertial");
+        checkStr("…with the I glyph",           rows.at(0).toMap().value(QStringLiteral("glyph")).toString(), "I");
+        checkStr("a face-on rung reads projected", rows.at(1).toMap().value(QStringLiteral("method")).toString(), "projected");
+        checkStr("before-impact text is a signed offset", rows.at(0).toMap().value(QStringLiteral("beforeText")).toString(), "−87 ms");
+        checkStr("the club at the ball reads 0 ms", rows.at(2).toMap().value(QStringLiteral("beforeText")).toString(), "0 ms");
+        checkStr("σ text is whole ms",          rows.at(0).toMap().value(QStringLiteral("sigmaText")).toString(), "±12 ms");
+        checkStr("gap text is a signed lead",   rows.at(0).toMap().value(QStringLiteral("gapText")).toString(), "+22 ms");
+        checkStr("no gap text on the last",     rows.at(2).toMap().value(QStringLiteral("gapText")).toString(), "");
+        checkStr("an unplaced row carries no readings", rows.at(3).toMap().value(QStringLiteral("peakText")).toString(), "");
+        // The peak is σ-governed like every reading: σ 20 → step 20 → 480 stays 480.
+        checkStr("peak text carries the unit", rows.at(0).toMap().value(QStringLiteral("peakText")).toString(), "480 °/s");
+
+        checkStr("partial verdict counts the placed nodes", cm.sequenceVerdictText(ks),
+                 "placed nodes in order (3 of 4)");
+        checkStr("mixed route text names the split", cm.sequenceRouteText(ks),
+                 "mixed: pelvis measured · lead arm, club estimated");
+
+        QVariantMap v = ks;
+        v.insert(QStringLiteral("verdict"), QStringLiteral("proximalToDistal"));
+        checkStr("proximal-to-distal sentence", cm.sequenceVerdictText(v), "pelvis → chest → arm → club");
+        v.insert(QStringLiteral("verdict"), QStringLiteral("armBeforeThorax"));
+        checkStr("amateur signature sentence", cm.sequenceVerdictText(v), "arm peaks before chest");
+        v.insert(QStringLiteral("verdict"), QStringLiteral("unresolved"));
+        checkStr("unresolved names the upgrade, not a number", cm.sequenceVerdictText(v),
+                 "order not resolved at this fidelity — add a pelvis IMU or a second camera");
+        v.insert(QStringLiteral("verdict"), QStringLiteral("other"));
+        checkStr("other", cm.sequenceVerdictText(v), "out of order");
+        v.insert(QStringLiteral("routeSummary"), QStringLiteral("direct"));
+        checkStr("all-direct route text", cm.sequenceRouteText(v), "measured");
+        v.insert(QStringLiteral("routeSummary"), QStringLiteral("estimated"));
+        checkStr("all-estimated route text", cm.sequenceRouteText(v), "estimated from the camera");
+
+        checkEqI("an empty map yields no rows", cm.sequenceRows(QVariantMap{}).size(), 0);
+        checkStr("…and no verdict",  cm.sequenceVerdictText(QVariantMap{}), "");
+        checkStr("…and no route",    cm.sequenceRouteText(QVariantMap{}), "");
+    }
+
     std::printf("\n%s — %d failure(s)\n", g_fail ? "FAILED" : "OK", g_fail);
     return g_fail ? 1 : 0;
 }

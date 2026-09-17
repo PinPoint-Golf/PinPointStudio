@@ -139,6 +139,17 @@ public:
     std::vector<QString> provides() const override;
 };
 
+// segment_rates.cpp — the four segment angular-speed series and the kinematic Sequence over them.
+// Resolved PER SEGMENT in the producer (an IMU where one is bound, the face-on camera where not),
+// and each descriptor's ladder says so per series; the Sequence's own ladder mirrors them. No
+// availability() override: the catalogue answers at the device level (the best rung this shot's
+// equipment satisfies) and the PAYLOAD answers per node (each carries its route and quality), which
+// is the right split — a "mixed" sequence is a fact about the nodes, not about the equipment.
+class KinematicSequenceProvider : public IMetricProvider {
+public:
+    std::vector<QString> provides() const override;
+};
+
 // tempo_metrics.cpp — needs NO devices beyond whatever produced a confident phase ladder: an
 // IMU-only swing and a camera-only swing both qualify, which no single requirement can express. Both
 // metrics therefore carry one `Derived` route with an empty requirement, and the claim it makes is

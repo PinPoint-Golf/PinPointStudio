@@ -36,6 +36,7 @@
 #include "../Analysis/capture_integrity_check.h"
 #include "../Analysis/lm_inferred_reads.h"
 #include "../Analysis/swing_analysis.h"
+#include "../Analysis/kinematic_sequence_json.h"   // kinematicSequenceToJson — one shape, three paths
 #include "../Core/club_vocabulary.h"
 
 namespace pinpoint {
@@ -230,6 +231,15 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
         metrics.append(mo);
     }
     o[QStringLiteral("metrics")] = metrics;
+
+    // The kinematic sequence (kinematic_sequence_json.h) — the ordered peaks over the four
+    // segment angular-speed series above. ABSENT when nothing produced a node, so a swing with no
+    // downswing ladder serialises exactly as before the object existed. Additive (schema history
+    // 2026-09-17); the live map (shot_processor.cpp) and the reload (disk_replay_source.cpp) carry
+    // the same shape through the same helper.
+    if (a.kinematicSequence.valid)
+        o[QStringLiteral("kinematicSequence")] =
+            analysis::kinematicSequenceToJson(a.kinematicSequence, rel);
 
     // `timing` (TimingClass — how the instant was OBTAINED, orthogonal to conf)
     // is written ONLY on a fusion-arbitrated ladder (segmentation.version >= 5).

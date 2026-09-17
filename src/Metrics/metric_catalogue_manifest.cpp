@@ -28,10 +28,10 @@
 // `.requirement` and no `.planned` field any more: a flat requirement could only ever state the
 // floor, so the rest of the ladder lived in provider C++ and in prose, and the two drifted.
 //
-// PRODUCED (45) — metric_extractor ×4, kinematic_series ×3 + shaft-lean, foot_metrics ×5 +
+// PRODUCED (50) — metric_extractor ×4, kinematic_series ×3 + shaft-lean, foot_metrics ×5 +
 //   ball_position ×1, head_track ×3, lower_body_metrics ×6, upper_body_metrics ×9,
-//   body_rotation ×4, club_delivery ×3, the trail-wrist series ×1, tempo_metrics ×2, and the two
-//   wrist Summary scores.
+//   body_rotation ×4, club_delivery ×3, the trail-wrist series ×1, tempo_metrics ×2, the two
+//   wrist Summary scores, and segment_rates ×4 + the kinematic Sequence over them (2026-09-17).
 //
 // DEVICE (26) — the `lm.` readings a connected launch monitor supplies. Live, not planned: the
 //   GC Quad connector reads them out of FSX2020's LastShot.CSV. They resolve Measured on a shot the
@@ -39,7 +39,7 @@
 //   a purchase behind it rather than a promise. See the Launch monitor block at the foot of this
 //   file for why every one of them is `lm.`-prefixed even where nothing else could ever produce it.
 //
-// PLANNED (16) — every rung planned, so nothing produces them by any route. `.planned` on a ROUTE
+// PLANNED (15) — every rung planned, so nothing produces them by any route. `.planned` on a ROUTE
 //   rather than on a metric is the distinction that had been missing, and nine of these were
 //   mis-stated because of it: `clubPath` is not work we owe, it is a metric that needs a camera
 //   pointing down the target line, and saying "planned" about it promised a pipeline while hiding
@@ -58,8 +58,10 @@
 //       (thoracicFlexion, lumbarExtension), but the back CONTOUR of a DTL silhouette shows both.
 //     · SENSORS WE DO NOT PLACE — hipInternalRotation.
 //     · WORK WE HAVE NOT DONE — launchAngle / ballSpeed need a ball-FLIGHT tracker (the detector we
-//       have is an at-spot presence tracker), kinematicSequence needs angular-SPEED series, and
-//       swingScore needs a live adherence scorer. These four KEEP their planned rungs even though a
+//       have is an at-spot presence tracker) and swingScore needs a live adherence scorer.
+//       (kinematicSequence left this list on 2026-09-17: segment_rates.cpp produces the four
+//       angular-speed series by three routes — see kinematic_sequence_design.md.) These KEEP their
+//       planned rungs even though a
 //       launch monitor now measures the same quantities, because `lm.ballSpeed` is a separate
 //       metric and not a substitute — the point of owning the device is to check our estimate
 //       against it, which needs both to exist.
@@ -1635,7 +1637,9 @@ void installMetricManifest(MetricCatalogue &cat)
         .type = MetricType::Sequence,
         .label = QStringLiteral("Kinematic sequence"),
         .shortLabel = QStringLiteral("Sequence"),
-        .unit = QString(),
+        // A Sequence has no curve; its nodes are INSTANTS, reported as milliseconds before impact,
+        // which is the unit every number on the strip carries.
+        .unit = QStringLiteral("ms"),
         .group = QStringLiteral("Tempo & sequence"),
         .description = QStringLiteral(
             "The order, timing and size of the peak rotational speeds of the body segments — "
@@ -1644,18 +1648,190 @@ void installMetricManifest(MetricCatalogue &cat)
             "is the signature of an efficient, powerful downswing, and this metric shows it directly."),
         .howToRead = QStringLiteral(
             "You want a clean proximal-to-distal order (pelvis → chest → arm → club) with only the "
-            "club still accelerating through impact; out-of-order or overlapping peaks flag a leak "
-            "of speed or a stall. Reference peaks run roughly pelvis ~480, thorax ~605 and lead-arm "
-            "~1310 °/s with about a 50 ms transition gap. Planned: needs body IMUs (pelvis, thorax "
-            "and lead forearm) and the club track."),
+            "club still accelerating through impact; out-of-order peaks flag a leak of speed or a "
+            "stall, and the commonest amateur pattern is the arm firing before the chest. Read the "
+            "ORDER and the CONSISTENCY across shots rather than the sizes: professionals peak the "
+            "pelvis about 87 ms before impact, the chest about 68 and the arm about 65, and what "
+            "separates them from amateurs is not those means but that their timing repeats within "
+            "half the spread. Every node carries a timing uncertainty, and the order is declared "
+            "only when the gaps exceed it — a single face-on camera often cannot resolve the pelvis "
+            "against the chest, and the sequence says so rather than guessing; a pelvis or chest IMU "
+            "measures those nodes directly."),
         .signPositive = QString(),
         .signNegative = QString(),
         .phases = { P::Transition, P::Impact },
+        // Three rungs mirroring the four member series' ladders (segment_rates.h). The sequence
+        // resolves per NODE in the payload (each node names its route and quality); the catalogue's
+        // answer is the device-level one — the best rung this shot's equipment satisfies.
         .routes = {
             via("segmentImus", RM::Inertial, Direct,
                 { .imuRoles = { R::Pelvis, R::Thorax, R::LeadForearm }, .clubTrack = true },
-                QStringLiteral("the ordered peak-speed nodes already exist; what is missing is "
-                               "angular-SPEED series for the pelvis and thorax to order"), PLANNED) },
+                QStringLiteral("each segment's gyro projected onto its turn axis, no "
+                               "differentiation — the reference route")),
+            via("faceOn+dtl", RM::Triangulated, Direct,
+                { .faceOnCamera = true, .dtlCamera = true, .clubTrack = true },
+                QStringLiteral("the hip and shoulder bearings from the two views' spans "
+                               "(atan2 of the pair), the arm and club from the triangulated "
+                               "vectors"), PLANNED),
+            via("faceOnClub", RM::Projected, Estimated,
+                { .faceOnCamera = true, .clubTrack = true },
+                QStringLiteral("arm and club de-projected through the swing-plane ellipse; "
+                               "pelvis and chest from the unfolded span cosine with the "
+                               "uncertainty propagated, so a node the view cannot resolve is "
+                               "left unplaced rather than guessed")) },
+        // No `usedBy`: the pack's `sequence_order` still grades the pelvis / thorax ROTATION peaks
+        // (m_pelvisRotPeak / m_thoraxRotPeak); re-pointing it at the nodes is design §11 item 3,
+        // after the §9 gate. The integrity test checks this claim in both directions.
+    });
+
+    // ── The four segment angular-speed series the sequence is read from (segment_rates.h) ──────
+    //
+    // One descriptor each, because the routes resolve PER SEGMENT: a swing with a pelvis IMU and
+    // no chest IMU has a measured pelvis and an estimated chest, and one ladder for the four could
+    // not say so. All four carry the "Kinematic sequence" preset, which is what puts the classic
+    // four-curve chart in the session chart's METRICS combo the moment two of them are plottable.
+    //
+    // The face-on rung on the PELVIS and THORAX is the one B.6 of the developer guide declined and
+    // the 2026-09-09 removal deleted for the LEVEL. It is here as Estimated, on a signed RATE with
+    // a propagated σ, and kinematic_sequence_design.md §9 is the gate that decides whether its
+    // nodes get placed at all — the descriptor says what the route is; the payload says whether it
+    // resolved on this shot.
+
+    cat.addDescriptor({
+        .key = QStringLiteral("pelvisAngularSpeed"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Pelvis angular speed"),
+        .shortLabel = QStringLiteral("Pelvis ω"),
+        .unit = QStringLiteral("°/s"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .presets = { QStringLiteral("Kinematic sequence") },
+        .description = QStringLiteral(
+            "How fast the pelvis is turning about the body's vertical axis, in degrees per second, "
+            "SIGNED so that opening toward the lead side is positive. It is the first link of the "
+            "kinematic sequence: an efficient downswing fires the hips first and hands their speed "
+            "up the chain, and this curve's peak — when it comes and how big it is — is that "
+            "firing. The same physical quantity whichever sensor produced it: a pelvis IMU's gyro, "
+            "or the face-on camera's estimate from how the hip line foreshortens."),
+        .howToRead = QStringLiteral(
+            "Read the PEAK and its timing: professionals peak around 480 °/s roughly 87 ms before "
+            "impact and are already slowing as the club arrives — the pelvis decelerating before "
+            "the ball is the professional signature, present or absent rather than large or small. "
+            "Positive is opening toward the target. The face-on estimate is weakest as the hips "
+            "pass square to the camera, and its uncertainty band says so; a pelvis IMU measures it "
+            "directly."),
+        .signPositive = QStringLiteral("the pelvis turning toward the LEAD side — opening"),
+        .signNegative = QStringLiteral("the pelvis turning toward the TRAIL side — closing"),
+        .phases = { P::Transition, P::Delivery, P::Impact },
+        .routes = {
+            via("pelvisImu", RM::Inertial, Direct, { .imuRoles = { R::Pelvis } },
+                QStringLiteral("the pelvis gyro's vertical component in world, no differentiation")),
+            via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the hip line's bearing from the two views' spans, differentiated"),
+                PLANNED),
+            via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
+                QStringLiteral("the hip span's cosine unfolded across the square-up and "
+                               "differentiated, with the uncertainty propagated through 1/sin θ")) },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("thoraxAngularSpeed"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Thorax angular speed"),
+        .shortLabel = QStringLiteral("Chest ω"),
+        .unit = QStringLiteral("°/s"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .presets = { QStringLiteral("Kinematic sequence") },
+        .description = QStringLiteral(
+            "How fast the chest is turning about the body's vertical axis, in degrees per second, "
+            "SIGNED so that opening toward the lead side is positive. The second link of the "
+            "kinematic sequence — the chest takes the pelvis's speed and adds to it — and the one "
+            "amateurs most often fire out of order, after the arm. Same quantity from a thorax "
+            "IMU or from the face-on camera's estimate off the shoulder line."),
+        .howToRead = QStringLiteral(
+            "Professionals peak around 730 °/s roughly 68 ms before impact, about 250 °/s above "
+            "their pelvis peak and a hair after it. Read whether the chest peaks BEFORE the arm; "
+            "that order is the categorical finding. The chest squares to a face-on camera close to "
+            "where it peaks, which is exactly where the camera estimate has the least to say — "
+            "expect this node to read unresolved from one camera, and measured from a chest IMU."),
+        .signPositive = QStringLiteral("the chest turning toward the LEAD side — opening"),
+        .signNegative = QStringLiteral("the chest turning toward the TRAIL side — closing"),
+        .phases = { P::Transition, P::Delivery, P::Impact },
+        .routes = {
+            via("thoraxImu", RM::Inertial, Direct, { .imuRoles = { R::Thorax } },
+                QStringLiteral("the thorax gyro's vertical component in world, no differentiation")),
+            via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the shoulder line's bearing from the two views' spans, differentiated"),
+                PLANNED),
+            via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
+                QStringLiteral("the shoulder span's cosine unfolded across the square-up and "
+                               "differentiated, with the uncertainty propagated through 1/sin θ")) },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("leadArmAngularSpeed"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Lead arm angular speed"),
+        .shortLabel = QStringLiteral("Arm ω"),
+        .unit = QStringLiteral("°/s"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .presets = { QStringLiteral("Kinematic sequence") },
+        .description = QStringLiteral(
+            "How fast the lead arm is swinging about the swing plane, in degrees per second — the "
+            "angular speed of the shoulder-to-wrist line, with any roll about the arm's own axis "
+            "left out. The third link of the kinematic sequence, and the one that hands speed to "
+            "the club. From the face-on camera it is the arm's image angle de-projected through "
+            "the swing-plane ellipse the club track fits; from a lead-arm IMU it is the gyro's "
+            "component across the arm."),
+        .howToRead = QStringLiteral(
+            "Professionals peak around 980 °/s about 65 ms before impact, close behind the chest. "
+            "An arm that peaks before the chest is the amateur pattern; an arm that peaks late and "
+            "large with a small chest gain is swinging with the arms. Unsigned — it is a speed."),
+        .signPositive = QStringLiteral("the arm swinging faster about the plane — a speed, never negative"),
+        .signNegative = QString(),
+        .phases = { P::Transition, P::Delivery, P::Impact },
+        .routes = {
+            via("leadArmImus", RM::Inertial, Direct, { .imuRoles = { R::LeadForearm } },
+                QStringLiteral("the lead-arm gyro's component across the arm's long axis (the "
+                               "upper arm when bound, else the forearm)")),
+            via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the triangulated shoulder→wrist vector's angular speed"), PLANNED),
+            via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
+                QStringLiteral("the shoulder→wrist image angle de-projected through the "
+                               "swing-plane ellipse and differentiated")) },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("clubAngularSpeed"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Club angular speed"),
+        .shortLabel = QStringLiteral("Club ω"),
+        .unit = QStringLiteral("°/s"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .presets = { QStringLiteral("Kinematic sequence") },
+        .description = QStringLiteral(
+            "How fast the shaft is swinging about the swing plane, in degrees per second — the "
+            "angular speed of the grip-to-head line, roll about the shaft left out. The last link "
+            "of the kinematic sequence and the one the ball feels: a club still accelerating at "
+            "impact has taken the whole chain's speed, and one that peaked early gave some of it "
+            "back. From the face-on club track it is the shaft's image angle de-projected through "
+            "the plane ellipse; a club sensor measures it directly."),
+        .howToRead = QStringLiteral(
+            "Professionals peak around 2250 °/s AT impact, more than double the arm — the biggest "
+            "gain in the chain. A peak tens of milliseconds early is the club racing the arm, which "
+            "is casting seen as timing; compare it with the clubhead speed's own peak lead, which "
+            "reads the same event off the linear speed. Unsigned — it is a speed."),
+        .signPositive = QStringLiteral("the shaft swinging faster about the plane — a speed, never negative"),
+        .signNegative = QString(),
+        .phases = { P::Transition, P::Delivery, P::Impact },
+        .routes = {
+            via("clubSensorFused", RM::Fused, Direct, { .imuRoles = { R::Club }, .clubTrack = true },
+                QStringLiteral("the club sensor's gyro across the shaft, on the track's timeline")),
+            via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true,
+                                                         .clubTrack = true },
+                QStringLiteral("the triangulated shaft vector's angular speed"), PLANNED),
+            via("faceOnClub", RM::Projected, Estimated, { .faceOnCamera = true, .clubTrack = true },
+                QStringLiteral("the tracker's shaft angle rate de-projected through the "
+                               "swing-plane ellipse")) },
     });
 
     // ------------------------------------------------ Feet & stance (whole-body pose, face-on, 2D)

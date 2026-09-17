@@ -338,9 +338,13 @@ a magnitude — a carry, a spin rate, a duration.
 | Metric | Unit | Status | Positive means | Negative means |
 |---|---|---|---|---|
 | `leadWristFlexExt` | ° | live | flexion — the lead wrist bowed | extension — the lead wrist cupped |
-| `leadWristRadUln` | ° | live | ulnar deviation — the wrist hinged or cocked | radial deviation |
+| `leadWristRadUln` | ° | live | ulnar deviation — toward the little finger, the wrist UN-cocked | radial deviation — toward the thumb, the wrist cocked or hinged |
 | `forearmPronation` | ° | live | pronation — the lead forearm rolled toward face-down | supination |
 | `leadArmFlexion` | ° | live | elbow flexion — a more bent lead arm; 0° is straight | *cannot go negative* |
+| `forearmRotation` | ° | live | pronation — the lead forearm rolled toward face-down,  measured as travel from address | supination — the lead forearm rolled toward face-up |
+| `hm.leadWristFlexExt` | ° | live | flexion — the lead wrist bowed | extension — the lead wrist cupped |
+| `hm.leadWristRadUln` | ° | live | ulnar deviation — toward the little finger, the wrist UN-cocked | radial deviation — toward the thumb, the wrist cocked or hinged |
+| `hm.forearmRotation` | ° | live | pronation — the lead forearm rolled toward face-down,  measured as travel from address | supination — the lead forearm rolled toward face-up |
 | `trailWristFlexExt` | ° | live | extension — the trail wrist cupped, the opposite of the lead wrist's polarity because  the hands are mirror images | flexion — the trail wrist bowed |
 
 #### Body rotation
@@ -348,11 +352,13 @@ a magnitude — a carry, a spin rate, a duration.
 | Metric | Unit | Status | Positive means | Negative means |
 |---|---|---|---|---|
 | `pelvisRotation` | ° | live | turn away from address — a MAGNITUDE, so positive at the top and again at impact,  passing through zero as the body squares | *cannot go negative* |
+| `pelvisRotationSigned` | ° | planned | the pelvis turned toward the LEAD side — open | the pelvis turned toward the TRAIL side — closed |
 | `thoraxRotation` | ° | live | turn away from address — a MAGNITUDE, so positive at the top and again at impact | *cannot go negative* |
 | `xFactor` | ° | live | the chest turned further than the pelvis | the pelvis turned further than the chest |
 | `xFactorStretch` | ° | live | separation still growing after the top — the stretch | separation already unwinding at the top |
 | `hipInternalRotation` | ° | planned | internal rotation of that hip | external rotation |
 | `shoulderPlaneAngle` | ° | live | the TRAIL shoulder sits above the lead shoulder | the lead shoulder sits above the trail shoulder |
+| `shoulderPlaneAngle3d` | ° | planned | the TRAIL shoulder sits above the lead shoulder — a steeper turn | the lead shoulder sits above the trail shoulder |
 
 #### Spine & tilt
 
@@ -360,7 +366,7 @@ a magnitude — a carry, a spin rate, a duration.
 |---|---|---|---|---|
 | `spineForwardBend` | ° | planned | more forward bend from the hips | standing taller than upright, which a swing does not reach |
 | `spineSideBend` | ° | live | side bend toward the TRAIL side | side bend toward the lead side |
-| `secondaryAxisTilt` | ° | live | the upper body leaning AWAY from the target — trail-side lean | leaning toward the target |
+| `secondaryAxisTilt` | ° | live | the upper body leaning AWAY from the target — trail-side lean | *cannot go negative* |
 | `thoracicFlexion` | ° | planned | a more rounded upper back | a flatter, more extended upper back |
 | `lumbarExtension` | ° | planned | a more arched low back | a flattened low back |
 
@@ -369,9 +375,10 @@ a magnitude — a carry, a spin rate, a duration.
 | Metric | Unit | Status | Positive means | Negative means |
 |---|---|---|---|---|
 | `pelvisSway` | % stance width | live | the pelvis moved toward the LEAD side | moved away from the lead side |
-| `pelvisThrust` | cm | planned | the pelvis moved toward the ball | moved away from the ball |
+| `pelvisThrust` | cm | planned | the pelvis moved toward the ball | *cannot go negative* |
 | `pelvisLift` | % stance width | live | the pelvis rose | the pelvis dropped |
-| `hipLineTilt` | ° | live | the TRAIL hip sits above the lead hip | the lead hip sits above the trail hip |
+| `pelvisLiftBelt` | % stance width | planned | the belt line rose | the belt line dropped |
+| `hipLineTilt` | ° | live | the TRAIL hip sits above the lead hip | *cannot go negative* |
 | `plumbBobDistance` | in | live | the hips sit AHEAD of the stance centre, toward the lead side | the hips sit behind centre, toward the trail side |
 | `thoraxLateralDrift` | % stance width | live | the chest moved toward the LEAD side | moved away from the lead side |
 
@@ -379,7 +386,7 @@ a magnitude — a carry, a spin rate, a duration.
 
 | Metric | Unit | Status | Positive means | Negative means |
 |---|---|---|---|---|
-| `leadKneeDrift` | % stance width | live | the lead knee moved toward the LEAD side | moved toward the trail side — working inward |
+| `leadKneeDrift` | % stance width | live | the lead knee moved toward the LEAD side | *cannot go negative* |
 | `stanceWidth` | % shoulder width | live | a wider stance | *cannot go negative* |
 | `stanceWidthMm` | mm | live | a wider stance | *cannot go negative* |
 | `ballPosition` | % stance width | live | the ball further BACK, toward the trail foot — 0% is the lead heel, 100% the trail  heel, the scale other golf software uses | forward of the lead heel, which is a real driver setup |
@@ -391,6 +398,7 @@ a magnitude — a carry, a spin rate, a duration.
 | `ballBodyDistance` | % shoulder width | planned | standing further from the ball | standing closer to the ball |
 | `trailKneeFlexion` | ° | planned | more knee bend | *cannot go negative* |
 | `comOverLeadFoot` | % stance width | live | further FROM the lead ankle — UNSIGNED, because still back and fallen through are the  same fault seen from either side | *cannot go negative* |
+| `balanceHeelToe` | % foot length | planned | the balance point further toward the toes | further back toward the heels |
 
 #### Club & speed
 
@@ -398,6 +406,7 @@ a magnitude — a carry, a spin rate, a duration.
 |---|---|---|---|---|
 | `clubheadSpeed` | mph | live | a faster clubhead | *cannot go negative* |
 | `handSpeed` | mph | live | faster hands | *cannot go negative* |
+| `clubheadPeakLead` | ms | live | the clubhead peaked earlier, further before the ball | the peak sat at, or just past, the impact anchor |
 | `lagAngle` | ° | live | more lag retained — a tighter forearm-to-shaft angle | *cannot go negative* |
 | `impactShaftLean` | ° | live | the shaft leaning FORWARD, toward the target | leaning back, away from the target |
 | `lm.clubheadSpeed` | mph | device | a faster clubhead | *cannot go negative* |
@@ -407,13 +416,15 @@ a magnitude — a carry, a spin rate, a duration.
 | Metric | Unit | Status | Positive means | Negative means |
 |---|---|---|---|---|
 | `swingPlane` | ° | planned | a steeper plane | a flatter plane |
+| `transitionPlaneDelta` | ° | live | the club steepened in transition — the over-the-top direction | the club shallowed in transition |
 | `clubPath` | ° | planned | the head travelling RIGHT of the target line — in-to-out for a right-hander | travelling left — out-to-in for a right-hander |
 | `attackAngle` | ° | live | an UPWARD strike | a descending strike |
-| `lowPointAhead` | in | live (estimated, ±2 in) | the arc bottoming out AHEAD of the ball, on the target side | bottoming out behind the ball |
+| `lowPointAhead` | in | live | the arc bottoming out AHEAD of the ball, on the target side | bottoming out behind the ball |
 | `shaftDirection` | ° | planned | pointing RIGHT of the target line — across the line for a right-hander | pointing left — laid off, or dragged inside |
 | `shaftAngleVsHorizontal` | ° | live | PAST parallel to the ground; zero IS parallel | short of parallel |
 | `lm.attackAngle` | ° | device | an UPWARD strike | a descending strike |
 | `lm.clubPath` | ° | device | the head travelling RIGHT of the target line — in-to-out for a right-hander | travelling left — out-to-in for a right-hander |
+| `lm.lowPointAhead` | in | device | the arc bottoming out AHEAD of the ball, on the target side | bottoming out behind the ball |
 | `lm.faceAngle` | ° | device | the face pointing RIGHT of the target line — OPEN for a right-hander | pointing left — closed for a right-hander |
 | `lm.dynamicLoft` | ° | device | more loft delivered to the ball | the face delofted past square |
 | `lm.spinLoft` | ° | device | a larger angle between delivered loft and the direction of travel | the face delivered below the path direction |
@@ -426,12 +437,17 @@ a magnitude — a carry, a spin rate, a duration.
 |---|---|---|---|---|
 | `tempoBackswing` | s | live | a longer backswing | *cannot go negative* |
 | `tempoRatio` | :1 | live | a backswing slower relative to the downswing | *cannot go negative* |
-| `kinematicSequence` | — | planned | *no direction* | *cannot go negative* |
+| `kinematicSequence` | — | live | *no direction* | *cannot go negative* |
+| `pelvisAngularSpeed` | °/s | live | the pelvis turning toward the LEAD side — opening | the pelvis turning toward the TRAIL side — closing |
+| `thoraxAngularSpeed` | °/s | live | the chest turning toward the LEAD side — opening | the chest turning toward the TRAIL side — closing |
+| `leadArmAngularSpeed` | °/s | live | *no direction* | *cannot go negative* |
+| `clubAngularSpeed` | °/s | live | *no direction* | *cannot go negative* |
 
 #### Alignment
 
 | Metric | Unit | Status | Positive means | Negative means |
 |---|---|---|---|---|
+| `shoulderLineYaw` | ° | planned | the shoulder line aimed right of the target — closed | the shoulder line aimed left of the target — open |
 | `elbowAlignment` | ° | live | the TRAIL elbow sits above the lead elbow | the lead elbow sits above the trail elbow |
 | `feetAlignment` | ° | live | the TRAIL ankle sits above the lead ankle — a closed stance | the lead ankle sits above the trail ankle — an open stance |
 
@@ -473,6 +489,7 @@ a magnitude — a carry, a spin rate, a duration.
 | `lm.peakHeight` | ft | device | a higher flight | *cannot go negative* |
 | `lm.descentAngle` | ° | device | a steeper descent — the ball stopping faster | *cannot go negative* |
 | `lm.distanceToPin` | yd | device | finishing further from the pin | *cannot go negative* |
+| `compoundMiss` | ratio | device | started RIGHT and curved further right — the push-slice | started left and curved further left — the pull-hook |
 
 #### Strike
 
@@ -1063,7 +1080,11 @@ not scale with the player, and they differ **by club**, including in sign.
 |---|---|---|---|---|---|
 | `tempoBackswing` | **live** | Phases | Address→Top duration (`tempo_metrics.cpp`; refuses an unconfident ladder) | none | `tempo_metrics_test` · corpus distribution owed |
 | `tempoRatio` | **live** | Phases | backswing ÷ downswing time, + propagated 1σ | none | `tempo_metrics_test` · **`truth.event_top_s` still unmeasured — Top error is doubly leveraged here**; corridor provisional pending the Address→Takeaway gap distribution |
-| `kinematicSequence` | planned | Plv+Thx+F + Club | per-segment peak-ω order/timing stage (Sequence shape) | anat+mount | new unit · (mocap sequence) |
+| `kinematicSequence` | **live** | face-on pose + club track (Estimated) · segment IMUs (Direct) · pair (planned) | `segment_rates.cpp` → `angular_rate.h`: one derivative, one peak finder, one timing σ; the verdict is withheld when a gap sits inside its combined σ (`kinematic_sequence.h`) | anat+mount for the IMU rung; the shaft-plane conic's `k`, `ν` for the face-on arm and club | `angular_rate_test` · `segment_rates_test` · corpus §12 · truth capture §9 (`kinematic_sequence_design.md`) |
+| `pelvisAngularSpeed` | **live** | pelvis IMU (Direct) · face-on (Estimated, §9-gated) · pair (planned) | signed bearing rate of the hip line; face-on = the span cosine unfolded across the downswing's span maximum, σ ∝ 1/sin θ floored | address span `w₀` | `segment_rates_test` (sign on both handednesses) · truth capture §9 |
+| `thoraxAngularSpeed` | **live** | thorax IMU (Direct) · face-on (Estimated, §9-gated) · pair (planned) | as the pelvis, over the shoulder line — the node most at risk from a single camera (squares near its peak) | address span `w₀` | `segment_rates_test` · truth capture §9 |
+| `leadArmAngularSpeed` | **live** | lead upper-arm / forearm IMU (Direct) · face-on (Estimated) · pair (planned) | \|ω − (ω·â)â\| from the IMU; face-on = the shoulder→wrist image angle de-projected through the conic's `k`, `ν` then differentiated | none (correction bounded in [k, 1/k]) | `segment_rates_test` (cross-route agreement) |
+| `clubAngularSpeed` | **live** | club sensor (Direct) · face-on club track (Estimated) · pair (planned) | as the arm, from `thetaRad` on the synth-or-measured track; domain ends at the P7 knot | none | `segment_rates_test` · corpus §12 against `clubheadPeakLead` |
 
 ### Alignment
 
@@ -1262,21 +1283,33 @@ with the coaching term, which is the specific mistake the descriptor voice exist
 definition of grip strength that survives projection — most plausibly against the live
 `forearmPronation` DOF at P1 rather than off the hand landmarks at all.
 
-### B.6 `kinematicSequence` off the face-on rotation series
+### B.6 `kinematicSequence` off the face-on rotation series — PURSUED, differently (2026-09-17)
 
-*Would close:* the sequence ordering, and it looks nearly free — the descriptor says what is missing
-is "angular-SPEED series for the pelvis and thorax to order", and `pelvisRotation` / `thoraxRotation`
-both carry **live** face-on rungs already. Differentiate what we have.
+This entry used to say "not pursued", and the reason it gave still holds for what it described:
+differentiating the face-on `pelvisRotation` / `thoraxRotation` LEVEL series — a cosine, flattest
+exactly where the sequence needs resolution, unsigned and therefore folded at square — would resolve,
+chart, and be wrong in a way no reader could see. That camera tier was then deleted altogether
+(`body_rotation.cpp`, 2026-09-09).
 
-*Why not.* Those rungs are `Estimated`, and their summaries say how: *from the collapse of the hip /
-shoulder span in the face-on image*. That is a cosine, and a cosine is flattest exactly where the
-sequence needs the most resolution — near the top and through transition, where the spans are most
-foreshortened. Differentiating a foreshortening estimate amplifies the error where it is already
-worst, and sequence is a claim about the *timing of peaks* to within tens of milliseconds. The
-metric would resolve, chart, and be wrong in a way no reader could see.
+What shipped instead is `docs/design/kinematic_sequence_design.md`, and §2 there is the answer to
+this entry point by point:
 
-*What would change our mind.* Nothing about the maths; this one is waiting on the pelvis and thorax
-IMUs its route already declares. The route ladder is right and the shortcut is not.
+- **the quantity is a signed RATE, not a folded level** — the span cosine is unfolded across the
+  downswing's span maximum so the derivative is continuous through square; the level stays deleted;
+- **the claim is timing, not magnitude** — a node is *when* a segment peaked;
+- **the uncertainty is propagated to the node and gates the verdict** — every node carries a timing σ
+  through `angular_rate.h`, and the sequence declares an order only when adjacent gaps exceed the
+  combined σ; a pelvis node at ±30 ms is not ordered against a thorax node 19 ms away, it is reported
+  `unresolved`;
+- **the arm and club never had this problem** — they rotate in the swing plane, which the camera sees
+  as the ellipse the shaft-plane conic already fits; their in-plane rate is a bounded de-projection;
+- **the face-on pelvis and thorax rungs are `Estimated` and GATED** — design §9's truth capture (two
+  Witmotion units on belt and sternum, `swinglab_run --bind`) decides per segment whether the rung
+  ships placed nodes, ships mostly-unresolved nodes, or stays planned with the measured σ attached.
+
+*What would change our mind back.* The §9 capture showing the reported σ does not cover the realised
+timing error — in which case the σ model is the defect and is fixed before anything ships, per the
+decision rule written down before the data existed.
 
 ### B.7 A face-on rung for `leadKneeFlexion` / `trailKneeFlexion`
 

@@ -145,6 +145,15 @@ std::vector<QString> ShaftPlaneProvider::provides() const
     return { QStringLiteral("transitionPlaneDelta") };
 }
 
+// ------------------------------------------------------------------ KinematicSequenceProvider
+
+std::vector<QString> KinematicSequenceProvider::provides() const
+{
+    return { QStringLiteral("pelvisAngularSpeed"),  QStringLiteral("thoraxAngularSpeed"),
+             QStringLiteral("leadArmAngularSpeed"), QStringLiteral("clubAngularSpeed"),
+             QStringLiteral("kinematicSequence") };
+}
+
 // ---------------------------------------------------------------------------------- ScoreProvider
 
 std::vector<QString> ScoreProvider::provides() const

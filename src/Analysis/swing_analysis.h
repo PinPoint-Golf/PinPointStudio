@@ -34,6 +34,7 @@
 
 #include "types.h"   // pinpoint::SourceId, kInvalidSourceId
 #include "wrist_assessment_result.h"   // PpWristFinding (Tier-2 offline assessment)
+#include "kinematic_sequence.h"        // KinematicSequence (segment_rates.h fills it)
 
 // Canonical intermediate + output data structures for the shot analyzer
 // (design: docs/design/shot_analyzer_design.md). All rotation is QQuaternion — Euler
@@ -856,6 +857,10 @@ struct SwingAnalysis {
     ImpactTrack2D             impact;  // the impact camera's ball + club track (check .valid)
     AnalysisTimings           timings; // per-stage wall times (telemetry); -1 = not measured
     AnalysisVersions          versions; // producer versions (analysis_versions.h) — stamped by the stages, persisted, gate re-analysis reuse
+    // The kinematic sequence — the ordered peaks of the four segment angular-speed series that
+    // ALSO sit in `series` (segment_rates.h). `valid` false ⇒ no route produced a node; the
+    // document then carries no `kinematicSequence` object at all (kinematic_sequence_json.h).
+    KinematicSequence         kinematicSequence;
 };
 
 } // namespace pinpoint::analysis

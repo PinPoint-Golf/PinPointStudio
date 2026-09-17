@@ -214,6 +214,9 @@ Item {
                 seriesList: root._replaySeries
                 phases:     (shotProcessor.replayAnalysisDetail && shotProcessor.replayAnalysisDetail.phases)
                                 ? shotProcessor.replayAnalysisDetail.phases : []
+                kinematicSequence: (shotProcessor.replayAnalysisDetail
+                                    && shotProcessor.replayAnalysisDetail.kinematicSequence)
+                                ? shotProcessor.replayAnalysisDetail.kinematicSequence : null
                 startUs:    shotProcessor.replayStartUs
                 endUs:      shotProcessor.replayEndUs
                 impactUs:   shotProcessor.replayImpactUs

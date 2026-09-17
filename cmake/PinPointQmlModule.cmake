@@ -180,6 +180,7 @@ set(PP_QML_FILES
     src/Gui/review/PpChartPlot.qml
     src/Gui/review/PpSegmentBrush.qml
     src/Gui/review/PpChartSummary.qml
+    src/Gui/review/PpSequenceStrip.qml
     src/Gui/review/PpSpeedSelector.qml
     src/Gui/components/PpToast.qml
     src/Gui/components/PpNotificationHost.qml

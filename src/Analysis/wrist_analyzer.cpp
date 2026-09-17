@@ -51,6 +51,7 @@
 #include "pose_smoother.h"
 #include "stream_trim.h"
 #include "pose_synthesis.h"
+#include "segment_rates.h"
 #include "shaft_plane.h"
 #include "shaft_tracker.h"
 #include "tempo_metrics.h"
@@ -1366,6 +1367,89 @@ struct PoseAssessmentStage : AnalysisStage {
 //
 // Order still matters and is the only contract: every stage here appends to detail->series, which
 // BindDetail assigns wholesale, so all of them must sit after it.
+// 13d. Kinematic sequence — the four segment angular-speed series and the ordered
+//      peaks over them (segment_rates.h; kinematic_sequence_design.md). Resolved PER
+//      SEGMENT from whatever is bound: a pelvis / thorax / lead-arm / club IMU where
+//      there is one, the face-on camera where there is not. Runs AFTER ShaftPlane
+//      because the face-on arm and club rates de-project through the downswing conic
+//      it fits, and after BodyRotation for the same fused streams.
+//
+//      GATED ON AVAILABLE DATA, NEVER ON SESSION TYPE (standing convention): an
+//      Impact on the ladder plus at least one input that can carry a segment — a
+//      face-on pose track, a valid shaft track, or a bound segment IMU. Absent all
+//      of those it emits nothing and skipReason names which.
+struct KinematicSequenceStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("KinematicSequence"); }
+    static bool anyInput(const AnalysisContext &ctx)
+    {
+        const bool pose  = ctx.caps.hasCamera(CameraPlacement::FaceOn)
+                        && !ctx.detail->pose2d.frames.empty();
+        const bool shaft = ctx.detail->shaft.valid && !ctx.detail->shaft.samples.empty();
+        const bool imu   = ctx.streams.has(SegmentRole::Pelvis) || ctx.streams.has(SegmentRole::Thorax)
+                        || ctx.streams.has(SegmentRole::LeadForearm)
+                        || ctx.streams.has(SegmentRole::LeadUpperArm) || ctx.streams.has(SegmentRole::Club);
+        return pose || shaft || imu;
+    }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        if (!SegmentRatesConfig::fromOverrides(ctx.job.tuningOverrides).enabled) return false;
+        return ctx.seg.eventFor(Phase::Impact) && anyInput(ctx);
+    }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        if (!SegmentRatesConfig::fromOverrides(ctx.job.tuningOverrides).enabled)
+            return QStringLiteral("sequence disabled (dark)");
+        if (!ctx.seg.eventFor(Phase::Impact)) return QStringLiteral("no Impact on the ladder");
+        return QStringLiteral("no face-on pose, no shaft track and no segment IMU");
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        int w = 0, h = 0;
+        if (!ctx.job.cameraSources.empty()) {
+            const pinpoint::FormatDescriptor &fd = ctx.window->formatOf(ctx.job.cameraSources.front());
+            if (const auto *cfmt = std::get_if<pinpoint::CameraFormat>(&fd.format)) {
+                w = int(cfmt->width);
+                h = int(cfmt->height);
+            }
+        }
+        SegmentRatesInputs in;
+        in.pose       = ctx.detail->pose2d.frames.empty() ? nullptr : &ctx.detail->pose2d;
+        in.frameW     = w;
+        in.frameH     = h;
+        in.leadIsLeft = ctx.job.handedness != 2;
+        in.streams    = ctx.hasImuStreams() ? &ctx.streams : nullptr;
+        in.shaft      = ctx.detail->shaft.valid ? &ctx.detail->shaft : nullptr;
+        in.phases     = &ctx.seg.events;
+        in.impactUs   = ctx.job.impactUs;
+        // The same track's headline linear speed at impact, from the Kinematics stage that ran
+        // before this one — the club node's credibility gate (segment_rates.h).
+        for (const MetricSeries &m : ctx.detail->series) {
+            if (m.key != QLatin1String("clubheadSpeed")) continue;
+            for (const PhaseSample &ps : m.phaseSamples)
+                if (ps.phase == Phase::Impact) in.clubheadSpeedImpactMph = ps.value;
+        }
+
+        const SegmentRatesResult r =
+            buildSegmentRates(in, SegmentRatesConfig::fromOverrides(ctx.job.tuningOverrides));
+        if (!r.valid) {
+            ppInfo() << "[WristAnalysis] sequence: no segment produced a rate";
+            return;
+        }
+        for (MetricSeries &m : segmentRateSeries(r))
+            ctx.detail->series.push_back(std::move(m));
+        ctx.detail->kinematicSequence = r.sequence;
+
+        QString placed;
+        for (const KsNode &n : r.sequence.nodes)
+            placed += QStringLiteral(" %1%2(%3 %4ms±%5)")
+                          .arg(QString::fromLatin1(seqSegmentKey(n.segment)),
+                               n.placed ? QString() : QStringLiteral("?"), n.routeId)
+                          .arg(n.beforeImpactMs, 0, 'f', 0).arg(n.tSigmaMs, 0, 'f', 0);
+        ppInfo() << "[WristAnalysis] sequence:" << r.sequence.verdict << r.sequence.routeSummary
+                 << qPrintable(placed);
+    }
+};
+
 void appendBodyMetricStages(SessionProfile &p)
 {
     p.stages.push_back(std::make_unique<HeadTrackStage>());
@@ -1402,6 +1486,7 @@ SessionProfile wristProfile()
     appendBodyMetricStages(p);
     p.stages.push_back(std::make_unique<KinematicsStage>());
     p.stages.push_back(std::make_unique<ShaftPlaneStage>());
+    p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     p.stages.push_back(std::make_unique<BindingsStage>());
     p.stages.push_back(std::make_unique<ResemblanceStage>());
     p.stages.push_back(std::make_unique<AssessmentStage>());
@@ -1488,6 +1573,7 @@ SessionProfile cameraKinematicsProfile()
     appendBodyMetricStages(p);
     p.stages.push_back(std::make_unique<KinematicsStage>());
     p.stages.push_back(std::make_unique<ShaftPlaneStage>());
+    p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     return p;
 }
 } // namespace pinpoint::analysis

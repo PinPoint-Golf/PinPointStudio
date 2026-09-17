@@ -151,7 +151,10 @@ would be needed. Collapsing Bridged into either neighbour is a lie in one direct
    building before a single shot has carried a trunk IMU.
 3. **The saturation ceiling.** Above ~70° the estimate compresses. A calibrated correction is
    possible in principle but would be fitting a curve to a corpus we do not have.
-4. **`kinematicSequence` is one step away.** `kinematic_sequence.h` already computes the ordered
-   peak-speed nodes and the dashboard already consumes them; what is missing is angular-SPEED series
-   for the pelvis and thorax, which the angle series here make a short follow-on. It carries no
-   measure and no corridor, so it was left planned rather than promoted on speculation.
+4. ~~**`kinematicSequence` is one step away.**~~ **RESOLVED 2026-09-17 — but not by this
+   producer.** It was never one step from the level series: a cosine is flattest where the sequence
+   needs resolution, and the magnitude convention folds at square, which destroys every rate across
+   impact. The sequence now has its own producer with signed RATES, a propagated timing σ and a
+   verdict that is withheld inside that σ — see
+   [`kinematic_sequence_design.md`](kinematic_sequence_design.md) §2 for what changed and §9 for the
+   gate the face-on pelvis and thorax nodes must pass.

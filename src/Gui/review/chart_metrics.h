@@ -500,6 +500,49 @@ public:
     // to find, not invisible.
     Q_INVOKABLE QVariantList seriesGroups(const QVariantList &seriesList) const;
 
+    // ── The kinematic-sequence strip (design kinematic_sequence_design.md §8) ─────────────────
+    //
+    // `ks` is analysisDetail.kinematicSequence — the map kinematic_sequence_json.h writes on all
+    // three payload paths: { impactUs, nodes[], order[], gapsMs[], gainsDps[], orderResolved,
+    // verdict, routeSummary, pelvisDecelerates? }. The strip under the chart's "Kinematic sequence"
+    // preset is nothing but these three answers laid out, and all three live here rather than in
+    // the .qml for the reason this class exists: they are DERIVATION (an ordering walk, a string
+    // rule) and the "no JavaScript logic in QML" rule keeps derivation out of the components — and
+    // a QML function cannot be asserted anywhere, where chart_metrics_test asserts every row and
+    // every string below.
+    //
+    // sequenceRows — the chips, in display order: first the PLACED nodes in the sequence's own
+    // `order` (ascending peak time), then the nodes the route produced but could NOT place (a σ
+    // wider than the placement threshold) so the reader sees that the segment was attempted and
+    // from which view. Each row:
+    //   { segment, label, placed, beforeImpactMs, tSigmaMs, peakDps, peakSigmaDps, routeId,
+    //     quality ("direct"|"estimated"), method (routeMethodName slug), glyph ("I"|"T"|"P"),
+    //     gapMs (to the NEXT placed chip, −1 on the last placed and on every unplaced row),
+    //     beforeText ("−87 ms"), sigmaText ("±19 ms"), peakText ("480 °/s"), gapText ("+19 ms"
+    //     or "") }
+    // The label vocabulary is the coach's ("Chest", not "Thorax"); the segment key stays the
+    // catalogue's. An empty / invalid map returns an empty list.
+    Q_INVOKABLE QVariantList sequenceRows(const QVariantMap &ks) const;
+
+    // sequenceVerdictText — the ONE categorical sentence the normative reference calls robust
+    // (golf_swing_normative_reference.md §2.3), and nothing graded:
+    //   proximalToDistal → "pelvis → chest → arm → club"
+    //   armBeforeThorax  → "arm peaks before chest"
+    //   partial          → "placed nodes in order (n of 4)"
+    //   other            → "out of order"
+    //   unresolved       → "order not resolved at this fidelity — add a pelvis IMU or a second camera"
+    //   anything else / empty map → ""
+    // NR-03 is why the unresolved text names the upgrade rather than a number: the sequence's own
+    // σ withheld the order, and the honest next step is a better route, not a wider corridor.
+    Q_INVOKABLE QString sequenceVerdictText(const QVariantMap &ks) const;
+
+    // sequenceRouteText — how the nodes were obtained, for the strip's header suffix:
+    //   "measured" (every placed node Direct), "estimated from the camera" (none Direct), or
+    //   "mixed: pelvis, chest measured · arm, club estimated" — the per-segment split, because
+    //   "mixed" alone tells a reader with one IMU nothing about which chip to trust.
+    //   "" when the map carries no nodes.
+    Q_INVOKABLE QString sequenceRouteText(const QVariantMap &ks) const;
+
 private:
     pinpoint::analysis::MetricCatalogue m_catalogue;   // built once in the ctor; never mutated
 };

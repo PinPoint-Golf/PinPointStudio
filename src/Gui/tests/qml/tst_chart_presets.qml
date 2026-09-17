@@ -54,6 +54,34 @@ Item {
         curve("pelvisRotation", "°"), curve("thoraxRotation", "°"), curve("xFactor", "°"),
         curve("clubheadSpeed", "mph"), curve("handSpeed", "mph")
     ]
+    // The kinematic sequence's four angular-speed curves beside a wrist pair. The four are filed
+    // under "Tempo & sequence" AND carry the cross-cutting "Kinematic sequence" preset, which is the
+    // one the strip below the plot is tied to.
+    readonly property var sequenceAndWrist: [
+        curve("leadWristFlexExt", "°"), curve("leadWristRadUln", "°"),
+        curve("pelvisAngularSpeed", "°/s"), curve("thoraxAngularSpeed", "°/s"),
+        curve("leadArmAngularSpeed", "°/s"), curve("clubAngularSpeed", "°/s")
+    ]
+    // …and a swing that produced only ONE of the four: no preset, the curve stays in its group.
+    readonly property var oneSequenceCurve: [
+        curve("leadWristFlexExt", "°"), curve("leadWristRadUln", "°"),
+        curve("clubAngularSpeed", "°/s")
+    ]
+    // A sequence map in the shape kinematic_sequence_json.h writes: pelvis (IMU) and club placed,
+    // the thorax attempted from the camera and unplaced.
+    readonly property var sequenceMap: ({
+        impactUs: 40000,
+        nodes: [
+            { segment: "pelvis", placed: true,  tPeakUs: -47000, beforeImpactMs: 87, peakDps: 480,
+              tSigmaMs: 12, peakSigmaDps: 20, routeId: "pelvisImu", quality: "direct" },
+            { segment: "thorax", placed: false, tPeakUs: 0, beforeImpactMs: 40, peakDps: 600,
+              tSigmaMs: 95, peakSigmaDps: 90, routeId: "faceOn", quality: "estimated" },
+            { segment: "club",   placed: true,  tPeakUs: 40000, beforeImpactMs: 0, peakDps: 2250,
+              tSigmaMs: 4, peakSigmaDps: 40, routeId: "faceOnClub", quality: "estimated" }
+        ],
+        order: ["pelvis", "club"], gapsMs: [87], gainsDps: [1770],
+        orderResolved: true, verdict: "partial", routeSummary: "mixed"
+    })
 
     PpMetricChart {
         id: chart
@@ -266,6 +294,58 @@ Item {
             verify(combo.x + combo.width >= chart.width - Theme.sp(2))
 
             chart.controlsCollapsed = false
+        }
+
+        // ── The "Kinematic sequence" preset and the strip it owns ─────────────────────────────
+
+        function test_014_the_sequence_preset_is_offered_and_draws_the_four() {
+            // The four angular-speed curves carry the cross-cutting preset; with all four here it
+            // is in the combo and applying it narrows the plot to exactly them.
+            chart.kinematicSequence = null
+            chart.seriesList = probe.sequenceAndWrist
+            verify(chart._presetOptions.indexOf("Kinematic sequence") >= 0)
+            chart._applyPreset("Kinematic sequence", true)
+            compare(chart.preset, "Kinematic sequence")
+            compare(probe.keysOf(chart._visible),
+                    "clubAngularSpeed,leadArmAngularSpeed,pelvisAngularSpeed,thoraxAngularSpeed")
+            compare(probe.keysOf(chart._legendSeries),
+                    "clubAngularSpeed,leadArmAngularSpeed,pelvisAngularSpeed,thoraxAngularSpeed")
+        }
+
+        function test_015_one_sequence_curve_is_no_preset() {
+            // A preset exists to put several curves on screen together: one curve is a legend
+            // chip, not a preset, so the combo must not offer it (chart_metrics' ≥ 2 rule).
+            chart.seriesList = probe.oneSequenceCurve
+            verify(chart._presetOptions.indexOf("Kinematic sequence") < 0)
+            // The lone curve is still reachable through its own group.
+            verify(chart._presetOptions.indexOf("Tempo & sequence") >= 0)
+        }
+
+        function test_016_the_strip_shows_under_its_preset_and_only_there() {
+            chart.seriesList = probe.sequenceAndWrist
+            chart.kinematicSequence = probe.sequenceMap
+            var strip = findChild(chart, "sequenceStrip")
+            verify(strip !== null)
+
+            chart._applyPreset("Kinematic sequence", true)
+            verify(strip.visible)
+            // The strip's strings are ChartMetrics' — the verdict line carries the partial
+            // sentence for two placed nodes of four, and the unplaced thorax chip is present
+            // (greyed, never dropped).
+            var verdict = findChild(chart, "sequenceVerdict")
+            verify(verdict !== null)
+            compare(verdict.text, "placed nodes in order (2 of 4)")
+            verify(findChild(chart, "sequenceChip:thorax") !== null)
+            verify(findChild(chart, "sequenceChip:pelvis") !== null)
+
+            // Under any other vocabulary the strip is not shown.
+            chart._applyPreset("Wrist & forearm", true)
+            verify(!strip.visible)
+
+            // …and with no sequence at all it is not shown under its own preset either.
+            chart._applyPreset("Kinematic sequence", true)
+            chart.kinematicSequence = null
+            verify(!strip.visible)
         }
     }
 }

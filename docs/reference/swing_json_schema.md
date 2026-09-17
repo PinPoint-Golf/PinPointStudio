@@ -347,6 +347,51 @@ Per-metric time series + phase-anchored samples.
 | `sigma` | float | **Optional** (added 2026-07-21). 1σ *measurement* uncertainty on this metric's value, in the metric's own unit — the separate track from the coaching band. **Absent means "not characterised", NOT "zero error"**: only producers that actually propagated an error budget write it, so every metric predating the field serialises exactly as before. Today only `tempoRatio` / `tempoBackswing` carry it. Confidence widens this; it never moves `value`. |
 | `valid` | int[] | **Optional** (added 2026-09-04, `metric_presentation_honesty.md` §5.1). Per-sample validity, 0/1, **parallel to `t_us`/`value`**. `0` = that sample's value was **bridged across a gated or absent run** — the geometry could not be resolved there (e.g. a body line whose image-plane span collapsed below `lowerBody.minHipSpanRatio` / `upperBody.minShoulderSpanRatio`), so the grid was filled from its neighbours to keep the curve continuous for the renderer and marked as not measured. **Omitted when every sample is valid**, which is both the pre-2026-09-04 state of every file and the common case, so a metric with nothing to mark serialises byte-identically to before the field existed — an all-ones array is never written. Consumers must skip a `0` sample entirely: it is not a value, and it is **never** a sentinel, a NaN or a zero in `value[]` (`value[i]` still holds the bridged number, which is why the mask and not the value carries the absence). The chart draws invalid runs dashed at reduced opacity and reads "—" for them at the crosshair; `ChartMetrics::summaryMasked` and `buildPhaseGrid` exclude them from every min/max/peak/range/rate/median; no `phaseSamples[]` entry is emitted at an invalid sample. |
 
+### `kinematicSequence` — the ordered segment peaks (optional)
+
+Added 2026-09-17 (`docs/design/kinematic_sequence_design.md`). The kinematic sequence over the four
+segment angular-speed series that also sit in `metrics[]` — `pelvisAngularSpeed`,
+`thoraxAngularSpeed`, `leadArmAngularSpeed`, `clubAngularSpeed` (unit `°/s`; the pelvis and
+thorax are SIGNED, opening toward the lead side positive; the arm and club are unsigned magnitudes
+of the long axis's swing about the swing-plane normal — see `pinpoint_sign_conventions.md`).
+**Absent when nothing produced a node** (no downswing ladder, no pose / shaft / segment IMU), so a
+swing without it serialises exactly as before the object existed. Written by
+`src/Analysis/kinematic_sequence_json.h`, the ONE helper the live `analysisDetail` map and the reload
+also go through.
+
+```json
+{
+  "impactUs": 3479416,
+  "nodes": [
+    { "segment": "pelvis", "placed": true,  "tPeakUs": 3392000, "beforeImpactMs": 87.4,
+      "peakDps": 463.0, "tSigmaMs": 11.0, "peakSigmaDps": 31.0, "routeId": "faceOn", "quality": "estimated" },
+    { "segment": "club",   "placed": true,  "tPeakUs": 3475000, "beforeImpactMs": 4.4,
+      "peakDps": 2110.0, "tSigmaMs": 3.0, "peakSigmaDps": 60.0, "routeId": "faceOnClub", "quality": "estimated" }
+  ],
+  "order": ["pelvis", "club"], "gapsMs": [83.0], "gainsDps": [1647.0],
+  "orderResolved": true, "verdict": "partial", "routeSummary": "estimated", "pelvisDecelerates": true
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `impactUs` | int | The Impact instant the nodes are referenced to. **Window-relative**, like every other `analysis` `t_us`. |
+| `nodes[]` | obj[] | One per PRODUCED segment, in pelvis → thorax → leadArm → club order. Segments no route produced are simply absent. |
+| `nodes[].segment` | str | `pelvis` \| `thorax` \| `leadArm` \| `club`. |
+| `nodes[].placed` | bool | `false` = the route produced a rate curve but its timing σ exceeded the placement threshold (`sequence.maxPlaceSigmaMs`); the timing fields then carry the attempt and the node is excluded from `order`. |
+| `nodes[].tPeakUs` | int | Peak instant, **window-relative**. The only other absolute instant in the object. |
+| `nodes[].beforeImpactMs` | float | `impactUs − tPeakUs`, ms; positive = peaked before the ball. A duration, not re-timed. |
+| `nodes[].peakDps` | float | Peak angular speed, °/s, in the segment's sign convention. |
+| `nodes[].tSigmaMs` / `nodes[].peakSigmaDps` | float | 1σ on the peak instant and the peak value, propagated by `angular_rate.h`. |
+| `nodes[].routeId` | str | `pelvisImu` \| `thoraxImu` \| `leadArmImus` \| `clubSensorFused` \| `faceOn` \| `faceOnClub` (\| `faceOn+dtl`, planned). |
+| `nodes[].quality` | str | `direct` (an IMU or a calibrated pair) or `estimated` (a single face-on camera). |
+| `order[]` | str[] | The PLACED segments, ascending `tPeakUs`. |
+| `gapsMs[]` / `gainsDps[]` | float[] | Between adjacent entries of `order`: the timing gap and `peak(n+1) − peak(n)`. `order.length − 1` entries. |
+| `orderResolved` | bool | Every adjacent gap exceeds `sequence.sigmaK · sqrt(σₙ² + σₙ₊₁²)`. When false the verdict is withheld. |
+| `verdict` | str | `unresolved` \| `partial` \| `proximalToDistal` \| `armBeforeThorax` \| `other` — see `kinematic_sequence.h`. |
+| `routeSummary` | str | `direct` \| `mixed` \| `estimated` over the placed nodes; `""` when none placed. |
+| `pelvisDecelerates` | bool | **Optional** — present only when the pelvis node is placed: its peak sits before impact by more than its own σ. |
+
 ### `phases[]` — the phase ladder
 
 ```json
@@ -615,3 +660,4 @@ A lean, regenerable cache of just the scalars the session picker needs, so openi
 | 2026-07-21 | Session-picker sidecar: a `swing_summary.json` companion file (`pinpoint.swingsummary/1`) is written beside each `swing.json` to cache the handful of scalars the "choose a session" drawer needs, so the picker never parses a multi-MB `swing.json` on the GUI thread. Pure regenerable cache, guarded by the source doc's size+mtime; written on every `swing.json` write/rewrite and self-healed on read. **Does not touch the `swing.json` schema** — separate file, separate schema id. See the sidecar section above and [`swing_folder_layout.md`](swing_folder_layout.md). |
 | 2026-08-09 | Phase ladder gains real P5/P8 anchors: the segmenter now emits `13` ArmParallelDown (P5, lead-forearm parallel crossing) and `14` ShaftParallelThrough (P8) into `phases[]` in place of the old `4` Downswing / `6` Release ticks. `14` is a forearm PROXY for shaft-parallel-through (not shaft-measured), so its `conf` is capped ≤0.4 until a shaft-measured P8 exists. `12` ShaftParallelBack (P2) is still not emitted — P2 continues to live only in `analysis.club.positions[]`. `4`/`6` remain valid `Phase` values (still read from legacy files; readers must not assume they still appear in newly-written ladders). No schema-version bump. |
 | 2026-09-04 | Metric-series validity: `analysis.metrics[].valid` (**optional** int[] 0/1, parallel to `t_us`) added — `0` marks a sample **bridged across a gated or absent run**, where the geometry could not be resolved and the grid was filled from its neighbours to keep the curve continuous. Written only when at least one sample is invalid, so every metric with nothing to mark serialises byte-identically and every pre-existing file reads back as fully valid (`metric_presentation_honesty.md` §5.1; the mask, not `value[]`, carries the absence). Additive — no schema-version bump. |
+| 2026-09-17 | Kinematic sequence: `analysis.kinematicSequence` (**optional**, additive — absent when no route produced a node) holds the ordered peaks of four new `analysis.metrics[]` series `pelvisAngularSpeed` / `thoraxAngularSpeed` (`°/s`, SIGNED, opening toward the lead side positive) and `leadArmAngularSpeed` / `clubAngularSpeed` (`°/s`, unsigned magnitudes about the swing-plane normal), each carrying `sigma` and a downswing `valid` domain. Times inside the object (`impactUs`, `nodes[].tPeakUs`) are window-relative like every other `analysis` `t_us`. One serialisation helper (`kinematic_sequence_json.h`) is shared by the document writer, the live `analysisDetail` map and the reload. See `docs/design/kinematic_sequence_design.md`. |

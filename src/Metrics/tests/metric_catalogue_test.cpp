@@ -82,7 +82,10 @@ int main()
         // 98 -> 100 on 2026-09-14 (the corridor review): shoulderPlaneAngle3d and pelvisLiftBelt,
         // both planned, both naming what a retired face-on reading could not measure — the shoulder
         // line at the top (foreshortened) and the pelvis's height (hip keypoints migrate).
-        checkEqI(static_cast<int>(cat.all().size()), 100, "descriptor count == 100");   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead
+        // 100 -> 104 on 2026-09-17 with the four segment angular-speed series the kinematic
+        // sequence is read from (pelvis / thorax / leadArm / club — segment_rates.h); the
+        // Sequence itself went from planned to live the same day.
+        checkEqI(static_cast<int>(cat.all().size()), 104, "descriptor count == 104");   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
                                "clubheadPeakLead",
@@ -107,7 +110,11 @@ int main()
                                // when a wG3 measured the swing.
                                "forearmRotation",
                                "hm.leadWristFlexExt", "hm.leadWristRadUln",
-                               "hm.forearmRotation" };
+                               "hm.forearmRotation",
+                               // The kinematic sequence and its four member series
+                               // (segment_rates.cpp, 2026-09-17).
+                               "pelvisAngularSpeed", "thoraxAngularSpeed",
+                               "leadArmAngularSpeed", "clubAngularSpeed", "kinematicSequence" };
         bool allPresent = true;
         for (const char *k : live)
             if (!cat.descriptor(QString::fromLatin1(k))) { allPresent = false;
@@ -120,7 +127,7 @@ int main()
 
     // 2. Type / group / scored filtering.
     {
-        checkEqI(countType(cat, MetricType::TimeSeries),  47, "TimeSeries count");   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
+        checkEqI(countType(cat, MetricType::TimeSeries),  51, "TimeSeries count");   // +4 segment angular speeds (2026-09-17)   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
         // 26, not 28: `shoulderAlignment` and `hipAlignment` were both PointInTime and both retired
         // as duplicates of a series the catalogue already carries.
         // 45 -> 47 on 2026-09-14, both PLANNED and both the honest replacement for a measure that
@@ -388,7 +395,7 @@ int main()
         // 19 -> 21 on 2026-09-14: shoulderPlaneAngle3d (the pair) and pelvisLiftBelt (a tracked
         // waistband edge) — each the honest replacement for a face-on reading the corpus showed
         // firing on every shot for a reason that was the camera, not the golfer.
-        checkEqI(planned, 21, "21 planned metrics — nothing produces them by any route");   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view
+        checkEqI(planned, 20, "20 planned metrics — nothing produces them by any route");   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view; −kinematicSequence (live 2026-09-17, segment_rates.cpp)
         checkEqI(unavailable, planned,
                  "every planned metric resolves Unavailable even with every device present");
         checkEqI(saysPlanned, planned,
@@ -912,7 +919,10 @@ int main()
         // 6 -> 7 with forearmRotation, and the increment is the point of it: a segment axial
         // rotation needs the FOREARM ALONE, so it is the first wrist-group metric a two-sensor
         // rig can produce that the three-sensor `forearmPronation` cannot stand in for.
-        checkEqI(static_cast<int>(avail.size()), 7, "availableOnly (forearm+hand only) → 7");
+        // 7 -> 8 with leadArmAngularSpeed (2026-09-17): the lead arm's swing rate about the plane
+        // needs the FOREARM ALONE on its IMU rung, so a two-sensor rig produces one node of the
+        // kinematic sequence without any camera at all.
+        checkEqI(static_cast<int>(avail.size()), 8, "availableOnly (forearm+hand only) → 8");
         check(cat.query(aq, nullptr).empty(), "availableOnly without ctx → empty");
     }
 

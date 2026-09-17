@@ -99,6 +99,7 @@ MetricCatalogue makeMetricCatalogue()
     static const HeadMetricProvider      headProvider;
     static const ShaftLeanProvider       shaftLeanProvider;
     static const ShaftPlaneProvider      shaftPlaneProvider;
+    static const KinematicSequenceProvider sequenceProvider;
     static const ScoreProvider           scoreProvider;
     static const LaunchMonitorProvider   launchMonitorProvider;
     static const LaunchMonitorDerivedProvider lmDerivedProvider;
@@ -114,6 +115,7 @@ MetricCatalogue makeMetricCatalogue()
     cat.addProvider(&headProvider);
     cat.addProvider(&shaftLeanProvider);
     cat.addProvider(&shaftPlaneProvider);
+    cat.addProvider(&sequenceProvider);
     cat.addProvider(&scoreProvider);
     cat.addProvider(&launchMonitorProvider);
     cat.addProvider(&lmDerivedProvider);

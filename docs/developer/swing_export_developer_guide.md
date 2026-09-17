@@ -539,6 +539,20 @@ to window-relative µs on write, matching the stream timestamps. Absolute
 `nowMicros()` values are meaningless in a file that outlives the process; the
 reader re-bases them when reconstructing `analysisDetail`.
 
+### `analysis.kinematicSequence` — one helper, three paths
+
+The kinematic sequence (`docs/design/kinematic_sequence_design.md`, schema
+`swing_json_schema.md` § `kinematicSequence`) is an **optional, additive** object
+beside `metrics[]`: the ordered peaks over the four segment angular-speed series.
+It is serialised by exactly ONE helper, `src/Analysis/kinematic_sequence_json.h`
+(`kinematicSequenceToJson` / `retimeKinematicSequence`), which the document
+writer (`swing_doc.cpp`), the live `analysisDetail` map (`shot_processor.cpp`)
+and the reload (`disk_replay_source.cpp`) all call — so a live shot, its
+`swing.json` and its reloaded self expose the same shape, and the two absolute
+instants inside it (`impactUs`, `nodes[].tPeakUs`) are re-based through the same
+window-relative rule as every metric series. Absent when no route produced a
+node. Do not add a fourth hand-written copy; extend the helper.
+
 ### `swing_summary.json` — a regenerable index sidecar
 
 A Wrist swing's `swing.json` runs to tens of MB (`analysis.pose2d` alone is

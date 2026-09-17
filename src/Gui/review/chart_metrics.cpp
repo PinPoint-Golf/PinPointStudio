@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <vector>
 
@@ -853,4 +854,164 @@ QVariantList ChartMetrics::seriesGroups(const QVariantList &seriesList) const
         out.append(QVariantMap{ { QStringLiteral("group"), g.first },
                                 { QStringLiteral("keys"),  g.second } });
     return out;
+}
+
+// ── The kinematic-sequence strip ──────────────────────────────────────────────────────────────
+
+namespace {
+
+// The coach's word for each segment. "Chest" rather than "Thorax": the strip is read by a golfer,
+// and the catalogue key is carried alongside for anything that needs the vocabulary instead.
+QString sequenceSegmentLabel(const QString &segment)
+{
+    if (segment == QLatin1String("pelvis"))  return QStringLiteral("Pelvis");
+    if (segment == QLatin1String("thorax"))  return QStringLiteral("Chest");
+    if (segment == QLatin1String("leadArm")) return QStringLiteral("Lead arm");
+    if (segment == QLatin1String("club"))    return QStringLiteral("Club");
+    return segment;
+}
+
+// Route id → acquisition method, in routeMethodName's vocabulary (metric_descriptor.h). The ids are
+// the manifest's rung ids; the mapping is by SHAPE ("…Imu", "faceOn+dtl", "faceOn…") so a new
+// rung spelt in the same convention lands on the right glyph without a table edit.
+QString sequenceMethodOf(const QString &routeId)
+{
+    if (routeId.contains(QLatin1String("Imu")) || routeId == QLatin1String("clubSensorFused"))
+        return pa::routeMethodName(pa::RouteMethod::Inertial);
+    if (routeId.contains(QLatin1String("dtl")))
+        return pa::routeMethodName(pa::RouteMethod::Triangulated);
+    if (routeId.startsWith(QLatin1String("faceOn")))
+        return pa::routeMethodName(pa::RouteMethod::Projected);
+    return QString();
+}
+
+QString sequenceGlyphOf(const QString &method)
+{
+    if (method == QLatin1String("inertial"))     return QStringLiteral("I");
+    if (method == QLatin1String("triangulated")) return QStringLiteral("T");
+    if (method == QLatin1String("projected"))    return QStringLiteral("P");
+    return QStringLiteral("·");
+}
+
+// "−87 ms": the benchmark's coordinate (ms BEFORE impact), printed as the signed offset from
+// impact so it reads on the same axis as the chart's time ticks. U+2212 minus, like the ticks.
+QString sequenceOffsetText(double beforeImpactMs)
+{
+    const long ms = std::lround(-beforeImpactMs);
+    const QString sign = ms < 0 ? QStringLiteral("−") : (ms > 0 ? QStringLiteral("+") : QString());
+    return sign + QString::number(std::labs(ms)) + QStringLiteral(" ms");
+}
+
+} // namespace
+
+QVariantList ChartMetrics::sequenceRows(const QVariantMap &ks) const
+{
+    QVariantList out;
+    const QVariantList nodes = ks.value(QStringLiteral("nodes")).toList();
+    if (nodes.isEmpty())
+        return out;
+
+    const auto nodeFor = [&nodes](const QString &segment) -> QVariantMap {
+        for (const QVariant &v : nodes) {
+            const QVariantMap n = v.toMap();
+            if (n.value(QStringLiteral("segment")).toString() == segment) return n;
+        }
+        return {};
+    };
+    const auto row = [this](const QVariantMap &n, bool placed, double gapMs) -> QVariantMap {
+        const QString segment = n.value(QStringLiteral("segment")).toString();
+        const QString routeId = n.value(QStringLiteral("routeId")).toString();
+        const QString method  = sequenceMethodOf(routeId);
+        const double  before  = n.value(QStringLiteral("beforeImpactMs")).toDouble();
+        const double  tSigma  = n.value(QStringLiteral("tSigmaMs")).toDouble();
+        const double  peak    = n.value(QStringLiteral("peakDps")).toDouble();
+        const double  pSigma  = n.value(QStringLiteral("peakSigmaDps")).toDouble();
+        return QVariantMap{
+            { QStringLiteral("segment"),        segment },
+            { QStringLiteral("label"),          sequenceSegmentLabel(segment) },
+            { QStringLiteral("placed"),         placed },
+            { QStringLiteral("beforeImpactMs"), before },
+            { QStringLiteral("tSigmaMs"),       tSigma },
+            { QStringLiteral("peakDps"),        peak },
+            { QStringLiteral("peakSigmaDps"),   pSigma },
+            { QStringLiteral("routeId"),        routeId },
+            { QStringLiteral("quality"),        n.value(QStringLiteral("quality")).toString() },
+            { QStringLiteral("method"),         method },
+            { QStringLiteral("glyph"),          sequenceGlyphOf(method) },
+            { QStringLiteral("gapMs"),          gapMs },
+            { QStringLiteral("beforeText"),     placed ? sequenceOffsetText(before) : QString() },
+            { QStringLiteral("sigmaText"),      placed ? QStringLiteral("±") + QString::number(std::lround(tSigma))
+                                                             + QStringLiteral(" ms")
+                                                       : QString() },
+            // The peak is a READING, so σ governs its digits (displayStep via formatValue); the
+            // ± beside it is quoted, not quantised — the same split the summary cards make.
+            { QStringLiteral("peakText"),       placed ? formatValue(peak, QStringLiteral("°/s"), pSigma) : QString() },
+            { QStringLiteral("gapText"),        gapMs >= 0.0 ? QStringLiteral("+") + QString::number(std::lround(gapMs))
+                                                                   + QStringLiteral(" ms")
+                                                             : QString() } };
+    };
+
+    // The placed nodes, in the sequence's own order, with the gap to the next chip.
+    const QVariantList order = ks.value(QStringLiteral("order")).toList();
+    const QVariantList gaps  = ks.value(QStringLiteral("gapsMs")).toList();
+    QSet<QString> emitted;
+    for (int i = 0; i < order.size(); ++i) {
+        const QString seg = order.at(i).toString();
+        const QVariantMap n = nodeFor(seg);
+        if (n.isEmpty()) continue;
+        const double gap = (i < order.size() - 1 && i < gaps.size()) ? gaps.at(i).toDouble() : -1.0;
+        out.append(row(n, true, gap));
+        emitted.insert(seg);
+    }
+    // Then everything the routes produced but could not place, in node order.
+    for (const QVariant &v : nodes) {
+        const QVariantMap n = v.toMap();
+        const QString seg = n.value(QStringLiteral("segment")).toString();
+        if (emitted.contains(seg)) continue;
+        out.append(row(n, false, -1.0));
+    }
+    return out;
+}
+
+QString ChartMetrics::sequenceVerdictText(const QVariantMap &ks) const
+{
+    if (ks.value(QStringLiteral("nodes")).toList().isEmpty())
+        return QString();
+    const QString verdict = ks.value(QStringLiteral("verdict")).toString();
+    if (verdict == QLatin1String("proximalToDistal"))
+        return QStringLiteral("pelvis → chest → arm → club");
+    if (verdict == QLatin1String("armBeforeThorax"))
+        return QStringLiteral("arm peaks before chest");
+    if (verdict == QLatin1String("partial"))
+        return QStringLiteral("placed nodes in order (%1 of 4)")
+            .arg(ks.value(QStringLiteral("order")).toList().size());
+    if (verdict == QLatin1String("other"))
+        return QStringLiteral("out of order");
+    if (verdict == QLatin1String("unresolved"))
+        return QStringLiteral("order not resolved at this fidelity — add a pelvis IMU or a second camera");
+    return QString();
+}
+
+QString ChartMetrics::sequenceRouteText(const QVariantMap &ks) const
+{
+    const QVariantList nodes = ks.value(QStringLiteral("nodes")).toList();
+    if (nodes.isEmpty())
+        return QString();
+    const QString summary = ks.value(QStringLiteral("routeSummary")).toString();
+    if (summary == QLatin1String("direct"))
+        return QStringLiteral("measured");
+    if (summary == QLatin1String("estimated"))
+        return QStringLiteral("estimated from the camera");
+    if (summary != QLatin1String("mixed"))
+        return QString();
+    // Which chips to trust: the PLACED nodes' split, in node order, lower-cased labels.
+    QStringList measured, estimated;
+    for (const QVariant &v : nodes) {
+        const QVariantMap n = v.toMap();
+        if (!n.value(QStringLiteral("placed")).toBool()) continue;
+        const QString label = sequenceSegmentLabel(n.value(QStringLiteral("segment")).toString()).toLower();
+        (n.value(QStringLiteral("quality")).toString() == QLatin1String("direct") ? measured : estimated) << label;
+    }
+    return QStringLiteral("mixed: %1 measured · %2 estimated")
+        .arg(measured.join(QStringLiteral(", ")), estimated.join(QStringLiteral(", ")));
 }

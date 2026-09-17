@@ -2718,6 +2718,11 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/upper_body_metrics.cpp
     src/Analysis/body_rotation.h
     src/Analysis/body_rotation.cpp
+    src/Analysis/angular_rate.h
+    src/Analysis/kinematic_sequence.h
+    src/Analysis/kinematic_sequence_json.h
+    src/Analysis/segment_rates.h
+    src/Analysis/segment_rates.cpp
     src/Analysis/club_delivery.h
     src/Analysis/club_delivery.cpp
     src/Analysis/ball_position.h
@@ -3075,6 +3080,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/lower_body_metrics.cpp
         src/Analysis/upper_body_metrics.cpp
         src/Analysis/body_rotation.cpp
+        src/Analysis/segment_rates.cpp
         src/Analysis/club_delivery.cpp
         src/Analysis/ball_position.cpp
         src/Analysis/tempo_metrics.cpp

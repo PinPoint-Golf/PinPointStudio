@@ -27,6 +27,7 @@
 //
 //   swinglab_run <swing_dir> --out <run_dir> [--params p.json] [--trace]
 //                [--session-type 1] [--face-on Face] [--impact-us N] [--pose p.json]
+//                [--bind <index>=<role> ...]
 //
 // Outputs in <run_dir>:
 //   result.json    swing.json-shaped document with the re-run analysis block
@@ -284,17 +285,24 @@ int main(int argc, char **argv)
         "the tool detects a parameter change).", "float");
     QCommandLineOption optFullWindow("full-window", "Analyse the whole captured window (the in-app re-analyse convention) instead of the swing span");
     QCommandLineOption optForce("force-rerun", "Re-run pose/ball even when the recorded analysis versions match (analysis_versions.h)");
+    QCommandLineOption optBind("bind",
+        "Remap the role of recorded IMU binding <index> (0-based, in analysis.bindings[] "
+        "order) to <role>: pelvis|thorax|t12|leadUpperArm|leadForearm|leadHand|trailThigh|"
+        "leadThigh|club. For the kinematic-sequence truth capture "
+        "(kinematic_sequence_design.md section 9): a belt and a chest Witmotion recorded in a "
+        "session whose placement UX has no such slot. Repeatable.", "index=role");
     QCommandLineOption optWriteBack("write-back",
         "Re-analyse the swing exactly as the in-app ReanalysisController does "
         "(reanalyzeSwingDir, production defaults, no overrides) and write the fresh "
         "analysis back into the SOURCE swing.json, preserving capture/streams/review. "
         "Exclusive: every other option except the positional swing dir is ignored.");
     cli.addOptions({ optOut, optParams, optTrace, optSession, optFaceOn, optImpact, optPose, optForce, optFullWindow,
-                     optBall, optRefuse, optRefuseBeta, optWriteBack });
+                     optBall, optRefuse, optRefuseBeta, optWriteBack, optBind });
     cli.process(app);
 
     if (cli.positionalArguments().isEmpty() || (!cli.isSet(optOut) && !cli.isSet(optWriteBack)))
         return fail("usage: swinglab_run <swing_dir> --out <run_dir> [--params f] [--trace]\n"
+                    "                    [--bind <index>=<role> ...]\n"
                     "       swinglab_run <swing_dir> --write-back");
     const QString swingDir = cli.positionalArguments().first();
 
@@ -361,6 +369,45 @@ int main(int argc, char **argv)
         return fail(ls.error);
     SwingWindow     &window = *ls.window;
     ShotAnalysisJob &job    = ls.job;
+
+    // ── --bind: remap a recorded binding's anatomical role ────────────────────
+    // The kinematic-sequence truth capture (kinematic_sequence_design.md §9) straps
+    // a Witmotion to the belt and one to the sternum in a session whose placement
+    // UX knows no such slot, so the document records them with whatever role the
+    // wizard assigned. The remap happens HERE, before anything reads the job, so
+    // every downstream stage (ImuResample, BodyRotation, KinematicSequence) sees
+    // the corrected role exactly as if the wizard had known it. Nothing is
+    // written back to the source swing.json.
+    for (const QString &spec : cli.values(optBind)) {
+        static const struct { const char *name; SegmentRole role; } kRoles[] = {
+            { "pelvis",       SegmentRole::Pelvis },
+            { "thorax",       SegmentRole::Thorax },
+            { "t12",          SegmentRole::T12 },
+            { "leadUpperArm", SegmentRole::LeadUpperArm },
+            { "leadForearm",  SegmentRole::LeadForearm },
+            { "leadHand",     SegmentRole::LeadHand },
+            { "trailThigh",   SegmentRole::TrailThigh },
+            { "leadThigh",    SegmentRole::LeadThigh },
+            { "club",         SegmentRole::Club },
+        };
+        const int eq = spec.indexOf(QLatin1Char('='));
+        bool okIdx = false;
+        const int idx = eq > 0 ? spec.left(eq).trimmed().toInt(&okIdx) : -1;
+        const QString roleName = eq > 0 ? spec.mid(eq + 1).trimmed() : QString();
+        if (!okIdx || idx < 0 || idx >= int(job.imuBindings.size()))
+            return fail(QStringLiteral("--bind %1: no recorded binding at index %2 (%3 bindings)")
+                            .arg(spec).arg(idx).arg(int(job.imuBindings.size())));
+        const SegmentRole *found = nullptr;
+        for (const auto &r : kRoles)
+            if (roleName == QLatin1String(r.name)) { found = &r.role; break; }
+        if (!found)
+            return fail(QStringLiteral("--bind %1: unknown role '%2' (pelvis|thorax|t12|leadUpperArm|"
+                                       "leadForearm|leadHand|trailThigh|leadThigh|club)")
+                            .arg(spec, roleName));
+        std::fprintf(stderr, "[swinglab] bind %d: role %d -> %s\n", idx,
+                     int(job.imuBindings[size_t(idx)].role), roleName.toUtf8().constData());
+        job.imuBindings[size_t(idx)].role = *found;
+    }
 
     // ── Orientation re-fusion parity (corpus-1 gate E1) ──────────────────────
     // Independent of impact / pose / shaft: re-fuse the IMU offline and compare to

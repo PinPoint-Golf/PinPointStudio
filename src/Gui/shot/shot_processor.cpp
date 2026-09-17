@@ -41,6 +41,7 @@
 #include "../Analysis/swing_analysis.h"
 #include "../IMU/hm_frame.h"          // isSelected() — no frame, no binding
 #include "../Export/swing_doc.h"
+#include "../Analysis/kinematic_sequence_json.h"   // kinematicSequenceToJson — one shape, three paths
 #include "../Core/club_vocabulary.h"
 #include "../Core/pp_debug.h"
 #include "../Core/pp_os_metrics.h"
@@ -309,6 +310,16 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
     };
     insertBuckets("perRegion", a.score.perRegion);
     insertBuckets("perPhase",  a.score.perPhase);
+
+    // The kinematic sequence — the strip under the chart's "Kinematic sequence" preset reads
+    // this. Absent when nothing produced a node; identity time mapping (the live map is in the
+    // analysis' own absolute domain, exactly as `series` above). Same helper as swing_doc.cpp and
+    // disk_replay_source.cpp, so the three paths cannot drift.
+    if (a.kinematicSequence.valid)
+        detail.insert(QStringLiteral("kinematicSequence"),
+                      kinematicSequenceToJson(a.kinematicSequence,
+                                              [](int64_t t) { return static_cast<qint64>(t); })
+                          .toVariantMap());
 
     // Swing bounds + ladder meta (v3 G2) — same shape the doc reader reloads.
     if (a.segmentation.swingEndUs > a.segmentation.swingStartUs)

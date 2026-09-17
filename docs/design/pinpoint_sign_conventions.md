@@ -149,6 +149,7 @@ fail review, not the absence of it.
 |---|---|---|
 | **Club & ball** | ISB defines *human joint* motion. A clubhead is not a joint. World frame instead. | every `lm.*`, `clubPath`, `ballSpeed` |
 | **Turn magnitudes** | Unsigned magnitudes of turn from address, not signed axial rotations about a defined axis. A face-on camera or one IMU gives no bony-landmark triad. | `pelvisRotation`, `thoraxRotation`, `xFactor` |
+| **Turn rates** | Signed RATES of axial turn (the pelvis and thorax) and unsigned swing rates of a long axis about the swing-plane normal (the arm and club). Same reason as the magnitudes above — no triad — plus a segment axis that is the swing plane's, not a joint's. | `pelvisAngularSpeed`, `thoraxAngularSpeed`, `leadArmAngularSpeed`, `clubAngularSpeed` |
 | **Image-plane body lines** | 2D *apparent* angles between two keypoints as one camera sees them. Not joint rotations at all. | `hipLineTilt`, `shoulderPlaneAngle`, `elbowAlignment`, `feetAlignment` |
 | **Normalised displacements** | Not angles. Fractions of stance or shoulder width, or real-world units off a ruler. | `pelvisSway`, `headSway`, `ballPosition`, `plumbBobDistance` |
 | **Segment axial rotations** | A signed twist of **one** segment about its own long axis, referenced to Address — not a rotation *between* two segment triads. ISB's radioulnar rotation is defined against the humerus; a forearm sensor on its own has no humerus to be defined against. | `forearmRotation` |
@@ -283,6 +284,32 @@ corridors require (`m_pelvisRotP4` at +45° for the top, `m_pelvisRotP7` at +40�
 curve cannot satisfy both). It does mean a peak reducer spanning the top to impact sees the larger
 of the two excursions rather than the open one. See
 [`body_rotation_estimation.md`](body_rotation_estimation.md).
+
+### Turn RATES are signed
+
+`pelvisAngularSpeed` and `thoraxAngularSpeed` — the kinematic sequence's pelvis and thorax nodes
+(`kinematic_sequence_design.md` §3) — are **signed, lead-relative rates**: positive is the segment
+turning toward the LEAD side (opening), negative toward the trail side (closing), and the producer
+mirrors for a left-handed golfer so the sign never changes meaning with handedness. This is the
+rule-0 lateral convention applied to a rate, and it is deliberate that it differs from the
+magnitudes directly above: an unsigned level folds at the square-up, and the derivative of a folded
+curve changes sign exactly where the reading matters — `hip_stall` fired on every shot of the
+2026-09-09 capture off `|x|′ = sign(x)·x′` for that reason alone (`body_rotation.cpp`). A rate
+carries the one piece of information the magnitude discards, and a sequence is a claim about WHEN a
+rate peaked, so it has to.
+
+`leadArmAngularSpeed` and `clubAngularSpeed` are **unsigned magnitudes** of the segment's long
+axis swinging about the swing-plane normal — roll about the long axis (forearm pronation, shaft
+roll) excluded by construction on every route. A frontal projection cannot say which way round the
+plane the arm went, and a sign on a quantity the camera did not resolve would be a fabrication; the
+downswing domain already fixes the direction.
+
+| metric | positive means | note |
+|---|---|---|
+| `pelvisAngularSpeed` | the hip line turning toward the LEAD side — opening | signed; lead-relative; mirrored by the producer for a left-hander |
+| `thoraxAngularSpeed` | the shoulder line turning toward the LEAD side — opening | signed; same convention as the pelvis |
+| `leadArmAngularSpeed` | *(unsigned)* the lead shoulder→wrist axis swinging about the swing-plane normal | roll about the long axis excluded |
+| `clubAngularSpeed` | *(unsigned)* the shaft swinging about the swing-plane normal | roll about the shaft excluded |
 
 ## Not covered by either rule
 

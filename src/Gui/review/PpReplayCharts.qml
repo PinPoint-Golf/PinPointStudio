@@ -46,6 +46,8 @@ Item {
         visible:    root._series.length > 0
         seriesList: root._series
         phases:     (root._detail && root._detail.phases) ? root._detail.phases : []
+        kinematicSequence: (root._detail && root._detail.kinematicSequence)
+                               ? root._detail.kinematicSequence : null
         // Span/playhead gated too: an inactive screen feeds constants so no binding
         // churns its axis maths when shotReplay updates for a swing on another screen.
         startUs:    root._screenActive ? shotReplay.startUs    : 0

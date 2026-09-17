@@ -96,6 +96,20 @@ endforeach()
 # header). Header-only, Qt-only (QString), no fixture.
 pp_add_test(kinematic_sequence_test SOURCES kinematic_sequence_test.cpp)
 
+# Angular-rate derivation + peak placement (angular_rate.h) — the ONE code path every
+# kinematic-sequence route ends in. The load-bearing assertion is COVERAGE: the timing σ
+# the peak finder reports must contain the realised timing error at ≥ 68 % across a
+# thousand noisy draws, or the verdict that gates on it is gating on a number. Header-only.
+pp_add_test(angular_rate_test SOURCES angular_rate_test.cpp)
+
+# Segment angular speeds + the kinematic sequence (segment_rates.{h,cpp}): the three routes
+# against ONE synthetic 3-D downswing — IMU gyro streams, face-on keypoints + shaft track,
+# and the de-projection geometry — asserting the club and arm nodes agree across routes to
+# a few ms, that the pelvis sign is opening-positive on both handednesses, and that a node
+# whose σ is too wide is emitted UNRESOLVED rather than placed. Qt-only, no fixture.
+pp_add_test(segment_rates_test SOURCES segment_rates_test.cpp
+            ${ANALYSIS}/segment_rates.cpp)
+
 # Corridor-bar reduction (dashboard_reductions.h) — the corridor bar's value→x
 # domain, two-sided and one-sided. The backing for the review corridor bar
 # (ChartMetrics::barDomain façade).

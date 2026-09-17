@@ -33,6 +33,7 @@
 
 #include "../Core/pp_debug.h"
 #include "../../Export/swing_doc.h"   // takeJustWritten — the document we may have just written
+#include "../../Analysis/kinematic_sequence_json.h"   // retimeKinematicSequence — one shape, three paths
 
 namespace {
 
@@ -371,6 +372,15 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
             }
             m_analysisDetail.insert(QStringLiteral("impact"), impact);
         }
+        // The kinematic sequence (kinematic_sequence_json.h): the ONE serialisation the live
+        // path also writes, re-timed through the same offset the metric series took, so a
+        // reloaded swing's strip reads the same instants as the live one's.
+        if (an.contains(QStringLiteral("kinematicSequence")))
+            m_analysisDetail.insert(
+                QStringLiteral("kinematicSequence"),
+                pinpoint::analysis::retimeKinematicSequence(
+                    an[QStringLiteral("kinematicSequence")].toObject(),
+                    [t0](const QJsonValue &v) { return static_cast<qint64>(relUs(v, t0)); }));
     }
     if (m_impactUs < 0) {
         const QJsonObject thumb = root[QStringLiteral("thumbnail")].toObject();

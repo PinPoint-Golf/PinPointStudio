@@ -55,6 +55,11 @@ Item {
     // ── Data (host wires these from shotReplay) ───────────────────────────────────
     property var  seriesList: []         // [{ key, label, unit, t_us, value, phaseSamples }]
     property var  phases:     []         // [{ phase, t_us, conf }]
+    // analysisDetail.kinematicSequence — the ordered peaks of the four segment angular-speed
+    // curves (kinematic_sequence_json.h). Read by the SEQUENCE strip under the plot, which is
+    // shown only while the METRICS preset is "Kinematic sequence"; null on a swing that produced
+    // no node, and the strip then simply is not there.
+    property var  kinematicSequence: null
     property real startUs:    0
     property real endUs:      0
     property real impactUs:   0
@@ -1293,6 +1298,22 @@ Item {
                     }
                 }
             }
+        }
+
+        // ── SEQUENCE strip — only under its own preset ───────────────────────────────────────
+        // The chips are the peaks of exactly the four curves the "Kinematic sequence" preset
+        // draws, so the strip is tied to that preset and to nothing else: under any other
+        // vocabulary it is not shown, and on a swing that produced no node it is not there at
+        // all. Everything it prints is ChartMetrics' (sequenceRows / sequenceVerdictText /
+        // sequenceRouteText); the component binds.
+        PpSequenceStrip {
+            visible: !root.compact && !root.chartCollapsed
+                     && root.preset === "Kinematic sequence"
+                     && !!root.kinematicSequence && !!root.kinematicSequence.nodes
+                     && root.kinematicSequence.nodes.length > 0
+            Layout.fillWidth: true
+            kinematicSequence: root.kinematicSequence
+            impactUs: root.impactUs
         }
 
         // Legend chips = toggle + live value / Δ-from-address readout at the playhead.
