@@ -37,6 +37,13 @@ those distances (legibility in pixels per marker cell, not metres), **the board 
 this cabin** — two cards and a tag strip on one sheet, with the print files under `docs/design/charuco-print/`.
 §4.8's card is now that board rather than an A4 print on foam, §6.1 says which cameras can and
 cannot "take turns" on it, and §11 items 4, 6 and 7 are updated.
+**Revised 2026-09-17:** §3a is new — the ceremony itself, step by step, which the title promised and
+no section stated. It answers whether DTL, face-on and impact perspectives, or FLIR, USB and PPCP
+cameras, need different ceremonies: **no** — one ceremony of seven steps, parameterised by capability
+(which branch of a step runs) and by perspective (which references are legible and required), with
+the two tables in §3a.3 and §3a.4 as the whole of the difference, and §3a.5 saying which steps a
+change re-opens, and §3a.6 the two-camera pass (face-on + DTL as one layout, two focus walks, one
+capture). §5.6 gains the back-focus finding from the face-on Chameleon3.
 
 ---
 
@@ -251,6 +258,211 @@ metric that needs the volume reads G ≥ 3; a metric that needs sub-degree 3-D �
 face-to-path — reads G = 5 and is otherwise **withheld with its reason shown**, never produced in
 fictional millimetres. This is the same discipline as `5.8f`'s "a value must not be used to mean
 unknown", and the same "no producer yet" state the diagnostics model already treats as normal.
+
+---
+
+## 3a. ⭐ The ceremony — what the operator actually does
+
+*Added 2026-09-17, because the title promises "one ceremony" and nothing below said what it was.
+§4 lists the references, §5 the focus paths, §6 the order for 3-D and §9 the per-session check; this
+is the walk-through they hang off, in the two slots §9.0 names. It is written per camera, because
+that is how the panel and the wizard present it, and a bay is the sum of its cameras done in turn.*
+
+### 3a.1 One ceremony, two parameters
+
+There is one ceremony. Every camera in the bay walks the same seven steps and ends with the same
+record (§3.2). Two things parameterise it, and **neither adds or removes a step — each changes what a
+step says and which branch inside it runs:**
+
+| Parameter | Comes from | Decides |
+|---|---|---|
+| **Capability** — what the camera can do | the backend at enumeration, expressed as `FocusCapability` (§5.1) and the intrinsics source (§3.4). ⛔ Never the backend's name | *how* step 3 is done (sweep / guide / declare), *where* `f` comes from in step 1 (typed / declared / nothing), and *how* step 5's capture is obtained (own frames / the PPCP capture leg) |
+| **Perspective** — what the camera is for | `CameraInstance::Perspective` — `FaceOn`, `DownTheLine`, `Other`, `Impact` — which the wizard already asks for | *which* references are legible and offered in step 5, *which* of them are required rather than optional, and *which* tier that view's metrics gate on — so what the verdict at step 6 means |
+
+So the answer to "does DTL need a different ceremony from face-on, or a phone from a FLIR?" is **no**.
+They walk the same steps and produce the same record; §3a.3 and §3a.4 say exactly what differs at
+each step, and those two tables are the whole of the difference.
+
+### 3a.2 The seven steps, per camera
+
+Each step names what the software does, what the operator does, what is recorded, and its fallback.
+A step's fallback is always "record less, and say so" (principle 6) — never "stop" (principle 7).
+
+**0. Attach to a bay.** Name it, or pick it. The bay lists its cameras by identity (serial, or
+`peer_id + source_id`) and perspective. A camera already in the bay arrives with its stored records;
+the ceremony then *shows* them and offers to redo, which is §9's check rather than a ceremony.
+
+**1. Identify and read what the device can state.** Software: identity, model, and the I1 intrinsics
+of §3.4 — pixel pitch from the model for a machine-vision camera, per-format field of view from a
+phone's declare, nothing from a USB webcam. Operator: **types the lens focal length** for a camera
+whose lens the device cannot see (the FLIRs). Recorded: `kind: intrinsics, method: factory |
+user_measured`, per format, with its uncertainty. Fallback: I0, shown as such.
+
+**2. Frame and light.** Operator: aims the camera at the view its perspective wants, sets exposure
+and, for a mechanical lens, aperture — **before focus,** because focus is tolerant of aperture only
+in one direction (§5.3) and the blur that matters at impact is exposure, not focus (§5.6). Software:
+the live tile with its exposure readout; for a phone, `setExposureModeCustom` is the thing that
+today is never called. Recorded: the active format, which fixes the intrinsics record bound in step 6.
+
+**3. Focus, by capability class (§5).** The sharpness ROI is the reference the operator is about to
+place, or the ball at the spot.
+- *Class A (phone):* the software sweeps `lensPosition`, fits the peak, locks it, and shows the curve.
+- *Class B (FLIR, any C-mount):* a live sharpness bar with peak-hold; the operator turns the ring and
+  locks it; the software measures after and records the value. ⚠ **A ring at its end stop that is
+  still soft is not a focus fault** — it is the mount stack (§5.6, third bullet); the flow says so
+  rather than letting the operator chase the ring.
+- *Class C (USB with autofocus that cannot be stopped):* detected and declared; no lock is claimed.
+Recorded: `kind: focus`, the edge-spread and its anisotropy (§5.5), and the lens position as
+`validFor` on the intrinsics record (§5.4). Fallback: a declared "unverifiable" focus and a G1 ceiling.
+
+**4. Scale from the ball (G1).** Operator: a ball on the spot. Software: detects it, shows the
+diameter, and the operator confirms or draws across it. Recorded: `kind: pose` at G1 — scale at the
+hitting plane, ±2–3 % — **and the reference ball diameter that every later shot is checked against
+(§4.3, §7.2).** This step is never skipped, because it is free and it is the verifier.
+
+**5. Geometry from a reference, chosen by what the operator has and what the perspective can see
+(§4).** Operator: places the reference and leaves it; **declares which end of the target-line stick
+is the target end.** Software: **arms a calibration capture**, receives the full-resolution frames —
+the FLIR's own, or the clip over the PPCP capture leg (§4.4) — and solves host-side against the bound
+I1 record. Rungs, each optional above G1 and each recorded with what it consumed:
+- **G2:** two sticks in a T, ball at the intersection — every wide camera.
+- **G3:** + one vertical stick, a typed camera height, and gravity from a phone.
+- **I2 (intrinsics, once per camera and lens):** the board held upright at 1.2–1.5 m — every camera,
+  every perspective, and it supersedes the I1 record rather than replacing it.
+- **G4:** the board left at the ball — only the cameras that can read it there (§6.1).
+- **G5:** the wand swept through the volume — every camera at once, a joint solve.
+- **Impact:** the §4.8 card, upright in the measurement plane for placement A, flat with a
+  target-line stick for placement B; solved for a *pose*, never a homography.
+
+**6. Record, bind and declare.** Software: mints the calibration `id` and digest, stamps
+`validFor`, computes the `(I, G)` pair, and publishes the verdict of §9 — 🟢 / 🟠 / 🔴 with its
+reason. The wizard's *Triangulation* row (§9.0) is this verdict for the bay. Recorded: everything
+above, in the bay store, per `(camera identity, kind)`.
+
+**7. Install the verifier.** Operator: a fiducial patch or one 30 mm tag fixed in view (§7.1, §4.8
+item 2), and the ball left on its spot. Software: measures both and stores them as the references
+§7.2 compares against every frame and every shot. This is the step that makes the other six stay
+true, and the one most easily forgotten — so the flow does not declare 🟢 without it.
+
+⭐ **What the operator sees is shorter than this.** Steps 0, 1 and 6 are automatic or one field; the
+operator's ceremony is *frame, focus, ball, reference, tag* — five things, one camera at a time, with
+the reference left where it is while the next camera takes its turn (§6.1, §6.3). ⭐ And for a bay
+with more than one camera it is shorter still: §3a.6 re-sorts these steps by what is per-bay and what
+is per-lens, and a face-on + DTL bay comes out at four operator actions.
+
+### 3a.3 What differs by camera type — the capability axis
+
+| Step | **FLIR (Spinnaker / Aravis)** | **USB / Qt Multimedia** | **PPCP phone** |
+|---|---|---|---|
+| 1 identify | serial; pixel pitch from the model; **focal length typed** → I1 | nothing stated → I0 until a board solve | `peer_id + source_id`; field of view per format from the declare → I1; a one-shot matrix at 120 fps for `cx/cy` where the platform gives one |
+| 2 light | exposure **and aperture** are the operator's; global shutter, no rolling-shutter caveat | whatever the driver exposes; usually auto | exposure must be set custom and locked; rolling shutter, `readout_ns` recorded |
+| 3 focus | **class B**: guide-and-verify, ring locked; the back-focus check | usually **class C**: detect the AF, declare it, no lock claimed | **class A**: deterministic sweep, `lensPosition` locked and recorded as `validFor` |
+| 4 ball | same for all — the detector already runs on every backend | same | same, on the full-resolution capture, not the 640 × 360 preview |
+| 5 geometry | solved here from its own full-resolution frames; I2 is worth doing once and keeping | solved here; G1 only if focus is uncontrollable (§8.3) | **solved here from a calibration capture over the capture leg** (§4.4); gravity from the `metadata` stream contributes to G3 for free; I2, if wanted, is the phone's own solve reported by `calibration_update` (§8.1) |
+| 6 bind | `validFor` = "the ring as verified" | as recorded | `validFor` = the locked `lensPosition`; the Stream's `calibration_id` is fixed for its lifetime (5.9a) |
+| 7 verify | fiducial + ball + a bump check | fiducial + ball + an AF-running check | fiducial + ball + `lensPosition` poll + gravity against the solved roll/pitch |
+
+The cells are the branches; the rows are the same. ⛔ A branch is selected by the capability descriptor
+and the intrinsics provenance, never by `Backend::`, so a future machine-vision camera with a motorised
+lens lands in class A without touching the flow.
+
+### 3a.4 What differs by perspective — the reference axis
+
+| Step | **Face-on** | **Down-the-line** | **Other** (rear diagonal, overhead) | **Impact A** — face-on at the floor | **Impact B** — elevated on the face-on side |
+|---|---|---|---|---|---|
+| 2 frame | whole swing, ball ~1–1.5 m from the lens | whole swing along the target line, 1.5–2 m | whole swing | the 640 × 240 strip at the ball, ball ~60 % across, lens between ball height and +100 mm, level ≤ 3°, square ≤ 5° (§4.8) | a tripod at 1–2 m looking down ≥ 45°, 60° preferred |
+| 3 focus ROI | the ball, or the card at the spot | the ball, or a stick end | the ball | the card | the card |
+| 4 ball | required | required | required | required — and the diameter is a *relative* ruler per shot, never the scale | required |
+| 5 legible references (§4.1.1) | T sticks ✓; the **perpendicular** stick's vanishing point is the strong one; board upright at the ball ✓ phone / marginal FLIR; board flat marginal; wand ✓ | T sticks ✓; the **target-line** stick's vanishing point is the strong one; **board at the ball ✗ at any size**; wand ✓ | T sticks ✓; board flat ✓ only for an overhead looking down ≥ 45°; wand ✓ | **the card upright in P** (G4, designed for it); sticks with tape marks in P (G2); ball only → withheld | **the card flat + a target-line stick** (G4); the line stick and marks (G2) |
+| 5 solved | alone against the T; jointly in the wand bundle | the same | the same | alone: `solvePnP` on the card | **jointly with A**, in the bay frame — path is withheld without A (§4.8) |
+| 6 what the verdict gates | overlays and plane at G2; speeds at G3; face-to-path only at G5 | the same | the same | ball speed, launch angle, clubhead speed, attack angle, low point — **none live below G4 on the card, or G2 on the marked sticks** | club path, heel/toe, launch direction |
+| 7 verifier | patch + ball | patch + ball | patch + ball | the 30 mm tag + ball ratio + the dropped-ball vertical | the tag + ball |
+
+Two things to notice. First, **the wide perspectives differ only in which references they can read and
+which vanishing point is well conditioned** — the solver is the same code with the role and target-end
+declaration as input (§4.4). Second, **the impact perspectives differ in the reference, not the
+ceremony:** the card replaces the sticks because the metric lives in a plane the sticks do not define
+precisely enough, and placement B's step 5 has a dependency (A) that no other camera has.
+
+### 3a.5 Doing it again — which steps a change re-opens
+
+| What changed | Re-open | Leave alone |
+|---|---|---|
+| a new camera joins the bay | 0–7 for that camera only | every other camera's records (§6.2) |
+| a lens re-focused or the ring knocked | 3, then 6 — intrinsics are invalid at the new position (§5.4); G records built on them are flagged | 4, 5 unless the fiducial says the camera moved too |
+| a tripod nudged, a mount sagged (§7.2 fires) | 5 for that camera, from the reference still on the floor; 7 | 1, 3 |
+| the reference moved (a stick kicked) | 5 for every camera that used it, once it is back | 1–4 |
+| the format or frame rate changed | 6 re-binds against the stored record for that format (§3.4); if none, 1 | 3 if the lens did not move |
+| the light changed | 2; 3 re-verified, not re-done | the rest |
+| a phone reconnects | 3 re-asserted (§10 stage 1), 6 re-bound; 5 only if gravity disagrees with the solved roll/pitch | the rest |
+
+⛔ **A session never opens any of these.** It runs the §9 check, shows the verdict, and offers the
+ceremony from the wizard's slot; the golfer decides.
+
+### 3a.6 ⭐ The two-camera pass — face-on and DTL done once, not twice
+
+*Added 2026-09-17 after the question "can 2 × 7 steps be combined?" They can, and the reason is that
+§3a.2 walks the ceremony **per camera because the record is per camera** — but almost nothing the
+operator physically does is per camera. Re-sorting the same seven steps by what is per-bay and what
+is per-lens gives a pass with **four operator actions**, not fourteen steps, and it is not a special
+case: it is the general ceremony organised by trip rather than by camera.*
+
+**Which steps are really per camera.**
+
+| Step | Per camera? | Why, and what the two-camera pass does with it |
+|---|---|---|
+| 0 bay | no | once |
+| 1 identify + I1 | **software: per camera, automatic.** Operator: the typed focal length | both Chameleon3s share the model → one pixel-pitch lookup. The focal-length field defaults the second from the first with a *same lens?* check; two different lenses is two fields. A phone needs nothing typed |
+| 2 frame + light | **frame per camera; light per bay** | the bay is lit once. Each camera's exposure is set from the same scene; a FLIR's aperture is a per-lens ring but is set in the same walk as its focus |
+| 3 focus | **yes — the ring is physical** | this is the one step that cannot be merged. But it can be *concurrent*: both sharpness bars are live at once, and the same object — the sticks and the ball already on the mat — is the ROI for both |
+| 4 ball → G1 | no | one ball on the spot, detected by both cameras from the same capture |
+| 5 reference → G2/G3 | no | **one T on the floor, one target-end declaration, one calibration capture armed across both cameras.** Two solves come out of it, and they land in the same frame by construction because they reference the same object. §6.1's "take turns" is for the board; with sticks the turns are simultaneous |
+| 6 record + verdict | software, automatic | two records; one bay verdict, the worse of the two, which is what the wizard's *Triangulation* row shows |
+| 7 verifier | **tag per view; ball shared** | the DTL cannot read a flat tag at the ball (§4.1.1), so each view gets its own tag — but both are laid out in the same trip as the sticks, and the calibration capture of step 5 records their reference poses at the same time. The ball is one verifier for both |
+
+**The pass, as the operator does it.**
+
+1. **Lay out — one trip to the mat.** Ball on the spot; the T through it; a tag in each camera's
+   view; optionally the vertical stick for G3. Declare the target end. *(steps 4, 5, 7 placed)*
+2. **Light — once.** Set the bay light. The software reads both exposures against the same scene.
+   *(step 2)*
+3. **Focus — one walk per lens, both bars live.** Face-on ring, then DTL ring, on the sticks and
+   ball already there; aperture set in the same walk. Type each camera's height while standing
+   at it, unless the vertical stick is in both views, in which case it is solved. *(step 3, and G3's
+   inputs)*
+4. **Capture — one button.** Both cameras record the still scene; the phone's clip arrives over the
+   capture leg a few seconds later and the solve waits for it. From the one capture, per camera: the
+   ball diameter (G1 + reference), the T solve (G2, G3 with the vertical), the tag poses (§7's
+   references). Then the records, the digests, and the bay verdict. *(steps 4–7 solved; 6 recorded)*
+
+Four actions, two of which are the unavoidable walks to the lenses. Steps 0 and 1 are automatic
+apart from one focal-length field. ⭐ **The ordering matters and is the reverse of §3a.2's:** the
+references go down *first*, because they are the best focus target in the bay — a high-contrast
+600 px line at exactly the plane that matters — and because it turns "focus, then place, then
+capture" into "place, then focus, then capture", one trip fewer.
+
+**What it does and does not buy.**
+
+- **Shorter, not more accurate.** Two cameras seeing the same *flat* T give two independent solves;
+  coplanar points seen from two views constrain neither camera's pose more than one view does, so
+  there is no joint win at G2. The win that two cameras do offer — the face-on's weak depth axis is
+  the DTL's strong lateral axis and vice versa — needs a non-coplanar reference, and it arrives at G5,
+  where the wand sweep is *also* one capture for both. The pass is the same shape at every rung.
+- **A free consistency verdict.** The T is one object, so the two solves must agree: the angle
+  between the sticks, the stick length the DTL measures along the target line against the face-on's,
+  the ball's height over the mat. Disagreement beyond the stated uncertainties is shown at step 4,
+  before either record is declared 🟢. That check does not exist in a one-camera ceremony.
+- **It generalises.** N cameras is one layout, N focus walks, one capture. A third camera — the rear
+  diagonal, the impact strip — joins the same capture; the impact card goes down in the same trip as
+  the sticks, upright at the spot, and is solved from the same frames.
+- **It does not touch the record.** §3a.2 stays as the definition of what is stored per camera; the
+  pass is how the flow *presents* it. ⛔ The flow must not collapse the records to match the
+  presentation: a bay verdict is the worse of its cameras, and a camera re-done alone (§3a.5) still
+  produces its own record without disturbing the other's.
+
+**What cannot be combined, and why.** The rings, because they are metal. The tags, because the two
+views are 90° apart and no flat target is legible to both. The focal lengths, if the lenses differ.
+Everything else was only ever per camera on paper.
 
 ---
 
@@ -775,6 +987,16 @@ Two things masquerade as focus and must be ruled out before anyone re-focuses an
   exposure sits wherever auto landed — indoors at 240 fps, at or near the full 4.2 ms frame
   duration. A clubhead at 40 m/s travels **~17 cm** during one exposure. No focus setting fixes
   that; more light and a shorter exposure do.
+- **A mechanical lens that will not focus at any ring position is a back-focus fault, not a focus
+  fault** (*2026-09-17, the face-on Chameleon3*). The CM3-U3-13Y3C body is CS-mount and ships with a
+  5 mm C-mount adapter ring; a C-mount lens needs the ring, a CS-mount lens must not have it, and the
+  threaded lens holder is itself adjustable under a set screw. With the stack wrong the ring's travel
+  never covers the image plane at 1–2 m, and opening the aperture — the natural response to a soft
+  image — shrinks the depth of field and makes it worse. The class B guide (§5.3) therefore says,
+  when the sharpness peak sits at a ring end stop: *check the mount, not the ring* — and which end
+  stop it is says which way (at infinity and only near things sharp: too far from the sensor; at near
+  and only far things sharp: too close). Nothing in Spinnaker can move it; there is no software focus
+  on this camera.
 
 ---
 
