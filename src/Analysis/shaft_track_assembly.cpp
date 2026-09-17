@@ -470,6 +470,15 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "synth.midConfFrac", c.synth.midConfFrac);
     apply(ov, "synth.rateHz", c.synth.rateHz);
     apply(ov, "synth.curveRate", c.synth.curveRate);
+    apply(ov, "synth.measuredEndAfterImpact", c.synth.measuredEndAfterImpact);
+    apply(ov, "synth.envelopeWindowUs", c.synth.envelopeWindowUs);
+    apply(ov, "synth.envelopeTolDeg", c.synth.envelopeTolDeg);
+    apply(ov, "synth.maxFollowThroughRateDps", c.synth.maxFollowThroughRateDps);
+    apply(ov, "shaft.followThrough.enabled", c.followThrough.enabled);
+    apply(ov, "shaft.followThrough.rateFactor", c.followThrough.rateFactor);
+    apply(ov, "shaft.followThrough.minRateCapDps", c.followThrough.minRateCapDps);
+    apply(ov, "shaft.followThrough.minShaftForearmDeg", c.followThrough.minShaftForearmDeg);
+    apply(ov, "shaft.followThrough.peakWindowUs", c.followThrough.peakWindowUs);
     // Impact boundary: "shaft.impactBoundary.*" keys.
     apply(ov, "shaft.impactBoundary.enabled",      c.impactBoundary.enabled);
     apply(ov, "shaft.impactBoundary.windowUs",     c.impactBoundary.windowUs);
@@ -1370,13 +1379,17 @@ double projectedClubLenPx(double measuredClubLenPx, double sTypical, double r0Me
 //   tUs/thetaDeg/gx/gy — per frame (thetaDeg may be NaN, gx/gy NaN where pose had no grip);
 //   isPred            — per frame, true where the θ came from the kinematic model (PRED tier),
 //                       so the impact-boundary fits prefer measured frames when they can.
+//   isMeas            — per frame, true where the θ rests on a vision or IMU measurement (not a
+//                       coast / predict fill): the envelope the synth may not leave.
 static void synthesizeLayerC(ShaftTrack2D& out, const std::vector<int64_t>& tUs,
                              const std::vector<double>& thetaDeg, const std::vector<char>& isPred,
+                             const std::vector<char>& isMeas,
                              const std::vector<double>& gx, const std::vector<double>& gy,
                              const ShaftV3Config& cfg)
 {
     const int nf = int(tUs.size());
-    if (nf < 2 || int(thetaDeg.size()) != nf || int(gx.size()) != nf || int(gy.size()) != nf) return;
+    if (nf < 2 || int(thetaDeg.size()) != nf || int(gx.size()) != nf || int(gy.size()) != nf
+        || int(isPred.size()) != nf || int(isMeas.size()) != nf) return;
     // Dark by default. With ≥2 located P-anchors, fill a VISUALIZATION-TIER series
     // (out.synth) — C¹ Hermite-interpolated samples on a dense fixed cadence
     // (cfg.synth.rateHz, default 240 Hz) STRICTLY between consecutive anchors, so
@@ -1510,9 +1523,172 @@ static void synthesizeLayerC(ShaftTrack2D& out, const std::vector<int64_t>& tUs,
         // per-frame hand-axis grip the samples carry, never a Hermite between anchors.
         HandGripTrack hands;
         hands.tUs = &tUs; hands.x = &gx; hands.y = &gy;
-        out.synth = synthesizeBetweenAnchors(out.positions, thetaDotIn, thetaDotOut, gripVel,
-                                             synthTimes, cfg.synth, hands);
+
+        // Rule 1 — no bracket from the follow-through into an anchor that rests on no
+        // measurement. The anchors are split into RUNS at every such bracket and each run
+        // is bridged on its own, so P7→P8 still fills while P8→(coasted P10) does not.
+        out.synth.clear();
+        size_t runStart = 0;
+        const size_t nA = out.positions.size();
+        for (size_t k = 0; k + 1 <= nA; ++k) {
+            const bool last = (k + 1 == nA);
+            bool cut = !last && cfg.synth.measuredEndAfterImpact
+                    && out.positions[k].p >= 7
+                    && out.positions[k + 1].timing == TimingClass::Proxy;
+            // Rule 3 — past P8 the club only slows down. A bracket whose anchors imply a
+            // mean rate above the cap is the tracker on something that is not the club.
+            if (!last && !cut && cfg.synth.maxFollowThroughRateDps > 0.0 && out.positions[k].p >= 8) {
+                const double dt = double(out.positions[k + 1].t_us - out.positions[k].t_us) * 1e-6;
+                const double dth = std::fabs(std::remainder(out.positions[k + 1].thetaRad - out.positions[k].thetaRad, 2.0 * kPi));
+                if (dt > 0.0 && dth / dt * 180.0 / kPi > cfg.synth.maxFollowThroughRateDps) cut = true;
+            }
+            if (!last && !cut) continue;
+            const size_t runEnd = last ? nA : k + 1;            // [runStart, runEnd)
+            if (runEnd - runStart >= 2) {
+                const std::vector<ShaftPosition> anchors(out.positions.begin() + long(runStart),
+                                                         out.positions.begin() + long(runEnd));
+                const std::vector<double>  tIn (thetaDotIn.begin()  + long(runStart), thetaDotIn.begin()  + long(runEnd));
+                const std::vector<double>  tOut(thetaDotOut.begin() + long(runStart), thetaDotOut.begin() + long(runEnd));
+                const std::vector<QPointF> gv  (gripVel.begin()     + long(runStart), gripVel.begin()     + long(runEnd));
+                std::vector<ShaftSample2D> part =
+                    synthesizeBetweenAnchors(anchors, tIn, tOut, gv, synthTimes, cfg.synth, hands);
+                out.synth.insert(out.synth.end(), part.begin(), part.end());
+            }
+            runStart = k + 1;
+        }
+
+        // Rule 2 — the synth may not sweep past the measurements. For every tick, the
+        // measured frames within ±envelopeWindowUs bound θ (each brought onto the tick's
+        // own sheet); a tick outside that envelope by more than the tolerance is clamped
+        // to it, its head re-derived, and its θ̇ replaced by a finite difference so the
+        // rate says what the clamped path does.
+        if (cfg.synth.envelopeTolDeg > 0.0 && !out.synth.empty()) {
+            const double tol = cfg.synth.envelopeTolDeg * kPi / 180.0;
+            std::vector<char> clamped(out.synth.size(), 0);
+            int lo = 0;
+            for (size_t j = 0; j < out.synth.size(); ++j) {
+                ShaftSample2D& s = out.synth[j];
+                while (lo < nf && tUs[lo] < s.t_us - cfg.synth.envelopeWindowUs) ++lo;
+                double mn = 0.0, mx = 0.0; bool any = false;
+                for (int i = lo; i < nf && tUs[i] <= s.t_us + cfg.synth.envelopeWindowUs; ++i) {
+                    if (!isMeas[size_t(i)] || std::isnan(thetaDeg[size_t(i)])) continue;
+                    const double m = s.thetaRad + std::remainder(thetaDeg[size_t(i)] * kPi / 180.0 - s.thetaRad, 2.0 * kPi);
+                    if (!any) { mn = mx = m; any = true; } else { mn = std::min(mn, m); mx = std::max(mx, m); }
+                }
+                if (!any) continue;
+                double th = s.thetaRad;
+                if (th > mx + tol) th = mx + tol;
+                else if (th < mn - tol) th = mn - tol;
+                else continue;
+                s.thetaRad = th;
+                s.headPx   = QPointF{ s.gripPx.x() + s.visibleLenPx * std::cos(th),
+                                      s.gripPx.y() + s.visibleLenPx * std::sin(th) };
+                clamped[j] = 1;
+            }
+            for (size_t j = 0; j < out.synth.size(); ++j) {
+                if (!clamped[j]) continue;
+                const size_t a = j > 0 ? j - 1 : j, b = j + 1 < out.synth.size() ? j + 1 : j;
+                const double dt = double(out.synth[b].t_us - out.synth[a].t_us) * 1e-6;
+                if (dt > 0.0)
+                    out.synth[j].thetaDotRadS =
+                        std::remainder(out.synth[b].thetaRad - out.synth[a].thetaRad, 2.0 * kPi) / dt;
+            }
+        }
     }
+}
+
+// Whether a sample rests on a measurement — the same test the P-position extraction
+// applies when it stamps ShaftPosition::timing (sampleTrackAt's classOf).
+static bool sampleIsMeasured(const ShaftSample2D& s)
+{
+    return (s.flags & (ShaftMeasured | ShaftWedge)) && !(s.flags & ShaftCoasted);
+}
+
+int demoteImplausibleFollowThrough(ShaftTrack2D& track, const std::vector<double>& forearmToElbowDeg,
+                                   int64_t impactUs, const ShaftV3Config& cfg)
+{
+    const auto& ft = cfg.followThrough;
+    std::vector<ShaftSample2D>& S = track.samples;
+    if (!ft.enabled || impactUs < 0 || S.size() < 3) return 0;
+
+    // The swing's own peak rate into impact: the 90th percentile of consecutive-sample rates
+    // over the pre-impact window, on samples that rest on a measurement. A percentile rather
+    // than the max so one jittery pair cannot set the cap; a floor so a blurred impact (few
+    // measured pairs, low rates) cannot make a real follow-through look implausible.
+    // Every pair that is not a coast or a model prediction counts — the frames through the
+    // impact blur are mostly wedge/bridged tiers, and a peak read from the few clean pairs
+    // there sat far below the club's real rate and demoted a genuine follow-through.
+    const auto notPredicted = [](const ShaftSample2D& s) {
+        return !(s.flags & (ShaftCoasted | ShaftKinematicPredicted));
+    };
+    std::vector<double> rates;
+    for (size_t i = 1; i < S.size(); ++i) {
+        if (S[i].t_us > impactUs + 5000 || S[i].t_us < impactUs - ft.peakWindowUs) continue;
+        if (!notPredicted(S[i]) || !notPredicted(S[i - 1])) continue;
+        const double dt = double(S[i].t_us - S[i - 1].t_us) * 1e-6;
+        if (dt <= 0.0) continue;
+        rates.push_back(std::fabs(std::remainder(S[i].thetaRad - S[i - 1].thetaRad, 2.0 * kPi)) / dt);
+    }
+    double peak = 0.0;
+    if (!rates.empty()) {
+        std::sort(rates.begin(), rates.end());
+        peak = rates[std::min(rates.size() - 1, size_t(0.9 * double(rates.size())))];
+    }
+    // …and the tracker's own RTS-smoothed rate, which survives the blur the pair rates do
+    // not: a full swing coasts through most of the last 60 ms into impact, leaving two clean
+    // pairs at 1340 °/s beside a club doing 1800 after the ball. The larger of the two is the
+    // peak; the club past impact cannot exceed its own.
+    for (const ShaftSample2D& s : S) {
+        if (s.t_us > impactUs + 5000 || s.t_us < impactUs - ft.peakWindowUs) continue;
+        if (!notPredicted(s)) continue;
+        peak = std::max(peak, std::fabs(s.thetaDotRadS));
+    }
+    const double cap    = std::max(ft.rateFactor * peak, ft.minRateCapDps * kPi / 180.0);
+    // The forearm test is OFF unless a threshold is set: in a face-on projection the folded
+    // club at P9–P10 legitimately lines up with the hands→elbow direction (21–26° apart on a
+    // full swing's finish), so 2-D separation alone cannot tell the finish wrap from the
+    // tracker capturing the arm. The rate tests carry the arm-capture case on their own.
+    const double minSep = ft.minShaftForearmDeg > 0.0 ? ft.minShaftForearmDeg * kPi / 180.0 : -1.0;
+
+    size_t lastGood = 0;
+    bool haveGood = false;
+    for (size_t i = 0; i < S.size(); ++i) {
+        if (S[i].t_us > impactUs) break;
+        if (sampleIsMeasured(S[i])) { lastGood = i; haveGood = true; }
+    }
+    if (!haveGood) return 0;
+
+    int demoted = 0;
+    for (size_t i = lastGood + 1; i < S.size(); ++i) {
+        ShaftSample2D& s = S[i];
+        if (s.t_us <= impactUs || !sampleIsMeasured(s)) continue;   // coasts are already predictions
+        bool bad = false;
+        const double dt = double(s.t_us - S[lastGood].t_us) * 1e-6;
+        if (dt > 0.0) {
+            const double rate = std::fabs(std::remainder(s.thetaRad - S[lastGood].thetaRad, 2.0 * kPi)) / dt;
+            if (rate > cap) bad = true;
+        }
+        // The LOCAL rate too, against the immediately preceding sample whatever its standing: a
+        // wrong track sweeping THROUGH a plausible angle passes the test above at that one
+        // instant, and only its neighbours show it was moving impossibly fast to get there.
+        if (!bad) {
+            const double dtl = double(s.t_us - S[i - 1].t_us) * 1e-6;
+            if (dtl > 0.0) {
+                const double local = std::fabs(std::remainder(s.thetaRad - S[i - 1].thetaRad, 2.0 * kPi)) / dtl;
+                if (local > cap) bad = true;
+            }
+        }
+        if (!bad && minSep > 0.0 && i < forearmToElbowDeg.size() && std::isfinite(forearmToElbowDeg[i])) {
+            const double sep = std::fabs(std::remainder(s.thetaRad - forearmToElbowDeg[i] * kPi / 180.0, 2.0 * kPi));
+            if (sep < minSep) bad = true;
+        }
+        if (!bad) { lastGood = i; continue; }
+        s.flags = uint16_t((s.flags & ~uint16_t(ShaftMeasured | ShaftWedge | ShaftImuBridged))
+                           | ShaftCoasted | ShaftHeadProjected | ShaftImplausible);
+        s.conf  = std::min(s.conf, 0.30f);
+        ++demoted;
+    }
+    return demoted;
 }
 
 void resynthesizeLayerC(ShaftTrack2D& track, const ShaftV3Config& cfg)
@@ -1522,7 +1698,7 @@ void resynthesizeLayerC(ShaftTrack2D& track, const ShaftV3Config& cfg)
     const size_t n = track.samples.size();
     std::vector<int64_t> tUs(n);
     std::vector<double>  thetaDeg(n), gx(n), gy(n);
-    std::vector<char>    isPred(n, 0);
+    std::vector<char>    isPred(n, 0), isMeas(n, 0);
     for (size_t i = 0; i < n; ++i) {
         const ShaftSample2D& s = track.samples[i];
         tUs[i]      = s.t_us;
@@ -1530,8 +1706,20 @@ void resynthesizeLayerC(ShaftTrack2D& track, const ShaftV3Config& cfg)
         gx[i]       = s.gripPx.x();
         gy[i]       = s.gripPx.y();
         isPred[i]   = (s.flags & ShaftKinematicPredicted) ? 1 : 0;
+        // The envelope admits IMU-bridged samples too: a bridged θ is a real reading.
+        isMeas[i]   = ((s.flags & (ShaftMeasured | ShaftWedge | ShaftImuBridged)) && !(s.flags & ShaftCoasted)) ? 1 : 0;
     }
-    synthesizeLayerC(track, tUs, thetaDeg, isPred, gx, gy, cfg);
+    // The anchors' timing class is re-derived from the samples that straddle each instant —
+    // the rule sampleTrackAt applies live — so a document written before the class was
+    // persisted still tells the follow-through gate which anchors rest on a coast.
+    for (ShaftPosition& p : track.positions) {
+        size_t b = 0;
+        while (b < n && track.samples[b].t_us < p.t_us) ++b;
+        const ShaftSample2D& s1 = track.samples[b == 0 ? 0 : b - 1];
+        const ShaftSample2D& s2 = track.samples[b >= n ? n - 1 : b];
+        p.timing = (sampleIsMeasured(s1) && sampleIsMeasured(s2)) ? TimingClass::Measured : TimingClass::Proxy;
+    }
+    synthesizeLayerC(track, tUs, thetaDeg, isPred, isMeas, gx, gy, cfg);
 }
 
 ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>& tUs,
@@ -2520,6 +2708,20 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         out.samples[i].thetaDotRadS = (dt > 0) ? dth / dt : 0.0;
     }
 
+    // ── Follow-through plausibility (demoteImplausibleFollowThrough) ───────────
+    // Before the snap and before the anchors: a sample this pass demotes is a coast
+    // from here on — the snap skips it, the anchors read it as Proxy, the synth will
+    // not bridge into it and the overlay draws it as a prediction. The forearm is the
+    // lead elbow→hands direction the tracker already measured (phiRaw), turned round.
+    if (impactFrame >= 0 && impactFrame < nf) {
+        std::vector<double> forearm(out.samples.size(), std::numeric_limits<double>::quiet_NaN());
+        for (size_t k = 0; k < out.samples.size() && k < sampleFrame.size(); ++k) {
+            const double phi = phiRawIn[size_t(sampleFrame[k])];
+            if (std::isfinite(phi)) forearm[k] = phi + 180.0;
+        }
+        demoteImplausibleFollowThrough(out, forearm, tUs[size_t(impactFrame)], cfg);
+    }
+
     // ── Layer A: line re-registration («snap»), shaft_position_first §2A ───────
     // Dark by default. For each vision-tier sample (Measured|Wedge — never a
     // coasted/predicted frame), search (⊥ offset, Δθ) for the line that maximises
@@ -2912,9 +3114,14 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     // Factored into synthesizeLayerC() above, which is also the re-synthesis path a
     // reused track takes; the tier vector collapses to "was this frame PRED".
     {
-        std::vector<char> isPred(size_t(nf), 0);
+        std::vector<char> isPred(size_t(nf), 0), isMeas(size_t(nf), 0);
         for (int i = 0; i < nf; ++i) isPred[size_t(i)] = (tierOf[size_t(i)] == PRED) ? 1 : 0;
-        synthesizeLayerC(out, tUs, rec.thetaOut, isPred, gx, gy, cfg);
+        for (size_t k = 0; k < out.samples.size() && k < sampleFrame.size(); ++k) {
+            const ShaftSample2D& s = out.samples[k];
+            if ((s.flags & (ShaftMeasured | ShaftWedge | ShaftImuBridged)) && !(s.flags & ShaftCoasted))
+                isMeas[size_t(sampleFrame[k])] = 1;
+        }
+        synthesizeLayerC(out, tUs, rec.thetaOut, isPred, isMeas, gx, gy, cfg);
     }
 
     out.coverage = spanFrames > 0 ? float(spanMeas) / float(spanFrames) : 0.f;

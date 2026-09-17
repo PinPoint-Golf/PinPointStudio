@@ -109,6 +109,27 @@ struct SynthConfig {
                                   // Hermite (slope-limited, in/out-slope aware); what clubheadSpeed
                                   // composes from (ON 2026-09-06). false = the legacy linear
                                   // interpolation of the anchor rates (pre-Sept swing.json, bit for bit).
+    // ── The synth may not carry on where the club did not (2026-09-17) ─────────
+    // A pitch shot stops short of P10. The tracker coasts, the kinematic model keeps
+    // the shaft turning, the ladder's Finish lands on a coasted sample, and a P10
+    // anchor is built with an angle the club never reached — then the Hermite from P8
+    // sweeps 165° in 80 ms and the fan draws it as the club. Two rules, both in
+    // synthesizeLayerC (shaft_track_assembly.cpp):
+    //   measuredEndAfterImpact — a bracket that STARTS at or after P7 is bridged only
+    //     when its END anchor rests on a measurement (ShaftPosition::timing != Proxy).
+    //   envelope* — inside any bracket, a tick's θ may not leave the envelope of the
+    //     measured samples within ±envelopeWindowUs by more than envelopeTolDeg; where
+    //     the club has stopped the synth stops with it, and the Hermite bridges only
+    //     the genuine inter-frame gaps. Clamped ticks get a finite-difference θ̇.
+    //   maxFollowThroughRateDps — a bracket that STARTS at or after P8 is bridged only when
+    //     the mean rate its anchors imply is one a club past P8 can have. The club is
+    //     decelerating from impact by P8; a 190° sweep in 80 ms (2400 °/s) is the tracker
+    //     having captured the lead arm, with head confidence to match — which is why the
+    //     timing gate above cannot see it and the rate can.
+    bool    measuredEndAfterImpact = true;    // synth.measuredEndAfterImpact
+    int64_t envelopeWindowUs       = 25000;   // synth.envelopeWindowUs
+    double  envelopeTolDeg         = 10.0;    // synth.envelopeTolDeg (<= 0 disables the clamp)
+    double  maxFollowThroughRateDps = 1500.0; // synth.maxFollowThroughRateDps (<= 0 disables)
 };
 
 namespace synth_detail {

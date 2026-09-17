@@ -393,6 +393,15 @@ struct ShaftV3Config {
         int     minFrames    = tuned::shaft::impactBoundary::kMinFrames;   // widen until this many frames fit
         bool    floorInSlope = true;    // monotone rate across the bracket into P7: |θ̇⁻(P7)| ≥ |mean| ≥ |θ̇⁺(P6)|
     } impactBoundary;
+    // Follow-through plausibility (demoteImplausibleFollowThrough) — "shaft.followThrough.*"
+    // keys. See the tuned namespace for the two tests and why they exist.
+    struct FollowThroughConfig {
+        bool    enabled            = tuned::shaft::followThrough::kEnabled;
+        double  rateFactor         = tuned::shaft::followThrough::kRateFactor;
+        double  minRateCapDps      = tuned::shaft::followThrough::kMinRateCapDps;
+        double  minShaftForearmDeg = tuned::shaft::followThrough::kMinShaftForearmDeg;
+        int64_t peakWindowUs       = tuned::shaft::followThrough::kPeakWindowUs;
+    } followThrough;
     // Hand-axis θ prior (WB4) — "shaft.handAxisPrior.*" keys. enabled=false by
     // default (dark); when on, the per-frame hand-axis direction penalises the DP
     // states far from it near the grip. fromOverrides populates it.
@@ -731,6 +740,19 @@ double projectedClubLenPx(double measuredClubLenPx, double sTypical, double r0Me
 // gate (swing_reanalyzer.cpp) gets a fresh visualisation tier — with the hand-grip rule —
 // without the tracker running again. Clears and refills `track.synth`; touches nothing else.
 void resynthesizeLayerC(ShaftTrack2D& track, const ShaftV3Config& cfg);
+
+// Demote the samples after impact that cannot be the club (2026-09-17): a rate against the
+// last plausible sample above rateFactor × the swing's own pre-impact peak (floored), or a
+// shaft pointing within minShaftForearmDeg of the hands→elbow line. Demoted samples lose
+// Measured/Wedge/ImuBridged and gain Coasted|HeadProjected|Implausible, so the P-anchors
+// built on them read Proxy, the synth tier will not bridge into them, and the overlay draws
+// them as the predictions they are. `forearmToElbowDeg` is per SAMPLE (image atan2 of
+// hands→elbow, NaN when the pose had no elbow); `impactUs` < 0 ⇒ nothing is touched.
+// Runs inside decideTrack before the anchors are located, and again on a track reused
+// from a document (wrist_analyzer.cpp ShaftStage) so old documents get the same rule.
+// Returns the number of samples demoted.
+int demoteImplausibleFollowThrough(ShaftTrack2D& track, const std::vector<double>& forearmToElbowDeg,
+                                   int64_t impactUs, const ShaftV3Config& cfg);
 
 ShaftTrack2D decideTrack(const FrameSource& frameAt,
                          const std::vector<int64_t>& tUs,

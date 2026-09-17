@@ -597,6 +597,12 @@ enum ShaftSampleFlags : uint16_t {
     ShaftBallAnchored      = 0x40,  // theta soft-anchored from the grip->ball line (v3.4 design §9)
     ShaftHeadOffFrame      = 0x80,  // Stage-2 head expected off-frame — headPx is a ray/edge-clamped
                                     // point (NOT a head position); always co-set with ShaftHeadProjected
+    ShaftImplausible       = 0x200, // demoted by the follow-through plausibility pass (2026-09-17,
+                                    // shaft_track_assembly.h demoteImplausibleFollowThrough): after
+                                    // impact the shaft turned faster than a club can, or pointed into
+                                    // the lead forearm. Always co-set with ShaftCoasted|ShaftHeadProjected
+                                    // so every consumer that already treats a coast as a prediction
+                                    // treats this as one too; the bit itself is provenance.
     ShaftSynthesized       = 0x100, // kinematically synthesized between P anchors (shaft_position_first
                                     // §2 Layer C) — VISUALIZATION tier; EXCLUDED from metrics/scoring/
                                     // estimands. Carried only in ShaftTrack2D.synth, never in samples[].

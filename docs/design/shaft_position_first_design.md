@@ -162,6 +162,36 @@ fallback for a tick the hand track cannot bracket. θ and length are untouched.
 On the 40 recent library swings the worst synth-grip distance from the sample grip
 went from a 59 px median / 384 px maximum to 0.
 
+**The synth may not carry on where the club did not (2026-09-17, later the same
+day).** The 15 Sept pitch shots stop short of P10, yet the fan swept on. Three
+causes were found in the documents and frames of shot 13 of the second session:
+the tracker coasts once the club stops and the kinematic model keeps the shaft
+turning; the ladder's Finish lands on that coast and a P10 anchor is built there;
+and, worse, at ~190 ms after impact the tracker had captured the LEAD ARM with head
+confidence 0.84, so the anchor rested on a confident wrong measurement. Three
+rules in `synthesizeLayerC()`, all `SynthConfig` knobs:
+`measuredEndAfterImpact` — a bracket starting at or after P7 is bridged only when
+its end anchor's timing class is not Proxy (the class is now persisted on
+`positions[]` and re-derived from the samples on a reused track);
+`envelopeTolDeg` / `envelopeWindowUs` — a tick's θ may not leave the measured
+samples' envelope within ±25 ms by more than 10°, so where the club has stopped the
+synth stops with it; `maxFollowThroughRateDps` — a bracket starting at or after P8
+whose anchors imply a mean rate above 1500 °/s is not bridged, because past P8 the
+club only slows and 190° in 80 ms is the arm. The tracker's arm capture is then met
+one layer down: `demoteImplausibleFollowThrough()` (`shaft_track_assembly.h`,
+`shaft.followThrough.*`) runs before the anchors are located and again on a
+reused track, and demotes a post-impact sample to a coast (`ShaftImplausible`,
+0x200, co-set with Coasted|HeadProjected) when the rate it implies against the
+last plausible sample, or against its neighbour, exceeds the swing's own pre-impact
+peak rate — the larger of the tracker's RTS-smoothed |θ̇| and the 90th-percentile
+pair rate over the last 150 ms, on non-coast samples, floored at 1200 °/s (pair
+rates alone starved through the impact blur: two clean pairs at 1340 °/s beside a
+club doing 1800 after the ball). A forearm test — the shaft within N° of the hands→elbow line, a wrist
+cannot hinge that far — is built but OFF by default: at P9–P10 the folded club and
+the forearm line up in the face-on projection (21–26° apart on a full swing), and
+it demoted 25 good samples of 11 June swing 1. The overlay's fan never draws a coast. The coasting
+model's undamped rotation remains open.
+
 The block that builds the tier is now `synthesizeLayerC()` in
 `shaft_track_assembly.cpp`, called both by `decideTrack` and by
 `resynthesizeLayerC()` — the path a track REUSED from a swing document takes

@@ -1363,6 +1363,7 @@ int main()
         p1.thetaRad = 1.9; p1.lenPx = 280; p1.conf = 0.8f; p1.sigmaThetaDeg = 1.5f; p1.sigmaLenPx = 4.f;
         p1.stackN = 3; p1.source = uint8_t(PositionSource::MilestoneFit);
         ShaftPosition p7 = p1; p7.p = 7; p7.t_us = 1200000; p7.source = uint8_t(PositionSource::TrackSample);
+        p7.timing = TimingClass::Proxy;
         b.shaft.positions = { p1, p7 };
         b.shaft.lengths.ballPx = 290; b.shaft.lengths.fusedPx = 295.5; b.shaft.lengths.fusedSigmaPx = 6.5;
         b.shaft.lengths.fusedConf = 0.77; b.shaft.lengths.ladderRung = 2; b.shaft.lengths.nEstimators = 3;
@@ -1403,6 +1404,8 @@ int main()
             check(t.positions[1].p == 7 && t.positions[0].stackN == 3
                       && t.positions[0].source == uint8_t(PositionSource::MilestoneFit)
                       && near(t.positions[0].sigmaThetaDeg, 1.5, 1e-6), "club: positions round-trip");
+            check(t.positions[1].timing == TimingClass::Proxy && t.positions[0].timing == TimingClass::Measured,
+                  "club: the anchors' timing class round-trips (the follow-through gate reads it)");
             check(near(t.lengths.fusedPx, 295.5, 1e-9) && t.lengths.ladderRung == 2 && t.lengths.nEstimators == 3
                       && near(t.lengths.ballPx, 290, 1e-9), "club: lengths round-trip");
             check(t.plane.valid && t.plane.channel == 0 && t.plane.measured.fitted

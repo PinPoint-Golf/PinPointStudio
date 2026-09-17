@@ -147,6 +147,7 @@ ShaftTrack2D shaftTrackFromAnalysisJson(const QJsonObject &club, pinpoint::Sourc
         pos.sigmaLenPx    = float(o.value(QStringLiteral("sigmaLenPx")).toDouble(-1.0));
         pos.stackN        = o.value(QStringLiteral("stackN")).toInt();
         pos.source        = uint8_t(o.value(QStringLiteral("source")).toInt());
+        pos.timing        = TimingClass(o.value(QStringLiteral("timing")).toInt(int(TimingClass::Measured)));
         t.positions.push_back(pos);
     }
     return t;

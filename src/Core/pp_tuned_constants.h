@@ -930,6 +930,26 @@ inline constexpr bool    kEnabled   = true;    // shaft.impactBoundary.enabled (
 inline constexpr int64_t kWindowUs  = 24000;   // one-sided slope-fit window either side of P7 (µs)
 inline constexpr int     kMinFrames = 3;       // widen the window until this many frames fit
 } // namespace impactBoundary
+// --- Follow-through plausibility (demoteImplausibleFollowThrough) ---------------
+// After impact the tracker can capture the LEAD ARM (15 Sept pitch shots: head
+// confidence 0.84 on the forearm) or run its kinematic coast on with the club at
+// rest; the samples then say the shaft flipped 190° in 80 ms, or lies along the arm.
+// Neither is a club. A sample after impact is demoted to a coast when the rate it
+// implies — against the last plausible sample AND against its immediate neighbour —
+// exceeds kRateFactor × the swing's own pre-impact peak rate (the 90th percentile of
+// consecutive-sample rates over the last kPeakWindowUs; a club past impact only slows,
+// so the factor is 1; floored at kMinRateCapDps so a blurred impact cannot demote a
+// real follow-through). The forearm test — the shaft within kMinShaftForearmDeg of the
+// hands→elbow line, "a wrist cannot hinge that far" — is available but OFF: on a full
+// swing's finish the folded club and the forearm line up in the face-on projection
+// (21–26° apart on 11 June swing 1), and it demoted 25 good samples of that swing.
+namespace followThrough {
+inline constexpr bool    kEnabled            = true;    // shaft.followThrough.enabled
+inline constexpr double  kRateFactor         = 1.0;     // shaft.followThrough.rateFactor — past impact the club only slows
+inline constexpr double  kMinRateCapDps      = 1200.0;  // shaft.followThrough.minRateCapDps
+inline constexpr double  kMinShaftForearmDeg = 0.0;     // shaft.followThrough.minShaftForearmDeg — 0 = OFF (see below)
+inline constexpr int64_t kPeakWindowUs       = 150000;  // shaft.followThrough.peakWindowUs — pre-impact window the peak rate is read over
+} // namespace followThrough
 } // namespace shaft
 
 // --- Late-pipeline timeline-event refinement (src/Analysis/event_refine.h) -----

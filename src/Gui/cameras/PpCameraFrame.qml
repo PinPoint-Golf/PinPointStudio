@@ -1191,18 +1191,42 @@ Item {
             // so the ends of the replay don't go blank. Empty synth (feature off /
             // pre-v3.5 swing) ⇒ plain measured samples, i.e. the legacy fan. Derived
             // — recomputed on club-data change, not per paint.
+            //
+            // ⚠ A PREDICTION IS NOT A CLUB POSITION (2026-09-17). The tails admit only
+            // samples that rest on a measurement: a coasted sample (0x04) is the
+            // kinematic model running on with nothing to see — on a pitch shot it kept
+            // the shaft turning 130° after the club had stopped, and once the synth tier
+            // stopped bridging into an unreached finish the fan drew THAT instead, line
+            // for line. Predicted (0x20) and edge-clamped off-frame (0x80) samples are
+            // guesses of the same kind. Frame mode still shows a coasted CURRENT frame as
+            // its lone dim pen (it is HeadProjected); the fan never draws it as a trail.
+            readonly property int kFlagCoasted:     0x04
+            readonly property int kFlagPredicted:   0x20
+            readonly property int kFlagOffFrame:    0x80
+            readonly property int kFlagImplausible: 0x200   // the follow-through plausibility pass's demotion
+            function _restsOnMeasurement(sm) {
+                return sm && (sm.flags & (kFlagCoasted | kFlagPredicted | kFlagOffFrame | kFlagImplausible)) === 0
+            }
             readonly property var _clubFan: {
                 var syn = _clubSynth
-                if (syn.length === 0) return _clubSamples
-                var t0 = syn[0].t_us, t1 = syn[syn.length - 1].t_us
-                var out = []
                 var meas = _clubSamples
+                var out = []
+                if (syn.length === 0) {
+                    for (var j = 0; j < meas.length; ++j)
+                        if (_restsOnMeasurement(meas[j])) out.push(meas[j])
+                    return out
+                }
+                var t0 = syn[0].t_us, t1 = syn[syn.length - 1].t_us
                 for (var i = 0; i < meas.length; ++i)
-                    if (meas[i] && (meas[i].t_us < t0 || meas[i].t_us > t1)) out.push(meas[i])
+                    if (_restsOnMeasurement(meas[i]) && (meas[i].t_us < t0 || meas[i].t_us > t1)) out.push(meas[i])
                 for (var s = 0; s < syn.length; ++s) out.push(syn[s])
                 out.sort(function(a, b) { return a.t_us - b.t_us })
                 return out
             }
+            // How stale the fan's CURRENT line may be: a series entry older than this
+            // against the playhead is not "now" — it is the last thing the club was seen
+            // doing, and holding it bright while the coast runs on is the fan carrying on.
+            readonly property int kFanCurrentMaxLagUs: 40000
             // Coaching P-positions P1–P8 (shaft_position_first §2B) — grip/head
             // normalized like `samples`; absent/empty on pre-v3.5 swings and when
             // position extraction is off.
@@ -1392,8 +1416,12 @@ Item {
                     // so it scrubs smoothly at 240 Hz; the faint head trail above
                     // stays on the measured breadcrumbs (its time-span). Falls back to
                     // the measured sample when synth is absent (old swings) / off-span.
+                    // …but only while that series is at least as current as the measured
+                    // sample: past the last synth tick and the last measured tail entry the
+                    // fan series would hold its final line, and the honest thing to draw for
+                    // a coasted frame is the coasted sample itself, in its dim projected style.
                     var fi = _indexFor(_clubFan, t)
-                    var s  = (fi >= 0) ? _clubFan[fi] : _clubSamples[ci]
+                    var s  = (fi >= 0 && _clubFan[fi].t_us >= _clubSamples[ci].t_us) ? _clubFan[fi] : _clubSamples[ci]
                     var projected = (s.flags & kHeadProjected) !== 0
                     var gx = s.grip[0] * cr.width + cr.x, gy = s.grip[1] * cr.height + cr.y
                     var hx = s.head[0] * cr.width + cr.x, hy = s.head[1] * cr.height + cr.y
@@ -1544,7 +1572,7 @@ Item {
                             ctx.beginPath(); ctx.moveTo(ffgx, ffgy); ctx.lineTo(ffhd[0], ffhd[1]); ctx.stroke()
                         }
                         var fcur = _clubFan[feI]
-                        if (fcur && fcur.conf > 0) {
+                        if (fcur && fcur.conf > 0 && (t - fcur.t_us) <= kFanCurrentMaxLagUs) {
                             var cgx = fcur.grip[0] * cr.width + cr.x, cgy = fcur.grip[1] * cr.height + cr.y
                             var chx = fcur.head[0] * cr.width + cr.x, chy = fcur.head[1] * cr.height + cr.y
                             var chd = _clampHeadToRect(cgx, cgy, chx, chy, cr)

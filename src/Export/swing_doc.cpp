@@ -568,7 +568,10 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
                 { QStringLiteral("sigmaThetaDeg"), double(p.sigmaThetaDeg) },
                 { QStringLiteral("sigmaLenPx"),    double(p.sigmaLenPx) },
                 { QStringLiteral("stackN"), p.stackN },
-                { QStringLiteral("source"), int(p.source) } });
+                { QStringLiteral("source"), int(p.source) },
+                // How the instant was OBTAINED (TimingClass) — the follow-through synth gate
+                // reads it (2026-09-17). Additive; readers default to Measured.
+                { QStringLiteral("timing"), int(p.timing) } });
         // Face-on swing-plane transition delta (shaft_plane.h). Written ALWAYS,
         // even when nothing fitted, so a reader can tell "the producer ran and
         // found nothing" (valid false, channel -1, per-window reject codes set)

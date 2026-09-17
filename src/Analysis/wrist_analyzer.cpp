@@ -546,7 +546,41 @@ struct ShaftStage : AnalysisStage {
             // segmentation and the ladder stages hand it through untouched.
             ctx.detail->shaft = ctx.job.shaftPreloaded;
             ctx.detail->shaft.camera = ctx.job.cameraSources.front();
-            resynthesizeLayerC(ctx.detail->shaft, ShaftV3Config::fromOverrides(ctx.job.tuningOverrides));
+            const ShaftV3Config v3 = ShaftV3Config::fromOverrides(ctx.job.tuningOverrides);
+            // The follow-through plausibility pass the live tracker runs before locating its
+            // anchors (shaft_track_assembly.h) — applied here too, so a document written before
+            // the pass existed gets the same rule. The forearm is the lead elbow→hands line from
+            // the recorded pose at each sample's instant, the same construction the tracker uses.
+            {
+                const PoseTrack2D &pose = ctx.detail->pose2d;
+                const int leadElbow = (ctx.job.handedness == 2) ? 8 : 7;
+                std::vector<double> forearm(ctx.detail->shaft.samples.size(),
+                                            std::numeric_limits<double>::quiet_NaN());
+                // The reloaded track carries the camera frame it was measured in; the pose is
+                // normalised, so that is the scale the two are compared at.
+                const double fw = ctx.detail->shaft.frameWidth, fh = ctx.detail->shaft.frameHeight;
+                if (!pose.frames.empty() && fw > 0 && fh > 0) {
+                    size_t pi = 0;
+                    for (size_t k = 0; k < forearm.size(); ++k) {
+                        const int64_t t = ctx.detail->shaft.samples[k].t_us;
+                        while (pi + 1 < pose.frames.size() && pose.frames[pi + 1].t_us <= t) ++pi;
+                        const PoseFrame2D &pf = pose.frames[pi];
+                        if (pf.conf[size_t(leadElbow)] <= 0.30f) continue;
+                        const double grx = 0.5 * (pf.leadHand.x() + pf.trailHand.x()) * fw;
+                        const double gry = 0.5 * (pf.leadHand.y() + pf.trailHand.y()) * fh;
+                        const double ex = pf.kp[size_t(leadElbow)].x() * fw, ey = pf.kp[size_t(leadElbow)].y() * fh;
+                        if (std::hypot(ex - grx, ey - gry) < 8.0) continue;
+                        forearm[k] = std::atan2(ey - gry, ex - grx) * 180.0 / 3.14159265358979323846;
+                    }
+                }
+                const std::optional<int64_t> impactP = phaseTimeOpt(ctx.job.ladderPreloaded ? ctx.job.ladderPreloaded->events
+                                                                                              : ctx.seg.events, Phase::Impact);
+                const int64_t impactUs = impactP ? *impactP : ctx.job.impactUs;
+                const int demoted = demoteImplausibleFollowThrough(ctx.detail->shaft, forearm, impactUs, v3);
+                if (demoted > 0)
+                    ppInfo() << "[WristAnalysis] shaft: follow-through plausibility demoted" << demoted << "reused samples";
+            }
+            resynthesizeLayerC(ctx.detail->shaft, v3);
             if (!ctx.hasImuStreams() && ctx.job.ladderPreloaded)
                 ctx.segVision = *ctx.job.ladderPreloaded;
             ppInfo() << "[WristAnalysis] shaft: recorded track reused —"
