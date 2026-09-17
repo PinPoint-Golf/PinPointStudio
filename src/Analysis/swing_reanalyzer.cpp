@@ -17,6 +17,7 @@
  */
 
 #include "swing_reanalyzer.h"
+#include "recorded_products.h"   // shaftTrackFromAnalysisJson / segmentationFromAnalysisJson
 #include "analysis_versions.h"
 #include "ball_runner.h"
 #include "pose_runner.h"
@@ -807,9 +808,41 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
                                                                 ls.job.cameraSources.front());
             if (ls.job.ballPreloaded.frames.empty()) ls.job.ballPreloaded = {};
         }
+        // ── The shaft track and the resolved ladder (2026-09-17) ─────────────────
+        // Reused only on top of a reused pose AND ball (the track was computed from
+        // them), when the tracker that wrote it is the one that would run now, and
+        // when NO tuning override is in play at all — the ladder stages that would
+        // otherwise re-run (EventRefine, PositionsLadder, TimelineFusion) each have
+        // their own knobs, and a sweep that sets any knob wants everything re-run.
+        // Production re-analysis (the app, --write-back) sets none, which is exactly
+        // the metrics-only case this exists for: the tracker must not run again on
+        // the swing's mp4 and replace a good live track with a coasting one.
+        const QJsonObject vs = ver[QStringLiteral("shaft")].toObject();
+        const bool shaftMatch = ballMatch && !ls.job.ballPreloaded.frames.empty()
+            && ls.job.tuningOverrides.isEmpty() && !vs.isEmpty()
+            && vs[QStringLiteral("code")].toInt() == kShaftStageVersion
+            && ls.analysisIn.contains(QStringLiteral("club"));
+        if (shaftMatch) {
+            ls.job.shaftPreloaded = shaftTrackFromAnalysisJson(
+                ls.analysisIn[QStringLiteral("club")].toObject(), ls.job.cameraSources.front());
+            if (!ls.job.shaftPreloaded.valid || ls.job.shaftPreloaded.samples.empty()) {
+                ls.job.shaftPreloaded = {};
+            } else {
+                ls.job.ladderPreloaded = segmentationFromAnalysisJson(ls.analysisIn);
+                if (!ls.job.ladderPreloaded || ls.job.ladderPreloaded->events.empty()) {
+                    // A track without its ladder is not reusable: the ladder was refined
+                    // FROM this track, and re-deriving it would run the very stages the
+                    // reuse exists to hold still. Re-run the lot.
+                    ls.job.shaftPreloaded  = {};
+                    ls.job.ladderPreloaded = std::nullopt;
+                }
+            }
+        }
         ppInfo() << "[Reanalysis]" << swingDir << "reuse: pose"
                  << (ls.job.posePreloaded.frames.empty() ? "re-run" : "recorded") << "ball"
-                 << (ls.job.ballPreloaded.frames.empty() ? "re-run" : "recorded") << "shaft re-run";
+                 << (ls.job.ballPreloaded.frames.empty() ? "re-run" : "recorded") << "shaft"
+                 << (ls.job.shaftPreloaded.samples.empty() ? "re-run" : "recorded (synth refreshed)")
+                 << "ladder" << (ls.job.ladderPreloaded ? "recorded" : "re-run");
     }
     // Fail closed on an unknown discipline rather than silently analysing as Wrist
     // and writing a wrong-discipline analysis block back (our exports always carry

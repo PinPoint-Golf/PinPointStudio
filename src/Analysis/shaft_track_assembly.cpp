@@ -1361,6 +1361,179 @@ double projectedClubLenPx(double measuredClubLenPx, double sTypical, double r0Me
     return std::min(L, ceil);
 }
 
+// ── Layer C: synthesis between anchors (shaft_position_first §2 Layer C) ─────────
+// Factored out of decideTrack (2026-09-17) so the SAME code runs on a track rebuilt
+// from a swing document (resynthesizeLayerC below): the synth tier is a pure function
+// of the per-frame reconciled θ, the per-frame hand-axis grip and the located
+// P-anchors, so a metrics-only re-analysis can refresh it — including the hand-grip
+// rule — without re-running the tracker on a compressed clip it cannot see the club in.
+//   tUs/thetaDeg/gx/gy — per frame (thetaDeg may be NaN, gx/gy NaN where pose had no grip);
+//   isPred            — per frame, true where the θ came from the kinematic model (PRED tier),
+//                       so the impact-boundary fits prefer measured frames when they can.
+static void synthesizeLayerC(ShaftTrack2D& out, const std::vector<int64_t>& tUs,
+                             const std::vector<double>& thetaDeg, const std::vector<char>& isPred,
+                             const std::vector<double>& gx, const std::vector<double>& gy,
+                             const ShaftV3Config& cfg)
+{
+    const int nf = int(tUs.size());
+    if (nf < 2 || int(thetaDeg.size()) != nf || int(gx.size()) != nf || int(gy.size()) != nf) return;
+    // Dark by default. With ≥2 located P-anchors, fill a VISUALIZATION-TIER series
+    // (out.synth) — C¹ Hermite-interpolated samples on a dense fixed cadence
+    // (cfg.synth.rateHz, default 240 Hz) STRICTLY between consecutive anchors, so
+    // ¼× replay / the fan fill the inter-frame gaps. Flagged ShaftSynthesized so
+    // metrics/scoring/
+    // estimands EXCLUDE it (shaft_synthesis.h). samples[]/positions[]/θ/coverage/
+    // length above are untouched — synth rides alongside. cfg.synth.enabled==false
+    // ⇒ out.synth stays empty ⇒ swing.json byte-identical (soak contract).
+    if (cfg.synth.enabled && out.positions.size() >= 2) {
+        // Per-anchor slopes from the smoothed track: θ̇ (deg/s) = central-difference
+        // ω of the reconciled θ(t), median(5)+Gaussian(2) (the ω(t) convention shared
+        // with the B2 fit registration), sampled at the anchor instants → rad/s.
+        std::vector<double> omega(size_t(nf), 0.0);   // deg/s
+        for (int i = 0; i < nf; ++i) {
+            const int a = std::max(0, i - 1), b = std::min(nf - 1, i + 1);
+            const double dth = circWrap(thetaDeg[b] - thetaDeg[a]);
+            const double dt  = double(tUs[b] - tUs[a]) * 1e-6;
+            omega[size_t(i)] = (dt > 0.0) ? dth / dt : 0.0;
+        }
+        omega = gaussianFilter1d(medianFilter1d(omega, 5), 2.0);
+        // Grip velocity per frame (px/s), central difference of the pose-grip path.
+        std::vector<double> gvx(size_t(nf), 0.0), gvy(size_t(nf), 0.0);
+        for (int i = 0; i < nf; ++i) {
+            const int a = std::max(0, i - 1), b = std::min(nf - 1, i + 1);
+            const double dt = double(tUs[b] - tUs[a]) * 1e-6;
+            if (dt > 0.0) { gvx[size_t(i)] = (gx[b] - gx[a]) / dt; gvy[size_t(i)] = (gy[b] - gy[a]) / dt; }
+        }
+        // Linear-interpolate a per-frame signal at time t over the tUs timebase.
+        auto sampleAt = [&](const std::vector<double>& sig, int64_t t) {
+            int b = 0; while (b < nf && tUs[b] < t) ++b;
+            if (b <= 0)      return sig.front();
+            if (b >= nf)     return sig.back();
+            const double denom = double(tUs[b] - tUs[b - 1]);
+            const double frac  = denom > 0.0 ? double(t - tUs[b - 1]) / denom : 0.0;
+            return sig[size_t(b - 1)] + (sig[size_t(b)] - sig[size_t(b - 1)]) * frac;
+        };
+        std::vector<double>  thetaDot; thetaDot.reserve(out.positions.size());
+        std::vector<QPointF> gripVel;  gripVel.reserve(out.positions.size());
+        for (const ShaftPosition& p : out.positions) {
+            thetaDot.push_back(sampleAt(omega, p.t_us) * kPi / 180.0);   // deg/s → rad/s
+            gripVel.push_back(QPointF{ sampleAt(gvx, p.t_us), sampleAt(gvy, p.t_us) });
+        }
+        // Dense visualization grid: sample the synthesized tier at cfg.synth.rateHz
+        // (default 240 Hz) rather than the source frame cadence, so ¼× replay and the
+        // shaft fan read a smooth series that fills the inter-frame gaps. The grid
+        // spans only [first anchor, last anchor] (synth emits strictly between
+        // anchors) and synthesizeBetweenAnchors still drops any tick landing on an
+        // interior anchor. rateHz <= 0 ⇒ fall back to the source frame timestamps.
+        std::vector<int64_t> synthGrid;
+        if (cfg.synth.rateHz > 0.0) {
+            const int64_t t0     = out.positions.front().t_us;
+            const int64_t t1     = out.positions.back().t_us;
+            const double  stepUs = 1.0e6 / cfg.synth.rateHz;
+            if (t1 > t0 && stepUs >= 1.0) {
+                synthGrid.reserve(size_t(double(t1 - t0) / stepUs) + 2);
+                for (double t = double(t0); t <= double(t1) + 0.5; t += stepUs)
+                    synthGrid.push_back(int64_t(t + 0.5));
+            }
+        }
+        const std::vector<int64_t> &synthTimes = synthGrid.empty() ? tUs : synthGrid;
+
+        // ── Impact boundary (tuned::shaft::impactBoundary) ─────────────────────
+        // The smoothed ω above spans ±27 ms at 150 fps, so at P7 it averages the
+        // pre-contact rate with the post-contact one (half of it) and the Hermite
+        // into P7 bulges mid-bracket. Replace the rates around the impact bracket
+        // with ONE-SIDED linear fits of the reconciled θ: P7 in-rate from the
+        // window before P7 (floored at the bracket's mean rate — both anchors are
+        // θ-crossing definitions, so that mean is smear-immune), P7 out-rate from
+        // the window after, and the bracket-start anchor's out-rate fitted forward
+        // (capped at the mean, so the rate is monotone across the bracket). Every
+        // other anchor keeps in == out == the smoothed ω. A fit that cannot find
+        // minFrames frames even after widening leaves the smoothed value in place.
+        std::vector<double> thetaDotIn = thetaDot, thetaDotOut = thetaDot;
+        if (cfg.impactBoundary.enabled) {
+            const auto& ib = cfg.impactBoundary;
+            const double frameUs = nf > 1 ? double(tUs[nf - 1] - tUs[0]) / double(nf - 1) : 0.0;
+            // Linear LSQ slope (rad/s) of the unwrapped reconciled θ over frames with
+            // t ∈ [t0, t1], the window widened symmetrically one frame at a time until
+            // minFrames frames fit; measured tiers (not PRED) preferred when ≥ 2 of them.
+            auto fitSlope = [&](int64_t t0, int64_t t1, double& slopeRadS) -> bool {
+                std::vector<int> idx;
+                double lo = double(t0), hi = double(t1);
+                for (int widen = 0; widen < 8; ++widen) {
+                    idx.clear();
+                    for (int i = 0; i < nf; ++i)
+                        if (double(tUs[i]) >= lo && double(tUs[i]) <= hi
+                            && !std::isnan(thetaDeg[i])) idx.push_back(i);
+                    if (int(idx.size()) >= std::max(ib.minFrames, 2) || frameUs <= 0.0) break;
+                    lo -= frameUs; hi += frameUs;
+                }
+                std::vector<int> meas;
+                for (int i : idx) if (!isPred[size_t(i)]) meas.push_back(i);
+                if (meas.size() >= 2) idx.swap(meas);
+                if (idx.size() < 2) return false;
+                std::vector<double> ts(idx.size()), th(idx.size());
+                th[0] = thetaDeg[idx[0]];
+                for (size_t j = 0; j < idx.size(); ++j) {
+                    ts[j] = double(tUs[idx[j]] - tUs[idx[0]]) * 1e-6;
+                    if (j) th[j] = th[j - 1] + circWrap(thetaDeg[idx[j]] - thetaDeg[idx[j - 1]]);
+                }
+                double mt = 0, mth = 0;
+                for (size_t j = 0; j < idx.size(); ++j) { mt += ts[j]; mth += th[j]; }
+                mt /= double(idx.size()); mth /= double(idx.size());
+                double num = 0, den = 0;
+                for (size_t j = 0; j < idx.size(); ++j) { num += (ts[j] - mt) * (th[j] - mth); den += (ts[j] - mt) * (ts[j] - mt); }
+                if (den <= 0.0) return false;
+                slopeRadS = (num / den) * kPi / 180.0;
+                return true;
+            };
+            for (size_t k = 1; k < out.positions.size(); ++k) {
+                if (out.positions[k].p != 7) continue;
+                const ShaftPosition& p7 = out.positions[k];
+                const ShaftPosition& pa = out.positions[k - 1];
+                const double dtB  = double(p7.t_us - pa.t_us) * 1e-6;
+                const double mean = dtB > 0.0 ? std::remainder(p7.thetaRad - pa.thetaRad, 2.0 * kPi) / dtB : 0.0;
+                double sIn = 0.0, sOut = 0.0, sPrev = 0.0;
+                if (fitSlope(p7.t_us - ib.windowUs, p7.t_us, sIn)) {
+                    if (ib.floorInSlope && mean != 0.0
+                        && (sIn * mean <= 0.0 || std::abs(sIn) < std::abs(mean))) sIn = mean;
+                    thetaDotIn[k] = sIn;
+                }
+                if (fitSlope(p7.t_us, p7.t_us + ib.windowUs, sOut)) thetaDotOut[k] = sOut;
+                if (fitSlope(pa.t_us, pa.t_us + ib.windowUs, sPrev)) {
+                    if (ib.floorInSlope && mean != 0.0
+                        && (sPrev * mean <= 0.0 || std::abs(sPrev) > std::abs(mean))) sPrev = mean;
+                    thetaDotOut[k - 1] = sPrev;
+                }
+            }
+        }
+        // The grip of every tick comes from the HAND track (shaft_synthesis.h): the same
+        // per-frame hand-axis grip the samples carry, never a Hermite between anchors.
+        HandGripTrack hands;
+        hands.tUs = &tUs; hands.x = &gx; hands.y = &gy;
+        out.synth = synthesizeBetweenAnchors(out.positions, thetaDotIn, thetaDotOut, gripVel,
+                                             synthTimes, cfg.synth, hands);
+    }
+}
+
+void resynthesizeLayerC(ShaftTrack2D& track, const ShaftV3Config& cfg)
+{
+    track.synth.clear();
+    if (track.samples.size() < 2) return;
+    const size_t n = track.samples.size();
+    std::vector<int64_t> tUs(n);
+    std::vector<double>  thetaDeg(n), gx(n), gy(n);
+    std::vector<char>    isPred(n, 0);
+    for (size_t i = 0; i < n; ++i) {
+        const ShaftSample2D& s = track.samples[i];
+        tUs[i]      = s.t_us;
+        thetaDeg[i] = s.thetaRad * 180.0 / kPi;
+        gx[i]       = s.gripPx.x();
+        gy[i]       = s.gripPx.y();
+        isPred[i]   = (s.flags & ShaftKinematicPredicted) ? 1 : 0;
+    }
+    synthesizeLayerC(track, tUs, thetaDeg, isPred, gx, gy, cfg);
+}
+
 ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>& tUs,
                          const std::vector<double>& gxIn, const std::vector<double>& gyIn,
                          const std::vector<double>& phiRawIn,
@@ -2736,137 +2909,12 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     }
 
     // ── Layer C: synthesis between anchors (shaft_position_first §2 Layer C) ────
-    // Dark by default. With ≥2 located P-anchors, fill a VISUALIZATION-TIER series
-    // (out.synth) — C¹ Hermite-interpolated samples on a dense fixed cadence
-    // (cfg.synth.rateHz, default 240 Hz) STRICTLY between consecutive anchors, so
-    // ¼× replay / the fan fill the inter-frame gaps. Flagged ShaftSynthesized so
-    // metrics/scoring/
-    // estimands EXCLUDE it (shaft_synthesis.h). samples[]/positions[]/θ/coverage/
-    // length above are untouched — synth rides alongside. cfg.synth.enabled==false
-    // ⇒ out.synth stays empty ⇒ swing.json byte-identical (soak contract).
-    if (cfg.synth.enabled && out.positions.size() >= 2) {
-        // Per-anchor slopes from the smoothed track: θ̇ (deg/s) = central-difference
-        // ω of the reconciled θ(t), median(5)+Gaussian(2) (the ω(t) convention shared
-        // with the B2 fit registration), sampled at the anchor instants → rad/s.
-        std::vector<double> omega(size_t(nf), 0.0);   // deg/s
-        for (int i = 0; i < nf; ++i) {
-            const int a = std::max(0, i - 1), b = std::min(nf - 1, i + 1);
-            const double dth = circWrap(rec.thetaOut[b] - rec.thetaOut[a]);
-            const double dt  = double(tUs[b] - tUs[a]) * 1e-6;
-            omega[size_t(i)] = (dt > 0.0) ? dth / dt : 0.0;
-        }
-        omega = gaussianFilter1d(medianFilter1d(omega, 5), 2.0);
-        // Grip velocity per frame (px/s), central difference of the pose-grip path.
-        std::vector<double> gvx(size_t(nf), 0.0), gvy(size_t(nf), 0.0);
-        for (int i = 0; i < nf; ++i) {
-            const int a = std::max(0, i - 1), b = std::min(nf - 1, i + 1);
-            const double dt = double(tUs[b] - tUs[a]) * 1e-6;
-            if (dt > 0.0) { gvx[size_t(i)] = (gx[b] - gx[a]) / dt; gvy[size_t(i)] = (gy[b] - gy[a]) / dt; }
-        }
-        // Linear-interpolate a per-frame signal at time t over the tUs timebase.
-        auto sampleAt = [&](const std::vector<double>& sig, int64_t t) {
-            int b = 0; while (b < nf && tUs[b] < t) ++b;
-            if (b <= 0)      return sig.front();
-            if (b >= nf)     return sig.back();
-            const double denom = double(tUs[b] - tUs[b - 1]);
-            const double frac  = denom > 0.0 ? double(t - tUs[b - 1]) / denom : 0.0;
-            return sig[size_t(b - 1)] + (sig[size_t(b)] - sig[size_t(b - 1)]) * frac;
-        };
-        std::vector<double>  thetaDot; thetaDot.reserve(out.positions.size());
-        std::vector<QPointF> gripVel;  gripVel.reserve(out.positions.size());
-        for (const ShaftPosition& p : out.positions) {
-            thetaDot.push_back(sampleAt(omega, p.t_us) * kPi / 180.0);   // deg/s → rad/s
-            gripVel.push_back(QPointF{ sampleAt(gvx, p.t_us), sampleAt(gvy, p.t_us) });
-        }
-        // Dense visualization grid: sample the synthesized tier at cfg.synth.rateHz
-        // (default 240 Hz) rather than the source frame cadence, so ¼× replay and the
-        // shaft fan read a smooth series that fills the inter-frame gaps. The grid
-        // spans only [first anchor, last anchor] (synth emits strictly between
-        // anchors) and synthesizeBetweenAnchors still drops any tick landing on an
-        // interior anchor. rateHz <= 0 ⇒ fall back to the source frame timestamps.
-        std::vector<int64_t> synthGrid;
-        if (cfg.synth.rateHz > 0.0) {
-            const int64_t t0     = out.positions.front().t_us;
-            const int64_t t1     = out.positions.back().t_us;
-            const double  stepUs = 1.0e6 / cfg.synth.rateHz;
-            if (t1 > t0 && stepUs >= 1.0) {
-                synthGrid.reserve(size_t(double(t1 - t0) / stepUs) + 2);
-                for (double t = double(t0); t <= double(t1) + 0.5; t += stepUs)
-                    synthGrid.push_back(int64_t(t + 0.5));
-            }
-        }
-        const std::vector<int64_t> &synthTimes = synthGrid.empty() ? tUs : synthGrid;
-
-        // ── Impact boundary (tuned::shaft::impactBoundary) ─────────────────────
-        // The smoothed ω above spans ±27 ms at 150 fps, so at P7 it averages the
-        // pre-contact rate with the post-contact one (half of it) and the Hermite
-        // into P7 bulges mid-bracket. Replace the rates around the impact bracket
-        // with ONE-SIDED linear fits of the reconciled θ: P7 in-rate from the
-        // window before P7 (floored at the bracket's mean rate — both anchors are
-        // θ-crossing definitions, so that mean is smear-immune), P7 out-rate from
-        // the window after, and the bracket-start anchor's out-rate fitted forward
-        // (capped at the mean, so the rate is monotone across the bracket). Every
-        // other anchor keeps in == out == the smoothed ω. A fit that cannot find
-        // minFrames frames even after widening leaves the smoothed value in place.
-        std::vector<double> thetaDotIn = thetaDot, thetaDotOut = thetaDot;
-        if (cfg.impactBoundary.enabled) {
-            const auto& ib = cfg.impactBoundary;
-            const double frameUs = nf > 1 ? double(tUs[nf - 1] - tUs[0]) / double(nf - 1) : 0.0;
-            // Linear LSQ slope (rad/s) of the unwrapped reconciled θ over frames with
-            // t ∈ [t0, t1], the window widened symmetrically one frame at a time until
-            // minFrames frames fit; measured tiers (not PRED) preferred when ≥ 2 of them.
-            auto fitSlope = [&](int64_t t0, int64_t t1, double& slopeRadS) -> bool {
-                std::vector<int> idx;
-                double lo = double(t0), hi = double(t1);
-                for (int widen = 0; widen < 8; ++widen) {
-                    idx.clear();
-                    for (int i = 0; i < nf; ++i)
-                        if (double(tUs[i]) >= lo && double(tUs[i]) <= hi
-                            && !std::isnan(rec.thetaOut[i])) idx.push_back(i);
-                    if (int(idx.size()) >= std::max(ib.minFrames, 2) || frameUs <= 0.0) break;
-                    lo -= frameUs; hi += frameUs;
-                }
-                std::vector<int> meas;
-                for (int i : idx) if (tierOf[size_t(i)] != PRED) meas.push_back(i);
-                if (meas.size() >= 2) idx.swap(meas);
-                if (idx.size() < 2) return false;
-                std::vector<double> ts(idx.size()), th(idx.size());
-                th[0] = rec.thetaOut[idx[0]];
-                for (size_t j = 0; j < idx.size(); ++j) {
-                    ts[j] = double(tUs[idx[j]] - tUs[idx[0]]) * 1e-6;
-                    if (j) th[j] = th[j - 1] + circWrap(rec.thetaOut[idx[j]] - rec.thetaOut[idx[j - 1]]);
-                }
-                double mt = 0, mth = 0;
-                for (size_t j = 0; j < idx.size(); ++j) { mt += ts[j]; mth += th[j]; }
-                mt /= double(idx.size()); mth /= double(idx.size());
-                double num = 0, den = 0;
-                for (size_t j = 0; j < idx.size(); ++j) { num += (ts[j] - mt) * (th[j] - mth); den += (ts[j] - mt) * (ts[j] - mt); }
-                if (den <= 0.0) return false;
-                slopeRadS = (num / den) * kPi / 180.0;
-                return true;
-            };
-            for (size_t k = 1; k < out.positions.size(); ++k) {
-                if (out.positions[k].p != 7) continue;
-                const ShaftPosition& p7 = out.positions[k];
-                const ShaftPosition& pa = out.positions[k - 1];
-                const double dtB  = double(p7.t_us - pa.t_us) * 1e-6;
-                const double mean = dtB > 0.0 ? std::remainder(p7.thetaRad - pa.thetaRad, 2.0 * kPi) / dtB : 0.0;
-                double sIn = 0.0, sOut = 0.0, sPrev = 0.0;
-                if (fitSlope(p7.t_us - ib.windowUs, p7.t_us, sIn)) {
-                    if (ib.floorInSlope && mean != 0.0
-                        && (sIn * mean <= 0.0 || std::abs(sIn) < std::abs(mean))) sIn = mean;
-                    thetaDotIn[k] = sIn;
-                }
-                if (fitSlope(p7.t_us, p7.t_us + ib.windowUs, sOut)) thetaDotOut[k] = sOut;
-                if (fitSlope(pa.t_us, pa.t_us + ib.windowUs, sPrev)) {
-                    if (ib.floorInSlope && mean != 0.0
-                        && (sPrev * mean <= 0.0 || std::abs(sPrev) > std::abs(mean))) sPrev = mean;
-                    thetaDotOut[k - 1] = sPrev;
-                }
-            }
-        }
-        out.synth = synthesizeBetweenAnchors(out.positions, thetaDotIn, thetaDotOut, gripVel,
-                                             synthTimes, cfg.synth);
+    // Factored into synthesizeLayerC() above, which is also the re-synthesis path a
+    // reused track takes; the tier vector collapses to "was this frame PRED".
+    {
+        std::vector<char> isPred(size_t(nf), 0);
+        for (int i = 0; i < nf; ++i) isPred[size_t(i)] = (tierOf[size_t(i)] == PRED) ? 1 : 0;
+        synthesizeLayerC(out, tUs, rec.thetaOut, isPred, gx, gy, cfg);
     }
 
     out.coverage = spanFrames > 0 ? float(spanMeas) / float(spanFrames) : 0.f;

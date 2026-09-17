@@ -725,6 +725,13 @@ double projectedClubLenPx(double measuredClubLenPx, double sTypical, double r0Me
 // hand-axis prior (cfg.handAxisPrior). Empty ⇒ the prior contributes nothing;
 // with cfg.handAxisPrior.enabled false the term is skipped regardless, so the
 // θ path is bit-identical to a pre-WB4 run either way.
+// Rebuild the Layer C synth tier of an existing track from its OWN samples and P-anchors
+// (2026-09-17): the synth is a pure function of the per-frame reconciled θ, the per-frame
+// hand-axis grip and the anchors, so a track reused from a swing document under the version
+// gate (swing_reanalyzer.cpp) gets a fresh visualisation tier — with the hand-grip rule —
+// without the tracker running again. Clears and refills `track.synth`; touches nothing else.
+void resynthesizeLayerC(ShaftTrack2D& track, const ShaftV3Config& cfg);
+
 ShaftTrack2D decideTrack(const FrameSource& frameAt,
                          const std::vector<int64_t>& tUs,
                          const std::vector<double>& gx, const std::vector<double>& gy,

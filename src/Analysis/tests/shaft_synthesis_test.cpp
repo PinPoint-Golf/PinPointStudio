@@ -230,6 +230,77 @@ int main()
         check(mid && near(mid->thetaDotRadS, 1.7, 1e-9), "curveRate=false ⇒ linear anchor-rate interpolation (legacy)");
     }
 
+    // ═══ The grip is the HANDS (2026-09-17) ═════════════════════════════════════════
+    //
+    // Two anchors whose grips sit on a hand path that BENDS between them. The legacy
+    // Hermite draws the grip on a smooth curve between the anchor grips; the hand-track
+    // overload must put every tick's grip on the hand path itself, and re-derive the head
+    // from it so the shaft stays a rigid line of the synthesised length. A tick the hand
+    // track cannot bracket (a NaN run wider than maxGapUs) falls back to the Hermite, and
+    // an unavailable track reproduces the legacy output exactly.
+    std::printf("=== shaft_synthesis: the grip follows the hand track ===\n");
+    {
+        SynthConfig cfg; cfg.enabled = true;
+        const ShaftPosition a = anchor(1, 1'000'000, 500.0, 600.0, 0.30, 400.0, 0.80f);
+        const ShaftPosition b = anchor(2, 1'400'000, 700.0, 600.0, 0.90, 420.0, 0.50f);
+        const double sec = 0.4;
+        const double thDot = (b.thetaRad - a.thetaRad) / sec;
+        const std::vector<double>  rates  = { thDot, thDot };
+        const std::vector<QPointF> gv     = { QPointF{ 500.0, 0.0 }, QPointF{ 500.0, 0.0 } };
+        // Hand track at 120 fps: x linear from 500 to 700, y a 60 px bump in the middle —
+        // the bend no Hermite between two flat anchors could reproduce.
+        std::vector<int64_t> hT; std::vector<double> hX, hY;
+        for (int64_t t = 1'000'000; t <= 1'400'000; t += 8'333) {
+            const double u = double(t - 1'000'000) / 400'000.0;
+            hT.push_back(t); hX.push_back(500.0 + 200.0 * u); hY.push_back(600.0 - 60.0 * std::sin(u * 3.14159265358979323846));
+        }
+        std::vector<int64_t> ticks;
+        for (int64_t t = 1'000'000; t <= 1'400'000; t += 4'167) ticks.push_back(t);
+
+        HandGripTrack hands; hands.tUs = &hT; hands.x = &hX; hands.y = &hY;
+        const auto legacy = synthesizeBetweenAnchors({ a, b }, rates, rates, gv, ticks, cfg);
+        const auto onHands = synthesizeBetweenAnchors({ a, b }, rates, rates, gv, ticks, cfg, hands);
+        check(legacy.size() == onHands.size() && !onHands.empty(), "same tick count with and without the hand track");
+
+        bool followsHands = true, headRigid = true, thetaSame = true, legacyBulges = false;
+        for (size_t i = 0; i < onHands.size(); ++i) {
+            const ShaftSample2D &s = onHands[i];
+            const double u = double(s.t_us - 1'000'000) / 400'000.0;
+            const double ex = 500.0 + 200.0 * u, ey = 600.0 - 60.0 * std::sin(u * 3.14159265358979323846);
+            // Linear interpolation of a sine between 8.3 ms frames is within a pixel of it.
+            if (!near(s.gripPx.x(), ex, 1.0) || !near(s.gripPx.y(), ey, 1.0)) followsHands = false;
+            const double L = std::hypot(s.headPx.x() - s.gripPx.x(), s.headPx.y() - s.gripPx.y());
+            if (!near(L, s.visibleLenPx, 1e-6)) headRigid = false;
+            if (!near(s.thetaRad, legacy[i].thetaRad, 1e-12)) thetaSame = false;
+            if (std::abs(legacy[i].gripPx.y() - ey) > 20.0) legacyBulges = true;
+        }
+        check(followsHands, "every tick's grip lies on the hand path (±1 px)");
+        check(headRigid, "the head is re-derived: |head − grip| == the synthesised length");
+        check(thetaSame, "θ is untouched — only the grip rule changed");
+        check(legacyBulges, "…and the legacy Hermite did NOT follow the bend (the defect this fixes)");
+
+        // A NaN run wider than the gap: those ticks fall back to the Hermite, the rest follow.
+        std::vector<double> hXg = hX, hYg = hY;
+        for (size_t i = 20; i < 30; ++i) { hXg[i] = std::nan(""); hYg[i] = std::nan(""); }   // ~83 ms hole
+        HandGripTrack gappy; gappy.tUs = &hT; gappy.x = &hXg; gappy.y = &hYg;
+        const auto withGap = synthesizeBetweenAnchors({ a, b }, rates, rates, gv, ticks, cfg, gappy);
+        bool holeIsLegacy = true, edgesFollow = true;
+        for (size_t i = 0; i < withGap.size(); ++i) {
+            const int64_t t = withGap[i].t_us;
+            const bool inHole = t > hT[20] && t < hT[29];
+            if (inHole && !near(withGap[i].gripPx.y(), legacy[i].gripPx.y(), 1e-9)) holeIsLegacy = false;
+            if (t < hT[15] && !near(withGap[i].gripPx.y(), onHands[i].gripPx.y(), 1e-9)) edgesFollow = false;
+        }
+        check(holeIsLegacy, "inside an unbracketable NaN run the grip falls back to the Hermite");
+        check(edgesFollow, "outside it the grip still follows the hands");
+
+        const auto none = synthesizeBetweenAnchors({ a, b }, rates, rates, gv, ticks, cfg, HandGripTrack{});
+        bool identical = none.size() == legacy.size();
+        for (size_t i = 0; identical && i < none.size(); ++i)
+            identical = near(none[i].gripPx.x(), legacy[i].gripPx.x(), 0.0) && near(none[i].gripPx.y(), legacy[i].gripPx.y(), 0.0);
+        check(identical, "an unavailable hand track reproduces the legacy output bit for bit");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;
 }

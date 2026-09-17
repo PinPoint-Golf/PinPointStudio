@@ -538,15 +538,32 @@ struct ShaftStage : AnalysisStage {
         ShaftTracker::ShaftTrace strace;
         QElapsedTimer shaftWall;
         shaftWall.start();
-        ctx.detail->shaft = ShaftTracker::track(*ctx.window, ctx.detail->pose2d, *ctx.ball,
-                                                ctx.streams, ctx.segImu.value_or(Segmentation{}),
-                                                sub, ctx.hasImuStreams() ? nullptr : &strace);
+        if (!ctx.job.shaftPreloaded.samples.empty()) {
+            // Version-gated reuse (analysis_versions.h, recorded_products.h): the recorded
+            // samples, anchors, lengths and plane fit come back as written; only the Layer C
+            // visualisation tier is rebuilt, from those samples, so it follows the current
+            // rule (the grip is the hands). The recorded ladder rides along as the vision
+            // segmentation and the ladder stages hand it through untouched.
+            ctx.detail->shaft = ctx.job.shaftPreloaded;
+            ctx.detail->shaft.camera = ctx.job.cameraSources.front();
+            resynthesizeLayerC(ctx.detail->shaft, ShaftV3Config::fromOverrides(ctx.job.tuningOverrides));
+            if (!ctx.hasImuStreams() && ctx.job.ladderPreloaded)
+                ctx.segVision = *ctx.job.ladderPreloaded;
+            ppInfo() << "[WristAnalysis] shaft: recorded track reused —"
+                     << ctx.detail->shaft.samples.size() << "samples,"
+                     << ctx.detail->shaft.positions.size() << "positions, synth"
+                     << ctx.detail->shaft.synth.size() << "ticks";
+        } else {
+            ctx.detail->shaft = ShaftTracker::track(*ctx.window, ctx.detail->pose2d, *ctx.ball,
+                                                    ctx.streams, ctx.segImu.value_or(Segmentation{}),
+                                                    sub, ctx.hasImuStreams() ? nullptr : &strace);
+            if (!ctx.hasImuStreams())
+                ctx.segVision = strace.segmentation;
+        }
         ctx.detail->timings.shaftMs = int(shaftWall.elapsed());
         ctx.detail->versions.shaft = kShaftStageVersion;
         // Surface the resolved ball track for the replay overlay (design §9).
         ctx.detail->ball = *ctx.ball;
-        if (!ctx.hasImuStreams())
-            ctx.segVision = strace.segmentation;
     }
 };
 
@@ -608,6 +625,7 @@ struct EventRefineStage : AnalysisStage {
     bool canRun(const AnalysisContext &ctx) const override
     {
         return EventRefineConfig::fromOverrides(ctx.job.tuningOverrides).enabled
+            && !ctx.job.ladderPreloaded   // a reused ladder is already refined (recorded_products.h)
             && !ctx.segImu.has_value() && ctx.caps.hasCamera(CameraPlacement::FaceOn)
             && ctx.detail->shaft.valid && ctx.seg.conf > 0.f;
     }
@@ -654,6 +672,7 @@ struct PositionsLadderStage : AnalysisStage {
     bool canRun(const AnalysisContext &ctx) const override
     {
         return PositionsLadderConfig::fromOverrides(ctx.job.tuningOverrides).enabled
+            && !ctx.job.ladderPreloaded   // a reused ladder already carries its P-positions
             && !TimelineFusionConfig::fromOverrides(ctx.job.tuningOverrides).enabled
             && !ctx.detail->shaft.positions.empty() && !ctx.seg.events.empty();
     }
@@ -679,6 +698,7 @@ struct TimelineFusionStage : AnalysisStage {
     bool canRun(const AnalysisContext &ctx) const override
     {
         return TimelineFusionConfig::fromOverrides(ctx.job.tuningOverrides).enabled
+            && !ctx.job.ladderPreloaded   // a reused ladder is already fused (its decisions rode along)
             && !ctx.detail->shaft.positions.empty() && !ctx.seg.events.empty();
     }
     void run(AnalysisContext &ctx) override

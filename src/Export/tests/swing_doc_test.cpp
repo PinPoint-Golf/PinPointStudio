@@ -8,17 +8,20 @@
 #include "../../Analysis/imu_refusion_check.h"   // ImuRefusionVerdict (header-only)
 #include "../../Analysis/capture_integrity_check.h"   // CaptureIntegrityVerdict (header-only)
 #include "../../Analysis/swing_analysis.h"
+#include "../../Analysis/recorded_products.h"   // the club / ladder readers this file round-trips
 
 // Stub — avoids linking swing_paths.cpp (which pulls in the PpLogStream logging deps).
 // SwingDocReader::latestSessionDir() (the only sanitise() user) isn't exercised here.
 QString pinpoint::SwingPaths::sanitise(const QString &raw) { return raw; }
 
+#include <cmath>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QTemporaryDir>
 #include <QJsonObject>
 #include <cstdio>
 
@@ -31,6 +34,7 @@ static void check(bool c, const char *label)
     std::printf("  [%s] %s\n", c ? "PASS" : "FAIL", label);
     if (!c) ++g_fail;
 }
+static bool near(double a, double b, double tol) { return std::fabs(a - b) <= tol; }
 
 // The document as it sits on disk — what a re-analysis re-reads and hands back to
 // writeSwingJson as its manifest.
@@ -1315,6 +1319,108 @@ int main()
             std::printf("      offenders:\n        %s\n",
                         qPrintable(offenders.join(QStringLiteral("\n        "))));
         check(offenders.isEmpty(), "src/Analysis never reads the `origin` key");
+    }
+
+    // ═══ Recorded products round-trip (recorded_products.h, 2026-09-17) ══════════════
+    //
+    // The club block and the ladder come back from the document as the structs that wrote
+    // them, field for field, because the re-analysis reuse path (swing_reanalyzer.cpp) hands
+    // exactly these to the Shaft stage in place of running the tracker. A field that drifts
+    // between writer and reader is a track that silently changes on a metrics-only sweep.
+    std::printf("=== recorded products: club + ladder round-trip ===\n");
+    {
+        SwingAnalysis b;
+        b.tier = 0;
+        b.phases.push_back({ Phase::Address, 300000, 0.95f, SegmentRole::Unknown });
+        b.phases.push_back({ Phase::Top, 900000, 0.90f, SegmentRole::LeadHand });
+        b.phases.push_back({ Phase::Impact, 1200000, 1.0f, SegmentRole::Unknown });
+        b.segmentation.events       = b.phases;
+        b.segmentation.swingStartUs = 250000;
+        b.segmentation.swingEndUs   = 1500000;
+        b.segmentation.conf         = 0.9f;
+        b.segmentation.version      = 5;   // fused ⇒ timing is written
+        b.phases[1].timing = TimingClass::Proxy;
+        b.segmentation.events[1].timing = TimingClass::Proxy;
+        FusionDecision fd; fd.phase = Phase::Top; fd.winner = SegmentRole::LeadHand;
+        fd.loser = SegmentRole::Club; fd.deltaUs = 4200; fd.reason = FusionReason::Inserted;
+        b.segmentation.fusion.push_back(fd);
+
+        b.shaft.camera = 3; b.shaft.valid = true; b.shaft.coverage = 0.91f; b.shaft.imuVisionCorr = 0.5f;
+        b.shaft.frameWidth = 1280; b.shaft.frameHeight = 1024;
+        b.shaft.measuredClubLenPx = 301.5f; b.shaft.modelVisionResidualDeg = 2.5f;
+        for (int i = 0; i < 6; ++i) {
+            ShaftSample2D s;
+            s.t_us = 300000 + i * 8333; s.gripPx = QPointF(600 + 5 * i, 650 - 3 * i);
+            s.headPx = QPointF(400 + 7 * i, 900 - 2 * i); s.thetaRad = 1.9 + 0.01 * i;
+            s.thetaDotRadS = -0.5 * i; s.visibleLenPx = 280 + i; s.conf = 0.7f;
+            s.flags = uint16_t(i % 2 ? ShaftMeasured : (ShaftCoasted | ShaftBallAnchored));
+            s.headConf = 0.4f; s.headSigmaPx = 2.5f; s.lineConf = (i == 2) ? 0.3f : -1.f;
+            b.shaft.samples.push_back(s);
+        }
+        ShaftSample2D pr = b.shaft.samples[0]; pr.flags = ShaftKinematicPredicted; b.shaft.predicted.push_back(pr);
+        ShaftSample2D sy = b.shaft.samples[1]; sy.flags = ShaftSynthesized; sy.t_us += 4167; b.shaft.synth.push_back(sy);
+        ShaftPosition p1; p1.p = 1; p1.t_us = 300000; p1.gripPx = QPointF(600, 650); p1.headPx = QPointF(400, 900);
+        p1.thetaRad = 1.9; p1.lenPx = 280; p1.conf = 0.8f; p1.sigmaThetaDeg = 1.5f; p1.sigmaLenPx = 4.f;
+        p1.stackN = 3; p1.source = uint8_t(PositionSource::MilestoneFit);
+        ShaftPosition p7 = p1; p7.p = 7; p7.t_us = 1200000; p7.source = uint8_t(PositionSource::TrackSample);
+        b.shaft.positions = { p1, p7 };
+        b.shaft.lengths.ballPx = 290; b.shaft.lengths.fusedPx = 295.5; b.shaft.lengths.fusedSigmaPx = 6.5;
+        b.shaft.lengths.fusedConf = 0.77; b.shaft.lengths.ladderRung = 2; b.shaft.lengths.nEstimators = 3;
+        b.shaft.plane.valid = true; b.shaft.plane.channel = 0;
+        b.shaft.plane.measured.fitted = true; b.shaft.plane.measured.ratioDown = 0.74;
+        b.shaft.plane.measured.nodeDownDeg = -1.2; b.shaft.plane.measured.rejectBack = 2;
+        b.shaft.plane.synth.anchorsDown = 5; b.shaft.plane.synth.anchorConfMin = 0.35f;
+
+        QTemporaryDir td;
+        const QString dir2 = td.path() + QStringLiteral("/swing_0009");
+        QDir().mkpath(dir2);
+        QString err2;
+        if (!SwingDocWriter::writeSwingJson(dir2, manifest, &b, &err2)) {
+            std::printf("  [FAIL] write: %s\n", err2.toUtf8().constData());
+            ++g_fail;
+        } else {
+            QFile f2(dir2 + QStringLiteral("/swing.json"));
+            check(f2.open(QIODevice::ReadOnly), "round-trip document readable");
+            const QJsonObject an2 = QJsonDocument::fromJson(f2.readAll()).object()[QStringLiteral("analysis")].toObject();
+            f2.close();
+            const ShaftTrack2D t = shaftTrackFromAnalysisJson(an2[QStringLiteral("club")].toObject(), 3);
+            check(t.valid && t.camera == 3 && t.frameWidth == 1280 && t.frameHeight == 1024, "club: header fields");
+            check(near(t.coverage, 0.91, 1e-6) && near(t.measuredClubLenPx, 301.5, 1e-3)
+                      && near(t.modelVisionResidualDeg, 2.5, 1e-6), "club: scalars");
+            check(t.samples.size() == 6 && t.predicted.size() == 1 && t.synth.size() == 1 && t.positions.size() == 2,
+                  "club: sample / predicted / synth / position counts");
+            bool samplesExact = true;
+            for (size_t i = 0; i < 6; ++i) {
+                const ShaftSample2D &w = b.shaft.samples[i], &r = t.samples[i];
+                // Times are written window-relative; the fixture window starts at 0.
+                if (w.t_us != r.t_us || !near(w.gripPx.x(), r.gripPx.x(), 1e-6) || !near(w.headPx.y(), r.headPx.y(), 1e-6)
+                    || !near(w.thetaRad, r.thetaRad, 1e-12) || !near(w.thetaDotRadS, r.thetaDotRadS, 1e-12)
+                    || !near(w.visibleLenPx, r.visibleLenPx, 1e-9) || w.flags != r.flags
+                    || !near(w.headConf, r.headConf, 1e-6) || !near(w.lineConf, r.lineConf, 1e-6))
+                    samplesExact = false;
+            }
+            check(samplesExact, "club: every sample field round-trips (grip/head de-normalised by the frame)");
+            check(t.positions[1].p == 7 && t.positions[0].stackN == 3
+                      && t.positions[0].source == uint8_t(PositionSource::MilestoneFit)
+                      && near(t.positions[0].sigmaThetaDeg, 1.5, 1e-6), "club: positions round-trip");
+            check(near(t.lengths.fusedPx, 295.5, 1e-9) && t.lengths.ladderRung == 2 && t.lengths.nEstimators == 3
+                      && near(t.lengths.ballPx, 290, 1e-9), "club: lengths round-trip");
+            check(t.plane.valid && t.plane.channel == 0 && t.plane.measured.fitted
+                      && near(t.plane.measured.ratioDown, 0.74, 1e-9) && t.plane.measured.rejectBack == 2
+                      && t.plane.synth.anchorsDown == 5 && near(t.plane.synth.anchorConfMin, 0.35, 1e-6),
+                  "club: plane round-trip");
+            const std::optional<Segmentation> seg = segmentationFromAnalysisJson(an2);
+            check(seg.has_value() && seg->events.size() == 3, "ladder: three phases back");
+            check(seg && seg->events[1].phase == Phase::Top && seg->events[1].t_us == 900000
+                      && seg->events[1].provenance == SegmentRole::LeadHand && seg->events[1].timing == TimingClass::Proxy,
+                  "ladder: phase, instant, provenance and timing round-trip");
+            check(seg && seg->swingStartUs == 250000 && seg->swingEndUs == 1500000 && near(seg->conf, 0.9, 1e-6)
+                      && seg->version == 5, "ladder: bounds, conf and version round-trip");
+            check(seg && seg->fusion.size() == 1 && seg->fusion[0].winner == SegmentRole::LeadHand
+                      && seg->fusion[0].deltaUs == 4200, "ladder: fusion decisions round-trip");
+            check(!shaftTrackFromAnalysisJson(QJsonObject(), 3).valid, "an absent club block reads as no track");
+            check(!segmentationFromAnalysisJson(QJsonObject()).has_value(), "no phases reads as no ladder");
+        }
     }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);

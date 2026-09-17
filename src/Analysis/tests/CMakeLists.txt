@@ -424,6 +424,7 @@ pp_add_test(shot_source_map_test
 # CT-I37 and for the same reason.
 pp_add_test(swing_doc_test
     SOURCES ${SRC}/Export/tests/swing_doc_test.cpp ${SRC}/Export/swing_doc.cpp
+            ${ANALYSIS}/recorded_products.cpp   # the club / ladder readers round-trip the writer
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
     INCLUDE ${SRC}/LaunchMonitor
@@ -685,6 +686,15 @@ pp_add_test(pose_smoother_test SOURCES pose_smoother_test.cpp ${ANALYSIS}/pose_s
 # strictly-between emission window, absent-anchor subsets. Header-only, Qt (QPointF/
 # ShaftSample2D) only — no OpenCV, no fixture.
 pp_add_test(shaft_synthesis_test SOURCES shaft_synthesis_test.cpp)
+
+# Layer C re-synthesis from a track's own samples (resynthesizeLayerC): the synth tier a
+# reused track gets follows the HAND track, not a Hermite between anchors, and is what the
+# live assembly would have produced from the same samples. Links the assembly like
+# shaft_decide_test does.
+pp_add_test(shaft_resynth_test
+    SOURCES shaft_resynth_test.cpp ${ANALYSIS}/shaft_track_assembly.cpp ${ANALYSIS}/shaft_tracker_math.cpp ${ANALYSIS}/ball_anchor.cpp ${ANALYSIS}/clubhead_track.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS})
 
 # Motion-overlay pose synthesis (pose_synthesis.h): C¹ Hermite / Catmull-Rom
 # temporal upsampling of the smoothed skeleton — endpoint C⁰, linear reproduction,

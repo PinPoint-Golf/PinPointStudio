@@ -149,6 +149,27 @@ Synthesis REPLACES nothing: `samples[]` keeps the real per-frame track
 `predicted[]` channel semantics or a third array — impl plan decides, but
 serialization is additive either way).
 
+**The grip is the hands, never an interpolation (2026-09-17).** As shipped, the
+synthesized tier Hermite-interpolated the GRIP between the two bracketing anchors'
+grips, while the measured samples took theirs from the per-frame hand-axis point.
+Wherever an anchor was missing or mis-placed — a lost P2 on a dim, compressed
+clip — the grip path swung free of the hands by up to 400 px and the fan drew it
+as the club (shot 13, 15 Sept, second session). `HandGripTrack` in
+`shaft_synthesis.h` now hands the interpolator the same per-frame grip the samples
+carry; every tick's grip is read off it by linear interpolation, the head is
+re-derived so the line stays rigid, and the anchor Hermite survives only as the
+fallback for a tick the hand track cannot bracket. θ and length are untouched.
+On the 40 recent library swings the worst synth-grip distance from the sample grip
+went from a 59 px median / 384 px maximum to 0.
+
+The block that builds the tier is now `synthesizeLayerC()` in
+`shaft_track_assembly.cpp`, called both by `decideTrack` and by
+`resynthesizeLayerC()` — the path a track REUSED from a swing document takes
+(`recorded_products.h`, `swing_reanalyzer.cpp`): a metrics-only re-analysis
+reloads the recorded samples, anchors, lengths, plane fit and phase ladder under
+the version gate and rebuilds only this tier, so it never runs the tracker again
+on an mp4 it cannot see the club in.
+
 ## 3. QA contract change
 
 Headline per-swing quality becomes **per-position coverage**:

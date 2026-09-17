@@ -44,6 +44,16 @@ namespace pinpoint::analysis {
 constexpr int kPoseStageVersion  = 1;
 constexpr int kBallStageVersion  = 1;
 constexpr int kShaftStageVersion = 2;
+// shaft — REUSABLE since 2026-09-17 (swing_reanalyzer.cpp): the recorded samples,
+//         P-anchors, lengths and plane fit are reloaded when this version matches,
+//         the pose and ball were themselves reused, and no tuning override is in
+//         play; the resolved phase ladder comes back with them. What is NOT reused
+//         is the Layer C synth tier — it is re-synthesised from the reloaded samples
+//         (resynthesizeLayerC), so a change to the synth rule alone needs no bump.
+//         Bump this when samples / anchors / lengths / plane change meaning. The
+//         reason reuse exists: a metrics-only re-analysis used to re-run the tracker
+//         on the swing's mp4 (no raw sidecar), and on a dark clip that replaced a
+//         good live track with a coasting one.
 // impact — kImpactStageVersion (bump when impact_runner changes its output).
 //          Stamped; never reused — the stage is a few hundred ms and a
 //          re-analysis is exactly when a better detector should get its chance.

@@ -229,6 +229,61 @@ inline ShaftSample2D synthSampleAt(const ShaftPosition& a, double thetaDotA, con
     return s;
 }
 
+// ── The grip is the HANDS, never an interpolation (2026-09-17) ───────────────────
+//
+// The measured samples honour the design's hard rule — every sample's grip is the
+// per-frame hand-axis point from pose. The synth tier used to Hermite the grip
+// between the two bracketing anchors' grips instead, so wherever an anchor was
+// missing or mis-placed (a lost P2 on a dark clip) the grip path swung free of the
+// hands by hundreds of pixels while the fan drew it as if it were the club. The
+// hands are tracked on every frame; there is never a reason to invent a grip.
+//
+// `HandGripTrack` is the per-frame hand-axis grip (px) on the pose timebase — the
+// same gx/gy the samples were built from — and gripFromHands() reads it at any
+// instant by linear interpolation between the bracketing FINITE frames. Frames the
+// pose could not resolve are NaN; a tick whose nearest finite neighbours are further
+// apart than `maxGapUs` is treated as unbracketed and the caller falls back to the
+// anchor Hermite for that tick only. θ and length keep their Hermite; the head is
+// re-derived from the hand grip so the drawn shaft stays a rigid line.
+struct HandGripTrack {
+    const std::vector<int64_t>* tUs = nullptr;   // ascending
+    const std::vector<double>*  x   = nullptr;   // px; NaN = unresolved frame
+    const std::vector<double>*  y   = nullptr;
+    int64_t maxGapUs = 40000;                    // widest bracket the interpolation may span
+    bool available() const
+    {
+        return tUs && x && y && !tUs->empty() && x->size() == tUs->size() && y->size() == tUs->size();
+    }
+};
+
+inline bool gripFromHands(const HandGripTrack& h, int64_t t, QPointF& out)
+{
+    if (!h.available()) return false;
+    const std::vector<int64_t>& T = *h.tUs;
+    const std::vector<double>&  X = *h.x;
+    const std::vector<double>&  Y = *h.y;
+    const size_t n = T.size();
+    // First frame at or after t (ascending grid).
+    size_t hi = size_t(std::lower_bound(T.begin(), T.end(), t) - T.begin());
+    // Walk to the nearest FINITE frames either side.
+    long a = long(hi) - 1, b = long(hi);
+    while (a >= 0 && (!std::isfinite(X[size_t(a)]) || !std::isfinite(Y[size_t(a)]))) --a;
+    while (b < long(n) && (!std::isfinite(X[size_t(b)]) || !std::isfinite(Y[size_t(b)]))) ++b;
+    const bool haveA = a >= 0, haveB = b < long(n);
+    if (haveA && haveB) {
+        if (T[size_t(b)] - T[size_t(a)] > h.maxGapUs) return false;
+        const double den  = double(T[size_t(b)] - T[size_t(a)]);
+        const double frac = den > 0.0 ? double(t - T[size_t(a)]) / den : 0.0;
+        out = QPointF{ X[size_t(a)] + (X[size_t(b)] - X[size_t(a)]) * frac,
+                       Y[size_t(a)] + (Y[size_t(b)] - Y[size_t(a)]) * frac };
+        return true;
+    }
+    // One-sided: hold the nearest finite frame only when it is within the gap.
+    if (haveA && t - T[size_t(a)] <= h.maxGapUs) { out = QPointF{ X[size_t(a)], Y[size_t(a)] }; return true; }
+    if (haveB && T[size_t(b)] - t <= h.maxGapUs) { out = QPointF{ X[size_t(b)], Y[size_t(b)] }; return true; }
+    return false;
+}
+
 // Emit synthesized samples between the located P-anchors. `anchors` MUST be sorted
 // strictly ascending by t_us (the caller passes ShaftTrack2D.positions, which is
 // ordered by p ⇒ by time); `thetaDotRadS` / `gripVelPxS` are the smoothed-track θ̇
@@ -240,13 +295,17 @@ inline ShaftSample2D synthSampleAt(const ShaftPosition& a, double thetaDotA, con
 // Two rates per anchor: bracket [a_k, a_k+1] leaves a_k at thetaDotOutRadS[k] and
 // arrives at a_k+1 at thetaDotInRadS[k+1]. An anchor whose in and out rates differ
 // (P7: the impact step) is a C⁰ knot with a rate discontinuity — deliberately.
+// `hands` — when available — is where every tick's grip comes from (see the note
+// above); the anchor Hermite is the fallback for a tick the hand track cannot
+// bracket. Pass a default-constructed HandGripTrack for the legacy behaviour.
 inline std::vector<ShaftSample2D> synthesizeBetweenAnchors(
     const std::vector<ShaftPosition>& anchors,
     const std::vector<double>&        thetaDotInRadS,
     const std::vector<double>&        thetaDotOutRadS,
     const std::vector<QPointF>&       gripVelPxS,
     const std::vector<int64_t>&       frameTUs,
-    const SynthConfig&                cfg)
+    const SynthConfig&                cfg,
+    const HandGripTrack&              hands)
 {
     std::vector<ShaftSample2D> out;
     const size_t n = anchors.size();
@@ -259,11 +318,30 @@ inline std::vector<ShaftSample2D> synthesizeBetweenAnchors(
         if (b.t_us <= a.t_us) continue;                     // defensive: strictly increasing
         for (int64_t t : frameTUs) {
             if (t <= a.t_us || t >= b.t_us) continue;       // STRICTLY between the anchors
-            out.push_back(synthSampleAt(a, thetaDotOutRadS[k],    gripVelPxS[k],
-                                        b, thetaDotInRadS[k + 1], gripVelPxS[k + 1], t, cfg));
+            ShaftSample2D s = synthSampleAt(a, thetaDotOutRadS[k],    gripVelPxS[k],
+                                            b, thetaDotInRadS[k + 1], gripVelPxS[k + 1], t, cfg);
+            QPointF g;
+            if (gripFromHands(hands, t, g)) {
+                s.gripPx = g;
+                s.headPx = QPointF{ g.x() + s.visibleLenPx * std::cos(s.thetaRad),
+                                    g.y() + s.visibleLenPx * std::sin(s.thetaRad) };
+            }
+            out.push_back(s);
         }
     }
     return out;
+}
+
+inline std::vector<ShaftSample2D> synthesizeBetweenAnchors(
+    const std::vector<ShaftPosition>& anchors,
+    const std::vector<double>&        thetaDotInRadS,
+    const std::vector<double>&        thetaDotOutRadS,
+    const std::vector<QPointF>&       gripVelPxS,
+    const std::vector<int64_t>&       frameTUs,
+    const SynthConfig&                cfg)
+{
+    return synthesizeBetweenAnchors(anchors, thetaDotInRadS, thetaDotOutRadS, gripVelPxS, frameTUs,
+                                    cfg, HandGripTrack{});
 }
 
 // Legacy single-rate form: in == out at every anchor (C¹ everywhere).

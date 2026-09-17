@@ -24,6 +24,7 @@
 #include <QVariantMap>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "types.h"
@@ -108,6 +109,13 @@ struct ShotAnalysisJob {
     // does not run the model / replay. Empty in live capture.
     pinpoint::analysis::PoseTrack2D posePreloaded;
     pinpoint::analysis::BallTrack2D ballPreloaded;
+    // The recorded shaft track and the RESOLVED phase ladder, reloaded together under the
+    // same gate (2026-09-17, recorded_products.h): the Shaft stage adopts the track and
+    // re-synthesises only its visualisation tier, and the ladder stages (SegResolve,
+    // EventRefine, PositionsLadder, TimelineFusion) hand the recorded ladder through
+    // untouched. Non-empty samples ⇒ reuse; the ladder is only ever set beside it.
+    pinpoint::analysis::ShaftTrack2D shaftPreloaded;
+    std::optional<pinpoint::analysis::Segmentation> ladderPreloaded;
 
     // Face-on ball track (v3.4 design §9), resolved on the UI thread from the live
     // CameraInstance's ball accumulator or a recorded swing.json "ball" block.
