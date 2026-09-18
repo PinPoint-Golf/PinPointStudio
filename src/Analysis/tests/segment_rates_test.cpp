@@ -37,9 +37,17 @@
 //       at the same instant;
 //   §6  a node whose σ exceeds the placement threshold is emitted UNRESOLVED, and the verdict says
 //       so — the thing the whole design hangs on;
-//   §7  the domain mask and the refusal cases (no Impact, no inputs).
+//   §7  the domain mask and the refusal cases (no Impact, no inputs);
+//   §8  THE SIGHTED BAND (design §12.4): a trunk peak that falls where the span is near square is
+//       emitted as a BOUND that contains the truth, never as a node; the same peak moved into
+//       sight is placed; and an address set open by 15° moves neither, because the reference is
+//       the square-up span and not the address span.
 
 #include "../segment_rates.h"
+#include "../kinematic_sequence_json.h"
+
+#include <QJsonArray>
+#include <QJsonObject>
 
 #include <QQuaternion>
 #include <QVector3D>
@@ -98,13 +106,15 @@ static double turnFromTop(const Bump &b, double s)
 
 // Closed-positive turn of a body line at s: square at address, closing smoothly through the
 // backswing to `startClosedDeg` at the top, then opening through square in the downswing.
-static double closedAngleDeg(const Bump &b, double startClosedDeg, double s)
+// `addrOpenDeg` sets the golfer OPEN at address by that much (a negative closed angle), which the
+// backswing then closes from — the corpus's 15–19° address offset (design §12.4).
+static double closedAngleDeg(const Bump &b, double startClosedDeg, double s, double addrOpenDeg = 0.0)
 {
     const double topS = kTopUs * 1e-6;
-    if (s <= kBackswingStartS) return 0.0;
+    if (s <= kBackswingStartS) return -addrOpenDeg;
     if (s <= topS) {
         const double u = (s - kBackswingStartS) / (topS - kBackswingStartS);
-        return startClosedDeg * (u * u * (3.0 - 2.0 * u));      // smoothstep
+        return -addrOpenDeg + (startClosedDeg + addrOpenDeg) * (u * u * (3.0 - 2.0 * u));   // smoothstep
     }
     return startClosedDeg - turnFromTop(b, s);
 }
@@ -130,15 +140,16 @@ static std::vector<PhaseEvent> phases()
 
 // Face-on pose at 120 fps. Hip span 200 px, shoulder span 320 px at address. The arm's in-plane
 // angle integrates the arm bump from −120° (near the top) downward.
-static PoseTrack2D makePose(bool leadIsLeft)
+static PoseTrack2D makePose(bool leadIsLeft, double pelvisStartClosedDeg = 45.0, double addrOpenDeg = 0.0,
+                            const Bump &pelvisBump = kPelvis)
 {
     PoseTrack2D pose;
     for (int64_t t = 0; t <= kFinishUs; t += 8333) {
         const double s = t * 1e-6;
         PoseFrame2D f;
         f.t_us = t;
-        const double hip = closedAngleDeg(kPelvis, 45.0, s) * kD2R;
-        const double sh  = closedAngleDeg(kThorax, 90.0, s) * kD2R;
+        const double hip = closedAngleDeg(pelvisBump, pelvisStartClosedDeg, s, addrOpenDeg) * kD2R;
+        const double sh  = closedAngleDeg(kThorax, 90.0, s, addrOpenDeg) * kD2R;
         const double hs = 0.5 * 200.0 * std::fabs(std::cos(hip)) / kW;
         const double ss = 0.5 * 320.0 * std::fabs(std::cos(sh))  / kW;
         f.kp[kLHip] = QPointF(0.5 - hs, 0.55); f.conf[kLHip] = 0.9f;
@@ -281,28 +292,21 @@ int main()
         CHECK("§2 face-on: club peak within 8 % of 2254 °/s", club && near(club->peakDps, kClub.peakDps, 0.08 * kClub.peakDps));
         CHECK("§2 face-on: pelvis node produced and its peak is opening-POSITIVE", pel && pel->peakDps > 0.0);
         CHECK("§2 face-on: thorax node produced and its peak is opening-POSITIVE", tho && tho->peakDps > 0.0);
-        // On a NOISELESS synthetic the cosine inversion is exact, so the timing lands too; the
-        // σ is what a real capture's jitter widens (design §9 measures it).
-        CHECK("§2 face-on: pelvis node within 12 ms of the truth on clean spans", pel && msFromTruth(pel, kPelvis) <= 12.0);
-        CHECK("§2 face-on: the trunk nodes are NOT placed by default — the §9 gate is closed",
-              pel && tho && !pel->placed && !tho->placed);
+        // This pelvis starts 45° closed and peaks 30° into a 60° turn: 15° closed, INSIDE the
+        // 20° blind band. The route must not claim it — it bounds it (§8 pins the bound). The
+        // thorax starts 90° closed and peaks 45° in: in sight, and placed when its σ allows.
+        CHECK("§2 face-on: the pelvis peak falls in the blind band — NOT placed, bounded",
+              pel && !pel->placed && std::isfinite(pel->peakNoEarlierThanMs));
+        CHECK("§2 face-on: the thorax peak is in sight and placed within 12 ms of the truth",
+              tho && tho->placed && msFromTruth(tho, kThorax) <= 12.0);
         {
-            // With the gate open the pelvis node is STILL not placed under the default threshold:
-            // the propagated σ_t on a 120 fps span track through a 25 ms window is ~85 ms even on
-            // a noiseless synthetic, because the σ model assumes 3 px of span jitter and 1/sin θ
-            // amplifies it at 25° of turn. That is the honest number, and it is why the §9 truth
-            // capture exists. Widening the threshold shows the estimate itself lands close.
-            SegmentRatesConfig open = cfg;
-            open.faceOnTrunkPlacement = true;
-            const SegmentRatesResult o = buildSegmentRates(in, open);
-            const KsNode *op = nodeOf(o, SeqSegment::Pelvis);
-            CHECK("§2 face-on: the gate alone does not place a pelvis node whose σ_t exceeds the threshold",
-                  op && !op->placed && op->tSigmaMs > cfg.maxPlaceSigmaMs);
-            open.maxPlaceSigmaMs = 200.0;
-            const SegmentRatesResult o2 = buildSegmentRates(in, open);
-            const KsNode *op2 = nodeOf(o2, SeqSegment::Pelvis);
-            CHECK("§2 face-on: gate open + threshold widened: the clean pelvis estimate lands within 15 ms",
-                  op2 && op2->placed && msFromTruth(op2, kPelvis) <= 15.0);
+            // The route-level switch still closes everything.
+            SegmentRatesConfig closed = cfg;
+            closed.faceOnTrunkPlacement = false;
+            const SegmentRatesResult c = buildSegmentRates(in, closed);
+            const KsNode *cp = nodeOf(c, SeqSegment::Pelvis), *ct = nodeOf(c, SeqSegment::Thorax);
+            CHECK("§2 face-on: faceOnTrunkPlacement=false leaves both trunk nodes unplaced",
+                  cp && ct && !cp->placed && !ct->placed);
         }
         CHECK("§2 face-on: series carry a σ and the °/s unit",
               faceOn.pelvis.series.sigma.has_value() && faceOn.club.series.unit == QStringLiteral("°/s"));
@@ -441,6 +445,81 @@ int main()
         }
         CHECK("§7 segmentRateSeries lists the produced channels only",
               segmentRateSeries(faceOn).size() == 4 && segmentRateSeries(SegmentRatesResult{}).empty());
+    }
+
+    // ── §8 the sighted band ───────────────────────────────────────────────────────────────────
+    {
+        const ShaftTrack2D shaft = makeShaft();
+        // A pelvis that squares up: the reference is only observable when the line comes to
+        // square somewhere in the swing, so (b) and (c) use a wider bump — the same 480 °/s peak at
+        // the same instant, 84° of total turn from 80° closed, square 30 ms after impact, 20°
+        // closed (the edge of sight) 47 ms before impact, the peak 40 ms before that and falling
+        // at the edge. The wider hump has less curvature, so its timing σ (~65 ms) is above the
+        // 40 ms threshold; the σ model is what the §9 capture calibrates, and this section
+        // widens the threshold to test the sighted-band logic rather than the σ model.
+        const Bump wide { 480.0, 0.913, 0.070 };
+        SegmentRatesConfig cfg8 = cfg;
+        cfg8.maxPlaceSigmaMs = 100.0;
+        const auto run = [&](double pelvisStart, double addrOpen, const Bump &b = kPelvis) {
+            PoseTrack2D pose = makePose(true, pelvisStart, addrOpen, b);
+            SegmentRatesInputs in;
+            in.pose = &pose; in.frameW = kW; in.frameH = kH; in.leadIsLeft = true;
+            in.shaft = &shaft; in.phases = &ph; in.impactUs = kImpactUs;
+            return buildSegmentRates(in, cfg8);
+        };
+        // (a) The bound contains the truth. The 45°-start pelvis crosses 20° closed 25° into its
+        //     turn, ~97 ms before impact; the true peak (87 ms) is later than that, so "no earlier
+        //     than ~97 ms" holds it, and the bound is where the view went blind, not where the
+        //     rate happened to be highest in sight.
+        const SegmentRatesResult blind = run(45.0, 0.0);
+        const KsNode *bp = nodeOf(blind, SeqSegment::Pelvis);
+        CHECK("§8a blind-band pelvis: not placed", bp && !bp->placed);
+        CHECK("§8a blind-band pelvis: the bound holds the truth (87 ms ≤ bound)",
+              bp && std::isfinite(bp->peakNoEarlierThanMs) && bp->peakNoEarlierThanMs >= 87.0);
+        CHECK("§8a blind-band pelvis: the bound is the edge of sight (~97 ms), within 15 ms",
+              bp && near(bp->peakNoEarlierThanMs, 97.0, 15.0));
+        CHECK("§8a blind-band pelvis: no upper bound is claimed", bp && !std::isfinite(bp->peakNoLaterThanMs));
+        if (bp) std::printf("    §8a pelvis bound: no earlier than %.1f ms before impact (σ_t %.1f)\n",
+                            bp->peakNoEarlierThanMs, bp->tSigmaMs);
+        // (b) The wide bump from 80° closed peaks 38° closed — in sight — and is placed on the truth.
+        const SegmentRatesResult seen = run(80.0, 0.0, wide);
+        const KsNode *sp = nodeOf(seen, SeqSegment::Pelvis);
+        if (sp) std::printf("    §8b pelvis: placed=%d %.1f ms ±%.1f peak %.0f bound≤%.1f\n",
+                            int(sp->placed), sp->beforeImpactMs, sp->tSigmaMs, sp->peakDps, sp->peakNoEarlierThanMs);
+        CHECK("§8b sighted pelvis: placed", sp && sp->placed);
+        CHECK("§8b sighted pelvis: within 12 ms of the truth", sp && msFromTruth(sp, wide) <= 12.0);
+        CHECK("§8b sighted pelvis: no bound attached", sp && !sp->bounded());
+        // (c) Address set 15° open: the address span is cos 15° of square. With an address
+        //     reference this read as 15° of turn at address and clamped the whole downswing; with
+        //     the square-up reference nothing moves.
+        const SegmentRatesResult open = run(80.0, 15.0, wide);
+        const KsNode *op = nodeOf(open, SeqSegment::Pelvis), *ot = nodeOf(open, SeqSegment::Thorax);
+        const KsNode *st = nodeOf(seen, SeqSegment::Thorax);
+        if (op) std::printf("    §8c open-address pelvis: placed=%d %.1f ms ±%.1f peak %.0f bound≤%.1f ≥%.1f\n",
+                            int(op->placed), op->beforeImpactMs, op->tSigmaMs, op->peakDps,
+                            op->peakNoEarlierThanMs, op->peakNoLaterThanMs);
+        CHECK("§8c open address: the sighted pelvis node still places, on the same instant within 6 ms",
+              op && sp && op->placed && std::llabs(op->tPeakUs - sp->tPeakUs) <= 6000);
+        CHECK("§8c open address: the pelvis peak amplitude moves by less than 10 %",
+              op && sp && near(op->peakDps, sp->peakDps, 0.10 * sp->peakDps));
+        CHECK("§8c open address: the thorax node is unmoved within 6 ms",
+              ot && st && ot->placed && st->placed && std::llabs(ot->tPeakUs - st->tPeakUs) <= 6000);
+        const SegmentRatesResult openBlind = run(45.0, 15.0);
+        const KsNode *obp = nodeOf(openBlind, SeqSegment::Pelvis);
+        CHECK("§8c open address: the blind-band bound is unmoved within 10 ms",
+              obp && bp && std::isfinite(obp->peakNoEarlierThanMs)
+              && near(obp->peakNoEarlierThanMs, bp->peakNoEarlierThanMs, 10.0));
+        // (d) The bound is serialised, and only when it exists.
+        const QJsonObject j = kinematicSequenceToJson(blind.sequence, [](int64_t t) { return qint64(t); });
+        bool boundOut = false, noBoundOnPlaced = true;
+        for (const QJsonValue &v : j.value(QStringLiteral("nodes")).toArray()) {
+            const QJsonObject n = v.toObject();
+            const QString seg = n.value(QStringLiteral("segment")).toString();
+            if (seg == QLatin1String("pelvis") && n.contains(QStringLiteral("peakNoEarlierThanMs"))) boundOut = true;
+            if (seg == QLatin1String("club") && n.contains(QStringLiteral("peakNoEarlierThanMs"))) noBoundOnPlaced = false;
+        }
+        CHECK("§8d JSON carries peakNoEarlierThanMs on the bounded node and not on the placed one",
+              boundOut && noBoundOnPlaced);
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

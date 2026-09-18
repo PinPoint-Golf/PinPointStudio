@@ -48,6 +48,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 namespace pinpoint::analysis {
@@ -163,6 +164,14 @@ struct KsNode {
     double     peakSigmaDps   = 0.0;    // 1σ on the peak value
     QString    routeId;                 // "pelvisImu" | "faceOn" | "faceOnClub" | "clubSensorFused" | …
     bool       direct         = false;  // the route's quality: Direct (true) or Estimated (false)
+    // A BOUND INSTEAD OF A NODE. A face-on span sees a segment's rate only away from square
+    // (sensitivity ∝ sin θ); when the highest rate in sight sat where the view went blind, the
+    // peak is somewhere the route could not see, and the node is not placed. What it can still
+    // say: the peak came no EARLIER than this many ms before impact (the rate was still rising at
+    // the edge of sight), or no LATER (it was still falling when sight returned). NaN = no bound.
+    double     peakNoEarlierThanMs = std::numeric_limits<double>::quiet_NaN();
+    double     peakNoLaterThanMs   = std::numeric_limits<double>::quiet_NaN();
+    bool bounded() const { return std::isfinite(peakNoEarlierThanMs) || std::isfinite(peakNoLaterThanMs); }
 };
 
 struct KinematicSequence {

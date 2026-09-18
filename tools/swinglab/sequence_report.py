@@ -6,9 +6,11 @@ Reads every ``<swing>/result.json`` under ``--root`` (the ``--out`` dirs a
 (src/Analysis/kinematic_sequence_json.h) — the Stage 1 corpus read of
 docs/design/kinematic_sequence_design.md §9:
 
-  * per segment: how many swings produced a rate, how many PLACED the node, the
-    median / IQR of the peak instant before impact, the median timing σ, the
-    median peak angular speed, and which routes produced it;
+  * per segment: how many swings produced a rate, how many PLACED the node, how
+    many emitted a BOUND instead (the face-on trunk's "peaked no earlier than N
+    ms before impact" when the peak sat out of the camera's sight — design
+    §12.4), the median / IQR of the peak instant before impact, the median
+    timing σ, the median peak angular speed, and which routes produced it;
   * overall: the orderResolved rate, the verdict histogram, the routeSummary
     histogram;
   * the club node against ``clubheadPeakLead`` (the LINEAR clubhead-speed peak's
@@ -128,6 +130,8 @@ def main():
             row[f"{s}_tSigmaMs"] = n.get("tSigmaMs") if n else ""
             row[f"{s}_peakDps"] = n.get("peakDps") if n else ""
             row[f"{s}_routeId"] = n.get("routeId", "") if n else ""
+            row[f"{s}_noEarlierThanMs"] = n.get("peakNoEarlierThanMs", "") if n else ""
+            row[f"{s}_noLaterThanMs"] = n.get("peakNoLaterThanMs", "") if n else ""
         rows.append(row)
 
     # ── CSV ───────────────────────────────────────────────────────────────────
@@ -135,7 +139,7 @@ def main():
     fields = ["swing"]
     for s in SEGMENTS:
         fields += [f"{s}_produced", f"{s}_placed", f"{s}_beforeImpactMs", f"{s}_tSigmaMs",
-                   f"{s}_peakDps", f"{s}_routeId"]
+                   f"{s}_peakDps", f"{s}_routeId", f"{s}_noEarlierThanMs", f"{s}_noLaterThanMs"]
     fields += ["order", "orderResolved", "verdict", "routeSummary", "clubheadPeakLead"]
     with open(csv_path, "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
@@ -152,16 +156,19 @@ def main():
     print(f"Run root `{args.root}` · {n} swings · {len(with_ks)} with a sequence object · "
           f"{n_no_ks} without")
     print()
-    print("| Segment | produced | placed | peak before impact, ms (median [IQR]) | σt ms (median) | "
+    print("| Segment | produced | placed | bounded | peak before impact, ms (median [IQR]) | "
+          "bound: no earlier than, ms (median [IQR]) | σt ms (median, placed) | "
           "peak °/s (median) | routes | Cheetham 2008 pros: ms · °/s (reference) |")
-    print("|---|---|---|---|---|---|---|---|")
+    print("|---|---|---|---|---|---|---|---|---|---|")
     for s in SEGMENTS:
         prod = [r for r in rows if r.get(f"{s}_produced")]
         placed = [r for r in prod if r.get(f"{s}_placed") == 1]
+        bounded = [r for r in prod if r.get(f"{s}_noEarlierThanMs") not in ("", None)]
         routes = Counter(r.get(f"{s}_routeId") for r in prod)
-        print(f"| {LABEL[s]} | {len(prod)} | {len(placed)} | "
+        print(f"| {LABEL[s]} | {len(prod)} | {len(placed)} | {len(bounded)} | "
               f"{med_iqr([r[f'{s}_beforeImpactMs'] for r in placed])} | "
-              f"{med([r[f'{s}_tSigmaMs'] for r in prod])} | "
+              f"{med_iqr([float(r[f'{s}_noEarlierThanMs']) for r in bounded])} | "
+              f"{med([r[f'{s}_tSigmaMs'] for r in placed])} | "
               f"{med([r[f'{s}_peakDps'] for r in placed])} | "
               f"{', '.join(f'{k}×{v}' for k, v in sorted(routes.items()) if k)} | "
               f"{CHEETHAM_MS[s]} · {CHEETHAM_DPS[s]} |")

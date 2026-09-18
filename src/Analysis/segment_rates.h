@@ -87,6 +87,8 @@ struct SegmentRatesConfig {
     double  kpSigmaPx        = tuned::sequence::kKpSigmaPx;         // sequence.kpSigmaPx — when no smoother σ
     double  gyroNoiseDps     = tuned::sequence::kGyroNoiseDps;      // sequence.gyroNoiseDps — per-sample IMU σ
     bool    faceOnTrunkPlacement = tuned::sequence::kFaceOnTrunkPlacement; // sequence.faceOnTrunkPlacement — §9 gate
+    double  sightedTurnDeg   = tuned::sequence::kSightedTurnDeg;    // sequence.sightedTurnDeg — |turn| below ⇒ blind band
+    double  minAfterReversalMs = tuned::sequence::kMinAfterReversalMs; // sequence.minAfterReversalMs — a sighted trunk peak closer to a sign change is a spike
     double  minCredibleClubMph = tuned::sequence::kMinCredibleClubMph; // sequence.minCredibleClubMph
 
     static SegmentRatesConfig fromOverrides(const QVariantMap &ov)
@@ -109,6 +111,8 @@ struct SegmentRatesConfig {
         apply(ov, "sequence.kpSigmaPx",         c.kpSigmaPx);
         apply(ov, "sequence.gyroNoiseDps",      c.gyroNoiseDps);
         apply(ov, "sequence.faceOnTrunkPlacement", c.faceOnTrunkPlacement);
+        apply(ov, "sequence.sightedTurnDeg",    c.sightedTurnDeg);
+        apply(ov, "sequence.minAfterReversalMs", c.minAfterReversalMs);
         apply(ov, "sequence.minCredibleClubMph", c.minCredibleClubMph);
         return c;
     }

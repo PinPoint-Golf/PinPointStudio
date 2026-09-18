@@ -2,7 +2,7 @@
 
 **Audience**: developers working on the sequence producer, the metric catalogue and the session chart
 **Code (to build)**: `src/Analysis/angular_rate.h`, `src/Analysis/segment_rates.{h,cpp}`, `KinematicSequenceStage` (`wrist_analyzer.cpp`), `KinematicSequenceProvider`, four new manifest descriptors, `PpSequenceStrip.qml`
-**Status**: BUILT 2026-09-17 (uncommitted), §1–§10 as written plus two gates the corpus pass forced — see §12. The four series, the Sequence, the chart preset and the strip are live; the face-on pelvis / thorax NODES are emitted but never placed until the §9 truth capture (`sequence.faceOnTrunkPlacement`, default off); the pair route stays planned.
+**Status**: BUILT 2026-09-17, §1–§10 as written plus the gates the corpus pass forced — see §12. The four series, the Sequence, the chart preset and the strip are live. Since 2026-09-18 (§12.4) the face-on pelvis / thorax nodes are placed only where the camera can see the rate — the SIGHTED BAND, |turn| ≥ 20° — and emitted as a BOUND ("peaked no earlier than N ms before impact") where it cannot; the span reference is the swing's own square-up width, not the address span. The pair route stays planned; the §9 truth capture still calibrates the sighted nodes' σ.
 **Supersedes**: `metric_catalogue_developer_guide.md` Appendix B.6 ("kinematicSequence off the face-on rotation series — not pursued") — see §2 for what changed and what did not.
 
 ---
@@ -21,6 +21,7 @@
 10. [Build order and file list](#10-build-order-and-file-list)
 11. [Open questions](#11-open-questions)
 12. [What the corpus reported, and the two gates it forced](#12-what-the-corpus-reported-and-the-two-gates-it-forced)
+    — 12.4 [the reference was the fault, and the sighted band](#124-the-reference-was-the-fault-and-what-a-single-camera-can-still-claim)
 
 ---
 
@@ -249,8 +250,11 @@ than emit nothing.
   per-sample sigma from the two keypoints' posterior σ through the atan2 Jacobian. The arm's plane
   is taken as the club's; the bias this introduces is stated in §11.
 
-**Pelvis and thorax — unfolded bearing from the span.** With `w₀` the robust address span
-(`body_rotation`'s median over the address window, retained code) and `r(t) = clamp(w/w₀, 0, 1)`:
+**Pelvis and thorax — unfolded bearing from the span.** With `w₀` the reference span and
+`r(t) = clamp(w/w₀, 0, 1)`. ⚠ As written on 2026-09-17 `w₀` was the address-window median; §12.4
+replaced it with the span at the square-up instant `t_sq` below (floored by the address median),
+because the address span sat below the downswing maximum on every corpus swing and the acos
+clamped through the whole downswing. The formulae are otherwise unchanged:
 
 ```
 θ̃(t) = acos r(t)                         // unsigned, as before
@@ -458,7 +462,11 @@ Nothing is committed until Mark has seen the §9 results.
    a trunk IMU; Stage 2 will be that shot.
 5. **The pair route's `w₀` per camera.** Two address spans, two biases. The calibration thread's
    extrinsics may let the bearing be read from triangulated hip points directly and skip the spans;
-   decide when the geometry stage exists.
+   decide when the geometry stage exists. *(§12.4: the biases are now read off each view's own
+   square-up maximum, and the uncalibrated ellipse pairing needs no `w₀` at all.)*
+6. **The DTL span, uncalibrated** (§12.4 item 6): run pose on the corpus's Down-the-Line clips,
+   pair the spans on the shared clock, and re-read the trunk nodes where face-on is blind. Before
+   the truth capture if the DTL far-hip confidence allows it; the capture then grades both.
 
 ---
 
@@ -547,4 +555,116 @@ is, and it is the thing the truth capture calibrates.
   from a peak. Gate 1 removes the specific source; a general spike detector (rate excursions beyond
   a physical ceiling, or a residual-roughness σ) is a §11 item for the truth capture to size.
 - §5.3's optional multi-span thorax and span-rate formulation are untried; neither addresses the
-  address-width bias that is the real problem, and the pair route (§5.2) does.
+  address-width bias that is the real problem, and the pair route (§5.2) does. *(§12.4, the next
+  day: the address-width bias was addressed on its own, and the real limit turned out to be a
+  different one.)*
+
+### 12.4 The reference was the fault, and what a single camera can still claim
+
+**Written 2026-09-18.** The 17 Sept pass read the trunk spikes as the failure §2 had feared —
+the cosine's flatness near square — and closed the trunk nodes pending the truth capture. An
+offline pass the next day over the same 61 swings, from the pose2 keypoints alone
+(`tools/swinglab/span_turn_offline.py`, rows in
+`docs/research/data/kinematic_sequence/offline_span_turn_20260918.csv`), separated two things
+that pass had run together.
+
+**1. The address span is not the square span, on every swing.** The widest a span images is the
+closest the line came to square to the camera, and that was the downswing, not address:
+
+| Segment | downswing max span / address span | implied turn at address | turn at the top, max reference | turn at impact, max reference |
+|---|---|---|---|---|
+| Pelvis | 1.036 [1.023, 1.057] | 15° [12, 19] | 41° [40, 47] | 12° [7, 18] |
+| Thorax | 1.056 [1.044, 1.067] | 19° [17, 20] | 63° [59, 69] | 3° [2, 6] |
+
+That is the 2026-09-09 "address reads 19°" finding on all six sessions (thorax ~19° in each,
+pelvis 10–22° by session — the golfer set open at the shoulders plus some setup, not one camera
+yaw). With the address reference the ratio clamps at 1 for most of the downswing and the acos
+spikes where the span dips below it — §12.1's "spike, not a peak" was this, not the flat cosine.
+With the square-up span as reference the magnitudes read as a golfer: pelvis 41° closed at the
+top, thorax 63°. **Built**: `spanTurnTrack` now reads `w₀` off a local median at the square-up
+instant it already located for the sign unfold, floored by the address median.
+
+**2. The flat cosine is still the limit, and it is geometry, not pose accuracy.** Pose jitter on a
+still golfer is 3.5 px on an 83 px hip span (4.1 %) and 2.7 px on a 130 px shoulder span (2.1 %) —
+±4° at 30° of turn, which is fine. But a span's rate of change with turn goes as sin θ, and at
+square it is zero whatever measures the span; markers on the hips would show the same. A
+monotone model fit (`w = w₀ cos θ(t)`, rate ≥ 0, sign from timing — the §5.3 idea done properly)
+put the pelvis "peak" on the pelvis's own square-up instant on 47 of 60 swings (median offset
+0 ms), and the thorax profile rose monotonically into impact. Both are the estimator: near square
+the fitted rate comes only from the curvature of the span maximum, and that maximum is sharpened
+by the hips moving TOWARD the camera — the hip centre rises 19 px over the last 100 ms into
+impact (early extension), and 3–5 cm closer at 1.5–2 m widens the span by 2–4 %, the size of the
+whole address-to-max signal. One view cannot separate that from squaring up. The fit's bootstrap
+σ_t (11–13 ms) is fit stability, not truth, and would have passed §9's first row: the "confident
+on garbage" trap of §12.1 by another route. It is not used.
+
+**3. What a single camera CAN claim: the peak, when it happens in sight.** Cheetham's
+professionals peak the pelvis 87 ms and the thorax 68 ms before impact, still 20–30° closed,
+where sin θ ≥ 0.34 and the slope carries the rate. So a pro-shaped sequence is visible from
+face-on; the amateur pattern that squares up at impact is not, and the honest output for it is a
+bound, not a node. **Built**: the peak is searched over the SIGHTED samples only (|turn| ≥
+`sequence.sightedTurnDeg`, 20°); a peak that sits within one derivative window of the instant
+the segment entered the blind band was still rising when the view went blind, and the node is
+emitted unplaced with `peakNoEarlierThanMs` = the edge of sight (the symmetric `peakNoLaterThanMs`
+covers a peak at the band's exit). The strip prints the bound ("peaked after −N ms, out of this
+camera's sight"). `sequence.faceOnTrunkPlacement` is now ON, meaning "may place in the sighted
+band"; OFF still reads every trunk node unresolved. On the synthetic (segment_rates_test §8) the
+45°-start pelvis peaks 15° closed and is bounded at 92 ms with the 87 ms truth inside; an 80°-start
+pelvis with 84° of turn peaks 38° closed and places 4 ms off the truth; an address set 15° open
+moves neither. A 75°-start pelvis that never comes back to square has NO observable reference, and
+the test says so: the square-up span is only a reference when the line squares up somewhere.
+
+**4. A hands-over-hips mask was tested and NOT built.** The pelvis rate profile dips at 80–100 ms
+before impact (median 59 °/s against 181 at −120 and 432 at −20). The nearest wrist is 1.6 hip
+spans from either hip at that instant and the hip confidence holds at 0.84, so the hands are not
+on the hips there; a wrist-proximity mask touches 2 % of the downswing samples and leaves the dip.
+Whether the dip is a slide-then-turn pelvis or a keypoint semantic is for the truth capture.
+
+**5. The corpus re-run with the change** (the §12 command, 61 pose2 swings, production defaults;
+rows in `docs/research/data/kinematic_sequence/corpus_20260918_sighted.csv`):
+
+The first re-run, with the reference fix and the sighted band alone, placed 12 pelvis and 32
+thorax nodes — and reading their series showed both to be false: every placed pelvis had its rate
+rising again above the "peak" in the last two windows before the band (338 → 469 → 520 °/s into
+the gap on one swing), and most placed thorax nodes were transition spikes, ±1000 °/s inside
+30 ms of the rate's sign change as the arms cross the chest at the top. Two rules followed, both
+inside `finishChannel` and both only for a route with a blind band: **rising edge** — an interior
+sighted peak is claimed only if the mean rate over the last window before the band is below the
+window before it, else the node is bounded; **reversal spike** — a sighted peak within
+`sequence.minAfterReversalMs` (60 ms) of the rate's last non-positive sample is neither placed nor
+bounded. With those:
+
+| Segment | produced | placed | bounded | placed peak before impact, ms | bound: no earlier than, ms (median [IQR]) | σt ms (placed) | peak °/s | Cheetham 2008 pros |
+|---|---|---|---|---|---|---|---|---|
+| Pelvis | 61 | 0 | 45 | — | 87 [54, 114] (min 17, max 141) | — | — | 87 ± 19 · 477 ± 53 |
+| Thorax | 61 | 2 | 42 | 117 [109, 126] | 47 [40, 87] | 27 | 507 | 68 ± 14 · 727 ± 61 |
+| Lead arm | 61 | 59 | 0 | 94 [67, 132] | — | 19 | 697 | 65 ± 8 · 980 ± 68 |
+| Club | 61 | 57 | 0 | 63 [45, 68] | — | 10 | 1887 | — · 2254 ± 68 |
+
+Order resolved on 41 of 61 (67 %), verdicts partial 38 / unresolved 20 / other 3 — identical to
+the 17 Sept gated pass, as it must be: the arm and club nodes are unchanged on every swing. Of
+the 45 pelvis bounds, 5 are `peakNoLaterThanMs` (the rate still falling when sight returned on
+the open side); the 11 pelvis and 8 thorax nodes with neither a placement nor a bound are the
+reversal spikes (4 and 7) and the σ threshold (7 and 1). **The reading**: on this golfer the
+trunk peaks are out of the face-on camera's sight on essentially every swing, and the producer
+now says exactly that — "the pelvis peaked no earlier than 87 ms before impact" — instead of a
+spike or a silence. The two thorax placements at 117 ms are the only in-sight trunk peaks in the
+corpus and are not a finding at n = 2. Whether the out-of-sight peaks are the amateur pattern
+(trunk squaring up at impact) or the perspective confound of item 2 is what the DTL span (item 6)
+and the §9 truth capture decide.
+
+⚠ **Observed in passing, not caused here**: `clubheadPeakLead` (the LINEAR clubhead-speed
+peak's lead before impact, a live metric) reads 145 ms median on this run against 10 ms on the
+17 Sept pass over the same 61 swings, while the angular club node is unchanged on 60 of 61. The
+sequence producer does not touch it; the tracker commits between the two runs (4b84fe9d,
+df044ff2) are the candidates. Not chased in this session.
+
+**6. The cheap unblock is the down-the-line camera, uncalibrated.** Its hip and shoulder spans go
+as |sin θ|: maximal sensitivity at square, zero at 90° — the complement of face-on — and the move
+toward the face-on camera is a lateral move in that view, so the pair also separates the
+perspective confound. Two spans on one clock lie on an axis-aligned ellipse (`(w_fo/W)² +
+(w_dtl/W')² = 1`), which fixes both pixel scales without a board and gives θ everywhere; §5.2's
+calibrated pair is the stronger form of the same idea. The corpus holds the DTL videos but no DTL
+pose cache, so this is one pose run away. The far hip is occluded at address in that view; the
+confidence gate says per frame how bad that is. The §9 truth capture remains the arbiter for
+every node the camera places.

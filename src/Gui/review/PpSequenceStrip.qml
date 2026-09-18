@@ -142,7 +142,7 @@ ColumnLayout {
                         }
                         Text {
                             visible: !chip.placed
-                            text: qsTr("not placed from this view")
+                            text: entry.modelData.unplacedText
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
                             color: Theme.colorText3
                         }

@@ -926,6 +926,15 @@ QVariantList ChartMetrics::sequenceRows(const QVariantMap &ks) const
         const double  tSigma  = n.value(QStringLiteral("tSigmaMs")).toDouble();
         const double  peak    = n.value(QStringLiteral("peakDps")).toDouble();
         const double  pSigma  = n.value(QStringLiteral("peakSigmaDps")).toDouble();
+        // An unplaced chip says why, and a face-on trunk node that was still rising (or falling)
+        // where the camera lost sight of the segment carries the bound the route could give.
+        QString unplaced = QStringLiteral("not placed from this view");
+        if (!placed && n.contains(QStringLiteral("peakNoEarlierThanMs")))
+            unplaced = QStringLiteral("peaked after %1, out of this camera's sight")
+                           .arg(sequenceOffsetText(n.value(QStringLiteral("peakNoEarlierThanMs")).toDouble()));
+        else if (!placed && n.contains(QStringLiteral("peakNoLaterThanMs")))
+            unplaced = QStringLiteral("peaked before %1, out of this camera's sight")
+                           .arg(sequenceOffsetText(n.value(QStringLiteral("peakNoLaterThanMs")).toDouble()));
         return QVariantMap{
             { QStringLiteral("segment"),        segment },
             { QStringLiteral("label"),          sequenceSegmentLabel(segment) },
@@ -946,6 +955,7 @@ QVariantList ChartMetrics::sequenceRows(const QVariantMap &ks) const
             // The peak is a READING, so σ governs its digits (displayStep via formatValue); the
             // ± beside it is quoted, not quantised — the same split the summary cards make.
             { QStringLiteral("peakText"),       placed ? formatValue(peak, QStringLiteral("°/s"), pSigma) : QString() },
+            { QStringLiteral("unplacedText"),   unplaced },
             { QStringLiteral("gapText"),        gapMs >= 0.0 ? QStringLiteral("+") + QString::number(std::lround(gapMs))
                                                                    + QStringLiteral(" ms")
                                                              : QString() } };

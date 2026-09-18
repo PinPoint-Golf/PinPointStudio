@@ -36,6 +36,7 @@
 #include <QJsonValue>
 #include <QVariantMap>
 
+#include <cmath>
 #include <functional>
 
 namespace pinpoint::analysis {
@@ -47,7 +48,7 @@ inline QJsonObject kinematicSequenceToJson(const KinematicSequence &ks,
     o.insert(QStringLiteral("impactUs"), rel(ks.impactUs));
     QJsonArray nodes;
     for (const KsNode &n : ks.nodes) {
-        nodes.append(QJsonObject{
+        QJsonObject no{
             { QStringLiteral("segment"),        QString::fromLatin1(seqSegmentKey(n.segment)) },
             { QStringLiteral("placed"),         n.placed },
             { QStringLiteral("tPeakUs"),        rel(n.tPeakUs) },
@@ -57,7 +58,13 @@ inline QJsonObject kinematicSequenceToJson(const KinematicSequence &ks,
             { QStringLiteral("peakSigmaDps"),   n.peakSigmaDps },
             { QStringLiteral("routeId"),        n.routeId },
             { QStringLiteral("quality"),        n.direct ? QStringLiteral("direct")
-                                                         : QStringLiteral("estimated") } });
+                                                         : QStringLiteral("estimated") } };
+        // The bound a route emits instead of a node it could not see (KsNode). Absent = none.
+        if (std::isfinite(n.peakNoEarlierThanMs))
+            no.insert(QStringLiteral("peakNoEarlierThanMs"), n.peakNoEarlierThanMs);
+        if (std::isfinite(n.peakNoLaterThanMs))
+            no.insert(QStringLiteral("peakNoLaterThanMs"), n.peakNoLaterThanMs);
+        nodes.append(no);
     }
     o.insert(QStringLiteral("nodes"), nodes);
     QJsonArray order, gaps, gains;

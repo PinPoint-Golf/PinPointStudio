@@ -1494,11 +1494,18 @@ struct KinematicSequenceStage : AnalysisStage {
         ctx.detail->kinematicSequence = r.sequence;
 
         QString placed;
-        for (const KsNode &n : r.sequence.nodes)
-            placed += QStringLiteral(" %1%2(%3 %4ms±%5)")
+        for (const KsNode &n : r.sequence.nodes) {
+            placed += QStringLiteral(" %1%2(%3 %4ms±%5")
                           .arg(QString::fromLatin1(seqSegmentKey(n.segment)),
                                n.placed ? QString() : QStringLiteral("?"), n.routeId)
                           .arg(n.beforeImpactMs, 0, 'f', 0).arg(n.tSigmaMs, 0, 'f', 0);
+            // A bounded trunk node: the peak was out of the camera's sight (design §12.4).
+            if (std::isfinite(n.peakNoEarlierThanMs))
+                placed += QStringLiteral(" ≤%1ms").arg(n.peakNoEarlierThanMs, 0, 'f', 0);
+            if (std::isfinite(n.peakNoLaterThanMs))
+                placed += QStringLiteral(" ≥%1ms").arg(n.peakNoLaterThanMs, 0, 'f', 0);
+            placed += QLatin1Char(')');
+        }
         ppInfo() << "[WristAnalysis] sequence:" << r.sequence.verdict << r.sequence.routeSummary
                  << qPrintable(placed);
     }

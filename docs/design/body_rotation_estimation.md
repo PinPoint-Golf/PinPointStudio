@@ -142,9 +142,11 @@ would be needed. Collapsing Bridged into either neighbour is a lie in one direct
 
 ## 6. Open questions
 
-1. **How square is address, really?** The whole camera tier rests on `w_address` being the golfer's
-   square width. A corpus study against the shaft track's own address geometry would bound the bias
-   and is the single highest-value validation for this producer.
+1. ~~**How square is address, really?**~~ **MEASURED 2026-09-18** (`kinematic_sequence_design.md`
+   §12.4): on all 61 corpus swings the address span sat below the downswing's own maximum — hips by
+   3.6 %, shoulders by 5.6 % — which the cosine reads as 15° / 19° of turn at address. It is the
+   golfer set open at the shoulders plus setup, consistent across sessions. The sequence producer
+   now references the square-up span instead; nothing here changes because this tier is gone.
 2. **Should the corridors be re-seated per tier?** A camera estimate and an IMU measurement of the
    same quantity have different error, and grading both against one corridor is a compromise. The
    norm set already resolves per context; a tier axis would be a natural extension, and is not worth

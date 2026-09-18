@@ -67,6 +67,8 @@ struct AngleTrack {
     std::vector<double>  sigmaRad;     // per sample
     std::vector<uint8_t> valid;        // per sample admission (empty ⇒ all)
     double               extraRelSigma = 0.0;   // added to the RATE σ as a fraction of |rate| (no-plane case)
+    double               addressTurnRad = 0.0;  // span routes: how far from square the address read (§12.4)
+    std::vector<uint8_t> nearSquare;             // span routes: admitted but dropped inside the sin floor
 };
 
 struct RateTrack {
@@ -125,10 +127,23 @@ struct Domain {
 };
 
 // Mask the rate outside the domain, stamp the metadata, sample the phases, and place the node.
+// How a route is allowed to claim a node. `may` is the route-level switch (§9 / §12). `sighted`,
+// when set, is a per-sample mask parallel to the rate: the peak is searched over sighted samples
+// only, and a peak found at the edge of sight — within one derivative window of the instant the
+// segment entered the blind band (`blindFromUs`) or left it (`blindToUs`) — is not a peak the
+// route saw: the rate was still rising when the view went blind. The node is then bounded, not
+// placed (design §12.4).
+struct PlacementGate {
+    bool                        may         = true;
+    const std::vector<uint8_t> *sighted     = nullptr;
+    int64_t                     blindFromUs = -1;
+    int64_t                     blindToUs   = -1;
+};
+
 void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const QString &label,
                    const QString &routeId, bool direct, const Domain &dom,
                    const std::vector<PhaseEvent> &phases, const SegmentRatesConfig &cfg,
-                   std::vector<KsNode> &nodes, bool mayPlace = true)
+                   std::vector<KsNode> &nodes, const PlacementGate &gate = {})
 {
     if (r.t.size() < 2 || !dom.ok()) return;
 
@@ -168,12 +183,21 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
     ch.routeId     = routeId;
     ch.direct      = direct;
 
-    // The node: the shared peak finder over the domain.
+    // The node: the shared peak finder over the domain — over the SIGHTED samples when the route
+    // has a blind band (the series itself keeps every sample the chart should show).
+    std::vector<uint8_t> searchValid;
+    const size_t ns = ch.series.t_us.size();
+    if (gate.sighted && gate.sighted->size() == ns) {
+        searchValid.assign(ns, 1u);
+        for (size_t i = 0; i < ns; ++i)
+            searchValid[i] = (ch.series.valid.empty() || ch.series.valid[i]) && (*gate.sighted)[i];
+    }
     SeriesView sv;
     sv.t = ch.series.t_us.data();
     sv.v = ch.series.value.data();
-    sv.valid = ch.series.valid.empty() ? nullptr : ch.series.valid.data();
-    sv.n = ch.series.t_us.size();
+    sv.valid = !searchValid.empty() ? searchValid.data()
+             : (ch.series.valid.empty() ? nullptr : ch.series.valid.data());
+    sv.n = ns;
     const int64_t windowUs = int64_t(cfg.derivWindowMs * 1000.0);
     const PeakPlacement p = placePeak(sv, ch.sampleSigma, dom.fromUs, dom.toUs, windowUs);
 
@@ -186,9 +210,52 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
         n.peakDps      = p.peak;
         n.peakSigmaDps = p.peakSigma;
         n.tSigmaMs     = p.tSigmaMs;
-        // Placed only when the σ is inside the threshold AND the route is allowed to place this
-        // segment at all (`mayPlace` — the §9 / §12 gates). The attempt is kept for the trace.
-        n.placed       = mayPlace && p.tSigmaMs <= cfg.maxPlaceSigmaMs;
+        // At the edge of sight: the highest sighted rate sits where the view went blind, so the
+        // real peak is somewhere the route could not see. Bounded, not placed.
+        bool atEntry = gate.blindFromUs >= 0 && gate.blindFromUs <= dom.toUs
+                    && p.tPeakUs >= gate.blindFromUs - windowUs;
+        const bool atExit = gate.blindToUs >= 0 && gate.blindToUs >= dom.fromUs
+                         && p.tPeakUs <= gate.blindToUs + windowUs && !atEntry;
+        // RISING INTO THE BLIND BAND. An interior sighted maximum is the peak only if the rate had
+        // come down by the time the view went blind. On the corpus (§12.4 item 5) every placed
+        // pelvis had risen again to above its "peak" in the last two windows before the band —
+        // the early bump was in sight, the real peak was not. So: the mean rate over the last
+        // window before the band must be below the mean over the window before that. (Not "within
+        // σ of the peak": the propagated rate σ is a third of the peak, which would refuse real
+        // single-hump peaks whose tail is still high at the edge.)
+        if (!atEntry && !atExit && gate.blindFromUs >= 0 && gate.blindFromUs <= dom.toUs
+            && p.tPeakUs < gate.blindFromUs - windowUs) {
+            double sumL = 0.0, sumE = 0.0; int nL = 0, nE = 0;
+            for (size_t i = 0; i < ns; ++i) {
+                if (!sv.valid || !sv.valid[i]) continue;
+                const int64_t t = ch.series.t_us[i];
+                if (t < gate.blindFromUs - 2 * windowUs || t >= gate.blindFromUs) continue;
+                if (t >= gate.blindFromUs - windowUs) { sumL += ch.series.value[i]; ++nL; }
+                else                                   { sumE += ch.series.value[i]; ++nE; }
+            }
+            if (nL > 0 && nE > 0 && sumL / nL > sumE / nE) atEntry = true;
+        }
+        // A PEAK ON THE HEELS OF A REVERSAL IS A SPIKE. A body segment that has just changed
+        // direction (the rate through zero at the transition) cannot be at its peak rate one
+        // window later — Cheetham's thorax peaks ~200 ms after it turns. On real spans the shoulder
+        // keypoints jump as the arms cross the chest at the top, and the derivative reads that as
+        // ±1000 °/s inside 30 ms. Not a node, and not a bound either: the view saw nothing there.
+        bool spike = false;
+        if (gate.sighted && !atEntry && !atExit) {
+            int64_t lastNonPositive = -1;
+            for (size_t i = 0; i < ns; ++i) {
+                const int64_t t = ch.series.t_us[i];
+                if (t < dom.fromUs || t > p.tPeakUs) continue;
+                if (!(ch.series.valid.empty() || ch.series.valid[i])) continue;
+                if (ch.series.value[i] <= 0.0) lastNonPositive = t;
+            }
+            spike = lastNonPositive >= 0 && p.tPeakUs - lastNonPositive < int64_t(cfg.minAfterReversalMs * 1000.0);
+        }
+        if (atEntry) n.peakNoEarlierThanMs = double(dom.toUs - gate.blindFromUs) * 1e-3;
+        if (atExit)  n.peakNoLaterThanMs   = double(dom.toUs - gate.blindToUs) * 1e-3;
+        // Placed only when the σ is inside the threshold, the route is allowed to place this
+        // segment at all (§9 / §12), and the peak was in sight. The attempt is kept for the trace.
+        n.placed       = gate.may && !atEntry && !atExit && !spike && p.tSigmaMs <= cfg.maxPlaceSigmaMs;
     }
     nodes.push_back(n);
 }
@@ -215,8 +282,17 @@ struct PoseView {
     }
 };
 
-// The unfolded turn of a body line from its foreshortened span (design §5.3). `a` and `b` are the
-// line's two keypoints. Returns an empty track when the address reference cannot be formed.
+// The unfolded turn of a body line from its foreshortened span (design §5.3, reference per
+// §12.4). `a` and `b` are the line's two keypoints. Returns an empty track when the reference
+// cannot be formed.
+//
+// THE REFERENCE IS THE WIDEST THE LINE EVER IMAGES, not the address span. A span goes as
+// w₀·cos θ, so the widest the camera ever sees the line is the closest it came to square — and on
+// all 61 corpus swings that was NOT address: the address span sat 3.6 % (hips) / 5.6 % (shoulders)
+// below the downswing maximum, which an address reference reads as 15° / 19° of turn at address
+// and then clamps through the whole downswing (the 2026-09-17 spike). The square-up instant the
+// sign unfold already locates is where the reference is read, robustly; the address median is
+// kept as a floor for a golfer who was widest at address.
 AngleTrack spanTurnTrack(const PoseView &pv, int a, int b, int64_t addressUs, int64_t searchFromUs,
                          int64_t searchToUs, const SegmentRatesConfig &cfg)
 {
@@ -233,8 +309,8 @@ AngleTrack spanTurnTrack(const PoseView &pv, int a, int b, int64_t addressUs, in
         ok[i] = 1u;
     }
 
-    // Address reference: median span over the address window; fall back to the first admitted
-    // frames when the window is thin.
+    // Address span: median over the address window; fall back to the first admitted frames when
+    // the window is thin. A floor on the reference, and the diagnostic §12.4 reports.
     std::vector<double> ref;
     for (size_t i = 0; i < n; ++i) {
         const int64_t t = (*pv.frames)[i].t_us;
@@ -248,43 +324,83 @@ AngleTrack spanTurnTrack(const PoseView &pv, int a, int b, int64_t addressUs, in
             if (ok[i]) ref.push_back(span[i]);
     }
     if (int(ref.size()) < cfg.addrMinFrames) return out;
-    const double w0 = medianOf(ref);
-    if (!(w0 >= cfg.minSpanPx)) return out;
+    const double wAddr = medianOf(ref);
+    if (!(wAddr >= cfg.minSpanPx)) return out;
 
-    // The square-up instant: the span maximum inside the downswing search window. Before it the
-    // body is still closed (turn positive), after it open (negative). A ladder inference, which is
-    // why the rung is Estimated — see the header.
-    int64_t tSq = std::numeric_limits<int64_t>::max();
-    {
-        double best = -1.0;
-        for (size_t i = 0; i < n; ++i) {
-            const int64_t t = (*pv.frames)[i].t_us;
-            if (!ok[i] || t < searchFromUs || t > searchToUs) continue;
-            if (span[i] > best) { best = span[i]; tSq = t; }
+    // The square-up instant: the span maximum inside the downswing search window, read off a
+    // local median so a single wide sample does not set it. Before it the body is still closed
+    // (turn positive), after it open (negative). A ladder inference, which is why the rung is
+    // Estimated — see the header.
+    const int64_t halfUs = int64_t(cfg.derivWindowMs * 500.0);
+    const auto localMedian = [&](size_t i) {
+        std::vector<double> v;
+        const int64_t ti = (*pv.frames)[i].t_us;
+        for (size_t j = 0; j < n; ++j) {
+            const int64_t tj = (*pv.frames)[j].t_us;
+            if (ok[j] && tj >= ti - halfUs && tj <= ti + halfUs) v.push_back(span[j]);
         }
+        return v.empty() ? span[i] : medianOf(v);
+    };
+    int64_t tSq = std::numeric_limits<int64_t>::max();
+    double  wSq = -1.0;
+    for (size_t i = 0; i < n; ++i) {
+        const int64_t t = (*pv.frames)[i].t_us;
+        if (!ok[i] || t < searchFromUs || t > searchToUs) continue;
+        const double m = localMedian(i);
+        if (m > wSq) { wSq = m; tSq = t; }
     }
+    const double w0 = std::max(wAddr, wSq);
+    out.addressTurnRad = std::acos(std::clamp(wAddr / w0, 0.0, 1.0));
 
     out.t.resize(n);
     out.angleRad.assign(n, 0.0);
     out.sigmaRad.assign(n, 0.0);
     out.valid.assign(n, 0u);
+    out.nearSquare.assign(n, 0u);
     for (size_t i = 0; i < n; ++i) {
         const int64_t t = (*pv.frames)[i].t_us;
         out.t[i] = t;
         if (!ok[i]) continue;
         const double r    = std::clamp(span[i] / w0, 0.0, 1.0);
         // NEAR SQUARE THE ESTIMATOR HAS NOTHING TO SAY, and it must not pretend otherwise: at
-        // r → 1 the acos has infinite slope, so a pixel of span jitter across the address width
+        // r → 1 the acos has infinite slope, so a pixel of span jitter across the reference width
         // becomes a step in the angle and a spike in its derivative — and a spike's curvature is
         // exactly what makes the timing σ look confident (design §12). Samples inside the floor
         // angle are therefore INVALID rather than clamped to zero; the curve shows the gap.
-        if (r >= std::cos(std::asin(std::min(cfg.sinFloor, 1.0)))) continue;
+        if (r >= std::cos(std::asin(std::min(cfg.sinFloor, 1.0)))) { out.nearSquare[i] = 1u; continue; }
         const double turn = std::acos(r);
         out.angleRad[i] = (t < tSq) ? turn : -turn;
         out.sigmaRad[i] = cfg.spanNoisePx / (w0 * std::max(std::sin(turn), cfg.sinFloor));
         out.valid[i]    = 1u;
     }
     return out;
+}
+
+// The sighted band of a span track: samples whose |turn| is at least `sightedDeg`, where the
+// span's slope carries the rate (sensitivity ∝ sin θ). Fills the gate's mask and the instants the
+// segment entered and left the blind band inside [fromUs, toUs]. The mask governs the PEAK SEARCH
+// only: the derivative keeps every admitted sample (blind ones carry their 1/sin θ σ), so the
+// charted series and its σ are unchanged by the band.
+void sightedBand(const AngleTrack &a, double sightedDeg, int64_t fromUs, int64_t toUs,
+                 std::vector<uint8_t> &mask, PlacementGate &gate)
+{
+    const size_t n = a.t.size();
+    const double lim = sightedDeg * kPi / 180.0;
+    mask.assign(n, 0u);
+    gate.blindFromUs = gate.blindToUs = -1;
+    bool inBlind = false;
+    for (size_t i = 0; i < n; ++i) {
+        const bool admitted = !a.valid.empty() && a.valid[i];
+        const bool sighted  = admitted && std::fabs(a.angleRad[i]) >= lim;
+        mask[i] = sighted ? 1u : 0u;
+        if (a.t[i] < fromUs || a.t[i] > toUs) continue;
+        // Blind = admitted-but-near-square OR dropped inside the sin floor (the gap the track
+        // shows). Unadmitted for confidence is neither and does not move the band.
+        const bool blind = !sighted && (admitted || (i < a.nearSquare.size() && a.nearSquare[i]));
+        if (blind && !inBlind && gate.blindFromUs < 0) { gate.blindFromUs = a.t[i]; inBlind = true; }
+        else if (sighted && inBlind && gate.blindToUs < 0) { gate.blindToUs = a.t[i]; inBlind = false; }
+    }
+    gate.sighted = &mask;
 }
 
 struct PlaneParams {
@@ -474,22 +590,24 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
         const int64_t topUs     = phaseTime(phases, Phase::Top, dom.fromUs);
         const int64_t finishUs  = phaseTime(phases, Phase::Finish, pv.frames->back().t_us);
 
-        if (!res.pelvis.produced()) {
-            AngleTrack a = spanTurnTrack(pv, kp::LeftHip, kp::RightHip, addressUs, topUs, finishUs, cfg);
-            if (!a.t.empty())
-                finishChannel(res.pelvis, differentiate(a, windowUs, /*opening = −dθ/dt*/ -1.0, false),
-                              SeqSegment::Pelvis, QStringLiteral("Pelvis angular speed"),
-                              QStringLiteral("faceOn"), false, dom, phases, cfg, nodes,
-                              cfg.faceOnTrunkPlacement);
-        }
-        if (!res.thorax.produced()) {
-            AngleTrack a = spanTurnTrack(pv, kp::LeftShoulder, kp::RightShoulder, addressUs, topUs, finishUs, cfg);
-            if (!a.t.empty())
-                finishChannel(res.thorax, differentiate(a, windowUs, -1.0, false),
-                              SeqSegment::Thorax, QStringLiteral("Thorax angular speed"),
-                              QStringLiteral("faceOn"), false, dom, phases, cfg, nodes,
-                              cfg.faceOnTrunkPlacement);
-        }
+        // The trunk from its spans. The node is claimed only where the camera can see the rate —
+        // the sighted band, |turn| ≥ sightedTurnDeg — and bounded where it could not (§12.4).
+        const auto trunkFromSpan = [&](SegmentRateChannel &ch, SeqSegment seg, int a, int b, const QString &label) {
+            AngleTrack at = spanTurnTrack(pv, a, b, addressUs, topUs, finishUs, cfg);
+            if (at.t.empty()) return;
+            std::vector<uint8_t> sighted;
+            PlacementGate gate;
+            gate.may = cfg.faceOnTrunkPlacement;
+            sightedBand(at, cfg.sightedTurnDeg, dom.fromUs, dom.toUs, sighted, gate);
+            finishChannel(ch, differentiate(at, windowUs, /*opening = −dθ/dt*/ -1.0, false), seg, label,
+                          QStringLiteral("faceOn"), false, dom, phases, cfg, nodes, gate);
+        };
+        if (!res.pelvis.produced())
+            trunkFromSpan(res.pelvis, SeqSegment::Pelvis, kp::LeftHip, kp::RightHip,
+                          QStringLiteral("Pelvis angular speed"));
+        if (!res.thorax.produced())
+            trunkFromSpan(res.thorax, SeqSegment::Thorax, kp::LeftShoulder, kp::RightShoulder,
+                          QStringLiteral("Thorax angular speed"));
         if (!res.leadArm.produced()) {
             const int sh = in.leadIsLeft ? kp::LeftShoulder : kp::RightShoulder;
             const int wr = in.leadIsLeft ? kp::LeftWrist    : kp::RightWrist;
@@ -542,9 +660,11 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             // still produced (it is what the track says); the node is not claimed.
             const bool credible = in.clubheadSpeedImpactMph < 0.0
                                || in.clubheadSpeedImpactMph >= cfg.minCredibleClubMph;
+            PlacementGate gate;
+            gate.may = credible;
             finishChannel(res.club, differentiate(a, windowUs, 1.0, /*magnitude*/ true),
                           SeqSegment::Club, QStringLiteral("Club angular speed"),
-                          QStringLiteral("faceOnClub"), false, clubDom, phases, cfg, nodes, credible);
+                          QStringLiteral("faceOnClub"), false, clubDom, phases, cfg, nodes, gate);
         }
     }
 

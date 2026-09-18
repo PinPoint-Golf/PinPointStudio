@@ -766,16 +766,34 @@ inline constexpr double       kNoPlaneRelSigma   = 0.15;     // sequence.noPlane
 inline constexpr double       kShaftThetaSigmaRad = 0.0087;  // sequence.shaftThetaSigmaRad — 0.5°
 inline constexpr double       kKpSigmaPx         = 3.0;      // sequence.kpSigmaPx
 inline constexpr double       kGyroNoiseDps      = 2.0;      // sequence.gyroNoiseDps
-// The two gates the 2026-09-17 corpus pass (kinematic_sequence_design.md §12) made necessary:
-//   kFaceOnTrunkPlacement — whether the face-on pelvis / thorax nodes may be PLACED at all. OFF
-//     until the §9 truth capture has shown their timing σ to be honest: on real spans the unfolded
-//     cosine spikes where the span crosses its address width, and a spike has the high curvature
-//     that makes the σ_t formula report a confident instant. The series are still produced and
-//     charted; the nodes read "unresolved". Flip after the gate, per segment if need be.
+// The gates the 2026-09-17 corpus pass (kinematic_sequence_design.md §12) made necessary, and
+// the sighted band the 2026-09-18 offline pass (§12.4) added:
+//   kFaceOnTrunkPlacement — whether the face-on pelvis / thorax nodes may be PLACED at all. ON
+//     since 2026-09-18, because placement is now confined to the SIGHTED BAND: a span's slope
+//     carries the rate in proportion to sin θ, so a peak found where |turn| ≥ kSightedTurnDeg is a
+//     measurement, and a peak sitting where the view went blind is emitted as a BOUND instead
+//     ("no earlier than N ms before impact"). The 17 Sept spike was the address reference, not
+//     the band; that reference is gone (spanTurnTrack). The §9 truth capture still calibrates the
+//     σ of the sighted nodes. OFF ⇒ every trunk node reads unresolved, as before.
+//   kSightedTurnDeg — the edge of sight. At 20° the σ on the angle is 2.9× the span jitter in
+//     radians (1/sin 20°) — ±5° at the corpus's 2.1–4.1 % — against 11.5× at the 5° sin floor
+//     the SERIES keeps. Cheetham's professional pelvis and thorax peak at 87 / 68 ms before
+//     impact, still 20–30° closed, so a pro-shaped sequence is in sight; a trunk that squares up
+//     at impact peaks out of it, and reads as a bound.
+//     A sighted peak is claimed only when the rate had come DOWN by the edge of sight (else the
+//     real peak is in the band and the node is a bound) — on the corpus every early pelvis
+//     "peak" had the rate rising again to above it at the edge.
+//   kMinAfterReversalMs — a sighted trunk peak within this of the rate's last sign change is a
+//     spike, not a peak: the shoulder keypoints jump as the arms cross the chest at the top, and
+//     the derivative reads ±1000 °/s inside 30 ms of the transition. A segment that has just
+//     reversed is not at its peak rate two windows later (Cheetham's thorax peaks ~200 ms after
+//     it turns). Such a node is neither placed nor bounded.
 //   kMinCredibleClubMph — the club node is placed only when the same track's clubhead speed at
 //     impact is credible; a 23 mph "impact" is a broken track, and its shaft-angle rate is the
 //     synth tier's straight line between anchors, not a swing.
-inline constexpr bool         kFaceOnTrunkPlacement = false;  // sequence.faceOnTrunkPlacement
+inline constexpr bool         kFaceOnTrunkPlacement = true;   // sequence.faceOnTrunkPlacement
+inline constexpr double       kSightedTurnDeg       = 20.0;   // sequence.sightedTurnDeg
+inline constexpr double       kMinAfterReversalMs   = 60.0;   // sequence.minAfterReversalMs
 inline constexpr double       kMinCredibleClubMph   = 40.0;   // sequence.minCredibleClubMph
 } // namespace sequence
 
