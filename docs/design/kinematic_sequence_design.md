@@ -344,14 +344,16 @@ Club at analysis time, for §9 and for any future capture that predates a placem
 > **2026-09-18 — the sequence is drawn ON the plot.** The chip row this section describes was
 > replaced: it restated the four curves' peaks in a row of boxes at a different scale under the
 > plot, and read oddly beside them. `ChartMetrics.sequenceOverlay` turns the Sequence into plot
-> geometry and `PpChartPlot.sequence` draws it in the series' own colours — a hollow ring at each
-> placed peak with its timing σ as a whisker and "Lead arm −87 ms" above (below when the peak is
-> at the top of the range), the lead between consecutive peaks as a bracket along the top of the
-> combined view, and a bounded node (§12.4) as a tinted span from the bound instant to impact
-> with a bar at the base, stacked when two share a plot. A split facet draws only its own
-> segment. `PpSequenceStrip` is now one line: the chain with its leads ("Lead arm −87 ms → Club
-> −4 ms (+83 ms)"), the verdict, and the nodes not in sight or not placed. Probe:
-> `tools/probes/ks_overlay_chart.qml`.
+> geometry and `PpChartPlot.sequence` draws it in the series' own colours — a hollow ring at
+> EVERY node's peak wherever the route found it, full weight when placed and dimmed when not,
+> with its timing σ as a whisker and "Lead arm −87 ms" above (below when the peak is at the top
+> of the range), and the lead between consecutive placed peaks as a bracket along the top of the
+> combined view. A split facet draws only its own segment. Nothing is written about a bound or
+> the blind band on the chart: the curve's own style already says how far to trust it, and a
+> reader of this chart needs no second telling (Mark, same day — a first cut drew the §12.4
+> bounds as labelled spans, and it was noise). The bound stays in the node, the JSON and the
+> report. `PpSequenceStrip` is now one line: the chain with its leads ("Lead arm −87 ms → Club
+> −4 ms (+83 ms)") and the verdict. Probe: `tools/probes/ks_overlay_chart.qml`.
 
 
 **The preset is free.** `ChartMetrics::seriesGroups()` already builds cross-cutting presets from

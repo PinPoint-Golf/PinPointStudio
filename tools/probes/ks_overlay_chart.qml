@@ -83,10 +83,9 @@ Item {
                     + " noLater=" + (n.peakNoLaterThanMs !== undefined ? Number(n.peakNoLaterThanMs).toFixed(0) : "-"))
         }
         var ov = cm.sequenceOverlay(ks || {})
-        probe.w("overlay peaks=" + ov.peaks.length + " gaps=" + ov.gaps.length + " bounds=" + ov.bounds.length + " unsighted='" + ov.unsightedText + "'")
-        for (var k = 0; k < ov.peaks.length; ++k) probe.w("  peak " + ov.peaks[k].seriesKey + " '" + ov.peaks[k].text + "' t=" + probe.ms(ov.peaks[k].tPeakUs) + " v=" + Number(ov.peaks[k].peakDps).toFixed(0))
+        probe.w("overlay peaks=" + ov.peaks.length + " gaps=" + ov.gaps.length + " chain='" + ov.chainText + "'")
+        for (var k = 0; k < ov.peaks.length; ++k) probe.w("  peak " + ov.peaks[k].seriesKey + " '" + ov.peaks[k].text + "' placed=" + ov.peaks[k].placed + " t=" + probe.ms(ov.peaks[k].tPeakUs) + " v=" + Number(ov.peaks[k].peakDps).toFixed(0))
         for (var g = 0; g < ov.gaps.length; ++g) probe.w("  gap '" + ov.gaps[g].text + "' " + probe.ms(ov.gaps[g].fromUs) + " → " + probe.ms(ov.gaps[g].toUs))
-        for (var b = 0; b < ov.bounds.length; ++b) probe.w("  bound " + ov.bounds[b].seriesKey + " '" + ov.bounds[b].text + "' " + probe.ms(ov.bounds[b].fromUs) + " → " + probe.ms(ov.bounds[b].toUs))
     }
     function stepApplyPreset() {
         chart._applyPreset("Kinematic sequence", false)
@@ -108,7 +107,7 @@ Item {
                     var p = it.mapToItem(null, 0, 0)
                     probe.w("  DRAWN " + on + " visible=" + it.visible + " x=" + it.x.toFixed(0) + " w=" + it.width.toFixed(0)
                             + (on.indexOf("sequencePeak:") === 0 ? " ring@(" + it.cx.toFixed(0) + "," + it.cy.toFixed(0) + ") σpx=" + it.sig.toFixed(1) : "")
-                            + " text='" + txt + "' col=" + it.col)
+                            + " text='" + txt + "' placed=" + (it.modelData.placed !== undefined ? it.modelData.placed : "?") + " col=" + it.col)
                 } else if (on === "sequenceGapText") {
                     found++; probe.w("  DRAWN gap text '" + it.text + "' visible=" + it.visible + " parentW=" + it.parent.width.toFixed(0))
                 } else if (on === "sequenceVerdict") {

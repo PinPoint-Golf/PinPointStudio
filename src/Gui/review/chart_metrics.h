@@ -544,21 +544,16 @@ public:
     Q_INVOKABLE QString sequenceRouteText(const QVariantMap &ks) const;
 
     // sequenceOverlay — the sequence drawn ON THE PLOT rather than restated under it (2026-09-18):
-    // the peaks are points on curves the preset already strokes, and a bound is a span of the same
-    // time axis, so both belong where the reader's eye already is. Returns
-    //   { peaks:  [{ segment, seriesKey, label, tPeakUs, peakDps, tSigmaUs, text ("Arm −87 ms") }]
-    //             — the PLACED nodes, in the sequence's order;
-    //     gaps:   [{ fromUs, toUs, text ("+22 ms") }] — between consecutive placed peaks;
-    //     bounds: [{ segment, seriesKey, label, fromUs, toUs, text }] — an unplaced node that
-    //             carries peakNoEarlierThanMs spans [impact − bound, impact] ("Pelvis peak in here,
-    //             out of sight"); one carrying peakNoLaterThanMs spans the 100 ms up to
-    //             impact − bound ("Chest peak before here, out of sight");
+    // the peaks are points on curves the preset already strokes, so they belong where the reader's
+    // eye already is. Returns
+    //   { peaks: [{ segment, seriesKey, label, placed, tPeakUs, peakDps, tSigmaUs, text }] — EVERY
+    //            node the routes found a peak for, the placed ones first in the sequence's order,
+    //            then the rest (drawn dimmer: the curve's own style already says how far to trust
+    //            it, and a reader of this chart needs no second telling); text is "Arm −87 ms";
+    //     gaps:  [{ fromUs, toUs, text ("+22 ms") }] — between consecutive PLACED peaks;
     //     chainText: the placed nodes in order with their leads — "Lead arm −87 ms → Club −4 ms
-    //             (+83 ms)" — so a split view, which cannot bracket a lead between two facets,
-    //             still reads the order in one line; "" when nothing is placed;
-    //     unsightedText: "" or "pelvis, chest not in sight · lead arm not placed" — the nodes
-    //             neither placed nor bounded, a span route's as "not in sight" (the camera could
-    //             not see its peak) and any other's as "not placed" (a σ or a domain refusal). }
+    //            (+83 ms)" — so a split view, which cannot bracket a lead between facets, still
+    //            reads the order in one line; "" when nothing is placed. }
     // seriesKey is the catalogue key of the segment's rate series (pelvisAngularSpeed …), which is
     // how the plot finds the curve and its colour. Empty / invalid map ⇒ empty lists and "".
     Q_INVOKABLE QVariantMap sequenceOverlay(const QVariantMap &ks) const;

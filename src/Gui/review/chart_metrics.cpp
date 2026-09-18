@@ -1006,12 +1006,9 @@ QVariantMap ChartMetrics::sequenceOverlay(const QVariantMap &ks) const
 {
     QVariantMap out{ { QStringLiteral("peaks"),  QVariantList{} },
                      { QStringLiteral("gaps"),   QVariantList{} },
-                     { QStringLiteral("bounds"), QVariantList{} },
-                     { QStringLiteral("chainText"), QString() },
-                     { QStringLiteral("unsightedText"), QString() } };
+                     { QStringLiteral("chainText"), QString() } };
     const QVariantList nodes = ks.value(QStringLiteral("nodes")).toList();
     if (nodes.isEmpty()) return out;
-    const qint64 impactUs = ks.value(QStringLiteral("impactUs")).toLongLong();
 
     const auto seriesKeyOf = [](const QString &segment) {
         if (segment == QLatin1String("pelvis"))  return QStringLiteral("pelvisAngularSpeed");
@@ -1027,8 +1024,21 @@ QVariantMap ChartMetrics::sequenceOverlay(const QVariantMap &ks) const
         }
         return {};
     };
+    const auto peakOf = [&](const QVariantMap &n, bool placed) {
+        const QString seg = n.value(QStringLiteral("segment")).toString();
+        const double before = n.value(QStringLiteral("beforeImpactMs")).toDouble();
+        return QVariantMap{
+            { QStringLiteral("segment"),   seg },
+            { QStringLiteral("seriesKey"), seriesKeyOf(seg) },
+            { QStringLiteral("label"),     sequenceSegmentLabel(seg) },
+            { QStringLiteral("placed"),    placed },
+            { QStringLiteral("tPeakUs"),   n.value(QStringLiteral("tPeakUs")).toLongLong() },
+            { QStringLiteral("peakDps"),   n.value(QStringLiteral("peakDps")).toDouble() },
+            { QStringLiteral("tSigmaUs"),  qint64(n.value(QStringLiteral("tSigmaMs")).toDouble() * 1000.0) },
+            { QStringLiteral("text"),      sequenceSegmentLabel(seg) + QStringLiteral(" ") + sequenceOffsetText(before) } };
+    };
 
-    // Peaks and gaps: the placed nodes, walked in the sequence's own order.
+    // The placed peaks, walked in the sequence's own order, with the gaps and the chain.
     QVariantList peaks, gaps;
     const QVariantList order = ks.value(QStringLiteral("order")).toList();
     const QVariantList gapsMs = ks.value(QStringLiteral("gapsMs")).toList();
@@ -1041,16 +1051,9 @@ QVariantMap ChartMetrics::sequenceOverlay(const QVariantMap &ks) const
         if (n.isEmpty()) continue;
         placedSegs.insert(seg);
         const qint64 tPeak = n.value(QStringLiteral("tPeakUs")).toLongLong();
-        const double before = n.value(QStringLiteral("beforeImpactMs")).toDouble();
-        QString link = sequenceSegmentLabel(seg) + QStringLiteral(" ") + sequenceOffsetText(before);
-        peaks.append(QVariantMap{
-            { QStringLiteral("segment"),   seg },
-            { QStringLiteral("seriesKey"), seriesKeyOf(seg) },
-            { QStringLiteral("label"),     sequenceSegmentLabel(seg) },
-            { QStringLiteral("tPeakUs"),   tPeak },
-            { QStringLiteral("peakDps"),   n.value(QStringLiteral("peakDps")).toDouble() },
-            { QStringLiteral("tSigmaUs"),  qint64(n.value(QStringLiteral("tSigmaMs")).toDouble() * 1000.0) },
-            { QStringLiteral("text"),      sequenceSegmentLabel(seg) + QStringLiteral(" ") + sequenceOffsetText(before) } });
+        const QVariantMap pk = peakOf(n, true);
+        peaks.append(pk);
+        QString link = pk.value(QStringLiteral("text")).toString();
         if (i > 0) {
             const double gap = (i - 1 < gapsMs.size()) ? gapsMs.at(i - 1).toDouble()
                                                         : double(tPeak - prevUs) * 1e-3;
@@ -1063,48 +1066,18 @@ QVariantMap ChartMetrics::sequenceOverlay(const QVariantMap &ks) const
         chain << link;
         prevUs = tPeak;
     }
-
-    // Bounds and the rest: every produced node that was not placed.
-    QVariantList bounds;
-    QStringList unsighted, unplaced;
+    // Then every other node the route found a peak for, wherever it is. A node with no peak at
+    // all (tPeakUs 0 — the finder had nothing) is not drawn.
     for (const QVariant &v : nodes) {
         const QVariantMap n = v.toMap();
         const QString seg = n.value(QStringLiteral("segment")).toString();
         if (placedSegs.contains(seg) || n.value(QStringLiteral("placed")).toBool()) continue;
-        const QString label = sequenceSegmentLabel(seg);
-        if (n.contains(QStringLiteral("peakNoEarlierThanMs"))) {
-            const qint64 from = impactUs - qint64(n.value(QStringLiteral("peakNoEarlierThanMs")).toDouble() * 1000.0);
-            bounds.append(QVariantMap{
-                { QStringLiteral("segment"),   seg },
-                { QStringLiteral("seriesKey"), seriesKeyOf(seg) },
-                { QStringLiteral("label"),     label },
-                { QStringLiteral("fromUs"),    from },
-                { QStringLiteral("toUs"),      impactUs },
-                { QStringLiteral("text"),      label + QStringLiteral(" peak in here, out of sight") } });
-        } else if (n.contains(QStringLiteral("peakNoLaterThanMs"))) {
-            const qint64 to = impactUs - qint64(n.value(QStringLiteral("peakNoLaterThanMs")).toDouble() * 1000.0);
-            bounds.append(QVariantMap{
-                { QStringLiteral("segment"),   seg },
-                { QStringLiteral("seriesKey"), seriesKeyOf(seg) },
-                { QStringLiteral("label"),     label },
-                { QStringLiteral("fromUs"),    to - 100000 },
-                { QStringLiteral("toUs"),      to },
-                { QStringLiteral("text"),      label + QStringLiteral(" peak before here, out of sight") } });
-        } else if (n.value(QStringLiteral("routeId")).toString() == QLatin1String("faceOn")
-                   && (seg == QLatin1String("pelvis") || seg == QLatin1String("thorax"))) {
-            unsighted << label.toLower();      // a span route with no peak in sight and no bound
-        } else {
-            unplaced << label.toLower();       // a σ or domain refusal on any other route
-        }
+        if (n.value(QStringLiteral("tPeakUs")).toLongLong() == 0) continue;
+        peaks.append(peakOf(n, false));
     }
     out.insert(QStringLiteral("peaks"),  peaks);
     out.insert(QStringLiteral("gaps"),   gaps);
-    out.insert(QStringLiteral("bounds"), bounds);
     out.insert(QStringLiteral("chainText"), chain.join(QStringLiteral(" → ")));
-    QStringList tail;
-    if (!unsighted.isEmpty()) tail << unsighted.join(QStringLiteral(", ")) + QStringLiteral(" not in sight");
-    if (!unplaced.isEmpty())  tail << unplaced.join(QStringLiteral(", ")) + QStringLiteral(" not placed");
-    out.insert(QStringLiteral("unsightedText"), tail.join(QStringLiteral(" · ")));
     return out;
 }
 

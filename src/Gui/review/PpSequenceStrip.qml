@@ -24,7 +24,7 @@ import PinPointStudio
 // PpSequenceStrip — the kinematic sequence's SENTENCE under the chart. Since 2026-09-18 the peaks,
 // the leads between them and the out-of-sight bounds are drawn on the plot itself
 // (PpChartPlot.sequence, from ChartMetrics.sequenceOverlay); what remains here is the header with
-// the route, and the verdict with the nodes that were not in sight. Was: the chips — restating the
+// the route, and the verdict. Was: the chips — restating the
 // positions of the four curves in a row of boxes at a different scale, which read oddly beside them.
 // Originally: the kinematic sequence, laid out as the one thing the golfer is told
 // (docs/design/kinematic_sequence_design.md §8): the four segment chips in the order they PEAKED,
@@ -61,7 +61,6 @@ ColumnLayout {
     // the plot (PpChartPlot.sequence), so the strip is the sentence under them and nothing more.
     readonly property var    _overlay:  cm.sequenceOverlay(root._ks)
     readonly property string _chain:    root._overlay.chainText || ""
-    readonly property string _unsighted: root._overlay.unsightedText || ""
 
     // ── header — the same shape as the summary section's ──────────────────────────────────────
     RowLayout {
@@ -82,11 +81,10 @@ ColumnLayout {
         objectName: "sequenceVerdict"
         Layout.fillWidth: true
         visible: root._verdict.length > 0
-        // "Lead arm −87 ms → Club −4 ms (+83 ms) · placed nodes in order (2 of 4) · pelvis, chest
-        // not in sight": the order with its leads first (a split view cannot bracket a lead
-        // between two facets, so the line carries it), then the verdict, then what was not placed.
+        // "Lead arm −87 ms → Club −4 ms (+83 ms) · placed nodes in order (2 of 4)": the order
+        // with its leads first (a split view cannot bracket a lead between two facets, so the
+        // line carries it), then the verdict.
         text: (root._chain.length > 0 ? root._chain + " · " : "") + root._verdict
-              + (root._unsighted.length > 0 ? " · " + root._unsighted : "")
         wrapMode: Text.WordWrap
         font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
         color: Theme.colorText2

@@ -67,10 +67,12 @@ Item {
     property real impactUs:   0
     property string unitLabel: ""
     // sequence: ChartMetrics.sequenceOverlay(analysisDetail.kinematicSequence), or null. The
-    // kinematic sequence drawn ON the curves it was read from (2026-09-18): a ring at each placed
-    // peak with its timing σ as a whisker, the lead between consecutive peaks bracketed along the
-    // top, and a bounded node as a span along the bottom in its own colour. Only the peaks whose
-    // series this plot strokes are drawn, so a split facet shows its own segment and no other.
+    // kinematic sequence drawn ON the curves it was read from (2026-09-18): a ring at each node's
+    // peak wherever the route found it — full weight when the node is placed, dimmed when it is
+    // not, and nothing more said: the curve's own style already tells the reader how far to trust
+    // it — with its timing σ as a whisker, and the lead between consecutive placed peaks
+    // bracketed along the top of a combined plot. Only the peaks whose series this plot strokes
+    // are drawn, so a split facet shows its own segment and no other.
     property var sequence: null
 
     // ── Playhead + shared cursor ──────────────────────────────────────────────────
@@ -168,7 +170,6 @@ Item {
     }
     readonly property var _seqPeaks:  (root.sequence && root.sequence.peaks)  ? root.sequence.peaks  : []
     readonly property var _seqGaps:   (root.sequence && root.sequence.gaps)   ? root.sequence.gaps   : []
-    readonly property var _seqBounds: (root.sequence && root.sequence.bounds) ? root.sequence.bounds : []
     function _bandColor(b) {
         return b === "warn"      ? Theme.colorWarn
              : b === "attention" ? Theme.colorAttention
@@ -712,57 +713,9 @@ Item {
         }
 
         // ── The kinematic sequence, on the curves ─────────────────────────────────────────
-        // Bounds first (a span along the bottom edge, behind everything else that follows), then
-        // the gap brackets along the top, then the peak rings — the rings are the claim and sit
-        // on top. Each takes the colour of the series it belongs to; a peak or bound whose series
-        // this plot does not stroke is not drawn.
-        Repeater {
-            model: root._seqBounds
-            delegate: Item {
-                id: bnd
-                required property var modelData
-                required property int index
-                readonly property string col: root._colorForKey(bnd.modelData.seriesKey)
-                readonly property real x0: root.xForT(Math.max(bnd.modelData.fromUs, root.domStartUs))
-                readonly property real x1: root.xForT(Math.min(bnd.modelData.toUs, root.domEndUs))
-                // Bounds stack from the bottom edge, one row per bound THIS plot draws, so two
-                // spans ending at impact (pelvis and chest, on an overlay plot) never print over
-                // each other; on a split facet each is the only one and sits on the base line.
-                readonly property int row: {
-                    var r = 0
-                    for (var i = 0; i < bnd.index; ++i)
-                        if (root._colorForKey(root._seqBounds[i].seriesKey) !== "") r++
-                    return r
-                }
-                readonly property real rowH: Theme.sp(14)
-                objectName: "sequenceBound:" + bnd.modelData.segment
-                visible: bnd.col !== "" && bnd.modelData.toUs > root.domStartUs && bnd.modelData.fromUs < root.domEndUs
-                x: bnd.x0; width: Math.max(0, bnd.x1 - bnd.x0)
-                y: 0; height: root._plotH
-                Rectangle {
-                    // The span: a tint the eye reads as a region, with a firm bar at its base.
-                    anchors.fill: parent
-                    color: bnd.col; opacity: 0.07
-                }
-                Rectangle {
-                    anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-                    anchors.bottomMargin: bnd.row * bnd.rowH
-                    height: Theme.sp(3)
-                    color: bnd.col; opacity: 0.8
-                }
-                Text {
-                    objectName: "sequenceBoundText"
-                    // Hung from the span's RIGHT edge (impact, on a "no earlier than" bound) and
-                    // free to run left past the span's start: the span is often narrower than its
-                    // own label, and to the left of it is the curve's own past, which has room.
-                    anchors.right: parent.right; anchors.rightMargin: Theme.sp(4)
-                    anchors.bottom: parent.bottom; anchors.bottomMargin: bnd.row * bnd.rowH + Theme.sp(5)
-                    text: bnd.modelData.text
-                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
-                    color: bnd.col
-                }
-            }
-        }
+        // The gap brackets along the top, then the peak rings — the rings are the claim and sit
+        // on top. Each takes the colour of the series it belongs to; a peak whose series this
+        // plot does not stroke is not drawn.
         Repeater {
             model: root._seqGaps
             delegate: Item {
@@ -801,6 +754,7 @@ Item {
                                             ? pk.modelData.tSigmaUs / (root.domEndUs - root.domStartUs) * root._plotW : 0
                 objectName: "sequencePeak:" + pk.modelData.segment
                 visible: pk.col !== "" && root._inDom(pk.modelData.tPeakUs)
+                opacity: pk.modelData.placed ? 1.0 : 0.45
                 x: 0; y: 0
                 // Timing σ whisker, through the ring.
                 Rectangle {

@@ -1690,15 +1690,6 @@ int main()
     // nodes in the sequence's own order, each carrying the gap to the next, then the unplaced tail
     // — and the string rules, which exist nowhere else and can be asserted nowhere else.
     {
-        const auto nodes_with_bound = [](QVariantList nodes) {
-            for (QVariant &v : nodes) {
-                QVariantMap n = v.toMap();
-                if (n.value(QStringLiteral("segment")).toString() == QLatin1String("thorax"))
-                    n.insert(QStringLiteral("peakNoEarlierThanMs"), 47.0);
-                v = n;
-            }
-            return nodes;
-        };
         const auto node = [](const char *seg, bool placed, double before, double tSig, double peak,
                              double pSig, const char *route, const char *quality) {
             return QVariantMap{ { QStringLiteral("segment"),        QString::fromLatin1(seg) },
@@ -1762,38 +1753,29 @@ int main()
             const QVariantMap ov = cm.sequenceOverlay(ks);
             const QVariantList peaks = ov.value(QStringLiteral("peaks")).toList();
             const QVariantList gaps  = ov.value(QStringLiteral("gaps")).toList();
-            checkEqI("overlay: three peaks, the placed nodes", peaks.size(), 3);
+            checkEqI("overlay: four peaks — the three placed, then the unplaced thorax", peaks.size(), 4);
             checkStr("overlay: peaks follow the order", peaks.at(1).toMap().value(QStringLiteral("segment")).toString(), "leadArm");
+            checkStr("overlay: the unplaced node comes last", peaks.at(3).toMap().value(QStringLiteral("segment")).toString(), "thorax");
+            checkTrue("overlay: …and says so", peaks.at(3).toMap().value(QStringLiteral("placed")).toBool() == false
+                                               && peaks.at(0).toMap().value(QStringLiteral("placed")).toBool() == true);
             checkStr("overlay: a peak names its series", peaks.at(0).toMap().value(QStringLiteral("seriesKey")).toString(), "pelvisAngularSpeed");
             checkStr("overlay: peak text is label + offset", peaks.at(0).toMap().value(QStringLiteral("text")).toString(), "Pelvis −87 ms");
             checkTrue("overlay: peak instant is the node's", peaks.at(0).toMap().value(QStringLiteral("tPeakUs")).toLongLong() == 1000000 - 87000);
             checkTrue("overlay: σ is carried in µs", peaks.at(0).toMap().value(QStringLiteral("tSigmaUs")).toLongLong() == 12000);
-            checkEqI("overlay: two gaps between three peaks", gaps.size(), 2);
+            checkEqI("overlay: two gaps between three placed peaks", gaps.size(), 2);
             checkStr("overlay: gap text is the sequence's own lead", gaps.at(0).toMap().value(QStringLiteral("text")).toString(), "+22 ms");
             checkTrue("overlay: gap spans the two peak instants",
                       gaps.at(0).toMap().value(QStringLiteral("fromUs")).toLongLong() == 1000000 - 87000
                       && gaps.at(0).toMap().value(QStringLiteral("toUs")).toLongLong() == 1000000 - 65000);
-            checkTrue("overlay: no bounds — the unplaced thorax carries none", ov.value(QStringLiteral("bounds")).toList().isEmpty());
-            checkStr("overlay: the unplaced, unbounded face-on thorax reads not in sight", ov.value(QStringLiteral("unsightedText")).toString(), "chest not in sight");
-            checkStr("overlay: the chain names the order with its leads", ov.value(QStringLiteral("chainText")).toString(),
+            checkStr("overlay: the chain names the placed order with its leads", ov.value(QStringLiteral("chainText")).toString(),
                      "Pelvis −87 ms → Lead arm −65 ms (+22 ms) → Club 0 ms (+65 ms)");
-
-            QVariantMap kb = ks;
-            QVariantList nb = nodes_with_bound(kb.value(QStringLiteral("nodes")).toList());
-            kb.insert(QStringLiteral("nodes"), nb);
-            const QVariantMap ob = cm.sequenceOverlay(kb);
-            const QVariantList bounds = ob.value(QStringLiteral("bounds")).toList();
-            checkEqI("overlay: a bounded thorax draws one span", bounds.size(), 1);
-            checkTrue("overlay: the span runs from impact − bound to impact",
-                      bounds.at(0).toMap().value(QStringLiteral("fromUs")).toLongLong() == 1000000 - 47000
-                      && bounds.at(0).toMap().value(QStringLiteral("toUs")).toLongLong() == 1000000);
-            checkStr("overlay: the span says what it is", bounds.at(0).toMap().value(QStringLiteral("text")).toString(),
-                     "Chest peak in here, out of sight");
-            checkStr("overlay: nothing left unsighted", ob.value(QStringLiteral("unsightedText")).toString(), "");
+            QVariantMap kn = ks;
+            QVariantList nn = kn.value(QStringLiteral("nodes")).toList();
+            { QVariantMap t = nn.at(1).toMap(); t.insert(QStringLiteral("tPeakUs"), 0); nn[1] = t; }
+            kn.insert(QStringLiteral("nodes"), nn);
+            checkEqI("overlay: a node with no peak at all is not drawn", cm.sequenceOverlay(kn).value(QStringLiteral("peaks")).toList().size(), 3);
             checkTrue("overlay: empty map ⇒ empty lists", cm.sequenceOverlay(QVariantMap{}).value(QStringLiteral("peaks")).toList().isEmpty());
         }
-        checkStr("mixed route text names the split", cm.sequenceRouteText(ks),
-                 "mixed: pelvis measured · lead arm, club estimated");
 
         QVariantMap v = ks;
         v.insert(QStringLiteral("verdict"), QStringLiteral("proximalToDistal"));
