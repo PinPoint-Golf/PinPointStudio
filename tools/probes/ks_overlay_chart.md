@@ -6,12 +6,15 @@ dimmed when unplaced; lead brackets in the combined view) and has the strip stop
 ```sh
 QT_QPA_PLATFORM=offscreen PINPOINT_LOG_STDERR=1 \
   build/Qt_6_11_1_for_macOS_Debug/PinPointStudio.app/Contents/MacOS/PinPointStudio \
-  --probe-qml tools/probes/ks_overlay_chart.qml \
+  --probe-qml "$PWD/tools/probes/ks_overlay_chart.qml" \
   --probe-swing /mnt/swingdata/corpus/swings/2026-06-11_Mark-Liversedge_Wrist_01/swing_0002 \
   --probe-split 0 2>&1 | grep KSPROBE | awk '!seen[$0]++'
 ```
 
-~15 s (5 steps × 2500 ms), then `Qt.quit()`s. Every line prints twice (stderr echo + app log);
+~15 s (5 steps × 2500 ms), then `Qt.quit()`s. ⚠ THE PROBE PATH MUST BE ABSOLUTE: a relative
+one is resolved as `file://tools/…`, the loader logs one WARN line ("No such file or directory")
+and the app then runs as a normal app with no probe and no `Qt.quit()` — for ever. Wrap the run
+in a watchdog (there is no `timeout` binary on this Mac). Every line prints twice (stderr echo + app log);
 the `awk` de-duplicates. `--probe-split 1` (default) is the split view, one facet per curve — each
 facet then draws only its own segment's ring and no lead bracket (the strip's line carries the
 leads); `--probe-split 0` is the combined view, where the bracket appears. See plumb_bob_chart.md for the environment notes (devBuild, no library setting
