@@ -509,6 +509,12 @@ int main()
         CHECK("§8c open address: the blind-band bound is unmoved within 10 ms",
               obp && bp && std::isfinite(obp->peakNoEarlierThanMs)
               && near(obp->peakNoEarlierThanMs, bp->peakNoEarlierThanMs, 10.0));
+        // (e) A pelvis that never reaches the edge of sight — 15° closed at the top — was blind
+        //     from the transition on. "No earlier than the transition" is the whole domain, so no
+        //     bound is claimed: the node reads not in sight.
+        const SegmentRatesResult never = run(15.0, 0.0);
+        const KsNode *np = nodeOf(never, SeqSegment::Pelvis);
+        CHECK("§8e never in sight: not placed and NO bound", np && !np->placed && !np->bounded());
         // (d) The bound is serialised, and only when it exists.
         const QJsonObject j = kinematicSequenceToJson(blind.sequence, [](int64_t t) { return qint64(t); });
         bool boundOut = false, noBoundOnPlaced = true;

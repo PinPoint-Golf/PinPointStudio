@@ -66,6 +66,12 @@ Item {
     property real domEndUs:   1
     property real impactUs:   0
     property string unitLabel: ""
+    // sequence: ChartMetrics.sequenceOverlay(analysisDetail.kinematicSequence), or null. The
+    // kinematic sequence drawn ON the curves it was read from (2026-09-18): a ring at each placed
+    // peak with its timing σ as a whisker, the lead between consecutive peaks bracketed along the
+    // top, and a bounded node as a span along the bottom in its own colour. Only the peaks whose
+    // series this plot strokes are drawn, so a split facet shows its own segment and no other.
+    property var sequence: null
 
     // ── Playhead + shared cursor ──────────────────────────────────────────────────
     property real playheadUs:   0
@@ -154,6 +160,15 @@ Item {
              : root._plotH / 2
     }
     function _inDom(t) { return t >= domStartUs && t <= domEndUs }
+    // The colour of the series with this catalogue key, or "" when this plot does not stroke it.
+    function _colorForKey(k) {
+        for (var i = 0; i < root.series.length; ++i)
+            if (root.series[i] && root.series[i].key === k) return root.series[i].color || Theme.colorText2
+        return ""
+    }
+    readonly property var _seqPeaks:  (root.sequence && root.sequence.peaks)  ? root.sequence.peaks  : []
+    readonly property var _seqGaps:   (root.sequence && root.sequence.gaps)   ? root.sequence.gaps   : []
+    readonly property var _seqBounds: (root.sequence && root.sequence.bounds) ? root.sequence.bounds : []
     function _bandColor(b) {
         return b === "warn"      ? Theme.colorWarn
              : b === "attention" ? Theme.colorAttention
@@ -692,6 +707,125 @@ Item {
                     y: root.yForV(dot.modelData.value) - r
                     color: root._bandColor(dot.modelData.band)
                     border.width: Theme.sp(1.5); border.color: Theme.colorBg
+                }
+            }
+        }
+
+        // ── The kinematic sequence, on the curves ─────────────────────────────────────────
+        // Bounds first (a span along the bottom edge, behind everything else that follows), then
+        // the gap brackets along the top, then the peak rings — the rings are the claim and sit
+        // on top. Each takes the colour of the series it belongs to; a peak or bound whose series
+        // this plot does not stroke is not drawn.
+        Repeater {
+            model: root._seqBounds
+            delegate: Item {
+                id: bnd
+                required property var modelData
+                required property int index
+                readonly property string col: root._colorForKey(bnd.modelData.seriesKey)
+                readonly property real x0: root.xForT(Math.max(bnd.modelData.fromUs, root.domStartUs))
+                readonly property real x1: root.xForT(Math.min(bnd.modelData.toUs, root.domEndUs))
+                // Bounds stack from the bottom edge, one row per bound THIS plot draws, so two
+                // spans ending at impact (pelvis and chest, on an overlay plot) never print over
+                // each other; on a split facet each is the only one and sits on the base line.
+                readonly property int row: {
+                    var r = 0
+                    for (var i = 0; i < bnd.index; ++i)
+                        if (root._colorForKey(root._seqBounds[i].seriesKey) !== "") r++
+                    return r
+                }
+                readonly property real rowH: Theme.sp(14)
+                objectName: "sequenceBound:" + bnd.modelData.segment
+                visible: bnd.col !== "" && bnd.modelData.toUs > root.domStartUs && bnd.modelData.fromUs < root.domEndUs
+                x: bnd.x0; width: Math.max(0, bnd.x1 - bnd.x0)
+                y: 0; height: root._plotH
+                Rectangle {
+                    // The span: a tint the eye reads as a region, with a firm bar at its base.
+                    anchors.fill: parent
+                    color: bnd.col; opacity: 0.07
+                }
+                Rectangle {
+                    anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+                    anchors.bottomMargin: bnd.row * bnd.rowH
+                    height: Theme.sp(3)
+                    color: bnd.col; opacity: 0.8
+                }
+                Text {
+                    objectName: "sequenceBoundText"
+                    // Hung from the span's RIGHT edge (impact, on a "no earlier than" bound) and
+                    // free to run left past the span's start: the span is often narrower than its
+                    // own label, and to the left of it is the curve's own past, which has room.
+                    anchors.right: parent.right; anchors.rightMargin: Theme.sp(4)
+                    anchors.bottom: parent.bottom; anchors.bottomMargin: bnd.row * bnd.rowH + Theme.sp(5)
+                    text: bnd.modelData.text
+                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
+                    color: bnd.col
+                }
+            }
+        }
+        Repeater {
+            model: root._seqGaps
+            delegate: Item {
+                id: gapItem
+                required property var modelData
+                readonly property real x0: root.xForT(gapItem.modelData.fromUs)
+                readonly property real x1: root.xForT(gapItem.modelData.toUs)
+                // Only when both peaks are on this plot (an overlay plot) and inside the window.
+                visible: root._seqPeaks.length > 1 && root._inDom(gapItem.modelData.fromUs) && root._inDom(gapItem.modelData.toUs)
+                         && root.series.length > 1
+                x: gapItem.x0; width: Math.max(0, gapItem.x1 - gapItem.x0)
+                y: Theme.sp(4); height: Theme.sp(14)
+                Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.colorBorderStrong }
+                Rectangle { anchors.left: parent.left; anchors.bottom: parent.bottom; width: 1; height: Theme.sp(4); color: Theme.colorBorderStrong }
+                Rectangle { anchors.right: parent.right; anchors.bottom: parent.bottom; width: 1; height: Theme.sp(4); color: Theme.colorBorderStrong }
+                Text {
+                    objectName: "sequenceGapText"
+                    anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: Theme.sp(2)
+                    text: gapItem.modelData.text
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                    color: Theme.colorText3
+                    visible: width < parent.width
+                }
+            }
+        }
+        Repeater {
+            model: root._seqPeaks
+            delegate: Item {
+                id: pk
+                required property var modelData
+                readonly property string col: root._colorForKey(pk.modelData.seriesKey)
+                readonly property real r: Theme.sp(5)
+                readonly property real cx: root.xForT(pk.modelData.tPeakUs)
+                readonly property real cy: root.yForV(pk.modelData.peakDps)
+                readonly property real sig: (root.domEndUs > root.domStartUs)
+                                            ? pk.modelData.tSigmaUs / (root.domEndUs - root.domStartUs) * root._plotW : 0
+                objectName: "sequencePeak:" + pk.modelData.segment
+                visible: pk.col !== "" && root._inDom(pk.modelData.tPeakUs)
+                x: 0; y: 0
+                // Timing σ whisker, through the ring.
+                Rectangle {
+                    x: pk.cx - pk.sig; y: pk.cy - Theme.sp(0.75)
+                    width: 2 * pk.sig; height: Theme.sp(1.5)
+                    color: pk.col; opacity: 0.6
+                }
+                // The ring: hollow, so the curve shows through the claim.
+                Rectangle {
+                    x: pk.cx - pk.r; y: pk.cy - pk.r
+                    width: 2 * pk.r; height: 2 * pk.r; radius: pk.r
+                    color: Theme.colorBg
+                    border.width: Theme.sp(2); border.color: pk.col
+                }
+                Text {
+                    id: pkText
+                    objectName: "sequencePeakText"
+                    // Above the ring, kept inside the plot on either edge — and BELOW it when the
+                    // peak sits at the top of the range, which a facet's own peak always does.
+                    readonly property real above: pk.cy - pk.r - height - Theme.sp(2)
+                    x: Math.max(0, Math.min(root._plotW - width, pk.cx - width / 2))
+                    y: above >= 0 ? above : pk.cy + pk.r + Theme.sp(2)
+                    text: pk.modelData.text
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                    color: pk.col
                 }
             }
         }

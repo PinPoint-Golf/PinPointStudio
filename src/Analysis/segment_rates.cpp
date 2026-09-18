@@ -251,8 +251,14 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
             }
             spike = lastNonPositive >= 0 && p.tPeakUs - lastNonPositive < int64_t(cfg.minAfterReversalMs * 1000.0);
         }
-        if (atEntry) n.peakNoEarlierThanMs = double(dom.toUs - gate.blindFromUs) * 1e-3;
-        if (atExit)  n.peakNoLaterThanMs   = double(dom.toUs - gate.blindToUs) * 1e-3;
+        // A bound is a claim about the part of the domain the route SAW. When the band opens at
+        // the domain start, nothing was in sight and "no earlier than the transition" is the
+        // whole domain — not a bound, and not printed as one (§12.4). Likewise a band that closes
+        // at impact. The node stays unplaced with no bound: "not in sight".
+        const bool entryVacuous = gate.blindFromUs <= dom.fromUs + windowUs;
+        const bool exitVacuous  = gate.blindToUs   >= dom.toUs   - windowUs;
+        if (atEntry && !entryVacuous) n.peakNoEarlierThanMs = double(dom.toUs - gate.blindFromUs) * 1e-3;
+        if (atExit  && !exitVacuous)  n.peakNoLaterThanMs   = double(dom.toUs - gate.blindToUs) * 1e-3;
         // Placed only when the σ is inside the threshold, the route is allowed to place this
         // segment at all (§9 / §12), and the peak was in sight. The attempt is kept for the trace.
         n.placed       = gate.may && !atEntry && !atExit && !spike && p.tSigmaMs <= cfg.maxPlaceSigmaMs;

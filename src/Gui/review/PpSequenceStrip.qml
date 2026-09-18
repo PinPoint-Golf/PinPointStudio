@@ -21,7 +21,12 @@ import QtQuick
 import QtQuick.Layouts
 import PinPointStudio
 
-// PpSequenceStrip — the kinematic sequence, laid out as the one thing the golfer is told
+// PpSequenceStrip — the kinematic sequence's SENTENCE under the chart. Since 2026-09-18 the peaks,
+// the leads between them and the out-of-sight bounds are drawn on the plot itself
+// (PpChartPlot.sequence, from ChartMetrics.sequenceOverlay); what remains here is the header with
+// the route, and the verdict with the nodes that were not in sight. Was: the chips — restating the
+// positions of the four curves in a row of boxes at a different scale, which read oddly beside them.
+// Originally: the kinematic sequence, laid out as the one thing the golfer is told
 // (docs/design/kinematic_sequence_design.md §8): the four segment chips in the order they PEAKED,
 // the gap between neighbours, and the verdict — or the honest refusal of one.
 //
@@ -52,6 +57,11 @@ ColumnLayout {
     readonly property var    _rows:    cm.sequenceRows(root._ks)
     readonly property string _verdict: cm.sequenceVerdictText(root._ks)
     readonly property string _route:   cm.sequenceRouteText(root._ks)
+    // The nodes neither placed nor bounded, named — the peaks and bounds themselves are drawn on
+    // the plot (PpChartPlot.sequence), so the strip is the sentence under them and nothing more.
+    readonly property var    _overlay:  cm.sequenceOverlay(root._ks)
+    readonly property string _chain:    root._overlay.chainText || ""
+    readonly property string _unsighted: root._overlay.unsightedText || ""
 
     // ── header — the same shape as the summary section's ──────────────────────────────────────
     RowLayout {
@@ -67,118 +77,16 @@ ColumnLayout {
         Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.colorBorder }
     }
 
-    // ── the chips, in peak order, with the gap to the next between them ───────────────────────
-    Flow {
-        Layout.fillWidth: true
-        spacing: Theme.sp(6)
-
-        Repeater {
-            model: root._rows
-            delegate: Row {
-                id: entry
-                required property var modelData
-                spacing: Theme.sp(6)
-
-                Rectangle {
-                    id: chip
-                    objectName: "sequenceChip:" + entry.modelData.segment
-                    readonly property bool placed: entry.modelData.placed
-                    width:  chipCol.width + Theme.sp(18)
-                    height: chipCol.height + Theme.sp(12)
-                    radius: Theme.sp(8)
-                    color: Theme.colorBg
-                    border.width: 1; border.color: Theme.colorBorder
-                    opacity: chip.placed ? 1.0 : 0.45
-
-                    Column {
-                        id: chipCol
-                        x: Theme.sp(9); y: Theme.sp(6)
-                        spacing: Theme.sp(2)
-
-                        Row {
-                            spacing: Theme.sp(6)
-                            Text {
-                                text: entry.modelData.label
-                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
-                                color: chip.placed ? Theme.colorText : Theme.colorText3
-                            }
-                            // Method glyph — the directory's inertial / triangulated / projected.
-                            Rectangle {
-                                width: Theme.sp(14); height: Theme.sp(14); radius: Theme.sp(3)
-                                anchors.verticalCenter: parent.verticalCenter
-                                color: "transparent"
-                                border.width: 1; border.color: Theme.colorBorderStrong
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: entry.modelData.glyph
-                                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                                    color: Theme.colorText2
-                                }
-                            }
-                        }
-                        // "−87 ms  ±12 ms" — the offset from impact and its σ, or the reason
-                        // there is none.
-                        Row {
-                            spacing: Theme.sp(5)
-                            visible: chip.placed
-                            Text {
-                                id: offsetText
-                                text: entry.modelData.beforeText
-                                font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
-                                color: Theme.colorText
-                            }
-                            Text {
-                                text: entry.modelData.sigmaText
-                                anchors.baseline: offsetText.baseline
-                                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                                color: Theme.colorText3
-                            }
-                        }
-                        Text {
-                            visible: chip.placed
-                            text: entry.modelData.peakText
-                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                            color: Theme.colorText2
-                        }
-                        Text {
-                            visible: !chip.placed
-                            text: entry.modelData.unplacedText
-                            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
-                            color: Theme.colorText3
-                        }
-                    }
-                }
-
-                // The gap to the next placed chip — a thin connector with the lead on it.
-                Item {
-                    visible: entry.modelData.gapMs >= 0
-                    width: gapText.width + Theme.sp(6)
-                    height: chip.height
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width; height: 1
-                        color: Theme.colorBorderStrong
-                    }
-                    Text {
-                        id: gapText
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.bottom: parent.verticalCenter
-                        anchors.bottomMargin: Theme.sp(3)
-                        text: entry.modelData.gapText
-                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                        color: Theme.colorText3
-                    }
-                }
-            }
-        }
-    }
-
     // ── the verdict — one sentence, or the honest refusal of one ──────────────────────────────
     Text {
         objectName: "sequenceVerdict"
         Layout.fillWidth: true
         visible: root._verdict.length > 0
-        text: root._verdict
+        // "Lead arm −87 ms → Club −4 ms (+83 ms) · placed nodes in order (2 of 4) · pelvis, chest
+        // not in sight": the order with its leads first (a split view cannot bracket a lead
+        // between two facets, so the line carries it), then the verdict, then what was not placed.
+        text: (root._chain.length > 0 ? root._chain + " · " : "") + root._verdict
+              + (root._unsighted.length > 0 ? " · " + root._unsighted : "")
         wrapMode: Text.WordWrap
         font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
         color: Theme.colorText2

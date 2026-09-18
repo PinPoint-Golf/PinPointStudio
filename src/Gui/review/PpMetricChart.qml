@@ -60,6 +60,11 @@ Item {
     // shown only while the METRICS preset is "Kinematic sequence"; null on a swing that produced
     // no node, and the strip then simply is not there.
     property var  kinematicSequence: null
+    // The sequence as plot geometry (ChartMetrics.sequenceOverlay), under its own preset only —
+    // the four curves it marks are the ones that preset strokes. Null elsewhere, so no plot draws it.
+    readonly property var _sequenceOverlay: (root.preset === "Kinematic sequence"
+                                             && !!root.kinematicSequence && !!root.kinematicSequence.nodes)
+                                            ? cm.sequenceOverlay(root.kinematicSequence) : null
     property real startUs:    0
     property real endUs:      0
     property real impactUs:   0
@@ -1169,6 +1174,7 @@ Item {
                         domStartUs: root.viewStartUs
                         domEndUs:   root.viewEndUs
                         impactUs:   root.impactUs
+                        sequence:   root._sequenceOverlay
                         // "°" rather than "deg": the fallback now matches what _fmt prints for a
                         // unitless series, where the two spellings used to sit inches apart.
                         unitLabel:  cm.shortUnit((plotSeries.length > 0 && plotSeries[0].unit)
