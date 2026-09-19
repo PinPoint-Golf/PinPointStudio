@@ -134,8 +134,8 @@ still need **libppcp** beside this repository — see
 > ⚠ **A cabled phone that keeps dropping is an OS setting, not a bug.** macOS's
 > "iPhone USB" tethering service can flap and force a USB re-configuration that
 > tears down every usbmux tunnel. The symptom, the diagnosis and the one-line
-> fix are in the README's
-> [Phone capture troubleshooting](README.md#troubleshooting--a-wired-link-that-keeps-dropping-macos).
+> fix are in
+> [Phone capture troubleshooting](docs/user/phone_capture.md#troubleshooting--a-wired-link-that-keeps-dropping-macos).
 
 ### 2. Install Qt 6.11
 Use the [Qt Online Installer](https://www.qt.io/download-qt-installer) or:

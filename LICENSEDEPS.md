@@ -35,6 +35,7 @@ GPL note. See **Known conflict — Teledyne FLIR Spinnaker SDK** below.
 | whisper.cpp (bundles ggml) | v1.7.2 | MIT | Permissive; GPL-compatible. |
 | libsamplerate | 0.2.2 | BSD-2-Clause | Permissive; GPL-compatible. |
 | Eigen | 3.4.0 | MPL-2.0 | MPL-2.0 carries an explicit GPL-2.0-or-later compatibility clause. |
+| IMU_EKF (hobbeshunter/IMU_EKF, © Martin Wudenka; vendored in `third_party/imu_ekf`) | vendored | MIT | Permissive; GPL-compatible. The error-state Kalman filter behind the ESKF orientation fusion, compiled into the app with its `LICENSE` kept beside the sources. |
 | libwrist (HackMotion wG3 wrist sensor driver) | tracks `main` (0.2.0) | MIT | Permissive. Statically linked, with the copyright notice retained. Combines with the GPL in either version, so unlike the LGPL terms it replaced this row does not rest on an argument about which GPL version this project conveys. Sister project (same author); the exact commit built is recorded in the About box. |
 | libppcp (PinPoint Capture Protocol reference implementation) | tracks `main` (0.1.0) | MIT | Permissive. Statically linked, with the copyright notice retained. Sister project (same author), consumed as a dependency and never copied — it is the only artefact shared between this repository, `libppcp` and PinPointCapture, and its MIT terms are what let a GPL host and a non-GPL capture device share one protocol implementation. The exact commit built is recorded in the About box. |
 | libgspro (GSPro Open Connect v1 protocol server) | tracks `main` (0.1.0) | MIT | Permissive. Statically linked, with the copyright notice retained. Sister project (same author). It implements the SERVER side of a published, open, unauthenticated third-party protocol and never connects to, contains or reproduces any part of the GSPro application — see the library's own README for the scope statement. The exact commit built is recorded in the About box. |
@@ -142,7 +143,7 @@ copyright licences recorded here.
 
 Distributed builds reproduce the full licence text and required attribution for
 each component above: Qt (LGPL-3.0), OpenCV (Apache-2.0), Eigen (MPL-2.0),
-espeak-ng (GPL-3.0), FFmpeg and libx264 (GPL-2.0-or-later), whisper.cpp and ggml
+espeak-ng (GPL-3.0), FFmpeg and libx264 (GPL-2.0-or-later), IMU_EKF (MIT), whisper.cpp and ggml
 (MIT), ONNX Runtime and onnxruntime-genai (MIT), libsamplerate (BSD-2-Clause),
 WinSparkle and Sparkle (MIT), the Vulkan loader (Apache-2.0), and the model assets
 listed above. For LGPL Qt, distributed builds link Qt dynamically and provide the
