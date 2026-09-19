@@ -115,8 +115,9 @@ Dependencies are best managed via [Homebrew](https://brew.sh/).
 
 ### 1. Install Dependencies
 ```bash
-brew install cmake espeak-ng aravis opencv ffmpeg openssl@3
+brew install cmake espeak-ng aravis opencv@4 ffmpeg openssl@3
 ```
+`opencv@4`, not `opencv`: the plain formula is 5.x now, which does not build here (see the macOS packaging section).
 `openssl@3` is the PPCP capture-device link (`src/Ppcp`, TLS with a pre-shared
 key). It is keg-only, so CMake probes `brew --prefix openssl@3` directly rather
 than relying on the default search — otherwise it would find LibreSSL, which has
@@ -307,7 +308,8 @@ tools/package_appimage.sh --no-sign            # unsigned dev build (no in-app u
 The script resolves the version from `src/Core/version.h`, builds Release, bundles
 Qt/QML + the heavy native deps (ORT, the **x264-capable** FFmpeg — same trap as the
 `windeployqt` x264 note in the Windows section, OpenCV, Aravis, espeak-ng,
-CUDA/cuDNN, optional Spinnaker) + the `appimageupdatetool` binary the app shells out
+CUDA/cuDNN, and Spinnaker only when `SPINNAKER_DIR` is set for a private local build, since its
+EULA forbids shipping it) + the `appimageupdatetool` binary the app shells out
 to, then
 seals with `appimagetool` embedding the `gh-releases-zsync` update information and a
 GPG signature.
@@ -461,6 +463,23 @@ app. WinSparkle points at the stable
 `releases/latest/download/appcast-win.xml` redirect, so releases must be published
 **non-prerelease** for it to resolve.
 
+### Local release (another account on this PC)
+To try a build on the account that runs the official install **without publishing
+anything**, `packaging\local_release.ps1` builds the same installer the runbook does
+(via `build_installer.ps1`, `build\Release-Installer`) and stages it in a folder both
+accounts can read:
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\local_release.ps1                # core → C:\PinPointStudio\local-release
+powershell -ExecutionPolicy Bypass -File packaging\local_release.ps1 -InstallHere   # …and upgrade THIS account silently, as a smoke test
+powershell -ExecutionPolicy Bypass -File packaging\local_release.ps1 -Components both
+```
+The staged file carries the git sha in its name, and `LATEST.txt` beside it records
+the commit and whether the tree was dirty. Run it from the other account for an
+in-place, no-admin upgrade. The **version is not bumped** — a local release carries
+the last official release's `version.h`, so the updater stays quiet and the next real
+release bumps `BUILD` as the runbook says. Never sign, appcast or upload one. The Qt
+kit defaults to the newest `C:\Qt\6.*\msvc2022_64` present (`-QtPrefix` to override).
+
 > **Not yet validated end-to-end.** As of this commit the WinSparkle wiring, signing
 > scripts, and CI Windows job are authored but the pinned key is still a placeholder
 > (the updater is inert until a real key ships) and the CI job + the CUDA `AppId`
@@ -470,7 +489,7 @@ app. WinSparkle points at the stable
 
 ## Testing
 
-PinPoint Studio has nine standalone unit-test suites. **None are part of the application build** — the root `CMakeLists.txt` forces `BUILD_TESTING OFF`, so building the app never compiles them. Each suite recompiles only the handful of `.cpp` it needs (there is no test-linkable library except `pinpoint_buffer`) and stubs out anything that would drag in the heavy app dependencies — so the tests configure and build in seconds, independent of whisper/FFmpeg/OpenCV.
+PinPoint Studio has ten standalone unit-test suites (194 tests under the umbrella). **None are part of the application build** — the root `CMakeLists.txt` forces `BUILD_TESTING OFF`, so building the app never compiles them. Each suite recompiles only the handful of `.cpp` it needs (there is no test-linkable library except `pinpoint_buffer`) and stubs out anything that would drag in the heavy app dependencies — so the tests configure and build in seconds, independent of whisper/FFmpeg/OpenCV.
 
 > The Gui suite is the one exception to "independent of QML": its offscreen UI tests declare the app's QML module themselves so they can press real components. That costs a QML compile, and it is what puts UI coverage in the release gate — the suite previously lived in the app build and therefore ran in no gate on any platform.
 
@@ -521,17 +540,18 @@ Filter within any built tree with `ctest --test-dir <build> -R <regex>`.
 
 | Suite | Source root | Tests | Coverage |
 |---|---|---|---|
-| **EventBuffer** | `src/Buffer/tests` | 8 | Lock-free ring, timeline merger, swing window, wait-flag, watchdog, thread-policy + adversarial producer/consumer fuzz. GoogleTest; links the `pinpoint_buffer` library. |
-| **Analysis** | `src/Analysis/tests` | 28 | Wrist Motion assessment engine (bands, Tier-1/Tier-2 rules, composite score v2, live adapter); segmentation chain (phase signals/segmenter, metric extractor, swing scorer); wrist-angle math; IMU anatomical calibration; orientation filters (Madgwick + ESKF); WT9011DCL/WT901BLE67 driver frame-parse; 3D-viz binding; ShaftTracker (radial detection, track assembly, kinematics); shot arbiter; session summary; frame decode; `swing.json` round-trip. |
-| **Resource profiler** | `src/Core/tests` | 7 | `pp_profiler`/`pp_os_metrics`/`PpStatsLog` + the `profiler_controller` bridge: tier gating, scope interning, timing aggregation, concurrency, OS/GPU metrics graceful degradation, zero-overhead compile-out. GoogleTest; on Windows links `dxgi`. |
-| **Gui model/helper + QML UI** | `src/Gui/tests` | 7 | `TimelineLabels` (label solver, nearest/active, phase names), `ChartMetrics::seriesGroups` against the real manifest, `SwingSeriesModel` (playhead→row), `ShotListModel::shotSummary`, `ReanalysisController`, and `qml_reactivity_test` (reads source for bindings that subscribe to nothing). Plus **`qml_ui`**: 11 `tst_*.qml` that load real components offscreen and press them — the only coverage of the QML↔C++ seam and of the layouts. It declares the app's QML module from `cmake/PinPointQmlModule.cmake` and loads the app's bundled fonts, so it measures the faces the app ships rather than a host fallback. Needs Qt6 Qml/Quick/QuickTest/Multimedia/GuiPrivate. |
-| **Shot impact-detector** | `src/IMU/tests` | 3 | IMU impact detector truth table (fires once; taps/waggles/swells rejected; refractory; orientation gate; back-dated `est_t`; 100↔200 Hz parity); `ImuIoWorker` thread/EventBuffer contract; ESKF gyro-unit pin. |
-| **Calibrated ball-detection** | `src/Pose/tests` | 3 | `ball_model.h` core (model fitting, theta, multi-cue scoring, gain invariance, drift); calibration protocol (round bookkeeping, profile save/load); `BallDetector` throttle contract. Needs OpenCV (core/imgproc/features2d). |
+| **EventBuffer** | `src/Buffer/tests` | 9 | Lock-free ring, timeline merger, swing window, wait-flag, watchdog, thread-policy + adversarial producer/consumer fuzz; the device-clock mapper that carries a camera's own exposure timestamps onto the host clock. GoogleTest; links the `pinpoint_buffer` library. |
+| **Analysis** | `src/Analysis/tests` | 114 | Wrist Motion assessment engine (bands, Tier-1/Tier-2 rules, composite score v2, live adapter); segmentation chain (phase signals/segmenter, metric extractor, swing scorer); wrist-angle math; IMU anatomical calibration; orientation filters (Madgwick + ESKF); WT9011DCL/WT901BLE67 driver frame-parse; 3D-viz binding; ShaftTracker (radial detection, track assembly, kinematics, re-synthesis of a reused track's synth tier from the hand track); kinematic sequence (angular-rate peak placement and its σ coverage, the three segment-rate routes against one synthetic downswing); shot arbiter; session summary; frame decode; `swing.json` round-trip, including the recorded club track and phase ladder read back for re-analysis. Also builds `regrade_ledger` (not registered with CTest — see [Other offline tools](#other-offline-tools)). |
+| **Resource profiler** | `src/Core/tests` | 8 | `pp_profiler`/`pp_os_metrics`/`PpStatsLog` + the `profiler_controller` bridge: tier gating, scope interning, timing aggregation, concurrency, OS/GPU metrics graceful degradation, zero-overhead compile-out. GoogleTest; on Windows links `dxgi`. |
+| **Gui model/helper + QML UI** | `src/Gui/tests` | 10 | `TimelineLabels` (label solver, nearest/active, phase names), `ChartMetrics::seriesGroups` against the real manifest, `SwingSeriesModel` (playhead→row), `ShotListModel::shotSummary`, `ReanalysisController`, and `qml_reactivity_test` (reads source for bindings that subscribe to nothing). Plus **`qml_ui`**: 15 `tst_*.qml` that load real components offscreen and press them — the only coverage of the QML↔C++ seam and of the layouts. It declares the app's QML module from `cmake/PinPointQmlModule.cmake` and loads the app's bundled fonts, so it measures the faces the app ships rather than a host fallback. Needs Qt6 Qml/Quick/QuickTest/Multimedia/GuiPrivate/Network, and libgspro (resolved as the umbrella resolves it), because it compiles the launch-monitor factory and that constructs every connector. |
+| **Shot impact-detector** | `src/IMU/tests` | 8 | IMU impact detector truth table (fires once; taps/waggles/swells rejected; refractory; orientation gate; back-dated `est_t`; 100↔200 Hz parity); `ImuIoWorker` thread/EventBuffer contract; ESKF gyro-unit pin. |
+| **Calibrated ball-detection** | `src/Pose/tests` | 5 | `ball_model.h` core (model fitting, theta, multi-cue scoring, gain invariance, drift); calibration protocol (round bookkeeping, profile save/load); `BallDetector` throttle contract. Needs OpenCV (core/imgproc/features2d). |
 | **Acoustic onset-detector** | `src/Audio/tests` | 1 | Onset detector truth table (click fires sample-accurately; speech/tone/ambient rejected; refractory; back-dating; reverb confirm; absolute amplitude gate). |
 | **Launch monitor** | `src/LaunchMonitor/tests` | 6 | `LastShot.CSV` parsing (columns matched by name not position, metric **and** imperial units as FSX2020 declares them, the three derived values, malformed/torn/short input) and shot attribution (`ShotPairing` arming and displacement, parking a reading until a `swingDir` exists, and the watermark that stops a stale file being claimed at startup). Plus the standalone gate — whether a reading nothing else saw becomes a shot of its own — exhaustive over all 2^7 precondition states, split out of the controller so it needs no CameraManager. GoogleTest; the pairing half writes its own fixtures into a `QTemporaryDir` and needs Qt6 Test for `QSignalSpy`. Plus the GSPro Open Connect connector: the libgspro link/ABI check (that the dependency links and its headers match its archive), the `gsp_message` → reading mapping against real clients' byte patterns (presence bits, a measured zero, a back/side-spin-only device, units, the derived values), and the listener itself over a loopback socket — a shot becoming a reading and being acknowledged, a heartbeat answered but not attributed, a message split across three writes, two devices at once, a client vanishing mid-message, and a bind conflict reported rather than swallowed. |
 | **In-app update** | `src/Update/tests` | 3 | Linux updater pure logic (version compare, AppImage asset selection across x86_64/aarch64, GPG VALIDSIG parse, placeholder-key refusal); `PlatformTarget` arch-token map + a tripwire on the **frozen** macOS appcast filenames (`appcast-mac.xml` must stay unsuffixed; arm64 is a separate file); `UpdateController` state-machine + relaunch session-safety policy + QML state-string contract, driven by a `FakeUpdateBackend`. GoogleTest; the policy test needs Qt6 Qml + Test. |
+| **PPCP transport** | `src/Ppcp/tests` | 30 | The phone capture link, entirely on loopback with the `PPCP-RV` §10.1 key vector — no device, no pairing code, no network: TLS-PSK transport, usbmux framing, DNS-SD wire format and advertising, link binding, host peer / rendezvous / bootstrap / host service, source declaration, offers and arbitration, live session, clip filing and bundle import, the video input, QR, annotations, the libppcp conformance vectors and the IOP-3…IOP-10 interop scenarios. GoogleTest; needs OpenSSL and a libppcp checkout (see [Co-developing libppcp](#co-developing-libppcp)). |
 
-Framework note: Buffer, Core, In-app update and Launch monitor use GoogleTest (fetched automatically); the other five use a self-contained `main()` + `CHECK`/`CHECK_NEAR` (no GoogleTest). `src/Buffer/tests` also builds `latency_benchmark`, intentionally **not** registered with CTest — run it by hand: `./build/tests/Buffer/latency_benchmark` (umbrella) or `./build/buffer-tests/tests/latency_benchmark` (standalone `-S src/Buffer`).
+Framework note: Buffer, Core, In-app update, Launch monitor and PPCP transport use GoogleTest (fetched automatically); the other five use a self-contained `main()` + `CHECK`/`CHECK_NEAR` (no GoogleTest). `src/Buffer/tests` also builds `latency_benchmark`, intentionally **not** registered with CTest — run it by hand: `./build/tests/Buffer/latency_benchmark` (umbrella) or `./build/buffer-tests/tests/latency_benchmark` (standalone `-S src/Buffer`).
 
 ---
 
@@ -658,9 +678,9 @@ GCQuad path. `python3 tools/launchmonitor/fake_gspro.py --shots 5`, with the lau
 to GSPro Connect and switched on.
 
 The umbrella test suite resolves the library the same way and adds `-DPP_LIBGSPRO_DIR=<path>` for
-an explicit override; `ctest -R gspro` runs the link/ABI check — which is what makes "the
-dependency was added for Linux, macOS and Windows" a claim rather than an expectation, since no
-PinPoint code references a libgspro symbol until the connector lands.
+an explicit override; `ctest -R gspro` runs the link/ABI check, the message → reading mapping and
+the listener over loopback. The Gui suite's `qml_ui` links it too: it compiles the launch-monitor
+factory, and the factory constructs every connector.
 
 ---
 
@@ -709,6 +729,31 @@ cmake --build . --target swinglab_run
 ```
 
 It shares the app's heavy dependency set (OpenCV incl. videoio, ONNX Runtime, the ViTPose model), so configure the app at least once first to ensure those are present.
+
+### Python lab scripts
+
+The Python tools under `tools/` are development aids — none is built, packaged or shipped. Most need only the standard library; the rest take their packages from `tools/swinglab/requirements.txt` (numpy, opencv-python, matplotlib, scipy), in a venv per host:
+
+```bash
+python3 -m venv ~/.swinglab-venv
+~/.swinglab-venv/bin/pip install -r tools/swinglab/requirements.txt
+```
+
+| Script | Needs | What |
+|---|---|---|
+| `tools/swinglab/sequence_report.py` | stdlib | Tabulates `analysis.kinematicSequence` over a `swinglab_run` output root: per-segment placed/bounded counts, peak timing and σ, verdict histogram (`kinematic_sequence_design.md` §9) |
+| `tools/swinglab/span_turn_offline.py` | numpy, scipy | Face-on trunk turn from span foreshortening over the pose2 corpus (`kinematic_sequence_design.md` §12.4) |
+| `tools/impactlab/impact_review.py` | numpy, opencv-python | Review/refine the impact camera's track from a swing's `analysis.impact`; writes a contact sheet + metrics line per swing |
+| `tools/launchmonitor/fake_gspro.py` | stdlib | Plays a GSPro Open Connect launch monitor at a running PinPoint (see [Co-developing libgspro](#co-developing-libgspro)) |
+
+### Other offline tools
+
+- **`regrade_ledger`** re-reduces a session's `diagnostics.json` under the **current** diagnostics pack, for when the pack's content moves and the ledgers on disk still quote the one that wrote them. Each ledger is first set aside as `diagnostics.json.pre-<tag>` (it refuses if that backup already exists); `swing.json`, pose, ball and shaft are untouched. It is built by the Analysis test suite (`cmake --build build/tests --target regrade_ledger`), deliberately **not** registered with CTest because it writes into the swing library. Point it at the checkout's content the way the test suites are — without the `PINPOINT_CORE_*` variables it grades against nothing useful:
+  ```bash
+  export PINPOINT_CORE_PACK=src/Resources/diagnostics/core.json   # and _NORMS, _CONTEXTS, _SCREENS, _DRILLS, _REFERENCES likewise
+  ./build/tests/Analysis/regrade_ledger --tag <label> /path/to/swings/*/
+  ```
+- **Spinnaker camera probes** (`tools/probes/camera_clock_probe.cpp`, `chameleon3_roi_probe.cpp`) are standalone, Windows-only, and not part of any CMake build. Each carries its `cl` command line in its header comment and links the user-installed Spinnaker SDK's import library directly.
 
 ---
 

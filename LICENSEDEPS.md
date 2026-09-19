@@ -62,6 +62,25 @@ its own terms.
 | ViTPose / ViTPose++ | Apache-2.0 (code) | Confirm terms for the exact checkpoint shipped; some published weights inherit training-dataset (e.g. COCO) terms. |
 | RTMPose | Apache-2.0 | MMPose lineage. |
 
+### Development-only tools (not distributed)
+
+The Python lab scripts under `tools/` (SwingLab, impactlab, the launch-monitor
+fakes) and their packages from `tools/swinglab/requirements.txt` are run by
+developers against a checkout. They are never built into, linked with or packaged
+alongside PinPoint Studio, so they place no obligation on the distributed binary.
+They are recorded here only so that nobody later mistakes them for runtime
+dependencies.
+
+| Component | Licence | Used by |
+|---|---|---|
+| NumPy | BSD-3-Clause | SwingLab, impactlab |
+| SciPy | BSD-3-Clause | SwingLab (`span_turn_offline.py`, fitting) |
+| opencv-python | Apache-2.0 (the wheel also bundles LGPL FFmpeg, plus Qt in the non-headless build) | SwingLab label tool, impactlab |
+| Matplotlib | Matplotlib License (PSF-based, BSD-style) | SwingLab plots |
+
+The standalone Spinnaker probes under `tools/probes/` are covered under **Known
+conflict** below.
+
 ### Cloud services
 
 The Azure (TTS/STT) and AssemblyAI (STT) backends are REST clients. They link no
@@ -94,6 +113,13 @@ copyright holder, the author may add a GPL linking exception permitting this
 combination; that is a licensing decision recorded separately and is **not** drafted
 here. A fully separate `dlopen`/plugin or out-of-process boundary remains an option
 if a cleaner separation is ever required.
+
+**Standalone probes (no concern).** `tools/probes/camera_clock_probe.cpp` and
+`tools/probes/chameleon3_roi_probe.cpp` link Spinnaker's import library directly,
+and not delay-loaded. They are measurement tools a developer builds by hand
+against their own SDK install. They are in no CMake target and no installer, and
+are never conveyed, so they raise neither the redistribution question nor the
+combined-work one.
 
 ## Mobile distribution
 
