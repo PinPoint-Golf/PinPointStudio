@@ -724,3 +724,386 @@ run.** Design §2 recorded "the evidence engines transfer … E1 locked (`bandPx
 185)". `lengths.bandPx` is the length ladder's rung derived from the **segment**
 lock's scale; E1 had produced zero locks, because the swing carries no club
 record. A non-zero field named after a thing is not that thing having happened.
+
+---
+
+## 14. After the checkpoint — the ball from its shadow, and two closing rules (2026-09-20, evening)
+
+> Appended after §§1–13 were written. Nothing above is edited. The section is
+> numbered 14 because 12 and 13 were already taken; its title is the one the
+> work was done under, "After the checkpoint".
+
+Two packages landed after the checkpoint above, both against §11's item 4 — the
+one §8A calls the most serious open defect. **C5** gives the DTL ball detector a
+second cue, the ball's contact shadow. **C6** adds two closing rules: one named
+club-away window with a fallback ladder, and a refusal of any published length
+that is the ridge sweep's own floor.
+
+**Read this first, because it bounds the whole section.** The held-out result of
+§7 belongs to config hash `6d49771b0a9cf28c` and to that hash only. C5 and C6
+were developed **with 06-11 in the loop**, by the owner's explicit decision, so
+**06-11 is no longer a clean transfer set.** Every 06-11 number below is a
+development number. The 07-04 twelve are the set that stayed out of the loop for
+these two packages, and the only claim made from them is a null one.
+
+| package | config hash | what changed |
+|---|---|---|
+| c4 / held-out / transfer (§§6–8) | `6d49771b0a9cf28c` | the frozen checkpoint |
+| **C5** | `194731185cd3e119` | the shadow ball cue, and `shadowMatMin` / `shadowDrop` / `shadowLaunchRise` / `shadowToCentreR` |
+| **C6** | `0fc7c3613ef16e0f` | `clubAwayWindowOf` with its fallbacks and its recorded name; `len.floorSlackPx` and the floor refusal |
+
+The hash changed at each package, which is what makes "before" and "after" below
+two different configurations rather than two runs of one.
+
+---
+
+### 14.1 The ball is white on white; its shadow is not
+
+On 06-11 the mat under the ball is blown out and the ball has no edge on it. The
+bright-blob cue is not failing on a visible ball — it is looking at a ball that
+is not there to find. What **is** there, as Mark pointed out, is the small dark
+crescent the ball casts at its own lower rim.
+
+Measured while the cue was built, and recorded in
+`src/Analysis/dtl_shaft_config.h:203-234` where each threshold's default is the
+measurement:
+
+| quantity | measured on the 06-11 nine | the threshold, and the gap it sits in |
+|---|---|---|
+| local 31×31 mat median at the crescent | **253** | `shadowMatMin` **200** — on 07-04 the mat under the ball is a dim 90–100, excluded by design |
+| crescent grey level | **77–110** on a 253 mat, i.e. **143–176** below its own local median | `shadowDrop` **60**; the 99th percentile of the drop over the whole prior is 26–27 |
+| crescent area / elongation | **51–79 px**, **2.4–3.2 : 1** | shape gates 12–400 px scaled by frame width, elongation ≤ 4 : 1 |
+| **launch rise** at the true crescent | **+113 to +124** grey levels | `shadowLaunchRise` **40** |
+| launch rise at the four static marks that pass the shape gates on the same swings | **−30 to +1** | — |
+
+The discriminator is the last two rows and nothing else. A scuff, a tee hole or a
+mat seam is still dark after the ball has gone; a ball's shadow is not. The
+thresholds sit in the middle of those gaps rather than on their edges.
+
+**When to look is not the address hold.** At address the clubhead and its own
+shadow sit on the ball — the address median carries one dark mass spanning
+x 440–600 where the crescent is (`src/Analysis/dtl_shaft_decide.cpp:381-384`).
+The cue medians the **club-away** frames instead, the stretch where the club is
+above the waist and what is left on the mat is the scene.
+
+**Geometry, and it is small.** The crescent is the contact shadow at the ball's
+lower rim, so the ball centre is one radius straight up from its centroid
+(`shadowToCentreR` = 1). On the nine, the radius from the scene scale is
+**6.20–7.25 px**, so the correction is under 8 px on a grip→ball distance of
+310–353 px — 0.6° in θ_ball against a ±20° gate.
+
+**Ordering, and why it is not a preference.** The bright cue is unchanged and
+answers first; the shadow is consulted only where brightness found nothing. That
+ordering is load-bearing, and the evidence for it is a negative result: on 07-04,
+where the mat under the ball is dim, the shadow cue **alone** picks a dark patch
+by the golfer's foot some 200 px from the ball. It is not a standalone detector
+on a partly-lit mat, and it is not offered as one.
+
+The shadow is nevertheless **measured on every swing**, including the twelve
+where brightness wins, so a trace on a scene that carries both can put them side
+by side. `summary.ball.nCandidates` is 1–2 on the 06-11 nine and 1–2 on the
+07-04 twelve.
+
+---
+
+### 14.2 C6's first closing rule: one named club-away window, and the swing whose ladder is short
+
+Two consumers want the same frames — the phase-aware clean plate's low region
+(§5.4 of the design) and the shadow cue — so there is now **one** definition,
+`clubAwayWindowOf` (`src/Analysis/dtl_shaft_decide.cpp:334-364`), and it comes
+back with its own name attached in `summary.clubAwayWindow`.
+
+The rule is P2 + 40 % of (P2→P4) → P5, with three fallbacks, each the nearest
+thing the ladder still knows: no P5 ⇒ half way from the top to impact; no P7
+either ⇒ P4 + 120 ms; no P2/P4 at all ⇒ 35–80 % of P1→impact.
+
+This is not hypothetical. **06-11 swing_0003 has no P5 rung**, so the primary
+window is empty and both consumers lost their source on the same swing for the
+same reason. Under C5 the cue reported "only 0 club-away frames (need 5)" and the
+ball was not found; under C6 the window falls back to **`P4P7`** and the ball is
+found. `summary.clubAwayWindow` reads `P2P5` on the other eight 06-11 swings and
+on all twelve 07-04 swings, and `P4P7` on 0003 alone.
+
+A rung the face-on ladder did not name is a statement about the ladder, not a
+statement that the club was never above the waist.
+
+---
+
+### 14.3 What C5 and C6 did to the 06-11 nine
+
+Published-frame counts and the sighted fraction, per swing, all three
+configurations. Sources: `build/dtl/transfer/<id>/club_dtl.json`,
+`build/dtl/c5/<id>/club_dtl.json`, `build/dtl/c6/<id>/club_dtl.json`.
+
+| swing | published c4 | published C5 | published C6 | sighted frac c4 | sighted frac C6 | ball C5 | ball C6 | window C6 |
+|---|---|---|---|---|---|---|---|---|
+| 0001 | 103 | 218 | 198 | 0.323 | 0.627 | shadow | shadow | P2P5 |
+| 0002 | 79 | 188 | 181 | 0.350 | 0.650 | shadow | shadow | P2P5 |
+| 0003 | 73 | **73** | **188** | 0.257 | 0.573 | **none** | shadow | **P4P7** |
+| 0004 | 74 | 185 | 179 | 0.299 | 0.674 | shadow | shadow | P2P5 |
+| 0005 | 78 | 182 | 176 | 0.308 | 0.675 | shadow | shadow | P2P5 |
+| 0006 | 74 | 177 | 171 | 0.353 | 0.702 | shadow | shadow | P2P5 |
+| 0007 | 76 | 183 | 173 | 0.305 | 0.668 | shadow | shadow | P2P5 |
+| 0008 | 84 | 201 | 197 | 0.333 | 0.719 | shadow | shadow | P2P5 |
+| 0009 | 75 | 177 | 170 | 0.260 | 0.568 | shadow | shadow | P2P5 |
+| **total** | **716** | **1,584** | **1,633** | | | **8 / 9** | **9 / 9** | |
+
+`publishedInEndOn` is **0** on all nine in all three configurations, counted not
+asserted. `lFullSource` goes from `faceOnRowScale` on all nine (c4) to **`ball`**
+on eight (C5) and **nine** (C6).
+
+**The cross-check on the ball's placement.** The grip→crescent distance at the P1
+tile, against the c4 run's independent L̂_D from the cross-view row scale:
+
+| swing | grip→shadow px (C6) | L̂_D px, c4 `faceOnRowScale` | L̂_D px, C6 `ball` |
+|---|---|---|---|
+| 0001 | 322 | 364.0 | 322.9 |
+| 0002 | 315 | 367.6 | 311.7 |
+| 0003 | 319 | 380.2 | 326.3 |
+| 0004 | 338 | 350.4 | 390.5 |
+| 0005 | 315 | 334.9 | 373.2 |
+| 0006 | **308** | 332.7 | 321.1 |
+| 0007 | 316 | 331.6 | 322.8 |
+| 0008 | 323 | 342.0 | 334.5 |
+| 0009 | 314 | 325.0 | 320.5 |
+
+**308–338 px** against an independent **325–380 px**. The grip→shadow distance is
+**84–97 %** of the c4 row-scale length on every swing, never above it and never
+absurdly below — which is the right shape, because the two are not the same
+measurement: the grip→shadow distance runs from a wrist midpoint to the crescent
+and L̂_D is a full club length. That is the same convention §5A already records
+for the address angle. No swing puts the shadow somewhere the club could not
+reach.
+
+**The two L̂_D estimates themselves do not agree as well as that.** Ball-derived
+against c4 row-scale, per swing: −11 %, −15 %, −14 %, **+11 %**, **+11 %**,
+−3.5 %, −2.7 %, −2.2 %, −1.4 %. Four of nine agree within 4 % and five do not,
+and the two positive outliers (0004, 0005) sit on the opposite side from the
+three large negative ones (0001, 0002, 0003). Nothing here says which estimate is
+right; both feed only the schedule's denominator. **Unadjudicated, and new —
+under c4 there was one estimate and no way to notice.**
+
+---
+
+### 14.4 Where the ladder publishes on 06-11, per P position, before → after
+
+The tile is the nearest DTL frame to each face-on ladder time, within one frame
+interval (6.69–6.71 ms on these swings). Ladder from
+`build/dtl/transfer/<id>/result.json` → `analysis.club.positions`; tiles from
+each configuration's `club_dtl.json`.
+
+**Before — c4 / transfer, config `6d49771b0a9cf28c`** (this is §8A's third
+column, restated so the comparison is on one page):
+
+| P | published | what |
+|---|---|---|
+| P1 | **0 / 9** | UNSEEN ×9, "no ball witness at address" |
+| P2 | 1 / 9 | END-ON ×8; one forearm lock on 0002, θ 225° |
+| P3 | 9 / 9 | 242–247° |
+| P4 | 2 / 9 | END-ON ×6, UNSEEN ×1; **0001 at θ 210°** and **0007 at θ 292°**, both on a 98–100 px run |
+| P5 | 8 / 8 | 239–243° (0003 has no P5 rung) |
+| P6 | 0 / 8 | END-ON ×8 |
+| P7 | **0 / 9** | UNSEEN ×7, END-ON ×2 |
+| P8 / P10 | 0 / 9 | OCCLUDED / END-ON |
+
+**After C6, config `0fc7c3613ef16e0f`**, per swing:
+
+| swing | P1 | P2 | P3 | P4 | P5 | P6 | P7 |
+|---|---|---|---|---|---|---|---|
+| 0001 | **59.0°** | END-ON | 244.5° | **UNSEEN, floor** | 241.5° | END-ON | **67.0°** |
+| 0002 | **58.5°** | **225.0°** | 244.0° | UNSEEN, reverse ray | 238.5° | END-ON | **64.5°** |
+| 0003 | **59.5°** | END-ON | 247.5° | END-ON | — no rung | — | END-ON |
+| 0004 | **60.0°** | END-ON | 246.0° | END-ON | 243.5° | END-ON | **68.5°** |
+| 0005 | **59.5°** | END-ON | 244.0° | END-ON | 243.0° | END-ON | **66.0°** |
+| 0006 | **59.5°** | END-ON | 243.0° | END-ON | 241.5° | END-ON | **67.0°** |
+| 0007 | **59.5°** | END-ON | 243.0° | **UNSEEN, floor** | 242.0° | END-ON | **66.5°** |
+| 0008 | **59.5°** | END-ON | 242.0° | END-ON | 240.0° | END-ON | **65.0°** |
+| 0009 | **60.0°** | END-ON | 242.5° | END-ON | 241.5° | END-ON | END-ON |
+
+Rolled up, and this is the whole point of the two packages:
+
+| P | c4 | C5 | C6 |
+|---|---|---|---|
+| P1 address | **0 / 9** | 8 / 9, 58.5–60.0° | **9 / 9, 58.5–60.0°** |
+| P2 | 1 / 9 (θ 225°) | 1 / 9 (θ 225°) | 1 / 9 (θ 225°) |
+| P3 | 9 / 9, 242–247° | 9 / 9, 242.0–247.0° | 9 / 9, 242.0–247.5° |
+| P4 | **2 / 9** (210°, 292°) | **2 / 9** (210°, 292°) | **0 / 9** |
+| P5 | 8 / 8, 239–243° | 8 / 8, 238.5–243.5° | 8 / 8, 238.5–243.5° |
+| P6 | 0 / 8 | 0 / 8 | 0 / 8 |
+| P7 impact | **0 / 9** | 7 / 9, 64.5–68.5° | **7 / 9, 64.5–68.5°** |
+| P8, P10 | 0 / 9 | 0 / 9 | 0 / 9 |
+
+P1 goes 0 → 9 and P7 goes 0 → 7. The two P7 absences are 0003 and 0009, both
+END-ON at ρ̂ 0.38 and 0.28 — refused by the schedule, not by the ball. The
+P3 and P5 angles move by at most 0.5°, which is the grid, so the new ball did
+not disturb the bands that were already publishing.
+
+**The one published frame that should not be there is still there.** 0002's P2 at
+θ 225° on a genuine 238 px run at ρ̂_D 0.52 — §8's confirmed forearm lock —
+publishes under C6 exactly as it did under c4. Neither closing rule touches it:
+its length is a real measurement and its ρ̂_D clears `rhoSolveMin`. The fix for
+that one is `rhoSolveMin` per rig (§11 item 8), and it was not attempted.
+
+---
+
+### 14.5 07-04, C5: nothing moved, which is the result
+
+The twelve 07-04 swings were re-run under C5 into `build/dtl/c5_0704/`. Every
+ladder tile — tier, angle and refusal reason at all nine P positions on all
+twelve swings — is **identical** to c4 / held-out, and the 425 truth-paired
+frames are unchanged. `summary.ball.source` is `bright` on all twelve, as before.
+The only differences in the whole file set are `summary.configHash` and, under
+C6, the newly recorded `summary.clubAwayWindow`.
+
+That is the claim the shadow cue needed and the only one it gets from a set that
+stayed out of the loop: **on a scene the bright cue already solves, adding the
+shadow cue changes nothing.**
+
+---
+
+### 14.6 C6's second closing rule: a length equal to the sweep's own floor is not a length
+
+`ridgeSweep` searches its cumulative-score argmax only from `j0 = minLenPx /
+rStep` onward, so its shortest possible terminus is `rLo + minLenPx` — **98 px**
+on the shipped constants — and a ray that leaves the club early reports that
+number to the digit. §5A already recorded this as "a floor wearing a length's
+clothes". A frame published on it has had **no length measured**: the argmax is
+parked on its own lower bound.
+
+The rule (`src/Analysis/dtl_shaft_post.cpp:450-478`): a published length within
+`len.floorSlackPx` = **14 px** of 98 px, **with `lenSrc` = `rend`**, is refused
+with the reason `length is the sweep's floor (N px), not a measurement`. Two
+exemptions, both stated: not against a `rend` figure that is genuinely a short
+measured run when the snapped line offers a longer one, and never against a BAND
+lock, which measures the line directly and owes the sweep nothing.
+
+14 px is a tolerance on an equality — two ridge steps of rounding either side —
+not a threshold on a length. It is not fitted: no value of it was searched.
+
+**06-11.** 69 published frames under C5 are floor-class. Under C6, **67 frames
+are refused with the floor reason** and **0 floor-class frames survive
+publication**; the two not in the 67 are on swing_0003, whose whole track is
+different under C6 because the ball is now found. Both false P4 tiles — 0001 at
+θ 210°, 0007 at θ 292° — are in the refused set. Excluding 0003, 66 of 66
+floor-class frames are gone.
+
+**07-04.** **85 published frames of 2,279 (3.7 %) are refused**, and this is the
+stated cost, on the set that is not in the loop:
+
+| what | count |
+|---|---|
+| published, C5 | 2,279 |
+| published, C6 | 2,194 |
+| refused with the floor reason | **85** |
+| floor-class frames surviving publication | **0** |
+| ladder tiles changed at any P position | **0** |
+| truth-paired frames changed | **0** — all 85 lie after the truth span |
+
+Every one of the 85 is a per-swing loss of 5–11 frames, spread evenly:
+
+| swing | 0004 | 0005 | 0006 | 0007 | 0008 | 0009 | 0010 | 0011 | 0012 | 0013 | 0014 | 0015 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| refused | 11 | 6 | 7 | 8 | 5 | 6 | 5 | 7 | 8 | 7 | 7 | 8 |
+
+**What was lost with them, and it is not nothing.** Of the 85, **30 agree to
+within 3° with the nearest surviving published frame** — these are right angles
+thrown away because the length behind them was not earned. That is the trade,
+and it is taken deliberately: the rule asks whether a run was measured at all,
+which is a different question from the minimum-length rule's "is the run long
+enough for the schedule", and the two false P4 tiles clear the minimum-length
+rule precisely because ρ̂_D is small where they happen.
+
+**Where the rest of the 85 are.** 51 of 85 lie in the late-backswing band
+(`P2.2–P2.3 → P3.5–P3.8`), and 50 of the 85 carry θ ≥ 260°, running **262–308°**
+on lengths of 98–112 px. This is the drifting tail at the end of the band, where
+the ray has already left the club and the angle is walking. The other 34 split
+**29 in the P4→P5 band** (θ 234–252°) and **5 in the impact band** (θ 56–62°).
+
+The same shape on 06-11, excluding 0003: of 66 refused frames, **18 agree to
+within 3°** with the nearest survivor, the angles span **58–312°**, and the
+lengths span 98–112 px.
+
+**The counted claim about the 85 that this section does not make.** Nothing here
+grades the 85 against truth, because no truth covers them. "30 of 85 agree with a
+neighbour" is a consistency count, not an accuracy one.
+
+---
+
+### 14.7 Still open after both packages
+
+Stated as plainly as §11, and none of these was chased today.
+
+1. **06-11 swing_0002's P2 forearm lock still publishes.** θ 225°, a real 238 px
+   run, ρ̂_D 0.52. Neither closing rule can reach it. §11 item 8 —
+   `rhoSolveMin` per rig, or a DTL-native measurement to replace the threshold —
+   is now the only route to it.
+2. **Address on 06-11 reads 4–6° above its own ball line on every swing.** Rig
+   or a residue of the address leg pull. **There is no truth on this session to
+   settle it,** and the 58.5–60.0° figures above should be read with that on
+   them. The 07-04 held-out P1 tiles, which do have truth, read 54.0–55.0°.
+3. **06-11 is no longer a clean transfer set.** Both packages were developed with
+   it in the loop. The next transfer claim needs a session neither package has
+   seen.
+4. **The two L̂_D estimates disagree by −15 % to +11 %** across the nine
+   (§14.3), and there is now no tie-breaker between them. Unadjudicated.
+5. **The face-on parity control was not re-run after either package.**
+   `build/dtl/control/` is dated 10:38, before both. What holds instead is
+   structural and weaker: a `--dtl` run does not write `result.json` at all
+   (§5A), and every line of both packages is inside
+   `src/Analysis/dtl_shaft_{config,types}.h` and `dtl_shaft_{decide,post}.cpp`.
+   Gate 5 of §9 was **not** re-measured at these two hashes, and this note does
+   not claim it was.
+   > **Re-measured afterwards, same evening, on the final binary** (all of C5,
+   > C6 and the kinematic-sequence pair route built in): `run_control.sh … --dtl`
+   > with `{"sequence.pairTrunk.enabled": false}` against `build/dtl/control` —
+   > *6 compared, 6 pass, 0 diff, 0 unpaired*. With the pair route at its
+   > default the three control swings that have no DTL stream pass and the three
+   > that have one differ, and only under `analysis.kinematicSequence`, the two
+   > trunk angular-speed series and `timings` (`kinematic_sequence_design.md`
+   > §13). The agents' per-package control runs were reported as passing but
+   > their output trees were deleted under the clean-up rule, which is why there
+   > was nothing on disk to cite; a gate whose evidence is deleted on success
+   > cannot be audited, and the run folder for a parity gate should be kept
+   > until the note that cites it is written.
+6. **`montage_dtl.py` still shows the fallback length.** On
+   `~/Desktop/DTL-shaft-tracker/06_ball_shadow_0611_summary.md` the `L_D source`
+   column reads "0.35*frame height" and `L_D` reads 358.4 on all nine, while the
+   same runs' `club_dtl.json` carries `lFullSource: "ball"` and `lFullPx`
+   311.7–390.5. The montage is not reading the tracker's own length. It is a
+   fourth tooling error of the same family as §13's three — a diagnostic showing
+   something other than what the algorithm used — and it is recorded here rather
+   than fixed.
+7. **Everything §11 already owed.** The two ablations, the DTL hand marks, the
+   deterministic re-run, `montage_dtl.py`'s `trace.jsonl`, 0005's P3 at 225°,
+   the published length at P3. None of them moved.
+
+---
+
+### 14.8 Provenance for this section
+
+Runs on 2026-09-20 between 17:28 and 18:07, same host, binary and corpus as §12.
+Same command line as §12, including the injected club record.
+
+| folder | what | config hash |
+|---|---|---|
+| `build/dtl/c5/` | the 06-11 nine, shadow cue | `194731185cd3e119` |
+| `build/dtl/c5_0704/` | the 07-04 twelve, shadow cue | `194731185cd3e119` |
+| `build/dtl/c6/` | the 06-11 nine, both closing rules | `0fc7c3613ef16e0f` |
+| `build/dtl/c6_0704/` | the 07-04 twelve, both closing rules | `0fc7c3613ef16e0f` |
+
+Montage: `~/Desktop/DTL-shaft-tracker/06_ball_shadow_0611*`, whose per-swing
+published/sighted column reproduces `build/dtl/c6`'s counts exactly.
+
+Code, all uncommitted at the time of writing beyond `5203052a`:
+`src/Analysis/dtl_shaft_config.h` (the four shadow scalars, `len.floorSlackPx`,
+both added to `dtlConfigHash`), `dtl_shaft_types.h` (`clubAwayWindow` on the
+track and on the solve state), `dtl_shaft_decide.cpp` (`clubAwayWindowOf`,
+`shadowBallCue`, the two-cue `dtlFindBall`), `dtl_shaft_post.cpp` (the floor
+refusal and its reason string).
+
+**Two numbers in this section are not traceable to a file.** The mat's p50 of
+231 and p90 of 253 under the ball, and the crescent's 19 × 7 px bounding box,
+were measured during development and not retained; what the repository holds is
+the local 31×31 median of 253 at the crescent and the 51–79 px area, both in
+`dtl_shaft_config.h:203-211`. They are stated here as the working measurements
+they were, and they should not be cited as results.

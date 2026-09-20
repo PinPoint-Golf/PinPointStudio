@@ -22,6 +22,7 @@
 11. [Open questions](#11-open-questions)
 12. [What the corpus reported, and the two gates it forced](#12-what-the-corpus-reported-and-the-two-gates-it-forced)
     — 12.4 [the reference was the fault, and the sighted band](#124-the-reference-was-the-fault-and-what-a-single-camera-can-still-claim)
+13. [The down-the-line pair, uncalibrated — built, and what it found (2026-09-20)](#13-the-down-the-line-pair-uncalibrated--built-and-what-it-found-2026-09-20)
 
 ---
 
@@ -175,10 +176,19 @@ may be measured while the thorax is estimated, and one ladder per metric could n
 
 | Series | Rung 1 (Direct) | Rung 2 (Direct) | Rung 3 (Estimated) |
 |---|---|---|---|
-| `pelvisAngularSpeed` | `pelvisImu` — Inertial | `faceOn+dtl` — Triangulated, PLANNED until calibration lands | `faceOn` — Projected, **gated by §9** |
-| `thoraxAngularSpeed` | `thoraxImu` — Inertial | `faceOn+dtl` — Triangulated, PLANNED | `faceOn` — Projected, **gated by §9** |
+| `pelvisAngularSpeed` | `pelvisImu` — Inertial | `faceOn+dtl` — Triangulated, **LIVE 2026-09-20, Estimated, uncalibrated** | `faceOn` — Projected, **gated by §9** |
+| `thoraxAngularSpeed` | `thoraxImu` — Inertial | `faceOn+dtl` — Triangulated, **LIVE 2026-09-20, Estimated, uncalibrated**; ring OFF, bound only | `faceOn` — Projected, **gated by §9** |
 | `leadArmAngularSpeed` | `leadArmImus` — Inertial (LeadForearm; LeadUpperArm when bound) | `faceOn+dtl` — Triangulated, PLANNED | `faceOn` — Projected |
 | `clubAngularSpeed` | `clubSensorFused` — Fused (Club role + track) | `faceOn+dtl` — Triangulated, PLANNED | `faceOnClub` — Projected |
+
+> **Amended 2026-09-20.** The two trunk rungs are live. They are **Estimated, not Direct**, because
+> the pair is uncalibrated — the pixel-scale ratio is measured off the body's vertical extent, not
+> from a board — and `Triangulated` is kept as the method word only because it is the one enum value
+> that says "two views"; `metric_catalogue_manifest.cpp` corrects it in the rung's own summary
+> ("atan2 of the pair, uncalibrated"). The rung sits **below the IMU and above the single-view
+> estimate**, which is the measured order (§13.3). The thorax rung produces its curve and its bound
+> but may not place a node — `sequence.pairTrunk.thoraxPlacement` is OFF, for the reason in §13.6.
+> The arm and club rows are untouched: the pair route is pelvis and thorax only.
 
 `kinematicSequence` itself keeps three rungs that mirror the members (`segmentImus`, `faceOn+dtl`,
 `faceOnClub`) so the directory can say what it needs, and gets the one `availability()` override the
@@ -224,6 +234,23 @@ sensitivity through square. This is the rung that fixes exactly the defect §2 n
 3-D reconstruction. Arm and club come from the triangulated 3-D vectors. Stays PLANNED until
 `camera_calibration_design.md`'s geometry stage lands; the function signature and its synthetic test
 are written now so the rung is a drop-in.
+
+> **Corrected in place, 2026-09-20.** The last sentence was **false when it was written and stayed
+> false for three days**: there was no `fromPair`, no stub, no signature and no synthetic test in
+> `segment_rates.{h,cpp}` or `segment_rates_test.cpp` until today. Nothing had been written. It is
+> recorded rather than deleted because the class of error matters — a plan that says a thing is
+> "written now so the rung is a drop-in" is a claim about the repository, and a reader has no way
+> to tell it from the claims around it that were true.
+>
+> **What exists today is the UNCALIBRATED pair, and its observable is not the one above.** A 2-D
+> span distance `w` absorbs the segment's out-of-horizontal tilt, which for the shoulders in the
+> downswing is large. The route reads the **signed horizontal separation** in each view instead —
+> `d_fo = s_F·W·cos τ·cos ψ`, `d_dtl = s_D·W·cos τ·sin ψ` — so `W` and the tilt `τ` cancel in the
+> ratio and `ψ = atan2(d_dtl / r, d_fo)` needs no reference width, no square-up inference and no
+> sign unfold. `r = s_D/s_F` is measured, not calibrated, from the body's vertical extent at
+> address, which both level cameras see undistorted by the turn. §13 is what that route was built
+> from and what it found; the calibrated form above is still PLANNED and is the stronger version of
+> the same idea.
 
 ### 5.3 Face-on (`fromFaceOn`)
 
@@ -479,9 +506,15 @@ Nothing is committed until Mark has seen the §9 results.
    extrinsics may let the bearing be read from triangulated hip points directly and skip the spans;
    decide when the geometry stage exists. *(§12.4: the biases are now read off each view's own
    square-up maximum, and the uncalibrated ellipse pairing needs no `w₀` at all.)*
-6. **The DTL span, uncalibrated** (§12.4 item 6): run pose on the corpus's Down-the-Line clips,
+6. ~~**The DTL span, uncalibrated**~~ (§12.4 item 6): run pose on the corpus's Down-the-Line clips,
    pair the spans on the shared clock, and re-read the trunk nodes where face-on is blind. Before
    the truth capture if the DTL far-hip confidence allows it; the capture then grades both.
+   **DONE 2026-09-20 — §13.** Offline measurement first
+   (`docs/research/data/kinematic_sequence/pair_span_turn_20260920.md`), then the C++ route. Three
+   corrections the item itself got wrong: the observable is the signed **horizontal separation**,
+   not the span; the far hip is *not* the weak keypoint (the face-on **shoulders** are); and the
+   pair does **not** re-read the trunk nodes where face-on is blind, because on this golfer the
+   trunk does not peak inside the domain at all. What it produces instead is a much tighter bound.
 
 ---
 
@@ -683,3 +716,384 @@ calibrated pair is the stronger form of the same idea. The corpus holds the DTL 
 pose cache, so this is one pose run away. The far hip is occluded at address in that view; the
 confidence gate says per frame how bad that is. The §9 truth capture remains the arbiter for
 every node the camera places.
+
+---
+
+## 13. The down-the-line pair, uncalibrated — built, and what it found (2026-09-20)
+
+**Written 2026-09-20.** §11 item 6 and §12.4 item 6, done. The deliverable was two things and both
+exist: the offline measurement (**K0**, `tools/swinglab/span_pair_offline.py`, written up in
+[`docs/research/data/kinematic_sequence/pair_span_turn_20260920.md`](../research/data/kinematic_sequence/pair_span_turn_20260920.md)
+with per-swing rows in `pair_span_turn_20260920.csv`), and the C++ route it decided the shape of.
+K0 came first deliberately: §12.1 and §12.4 are two records of an estimator that was confident on
+garbage, and building the third one in C++ before measuring it would have been the same mistake a
+third time.
+
+This section is what was built, what was tried and rejected on the way, and what the route says
+about the golfer in the corpus — which is not what §12.4 item 6 expected it to say.
+
+### 13.1 Why a second view at all
+
+§2 and §12.4 name the defect precisely. A single face-on camera reads a body line's turn from how
+wide it images, `w = w₀ cos ψ`, and `dw/dψ = −w₀ sin ψ` is **zero at square**. The segment's rate
+is exactly what the camera stops being able to see at the moment the golfer squares up, which on
+an amateur is the moment the peak is. On the 61-swing corpus that reads as **0 pelvis nodes placed
+and 45 bounded** (§12.4 item 5's table): the producer's honest output on essentially every swing is "the
+pelvis peaked no earlier than 87 ms before impact", which is a bound, not a measurement.
+
+The down-the-line view is the complement: its separation goes as `sin ψ`, maximal where face-on is
+blind. Pairing them removes the blind band rather than working around it.
+
+### 13.2 The observable is a signed horizontal separation, not a span
+
+**This is the single most important thing K0 changed, and it is not what §5.2 said.** For a body
+line of length `W`, tilted `τ` out of horizontal and turned `ψ` about the vertical:
+
+```
+d_fo  = s_F · W · cos τ · cos ψ          (face-on, signed, pixels)
+d_dtl = s_D · W · cos τ · sin ψ          (down-the-line, signed, pixels)
+ψ     = atan2(d_dtl / r, d_fo),   r = s_D / s_F
+```
+
+`W` and the tilt `τ` **cancel in the ratio**. That matters because a 2-D span distance
+`hypot(Δx·W_frame, Δy·H_frame)` absorbs the tilt, and the shoulder line's tilt is large through
+the downswing. The paired form therefore needs **no reference width, no square-up inference and no
+sign unfold**, and its σ has no singularity — the atan2 Jacobian is bounded everywhere, which is
+the whole reason the rung exists.
+
+**`r` is measured, not calibrated.** Both cameras are level, so both see *vertical* undistorted by
+the turn: the body's vertical extent at address — ankle midpoint to shoulder midpoint — is one
+physical length imaged twice, and its ratio is `r`. Measured **1.12–1.15 on the 07-04 rig and
+1.16–1.25 on 06-11**. That is why the rung is **Estimated** and not Direct.
+
+**The two orientation signs are MEASURED, and they have to be.** Which image side a right-hander's
+lead hip lands on, and which side of the target line the down-the-line camera stands, are
+properties of the *rig*. `leadIsLeft` picks which two keypoints to subtract; it cannot know either
+of those. So the route reads each sign as the median of that view's own signed separation over a
+window where the quantity is large and unambiguous — face-on over the address hold, down-the-line
+over the 200 ms ending just after the Top, where the body is most closed. Nothing depends on
+locating an extremum in time, which is exactly the inference §12.4 condemned.
+
+⚠ **`segment_rates.h:201` says "right-hander seen face-on: lead is image-left". That comment is
+false on this corpus**, which is why the bit is measured rather than assumed. The comment is left
+where it is and contradicted here rather than quietly edited, because it is a claim about rigs and
+one line of documentation is not evidence about rigs either way.
+
+**γ, the angle between the two views, is not 90°.** K0 fits it at **75–84°** on the two rigs: the
+down-the-line camera sits behind the **ball**, not behind the hands. A γ ≠ 90 biases ψ's **level** —
+at impact the pelvis reads about 20° closed when it is not — and therefore the published °/s. It
+does **not** move the peak's time, which is what a sequence node is. Fitting γ per swing is
+possible (K0 does it) and is deliberately **not** done in the producer: it would buy magnitude this
+rung is not allowed to publish anyway, at the cost of a fit that can fail.
+
+### 13.3 What K0 established before a line of C++ was written
+
+All from `pair_span_turn_20260920.md`, 21 two-camera swings (12 × 2026-07-04, 9 × 2026-06-11):
+
+| question | answer | where |
+|---|---|---|
+| Are the two views looking at one line turning? | R² **0.90–0.96**, rms **9–13 px** on spans of 85–145 px | §2.1 |
+| What is the inter-view angle? | **75–84°**, per rig, measured for free | §2.2 |
+| Is there a blind band? | **No.** σ_θ 2.3–2.5° for the pelvis at address, at the top and at impact | §3.5 |
+| How good is the square-up instant? | DTL zero crossing, IQR **3–5 ms**, against face-on's **5–53 ms** (87 ms of scatter on one rig's pelvis) | §2.3 |
+| Does the peak time survive an uncalibrated scale? | ±10 % moves it by **at most one 4 ms grid step**; ±3 % moves the magnitude by **5.8 %** | §3.6 |
+| Are the DTL keypoints real? | downswing p10 confidence **0.75 hips / 0.72 shoulders**; **the DTL shoulders beat face-on's 0.52** | §3.4 |
+
+Two of those overturn what §12.4 item 6 assumed. The far hip was the keypoint the design worried
+about; it holds up, and the **face-on shoulders** are the weak leg. And the closure residual —
+`|(w/W)² + (w'/W')² − 1|`, which item 6 proposed as the gate — **is not usable as one**: it sees
+the *sum* of the two relative scale errors while the angle sees their *difference*, so a cloud
+sitting perfectly on the circle can have both scales wrong in the same direction with ψ still
+right. Making it a gate would need γ fitted, and even on a perfect pairing the expected residual at
+γ = 82° is ≈ 0.15 — i.e. the threshold would be the geometry, not a fault. Reported, not gated.
+
+For the same reason `r_ell` (the ellipse-fit scale ratio) is carried in the diagnostics as a
+**lower bound contaminated by dwell**, not as a competing estimate of `r`.
+
+**K0's own trap, and it is the third of its kind.** Taken literally, §5.2 says `w_dtl = w₀ sin θ`
+and §5.3's sign unfold flips at the span extremum. An **unsigned** DTL span unfolded at its minimum
+inserts a step of `2·w'_min` into ψ at one sample — 13° in 4 ms on one swing — and the 25 ms
+derivative reads a step as an enormous sharply-curved rate, which `σ_t = √(2σ_r/|r̈|)` then reports
+as ±12 ms. It manufactured a pelvis "peak" of ~806 °/s **exactly one grid step after the DTL span
+minimum, on 21 of 21 swings**. That is §12.1's "confident on garbage" arriving by a third route,
+and it is why `segment_rates_test` §9d exists as a named gate: the unsigned observable must never
+yield a placed node at square.
+
+### 13.4 The finding: on this golfer both trunk rates are still rising at impact
+
+Running the same peak finder on the sequence domain as designed (transition → impact) and then on a
+domain extended 150 ms past impact:
+
+| segment | peak, sequence domain | peak on the extended domain | Cheetham 2008 pros |
+|---|---|---|---|
+| Pelvis | **none** — still climbing at impact | **+39 ms [28, 44] AFTER impact** | 87 ms **before** · 477 ± 53 °/s |
+| Thorax | **none** — still climbing at impact | **+29 ms [24, 36] AFTER impact** | 68 ms **before** · 727 ± 61 °/s |
+| Lead arm | −100…−115 ms before impact | — | 65 ± 8 · 980 ± 68 |
+| Club | −50…−55 ms before impact | — | — · 2254 ± 68 |
+
+None of the extended-domain peaks sits at that domain's edge and none is a reversal spike, so this
+is not "the estimator ran out of window": the peaks are interior, and they are on the wrong side of
+the ball. By session the pelvis peak lands +29 ms [27, 31] on 07-04 and +43 ms [40, 46] on 06-11,
+and the two rigs agree on its size to 3 %.
+
+**"Rising at impact" is solid. "+39 ms" is not.** The DTL hip confidence dips by 0.12 in the
+100 ms after impact — which is exactly where the extended search puts the peak — and the pelvis
+magnitude there (639–841 °/s depending on the reference) is 3σ or more above a 477 ± 53 benchmark.
+Whether the pelvis genuinely whips through square after the ball on this golfer, or the DTL hip
+keypoints are being dragged by the trunk and arms through the follow-through, this pass cannot
+separate.
+
+**Design decision taken, and it is a decision rather than a fix: the producer does NOT search past
+impact.** The sequence is defined on [transition, impact]; a route that quietly extended its own
+domain to find a peak would be answering a different question from the one the chart asks, and it
+would do it on the strength of the least confident 100 ms of keypoints in the swing. So the route
+places **no trunk node inside the domain** and says instead `peakNoEarlierThanMs = 0` — "it had not
+peaked by impact". Whether the metric should also look past impact is an open question for the
+chart (§13.9); the owner may revisit it.
+
+That bound is worth comparing with the one it replaces. Face-on's bound is **84 ms [57, 89]** for
+the pelvis and **44 ms [40, 72]** for the thorax — "it peaked somewhere after −84 ms, where the
+camera stopped being able to see it". The pair's is **0 ms** — "it had not peaked when the club
+reached the ball". The second is a far tighter and far better founded statement, and it is about
+the golfer rather than about the equipment.
+
+### 13.5 The iterations, each recorded with what was wrong with it
+
+**K1a — signed both legs, smoothed keypoints.** The geometry worked: pelvis **0 placed / 20 "not
+before impact" / 1 refused on scale** (07-04 swing_0007 has 3 usable address frames, below
+`pairMinExtentPx`'s denominator). But the thorax produced **12 spurious placements at a median
+963 °/s**, reaching **2,300 °/s on 06-11** — club-like numbers for a chest — and two swings came
+back with a false `armBeforeThorax` verdict off the back of them.
+
+**The first diagnosis was mostly wrong, and that is the useful part.** "Left/right relabel" was the
+obvious reading, and relabels are real: a pose model labels left and right by appearance, and with
+the golfer's back to the lens at the top the face-on shoulder labels flip and the signed separation
+steps from −108 px to +96 px in 7 ms with its magnitude intact. But the guard, once built, found
+**genuine relabels on only 4 of 21 swings** — 06-11 swings 0005, 0006, 0007 and 0009, every one of
+them on the **thorax**, and every one on the **face-on** leg. The down-the-line leg records **zero
+relabels on every segment of every swing**, and the pelvis records zero on all 21, in both views
+(`build/ks/pair/<swing>/runner.log`, the `[WristAnalysis] sequence pair:` line). The spurious
+placements did not go away.
+
+**The real cause is not a relabel.** The face-on **shoulder line genuinely crosses square to the
+face-on camera** near the top, and the face-on shoulder keypoints turn to noise for about 30 ms
+there: **−121, +12, −108, −26, +96 px on consecutive frames** (06-11 swing_0002, 161–194 ms before
+impact) while the DTL leg runs smooth through the same instants. atan2 is perfectly conditioned at
+`x = 0`; its **x argument** is not.
+
+So the pair has **no blind band of its own** — that claim of §13.3 stands — but it **inherits the
+face-on shoulders' failure at their own square-up**. The two statements are compatible and both
+have to be said, because only the first of them was in the plan.
+
+**K1c — the relabel guard, on raw keypoints.** The discriminator is physical rather than a
+preference: for a line to cross square *to this camera*, `cos ψ` must pass through zero, so `|d|`
+has to **collapse** on the way through. At 1500 °/s a rigid line turns ≤ 10° per frame at 150 fps
+and cannot get from one side of zero to the other with `|d|` near its maximum. A sign change **with**
+a collapse is kinematics and is left alone; one **without** is a relabel and is undone
+(`pairSwapMinFrac` 0.35 of the view's own p95 separation, i.e. 20° from square). Where the labels
+alternate faster than the body can turn — three or more flips inside 100 ms — neither reading is
+trustworthy and the frames are **dropped** rather than corrected.
+
+It works on planted swaps. **It cost the pelvis.** Reading raw keypoints to see the step took the
+pelvis from 0 placements / 20 bounds to **3 doubtful placements / 13 bounds**, and **5 thorax
+placements survived, all of them suspects**. That is a rule that fixed a real defect and made the
+headline number worse, and it is recorded that way. The decision rule of §9 fired on it:
+`sequence.pairTrunk.thoraxPlacement` defaults **FALSE**.
+
+**K1d — what shipped.** Four changes, each aimed at a specific thing K1c got wrong:
+
+1. **Consume smoothed where the detector finds nothing.** The relabel detector runs on **raw**,
+   because the RTS smoother has already turned a step into a ramp. But where a view/segment carries
+   no relabel and no flutter — the hips in both views on 21 of 21, the DTL shoulders on 21 of 21 —
+   there is nothing to protect against and the smoothed track is simply the better measurement.
+   Only a leg that actually relabels pays the noise cost of being read raw. `PairSegmentDiag.srcFo`
+   / `srcDtl` record which tier each leg was finally read from.
+2. **A rigid-body rate limit.** `|Δd| ≤ W·sin(ω_max·Δt) + 2σ` with `ω_max` = 2,000 °/s
+   (`pairMaxTurnDps`), generous by nearly a factor of three on a thorax. This is arithmetic about a
+   rigid body, not a smoothness preference, and it is what the face-on shoulders need at their own
+   square-up: 200 px steps against a 92 px bound. The offending sample **and its two neighbours**
+   are invalidated, because a step implicates both of its ends and the local quadratic reaches one
+   sample further.
+3. **Invalid runs are a blind band with proximity edges.** The span rung's blind band is a horizon
+   at the *end* of the downswing, so "the peak is at or after where sight was lost" is its right
+   edge test. The pair's invalid samples are an **interior hole**, and that test would condemn every
+   peak after the hole. `PlacementGate::bandIsHole` switches the edge test to proximity: a peak
+   within one derivative window of either edge was rising into the hole or emerging from it and is
+   bounded; a peak well clear of it is simply a peak. **Bounds are emitted even when the ring is
+   switched off** — the placement switches gate the ring only.
+4. **The end-edge rule, judged on the last window.** When the rate over the last derivative window
+   before impact is rising *and* is the largest valid windowed rate in the final 100 ms, the honest
+   output is "it had not peaked by the end of the domain": unplaced, `peakNoEarlierThanMs = 0`. It
+   is evaluated on the **last window**, not on wherever the global extremum happens to sit, so it
+   stays true of a swing whose curve carries an artefact earlier on.
+
+And one rule that is about the reader rather than the geometry: **a pair channel with neither a ring
+nor a bound is WITHDRAWN** — channel and node both — so the face-on span rung runs for that segment
+on that swing. If the pair cannot place *and* cannot bound, it has told the reader less than face-on
+would have, and a route that replaces a worse answer with no answer is not an improvement.
+
+### 13.6 The thorax ring is OFF, and the reason is not relabels
+
+With the guard in, the pair places 5 thorax nodes and **every one is a suspect**: four sit 134–214 ms
+earlier than the same swing's lead-arm node — a thorax peaking before the arm by that much is not a
+sequence, it is the estimator — one of those reads 1,220 °/s and the fifth reads 66 °/s. Measured
+with the switch forced ON over the full 21, the pair places **10 thorax nodes of which 9 are
+suspects** by the same test (>1,200 °/s, or more than 80 ms before the lead arm).
+
+So `sequence.pairTrunk.thoraxPlacement` is **false**, and it is a **separate switch from
+`faceOnTrunkPlacement` and from `pairTrunkPlacement`**: the two rungs fail differently, and the two
+segments on this rung fail differently, and one switch for all of them would close the thing that
+works to silence the thing that does not. The thorax keeps its continuous pair **curve** and its
+honest **bound**; it does not get a ring until a face-on shoulder that survives its own square-up
+exists. The pelvis never crosses square to the face-on camera — **0 sign changes on 21 of 21** —
+and is unaffected.
+
+⚠ The thorax pair curves on 06-11 still show **1,600–2,700 °/s excursions** where that channel is
+drawn. The node is withheld; the curve is not. That is owed (§13.9).
+
+### 13.7 The graded 21-swing result
+
+Two runs of the same 21 two-camera swings, same binary, same pinned face-on and down-the-line pose,
+differing in **one override**: `build/ks/faceon` adds `{"sequence.pairTrunk.enabled": false}`
+(`build/ks/nopair.json`, echoed in every `runmeta.json` → `params`), `build/ks/pair` adds nothing.
+Re-tabulate with `python3 tools/swinglab/sequence_report.py --root build/ks/{pair,faceon} --tag …`.
+
+| segment | run | produced | placed | bounded | neither | bound median [IQR], ms | routes |
+|---|---|---|---|---|---|---|---|
+| Pelvis | face-on | 21 | 0 | 16 | 5 | 84 [57, 89] | `faceOn` ×21 |
+| **Pelvis** | **pair** | 21 | **0** | **21** | **0** | **0 [0, 0]** | `faceOn+dtl` ×20, `faceOn` ×1 |
+| Thorax | face-on | 21 | 0 | 12 | 9 | 44 [40, 72] | `faceOn` ×21 |
+| **Thorax** | **pair** | 21 | **0** | **14** | **7** | 44 [40, 87] | `faceOn` ×9, `faceOn+dtl` ×5 |
+| Lead arm | both | 21 | 20 | 0 | 1 | peak 100 [87, 156] ms before impact | `faceOn` ×21 |
+| Club | both | 21 | 18 | 0 | 3 | peak 50 [30, 64] ms before impact | `faceOnClub` ×21 |
+
+**The pelvis is the result.** It bounds on 21 of 21 where face-on bounded 16, and **20 of those 21
+bounds read `peakNoEarlierThanMs = 0`** — "it had not peaked when the club reached the ball" —
+where face-on produced that statement **zero** times. The one pelvis still on `faceOn` is 07-04
+swing_0007, where the route refused at the scale: *"address window holds 3 / 37 usable frames
+(need 5)"*. That refusal is why swing_0007's `kinematicSequence` is the **one** block of the 21
+that is byte-identical between the two runs.
+
+**Beware a reading of "0" as a weaker bound. It is a tighter one.** `peakNoEarlierThanMs` is a
+lower bound stated as an offset *before* impact, so face-on's 84 ms says "the peak is somewhere
+after −84 ms" and the pair's 0 says "the peak is at impact or after it". The pair's statement
+excludes the last 84 ms as well. On 15 pelvis swings and 3 thorax swings an existing face-on bound
+is replaced by the tighter pair bound; on 5 pelvis and 2 thorax swings a segment that could say
+nothing at all now says something. **No segment on any swing lost a placement or a bound**, checked
+programmatically over all 21 × 2 nodes.
+
+**The thorax is not the result, and its table row flatters it.** Of its 14 pair-run bounds, **9 are
+the face-on span rung's own** — the pair channel was withdrawn on those swings — and only **5** are
+`faceOn+dtl`. Counting the route-level refusal, **16 of 21 swings read their thorax exactly as the
+face-on-only run does.** Of the 5 the pair produced, 3 say "did not peak before impact" and **2 are
+the new bounds, both on 06-11, and both carry an implausible peak: 107 °/s on swing_0005 and
+−50 °/s (negative) on swing_0006.** Those are node magnitudes the rung is not permitted to publish
+(§13.9, the IMU gate), but they are a straight warning that the 06-11 thorax pair channel is not
+measuring a chest.
+
+**Nothing else moved.** The verdict histogram is identical between the runs — partial 16,
+unresolved 5 — `orderResolved` holds on 16 of 21 in both, the order histogram is identical
+(`leadArm→club` 17, `leadArm` 3, `club` 1), and the per-swing verdict, order, `gapsMs` and
+`gainsDps` agree on all 21. The lead-arm and club nodes are byte-identical on every swing. Inside
+`analysis.metrics[]` exactly two keys ever differ: `pelvisAngularSpeed` on 20 swings and
+`thoraxAngularSpeed` on 5. Every other block of `analysis` — ball, club, phases, pose2d, score,
+segmentation, tier, versions, schema — is identical on all 21.
+
+**With the thorax ring forced ON for measurement** the pair places 10 thorax nodes, of which 9 are
+suspects by §13.6's test. That is the measurement the default is set from, and it is why the
+default is OFF.
+
+**The pixel-scale ratio, per session** (`rVertical`, from the pair diagnostics line in each
+`runner.log`):
+
+| session | n | r range | median | face-on extent px | DTL extent px |
+|---|---|---|---|---|---|
+| 2026-06-11 | 9 | 1.156 – 1.246 | 1.173 | 417 – 436 | 489 – 525 |
+| 2026-07-04 | 11 | 1.112 – 1.143 | 1.123 | 428 – 443 | 484 – 492 |
+
+The two sessions separate cleanly with no overlap, which is what a per-rig constant should do.
+07-04 swing_0007 is excluded: its scale was never formed.
+
+### 13.8 What landed in the app
+
+- **Catalogue.** `metric_catalogue_manifest.cpp`: the `faceOn+dtl` rung on `pelvisAngularSpeed` and
+  `thoraxAngularSpeed` goes from `PLANNED`/Direct to **live/Estimated**, with a summary that says
+  "atan2 of the pair, uncalibrated" in as many words. The method word stays `Triangulated` because
+  it is the only enum value that says "two views" and a new value for one rung is not worth an enum
+  entry — so the prose corrects it rather than the enum. **Metric counts do not move**: the rung was
+  already in the ladder as PLANNED, and a rung changing state adds no descriptor.
+- **The route glyph is matched case-insensitively now** (`chart_metrics.cpp`). `"dtl"`, `"DTL"` and
+  `"Dtl"` are all natural spellings and a case slip used to fall through to `projected` — which is
+  not a near miss, it is the glyph that tells a reader which chip to trust.
+- **A rising node is not a ring.** `sequenceRisingAtImpact()` tests the **bound's sign**, not the
+  route: `peakNoEarlierThanMs ≤ 0` means the segment was watched all the way to the ball. It draws
+  as an open chevron pointing up-right at the impact edge of its own curve
+  (`PpChartPlot.qml`, `objectName: "sequenceRising:<segment>"`), labelled **"rising"**, with no σ
+  whisker and no offset — there is no instant to be about. The split is done on the **model**, not
+  by hiding a delegate, so an invisible item with the right name cannot pass a test the user would
+  fail. The row text reads **"still accelerating at impact"**.
+- **The strip says the pattern.** "partial — placed nodes in order (2 of 4)" is true and useless
+  here: it counts what was placed and does not say that the two it could not place are the *body*,
+  that they were watched to the ball, and that they were still gaining speed when the club got
+  there. When one or both trunk segments are rising and the arm or club peaked before impact, the
+  line reads e.g. **"Lead arm −115 ms → Club −55 ms (+60 ms) · arms and club peak before the body —
+  hips and chest still speeding up at impact"**. It is assembled from what is true rather than
+  templated, because one trunk segment rising is not two.
+- **The live app can now feed it.** `shot_processor.cpp` fills `job.dtlSource` from the first
+  `CameraInstance::DownTheLine` track — first wins and never moves, because two cameras down the
+  line is not a configuration we support and switching between them would make the inter-view angle,
+  a per-rig constant, jump between shots. `ShotReplayController::shotContext` sets `hasDtl` from a
+  down-the-line stream **or** from route evidence (a `faceOn+dtl` node), because the 2026-06-11
+  session carries no `setup` block at all.
+- **`DtlPoseStage`** (`wrist_analyzer.cpp`) runs immediately before `KinematicSequenceStage` and
+  strictly after ShaftPlane, so nothing it does can move the face-on pose, ball or shaft. It builds
+  its **own** runner options and never touches `ctx.runnerOpt`, which the ball and shaft stages gate
+  on. Bounds are Address → Impact + 150 ms, dense from Top − 100 ms, `twoPass = false` — the time
+  base is inherited, never rediscovered. About **5 s** on a live shot.
+
+**Gates, all run:**
+
+| gate | result |
+|---|---|
+| a swing with no down-the-line pose | **byte-identical** to before |
+| `sequence.pairTrunk.enabled = false` | reproduces that exactly (a named test, §9f) |
+| the dark switch | 6/6 identical |
+| on a DTL swing, what may differ | only `kinematicSequence` and the two trunk series — 20 swings' `pelvisAngularSpeed`, 5 swings' `thoraxAngularSpeed`, nothing else |
+| determinism | two runs of identical inputs bit-identical, with pinned DTL pose (§9h) |
+| build + tests | the app builds; 27 affected ctest suites pass with both halves of the day's work together |
+
+**Also found, and it is a process finding, not a code one.** `tst_chart_presets.qml`'s
+`test_016` had been **red since 2026-09-18**: it asserted `sequenceChip:pelvis` /
+`sequenceChip:thorax`, which the strip rewrite of that day deleted when the sequence moved onto the
+plot, and it compared the strip's line against the bare verdict when the line has carried the chain
+and the verdict together ever since. Two `verify`s on a null `findChild` and one failed `compare`,
+for two days. **Nobody had been running `qml_ui`.** Rewritten today to assert what the strip
+renders now, including the rising case.
+
+### 13.9 Owed, and open
+
+Plainly, and none of these was closed today.
+
+1. **Rotation truth.** No Witmotion swing has ever passed `imuIntegrity`, so there is no measured
+   trunk rate on any swing in the corpus. §9's stage 2 — one unit on the sacrum, one on the sternum
+   — remains the only arbiter, both for the placement and for the magnitude.
+2. **A correctly placed down-the-line camera.** Both rigs put it behind the **ball**, not on the
+   hands line and not at hand height, which is what makes γ 75–84° instead of 90° and biases ψ's
+   level (the pelvis reads ~20° closed at impact). A correct placement removes the bias for free.
+3. **Whether to look past impact.** The producer deliberately does not (§13.4). If the chart should,
+   that is a design decision to take before someone reads 21 "did not peak before impact" swings as
+   a fault.
+4. **The trunk magnitudes.** 640–840 °/s for the pelvis offline against Cheetham's 477 ± 53. Not
+   credible uncalibrated, and not published — the rung emits a *time* with a σ. G4 stands.
+5. **The 06-11 thorax pair curves** still carry **1,600–2,700 °/s** excursions where that channel is
+   drawn, and its two new bounds read 107 °/s and −50 °/s. The node is withheld; the curve is not.
+6. **`poseDtl` is not persisted and has no version gate.** `PairDiagnostics` is logged and never
+   serialised, so nothing downstream can gate on it and a re-analysis re-poses the second camera.
+   Both are owed before this route is re-run in bulk.
+7. **`clubheadPeakLead` 10 → 145 ms.** Flagged in §12.4 item 5 on 18 Sept, **not chased today, still
+   owed.** These runs give it a second reading: the angular club node leads the linear clubhead-speed
+   peak by **−98 ms [−117, −89]** on the 18 swings that carry both, identically in the pair and
+   face-on runs, so whatever moved it is not the sequence producer.
+8. **A golfer whose trunk peaks inside the downswing.** Until one is measured, the rung's **bound**
+   is graded and its **placement** is not graded at all — every placement path in §13.5 and §13.6
+   was exercised on synthetic fixtures (`segment_rates_test` §9a–§9iii) and on nobody.

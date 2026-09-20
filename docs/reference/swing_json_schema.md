@@ -359,6 +359,13 @@ swing without it serialises exactly as before the object existed. Written by
 `src/Analysis/kinematic_sequence_json.h`, the ONE helper the live `analysisDetail` map and the reload
 also go through.
 
+> **Amended 2026-09-20.** `faceOn+dtl` is no longer planned: the uncalibrated face-on +
+> down-the-line pair produces the **pelvis and thorax** nodes on a swing that has a down-the-line
+> pose (`kinematic_sequence_design.md` §5.2, §13). Its `quality` is `estimated`. The two bound
+> fields `peakNoEarlierThanMs` / `peakNoLaterThanMs` have been emitted since 2026-09-18 and were
+> missing from the table below; they are added now, and the pair's `peakNoEarlierThanMs: 0` has a
+> reading of its own.
+
 ```json
 {
   "impactUs": 3479416,
@@ -383,8 +390,10 @@ also go through.
 | `nodes[].beforeImpactMs` | float | `impactUs − tPeakUs`, ms; positive = peaked before the ball. A duration, not re-timed. |
 | `nodes[].peakDps` | float | Peak angular speed, °/s, in the segment's sign convention. |
 | `nodes[].tSigmaMs` / `nodes[].peakSigmaDps` | float | 1σ on the peak instant and the peak value, propagated by `angular_rate.h`. |
-| `nodes[].routeId` | str | `pelvisImu` \| `thoraxImu` \| `leadArmImus` \| `clubSensorFused` \| `faceOn` \| `faceOnClub` (\| `faceOn+dtl`, planned). |
-| `nodes[].quality` | str | `direct` (an IMU or a calibrated pair) or `estimated` (a single face-on camera). |
+| `nodes[].routeId` | str | `pelvisImu` \| `thoraxImu` \| `leadArmImus` \| `clubSensorFused` \| **`faceOn+dtl`** \| `faceOn` \| `faceOnClub`. |
+| `nodes[].quality` | str | `direct` (an IMU) or `estimated` (a single face-on camera, or the uncalibrated face-on + down-the-line pair). |
+| `nodes[].peakNoEarlierThanMs` | float | **Optional**, and only on an unplaced node. A lower bound on the peak, in ms **before impact**: "this segment had not peaked by *N* ms before the ball". A positive value is the face-on span rung's bound — the edge of the sighted band, "it peaked somewhere after this, where the camera stopped being able to see the segment turn". **`0` is the pair route's bound and means something different: the segment was watched all the way to impact and had not peaked when the club arrived.** Nothing went out of sight. |
+| `nodes[].peakNoLaterThanMs` | float | **Optional**, and only on an unplaced node. The symmetric upper bound, for a peak at the far edge of a blind band (the rate was still falling when sight returned). |
 | `order[]` | str[] | The PLACED segments, ascending `tPeakUs`. |
 | `gapsMs[]` / `gainsDps[]` | float[] | Between adjacent entries of `order`: the timing gap and `peak(n+1) − peak(n)`. `order.length − 1` entries. |
 | `orderResolved` | bool | Every adjacent gap exceeds `sequence.sigmaK · sqrt(σₙ² + σₙ₊₁²)`. When false the verdict is withheld. |

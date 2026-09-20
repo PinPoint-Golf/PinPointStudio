@@ -745,6 +745,78 @@ settled by any data here: both centres are offered, the cost is the min over the
 two, and the taken-sign column splits about 60/40 inside the long mid bands. The
 sign schedule §4.2 hoped would turn out boring has not been established.
 
+### 5A.1 As built, continued (2026-09-20, evening)
+
+> Two packages after the block above, both against §8A of the results note — the
+> defect it calls the most serious. Numbers and the per-P tables are in
+> [`dtl_tracker_results_20260920.md` §14](../research/data/dtl/dtl_tracker_results_20260920.md).
+> **Read the caveat there first: both were developed with 06-11 in the loop, by
+> the owner's explicit decision, so 06-11 is no longer a clean transfer set.**
+> The config hash moved at each — c4/held-out `6d49771b0a9cf28c`, C5
+> `194731185cd3e119`, C6 `0fc7c3613ef16e0f` — so the §7 held-out result belongs
+> to the first of the three and to no other.
+
+**§4.3's "DTL's own ball" now has two cues, and the second one is a shadow.** On
+06-11 the mat under the ball is blown to 253 and a white ball on it has no edge:
+the bright cue was not failing, it was looking at a ball that is not there. The
+second cue takes the crescent the ball casts at its own lower rim — 51–79 px of
+area, 2.4–3.2:1 elongated, 77–110 grey against a 253 local median — and the
+discriminator is the **launch**: the same pixels must have lost their darkness
+once the ball has gone, +113…+124 at the true crescent against −30…+1 at the
+static marks that survive the shape gates. The ball centre is one radius above
+the centroid, a 6.2–7.3 px correction on a 310–353 px grip→ball distance.
+`shadowMatMin` 200, `shadowDrop` 60 and `shadowLaunchRise` 40 sit in the middle
+of those gaps; each default's justification is beside it in
+`dtl_shaft_config.h:203-234`.
+
+**Ordering, and it is a constraint rather than a preference.** The bright cue is
+unchanged and answers first; the shadow is measured on every swing but consulted
+only where brightness found nothing. The evidence for the ordering is negative:
+on 07-04, where the mat under the ball is a dim 90–100, the shadow cue alone
+picks a dark patch by the golfer's foot some 200 px from the ball. **It is not a
+standalone detector on a partly-lit mat** and §4.3 should not be read as
+promoting it to one.
+
+**The address hold is the wrong place to look.** §5.4's plate window and §4.3's
+ball prior both start from address, and at address the clubhead and its own
+shadow sit on the ball. The cue medians the **club-away** frames instead.
+
+**One club-away window, named, with a fallback ladder.** §5.4's clean-plate low
+region and the shadow cue want the same frames, so `clubAwayWindowOf`
+(`dtl_shaft_decide.cpp`) is the single definition and `summary.clubAwayWindow`
+records which rule ran: P2 + 40 % of (P2→P4) → P5, else half way from the top to
+impact, else P4 + 120 ms, else 35–80 % of P1→impact. 06-11 swing_0003 has **no
+P5 rung**, so under C5 both consumers lost their source on the same swing for the
+same reason; under C6 it falls back to `P4P7` and the ball is found. A rung the
+face-on ladder did not name is a statement about the ladder.
+
+**Result on 06-11, c4 → C6:** ball 0/9 → 9/9, P1 **0/9 → 9/9** at 58.5–60.0°,
+P7 **0/9 → 7/9** at 64.5–68.5° (the two absences are END-ON at ρ̂ 0.28 and 0.38,
+refused by the schedule and not by the ball), published frames 716 → 1,633,
+sighted fraction 0.26–0.35 → 0.57–0.72, `publishedInEndOn` still 0. P3 and P5
+move by at most 0.5°, which is the grid. On the 07-04 twelve, C5 changes **no
+ladder tile, no angle, no refusal reason and none of the 425 truth pairs.**
+
+**A published length equal to `ridgeSweep`'s own floor is refused.** §5A already
+named this — "a floor wearing a length's clothes", `rLo + minLenPx` = 98 px
+reported to the digit whenever the ray leaves the club early — and it is now a
+rule rather than an observation: `len.floorSlackPx` = 14 px, applied only where
+`DtlLenSrc` is `Rend` and never against a BAND lock. It asks a different question
+from the minimum-length rule: not "is this run long enough for the schedule" but
+"was a run measured at all", which is why the false P4 tiles clear the first and
+fail the second. On 06-11 it refuses 67 frames and leaves **no** floor-class
+frame published, including both false P4 tiles (0001 θ 210°, 0007 θ 292°). On
+07-04 it costs **85 published frames of 2,279 — 3.7 %** — with every ladder tile
+and every truth number unchanged, because all 85 lie after the truth span. The
+stated cost is that **30 of those 85 agree to within 3° with a surviving
+neighbour**: right angles, thrown away because the length behind them was not
+earned.
+
+**What neither rule reaches.** 06-11 swing_0002's P2 forearm lock — θ 225°, a
+real 238 px run, ρ̂_D 0.52 — publishes under C6 exactly as it did under c4. Its
+length is a measurement and its ρ̂_D clears `rhoSolveMin`, so only §8's
+per-rig-threshold item can touch it.
+
 ---
 
 ## 6. Truth, and how results are reported
@@ -948,6 +1020,49 @@ Stage 0 and Stage 1 are independent and can run in parallel.
 >   25° half-width in every band was chosen because nothing sized it. If it is
 >   too wide the corridor buys nothing; if too narrow it becomes the pin §5.7
 >   exists to prevent. The ablations that would tell us apart were not run.
+>
+> **Revised again, 2026-09-20 evening, after the two packages of §5A.1.**
+>
+> - **"P1 and P7 publish 0/9 on the second rig" — CLOSED, at a cost to the
+>   claim.** The shadow cue takes P1 to 9/9 and P7 to 7/9 on 06-11
+>   (results §14.4). But it was developed **on 06-11**, so that session is no
+>   longer a transfer set and the closure is a development result, not a
+>   transfer one. The null control is the 07-04 twelve, where nothing moved.
+>   **A session neither package has seen is now owed before any transfer claim
+>   is made again.**
+> - **NEW: a detector that is right for a reason that does not generalise.** The
+>   shadow cue works because the 06-11 mat is blown to 253. On 07-04's dim mat it
+>   picks a dark patch by the golfer's foot ~200 px from the ball, and only the
+>   bright cue answering first keeps that out of the result. **Two cues ordered
+>   by preference is a scene assumption in disguise**: a rig whose mat is bright
+>   enough to hide the ball but where the bright cue nonetheless finds *something*
+>   would take the wrong answer silently. Nothing in the code detects that case.
+>   `summary.ball.source` is the only place it would show.
+> - **NEW: two L̂_D estimates that now disagree, with no tie-breaker.** With the
+>   ball found, L̂_D comes from the ball rather than the cross-view row scale, and
+>   on the nine the two differ by −15 % to +11 %. L̂_D is the schedule's
+>   denominator, so this moves band edges. Four of nine agree within 4 % and five
+>   do not. Unadjudicated.
+> - **NEW: the floor rule's cost is measured but not graded.** 30 of the 85
+>   frames it refuses on 07-04 agree to within 3° with a surviving neighbour. No
+>   truth covers them, so "30 right angles lost" is a consistency count and not
+>   an accuracy one, and the rule's benefit — two false P4 tiles removed — is
+>   counted on the session it was developed on. The honest statement of the trade
+>   is: **a rule that demonstrably removes the failure class the design exists to
+>   prevent, at a 3.7 % frame cost, neither side of which has been graded against
+>   truth.**
+> - **Gate 5 was not re-measured at the two new hashes.** `build/dtl/control/`
+>   predates both packages. What stands in is structural — a `--dtl` run does not
+>   write `result.json`, and both packages are confined to the four
+>   `dtl_shaft_*` files — and that is weaker than the counted gate it replaces.
+>   *Re-measured the same evening on the final binary: 6 of 6 identical with the
+>   kinematic-sequence pair route switched off; with it on, only the three
+>   DTL-stream swings differ and only in the sequence's own outputs (results
+>   note §14.7 item 5).*
+> - **The 06-11 address angle, 4–6° above its own ball line on all nine, is
+>   unchanged and still unexplained.** It is now attached to nine *published* P1
+>   tiles rather than to nine absences, which makes it a live wrong number rather
+>   than a suspicion. No truth exists on that session to settle it.
 
 - **One golfer, one rig, twelve swings, and a camera in the wrong place.** Every
   width and threshold fitted here is a property of this rig. The design's
