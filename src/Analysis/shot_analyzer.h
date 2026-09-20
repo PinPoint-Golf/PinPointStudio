@@ -47,11 +47,14 @@ struct ShotAnalysisJob {
     // candidate and never runs pose. Invalid when no camera holds the placement.
     pinpoint::SourceId impactSource = pinpoint::kInvalidSourceId;
     // The down-the-line camera (perspective DownTheLine, dtl_shaft_tracker_design.md
-    // §5.1): the DTL shaft tracker's source, and SwingLab's alone — nothing in the
-    // production pipeline reads it, so a swing with a DTL stream analyses exactly as
-    // it did before. Never a face-on candidate and never the impact camera. Invalid
-    // when no camera holds the placement (and when --face-on names the DTL stream
-    // ITSELF, since it is then the face-on one).
+    // §5.1). Two consumers: the DTL SHAFT tracker, which is SwingLab's alone, and —
+    // since 2026-09-20 — DtlPoseStage, which poses this stream in the production
+    // pipeline so the kinematic sequence can read the trunk from the PAIRED face-on +
+    // down-the-line separations (segment_rates.h, routeId "faceOn+dtl"). A swing with
+    // a DTL stream therefore no longer analyses identically to one without; a swing
+    // WITHOUT one is untouched. Never a face-on candidate and never the impact camera.
+    // Invalid when no camera holds the placement (and when --face-on names the DTL
+    // stream ITSELF, since it is then the face-on one).
     pinpoint::SourceId dtlSource = pinpoint::kInvalidSourceId;
     std::vector<pinpoint::SourceId> imuSources;     // IMU sources present in the window
     pinpoint::SourceId markerSourceId = pinpoint::kInvalidSourceId;  // shot_marker_v1 source
@@ -116,6 +119,12 @@ struct ShotAnalysisJob {
     // does not run the model / replay. Empty in live capture.
     pinpoint::analysis::PoseTrack2D posePreloaded;
     pinpoint::analysis::BallTrack2D ballPreloaded;
+    // The DOWN-THE-LINE pose, the same two ways (DtlPoseStage). `poseDtlPreloaded` is a track
+    // already in hand; `poseDtlTrackPath` is SwingLab's `--dtl-pose`, which pins the DTL pose so a
+    // corpus pass is deterministic (pose inference is not). Precedence: preloaded, then the path,
+    // then run the model. Both empty in live capture.
+    pinpoint::analysis::PoseTrack2D poseDtlPreloaded;
+    QString                         poseDtlTrackPath;
     // The recorded shaft track and the RESOLVED phase ladder, reloaded together under the
     // same gate (2026-09-17, recorded_products.h): the Shaft stage adopts the track and
     // re-synthesises only its visualisation tier, and the ladder stages (SegResolve,

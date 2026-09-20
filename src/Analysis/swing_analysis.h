@@ -831,6 +831,7 @@ struct AnalysisTimings {
     int ballMs  = -1;
     int shaftMs = -1;
     int impactMs = -1;
+    int poseDtlMs = -1;   // the down-the-line pose pass (DtlPoseStage); -1 = it did not run
     int totalMs = -1;
 };
 
@@ -858,6 +859,14 @@ struct SwingAnalysis {
     // IMU calibration snapshot per bound device (empty when no IMUs).
     std::vector<BindingRecord> bindings;
     PoseTrack2D               pose2d;  // face-on offline pose (empty when no camera ran)
+    // The DOWN-THE-LINE offline pose, on the same window clock (DtlPoseStage). The second leg of
+    // the kinematic sequence's paired trunk route (segment_rates.h "faceOn+dtl"). Empty when the
+    // capture holds no down-the-line camera, or the pair route is off.
+    // ⚠ OWED: this track is NOT serialised to swing.json in this package (src/Export was out of
+    // scope), so a re-analysis cannot reuse it under the version gate the way pose2d is reused —
+    // it re-poses. The KS nodes and the two trunk series it feeds ARE serialised, by the code that
+    // already serialises them.
+    PoseTrack2D               poseDtl;
     ShaftTrack2D              shaft;   // face-on club track (check .valid before use)
     BallTrack2D               ball;    // face-on ball track for the replay overlay (empty ⇒ none)
     ImpactTrack2D             impact;  // the impact camera's ball + club track (check .valid)

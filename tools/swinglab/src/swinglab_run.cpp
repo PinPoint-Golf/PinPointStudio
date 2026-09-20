@@ -305,7 +305,9 @@ int main(int argc, char **argv)
         "with no DTL stream, and when --face-on names the DTL stream itself.");
     QCommandLineOption optDtlPose("dtl-pose",
         "Inject the DTL PoseTrack2D from JSON instead of running ViTPose on that stream "
-        "(the pose-cache reuse --pose is for the face-on side).", "file");
+        "(the pose-cache reuse --pose is for the face-on side). Pins it for BOTH consumers: "
+        "the --dtl shaft block, and DtlPoseStage inside the analysis, which feeds the "
+        "kinematic sequence's paired trunk route. Works without --dtl.", "file");
     // ── the club record, injected ────────────────────────────────────────────
     // A swing recorded before the app persisted capture.club carries no club
     // geometry at all, so job.bandCentersMm is empty and the E1 band matcher —
@@ -464,6 +466,14 @@ int main(int argc, char **argv)
     job.runAssessment   = true;   // SwingLab: emit Tier-2 findings into swing.json (known-groups)
     if (cli.isSet(optPose))
         job.poseTrackPath = cli.value(optPose);
+    // --dtl-pose pins the DOWN-THE-LINE pose for the analyzer too, not only for the --dtl shaft
+    // block below. DtlPoseStage (wrist_analyzer.cpp) runs inside analyze() on any swing with a
+    // down-the-line stream, and pose inference is not deterministic — so a corpus pass over the
+    // paired trunk route is only reproducible if the same cached track goes in every time. Set
+    // BEFORE analyze(), and independent of --dtl: pinning the pose for the sequence does not
+    // imply running the DTL shaft tracker.
+    if (cli.isSet(optDtlPose))
+        job.poseDtlTrackPath = cli.value(optDtlPose);
     if (cli.isSet(optBall))
         job.ballTrackPath = cli.value(optBall);
     if (cli.isSet(optSession) || job.sessionType < 0)
@@ -1299,6 +1309,12 @@ int main(int argc, char **argv)
                             { "lFullSource", dtlTrack.lFullSource },
                             { "rowFitA",     jnum(dtlTrack.rowFitA) },
                             { "rowFitB",     jnum(dtlTrack.rowFitB) },
+                            // Which rule placed the club-away window the clean
+                            // plate's low region and the shadow ball cue are both
+                            // built from. On a swing whose ladder is short it is a
+                            // FALLBACK, and "the scene changed" and "the ladder
+                            // was short" are different findings.
+                            { "clubAwayWindow", dtlTrack.clubAwayWindow },
                             // Which configuration produced these numbers. "The
                             // numbers moved" and "the config moved" are different
                             // findings, and a run whose settings live only in a
@@ -1449,6 +1465,7 @@ int main(int argc, char **argv)
                                                               { "nCandidates", dtlTrack.ball.nCandidates } } },
                                     { "lFullPx",     jnum(dtlTrack.lFullPx) },
                                     { "lFullSource", dtlTrack.lFullSource },
+                                    { "clubAwayWindow", dtlTrack.clubAwayWindow },
                                     { "rowFitA",     jnum(dtrace.rowFitA) },
                                     { "rowFitB",     jnum(dtrace.rowFitB) },
                                     { "configHash",  dtlConfigHash(dcfg) } } } };

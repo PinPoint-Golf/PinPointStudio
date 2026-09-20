@@ -48,11 +48,13 @@ namespace pinpoint { class SwingWindow; }
 
 namespace pinpoint::analysis {
 
-// Where a camera sits relative to the golfer. FaceOn is the only placement the
-// current analysis consumes (pose/shaft/head/foot all run off it); DownTheLine
-// is populated from ShotAnalysisJob::dtlSource and says only that the capture
-// HOLDS such a camera — no stage gates on it yet, the DTL shaft tracker being a
-// SwingLab-only product (dtl_shaft_tracker_design.md §5.1).
+// Where a camera sits relative to the golfer. FaceOn is the placement most of the
+// analysis runs off (pose/shaft/head/foot all do). DownTheLine is populated from
+// ShotAnalysisJob::dtlSource; since 2026-09-20 DtlPoseStage gates on it and poses
+// that stream for the kinematic sequence's PAIRED trunk route (segment_rates.h
+// "faceOn+dtl"), so a capture that holds a down-the-line camera now analyses
+// differently from one that does not. The DTL SHAFT tracker remains SwingLab-only
+// (dtl_shaft_tracker_design.md §5.1).
 enum class CameraPlacement { FaceOn, DownTheLine };
 
 // The capture's device inventory, resolved once from the job before any stage
@@ -109,7 +111,7 @@ struct CaptureCapabilities {
     // the resample stage runs and hasImuStreams() then reports the empty result).
     // FaceOn present iff the job carries a face-on camera source — the exact gate
     // the monolith's `hasCamera` local used. DownTheLine iff the job resolved a
-    // dtlSource; no stage gates on it, so adding it changes no analysis.
+    // dtlSource, which DtlPoseStage gates on (see the enum's note).
     static CaptureCapabilities fromJob(const ShotAnalysisJob &job)
     {
         CaptureCapabilities caps;

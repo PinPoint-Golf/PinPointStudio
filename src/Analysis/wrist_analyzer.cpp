@@ -1432,6 +1432,127 @@ struct PoseAssessmentStage : AnalysisStage {
 //      Impact on the ladder plus at least one input that can carry a segment — a
 //      face-on pose track, a valid shaft track, or a bound segment IMU. Absent all
 //      of those it emits nothing and skipReason names which.
+// 13c-bis. The DOWN-THE-LINE pose pass — the second leg of the kinematic sequence's paired trunk
+//      route (segment_rates.h "faceOn+dtl"; kinematic_sequence_design.md §5.2 and
+//      docs/research/data/kinematic_sequence/pair_span_turn_20260920.md).
+//
+//      WHERE IT SITS, AND WHY. Immediately before KinematicSequenceStage, which is after
+//      SegResolve / EventRefine / PositionsLadder / TimelineFusion. It needs the RESOLVED ladder:
+//      its scan bounds are Address → Impact + 150 ms and its dense zone starts 100 ms before the
+//      Top, and reading those off a pre-resolve ladder would pose a different window depending on
+//      which stage had run. It is also strictly after the face-on pose, ball and shaft stages, so
+//      nothing it does can move them.
+//
+//      IT BUILDS ITS OWN RUNNER OPTIONS AND NEVER TOUCHES ctx.runnerOpt. The ball and shaft
+//      stages and the face-on smoother all gate on that slot; overwriting it with a second
+//      camera's options would silently re-aim them.
+//
+//      The time base is INHERITED, never rediscovered — the two streams share the window clock,
+//      and a second, independent opinion about when the swing was is the thing
+//      dtl_shaft_tracker_design.md §5.3 forbids. Hence explicit bounds and twoPass = false.
+struct DtlPoseStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("DtlPose"); }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        const SegmentRatesConfig c = SegmentRatesConfig::fromOverrides(ctx.job.tuningOverrides);
+        if (!c.enabled || !c.pairTrunkEnabled) return false;
+        if (ctx.job.dtlSource == pinpoint::kInvalidSourceId) return false;
+        if (!ctx.window || ctx.window->entriesFor(ctx.job.dtlSource).empty()) return false;
+        return ctx.caps.hasCamera(CameraPlacement::FaceOn) && !ctx.detail->pose2d.frames.empty();
+    }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        const SegmentRatesConfig c = SegmentRatesConfig::fromOverrides(ctx.job.tuningOverrides);
+        if (!c.enabled) return QStringLiteral("sequence disabled (dark)");
+        if (!c.pairTrunkEnabled) return QStringLiteral("pair trunk route disabled (dark)");
+        if (ctx.job.dtlSource == pinpoint::kInvalidSourceId)
+            return QStringLiteral("no down-the-line camera");
+        if (!ctx.window || ctx.window->entriesFor(ctx.job.dtlSource).empty())
+            return QStringLiteral("the down-the-line stream holds no frames in this window");
+        return QStringLiteral("no face-on pose to pair with");
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        const std::vector<pinpoint::IndexEntry> entries = ctx.window->entriesFor(ctx.job.dtlSource);
+        const int64_t impactUs = ctx.seg.eventFor(Phase::Impact)
+                                     ? ctx.seg.eventFor(Phase::Impact)->t_us : ctx.job.impactUs;
+        if (impactUs < 0) {
+            ppWarn() << "[WristAnalysis] dtl pose: no impact instant — skipping";
+            return;
+        }
+        const PhaseEvent *addr = ctx.seg.eventFor(Phase::Address);
+        const PhaseEvent *top  = ctx.seg.eventFor(Phase::Top);
+        int64_t scanLo = addr ? addr->t_us
+                              : (ctx.seg.swingStartUs > 0 ? ctx.seg.swingStartUs - 300000
+                                                          : impactUs - 2500000);
+        int64_t scanHi = impactUs + 150000;
+        scanLo = std::max(scanLo, entries.front().timestamp_us);
+        scanHi = std::min(scanHi, entries.back().timestamp_us);
+        // AN EMPTY INTERSECTION IS A REAL CONDITION — a camera that started after the swing, or a
+        // clock the two streams do not share. Left alone it hands PoseRunner an INVERTED range,
+        // which reads as "no bounds" and silently becomes a full-ring stride-1 ViTPose pass. The
+        // same guard swinglab_run's --dtl block carries, for the same reason.
+        if (scanHi <= scanLo) {
+            ppWarn() << "[WristAnalysis] dtl pose: the down-the-line stream and the swing span do"
+                     << "not overlap (scan window" << qlonglong(scanLo) << ".."
+                     << qlonglong(scanHi) << "us is empty) — no paired trunk route";
+            return;
+        }
+
+        int dw = 0, dh = 0;
+        const pinpoint::FormatDescriptor &fd = ctx.window->formatOf(ctx.job.dtlSource);
+        if (const auto *cfmt = std::get_if<pinpoint::CameraFormat>(&fd.format)) {
+            dw = int(cfmt->width);
+            dh = int(cfmt->height);
+        }
+
+        ShotAnalysisRunnerOptions dopt;                      // LOCAL — never ctx.runnerOpt
+        dopt.impactUs             = impactUs;
+        dopt.handedness           = ctx.job.handedness;
+        dopt.motionCaptureQuality = ctx.job.motionCaptureQuality;
+        dopt.tuningOverrides      = ctx.job.tuningOverrides;
+        dopt.twoPass              = false;                   // the span is inherited, not discovered
+        dopt.scanStartUs          = scanLo;
+        dopt.scanEndUs            = scanHi;
+        // Dense (every frame) from Top − 100 ms to Impact + 150 ms — the downswing the sequence is
+        // defined on, where the paired angle is differentiated. Sparse before it: the address hold
+        // only has to establish the two views' pixel-scale ratio and the face-on orientation bit,
+        // which a sixth of the frames answers as well as all of them.
+        const int64_t denseFrom = (top ? top->t_us : impactUs - 400000) - 100000;
+        dopt.densePreMs   = int(std::max<int64_t>(impactUs - denseFrom, 0) / 1000);
+        dopt.densePostMs  = 150;
+        dopt.denseStride  = 1;
+        dopt.sparseStride = 6;
+
+        QElapsedTimer dtlWall;
+        dtlWall.start();
+        if (!ctx.job.poseDtlPreloaded.frames.empty()) {
+            ctx.detail->poseDtl = ctx.job.poseDtlPreloaded;
+            ctx.detail->poseDtl.camera = ctx.job.dtlSource;
+        } else {
+            ctx.detail->poseDtl = ctx.job.poseDtlTrackPath.isEmpty()
+                                      ? PoseRunner::run(*ctx.window, ctx.job.dtlSource, dopt)
+                                      : PoseRunner::loadFromJson(ctx.job.poseDtlTrackPath,
+                                                                 ctx.job.dtlSource);
+        }
+        // Smooth it HERE rather than through PoseSmoothStage: that stage also rewrites the grip
+        // anchors from the smoothed hands and builds the 240 Hz visualisation tier, both of which
+        // are face-on products the shaft tracker reads. The pair route wants the smoother's
+        // posterior σ on the hip and shoulder keypoints and nothing else.
+        if (dw > 0 && dh > 0 && !ctx.detail->poseDtl.frames.empty()) {
+            const PoseSmootherConfig smCfg =
+                PoseSmootherConfig::fromOverrides(ctx.job.tuningOverrides);
+            PoseSmootherOutput so = smoothPoseTrack(ctx.detail->poseDtl.frames, dw, dh, smCfg);
+            ctx.detail->poseDtl.smoothed    = std::move(so.smoothed);
+            ctx.detail->poseDtl.smoothedAux = std::move(so.aux);
+        }
+        ctx.detail->timings.poseDtlMs = int(dtlWall.elapsed());
+        ppInfo() << "[WristAnalysis] dtl pose:" << qlonglong(ctx.detail->poseDtl.frames.size())
+                 << "frames over" << qlonglong((scanHi - scanLo) / 1000) << "ms in"
+                 << ctx.detail->timings.poseDtlMs << "ms";
+    }
+};
+
 struct KinematicSequenceStage : AnalysisStage {
     QString name() const override { return QStringLiteral("KinematicSequence"); }
     static bool anyInput(const AnalysisContext &ctx)
@@ -1475,6 +1596,18 @@ struct KinematicSequenceStage : AnalysisStage {
         in.shaft      = ctx.detail->shaft.valid ? &ctx.detail->shaft : nullptr;
         in.phases     = &ctx.seg.events;
         in.impactUs   = ctx.job.impactUs;
+        // The paired trunk route's second leg (DtlPoseStage). Absent ⇒ the trunk reads off the
+        // face-on span exactly as it did before.
+        if (!ctx.detail->poseDtl.frames.empty()
+            && ctx.job.dtlSource != pinpoint::kInvalidSourceId && ctx.window) {
+            const pinpoint::FormatDescriptor &dfd = ctx.window->formatOf(ctx.job.dtlSource);
+            if (const auto *dfmt = std::get_if<pinpoint::CameraFormat>(&dfd.format);
+                dfmt && dfmt->width > 0 && dfmt->height > 0) {
+                in.poseDtl   = &ctx.detail->poseDtl;
+                in.dtlFrameW = int(dfmt->width);
+                in.dtlFrameH = int(dfmt->height);
+            }
+        }
         // The same track's headline linear speed at impact, from the Kinematics stage that ran
         // before this one — the club node's credibility gate (segment_rates.h).
         for (const MetricSeries &m : ctx.detail->series) {
@@ -1508,6 +1641,36 @@ struct KinematicSequenceStage : AnalysisStage {
         }
         ppInfo() << "[WristAnalysis] sequence:" << r.sequence.verdict << r.sequence.routeSummary
                  << qPrintable(placed);
+        // ONE LINE PER SWING about the pair route, so the corpus pass can read what the geometry
+        // did without opening the series. Diagnostic only — nothing gates on it and nothing
+        // serialises it.
+        if (r.pair.attempted) {
+            const auto segLine = [](const char *tag, const PairSegmentDiag &d) {
+                return d.refusal.isEmpty()
+                    ? QStringLiteral(" %1(corr %2/%3 closure %4/%5 n%6 rEll %7 sgn %8/%9"
+                                     " swaps %10/%11 drop %12")
+                          .arg(QLatin1String(tag))
+                          .arg(d.corrAbs, 0, 'f', 2).arg(d.corrSigned, 0, 'f', 2)
+                          .arg(d.closureP50, 0, 'f', 3).arg(d.closureP90, 0, 'f', 3)
+                          .arg(d.nPaired).arg(d.rEllipse, 0, 'f', 3)
+                          .arg(d.signFo).arg(d.signDtl)
+                          .arg(d.nSwapsFo).arg(d.nSwapsDtl).arg(d.nSwapFramesDropped)
+                        + QStringLiteral(" src %1/%2 rl %3/%4 invalid %5")
+                              .arg(d.srcFo, d.srcDtl).arg(d.nRateLimitedFo).arg(d.nRateLimitedDtl)
+                              .arg(d.invalidFrac, 0, 'f', 3) + QStringLiteral(")")
+                    : QStringLiteral(" %1(REFUSED: %2 swaps %3/%4 drop %5 src %6/%7 rl %8/%9)")
+                          .arg(QLatin1String(tag), d.refusal)
+                          .arg(d.nSwapsFo).arg(d.nSwapsDtl).arg(d.nSwapFramesDropped)
+                          .arg(d.srcFo, d.srcDtl).arg(d.nRateLimitedFo).arg(d.nRateLimitedDtl);
+            };
+            QString line = QStringLiteral("[WristAnalysis] sequence pair: rVert %1 (%2/%3 px, n%4)")
+                               .arg(r.pair.rVertical, 0, 'f', 3)
+                               .arg(r.pair.extentFoPx, 0, 'f', 0).arg(r.pair.extentDtlPx, 0, 'f', 0)
+                               .arg(r.pair.addrSamples);
+            if (!r.pair.refusal.isEmpty()) line += QStringLiteral(" REFUSED: ") + r.pair.refusal;
+            else line += segLine("pelvis", r.pair.pelvis) + segLine("thorax", r.pair.thorax);
+            ppInfo() << qPrintable(line);
+        }
     }
 };
 
@@ -1547,6 +1710,7 @@ SessionProfile wristProfile()
     appendBodyMetricStages(p);
     p.stages.push_back(std::make_unique<KinematicsStage>());
     p.stages.push_back(std::make_unique<ShaftPlaneStage>());
+    p.stages.push_back(std::make_unique<DtlPoseStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     p.stages.push_back(std::make_unique<BindingsStage>());
     p.stages.push_back(std::make_unique<ResemblanceStage>());
@@ -1634,6 +1798,7 @@ SessionProfile cameraKinematicsProfile()
     appendBodyMetricStages(p);
     p.stages.push_back(std::make_unique<KinematicsStage>());
     p.stages.push_back(std::make_unique<ShaftPlaneStage>());
+    p.stages.push_back(std::make_unique<DtlPoseStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     return p;
 }

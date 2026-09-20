@@ -42,6 +42,17 @@
 //       emitted as a BOUND that contains the truth, never as a node; the same peak moved into
 //       sight is placed; and an address set open by 15° moves neither, because the reference is
 //       the square-up span and not the address span.
+//   §9  THE PAIRED ROUTE (faceOn+dtl). The SAME swing is rendered a second time through a
+//       down-the-line camera: a different pixel scale, its own clock 3 ms out of phase at a
+//       different frame rate, a shoulder line that TILTS 30° out of horizontal through the
+//       downswing, and an inter-view angle of 80° rather than 90°. The pair must then place the
+//       trunk nodes on the truth where the face-on span rung can only BOUND them, must survive
+//       the tilt that a 2-D span distance absorbs, must say "not before impact" rather than
+//       placing an edge peak when the trunk peaks after the ball, must NOT reproduce the unsigned
+//       separation's fake peak at square (gate G1 of
+//       docs/research/data/kinematic_sequence/pair_span_turn_20260920.md), must mirror for a
+//       left-hander, and must fall through to face-on — leaving §2 exactly as it was — whenever
+//       the second view is missing, dark, unconfident, too small or inconsistent.
 
 #include "../segment_rates.h"
 #include "../kinematic_sequence_json.h"
@@ -71,7 +82,20 @@ static bool near(double a, double b, double tol) { return std::fabs(a - b) <= to
 constexpr double kPi  = 3.14159265358979323846;
 constexpr double kD2R = kPi / 180.0;
 constexpr int    kW = 1000, kH = 1000;
-constexpr int    kLSh = 5, kRSh = 6, kLWr = 9, kRWr = 10, kLHip = 11, kRHip = 12;
+constexpr int    kLSh = 5, kRSh = 6, kLWr = 9, kRWr = 10, kLHip = 11, kRHip = 12,
+                 kLAnk = 15, kRAnk = 16;
+
+// ── §9's second camera ─────────────────────────────────────────────────────────────────────────
+// The angle between the two camera axes is NOT 90°: the measured rigs read 75–84°, the
+// down-the-line camera sitting behind the ball rather than behind the hands. The pixel scale is
+// not 1 either, and neither is the clock: 144 fps offset 3 ms against the face-on 120.
+constexpr double  kGammaDeg     = 80.0;
+constexpr double  kDtlScale     = 1.35;          // s_D / s_F
+constexpr int     kWD = 640, kHD = 800;
+constexpr int64_t kDtlOffsetUs  = 3000;
+constexpr int64_t kDtlStepUs    = 6944;
+constexpr double  kVertExtentPx = 400.0;         // ankle mid → shoulder mid, face-on pixels
+constexpr double  kHipSpanPx    = 200.0, kShSpanPx = 320.0;
 
 // ── The synthetic downswing ────────────────────────────────────────────────────────────────────
 
@@ -119,6 +143,19 @@ static double closedAngleDeg(const Bump &b, double startClosedDeg, double s, dou
     return startClosedDeg - turnFromTop(b, s);
 }
 
+// The shoulder line's TILT out of horizontal: flat until the Top, then smoothly to `tiltDeg` at
+// impact and held. Zero everywhere unless a fixture asks for it, so §2–§8 are untouched. This is
+// the thing a 2-D span distance cannot separate from turn and the ratio of two signed horizontal
+// separations divides out.
+static double tiltAt(double s, double tiltDeg)
+{
+    if (tiltDeg == 0.0) return 0.0;
+    const double topS = kTopUs * 1e-6, impS = kImpactUs * 1e-6;
+    if (s <= topS) return 0.0;
+    const double u = std::min(1.0, (s - topS) / (impS - topS));
+    return tiltDeg * (u * u * (3.0 - 2.0 * u));
+}
+
 // The swing plane as the face-on camera images it.
 constexpr double kRatio = 0.87, kNodeDeg = 10.0;
 // Forward projection: in-plane α → image ψ. tan(ψ − ν) = k tan α.
@@ -140,22 +177,36 @@ static std::vector<PhaseEvent> phases()
 
 // Face-on pose at 120 fps. Hip span 200 px, shoulder span 320 px at address. The arm's in-plane
 // angle integrates the arm bump from −120° (near the top) downward.
+// `signedSpans` drops the fabs on the imaged cosine, so a line turned past 90° to the camera
+// images with its keypoints genuinely the other way round. §2–§8 keep the fabs and are therefore
+// bit-identical; on every §9 fixture but the past-90° one the two are the same number anyway,
+// because the turn never exceeds 90° there.
 static PoseTrack2D makePose(bool leadIsLeft, double pelvisStartClosedDeg = 45.0, double addrOpenDeg = 0.0,
-                            const Bump &pelvisBump = kPelvis)
+                            const Bump &pelvisBump = kPelvis, double shoulderTiltDeg = 0.0,
+                            bool signedSpans = false, double thoraxStartClosedDeg = 90.0,
+                            const Bump &thoraxBump = kThorax)
 {
     PoseTrack2D pose;
+    const auto proj = [&](double a) { return signedSpans ? std::cos(a) : std::fabs(std::cos(a)); };
     for (int64_t t = 0; t <= kFinishUs; t += 8333) {
         const double s = t * 1e-6;
         PoseFrame2D f;
         f.t_us = t;
         const double hip = closedAngleDeg(pelvisBump, pelvisStartClosedDeg, s, addrOpenDeg) * kD2R;
-        const double sh  = closedAngleDeg(kThorax, 90.0, s, addrOpenDeg) * kD2R;
-        const double hs = 0.5 * 200.0 * std::fabs(std::cos(hip)) / kW;
-        const double ss = 0.5 * 320.0 * std::fabs(std::cos(sh))  / kW;
+        const double sh  = closedAngleDeg(thoraxBump, thoraxStartClosedDeg, s, addrOpenDeg) * kD2R;
+        const double tau = tiltAt(s, shoulderTiltDeg) * kD2R;
+        const double hs = 0.5 * kHipSpanPx * proj(hip) / kW;
+        const double ss = 0.5 * kShSpanPx * std::cos(tau) * proj(sh) / kW;
+        const double sy = 0.5 * kShSpanPx * std::sin(tau) / kH;     // 0 unless the fixture tilts
         f.kp[kLHip] = QPointF(0.5 - hs, 0.55); f.conf[kLHip] = 0.9f;
         f.kp[kRHip] = QPointF(0.5 + hs, 0.55); f.conf[kRHip] = 0.9f;
-        f.kp[kLSh]  = QPointF(0.5 - ss, 0.30); f.conf[kLSh]  = 0.9f;
-        f.kp[kRSh]  = QPointF(0.5 + ss, 0.30); f.conf[kRSh]  = 0.9f;
+        f.kp[kLSh]  = QPointF(0.5 - ss, 0.30 - sy); f.conf[kLSh]  = 0.9f;
+        f.kp[kRSh]  = QPointF(0.5 + ss, 0.30 + sy); f.conf[kRSh]  = 0.9f;
+        // The ankles are here only so the pair route can read the body's VERTICAL extent, which
+        // is how it fixes the two views' pixel-scale ratio with no calibration (§9). No other
+        // route reads them, so §2–§8 do not move.
+        f.kp[kLAnk] = QPointF(0.48, 0.30 + kVertExtentPx / kH); f.conf[kLAnk] = 0.9f;
+        f.kp[kRAnk] = QPointF(0.52, 0.30 + kVertExtentPx / kH); f.conf[kRAnk] = 0.9f;
         // Lead arm: shoulder fixed, wrist on the imaged arc.
         const double alpha = (-120.0 + turnFromTop(kArm, s)) * kD2R;
         const double psi   = imageAngle(alpha);
@@ -167,6 +218,85 @@ static PoseTrack2D makePose(bool leadIsLeft, double pelvisStartClosedDeg = 45.0,
         pose.frames.push_back(f);
     }
     return pose;
+}
+
+// THE SAME SWING THROUGH THE DOWN-THE-LINE CAMERA. Its image-x axis is the face-on one turned
+// kGammaDeg about the vertical, so for a line of length L tilted τ and turned ψ (closed-positive)
+//
+//     face-on          d_fo  = s_F · L · cos τ · cos ψ
+//     down-the-line    d_dtl = s_D · L · cos τ · cos(ψ − γ)
+//
+// — the ideal complement s_D·L·cos τ·sin ψ only when γ is exactly 90°. Both cameras are level, so
+// both see the same vertical extent up to their scales, which is what fixes s_D/s_F.
+//
+// Keypoint ORDER matches makePose (left at the smaller x), so the route's own orientation bits
+// have to find the signs; a left-hander reads the same frames with lead and trail swapped.
+// `unsignedSeparation` renders |d_dtl| instead — the gate-G1 control.
+static PoseTrack2D makeDtlPose(double pelvisStartClosedDeg = 45.0, double addrOpenDeg = 0.0,
+                               const Bump &pelvisBump = kPelvis, double shoulderTiltDeg = 0.0,
+                               bool unsignedSeparation = false, double scale = kDtlScale,
+                               float conf = 0.9f, double vertExtentScale = 1.0,
+                               double thoraxStartClosedDeg = 90.0, const Bump &thoraxBump = kThorax)
+{
+    PoseTrack2D pose;
+    const double g = kGammaDeg * kD2R;
+    for (int64_t t = kDtlOffsetUs; t <= kFinishUs; t += kDtlStepUs) {
+        const double s = t * 1e-6;
+        PoseFrame2D f;
+        f.t_us = t;
+        const double hip = closedAngleDeg(pelvisBump, pelvisStartClosedDeg, s, addrOpenDeg) * kD2R;
+        const double sh  = closedAngleDeg(thoraxBump, thoraxStartClosedDeg, s, addrOpenDeg) * kD2R;
+        const double tau = tiltAt(s, shoulderTiltDeg) * kD2R;
+        double hd = scale * kHipSpanPx * std::cos(hip - g);
+        double sd = scale * kShSpanPx * std::cos(tau) * std::cos(sh - g);
+        if (unsignedSeparation) { hd = std::fabs(hd); sd = std::fabs(sd); }
+        const double sy = 0.5 * scale * kShSpanPx * std::sin(tau) / kHD;
+        f.kp[kLHip] = QPointF(0.5 - 0.5 * hd / kWD, 0.55); f.conf[kLHip] = conf;
+        f.kp[kRHip] = QPointF(0.5 + 0.5 * hd / kWD, 0.55); f.conf[kRHip] = conf;
+        f.kp[kLSh]  = QPointF(0.5 - 0.5 * sd / kWD, 0.30 - sy); f.conf[kLSh] = conf;
+        f.kp[kRSh]  = QPointF(0.5 + 0.5 * sd / kWD, 0.30 + sy); f.conf[kRSh] = conf;
+        const double vy = scale * kVertExtentPx * vertExtentScale / kHD;
+        f.kp[kLAnk] = QPointF(0.48, 0.30 + vy); f.conf[kLAnk] = conf;
+        f.kp[kRAnk] = QPointF(0.52, 0.30 + vy); f.conf[kRAnk] = conf;
+        pose.frames.push_back(f);
+    }
+    return pose;
+}
+
+// PLANT A LEFT/RIGHT RELABEL. What a pose model does with the golfer's back to the lens: it swaps
+// the two keypoints outright, so the separation changes sign with its MAGNITUDE INTACT. `alternate`
+// swaps every other frame instead — the flutter the guard must refuse to read either way.
+static void plantSwap(PoseTrack2D &pose, int a, int b, int64_t fromUs, int64_t toUs,
+                      bool alternate = false)
+{
+    // BOTH TIERS. The route reads raw to DETECT and smoothed to CONSUME, so a fixture that plants
+    // into one of them is testing nothing — that is a real trap and it caught this test first.
+    for (std::vector<PoseFrame2D> *v : { &pose.frames, &pose.smoothed }) {
+        int k = 0;
+        for (PoseFrame2D &f : *v) {
+            if (f.t_us < fromUs || f.t_us > toUs) continue;
+            if (alternate && (k++ % 2)) continue;
+            std::swap(f.kp[size_t(a)], f.kp[size_t(b)]);
+            std::swap(f.conf[size_t(a)], f.conf[size_t(b)]);
+        }
+    }
+}
+
+// PLANT A BURST OF KEYPOINT NONSENSE. Not a relabel — the magnitude is wrong too, alternating by
+// ±100 px frame to frame, which is what the corpus's face-on shoulders do through their own
+// square-up (−121, +12, −108, −26, +96 px in 27 ms). No parity rule reaches it; only a bound on
+// how fast a rigid line can change its separation does.
+static void plantBurst(PoseTrack2D &pose, int a, int b, int64_t fromUs, int64_t toUs, double px)
+{
+    for (std::vector<PoseFrame2D> *v : { &pose.frames, &pose.smoothed }) {
+        int k = 0;
+        for (PoseFrame2D &f : *v) {
+            if (f.t_us < fromUs || f.t_us > toUs) continue;
+            const double e = ((k++ % 2) ? -px : px) * 0.5 / kW;
+            f.kp[size_t(a)] = QPointF(f.kp[size_t(a)].x() - e, f.kp[size_t(a)].y());
+            f.kp[size_t(b)] = QPointF(f.kp[size_t(b)].x() + e, f.kp[size_t(b)].y());
+        }
+    }
 }
 
 // The club track at 240 Hz (synth tier), with the downswing conic already fitted.
@@ -526,6 +656,403 @@ int main()
         }
         CHECK("§8d JSON carries peakNoEarlierThanMs on the bounded node and not on the placed one",
               boundOut && noBoundOnPlaced);
+    }
+
+    // ── §9 the paired face-on + down-the-line route ───────────────────────────────────────────
+    {
+        const ShaftTrack2D shaft = makeShaft();
+        // One helper: build the inputs for a fixture, with or without the second camera.
+        struct Fix { PoseTrack2D fo, dtl; };
+        const auto build = [&](double pelvisStart, const Bump &pb, double tiltDeg, bool leadIsLeft,
+                               bool unsignedDtl = false, double scale = kDtlScale, float conf = 0.9f,
+                               double vertScale = 1.0, double thoraxStart = 90.0,
+                               const Bump &tb = kThorax) {
+            Fix fx;
+            fx.fo  = makePose(leadIsLeft, pelvisStart, 0.0, pb, tiltDeg, /*signedSpans*/ true,
+                              thoraxStart, tb);
+            fx.dtl = makeDtlPose(pelvisStart, 0.0, pb, tiltDeg, unsignedDtl, scale, conf, vertScale,
+                                 thoraxStart, tb);
+            // A smoothed tier identical to the raw one, so the source SELECTION is exercised
+            // without moving a single number: a view with no relabel must consume "smoothed".
+            fx.fo.smoothed  = fx.fo.frames;
+            fx.dtl.smoothed = fx.dtl.frames;
+            return fx;
+        };
+        // The SHIPPED default leaves the thorax unplaced (pp_tuned_constants.h says why, on the
+        // corpus's evidence). Everything in §9 that is about the geometry rather than about that
+        // gate opens it explicitly, so the geometry stays pinned if the gate is ever reopened.
+        SegmentRatesConfig cfgT = cfg;
+        cfgT.pairTrunkThoraxPlacement = true;
+        const auto runPair = [&](const Fix &fx, bool leadIsLeft, const SegmentRatesConfig &c,
+                                 bool withDtl) {
+            SegmentRatesInputs in;
+            in.pose = &fx.fo; in.frameW = kW; in.frameH = kH; in.leadIsLeft = leadIsLeft;
+            if (withDtl) { in.poseDtl = &fx.dtl; in.dtlFrameW = kWD; in.dtlFrameH = kHD; }
+            in.shaft = &shaft; in.phases = &ph; in.impactUs = kImpactUs;
+            return buildSegmentRates(in, c);
+        };
+        const auto show = [](const char *tag, const SegmentRatesResult &r) {
+            for (SeqSegment sg : { SeqSegment::Pelvis, SeqSegment::Thorax }) {
+                const KsNode *n = r.sequence.node(sg);
+                if (!n) { std::printf("    %s %-6s (no node)\n", tag, seqSegmentKey(sg)); continue; }
+                std::printf("    %s %-6s %-8s route %-10s t=%.1f ms before impact ±%.1f peak %.0f"
+                            " bound≥%.1f\n", tag, seqSegmentKey(sg),
+                            n->placed ? "placed" : "UNPLACED", qPrintable(n->routeId),
+                            n->beforeImpactMs, n->tSigmaMs, n->peakDps, n->peakNoEarlierThanMs);
+            }
+        };
+
+        // (a) The pair fires and places BOTH trunk nodes on the truth — including the 45°-start
+        //     pelvis whose peak sits inside the face-on blind band, which §2 and §8a can only
+        //     bound. That is the whole case for the rung.
+        const Fix base = build(45.0, kPelvis, 0.0, true);
+        const SegmentRatesResult pair = runPair(base, true, cfgT, true);
+        show("§9a", pair);
+        const KsNode *pp = nodeOf(pair, SeqSegment::Pelvis), *pt = nodeOf(pair, SeqSegment::Thorax);
+        CHECK("§9a pair: pelvis and thorax both take the faceOn+dtl route, Estimated",
+              pp && pt && pp->routeId == QLatin1String("faceOn+dtl")
+              && pt->routeId == QLatin1String("faceOn+dtl")
+              && !pair.pelvis.direct && !pair.thorax.direct);
+        CHECK("§9a pair: the arm and club still come off the face-on camera",
+              pair.leadArm.routeId == QLatin1String("faceOn")
+              && pair.club.routeId == QLatin1String("faceOnClub"));
+        CHECK("§9a pair: the 45°-start pelvis — bounded by face-on — is PLACED within 8 ms",
+              pp && pp->placed && msFromTruth(pp, kPelvis) <= 8.0);
+        CHECK("§9a pair: the thorax is placed within 8 ms", pt && pt->placed && msFromTruth(pt, kThorax) <= 8.0);
+        CHECK("§9a pair: no bound on a placed node", pp && pt && !pp->bounded() && !pt->bounded());
+        CHECK("§9a pair: both trunk peaks are opening-POSITIVE", pp && pt && pp->peakDps > 0.0 && pt->peakDps > 0.0);
+        CHECK("§9a pair: no relabel in either view ⇒ BOTH legs consume the smoothed track",
+              pair.pair.pelvis.srcFo == QLatin1String("smoothed")
+              && pair.pair.pelvis.srcDtl == QLatin1String("smoothed")
+              && pair.pair.pelvis.nSwapsFo == 0 && pair.pair.pelvis.nRateLimitedFo == 0);
+        CHECK("§9a pair: the diagnostics report the scale it measured and a consistent pairing",
+              pair.pair.attempted && pair.pair.refusal.isEmpty()
+              && near(pair.pair.rVertical, kDtlScale, 0.02)
+              && pair.pair.pelvis.corrAbs >= cfg.pairMinCorr
+              && pair.pair.thorax.corrAbs >= cfg.pairMinCorr && pair.pair.pelvis.nPaired > 10);
+        std::printf("    §9a diag: rVert %.3f (%.0f/%.0f px, n%d)  pelvis corr %.2f closure %.3f/%.3f"
+                    " rEll %.3f sgn %d/%d  thorax corr %.2f closure %.3f/%.3f\n",
+                    pair.pair.rVertical, pair.pair.extentFoPx, pair.pair.extentDtlPx,
+                    pair.pair.addrSamples, pair.pair.pelvis.corrAbs, pair.pair.pelvis.closureP50,
+                    pair.pair.pelvis.closureP90, pair.pair.pelvis.rEllipse, pair.pair.pelvis.signFo,
+                    pair.pair.pelvis.signDtl, pair.pair.thorax.corrAbs, pair.pair.thorax.closureP50,
+                    pair.pair.thorax.closureP90);
+
+        // (b) THE TILT. The shoulder line leaves horizontal by 30° through the downswing. A 2-D
+        //     span distance cannot separate that from turn — the span stops shrinking — while the
+        //     ratio of the two signed horizontal separations divides cos τ out exactly.
+        //     ⚠ WHAT THIS ACTUALLY SHOWED, recorded rather than engineered away: on this fixture
+        //     the tilt moves the span route's thorax MAGNITUDE (629 against the pair's 596 and a
+        //     truth of 727 before the γ bias) but not its peak TIME, which lands on the truth as
+        //     well as the pair's does. The reference width absorbs a slowly-varying inflation of
+        //     the span, and the argmax survives it. So the assertion is on the pair — the claim
+        //     the rung has to earn — and the control is PRINTED, not asserted against.
+        const Fix tilted = build(45.0, kPelvis, 30.0, true);
+        const SegmentRatesResult tPair = runPair(tilted, true, cfgT, true);
+        const SegmentRatesResult tSpan = runPair(tilted, true, cfgT, false);   // the control
+        show("§9b pair", tPair);
+        show("§9b span", tSpan);
+        const KsNode *tp = nodeOf(tPair, SeqSegment::Thorax), *ts = nodeOf(tSpan, SeqSegment::Thorax);
+        std::printf("    §9b thorax: pair %.1f ms off the truth (placed=%d); the 2-D-distance "
+                    "control %.1f ms off (placed=%d)\n",
+                    tp ? msFromTruth(tp, kThorax) : -1.0, tp ? int(tp->placed) : 0,
+                    ts ? msFromTruth(ts, kThorax) : -1.0, ts ? int(ts->placed) : 0);
+        CHECK("§9b tilted shoulders: the pair thorax is still placed within 8 ms of the truth",
+              tp && tp->placed && tp->routeId == QLatin1String("faceOn+dtl")
+              && msFromTruth(tp, kThorax) <= 8.0);
+
+        // (c) A TRUNK THAT PEAKS AFTER THE BALL. The extremum inside [transition, impact] sits at
+        //     impact with the rate still climbing into it. The honest output is not a node at the
+        //     edge: it is "did not peak before impact".
+        const Bump late { 480.0, 1.030, 0.050 };
+        const Fix rising = build(45.0, late, 0.0, true);
+        const SegmentRatesResult rPair = runPair(rising, true, cfgT, true);
+        show("§9c", rPair);
+        const KsNode *rp = nodeOf(rPair, SeqSegment::Pelvis);
+        CHECK("§9c still rising at impact: the pelvis node is UNPLACED", rp && !rp->placed);
+        CHECK("§9c still rising at impact: peakNoEarlierThanMs == 0 — 'not before impact'",
+              rp && rp->peakNoEarlierThanMs == 0.0);
+        CHECK("§9c still rising at impact: no LATER bound is claimed",
+              rp && !std::isfinite(rp->peakNoLaterThanMs));
+
+        // (d) GATE G1 — THE OBSERVABLE MUST BE SIGNED. A fixture whose pelvis squares up well
+        //     before impact: from 10° closed, the line crosses square ~48 ms before its rate
+        //     peaks. Rendered UNSIGNED, the down-the-line separation has a V at square and the
+        //     angle a kink, and the derivative reports a peak there. The production path must not.
+        const double squareS = [&] {
+            double best = 0.0, bestAbs = 1e9;
+            for (double u = kTopUs * 1e-6; u <= kImpactUs * 1e-6; u += 0.0005) {
+                const double a = std::fabs(closedAngleDeg(kPelvis, 10.0, u));
+                if (a < bestAbs) { bestAbs = a; best = u; }
+            }
+            return best;
+        }();
+        const Fix g1signed   = build(10.0, kPelvis, 0.0, true, /*unsignedDtl*/ false);
+        const Fix g1unsigned = build(10.0, kPelvis, 0.0, true, /*unsignedDtl*/ true);
+        const SegmentRatesResult gS = runPair(g1signed, true, cfg, true);
+        const SegmentRatesResult gU = runPair(g1unsigned, true, cfg, true);
+        const KsNode *gsp = nodeOf(gS, SeqSegment::Pelvis), *gup = nodeOf(gU, SeqSegment::Pelvis);
+        const double sqMs = squareS * 1e3;
+        std::printf("    §9d square-up at %.1f ms, truth peak at %.1f ms; signed node %.1f ms"
+                    " (placed=%d), UNSIGNED control %.1f ms (placed=%d)\n",
+                    sqMs, kPelvis.tPeakS * 1e3,
+                    gsp ? double(gsp->tPeakUs) * 1e-3 : -1.0, gsp ? int(gsp->placed) : 0,
+                    gup ? double(gup->tPeakUs) * 1e-3 : -1.0, gup ? int(gup->placed) : 0);
+        // ⚠ WHAT THIS ASSERTED BEFORE K1d, and why it no longer can. Up to K1c the UNSIGNED
+        //   control PLACED a node at 866.6 ms — 2 ms from the square-up — which is the artefact
+        //   gate G1 is named for, and the assertion was that the control shows it while the signed
+        //   production path does not. K1d's guards now refuse the unsigned fixture outright
+        //   (printed below, with its bound), so the control can no longer DEMONSTRATE the
+        //   artefact. That is the guards working and it is recorded rather than manufactured: the
+        //   assertion that matters — the signed path does not put its node at square, and does put
+        //   it on the truth — is untouched and is what G1 actually asked for.
+        std::printf("    §9d unsigned control now: placed=%d bound≥%.1f σt %.1f ms\n",
+                    gup ? int(gup->placed) : 0, gup ? gup->peakNoEarlierThanMs : -1.0,
+                    gup ? gup->tSigmaMs : -1.0);
+        CHECK("§9d G1: the unsigned observable never yields a PLACED node at square",
+              !gup || !gup->placed || std::fabs(double(gup->tPeakUs) * 1e-3 - sqMs) > 10.0);
+        CHECK("§9d G1: the SIGNED production path does not put its node at square",
+              gsp && std::fabs(double(gsp->tPeakUs) * 1e-3 - sqMs) > 10.0);
+        CHECK("§9d G1: the signed path places on the truth instead",
+              gsp && gsp->placed && msFromTruth(gsp, kPelvis) <= 8.0);
+
+        // (e) HANDEDNESS. The same frames read with lead and trail swapped: the route's own
+        //     orientation bits must mirror, so the left-hander's trunk reads opening-positive and
+        //     places at the same instant.
+        const SegmentRatesResult lh = runPair(build(45.0, kPelvis, 0.0, false), false, cfgT, true);
+        show("§9e", lh);
+        const KsNode *lp = nodeOf(lh, SeqSegment::Pelvis), *lt = nodeOf(lh, SeqSegment::Thorax);
+        CHECK("§9e left-hander: the pair mirrors — trunk opening-POSITIVE and placed on the truth",
+              lp && lt && lp->placed && lt->placed && lp->peakDps > 0.0 && lt->peakDps > 0.0
+              && msFromTruth(lp, kPelvis) <= 8.0 && msFromTruth(lt, kThorax) <= 8.0);
+        CHECK("§9e left-hander: the two orientation bits came out opposite to the right-hander's",
+              lh.pair.pelvis.signFo == -pair.pair.pelvis.signFo
+              && lh.pair.pelvis.signDtl == -pair.pair.pelvis.signDtl);
+
+        // (f) NO SECOND CAMERA, AND THE DARK SWITCH. §2 must be exactly what it was.
+        const SegmentRatesResult noDtl = runPair(base, true, cfg, false);
+        SegmentRatesConfig off = cfg;
+        off.pairTrunkEnabled = false;
+        const SegmentRatesResult dark = runPair(base, true, off, true);
+        bool sameAsToday = noDtl.sequence.nodes.size() == dark.sequence.nodes.size();
+        for (size_t i = 0; sameAsToday && i < dark.sequence.nodes.size(); ++i) {
+            const KsNode &a = noDtl.sequence.nodes[i], &b = dark.sequence.nodes[i];
+            sameAsToday = a.segment == b.segment && a.routeId == b.routeId && a.placed == b.placed
+                       && a.tPeakUs == b.tPeakUs && a.peakDps == b.peakDps;
+        }
+        CHECK("§9f no down-the-line pose: the trunk is back on the face-on span rung",
+              noDtl.pelvis.routeId == QLatin1String("faceOn")
+              && noDtl.thorax.routeId == QLatin1String("faceOn")
+              && noDtl.club.routeId == QLatin1String("faceOnClub") && !noDtl.pair.attempted);
+        CHECK("§9f sequence.pairTrunk.enabled=false reproduces that exactly", sameAsToday);
+        CHECK("§9f …and the pair's own placement switch is NOT faceOnTrunkPlacement", [&] {
+            SegmentRatesConfig noPlace = cfg;
+            noPlace.pairTrunkPlacement = false;
+            const SegmentRatesResult r = runPair(base, true, noPlace, true);
+            const KsNode *a = nodeOf(r, SeqSegment::Pelvis);
+            SegmentRatesConfig noSpan = cfg;
+            noSpan.faceOnTrunkPlacement = false;      // the SPAN rung's gate — must not reach here
+            const SegmentRatesResult r2 = runPair(base, true, noSpan, true);
+            const KsNode *b = nodeOf(r2, SeqSegment::Pelvis);
+            return a && b && !a->placed && b->placed;
+        }());
+
+        // (j) THE SHIPPED DEFAULT, and the fall-through that protects the reader. With the thorax
+        //     ring switched off this fixture's thorax has no bound either (its rate peaks inside
+        //     the domain and falls away), so the pair would be telling the reader LESS than the
+        //     span rung does — and the route withdraws rather than do that. The pelvis is
+        //     untouched by that switch.
+        {
+            const SegmentRatesResult ship = runPair(base, true, cfg, true);
+            const KsNode *sp = nodeOf(ship, SeqSegment::Pelvis), *stn = nodeOf(ship, SeqSegment::Thorax);
+            CHECK("§9j shipped default: a thorax with neither ring nor bound falls through to faceOn",
+                  ship.thorax.produced() && ship.thorax.routeId == QLatin1String("faceOn")
+                  && stn && stn->routeId == QLatin1String("faceOn"));
+            CHECK("§9j …and the pelvis still places on the pair exactly as with the gate open",
+                  sp && pp && sp->placed && sp->tPeakUs == pp->tPeakUs
+                  && sp->routeId == QLatin1String("faceOn+dtl"));
+        }
+
+        // (ii) A BURST OF KEYPOINT NONSENSE on the face-on shoulders near the Top: ±100 px frame
+        //      to frame against a 98 px rigid-body bound. The samples go; what is left still
+        //      answers the question.
+        {
+            // A thorax that peaks after the ball AND actually turns on the way there. A narrower
+            // bump leaves it 65–90° closed all through the domain, where the down-the-line
+            // separation is almost constant, and the pairing gate refuses it for that reason
+            // rather than for the one under test — which is what the first cut of this fixture
+            // did, and is worth naming so nobody re-introduces it.
+            const Bump lateT { 727.0, 1.030, 0.090 };
+            Fix risingT = build(45.0, kPelvis, 0.0, true, false, kDtlScale, 0.9f, 1.0, 90.0, lateT);
+            plantBurst(risingT.fo, kLSh, kRSh, 699000, 734000, 100.0);
+            const SegmentRatesResult rr = runPair(risingT, true, cfgT, true);
+            const KsNode *rt = nodeOf(rr, SeqSegment::Thorax);
+            std::printf("    §9ii-burst rising: rateLimited %d, invalidFrac %.3f, thorax %s"
+                        " bound≥%.1f peak %.0f route %s\n",
+                        rr.pair.thorax.nRateLimitedFo, rr.pair.thorax.invalidFrac,
+                        rt ? (rt->placed ? "placed" : "UNPLACED") : "none",
+                        rt ? rt->peakNoEarlierThanMs : -1.0, rt ? rt->peakDps : 0.0,
+                        rt ? qPrintable(rt->routeId) : "-");
+            // The burst is not a relabel, so nothing is flipped and the leg is still read from
+            // the smoothed tier — the rate limit is what has to catch it, and does.
+            CHECK("§9ii burst: the rate limit fired on the smoothed face-on leg",
+                  rr.pair.thorax.nRateLimitedFo > 0
+                  && rr.pair.thorax.srcFo == QLatin1String("smoothed"));
+            CHECK("§9ii burst + peaks after impact: unplaced, bounded 'not before impact'",
+                  rt && !rt->placed && rt->peakNoEarlierThanMs == 0.0
+                  && rt->routeId == QLatin1String("faceOn+dtl"));
+            CHECK("§9ii burst: no spike node survives it",
+                  rt && std::fabs(rt->peakDps) < 1.5 * kThorax.peakDps);
+
+            Fix clearT = build(45.0, kPelvis, 0.0, true);   // thorax peaks 75 ms before impact
+            plantBurst(clearT.fo, kLSh, kRSh, 699000, 734000, 100.0);
+            const SegmentRatesResult cr = runPair(clearT, true, cfgT, true);
+            const KsNode *ct2 = nodeOf(cr, SeqSegment::Thorax);
+            std::printf("    §9ii-burst clear: rateLimited %d, invalidFrac %.3f, thorax %s %.1f ms"
+                        " (truth 75.0) peak %.0f\n", cr.pair.thorax.nRateLimitedFo,
+                        cr.pair.thorax.invalidFrac, ct2 ? (ct2->placed ? "placed" : "UNPLACED") : "none",
+                        ct2 ? ct2->beforeImpactMs : -1.0, ct2 ? ct2->peakDps : 0.0);
+            CHECK("§9ii burst clear of the peak: the thorax still places within 8 ms of the truth",
+                  ct2 && ct2->placed && msFromTruth(ct2, kThorax) <= 8.0);
+        }
+
+        // (iii) THE PLACEMENT KNOBS GATE THE RING, NEVER THE BOUND.
+        {
+            SegmentRatesConfig noRing = cfg;
+            noRing.pairTrunkPlacement = false;
+            const SegmentRatesResult r = runPair(rising, true, noRing, true);
+            const KsNode *n = nodeOf(r, SeqSegment::Pelvis);
+            CHECK("§9iii placement off: the pelvis bound is still emitted on the pair route",
+                  n && !n->placed && n->peakNoEarlierThanMs == 0.0
+                  && n->routeId == QLatin1String("faceOn+dtl"));
+        }
+
+        // (iv) NEITHER A RING NOR A BOUND ⇒ the span rung runs instead, for that segment on that
+        //      swing. The reader never gets less than today because the pair was tried.
+        {
+            SegmentRatesConfig strict = cfgT;
+            strict.maxPlaceSigmaMs = 0.0;          // nothing can be placed, and nothing is bounded
+            const SegmentRatesResult r = runPair(base, true, strict, true);
+            CHECK("§9iv a pair channel with neither falls through to the face-on span rung",
+                  r.pelvis.routeId == QLatin1String("faceOn")
+                  && r.thorax.routeId == QLatin1String("faceOn")
+                  && r.pelvis.produced() && r.thorax.produced());
+        }
+
+        // (g) The refusals, each falling through to face-on rather than to nothing.
+        const auto fellThrough = [&](const SegmentRatesResult &r) {
+            return r.pelvis.produced() && r.pelvis.routeId == QLatin1String("faceOn")
+                && r.thorax.produced() && r.thorax.routeId == QLatin1String("faceOn");
+        };
+        {
+            const SegmentRatesResult lowConf =
+                runPair(build(45.0, kPelvis, 0.0, true, false, kDtlScale, 0.1f), true, cfg, true);
+            CHECK("§9g down-the-line keypoints below the confidence gate ⇒ face-on",
+                  fellThrough(lowConf));
+            // The golfer imaged 6× smaller down the line: 67 px of vertical extent is not a scale.
+            const SegmentRatesResult tiny =
+                runPair(build(45.0, kPelvis, 0.0, true, false, 1.0 / 6.0, 0.9f), true, cfg, true);
+            CHECK("§9g a vertical extent below the floor ⇒ face-on, with the reason recorded",
+                  fellThrough(tiny) && !tiny.pair.refusal.isEmpty());
+            std::printf("    §9g scale refusal: %s\n", qPrintable(tiny.pair.refusal));
+            // A down-the-line stream that is not this swing: the separations hold still.
+            Fix wrong = base;
+            for (PoseFrame2D &f : wrong.dtl.frames) {
+                f.kp[kLHip] = QPointF(0.45, 0.55); f.kp[kRHip] = QPointF(0.55, 0.55);
+                f.kp[kLSh]  = QPointF(0.44, 0.30); f.kp[kRSh]  = QPointF(0.56, 0.30);
+            }
+            wrong.dtl.smoothed = wrong.dtl.frames;
+            const SegmentRatesResult mismatched = runPair(wrong, true, cfg, true);
+            CHECK("§9g a down-the-line separation that does not track the turn ⇒ face-on",
+                  fellThrough(mismatched));
+            std::printf("    §9g corr refusal: %s\n", qPrintable(mismatched.pair.pelvis.refusal));
+        }
+
+        // (i) A PLANTED RELABEL. The face-on shoulder keypoints are swapped outright over a 60 ms
+        //     run before the Top — a sign change with the magnitude intact, which is what a pose
+        //     model does with the golfer's back to the lens. Two flips (in and out of the run) are
+        //     undone and the node must not move.
+        {
+            Fix planted = build(45.0, kPelvis, 0.0, true, false, kDtlScale, 0.9f, 1.0,
+                                /*thoraxStart*/ 45.0);
+            const SegmentRatesResult clean = runPair(planted, true, cfgT, true);
+            plantSwap(planted.fo, kLSh, kRSh, 600000, 660000);
+            const SegmentRatesResult swapped = runPair(planted, true, cfgT, true);
+            const KsNode *c = nodeOf(clean, SeqSegment::Thorax), *w = nodeOf(swapped, SeqSegment::Thorax);
+            std::printf("    §9i planted relabel: clean %.1f ms peak %.0f (swaps %d) → swapped %.1f ms"
+                        " peak %.0f (swaps %d, dropped %d)\n",
+                        c ? c->beforeImpactMs : -1.0, c ? c->peakDps : 0.0, clean.pair.thorax.nSwapsFo,
+                        w ? w->beforeImpactMs : -1.0, w ? w->peakDps : 0.0, swapped.pair.thorax.nSwapsFo,
+                        swapped.pair.thorax.nSwapFramesDropped);
+            CHECK("§9i planted relabel: exactly two flips are counted in the face-on view",
+                  swapped.pair.thorax.nSwapsFo == 2 && clean.pair.thorax.nSwapsFo == 0);
+            CHECK("§9i planted relabel: the thorax node is unmoved within 4 ms",
+                  c && w && std::llabs(c->tPeakUs - w->tPeakUs) <= 4000 && c->placed == w->placed);
+            CHECK("§9i planted relabel: and the peak magnitude is unmoved within 2 %",
+                  c && w && near(c->peakDps, w->peakDps, 0.02 * std::fabs(c->peakDps)));
+        }
+
+        // (ii) A GENUINE PAST-90° TURN. The shoulders start 100° closed, so the face-on separation
+        //      really does cross zero — through a COLLAPSE, as kinematics requires. Nothing may be
+        //      flagged, ψ must run continuously through 90°, and the node must still land.
+        {
+            const Fix past90 = build(45.0, kPelvis, 0.0, true, false, kDtlScale, 0.9f, 1.0,
+                                     /*thoraxStart*/ 100.0);
+            const SegmentRatesResult r = runPair(past90, true, cfgT, true);
+            const KsNode *n = nodeOf(r, SeqSegment::Thorax);
+            std::printf("    §9ii past-90°: thorax %s %.1f ms (truth %.1f) peak %.0f, swaps %d,"
+                        " dropped %d\n", n && n->placed ? "placed" : "UNPLACED",
+                        n ? n->beforeImpactMs : -1.0, (kImpactUs * 1e-6 - kThorax.tPeakS) * 1e3,
+                        n ? n->peakDps : 0.0, r.pair.thorax.nSwapsFo, r.pair.thorax.nSwapFramesDropped);
+            CHECK("§9ii a real crossing of square is NOT read as a relabel",
+                  r.pair.thorax.nSwapsFo == 0 && r.pair.thorax.nSwapFramesDropped == 0);
+            // 10 ms, not §9a's 8: γ = 80° reparametrises ψ smoothly, and the argmax of the
+            //  measured rate moves with the LOCAL gain g(ψ) = sin γ / (1 + cos γ · cos(2ψ − γ)).
+            //  A shoulder line 100° closed at the top peaks at a different ψ from one 90° closed,
+            //  where g' is larger, and the shift comes out at one 8.33 ms frame rather than a
+            //  fraction of one. It is the level bias doing what §5.2 says it does and it is
+            //  reported (the printf above carries the number), not a tolerance tuned to pass.
+            CHECK("§9ii …and the thorax node still places within 10 ms of the truth",
+                  n && n->placed && msFromTruth(n, kThorax) <= 10.0);
+            CHECK("§9ii …with a credible peak (the angle ran through 90°, it did not step)",
+                  n && std::fabs(n->peakDps) < 1.5 * kThorax.peakDps);
+        }
+
+        // (iii) RAPID ALTERNATION. Labels flapping every other frame for 120 ms: not a golfer, and
+        //       not something to correct. Those frames go, and whatever is left must not report a
+        //       club-sized thorax.
+        {
+            Fix flutter = build(45.0, kPelvis, 0.0, true, false, kDtlScale, 0.9f, 1.0,
+                                /*thoraxStart*/ 45.0);
+            plantSwap(flutter.fo, kLSh, kRSh, 780000, 900000, /*alternate*/ true);
+            const SegmentRatesResult r = runPair(flutter, true, cfgT, true);
+            const KsNode *n = nodeOf(r, SeqSegment::Thorax);
+            std::printf("    §9iii flutter: swaps %d, dropped %d, thorax %s %.1f ms peak %.0f (%s)\n",
+                        r.pair.thorax.nSwapsFo, r.pair.thorax.nSwapFramesDropped,
+                        n ? (n->placed ? "placed" : "UNPLACED") : "none",
+                        n ? n->beforeImpactMs : -1.0, n ? n->peakDps : 0.0,
+                        qPrintable(r.pair.thorax.refusal.isEmpty() ? r.thorax.routeId
+                                                                   : r.pair.thorax.refusal));
+            CHECK("§9iii flutter: the alternating frames are dropped, not trusted",
+                  r.pair.thorax.nSwapFramesDropped > 0);
+            CHECK("§9iii flutter: no club-sized thorax spike survives",
+                  !n || std::fabs(n->peakDps) < 1.5 * kThorax.peakDps);
+        }
+
+        // (h) Determinism.
+        {
+            const SegmentRatesResult a = runPair(base, true, cfgT, true);
+            const SegmentRatesResult b = runPair(base, true, cfgT, true);
+            bool same = a.sequence.nodes.size() == b.sequence.nodes.size()
+                     && a.pelvis.series.value.size() == b.pelvis.series.value.size();
+            for (size_t i = 0; same && i < a.sequence.nodes.size(); ++i)
+                same = a.sequence.nodes[i].tPeakUs == b.sequence.nodes[i].tPeakUs
+                    && a.sequence.nodes[i].peakDps == b.sequence.nodes[i].peakDps
+                    && a.sequence.nodes[i].tSigmaMs == b.sequence.nodes[i].tSigmaMs;
+            for (size_t i = 0; same && i < a.pelvis.series.value.size(); ++i)
+                same = a.pelvis.series.value[i] == b.pelvis.series.value[i];
+            CHECK("§9h two runs of the same inputs are bit-identical", same);
+        }
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

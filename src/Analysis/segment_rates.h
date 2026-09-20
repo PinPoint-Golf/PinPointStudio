@@ -38,8 +38,20 @@
 //
 //   IMU        a bound Pelvis / Thorax / LeadForearm (LeadUpperArm preferred) / Club stream —
 //              gyro projected onto the axis, no differentiation. Direct.
-//   pair       face-on + down-the-line spans: θ = atan2(w_dtl/w₀ᵈ, w_faceOn/w₀ᶠ). PLANNED —
-//              the signature is here, the producer waits on the calibration thread.
+//   pair       PELVIS AND THORAX ONLY, routeId "faceOn+dtl". The SIGNED HORIZONTAL SEPARATION of
+//              the hip / shoulder keypoints in BOTH views, paired on the window clock:
+//              ψ = atan2(d_dtl / r, d_faceOn), with r the pixel-scale ratio between the views.
+//              For a line of length W tilted τ out of horizontal and turned ψ about vertical,
+//              d_fo = s_F·W·cos τ·cos ψ and d_dtl = s_D·W·cos τ·sin ψ — the TILT and W cancel in
+//              the ratio, which a 2-D span distance does not give you, so the route needs no
+//              reference width, no square-up inference and no sign unfold, and its sensitivity
+//              is uniform through square (there is no blind band). Estimated: r is measured from
+//              the body's vertical extent rather than calibrated, and nothing has truthed it.
+//              ⚠ THE DOWN-THE-LINE LEG MUST BE SIGNED. An unsigned span has a V at square, and
+//              unfolding it at that minimum inserts a step into ψ that the 25 ms derivative reads
+//              as an ~800 °/s peak one grid step later — on 21 of 21 measured swings. See
+//              docs/research/data/kinematic_sequence/pair_span_turn_20260920.md §3.1, and the
+//              G1 case in segment_rates_test §9.
 //   face-on    arm and club: the image angle DE-PROJECTED through the shaft-plane conic's axis
 //              ratio k and node bearing ν (tan(ψ−ν) = k·tan α), then differentiated. Estimated,
 //              but the correction factor is bounded in [k, 1/k] and the timing barely moves.
@@ -90,6 +102,16 @@ struct SegmentRatesConfig {
     double  sightedTurnDeg   = tuned::sequence::kSightedTurnDeg;    // sequence.sightedTurnDeg — |turn| below ⇒ blind band
     double  minAfterReversalMs = tuned::sequence::kMinAfterReversalMs; // sequence.minAfterReversalMs — a sighted trunk peak closer to a sign change is a spike
     double  minCredibleClubMph = tuned::sequence::kMinCredibleClubMph; // sequence.minCredibleClubMph
+    // The paired face-on + down-the-line trunk route. `pairTrunkPlacement` is the pair's OWN §9
+    // gate — `faceOnTrunkPlacement` governs the span rung and nothing else.
+    bool    pairTrunkEnabled   = tuned::sequence::kPairTrunkEnabled;   // sequence.pairTrunk.enabled
+    bool    pairTrunkPlacement = tuned::sequence::kPairTrunkPlacement; // sequence.pairTrunk.placement
+    double  pairMinCorr        = tuned::sequence::kPairMinCorr;        // sequence.pairMinCorr
+    double  pairMinExtentPx    = tuned::sequence::kPairMinExtentPx;    // sequence.pairMinExtentPx
+    double  pairMaxGapFrames   = tuned::sequence::kPairMaxGapFrames;   // sequence.pairMaxGapFrames
+    double  pairSwapMinFrac    = tuned::sequence::kPairSwapMinFrac;    // sequence.pairSwapMinFrac
+    double  pairMaxTurnDps     = tuned::sequence::kPairMaxTurnDps;     // sequence.pairMaxTurnDps
+    bool    pairTrunkThoraxPlacement = tuned::sequence::kPairTrunkThoraxPlacement; // sequence.pairTrunk.thoraxPlacement
 
     static SegmentRatesConfig fromOverrides(const QVariantMap &ov)
     {
@@ -114,6 +136,14 @@ struct SegmentRatesConfig {
         apply(ov, "sequence.sightedTurnDeg",    c.sightedTurnDeg);
         apply(ov, "sequence.minAfterReversalMs", c.minAfterReversalMs);
         apply(ov, "sequence.minCredibleClubMph", c.minCredibleClubMph);
+        apply(ov, "sequence.pairTrunk.enabled",   c.pairTrunkEnabled);
+        apply(ov, "sequence.pairTrunk.placement", c.pairTrunkPlacement);
+        apply(ov, "sequence.pairMinCorr",         c.pairMinCorr);
+        apply(ov, "sequence.pairMinExtentPx",     c.pairMinExtentPx);
+        apply(ov, "sequence.pairMaxGapFrames",    c.pairMaxGapFrames);
+        apply(ov, "sequence.pairSwapMinFrac",     c.pairSwapMinFrac);
+        apply(ov, "sequence.pairMaxTurnDps",      c.pairMaxTurnDps);
+        apply(ov, "sequence.pairTrunk.thoraxPlacement", c.pairTrunkThoraxPlacement);
         return c;
     }
 };
@@ -122,14 +152,52 @@ struct SegmentRatesConfig {
 struct SegmentRateChannel {
     MetricSeries         series;        // °/s on the route's own grid; sigma = median over the domain
     std::vector<double>  sampleSigma;   // per-sample 1σ, parallel to series.t_us (for the peak finder)
-    QString              routeId;       // "pelvisImu" | "thoraxImu" | "leadArmImus" | "clubSensorFused" | "faceOn" | "faceOnClub"
+    QString              routeId;       // "pelvisImu" | "thoraxImu" | "leadArmImus" | "clubSensorFused" | "faceOn+dtl" | "faceOn" | "faceOnClub"
     bool                 direct = false;
     bool produced() const { return !series.key.isEmpty(); }
+};
+
+// What the pair route measured about itself — logged per swing and read by the corpus pass; it
+// is NOT serialised and nothing downstream gates on it. Every field is 0 / empty when the route
+// was not attempted.
+struct PairSegmentDiag {
+    bool    produced   = false;
+    double  rEllipse   = 0.0;   // p90|d_dtl| / p90|d_fo| over takeaway→impact — the alternative to
+                                //   the vertical-extent ratio, reported so the two can be compared
+    double  corrAbs    = 0.0;   // |Pearson| of |d_dtl|/r against sqrt(max(0, W² − d_fo²)), domain
+    double  corrSigned = 0.0;   // the same on the SIGNED d_dtl (see the note in the .cpp)
+    double  closureP50 = 0.0;   // |(d_fo/W)² + (d_dtl/(r·W))² − 1| over the domain
+    double  closureP90 = 0.0;
+    int     nPaired    = 0;     // face-on samples that found a down-the-line bracket in the domain
+    int     signFo = 0, signDtl = 0;   // the two measured orientation bits (see the .cpp)
+    // Left/right keypoint RELABELS undone in each view, and the frames thrown away because the
+    // labels were alternating too fast to trust either way (see deswapInPlace in the .cpp).
+    int     nSwapsFo = 0, nSwapsDtl = 0, nSwapFramesDropped = 0;
+    // Samples the rigid-body rate limit refused, and which tier each leg was finally read from:
+    // "smoothed" where nothing had to be undone, "rawDeswapped" where something did.
+    int     nRateLimitedFo = 0, nRateLimitedDtl = 0;
+    QString srcFo, srcDtl;
+    double  invalidFrac = 0.0;  // fraction of the domain's face-on instants with no pair sample
+    QString refusal;            // empty ⇒ produced; else why this segment fell through to face-on
+};
+
+struct PairDiagnostics {
+    bool    attempted  = false;
+    double  rVertical  = 0.0;   // (vertical body extent in DTL px) / (the same in FO px), at address
+    double  extentFoPx = 0.0, extentDtlPx = 0.0;
+    int     addrSamples = 0;
+    QString refusal;            // route-level refusal (the scale); empty ⇒ the scale was formed
+    PairSegmentDiag pelvis, thorax;
 };
 
 struct SegmentRatesInputs {
     const PoseTrack2D             *pose    = nullptr;   // face-on pose (smoothed preferred)
     int                            frameW  = 0, frameH = 0;
+    // The DOWN-THE-LINE pose of the same swing on the same window clock (smoothed preferred), and
+    // ITS frame dimensions — the second leg of the pair route. Null ⇒ the trunk falls through to
+    // the face-on span rung exactly as before.
+    const PoseTrack2D             *poseDtl = nullptr;
+    int                            dtlFrameW = 0, dtlFrameH = 0;
     bool                           leadIsLeft = true;   // right-hander seen face-on: lead is image-left? (handedness != 2)
     const FusedStreams            *streams = nullptr;   // bound IMU streams (may be null)
     const ShaftTrack2D            *shaft   = nullptr;   // face-on club track (check ->valid)
@@ -143,6 +211,7 @@ struct SegmentRatesInputs {
 struct SegmentRatesResult {
     SegmentRateChannel pelvis, thorax, leadArm, club;
     KinematicSequence  sequence;
+    PairDiagnostics    pair;            // what the faceOn+dtl route saw (diagnostic only)
     bool valid = false;                 // at least one channel produced
 
     const SegmentRateChannel &channel(SeqSegment s) const

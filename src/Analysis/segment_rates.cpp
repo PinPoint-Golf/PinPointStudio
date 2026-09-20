@@ -138,6 +138,25 @@ struct PlacementGate {
     const std::vector<uint8_t> *sighted     = nullptr;
     int64_t                     blindFromUs = -1;
     int64_t                     blindToUs   = -1;
+    // The reversal-spike rule (below). Implied by `sighted` for the span rung; set explicitly by
+    // a route that wants it without a blind band.
+    bool                        spikeGuard  = false;
+    // FOR A ROUTE WITH NO BLIND BAND. The span rung's bounds are about the part of the domain the
+    // camera could SEE; a route that sees everywhere has a different way of failing to find a
+    // peak — the peak is simply not inside the domain. When the rate over the last derivative
+    // window before impact is rising AND is the largest valid windowed rate in the final 100 ms,
+    // the honest output is "it had not peaked by the end of the domain": unplaced, with
+    // peakNoEarlierThanMs = 0. That is evaluated on the LAST WINDOW, not on where the global
+    // extremum happens to sit, so it is still true of a swing whose curve carries an artefact
+    // somewhere earlier.
+    bool                        endEdgeBound = false;
+    // THE BAND IS A HOLE, NOT A HORIZON. For the span rung the blind band is the stretch near
+    // square at the END of the downswing, so "the peak is at or after where sight was lost" is the
+    // right edge test. For a route whose invalid samples are an INTERIOR hole, that test would
+    // condemn every peak after the hole. With this set the edge test is PROXIMITY instead: a peak
+    // within one derivative window of either edge of the hole was rising into it or emerging from
+    // it and is bounded; a peak well clear of the hole is simply a peak.
+    bool                        bandIsHole   = false;
 };
 
 void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const QString &label,
@@ -213,9 +232,12 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
         // At the edge of sight: the highest sighted rate sits where the view went blind, so the
         // real peak is somewhere the route could not see. Bounded, not placed.
         bool atEntry = gate.blindFromUs >= 0 && gate.blindFromUs <= dom.toUs
-                    && p.tPeakUs >= gate.blindFromUs - windowUs;
+                    && (gate.bandIsHole ? std::llabs(p.tPeakUs - gate.blindFromUs) <= windowUs
+                                        : p.tPeakUs >= gate.blindFromUs - windowUs);
         const bool atExit = gate.blindToUs >= 0 && gate.blindToUs >= dom.fromUs
-                         && p.tPeakUs <= gate.blindToUs + windowUs && !atEntry;
+                         && (gate.bandIsHole ? std::llabs(p.tPeakUs - gate.blindToUs) <= windowUs
+                                             : p.tPeakUs <= gate.blindToUs + windowUs)
+                         && !atEntry;
         // RISING INTO THE BLIND BAND. An interior sighted maximum is the peak only if the rate had
         // come down by the time the view went blind. On the corpus (§12.4 item 5) every placed
         // pelvis had risen again to above its "peak" in the last two windows before the band —
@@ -241,7 +263,7 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
         // keypoints jump as the arms cross the chest at the top, and the derivative reads that as
         // ±1000 °/s inside 30 ms. Not a node, and not a bound either: the view saw nothing there.
         bool spike = false;
-        if (gate.sighted && !atEntry && !atExit) {
+        if ((gate.sighted || gate.spikeGuard) && !atEntry && !atExit) {
             int64_t lastNonPositive = -1;
             for (size_t i = 0; i < ns; ++i) {
                 const int64_t t = ch.series.t_us[i];
@@ -259,9 +281,53 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
         const bool exitVacuous  = gate.blindToUs   >= dom.toUs   - windowUs;
         if (atEntry && !entryVacuous) n.peakNoEarlierThanMs = double(dom.toUs - gate.blindFromUs) * 1e-3;
         if (atExit  && !exitVacuous)  n.peakNoLaterThanMs   = double(dom.toUs - gate.blindToUs) * 1e-3;
+        // STILL RISING AT THE END OF THE DOMAIN (a route with no blind band). The highest rate in
+        // [transition, impact] sits at impact and the curve is still climbing into it: the peak is
+        // after the ball, where this metric is not defined. "No earlier than 0 ms before impact"
+        // IS the statement — it did not peak in the downswing — and it uses the bound field the
+        // strip already prints rather than inventing a state for it. The search is NOT extended
+        // past impact: whether the sequence should look there is a design decision, not a fix
+        // (pair_span_turn_20260920.md G5), and the down-the-line hip confidence falls by 0.12 in
+        // exactly that window.
+        bool risingAtEnd = false;
+        if (gate.endEdgeBound) {
+            // The windowed mean of the valid samples ending at `tEnd`.
+            const auto windowMean = [&](int64_t tEnd, double &out) {
+                double sum = 0.0; int cnt = 0;
+                for (size_t i = 0; i < ns; ++i) {
+                    if (sv.valid && !sv.valid[i]) continue;
+                    const int64_t t = ch.series.t_us[i];
+                    if (t <= tEnd - windowUs || t > tEnd) continue;
+                    sum += ch.series.value[i]; ++cnt;
+                }
+                if (cnt == 0) return false;
+                out = sum / cnt;
+                return true;
+            };
+            double mLast = 0.0, mPrev = 0.0;
+            if (windowMean(dom.toUs, mLast) && windowMean(dom.toUs - windowUs, mPrev)
+                && mLast > mPrev) {
+                // …and it must be the LARGEST windowed rate in the final 100 ms, so a curve that
+                // peaked 60 ms before impact and is merely ticking up again does not claim it.
+                bool isMax = true;
+                for (size_t i = 0; i < ns && isMax; ++i) {
+                    if (sv.valid && !sv.valid[i]) continue;
+                    const int64_t t = ch.series.t_us[i];
+                    if (t < dom.toUs - 100000 || t >= dom.toUs) continue;
+                    double m = 0.0;
+                    if (windowMean(t, m) && m > mLast) isMax = false;
+                }
+                risingAtEnd = isMax;
+            }
+        }
+        if (risingAtEnd) n.peakNoEarlierThanMs = 0.0;
         // Placed only when the σ is inside the threshold, the route is allowed to place this
         // segment at all (§9 / §12), and the peak was in sight. The attempt is kept for the trace.
-        n.placed       = gate.may && !atEntry && !atExit && !spike && p.tSigmaMs <= cfg.maxPlaceSigmaMs;
+        // ⚠ `gate.may` GATES THE RING, NEVER THE BOUND. Every bound above is computed before this
+        // line and survives it: a switch that says "do not claim a peak here" is not a licence to
+        // stop telling the reader what the route did establish.
+        n.placed       = gate.may && !atEntry && !atExit && !spike && !risingAtEnd
+                      && p.tSigmaMs <= cfg.maxPlaceSigmaMs;
     }
     nodes.push_back(n);
 }
@@ -405,6 +471,510 @@ void sightedBand(const AngleTrack &a, double sightedDeg, int64_t fromUs, int64_t
         const bool blind = !sighted && (admitted || (i < a.nearSquare.size() && a.nearSquare[i]));
         if (blind && !inBlind && gate.blindFromUs < 0) { gate.blindFromUs = a.t[i]; inBlind = true; }
         else if (sighted && inBlind && gate.blindToUs < 0) { gate.blindToUs = a.t[i]; inBlind = false; }
+    }
+    gate.sighted = &mask;
+}
+
+// ── The paired face-on + down-the-line geometry (design §5.2; the offline measurement that
+//    decided its shape is docs/research/data/kinematic_sequence/pair_span_turn_20260920.md) ─────
+//
+// THE OBSERVABLE IS THE SIGNED HORIZONTAL SEPARATION IN BOTH VIEWS, not a span distance. For a
+// body line of length W, tilted τ out of horizontal and turned ψ about the vertical,
+//
+//     d_fo  = s_F · W · cos τ · cos ψ          (face-on, pixels)
+//     d_dtl = s_D · W · cos τ · sin ψ          (down-the-line, pixels)
+//
+// so W and the TILT — which is large for the shoulders in the downswing and is exactly what a
+// 2-D span distance absorbs — cancel in the ratio, and
+//
+//     ψ = atan2(d_dtl / r, d_fo),   r = s_D / s_F
+//
+// is continuous through square with no unfold, no reference width and no square-up inference.
+// Its σ has no singularity either: the atan2 Jacobian is bounded everywhere, which is the whole
+// reason this rung exists (the face-on acos has infinite slope at square — §12.4).
+//
+// ⚠ γ, THE ANGLE BETWEEN THE TWO VIEWS, IS NOT 90°. Measured at 75–84° on two rigs: the
+// down-the-line camera sits behind the BALL, not behind the hands. A γ ≠ 90 biases ψ's LEVEL —
+// d_dtl carries a cos γ share of the face-on component — and therefore the published °/s; it does
+// NOT move the peak's time, which is what a sequence node is. Fitting γ per swing is possible
+// (the offline rig does it) and is deliberately not done here: it would buy magnitude this route
+// is not allowed to publish anyway (G4), at the cost of a fit that can fail. What IS done is the
+// cheap sanity of `corr` below.
+static double percentileOf(std::vector<double> v, double q)
+{
+    v.erase(std::remove_if(v.begin(), v.end(), [](double x) { return !std::isfinite(x); }), v.end());
+    if (v.empty()) return 0.0;
+    std::sort(v.begin(), v.end());
+    const double pos = std::clamp(q, 0.0, 1.0) * double(v.size() - 1);
+    const size_t lo = size_t(std::floor(pos));
+    const size_t hi = std::min(lo + 1, v.size() - 1);
+    return v[lo] + (pos - double(lo)) * (v[hi] - v[lo]);
+}
+
+double pearson(const std::vector<double> &a, const std::vector<double> &b)
+{
+    const size_t n = std::min(a.size(), b.size());
+    if (n < 3) return 0.0;
+    double ma = 0.0, mb = 0.0;
+    for (size_t i = 0; i < n; ++i) { ma += a[i]; mb += b[i]; }
+    ma /= double(n); mb /= double(n);
+    double sab = 0.0, saa = 0.0, sbb = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+        const double da = a[i] - ma, db = b[i] - mb;
+        sab += da * db; saa += da * da; sbb += db * db;
+    }
+    return (saa > 0.0 && sbb > 0.0) ? sab / std::sqrt(saa * sbb) : 0.0;
+}
+
+// The PIXEL-SCALE RATIO between the views, with no calibration. Both cameras are level and both
+// see VERTICAL undistorted by the turn, so the body's vertical extent at address — ankle mid-point
+// to shoulder mid-point — is the same physical length imaged twice, and its ratio is r = s_D/s_F.
+// Refused when either view is missing the address hold or images the golfer too small for the
+// ratio to mean anything.
+struct PairScale {
+    bool    ok = false;
+    double  r  = 1.0;
+    double  extFo = 0.0, extDtl = 0.0;
+    int     n = 0;
+    QString refusal;
+};
+
+double addressVerticalExtent(const PoseView &pv, int64_t addressUs, const SegmentRatesConfig &cfg,
+                             int &samplesOut)
+{
+    std::vector<double> ext;
+    const size_t n = pv.frames->size();
+    for (size_t i = 0; i < n; ++i) {
+        const int64_t t = (*pv.frames)[i].t_us;
+        if (addressUs < 0 || t < addressUs || t > addressUs + cfg.addrWindowUs) continue;
+        if (pv.conf(i, kp::LeftAnkle) < cfg.confMin || pv.conf(i, kp::RightAnkle) < cfg.confMin) continue;
+        if (pv.conf(i, kp::LeftShoulder) < cfg.confMin || pv.conf(i, kp::RightShoulder) < cfg.confMin) continue;
+        const double ankleY = 0.5 * (pv.px(i, kp::LeftAnkle).y() + pv.px(i, kp::RightAnkle).y());
+        const double shldrY = 0.5 * (pv.px(i, kp::LeftShoulder).y() + pv.px(i, kp::RightShoulder).y());
+        ext.push_back(std::fabs(ankleY - shldrY));
+    }
+    samplesOut = int(ext.size());
+    return ext.empty() ? 0.0 : medianOf(ext);
+}
+
+PairScale pairScale(const PoseView &fo, const PoseView &dtl, int64_t addressUs,
+                    const SegmentRatesConfig &cfg)
+{
+    PairScale s;
+    if (addressUs < 0) { s.refusal = QStringLiteral("no Address on the ladder"); return s; }
+    int nF = 0, nD = 0;
+    s.extFo  = addressVerticalExtent(fo,  addressUs, cfg, nF);
+    s.extDtl = addressVerticalExtent(dtl, addressUs, cfg, nD);
+    s.n = std::min(nF, nD);
+    if (nF < cfg.addrMinFrames || nD < cfg.addrMinFrames) {
+        s.refusal = QStringLiteral("address window holds %1 / %2 usable frames (need %3)")
+                        .arg(nF).arg(nD).arg(cfg.addrMinFrames);
+        return s;
+    }
+    if (s.extFo < cfg.pairMinExtentPx || s.extDtl < cfg.pairMinExtentPx) {
+        s.refusal = QStringLiteral("vertical extent %1 / %2 px below the %3 px floor")
+                        .arg(s.extFo, 0, 'f', 0).arg(s.extDtl, 0, 'f', 0)
+                        .arg(cfg.pairMinExtentPx, 0, 'f', 0);
+        return s;
+    }
+    s.r  = s.extDtl / s.extFo;
+    s.ok = true;
+    return s;
+}
+
+// One view's signed horizontal separation of a keypoint pair, with its σ, over every admitted
+// frame. `lead`/`trail` come from handedness, so the sign mirrors with the golfer.
+struct SepTrack {
+    std::vector<int64_t> t;
+    std::vector<double>  d;      // px, SIGNED: x(lead) − x(trail)
+    std::vector<double>  sigma;  // px
+    std::vector<uint8_t> ok;     // 0 ⇒ this instant carries no usable separation for the pair
+    int valid() const { return int(std::count(ok.begin(), ok.end(), uint8_t(1))); }
+};
+
+SepTrack separations(const PoseView &pv, int lead, int trail, const SegmentRatesConfig &cfg)
+{
+    SepTrack s;
+    const size_t n = pv.frames->size();
+    for (size_t i = 0; i < n; ++i) {
+        if (pv.conf(i, lead) < cfg.confMin || pv.conf(i, trail) < cfg.confMin) continue;
+        s.t.push_back((*pv.frames)[i].t_us);
+        s.d.push_back(pv.px(i, lead).x() - pv.px(i, trail).x());
+        s.sigma.push_back(std::hypot(pv.sigmaPx(i, lead, cfg.kpSigmaPx),
+                                     pv.sigmaPx(i, trail, cfg.kpSigmaPx)));
+        s.ok.push_back(1u);
+    }
+    return s;
+}
+
+// ── THE RIGID-BODY RATE LIMIT ──────────────────────────────────────────────────────────────────
+//
+// A line of image half-width W turning about the vertical at no more than ω_max cannot change its
+// horizontal separation by more than W·sin(ω_max·Δt) between two frames. That is arithmetic about
+// a rigid body, not a smoothness preference, and with ω_max at 2000 °/s it is generous by a factor
+// of nearly three on the thorax (Cheetham's professionals peak it at 727 ± 61). A step past that
+// bound, plus two keypoint σ of slack, did not come from a golfer.
+//
+// It is what the face-on SHOULDERS need at their own square-up. There the true separation passes
+// through zero, the keypoints are least certain, and the measured series reads −121, +12, −108,
+// −26, +96 px in 27 ms — 200 px steps against a 92 px bound. atan2 is perfectly conditioned at
+// x = 0; its x ARGUMENT is not, and this is where that is said out loud instead of being turned
+// into 13 000 °/s. The offending sample and its two neighbours go, because a step implicates both
+// of its ends and the local quadratic reaches one sample further.
+int rateLimitInPlace(SepTrack &s, double wView, const SegmentRatesConfig &cfg)
+{
+    const size_t n = s.t.size();
+    if (n < 2 || !(wView > 0.0)) return 0;
+    const double wMaxRad = cfg.pairMaxTurnDps * kPi / 180.0;
+    std::vector<uint8_t> kill(n, 0u);
+    for (size_t i = 1; i < n; ++i) {
+        const double dt = double(s.t[i] - s.t[i - 1]) * 1e-6;
+        if (!(dt > 0.0)) continue;
+        const double lim = wView * std::sin(std::min(wMaxRad * dt, kPi / 2.0)) + 2.0 * cfg.kpSigmaPx;
+        if (std::fabs(s.d[i] - s.d[i - 1]) <= lim) continue;
+        kill[i - 1] = kill[i] = 1u;
+        if (i + 1 < n) kill[i + 1] = 1u;
+    }
+    int hit = 0;
+    for (size_t i = 0; i < n; ++i)
+        if (kill[i] && s.ok[i]) { s.ok[i] = 0u; ++hit; }
+    return hit;
+}
+
+// ── THE LEFT/RIGHT RELABEL GUARD ───────────────────────────────────────────────────────────────
+//
+// A pose model labels left and right BY APPEARANCE. With the golfer's back toward the lens near
+// the top it gets them the wrong way round, and the signed separation steps from one side of zero
+// to the other with its MAGNITUDE INTACT — −108 px to +96 px in 7 ms on a real corpus swing. An
+// unsigned span distance never sees it, which is why nothing before this route ever had to care;
+// the paired angle sees a ~180° step and the 25 ms derivative calls it 2000 °/s.
+//
+// A GENUINE CROSSING LOOKS DIFFERENT, and the difference is physics rather than preference. For a
+// line to cross square TO THIS CAMERA, cos ψ must pass through zero, so |d| has to COLLAPSE on the
+// way through. At the fastest rate a trunk reaches — call it 1500 °/s — a rigid line turns ≤ 10°
+// per frame at 150 fps, so it cannot get from one side of zero to the other while |d| stays near
+// its maximum. So: a sign change WITH a collapse is kinematics and is left alone; a sign change
+// WITHOUT one is a relabel and is undone. `pairSwapMinFrac` (0.35 of the view's own p95
+// separation, i.e. 20° from square) is where the collapse is called.
+//
+// The walk is anchored at the ADDRESS WINDOW — the same window the orientation bit is read in,
+// where the golfer is near square to the face-on camera and the labels are unambiguous — forward
+// to the end and backward to the start, so the parity is always relative to a known-good stretch
+// rather than to whichever end of the recording we happened to begin at.
+//
+// WHERE THE LABELS ALTERNATE FASTER THAN THE BODY CAN TURN, neither reading is trustworthy: three
+// or more flips inside 100 ms is not a golfer, and those frames are dropped for this route rather
+// than corrected. Saying "no data here" is the honest output; a parity guessed inside a flutter is
+// the §12.1 trap by another name.
+struct SwapReport { int flips = 0; int dropped = 0; };
+
+SwapReport deswapInPlace(SepTrack &s, int64_t addrFromUs, int64_t addrToUs, double wView,
+                         const SegmentRatesConfig &cfg)
+{
+    SwapReport rep;
+    const size_t n = s.t.size();
+    if (n < 3 || !(wView > 0.0)) return rep;
+
+    std::vector<double> gaps;
+    for (size_t i = 1; i < n; ++i) gaps.push_back(double(s.t[i] - s.t[i - 1]));
+    const double stepUs = medianOf(gaps);
+    if (!(stepUs > 0.0)) return rep;
+    // Three frame intervals. Across a wider hole the two samples carry no continuity claim, so the
+    // parity is CARRIED but never CHANGED there — a conservative choice that leaves a swap across a
+    // sparse stretch uncorrected rather than inventing one.
+    const int64_t maxGapUs = int64_t(3.0 * stepUs);
+    const double  floorPx  = cfg.pairSwapMinFrac * wView;
+
+    size_t a0 = n, a1 = 0;
+    for (size_t i = 0; i < n; ++i)
+        if (s.t[i] >= addrFromUs && s.t[i] <= addrToUs) { a0 = std::min(a0, i); a1 = std::max(a1, i); }
+    if (a0 > a1) { a0 = a1 = 0; }
+
+    std::vector<int64_t> flipT;
+    const auto step = [&](double raw, double prev, int64_t dtUs) {
+        return raw * prev < 0.0 && std::min(std::fabs(raw), std::fabs(prev)) >= floorPx
+            && dtUs <= maxGapUs;
+    };
+    {   // forward from the last address-window sample
+        double p = 1.0, prev = s.d[a1];
+        int64_t prevT = s.t[a1];
+        for (size_t i = a1 + 1; i < n; ++i) {
+            if (step(s.d[i] * p, prev, s.t[i] - prevT)) { p = -p; ++rep.flips; flipT.push_back(s.t[i]); }
+            s.d[i] *= p;
+            prev = s.d[i]; prevT = s.t[i];
+        }
+    }
+    {   // backward from the first address-window sample
+        double p = 1.0, prev = s.d[a0];
+        int64_t prevT = s.t[a0];
+        for (size_t k = a0; k-- > 0; ) {
+            if (step(s.d[k] * p, prev, prevT - s.t[k])) { p = -p; ++rep.flips; flipT.push_back(s.t[k]); }
+            s.d[k] *= p;
+            prev = s.d[k]; prevT = s.t[k];
+        }
+    }
+
+    // Rapid alternation: ≥ 3 flips inside 100 ms ⇒ drop the frames the cluster spans.
+    std::sort(flipT.begin(), flipT.end());
+    std::vector<uint8_t> drop(n, 0u);
+    for (size_t i = 0; i + 2 < flipT.size(); ++i) {
+        if (flipT[i + 2] - flipT[i] > 100000) continue;
+        const int64_t lo = flipT[i] - int64_t(stepUs), hi = flipT[i + 2];
+        for (size_t j = 0; j < n; ++j) if (s.t[j] >= lo && s.t[j] <= hi) drop[j] = 1u;
+    }
+    for (size_t i = 0; i < n; ++i)
+        if (drop[i] && s.ok[i]) { s.ok[i] = 0u; ++rep.dropped; }
+    return rep;
+}
+
+// The median of a signed separation over a time window — the two ORIENTATION BITS the route needs.
+//
+// WHY THESE ARE MEASURED AND NOT DERIVED. Which image side a golfer's lead hip lands on, and which
+// side of the target line the down-the-line camera stands, are properties of the RIG. `leadIsLeft`
+// picks the two keypoints; it cannot know either of those. Both bits are read where the quantity
+// concerned is at its largest and least ambiguous — the face-on separation over the address hold
+// (the golfer is near square, |d_fo| is near its maximum), the down-the-line separation at the top
+// (the body is 40–90° closed, |d_dtl| is near ITS maximum). That is the opposite of the flat-
+// maximum square-up inference §12.4 condemned: nothing here depends on locating an extremum in
+// time, only on the sign of a large number over a wide window.
+double medianOver(const SepTrack &s, int64_t fromUs, int64_t toUs)
+{
+    std::vector<double> v;
+    for (size_t i = 0; i < s.t.size(); ++i)
+        if (s.ok[i] && s.t[i] >= fromUs && s.t[i] <= toUs) v.push_back(s.d[i]);
+    return v.empty() ? 0.0 : medianOf(v);
+}
+
+struct PairInputs {
+    int64_t addressUs = -1, takeawayUs = -1, topUs = -1, impactUs = -1;
+    double  r = 1.0;
+    int     signFo = 0, signDtl = 0;   // filled by the first segment, reused by the second
+};
+
+// Both tiers of both views. THE DETECTOR RUNS ON RAW, THE PRODUCER CONSUMES SMOOTHED WHERE IT CAN.
+// A relabel is a step and the RTS smoother has already turned it into a ramp, so it has to be
+// looked for on the raw keypoints. But where a view/segment carries NO relabel and no flutter —
+// the hips in both views on 21 of 21 corpus swings, the down-the-line shoulders on 21 of 21 —
+// there is nothing to protect against and the smoothed track is simply the better measurement.
+// Only a view/segment that actually relabels pays the noise cost of being read raw.
+struct PairViews {
+    PoseView foRaw, foSm, dtlRaw, dtlSm;
+    bool     foHasSm = false, dtlHasSm = false;
+};
+
+// The paired turn of one body line. Returns an empty track (with `diag.refusal` set) when the pair
+// cannot be formed; the caller then falls through to the face-on span rung.
+AngleTrack pairTurnTrack(const PairViews &vw, int lead, int trail,
+                         const PairInputs &pin, const Domain &dom, const SegmentRatesConfig &cfg,
+                         PairSegmentDiag &diag)
+{
+    AngleTrack out;
+    SepTrack sfRaw = separations(vw.foRaw,  lead, trail, cfg);
+    SepTrack sdRaw = separations(vw.dtlRaw, lead, trail, cfg);
+    if (sfRaw.t.size() < 3 || sdRaw.t.size() < 3) {
+        diag.refusal = QStringLiteral("too few admitted frames (%1 face-on, %2 down-the-line)")
+                           .arg(sfRaw.t.size()).arg(sdRaw.t.size());
+        return out;
+    }
+
+    // Each view's own scale, from its own p95 separation over takeaway→impact. Magnitudes are what
+    // a relabel leaves alone, so this is safe to read before undoing one.
+    const int64_t tkUs = pin.takeawayUs >= 0 ? pin.takeawayUs : pin.addressUs;
+    const auto p95Of = [&](const SepTrack &s) {
+        std::vector<double> v;
+        for (size_t i = 0; i < s.t.size(); ++i)
+            if (s.t[i] >= tkUs && s.t[i] <= pin.impactUs) v.push_back(std::fabs(s.d[i]));
+        if (v.size() < 3) { v.clear(); for (double x : s.d) v.push_back(std::fabs(x)); }
+        return percentileOf(v, 0.95);
+    };
+    const double wFo = p95Of(sfRaw), wDtl = p95Of(sdRaw);
+    const SwapReport rf = deswapInPlace(sfRaw, pin.addressUs, pin.addressUs + cfg.addrWindowUs, wFo, cfg);
+    const SwapReport rd = deswapInPlace(sdRaw, pin.addressUs, pin.addressUs + cfg.addrWindowUs, wDtl, cfg);
+    diag.nSwapsFo = rf.flips;
+    diag.nSwapsDtl = rd.flips;
+    diag.nSwapFramesDropped = rf.dropped + rd.dropped;
+
+    // Source per view per segment: smoothed where nothing had to be undone, the de-swapped raw
+    // series where something did.
+    const bool foClean  = rf.flips == 0 && rf.dropped == 0 && vw.foHasSm;
+    const bool dtlClean = rd.flips == 0 && rd.dropped == 0 && vw.dtlHasSm;
+    SepTrack sf = foClean  ? separations(vw.foSm,  lead, trail, cfg) : std::move(sfRaw);
+    SepTrack sd = dtlClean ? separations(vw.dtlSm, lead, trail, cfg) : std::move(sdRaw);
+    diag.srcFo  = foClean  ? QStringLiteral("smoothed") : QStringLiteral("rawDeswapped");
+    diag.srcDtl = dtlClean ? QStringLiteral("smoothed") : QStringLiteral("rawDeswapped");
+
+    // The rigid-body rate limit, on whichever series is actually consumed.
+    diag.nRateLimitedFo  = rateLimitInPlace(sf, wFo,  cfg);
+    diag.nRateLimitedDtl = rateLimitInPlace(sd, wDtl, cfg);
+
+    if (sf.valid() < 3 || sd.valid() < 3) {
+        diag.refusal = QStringLiteral("only %1 / %2 usable separations left after the guards")
+                           .arg(sf.valid()).arg(sd.valid());
+        return AngleTrack{};
+    }
+
+    // The orientation bits (see medianOver). Face-on over the address hold; down-the-line over the
+    // 200 ms ending just after the Top, which is where the body is most closed.
+    const double mF = medianOver(sf, pin.addressUs, pin.addressUs + cfg.addrWindowUs);
+    const double mD = medianOver(sd, pin.topUs - 150000, pin.topUs + 50000);
+    if (!(std::fabs(mF) > 0.0) || !(std::fabs(mD) > 0.0)) {
+        diag.refusal = QStringLiteral("no orientation: |d_fo| at address %1 px, |d_dtl| at the top %2 px")
+                           .arg(std::fabs(mF), 0, 'f', 1).arg(std::fabs(mD), 0, 'f', 1);
+        return out;
+    }
+    const double sgnF = mF > 0.0 ? 1.0 : -1.0;     // ⇒ d_fo positive at square
+    const double sgnD = mD > 0.0 ? 1.0 : -1.0;     // ⇒ ψ positive when CLOSED, as the span rung's θ is
+    diag.signFo  = int(sgnF);
+    diag.signDtl = int(sgnD);
+    diag.refusal.clear();
+
+    // The two streams share the window clock but not their phase or frame count: resample the
+    // down-the-line separation onto the face-on sample instants by linear interpolation, and call
+    // a face-on sample unpaired when its bracket is wider than pairMaxGapFrames DTL intervals.
+    std::vector<double> gaps;
+    for (size_t i = 1; i < sd.t.size(); ++i) gaps.push_back(double(sd.t[i] - sd.t[i - 1]));
+    const double dtlStepUs = gaps.empty() ? 0.0 : medianOf(gaps);
+    const double maxBracketUs = dtlStepUs > 0.0 ? cfg.pairMaxGapFrames * dtlStepUs : 0.0;
+    if (!(maxBracketUs > 0.0)) {
+        diag.refusal = QStringLiteral("the down-the-line stream carries no usable frame interval");
+        return out;
+    }
+    // Interpolate over the down-the-line samples the guards LEFT: a masked frame is a hole in that
+    // leg too, and the bracket rule then refuses to reach across it.
+    std::vector<int64_t> tD;
+    std::vector<double>  vD, gD;
+    for (size_t i = 0; i < sd.t.size(); ++i)
+        if (sd.ok[i]) { tD.push_back(sd.t[i]); vD.push_back(sd.d[i]); gD.push_back(sd.sigma[i]); }
+    if (tD.size() < 3) {
+        diag.refusal = QStringLiteral("only %1 usable down-the-line separations").arg(tD.size());
+        return AngleTrack{};
+    }
+
+    const size_t n = sf.t.size();
+    out.t = sf.t;
+    out.angleRad.assign(n, 0.0);
+    out.sigmaRad.assign(n, 0.0);
+    out.valid.assign(n, 0u);
+    std::vector<double> dFsigned(n, std::nan("")), dDsigned(n, std::nan(""));
+
+    size_t k = 0;
+    for (size_t i = 0; i < n; ++i) {
+        const int64_t t = sf.t[i];
+        if (!sf.ok[i]) continue;          // a face-on hole is a pair hole: both legs feed one validity
+        if (t < tD.front() || t > tD.back()) continue;
+        // tD is ascending and k only ever advances, so after this tD[k] ≤ t ≤ tD[k+1] (or k is the
+        // last index and t == tD.back()).
+        while (k + 1 < tD.size() && tD[k + 1] < t) ++k;
+        double dD = 0.0, sD = 0.0;
+        if (tD[k] == t) { dD = vD[k]; sD = gD[k]; }
+        else if (k + 1 < tD.size()) {
+            if (double(tD[k + 1] - tD[k]) > maxBracketUs) continue;
+            const double f = double(t - tD[k]) / double(tD[k + 1] - tD[k]);
+            dD = vD[k] + f * (vD[k + 1] - vD[k]);
+            sD = gD[k] + f * (gD[k + 1] - gD[k]);
+        } else {
+            continue;
+        }
+        const double x  = sgnF * sf.d[i];
+        const double y  = sgnD * dD / pin.r;
+        const double sy = sD / pin.r, sx = sf.sigma[i];
+        const double den = x * x + y * y;
+        if (!(den > 0.0)) continue;
+        out.angleRad[i] = std::atan2(y, x);
+        out.sigmaRad[i] = std::sqrt((x * x * sy * sy + y * y * sx * sx)) / den;
+        out.valid[i]    = 1u;
+        dFsigned[i] = x;
+        dDsigned[i] = sgnD * dD;
+    }
+
+    // Unwrap over the admitted samples only (invalid ones hold 0 and would wrap against them).
+    {
+        std::vector<double> adm;
+        for (size_t i = 0; i < n; ++i) if (out.valid[i]) adm.push_back(out.angleRad[i]);
+        if (adm.size() < 3) {
+            diag.refusal = QStringLiteral("only %1 paired samples").arg(adm.size());
+            return AngleTrack{};
+        }
+        unwrapInPlace(adm);
+        size_t q = 0;
+        for (size_t i = 0; i < n; ++i) if (out.valid[i]) out.angleRad[i] = adm[q++];
+    }
+
+    // ── The diagnostics, and the ONE gate (design decision D3) ─────────────────────────────────
+    // W is face-on's own p95 separation over takeaway→impact; the down-the-line leg should track
+    // the out-of-plane component that implies, sqrt(W² − d_fo²). This is a consistency check on
+    // the PAIRING, not on the geometry — the measured figures are 0.80 (hips) and 0.89 (shoulders)
+    // — and it is taken on |d_dtl| rather than the signed value on purpose: a golfer who squares
+    // up inside the domain takes the signed separation through zero and out the other side while
+    // sqrt(·) stays non-negative, and correlating those two would refuse exactly the swings this
+    // route was built for. The signed figure is reported beside it.
+    std::vector<double> absF, absD;
+    for (size_t i = 0; i < n; ++i) {
+        if (!out.valid[i] || sf.t[i] < tkUs || sf.t[i] > pin.impactUs) continue;
+        absF.push_back(std::fabs(dFsigned[i]));
+        absD.push_back(std::fabs(dDsigned[i]));
+    }
+    const double W = percentileOf(absF, 0.95);
+    diag.rEllipse = percentileOf(absF, 0.90) > 0.0
+                        ? percentileOf(absD, 0.90) / percentileOf(absF, 0.90) : 0.0;
+
+    std::vector<double> yAbs, ySgn, pred, closure;
+    for (size_t i = 0; i < n; ++i) {
+        if (!out.valid[i] || sf.t[i] < dom.fromUs || sf.t[i] > dom.toUs) continue;
+        yAbs.push_back(std::fabs(dDsigned[i]) / pin.r);
+        ySgn.push_back(dDsigned[i] / pin.r);
+        pred.push_back(std::sqrt(std::max(0.0, W * W - dFsigned[i] * dFsigned[i])));
+        if (W > 0.0) {
+            const double a = dFsigned[i] / W, b = dDsigned[i] / (pin.r * W);
+            closure.push_back(std::fabs(a * a + b * b - 1.0));
+        }
+    }
+    diag.nPaired    = int(yAbs.size());
+    {
+        int inDom = 0, valid = 0;
+        for (size_t i = 0; i < n; ++i) {
+            if (sf.t[i] < dom.fromUs || sf.t[i] > dom.toUs) continue;
+            ++inDom;
+            if (out.valid[i]) ++valid;
+        }
+        diag.invalidFrac = inDom > 0 ? double(inDom - valid) / double(inDom) : 0.0;
+    }
+    diag.corrAbs    = std::fabs(pearson(yAbs, pred));
+    diag.corrSigned = pearson(ySgn, pred);
+    diag.closureP50 = percentileOf(closure, 0.50);
+    diag.closureP90 = percentileOf(closure, 0.90);
+
+    if (diag.nPaired < cfg.addrMinFrames) {
+        diag.refusal = QStringLiteral("only %1 paired samples in the domain").arg(diag.nPaired);
+        return AngleTrack{};
+    }
+    if (diag.corrAbs < cfg.pairMinCorr) {
+        diag.refusal = QStringLiteral("|corr| %1 below the %2 floor")
+                           .arg(diag.corrAbs, 0, 'f', 2).arg(cfg.pairMinCorr, 0, 'f', 2);
+        return AngleTrack{};
+    }
+    diag.produced = true;
+    return out;
+}
+
+// A RUN OF INVALID SAMPLES IS A BLIND BAND. The span rung goes blind because the geometry stops
+// carrying the rate; the pair goes blind because the guards threw the samples away. The reader's
+// question is the same either way — "could the route see the peak?" — so it goes through the same
+// machinery. Leading invalid samples at the domain start are NOT a band: nothing was lost there,
+// the domain simply had not begun, and treating them as one would bound every swing vacuously.
+void validityBand(const AngleTrack &a, int64_t fromUs, int64_t toUs,
+                  std::vector<uint8_t> &mask, PlacementGate &gate)
+{
+    const size_t n = a.t.size();
+    mask.assign(n, 0u);
+    for (size_t i = 0; i < n; ++i) mask[i] = (!a.valid.empty() && a.valid[i]) ? 1u : 0u;
+    gate.blindFromUs = gate.blindToUs = -1;
+    bool started = false, inBlind = false;
+    for (size_t i = 0; i < n; ++i) {
+        if (a.t[i] < fromUs || a.t[i] > toUs) continue;
+        if (!started) { if (!mask[i]) continue; started = true; }
+        if (!mask[i] && !inBlind && gate.blindFromUs < 0) { gate.blindFromUs = a.t[i]; inBlind = true; }
+        else if (mask[i] && inBlind && gate.blindToUs < 0) { gate.blindToUs = a.t[i]; inBlind = false; }
     }
     gate.sighted = &mask;
 }
@@ -595,6 +1165,112 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
         const int64_t addressUs = phaseTime(phases, Phase::Address, -1);
         const int64_t topUs     = phaseTime(phases, Phase::Top, dom.fromUs);
         const int64_t finishUs  = phaseTime(phases, Phase::Finish, pv.frames->back().t_us);
+
+        // ── The PAIR route, between the IMU rung and the face-on span rung ─────────────────────
+        // Pelvis and thorax only. It needs both poses, and it needs them on one clock; nothing
+        // else about the swing changes when they are absent.
+        const bool havePair = cfg.pairTrunkEnabled && in.poseDtl
+                           && in.dtlFrameW > 0 && in.dtlFrameH > 0
+                           && in.pose->frames.size() >= 2 && in.poseDtl->frames.size() >= 2
+                           && (!res.pelvis.produced() || !res.thorax.produced());
+        if (havePair) {
+            res.pair.attempted = true;
+            // ⚠ THE PAIR READS THE RAW KEYPOINTS, not the smoothed companion track the span rung
+            // prefers. The relabel guard keys on a STEP — a sign change with the magnitude intact —
+            // and the RTS smoother has already smeared that step into a fast ramp, which is both
+            // undetectable and, at 200 px over three frames, exactly the artefact it was meant to
+            // remove. Detect it where it is still a step.
+            //
+            // AND NOTHING IS RE-SMOOTHED AFTERWARDS, deliberately. angular_rate.h's local quadratic
+            // over a window fixed in TIME is this producer's ONE smoothing step — the thing that
+            // makes an IMU node and a camera node comparable to the millisecond (design §6). A
+            // second filter here would make the pair the only route smoothed twice and its σ_t the
+            // only one that does not mean what the others' mean. The cost is that the raw track
+            // carries no posterior σ, so the per-keypoint σ falls back to cfg.kpSigmaPx — 3 px,
+            // which is what the corpus measured the smoother's posterior to be anyway (§12.4).
+            PairViews vw;
+            vw.foRaw.frames = &in.pose->frames;
+            vw.foRaw.W = in.frameW; vw.foRaw.H = in.frameH;
+            vw.dtlRaw.frames = &in.poseDtl->frames;
+            vw.dtlRaw.W = in.dtlFrameW; vw.dtlRaw.H = in.dtlFrameH;
+            vw.foHasSm = in.pose->smoothed.size() >= 2;
+            if (vw.foHasSm) {
+                vw.foSm.frames = &in.pose->smoothed;
+                vw.foSm.aux    = (in.pose->smoothedAux.size() == in.pose->smoothed.size())
+                                     ? &in.pose->smoothedAux : nullptr;
+                vw.foSm.W = in.frameW; vw.foSm.H = in.frameH;
+            }
+            vw.dtlHasSm = in.poseDtl->smoothed.size() >= 2;
+            if (vw.dtlHasSm) {
+                vw.dtlSm.frames = &in.poseDtl->smoothed;
+                vw.dtlSm.aux    = (in.poseDtl->smoothedAux.size() == in.poseDtl->smoothed.size())
+                                      ? &in.poseDtl->smoothedAux : nullptr;
+                vw.dtlSm.W = in.dtlFrameW; vw.dtlSm.H = in.dtlFrameH;
+            }
+
+            const PairScale ps = pairScale(vw.foRaw, vw.dtlRaw, addressUs, cfg);
+            res.pair.rVertical   = ps.r;
+            res.pair.extentFoPx  = ps.extFo;
+            res.pair.extentDtlPx = ps.extDtl;
+            res.pair.addrSamples = ps.n;
+            res.pair.refusal     = ps.refusal;
+            if (ps.ok) {
+                PairInputs pin;
+                pin.addressUs  = addressUs;
+                pin.takeawayUs = phaseTime(phases, Phase::Takeaway, addressUs);
+                pin.topUs      = topUs;
+                pin.impactUs   = impactUs;
+                pin.r          = ps.r;
+                const auto trunkFromPair = [&](SegmentRateChannel &ch, SeqSegment seg, int a, int b,
+                                               const QString &label, PairSegmentDiag &diag) {
+                    const int lead  = in.leadIsLeft ? a : b;
+                    const int trail = in.leadIsLeft ? b : a;
+                    AngleTrack at = pairTurnTrack(vw, lead, trail, pin, dom, cfg, diag);
+                    if (at.t.empty() || !diag.produced) return;
+                    // The geometry has no singularity — that is the point of the rung — so the only
+                    // thing the route cannot see is what the guards took away. Those holes go
+                    // through the span rung's own blind-band machinery, read as HOLES rather than
+                    // as a horizon (PlacementGate::bandIsHole). Plus the reversal-spike guard and
+                    // the end-edge bound.
+                    std::vector<uint8_t> seen;
+                    PlacementGate gate;
+                    // The thorax has its own switch: the two segments fail differently on this
+                    // route (the hips never relabel, the shoulders do), so one gate for both would
+                    // close the one that works to silence the one that does not. Both switches gate
+                    // the RING only — every bound below is emitted either way.
+                    gate.may          = cfg.pairTrunkPlacement
+                                     && (seg != SeqSegment::Thorax || cfg.pairTrunkThoraxPlacement);
+                    gate.spikeGuard   = true;
+                    gate.endEdgeBound = true;
+                    gate.bandIsHole   = true;
+                    validityBand(at, dom.fromUs, dom.toUs, seen, gate);
+                    const size_t before = nodes.size();
+                    finishChannel(ch, differentiate(at, windowUs, /*opening = −dψ/dt*/ -1.0, false),
+                                  seg, label, QStringLiteral("faceOn+dtl"), false, dom, phases, cfg,
+                                  nodes, gate);
+                    // NEITHER A NODE NOR A BOUND IS WORSE THAN TODAY. If the pair could not place
+                    // this segment AND could not bound it, it has told the reader less than the
+                    // face-on span rung would have. Withdraw it — channel and node — and let the
+                    // span rung run for this segment on this swing.
+                    if (nodes.size() > before) {
+                        const KsNode &n = nodes.back();
+                        if (!n.placed && !n.bounded()) {
+                            nodes.pop_back();
+                            ch = SegmentRateChannel{};
+                            diag.refusal = QStringLiteral("neither a placement nor a bound — "
+                                                          "fell through to the face-on span");
+                            diag.produced = false;
+                        }
+                    }
+                };
+                if (!res.pelvis.produced())
+                    trunkFromPair(res.pelvis, SeqSegment::Pelvis, kp::LeftHip, kp::RightHip,
+                                  QStringLiteral("Pelvis angular speed"), res.pair.pelvis);
+                if (!res.thorax.produced())
+                    trunkFromPair(res.thorax, SeqSegment::Thorax, kp::LeftShoulder, kp::RightShoulder,
+                                  QStringLiteral("Thorax angular speed"), res.pair.thorax);
+            }
+        }
 
         // The trunk from its spans. The node is claimed only where the camera can see the rate —
         // the sighted band, |turn| ≥ sightedTurnDeg — and bounded where it could not (§12.4).

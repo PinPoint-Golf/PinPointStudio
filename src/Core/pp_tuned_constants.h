@@ -795,6 +795,74 @@ inline constexpr bool         kFaceOnTrunkPlacement = true;   // sequence.faceOn
 inline constexpr double       kSightedTurnDeg       = 20.0;   // sequence.sightedTurnDeg
 inline constexpr double       kMinAfterReversalMs   = 60.0;   // sequence.minAfterReversalMs
 inline constexpr double       kMinCredibleClubMph   = 40.0;   // sequence.minCredibleClubMph
+
+// --- The PAIRED face-on + down-the-line trunk route (kinematic_sequence_design.md §5.2, and
+//     docs/research/data/kinematic_sequence/pair_span_turn_20260920.md, which measured it
+//     offline on 21 two-camera swings before a line of this was written) -------------------
+//
+//   kPairTrunkEnabled   — whether the pair route is tried for the pelvis and the thorax at all.
+//     It sits BETWEEN the IMU rung and the face-on span rung: an IMU still wins, and a swing
+//     with no down-the-line pose reads exactly as it did before.
+//   kPairTrunkPlacement — whether a pair trunk node may be PLACED (the §9 gate, the pair's own).
+//     Deliberately NOT kFaceOnTrunkPlacement: the two rungs fail differently and a single switch
+//     would close the one that works to silence the one that does not.
+//   kPairMinCorr — the cheap consistency floor. The down-the-line separation must track the
+//     out-of-plane component face-on implies, sqrt(W² − d_fo²), over the downswing; below this
+//     the two views are not looking at one line turning and the route stands down to face-on.
+//     0.6 is loose on purpose — the measured figures are 0.80 (hips) and 0.89 (shoulders), and
+//     this gate is there to catch a mis-paired stream, not to grade the geometry.
+//   kPairMinExtentPx — the pixel-scale ratio between the views is read off the body's VERTICAL
+//     extent at address, which both level cameras see undistorted by the turn. An extent below
+//     this is a golfer half out of frame and the ratio it gives is not a scale.
+//   kPairMaxGapFrames — the two streams share the window clock but not their phase or frame
+//     count, so the down-the-line separation is interpolated onto the face-on sample times. A
+//     face-on sample whose bracketing pair is wider than this many down-the-line frame intervals
+//     is a hole, not a measurement.
+inline constexpr bool         kPairTrunkEnabled     = true;   // sequence.pairTrunk.enabled
+inline constexpr bool         kPairTrunkPlacement   = true;   // sequence.pairTrunk.placement
+inline constexpr double       kPairMinCorr          = 0.6;    // sequence.pairMinCorr
+inline constexpr double       kPairMinExtentPx      = 100.0;  // sequence.pairMinExtentPx
+inline constexpr double       kPairMaxGapFrames     = 2.5;    // sequence.pairMaxGapFrames
+
+// --- The left/right RELABEL guard on the signed separations --------------------------------
+//
+// A pose model labels left and right BY APPEARANCE. With the golfer's back toward the lens at
+// the top, the face-on shoulder labels flip, and the signed separation steps from −108 px to
+// +96 px between consecutive frames. On the 21 two-camera swings the face-on SHOULDER
+// separation changed sign 1–5 times inside the sequence domain on 20 of 21 swings; the HIP
+// separation changed sign 0 times on 21 of 21. Unguarded, each step is a ~180° jump in the
+// paired angle and the 25 ms derivative calls it 1700–2300 °/s — a club-like number for a
+// thorax, on the wrong side of Cheetham's 727.
+//
+// THE DISCRIMINATOR IS PHYSICAL, NOT A PREFERENCE. A body line genuinely crossing square TO A
+// CAMERA must take cos ψ through zero, so |d| has to COLLAPSE on the way through: at ≤ 1500 °/s
+// a rigid line turns ≤ 10° per frame at 150 fps, and |d| cannot stay near its maximum across a
+// sign change. A sign change WITHOUT that collapse is therefore a relabel, and one WITH it is a
+// real past-90° turn to be left alone. kPairSwapMinFrac is where the collapse is called: 0.35 of
+// the view's own p95 separation is cos ψ = 0.35, i.e. 20° from square — five frames of turn away
+// from the crossing at the fastest rate the trunk reaches.
+//
+// kPairTrunkThoraxPlacement gates the THORAX node separately from the pelvis, because the two
+// segments fail differently on this route: the hips never relabel and the shoulders do.
+inline constexpr double       kPairSwapMinFrac      = 0.35;   // sequence.pairSwapMinFrac
+// kPairMaxTurnDps — the rigid-body rate limit on either signed separation. A line of image
+// half-width W turning at no more than this cannot move its horizontal separation by more than
+// W·sin(ω·Δt) between frames, and a step past that (plus two keypoint σ) did not come from a
+// golfer. 2000 °/s is deliberately generous — Cheetham's professionals peak the thorax at
+// 727 ± 61 — because this is meant to catch keypoint nonsense, not to shape a curve.
+inline constexpr double       kPairMaxTurnDps       = 2000.0; // sequence.pairMaxTurnDps
+// ⚠ OFF, on the 21 two-camera swings' evidence (2026-09-20). With the relabel guard in, the pair
+// places 5 thorax nodes and EVERY ONE is a suspect: four sit 134–214 ms earlier than the same
+// swing's lead-arm node (a thorax that peaks before the arm by that much is not a sequence, it is
+// the estimator), one of those reads 1220 °/s, and the fifth reads 66 °/s. The cause is not
+// relabels — the guard found swaps on only 4 of 21 swings — it is that the face-on SHOULDER line
+// genuinely crosses square TO THAT CAMERA 160–190 ms before impact, and across the crossing the
+// face-on keypoints jump (−121, +12, −108, −26, +96 px over 27 ms on one swing) while the
+// down-the-line leg runs smooth. atan2 is well conditioned there; its x ARGUMENT is not. So the
+// thorax keeps its continuous pair CURVE and its honest bound, and does not get a ring, until a
+// face-on shoulder that survives its own square-up exists. The pelvis never crosses (0 sign
+// changes on 21 of 21) and is unaffected.
+inline constexpr bool         kPairTrunkThoraxPlacement = false; // sequence.pairTrunk.thoraxPlacement
 } // namespace sequence
 
 // --- Club delivery from a face-on camera (src/Analysis/club_delivery.h) -------
