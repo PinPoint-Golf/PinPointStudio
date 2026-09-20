@@ -24,6 +24,7 @@
 
 #include "shaft_track_assembly.h"
 
+#include "shaft_track_shared.h"    // the view-independent half (bodies still live HERE)
 #include "analysis_tuning.h"       // pinpoint::analysis::tuning::apply
 #include "ball_anchor.h"           // medianGripBallLenPx (A1 — L_px before head placement)
 #include "shaft_kinematics.h"      // R6 predictor (swingProgress/phiClubPred/envelope, S2 wedge)
@@ -50,8 +51,6 @@ constexpr double kInf = 1e9;
 // denominator of the pose-scale rung's px/m estimate (A2). Not sweepable: it is
 // a population constant, unlike lenStatureM/lenGripDownM which absorb the club.
 constexpr double kShoulderAnkleFrac = 0.83;
-
-inline double circWrap(double a) { return std::fmod(std::fmod(a + 180.0, 360.0) + 360.0, 360.0) - 180.0; }
 
 // ── club-length fusion helpers (A2b) ─────────────────────────────────────────
 // E-band px = band scale × grip-corrected club length; ≤0 (returns -1) when no
@@ -124,6 +123,52 @@ inline int reflectIdx(int i, int n)
     return i;
 }
 
+// medianFilter1d / gaussianFilter1d / unwrap moved to `namespace shaftshared`
+// below (shaft_track_shared.h) — same bodies, named so DTL can call them.
+
+inline int wmaxFor(SwingPhase p, const ShaftV3Config& c)
+{
+    double w = c.wmaxDownswing;
+    switch (p) {
+        case SwingPhase::Addr:      w = c.wmaxAddr; break;
+        case SwingPhase::Backswing: w = c.wmaxBackswing; break;
+        case SwingPhase::Top:       w = c.wmaxTop; break;
+        case SwingPhase::Impact:    w = c.wmaxImpact; break;
+        case SwingPhase::Downswing: w = c.wmaxDownswing; break;
+        case SwingPhase::Thru:      w = c.wmaxThru; break;
+        case SwingPhase::Finish:    w = c.wmaxFinish; break;
+    }
+    return int(std::ceil(w / c.grid));
+}
+
+inline int phaseSign(SwingPhase p)
+{
+    switch (p) {
+        case SwingPhase::Backswing: return +1;
+        case SwingPhase::Downswing:
+        case SwingPhase::Impact:
+        case SwingPhase::Thru:
+        case SwingPhase::Finish:    return -1;
+        default:                    return 0;   // addr, top
+    }
+}
+
+inline bool isMidswing(SwingPhase p)
+{
+    return p == SwingPhase::Backswing || p == SwingPhase::Top || p == SwingPhase::Downswing
+        || p == SwingPhase::Impact || p == SwingPhase::Thru;
+}
+
+// The Layer A snap moved to `namespace shaftshared` below, with the filters.
+
+} // namespace
+
+// ── the view-independent half ────────────────────────────────────────────────
+// Declared in shaft_track_shared.h so the down-the-line tracker links against
+// these bodies instead of copying them. Moved out of the anonymous namespace
+// above UNCHANGED — this is a rename of their enclosing scope, nothing else.
+namespace shaftshared {
+
 // scipy.ndimage.median_filter(x, size) — odd size, mode='reflect', origin 0.
 std::vector<double> medianFilter1d(const std::vector<double>& x, int size)
 {
@@ -175,51 +220,13 @@ std::vector<double> unwrap(const std::vector<double>& p)
     return out;
 }
 
-inline int wmaxFor(SwingPhase p, const ShaftV3Config& c)
-{
-    double w = c.wmaxDownswing;
-    switch (p) {
-        case SwingPhase::Addr:      w = c.wmaxAddr; break;
-        case SwingPhase::Backswing: w = c.wmaxBackswing; break;
-        case SwingPhase::Top:       w = c.wmaxTop; break;
-        case SwingPhase::Impact:    w = c.wmaxImpact; break;
-        case SwingPhase::Downswing: w = c.wmaxDownswing; break;
-        case SwingPhase::Thru:      w = c.wmaxThru; break;
-        case SwingPhase::Finish:    w = c.wmaxFinish; break;
-    }
-    return int(std::ceil(w / c.grid));
-}
-
-inline int phaseSign(SwingPhase p)
-{
-    switch (p) {
-        case SwingPhase::Backswing: return +1;
-        case SwingPhase::Downswing:
-        case SwingPhase::Impact:
-        case SwingPhase::Thru:
-        case SwingPhase::Finish:    return -1;
-        default:                    return 0;   // addr, top
-    }
-}
-
-inline bool isMidswing(SwingPhase p)
-{
-    return p == SwingPhase::Backswing || p == SwingPhase::Top || p == SwingPhase::Downswing
-        || p == SwingPhase::Impact || p == SwingPhase::Thru;
-}
-
 // ── Layer A snap: local ridge line re-registration (shaft_position_first §2A) ──
 // sampleClamp / med4 / ridgeLineIntegral are shared with the Layer B milestone
 // fit and now live in shaft_position_fit.h (promoted verbatim from here so the two
 // passes share one definition; snap math unchanged).
 
 // One sample's snap search over (⊥ offset d, Δθ). Grid: 1 px offset × 0.5° angle.
-struct SnapResult {
-    double offsetPx      = 0.0;   // best perpendicular offset from the original anchor (px)
-    double dThetaDeg     = 0.0;   // best angular delta from the original θ (deg)
-    float  bestLineConf  = 0.f;   // support under the winning line
-    float  originLineConf = 0.f;  // support under the original (d=0,Δθ=0) line — recorded on reject
-};
+// (SnapResult itself is declared in shaft_track_shared.h.)
 SnapResult snapSearch(const cv::Mat& g32, double gx, double gy, double theta0Rad,
                       double drawnLenPx, const SnapConfig& sc, const RidgeConfig& rc)
 {
@@ -284,7 +291,61 @@ SnapResult snapSearch(const cv::Mat& g32, double gx, double gy, double theta0Rad
     return best;
 }
 
-} // namespace
+// ── banded Viterbi DP (club_track_v3 C3), phase-free ─────────────────────────
+// viterbiDP's body with the per-frame band handed in as data. Same loop order,
+// same expressions, same tie-breaking (strict `<` on both the transition scan
+// and the terminal argmin) — so the face-on track it produces is the one it
+// always produced, to the bit.
+DPResult viterbiBanded(const std::vector<std::vector<float>>& emis,
+                       const std::vector<int>& wmaxBins, const std::vector<int>& sgn,
+                       double kSmooth, double gridDeg)
+{
+    const int nf = int(emis.size());
+    DPResult out;
+    // No frames, or no θ states: nothing to solve, and the back-pointer walk below
+    // would index an empty row. Unreachable from face-on (decideTrack returns
+    // before the DP when nf < 2, and NS = lround(360/grid)), so no face-on output
+    // moves — see the contract on shaftshared::viterbiBanded.
+    if (nf == 0 || emis[0].empty()) return out;
+    const int NS = int(emis[0].size());
+
+    std::vector<double> cost(emis[0].begin(), emis[0].end());
+    std::vector<std::vector<int>> back(nf, std::vector<int>(NS, 0));
+
+    std::vector<double> best(NS);
+    std::vector<int> barg(NS);
+    for (int f = 1; f < nf; ++f) {
+        const int wmax = wmaxBins[size_t(f)];
+        const int s = sgn[size_t(f)];
+        const int dLo = (s > 0) ? 0 : -wmax;
+        const int dHi = (s < 0) ? 0 : wmax;
+        std::fill(best.begin(), best.end(), kInf);
+        std::fill(barg.begin(), barg.end(), 0);
+        for (int d = dLo; d <= dHi; ++d) {
+            const double t = kSmooth * (d * gridDeg) * (d * gridDeg);
+            for (int k = 0; k < NS; ++k) {
+                const int src = ((k - d) % NS + NS) % NS;
+                const double cand = cost[src] + t;
+                if (cand < best[k]) { best[k] = cand; barg[k] = src; }
+            }
+        }
+        for (int k = 0; k < NS; ++k) { cost[k] = best[k] + emis[f][k]; back[f][k] = barg[k]; }
+    }
+
+    out.thstar.assign(nf, 0);
+    int last = 0; for (int k = 1; k < NS; ++k) if (cost[k] < cost[last]) last = k;
+    out.thstar[nf - 1] = last;
+    for (int f = nf - 1; f > 0; --f) out.thstar[f - 1] = back[f][out.thstar[f]];
+    out.thetaDeg.resize(nf);
+    for (int f = 0; f < nf; ++f) out.thetaDeg[f] = out.thstar[f] * gridDeg;
+    return out;
+}
+
+} // namespace shaftshared
+
+// Everything below reads the shared half unqualified, exactly as it did when
+// these bodies sat in the anonymous namespace.
+using namespace shaftshared;
 
 // ── config ───────────────────────────────────────────────────────────────────
 ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
@@ -1105,44 +1166,21 @@ void addHandAxisPrior(std::vector<float>& emOut, const std::vector<float>& gridD
 }
 
 // ── global banded Viterbi DP (club_track_v3 C3) ──────────────────────────────
+// The band is this view's phase model: wmaxFor/phaseSign turn the per-frame
+// SwingPhase into the (ceiling, direction) pair the solver actually uses, and the
+// solver itself is view-free (shaftshared::viterbiBanded). Splitting it that way
+// changes no arithmetic — the two vectors carry exactly what the loop read from
+// the phase labels before.
 DPResult viterbiDP(const std::vector<std::vector<float>>& emis,
                    const std::vector<SwingPhase>& phase, const ShaftV3Config& cfg)
 {
     const int nf = int(emis.size());
-    DPResult out;
-    if (nf == 0) return out;
-    const int NS = int(emis[0].size());
-
-    std::vector<double> cost(emis[0].begin(), emis[0].end());
-    std::vector<std::vector<int>> back(nf, std::vector<int>(NS, 0));
-
-    std::vector<double> best(NS), tmp(NS);
-    std::vector<int> barg(NS);
-    for (int f = 1; f < nf; ++f) {
-        const int wmax = wmaxFor(phase[f], cfg);
-        const int sgn = phaseSign(phase[f]);
-        const int dLo = (sgn > 0) ? 0 : -wmax;
-        const int dHi = (sgn < 0) ? 0 : wmax;
-        std::fill(best.begin(), best.end(), kInf);
-        std::fill(barg.begin(), barg.end(), 0);
-        for (int d = dLo; d <= dHi; ++d) {
-            const double t = cfg.kSmooth * (d * cfg.grid) * (d * cfg.grid);
-            for (int k = 0; k < NS; ++k) {
-                const int src = ((k - d) % NS + NS) % NS;
-                const double cand = cost[src] + t;
-                if (cand < best[k]) { best[k] = cand; barg[k] = src; }
-            }
-        }
-        for (int k = 0; k < NS; ++k) { cost[k] = best[k] + emis[f][k]; back[f][k] = barg[k]; }
+    std::vector<int> wmaxBins(size_t(nf), 0), sgn(size_t(nf), 0);
+    for (int f = 0; f < nf && f < int(phase.size()); ++f) {
+        wmaxBins[size_t(f)] = wmaxFor(phase[size_t(f)], cfg);
+        sgn[size_t(f)]      = phaseSign(phase[size_t(f)]);
     }
-
-    out.thstar.assign(nf, 0);
-    int last = 0; for (int k = 1; k < NS; ++k) if (cost[k] < cost[last]) last = k;
-    out.thstar[nf - 1] = last;
-    for (int f = nf - 1; f > 0; --f) out.thstar[f - 1] = back[f][out.thstar[f]];
-    out.thetaDeg.resize(nf);
-    for (int f = 0; f < nf; ++f) out.thetaDeg[f] = out.thstar[f] * cfg.grid;
-    return out;
+    return viterbiBanded(emis, wmaxBins, sgn, cfg.kSmooth, cfg.grid);
 }
 
 // ── ψ-isotonic reconciliation ────────────────────────────────────────────────
@@ -1243,7 +1281,9 @@ ReconResult reconcilePsi(const std::vector<double>& thetaDeg, const std::vector<
 }
 
 // ── SwingWindow-free decide core ─────────────────────────────────────────────
-namespace {
+// The three score helpers below are the view-independent half too (declared in
+// shaft_track_shared.h) — same bodies, one scope out of the anonymous namespace.
+namespace shaftshared {
 
 // np.percentile with linear interpolation.
 float percentile(std::vector<float> v, double p)
@@ -1281,7 +1321,7 @@ void interpFillNan(std::vector<double>& v)
     }
 }
 
-} // namespace
+} // namespace shaftshared
 
 Segmentation phasesToSegmentation(const PhaseModel& pm, const std::vector<int64_t>& tUs, float conf,
                                   int addressFrame, bool emitTakeaway)
@@ -1749,11 +1789,14 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     // the evidence loop + scene median below run under cv::parallel_for_ race-
     // free. Over the byte cap the cache is skipped and every pass falls back to
     // the serial frameAt (byte-identical to the pre-cache tracker).
-    // Must match the ShaftTracker cap so both layers make the same decision.
-    constexpr size_t kFrameCacheCapBytes = 1200ull * 1024 * 1024;
+    // Must match the ShaftTracker cap so both layers make the same decision — so
+    // it is the SAME constant, shaftshared::kFrameCacheCapBytes, not a second copy
+    // of the number that has to be kept equal by hand.
     const size_t cacheBytes = size_t(nf) * size_t(std::max(0, frameW)) * size_t(std::max(0, frameH));
+    // Freshly constructed per call, so — unlike buildFrameCache's caller-owned
+    // cacheOut — it needs no clear before the cap test.
     std::vector<cv::Mat> frameCache;
-    if (cacheBytes > 0 && cacheBytes <= kFrameCacheCapBytes) {
+    if (cacheBytes > 0 && cacheBytes <= shaftshared::kFrameCacheCapBytes) {
         frameCache.assign(size_t(nf), cv::Mat());
         for (int i = 0; i < nf; ++i) frameCache[size_t(i)] = frameAt(i);
     }

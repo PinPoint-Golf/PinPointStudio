@@ -517,7 +517,7 @@ void frameEmission(std::vector<float>& emOut, std::vector<float>& insideOut,
                    double handAxisConf = 0.0);
 
 // WB4 hand-axis θ prior — add `weight × handAxisConf` to every state deviating
-// more than maxDeg from handAxisDeg. Pure (deg wrap via the file-local circWrap);
+// more than maxDeg from handAxisDeg. Pure (deg wrap via shaftshared::circWrap);
 // a no-op when cfg.enabled is false, handAxisConf < cfg.confMin, or handAxisDeg
 // is NaN — in every such case emOut is left BIT-IDENTICAL. Applied BEFORE the
 // band negative well so the well still dominates. Unit-tested standalone.

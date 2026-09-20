@@ -46,6 +46,13 @@ struct ShotAnalysisJob {
     // clip feeds the ImpactRunner and nothing else — it is never a face-on
     // candidate and never runs pose. Invalid when no camera holds the placement.
     pinpoint::SourceId impactSource = pinpoint::kInvalidSourceId;
+    // The down-the-line camera (perspective DownTheLine, dtl_shaft_tracker_design.md
+    // §5.1): the DTL shaft tracker's source, and SwingLab's alone — nothing in the
+    // production pipeline reads it, so a swing with a DTL stream analyses exactly as
+    // it did before. Never a face-on candidate and never the impact camera. Invalid
+    // when no camera holds the placement (and when --face-on names the DTL stream
+    // ITSELF, since it is then the face-on one).
+    pinpoint::SourceId dtlSource = pinpoint::kInvalidSourceId;
     std::vector<pinpoint::SourceId> imuSources;     // IMU sources present in the window
     pinpoint::SourceId markerSourceId = pinpoint::kInvalidSourceId;  // shot_marker_v1 source
 

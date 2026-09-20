@@ -216,7 +216,17 @@ int main()
         const CaptureCapabilities c = CaptureCapabilities::fromJob(camJob);
         check(c.hasCamera(CameraPlacement::FaceOn), "fromJob(faceOnCameraCount=1): hasCamera(FaceOn) true");
         check(!c.hasCamera(CameraPlacement::DownTheLine),
-              "fromJob: DownTheLine is never populated (reserved, not yet consumed)");
+              "fromJob: dtlSource unset ⇒ hasCamera(DownTheLine) false");
+
+        // ...and a resolved DTL source raises it, without disturbing FaceOn: the two
+        // placements are independent facts about the capture, not alternatives.
+        ShotAnalysisJob dtlJob = camJob;
+        dtlJob.dtlSource = 2;
+        const CaptureCapabilities cd = CaptureCapabilities::fromJob(dtlJob);
+        check(cd.hasCamera(CameraPlacement::DownTheLine),
+              "fromJob: dtlSource set ⇒ hasCamera(DownTheLine) true");
+        check(cd.hasCamera(CameraPlacement::FaceOn),
+              "fromJob: dtlSource set leaves FaceOn unaffected");
     }
 
     // 6c. fromJob threads imuBindings 1:1 into CaptureCapabilities::BoundImu.

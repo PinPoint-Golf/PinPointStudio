@@ -2702,6 +2702,19 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/shaft_tracker_math.cpp
     src/Analysis/shaft_track_assembly.h
     src/Analysis/shaft_track_assembly.cpp
+    src/Analysis/shaft_track_shared.h
+    src/Analysis/shaft_frame_io.h
+    # Down-the-line shaft tracker (dtl_shaft_tracker_design.md). SwingLab-only —
+    # nothing in the app calls it; it builds here so the app and the offline
+    # binaries stay one source list.
+    src/Analysis/dtl_shaft_types.h
+    src/Analysis/dtl_shaft_config.h
+    src/Analysis/dtl_shaft_decide.h
+    src/Analysis/dtl_shaft_decide.cpp
+    src/Analysis/dtl_shaft_post.h
+    src/Analysis/dtl_shaft_post.cpp
+    src/Analysis/dtl_shaft_tracker.h
+    src/Analysis/dtl_shaft_tracker.cpp
     src/Analysis/clubhead_track.h
     src/Analysis/clubhead_track.cpp
     src/Analysis/pose_smoother.h
@@ -3075,6 +3088,10 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/event_refine.cpp
         src/Analysis/shaft_tracker_math.cpp
         src/Analysis/shaft_track_assembly.cpp
+        # DTL shaft tracker — swinglab_run is its only caller (§5.11).
+        src/Analysis/dtl_shaft_decide.cpp
+        src/Analysis/dtl_shaft_post.cpp
+        src/Analysis/dtl_shaft_tracker.cpp
         src/Analysis/clubhead_track.cpp
         src/Analysis/pose_smoother.cpp
         src/Analysis/head_track.cpp

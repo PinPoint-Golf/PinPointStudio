@@ -612,7 +612,7 @@ struct ShaftSample2D {
     int64_t t_us         = 0;
     QPointF gripPx;             // anchor used for detection (image px)
     QPointF headPx;             // measured terminus blob, or projected (see flags)
-    double  thetaRad     = 0.0; // unwrapped, RTS-smoothed image angle (atan2 convention)
+    double  thetaRad     = 0.0; // RTS-smoothed image angle, WRAPPED to [0, 2π) (atan2 convention)
     double  thetaDotRadS = 0.0; // smoothed angular velocity
     double  visibleLenPx = 0.0; // ridge extent (median/hold-filtered — θ is the precision channel)
     float    conf        = 0.f; // 0..1 from the smoothed θ posterior variance

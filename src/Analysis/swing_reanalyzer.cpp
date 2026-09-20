@@ -30,6 +30,7 @@
 #include <QJsonObject>
 #include <QQuaternion>
 #include <QRectF>
+#include <QRegularExpression>
 
 #include <opencv2/core.hpp>
 #include <opencv2/videoio.hpp>
@@ -289,7 +290,7 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
     // recorded an empty filter" — only the second is a refusal to be preserved.
     bool     sawHostFusedLane = false;
 
-    struct VidTmp { SourceId id; bool faceOn; bool impact = false; };
+    struct VidTmp { SourceId id; bool faceOn; bool impact = false; bool dtl = false; };
     std::vector<VidTmp> vids;
 
     for (const QJsonValue& sv : root[QStringLiteral("streams")].toArray()) {
@@ -439,7 +440,36 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
             // never a face-on candidate (impact_camera_design.md §10).
             const bool impact = s.contains(QStringLiteral("setup"))
                 && s[QStringLiteral("setup")].toObject()[QStringLiteral("perspective")].toInt() == 4;
-            vids.push_back({ id, faceOn && !impact, impact });
+            // The down-the-line camera (setup.perspective 1): read the same way
+            // face-on is, and with the same fall-back for the pre-versioned
+            // 2026-06-11 session, whose streams carry no "setup" block at all —
+            // there the alias/file name is the only evidence of where the camera
+            // stood ("Down-the-Line"). A stream the tool has NAMED as face-on
+            // (--face-on DTL) is the face-on one and cannot also be this.
+            //
+            // The name fall-back matches WHOLE TOKENS, not substrings. A bare
+            // contains("Down") claims "Downswing-cam", "Slowdown" and a directory
+            // called "Downstairs"; and it ran against the whole PATH, so any swing
+            // living under a folder with those letters in it was a DTL swing. The
+            // regex wants "dtl" or "down the line" (any of -, _ or a space, or
+            // nothing, between the words) bounded by a non-letter on each side,
+            // case-insensitively. The alias is the golfer's own label and is asked
+            // first; only then the file's BASENAME.
+            bool dtl = false;
+            if (!faceOn && !impact) {
+                if (s.contains(QStringLiteral("setup"))) {
+                    dtl = s[QStringLiteral("setup")].toObject()
+                              [QStringLiteral("perspective")].toInt() == 1;
+                } else {
+                    static const QRegularExpression kDtlName(
+                        QStringLiteral("(^|[^a-z])(dtl|down[-_ ]?the[-_ ]?line)([^a-z]|$)"),
+                        QRegularExpression::CaseInsensitiveOption);
+                    const QString base = QFileInfo(s[QStringLiteral("file")].toString()).fileName();
+                    dtl = kDtlName.match(alias).hasMatch()
+                       || kDtlName.match(base).hasMatch();
+                }
+            }
+            vids.push_back({ id, faceOn && !impact, impact, dtl });
 
         } else if (kind == QLatin1String("imu")) {
             const QJsonObject samples = s[QStringLiteral("samples")].toObject();
@@ -620,6 +650,10 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
         }
         if (v.impact)
             job.impactSource = v.id;
+        // FIRST DTL stream wins; camera ORDER is untouched by this (the DTL camera
+        // rides in cameraSources exactly where it always did).
+        if (v.dtl && job.dtlSource == kInvalidSourceId)
+            job.dtlSource = v.id;
     }
 
     // Match the live window's time-ordered index (stable: per-source order kept).

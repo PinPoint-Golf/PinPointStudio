@@ -538,6 +538,26 @@ pp_add_test(shaft_decide_test
     LINK    ${OpenCV_LIBS}
     COMPILE_OPTIONS -O2)
 
+# DTL deciding half, part 1 (dtl_shaft_decide): the band solve's contract — an
+# unsolved frame claims nothing. Same link set as shaft_decide_test: dtlSolve is
+# declared over the shared FrameSource/Viterbi seams, so it drags in the same
+# assembly + evidence + anchor + head translation units.
+pp_add_test(dtl_shaft_decide_test
+    SOURCES dtl_shaft_decide_test.cpp ${ANALYSIS}/dtl_shaft_decide.cpp ${ANALYSIS}/shaft_track_assembly.cpp ${ANALYSIS}/shaft_tracker_math.cpp ${ANALYSIS}/ball_anchor.cpp ${ANALYSIS}/clubhead_track.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    COMPILE_OPTIONS -O2)
+
+# DTL deciding half, part 2 (dtl_shaft_post): the post-solve probe + tiering. An
+# unsolved state must produce an INVALID track, not an empty-but-valid one.
+# dtl_shaft_tracker.cpp is NOT here and never will be — it is the SwingWindow
+# adapter, and these tests are window-free by design.
+pp_add_test(dtl_shaft_post_test
+    SOURCES dtl_shaft_post_test.cpp ${ANALYSIS}/dtl_shaft_post.cpp ${ANALYSIS}/dtl_shaft_decide.cpp ${ANALYSIS}/shaft_track_assembly.cpp ${ANALYSIS}/shaft_tracker_math.cpp ${ANALYSIS}/ball_anchor.cpp ${ANALYSIS}/clubhead_track.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    COMPILE_OPTIONS -O2)
+
 # WB4 hand-axis θ prior DP unary (shaft_track_assembly addHandAxisPrior): the
 # conf-gated / wrap-aware off-axis penalty, disabled ⇒ zero contribution, plus
 # the shaft.handAxisPrior.* override plumbing. Same link set as shaft_decide_test.

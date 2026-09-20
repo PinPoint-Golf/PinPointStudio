@@ -50,7 +50,9 @@ namespace pinpoint::analysis {
 
 // Where a camera sits relative to the golfer. FaceOn is the only placement the
 // current analysis consumes (pose/shaft/head/foot all run off it); DownTheLine
-// is reserved for the stereo/DTL fusion proposals and is not populated yet.
+// is populated from ShotAnalysisJob::dtlSource and says only that the capture
+// HOLDS such a camera — no stage gates on it yet, the DTL shaft tracker being a
+// SwingLab-only product (dtl_shaft_tracker_design.md §5.1).
 enum class CameraPlacement { FaceOn, DownTheLine };
 
 // The capture's device inventory, resolved once from the job before any stage
@@ -106,12 +108,15 @@ struct CaptureCapabilities {
     // present-but-unfusable binding still counts here (matching the monolith, where
     // the resample stage runs and hasImuStreams() then reports the empty result).
     // FaceOn present iff the job carries a face-on camera source — the exact gate
-    // the monolith's `hasCamera` local used.
+    // the monolith's `hasCamera` local used. DownTheLine iff the job resolved a
+    // dtlSource; no stage gates on it, so adding it changes no analysis.
     static CaptureCapabilities fromJob(const ShotAnalysisJob &job)
     {
         CaptureCapabilities caps;
         if (job.faceOnCameraCount > 0 && !job.cameraSources.empty())
             caps.cameras.insert(CameraPlacement::FaceOn);
+        if (job.dtlSource != pinpoint::kInvalidSourceId)
+            caps.cameras.insert(CameraPlacement::DownTheLine);
         caps.imus.reserve(job.imuBindings.size());
         for (const ImuSegmentBinding &b : job.imuBindings) {
             BoundImu bi{};
