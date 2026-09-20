@@ -19,11 +19,18 @@
 #pragma once
 
 // MarkupImageProvider — the QML image source for the Markup Lab's exact-frame
-// view. MarkupController decodes one MP4 frame on demand (Qt Multimedia) and
-// pushes it here; QML pulls it via `image://markup/<token>`. A bumped token in
-// the URL busts the QML pipeline cache so the new frame is re-requested. The
-// QImage is implicitly shared and copied under a mutex (requestImage may run off
-// the GUI thread), so producer/consumer never tear the same buffer.
+// panes. MarkupController decodes one MP4 frame per camera on demand (Qt
+// Multimedia) and pushes it here; QML pulls it via `image://markup/<pane>/<token>`.
+// A bumped token in the URL busts the QML pipeline cache so the new frame is
+// re-requested. The QImage is implicitly shared and copied under a mutex
+// (requestImage may run off the GUI thread), so producer/consumer never tear the
+// same buffer.
+//
+// TWO PANES, ONE PROVIDER. The Markup panel shows the face-on and down-the-line
+// cameras side by side, so the provider holds one frame per pane and the URL's
+// first path segment picks between them: "face/<token>" and "dtl/<token>". An id
+// with no recognised prefix is the face-on pane — that is the shape the panel used
+// when face-on was the only camera.
 
 #include <QImage>
 #include <QMutex>
@@ -32,22 +39,26 @@
 class MarkupImageProvider : public QQuickImageProvider
 {
 public:
+    // The pane an image belongs to; the ordinal matches MarkupController's.
+    enum Pane { Face = 0, Dtl = 1, PaneCount = 2 };
+
     MarkupImageProvider() : QQuickImageProvider(QQuickImageProvider::Image) {}
 
-    void setImage(const QImage &img)
+    void setImage(Pane pane, const QImage &img)
     {
         QMutexLocker lock(&m_mutex);
-        m_image = img;
+        m_image[int(pane)] = img;
     }
 
-    QImage requestImage(const QString & /*id*/, QSize *size, const QSize & /*requested*/) override
+    QImage requestImage(const QString &id, QSize *size, const QSize & /*requested*/) override
     {
+        const Pane pane = id.startsWith(QLatin1String("dtl/")) ? Dtl : Face;
         QMutexLocker lock(&m_mutex);
-        if (size) *size = m_image.size();
-        return m_image;
+        if (size) *size = m_image[int(pane)].size();
+        return m_image[int(pane)];
     }
 
 private:
     QMutex m_mutex;
-    QImage m_image;
+    QImage m_image[PaneCount];
 };

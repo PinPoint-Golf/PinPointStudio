@@ -26,6 +26,15 @@ import PinPointStudio
 // grip then head to lay the club, press a P key (1–9, 0=P10) to tag a position;
 // existing truth.json is loaded for editing and re-saved in place.
 //
+// TWO CAMERAS, SIDE BY SIDE. When the swing has a down-the-line stream the panel
+// shows both frames at once, at the same displayed height and each at its own
+// aspect, scrubbing together off ONE playhead. Clicks mark the pane they land in —
+// face-on → truth.json, DTL → truth_dtl.json, each in its own pixel space — and the
+// pane last clicked wears an accent border, because that is where a keyboard mark,
+// an undo or a ball placement will go. The P-positions and the capture conditions
+// are instants/properties of the SWING, so they hang off the shared playhead and
+// stay in truth.json exactly as before.
+//
 // Self-contained: it decodes its own exact frames via MarkupController
 // (cv::VideoCapture → image://markup), independent of the replay stage.
 // MarkupController is a singleton, so only the ACTIVE host screen's panel drives
@@ -47,6 +56,11 @@ Item {
     // Ball tool: when armed, the next frame click places the stationary ball
     // centre (one click — the ball doesn't move) and disarms. Toggle with 'b'.
     property bool ballMode: false
+
+    // The pane a half-placed club belongs to (0 = face-on, 1 = DTL). Clicking the
+    // other pane starts a fresh grip there rather than closing a shaft across two
+    // different cameras.
+    property int pendingPane: 0
 
     readonly property var pDefs: [
         { key: "1", name: "p1",  label: "P1",  desc: "Address" },
@@ -133,15 +147,18 @@ Item {
         case Qt.Key_Space:                 markupController.stepFrame(markupController.stride); e.accepted = true; break
         case Qt.Key_BracketLeft:           markupController.stepFrame(-markupController.stride); e.accepted = true; break
         case Qt.Key_BracketRight:          markupController.stepFrame(markupController.stride);  e.accepted = true; break
+        // Undo / clear / ball act on the ACTIVE pane — the one last clicked, which
+        // wears the accent border, so a keystroke never edits the camera the
+        // operator is not looking at.
         case Qt.Key_U:
-            if (root.pendingGrip) { root.pendingGrip = false; overlay.requestPaint() }
-            else markupController.clearShaft()
+            if (root.pendingGrip) { root.pendingGrip = false; root.repaintPanes() }
+            else markupController.clearShaftIn(markupController.activePane)
             e.accepted = true; break
-        case Qt.Key_C:   markupController.clearShaft(); e.accepted = true; break
+        case Qt.Key_C:   markupController.clearShaftIn(markupController.activePane); e.accepted = true; break
         case Qt.Key_B:
             root.ballMode = !root.ballMode
             if (root.ballMode) root.pendingGrip = false
-            overlay.requestPaint()
+            root.repaintPanes()
             e.accepted = true; break
         case Qt.Key_S:   markupController.showSkeleton = !markupController.showSkeleton; e.accepted = true; break
         case Qt.Key_Q:   markupController.save();       e.accepted = true; break
@@ -151,12 +168,50 @@ Item {
         }
     }
 
+    // Both panes repaint together: they share a playhead, so a move in one is a
+    // move in the other, and a Canvas only redraws when it is asked to.
+    // Guarded: a controller signal can arrive while the panel is still being
+    // built (loadSwing runs off the host's binding), and the panes do not exist
+    // yet at that point.
+    function repaintPanes() {
+        if (facePane) facePane.repaint()
+        if (dtlPane && dtlPane.visible) dtlPane.repaint()
+    }
+
+    // One click handler for both panes — the pane index decides which stream's
+    // setter is called, and therefore which sidecar the mark ends up in. The
+    // normalised coordinates arrive already mapped against THAT pane's painted
+    // image rect, so the DTL frame is never scaled by face-on's dimensions.
+    function paneClick(pane, nx, ny) {
+        markupController.activePane = pane
+        if (root.ballMode) {
+            if (pane === 1) markupController.setDtlBall(nx, ny)
+            else            markupController.setBall(nx, ny)
+            root.ballMode = false
+            root.repaintPanes()
+            root.forceActiveFocus()
+            return
+        }
+        if (!root.pendingGrip || root.pendingPane !== pane) {
+            root.gripNx = nx; root.gripNy = ny
+            root.pendingGrip = true; root.pendingPane = pane
+            root.repaintPanes()
+        } else {
+            if (pane === 1) markupController.setDtlShaft(root.gripNx, root.gripNy, nx, ny)
+            else            markupController.setShaft(root.gripNx, root.gripNy, nx, ny)
+            root.pendingGrip = false
+        }
+        root.forceActiveFocus()
+    }
+
     Connections {
         target: markupController
-        function onFrameChanged() { root.pendingGrip = false; overlay.requestPaint() }
+        function onFrameChanged() { root.pendingGrip = false; root.repaintPanes() }
+        function onDtlFrameChanged() { root.repaintPanes() }
         function onCurrentChanged() { root.pendingGrip = false; root.ballMode = false }
-        function onLabelsChanged() { overlay.requestPaint() }
-        function onPoseChanged() { overlay.requestPaint() }
+        function onLabelsChanged() { root.repaintPanes() }
+        function onPoseChanged() { root.repaintPanes() }
+        function onActivePaneChanged() { root.repaintPanes() }
         function onMessage(text) { toast.show(text) }
     }
 
@@ -203,34 +258,75 @@ Item {
             Layout.fillHeight: true
             spacing: 0
 
-            // Frame view (center)
+            // Frame view (centre) — one pane, or two when the swing has a
+            // down-the-line camera. Both panes share the DISPLAYED HEIGHT and keep
+            // their own aspect, so the portrait DTL frame is simply the narrower
+            // one; when the pair will not fit the width they scale down together
+            // rather than scrolling, cropping or opening anything.
             Rectangle {
+                id: stage
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 color: "#000000"
 
-                Image {
-                    id: frameImg
-                    anchors.fill: parent
-                    anchors.margins: Theme.sp(8)
-                    fillMode: Image.PreserveAspectFit
-                    cache: false
-                    asynchronous: false
-                    smooth: true
-                    // frameToken is 0 until the first frame decodes (async); only
-                    // request once a real frame exists, else the provider has no
-                    // image yet and QML logs "Failed to get image from provider".
-                    source: (markupController.hasSwing && markupController.frameToken > 0)
-                            ? "image://markup/" + markupController.frameToken : ""
+                readonly property real gap:    markupController.hasDtl ? Theme.sp(8) : 0
+                readonly property real aFace:  Math.max(0.05, markupController.videoAspect)
+                readonly property real aDtl:   markupController.hasDtl ? Math.max(0.05, markupController.dtlAspect) : 0
+                readonly property real availW: Math.max(0, width  - Theme.sp(16) - gap)
+                readonly property real availH: Math.max(0, height - Theme.sp(16))
+                readonly property real paneH:  Math.max(0, Math.min(availH, availW / (aFace + aDtl)))
 
-                    readonly property real pw: paintedWidth
-                    readonly property real ph: paintedHeight
-                    readonly property real px0: (width - paintedWidth) / 2
-                    readonly property real py0: (height - paintedHeight) / 2
-                    function toNx(x) { return pw > 0 ? Math.min(1, Math.max(0, (x - px0) / pw)) : 0 }
-                    function toNy(y) { return ph > 0 ? Math.min(1, Math.max(0, (y - py0) / ph)) : 0 }
-                    function sx(nx) { return px0 + nx * pw }
-                    function sy(ny) { return py0 + ny * ph }
+                Row {
+                    anchors.centerIn: parent
+                    spacing: stage.gap
+
+                    MlPane {
+                        id: facePane
+                        paneIndex: 0
+                        title: qsTr("FACE-ON")
+                        visible: markupController.hasSwing
+                        width:  stage.paneH * stage.aFace
+                        height: stage.paneH
+                        token:      markupController.frameToken
+                        frameIdx:   markupController.frameIndex
+                        frameTotal: markupController.frameCount
+                        frameSec:   markupController.frameSec
+                        shaft:      markupController.currentShaft
+                        ball:       markupController.ballPoint
+                        showPose:   true
+                        edges:       root.cocoEdges
+                        minConf:     root.kpMinConf
+                        pendingGrip: root.pendingGrip
+                        pendingPane: root.pendingPane
+                        gripNx:      root.gripNx
+                        gripNy:      root.gripNy
+                        ballMode:    root.ballMode
+                        onPaneClicked: function (p, nx, ny) { root.paneClick(p, nx, ny) }
+                    }
+
+                    MlPane {
+                        id: dtlPane
+                        paneIndex: 1
+                        title: qsTr("DTL")
+                        visible: markupController.hasSwing && markupController.hasDtl
+                        width:  stage.paneH * stage.aDtl
+                        height: stage.paneH
+                        token:      markupController.dtlFrameToken
+                        frameIdx:   markupController.dtlFrameIndex
+                        frameTotal: markupController.dtlFrameCount
+                        frameSec:   markupController.dtlFrameSec
+                        shaft:      markupController.dtlShaft
+                        ball:       markupController.dtlBallPoint
+                        showPose:   false
+                        edges:       root.cocoEdges
+                        minConf:     root.kpMinConf
+                        pendingGrip: root.pendingGrip
+                        pendingPane: root.pendingPane
+                        gripNx:      root.gripNx
+                        gripNy:      root.gripNy
+                        ballMode:    root.ballMode
+                        onPaneClicked: function (p, nx, ny) { root.paneClick(p, nx, ny) }
+                    }
                 }
 
                 Text {
@@ -242,135 +338,8 @@ Item {
                     text: qsTr("Select a shot in the carousel to load it for labelling.")
                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; color: Theme.colorText3
                 }
-
-                Canvas {
-                    id: overlay
-                    anchors.fill: frameImg
-                    onPaint: {
-                        var ctx = getContext("2d")
-                        ctx.reset()
-                        if (!markupController.hasSwing) return
-
-                        var pose = markupController.currentPose
-                        if (markupController.showSkeleton && pose && pose.has && pose.kp) {
-                            var kp = pose.kp
-                            ctx.lineWidth = 2
-                            ctx.strokeStyle = Qt.rgba(0.50, 0.72, 0.96, 0.80)
-                            for (var e = 0; e < root.cocoEdges.length; ++e) {
-                                var a = root.cocoEdges[e][0], b = root.cocoEdges[e][1]
-                                if (kp[a*3+2] < root.kpMinConf || kp[b*3+2] < root.kpMinConf) continue
-                                ctx.beginPath()
-                                ctx.moveTo(frameImg.sx(kp[a*3]), frameImg.sy(kp[a*3+1]))
-                                ctx.lineTo(frameImg.sx(kp[b*3]), frameImg.sy(kp[b*3+1]))
-                                ctx.stroke()
-                            }
-                            ctx.fillStyle = Qt.rgba(0.50, 0.72, 0.96, 0.95)
-                            for (var i = 0; i < 17; ++i) {
-                                if (kp[i*3+2] < root.kpMinConf) continue
-                                ctx.beginPath()
-                                ctx.arc(frameImg.sx(kp[i*3]), frameImg.sy(kp[i*3+1]), 3, 0, 2 * Math.PI)
-                                ctx.fill()
-                            }
-                            if (pose.lead) {
-                                var lx = frameImg.sx(pose.lead[0]), ly = frameImg.sy(pose.lead[1])
-                                ctx.strokeStyle = Theme.colorAttention; ctx.lineWidth = 2
-                                ctx.beginPath(); ctx.arc(lx, ly, 8, 0, 2 * Math.PI); ctx.stroke()
-                            }
-                            if (pose.trail) {
-                                var tx = frameImg.sx(pose.trail[0]), ty = frameImg.sy(pose.trail[1])
-                                ctx.strokeStyle = Qt.rgba(0.78, 0.55, 0.96, 0.85); ctx.lineWidth = 2
-                                ctx.beginPath(); ctx.arc(tx, ty, 7, 0, 2 * Math.PI); ctx.stroke()
-                            }
-                        }
-
-                        var s = markupController.currentShaft
-                        if (s && s.has) {
-                            var gx = frameImg.sx(s.gripNx), gy = frameImg.sy(s.gripNy)
-                            var hx = frameImg.sx(s.headNx), hy = frameImg.sy(s.headNy)
-                            ctx.strokeStyle = Theme.colorAccent
-                            ctx.lineWidth = 2
-                            ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(hx, hy); ctx.stroke()
-                            ctx.fillStyle = Theme.colorGood
-                            ctx.beginPath(); ctx.arc(gx, gy, 5, 0, 2 * Math.PI); ctx.fill()
-                            ctx.fillStyle = Theme.colorError
-                            ctx.beginPath(); ctx.arc(hx, hy, 5, 0, 2 * Math.PI); ctx.fill()
-                        }
-                        if (root.pendingGrip) {
-                            var pgx = frameImg.sx(root.gripNx), pgy = frameImg.sy(root.gripNy)
-                            ctx.fillStyle = Theme.colorGood
-                            ctx.beginPath(); ctx.arc(pgx, pgy, 5, 0, 2 * Math.PI); ctx.fill()
-                            ctx.strokeStyle = Theme.colorGood; ctx.lineWidth = 1
-                            ctx.beginPath(); ctx.arc(pgx, pgy, 9, 0, 2 * Math.PI); ctx.stroke()
-                        }
-
-                        // Stationary ball centre (marked once) — a reticle that reads
-                        // on any background: dark halo + bright ring + centre dot.
-                        var b = markupController.ballPoint
-                        if (b && b.has) {
-                            var bx = frameImg.sx(b.nx), by = frameImg.sy(b.ny)
-                            ctx.lineWidth = 3; ctx.strokeStyle = Qt.rgba(0, 0, 0, 0.55)
-                            ctx.beginPath(); ctx.arc(bx, by, 11, 0, 2 * Math.PI); ctx.stroke()
-                            ctx.lineWidth = 2; ctx.strokeStyle = Qt.rgba(0.20, 0.95, 0.80, 0.95)
-                            ctx.beginPath(); ctx.arc(bx, by, 11, 0, 2 * Math.PI); ctx.stroke()
-                            ctx.fillStyle = Qt.rgba(0.20, 0.95, 0.80, 0.95)
-                            ctx.beginPath(); ctx.arc(bx, by, 2.5, 0, 2 * Math.PI); ctx.fill()
-                        }
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: frameImg
-                    enabled: markupController.hasSwing
-                    cursorShape: Qt.CrossCursor
-                    onClicked: function (m) {
-                        var nx = frameImg.toNx(m.x), ny = frameImg.toNy(m.y)
-                        if (root.ballMode) {
-                            markupController.setBall(nx, ny)
-                            root.ballMode = false
-                            root.forceActiveFocus()
-                            return
-                        }
-                        if (!root.pendingGrip) {
-                            root.gripNx = nx; root.gripNy = ny; root.pendingGrip = true
-                            overlay.requestPaint()
-                        } else {
-                            markupController.setShaft(root.gripNx, root.gripNy, nx, ny)
-                            root.pendingGrip = false
-                        }
-                        root.forceActiveFocus()
-                    }
-                }
-
-                // HUD: frame index / time, top-left.
-                Rectangle {
-                    visible: markupController.hasSwing
-                    anchors { left: frameImg.left; top: frameImg.top; margins: Theme.sp(6) }
-                    width: hud.width + Theme.sp(16); height: hud.height + Theme.sp(8)
-                    radius: Theme.radius
-                    color: Qt.rgba(0, 0, 0, 0.55)
-                    Row {
-                        id: hud
-                        anchors.centerIn: parent
-                        spacing: Theme.sp(10)
-                        Text {
-                            text: qsTr("frame %1 / %2").arg(markupController.frameIndex).arg(Math.max(0, markupController.frameCount - 1))
-                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: "#ffffff"
-                        }
-                        Text {
-                            text: markupController.frameSec.toFixed(3) + "s"
-                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Theme.colorAccentLight
-                        }
-                        Text {
-                            text: root.ballMode ? qsTr("◇ click ball")
-                                  : (markupController.currentShaft && markupController.currentShaft.has) ? qsTr("◆ shaft")
-                                  : (root.pendingGrip ? qsTr("◇ pick head") : qsTr("◇ pick grip"))
-                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
-                            color: root.ballMode ? Theme.colorAccentLight
-                                   : (markupController.currentShaft && markupController.currentShaft.has) ? Theme.colorGood : Theme.colorText3
-                        }
-                    }
-                }
             }
+
 
             // Controls (right)
             Rectangle {
@@ -448,15 +417,24 @@ Item {
                         MlSection { text: qsTr("CLUB / SHAFT") }
                         Text {
                             width: parent.width; wrapMode: Text.WordWrap
-                            text: qsTr("Click grip, then clubhead to place the club on this frame, then press a P key (1–9, 0=P10) to tag the position.")
+                            text: markupController.hasDtl
+                                  ? qsTr("Click grip, then clubhead to place the club on this frame — in either pane; each goes to its own file. Then press a P key (1–9, 0=P10) to tag the position.")
+                                  : qsTr("Click grip, then clubhead to place the club on this frame, then press a P key (1–9, 0=P10) to tag the position.")
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
                         }
                         Row {
                             spacing: Theme.sp(8)
                             MlButton { text: qsTr("Undo (u)"); onClicked: {
-                                if (root.pendingGrip) { root.pendingGrip = false; overlay.requestPaint() }
-                                else markupController.clearShaft() } }
-                            MlButton { text: qsTr("Clear (c)"); onClicked: markupController.clearShaft() }
+                                if (root.pendingGrip) { root.pendingGrip = false; root.repaintPanes() }
+                                else markupController.clearShaftIn(markupController.activePane) } }
+                            MlButton { text: qsTr("Clear (c)"); onClicked: markupController.clearShaftIn(markupController.activePane) }
+                        }
+                        // Which pane the buttons above (and the keys) act on.
+                        Text {
+                            visible: markupController.hasDtl
+                            text: markupController.activePane === 1
+                                  ? qsTr("◆ acting on the DTL pane") : qsTr("◆ acting on the Face-On pane")
+                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel; color: Theme.colorAccentLight
                         }
                     }
 
@@ -466,21 +444,27 @@ Item {
                         MlSection { text: qsTr("BALL") }
                         Text {
                             width: parent.width; wrapMode: Text.WordWrap
-                            text: qsTr("The ball is stationary — mark it once. Press ‘Place ball’, then click the ball centre; it applies to every frame of the swing.")
+                            text: markupController.hasDtl
+                                  ? qsTr("The ball is stationary — mark it once per camera (it sits somewhere different in each frame). Press ‘Place ball’, then click the ball centre in either pane; it applies to every frame of that stream.")
+                                  : qsTr("The ball is stationary — mark it once. Press ‘Place ball’, then click the ball centre; it applies to every frame of the swing.")
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
                         }
                         Row {
                             spacing: Theme.sp(8)
                             MlButton {
+                                readonly property var _pb: markupController.activePane === 1
+                                                           ? markupController.dtlBallPoint : markupController.ballPoint
                                 text: root.ballMode ? qsTr("Click the ball…")
-                                      : ((markupController.ballPoint && markupController.ballPoint.has) ? qsTr("Move ball (b)") : qsTr("Place ball (b)"))
+                                      : ((_pb && _pb.has) ? qsTr("Move ball (b)") : qsTr("Place ball (b)"))
                                 accent: root.ballMode
-                                onClicked: { root.ballMode = true; root.pendingGrip = false; overlay.requestPaint(); root.forceActiveFocus() }
+                                onClicked: { root.ballMode = true; root.pendingGrip = false; root.repaintPanes(); root.forceActiveFocus() }
                             }
                             MlButton {
+                                readonly property var _pb: markupController.activePane === 1
+                                                           ? markupController.dtlBallPoint : markupController.ballPoint
                                 text: qsTr("Clear ball")
-                                enabled: markupController.ballPoint && markupController.ballPoint.has
-                                onClicked: { markupController.clearBall(); root.forceActiveFocus() }
+                                enabled: _pb && _pb.has
+                                onClicked: { markupController.clearBallIn(markupController.activePane); root.forceActiveFocus() }
                             }
                         }
                         Text {
@@ -490,7 +474,14 @@ Item {
                             // Guard the whole expression: `visible: false` does NOT
                             // stop the text binding evaluating, so nx/ny must not be
                             // dereferenced when no ball is set (they're undefined).
-                            text: (_b && _b.has) ? qsTr("◆ ball at %1, %2").arg(_b.nx.toFixed(3)).arg(_b.ny.toFixed(3)) : ""
+                            text: (_b && _b.has) ? qsTr("◆ face-on ball at %1, %2").arg(_b.nx.toFixed(3)).arg(_b.ny.toFixed(3)) : ""
+                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel; color: Theme.colorGood
+                        }
+                        Text {
+                            width: parent.width; wrapMode: Text.WordWrap
+                            readonly property var _d: markupController.dtlBallPoint
+                            visible: _d && _d.has
+                            text: (_d && _d.has) ? qsTr("◆ DTL ball at %1, %2").arg(_d.nx.toFixed(3)).arg(_d.ny.toFixed(3)) : ""
                             font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel; color: Theme.colorGood
                         }
                     }
@@ -531,7 +522,7 @@ Item {
                         }
                     }
 
-                    // P-POSITIONS
+                    // P-POSITIONS — instants of the SWING, off the shared playhead.
                     Column {
                         width: parent.width; spacing: Theme.sp(5)
                         MlSection { text: qsTr("P-POSITIONS") }
@@ -638,6 +629,14 @@ Item {
                         MlSection { text: qsTr("THIS SWING") }
                         Text {
                             text: qsTr("%1 / 10 P-positions · %2 shaft frames").arg(root.pComplete()).arg(markupController.shaftCount)
+                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Theme.colorText2
+                        }
+                        // The DTL pane keeps its own count in its own file, so the
+                        // two are never added together or confused for one another.
+                        Text {
+                            visible: markupController.hasDtl
+                            text: qsTr("%1 DTL shaft frames → truth_dtl.json").arg(markupController.dtlShaftCount)
+                            elide: Text.ElideRight; width: parent.width
                             font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Theme.colorText2
                         }
                         Text {
@@ -848,6 +847,14 @@ Item {
                 MlButton { text: "d ▶"; enabled: markupController.hasSwing; onClicked: markupController.stepFrame(1) }
                 MlButton { text: "⏭"; enabled: markupController.hasSwing; onClicked: markupController.setFrameIndex(markupController.frameCount - 1) }
 
+                // Which sidecars this swing's marks land in — unobtrusive, but always
+                // on screen, because the two panes write different files.
+                Text {
+                    visible: markupController.hasSwing
+                    text: markupController.hasDtl ? qsTr("→ truth.json + truth_dtl.json")
+                                                  : qsTr("→ truth.json")
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
+                }
                 Text {
                     text: qsTr("a/d step · space stride · 1–9/0 = P1–P10 · u undo · s skeleton · q save")
                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
@@ -877,6 +884,196 @@ Item {
     }
 
     // ── Local components ───────────────────────────────────────────────────────
+
+    // One camera's frame: the exact still, that stream's OWN labels over it, and a
+    // click mapped through the image's painted rect. The mapping is the point —
+    // the two cameras are different shapes (face-on landscape, DTL portrait), so a
+    // click normalised against the wrong pane would be a wrong pixel in the wrong
+    // file. The pane last clicked wears the accent border and is where a keyboard
+    // undo / clear / ball lands.
+    component MlPane: Rectangle {
+        id: pane
+
+        property int    paneIndex: 0        // 0 = face-on (truth.json), 1 = DTL
+        property string title: ""
+        property int    token: 0            // bumped per decoded still; busts the cache
+        property int    frameIdx: 0
+        property int    frameTotal: 0
+        property real   frameSec: 0
+        property var    shaft: null         // this stream's label for this frame
+        property var    ball: null          // this stream's stationary ball centre
+        property bool   showPose: false     // the recorded pose is face-on only
+        // Everything the pane draws is handed to it, so an inline component never
+        // has to reach back into the enclosing document's ids to paint a frame.
+        property var    edges: []           // COCO skeleton edge list
+        property real   minConf: 0.30
+        property bool   pendingGrip: false  // a grip is placed, waiting on the head
+        property int    pendingPane: 0      // ...in THIS pane, or the other one
+        property real   gripNx: 0
+        property real   gripNy: 0
+        property bool   ballMode: false     // the next click places the ball
+        readonly property bool isActive: markupController.activePane === pane.paneIndex
+
+        signal paneClicked(int pane, real nx, real ny)
+
+        function repaint() { paneCanvas.requestPaint() }
+
+        color: "#000000"
+        border.width: 1
+        border.color: pane.isActive ? Theme.colorAccent : Theme.colorBorder
+        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+
+        Image {
+            id: paneImg
+            anchors.fill: parent
+            anchors.margins: Theme.sp(4)
+            fillMode: Image.PreserveAspectFit
+            cache: false
+            asynchronous: false
+            smooth: true
+            // The token is 0 until this pane's first frame decodes (async); only
+            // request once a real frame exists, else the provider has no image yet
+            // and QML logs "Failed to get image from provider".
+            source: (markupController.hasSwing && pane.token > 0)
+                    ? "image://markup/" + (pane.paneIndex === 1 ? "dtl/" : "face/") + pane.token
+                    : ""
+
+            readonly property real pw: paintedWidth
+            readonly property real ph: paintedHeight
+            readonly property real px0: (width - paintedWidth) / 2
+            readonly property real py0: (height - paintedHeight) / 2
+            function toNx(x) { return pw > 0 ? Math.min(1, Math.max(0, (x - px0) / pw)) : 0 }
+            function toNy(y) { return ph > 0 ? Math.min(1, Math.max(0, (y - py0) / ph)) : 0 }
+            function sx(nx) { return px0 + nx * pw }
+            function sy(ny) { return py0 + ny * ph }
+        }
+
+        Canvas {
+            id: paneCanvas
+            anchors.fill: paneImg
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.reset()
+                if (!markupController.hasSwing) return
+
+                var pose = pane.showPose ? markupController.currentPose : null
+                if (pane.showPose && markupController.showSkeleton && pose && pose.has && pose.kp) {
+                    var kp = pose.kp
+                    ctx.lineWidth = 2
+                    ctx.strokeStyle = Qt.rgba(0.50, 0.72, 0.96, 0.80)
+                    for (var e = 0; e < pane.edges.length; ++e) {
+                        var a = pane.edges[e][0], b = pane.edges[e][1]
+                        if (kp[a*3+2] < pane.minConf || kp[b*3+2] < pane.minConf) continue
+                        ctx.beginPath()
+                        ctx.moveTo(paneImg.sx(kp[a*3]), paneImg.sy(kp[a*3+1]))
+                        ctx.lineTo(paneImg.sx(kp[b*3]), paneImg.sy(kp[b*3+1]))
+                        ctx.stroke()
+                    }
+                    ctx.fillStyle = Qt.rgba(0.50, 0.72, 0.96, 0.95)
+                    for (var i = 0; i < 17; ++i) {
+                        if (kp[i*3+2] < pane.minConf) continue
+                        ctx.beginPath()
+                        ctx.arc(paneImg.sx(kp[i*3]), paneImg.sy(kp[i*3+1]), 3, 0, 2 * Math.PI)
+                        ctx.fill()
+                    }
+                    if (pose.lead) {
+                        var lx = paneImg.sx(pose.lead[0]), ly = paneImg.sy(pose.lead[1])
+                        ctx.strokeStyle = Theme.colorAttention; ctx.lineWidth = 2
+                        ctx.beginPath(); ctx.arc(lx, ly, 8, 0, 2 * Math.PI); ctx.stroke()
+                    }
+                    if (pose.trail) {
+                        var tx = paneImg.sx(pose.trail[0]), ty = paneImg.sy(pose.trail[1])
+                        ctx.strokeStyle = Qt.rgba(0.78, 0.55, 0.96, 0.85); ctx.lineWidth = 2
+                        ctx.beginPath(); ctx.arc(tx, ty, 7, 0, 2 * Math.PI); ctx.stroke()
+                    }
+                }
+
+                var s = pane.shaft
+                if (s && s.has) {
+                    var gx = paneImg.sx(s.gripNx), gy = paneImg.sy(s.gripNy)
+                    var hx = paneImg.sx(s.headNx), hy = paneImg.sy(s.headNy)
+                    ctx.strokeStyle = Theme.colorAccent
+                    ctx.lineWidth = 2
+                    ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(hx, hy); ctx.stroke()
+                    ctx.fillStyle = Theme.colorGood
+                    ctx.beginPath(); ctx.arc(gx, gy, 5, 0, 2 * Math.PI); ctx.fill()
+                    ctx.fillStyle = Theme.colorError
+                    ctx.beginPath(); ctx.arc(hx, hy, 5, 0, 2 * Math.PI); ctx.fill()
+                }
+                // The half-placed grip belongs to the pane it was clicked in.
+                if (pane.pendingGrip && pane.pendingPane === pane.paneIndex) {
+                    var pgx = paneImg.sx(pane.gripNx), pgy = paneImg.sy(pane.gripNy)
+                    ctx.fillStyle = Theme.colorGood
+                    ctx.beginPath(); ctx.arc(pgx, pgy, 5, 0, 2 * Math.PI); ctx.fill()
+                    ctx.strokeStyle = Theme.colorGood; ctx.lineWidth = 1
+                    ctx.beginPath(); ctx.arc(pgx, pgy, 9, 0, 2 * Math.PI); ctx.stroke()
+                }
+
+                // Stationary ball centre (marked once per camera) — a reticle that
+                // reads on any background: dark halo + bright ring + centre dot.
+                var b2 = pane.ball
+                if (b2 && b2.has) {
+                    var bx = paneImg.sx(b2.nx), by = paneImg.sy(b2.ny)
+                    ctx.lineWidth = 3; ctx.strokeStyle = Qt.rgba(0, 0, 0, 0.55)
+                    ctx.beginPath(); ctx.arc(bx, by, 11, 0, 2 * Math.PI); ctx.stroke()
+                    ctx.lineWidth = 2; ctx.strokeStyle = Qt.rgba(0.20, 0.95, 0.80, 0.95)
+                    ctx.beginPath(); ctx.arc(bx, by, 11, 0, 2 * Math.PI); ctx.stroke()
+                    ctx.fillStyle = Qt.rgba(0.20, 0.95, 0.80, 0.95)
+                    ctx.beginPath(); ctx.arc(bx, by, 2.5, 0, 2 * Math.PI); ctx.fill()
+                }
+            }
+        }
+
+        MouseArea {
+            anchors.fill: paneImg
+            enabled: markupController.hasSwing
+            cursorShape: Qt.CrossCursor
+            onClicked: function (m) {
+                pane.paneClicked(pane.paneIndex, paneImg.toNx(m.x), paneImg.toNy(m.y))
+            }
+        }
+
+        // HUD: which camera, which of ITS frames, and — on the active pane — what
+        // the next click will do. Each pane names its own frame index and time, so
+        // the pairing the playhead made is visible rather than assumed.
+        Rectangle {
+            visible: markupController.hasSwing
+            anchors { left: paneImg.left; top: paneImg.top; margins: Theme.sp(6) }
+            width: hud.width + Theme.sp(16); height: hud.height + Theme.sp(8)
+            radius: Theme.radius
+            color: Qt.rgba(0, 0, 0, 0.55)
+            Row {
+                id: hud
+                anchors.centerIn: parent
+                spacing: Theme.sp(10)
+                Text {
+                    text: pane.title
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                    font.letterSpacing: Theme.trackingMicro
+                    color: pane.isActive ? Theme.colorAccentLight : Theme.colorText3
+                }
+                Text {
+                    text: qsTr("%1 / %2").arg(pane.frameIdx).arg(Math.max(0, pane.frameTotal - 1))
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: "#ffffff"
+                }
+                Text {
+                    text: pane.frameSec.toFixed(3) + "s"
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Theme.colorAccentLight
+                }
+                Text {
+                    visible: pane.isActive
+                    text: pane.ballMode ? qsTr("◇ click ball")
+                          : (pane.shaft && pane.shaft.has) ? qsTr("◆ shaft")
+                          : ((pane.pendingGrip && pane.pendingPane === pane.paneIndex)
+                             ? qsTr("◇ pick head") : qsTr("◇ pick grip"))
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
+                    color: pane.ballMode ? Theme.colorAccentLight
+                           : (pane.shaft && pane.shaft.has) ? Theme.colorGood : Theme.colorText3
+                }
+            }
+        }
+    }
+
     component MlSection: Text {
         font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
         font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3

@@ -20,15 +20,31 @@
 
 // MarkupController (QML context property `markupController`) — backs the Markup
 // Lab screen: a queue of recorded swings to label, an exact-frame view of the
-// active swing's face-on MP4 (decoded on demand via Qt Multimedia — the same
+// active swing's MP4 (decoded on demand via Qt Multimedia — the same
 // QMediaPlayer/QVideoSink path used by replay), and the in-memory shaft/event
 // labels. Labels are held NORMALIZED (resolution-agnostic) and persisted as a
 // SwingLab-compatible <swingDir>/truth.json via markup_truth (proven
 // byte-compatible against tools/swinglab score.py).
 //
-// Frame display: a seek decodes one still asynchronously; onFrame() pushes the
-// QImage to a MarkupImageProvider and bumps `frameToken`; QML binds
-// `image://markup/<frameToken>` so the new frame renders.
+// TWO PANES, ONE PLAYHEAD, TWO SIDECARS. When the swing has a down-the-line
+// camera the panel shows both side by side and they scrub together. There is ONE
+// playhead, in window µs. The FACE-ON stream is the master for stepping (a frame
+// step is a face-on frame, as it always was); the DTL pane follows to the frame
+// whose t_us is NEAREST the playhead — never by index, because the cameras share
+// the window clock but sit ~3 ms out of phase and need not even have the same
+// frame count.
+//
+// Marks go to the sidecar of the pane they were made in: face-on → truth.json
+// (unchanged, byte for byte), DTL → truth_dtl.json in DTL source pixels, stamped
+// with the DTL frame's own t_us. Saving writes each file only when that pane has
+// something to write, so marking one can never disturb the other. P-positions and
+// capture conditions are instants/properties of the SWING, not of a camera: they
+// hang off the shared playhead and live in truth.json only.
+//
+// Frame display: a seek decodes one still asynchronously per pane; the frame
+// handler pushes the QImage to the MarkupImageProvider under that pane's id and
+// bumps its token; QML binds `image://markup/face/<frameToken>` and
+// `image://markup/dtl/<dtlFrameToken>` so each new frame renders.
 
 #include "markup_truth.h"
 
@@ -54,6 +70,15 @@ class MarkupController : public QObject
     Q_PROPERTY(QString      currentSwingDir  READ currentSwingDir  NOTIFY currentChanged)
     Q_PROPERTY(QString      currentSwingName READ currentSwingName NOTIFY currentChanged)
     Q_PROPERTY(bool         hasSwing      READ hasSwing      NOTIFY currentChanged)
+    // ── the second camera ──────────────────────────────────────────────────
+    // `hasDtl` is false when the focused swing has no down-the-line stream — the
+    // panel then shows the single face-on pane it always did. `activePane` (0 =
+    // face-on, 1 = DTL) is the pane a keyboard mark / clear / ball lands in: the
+    // last one clicked, so where the next action goes is never in doubt.
+    Q_PROPERTY(bool         hasDtl        READ hasDtl        NOTIFY currentChanged)
+    Q_PROPERTY(int          activePane    READ activePane    WRITE setActivePane NOTIFY activePaneChanged)
+    Q_PROPERTY(QString      faceAlias     READ faceAlias     NOTIFY currentChanged)
+    Q_PROPERTY(QString      dtlAlias      READ dtlAlias      NOTIFY currentChanged)
     // ── frame view ─────────────────────────────────────────────────────────
     Q_PROPERTY(int          frameToken    READ frameToken    NOTIFY frameChanged)
     Q_PROPERTY(int          frameIndex    READ frameIndex    NOTIFY frameChanged)
@@ -61,6 +86,14 @@ class MarkupController : public QObject
     Q_PROPERTY(double       frameSec      READ frameSec      NOTIFY frameChanged)
     Q_PROPERTY(double       videoAspect   READ videoAspect   NOTIFY currentChanged)
     Q_PROPERTY(int          stride        READ stride        WRITE setStride NOTIFY strideChanged)
+    // ── the DTL pane's own frame ───────────────────────────────────────────
+    // Its own index / time / aspect, so the pane can show which DTL frame is
+    // paired with the face-on one and the panel can size it to its own shape.
+    Q_PROPERTY(int          dtlFrameToken READ dtlFrameToken NOTIFY dtlFrameChanged)
+    Q_PROPERTY(int          dtlFrameIndex READ dtlFrameIndex NOTIFY dtlFrameChanged)
+    Q_PROPERTY(int          dtlFrameCount READ dtlFrameCount NOTIFY currentChanged)
+    Q_PROPERTY(double       dtlFrameSec   READ dtlFrameSec   NOTIFY dtlFrameChanged)
+    Q_PROPERTY(double       dtlAspect     READ dtlAspect     NOTIFY currentChanged)
     // ── labels ─────────────────────────────────────────────────────────────
     Q_PROPERTY(int          shaftCount    READ shaftCount    NOTIFY labelsChanged)
     Q_PROPERTY(int          eventCount    READ eventCount    NOTIFY labelsChanged)
@@ -74,6 +107,12 @@ class MarkupController : public QObject
     // A single per-swing point (the ball doesn't move) — {has, nx, ny}, normalized.
     // Ground truth for the ball-detector v2 position gate.
     Q_PROPERTY(QVariantMap  ballPoint     READ ballPoint     NOTIFY labelsChanged)
+    // ── the DTL pane's labels (truth_dtl.json) ─────────────────────────────
+    // Same shapes as the face-on ones, normalized in the DTL frame. Separate
+    // because they are a different pixel space in a different file.
+    Q_PROPERTY(int          dtlShaftCount READ dtlShaftCount NOTIFY labelsChanged)
+    Q_PROPERTY(QVariantMap  dtlShaft      READ dtlShaft      NOTIFY dtlFrameChanged)
+    Q_PROPERTY(QVariantMap  dtlBallPoint  READ dtlBallPoint  NOTIFY labelsChanged)
     // ── capture conditions (truth.json "meta", for SwingLab) ─────────────────
     // Free-form strings; "" = unset. Canonical lowercase for the enums, a label
     // for club. Written additively, omitted when unset (see markup_truth). `scope`
@@ -116,6 +155,12 @@ public:
     QString      currentSwingName() const;
     bool         hasSwing()      const { return m_currentIndex >= 0 && m_currentIndex < m_swingDirs.size(); }
 
+    bool         hasDtl()        const { return m_dtl.ok; }
+    int          activePane()    const { return m_activePane; }
+    void         setActivePane(int p);
+    QString      faceAlias()     const { return m_fo.alias; }
+    QString      dtlAlias()      const { return m_dtl.alias; }
+
     int          frameToken()    const { return m_frameToken; }
     int          frameIndex()    const { return m_frameIndex; }
     int          frameCount()    const { return m_fo.frameCount(); }
@@ -124,9 +169,17 @@ public:
     int          stride()        const { return m_stride; }
     void         setStride(int s);
 
+    int          dtlFrameToken() const { return m_dtlFrameToken; }
+    int          dtlFrameIndex() const { return m_dtlFrameIndex; }
+    int          dtlFrameCount() const { return m_dtl.frameCount(); }
+    double       dtlFrameSec()   const;
+    double       dtlAspect()     const { return m_dtl.srcHeight > 0 ? double(m_dtl.srcWidth) / m_dtl.srcHeight : 1.0; }
+
     int          shaftCount()    const { return int(m_truth.shaft.size()); }
     int          eventCount()    const { return int(m_truth.events.size()); }
-    bool         dirty()         const { return m_dirty; }
+    // Either pane having unsaved marks lights the Save button — one Save writes
+    // whichever sidecars have something to write.
+    bool         dirty()         const { return m_dirty || m_dirtyDtl; }
     QVariantMap  currentShaft()  const;
     QVariantMap  events()        const;
     QVariantList eventList()     const;
@@ -134,6 +187,10 @@ public:
     QVariantList labelledFrames() const;
     QVariantMap  ballPoint()     const;
     bool         panelVisible()  const { return m_panelRefs > 0; }
+
+    int          dtlShaftCount() const { return int(m_dtlTruth.shaft.size()); }
+    QVariantMap  dtlShaft()      const;
+    QVariantMap  dtlBallPoint()  const;
 
     QString      metaLighting()  const { return m_truth.meta.lighting; }
     QString      metaShaft()     const { return m_truth.meta.shaft; }
@@ -151,6 +208,8 @@ public:
     void         setMetaContact(const QString &v);
     void         setMetaClubLeavesFrame(bool v);
 
+    // The recorded pose is the FACE-ON 2D pose, so it is drawn over the face-on
+    // pane only — there is no skeleton to put on the down-the-line frame.
     bool         poseAvailable() const { return m_pose.ok; }
     bool         showSkeleton()  const { return m_showSkeleton; }
     void         setShowSkeleton(bool on);
@@ -178,10 +237,22 @@ public:
     Q_INVOKABLE void setEvent(const QString &name);
     Q_INVOKABLE void clearEvent(const QString &name);
 
+    // The same two, in the DTL pane: normalized in the DTL frame, landing on the
+    // DTL frame currently paired with the playhead, persisted to truth_dtl.json.
+    Q_INVOKABLE void setDtlShaft(double gripNx, double gripNy, double headNx, double headNy);
+    Q_INVOKABLE void clearDtlShaft();
+
     // Stationary ball centre — a single per-swing point (the ball doesn't move),
-    // marked with one click. setBall places/moves it; clearBall removes it.
+    // marked with one click. setBall places/moves it; clearBall removes it. The
+    // ball is marked once PER CAMERA: it is a different point in each frame.
     Q_INVOKABLE void setBall(double nx, double ny);
     Q_INVOKABLE void clearBall();
+    Q_INVOKABLE void setDtlBall(double nx, double ny);
+    Q_INVOKABLE void clearDtlBall();
+
+    // Pane-routed forms for the keyboard (u / c / b act on the active pane).
+    Q_INVOKABLE void clearShaftIn(int pane);
+    Q_INVOKABLE void clearBallIn(int pane);
 
     Q_INVOKABLE bool save();
     Q_INVOKABLE void revert();
@@ -195,7 +266,9 @@ public:
 signals:
     void swingsChanged();
     void currentChanged();
+    void activePaneChanged();
     void frameChanged();
+    void dtlFrameChanged();
     void labelsChanged();
     void dirtyChanged();
     void strideChanged();
@@ -206,29 +279,54 @@ signals:
     void message(const QString &text);
 
 private:
+    // One camera's decode machinery. Both panes run the identical frame-accurate
+    // path — never play, seek to a still, pull it off the sink — so it is written
+    // once and instantiated twice rather than copied.
+    struct Decoder {
+        QMediaPlayer *player = nullptr;      // owned (child); decodes recorded MP4
+        QVideoSink   *sink   = nullptr;      // owned (child); receives seeked stills
+        int           requestedIdx = -1;     // latest frame asked for (async seek)
+        bool          nudged = false;        // exactness guard fired once per seek
+        bool          sourceReady = false;   // media reached LoadedMedia
+    };
+
     void rebuildSwingsCache();
-    void decodeFrame(int idx);
-    void onFrame(const QVideoFrame &frame);   // QVideoSink::videoFrameChanged
+    void decodeFrame(int idx);                // the shared playhead → both panes
     void setDirty(bool d);
+    void setDirtyDtl(bool d);
     void seedMetaDefaults();                  // common-case capture conditions
+
+    Decoder &decoderFor(bool dtl) { return dtl ? m_dtlDec : m_faceDec; }
+    const pinpoint::markup::VideoStreamInfo &streamFor(bool dtl) const { return dtl ? m_dtl : m_fo; }
+    // Ask `d` for frame `idx` of `vi`; accept a decoded still into the pane.
+    void decodeInto(Decoder &d, const pinpoint::markup::VideoStreamInfo &vi, int idx);
+    void acceptFrame(Decoder &d, const pinpoint::markup::VideoStreamInfo &vi,
+                     const QVideoFrame &frame, bool dtl);
+    // Point a pane's player at its stream and ask for `idx` once the media loads.
+    void openStream(Decoder &d, const pinpoint::markup::VideoStreamInfo &vi, int idx);
+    // The window-µs instant the playhead is on (the face-on frame's own t_us).
+    qint64 playheadUs() const;
 
     MarkupImageProvider          *m_provider = nullptr;
     QStringList                   m_swingDirs;
     QVariantList                  m_swingsCache;
     int                           m_currentIndex = -1;
 
-    pinpoint::markup::FaceOnInfo  m_fo;
-    pinpoint::markup::TruthDoc    m_truth;
+    pinpoint::markup::VideoStreamInfo m_fo;       // face-on        → truth.json
+    pinpoint::markup::VideoStreamInfo m_dtl;      // down-the-line  → truth_dtl.json
+    pinpoint::markup::TruthDoc    m_truth;        // face-on labels
+    pinpoint::markup::TruthDoc    m_dtlTruth;     // DTL labels (shaft + ball only)
     pinpoint::markup::PoseTrack   m_pose;
-    QMediaPlayer                 *m_player = nullptr;   // owned (child); decodes recorded MP4
-    QVideoSink                   *m_sink = nullptr;     // owned (child); receives seeked stills
-    int                           m_requestedIdx = -1;  // latest frame asked for (async seek)
-    bool                          m_nudged = false;     // exactness guard fired once per seek
-    bool                          m_sourceReady = false;// media reached LoadedMedia
-    int                           m_frameIndex = 0;
+    Decoder                       m_faceDec;
+    Decoder                       m_dtlDec;
+    int                           m_frameIndex = 0;     // face-on: the playhead itself
     int                           m_frameToken = 0;
+    int                           m_dtlFrameIndex = 0;  // DTL: nearest t_us to the playhead
+    int                           m_dtlFrameToken = 0;
     int                           m_stride = 10;
+    int                           m_activePane = 0;      // 0 = face-on, 1 = DTL
     bool                          m_dirty = false;
+    bool                          m_dirtyDtl = false;
     bool                          m_showSkeleton = true;
     int                           m_panelRefs = 0;       // live visible-panel claims
 };

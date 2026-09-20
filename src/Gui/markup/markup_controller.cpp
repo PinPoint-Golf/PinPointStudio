@@ -35,25 +35,35 @@ using namespace pinpoint::markup;
 
 MarkupController::MarkupController(QObject *parent) : QObject(parent)
 {
-    // One reused player/sink for the whole session — recreating per swing would
-    // join decode threads on the GUI thread (see DiskReplaySource). We never
-    // play; we only seek to stills and pull each seeked frame off the sink.
-    m_player = new QMediaPlayer(this);
-    m_sink   = new QVideoSink(this);
-    m_player->setVideoSink(m_sink);
+    // One reused player/sink PER PANE for the whole session — recreating per swing
+    // would join decode threads on the GUI thread (see DiskReplaySource). We never
+    // play; we only seek to stills and pull each seeked frame off the sink. The two
+    // decoders are independent: the DTL one simply sits idle on a swing that has
+    // no second camera.
+    for (int i = 0; i < 2; ++i) {
+        const bool dtl = (i == 1);
+        Decoder &d = decoderFor(dtl);
+        d.player = new QMediaPlayer(this);
+        d.sink   = new QVideoSink(this);
+        d.player->setVideoSink(d.sink);
 
-    connect(m_sink, &QVideoSink::videoFrameChanged, this, &MarkupController::onFrame);
-    connect(m_player, &QMediaPlayer::mediaStatusChanged, this,
-            [this](QMediaPlayer::MediaStatus st) {
-                if (st == QMediaPlayer::LoadedMedia || st == QMediaPlayer::BufferedMedia) {
-                    if (!m_sourceReady) {
-                        m_sourceReady = true;
-                        decodeFrame(m_requestedIdx >= 0 ? m_requestedIdx : 0);
+        connect(d.sink, &QVideoSink::videoFrameChanged, this,
+                [this, dtl](const QVideoFrame &f) {
+                    acceptFrame(decoderFor(dtl), streamFor(dtl), f, dtl);
+                });
+        connect(d.player, &QMediaPlayer::mediaStatusChanged, this,
+                [this, dtl](QMediaPlayer::MediaStatus st) {
+                    Decoder &dec = decoderFor(dtl);
+                    if (st == QMediaPlayer::LoadedMedia || st == QMediaPlayer::BufferedMedia) {
+                        if (!dec.sourceReady) {
+                            dec.sourceReady = true;
+                            decodeInto(dec, streamFor(dtl), dec.requestedIdx >= 0 ? dec.requestedIdx : 0);
+                        }
+                    } else if (st == QMediaPlayer::InvalidMedia) {
+                        emit message(QStringLiteral("Could not open %1").arg(streamFor(dtl).videoFile));
                     }
-                } else if (st == QMediaPlayer::InvalidMedia) {
-                    emit message(QStringLiteral("Could not open %1").arg(m_fo.videoFile));
-                }
-            });
+                });
+    }
 }
 
 MarkupController::~MarkupController() = default;
@@ -82,17 +92,26 @@ void MarkupController::loadSwing(const QString &swingDir)
         m_swingsCache.clear();
         m_currentIndex = -1;
         m_fo = {};
+        m_dtl = {};
         m_truth = {};
+        m_dtlTruth = {};
         m_pose = {};
-        m_player->setSource(QUrl());
-        m_sourceReady = false;
-        m_requestedIdx = -1;
+        m_activePane = 0;
+        for (int i = 0; i < 2; ++i) {
+            Decoder &d = decoderFor(i == 1);
+            d.player->setSource(QUrl());
+            d.sourceReady = false;
+            d.requestedIdx = -1;
+        }
         m_dirty = false;
+        m_dirtyDtl = false;
         emit swingsChanged();
         emit currentChanged();
+        emit activePaneChanged();
         emit labelsChanged();
         emit dirtyChanged();
         emit frameChanged();
+        emit dtlFrameChanged();
         emit metaChanged();
         return;
     }
@@ -142,11 +161,18 @@ void MarkupController::openSwing(int queueIndex)
     m_currentIndex = queueIndex;
     const QString dir = m_swingDirs.at(queueIndex);
 
-    m_fo = readFaceOn(dir);
-    m_truth = m_fo.ok ? readTruth(dir, m_fo) : TruthDoc{};
-    m_pose  = m_fo.ok ? readPose2d(dir)     : PoseTrack{};
-    m_dirty = false;
+    // Both cameras, and both sidecars, up front: the panel shows whichever panes
+    // this swing has, and each pane's labels are read in its own pixel space.
+    m_fo       = readVideoStream(dir, MarkupView::FaceOn);
+    m_dtl      = readVideoStream(dir, MarkupView::DownTheLine);
+    m_truth    = m_fo.ok  ? readTruth(dir, m_fo,  MarkupView::FaceOn)      : TruthDoc{};
+    m_dtlTruth = m_dtl.ok ? readTruth(dir, m_dtl, MarkupView::DownTheLine) : TruthDoc{};
+    m_pose     = m_fo.ok  ? readPose2d(dir)                                : PoseTrack{};
+    m_dirty    = false;
+    m_dirtyDtl = false;
+    m_activePane = 0;
     m_frameIndex = 0;
+    m_dtlFrameIndex = 0;
 
     // Seed the common-case defaults so the panel reads coherently and validation
     // always has a scope to gate on: club from the swing's editable metadata
@@ -157,82 +183,145 @@ void MarkupController::openSwing(int queueIndex)
     // swing dirty — it is written on the next save like any other label.
     seedMetaDefaults();
 
-    // Load the MP4 into the reused player. setSource is async; the first decode
-    // happens once mediaStatus reaches LoadedMedia (handled in the ctor lambda).
-    m_sourceReady = false;
-    m_requestedIdx = 0;
-    if (m_fo.ok) {
-        m_player->setSource(QUrl::fromLocalFile(QDir(dir).filePath(m_fo.videoFile)));
-        m_player->pause();
-    } else {
-        m_player->setSource(QUrl());
-    }
+    openStream(m_faceDec, m_fo,  0);
+    openStream(m_dtlDec,  m_dtl, 0);
 
     emit currentChanged();
+    emit activePaneChanged();
     emit labelsChanged();
     emit dirtyChanged();
     emit metaChanged();
+    emit frameChanged();
+    emit dtlFrameChanged();
 
     if (!m_fo.ok)
         emit message(QStringLiteral("No face-on stream in %1").arg(currentSwingName()));
+}
+
+// Load a pane's MP4 into its reused player and ask for frame `idx`. setSource is
+// async; the decode happens once mediaStatus reaches LoadedMedia (handled in the
+// ctor lambda), which is why the index is parked in the decoder's requestedIdx.
+void MarkupController::openStream(Decoder &d, const VideoStreamInfo &vi, int idx)
+{
+    d.sourceReady  = false;
+    d.requestedIdx = std::max(0, idx);
+    if (vi.ok && hasSwing()) {
+        d.player->setSource(QUrl::fromLocalFile(QDir(currentSwingDir()).filePath(vi.videoFile)));
+        d.player->pause();
+    } else {
+        d.player->setSource(QUrl());
+    }
+}
+
+// ── the active pane ──────────────────────────────────────────────────────────
+// Which pane a keyboard mark, an undo or a ball placement lands in. Clicking a
+// pane makes it active, so "where does this go" is always answered by what the
+// operator last touched — and the panel shows it with an accent border.
+void MarkupController::setActivePane(int p)
+{
+    const int want = (p == 1 && m_dtl.ok) ? 1 : 0;
+    if (want == m_activePane) return;
+    m_activePane = want;
+    emit activePaneChanged();
 }
 
 void MarkupController::nextSwing() { if (m_currentIndex + 1 < m_swingDirs.size()) openSwing(m_currentIndex + 1); }
 void MarkupController::prevSwing() { if (m_currentIndex > 0)                       openSwing(m_currentIndex - 1); }
 
 // ── frame view ───────────────────────────────────────────────────────────────
+// ONE playhead. `decodeFrame` is the only place a frame is asked for, and it asks
+// BOTH panes: the face-on index is the playhead (stepping steps face-on frames, as
+// it always has), and the DTL pane is pointed at the frame whose t_us is nearest
+// that instant. Nearest TIME, never the same index — the cameras share the window
+// clock but sit ~3 ms out of phase and need not have the same frame count.
 
 void MarkupController::decodeFrame(int idx)
 {
     if (!m_fo.ok || m_fo.frameCount() <= 0) return;
     idx = std::clamp(idx, 0, m_fo.frameCount() - 1);
-    m_requestedIdx = idx;
-    m_nudged = false;
-    if (!m_sourceReady) return;   // the LoadedMedia handler will seek once ready
+    decodeInto(m_faceDec, m_fo, idx);
+
+    if (m_dtl.ok && m_dtl.frameCount() > 0) {
+        const qint64 t = m_fo.frameTimesUs[idx];
+        decodeInto(m_dtlDec, m_dtl, std::max(0, frameIndexForUs(m_dtl, t)));
+    }
+}
+
+void MarkupController::decodeInto(Decoder &d, const VideoStreamInfo &vi, int idx)
+{
+    if (!vi.ok || vi.frameCount() <= 0) return;
+    idx = std::clamp(idx, 0, vi.frameCount() - 1);
+    d.requestedIdx = idx;
+    d.nudged = false;
+    if (!d.sourceReady) return;   // the LoadedMedia handler will seek once ready
 
     // Seek by milliseconds (QMediaPlayer's domain). The MP4 has fixed-rate
     // sequential PTS, so target the mid-point of the frame's interval — rounding
-    // then never lands on a neighbouring frame boundary. onFrame() bumps the
-    // token when the decoded still arrives.
-    const qint64 ms = qint64(std::llround((idx + 0.5) * 1000.0 / m_fo.playbackFps));
-    m_player->setPosition(ms);
+    // then never lands on a neighbouring frame boundary. acceptFrame() bumps the
+    // pane's token when the decoded still arrives.
+    const qint64 ms = qint64(std::llround((idx + 0.5) * 1000.0 / vi.playbackFps));
+    d.player->setPosition(ms);
 }
 
-void MarkupController::onFrame(const QVideoFrame &frame)
+void MarkupController::acceptFrame(Decoder &d, const VideoStreamInfo &vi,
+                                   const QVideoFrame &frame, bool dtl)
 {
-    if (!m_fo.ok || m_requestedIdx < 0 || !frame.isValid()) return;
+    if (!vi.ok || d.requestedIdx < 0 || !frame.isValid()) return;
 
     // Exactness guard: startTime() is the frame PTS (µs). If the decoder landed
     // on the wrong frame, nudge once toward the requested index before accepting.
     const qint64 ptsUs = frame.startTime();
-    if (ptsUs >= 0 && !m_nudged) {
-        const int landed = int(std::llround(double(ptsUs) * m_fo.playbackFps / 1e6));
-        if (landed != m_requestedIdx) {
-            m_nudged = true;
+    if (ptsUs >= 0 && !d.nudged) {
+        const int landed = int(std::llround(double(ptsUs) * vi.playbackFps / 1e6));
+        if (landed != d.requestedIdx) {
+            d.nudged = true;
             // Landed early (L<R) → aim later in R's interval (0.75); landed late
             // → aim earlier (0.25). Stays well clear of the frame boundaries.
-            const double frac = (landed < m_requestedIdx) ? 0.75 : 0.25;
+            const double frac = (landed < d.requestedIdx) ? 0.75 : 0.25;
             const qint64 ms = qint64(std::llround(
-                (m_requestedIdx + frac) * 1000.0 / m_fo.playbackFps));
-            m_player->setPosition(std::max<qint64>(0, ms));
-            return;   // wait for the corrected frame (accepted regardless, m_nudged set)
+                (d.requestedIdx + frac) * 1000.0 / vi.playbackFps));
+            d.player->setPosition(std::max<qint64>(0, ms));
+            return;   // wait for the corrected frame (accepted regardless, nudged set)
         }
     }
 
     const QImage img = frame.toImage();
     if (img.isNull()) return;
-    if (m_provider) m_provider->setImage(img);
+    if (m_provider)
+        m_provider->setImage(dtl ? MarkupImageProvider::Dtl : MarkupImageProvider::Face, img);
 
-    m_frameIndex = m_requestedIdx;
+    if (dtl) {
+        m_dtlFrameIndex = d.requestedIdx;
+        ++m_dtlFrameToken;
+        emit dtlFrameChanged();
+        return;
+    }
+    m_frameIndex = d.requestedIdx;
     ++m_frameToken;
     emit frameChanged();
     emit poseChanged();   // currentPose tracks the active frame
+}
+
+qint64 MarkupController::playheadUs() const
+{
+    if (m_fo.frameTimesUs.isEmpty() || m_frameIndex < 0 || m_frameIndex >= m_fo.frameCount())
+        return 0;
+    return m_fo.frameTimesUs[m_frameIndex];
 }
 
 double MarkupController::frameSec() const
 {
     if (m_fo.frameTimesUs.isEmpty() || m_frameIndex < 0 || m_frameIndex >= m_fo.frameCount()) return 0.0;
     return double(m_fo.frameTimesUs[m_frameIndex] - m_fo.frameTimesUs.first()) / 1e6;
+}
+
+// The DTL pane's own clock reading, measured from ITS first frame — so the label
+// shows what the second camera is actually looking at, phase offset and all.
+double MarkupController::dtlFrameSec() const
+{
+    if (m_dtl.frameTimesUs.isEmpty() || m_dtlFrameIndex < 0 || m_dtlFrameIndex >= m_dtl.frameCount())
+        return 0.0;
+    return double(m_dtl.frameTimesUs[m_dtlFrameIndex] - m_dtl.frameTimesUs.first()) / 1e6;
 }
 
 void MarkupController::setStride(int s)
@@ -298,6 +387,32 @@ QVariantMap MarkupController::ballPoint() const
     m.insert(QStringLiteral("has"), true);
     m.insert(QStringLiteral("nx"),  m_truth.ball.nx);
     m.insert(QStringLiteral("ny"),  m_truth.ball.ny);
+    return m;
+}
+
+// The DTL pane's own label for the DTL frame paired with the playhead — same
+// shape as currentShaft(), but normalized in the DTL frame and never mixed with
+// the face-on map. A pane draws only its own marks.
+QVariantMap MarkupController::dtlShaft() const
+{
+    QVariantMap m;
+    const auto it = m_dtlTruth.shaft.constFind(m_dtlFrameIndex);
+    if (it == m_dtlTruth.shaft.constEnd()) { m.insert(QStringLiteral("has"), false); return m; }
+    m.insert(QStringLiteral("has"),    true);
+    m.insert(QStringLiteral("gripNx"), it->gripNx);
+    m.insert(QStringLiteral("gripNy"), it->gripNy);
+    m.insert(QStringLiteral("headNx"), it->headNx);
+    m.insert(QStringLiteral("headNy"), it->headNy);
+    return m;
+}
+
+QVariantMap MarkupController::dtlBallPoint() const
+{
+    QVariantMap m;
+    if (!m_dtlTruth.ball.has) { m.insert(QStringLiteral("has"), false); return m; }
+    m.insert(QStringLiteral("has"), true);
+    m.insert(QStringLiteral("nx"),  m_dtlTruth.ball.nx);
+    m.insert(QStringLiteral("ny"),  m_dtlTruth.ball.ny);
     return m;
 }
 
@@ -423,6 +538,34 @@ void MarkupController::clearShaft()
     }
 }
 
+// The same pair for the DTL pane. Normalized against the DTL frame by the panel
+// (its painted rect, its stream's dims), landing on the DTL frame paired with the
+// playhead, and persisted to truth_dtl.json — truth.json is not touched.
+void MarkupController::setDtlShaft(double gripNx, double gripNy, double headNx, double headNy)
+{
+    if (!hasSwing() || !m_dtl.ok) return;
+    ShaftLabel L;
+    L.gripNx = std::clamp(gripNx, 0.0, 1.0); L.gripNy = std::clamp(gripNy, 0.0, 1.0);
+    L.headNx = std::clamp(headNx, 0.0, 1.0); L.headNy = std::clamp(headNy, 0.0, 1.0);
+    m_dtlTruth.shaft.insert(m_dtlFrameIndex, L);
+    setDirtyDtl(true);
+    emit labelsChanged();
+    emit dtlFrameChanged();   // dtlShaft tracks the paired DTL frame
+}
+
+void MarkupController::clearDtlShaft()
+{
+    if (m_dtlTruth.shaft.remove(m_dtlFrameIndex) > 0) {
+        setDirtyDtl(true);
+        emit labelsChanged();
+        emit dtlFrameChanged();
+    }
+}
+
+// Keyboard routing: undo / clear act on the pane the operator last clicked.
+void MarkupController::clearShaftIn(int pane) { if (pane == 1) clearDtlShaft(); else clearShaft(); }
+void MarkupController::clearBallIn(int pane)  { if (pane == 1) clearDtlBall();  else clearBall(); }
+
 void MarkupController::setEvent(const QString &name)
 {
     if (!hasSwing() || !eventNames().contains(name)) return;
@@ -459,6 +602,26 @@ void MarkupController::clearBall()
     if (!m_truth.ball.has) return;
     m_truth.ball = BallLabel{};
     setDirty(true);
+    emit labelsChanged();
+}
+
+// The ball is marked once per CAMERA: the same stationary ball sits at a different
+// place in the down-the-line frame, so it is its own point in truth_dtl.json.
+void MarkupController::setDtlBall(double nx, double ny)
+{
+    if (!hasSwing() || !m_dtl.ok) return;
+    m_dtlTruth.ball.nx  = std::clamp(nx, 0.0, 1.0);
+    m_dtlTruth.ball.ny  = std::clamp(ny, 0.0, 1.0);
+    m_dtlTruth.ball.has = true;
+    setDirtyDtl(true);
+    emit labelsChanged();
+}
+
+void MarkupController::clearDtlBall()
+{
+    if (!m_dtlTruth.ball.has) return;
+    m_dtlTruth.ball = BallLabel{};
+    setDirtyDtl(true);
     emit labelsChanged();
 }
 
@@ -526,17 +689,34 @@ void MarkupController::setMetaClubLeavesFrame(bool v)
     emit metaChanged();
 }
 
+// One Save, two files — each written only if that pane has something to write, and
+// each written on its own. The DTL sidecar is created only once DTL marks exist, so
+// a swing marked face-on only never grows an empty truth_dtl.json; and a face-on
+// save never re-serialises the DTL file (nor the other way round), which is what
+// keeps "mark the other camera" a byte-for-byte no-op on truth.json.
 bool MarkupController::save()
 {
     if (!hasSwing() || !m_fo.ok) { emit message(QStringLiteral("Nothing to save")); return false; }
     QString err;
-    const bool ok = writeTruth(currentSwingDir(), m_truth, m_fo, &err);
+    QStringList wrote;
+    bool ok = writeTruth(currentSwingDir(), m_truth, m_fo, MarkupView::FaceOn, &err);
+    if (ok) { setDirty(false); wrote << truthFileName(MarkupView::FaceOn); }
+
+    const bool haveDtlMarks = !m_dtlTruth.shaft.isEmpty() || m_dtlTruth.ball.has;
+    if (ok && m_dtl.ok && (m_dirtyDtl || haveDtlMarks)) {
+        ok = writeTruth(currentSwingDir(), m_dtlTruth, m_dtl, MarkupView::DownTheLine, &err);
+        if (ok) { setDirtyDtl(false); wrote << truthFileName(MarkupView::DownTheLine); }
+    }
+
     if (ok) {
-        setDirty(false);
         rebuildSwingsCache();
         emit swingsChanged();
-        emit message(QStringLiteral("Saved %1 shaft / %2 events%3").arg(shaftCount()).arg(eventCount())
-                         .arg(m_truth.ball.has ? QStringLiteral(" / ball") : QString()));
+        emit message(QStringLiteral("Saved %1 shaft / %2 events%3%4 → %5")
+                         .arg(shaftCount()).arg(eventCount())
+                         .arg(m_truth.ball.has ? QStringLiteral(" / ball") : QString())
+                         .arg(dtlShaftCount() > 0 ? QStringLiteral(" · %1 DTL shaft").arg(dtlShaftCount())
+                                                  : QString())
+                         .arg(wrote.join(QStringLiteral(" + "))));
     } else {
         emit message(QStringLiteral("Save failed: %1").arg(err));
     }
@@ -546,11 +726,14 @@ bool MarkupController::save()
 void MarkupController::revert()
 {
     if (!hasSwing()) return;
-    m_truth = m_fo.ok ? readTruth(currentSwingDir(), m_fo) : TruthDoc{};
+    m_truth    = m_fo.ok  ? readTruth(currentSwingDir(), m_fo,  MarkupView::FaceOn)      : TruthDoc{};
+    m_dtlTruth = m_dtl.ok ? readTruth(currentSwingDir(), m_dtl, MarkupView::DownTheLine) : TruthDoc{};
     seedMetaDefaults();
     setDirty(false);
+    setDirtyDtl(false);
     emit labelsChanged();
     emit frameChanged();
+    emit dtlFrameChanged();
     emit metaChanged();
 }
 
@@ -586,9 +769,19 @@ void MarkupController::releasePanel()
     if (m_panelRefs > 0 && --m_panelRefs == 0) emit panelVisibleChanged();
 }
 
+// `dirty` is "either pane has unsaved marks", so both flags report through it.
 void MarkupController::setDirty(bool d)
 {
     if (d == m_dirty) return;
+    const bool was = dirty();
     m_dirty = d;
-    emit dirtyChanged();
+    if (dirty() != was) emit dirtyChanged();
+}
+
+void MarkupController::setDirtyDtl(bool d)
+{
+    if (d == m_dirtyDtl) return;
+    const bool was = dirty();
+    m_dirtyDtl = d;
+    if (dirty() != was) emit dirtyChanged();
 }

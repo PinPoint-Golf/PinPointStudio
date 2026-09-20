@@ -19,7 +19,7 @@
 #pragma once
 
 // markup_truth — pure Qt-Core (no GUI / OpenCV) read/write of a SwingLab
-// `truth.json` ground-truth sidecar, plus the minimal face-on geometry parse
+// `truth.json` ground-truth sidecar, plus the minimal video-stream geometry parse
 // from a swing's `swing.json`. Kept dependency-light so it is standalone
 // unit-testable (tools/swinglab `score.py` is the byte-compatibility oracle).
 //
@@ -37,7 +37,28 @@
 //                                                     // fields, omitted if none
 //
 // In memory labels are held NORMALIZED (0..1) so the UI is resolution-agnostic;
-// the pixel conversion happens only at write time, against FaceOnInfo dims.
+// the pixel conversion happens only at write time, against VideoStreamInfo dims.
+//
+// ── The DOWN-THE-LINE sidecar ────────────────────────────────────────────────
+// truth.json is, and stays, FACE-ON pixel space. The DTL camera is a different
+// frame entirely (portrait 512×1024 / 576×1024 against face-on's 1280×1024), so
+// a DTL label dropped into truth.json would read as a face-on pixel and be
+// silently wrong — a corpus audit already found a face-on ball at x=690 sitting
+// beside a 512-px-wide DTL frame. DTL marks therefore go to their OWN file,
+// `truth_dtl.json`, which carries the same `shaft[]` entry shape plus the
+// provenance that makes the space unmistakable:
+//   { "view":  "DownTheLine",
+//     "frame": { "w": <DTL src W>, "h": <DTL src H> },
+//     "stream": "<DTL stream alias>",
+//     "shaft": [ { "t_us": <DTL frames.t_us[i], window-relative>,
+//                  "grip": [px,py], "head": [px,py],   // PIXELS @ DTL W×H
+//                  "theta":, "len": } ... ],
+//     "ball":  [px,py] }                               // optional, DTL pixels
+// There is deliberately NO "events" and NO "meta" block: the P-positions and the
+// capture conditions are properties of the SWING, not of a camera, and they live
+// in truth.json only. A read refuses to cross the two files (a file whose "view"
+// names the other view parses as empty), so truth_dtl.json can never be consumed
+// as face-on truth.
 
 #include <QJsonObject>
 #include <QMap>
@@ -73,9 +94,20 @@ inline QMap<QString, QString> legacyEventAliases()
              { QStringLiteral("finish"),  QStringLiteral("p10") } };
 }
 
-// Face-on video geometry resolved from a swing's swing.json. `frameTimesUs` is
+// Which camera is being marked. The value is the QML-facing ordinal too
+// (MarkupController::view), so it is pinned: 0 = face-on, 1 = down-the-line.
+enum class MarkupView { FaceOn = 0, DownTheLine = 1 };
+
+// The sidecar each view writes: truth.json (face-on) / truth_dtl.json (DTL).
+inline QString truthFileName(MarkupView view)
+{
+    return view == MarkupView::DownTheLine ? QStringLiteral("truth_dtl.json")
+                                           : QStringLiteral("truth.json");
+}
+
+// Video-stream geometry resolved from a swing's swing.json. `frameTimesUs` is
 // window-relative (matches the replay playhead domain) and one entry per frame.
-struct FaceOnInfo {
+struct VideoStreamInfo {
     bool            ok = false;
     QString         videoFile;        // relative file name, e.g. "Face-On.mp4"
     QString         alias;            // stream alias
@@ -86,6 +118,10 @@ struct FaceOnInfo {
 
     int frameCount() const { return frameTimesUs.size(); }
 };
+
+// The name this struct carried when face-on was the only markable camera. Kept
+// so nothing that only ever marks face-on has to churn.
+using FaceOnInfo = VideoStreamInfo;
 
 // One labelled shaft frame, normalized [0..1] in the displayed video space.
 struct ShaftLabel {
@@ -137,28 +173,60 @@ struct TruthDoc {
     TruthMeta             meta;    // capture conditions (lighting / shaft / club)
 };
 
-// Parse the face-on stream from <swingDir>/swing.json. Face-on selection:
-// setup.perspective == 2, else alias containing `faceNeedle` (case-insensitive),
-// else the first video stream. ok=false if no video stream / no frames.
-FaceOnInfo readFaceOn(const QString &swingDir, const QString &faceNeedle = QStringLiteral("Face"));
+// Parse one video stream from <swingDir>/swing.json.
+//
+//   FaceOn      — setup.perspective == 2, else an alias containing `faceNeedle`
+//                 (case-insensitive), else the first video stream. UNCHANGED.
+//   DownTheLine — setup.perspective == 1, else (the 2026-06-11 session carries no
+//                 `setup` block at all) a stream whose alias or file basename
+//                 holds a whole-token "dtl" / "down the line" / "down-the-line".
+//                 The face-on pick is excluded from both passes, so the DTL view
+//                 can never land on the face-on camera and mark its pixels.
+//
+// ok=false if no such stream / no frames — for DTL that simply means "this swing
+// has no down-the-line camera".
+VideoStreamInfo readVideoStream(const QString &swingDir, MarkupView view,
+                                const QString &faceNeedle = QStringLiteral("Face"));
 
-// Nearest face-on frame index for a window-relative timestamp (binary search).
-// Returns -1 if there are no frames.
-int frameIndexForUs(const FaceOnInfo &fo, qint64 us);
+// Face-on only — the original entry point, now a thin wrapper.
+inline FaceOnInfo readFaceOn(const QString &swingDir,
+                             const QString &faceNeedle = QStringLiteral("Face"))
+{
+    return readVideoStream(swingDir, MarkupView::FaceOn, faceNeedle);
+}
 
-// Build the truth.json object from normalized labels + face-on geometry. Out-of-
+// Nearest frame index for a window-relative timestamp (binary search). Returns
+// -1 if there are no frames. The two cameras share the window clock but are a
+// few ms out of phase, so mapping a playhead across views goes through the
+// TIMESTAMP, never the frame index.
+int frameIndexForUs(const VideoStreamInfo &fo, qint64 us);
+
+// Build the sidecar object from normalized labels + the stream's geometry. Out-of-
 // range frame indices are skipped. Matches label.py byte-shape (theta rounded to
 // 5 dp, len to 1 dp, event seconds to 4 dp; grip/head kept full precision).
-QJsonObject toJson(const TruthDoc &doc, const FaceOnInfo &fo);
+// FaceOn emits shaft/events(+ball/meta); DownTheLine emits view/frame/stream/
+// shaft(+ball) and never events or meta.
+QJsonObject toJson(const TruthDoc &doc, const VideoStreamInfo &fo,
+                   MarkupView view = MarkupView::FaceOn);
 
-// Atomic write of <swingDir>/truth.json. Returns false (and sets *error) on
-// failure. An empty doc still writes a valid (shaft:[], events:{t0_us}) file.
-bool writeTruth(const QString &swingDir, const TruthDoc &doc, const FaceOnInfo &fo,
-                QString *error = nullptr);
+// Atomic write of <swingDir>/truth.json (FaceOn) or <swingDir>/truth_dtl.json
+// (DownTheLine). Returns false (and sets *error) on failure. An empty face-on doc
+// still writes a valid (shaft:[], events:{t0_us}) file.
+bool writeTruth(const QString &swingDir, const TruthDoc &doc, const VideoStreamInfo &fo,
+                MarkupView view = MarkupView::FaceOn, QString *error = nullptr);
 
-// Read <swingDir>/truth.json back into a TruthDoc (pixels -> normalized via fo
-// dims; t_us / seconds -> nearest frame index). Empty TruthDoc if no file.
-TruthDoc readTruth(const QString &swingDir, const FaceOnInfo &fo);
+// Back-compat overload: face-on write with an error out-parameter.
+inline bool writeTruth(const QString &swingDir, const TruthDoc &doc,
+                       const VideoStreamInfo &fo, QString *error)
+{
+    return writeTruth(swingDir, doc, fo, MarkupView::FaceOn, error);
+}
+
+// Read the view's sidecar back into a TruthDoc (pixels -> normalized via fo dims;
+// t_us / seconds -> nearest frame index). Empty TruthDoc if there is no file, or
+// if the file's "view" names the OTHER view (the two spaces never cross).
+TruthDoc readTruth(const QString &swingDir, const VideoStreamInfo &fo,
+                   MarkupView view = MarkupView::FaceOn);
 
 // The user's editable club for a swing, read from <swingDir>/swing.json's
 // review.club (the shot-carousel swing-edit popover's field). Empty if there is
@@ -172,7 +240,7 @@ struct TruthSummary {
     int  shaftCount = 0;
     int  eventCount = 0;
 };
-TruthSummary summarize(const QString &swingDir);
+TruthSummary summarize(const QString &swingDir, MarkupView view = MarkupView::FaceOn);
 
 // ── Recorded pose overlay (read-only display; NOT part of truth.json) ─────────
 // The analyzer's face-on 2D pose, replayed under the labelled shaft so the

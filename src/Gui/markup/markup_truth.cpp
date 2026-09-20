@@ -20,10 +20,12 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QJsonValue>
+#include <QRegularExpression>
 #include <QSaveFile>
 
 #include <algorithm>
@@ -40,7 +42,16 @@ double roundDp(double v, int dp)
     return std::round(v * m) / m;
 }
 
-QString truthPath(const QString &swingDir) { return QDir(swingDir).filePath(QStringLiteral("truth.json")); }
+QString truthPath(const QString &swingDir, MarkupView view)
+{
+    return QDir(swingDir).filePath(truthFileName(view));
+}
+
+QString viewTag(MarkupView view)
+{
+    return view == MarkupView::DownTheLine ? QStringLiteral("DownTheLine")
+                                           : QStringLiteral("FaceOn");
+}
 
 QJsonObject loadObject(const QString &path)
 {
@@ -52,11 +63,58 @@ QJsonObject loadObject(const QString &path)
     return doc.object();
 }
 
+// A sidecar belongs to `view` unless it says otherwise. truth.json has never
+// carried a "view" key, so an absent one reads as the view that was asked for;
+// a PRESENT one that names the other camera is refused outright, which is what
+// stops truth_dtl.json ever being consumed as face-on pixels (and vice versa).
+bool objectMatchesView(const QJsonObject &root, MarkupView view)
+{
+    const QString tag = root.value(QStringLiteral("view")).toString();
+    return tag.isEmpty() || tag.compare(viewTag(view), Qt::CaseInsensitive) == 0;
+}
+
+// Whole-token "dtl" / "down the line" / "down-the-line" / "down_the_line", in an
+// alias or a file basename. Whole-token so "downtheline_old" still matches but a
+// "midtl" or "shutdown" never does; case-insensitive, so [^a-z] excludes A-Z too.
+const QRegularExpression &dtlNameRe()
+{
+    static const QRegularExpression re(
+        QStringLiteral("(^|[^a-z])(dtl|down[-_ ]?the[-_ ]?line)([^a-z]|$)"),
+        QRegularExpression::CaseInsensitiveOption);
+    return re;
+}
+
+bool looksDownTheLine(const QJsonObject &s)
+{
+    if (dtlNameRe().match(s.value(QStringLiteral("alias")).toString()).hasMatch()) return true;
+    const QString base = QFileInfo(s.value(QStringLiteral("file")).toString()).completeBaseName();
+    return dtlNameRe().match(base).hasMatch();
+}
+
+int perspectiveOf(const QJsonObject &s)
+{
+    return s.value(QStringLiteral("setup")).toObject()
+            .value(QStringLiteral("perspective")).toInt(-1);
+}
+
+// Index of the face-on stream in `videos`: perspective == 2, else an alias
+// containing the needle, else the first. Never -1 for a non-empty list — the
+// original readFaceOn() fallback, factored out so the DTL pass can exclude it.
+int pickFaceOn(const QVector<QJsonObject> &videos, const QString &faceNeedle)
+{
+    for (int i = 0; i < videos.size(); ++i)
+        if (perspectiveOf(videos[i]) == 2) return i;
+    for (int i = 0; i < videos.size(); ++i)
+        if (videos[i].value(QStringLiteral("alias")).toString().contains(faceNeedle, Qt::CaseInsensitive))
+            return i;
+    return videos.isEmpty() ? -1 : 0;
+}
+
 } // namespace
 
-FaceOnInfo readFaceOn(const QString &swingDir, const QString &faceNeedle)
+VideoStreamInfo readVideoStream(const QString &swingDir, MarkupView view, const QString &faceNeedle)
 {
-    FaceOnInfo fo;
+    VideoStreamInfo fo;
     const QJsonObject root = loadObject(QDir(swingDir).filePath(QStringLiteral("swing.json")));
     if (root.isEmpty()) return fo;
 
@@ -68,22 +126,21 @@ FaceOnInfo readFaceOn(const QString &swingDir, const QString &faceNeedle)
     }
     if (videos.isEmpty()) return fo;
 
-    // Face-on selection: perspective == 2, else alias contains the needle, else first.
-    QJsonObject pick;
-    bool found = false;
-    for (const QJsonObject &s : videos) {
-        if (s.value(QStringLiteral("setup")).toObject().value(QStringLiteral("perspective")).toInt(-1) == 2) {
-            pick = s; found = true; break;
-        }
+    const int faceIdx = pickFaceOn(videos, faceNeedle);
+    int idx = -1;
+    if (view == MarkupView::FaceOn) {
+        idx = faceIdx;
+    } else {
+        // Down-the-line: declared perspective first, then the legacy name match
+        // (sessions before the `setup` block carry no perspective at all). The
+        // face-on pick is off the table in BOTH passes.
+        for (int i = 0; i < videos.size() && idx < 0; ++i)
+            if (i != faceIdx && perspectiveOf(videos[i]) == 1) idx = i;
+        for (int i = 0; i < videos.size() && idx < 0; ++i)
+            if (i != faceIdx && looksDownTheLine(videos[i])) idx = i;
     }
-    if (!found) {
-        for (const QJsonObject &s : videos) {
-            if (s.value(QStringLiteral("alias")).toString().contains(faceNeedle, Qt::CaseInsensitive)) {
-                pick = s; found = true; break;
-            }
-        }
-    }
-    if (!found) pick = videos.first();
+    if (idx < 0) return fo;                  // no such camera in this swing
+    const QJsonObject pick = videos.at(idx);
 
     fo.alias     = pick.value(QStringLiteral("alias")).toString();
     fo.videoFile = pick.value(QStringLiteral("file")).toString();
@@ -106,7 +163,7 @@ FaceOnInfo readFaceOn(const QString &swingDir, const QString &faceNeedle)
     return fo;
 }
 
-int frameIndexForUs(const FaceOnInfo &fo, qint64 us)
+int frameIndexForUs(const VideoStreamInfo &fo, qint64 us)
 {
     const QVector<qint64> &v = fo.frameTimesUs;
     if (v.isEmpty()) return -1;
@@ -118,10 +175,11 @@ int frameIndexForUs(const FaceOnInfo &fo, qint64 us)
     return (us - v[lo] <= v[hi] - us) ? lo : hi;
 }
 
-QJsonObject toJson(const TruthDoc &doc, const FaceOnInfo &fo)
+QJsonObject toJson(const TruthDoc &doc, const VideoStreamInfo &fo, MarkupView view)
 {
     QJsonObject root;
     QJsonArray  shaftArr;
+    const bool  dtl = (view == MarkupView::DownTheLine);
     const qint64 t0 = fo.frameTimesUs.isEmpty() ? 0 : fo.frameTimesUs.first();
 
     for (auto it = doc.shaft.constBegin(); it != doc.shaft.constEnd(); ++it) {
@@ -140,6 +198,28 @@ QJsonObject toJson(const TruthDoc &doc, const FaceOnInfo &fo)
         shaftArr.append(f);
     }
 
+    root.insert(QStringLiteral("shaft"), shaftArr);
+
+    // Stationary ball centre — additive, pixels @ source res like grip/head.
+    // Omitted when unplaced so a swing with no ball keeps the legacy byte-shape.
+    if (doc.ball.has) {
+        root.insert(QStringLiteral("ball"),
+                    QJsonArray{ doc.ball.nx * fo.srcWidth, doc.ball.ny * fo.srcHeight });
+    }
+
+    // Down-the-line stops here, and the omissions are the design: the P-positions
+    // and the capture conditions describe the SWING, so they stay in truth.json
+    // and are marked in the face-on view only. What the DTL file adds instead is
+    // the provenance that names its pixel space out loud.
+    if (dtl) {
+        root.insert(QStringLiteral("view"),   viewTag(view));
+        root.insert(QStringLiteral("stream"), fo.alias);
+        root.insert(QStringLiteral("frame"),
+                    QJsonObject{ { QStringLiteral("w"), fo.srcWidth },
+                                 { QStringLiteral("h"), fo.srcHeight } });
+        return root;
+    }
+
     QJsonObject ev;
     ev.insert(QStringLiteral("t0_us"), t0);
     for (auto it = doc.events.constBegin(); it != doc.events.constEnd(); ++it) {
@@ -148,16 +228,7 @@ QJsonObject toJson(const TruthDoc &doc, const FaceOnInfo &fo)
         const double s = double(fo.frameTimesUs[idx] - t0) / 1e6;
         ev.insert(it.key() + QStringLiteral("_s"), roundDp(s, 4));
     }
-
-    root.insert(QStringLiteral("shaft"),  shaftArr);
     root.insert(QStringLiteral("events"), ev);
-
-    // Stationary ball centre — additive, pixels @ source res like grip/head.
-    // Omitted when unplaced so a swing with no ball keeps the legacy byte-shape.
-    if (doc.ball.has) {
-        root.insert(QStringLiteral("ball"),
-                    QJsonArray{ doc.ball.nx * fo.srcWidth, doc.ball.ny * fo.srcHeight });
-    }
 
     // Capture conditions — additive, set fields only. Omitted entirely when unset
     // so a swing with no conditions keeps the legacy shaft/events-only shape.
@@ -174,10 +245,11 @@ QJsonObject toJson(const TruthDoc &doc, const FaceOnInfo &fo)
     return root;
 }
 
-bool writeTruth(const QString &swingDir, const TruthDoc &doc, const FaceOnInfo &fo, QString *error)
+bool writeTruth(const QString &swingDir, const TruthDoc &doc, const VideoStreamInfo &fo,
+                MarkupView view, QString *error)
 {
-    const QJsonObject root = toJson(doc, fo);
-    QSaveFile f(truthPath(swingDir));
+    const QJsonObject root = toJson(doc, fo, view);
+    QSaveFile f(truthPath(swingDir, view));
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         if (error) *error = f.errorString();
         return false;
@@ -190,11 +262,13 @@ bool writeTruth(const QString &swingDir, const TruthDoc &doc, const FaceOnInfo &
     return true;
 }
 
-TruthDoc readTruth(const QString &swingDir, const FaceOnInfo &fo)
+TruthDoc readTruth(const QString &swingDir, const VideoStreamInfo &fo, MarkupView view)
 {
     TruthDoc doc;
-    const QJsonObject root = loadObject(truthPath(swingDir));
+    const QJsonObject root = loadObject(truthPath(swingDir, view));
     if (root.isEmpty()) return doc;
+    // Never parse the other camera's pixels into this view's space.
+    if (!objectMatchesView(root, view)) return doc;
 
     const double W = fo.srcWidth  > 0 ? fo.srcWidth  : 1.0;
     const double H = fo.srcHeight > 0 ? fo.srcHeight : 1.0;
@@ -212,6 +286,20 @@ TruthDoc readTruth(const QString &swingDir, const FaceOnInfo &fo)
         L.headNx = h[0].toDouble() / W; L.headNy = h[1].toDouble() / H;
         doc.shaft.insert(idx, L);
     }
+
+    // Stationary ball centre (additive; absent on legacy files → unset).
+    const QJsonArray ball = root.value(QStringLiteral("ball")).toArray();
+    if (ball.size() >= 2) {
+        doc.ball.nx  = ball[0].toDouble() / W;
+        doc.ball.ny  = ball[1].toDouble() / H;
+        doc.ball.has = true;
+    }
+
+    // The DTL sidecar carries shaft + ball and nothing else: P-positions and
+    // capture conditions are the swing's, and belong to truth.json alone. Stop
+    // here even if a hand-edited file holds them, so they cannot leak in and be
+    // silently dropped on the next write.
+    if (view == MarkupView::DownTheLine) return doc;
 
     const QJsonObject ev = root.value(QStringLiteral("events")).toObject();
     const qint64 t0 = ev.value(QStringLiteral("t0_us"))
@@ -234,14 +322,6 @@ TruthDoc readTruth(const QString &swingDir, const FaceOnInfo &fo)
         if (idx >= 0) doc.events.insert(it.value(), idx);
     }
 
-    // Stationary ball centre (additive; absent on legacy files → unset).
-    const QJsonArray ball = root.value(QStringLiteral("ball")).toArray();
-    if (ball.size() >= 2) {
-        doc.ball.nx  = ball[0].toDouble() / W;
-        doc.ball.ny  = ball[1].toDouble() / H;
-        doc.ball.has = true;
-    }
-
     // Capture conditions (additive; absent on legacy files → all unset).
     const QJsonObject meta = root.value(QStringLiteral("meta")).toObject();
     doc.meta.lighting = meta.value(QStringLiteral("lighting")).toString();
@@ -255,11 +335,11 @@ TruthDoc readTruth(const QString &swingDir, const FaceOnInfo &fo)
     return doc;
 }
 
-TruthSummary summarize(const QString &swingDir)
+TruthSummary summarize(const QString &swingDir, MarkupView view)
 {
     TruthSummary out;
-    const QJsonObject root = loadObject(truthPath(swingDir));
-    if (root.isEmpty()) return out;
+    const QJsonObject root = loadObject(truthPath(swingDir, view));
+    if (root.isEmpty() || !objectMatchesView(root, view)) return out;
     out.exists     = true;
     out.shaftCount = root.value(QStringLiteral("shaft")).toArray().size();
     const QJsonObject ev = root.value(QStringLiteral("events")).toObject();

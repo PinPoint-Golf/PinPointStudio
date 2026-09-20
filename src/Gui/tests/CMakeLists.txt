@@ -149,6 +149,23 @@ pp_add_test(notification_center_test
     INCLUDE ${GUI} ${SRC} ${SRC}/Core
     LINK    Qt6::Qml  AUTOMOC)
 
+# markup_truth — the Markup panel's ground-truth sidecars: which camera a swing's
+# swing.json offers (face-on / down-the-line), and the two files those views write.
+# The pair is the point: truth.json is FACE-ON pixel space and always has been, so
+# down-the-line marks go to truth_dtl.json, in DTL pixels, carrying their own view /
+# frame / stream provenance — a corpus audit already found a face-on ball at x=690
+# sitting beside a 512-px-wide DTL frame, and nothing in a bare shaft[] can tell the
+# two spaces apart. Qt Core only (no GUI, no OpenCV, no QML), and it puts synthetic
+# swing.json trees in a temp dir, so it needs no fixture and no corpus.
+#
+# Given a swing dir on the command line it ALSO round-trips that real swing — which
+# rewrites its truth.json, so ctest runs it with no arguments.
+pp_add_test(test_markup_truth
+    SOURCES ${GUI}/markup/tests/test_markup_truth.cpp
+            ${GUI}/markup/markup_truth.cpp
+    INCLUDE ${GUI} ${GUI}/markup ${SRC} ${SRC}/Core
+    LINK    Qt6::Core)
+
 # No binding may subscribe to a dependency it does not USE.
 #
 # A revision counter named on a line of its own is an expression statement whose value is discarded;
