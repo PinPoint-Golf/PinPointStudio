@@ -302,6 +302,63 @@ BrightCue brightBallCue(const FrameSource& frameAt, const std::vector<int>& addr
     return out;
 }
 
+// ── the club-away window, and what to do when the ladder is short ────────────
+// ONE definition, because it has exactly TWO consumers and they make the same
+// claim about the same frames: the phase-aware clean plate's LOW region (§5.4)
+// and the shadow ball cue (§4.3) both want "the stretch where the club is above
+// the waist, so what is left on the mat is the scene". Two sites deriving it
+// separately would be free to disagree on a swing whose ladder is short, and the
+// swing where that matters is the swing where it is hardest to notice.
+//
+// MEASURED, 06-11 swing_0003: the face-on ladder has NO P5 rung, so
+// `P2 + 40%(P2→P4) → P5` is an empty window — the shadow cue reported "only 0
+// club-away frames (need 5)" and the plate lost its low-region source on the
+// same swing for the same reason. A rung face-on did not name is not a statement
+// that the club was never above the waist; it is a statement about the ladder.
+//
+// The fallbacks, in order, each one the nearest thing the ladder still knows:
+//   · P5 ends it, as designed;
+//   · no P5 ⇒ half way from the top to impact — the club is still high there and
+//     the ball is still on the mat, which is all the window is for;
+//   · no P7 either ⇒ P4 + 120 ms, one plausible half-downswing;
+//   · no P2/P4 at all ⇒ 35–80 % of P1→impact, which needs no rung beyond the two
+//     rungs every swing in the corpus has.
+// The rule's NAME comes back with it: a window nobody can name is a window
+// nobody can argue with, and §8's ladder table is exactly that argument.
+struct ClubAwayWindow {
+    int64_t loUs = -1, hiUs = -1;
+    QString rule = QStringLiteral("none");
+    bool ok() const { return hiUs > loUs && loUs >= 0; }
+};
+
+ClubAwayWindow clubAwayWindowOf(int64_t tP1, int64_t tP2, int64_t tP4, int64_t tP5,
+                                int64_t tP7, int64_t impactUs)
+{
+    ClubAwayWindow w;
+    // P7 IS impact; take the rung when the ladder names one and the inherited
+    // instant otherwise, rather than preferring one and calling the other absent.
+    const int64_t end7 = (tP7 >= 0) ? tP7 : impactUs;
+    if (tP2 >= 0 && tP4 > tP2) {
+        const int64_t lo = tP2 + int64_t(0.4 * double(tP4 - tP2));
+        w.loUs = lo;
+        if (tP5 > lo)            { w.hiUs = tP5;
+                                   w.rule = QStringLiteral("P2P5"); }
+        else if (end7 > tP4)     { w.hiUs = tP4 + int64_t(0.5 * double(end7 - tP4));
+                                   w.rule = QStringLiteral("P4P7"); }
+        else                     { w.hiUs = tP4 + 120000;
+                                   w.rule = QStringLiteral("P4+120"); }
+        if (w.ok()) return w;
+    }
+    if (tP1 >= 0 && impactUs > tP1) {
+        const double span = double(impactUs - tP1);
+        w.loUs = tP1 + int64_t(0.35 * span);
+        w.hiUs = tP1 + int64_t(0.80 * span);
+        w.rule = QStringLiteral("P1impact");
+        if (w.ok()) return w;
+    }
+    return ClubAwayWindow{};
+}
+
 // ── cue 2: the ball's CONTACT SHADOW on a blown-white mat ────────────────────
 // The ball is white; so is the mat, at 253–254. What survives that is the small
 // crisp dark crescent the ball casts at its own lower rim — and the only reason
@@ -609,13 +666,14 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
     }
 
     // Inherited time (§5.3): the ladder, the impact instant. Never re-derived.
-    int64_t tP1 = -1, tLast = -1, tP2 = -1, tP4 = -1, tP5 = -1;
+    int64_t tP1 = -1, tLast = -1, tP2 = -1, tP4 = -1, tP5 = -1, tP7 = -1;
     if (witness) {
         for (const auto& e : witness->ladder) {
             if (e.first == 1 && tP1 < 0) tP1 = e.second;
             if (e.first == 2 && tP2 < 0) tP2 = e.second;
             if (e.first == 4 && tP4 < 0) tP4 = e.second;
             if (e.first == 5 && tP5 < 0) tP5 = e.second;
+            if (e.first == 7 && tP7 < 0) tP7 = e.second;
             tLast = std::max(tLast, e.second);
         }
         if (tP1 < 0 && !witness->tUs.empty()) tP1 = witness->tUs.front();
@@ -692,6 +750,12 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
     // `afterFrames` is new and is the shadow cue's discriminator: impact + 150 ms
     // to impact + 400 ms, where the ball has LEFT. A mark still dark there was
     // never a ball's shadow.
+    //
+    // The club-away window is placed ONCE, by the shared rule above, and both the
+    // plate's low region and the shadow ball cue are filled from it — see
+    // clubAwayWindowOf for why, and for what a swing with no P5 rung does.
+    const ClubAwayWindow away = clubAwayWindowOf(tP1, tP2, tP4, tP5, tP7, impactUs);
+    st.clubAwayWindow = away.rule;
     std::vector<int> addrFrames, lowFrames, allFrames, postFrames, afterFrames;
     for (int i = 0; i < nf; ++i) {
         if (!decodable[size_t(i)]) continue;
@@ -700,10 +764,7 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
         if (tP1 >= 0 && t < tP1 - 100000) addrFrames.push_back(i);
         if (impactUs >= 0 && t > impactUs + 120000) postFrames.push_back(i);
         if (impactUs >= 0 && t >= impactUs + 150000 && t <= impactUs + 400000) afterFrames.push_back(i);
-        if (tP2 >= 0 && tP4 > tP2 && tP5 > 0) {
-            const int64_t lo = tP2 + int64_t(0.4 * double(tP4 - tP2));
-            if (t >= lo && t <= tP5) lowFrames.push_back(i);
-        }
+        if (away.ok() && t >= away.loUs && t <= away.hiUs) lowFrames.push_back(i);
     }
     // Fewer than five frames in that window (a clip that ends at the follow
     // through, an impact instant near the last frame) ⇒ the last five decodable

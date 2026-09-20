@@ -322,6 +322,13 @@ struct DtlShaftTrack2D {
     // The fitted cross-view row scale/offset (§5.2), carried out of the solve so
     // a report can say what the quarantine's verdicts were measured against.
     double  rowFitA = dtl::kNan, rowFitB = dtl::kNan;
+    // WHICH rule placed the club-away window (§5.4): "P2P5" | "P4P7" | "P4+120" |
+    // "P1impact" | "none". The window is the one input BOTH the phase-aware clean
+    // plate's low region and the shadow ball cue are built from, and it is placed
+    // from the face-on ladder — so on a swing whose ladder is short it is placed
+    // by a FALLBACK, and a report that cannot say which rule ran cannot tell a
+    // scene difference from a ladder difference.
+    QString clubAwayWindow;
 };
 
 // ── the face-on witness ──────────────────────────────────────────────────────
@@ -543,6 +550,11 @@ struct DtlSolveState {
     DtlBall                ball;                      // the DTL ball, or why there is none
     double                 lFullPx = dtl::kNan;       // L̂_D, the DTL full club length (px)
     QString                lFullSource;               // "ball" | "faceOnRowScale" | "none"
+    // Which rule placed the club-away window (§5.4) — see DtlShaftTrack2D. It
+    // lives on the STATE because the window is chosen in the solve and the two
+    // things built from it (the clean plate's low region, the shadow ball cue)
+    // must be built from the SAME one; the post half only carries it out.
+    QString                clubAwayWindow;
     // The phase-aware clean plate (§5.4) as built, kept for the report: which
     // region came from which frames is the one place face-on touches EVIDENCE,
     // and it is the place the permanence-snapshot error gets made again.

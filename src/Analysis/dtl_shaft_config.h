@@ -109,6 +109,18 @@ struct DtlShaftConfig {
         // 30 px is the same order as the segment engine's maxHolePx (80 px on the
         // face-on scale) reduced for this view's shorter projection.
         double holePx = 30.0;
+        // ── how close to ridgeSweep's own floor still counts AS the floor ────
+        // ridgeSweep searches its cumulative-score argmax only from
+        // j0 = minLenPx / rStep onward, so its shortest possible terminus is
+        // rLo + minLenPx — 98 px on the shipped constants — and a ray that leaves
+        // the club early reports that number to the digit. A published length
+        // within this many px of it was never MEASURED: the argmax is parked on
+        // its own lower bound. 14 px is two ridge steps' worth of rounding either
+        // side of the floor and nothing more; it is a tolerance on an equality,
+        // not a threshold on a length. MEASURED on 06-11: the two P4 tiles the
+        // results §8 calls "98–100 px", the stray mid-swing frames that appeared
+        // when L̂_D moved, and the short impact-band runs all sit inside it.
+        double floorSlackPx = 14.0;
     } len;
 
     // ── D2 limb vetoes (§5.6, generalised from the forearms) ─────────────────
@@ -343,6 +355,7 @@ struct DtlShaftConfig {
         tn::apply(ov, "shaft.dtl.len.wLen",            c.len.wLen);
         tn::apply(ov, "shaft.dtl.len.slack",           c.len.slack);
         tn::apply(ov, "shaft.dtl.len.holePx",          c.len.holePx);
+        tn::apply(ov, "shaft.dtl.len.floorSlackPx",    c.len.floorSlackPx);
         tn::apply(ov, "shaft.dtl.arm.vetoDeg",         c.arm.vetoDeg);
         tn::apply(ov, "shaft.dtl.arm.latPx",           c.arm.latPx);
         tn::apply(ov, "shaft.dtl.arm.wArm",            c.arm.wArm);
@@ -400,7 +413,7 @@ inline QString dtlConfigHash(const DtlShaftConfig& c)
     const auto i = [&s](long long v) { s += QString::number(v) + QLatin1Char(';'); };
     i(c.enabled); i(c.truthOnly); n(c.rhoSolveMin); i(c.schedule.enabled); i(c.minBandFrames);
     i(c.corridor.enabled); n(c.corridor.w0Deg); n(c.corridor.wCorr); n(c.corridor.rhoFMax);
-    n(c.half.wHalf); n(c.len.wLen); n(c.len.slack); n(c.len.holePx);
+    n(c.half.wHalf); n(c.len.wLen); n(c.len.slack); n(c.len.holePx); n(c.len.floorSlackPx);
     n(c.arm.vetoDeg); n(c.arm.latPx); n(c.arm.wArm); n(c.arm.minJointPx);
     n(c.rev.wRev); n(c.rev.tol); n(c.rev.armDeg); n(c.rev.armMinPx);
     n(c.ball.wBall); n(c.ball.sigmaDeg); n(c.ball.gateDeg); n(c.ball.wGate);

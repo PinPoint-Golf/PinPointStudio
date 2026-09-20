@@ -681,6 +681,80 @@ int main()
         check(eLaw <= 2.0, "P9: it lands on the club");
     }
 
+    // ── P10 a length equal to the sweep's floor is not a length ─────────────
+    std::printf("\n=== P10: rEnd parked on ridgeSweep's own floor publishes NOTHING ===\n");
+    {
+        // ridgeSweep's cumulative-score argmax is searched only from
+        // j0 = minLenPx / rStep onward, so its shortest possible terminus is
+        // rLo + minLenPx = 98 px and a ray that leaves the club early reports it
+        // to the digit. On 06-11 that number published two P4 tiles at θ 200° and
+        // 292° — the forearm-lock class — and cleared the minimum-length rule
+        // only because ρ̂_D is small there. L̂_D 250 px below reproduces exactly
+        // that: the schedule asks for 0.35 × 0.93 × 250 = 81 px and 98 px passes.
+        const int n = 4;
+        std::vector<int64_t> tUs(size_t(n), 0);
+        for (int i = 0; i < n; ++i) tUs[size_t(i)] = int64_t(i) * 6640;
+        DtlAnchors an;
+        an.gx.assign(size_t(n), GX);
+        an.gy.assign(size_t(n), GY);
+        const FrameSource none = [](int) { return cv::Mat(); };   // ⇒ no snap, no measured run
+        const SegmentGeom geom;
+        const double kLShort = 250.0;
+        const double lenFloor = cfg.minLenFrac * 0.93 * kLShort;
+        const double sweepFloor = double(cfg.ridge.rLo) + double(cfg.ridge.minLenPx);
+
+        const auto runOne = [&](double rend, bool band) {
+            DtlSolveState st = makeState(n, kClub, rend, 0.93, cfg);
+            st.lFullPx = kLShort;
+            st.lFullSource = QStringLiteral("ball");
+            if (band) {
+                for (int i = 0; i < n; ++i) {
+                    BandMatch bm;
+                    bm.ok = true; bm.n = 5; bm.s = 0.39f; bm.r0 = 120.f; bm.thetaDeg = float(kClub);
+                    st.band[size_t(i)] = bm;
+                    st.bandOk[size_t(i)] = 1;
+                }
+            }
+            return dtlPostSolve(none, tUs, an, nullptr, st, W, H, geom, cfg, nullptr);
+        };
+
+        std::printf("       sweep floor rLo %.0f + minLenPx %.0f = %.0f px, slack %.0f; the schedule "
+                    "asks only %.0f px here\n",
+                    double(cfg.ridge.rLo), double(cfg.ridge.minLenPx), sweepFloor,
+                    cfg.len.floorSlackPx, lenFloor);
+        check(sweepFloor + cfg.len.floorSlackPx > 98.0 && lenFloor < 98.0,
+              "P10 control: 98 px really is inside the floor band AND long enough for the schedule");
+
+        const DtlShaftTrack2D at98  = runOne(98.0, false);
+        const DtlShaftTrack2D at104 = runOne(104.0, false);
+        const DtlShaftTrack2D at120 = runOne(120.0, false);
+        const DtlShaftTrack2D band98 = runOne(98.0, true);
+        std::printf("        98 px: tier %s — \"%s\"\n", dtlTierName(at98.samples[0].tier),
+                    at98.samples[0].reason.toUtf8().constData());
+        std::printf("       104 px: tier %s — \"%s\"\n", dtlTierName(at104.samples[0].tier),
+                    at104.samples[0].reason.toUtf8().constData());
+        std::printf("       120 px: tier %s, lenPx %.0f (%s)\n", dtlTierName(at120.samples[0].tier),
+                    at120.samples[0].lenPx, dtlLenSrcName(at120.samples[0].lenSrc));
+        std::printf("       98 px WITH a band lock: tier %s, lenPx %.0f\n",
+                    dtlTierName(band98.samples[0].tier), band98.samples[0].lenPx);
+        check(at98.samples[0].tier == DtlTier::Unseen,
+              "P10: a 98 px rEnd with no measured run is UNSEEN");
+        check(at98.samples[0].reason.contains(QStringLiteral("sweep's floor")),
+              "P10: and the reason says the length was the sweep's floor, not a short club");
+        check(!std::isfinite(at98.samples[0].thetaRad) && !std::isfinite(at98.samples[0].lenPx),
+              "P10: and it publishes neither an angle nor a length");
+        check(at104.samples[0].tier == DtlTier::Unseen
+              && at104.samples[0].reason.contains(QStringLiteral("sweep's floor")),
+              "P10: 104 px is inside the slack and goes the same way");
+        check(at120.samples[0].tier == DtlTier::Ray
+              && std::abs(at120.samples[0].lenPx - 120.0) < 1e-6,
+              "P10 control: 120 px is outside the floor band and publishes, unchanged");
+        check(band98.samples[0].tier == DtlTier::Band,
+              "P10: a BAND lock at 98 px is exempt — the lock measured the line itself");
+        check(at98.publishedInEndOn == 0 && at120.publishedInEndOn == 0,
+              "P10: nothing published in an end-on frame either way");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;
 }

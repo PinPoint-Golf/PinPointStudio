@@ -671,6 +671,78 @@ int main()
               "T8A: … and the shadow cue's own answer is still recorded, so the two can be compared");
     }
 
+    // ── T8B the club-away window when the ladder is short ───────────────────
+    std::printf("\n=== T8B: a swing with no P5 rung still has a club-away window ===\n");
+    {
+        // MEASURED, 06-11 swing_0003: the face-on ladder names no P5, so the
+        // designed window `P2 + 40% of P2→P4 → P5` is EMPTY — the shadow cue
+        // reported "only 0 club-away frames (need 5)" and the phase-aware clean
+        // plate lost its low-region source on the same swing for the same reason.
+        // A rung face-on did not name is a statement about the ladder, not about
+        // whether the club was ever above the waist.
+        //
+        // The scene is T8A's: white ball on a blown-white mat, visible only as its
+        // own contact shadow, plus a static scuff that never leaves. What differs
+        // here is that the frame sets come from the LADDER through dtlSolve rather
+        // than being handed to dtlFindBall by the test — which is the only way to
+        // exercise the window rule at all.
+        const int n = 60;
+        const double bx = 250.0, by = 280.0, R = 8.5;
+        const int    kGone = 42;                     // the ball leaves at impact
+        Scene s0 = makeScene(n);
+        for (int i = 0; i < n; ++i) {
+            cv::Mat m = baseScene();
+            drawBlownMat(m, 170, 258, 315, 318);
+            drawBallShadow(m, 200.0, 300.0, R, 90);              // the static scuff
+            if (i < kGone) drawBallShadow(m, bx, by, R, 90);      // the ball's own crescent
+            s0.frames[size_t(i)] = m;
+        }
+        const int64_t p1  = kT0 + 150000;
+        const int64_t p2  = kT0 + 170000;
+        const int64_t p4  = kT0 + 200000;
+        const int64_t p5  = kT0 + 250000;
+        const int64_t imp = kT0 + 280000;
+        const DtlShaftConfig cfg = testCfg();
+
+        // `rungs` REPLACES the two-rung ladder fillWitnessFlat writes, so each case
+        // is exactly the ladder it claims to be.
+        const auto solveWith = [&](const std::vector<std::pair<int, int64_t>> &rungs) {
+            Scene s = s0;
+            fillWitnessFlat(s, kRhoLong, kThetaLongDeg, FoTier::Ray, p1, imp);
+            s.wit.ladder = rungs;
+            return dtlSolve(srcOf(s), s.tUs, s.an, &s.wit, W, H, 150.6, {}, 1120.0, cfg, nullptr);
+        };
+
+        const DtlSolveState full = solveWith({ {1, p1}, {2, p2}, {4, p4}, {5, p5}, {7, imp} });
+        const DtlSolveState noP5 = solveWith({ {1, p1}, {2, p2}, {4, p4},           {7, imp} });
+        const DtlSolveState bare = solveWith({ {1, p1},                             {7, imp} });
+        std::printf("       full ladder: window %s, ball found=%d source=%s\n",
+                    full.clubAwayWindow.toUtf8().constData(), int(full.ball.found),
+                    full.ball.source.toUtf8().constData());
+        std::printf("       no P5 rung:  window %s, ball found=%d source=%s — %s\n",
+                    noP5.clubAwayWindow.toUtf8().constData(), int(noP5.ball.found),
+                    noP5.ball.source.toUtf8().constData(),
+                    noP5.ball.reason.toUtf8().constData());
+        std::printf("       P1/P7 only:  window %s, ball found=%d source=%s\n",
+                    bare.clubAwayWindow.toUtf8().constData(), int(bare.ball.found),
+                    bare.ball.source.toUtf8().constData());
+        check(full.clubAwayWindow == QStringLiteral("P2P5"),
+              "T8B control: a complete ladder still uses P2 + 40% of P2→P4 → P5");
+        check(full.ball.found && full.ball.source == QStringLiteral("shadow"),
+              "T8B control: and the shadow cue finds the ball on it");
+        check(noP5.clubAwayWindow == QStringLiteral("P4P7"),
+              "T8B: with no P5 rung the window ends half way from the top to impact");
+        check(noP5.ball.found && noP5.ball.source == QStringLiteral("shadow"),
+              "T8B: and the shadow cue finds the same ball — the swing is not lost with the rung");
+        check(bare.clubAwayWindow == QStringLiteral("P1impact"),
+              "T8B: with no P2 or P4 either, the window is a fraction of P1→impact");
+        check(bare.ball.found && bare.ball.source == QStringLiteral("shadow"),
+              "T8B: and that window sees the ball too");
+        check(std::hypot(noP5.ball.x - bx, noP5.ball.y - by) <= 12.0
+              && std::hypot(bare.ball.x - bx, bare.ball.y - by) <= 12.0,
+              "T8B: both fallbacks land on the planted ball, not on the static scuff");
+    }
+
     // ── T9 determinism ──────────────────────────────────────────────────────
     std::printf("\n=== T9: two solves of one scene are identical ===\n");
     {

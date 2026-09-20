@@ -138,6 +138,10 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
     out.lFullSource = state.lFullSource;
     out.rowFitA     = state.rowFitA;
     out.rowFitB     = state.rowFitB;
+    // Carried, never re-derived: the window was placed in the solve and the two
+    // things built from it were built there too (dtl_shaft_decide,
+    // clubAwayWindowOf). This half only has to be able to SAY which rule ran.
+    out.clubAwayWindow = state.clubAwayWindow;
 
     const int nf = int(tUs.size());
     const int NS = state.NS;
@@ -443,6 +447,35 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
         s.lenSrc = lsrc;
         runOut[size_t(i)] = runPx;
 
+        // ── a length equal to the sweep's own floor is not a length ──────────
+        // ridgeSweep searches its sqrt-normalised cumulative score's argmax only
+        // from j0 = minLenPx / rStep onward, so its shortest possible terminus is
+        // rLo + minLenPx — 98 px on the shipped constants — and a ray that leaves
+        // the club early reports that number TO THE DIGIT. A frame published on
+        // it has had NO length measured: the argmax is parked on its own lower
+        // bound, and the number is an artefact of where the search starts rather
+        // than of anything in the image.
+        //
+        // MEASURED, 06-11 (§8): the two P4 tiles on swings 0001 and 0007 that
+        // publish at θ 200° and 292° on "98–100 px" — the forearm-lock class this
+        // whole design exists to prevent — plus the stray mid-swing frames that
+        // appeared when L̂_D moved and the short impact-band runs. They clear the
+        // MINIMUM-LENGTH rule only because ρ̂_D is small where they happen, so
+        // that rule cannot catch them: it asks whether the run is long enough for
+        // the schedule, and this asks whether a run was measured at all.
+        //
+        // Two exemptions, and both are the same sentence the rest of the file
+        // makes. Only where the number came from REND: a run measured off the
+        // re-registered line that lands near 98 px is a measurement of a short
+        // run, which D3 allows one-sided and the minimum-length rule judges on
+        // its merits. And never against a BAND lock, which is a direct
+        // measurement of the line and owes the ridge sweep nothing.
+        const double sweepFloorPx = double(cfg.ridge.rLo) + double(cfg.ridge.minLenPx);
+        const bool lenIsFloor = lsrc == DtlLenSrc::Rend && fin(runPx)
+                                && runPx <= sweepFloorPx + cfg.len.floorSlackPx
+                                && !(fin(lenOut[size_t(i)])
+                                     && lenOut[size_t(i)] > sweepFloorPx + cfg.len.floorSlackPx);
+
         // ── D1's publication test, and this view's standing excuse ───────────
         // Face-on's attachment test assumes FREE SPACE behind the butt. Down the
         // line there is none: the lead arm is near-collinear with the shaft at
@@ -489,7 +522,8 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
         const bool evOk   = ev >= cfg.evRay;
         const bool lcOk   = snapAcc[size_t(i)] && fin(snapBest[size_t(i)])
                             && snapBest[size_t(i)] >= cfg.lineConfRay;
-        const bool rayOk = (evOk || lcOk) && sup >= cfg.supRay && beatsReverse && !vetoed && longEnough;
+        const bool rayOk = (evOk || lcOk) && sup >= cfg.supRay && beatsReverse && !vetoed
+                           && longEnough && !lenIsFloor;
         // Ev unless the LINE is what let this frame through: an absence satisfied
         // neither gate and must not read as though it satisfied the second.
         s.evSrc = (rayOk && !evOk && lcOk) ? DtlEvSrc::LineConf : DtlEvSrc::Ev;
@@ -527,12 +561,19 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
                                                    .arg(ev, 0, 'f', 2).arg(cfg.evRay, 0, 'f', 2))
                        : sup < cfg.supRay ? QStringLiteral("no support (sup %1 < %2)")
                                              .arg(sup, 0, 'f', 2).arg(cfg.supRay, 0, 'f', 2)
-                                        : QStringLiteral("run %1 px (%2) is under %3 px of the %4 px "
-                                                         "the schedule allows")
+                       : !longEnough  ? QStringLiteral("run %1 px (%2) is under %3 px of the %4 px "
+                                                       "the schedule allows")
                                              .arg(runPx, 0, 'f', 0)
                                              .arg(QLatin1String(dtlLenSrcName(s.lenSrc)))
                                              .arg(lenFloor, 0, 'f', 0)
-                                             .arg(s.rhoPred * state.lFullPx, 0, 'f', 0);
+                                             .arg(s.rhoPred * state.lFullPx, 0, 'f', 0)
+                                        // … and the length that is not a length at
+                                        // all. Last, so a frame that is ALSO short
+                                        // for the schedule is still refused on the
+                                        // measurement it made.
+                                        : QStringLiteral("length is the sweep's floor (%1 px), "
+                                                         "not a measurement")
+                                             .arg(runPx, 0, 'f', 0);
         }
         if (s.tier >= DtlTier::Ray && fin(runPx) && runPx > 0.0) {
             s.lenPx  = runPx;
