@@ -70,11 +70,34 @@ namespace pinpoint::analysis {
 // leaves (the alignment stick's end, a mat marking) is not the ball. 0 or more
 // than 1 surviving candidate ⇒ found = false with the reason recorded, because a
 // ball detector that guesses between two is worse than one that abstains.
+//
+// ── and a SECOND cue, for the mat the first one cannot see a ball on ─────────
+// MEASURED, 06-11, nine swings: the mat images at 253–254 under the ball, the
+// ball is white, and the bright cue reports "no bright compact blob" about a
+// ball that genuinely has no edge. What the scene does carry is the ball's
+// CONTACT SHADOW — a crisp dark crescent at its lower rim. Two more frame sets
+// are needed for it, and the reason each is what it is matters:
+//   · `clubAwayFrames` — the same "club above the waist" window the phase-aware
+//     clean plate uses (P2 + 40% of P2→P4, to P5). NOT the address hold: at
+//     address the clubhead AND its own shadow sit on top of the ball, which is
+//     why looking there finds a club, not a ball. A per-pixel median over them
+//     removes the moving club, the arms and their shadows.
+//   · `afterFrames` — impact + 150 ms to impact + 400 ms, where the ball has
+//     gone. The crescent must have LOST its darkness there. A shoe scuff or a
+//     tee hole fails that by construction, and that is the whole discriminator.
+// `scalePxPerMm` sizes the ball (42.7 mm) so the centre can be placed one radius
+// above the crescent; NaN ⇒ 0.012 × frameH is used instead and said so. The
+// bright cue is unchanged and still decides wherever it finds a ball; the shadow
+// cue is measured either way so the two can be compared in a trace.
 DtlBall dtlFindBall(const FrameSource& frameAt,
                     const std::vector<int>& addrFrames,
                     const std::vector<int>& postFrames,
+                    const std::vector<int>& clubAwayFrames,
+                    const std::vector<int>& afterFrames,
                     const DtlAnchors& anchors,
-                    int frameW, int frameH);
+                    int frameW, int frameH,
+                    double scalePxPerMm,
+                    const DtlShaftConfig& cfg);
 
 DtlSolveState dtlSolve(const FrameSource& frameAt,
                        const std::vector<int64_t>& tUs,

@@ -262,10 +262,27 @@ struct DtlBand {
 // the two bands where the corridor of §4.1 (c) is degenerate. `found` false is
 // the normal answer, not a failure: `reason` says which gate refused, and D6 is
 // then simply absent (never a fabricated centre).
+// ONE detector, TWO cues, ONE verdict. The bright cue is the ball imaged as a
+// bright compact blob; the shadow cue is the ball's own contact shadow on a mat
+// blown so white the ball has no edge on it (06-11: 0 of 9 by brightness, and
+// the address hold is the wrong time to look at all, because the clubhead and
+// its shadow sit on top of the ball there). The shadow cue is only CONSULTED
+// where the bright one found nothing, but it is always MEASURED, so a trace can
+// put the two beside each other on a scene where both exist.
 struct DtlBall {
     bool    found = false;
     double  x = dtl::kNan, y = dtl::kNan;   // image px
     QString reason;
+    // Which cue answered. "none" when there is no ball — a first-class outcome.
+    QString source = QStringLiteral("none");        // "bright" | "shadow" | "none"
+    // The shadow cue's own numbers, recorded whether or not it supplied the
+    // verdict: the crescent's centroid (the ball centre is radiusPx ABOVE it),
+    // how much brightness that patch regained once the ball had gone, the radius
+    // the scene scale implied, and how many candidates survived the shape gates.
+    double  shadowX = dtl::kNan, shadowY = dtl::kNan;
+    double  launchRise = dtl::kNan;
+    double  radiusPx   = dtl::kNan;
+    int     nCandidates = 0;
 };
 
 // Band-lock truth, generated WITHOUT any face-on input (§6) — so the instrument

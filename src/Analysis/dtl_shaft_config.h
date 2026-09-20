@@ -186,6 +186,40 @@ struct DtlShaftConfig {
         // to the P1 + 30 ms rule rather than inheriting a hold nobody witnessed.
         double  stillDeg   = 10.0;
         int64_t stillMaxUs = 300000;
+
+        // ── the SHADOW cue, for a blown-white mat ────────────────────────────
+        // MEASURED, 06-11, all nine swings: the mat under the ball images at
+        // 199–231 (p50 over the prior) and saturates at 253–254 where the ball
+        // sits, so a white ball on it has no edge at all — the bright cue is not
+        // wrong there, it is looking at a ball that is not visible. What IS
+        // visible is the ball's own contact SHADOW: a crisp dark crescent on the
+        // blown mat at the ball's lower rim, 51–79 px of area, 2.4–3.2:1
+        // elongated, reading 77–110 against a 253 mat — and GONE once the ball
+        // has been struck. These four scalars are that cue, and every default is
+        // the measurement, not a guess.
+        //
+        // shadowMatMin — the mat must be BLOWN for this cue to mean anything: the
+        // local 31×31 median at the crescent is 253 on 06-11, where the whole
+        // point is that white-on-white hides the ball. On 07-04 the mat under the
+        // ball is a dim 90–100 and this gate excludes that region by design; the
+        // bright cue owns that scene and wins there anyway.
+        double shadowMatMin = 200.0;
+        // shadowDrop — how far below its own local median a pixel must sit. The
+        // crescent runs 143–176 grey levels below; the 99th percentile of the
+        // drop over the whole prior is 26–27. 60 is the middle of a wide gap.
+        double shadowDrop = 60.0;
+        // shadowLaunchRise — the DISCRIMINATOR, and the reason a shoe scuff or a
+        // tee hole cannot pass: the same pixels must have LOST their darkness
+        // once the ball has left. Measured at the true crescent: +113 to +124.
+        // Measured at the four static marks that survive the shape gates on the
+        // same swings: −30 to +1. 40 separates them with room on both sides.
+        double shadowLaunchRise = 40.0;
+        // shadowToCentreR — the crescent is the shadow AT THE BALL'S LOWER RIM,
+        // so the ball centre is one radius above its centroid. The radius comes
+        // from the scene scale (see dtlFindBall). It is a small correction by
+        // construction: at a 316–338 px grip→ball distance a 6 px error in the
+        // centre is 0.6° in θ_ball, inside a ±20° gate.
+        double shadowToCentreR = 1.0;
     } ball;
 
     // ── the solve (§5.8) ─────────────────────────────────────────────────────
@@ -323,6 +357,10 @@ struct DtlShaftConfig {
         tn::apply(ov, "shaft.dtl.ball.wGate",          c.ball.wGate);
         tn::apply(ov, "shaft.dtl.ball.stillDeg",       c.ball.stillDeg);
         tn::apply(ov, "shaft.dtl.ball.stillMaxUs",     c.ball.stillMaxUs);
+        tn::apply(ov, "shaft.dtl.ball.shadowMatMin",     c.ball.shadowMatMin);
+        tn::apply(ov, "shaft.dtl.ball.shadowDrop",       c.ball.shadowDrop);
+        tn::apply(ov, "shaft.dtl.ball.shadowLaunchRise", c.ball.shadowLaunchRise);
+        tn::apply(ov, "shaft.dtl.ball.shadowToCentreR",  c.ball.shadowToCentreR);
         tn::apply(ov, "shaft.dtl.evAbsFloor",          c.evAbsFloor);
         tn::apply(ov, "shaft.dtl.evAbsFloorDif",       c.evAbsFloorDif);
         tn::apply(ov, "shaft.dtl.contrastKsz",         c.contrastKsz);
@@ -367,6 +405,8 @@ inline QString dtlConfigHash(const DtlShaftConfig& c)
     n(c.rev.wRev); n(c.rev.tol); n(c.rev.armDeg); n(c.rev.armMinPx);
     n(c.ball.wBall); n(c.ball.sigmaDeg); n(c.ball.gateDeg); n(c.ball.wGate);
     n(c.ball.stillDeg); i(c.ball.stillMaxUs);
+    n(c.ball.shadowMatMin); n(c.ball.shadowDrop); n(c.ball.shadowLaunchRise);
+    n(c.ball.shadowToCentreR);
     n(c.omegaBaseDegPerFrame); n(c.kSmooth); n(c.grid);
     n(c.wE2); n(c.wBand); n(c.bandTol); n(c.evRay); n(c.supRay); n(c.revRatio); n(c.lineConfRay);
     n(c.minLenFrac); n(c.snapRhoMin);

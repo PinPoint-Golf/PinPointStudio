@@ -112,6 +112,40 @@ static void drawLimb(cv::Mat &m, double thDeg, double r1)
     cv::line(m, ptAt(GX, GY, thDeg, 0.0), ptAt(GX, GY, thDeg, r1), cv::Scalar(225), 15, cv::LINE_8);
 }
 
+// ── the blown-white mat, and a ball that is only visible as its own shadow ───
+// 06-11's scene, in miniature: the mat images at 250–254 and a white ball on it
+// has no edge at all, so the bright cue is not wrong — it is looking at
+// something that is not there. The one thing the scene does carry is the ball's
+// contact shadow at its lower rim, and the one thing that separates that shadow
+// from a shoe scuff is that it GOES once the ball has been struck.
+static void drawBlownMat(cv::Mat &m, int x0, int y0, int x1, int y1)
+{
+    for (int r = y0; r <= y1; ++r)
+        for (int c = x0; c <= x1; ++c)
+            m.at<uchar>(r, c) = uchar(250 + ((r * 3 + c * 5) % 5));
+}
+
+// The lower rim of a ball of radius R centred at (cx, cy): the arc within ±60°
+// of straight down, three pixels thick. Its own centroid sits about 0.83·R below
+// the centre, so "centroid + 1.0·R upward" recovers the centre to about a pixel
+// — which is the whole geometric claim the shadow cue makes, exercised rather
+// than asserted. Returns the centroid actually drawn.
+static cv::Point2d drawBallShadow(cv::Mat &m, double cx, double cy, double R, int value)
+{
+    double sx = 0, sy = 0; int n = 0;
+    for (int r = int(cy - R - 3); r <= int(cy + R + 3); ++r)
+        for (int c = int(cx - R - 3); c <= int(cx + R + 3); ++c) {
+            if (r < 0 || c < 0 || r >= m.rows || c >= m.cols) continue;
+            const double dx = double(c) - cx, dy = double(r) - cy;
+            const double d = std::hypot(dx, dy);
+            if (d < R - 2.0 || d > R + 1.0) continue;
+            if (dy <= 0.5 * d) continue;                 // the lower arc only
+            m.at<uchar>(r, c) = uchar(value);
+            sx += double(c); sy += double(r); ++n;
+        }
+    return n ? cv::Point2d(sx / double(n), sy / double(n)) : cv::Point2d(kNan, kNan);
+}
+
 // ── the inputs ───────────────────────────────────────────────────────────────
 struct Scene {
     std::vector<cv::Mat> frames;
@@ -507,11 +541,19 @@ int main()
         std::vector<int> addr, post;
         for (int i = 0; i < 20; ++i) addr.push_back(i);
         for (int i = 30; i < n; ++i) post.push_back(i);
-        const DtlBall ball = dtlFindBall(srcOf(s), addr, post, s.an, W, H);
-        std::printf("       found=%d at (%.1f, %.1f) — %s\n", int(ball.found), ball.x, ball.y,
+        // The shadow cue is handed real frame sets on every call below, not empty
+        // ones, so that "it abstained" is a measured abstention and not an
+        // untested path.
+        std::vector<int> away, aft;
+        for (int i = 5; i < 21; ++i) away.push_back(i);
+        for (int i = 30; i < n; ++i) aft.push_back(i);
+        const DtlBall ball = dtlFindBall(srcOf(s), addr, post, away, aft, s.an, W, H, kNan, testCfg());
+        std::printf("       found=%d source=%s at (%.1f, %.1f) — %s\n", int(ball.found),
+                    ball.source.toUtf8().constData(), ball.x, ball.y,
                     ball.reason.toUtf8().constData());
         check(ball.found, "T8: the ball is found");
         check(ball.found && std::hypot(ball.x - bx, ball.y - by) < 4.0, "T8: at the planted position");
+        check(ball.source == QStringLiteral("bright"), "T8: and the BRIGHT cue is what answered");
 
         // With nothing that ever leaves, the honest answer is NO ball.
         Scene s2 = makeScene(n);
@@ -521,10 +563,112 @@ int main()
             cv::line(m, cv::Point(270, 250), cv::Point(276, 315), cv::Scalar(250), 7);
             s2.frames[size_t(i)] = m;
         }
-        const DtlBall none = dtlFindBall(srcOf(s2), addr, post, s2.an, W, H);
-        std::printf("       permanent-only: found=%d — %s\n", int(none.found),
-                    none.reason.toUtf8().constData());
+        const DtlBall none = dtlFindBall(srcOf(s2), addr, post, away, aft, s2.an, W, H, kNan, testCfg());
+        std::printf("       permanent-only: found=%d source=%s — %s\n", int(none.found),
+                    none.source.toUtf8().constData(), none.reason.toUtf8().constData());
         check(!none.found, "T8: a permanent white disc and an elongated stick yield NO ball, with a reason");
+        check(none.source == QStringLiteral("none"), "T8: … and the source says so");
+        check(none.reason.contains(QStringLiteral("blown mat")),
+              "T8: the shadow cue ran on a mid-grey mat and abstained on the mat, not on the ball");
+    }
+
+    // ── T8A the SHADOW cue, on the mat the bright cue cannot see a ball on ───
+    std::printf("\n=== T8A: a blown-white mat — the ball is found from its own shadow ===\n");
+    {
+        // MEASURED on 06-11 and reproduced here: white ball, white mat, no edge.
+        // The shadow is at the ball's lower rim during the backswing, and gone
+        // after impact. A static scuff of the same size and darkness sits beside
+        // it and must be refused, which is the cue's whole discriminator.
+        const int n = 40;
+        const double bx = 250.0, by = 280.0, R = 8.5;
+        // r = ½ · 42.7 mm · scale, so this scale hands the detector exactly R.
+        const double scalePxPerMm = R / (0.5 * 42.7);
+        cv::Point2d shadowCentroid(kNan, kNan);
+        Scene s = makeScene(n);
+        for (int i = 0; i < n; ++i) {
+            cv::Mat m = baseScene();
+            drawBlownMat(m, 170, 258, 315, 318);
+            drawBallShadow(m, 200.0, 300.0, R, 90);              // a static scuff: never leaves
+            if (i < 25) {
+                const cv::Point2d c = drawBallShadow(m, bx, by, R, 90);
+                if (i == 0) shadowCentroid = c;
+            }
+            s.frames[size_t(i)] = m;
+        }
+        std::vector<int> addr, post, away, aft;
+        for (int i = 0; i < 20; ++i) addr.push_back(i);
+        for (int i = 5; i < 21; ++i) away.push_back(i);
+        for (int i = 30; i < n; ++i) { post.push_back(i); aft.push_back(i); }
+
+        const DtlBall b = dtlFindBall(srcOf(s), addr, post, away, aft, s.an, W, H,
+                                      scalePxPerMm, testCfg());
+        std::printf("       planted ball (%.1f, %.1f) R=%.1f, its shadow's centroid (%.1f, %.1f)\n",
+                    bx, by, R, shadowCentroid.x, shadowCentroid.y);
+        std::printf("       found=%d source=%s at (%.1f, %.1f) shadow (%.1f, %.1f) rise=%.0f r=%.1f "
+                    "cands=%d — %s\n",
+                    int(b.found), b.source.toUtf8().constData(), b.x, b.y, b.shadowX, b.shadowY,
+                    b.launchRise, b.radiusPx, b.nCandidates, b.reason.toUtf8().constData());
+        check(b.found && b.source == QStringLiteral("shadow"),
+              "T8A: the ball is found, and the SHADOW cue is what found it");
+        check(b.found && std::hypot(b.x - bx, b.y - by) <= 3.0,
+              "T8A: the centre lands within 3 px of the planted ball centre");
+        check(b.nCandidates == 2 && b.launchRise >= 40.0,
+              "T8A: both dark blobs were candidates; only the one that vanished at launch survived");
+        check(std::abs(b.radiusPx - R) < 0.1, "T8A: the radius came from the scene scale");
+
+        // The static scuff ALONE: nothing vanished, so nothing is a ball.
+        Scene s2 = makeScene(n);
+        for (int i = 0; i < n; ++i) {
+            cv::Mat m = baseScene();
+            drawBlownMat(m, 170, 258, 315, 318);
+            drawBallShadow(m, 200.0, 300.0, R, 90);
+            s2.frames[size_t(i)] = m;
+        }
+        const DtlBall scuff = dtlFindBall(srcOf(s2), addr, post, away, aft, s2.an, W, H,
+                                          scalePxPerMm, testCfg());
+        std::printf("       scuff only: found=%d cands=%d — %s\n", int(scuff.found),
+                    scuff.nCandidates, scuff.reason.toUtf8().constData());
+        check(!scuff.found && scuff.nCandidates == 1,
+              "T8A: a dark mark that is still dark after impact is NOT a ball");
+
+        // Two things that both vanish, equally: abstain, and list them.
+        Scene s3 = makeScene(n);
+        for (int i = 0; i < n; ++i) {
+            cv::Mat m = baseScene();
+            drawBlownMat(m, 170, 258, 315, 318);
+            if (i < 25) {
+                drawBallShadow(m, bx, by, R, 90);
+                drawBallShadow(m, 200.0, 300.0, R, 90);
+            }
+            s3.frames[size_t(i)] = m;
+        }
+        const DtlBall amb = dtlFindBall(srcOf(s3), addr, post, away, aft, s3.an, W, H,
+                                        scalePxPerMm, testCfg());
+        std::printf("       two vanishing: found=%d cands=%d — %s\n", int(amb.found),
+                    amb.nCandidates, amb.reason.toUtf8().constData());
+        check(!amb.found && amb.reason.contains(QStringLiteral("ambiguous shadow candidates")),
+              "T8A: two launch-vanishing candidates of similar rise ⇒ NO ball, and both are named");
+
+        // And where a bright ball exists as well, brightness still decides.
+        Scene s4 = makeScene(n);
+        for (int i = 0; i < n; ++i) {
+            cv::Mat m = baseScene();
+            drawBlownMat(m, 200, 258, 315, 318);                 // mat clear of the bright ball
+            cv::circle(m, cv::Point(175, 285), 7, cv::Scalar(250), -1);
+            if (i >= 25) cv::circle(m, cv::Point(175, 285), 10, cv::Scalar(110), -1);
+            if (i < 25) drawBallShadow(m, bx, by, R, 90);
+            s4.frames[size_t(i)] = m;
+        }
+        const DtlBall both = dtlFindBall(srcOf(s4), addr, post, away, aft, s4.an, W, H,
+                                         scalePxPerMm, testCfg());
+        std::printf("       both cues: found=%d source=%s at (%.1f, %.1f), shadow seen at (%.1f, %.1f)\n",
+                    int(both.found), both.source.toUtf8().constData(), both.x, both.y,
+                    both.shadowX, both.shadowY);
+        check(both.found && both.source == QStringLiteral("bright")
+              && std::hypot(both.x - 175.0, both.y - 285.0) < 4.0,
+              "T8A: with a bright ball present the BRIGHT cue wins, unchanged");
+        check(std::isfinite(both.shadowX) && std::isfinite(both.launchRise),
+              "T8A: … and the shadow cue's own answer is still recorded, so the two can be compared");
     }
 
     // ── T9 determinism ──────────────────────────────────────────────────────

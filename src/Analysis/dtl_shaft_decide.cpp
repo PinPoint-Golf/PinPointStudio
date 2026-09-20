@@ -25,6 +25,8 @@
 
 #include "dtl_shaft_decide.h"
 
+#include <QStringList>
+
 #include <opencv2/imgproc.hpp>
 
 #include <algorithm>
@@ -141,22 +143,58 @@ Channel sweepChannel(const cv::Mat& img32, double gx, double gy,
     return c;
 }
 
-} // namespace
+// The golfer's own geometry, in this view's sentence (§4.3): the ball is BELOW
+// the ankle line and FARTHER from the ankles, horizontally, than the grip is, in
+// the direction hips→grip. "Between the feet" is the face-on sentence and §2
+// finding 5 is what porting it costs. ONE prior, shared by both cues — the two
+// answers have to be about the same place or they cannot be compared.
+struct BallPrior {
+    bool   ok = false;
+    double ankleX = 0, ankleY = 0, dirOut = 1.0, gripOut = 0.0;
+    bool inside(double bx, double by, int frameH) const
+    {
+        if (by <= ankleY - 0.02 * double(frameH)) return false;   // above the ankle line
+        if ((bx - ankleX) * dirOut <= gripOut)    return false;   // not beyond the grip, on the golfer's side
+        return true;
+    }
+};
 
-// ── the DTL ball (§4.3, §5.5) ────────────────────────────────────────────────
-DtlBall dtlFindBall(const FrameSource& frameAt,
-                    const std::vector<int>& addrFramesIn,
-                    const std::vector<int>& postFramesIn,
-                    const DtlAnchors& anchors,
-                    int frameW, int frameH)
+BallPrior buildBallPrior(const std::vector<int>& addr, const DtlAnchors& anchors)
 {
-    DtlBall out;
-    const std::vector<int> addr = thinTo(addrFramesIn, 25);
-    if (addr.size() < 3) { out.reason = QStringLiteral("no address hold to search"); return out; }
+    BallPrior p;
+    double ankleY = 0, ankleX = 0, hipX = 0, gripX = 0;
+    int nA = 0, nH = 0, nG = 0;
+    for (const int i : addr) {
+        if (i < int(anchors.joints.size()) && anchors.joints[size_t(i)].size() >= 8) {
+            const cv::Point2d& la = anchors.joints[size_t(i)][6];
+            const cv::Point2d& ra = anchors.joints[size_t(i)][7];
+            if (finPt(la) && finPt(ra)) { ankleY += 0.5 * (la.y + ra.y); ankleX += 0.5 * (la.x + ra.x); ++nA; }
+            const cv::Point2d& lh = anchors.joints[size_t(i)][2];
+            const cv::Point2d& rh = anchors.joints[size_t(i)][3];
+            if (finPt(lh) && finPt(rh)) { hipX += 0.5 * (lh.x + rh.x); ++nH; }
+        }
+        if (i < int(anchors.gx.size()) && fin(anchors.gx[size_t(i)])) { gripX += anchors.gx[size_t(i)]; ++nG; }
+    }
+    if (!nA || !nH || !nG) return p;
+    ankleY /= nA; ankleX /= nA; hipX /= nH; gripX /= nG;
+    p.ok = true;
+    p.ankleX = ankleX; p.ankleY = ankleY;
+    p.dirOut  = (gripX >= hipX) ? 1.0 : -1.0;      // hips → grip, horizontally
+    p.gripOut = (gripX - ankleX) * p.dirOut;       // how far out the grip sits
+    return p;
+}
 
-    const cv::Mat med32 = medianImage(frameAt, addr, false);
-    if (med32.empty()) { out.reason = QStringLiteral("address-hold median unavailable"); return out; }
-    cv::Mat med8; med32.convertTo(med8, CV_8U);
+// ── cue 1: the ball imaged as a BRIGHT compact blob (unchanged) ──────────────
+struct BrightCue {
+    bool    found = false;
+    double  x = 0, y = 0;
+    QString reason;
+};
+BrightCue brightBallCue(const FrameSource& frameAt, const std::vector<int>& addr,
+                        const std::vector<int>& postFramesIn, const cv::Mat& med8,
+                        const BallPrior& prior, int frameH)
+{
+    BrightCue out;
 
     // Threshold: bright in ABSOLUTE terms (230), and the 99.5th percentile is a
     // way DOWN from that on a dim clip — never a way up.
@@ -183,28 +221,6 @@ DtlBall dtlFindBall(const FrameSource& frameAt,
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(bin, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
 
-    // The golfer's own geometry, in this view's sentence (§4.3): the ball is
-    // BELOW the ankle line and FARTHER from the ankles, horizontally, than the
-    // grip is, in the direction hips→grip. "Between the feet" is the face-on
-    // sentence and §2 finding 5 is what porting it costs.
-    double ankleY = 0, ankleX = 0, hipX = 0, gripX = 0;
-    int nA = 0, nH = 0, nG = 0;
-    for (const int i : addr) {
-        if (i < int(anchors.joints.size()) && anchors.joints[size_t(i)].size() >= 8) {
-            const cv::Point2d& la = anchors.joints[size_t(i)][6];
-            const cv::Point2d& ra = anchors.joints[size_t(i)][7];
-            if (finPt(la) && finPt(ra)) { ankleY += 0.5 * (la.y + ra.y); ankleX += 0.5 * (la.x + ra.x); ++nA; }
-            const cv::Point2d& lh = anchors.joints[size_t(i)][2];
-            const cv::Point2d& rh = anchors.joints[size_t(i)][3];
-            if (finPt(lh) && finPt(rh)) { hipX += 0.5 * (lh.x + rh.x); ++nH; }
-        }
-        if (i < int(anchors.gx.size()) && fin(anchors.gx[size_t(i)])) { gripX += anchors.gx[size_t(i)]; ++nG; }
-    }
-    if (!nA || !nH || !nG) { out.reason = QStringLiteral("no address pose to anchor the ball prior"); return out; }
-    ankleY /= nA; ankleX /= nA; hipX /= nH; gripX /= nG;
-    const double dir = (gripX >= hipX) ? 1.0 : -1.0;          // hips → grip, horizontally
-    const double gripOut = (gripX - ankleX) * dir;            // how far out the grip sits
-
     const double aMin = kPi * 4.0 * 4.0, aMax = kPi * 16.0 * 16.0;
     struct Cand { double x, y; };
     std::vector<Cand> cands;
@@ -222,8 +238,7 @@ DtlBall dtlFindBall(const FrameSource& frameAt,
         const cv::Moments m = cv::moments(ct);
         if (m.m00 <= 0.0) continue;
         const double bx = m.m10 / m.m00, by = m.m01 / m.m00;
-        if (by <= ankleY - 0.02 * frameH) continue;           // above the ankle line
-        if ((bx - ankleX) * dir <= gripOut) continue;         // not beyond the grip, on the golfer's side
+        if (!prior.inside(bx, by, frameH)) continue;
         cands.push_back({ bx, by });
     }
     if (cands.empty()) {
@@ -284,6 +299,198 @@ DtlBall dtlFindBall(const FrameSource& frameAt,
     out.reason = kept.empty()
                      ? QStringLiteral("%1 candidate(s), none passed permanence-with-launch").arg(int(cands.size()))
                      : QStringLiteral("%1 candidates passed — ambiguous, no ball").arg(int(kept.size()));
+    return out;
+}
+
+// ── cue 2: the ball's CONTACT SHADOW on a blown-white mat ────────────────────
+// The ball is white; so is the mat, at 253–254. What survives that is the small
+// crisp dark crescent the ball casts at its own lower rim — and the only reason
+// it is a ball and not a scuff is that it GOES once the ball has been struck.
+struct ShadowCue {
+    bool    found = false;
+    double  x = 0, y = 0;         // the crescent's centroid, NOT the ball centre
+    double  rise = std::numeric_limits<double>::quiet_NaN();
+    int     nCand = 0;
+    QString reason;
+};
+ShadowCue shadowBallCue(const FrameSource& frameAt,
+                        const std::vector<int>& clubAwayFramesIn,
+                        const std::vector<int>& afterFramesIn,
+                        const BallPrior& prior, int frameW, int frameH,
+                        const DtlShaftConfig& cfg)
+{
+    ShadowCue out;
+    // WHEN to look, and it is not the address hold: at address the clubhead and
+    // its own shadow sit ON the ball (measured on 06-11 — the address median has
+    // one dark mass spanning x 440–600 where the crescent is). The club is above
+    // the waist from P2 + 40% of P2→P4 to P5, which is the same window the
+    // phase-aware clean plate already trusts for the low rows, and a per-pixel
+    // median over ≤ 25 of those frames kills the moving club and the arms.
+    const std::vector<int> away = thinTo(clubAwayFramesIn, 25);
+    if (away.size() < 5) {
+        out.reason = QStringLiteral("shadow cue: only %1 club-away frames (need 5)").arg(int(away.size()));
+        return out;
+    }
+    const std::vector<int> aft = thinTo(afterFramesIn, 15);
+    if (aft.size() < 5) {
+        out.reason = QStringLiteral("shadow cue: only %1 post-launch frames (need 5)").arg(int(aft.size()));
+        return out;
+    }
+    const cv::Mat away32 = medianImage(frameAt, away, false);
+    const cv::Mat after32 = medianImage(frameAt, aft, false);
+    if (away32.empty() || after32.empty()
+        || away32.rows != after32.rows || away32.cols != after32.cols) {
+        out.reason = QStringLiteral("shadow cue: club-away / post-launch medians unavailable");
+        return out;
+    }
+    cv::Mat away8; away32.convertTo(away8, CV_8U);
+    cv::Mat local;  cv::medianBlur(away8, local, 31);   // the mat's own level, 31×31
+
+    // WHAT to look for: dark against the LOCAL median, on mat that is blown, and
+    // inside the DTL ball prior. Local, because the mat falls off toward the feet
+    // and a global threshold would call the far end of it a shadow.
+    const int H = away8.rows, W = away8.cols;
+    cv::Mat mask = cv::Mat::zeros(H, W, CV_8U);
+    for (int r = 0; r < H; ++r) {
+        const uchar* a = away8.ptr<uchar>(r);
+        const uchar* m = local.ptr<uchar>(r);
+        uchar* o = mask.ptr<uchar>(r);
+        for (int c = 0; c < W; ++c) {
+            if (double(m[c]) < cfg.ball.shadowMatMin) continue;
+            if (double(m[c]) - double(a[c]) < cfg.ball.shadowDrop) continue;
+            if (!prior.inside(double(c), double(r), frameH)) continue;
+            o[c] = 255;
+        }
+    }
+    cv::Mat lab, stats, cent;
+    const int n = cv::connectedComponentsWithStats(mask, lab, stats, cent, 8, CV_32S);
+
+    // Area scales with the frame: 12–400 px at 512 wide, and the crescents that
+    // this was measured on run 51–79 px at 576. Elongation 4:1 is loose on
+    // purpose — a crescent is 2.4–3.2:1 and a shaft shadow is far worse.
+    const double s = (frameW > 0) ? (double(frameW) / 512.0) * (double(frameW) / 512.0) : 1.0;
+    const double aMin = 12.0 * s, aMax = 400.0 * s;
+    struct Cand { double rise, x, y; int area; };
+    std::vector<Cand> cands;
+    for (int j = 1; j < n; ++j) {
+        const double A = double(stats.at<int>(j, cv::CC_STAT_AREA));
+        if (A < aMin || A > aMax) continue;
+        const double bw = double(stats.at<int>(j, cv::CC_STAT_WIDTH));
+        const double bh = double(stats.at<int>(j, cv::CC_STAT_HEIGHT));
+        if (bw <= 0.0 || bh <= 0.0) continue;
+        if (std::max(bw, bh) / std::min(bw, bh) > 4.0) continue;
+        // THE DISCRIMINATOR: the same pixels, once the ball has gone. A scuff or
+        // a tee hole is still dark there; a ball's shadow is not.
+        const int x0 = stats.at<int>(j, cv::CC_STAT_LEFT), y0 = stats.at<int>(j, cv::CC_STAT_TOP);
+        double sum = 0.0; int cnt = 0;
+        for (int r = y0; r < y0 + int(bh); ++r)
+            for (int c = x0; c < x0 + int(bw); ++c)
+                if (lab.at<int>(r, c) == j) {
+                    sum += double(after32.at<float>(r, c)) - double(away32.at<float>(r, c));
+                    ++cnt;
+                }
+        if (!cnt) continue;
+        ++out.nCand;
+        const double rise = sum / double(cnt);
+        if (rise < cfg.ball.shadowLaunchRise) continue;
+        cands.push_back({ rise, cent.at<double>(j, 0), cent.at<double>(j, 1), int(A) });
+    }
+    if (cands.empty()) {
+        out.reason = out.nCand
+                         ? QStringLiteral("shadow cue: %1 dark blob(s) in the prior, none vanished at launch")
+                               .arg(out.nCand)
+                         : QStringLiteral("shadow cue: no dark compact blob on blown mat in the prior");
+        return out;
+    }
+    std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b) {
+        if (a.rise != b.rise) return a.rise > b.rise;
+        if (a.y != b.y) return a.y < b.y;                 // a total order, so the result is deterministic
+        return a.x < b.x;
+    });
+    // More than one thing that vanished at launch: take the clearest ONLY if it
+    // is clearly the clearest. A detector that picks between two near-equals is
+    // worse than one that abstains, and this is the same sentence the bright cue
+    // already lives by.
+    if (cands.size() > 1 && cands[0].rise < 1.5 * cands[1].rise) {
+        QStringList l;
+        for (const Cand& c : cands)
+            l << QStringLiteral("(%1,%2) rise %3 area %4")
+                     .arg(c.x, 0, 'f', 1).arg(c.y, 0, 'f', 1).arg(c.rise, 0, 'f', 0).arg(c.area);
+        out.reason = QStringLiteral("shadow cue: ambiguous shadow candidates — %1").arg(l.join(QStringLiteral("; ")));
+        return out;
+    }
+    out.found = true;
+    out.x = cands[0].x; out.y = cands[0].y; out.rise = cands[0].rise;
+    out.reason = QStringLiteral("shadow cue: one crescent that vanished at launch, rise %1, area %2")
+                     .arg(cands[0].rise, 0, 'f', 0).arg(cands[0].area);
+    return out;
+}
+
+} // namespace
+
+// ── the DTL ball (§4.3, §5.5) ────────────────────────────────────────────────
+DtlBall dtlFindBall(const FrameSource& frameAt,
+                    const std::vector<int>& addrFramesIn,
+                    const std::vector<int>& postFramesIn,
+                    const std::vector<int>& clubAwayFramesIn,
+                    const std::vector<int>& afterFramesIn,
+                    const DtlAnchors& anchors,
+                    int frameW, int frameH,
+                    double scalePxPerMm,
+                    const DtlShaftConfig& cfg)
+{
+    DtlBall out;
+    const std::vector<int> addr = thinTo(addrFramesIn, 25);
+    if (addr.size() < 3) { out.reason = QStringLiteral("no address hold to search"); return out; }
+
+    const cv::Mat med32 = medianImage(frameAt, addr, false);
+    if (med32.empty()) { out.reason = QStringLiteral("address-hold median unavailable"); return out; }
+    cv::Mat med8; med32.convertTo(med8, CV_8U);
+
+    const BallPrior prior = buildBallPrior(addr, anchors);
+    if (!prior.ok) { out.reason = QStringLiteral("no address pose to anchor the ball prior"); return out; }
+
+    // The ball is 42.7 mm. The scene scale is L̂_D / the club's own length, which
+    // is known BEFORE the ball is (the cross-view row scale carries face-on's
+    // full length across), so the radius costs nothing new to know. With no scale
+    // at all, 0.012 × frameH is a stated fallback, not a measurement.
+    const bool haveScale = fin(scalePxPerMm) && scalePxPerMm > 0.0;
+    const double radiusPx = haveScale ? 0.5 * 42.7 * scalePxPerMm : 0.012 * double(frameH);
+    out.radiusPx = radiusPx;
+
+    // Both cues run. The shadow is MEASURED even where the bright cue answers, so
+    // a trace on a scene that carries both can put them side by side; it is only
+    // CONSULTED where brightness found nothing.
+    const BrightCue bright = brightBallCue(frameAt, addr, postFramesIn, med8, prior, frameH);
+    const ShadowCue shadow = shadowBallCue(frameAt, clubAwayFramesIn, afterFramesIn,
+                                           prior, frameW, frameH, cfg);
+    out.nCandidates = shadow.nCand;
+    if (shadow.found) { out.shadowX = shadow.x; out.shadowY = shadow.y; out.launchRise = shadow.rise; }
+
+    if (bright.found) {
+        out.found = true; out.source = QStringLiteral("bright");
+        out.x = bright.x; out.y = bright.y;
+        out.reason = bright.reason;
+        return out;
+    }
+    if (shadow.found) {
+        // GEOMETRY, stated: the crescent is the contact shadow at the ball's
+        // LOWER RIM, with the light above — so the ball centre is one radius
+        // straight up from the crescent's centroid. It is a small correction:
+        // measured on 06-11 the grip→ball distance is 316–338 px, and a 6 px
+        // error in the centre is 0.6° in θ_ball against a ±20° gate.
+        out.found = true; out.source = QStringLiteral("shadow");
+        out.x = shadow.x;
+        out.y = shadow.y - cfg.ball.shadowToCentreR * radiusPx;
+        out.reason = QStringLiteral("%1; centre placed %2 px above it (r=%3%4); bright cue: %5")
+                         .arg(shadow.reason)
+                         .arg(cfg.ball.shadowToCentreR * radiusPx, 0, 'f', 1)
+                         .arg(radiusPx, 0, 'f', 1)
+                         .arg(haveScale ? QString() : QStringLiteral(", no scale — 0.012×H"))
+                         .arg(bright.reason);
+        return out;
+    }
+    out.reason = QStringLiteral("%1; %2").arg(bright.reason, shadow.reason);
     return out;
 }
 
@@ -481,22 +688,49 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
     // they are not solved at all. The club is above the waist through P2½→P5, so
     // the low rows are clean there; the upper frame is clean during the address
     // hold. It is only a choice of WHICH FRAMES enter a median.
-    std::vector<int> addrFrames, lowFrames, allFrames, postFrames;
+    //
+    // `afterFrames` is new and is the shadow cue's discriminator: impact + 150 ms
+    // to impact + 400 ms, where the ball has LEFT. A mark still dark there was
+    // never a ball's shadow.
+    std::vector<int> addrFrames, lowFrames, allFrames, postFrames, afterFrames;
     for (int i = 0; i < nf; ++i) {
         if (!decodable[size_t(i)]) continue;
         allFrames.push_back(i);
         const int64_t t = tUs[size_t(i)];
         if (tP1 >= 0 && t < tP1 - 100000) addrFrames.push_back(i);
         if (impactUs >= 0 && t > impactUs + 120000) postFrames.push_back(i);
+        if (impactUs >= 0 && t >= impactUs + 150000 && t <= impactUs + 400000) afterFrames.push_back(i);
         if (tP2 >= 0 && tP4 > tP2 && tP5 > 0) {
             const int64_t lo = tP2 + int64_t(0.4 * double(tP4 - tP2));
             if (t >= lo && t <= tP5) lowFrames.push_back(i);
         }
     }
+    // Fewer than five frames in that window (a clip that ends at the follow
+    // through, an impact instant near the last frame) ⇒ the last five decodable
+    // frames of the DTL span stand in, and the substitution is recorded rather
+    // than silently made: it is a weaker test, because the ball left earlier and
+    // more of the scene has moved by then.
+    bool afterIsSpanTail = false;
+    if (afterFrames.size() < 5 && allFrames.size() >= 5) {
+        afterIsSpanTail = true;
+        afterFrames.assign(allFrames.end() - 5, allFrames.end());
+    }
 
     // ── (c1) the DTL ball, then L̂_D ────────────────────────────────────────
+    // The cross-view row scale is resolved FIRST, because the ball detector needs
+    // a scene scale to size a 42.7 mm ball in pixels and this one owes the ball
+    // nothing. It is still only the FALLBACK for L̂_D itself: a found ball's own
+    // grip→ball measurement takes precedence below, exactly as before.
+    const double lRowScalePx = (witness && witness->fullLenPx > 0.0 && fin(st.rowFitA) && st.rowFitA > 0.0)
+                                   ? witness->fullLenPx * st.rowFitA
+                                   : nan;
+    const double scalePxPerMm = (fin(lRowScalePx) && clubLenMm > 0.0) ? lRowScalePx / clubLenMm : nan;
     if (witness) {
-        st.ball = dtlFindBall(frameSrc, addrFrames, postFrames, anchors, frameW, frameH);
+        st.ball = dtlFindBall(frameSrc, addrFrames, postFrames, lowFrames, afterFrames,
+                              anchors, frameW, frameH, scalePxPerMm, cfg);
+        if (afterIsSpanTail)
+            st.ball.reason += QStringLiteral(" [no impact+150..400 ms frames: the shadow cue's "
+                                             "launch test used the last 5 frames of the span]");
     } else {
         st.ball.reason = QStringLiteral("truth-only run: no face-on ladder, no ball search");
     }
@@ -518,11 +752,11 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
             st.lFullSource = QStringLiteral("ball");
         }
     }
-    if (!fin(st.lFullPx) && witness && witness->fullLenPx > 0.0 && fin(st.rowFitA) && st.rowFitA > 0.0) {
+    if (!fin(st.lFullPx) && fin(lRowScalePx)) {
         // Fallback: the face-on full length carried across by the fitted
         // cross-view ROW scale. Both cameras see vertical, so `a` is the only
         // scale the two views share without a calibration.
-        st.lFullPx = witness->fullLenPx * st.rowFitA;
+        st.lFullPx = lRowScalePx;
         st.lFullSource = QStringLiteral("faceOnRowScale");
     }
 
