@@ -1,8 +1,16 @@
 # Down-the-line shaft tracker — design
 
-**Status: design, 2026-09-20. Nothing built. One feasibility run made while writing
-it (§2), on one swing, judged by eye — it sizes the problem, it does not grade
-anything.** Successor context: the corpus audit is
+**Status: prototype built and graded, 2026-09-20. Results:
+[`docs/research/data/dtl/dtl_tracker_results_20260920.md`](../research/data/dtl/dtl_tracker_results_20260920.md)**
+— dev six, held-out six, and a nine-swing transfer to a second rig, against a
+truth instrument that is not the one §6 asks for. Read §5's "As built" for every
+departure and §6 and §8 as revised. The design text below is unchanged except
+where a dated note says otherwise: it is the reasoning that produced the
+prototype, not a description of it.
+
+*Originally: design, 2026-09-20, nothing built. One feasibility run made while
+writing it (§2), on one swing, judged by eye — it sized the problem, it did not
+grade anything.* Successor context: the corpus audit is
 `dtl_shaft_tracking_corpus_assessment.md` (21 named swings, what they can and cannot
 grade); the face-on tracker is `club_tracking_v3_design.md` and
 `markerless_club_tracker_design.md`; the history of what worked and what did not is
@@ -201,8 +209,27 @@ What the run says, by eye on one swing:
    The wholebody model's hand confidence is known not to be trustworthy, and it
    will not say so.
 2. **The evidence engines transfer.** Where the club is long and the body is not
-   competing (mid-backswing), the line is found and sits on the shaft; E1 locked
-   (`bandPx` 185).
+   competing (mid-backswing), the line is found and sits on the shaft.
+
+> **Corrected, 2026-09-20.** This finding originally ended "; E1 locked
+> (`bandPx` 185)". **E1 did not lock — it never ran.** `frameBandMatch()`
+> returns nothing when `bandsMm.size() < 2`, `bandsMm` comes from
+> `job.bandCentersMm`, and that is populated from `capture.club.bandCentersMm`
+> in swing.json. These 07-04 swings carry **no `capture.club` block at all**, so
+> E1 was disabled and both views ran ray-only; Stage 0 measured zero band locks
+> on all six dev swings in both views. `lengths.bandPx` is non-zero regardless,
+> because it is the length ladder's rung computed from the **SEGMENT** lock's
+> scale — a different measurement wearing a similar name. Reading it as evidence
+> that an engine had run is the second tooling error this work contributed to
+> the research record's §17.2.
+>
+> The club record can now be injected — `swinglab_run --bands
+> 308,362,560,758,808,854 --club-length-mm 940 --hosel-mm 882` — and with it E1
+> locks on **0–4 DTL frames per swing**. The cause is optical: the DTL camera
+> has **no ring light**, so the tape images as ordinary white paint between
+> black tape rather than the saturated retro-reflective blobs the face-on
+> matcher was built on. The rest of finding 2 stands: the ridge evidence does
+> transfer, and it is E2 that carries this view.
 3. **The decision layer does not.** Two of the four pre-finish sighted bands are
    confidently wrong. The arm at the top is the FO daylight-session counterfeit
    ("a parallel bright ridge … with the same line confidence") promoted from a
@@ -524,7 +551,238 @@ wizard, no metrics. Stage version `kDtlShaftStageVersion = 1` in
 
 ---
 
+## 5A. As built (2026-09-20)
+
+> **As built, 2026-09-20.** Every departure from §5 above, with the measurement
+> that forced it. The section text is left as written; this is what the code
+> does. Numbers are from
+> [`docs/research/data/dtl/dtl_tracker_results_20260920.md`](../research/data/dtl/dtl_tracker_results_20260920.md),
+> which has the per-band tables behind each one. Files:
+> `src/Analysis/dtl_shaft_{types,config}.h`,
+> `dtl_shaft_{tracker,decide,post}.cpp`, with `shaft_track_shared.h` and
+> `shaft_frame_io.h` pulled out of the face-on assembly so both views share one
+> scorer and one frame cache.
+
+**The schedule's denominator must come from in-plane face-on frames.** §4.1 (a)
+does not say where ρ_F's denominator comes from, and the obvious choice is
+wrong. A p95 over *all* measured face-on frames gives 328–351 px where a p95
+over frames with |cos θ_F| ≥ 0.94 gives 290–321, on four of six dev swings —
+perspective magnifies the club at address, where the head is ~0.5 m nearer the
+face-on lens than the hands. With the inflated denominator ρ̂_D at P2 and P6
+read **0.51 instead of 0.00 and the end-on gaps never opened**. In-plane frames
+only, per swing, never pooled.
+
+**ρ_F := 1 is used as a bound where face-on has no measured length — for the
+schedule only.** Face-on coasts through the address hold and reconstructs at
+impact, about 96 frames a swing, and those are two of the four best-seen DTL
+moments. §5.7's "gate OFF when the face-on tier is not measured" would have
+thrown them away as "ρ̂ unknown" over frames where the club is sharp and in
+plain view. ρ_F = 1 maximises |u_x| = |cos θ_F| and therefore *minimises*
+ρ̂_D = |sin θ_F|, so it is the conservative bound: a near-horizontal face-on
+shaft still reads END-ON and only near-vertical ones are admitted. **It moves
+the schedule and nothing else** — D4 (half-plane) and D5 (corridor) still
+require a measured face-on tier, so this does not breach §5.9's "a frame is
+never measured on face-on's word". `DtlRhoSrc` records which of the two every
+frame used.
+
+**`rhoSolveMin` 0.35 → 0.50.** At 0.35, swings 0007 and 0008 solved a
+610–636 ms band straight through the top of the backswing. The cost is the
+P3.9→P4.3 frames, which now read END-ON. Stage 0 had said the *value* inside a
+stub is untrustworthy while the *discrimination* is robust, and this is that
+warning coming true. **It does not transfer across rigs:** on 06-11 the same
+0.50 admits frames at ρ̂_D 0.52–0.69 that carry forearm locks (§8).
+
+**Three evidence channels, and the polarity trap.** §5.5 says "E2 on raw and
+motion channels as today". That is not enough here. A signed ridge integral
+**cancels along a black-and-white taped shaft over a mid-grey lit screen**, and
+the wide bright forearm then out-scores the shaft on a frame where the shaft is
+plainly visible. The engine runs three channels — motion against the phase-aware
+clean plate, **polarity-free local contrast `|frame − boxblur(31)|`**, and raw
+signed — and takes the max after normalisation. Measured on the true shaft: the
+contrast channel reads 37–48 grey levels over screen and mat against 1–8 on a
+control line. Each channel carries an absolute floor; a channel whose raw p97
+misses it is dropped rather than rescaled, because `normScores` would otherwise
+promote a frame of pure noise to a full-strength winner. **After shared
+percentile normalisation a limb and the shaft tie at EV ≈ 1** — so the
+discrimination rests entirely on the constraints, not on an evidence margin.
+The snap searches the same contrast image, for the same reason.
+
+**A ball GATE, not §5.6's soft D6 well.** D6 as designed is a 4-deep Gaussian
+against a tie, and a tie is exactly what this view offers: the first build
+published **113–132°** through the address hold — down-left along the trail leg
+and the trouser edge to the feet — where band truth is **58–62°**. So at
+still-club frames a candidate more than 20° from DTL's own grip→ball line is
+**refused**, expressed as a cost so the trace can show what it refused; and
+where there is no ball those frames are **not solved at all**, with the reason
+recorded. D6's soft well is still there underneath.
+
+This does not breach §5.10's one-directional rule or §5.9's "never measured on
+face-on's word". Only the *timing* of the gate is inherited — the address hold,
+and ±20 ms of the face-on impact instant. **The direction is a DTL
+measurement**: DTL's own ball, found by DTL's own detector, in DTL pixels. It is
+the same sentence face-on already lives by ("probe address toward the ball, not
+along a clamp; no ball ⇒ not probed") spoken in this view.
+
+The hold's end also had to move. P1 + 30 ms is face-on's instant for "the
+takeaway has begun", which is a claim about the **hands**; the gate wants "the
+head has left the ball". On a slow one-piece takeaway the club stays within 5°
+of the ball line for ~190 ms after P1, and the frame after a 30 ms window closed
+the solve jumped to the trouser/shin edge at 103–132°. The hold now releases
+when the inherited θ_F has moved more than 10°, or at a 300 ms cap: measured,
+83–224 ms on the dev six, cap never reached. That closed the last 19
+confidently-wrong frames.
+
+**The DTL ball detector's own corrections.** Three, all measured. The brief's
+`max(230, p99.5)` brightness threshold is wrong on a lit scene — p99.5 of the
+address median is **254** and the ball images at 220–236, so the detector
+reported "no bright compact blob" about the brightest compact thing in the
+frame; it is `min(230, p99.5)`, with the percentile as a floor-*lowering*
+escape, which is the only job it can honestly do. Permanence is tested on the
+**25th percentile** of the hold, not the minimum: the clubhead is behind the
+ball at address and the golfer waggles, so the single darkest hold frame reads
+88–173 against a median of 219–236 and a min test refuses the real ball on every
+swing. And the golf prior is §4.3's DTL sentence — below the ankle line and
+farther from the ankles than the grip is, in the hips→grip direction — never
+"between the feet". Found on **all 12** taped swings at about (470–491,
+809–818) of 512×1024, L̂_D 319–347 px; found on **none** of the nine 06-11
+swings, where the ball is white on a blown-white mat.
+
+**The limb veto is generalised, and unearned.** D2 was extended past the
+forearms to hips, knees and ankles — the measured failure is a ray down the
+trail leg, which an elbows-only veto says nothing about — with the lateral
+distance to the joint as the discriminator, not the angle, and the cost charged
+once however many joints of one limb line up. Shoulders and head are
+deliberately excluded: at P3 the true shaft passes near them. **On its own it is
+a regression**, and in the run it fires at the solved θ on 2 frames of 2,629
+(c2) and on **zero** frames of the final dev-six and held-out runs. It also
+blocks two adjudicated-good P5 tiles. Kept under review.
+
+**The quarantine is on absolute thresholds, not the fit's p95.** §5.2 proposes
+"more than the fit's p95 residual". Stage 0 measured that fit: residual p50
+8–20 px, **p95 27–97 px** on a 1024-row frame, and "more than p95" is by
+construction 5% of the fitting window. Absolute thresholds are used instead —
+80 px in the span, 40 px within 80 ms after impact, where the invented hands
+live. The gate does its job (69–180 OCCLUDED frames a swing, concentrated after
+P8) but §5.2's stated form is not what shipped and the tighter witness it wants —
+both shoulders, or a torso row profile — is still owed.
+
+**D1's reverse-ray test is waived on most published frames.** §5.6 keeps C1's
+reverse-ray test "as built". That test assumes **free space behind the butt**,
+and down the line there is none: the lead arm is near-collinear with the shaft
+at address and impact, and the forearms sit on the opposite side of the grip at
+P3 and P5, so *"the reverse ray is as strong" is the normal condition of a
+correct frame here*. Measured: 126 in-span frames refused on it across the dev
+six, four of them ladder tiles already adjudicated right. It is now waived where
+the reverse direction lies within 25° of grip→elbow or grip→shoulder of either
+arm, or at a ball-gated frame. Refusals 126 → 12 — but the waiver then covers
+**85% of published dev-six frames and 82% of held-out ones**, so **D1 is
+effectively off in this view**. A lateral-proximity form ("must run *along* the
+arm, not merely parallel to it") is the replacement and is not built.
+
+**The snap's extent decides which part of the club it scores.** `snapSearch`'s
+objective is a **mean** over r ∈ [rLo, drawnLen). With drawnLen = the DP's
+`rEnd` — short, for the next reason — the snap scored the near half of the club
+only, where a brighter ridge than the club lives, and sat about +3° off.
+`drawnLen := max(rEnd, ρ̂_D · L̂_D)` — the visibility law's own predicted
+projected length, which is D3's ceiling and costs nothing new to know — took
+swing 0004's thirteen address frames from 55.0–58.0° to 54.0–54.5° against a
+truth of 50.75°, and the dev six's pooled address error from 3.5°/6.5° to
+**0.38°/3.50°**, with not one frame more than 2° worse. `max()`, not replace:
+scoring a line over less than its own drawn length credits a ray for the part of
+it nobody looked at.
+
+**Length is measured along the snapped line, never along a ray from the pose
+anchor.** The DTL pose grip is a wrist midpoint and sits 17–22 px off the shaft
+axis, so a ray from it leaves the thin shaft early; `ridgeSweep`'s `rEnd` then
+reports **exactly `rLo` + `minLenPx` = 98 px** whatever the club is doing — a
+floor wearing a length's clothes, on 51–101 refused frames a swing. Measuring
+the evidenced run along the re-registered line took published frames 498 → 1023
+and ladder tiles 12/24 → 17/24. Where the snap declined, seven lateral origin
+offsets stand in, and `DtlLenSrc` records which. The published run is the longer
+of the two, and only where `rEnd` is a length at all: a bloomed blurred shaft
+reads evidence-free to the thin-line profile and breaks early (0006 P3: 326 px
+from `rEnd`, 130 px from the snapped line, with the shaft visible to the corner
+in both).
+
+About **+3.7°** of what remained of the address error on 0004 is **convention**,
+not error: band truth is the full shaft axis, the tracker's line starts at the
+pose grip.
+
+**Output is a sibling file, not `analysis.clubDtl`.** §5.11 says
+`analysis.clubDtl`. The tracker writes `club_dtl.json` beside `result.json`
+instead, with `pose_dtl.json` and `trace_dtl.jsonl`, and **`result.json` is not
+touched by a `--dtl` run**. That is what makes §5.1's byte-identity gate a
+property of the file system rather than of a diff. `kDtlShaftStageVersion` was
+not added to `analysis_versions.h`, because nothing in the persisted analysis
+changed — when the track moves into `analysis`, it must be.
+
+**The tiers actually emitted are RAY, almost exclusively.** BAND fires on 0–4
+frames a swing (see §2's correction). **SEG was deliberately not built** — the
+segment probe along the solved direction is the one deferred item, and a
+half-built SEG publishing a terminus it had not earned would be worse than none,
+so the tier is reachable through `dtlTierName` and nothing emits it. Of 1,150
+published dev-six frames, 1,142 are RAY and 8 BAND; of 1,129 held-out, 1,127 RAY
+and 2 BAND. The three absences — END_ON, OCCLUDED, UNSEEN — stay distinct, and
+`publishedInEndOn` is counted rather than asserted (0 everywhere).
+
+**The `lineConf`-for-EV rule is inert on the dev set.** Where the snap was
+accepted, the support under the re-registered line may stand in for the ray's
+own EV, because EV is read along the same off-axis ray `DtlLenSrc` is a record
+of and reads 0.37–0.40 against a 0.45 gate on frames adjudicated right. It fires
+on **0** dev-six frames, 4 held-out frames and 2 transfer frames. It was carried
+through the whole dev iteration doing nothing.
+
+**No clock offset is applied.** Stage 0's grip-row cross-correlation reads
++2,726 to +6,866 µs across six swings — a spread comparable to the value — so
+nothing is applied and `clockOffsetUs` is 0. The ~3.2 ms of §4.5 is frame
+*phase*, exact arithmetic on the recorded timestamps, and interpolating the
+witness removes it; a constant shift on top would be a second correction for one
+effect. §8's inter-camera-latency risk stays open.
+
+**The corridor's `w0` is a placeholder.** 25° in every band, because Stage 0
+could size it only where the corridor is degenerate. The depth **sign** is not
+settled by any data here: both centres are offered, the cost is the min over the
+two, and the taken-sign column splits about 60/40 inside the long mid bands. The
+sign schedule §4.2 hoped would turn out boring has not been established.
+
+---
+
 ## 6. Truth, and how results are reported
+
+> **Revised, 2026-09-20 — the instrument below does not exist, and what replaced
+> it covers one band of four.** Two findings, in the order they were made.
+>
+> **E1 could not be the instrument.** Stage 0 measured **zero** band locks on the
+> dev six in both views, because these swings carry no `capture.club` block (see
+> §2's correction). With the geometry injected — `swinglab_run --bands
+> 308,362,560,758,808,854 --club-length-mm 940 --hosel-mm 882` — E1 locks on
+> **0–4 DTL frames per swing**: the DTL camera has no ring light, so the tape is
+> ordinary white paint between black tape, not saturated retro blobs. An
+> instrument that fires four times a swing cannot grade a coupling.
+>
+> **What replaced it** is `tools/shaftlab/dtl_band_truth.py`: a zero-mean signed
+> band-**template** match that correlates on the white/black *alternation*
+> rather than on brightness — bare steel is as bright as the bands here — using
+> **no face-on input of any kind**. It accepts **506** frames on the dev six and
+> **620** on the held-out six; 204 tiles were adjudicated by eye with 0 wrong;
+> its own self-consistency is **0.155° p50 / 0.375° p90** (n = 224). It is a
+> real 0.3°-class reference and it was built adversarially, as the research
+> record requires.
+>
+> **But it covers the ADDRESS REGION ONLY** — about 1.7 s before P1 to 50–190 ms
+> after it — and abstains through the whole swing: at 6.5 ms exposure the 25 mm
+> bands smear along the shaft, the three-group template has nothing to correlate
+> with, and every candidate that still scores is a body line. Loosening the gates
+> produced adjudicated-false locks on the torso and trouser seam. So **there is
+> no automatic truth in the mid-backswing, downswing or impact bands**, the
+> gates below are graded on the address band alone, and every mid-band claim in
+> the results note rests on montage adjudication by eye.
+>
+> The second referee has changed too, and is now buildable rather than sparse: a
+> **DTL markup capability exists in the app** — side-by-side Face-On | DTL panes
+> on one playhead, marks written to `truth_dtl.json` and never to `truth.json`.
+> **No marks have been made yet.** Making them at P3, P5 and P7 on the dev six
+> is the single highest-value owed item in this whole document.
 
 **The instrument is the DTL band lock, generated without face-on.** E1 on the DTL
 stream of the 12 taped swings, unconditioned — no corridor, no schedule, no
@@ -556,6 +814,15 @@ The two ablation rows are the design's own test. If the corridor-off row matches
 the corridor-on row, the angle prior is dead weight and should be removed before
 it costs anything; §0 finding 3 predicts most of the gain is in the schedule.
 
+> **As built, 2026-09-20 — the two ablation rows were NOT run on the final
+> configuration, and they are owed.** Early configurations cannot stand in: the
+> rules changed underneath them. §0 finding 3's prediction therefore has no
+> measurement behind it. Of the other report columns: the corridor residual
+> exists for the address band only; escapes are **counted** (9–20 a dev swing,
+> 10–20 held-out, 2–18 transfer) but only the transfer escapes were adjudicated
+> individually; and published frames in END-ON/OCCLUDED spans came out 0 on all
+> 21 swings.
+
 **Gates** for "the prototype works", on the held-out six (07-04 s0010–s0015), run
 once: zero confidently-wrong published frames; θ vs band lock p50 ≤ 1.5°, p90 ≤ 5°
 in each of the four pre-finish bands; sighted-band coverage ≥ 0.80 in the address,
@@ -565,6 +832,26 @@ on and off; deterministic re-run. **Transfer** (06-11, nine bare-shaft swings, r
 once, last): no band lock exists, so the report is tier mix and sighted coverage
 beside 07-04's, plus hand marks on three swings — a finding, not a gate.
 
+> **As built, 2026-09-20 — the gates, with verdicts.** Full table in the results
+> note §9; the short form:
+>
+> | gate | verdict |
+> |---|---|
+> | zero confidently-wrong published frames | **MET** — 0 of 425 truth-paired held-out frames over 15°, address region only |
+> | p50 ≤ 1.5°, p90 ≤ 5°, address band | **MET** — p50 0.25° on all six, p90 0.50–0.75° |
+> | …mid-backswing, downswing, impact bands | **NOT GRADABLE** — no truth exists there |
+> | coverage ≥ 0.80 address / impact | **MET** — 1.00 on both, all six |
+> | coverage ≥ 0.80 mid-backswing | **MISSED on three of six** — 0.71, 0.71, 0.73 against 0.84, 0.88, 0.85 |
+> | coverage ≥ 0.60 downswing | **MET** — 0.72–0.93 |
+> | zero published frames in END-ON spans | **MET** — counted, 0 on all 21 swings |
+> | face-on `result.json` byte-identical with `--dtl` on and off | **MET on a 6-swing pinned-pose control** across five sessions; the 61-swing pass is separate |
+> | deterministic re-run | **NOT RUN** — owed |
+> | transfer, a finding not a gate | **DELIVERED, partial** — see §8 |
+>
+> The accuracy gates are address-only because the truth is address-only. That is
+> the honest reading of a run in which every pre-finish band met its coverage
+> bar but only one of four could be graded for angle at all.
+
 ---
 
 ## 7. Plan
@@ -572,6 +859,23 @@ beside 07-04's, plus hand marks on three swings — a finding, not a gate.
 Build economy applies: one build per stage, affected test targets only, once.
 GOLFSIMPC is not needed until a full 12-swing sweep; a swing runs in ~14 s on the
 Mac.
+
+> **As built, 2026-09-20.** Stages 0–5 all ran, on one day, on the Mac; a
+> `--dtl` swing costs ~2.2 s of analysis on top of the face-on run, not the 14 s
+> estimated, so GOLFSIMPC was never needed. The "done when" column was met as
+> marked in the new first column. Stage 6 is untouched.
+
+| Done | Stage | Deliverable | Done when |
+|---|---|---|---|
+| **✓** | 0 — measure | ran; results in `docs/research/data/dtl/stage0_probe_summary.md`. Decision recorded: **idealised corridor**, kept as a soft cost with a placeholder `w0`, no fitted camera (§4.4 not built). Tables (iii)–(vi) came back untestable or uninformative against the stand-in; a later addendum re-ran what it could against real band truth | a results note with the six tables on the dev six |
+| **✓** | 1 — plumbing | `--dtl` runs face-on as today, then poses the DTL stream and writes `pose_dtl.json`; `--dtl-pose` pins it | face-on byte-identical on a 6-swing five-session pinned control; 61-swing pass separate |
+| **✓** | 2 — tracker v0 | built; the dev-six table of §6 was produced and every §2 failure frame is now END-ON, OCCLUDED or correct | — |
+| **✓** | 3 — adjudicate and iterate | three iterations, c2 → c3 → c4, each against montage-adjudicated frames; the rules added are in §5A | dev six meets the §6 gates it can be graded on |
+| **✓** | 4 — held-out | 07-04 s0010–s0015, run once on `configHash 6d49771b0a9cf28c` | gates met except mid-backswing coverage on three swings; written up before any commit of tuned defaults |
+| **✓** | 5 — transfer | 06-11 bare wedge, nine swings, run once, last | finding recorded; the research report gains Phase 14 |
+| — | 6 — standalone | §9 | separate design |
+
+*Original plan table, unchanged:*
 
 | Stage | Deliverable | Done when |
 |---|---|---|
@@ -588,6 +892,62 @@ Stage 0 and Stage 1 are independent and can run in parallel.
 ---
 
 ## 8. Risks and open questions
+
+> **Revised, 2026-09-20 — what the prototype did to each risk.**
+>
+> - **One golfer, one rig, twelve swings.** *Confirmed, and now measured on a
+>   second rig.* The structure transferred to 06-11 — P3 and P5 publish at
+>   242–247° and 239–243° with rails on the shaft by eye, and
+>   `publishedInEndOn` is 0 — but the **numbers did not**. `rhoSolveMin` = 0.50
+>   admits frames at ρ̂_D 0.52–0.69 there that carry **one confirmed confident
+>   forearm lock** (swing 0002, P2, θ 225°, flagged `corridorEscape` and
+>   published anyway) and two probable ones at P4 on a 98–100 px run, which is
+>   `ridgeSweep`'s own floor. Nothing here should be frozen as a default.
+>   Worse: the 06-11 ball is white on a blown-white mat and is not found on any
+>   of the nine, so the still-club rule refuses address and impact and **P1
+>   publishes 0/9 and P7 publishes 0/9** — the two moments this view exists for.
+>   That is the most serious open defect in the prototype. Either the ball
+>   detector works on that mat, or the still-club frames need a second
+>   DTL-native witness that is not the ball.
+> - **Face-on errors propagate.** Untested: no swing in these 21 presented a
+>   collapsed face-on phase model, and the `scheduleConflict` check the risk
+>   proposes as the mitigation **was not built**.
+> - **The ρ̂_D schedule near band edges.** *Realised, and the trade was taken.*
+>   `rhoSolveMin` went 0.35 → 0.50 for exactly this reason, and D2 is not what
+>   separated them — it fires at the solved θ on zero frames of the final runs.
+>   Coverage was the thing traded, as predicted.
+> - **Bare steel over the screen.** *Partly answered, and by a different route.*
+>   The problem was not contrast but **polarity**: a signed ridge integral
+>   cancels along a black-and-white taped shaft, so a polarity-free local
+>   contrast channel was added (§5A). On 06-11's bare wedge in a dark room the
+>   mid bands publish at 0.60–0.94 coverage, so bare steel is findable here; the
+>   lit-screen case for a bare club is still untested, because 06-11 is a dark
+>   room.
+> - **The occlusion after impact is not predicted by geometry.** *Confirmed.*
+>   The quarantine catches it — 69–180 OCCLUDED frames a swing, concentrated
+>   after P8 — but **not in the form §5.2 designed**: the row-fit residual p95 is
+>   27–97 px, too loose to be a threshold, so absolute thresholds are used
+>   instead. The report's row for leaked P8–P9 publishes reads 0.
+> - **Inter-camera latency.** *Open, unchanged.* Stage 0's grip-row
+>   cross-correlation is not constant across swings (+2,726…+6,866 µs) and a
+>   grip row will not settle it; no offset is applied.
+> - **Open — for Mark: marks before or after Stage 2.** *Answered by events:
+>   after, and it cost nothing, because the band-template instrument arrived
+>   instead and turned out to cover one band of four.* The question is now
+>   sharper and more urgent: the DTL markup panel exists, no marks have been
+>   made, and **three of the four gates on angle cannot be graded until they
+>   are.**
+>
+> **Two new risks the prototype created.**
+>
+> - **D1 is effectively off** (§5A): the reverse-ray waiver covers 82–85% of
+>   published frames. The test that catches "this is a scene line, not a club"
+>   is not currently doing much, and the 06-11 forearm lock is the shape of what
+>   that costs.
+> - **The corridor's `w0` is a placeholder and the depth sign is unsettled.** A
+>   25° half-width in every band was chosen because nothing sized it. If it is
+>   too wide the corridor buys nothing; if too narrow it becomes the pin §5.7
+>   exists to prevent. The ablations that would tell us apart were not run.
 
 - **One golfer, one rig, twelve swings, and a camera in the wrong place.** Every
   width and threshold fitted here is a property of this rig. The design's
