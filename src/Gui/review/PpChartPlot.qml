@@ -73,6 +73,11 @@ Item {
     // it — with its timing σ as a whisker, and the lead between consecutive placed peaks
     // bracketed along the top of a combined plot. Only the peaks whose series this plot strokes
     // are drawn, so a split facet shows its own segment and no other.
+    //
+    // ONE NODE IS NOT A RING (2026-09-20): `atImpactRising` — the paired trunk route's "it had
+    // not peaked by impact" — draws as an open chevron pointing up-right at the impact edge of
+    // its own curve, labelled "rising". It has a tPeakUs only because the sequence domain ends at
+    // impact, and a ring there would sit on the ball and read as a peak at the ball.
     property var sequence: null
 
     // ── Playhead + shared cursor ──────────────────────────────────────────────────
@@ -170,6 +175,21 @@ Item {
     }
     readonly property var _seqPeaks:  (root.sequence && root.sequence.peaks)  ? root.sequence.peaks  : []
     readonly property var _seqGaps:   (root.sequence && root.sequence.gaps)   ? root.sequence.gaps   : []
+    // The peaks split by whether there IS a peak to ring (2026-09-20). A node the producer emitted
+    // as "had not peaked by impact" (ChartMetrics' atImpactRising — the paired trunk route's
+    // normal answer) has a tPeakUs only because the domain ended there; ringing it would draw a
+    // claim on the ball that the node exists to refuse. The split is done on the MODEL rather than
+    // by hiding a delegate, so a hidden ring is not findable by objectName either — the probe and
+    // tst_chart_presets both assert on absence, and an invisible item with the right name would
+    // pass while the user saw the wrong thing.
+    function _seqSplit(list, wantRising) {
+        var out = []
+        for (var i = 0; i < list.length; ++i)
+            if ((list[i].atImpactRising === true) === wantRising) out.push(list[i])
+        return out
+    }
+    readonly property var _seqRings:  root._seqSplit(root._seqPeaks, false)
+    readonly property var _seqRising: root._seqSplit(root._seqPeaks, true)
     function _bandColor(b) {
         return b === "warn"      ? Theme.colorWarn
              : b === "attention" ? Theme.colorAttention
@@ -741,8 +761,55 @@ Item {
                 }
             }
         }
+        // A node that had NOT peaked by impact: an open chevron at the impact edge of its own
+        // curve, pointing up-right, in the series' colour — the curve leaves the picture still
+        // climbing. No ring (there is no instant to ring), no σ whisker (there is no instant for a
+        // σ to be about), and no offset in the label: one word, "rising", which is C++'s
+        // (ChartMetrics.sequenceOverlay) like every other string on this plot.
         Repeater {
-            model: root._seqPeaks
+            model: root._seqRising
+            delegate: Item {
+                id: rz
+                required property var modelData
+                readonly property string col: root._colorForKey(rz.modelData.seriesKey)
+                readonly property real cx: root.xForT(rz.modelData.tPeakUs)
+                readonly property real cy: root.yForV(rz.modelData.peakDps)
+                readonly property real arm:  Theme.sp(9)     // the shaft, up-right at 45°
+                readonly property real head: Theme.sp(4)     // the two strokes back from the tip
+                readonly property real t:    Theme.sp(1.5)   // stroke weight
+                objectName: "sequenceRising:" + rz.modelData.segment
+                visible: rz.col !== "" && root._inDom(rz.modelData.tPeakUs)
+                x: 0; y: 0
+                // Shaft. Anchored at its RIGHT edge on (cx, cy) and rotated −45°, so the far end
+                // swings down-left and the tip — the thing the eye lands on — sits exactly on the
+                // curve's last sample.
+                Rectangle {
+                    x: rz.cx - rz.arm; y: rz.cy - rz.t / 2
+                    width: rz.arm; height: rz.t
+                    color: rz.col
+                    antialiasing: true
+                    transformOrigin: Item.Right
+                    rotation: -45
+                }
+                // The two head strokes, back from the tip along the axes: west and south. With the
+                // shaft at −45° between them they close an open arrowhead with no rotation of
+                // their own, which stays crisp at any device pixel ratio.
+                Rectangle { x: rz.cx - rz.head; y: rz.cy - rz.t / 2; width: rz.head; height: rz.t; color: rz.col }
+                Rectangle { x: rz.cx - rz.t / 2; y: rz.cy; width: rz.t; height: rz.head; color: rz.col }
+                Text {
+                    objectName: "sequenceRisingText"
+                    // To the LEFT of the tip and below it: the tip is at the right edge of the
+                    // plot by construction, so a centred label would fall off it.
+                    x: Math.max(0, Math.min(root._plotW - width, rz.cx - width - Theme.sp(2)))
+                    y: rz.cy + Theme.sp(2)
+                    text: rz.modelData.text
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                    color: rz.col
+                }
+            }
+        }
+        Repeater {
+            model: root._seqRings
             delegate: Item {
                 id: pk
                 required property var modelData

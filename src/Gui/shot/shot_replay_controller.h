@@ -121,7 +121,7 @@ public:
     // Builds the metric-catalogue ShotContext map for the focused shot from its
     // analysisDetail (tier + pose/club/ball presence + calibration bindings) and
     // its own stream list, tagged with `sessionType` (the caller's screen type).
-    // Shape: { tier, sessionType, hasFaceOn, hasClubTrack, hasBallTrack,
+    // Shape: { tier, sessionType, hasFaceOn, hasDtl, hasClubTrack, hasBallTrack,
     // imuRoles:[roleName…] } — consumed by MetricCatalog.query/descriptor. Sourced
     // from the DISK shot, so analysis.bindings[] (hence imuRoles) are present,
     // unlike the live transient. archetype/club/shape are not persisted in

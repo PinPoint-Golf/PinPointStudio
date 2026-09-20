@@ -82,6 +82,29 @@ Item {
         order: ["pelvis", "club"], gapsMs: [87], gainsDps: [1770],
         orderResolved: true, verdict: "partial", routeSummary: "mixed"
     })
+    // …and the shape the PAIRED trunk route (faceOn+dtl) actually reports on the one golfer
+    // measured so far (pair_span_turn_20260920.md): the arm and the club peak before impact while
+    // the pelvis and chest are STILL ACCELERATING at it, so both trunk nodes come back unplaced
+    // with `peakNoEarlierThanMs` 0 and no `peakNoLaterThanMs`. That route has no blind band —
+    // nothing went out of sight — and the chart must not draw a ring on the ball for it.
+    // Times are in the test axis's own window (see test_016, which widens it): impact at 300 ms.
+    readonly property var risingSequenceMap: ({
+        impactUs: 300000,
+        nodes: [
+            { segment: "pelvis", placed: false, tPeakUs: 300000, beforeImpactMs: 0, peakDps: 640,
+              tSigmaMs: 0, peakSigmaDps: 70, routeId: "faceOn+dtl", quality: "estimated",
+              peakNoEarlierThanMs: 0 },
+            { segment: "thorax", placed: false, tPeakUs: 300000, beforeImpactMs: 0, peakDps: 700,
+              tSigmaMs: 0, peakSigmaDps: 60, routeId: "faceOn+dtl", quality: "estimated",
+              peakNoEarlierThanMs: 0 },
+            { segment: "leadArm", placed: true, tPeakUs: 185000, beforeImpactMs: 115, peakDps: 684,
+              tSigmaMs: 18, peakSigmaDps: 40, routeId: "faceOn", quality: "estimated" },
+            { segment: "club", placed: true, tPeakUs: 245000, beforeImpactMs: 55, peakDps: 1835,
+              tSigmaMs: 10, peakSigmaDps: 60, routeId: "faceOnClub", quality: "estimated" }
+        ],
+        order: ["leadArm", "club"], gapsMs: [60], gainsDps: [1151],
+        orderResolved: true, verdict: "partial", routeSummary: "estimated"
+    })
 
     PpMetricChart {
         id: chart
@@ -321,6 +344,13 @@ Item {
             verify(chart._presetOptions.indexOf("Tempo & sequence") >= 0)
         }
 
+        // ⚠ THIS TEST WAS RED, and had been since 2026-09-18. It was last written on the 17th
+        // (3b8dc071) and the strip was rewritten on the 18th (2adc2ac5, 3f83d18a) without it: it
+        // asserted `sequenceChip:pelvis` / `sequenceChip:thorax`, which that change DELETED when
+        // the sequence moved onto the plot (kinematic_sequence_design.md §8's dated note), and it
+        // compared the strip's one line against the bare verdict when the line has carried the
+        // chain and the verdict together ever since. Two `verify`s on a null findChild and one
+        // failed `compare`. Rewritten 2026-09-20 to assert what the strip renders now.
         function test_016_the_strip_shows_under_its_preset_and_only_there() {
             chart.seriesList = probe.sequenceAndWrist
             chart.kinematicSequence = probe.sequenceMap
@@ -329,14 +359,45 @@ Item {
 
             chart._applyPreset("Kinematic sequence", true)
             verify(strip.visible)
-            // The strip's strings are ChartMetrics' — the verdict line carries the partial
-            // sentence for two placed nodes of four, and the unplaced thorax chip is present
-            // (greyed, never dropped).
+
+            // The strip's strings are ChartMetrics' and there is ONE line: the placed chain with
+            // its leads, then the verdict. The chips it used to draw are gone for good.
             var verdict = findChild(chart, "sequenceVerdict")
             verify(verdict !== null)
-            compare(verdict.text, "placed nodes in order (2 of 4)")
-            verify(findChild(chart, "sequenceChip:thorax") !== null)
-            verify(findChild(chart, "sequenceChip:pelvis") !== null)
+            compare(verdict.text, "Pelvis −87 ms → Club 0 ms (+87 ms) · placed nodes in order (2 of 4)")
+            compare(findChild(chart, "sequenceChip:thorax"), null)
+            compare(findChild(chart, "sequenceChip:pelvis"), null)
+            // …and the peaks are rings on the curves instead.
+            verify(findChild(chart, "sequencePeak:pelvis") !== null)
+            compare(findChild(chart, "sequenceRising:pelvis"), null)
+
+            // ── The paired trunk route's "it had not peaked by impact" ────────────────────────
+            // Widen the axis so the measured leads (−115 / −55 ms) fit in the window; the curves
+            // themselves are 70 ms of synthetic ramp and are only there to give the preset its
+            // four series and the markers their colours.
+            chart.startUs = 1000; chart.endUs = 400000; chart.impactUs = 300000
+            chart.kinematicSequence = probe.risingSequenceMap
+
+            // NO RING ON THE BALL. The trunk nodes have a tPeakUs only because the sequence domain
+            // ends at impact; a dimmed ring there would read as "the chest peaked at impact",
+            // which is the one claim the producer emitted the node to decline.
+            compare(findChild(chart, "sequencePeak:pelvis"), null)
+            compare(findChild(chart, "sequencePeak:thorax"), null)
+            var risingPelvis = findChild(chart, "sequenceRising:pelvis")
+            verify(risingPelvis !== null)
+            verify(risingPelvis.visible)
+            verify(findChild(chart, "sequenceRising:thorax") !== null)
+            compare(findChild(chart, "sequenceRisingText").text, "rising")
+            // The arm and the club still ring normally.
+            verify(findChild(chart, "sequencePeak:leadArm") !== null)
+            compare(findChild(chart, "sequenceRising:club"), null)
+
+            // …and the line says the pattern rather than counting what it could place.
+            compare(verdict.text,
+                    "Lead arm −115 ms → Club −55 ms (+60 ms) · arms and club peak before the body"
+                    + " — hips and chest still speeding up at impact")
+
+            chart.startUs = 0; chart.endUs = 70000; chart.impactUs = 40000
 
             // Under any other vocabulary the strip is not shown.
             chart._applyPreset("Wrist & forearm", true)

@@ -36,7 +36,7 @@
 // in the constructor (makeMetricCatalogue) and read-only thereafter.
 //
 // A `shotCtx` QVariantMap parameterises per-shot availability + normative resolution. Shape (all
-// optional): { tier:int, sessionType:int, imuRoles:[roleName…], hasFaceOn, hasClubTrack,
+// optional): { tier:int, sessionType:int, imuRoles:[roleName…], hasFaceOn, hasDtl, hasClubTrack,
 // hasBallTrack, archetype, club, shape }. Omit it (or pass {}) for the context-free directory view;
 // pass a shot's capability (or the studio's configured capability) to drive availability chips.
 // Phases are emitted as Phase ints (the vocabulary QML already compares and TimelineLabels renders).

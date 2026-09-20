@@ -1057,6 +1057,16 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
         // The impact camera's clip feeds the ImpactRunner (impact_camera_design.md §7).
         if (track.ctrl->perspective() == CameraInstance::Impact)
             job.impactSource = track.sourceId;
+        // …and the down-the-line camera feeds the DTL shaft tracker and the paired trunk route
+        // (kinematic_sequence_design.md §5.2). FIRST such track wins and the pick never moves
+        // once made: two cameras aimed down the line is not a configuration we support, and
+        // silently switching between them between shots would make the pair's inter-view angle —
+        // a per-rig constant — jump. Deliberately NOT part of the face-on/else branch above:
+        // `cameraSources` order is load-bearing (face-on first, and `faceOnCameraCount` counts
+        // the prefix), so this only observes the loop, it does not steer it.
+        if (track.ctrl->perspective() == CameraInstance::DownTheLine
+            && job.dtlSource == pinpoint::kInvalidSourceId)
+            job.dtlSource = track.sourceId;
     }
 
     // IMU and marker sources discovered from the window's own formats.

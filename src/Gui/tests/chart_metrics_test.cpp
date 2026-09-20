@@ -1797,6 +1797,216 @@ int main()
         checkStr("…and no route",    cm.sequenceRouteText(QVariantMap{}), "");
     }
 
+    // ── The PAIRED trunk route (faceOn+dtl), 2026-09-20 ──────────────────────────────────────
+    //
+    // A second route for the pelvis and chest: the turn read from the face-on and down-the-line
+    // poses together (kinematic_sequence_design.md §5.2). It has NO blind band, which changes what
+    // an unplaced trunk node means. The face-on route's unplaced trunk node says "the segment
+    // squared up and went out of sight"; the pair's says "I watched it all the way to the ball and
+    // it was still speeding up". Those are opposite statements — one is about the camera, one is
+    // about the golfer — and the strip used to print the first for both.
+    //
+    // On the 21 swings measured so far (pair_span_turn_20260920.md §1) the second is the answer on
+    // EVERY swing: the lead arm peaks ~115 ms and the club ~55 ms before impact while the pelvis
+    // and chest are still accelerating at it. So this is not an edge case to be tolerated, it is
+    // the shape of the output, and the words for it are pinned here.
+    {
+        const auto pairNode = [](const char *seg, bool placed, double before, double tSig,
+                                 double peak, double pSig, const char *route,
+                                 bool rising) {
+            QVariantMap n{ { QStringLiteral("segment"),        QString::fromLatin1(seg) },
+                           { QStringLiteral("placed"),         placed },
+                           { QStringLiteral("tPeakUs"),        1000000 - qlonglong(before * 1000) },
+                           { QStringLiteral("beforeImpactMs"), before },
+                           { QStringLiteral("peakDps"),        peak },
+                           { QStringLiteral("tSigmaMs"),       tSig },
+                           { QStringLiteral("peakSigmaDps"),   pSig },
+                           { QStringLiteral("routeId"),        QString::fromLatin1(route) },
+                           { QStringLiteral("quality"),        QStringLiteral("estimated") } };
+            // The contract: unplaced, `peakNoEarlierThanMs` 0, NO `peakNoLaterThanMs`.
+            if (rising) n.insert(QStringLiteral("peakNoEarlierThanMs"), 0.0);
+            return n;
+        };
+
+        // Fixture A — the measured shape. Arm and club placed before impact, pelvis and chest
+        // produced by the pair and emitted unplaced, "had not peaked by impact".
+        QVariantMap ks{
+            { QStringLiteral("impactUs"), 1000000 },
+            { QStringLiteral("nodes"), QVariantList{
+                  pairNode("pelvis",  false,   0.0,  0.0,  640.0, 70.0, "faceOn+dtl", true),
+                  pairNode("thorax",  false,   0.0,  0.0,  700.0, 60.0, "faceOn+dtl", true),
+                  pairNode("leadArm", true,  115.0, 18.0,  684.0, 40.0, "faceOn",     false),
+                  pairNode("club",    true,   55.0, 10.0, 1835.0, 60.0, "faceOnClub", false) } },
+            { QStringLiteral("order"),   QVariantList{ QStringLiteral("leadArm"), QStringLiteral("club") } },
+            { QStringLiteral("gapsMs"),  QVariantList{ 60.0 } },
+            { QStringLiteral("gainsDps"), QVariantList{ 1151.0 } },
+            { QStringLiteral("orderResolved"), true },
+            { QStringLiteral("verdict"), QStringLiteral("partial") },
+            { QStringLiteral("routeSummary"), QStringLiteral("estimated") } };
+
+        const QVariantList rows = cm.sequenceRows(ks);
+        checkEqI("pair: four rows — arm, club, then the two unplaced trunk nodes", rows.size(), 4);
+        const auto r = [&rows](int i, const char *k) { return rows.at(i).toMap().value(QString::fromLatin1(k)); };
+        checkStr("pair: row 0 is the arm",   r(0, "segment").toString(), "leadArm");
+        checkStr("pair: row 1 is the club",  r(1, "segment").toString(), "club");
+        checkStr("pair: row 2 is the pelvis", r(2, "segment").toString(), "pelvis");
+        checkStr("pair: row 3 is the chest",  r(3, "segment").toString(), "thorax");
+
+        // THE SENTENCE. Not "out of this camera's sight" — it was in sight the whole way.
+        checkStr("pair: the pelvis row says it was still accelerating",
+                 r(2, "unplacedText").toString(), "still accelerating at impact");
+        checkStr("pair: …and so does the chest",
+                 r(3, "unplacedText").toString(), "still accelerating at impact");
+        checkTrue("pair: the flag rides with the sentence", r(2, "atImpactRising").toBool()
+                                                            && r(3, "atImpactRising").toBool());
+        checkTrue("pair: a placed row is not rising", r(0, "atImpactRising").toBool() == false);
+        checkStr("pair: an unplaced row still carries no readings", r(2, "peakText").toString(), "");
+
+        // The method glyph: the pair is the catalogue's `triangulated` rung (uncalibrated, and the
+        // manifest says so in prose — the enum has no word for it).
+        checkStr("pair: the rung reads triangulated", r(2, "method").toString(), "triangulated");
+        checkStr("pair: …with the T glyph",           r(2, "glyph").toString(), "T");
+        checkStr("pair: the face-on arm is still projected", r(0, "method").toString(), "projected");
+
+        // THE VERDICT LINE. "placed nodes in order (2 of 4)" is true about this swing and says
+        // nothing about it.
+        checkStr("pair: the verdict is the pattern, not the count", cm.sequenceVerdictText(ks),
+                 "arms and club peak before the body — hips and chest still speeding up at impact");
+
+        // The overlay: a rising node is NOT a dimmed ring at the domain edge.
+        {
+            const QVariantMap ov = cm.sequenceOverlay(ks);
+            const QVariantList peaks = ov.value(QStringLiteral("peaks")).toList();
+            const QVariantList gaps  = ov.value(QStringLiteral("gaps")).toList();
+            checkEqI("pair overlay: four peaks — two placed, then the two rising", peaks.size(), 4);
+            const auto p = [&peaks](int i, const char *k) { return peaks.at(i).toMap().value(QString::fromLatin1(k)); };
+            checkStr("pair overlay: the placed arm comes first", p(0, "segment").toString(), "leadArm");
+            checkStr("pair overlay: the pelvis is in the tail",  p(2, "segment").toString(), "pelvis");
+            checkTrue("pair overlay: the trunk nodes are flagged rising",
+                      p(2, "atImpactRising").toBool() && p(3, "atImpactRising").toBool());
+            checkTrue("pair overlay: the placed nodes are not",
+                      p(0, "atImpactRising").toBool() == false && p(1, "atImpactRising").toBool() == false);
+            checkStr("pair overlay: a rising node's label is one word", p(2, "text").toString(), "rising");
+            checkStr("pair overlay: a placed node's label is unchanged", p(0, "text").toString(), "Lead arm −115 ms");
+            checkStr("pair overlay: a rising node names its curve", p(2, "seriesKey").toString(), "pelvisAngularSpeed");
+            checkTrue("pair overlay: …at the impact edge of it",
+                      p(2, "tPeakUs").toLongLong() == 1000000);
+            checkEqI("pair overlay: one gap, between the two placed peaks", gaps.size(), 1);
+            checkStr("pair overlay: the chain is the two that peaked", ov.value(QStringLiteral("chainText")).toString(),
+                     "Lead arm −115 ms → Club −55 ms (+60 ms)");
+        }
+
+        // Only ONE trunk segment rising, and only the club placed before impact: the line narrows
+        // rather than overclaiming a pair of each.
+        {
+            QVariantMap one = ks;
+            QVariantList nn = one.value(QStringLiteral("nodes")).toList();
+            { QVariantMap t = nn.at(1).toMap();                      // the chest peaks in time
+              t.remove(QStringLiteral("peakNoEarlierThanMs"));
+              t.insert(QStringLiteral("placed"), true);
+              t.insert(QStringLiteral("beforeImpactMs"), 30.0);
+              nn[1] = t; }
+            { QVariantMap a = nn.at(2).toMap();                      // the arm is not placed
+              a.insert(QStringLiteral("placed"), false); nn[2] = a; }
+            one.insert(QStringLiteral("nodes"), nn);
+            one.insert(QStringLiteral("order"), QVariantList{ QStringLiteral("thorax"), QStringLiteral("club") });
+            checkStr("pair: one trunk, one distal — the line narrows to what is true",
+                     cm.sequenceVerdictText(one),
+                     "the club peaks before the body — hips still speeding up at impact");
+        }
+
+        // A club AT the ball is not evidence that anything led the body, so the ordinary verdict
+        // stands: beforeImpactMs must be > 0.
+        {
+            QVariantMap atBall = ks;
+            QVariantList nn = atBall.value(QStringLiteral("nodes")).toList();
+            { QVariantMap a = nn.at(2).toMap(); a.insert(QStringLiteral("placed"), false); nn[2] = a; }
+            { QVariantMap c = nn.at(3).toMap(); c.insert(QStringLiteral("beforeImpactMs"), 0.0); nn[3] = c; }
+            atBall.insert(QStringLiteral("nodes"), nn);
+            atBall.insert(QStringLiteral("order"), QVariantList{ QStringLiteral("club") });
+            checkStr("pair: nothing peaked BEFORE impact ⇒ the ordinary verdict",
+                     cm.sequenceVerdictText(atBall), "placed nodes in order (1 of 4)");
+        }
+
+        // The face-on trunk route's bound is unchanged and still reads as the camera's limit — the
+        // two sentences must not have collapsed into one.
+        {
+            QVariantMap band = ks;
+            QVariantList nn = band.value(QStringLiteral("nodes")).toList();
+            { QVariantMap t = nn.at(0).toMap();
+              t.insert(QStringLiteral("routeId"), QStringLiteral("faceOn"));
+              t.insert(QStringLiteral("peakNoEarlierThanMs"), 87.0);
+              nn[0] = t; }
+            band.insert(QStringLiteral("nodes"), nn);
+            const QVariantList br = cm.sequenceRows(band);
+            checkStr("the face-on band bound still names the camera",
+                     br.at(2).toMap().value(QStringLiteral("unplacedText")).toString(),
+                     "peaked after −87 ms, out of this camera's sight");
+            checkTrue("…and is not flagged rising",
+                      br.at(2).toMap().value(QStringLiteral("atImpactRising")).toBool() == false);
+            checkTrue("…nor drawn as a chevron",
+                      cm.sequenceOverlay(band).value(QStringLiteral("peaks")).toList()
+                          .at(2).toMap().value(QStringLiteral("atImpactRising")).toBool() == false);
+        }
+
+        // Fixture B — the pair PLACES both trunk nodes (the professional shape, and what the route
+        // would report on a golfer whose body peaks before the ball). Nothing about them is
+        // special then: they enter the order, the gaps, the chain and the verdict like any node.
+        {
+            QVariantMap placed{
+                { QStringLiteral("impactUs"), 1000000 },
+                { QStringLiteral("nodes"), QVariantList{
+                      pairNode("pelvis",  true,  87.0, 14.0,  477.0, 50.0, "faceOn+dtl", false),
+                      pairNode("thorax",  true,  68.0, 16.0,  727.0, 60.0, "faceOn+dtl", false),
+                      pairNode("leadArm", true,  65.0, 18.0,  980.0, 40.0, "faceOn",     false),
+                      pairNode("club",    true,   0.0, 10.0, 2254.0, 60.0, "faceOnClub", false) } },
+                { QStringLiteral("order"),   QVariantList{ QStringLiteral("pelvis"), QStringLiteral("thorax"),
+                                                           QStringLiteral("leadArm"), QStringLiteral("club") } },
+                { QStringLiteral("gapsMs"),  QVariantList{ 19.0, 3.0, 65.0 } },
+                { QStringLiteral("gainsDps"), QVariantList{ 250.0, 253.0, 1274.0 } },
+                { QStringLiteral("orderResolved"), true },
+                { QStringLiteral("verdict"), QStringLiteral("proximalToDistal") },
+                { QStringLiteral("routeSummary"), QStringLiteral("estimated") } };
+
+            const QVariantList pr = cm.sequenceRows(placed);
+            checkEqI("pair placed: four rows, no tail", pr.size(), 4);
+            checkStr("pair placed: the pelvis leads", pr.at(0).toMap().value(QStringLiteral("segment")).toString(), "pelvis");
+            checkStr("pair placed: then the chest",   pr.at(1).toMap().value(QStringLiteral("segment")).toString(), "thorax");
+            checkTrue("pair placed: nothing is flagged rising",
+                      pr.at(0).toMap().value(QStringLiteral("atImpactRising")).toBool() == false
+                      && pr.at(1).toMap().value(QStringLiteral("atImpactRising")).toBool() == false);
+            checkStr("pair placed: the pelvis reads its offset like any placed node",
+                     pr.at(0).toMap().value(QStringLiteral("beforeText")).toString(), "−87 ms");
+            checkStr("pair placed: …its σ",   pr.at(0).toMap().value(QStringLiteral("sigmaText")).toString(), "±14 ms");
+            checkStr("pair placed: …its gap", pr.at(0).toMap().value(QStringLiteral("gapText")).toString(), "+19 ms");
+            // σ governs the digits like every other reading on the strip: σ 60 → step 100, so the
+            // chest's 727 °/s prints as 700. The pair is an UNCALIBRATED reading and its σ is the
+            // thing that stops it being quoted as if it were not.
+            checkStr("pair placed: …and its reading, coarsened by its own σ",
+                     pr.at(1).toMap().value(QStringLiteral("peakText")).toString(), "700 °/s");
+            checkStr("pair placed: the ordinary verdict stands", cm.sequenceVerdictText(placed),
+                     "pelvis → chest → arm → club");
+            const QVariantMap ov = cm.sequenceOverlay(placed);
+            checkEqI("pair placed overlay: four rings",  ov.value(QStringLiteral("peaks")).toList().size(), 4);
+            checkEqI("pair placed overlay: three gaps",  ov.value(QStringLiteral("gaps")).toList().size(), 3);
+            checkStr("pair placed overlay: the whole chain", ov.value(QStringLiteral("chainText")).toString(),
+                     "Pelvis −87 ms → Chest −68 ms (+19 ms) → Lead arm −65 ms (+3 ms) → Club 0 ms (+65 ms)");
+            checkStr("pair placed: the route text is the pair's quality", cm.sequenceRouteText(placed),
+                     "estimated from the camera");
+        }
+
+        // The rung id is matched case-insensitively — a case slip used to fall through to the
+        // single-view glyph, which is the one thing the glyph exists to distinguish.
+        {
+            QVariantMap upper = ks;
+            QVariantList nn = upper.value(QStringLiteral("nodes")).toList();
+            { QVariantMap t = nn.at(0).toMap(); t.insert(QStringLiteral("routeId"), QStringLiteral("faceOn+DTL")); nn[0] = t; }
+            upper.insert(QStringLiteral("nodes"), nn);
+            checkStr("route ids match whatever their case",
+                     cm.sequenceRows(upper).at(2).toMap().value(QStringLiteral("method")).toString(), "triangulated");
+        }
+    }
+
     std::printf("\n%s — %d failure(s)\n", g_fail ? "FAILED" : "OK", g_fail);
     return g_fail ? 1 : 0;
 }

@@ -117,8 +117,10 @@ void ShotReplayController::onAborted()
 
 QVariantMap ShotReplayController::shotContext(int sessionType) const
 {
-    // Face-on perspective value (swing.json setup.perspective); see disk_replay_source.
+    // Face-on / down-the-line perspective values (swing.json setup.perspective); see
+    // disk_replay_source and camera_instance.h (None 0, DownTheLine 1, FaceOn 2, Other 3, Impact 4).
     constexpr int kPerspectiveFaceOn = 2;
+    constexpr int kPerspectiveDtl    = 1;
 
     QVariantMap ctx;
     const QVariantMap d = m_source->analysisDetail();
@@ -135,6 +137,31 @@ QVariantMap ShotReplayController::shotContext(int sessionType) const
             if (s.perspective == kPerspectiveFaceOn) { faceOn = true; break; }
     }
     ctx.insert(QStringLiteral("hasFaceOn"), faceOn);
+
+    // A second camera down the target line. Two tests, in that order, and the second is the
+    // interesting one:
+    //
+    //   · an explicit down-the-line stream — the same walk the face-on test makes, one value over;
+    //   · ROUTE EVIDENCE. A trunk node in `analysis.kinematicSequence` whose `routeId` is
+    //     "faceOn+dtl" could only have been produced by pairing the two views
+    //     (kinematic_sequence_design.md §5.2), so a swing carrying one HAS a down-the-line camera
+    //     whatever its `setup` block says. The 2026-06-11 session carries no `setup` at all and
+    //     names its second camera only in the stream alias, which this side cannot see; without
+    //     this clause the metrics directory would go on telling the owner of such a swing that it
+    //     "needs a down-the-line camera" beside a reading taken from one.
+    //
+    // ctx is a plain map: metric_catalog.cpp reads `hasDtl` straight into ShotContext.
+    bool dtl = false;
+    for (const ReplayStreamInfo &s : m_source->streams())
+        if (s.perspective == kPerspectiveDtl) { dtl = true; break; }
+    if (!dtl) {
+        const QVariantList ksNodes = d.value(QStringLiteral("kinematicSequence"))
+                                         .toMap().value(QStringLiteral("nodes")).toList();
+        for (const QVariant &nv : ksNodes)
+            if (nv.toMap().value(QStringLiteral("routeId")).toString()
+                    .compare(QStringLiteral("faceOn+dtl"), Qt::CaseInsensitive) == 0) { dtl = true; break; }
+    }
+    ctx.insert(QStringLiteral("hasDtl"), dtl);
 
     // Club / ball tracks — present AND valid in the analysis detail.
     ctx.insert(QStringLiteral("hasClubTrack"),

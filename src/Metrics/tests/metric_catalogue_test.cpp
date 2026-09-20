@@ -509,6 +509,50 @@ int main()
                   k);
         }
 
+        // ── The paired trunk rung went LIVE on 2026-09-20, and it is Estimated ────────────────
+        //
+        // `pelvisAngularSpeed` / `thoraxAngularSpeed` gained a producer for `faceOn+dtl`: the turn
+        // read from the face-on and down-the-line poses TOGETHER (kinematic_sequence_design.md
+        // §5.2, measured in pair_span_turn_20260920.md). NO COUNT IN THIS FILE MOVES, and that is
+        // worth saying once rather than leaving the next reader to wonder why not:
+        //   · the two descriptors were already live (their face-on rung is), so `planned` stays 20;
+        //   · `upgradeDevices()` already counted the PLANNED rung, so both metrics already read
+        //     StereoGain::Improves and the `refines` sweep is untouched;
+        //   · the floor is still the LAST LIVE rung, and the face-on estimate sits below the pair,
+        //     so `baselineRequirement()` is unchanged and the directory still says "needs a
+        //     face-on camera" rather than suddenly demanding two.
+        // What DOES change is what fires on a two-camera shot, and the quality it fires at. The
+        // rung is `Estimated`, not `Direct`: the pair is UNCALIBRATED — an atan2 of two image-plane
+        // separations with no baseline and no reconstructed point — so the ladder must not let it
+        // outrank anything, and the ordering sweep above must go on passing with it in place.
+        {
+            for (const char *k : { "pelvisAngularSpeed", "thoraxAngularSpeed" }) {
+                const MetricDescriptor *d = cat.descriptor(QString::fromLatin1(k));
+                const MetricRoute *pair = nullptr;
+                for (const MetricRoute &r : d->routes)
+                    if (r.id == QStringLiteral("faceOn+dtl")) pair = &r;
+                check(pair && !pair->planned, k);
+                check(pair && pair->quality == RouteQuality::Estimated,
+                      "…and Estimated — the pair is uncalibrated");
+                check(pair && pair->summary.contains(QStringLiteral("uncalibrated")),
+                      "…and says so, because `triangulated` would not");
+                check(d->baselineRequirement().faceOnCamera && !d->baselineRequirement().dtlCamera,
+                      "…while the floor is still one camera");
+            }
+            // It fires on a shot with both cameras and no trunk IMU, and reports Bridged.
+            ShotContext pairShot = wristShot({}, /*faceOn*/ true);
+            pairShot.hasDtl = true;
+            const MetricAvailability a = cat.resolve(QStringLiteral("pelvisAngularSpeed"), pairShot);
+            check(a.routeId == QStringLiteral("faceOn+dtl"), "the pair rung fires on a two-camera shot");
+            check(a.state == MetricAvailability::Bridged, "…and is reported as an estimate");
+            // The composite Sequence's own pair rung is still PLANNED: nothing produces the arm
+            // or the club from the pair, so the device-level answer must not claim it does.
+            const MetricDescriptor *seq = cat.descriptor(QStringLiteral("kinematicSequence"));
+            for (const MetricRoute &r : seq->routes)
+                if (r.id == QStringLiteral("faceOn+dtl"))
+                    check(r.planned, "the SEQUENCE's pair rung is still planned — only the trunk landed");
+        }
+
         // And the reason a golfer sees for one names the camera, not the tier.
         ShotContext everything = wristShot({}, /*faceOn*/ true, /*club*/ true);
         everything.hasBallTrack = true;

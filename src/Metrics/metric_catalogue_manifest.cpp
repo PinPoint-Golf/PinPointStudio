@@ -1725,9 +1725,25 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("pelvisImu", RM::Inertial, Direct, { .imuRoles = { R::Pelvis } },
                 QStringLiteral("the pelvis gyro's vertical component in world, no differentiation")),
-            via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
-                QStringLiteral("the hip line's bearing from the two views' spans, differentiated"),
-                PLANNED),
+            // LIVE since 2026-09-20, and Estimated — not Direct, and the method word is wrong in
+            // one syllable on purpose. This rung is the UNCALIBRATED pair: it reads the hip line's
+            // turn as the atan2 of the two views' HORIZONTAL SEPARATIONS, each in its own image,
+            // with no calibration, no baseline and no reconstructed point. `Triangulated` is the
+            // only enum value that says "two views", so it is the one kept — and a new value for
+            // "paired, uncalibrated" would be an enum entry for one rung — but the summary says
+            // uncalibrated in as many words, because a reader who takes "triangulated" at face
+            // value would think the number carries a scale that it does not.
+            //
+            // It sits BELOW the IMU and ABOVE the single-view estimate, which is the measured
+            // order (pair_span_turn_20260920.md §2): over the downswing the two separations close
+            // the ellipse to 2 % (pelvis), the inter-view angle fits at 75–84°, and the square-up
+            // instant the face-on leg has to guess off a flat maximum — scattering over 87 ms on
+            // one golfer, one rig, twelve swings — the pair READS off a zero crossing to 3–5 ms.
+            // What it does NOT do is unblock the node on this golfer: the trunk is still
+            // accelerating at impact, so the node is emitted unplaced with peakNoEarlierThanMs 0.
+            via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the hip line's turn from the two views' horizontal separations "
+                               "(atan2 of the pair, uncalibrated), differentiated")),
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
                 QStringLiteral("the hip span's cosine unfolded across the square-up and "
                                "differentiated, with the uncertainty propagated through 1/sin θ")) },
@@ -1759,9 +1775,15 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("thoraxImu", RM::Inertial, Direct, { .imuRoles = { R::Thorax } },
                 QStringLiteral("the thorax gyro's vertical component in world, no differentiation")),
-            via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
-                QStringLiteral("the shoulder line's bearing from the two views' spans, differentiated"),
-                PLANNED),
+            // LIVE since 2026-09-20, Estimated, and uncalibrated — see pelvisAngularSpeed's rung
+            // for why the method word stays `Triangulated` and the summary corrects it. The
+            // shoulders are the leg with the extra caveat: face-on's shoulder span carries a real
+            // VERTICAL separation that its 2-D distance absorbs, so the two legs do not want the
+            // same projection (pair_span_turn_20260920.md §3.1) — the down-the-line leg is the
+            // signed horizontal separation, the face-on leg is not.
+            via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the shoulder line's turn from the two views' horizontal "
+                               "separations (atan2 of the pair, uncalibrated), differentiated")),
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
                 QStringLiteral("the shoulder span's cosine unfolded across the square-up and "
                                "differentiated, with the uncertainty propagated through 1/sin θ")) },

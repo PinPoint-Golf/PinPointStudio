@@ -43,11 +43,13 @@ struct ShotContext {
     ReconstructionTier       tier         = ReconstructionTier::Angles2D;
     std::vector<SegmentRole> imuRoles;      // roles actually bound & calibrated this shot
     bool                     hasFaceOn    = false;
-    // A second camera down the target line. False on every shot this build can record — there is no
-    // DTL capture path yet — and present anyway, for the same reason hasLaunchMonitor is: the day
-    // one lands, the metrics stated along the depth axis resolve through the route ladder with no
-    // catalogue change, and until then they say "needs a down-the-line camera" instead of going
-    // quiet or pretending to be work we owe.
+    // A second camera down the target line. Set by ShotReplayController::shotContext() from two
+    // tests, in that order: a replay stream whose perspective is down-the-line, or ROUTE EVIDENCE —
+    // a node in `analysis.kinematicSequence` with routeId "faceOn+dtl", which could only have been
+    // produced by pairing the two views, so the swing had a second camera whatever its `setup`
+    // block says (the 2026-06-11 session carries no `setup` at all). It is still false on a shot
+    // with one camera, and the metrics stated along the depth axis then say "needs a down-the-line
+    // camera" rather than going quiet or pretending to be work we owe.
     bool                     hasDtl       = false;
     bool                     hasClubTrack = false;   // ShaftTrack2D valid
     bool                     hasBallTrack = false;   // BallTrack2D present

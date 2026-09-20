@@ -874,15 +874,44 @@ QString sequenceSegmentLabel(const QString &segment)
 // Route id → acquisition method, in routeMethodName's vocabulary (metric_descriptor.h). The ids are
 // the manifest's rung ids; the mapping is by SHAPE ("…Imu", "faceOn+dtl", "faceOn…") so a new
 // rung spelt in the same convention lands on the right glyph without a table edit.
+//
+// ⚠ MATCHED CASE-INSENSITIVELY since 2026-09-20. The ids are authored in the manifest and the
+// producers spell them back into the JSON, and "dtl" / "DTL" / "Dtl" are all natural spellings of
+// the same rung — a case slip used to fall through to `projected`, which is not a near miss: it is
+// the glyph that tells a reader which chip to trust, and a paired reading would have worn the
+// single-view one. The manifest's spelling remains `faceOn+dtl`; this is a belt on the braces.
 QString sequenceMethodOf(const QString &routeId)
 {
-    if (routeId.contains(QLatin1String("Imu")) || routeId == QLatin1String("clubSensorFused"))
+    if (routeId.contains(QLatin1String("Imu"), Qt::CaseInsensitive)
+        || routeId.compare(QLatin1String("clubSensorFused"), Qt::CaseInsensitive) == 0)
         return pa::routeMethodName(pa::RouteMethod::Inertial);
-    if (routeId.contains(QLatin1String("dtl")))
+    // The uncalibrated pair (kinematic_sequence_design.md §5.2). `triangulated` is the enum's
+    // nearest word and the catalogue rung's own — see the manifest, which corrects it in prose.
+    if (routeId.contains(QLatin1String("dtl"), Qt::CaseInsensitive))
         return pa::routeMethodName(pa::RouteMethod::Triangulated);
-    if (routeId.startsWith(QLatin1String("faceOn")))
+    if (routeId.startsWith(QLatin1String("faceOn"), Qt::CaseInsensitive))
         return pa::routeMethodName(pa::RouteMethod::Projected);
     return QString();
+}
+
+// "It had not peaked by impact" — the paired trunk route's normal answer on the one golfer
+// measured so far (pair_span_turn_20260920.md §1: the lead arm peaks ~115 ms and the club ~55 ms
+// before impact while the pelvis and chest are still accelerating AT the ball).
+//
+// THE TEST IS THE BOUND'S SIGN, not the route. `peakNoEarlierThanMs` is an offset BEFORE impact,
+// like every other time on this strip, so a value at or below zero says the lower bound on the
+// peak is impact itself or later. That is a different statement from the face-on trunk route's
+// bound, which is positive — "it peaked somewhere after −87 ms, where this camera stopped being
+// able to see the segment turn". The pair has no blind band; nothing went out of sight; the
+// segment was watched all the way to the ball and was still speeding up when it got there. Saying
+// "out of this camera's sight" about it would be false, and false in the direction that blames the
+// equipment for what is a finding about the golfer.
+bool sequenceRisingAtImpact(const QVariantMap &n)
+{
+    if (!n.contains(QStringLiteral("peakNoEarlierThanMs")))
+        return false;
+    const double b = n.value(QStringLiteral("peakNoEarlierThanMs")).toDouble();
+    return std::isfinite(b) && b <= 0.0;
 }
 
 QString sequenceGlyphOf(const QString &method)
@@ -929,7 +958,10 @@ QVariantList ChartMetrics::sequenceRows(const QVariantMap &ks) const
         // An unplaced chip says why, and a face-on trunk node that was still rising (or falling)
         // where the camera lost sight of the segment carries the bound the route could give.
         QString unplaced = QStringLiteral("not placed from this view");
-        if (!placed && n.contains(QStringLiteral("peakNoEarlierThanMs")))
+        const bool rising = !placed && sequenceRisingAtImpact(n);
+        if (rising)
+            unplaced = QStringLiteral("still accelerating at impact");
+        else if (!placed && n.contains(QStringLiteral("peakNoEarlierThanMs")))
             unplaced = QStringLiteral("peaked after %1, out of this camera's sight")
                            .arg(sequenceOffsetText(n.value(QStringLiteral("peakNoEarlierThanMs")).toDouble()));
         else if (!placed && n.contains(QStringLiteral("peakNoLaterThanMs")))
@@ -948,6 +980,9 @@ QVariantList ChartMetrics::sequenceRows(const QVariantMap &ks) const
             { QStringLiteral("method"),         method },
             { QStringLiteral("glyph"),          sequenceGlyphOf(method) },
             { QStringLiteral("gapMs"),          gapMs },
+            // The pair's "it had not peaked by impact", machine-readable, so a reader of the rows
+            // does not have to match on the sentence.
+            { QStringLiteral("atImpactRising"), rising },
             { QStringLiteral("beforeText"),     placed ? sequenceOffsetText(before) : QString() },
             { QStringLiteral("sigmaText"),      placed ? QStringLiteral("±") + QString::number(std::lround(tSigma))
                                                              + QStringLiteral(" ms")
@@ -985,8 +1020,51 @@ QVariantList ChartMetrics::sequenceRows(const QVariantMap &ks) const
 
 QString ChartMetrics::sequenceVerdictText(const QVariantMap &ks) const
 {
-    if (ks.value(QStringLiteral("nodes")).toList().isEmpty())
+    const QVariantList nodes = ks.value(QStringLiteral("nodes")).toList();
+    if (nodes.isEmpty())
         return QString();
+
+    // ── The pattern the paired trunk route actually finds, said in coaching words ─────────────
+    //
+    // "partial — placed nodes in order (2 of 4)" is true and useless here. It counts what was
+    // placed; it does not say that the two nodes it could not place are the BODY, that they were
+    // watched all the way to the ball, and that they were still gaining speed when the club got
+    // there. That is the finding — on the 21 swings of pair_span_turn_20260920.md it is the
+    // finding on every one of them — and it is the opposite of the professional signature the
+    // howToRead sells, which is the pelvis DECELERATING before impact. It earns the line.
+    //
+    // The sentence is assembled from what is true rather than templated, because the honest form
+    // of it varies: one trunk segment rising is not two, and an arm that peaks early with no club
+    // node is not "arms and club". Both halves must hold or the ordinary verdict stands.
+    {
+        const QVariantList order = ks.value(QStringLiteral("order")).toList();
+        QSet<QString> placedSegs;
+        for (const QVariant &v : order) placedSegs.insert(v.toString());
+
+        bool pelvisRising = false, thoraxRising = false, armEarly = false, clubEarly = false;
+        for (const QVariant &v : nodes) {
+            const QVariantMap n   = v.toMap();
+            const QString seg     = n.value(QStringLiteral("segment")).toString();
+            const bool placed     = placedSegs.contains(seg) || n.value(QStringLiteral("placed")).toBool();
+            // "Before impact" is a POSITIVE beforeImpactMs: a club node at the ball reads 0 and is
+            // not evidence that the distal end led the body anywhere.
+            const bool early      = placed && n.value(QStringLiteral("beforeImpactMs")).toDouble() > 0.0;
+            if (seg == QLatin1String("pelvis"))  pelvisRising = !placed && sequenceRisingAtImpact(n);
+            if (seg == QLatin1String("thorax"))  thoraxRising = !placed && sequenceRisingAtImpact(n);
+            if (seg == QLatin1String("leadArm")) armEarly     = early;
+            if (seg == QLatin1String("club"))    clubEarly    = early;
+        }
+        if ((pelvisRising || thoraxRising) && (armEarly || clubEarly)) {
+            const QString lead = (armEarly && clubEarly) ? QStringLiteral("arms and club peak before the body")
+                               : armEarly                ? QStringLiteral("the arms peak before the body")
+                                                         : QStringLiteral("the club peaks before the body");
+            const QString body = (pelvisRising && thoraxRising) ? QStringLiteral("hips and chest still speeding up at impact")
+                               : pelvisRising                   ? QStringLiteral("hips still speeding up at impact")
+                                                                : QStringLiteral("chest still speeding up at impact");
+            return lead + QStringLiteral(" — ") + body;
+        }
+    }
+
     const QString verdict = ks.value(QStringLiteral("verdict")).toString();
     if (verdict == QLatin1String("proximalToDistal"))
         return QStringLiteral("pelvis → chest → arm → club");
@@ -1027,15 +1105,27 @@ QVariantMap ChartMetrics::sequenceOverlay(const QVariantMap &ks) const
     const auto peakOf = [&](const QVariantMap &n, bool placed) {
         const QString seg = n.value(QStringLiteral("segment")).toString();
         const double before = n.value(QStringLiteral("beforeImpactMs")).toDouble();
+        // A node that had not peaked by impact is NOT a dimmed ring at its recorded tPeakUs. That
+        // instant is the edge of the domain, not a peak, and a ring there is a claim the producer
+        // explicitly declined to make — the reader sees a hollow circle sitting exactly on the
+        // ball and reads "the chest peaked at impact", which is the one reading the node exists to
+        // refuse. It draws as an open chevron at the impact edge of its own curve instead
+        // (PpChartPlot), pointing up-right: the curve leaves the picture still climbing.
+        const bool rising = !placed && sequenceRisingAtImpact(n);
         return QVariantMap{
             { QStringLiteral("segment"),   seg },
             { QStringLiteral("seriesKey"), seriesKeyOf(seg) },
             { QStringLiteral("label"),     sequenceSegmentLabel(seg) },
             { QStringLiteral("placed"),    placed },
+            { QStringLiteral("atImpactRising"), rising },
             { QStringLiteral("tPeakUs"),   n.value(QStringLiteral("tPeakUs")).toLongLong() },
             { QStringLiteral("peakDps"),   n.value(QStringLiteral("peakDps")).toDouble() },
             { QStringLiteral("tSigmaUs"),  qint64(n.value(QStringLiteral("tSigmaMs")).toDouble() * 1000.0) },
-            { QStringLiteral("text"),      sequenceSegmentLabel(seg) + QStringLiteral(" ") + sequenceOffsetText(before) } };
+            // No offset on a rising node: there is no instant to print. One word, the same word
+            // the row's sentence turns on.
+            { QStringLiteral("text"),      rising ? QStringLiteral("rising")
+                                                  : sequenceSegmentLabel(seg) + QStringLiteral(" ")
+                                                        + sequenceOffsetText(before) } };
     };
 
     // The placed peaks, walked in the sequence's own order, with the gaps and the chain.

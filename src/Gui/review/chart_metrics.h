@@ -518,10 +518,19 @@ public:
     //   { segment, label, placed, beforeImpactMs, tSigmaMs, peakDps, peakSigmaDps, routeId,
     //     quality ("direct"|"estimated"), method (routeMethodName slug), glyph ("I"|"T"|"P"),
     //     gapMs (to the NEXT placed chip, −1 on the last placed and on every unplaced row),
-    //     beforeText ("−87 ms"), sigmaText ("±19 ms"), peakText ("480 °/s"), gapText ("+19 ms"
-    //     or "") }
+    //     atImpactRising, beforeText ("−87 ms"), sigmaText ("±19 ms"), peakText ("480 °/s"),
+    //     gapText ("+19 ms" or ""), unplacedText }
     // The label vocabulary is the coach's ("Chest", not "Thorax"); the segment key stays the
     // catalogue's. An empty / invalid map returns an empty list.
+    //
+    // `unplacedText` says WHY, and since 2026-09-20 it distinguishes two different silences:
+    //   · "peaked after −87 ms, out of this camera's sight" — the face-on trunk route's blind
+    //     band (§12.4): the segment squared up and the span stopped carrying the rate;
+    //   · "still accelerating at impact" — `peakNoEarlierThanMs` ≤ 0, which is what the PAIRED
+    //     route (faceOn+dtl, no blind band) emits when the trunk rate is still climbing where the
+    //     sequence domain ends. `atImpactRising` is that case as a flag. Nothing went out of
+    //     sight; the body had not peaked by the time the club reached the ball, and on the one
+    //     golfer measured (pair_span_turn_20260920.md) that is the answer on every swing.
     Q_INVOKABLE QVariantList sequenceRows(const QVariantMap &ks) const;
 
     // sequenceVerdictText — the ONE categorical sentence the normative reference calls robust
@@ -534,6 +543,14 @@ public:
     //   anything else / empty map → ""
     // NR-03 is why the unresolved text names the upgrade rather than a number: the sequence's own
     // σ withheld the order, and the honest next step is a better route, not a wider corridor.
+    //
+    // ONE CASE OVERRIDES THE TABLE (2026-09-20). When a trunk node is `atImpactRising` and the arm
+    // or the club is placed BEFORE impact, the line is the pattern instead of the count:
+    //   "arms and club peak before the body — hips and chest still speeding up at impact"
+    // …narrowed truthfully when only one segment of either pair qualifies ("the club peaks before
+    // the body — chest still speeding up at impact"). "placed nodes in order (2 of 4)" is true
+    // about such a swing and says nothing about it; this is the reading, and it is the inverse of
+    // the professional signature the metric's howToRead sells.
     Q_INVOKABLE QString sequenceVerdictText(const QVariantMap &ks) const;
 
     // sequenceRouteText — how the nodes were obtained, for the strip's header suffix:
@@ -546,10 +563,15 @@ public:
     // sequenceOverlay — the sequence drawn ON THE PLOT rather than restated under it (2026-09-18):
     // the peaks are points on curves the preset already strokes, so they belong where the reader's
     // eye already is. Returns
-    //   { peaks: [{ segment, seriesKey, label, placed, tPeakUs, peakDps, tSigmaUs, text }] — EVERY
-    //            node the routes found a peak for, the placed ones first in the sequence's order,
-    //            then the rest (drawn dimmer: the curve's own style already says how far to trust
-    //            it, and a reader of this chart needs no second telling); text is "Arm −87 ms";
+    //   { peaks: [{ segment, seriesKey, label, placed, atImpactRising, tPeakUs, peakDps, tSigmaUs,
+    //            text }] — EVERY node the routes found a peak for, the placed ones first in the
+    //            sequence's order, then the rest (drawn dimmer: the curve's own style already says
+    //            how far to trust it, and a reader of this chart needs no second telling); text is
+    //            "Arm −87 ms". `atImpactRising` marks the paired route's "had not peaked by
+    //            impact": the plot draws THAT one as an open chevron at the impact edge of its own
+    //            curve, pointing up-right, text "rising", and no σ whisker — a dimmed ring at its
+    //            recorded tPeakUs would sit on the ball and read as a peak at impact, which is the
+    //            one claim the node was emitted to decline;
     //     gaps:  [{ fromUs, toUs, text ("+22 ms") }] — between consecutive PLACED peaks;
     //     chainText: the placed nodes in order with their leads — "Lead arm −87 ms → Club −4 ms
     //            (+83 ms)" — so a split view, which cannot bracket a lead between facets, still
