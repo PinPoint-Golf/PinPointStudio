@@ -322,7 +322,17 @@ Item {
                     // line closes over the omitted sample exactly as it closes over a bridge.
                     for (var j = a; j <= b; ++j)
                         if (isFinite(mv[j])) { t.push(s.t_us[j]); v.push(mv[j]) }
-                    if (t.length > 1) out.push({ color: s.color, dashed: !solid[i0], t: t, v: v })
+                    // OUTSIDE ≠ BRIDGED (2026-09-21). A dash says "this stretch joins two
+                    // measurements and is not one". An unmeasured run that reaches the series'
+                    // first or last sample joins nothing: it is the curve outside the window the
+                    // metric is defined on (the phase domain, or a producer's own mask — the
+                    // kinematic sequence masks everything but transition→impact). Drawn dashed,
+                    // that read as "most of this chart is not trusted" when it meant "most of
+                    // this chart is not the downswing". It is a dimmed SOLID line now, full width:
+                    // context, not a claim, and not a doubt either.
+                    var outside = !solid[i0] && (i0 === 0 || i1 === solid.length - 1)
+                    if (t.length > 1) out.push({ color: s.color, dashed: !solid[i0] && !outside,
+                                                 outside: outside, t: t, v: v })
                 }
                 i0 = i1 + 1
             }
@@ -666,7 +676,10 @@ Item {
                                                               : Shape.CurveRenderer
                 // Same colour, low opacity: the reader is meant to follow the curve across a
                 // bridged run, not lose it. A different HUE would read as a different series.
-                opacity: curve.modelData.dashed ? 0.35 : 1.0
+                // Outside runs keep the FULL stroke width and are only dimmed. Thin AND faint
+                // together (1px at 0.22, the first attempt) was all but invisible on the dark
+                // plot — the backswing vanished, which is not what "context" means.
+                opacity: curve.modelData.outside ? 0.55 : curve.modelData.dashed ? 0.35 : 1.0
                 ShapePath {
                     strokeColor: curve.modelData.color
                     strokeWidth: Theme.sp(2)

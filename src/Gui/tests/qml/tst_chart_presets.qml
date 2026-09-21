@@ -106,6 +106,18 @@ Item {
         orderResolved: true, verdict: "partial", routeSummary: "estimated"
     })
 
+    // A bare plot, for the run-state test (test_017): a masked series — out of its window at both
+    // ends, one bridged sample in the middle.
+    PpChartPlot {
+        id: barePlot
+        width: 400; height: 200
+        domStartUs: 0; domEndUs: 90000; valueLo: 0; valueHi: 10
+        series: [{ key: "clubAngularSpeed", label: "club", unit: "°/s", color: "#ff8866",
+                   t_us:  [0, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000],
+                   value: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                   valid: [0, 0, 1, 1, 0, 1, 1, 0, 0] }]
+    }
+
     PpMetricChart {
         id: chart
         anchors.fill: parent
@@ -333,6 +345,19 @@ Item {
                     "clubAngularSpeed,leadArmAngularSpeed,pelvisAngularSpeed,thoraxAngularSpeed")
             compare(probe.keysOf(chart._legendSeries),
                     "clubAngularSpeed,leadArmAngularSpeed,pelvisAngularSpeed,thoraxAngularSpeed")
+        }
+
+        function test_017_outside_the_window_is_not_a_dash() {
+            // A dash says "this joins two measurements and is not one". The unmeasured runs that
+            // reach the series' ends join nothing — they are the curve outside the window the
+            // metric is defined on (the sequence masks everything but transition→impact) — and
+            // drawn dashed they made a chart read as mostly untrusted. Faint solid, not dashed.
+            var runs = barePlot._traceRuns
+            compare(runs.length, 5)
+            var states = runs.map(function (r) { return r.outside ? "outside" : r.dashed ? "dashed" : "solid" })
+            compare(states.join(","), "outside,solid,dashed,solid,outside")
+            // The leading run still reaches one sample into its solid neighbour, so it joins up.
+            compare(runs[0].t[runs[0].t.length - 1], 20000)
         }
 
         function test_015_one_sequence_curve_is_no_preset() {
