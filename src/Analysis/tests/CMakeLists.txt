@@ -657,6 +657,12 @@ pp_add_test(shaft_plane_test SOURCES shaft_plane_test.cpp NO_QT)
 # the bridge but kept out of the fit. Pure std header — no Qt, no OpenCV, no fixture.
 pp_add_test(shaft_fusion_test SOURCES shaft_fusion_test.cpp NO_QT)
 
+# Down-the-line posture (dtl_posture.h, dtl_posture_design.md): one synthetic golfer seen from
+# down the line — a hip TURN is not a thrust (the midpoint holds), a thrust is, the same golfer
+# mirrored reads the same numbers because the sign comes from the feet, a ball that disagrees
+# with the feet refuses everything, and no ruler means no centimetres rather than another unit.
+pp_add_test(dtl_posture_test SOURCES dtl_posture_test.cpp)
+
 # GOLDEN CROSS-CHECK for shaft_plane.h against the corpus reference the research
 # note published (transition_plane_corpus.csv, from `plane_probe.py corpus`).
 # Reads the EXISTING result.json at each swing dir — no pipeline re-run, no

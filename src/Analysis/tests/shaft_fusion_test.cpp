@@ -235,6 +235,20 @@ int main()
         check(none.nNoFaceOn == bridged && none.nBridged == 0, "§6 no bridge ⇒ nNoFaceOn");
     }
 
+    // §8 the address plane, from the DTL view alone: the synthetic address (α = −100° on the 50°
+    // backswing plane) lies ON that plane, so the address plane reads 50° and the 60° downswing
+    // is delivered 10° above it. Face-on coasting at address must not cost it a frame.
+    {
+        Swing s = makeSwing(0, 0);
+        for (FoSample &f : s.fo) if (f.t_us < 100000) f.measured = false;
+        Config cfg;
+        const Track3D t = fuseTracks(s.fo, {}, s.dtl, s.backFrom, s.top, s.downTo, cfg, 60000);
+        check(t.addressN >= cfg.minAddressN && near(t.addressInclDeg, 50.0, 0.1), "§8 address plane 50° from DTL alone");
+        check(near(t.deliveryVsAddressDeg, 10.0, 0.15), "§8 delivered 10° above the address plane");
+        const Track3D none = fuseTracks(s.fo, {}, s.dtl, s.backFrom, s.top, s.downTo, cfg);
+        check(none.addressN == 0 && !std::isfinite(none.deliveryVsAddressDeg), "§8 no address window ⇒ no claim");
+    }
+
     // §7 too few frames is not a plane; disabled is not a track.
     {
         Swing s = makeSwing(0, 0);

@@ -395,6 +395,16 @@ int main()
         }
         CHECK("§1 image angle → in-plane angle round-trips through the ellipse", round);
         CHECK("§1 the de-projection gain stays inside [k, 1/k]", gain);
+        // …and IS the derivative. The bound above held for a gain with its sine and cosine terms
+        // swapped, which is what shipped until 2026-09-21: inside [k, 1/k] at every angle and wrong
+        // at all but one of them.
+        bool deriv = true;
+        for (double psi = -3.0; psi <= 3.0; psi += 0.07) {
+            const double h = 1e-6, nu = kNodeDeg * kD2R;
+            const double num = (deprojectPlaneAngle(psi + h, nu, kRatio) - deprojectPlaneAngle(psi - h, nu, kRatio)) / (2 * h);
+            if (!near(deprojectGain(psi, nu, kRatio), num, 1e-5)) deriv = false;
+        }
+        CHECK("§1 the gain is dα/dψ of the de-projection, checked numerically", deriv);
         CHECK("§1 k = 1 is the identity (in the plane's own frame, ν removed)", near(deprojectPlaneAngle(0.7, 0.2, 1.0), 0.5, 1e-12));
     }
 

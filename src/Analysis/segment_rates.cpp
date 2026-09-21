@@ -1027,9 +1027,14 @@ double deprojectPlaneAngle(double psiRad, double nuRad, double k)
 
 double deprojectGain(double psiRad, double nuRad, double k)
 {
+    // dα/dψ for α = atan2(sin φ, k cos φ): k / (sin²φ + k² cos²φ). Until 2026-09-21 the two terms
+    // were the other way round — k / (cos²φ + k² sin²φ) — which is exact only where they are equal
+    // and wrong by k² at the axes: along the node line the image angle moves SLOWER than the plane
+    // angle (gain 1/k) and this returned k. It only ever scaled σ, never an angle, so no rate or
+    // peak time moved; the σ that gates a node's placement did.
     const double phi = psiRad - nuRad;
     const double c = std::cos(phi), s = std::sin(phi);
-    const double den = c * c + k * k * s * s;
+    const double den = s * s + k * k * c * c;
     return den > 1e-12 ? k / den : 1.0;
 }
 

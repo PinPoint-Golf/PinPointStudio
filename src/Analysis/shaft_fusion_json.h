@@ -52,6 +52,7 @@ inline fusion::Config shaftFusionConfigFromOverrides(const QVariantMap &ov)
     apply(ov, "shaft.fusion.offPlaneK",         c.offPlaneK);
     apply(ov, "shaft.fusion.offPlaneFloorDeg",  c.offPlaneFloorDeg);
     apply(ov, "shaft.fusion.backIncoherentDeg", c.backIncoherentDeg);
+    apply(ov, "shaft.fusion.minAddressN",       c.minAddressN);
     return c;
 }
 
@@ -104,6 +105,8 @@ inline QJsonObject shaftTrack3dToJson(const fusion::Track3D &t, const fusion::Co
         { "frame",        QStringLiteral("cameras: X face-on image-right, Y face-on view ray, Z up") },
         { "camera",       QJsonObject { { "dtlYawDeg", t.dtlYawDeg }, { "dtlPitchDeg", t.dtlPitchDeg },
                                         { "calibrated", false } } },
+        { "address",      QJsonObject { { "inclDeg", num(t.addressInclDeg) }, { "n", t.addressN } } },
+        { "deliveryVsAddressDeg", num(t.deliveryVsAddressDeg) },
         { "planes",       QJsonObject { { "back", planeJson(t.back, t.back.offered(cfg)) },
                                         { "down", planeJson(t.down, t.down.offered(cfg)) } } },
         { "summary",      QJsonObject { { "nDtlPublished",   t.nDtlPublished },

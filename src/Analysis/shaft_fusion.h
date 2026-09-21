@@ -117,6 +117,7 @@ struct Config {
     double offPlaneK       = 3.0;   // |out-of-plane| > max(K·rms, floor) ⇒ the frame is flagged
     double offPlaneFloorDeg = 6.0;
     double backIncoherentDeg = 12.0; // backswing scatter above this ⇒ suspect a mirrored DTL band
+    int    minAddressN = 5;          // fewer published DTL address frames than this is not an address plane
 };
 
 // One face-on angle sample, already unwrapped by the caller. `measured` false = the
@@ -166,6 +167,17 @@ struct Track3D {
     int nSignDisagree = 0, nIllConditioned = 0, nOffPlane = 0;
     bool backIncoherent = false;
     double dtlYawDeg = 0, dtlPitchDeg = 0;
+    // The ADDRESS shaft plane — the plane through the target line's parallel and the shaft at
+    // address — as its inclination to the ground. Read from the DTL view alone: a DTL image angle
+    // confines the shaft to a plane through that camera's view ray, and with the camera looking
+    // down the line THAT PLANE IS the address plane. It owes face-on nothing, which matters
+    // because face-on coasts at address (the club is still) and would leave a dozen frames where
+    // the DTL tracker has ninety. Median over the DTL frames published up to `addressToUs`.
+    double addressInclDeg = kNan;
+    int    addressN = 0;
+    // Delivery plane against the address plane: + = delivered STEEPER (above the address plane).
+    // NaN unless both exist and the downswing plane was offered.
+    double deliveryVsAddressDeg = kNan;
 };
 
 // ── one frame ────────────────────────────────────────────────────────────────
@@ -264,7 +276,8 @@ inline PlaneFit fitPlane(const std::vector<Vec3> &U, const Camera &fo, const Con
 // are [from, to] instants; from ≥ to disables that fit.
 inline Track3D fuseTracks(const std::vector<FoSample> &fo, const std::vector<FoSample> &foBridge,
                           const std::vector<DtlSampleIn> &dtl,
-                          int64_t backFromUs, int64_t topUs, int64_t downToUs, const Config &cfg)
+                          int64_t backFromUs, int64_t topUs, int64_t downToUs, const Config &cfg,
+                          int64_t addressToUs = std::numeric_limits<int64_t>::min())
 {
     Track3D out;
     out.dtlYawDeg = cfg.dtlYawDeg;
@@ -285,6 +298,19 @@ inline Track3D fuseTracks(const std::vector<FoSample> &fo, const std::vector<FoS
     };
 
     out.nDtlPublished = int(dtl.size());
+    {
+        std::vector<double> incl;
+        for (const DtlSampleIn &d : dtl) {
+            if (d.t_us > addressToUs) continue;
+            const Vec3 n = cd.d.cross(imageDir(cd, d.theta)).unit();
+            incl.push_back(std::acos(std::clamp(std::fabs(n.z), 0.0, 1.0)) * 180.0 / kPi);
+        }
+        out.addressN = int(incl.size());
+        if (out.addressN >= cfg.minAddressN) {
+            std::sort(incl.begin(), incl.end());
+            out.addressInclDeg = incl[incl.size() / 2];
+        }
+    }
     for (const DtlSampleIn &d : dtl) {
         Sample3D s;
         if (at(fo, d.t_us, true, s.thetaF))             s.foSrc = FoSource::Measured;
@@ -317,6 +343,8 @@ inline Track3D fuseTracks(const std::vector<FoSample> &fo, const std::vector<FoS
     out.back = fitWindow(backFromUs, topUs - 1);
     out.down = fitWindow(topUs, downToUs);
     out.backIncoherent = out.back.fitted && out.back.oopRmsDeg > cfg.backIncoherentDeg;
+    if (out.down.offered(cfg) && std::isfinite(out.addressInclDeg))
+        out.deliveryVsAddressDeg = out.down.inclDeg - out.addressInclDeg;
 
     // Distance off the phase's own plane — for EVERY sample in the window, the Bridged
     // ones included: that is where a face-on bridge through impact gets checked against

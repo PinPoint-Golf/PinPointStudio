@@ -38,6 +38,7 @@
 #include "dtl_shaft_config.h"
 #include "dtl_shaft_json.h"
 #include "shaft_fusion_json.h"   // shaftFusionConfigFromOverrides (ShaftFusionStage)
+#include "dtl_posture.h"         // buildDtlPosture (DtlPostureStage)
 #include "dtl_shaft_tracker.h"
 #include "event_refine.h"
 #include "foot_metrics.h"
@@ -1704,11 +1705,34 @@ struct ShaftFusionStage : AnalysisStage {
         int64_t backFromUs = topUs - 900000;
         if (const auto tk = ctx.seg.eventFor(Phase::Takeaway); tk && tk->t_us < topUs)
             backFromUs = tk->t_us;
+        // The address plane is read from the DTL frames up to the takeaway (P1 on this ladder).
+        const int64_t addressToUs = ctx.seg.eventFor(Phase::Address)
+                                        ? ctx.seg.eventFor(Phase::Address)->t_us : backFromUs;
         ctx.detail->shaft3d = fusion::fuseTracks(angleTrack(fo.samples, false), angleTrack(fo.synth, true),
-                                                 dtl, backFromUs, topUs, impactUs + 20000, cfg);
+                                                 dtl, backFromUs, topUs, impactUs + 20000, cfg, addressToUs);
         ctx.detail->shaft3dCfg = cfg;
         ctx.detail->versions.shaftFusion = kShaftFusionStageVersion;
         const fusion::Track3D &t = ctx.detail->shaft3d;
+        // swingPlane — the DOWNSWING shaft plane against the ADDRESS shaft plane, in degrees, + =
+        // delivered steeper (above the plane the shaft started on). One fitted plane, so the series
+        // is that one number held over top → impact and nowhere else: the P2→P4 backswing reading
+        // of the same key finds no sample and stays absent, which is the truth — the backswing is
+        // not one plane and the DTL view is end-on at both of its ends.
+        if (std::isfinite(t.deliveryVsAddressDeg)) {
+            MetricSeries m;
+            m.key   = QStringLiteral("swingPlane");
+            m.label = QStringLiteral("Swing plane");
+            m.unit  = QStringLiteral("°");
+            for (int64_t us = topUs; us <= impactUs; us += 5000) {
+                m.t_us.push_back(us);
+                m.value.push_back(t.deliveryVsAddressDeg);
+            }
+            for (Phase p : { Phase::ArmParallelDown, Phase::Delivery })
+                if (const PhaseEvent *e = ctx.seg.eventFor(p); e && e->t_us >= topUs && e->t_us <= impactUs)
+                    m.phaseSamples.push_back({ p, e->t_us, t.deliveryVsAddressDeg, QString() });
+            m.sigma = t.down.oopRmsDeg;
+            if (m.t_us.size() >= 2) ctx.detail->series.push_back(std::move(m));
+        }
         ppInfo() << "[WristAnalysis] shaft fusion:" << qlonglong(t.samples.size()) << "/" << t.nDtlPublished
                  << "DTL frames fused (" << t.nBridged << "against the face-on bridge," << t.nNoFaceOn
                  << "with no face-on ); downswing plane"
@@ -1718,7 +1742,71 @@ struct ShaftFusionStage : AnalysisStage {
                                          .arg(t.down.offered(cfg) ? QString() : QStringLiteral(" — NOT offered"))
                                    : QStringLiteral("not fitted (%1 frames)").arg(t.down.n))
                  << "; disagreements: sign" << t.nSignDisagree << "off-plane" << t.nOffPlane
+                 << "; address plane" << t.addressInclDeg << "° over" << t.addressN << "frames, delivery"
+                 << t.deliveryVsAddressDeg << "° above it"
                  << (t.backIncoherent ? "; BACKSWING INCOHERENT — suspect a mirrored DTL band" : "");
+    }
+};
+
+// 13c-quinquies. Down-the-line POSTURE (dtl_posture.h; dtl_posture_design.md): pelvis thrust,
+//      spine forward bend, the two knee flexions, ball reach and the heel-toe balance proxy — the
+//      sagittal set the face-on producers refuse. Reads the DTL pose, the face-on ladder, the DTL
+//      ball and (for shoulder width and the fallback ruler) the face-on pose. DETAIL series only.
+struct DtlPostureStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("DtlPosture"); }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        return DtlPostureConfig::fromOverrides(ctx.job.tuningOverrides).enabled
+            && ctx.window && ctx.job.dtlSource != pinpoint::kInvalidSourceId
+            && !ctx.detail->poseDtl.frames.empty() && ctx.seg.eventFor(Phase::Address);
+    }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        if (!DtlPostureConfig::fromOverrides(ctx.job.tuningOverrides).enabled)
+            return QStringLiteral("DTL posture disabled (dtlPosture.enabled)");
+        if (ctx.detail->poseDtl.frames.empty()) return QStringLiteral("no down-the-line pose");
+        return QStringLiteral("no Address on the ladder");
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        const auto *dfmt = std::get_if<pinpoint::CameraFormat>(&ctx.window->formatOf(ctx.job.dtlSource).format);
+        if (!dfmt || dfmt->width <= 0 || dfmt->height <= 0) return;
+        DtlPostureInputs in;
+        in.poseDtl = &ctx.detail->poseDtl;
+        in.dtlW = int(dfmt->width); in.dtlH = int(dfmt->height);
+        in.phases = &ctx.seg.events;
+        in.leadIsLeft = ctx.job.handedness != 2;
+        if (!ctx.detail->pose2d.frames.empty() && !ctx.job.cameraSources.empty()) {
+            const auto *cfmt = std::get_if<pinpoint::CameraFormat>(
+                &ctx.window->formatOf(ctx.job.cameraSources.front()).format);
+            if (cfmt && cfmt->width > 0 && cfmt->height > 0) {
+                in.poseFo = &ctx.detail->pose2d;
+                in.foW = int(cfmt->width); in.foH = int(cfmt->height);
+                // The face-on ball-diameter ruler, exactly as LowerBodyMetricsStage builds it.
+                const BallPositionResult bp =
+                    computeBallPosition(ctx.detail->ball, QPointF(), QPointF(),
+                                        ctx.seg.eventFor(Phase::Address)->t_us, in.foW, in.foH,
+                                        BallPositionConfig::fromOverrides(ctx.job.tuningOverrides));
+                in.foMmPerPx = bp.mmPerPx;
+            }
+        }
+        const DtlBall &b = ctx.detail->shaftDtl.ball;
+        if (ctx.detail->shaftDtl.valid && b.found) {
+            in.ballFound = true;
+            in.ballBright = b.source == QLatin1String("bright");
+            in.ballX = b.x; in.ballY = b.y; in.ballRadiusPx = b.radiusPx;
+        }
+        DtlPostureResult r = buildDtlPosture(in, DtlPostureConfig::fromOverrides(ctx.job.tuningOverrides));
+        if (!r.valid) {
+            ppInfo() << "[WristAnalysis] dtl posture: refused —" << qPrintable(r.reason);
+            return;
+        }
+        ppInfo() << "[WristAnalysis] dtl posture:" << qlonglong(r.series.size()) << "series, ball"
+                 << (r.toward > 0 ? "image-right" : "image-left") << ", ruler" << qPrintable(r.ruler)
+                 << r.cmPerPx << "cm/px, scale ratio" << r.scaleRatio << ", shoulders" << r.shoulderWidthCm
+                 << "cm, foot" << r.footLenCm << "cm"
+                 << (r.rulerRefused.isEmpty() ? QString() : QStringLiteral("; RULER REFUSED: ") + r.rulerRefused);
+        for (MetricSeries &m : r.series) ctx.detail->series.push_back(std::move(m));
     }
 };
 
@@ -1888,6 +1976,7 @@ SessionProfile wristProfile()
     p.stages.push_back(std::make_unique<DtlPoseStage>());
     p.stages.push_back(std::make_unique<DtlShaftStage>());
     p.stages.push_back(std::make_unique<ShaftFusionStage>());
+    p.stages.push_back(std::make_unique<DtlPostureStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     p.stages.push_back(std::make_unique<BindingsStage>());
     p.stages.push_back(std::make_unique<ResemblanceStage>());
@@ -1978,6 +2067,7 @@ SessionProfile cameraKinematicsProfile()
     p.stages.push_back(std::make_unique<DtlPoseStage>());
     p.stages.push_back(std::make_unique<DtlShaftStage>());
     p.stages.push_back(std::make_unique<ShaftFusionStage>());
+    p.stages.push_back(std::make_unique<DtlPostureStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     return p;
 }

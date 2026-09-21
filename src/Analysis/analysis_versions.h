@@ -71,7 +71,7 @@ constexpr int kDtlShaftStageVersion = 1;
 //           shaft_fusion.h). Stamped; never reused — it is a few microseconds of
 //           arithmetic on two tracks that are already in hand. Bump when
 //           shaft_fusion.h changes its output.
-constexpr int kShaftFusionStageVersion = 1;
+constexpr int kShaftFusionStageVersion = 2;   // 2: the address plane and deliveryVsAddressDeg (2026-09-21)
 
 struct AnalysisVersions {
     int     pose  = 0;          // 0 = unknown / not stamped
