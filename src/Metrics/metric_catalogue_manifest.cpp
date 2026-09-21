@@ -39,7 +39,7 @@
 //   a purchase behind it rather than a promise. See the Launch monitor block at the foot of this
 //   file for why every one of them is `lm.`-prefixed even where nothing else could ever produce it.
 //
-// PLANNED (15) — every rung planned, so nothing produces them by any route. `.planned` on a ROUTE
+// PLANNED (13) — every rung planned, so nothing produces them by any route. `.planned` on a ROUTE
 //   rather than on a metric is the distinction that had been missing, and nine of these were
 //   mis-stated because of it: `clubPath` is not work we owe, it is a metric that needs a camera
 //   pointing down the target line, and saying "planned" about it promised a pipeline while hiding
@@ -830,15 +830,16 @@ void installMetricManifest(MetricCatalogue &cat)
             "is early extension and pairs with the pelvis-thrust metric. GAINING bend is a dip, and "
             "it is a TRANSITION event — read it between P5 and P6, where it happens, not across the "
             "downswing as a whole: a golfer who drops into it and then stands up by impact shows "
-            "both, and a reading spanning the pair cancels them. Planned: needs pelvis and thorax "
-            "IMUs (or a calibrated 3D camera)."),
+            "both, and a reading spanning the pair cancels them. From the down-the-line camera it "
+            "is the hip-to-shoulder line against the vertical; the CHANGE is robust, while the "
+            "absolute angle carries that camera's pitch until it is calibrated."),
         .signPositive = QStringLiteral("more forward bend from the hips"),
         .signNegative = QStringLiteral("standing taller than upright, which a swing does not reach"),
         .phases = { P::Address, P::Impact },
         .routes = {
             via("dtl", RM::Projected, Direct, { .dtlCamera = true },
                 QStringLiteral("the trunk's hinge over the ball, seen square-on from down the "
-                               "line"), PLANNED),
+                               "line")),
             via("trunkImus", RM::Inertial, Direct, { .imuRoles = { R::Pelvis, R::Thorax } },
                 QStringLiteral("thorax-relative-pelvis flexion from the two trunk IMUs — "
                                "sagittal, so the face-on camera cannot stand in"), PLANNED) },
@@ -982,7 +983,8 @@ void installMetricManifest(MetricCatalogue &cat)
             "move toward the ball only late, if at all. A rising, toward-ball trace through the "
             "downswing is early extension and pairs with a loss of spine forward bend. This motion "
             "lives along the camera's optical axis, so it genuinely needs a down-the-line view — a "
-            "lone face-on camera cannot resolve it. Planned."),
+            "lone face-on camera cannot resolve it. Read off the hip MIDPOINT in the down-the-line "
+            "view, which a hip turn leaves where it was."),
         .signPositive = QStringLiteral("the pelvis moved toward the ball"),
         .signNegative = QStringLiteral("moved away from the ball"),
         // TOP AS WELL AS THE DOWNSWING, and it is not a widening of scope. The pelvis moving
@@ -995,7 +997,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("toward-and-away-from-the-ball travel lies along the face-on "
                                "camera's blind axis, so it takes the down-the-line view to see it "
-                               "at all"), PLANNED) },
+                               "at all")) },
         .usedBy = { QStringLiteral("characteristic:early_extension"),
                     QStringLiteral("characteristic:backing_off_the_ball"),
                     QStringLiteral("characteristic:pelvis_thrust_backswing") },
@@ -1375,22 +1377,23 @@ void installMetricManifest(MetricCatalogue &cat)
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
         .description = QStringLiteral(
-            "The tilt and direction of the plane the clubhead swings on through the downswing — a "
-            "best-fit plane of the head path (or a lead-hand proxy) over the knee-to-knee section, "
-            "reported as a tilt angle from the ground plus an azimuth. It captures whether the club "
-            "is delivered on an inclined circle that matches the player and the club."),
+            "The plane the shaft swings on through the downswing, measured against the plane the "
+            "shaft sat on at address: a best-fit plane through the shaft's three-dimensional "
+            "direction, found by intersecting what the face-on and down-the-line cameras each see. "
+            "It captures whether the club is delivered on the inclined circle it was set up on."),
         .howToRead = QStringLiteral(
-            "Read over the downswing; the numbers are club-dependent, so compare like with like and "
-            "look for consistency across swings more than an absolute target. A down-the-line "
-            "camera is the classic view for plane, and with no club tracked the value falls back to "
-            "a hand-path proxy that should be labelled as such. Planned: needs the club track."),
-        .signPositive = QStringLiteral("a steeper plane"),
-        .signNegative = QStringLiteral("a flatter plane"),
+            "One number per swing, held over the downswing: degrees above (+) or below (−) the "
+            "address shaft plane. Compare like with like — it is club-dependent — and look for "
+            "consistency across swings. Needs both cameras and a club track in each. The plane's "
+            "tilt is robust to where the down-the-line camera stands; its DIRECTION is not, and is "
+            "not reported here."),
+        .signPositive = QStringLiteral("delivered above the address shaft plane — steeper"),
+        .signNegative = QStringLiteral("delivered below it — flatter"),
         .phases = { P::ArmParallelDown },
         .routes = {
             via("dtl", RM::Triangulated, Direct, { .dtlCamera = true, .clubTrack = true },
-                QStringLiteral("an SVD best-fit plane through the head path needs that path in "
-                               "three dimensions, which one camera cannot give"), PLANNED) },
+                QStringLiteral("a best-fit plane through the shaft's direction needs that direction "
+                               "in three dimensions, which one camera cannot give")) },
         .usedBy = { QStringLiteral("characteristic:flat_backswing_plane"),
                     QStringLiteral("characteristic:steep_backswing_plane"),
                     QStringLiteral("characteristic:steep_downswing_shaft"),
@@ -2425,14 +2428,14 @@ void installMetricManifest(MetricCatalogue &cat)
             "A per-frame curve; the reading that matters is the peak from impact into the "
             "follow-through. Higher means more bend. A knee angle is between two SEGMENTS, not a "
             "property of the knee point itself — which is why the shin and thigh exist separately "
-            "in the anatomy vocabulary. Needs a face-on camera."),
+            "in the anatomy vocabulary. Needs a down-the-line camera."),
         .signPositive = QStringLiteral("more knee bend"),
         .signNegative = QString(),
         .phases = { P::Impact, P::ShaftParallelThrough },
         .routes = {
             via("dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("the shin-against-thigh angle seen from down the line, where the "
-                               "bend is in view rather than pointing at the camera"), PLANNED),
+                               "bend is in view rather than pointing at the camera")),
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
                 QStringLiteral("a sagittal angle foreshortened by the frontal projection — "
                                "visible, but close enough to noise that no producer reads it "
@@ -2494,7 +2497,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("dtl", RM::Triangulated, Direct, { .dtlCamera = true, .ballTrack = true },
                 QStringLiteral("the ball's standoff is measured across the stance line, which is "
-                               "the depth axis the face-on camera cannot see"), PLANNED) },
+                               "the depth axis the face-on camera cannot see")) },
         .usedBy = { QStringLiteral("characteristic:ball_too_close"),
                     QStringLiteral("characteristic:ball_too_far") },
     });
@@ -2610,14 +2613,14 @@ void installMetricManifest(MetricCatalogue &cat)
         .howToRead = QStringLiteral(
             "A per-frame curve; the change from address to the top is the reading that matters. "
             "HIGHER MEANS MORE BEND, the same convention as the lead knee. A knee angle is between "
-            "two SEGMENTS, not a property of the knee point. Needs a face-on camera."),
+            "two SEGMENTS, not a property of the knee point. Needs a down-the-line camera."),
         .signPositive = QStringLiteral("more knee bend"),
         .signNegative = QString(),
         .phases = { P::Address, P::Top },
         .routes = {
             via("dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("the shin-against-thigh angle seen from down the line, where the "
-                               "bend is in view rather than pointing at the camera"), PLANNED),
+                               "bend is in view rather than pointing at the camera")),
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
                 QStringLiteral("a sagittal angle foreshortened by the frontal projection — "
                                "visible, but close enough to noise that no producer reads it "
@@ -2681,7 +2684,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("heel-to-toe travel lies along the face-on camera's blind axis, "
                                "the same axis pelvis thrust lives on, so it takes the "
-                               "down-the-line view to see at all"), PLANNED) },
+                               "down-the-line view to see at all")) },
         .usedBy = { QStringLiteral("characteristic:weight_in_heels_address") },
     });
 

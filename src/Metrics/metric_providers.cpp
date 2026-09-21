@@ -145,6 +145,22 @@ std::vector<QString> ShaftPlaneProvider::provides() const
     return { QStringLiteral("transitionPlaneDelta") };
 }
 
+// ------------------------------------------------------------------------- DtlPostureProvider
+
+std::vector<QString> DtlPostureProvider::provides() const
+{
+    return { QStringLiteral("pelvisThrust"),     QStringLiteral("spineForwardBend"),
+             QStringLiteral("leadKneeFlexion"),  QStringLiteral("trailKneeFlexion"),
+             QStringLiteral("ballBodyDistance"), QStringLiteral("balanceHeelToe") };
+}
+
+// ------------------------------------------------------------------------ ShaftFusionProvider
+
+std::vector<QString> ShaftFusionProvider::provides() const
+{
+    return { QStringLiteral("swingPlane") };
+}
+
 // ------------------------------------------------------------------ KinematicSequenceProvider
 
 std::vector<QString> KinematicSequenceProvider::provides() const

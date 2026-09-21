@@ -395,7 +395,10 @@ int main()
         // 19 -> 21 on 2026-09-14: shoulderPlaneAngle3d (the pair) and pelvisLiftBelt (a tracked
         // waistband edge) — each the honest replacement for a face-on reading the corpus showed
         // firing on every shot for a reason that was the camera, not the golfer.
-        checkEqI(planned, 20, "20 planned metrics — nothing produces them by any route");   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view; −kinematicSequence (live 2026-09-17, segment_rates.cpp)
+        // 20 -> 13 on 2026-09-21: the down-the-line rungs of pelvisThrust, spineForwardBend, the two
+        // knee flexions, ballBodyDistance and balanceHeelToe (dtl_posture.h) and of swingPlane
+        // (shaft_fusion.h) were built.
+        checkEqI(planned, 13, "13 planned metrics — nothing produces them by any route");   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view; −kinematicSequence (live 2026-09-17, segment_rates.cpp)
         checkEqI(unavailable, planned,
                  "every planned metric resolves Unavailable even with every device present");
         checkEqI(saysPlanned, planned,
@@ -489,16 +492,13 @@ int main()
         check(pr->upgradeDevices().empty(), "…and nothing above it to be upgraded to");
 
         // The knees are the user-facing case for the whole change: readable face-on in principle,
-        // properly resolvable only from down the line. Both rungs planned, so the metric is planned
-        // — and it STILL reports the camera as its floor and DTL as its upgrade rather than
-        // collapsing to one undifferentiated "not yet".
+        // properly resolvable only from down the line. The DOWN-THE-LINE rung is BUILT since
+        // 2026-09-21 (dtl_posture.h); the face-on rung stays planned, because it still says exactly
+        // why nobody reads a sagittal angle from the front. So the metric is no longer planned,
+        // and what it needs is stated as the camera that can see it.
         const MetricDescriptor *lk = cat.descriptor(QStringLiteral("leadKneeFlexion"));
-        check(lk->planned(), "leadKneeFlexion is planned — no rung is built");
-        check(lk->baselineRequirement().faceOnCamera && !lk->baselineRequirement().dtlCamera,
-              "…its floor is the face-on camera");
-        const auto lkUp = lk->upgradeDevices();
-        check(lkUp.size() == 1 && lkUp.front() == CaptureDevice::DtlCamera,
-              "…and a down-the-line camera is what would improve it");
+        check(!lk->planned(), "leadKneeFlexion is no longer planned — the down-the-line rung is built");
+        check(lk->baselineRequirement().dtlCamera, "…and its floor is the down-the-line camera");
 
         // Depth metrics state a DEVICE. Three of them used minTier = Stereo3D as a stand-in, which
         // rendered as "a higher reconstruction tier" — true, unactionable, and unfilterable.

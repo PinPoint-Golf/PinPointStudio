@@ -133,7 +133,7 @@
         "sense": "max",
         "anchor": "p1"
       },
-      "status": "planned",
+      "status": "live",
       "label": "Spine forward bend, deepest P5 to P6 from P1",
       "unit": "°",
       "highMeans": "more forward bend than at address on the way down — dropping into the ball",
@@ -166,7 +166,7 @@
         "sense": "max",
         "anchor": "p1"
       },
-      "status": "planned",
+      "status": "live",
       "label": "Pelvis thrust toward the ball, peak P5 to P7 from P1",
       "unit": "cm",
       "highMeans": "the pelvis further toward the ball during the downswing"
@@ -1656,7 +1656,7 @@
         "kind": "at",
         "anchor": "p6"
       },
-      "status": "planned",
+      "status": "live",
       "label": "Swing plane, at delivery",
       "unit": "°",
       "highMeans": "a steeper delivery plane, the shaft higher above the address plane",

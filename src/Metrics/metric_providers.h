@@ -139,6 +139,22 @@ public:
     std::vector<QString> provides() const override;
 };
 
+// dtl_posture.h (DtlPostureStage) — the SAGITTAL set, off the down-the-line pose: pelvis thrust,
+// spine forward bend, the two knee flexions, ball reach and the heel-toe balance proxy. The face-on
+// producers refuse every one of these by construction (lower_body_metrics.h); this is the view
+// that can see them. pelvisThrust additionally needs a ruler and is absent without one.
+class DtlPostureProvider : public IMetricProvider {
+public:
+    std::vector<QString> provides() const override;
+};
+
+// wrist_analyzer.cpp ShaftFusionStage (shaft_fusion.h) — swingPlane, the downswing shaft plane
+// against the address shaft plane, from the two cameras' shaft angles intersected.
+class ShaftFusionProvider : public IMetricProvider {
+public:
+    std::vector<QString> provides() const override;
+};
+
 // segment_rates.cpp — the four segment angular-speed series and the kinematic Sequence over them.
 // Resolved PER SEGMENT in the producer (an IMU where one is bound, the face-on camera where not),
 // and each descriptor's ladder says so per series; the Sequence's own ladder mirrors them. No
