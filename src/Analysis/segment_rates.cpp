@@ -1336,7 +1336,18 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
                 a.sigmaRad[i] = cfg.shaftThetaSigmaRad / std::max(double(track[i].conf), 0.2);
             }
             unwrapInPlace(a.angleRad);
-            deprojectTrack(a, plane, cfg);
+            // The fused two-camera plane where the fusion offered one (kinematic_sequence_design.md
+            // §14): on 07-04 the ellipse's node bearing wandered −42…+45° swing to swing and its
+            // ratio 0.81–0.98, where the fused plane held 0.86–0.91 and a level node.
+            PlaneParams clubPlane = plane;
+            const bool fused = in.fusedClubPlane.have
+                            && in.fusedClubPlane.ratio >= cfg.planeRatioFloor && in.fusedClubPlane.ratio <= 1.0;
+            if (fused) {
+                clubPlane.have = true;
+                clubPlane.k    = in.fusedClubPlane.ratio;
+                clubPlane.nu   = in.fusedClubPlane.nodeRad;
+            }
+            deprojectTrack(a, clubPlane, cfg);
             // A track whose own clubhead speed at impact is not credible is a broken track, and
             // the synth tier's shaft angle on one is a straight line between anchors. The curve is
             // still produced (it is what the track says); the node is not claimed.
@@ -1346,7 +1357,8 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             gate.may = credible;
             finishChannel(res.club, differentiate(a, windowUs, 1.0, /*magnitude*/ true),
                           SeqSegment::Club, QStringLiteral("Club angular speed"),
-                          QStringLiteral("faceOnClub"), false, clubDom, phases, cfg, nodes, gate);
+                          fused ? QStringLiteral("faceOn+dtl") : QStringLiteral("faceOnClub"),
+                          false, clubDom, phases, cfg, nodes, gate);
         }
     }
 

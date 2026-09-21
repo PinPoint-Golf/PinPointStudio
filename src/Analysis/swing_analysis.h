@@ -36,6 +36,7 @@
 #include "wrist_assessment_result.h"   // PpWristFinding (Tier-2 offline assessment)
 #include "kinematic_sequence.h"        // KinematicSequence (segment_rates.h fills it)
 #include "dtl_shaft_track.h"          // DtlShaftTrack2D (DtlShaftStage fills it; OpenCV-free)
+#include "shaft_fusion.h"             // fusion::Track3D (ShaftFusionStage fills it; pure std)
 
 // Canonical intermediate + output data structures for the shot analyzer
 // (design: docs/design/shot_analyzer_design.md). All rotation is QQuaternion — Euler
@@ -872,6 +873,12 @@ struct SwingAnalysis {
     // when the stage did not run. Persisted as `analysis.clubDtl` (pinpoint.clubDtl/1); never
     // reused on re-analysis — it is recomputed from the (reused) poses and shaft every time.
     DtlShaftTrack2D           shaftDtl;
+    // The shaft in THREE dimensions, from the two image angles above (ShaftFusionStage;
+    // shaft_fusion_design.md). Reads both club tracks and feeds neither. Invalid when the stage
+    // did not run. Persisted as `analysis.club3d` (pinpoint.club3d/1); never reused. `shaft3dCfg`
+    // is the config it ran under, which the serialiser needs to say whether a plane was OFFERED.
+    fusion::Track3D           shaft3d;
+    fusion::Config            shaft3dCfg;
     BallTrack2D               ball;    // face-on ball track for the replay overlay (empty ⇒ none)
     ImpactTrack2D             impact;  // the impact camera's ball + club track (check .valid)
     AnalysisTimings           timings; // per-stage wall times (telemetry); -1 = not measured

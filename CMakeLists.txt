@@ -2710,6 +2710,8 @@ target_sources(PinPointStudio PRIVATE
     # witness builder and the one clubDtl/1 writer.
     src/Analysis/dtl_shaft_track.h
     src/Analysis/dtl_shaft_types.h
+    src/Analysis/shaft_fusion.h
+    src/Analysis/shaft_fusion_json.h
     src/Analysis/dtl_face_on_witness.h
     src/Analysis/dtl_face_on_witness.cpp
     src/Analysis/dtl_shaft_json.h

@@ -37,6 +37,7 @@
 #include "../Analysis/lm_inferred_reads.h"
 #include "../Analysis/swing_analysis.h"
 #include "../Analysis/kinematic_sequence_json.h"   // kinematicSequenceToJson — one shape, three paths
+#include "../Analysis/shaft_fusion_json.h"         // shaftTrack3dToJson — analysis.club3d
 #include "../Analysis/dtl_shaft_json.h"            // dtlShaftTrackToJson — analysis.clubDtl == club_dtl.json
 #include "../Core/club_vocabulary.h"
 
@@ -200,6 +201,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
                                                               { QStringLiteral("model"), a.versions.poseDtlModel } });
         if (a.versions.shaftDtl > 0)
             v.insert(QStringLiteral("shaftDtl"), QJsonObject{ { QStringLiteral("code"), a.versions.shaftDtl } });
+        if (a.versions.shaftFusion > 0)
+            v.insert(QStringLiteral("shaftFusion"), QJsonObject{ { QStringLiteral("code"), a.versions.shaftFusion } });
         o[QStringLiteral("versions")] = v;
     }
     o[QStringLiteral("tier")]   = a.tier;
@@ -587,6 +590,11 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
     if (a.versions.shaftDtl > 0)
         o[QStringLiteral("clubDtl")] = dtlShaftTrackToJson(
             a.shaftDtl, windowT0, a.shaftDtl.configJson, a.shaftDtl.configHash, dtlAlias, dtlFile);
+    // The fused 3-D shaft (ShaftFusionStage) — pinpoint.club3d/1. Written whenever the stage
+    // RAN, valid or not, for clubDtl's reason: the counts are the record of why there is none.
+    if (a.versions.shaftFusion > 0)
+        o[QStringLiteral("club3d")] = analysis::shaftTrack3dToJson(
+            a.shaft3d, a.shaft3dCfg, windowT0, a.versions.shaftFusion);
     return o;
 }
 

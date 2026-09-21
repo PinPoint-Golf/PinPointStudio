@@ -650,6 +650,13 @@ pp_add_test(shaft_kinematics_test SOURCES shaft_kinematics_test.cpp NO_QT)
 # Pure std header — no Qt, no OpenCV, no fixture.
 pp_add_test(shaft_plane_test SOURCES shaft_plane_test.cpp NO_QT)
 
+# Two-view shaft fusion (shaft_fusion.h, shaft_fusion_design.md): one synthetic swing on two
+# planes imaged by both cameras — the direction round-trips, the plane's inclination survives
+# a wrong camera model while its heading does not, a mirrored DTL band reads as an incoherent
+# backswing, one bad frame is the one flagged, and a coasted face-on frame is fused against
+# the bridge but kept out of the fit. Pure std header — no Qt, no OpenCV, no fixture.
+pp_add_test(shaft_fusion_test SOURCES shaft_fusion_test.cpp NO_QT)
+
 # GOLDEN CROSS-CHECK for shaft_plane.h against the corpus reference the research
 # note published (transition_plane_corpus.csv, from `plane_probe.py corpus`).
 # Reads the EXISTING result.json at each swing dir — no pipeline re-run, no

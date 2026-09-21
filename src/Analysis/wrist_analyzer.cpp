@@ -37,6 +37,7 @@
 #include "dtl_face_on_witness.h"
 #include "dtl_shaft_config.h"
 #include "dtl_shaft_json.h"
+#include "shaft_fusion_json.h"   // shaftFusionConfigFromOverrides (ShaftFusionStage)
 #include "dtl_shaft_tracker.h"
 #include "event_refine.h"
 #include "foot_metrics.h"
@@ -1648,6 +1649,79 @@ struct DtlShaftStage : AnalysisStage {
     }
 };
 
+// 13c-quater. The shaft in THREE dimensions (shaft_fusion.h; shaft_fusion_design.md): the two
+//      image angles the face-on and down-the-line trackers published, intersected. Reads both club
+//      tracks and feeds NEITHER — the DTL design's one-direction rule (§5.10) stands; what comes
+//      back is a plane and a list of frames where the two views disagree. A few microseconds.
+//
+//      The face-on angle is taken from the real frames where the tracker MEASURED both sides of
+//      the DTL instant, else from its synth track and marked bridged; a bridged sample is checked
+//      against the downswing plane but never fitted into it. That is how the face-on bridge
+//      through impact gets a second opinion from the view that sees impact sharply.
+struct ShaftFusionStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("ShaftFusion"); }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        return shaftFusionConfigFromOverrides(ctx.job.tuningOverrides).enabled
+            && ctx.detail->shaft.valid && ctx.detail->shaftDtl.valid
+            && ctx.seg.eventFor(Phase::Top) && ctx.seg.eventFor(Phase::Impact);
+    }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        if (!shaftFusionConfigFromOverrides(ctx.job.tuningOverrides).enabled)
+            return QStringLiteral("shaft fusion disabled (shaft.fusion.enabled)");
+        if (!ctx.detail->shaft.valid)    return QStringLiteral("no valid face-on shaft track");
+        if (!ctx.detail->shaftDtl.valid) return QStringLiteral("no valid down-the-line shaft track");
+        return QStringLiteral("no Top or no Impact on the ladder");
+    }
+    static std::vector<fusion::FoSample> angleTrack(const std::vector<ShaftSample2D> &v, bool allMeasured)
+    {
+        std::vector<fusion::FoSample> out;
+        out.reserve(v.size());
+        double prev = 0.0;
+        for (const ShaftSample2D &s : v) {
+            double th = s.thetaRad;
+            if (!out.empty()) th += 2.0 * M_PI * std::round((prev - th) / (2.0 * M_PI));
+            prev = th;
+            const bool measured = allMeasured
+                || ((s.flags & ShaftMeasured)
+                    && !(s.flags & (ShaftCoasted | ShaftSynthesized | ShaftImplausible | ShaftKinematicPredicted)));
+            out.push_back({ s.t_us, th, measured });
+        }
+        return out;
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        const fusion::Config cfg = shaftFusionConfigFromOverrides(ctx.job.tuningOverrides);
+        const ShaftTrack2D    &fo = ctx.detail->shaft;
+        const DtlShaftTrack2D &dt = ctx.detail->shaftDtl;
+        std::vector<fusion::DtlSampleIn> dtl;
+        for (const DtlSample &s : dt.samples)
+            if (s.tier >= DtlTier::Ray && std::isfinite(s.thetaRad))
+                dtl.push_back({ s.t_us - dt.clockOffsetUs, s.thetaRad, s.band });
+        const int64_t topUs    = ctx.seg.eventFor(Phase::Top)->t_us;
+        const int64_t impactUs = ctx.seg.eventFor(Phase::Impact)->t_us;
+        int64_t backFromUs = topUs - 900000;
+        if (const auto tk = ctx.seg.eventFor(Phase::Takeaway); tk && tk->t_us < topUs)
+            backFromUs = tk->t_us;
+        ctx.detail->shaft3d = fusion::fuseTracks(angleTrack(fo.samples, false), angleTrack(fo.synth, true),
+                                                 dtl, backFromUs, topUs, impactUs + 20000, cfg);
+        ctx.detail->shaft3dCfg = cfg;
+        ctx.detail->versions.shaftFusion = kShaftFusionStageVersion;
+        const fusion::Track3D &t = ctx.detail->shaft3d;
+        ppInfo() << "[WristAnalysis] shaft fusion:" << qlonglong(t.samples.size()) << "/" << t.nDtlPublished
+                 << "DTL frames fused (" << t.nBridged << "against the face-on bridge," << t.nNoFaceOn
+                 << "with no face-on ); downswing plane"
+                 << (t.down.fitted ? QStringLiteral("%1° to the ground, heading %2°, %3° rms over %4 frames%5")
+                                         .arg(t.down.inclDeg, 0, 'f', 1).arg(t.down.azimDeg, 0, 'f', 1)
+                                         .arg(t.down.oopRmsDeg, 0, 'f', 2).arg(t.down.n)
+                                         .arg(t.down.offered(cfg) ? QString() : QStringLiteral(" — NOT offered"))
+                                   : QStringLiteral("not fitted (%1 frames)").arg(t.down.n))
+                 << "; disagreements: sign" << t.nSignDisagree << "off-plane" << t.nOffPlane
+                 << (t.backIncoherent ? "; BACKSWING INCOHERENT — suspect a mirrored DTL band" : "");
+    }
+};
+
 struct KinematicSequenceStage : AnalysisStage {
     QString name() const override { return QStringLiteral("KinematicSequence"); }
     static bool anyInput(const AnalysisContext &ctx)
@@ -1702,6 +1776,12 @@ struct KinematicSequenceStage : AnalysisStage {
                 in.dtlFrameW = int(dfmt->width);
                 in.dtlFrameH = int(dfmt->height);
             }
+        }
+        // The downswing plane the shaft fusion measured, when it offered one (ShaftFusionStage).
+        if (ctx.detail->shaft3d.valid && ctx.detail->shaft3d.down.offered(ctx.detail->shaft3dCfg)) {
+            in.fusedClubPlane.have    = true;
+            in.fusedClubPlane.ratio   = ctx.detail->shaft3d.down.foRatio;
+            in.fusedClubPlane.nodeRad = ctx.detail->shaft3d.down.foNodeDeg * M_PI / 180.0;
         }
         // The same track's headline linear speed at impact, from the Kinematics stage that ran
         // before this one — the club node's credibility gate (segment_rates.h).
@@ -1807,6 +1887,7 @@ SessionProfile wristProfile()
     p.stages.push_back(std::make_unique<ShaftPlaneStage>());
     p.stages.push_back(std::make_unique<DtlPoseStage>());
     p.stages.push_back(std::make_unique<DtlShaftStage>());
+    p.stages.push_back(std::make_unique<ShaftFusionStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     p.stages.push_back(std::make_unique<BindingsStage>());
     p.stages.push_back(std::make_unique<ResemblanceStage>());
@@ -1896,6 +1977,7 @@ SessionProfile cameraKinematicsProfile()
     p.stages.push_back(std::make_unique<ShaftPlaneStage>());
     p.stages.push_back(std::make_unique<DtlPoseStage>());
     p.stages.push_back(std::make_unique<DtlShaftStage>());
+    p.stages.push_back(std::make_unique<ShaftFusionStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     return p;
 }

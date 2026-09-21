@@ -206,6 +206,15 @@ struct SegmentRatesInputs {
     // The same track's clubhead speed at impact (mph), when the kinematics stage produced one;
     // −1 = unknown. Below `minCredibleClubMph` the club node is left unplaced (design §12).
     double                         clubheadSpeedImpactMph = -1.0;
+    // The DOWNSWING plane as the two-camera shaft fusion MEASURED it (shaft_fusion.h PlaneFit,
+    // only when it was `offered`), in the face-on de-projection's own terms: minor/major ratio and
+    // node bearing (rad, image atan2). When present the CLUB's face-on angle is de-projected
+    // through it and the route reads `faceOn+dtl`; the ellipse plane inferred from the face-on
+    // track alone is the fallback, exactly as before. The lead arm is NOT moved onto it — the arm
+    // does not swing on the shaft's plane, and the ellipse was never a measurement of the arm's
+    // either; one thing changes at a time.
+    struct FusedPlane { bool have = false; double ratio = 1.0, nodeRad = 0.0; };
+    FusedPlane                     fusedClubPlane;
 };
 
 struct SegmentRatesResult {

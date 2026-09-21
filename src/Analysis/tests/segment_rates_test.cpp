@@ -1055,6 +1055,41 @@ int main()
         }
     }
 
+    // ── §10 the club through the FUSED two-camera plane ───────────────────────────────────────
+    // The face-on track's own ellipse plane is an inference, and on 07-04 it wandered. Give the
+    // fixture a WRONG ellipse (0.97 @ 40°, against the true 0.87 @ 10°): the club's peak rate
+    // reads wrong through it, and right again through the fused plane — which moves the club
+    // and its route id, and nothing else.
+    {
+        const PoseTrack2D pose = makePose(true);
+        ShaftTrack2D shaft = makeShaft();
+        shaft.plane.measured.ratioDown   = 0.97;
+        shaft.plane.measured.nodeDownDeg = 40.0;
+        SegmentRatesInputs in;
+        in.pose = &pose; in.frameW = kW; in.frameH = kH; in.leadIsLeft = true;
+        in.shaft = &shaft; in.phases = &ph; in.impactUs = kImpactUs;
+        const SegmentRatesResult wrong = buildSegmentRates(in, cfg);
+        in.fusedClubPlane.have    = true;
+        in.fusedClubPlane.ratio   = kRatio;
+        in.fusedClubPlane.nodeRad = kNodeDeg * kD2R;
+        const SegmentRatesResult fused = buildSegmentRates(in, cfg);
+        const KsNode *cw = nodeOf(wrong, SeqSegment::Club), *cf = nodeOf(fused, SeqSegment::Club);
+        CHECK("§10 fused plane: the club route reads faceOn+dtl, the ellipse route faceOnClub",
+              fused.club.routeId == QLatin1String("faceOn+dtl") && wrong.club.routeId == QLatin1String("faceOnClub")
+              && cf && cf->routeId == QLatin1String("faceOn+dtl"));
+        CHECK("§10 fused plane: club peak within 8 % of 2254 °/s",
+              cf && near(cf->peakDps, kClub.peakDps, 0.08 * kClub.peakDps));
+        CHECK("§10 fused plane: and nearer the truth than through the wrong ellipse",
+              cf && cw && std::fabs(cf->peakDps - kClub.peakDps) < std::fabs(cw->peakDps - kClub.peakDps));
+        bool armSame = fused.leadArm.series.value.size() == wrong.leadArm.series.value.size();
+        for (size_t i = 0; armSame && i < fused.leadArm.series.value.size(); ++i)
+            armSame = fused.leadArm.series.value[i] == wrong.leadArm.series.value[i];
+        CHECK("§10 fused plane: the lead arm is not moved onto it", armSame);
+        in.fusedClubPlane.ratio = 0.1;     // below planeRatioFloor (0.20): not a plane to de-project through
+        CHECK("§10 a fused ratio below the floor falls back to the ellipse",
+              buildSegmentRates(in, cfg).club.routeId == QLatin1String("faceOnClub"));
+    }
+
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;
 }

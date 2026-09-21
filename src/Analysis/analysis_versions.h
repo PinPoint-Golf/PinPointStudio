@@ -67,6 +67,11 @@ constexpr int kImpactStageVersion = 1;
 //           shaft on every re-analysis. Bump when dtl_shaft_* changes its output.
 constexpr int kDtlPoseStageVersion  = 1;
 constexpr int kDtlShaftStageVersion = 1;
+// shaftFusion — kShaftFusionStageVersion: the fused 3-D shaft (ShaftFusionStage,
+//           shaft_fusion.h). Stamped; never reused — it is a few microseconds of
+//           arithmetic on two tracks that are already in hand. Bump when
+//           shaft_fusion.h changes its output.
+constexpr int kShaftFusionStageVersion = 1;
 
 struct AnalysisVersions {
     int     pose  = 0;          // 0 = unknown / not stamped
@@ -75,6 +80,7 @@ struct AnalysisVersions {
     int     impact = 0;
     int     poseDtl  = 0;       // 0 = the DTL pose stage did not run
     int     shaftDtl = 0;       // 0 = the DTL shaft stage did not run
+    int     shaftFusion = 0;    // 0 = the shaft fusion stage did not run
     QString poseModel;          // "<file>@<bytes>" of the ViTPose model that ran
     QString poseScope;          // "span" | "full"
     QString poseDtlModel;       // "<file>@<bytes>" of the model that posed the DTL stream
