@@ -48,13 +48,16 @@ namespace pinpoint { class SwingWindow; }
 
 namespace pinpoint::analysis {
 
+struct FaceOnWitness;   // dtl_shaft_types.h — held by pointer so this header stays OpenCV-free
+
 // Where a camera sits relative to the golfer. FaceOn is the placement most of the
 // analysis runs off (pose/shaft/head/foot all do). DownTheLine is populated from
-// ShotAnalysisJob::dtlSource; since 2026-09-20 DtlPoseStage gates on it and poses
-// that stream for the kinematic sequence's PAIRED trunk route (segment_rates.h
-// "faceOn+dtl"), so a capture that holds a down-the-line camera now analyses
-// differently from one that does not. The DTL SHAFT tracker remains SwingLab-only
-// (dtl_shaft_tracker_design.md §5.1).
+// ShotAnalysisJob::dtlSource; DtlPoseStage gates on it and poses that stream for two
+// consumers — the kinematic sequence's PAIRED trunk route (segment_rates.h
+// "faceOn+dtl", since 2026-09-20) and DtlShaftStage, the down-the-line club track
+// (dtl_shaft_tracker_design.md, in the app since 2026-09-21). So a capture that holds
+// a down-the-line camera analyses differently from one that does not; the face-on
+// products themselves are untouched by it (§5.10: nothing flows back).
 enum class CameraPlacement { FaceOn, DownTheLine };
 
 // The capture's device inventory, resolved once from the job before any stage
@@ -196,6 +199,11 @@ struct AnalysisContext {
     std::vector<MetricSeries>    series;        // LOCAL series — the scorer/metrics/trace read this
     std::optional<ShotAnalysisRunnerOptions> runnerOpt;   // pose/ball runner knobs (Pose stage)
     std::optional<BallTrack2D>   ball;          // resolved ball track (Ball stage)
+    // The face-on witness for the down-the-line tracker (dtl_face_on_witness.h), built by
+    // ShaftStage from the tracker's OWN output and decide trace before any later stage
+    // touches the track — the object SwingLab's --dtl block builds. Null unless the job has
+    // a DTL camera and the DTL tracker is enabled; DtlShaftStage reads it.
+    std::shared_ptr<const FaceOnWitness> foWitness;
     std::shared_ptr<SwingAnalysis> detail;      // the rich SwingAnalysis, written in place
     bool                         halted = false;
     QString                      haltError;

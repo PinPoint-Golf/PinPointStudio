@@ -37,6 +37,7 @@
 #include "../Analysis/lm_inferred_reads.h"
 #include "../Analysis/swing_analysis.h"
 #include "../Analysis/kinematic_sequence_json.h"   // kinematicSequenceToJson — one shape, three paths
+#include "../Analysis/dtl_shaft_json.h"            // dtlShaftTrackToJson — analysis.clubDtl == club_dtl.json
 #include "../Core/club_vocabulary.h"
 
 namespace pinpoint {
@@ -164,7 +165,8 @@ QJsonObject serializeScore(const analysis::ScoreBreakdown &s)
 // pinpoint.analysis/3 — versions the embedded block, distinct from the document's
 // pinpoint.swing/2). Mirrors the QML analysisDetail shape, t_us as JSON numbers.
 // /3 promotes "score" from a bare int to the ScoreBreakdown object (design §B.0a/§B.7).
-QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
+QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
+                              const QString &dtlAlias, const QString &dtlFile)
 {
     using namespace analysis;
     // Analysis timestamps are produced in the SwingWindow's own domain — ABSOLUTE
@@ -183,14 +185,23 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
     // Producer versions (analysis_versions.h): what produced pose / ball / shaft.
     // Re-analysis reuses a recorded stage output when these match the code that
     // would run now. Additive — absent on swings analysed before 2026-09-09.
-    if (a.versions.stamped())
-        o[QStringLiteral("versions")] = QJsonObject{
+    if (a.versions.stamped()) {
+        QJsonObject v{
             { QStringLiteral("pose"),  QJsonObject{ { QStringLiteral("code"),  a.versions.pose },
                                                     { QStringLiteral("model"), a.versions.poseModel },
                                                     { QStringLiteral("scope"), a.versions.poseScope } } },
             { QStringLiteral("ball"),  QJsonObject{ { QStringLiteral("code"),  a.versions.ball } } },
             { QStringLiteral("shaft"), QJsonObject{ { QStringLiteral("code"),  a.versions.shaft } } },
             { QStringLiteral("impact"), QJsonObject{ { QStringLiteral("code"), a.versions.impact } } } };
+        // The down-the-line stages, ONLY when they ran — a single-camera swing's block is
+        // byte-identical to before they existed.
+        if (a.versions.poseDtl > 0)
+            v.insert(QStringLiteral("poseDtl"),  QJsonObject{ { QStringLiteral("code"),  a.versions.poseDtl },
+                                                              { QStringLiteral("model"), a.versions.poseDtlModel } });
+        if (a.versions.shaftDtl > 0)
+            v.insert(QStringLiteral("shaftDtl"), QJsonObject{ { QStringLiteral("code"), a.versions.shaftDtl } });
+        o[QStringLiteral("versions")] = v;
+    }
     o[QStringLiteral("tier")]   = a.tier;
     o[QStringLiteral("score")]  = serializeScore(a.score);
 
@@ -373,105 +384,12 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
     // camera dims so every consumer (replay overlay, reload) is
     // resolution-independent. The club block is written only for a VALID
     // track — the all-or-nothing consumer contract.
-    if (!a.pose2d.frames.empty()) {
-        QJsonArray frames;
-        for (const PoseFrame2D &f : a.pose2d.frames) {
-            QJsonArray kp;
-            for (int j = 0; j < kWholeBodyJoints; ++j) {
-                kp.append(f.kp[size_t(j)].x());
-                kp.append(f.kp[size_t(j)].y());
-                kp.append(double(f.conf[size_t(j)]));
-            }
-            frames.append(QJsonObject{
-                { QStringLiteral("t_us"), rel(f.t_us) },
-                { QStringLiteral("kp"),   kp },
-                { QStringLiteral("lead"),  QJsonArray{ f.leadHand.x(),  f.leadHand.y() } },
-                { QStringLiteral("trail"), QJsonArray{ f.trailHand.x(), f.trailHand.y() } },
-                { QStringLiteral("handConf"), double(f.handConf) } });
-        }
-        // keypointCount: explicit kp width (COCO-WholeBody 133; indices 0–16
-        // are the unchanged COCO body joints, tail = feet/face/hands). Readers
-        // use bounded loops so the field is provenance, not a parse contract.
-        QJsonObject pose2d{
-            { QStringLiteral("camera"), int(a.pose2d.camera) },
-            { QStringLiteral("keypointCount"), kWholeBodyJoints },
-            { QStringLiteral("frames"), frames } };
-        // WB1 accuracy-pass provenance (wholebody_pose_design.md §3). Written ONLY
-        // when non-legacy — decode when DARK, cropRect when a crop was actually
-        // used — so a flags-off (crop disabled + argmax) run serialises exactly as
-        // the pre-WB1 tree (the WB1 byte-parity gate). cropRect is full-frame
-        // normalized {x,y,w,h}.
-        if (a.pose2d.decode == QLatin1String("dark"))
-            pose2d.insert(QStringLiteral("decode"), a.pose2d.decode);
-        if (a.pose2d.cropRect) {
-            const QRectF &r = *a.pose2d.cropRect;
-            pose2d.insert(QStringLiteral("cropRect"),
-                          QJsonObject{ { QStringLiteral("x"), r.x() },
-                                       { QStringLiteral("y"), r.y() },
-                                       { QStringLiteral("w"), r.width() },
-                                       { QStringLiteral("h"), r.height() } });
-        }
-        // Motion-overlay smoothed companion track (pose_smoother.cpp): parallel to
-        // `frames` on the same t_us grid — kp[x,y,c]×133 flat exactly like `frames`
-        // (conf carries the render-alpha contract) plus per-kp honesty tier[133] (int)
-        // and sigma[133] (px). No lead/trail/handConf — the hands are NOT smoothed.
-        // Written ONLY when non-empty (absent on swings analysed before the smoother
-        // existed, or a format-less path), so an empty smoothed vector serializes
-        // byte-identically to today. t_us is window-relative via rel(), same as frames'.
-        if (!a.pose2d.smoothed.empty()) {
-            QJsonArray smoothed;
-            const size_t n = std::min(a.pose2d.smoothed.size(), a.pose2d.smoothedAux.size());
-            for (size_t i = 0; i < n; ++i) {
-                const PoseFrame2D &f = a.pose2d.smoothed[i];
-                const PoseKpAux   &x = a.pose2d.smoothedAux[i];
-                QJsonArray kp, tier, sigma;
-                for (int j = 0; j < kWholeBodyJoints; ++j) {
-                    kp.append(f.kp[size_t(j)].x());
-                    kp.append(f.kp[size_t(j)].y());
-                    kp.append(double(f.conf[size_t(j)]));
-                    tier.append(int(x.tier[size_t(j)]));
-                    sigma.append(double(x.sigma[size_t(j)]));
-                }
-                smoothed.append(QJsonObject{
-                    { QStringLiteral("t_us"),  rel(f.t_us) },
-                    { QStringLiteral("kp"),    kp },
-                    { QStringLiteral("tier"),  tier },
-                    { QStringLiteral("sigma"), sigma } });
-            }
-            pose2d.insert(QStringLiteral("smoothed"), smoothed);
-        }
-        // Phase-5 motion-adaptive window (poseSmooth.adapt.*): the count of keypoints
-        // whose adaptive pass was REJECTED by the divergence guard and fell back to the
-        // unadapted output. Written ONLY when non-zero — same discipline as sigma/valid —
-        // so a swing analysed with the window off (or with nothing falling back)
-        // serializes byte-identically. Diagnostic: nothing reads it back; it exists so a
-        // sweep can refuse a setting that would have moved the segmentation.
-        if (a.pose2d.adaptFallbacks > 0)
-            pose2d.insert(QStringLiteral("adaptFallbacks"), a.pose2d.adaptFallbacks);
-        // Dense VIZ-tier pose synth (pose_synthesis.h): the smoothed skeleton
-        // upsampled to 240 Hz so the replay overlays scrub smoothly — the body
-        // sibling of club.synth. Lean shape { t_us, kp[x,y,c]×133 } — no tier/sigma
-        // (the overlay's conf-gate skips Off joints, which carry conf 0 here) and no
-        // hands (not drawn by the body overlays). Written ONLY when non-empty, so a
-        // synth-off run omits it and serializes byte-identically. Metrics NEVER read
-        // it (same discipline as the measured/smoothed split above).
-        if (!a.pose2d.smoothedSynth.empty()) {
-            QJsonArray synth;
-            for (const PoseFrame2D &f : a.pose2d.smoothedSynth) {
-                QJsonArray kp;
-                for (int j = 0; j < kWholeBodyJoints; ++j) {
-                    kp.append(f.kp[size_t(j)].x());
-                    kp.append(f.kp[size_t(j)].y());
-                    kp.append(double(f.conf[size_t(j)]));
-                }
-                synth.append(QJsonObject{
-                    { QStringLiteral("t_us"), rel(f.t_us) },
-                    { QStringLiteral("kp"),   kp } });
-            }
-            pose2d.insert(QStringLiteral("synth"), synth);
-        }
-        o[QStringLiteral("pose2d")] = pose2d;
-    }
+    if (!a.pose2d.frames.empty())
+        o[QStringLiteral("pose2d")] = poseTrackToJson(a.pose2d, windowT0);
+    // The DOWN-THE-LINE pose (DtlPoseStage) in the same shape, for the DTL replay tile and
+    // for re-analysis reuse (swing_reanalyzer.cpp). Absent when no DTL pose ran.
+    if (!a.poseDtl.frames.empty())
+        o[QStringLiteral("poseDtl")] = poseTrackToJson(a.poseDtl, windowT0);
     if (a.shaft.valid && !a.shaft.samples.empty()
         && a.shaft.frameWidth > 0 && a.shaft.frameHeight > 0) {
         const double iw = 1.0 / a.shaft.frameWidth, ih = 1.0 / a.shaft.frameHeight;
@@ -662,6 +580,13 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0)
     // impact camera ran. Same object the live detail carries (impactTrackJson).
     if (a.impact.valid)
         o[QStringLiteral("impact")] = impactTrackJson(a.impact, windowT0);
+    // The down-the-line club track (DtlShaftStage) — pinpoint.clubDtl/1, the very bytes
+    // SwingLab writes to club_dtl.json (dtl_shaft_json.h). Written whenever the stage RAN
+    // (versions.shaftDtl), valid or not: an invalid track's `summary` and per-frame `reason`
+    // are the record of why the DTL tile shows no shaft. Absent when it did not run.
+    if (a.versions.shaftDtl > 0)
+        o[QStringLiteral("clubDtl")] = dtlShaftTrackToJson(
+            a.shaftDtl, windowT0, a.shaftDtl.configJson, a.shaftDtl.configHash, dtlAlias, dtlFile);
     return o;
 }
 
@@ -998,6 +923,113 @@ bool writeSummaryFile(const SwingSummary &s, QString *error)
 
 } // namespace
 
+QJsonObject poseTrackToJson(const analysis::PoseTrack2D &t, qint64 windowT0)
+{
+    using namespace analysis;
+    // Same domain rule as serializeAnalysis: only an absolute value is shifted.
+    auto rel = [windowT0](int64_t v) -> qint64 {
+        const qint64 tt = static_cast<qint64>(v);
+        return tt >= windowT0 ? tt - windowT0 : tt;
+    };
+    QJsonArray frames;
+    for (const PoseFrame2D &f : t.frames) {
+        QJsonArray kp;
+        for (int j = 0; j < kWholeBodyJoints; ++j) {
+            kp.append(f.kp[size_t(j)].x());
+            kp.append(f.kp[size_t(j)].y());
+            kp.append(double(f.conf[size_t(j)]));
+        }
+        frames.append(QJsonObject{
+            { QStringLiteral("t_us"), rel(f.t_us) },
+            { QStringLiteral("kp"),   kp },
+            { QStringLiteral("lead"),  QJsonArray{ f.leadHand.x(),  f.leadHand.y() } },
+            { QStringLiteral("trail"), QJsonArray{ f.trailHand.x(), f.trailHand.y() } },
+            { QStringLiteral("handConf"), double(f.handConf) } });
+    }
+    // keypointCount: explicit kp width (COCO-WholeBody 133; indices 0–16
+    // are the unchanged COCO body joints, tail = feet/face/hands). Readers
+    // use bounded loops so the field is provenance, not a parse contract.
+    QJsonObject obj{
+        { QStringLiteral("camera"), int(t.camera) },
+        { QStringLiteral("keypointCount"), kWholeBodyJoints },
+        { QStringLiteral("frames"), frames } };
+    // WB1 accuracy-pass provenance (wholebody_pose_design.md §3). Written ONLY
+    // when non-legacy — decode when DARK, cropRect when a crop was actually
+    // used — so a flags-off (crop disabled + argmax) run serialises exactly as
+    // the pre-WB1 tree (the WB1 byte-parity gate). cropRect is full-frame
+    // normalized {x,y,w,h}.
+    if (t.decode == QLatin1String("dark"))
+        obj.insert(QStringLiteral("decode"), t.decode);
+    if (t.cropRect) {
+        const QRectF &r = *t.cropRect;
+        obj.insert(QStringLiteral("cropRect"),
+                      QJsonObject{ { QStringLiteral("x"), r.x() },
+                                   { QStringLiteral("y"), r.y() },
+                                   { QStringLiteral("w"), r.width() },
+                                   { QStringLiteral("h"), r.height() } });
+    }
+    // Motion-overlay smoothed companion track (pose_smoother.cpp): parallel to
+    // `frames` on the same t_us grid — kp[x,y,c]×133 flat exactly like `frames`
+    // (conf carries the render-alpha contract) plus per-kp honesty tier[133] (int)
+    // and sigma[133] (px). No lead/trail/handConf — the hands are NOT smoothed.
+    // Written ONLY when non-empty (absent on swings analysed before the smoother
+    // existed, or a format-less path), so an empty smoothed vector serializes
+    // byte-identically to today. t_us is window-relative via rel(), same as frames'.
+    if (!t.smoothed.empty()) {
+        QJsonArray smoothed;
+        const size_t n = std::min(t.smoothed.size(), t.smoothedAux.size());
+        for (size_t i = 0; i < n; ++i) {
+            const PoseFrame2D &f = t.smoothed[i];
+            const PoseKpAux   &x = t.smoothedAux[i];
+            QJsonArray kp, tier, sigma;
+            for (int j = 0; j < kWholeBodyJoints; ++j) {
+                kp.append(f.kp[size_t(j)].x());
+                kp.append(f.kp[size_t(j)].y());
+                kp.append(double(f.conf[size_t(j)]));
+                tier.append(int(x.tier[size_t(j)]));
+                sigma.append(double(x.sigma[size_t(j)]));
+            }
+            smoothed.append(QJsonObject{
+                { QStringLiteral("t_us"),  rel(f.t_us) },
+                { QStringLiteral("kp"),    kp },
+                { QStringLiteral("tier"),  tier },
+                { QStringLiteral("sigma"), sigma } });
+        }
+        obj.insert(QStringLiteral("smoothed"), smoothed);
+    }
+    // Phase-5 motion-adaptive window (poseSmooth.adapt.*): the count of keypoints
+    // whose adaptive pass was REJECTED by the divergence guard and fell back to the
+    // unadapted output. Written ONLY when non-zero — same discipline as sigma/valid —
+    // so a swing analysed with the window off (or with nothing falling back)
+    // serializes byte-identically. Diagnostic: nothing reads it back; it exists so a
+    // sweep can refuse a setting that would have moved the segmentation.
+    if (t.adaptFallbacks > 0)
+        obj.insert(QStringLiteral("adaptFallbacks"), t.adaptFallbacks);
+    // Dense VIZ-tier pose synth (pose_synthesis.h): the smoothed skeleton
+    // upsampled to 240 Hz so the replay overlays scrub smoothly — the body
+    // sibling of club.synth. Lean shape { t_us, kp[x,y,c]×133 } — no tier/sigma
+    // (the overlay's conf-gate skips Off joints, which carry conf 0 here) and no
+    // hands (not drawn by the body overlays). Written ONLY when non-empty, so a
+    // synth-off run omits it and serializes byte-identically. Metrics NEVER read
+    // it (same discipline as the measured/smoothed split above).
+    if (!t.smoothedSynth.empty()) {
+        QJsonArray synth;
+        for (const PoseFrame2D &f : t.smoothedSynth) {
+            QJsonArray kp;
+            for (int j = 0; j < kWholeBodyJoints; ++j) {
+                kp.append(f.kp[size_t(j)].x());
+                kp.append(f.kp[size_t(j)].y());
+                kp.append(double(f.conf[size_t(j)]));
+            }
+            synth.append(QJsonObject{
+                { QStringLiteral("t_us"), rel(f.t_us) },
+                { QStringLiteral("kp"),   kp } });
+        }
+        obj.insert(QStringLiteral("synth"), synth);
+    }
+    return obj;
+}
+
 QJsonObject impactTrackJson(const analysis::ImpactTrack2D &t, qint64 windowT0)
 {
     // Same domain rule as serializeAnalysis: only an absolute value is shifted.
@@ -1106,7 +1138,14 @@ bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &
         // emit analysis t_us window-relative regardless of the source domain.
         const qint64 t0 = qint64(rawManifest.value(QStringLiteral("clock")).toObject()
                                             .value(QStringLiteral("t0_us")).toDouble());
-        QJsonObject an = serializeAnalysis(*analysis, t0);
+        // The DTL club block names its stream as SwingLab's club_dtl.json does — matched
+        // on the recorded serial against this document's own streams[]. No serial ⇒ no name:
+        // dtlStreamName's first-video-stream fall-back is SwingLab's, and here it would name
+        // the face-on camera.
+        QString dtlAlias, dtlFile;
+        if (analysis->versions.shaftDtl > 0 && !analysis->shaftDtl.streamSerial.isEmpty())
+            analysis::dtlStreamName(rawManifest, analysis->shaftDtl.streamSerial, &dtlAlias, &dtlFile);
+        QJsonObject an = serializeAnalysis(*analysis, t0, dtlAlias, dtlFile);
 
         // CARRIES THE LAUNCH MONITOR ROWS ACROSS, for the same reason the review block above
         // seeds rather than overwrites: re-analysis owns what it computed and must not evict

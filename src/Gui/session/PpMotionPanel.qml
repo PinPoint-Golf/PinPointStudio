@@ -78,8 +78,11 @@ Item {
     }
     readonly property bool _smoothedMissing: {
         var d = shotReplay.analysisDetail
-        return !(shotReplay.active && d && d.pose2d && d.pose2d.smoothed
-                 && d.pose2d.smoothed.length > 0)
+        // Either camera's smoothed track counts (the DTL one is nested under `dtl`).
+        var fo  = !!(d && d.pose2d && d.pose2d.smoothed && d.pose2d.smoothed.length > 0)
+        var dtl = !!(d && d.dtl && d.dtl.pose2d && d.dtl.pose2d.smoothed
+                     && d.dtl.pose2d.smoothed.length > 0)
+        return !(shotReplay.active && (fo || dtl))
     }
 
     readonly property var _bodyRows: [
@@ -409,6 +412,12 @@ Item {
             if (m === "off") return true
             if (!shotReplay.active) return false
             var d = shotReplay.analysisDetail
+            // Either camera's series makes a mode available: the face-on blocks at the
+            // top level, or the down-the-line ones nested under `dtl` (same shapes —
+            // dtl_overlay_payload.h), which the DTL tile draws.
+            return _availableIn(d, m) || !!(d && _availableIn(d.dtl, m))
+        }
+        function _availableIn(d, m) {
             if (seg.elementKey === "ball")
                 return m === "frame" && !!(d && d.ball && d.ball.samples && d.ball.samples.length > 0)
             if (seg.elementKey === "shaft")

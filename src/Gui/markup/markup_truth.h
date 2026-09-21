@@ -195,6 +195,16 @@ inline FaceOnInfo readFaceOn(const QString &swingDir,
     return readVideoStream(swingDir, MarkupView::FaceOn, faceNeedle);
 }
 
+// The two stream-picking rules readVideoStream uses, for other readers of swing.json
+// streams[] (DiskReplaySource) so a setup-less swing's cameras are named ONE way.
+//   faceOnStreamIndex       — perspective 2, else alias containing `faceNeedle`, else 0;
+//                             -1 only for an empty list. `videos` = the video streams.
+//   streamLooksDownTheLine  — whole-token "dtl" / "down the line" in alias or file
+//                             basename. Callers must still exclude the face-on pick.
+int  faceOnStreamIndex(const QVector<QJsonObject> &videos,
+                       const QString &faceNeedle = QStringLiteral("Face"));
+bool streamLooksDownTheLine(const QJsonObject &stream);
+
 // Nearest frame index for a window-relative timestamp (binary search). Returns
 // -1 if there are no frames. The two cameras share the window clock but are a
 // few ms out of phase, so mapping a playhead across views goes through the

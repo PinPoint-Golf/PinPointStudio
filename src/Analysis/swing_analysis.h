@@ -35,6 +35,7 @@
 #include "types.h"   // pinpoint::SourceId, kInvalidSourceId
 #include "wrist_assessment_result.h"   // PpWristFinding (Tier-2 offline assessment)
 #include "kinematic_sequence.h"        // KinematicSequence (segment_rates.h fills it)
+#include "dtl_shaft_track.h"          // DtlShaftTrack2D (DtlShaftStage fills it; OpenCV-free)
 
 // Canonical intermediate + output data structures for the shot analyzer
 // (design: docs/design/shot_analyzer_design.md). All rotation is QQuaternion — Euler
@@ -859,15 +860,18 @@ struct SwingAnalysis {
     // IMU calibration snapshot per bound device (empty when no IMUs).
     std::vector<BindingRecord> bindings;
     PoseTrack2D               pose2d;  // face-on offline pose (empty when no camera ran)
-    // The DOWN-THE-LINE offline pose, on the same window clock (DtlPoseStage). The second leg of
-    // the kinematic sequence's paired trunk route (segment_rates.h "faceOn+dtl"). Empty when the
-    // capture holds no down-the-line camera, or the pair route is off.
-    // ⚠ OWED: this track is NOT serialised to swing.json in this package (src/Export was out of
-    // scope), so a re-analysis cannot reuse it under the version gate the way pose2d is reused —
-    // it re-poses. The KS nodes and the two trunk series it feeds ARE serialised, by the code that
-    // already serialises them.
+    // The DOWN-THE-LINE offline pose, on the same window clock (DtlPoseStage). Two consumers: the
+    // kinematic sequence's paired trunk route (segment_rates.h "faceOn+dtl") and the DTL shaft
+    // tracker (DtlShaftStage), whose anchors it is. Carries `smoothed` and `smoothedSynth` like
+    // pose2d, for the DTL replay tile. Empty when the capture holds no down-the-line camera, or
+    // neither consumer is enabled. Persisted as swing.json `analysis.poseDtl` (pose2d's shape) and
+    // reused on re-analysis under the same gate as pose2d (versions.poseDtl).
     PoseTrack2D               poseDtl;
     ShaftTrack2D              shaft;   // face-on club track (check .valid before use)
+    // The DOWN-THE-LINE club track (DtlShaftStage; dtl_shaft_tracker_design.md). Invalid and empty
+    // when the stage did not run. Persisted as `analysis.clubDtl` (pinpoint.clubDtl/1); never
+    // reused on re-analysis — it is recomputed from the (reused) poses and shaft every time.
+    DtlShaftTrack2D           shaftDtl;
     BallTrack2D               ball;    // face-on ball track for the replay overlay (empty ⇒ none)
     ImpactTrack2D             impact;  // the impact camera's ball + club track (check .valid)
     AnalysisTimings           timings; // per-stage wall times (telemetry); -1 = not measured

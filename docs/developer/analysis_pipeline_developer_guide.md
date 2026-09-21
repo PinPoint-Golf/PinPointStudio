@@ -120,6 +120,7 @@ business:
 | `series` (**local** `MetricSeries`) | WristMetrics (first writer), ShaftLean (append) | scorer / metrics map / trace — the *scored* series |
 | `runnerOpt` | Pose | Ball, Shaft (resolved pose/ball runner knobs) |
 | `ball` (optional) | Ball | Shaft |
+| `foWitness` (`shared_ptr<const FaceOnWitness>`) | Shaft (only with a DTL camera) | DtlShaft |
 | `detail` (`shared_ptr<SwingAnalysis>`) | many stages, in place | `projectResult`, then swing.json / QML |
 | `halted` + `haltError` | RequireProducts | the orchestrator (skips the rest), `projectResult` (ok=false) |
 | `wall`, `trace` | orchestrator | telemetry/log |
@@ -221,6 +222,10 @@ Two telemetry layers — do not conflate them:
 | 14d | ClubDelivery | `shaft.valid` && samples | shaft-vs-horizontal + attack angle from the MEASURED head; low point from the SYNTHESIZED arc (`shaft.synth`) — the two channels fail independently. All unscored; low point carries σ = 2.0 in |
 | 14e | Tempo | confident Address/Top/Impact ladder | tempo backswing + ratio (unscored) |
 | 14f | Kinematics | `kinematics.enabled` (ON 2026-07-18), `kinematics.composed` (ON 2026-09-06: clubhead speed composed from grip velocity + fused length × the synth tier's rate, masked past P7) | clubhead/hand speed + lag series from the shaft track and pose (unscored). Shared with `CameraKinematicsAnalyzer`, which is the whole of that profile. |
+| 14g | ShaftPlane | `ShaftPlaneConfig.enabled` && a valid shaft track | the downswing conic the kinematic sequence de-projects through |
+| 14h | DtlPose | DTL camera && FaceOn pose && (pair-trunk route OR `shaft.dtl.enabled`) | `detail->poseDtl` (+ smoothed / 240 Hz synth), `versions.poseDtl`, `timings.poseDtlMs` — SwingLab's `--dtl` span: swing span −1 s/+0.3 s, stride 1 |
+| 14i | DtlShaft | DTL pose && `shaft.valid` && face-on witness (built by Shaft) | `detail->shaftDtl` (`dtl_shaft_tracker_design.md` §5A.2), `versions.shaftDtl`; nothing face-on reads it |
+| 14j | KinematicSequence | an Impact + any segment input | the four segment-rate series + `kinematicSequence` |
 | 15 | Bindings | always | `detail->bindings` (calibration snapshot per device) |
 | 16 | Resemblance | always | `detail->score` + §B.7 interval + tier |
 | 17 | Assessment | `runAssessment` && IMU streams && local series | findings; **overrides** headline score, clears interval |
@@ -616,9 +621,12 @@ model when its model file, `kPoseStageVersion` and scan scope match what would r
 (a `full`-window record covers a `span` request, not the reverse) and no `pose.*` /
 `ball.*` / address-scan tuning override is in play. The recorded ball track is reloaded
 (`BallRunner::fromAnalysisJson`) on top of a reused pose when `kBallStageVersion`
-matches. The shaft tracker always re-runs: its version is stamped, but `analysis.club`
-is lossy (`onsetFloorFrame`, `addressPhaseFrame` are in-memory only) and has no
-deserialiser — that is the next saving (≈ 1 s) if it is ever wanted. `PoseSmooth` and
+matches. Since 2026-09-17 the shaft track and the resolved ladder are reloaded too
+(`shaftTrackFromAnalysisJson` / `segmentationFromAnalysisJson`, recorded_products.h) on
+top of a reused pose AND ball when `kShaftStageVersion` matches and no tuning override is
+in play; only the Layer C synth tier is re-synthesised. The down-the-line pose
+(`analysis.poseDtl`) is reloaded under the face-on pose's rule against
+`versions.poseDtl` `{code, model}`; the DTL club track always re-runs. `PoseSmooth` and
 everything downstream recompute from the reloaded tracks, so the output is byte-identical
 to a fresh run apart from `timings` (verified on 2026-09-09: 14.1 s → 0.96 s).
 

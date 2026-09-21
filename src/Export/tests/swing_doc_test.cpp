@@ -9,6 +9,7 @@
 #include "../../Analysis/capture_integrity_check.h"   // CaptureIntegrityVerdict (header-only)
 #include "../../Analysis/swing_analysis.h"
 #include "../../Analysis/recorded_products.h"   // the club / ladder readers this file round-trips
+#include "../../Analysis/dtl_shaft_json.h"      // dtlShaftTrackToJson — analysis.clubDtl's builder
 
 // Stub — avoids linking swing_paths.cpp (which pulls in the PpLogStream logging deps).
 // SwingDocReader::latestSessionDir() (the only sanitise() user) isn't exercised here.
@@ -510,6 +511,132 @@ int main()
         check(!SwingDocWriter::updateReview(QStringLiteral("/tmp/swingdoc_test_nope"), 3, QString(),
                                             QStringLiteral("DRIVER"), nullptr),
               "updateReview on missing doc returns false");
+    }
+
+    std::printf("\n=== down-the-line blocks (poseDtl + clubDtl) ===\n");
+    {
+        // A two-camera analysis in the ABSOLUTE domain, so the relative re-basing of both
+        // new blocks is exercised alongside the shape.
+        const qint64 T0 = 176400665083LL;
+        QJsonObject mD = manifest;
+        mD[QStringLiteral("clock")] = QJsonObject{ {QStringLiteral("t0_us"), double(T0)} };
+        QJsonArray streams = mD[QStringLiteral("streams")].toArray();
+        streams.append(QJsonObject{ {QStringLiteral("kind"),   QStringLiteral("video")},
+                                    {QStringLiteral("alias"),  QStringLiteral("DTL")},
+                                    {QStringLiteral("file"),   QStringLiteral("dtl.mp4")},
+                                    {QStringLiteral("source"), QJsonObject{ {QStringLiteral("serial"),
+                                                                             QStringLiteral("DTLSER")} }} });
+        mD[QStringLiteral("streams")] = streams;
+
+        SwingAnalysis aD;
+        aD.tier = int(ReconstructionTier::Angles2D);
+        aD.versions.pose = 1; aD.versions.poseModel = QStringLiteral("m@1"); aD.versions.poseScope = QStringLiteral("span");
+        PoseFrame2D f0; f0.t_us = T0 + 1000000; f0.kp[5] = QPointF(0.30, 0.40); f0.conf[5] = 0.9f;
+        f0.leadHand = QPointF(0.5, 0.6); f0.handConf = 0.7f;
+        PoseFrame2D f1 = f0; f1.t_us = T0 + 1010000;
+        aD.pose2d.camera = 3;
+        aD.pose2d.frames = { f0, f1 };
+        aD.pose2d.smoothed = { f0, f1 };
+        aD.pose2d.smoothedAux = { PoseKpAux{}, PoseKpAux{} };
+        aD.pose2d.smoothedSynth = { f0 };
+        aD.poseDtl = aD.pose2d;
+        aD.poseDtl.camera = 4;
+        aD.poseDtl.frames.push_back(f1);   // a different track, not a copy of the face-on one
+        aD.poseDtl.frames.back().t_us = T0 + 1020000;
+        aD.versions.poseDtl = kDtlPoseStageVersion; aD.versions.poseDtlModel = QStringLiteral("m@1");
+
+        DtlShaftTrack2D &t = aD.shaftDtl;
+        t.valid = true; t.camera = 4; t.frameWidth = 1000; t.frameHeight = 500;
+        DtlSample pub; pub.t_us = T0 + 1000000; pub.tier = DtlTier::Ray;
+        pub.gripPx = QPointF(500, 250); pub.headPx = QPointF(600, 450); pub.thetaRad = 1.1;
+        pub.lenPx = 220; pub.conf = 0.8f; pub.band = 0;
+        DtlSample gap; gap.t_us = T0 + 1010000; gap.tier = DtlTier::EndOn;
+        gap.gripPx = QPointF(dtl::kNan, dtl::kNan); gap.reason = QStringLiteral("end-on");
+        t.samples = { pub, gap };
+        DtlBand b; b.lo = 0; b.hi = 0; b.loUs = T0 + 1000000; b.hiUs = T0 + 1000000; b.name = QStringLiteral("address");
+        t.bands = { b };
+        t.ball.found = true; t.ball.x = 610; t.ball.y = 470; t.ball.source = QStringLiteral("bright");
+        t.configJson = QJsonObject{ {QStringLiteral("enabled"), true} };
+        t.configHash = QStringLiteral("cafe");
+        t.streamSerial = QStringLiteral("DTLSER");
+        aD.versions.shaftDtl = kDtlShaftStageVersion;
+
+        const QString dirD = dir + QStringLiteral("_dtl");
+        QDir().mkpath(dirD);
+        QString derr;
+        check(SwingDocWriter::writeSwingJson(dirD, mD, &aD, &derr), "dtl write ok");
+        const QJsonObject an = readManifest(dirD)[QStringLiteral("analysis")].toObject();
+
+        // pose2d is poseTrackToJson verbatim (the factored builder), and poseDtl is the same
+        // builder over the DTL track — one shape, two blocks.
+        check(an[QStringLiteral("pose2d")].toObject() == poseTrackToJson(aD.pose2d, T0),
+              "pose2d == poseTrackToJson(pose2d)");
+        check(an.contains(QStringLiteral("poseDtl")), "poseDtl block present");
+        const QJsonObject pd = an[QStringLiteral("poseDtl")].toObject();
+        check(pd == poseTrackToJson(aD.poseDtl, T0), "poseDtl == poseTrackToJson(poseDtl)");
+        check(pd[QStringLiteral("camera")].toInt() == 4, "poseDtl.camera");
+        check(pd[QStringLiteral("frames")].toArray().size() == 3, "poseDtl frames 3");
+        check(qint64(pd[QStringLiteral("frames")].toArray().at(2).toObject()[QStringLiteral("t_us")].toDouble())
+                  == 1020000, "poseDtl t_us window-relative");
+        check(pd[QStringLiteral("smoothed")].toArray().size() == 2, "poseDtl smoothed carried");
+        check(pd[QStringLiteral("synth")].toArray().size() == 1, "poseDtl synth carried");
+
+        const QJsonObject vv = an[QStringLiteral("versions")].toObject();
+        check(vv[QStringLiteral("poseDtl")].toObject()[QStringLiteral("code")].toInt() == kDtlPoseStageVersion,
+              "versions.poseDtl.code");
+        check(vv[QStringLiteral("poseDtl")].toObject()[QStringLiteral("model")].toString() == QStringLiteral("m@1"),
+              "versions.poseDtl.model");
+        check(vv[QStringLiteral("shaftDtl")].toObject()[QStringLiteral("code")].toInt() == kDtlShaftStageVersion,
+              "versions.shaftDtl.code");
+
+        check(an.contains(QStringLiteral("clubDtl")), "clubDtl block present");
+        const QJsonObject cd = an[QStringLiteral("clubDtl")].toObject();
+        check(cd == dtlShaftTrackToJson(t, T0, t.configJson, t.configHash,
+                                        QStringLiteral("DTL"), QStringLiteral("dtl.mp4")),
+              "clubDtl == dtlShaftTrackToJson (the club_dtl.json bytes)");
+        check(cd[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.clubDtl/1"), "clubDtl schema");
+        check(cd[QStringLiteral("stream")].toObject()[QStringLiteral("alias")].toString() == QStringLiteral("DTL"),
+              "clubDtl stream named from the recorded serial");
+        const QJsonArray cf = cd[QStringLiteral("frames")].toArray();
+        check(cf.size() == 2, "clubDtl frames 2 (absences included)");
+        const QJsonObject c0 = cf.at(0).toObject(), c1 = cf.at(1).toObject();
+        check(qint64(c0[QStringLiteral("t_us")].toDouble()) == 1000000, "clubDtl t_us window-relative");
+        check(c0[QStringLiteral("tier")].toString() == QStringLiteral("RAY"), "clubDtl tier name");
+        check(near(c0[QStringLiteral("head")].toArray().at(0).toDouble(), 0.6, 1e-12)
+                  && near(c0[QStringLiteral("head")].toArray().at(1).toDouble(), 0.9, 1e-12),
+              "clubDtl head normalised to the DTL frame");
+        check(c1[QStringLiteral("theta")].isNull() && c1[QStringLiteral("grip")].isNull(),
+              "clubDtl NaN written as null");
+        check(c1[QStringLiteral("tier")].toString() == QStringLiteral("END_ON"), "clubDtl absence tier");
+        const QJsonObject sum = cd[QStringLiteral("summary")].toObject();
+        check(sum[QStringLiteral("configHash")].toString() == QStringLiteral("cafe"), "clubDtl configHash echoed");
+        check(sum[QStringLiteral("ball")].toObject()[QStringLiteral("source")].toString() == QStringLiteral("bright"),
+              "clubDtl ball source");
+        check(cd[QStringLiteral("bands")].toArray().size() == 1, "clubDtl bands");
+
+        // A single-camera analysis carries none of it: no blocks, no version keys.
+        SwingAnalysis aS = aD;
+        aS.poseDtl = PoseTrack2D{};
+        aS.shaftDtl = DtlShaftTrack2D{};
+        aS.versions.poseDtl = 0; aS.versions.shaftDtl = 0;
+        check(SwingDocWriter::writeSwingJson(dirD, mD, &aS, &derr), "single-camera write ok");
+        const QJsonObject anS = readManifest(dirD)[QStringLiteral("analysis")].toObject();
+        check(!anS.contains(QStringLiteral("poseDtl")) && !anS.contains(QStringLiteral("clubDtl")),
+              "single-camera: no poseDtl / clubDtl");
+        const QJsonObject vS = anS[QStringLiteral("versions")].toObject();
+        check(!vS.contains(QStringLiteral("poseDtl")) && !vS.contains(QStringLiteral("shaftDtl"))
+                  && vS.size() == 4, "single-camera: versions block unchanged (pose/ball/shaft/impact)");
+        check(anS[QStringLiteral("pose2d")].toObject() == an[QStringLiteral("pose2d")].toObject(),
+              "pose2d identical with or without the DTL blocks");
+
+        // An invalid DTL track that RAN is still written — its reasons are the record of why
+        // the tile shows no shaft.
+        SwingAnalysis aI = aD;
+        aI.shaftDtl.valid = false;
+        check(SwingDocWriter::writeSwingJson(dirD, mD, &aI, &derr), "invalid-track write ok");
+        check(readManifest(dirD)[QStringLiteral("analysis")].toObject().contains(QStringLiteral("clubDtl")),
+              "clubDtl written for an invalid track that ran");
+        QDir(dirD).removeRecursively();
     }
 
     std::printf("\n=== analysis t_us normalised to window-relative ===\n");

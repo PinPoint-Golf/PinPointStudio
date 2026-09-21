@@ -25,7 +25,7 @@
 #include <QStringList>
 #include <QVariantMap>
 
-namespace pinpoint::analysis { struct SwingAnalysis; struct ImpactTrack2D; }
+namespace pinpoint::analysis { struct SwingAnalysis; struct ImpactTrack2D; struct PoseTrack2D; }
 
 namespace pinpoint {
 
@@ -50,6 +50,14 @@ QJsonObject imuIntegrityJson(const ImuRefusionVerdict &v);
 // window-relative, already-relative ones pass through; windowT0 = 0 keeps
 // the live domain.
 QJsonObject impactTrackJson(const analysis::ImpactTrack2D &t, qint64 windowT0);
+
+// A pose track in the `analysis.pose2d` shape: { camera, keypointCount, frames,
+// [decode], [cropRect], [smoothed], [adaptFallbacks], [synth] }. ONE builder for
+// the face-on `pose2d` and the down-the-line `poseDtl` blocks, and for the live
+// detail, so every reader parses one shape. Times follow serializeAnalysis's
+// rule (absolute ≥ windowT0 made relative, relative passes through; 0 keeps the
+// live domain). The caller skips an empty track — this writes what it is given.
+QJsonObject poseTrackToJson(const analysis::PoseTrack2D &t, qint64 windowT0);
 
 // Patch a manifest that is about to be written back so its "imuIntegrity" block
 // reflects THIS pass rather than whatever capture concluded.

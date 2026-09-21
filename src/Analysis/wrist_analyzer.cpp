@@ -34,6 +34,10 @@
 #include "body_rotation.h"
 #include "impact_runner.h"
 #include "club_delivery.h"
+#include "dtl_face_on_witness.h"
+#include "dtl_shaft_config.h"
+#include "dtl_shaft_json.h"
+#include "dtl_shaft_tracker.h"
 #include "event_refine.h"
 #include "foot_metrics.h"
 #include "upper_body_metrics.h"
@@ -534,7 +538,14 @@ struct ShaftStage : AnalysisStage {
         if (ctx.job.progress)
             sub.progress = [&job = ctx.job](float f) { job.progress(0.70f + 0.28f * f); };
         // Capture the tracker's hands-only phase model only when there is no IMU
-        // segmentation to fall back on (the trace is free otherwise).
+        // segmentation to fall back on (the trace is free otherwise). The decide trace is
+        // ALSO wanted when a down-the-line tracker will run: its tier column is the face-on
+        // witness's (dtl_face_on_witness.h). The trace is meant as a write-only sink, but that
+        // has only ever been exercised on camera-only swings (which always traced), so an IMU
+        // swing without a DTL camera still passes none and its path is unchanged by
+        // construction. An IMU swing WITH one now traces — no such swing exists yet to gate on.
+        const bool wantWitness = ctx.job.dtlSource != pinpoint::kInvalidSourceId
+            && DtlShaftConfig::fromOverrides(ctx.job.tuningOverrides).enabled;
         ShaftTracker::ShaftTrace strace;
         QElapsedTimer shaftWall;
         shaftWall.start();
@@ -587,12 +598,22 @@ struct ShaftStage : AnalysisStage {
                      << ctx.detail->shaft.samples.size() << "samples,"
                      << ctx.detail->shaft.positions.size() << "positions, synth"
                      << ctx.detail->shaft.synth.size() << "ticks";
+            // No decide run ⇒ no trace: the witness's tiers come from the sample flags.
+            if (wantWitness)
+                ctx.foWitness = std::make_shared<const FaceOnWitness>(
+                    buildFaceOnWitness(ctx.detail->shaft, nullptr, ctx.job.impactUs));
         } else {
+            const bool traced = !ctx.hasImuStreams() || wantWitness;
             ctx.detail->shaft = ShaftTracker::track(*ctx.window, ctx.detail->pose2d, *ctx.ball,
                                                     ctx.streams, ctx.segImu.value_or(Segmentation{}),
-                                                    sub, ctx.hasImuStreams() ? nullptr : &strace);
+                                                    sub, traced ? &strace : nullptr);
             if (!ctx.hasImuStreams())
                 ctx.segVision = strace.segmentation;
+            // Built HERE, off the tracker's own output and its own trace, before the ladder
+            // stages rewrite positions — the pair SwingLab's --dtl block builds from.
+            if (wantWitness)
+                ctx.foWitness = std::make_shared<const FaceOnWitness>(
+                    buildFaceOnWitness(ctx.detail->shaft, &strace, ctx.job.impactUs));
         }
         ctx.detail->timings.shaftMs = int(shaftWall.elapsed());
         ctx.detail->versions.shaft = kShaftStageVersion;
@@ -1432,16 +1453,22 @@ struct PoseAssessmentStage : AnalysisStage {
 //      Impact on the ladder plus at least one input that can carry a segment — a
 //      face-on pose track, a valid shaft track, or a bound segment IMU. Absent all
 //      of those it emits nothing and skipReason names which.
-// 13c-bis. The DOWN-THE-LINE pose pass — the second leg of the kinematic sequence's paired trunk
-//      route (segment_rates.h "faceOn+dtl"; kinematic_sequence_design.md §5.2 and
-//      docs/research/data/kinematic_sequence/pair_span_turn_20260920.md).
+// 13c-bis. The DOWN-THE-LINE pose pass. Two consumers: the kinematic sequence's paired trunk
+//      route (segment_rates.h "faceOn+dtl"; kinematic_sequence_design.md §5.2) and the DTL club
+//      track (DtlShaftStage below; dtl_shaft_tracker_design.md), whose anchors it is. Runs when
+//      EITHER is enabled.
 //
-//      WHERE IT SITS, AND WHY. Immediately before KinematicSequenceStage, which is after
-//      SegResolve / EventRefine / PositionsLadder / TimelineFusion. It needs the RESOLVED ladder:
-//      its scan bounds are Address → Impact + 150 ms and its dense zone starts 100 ms before the
-//      Top, and reading those off a pre-resolve ladder would pose a different window depending on
-//      which stage had run. It is also strictly after the face-on pose, ball and shaft stages, so
-//      nothing it does can move them.
+//      WHERE IT SITS, AND WHY. Immediately before DtlShaft and KinematicSequence, which is after
+//      SegResolve / EventRefine / PositionsLadder / TimelineFusion / BindDetail: its scan bounds
+//      are read off the RESOLVED swing span, and reading them off a pre-resolve one would pose a
+//      different window depending on which stage had run. It is also strictly after the face-on
+//      pose, ball and shaft stages, so nothing it does can move them.
+//
+//      THE SPAN IS swinglab_run --dtl's, the one the DTL tracker was validated on (2026-09-21;
+//      until then this stage posed Address → Impact + 150 ms at stride 6/1 for the trunk route
+//      alone, which starves the tracker's address band and every band after impact): the
+//      face-on swing span widened back 1 s to cover the address hold and forward 0.3 s past the
+//      finish, every frame (stride 1 dense and sparse). No span ⇒ impact −2.5 s / +0.8 s.
 //
 //      IT BUILDS ITS OWN RUNNER OPTIONS AND NEVER TOUCHES ctx.runnerOpt. The ball and shaft
 //      stages and the face-on smoother all gate on that slot; overwriting it with a second
@@ -1452,19 +1479,26 @@ struct PoseAssessmentStage : AnalysisStage {
 //      dtl_shaft_tracker_design.md §5.3 forbids. Hence explicit bounds and twoPass = false.
 struct DtlPoseStage : AnalysisStage {
     QString name() const override { return QStringLiteral("DtlPose"); }
-    bool canRun(const AnalysisContext &ctx) const override
+    static bool pairWanted(const AnalysisContext &ctx)
     {
         const SegmentRatesConfig c = SegmentRatesConfig::fromOverrides(ctx.job.tuningOverrides);
-        if (!c.enabled || !c.pairTrunkEnabled) return false;
+        return c.enabled && c.pairTrunkEnabled;
+    }
+    static bool shaftWanted(const AnalysisContext &ctx)
+    {
+        return DtlShaftConfig::fromOverrides(ctx.job.tuningOverrides).enabled;
+    }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        if (!pairWanted(ctx) && !shaftWanted(ctx)) return false;
         if (ctx.job.dtlSource == pinpoint::kInvalidSourceId) return false;
         if (!ctx.window || ctx.window->entriesFor(ctx.job.dtlSource).empty()) return false;
         return ctx.caps.hasCamera(CameraPlacement::FaceOn) && !ctx.detail->pose2d.frames.empty();
     }
     QString skipReason(const AnalysisContext &ctx) const override
     {
-        const SegmentRatesConfig c = SegmentRatesConfig::fromOverrides(ctx.job.tuningOverrides);
-        if (!c.enabled) return QStringLiteral("sequence disabled (dark)");
-        if (!c.pairTrunkEnabled) return QStringLiteral("pair trunk route disabled (dark)");
+        if (!pairWanted(ctx) && !shaftWanted(ctx))
+            return QStringLiteral("pair trunk route and DTL shaft tracker both disabled (dark)");
         if (ctx.job.dtlSource == pinpoint::kInvalidSourceId)
             return QStringLiteral("no down-the-line camera");
         if (!ctx.window || ctx.window->entriesFor(ctx.job.dtlSource).empty())
@@ -1474,18 +1508,19 @@ struct DtlPoseStage : AnalysisStage {
     void run(AnalysisContext &ctx) override
     {
         const std::vector<pinpoint::IndexEntry> entries = ctx.window->entriesFor(ctx.job.dtlSource);
-        const int64_t impactUs = ctx.seg.eventFor(Phase::Impact)
-                                     ? ctx.seg.eventFor(Phase::Impact)->t_us : ctx.job.impactUs;
-        if (impactUs < 0) {
-            ppWarn() << "[WristAnalysis] dtl pose: no impact instant — skipping";
-            return;
+        const Segmentation &seg = ctx.seg;       // resolved; == detail->segmentation (BindDetail)
+        int64_t scanLo, scanHi;
+        if (seg.swingEndUs > seg.swingStartUs) {
+            scanLo = seg.swingStartUs - 1000000;
+            scanHi = seg.swingEndUs   +  300000;
+        } else {
+            if (ctx.job.impactUs <= 0) {
+                ppWarn() << "[WristAnalysis] dtl pose: no swing span and no impact instant — skipping";
+                return;
+            }
+            scanLo = ctx.job.impactUs - 2500000;   // no face-on span: impact ± the design's fallback
+            scanHi = ctx.job.impactUs +  800000;
         }
-        const PhaseEvent *addr = ctx.seg.eventFor(Phase::Address);
-        const PhaseEvent *top  = ctx.seg.eventFor(Phase::Top);
-        int64_t scanLo = addr ? addr->t_us
-                              : (ctx.seg.swingStartUs > 0 ? ctx.seg.swingStartUs - 300000
-                                                          : impactUs - 2500000);
-        int64_t scanHi = impactUs + 150000;
         scanLo = std::max(scanLo, entries.front().timestamp_us);
         scanHi = std::min(scanHi, entries.back().timestamp_us);
         // AN EMPTY INTERSECTION IS A REAL CONDITION — a camera that started after the swing, or a
@@ -1495,7 +1530,7 @@ struct DtlPoseStage : AnalysisStage {
         if (scanHi <= scanLo) {
             ppWarn() << "[WristAnalysis] dtl pose: the down-the-line stream and the swing span do"
                      << "not overlap (scan window" << qlonglong(scanLo) << ".."
-                     << qlonglong(scanHi) << "us is empty) — no paired trunk route";
+                     << qlonglong(scanHi) << "us is empty) — no down-the-line products";
             return;
         }
 
@@ -1507,27 +1542,22 @@ struct DtlPoseStage : AnalysisStage {
         }
 
         ShotAnalysisRunnerOptions dopt;                      // LOCAL — never ctx.runnerOpt
-        dopt.impactUs             = impactUs;
+        dopt.impactUs             = ctx.job.impactUs;
         dopt.handedness           = ctx.job.handedness;
         dopt.motionCaptureQuality = ctx.job.motionCaptureQuality;
         dopt.tuningOverrides      = ctx.job.tuningOverrides;
         dopt.twoPass              = false;                   // the span is inherited, not discovered
         dopt.scanStartUs          = scanLo;
         dopt.scanEndUs            = scanHi;
-        // Dense (every frame) from Top − 100 ms to Impact + 150 ms — the downswing the sequence is
-        // defined on, where the paired angle is differentiated. Sparse before it: the address hold
-        // only has to establish the two views' pixel-scale ratio and the face-on orientation bit,
-        // which a sixth of the frames answers as well as all of them.
-        const int64_t denseFrom = (top ? top->t_us : impactUs - 400000) - 100000;
-        dopt.densePreMs   = int(std::max<int64_t>(impactUs - denseFrom, 0) / 1000);
-        dopt.densePostMs  = 150;
-        dopt.denseStride  = 1;
-        dopt.sparseStride = 6;
+        // EVERY frame in the bound. The DTL bands are short and the tracker solves inside them
+        // frame by frame; a sparse zone would turn a two-frame band edge into no band at all.
+        dopt.denseStride          = 1;
+        dopt.sparseStride         = 1;
 
         QElapsedTimer dtlWall;
         dtlWall.start();
         if (!ctx.job.poseDtlPreloaded.frames.empty()) {
-            ctx.detail->poseDtl = ctx.job.poseDtlPreloaded;
+            ctx.detail->poseDtl = ctx.job.poseDtlPreloaded;  // version-gated reuse (analysis_versions.h)
             ctx.detail->poseDtl.camera = ctx.job.dtlSource;
         } else {
             ctx.detail->poseDtl = ctx.job.poseDtlTrackPath.isEmpty()
@@ -1535,21 +1565,86 @@ struct DtlPoseStage : AnalysisStage {
                                       : PoseRunner::loadFromJson(ctx.job.poseDtlTrackPath,
                                                                  ctx.job.dtlSource);
         }
-        // Smooth it HERE rather than through PoseSmoothStage: that stage also rewrites the grip
-        // anchors from the smoothed hands and builds the 240 Hz visualisation tier, both of which
-        // are face-on products the shaft tracker reads. The pair route wants the smoother's
-        // posterior σ on the hip and shoulder keypoints and nothing else.
+        // Smoothed HERE rather than through PoseSmoothStage: that stage also rewrites the grip
+        // anchors from the smoothed hands, a face-on product the face-on shaft tracker reads —
+        // the DTL tracker's anchors are the RAW frames, as in SwingLab. The pair route reads the
+        // smoother's posterior σ on the hips and shoulders; the replay tile draws the smoothed
+        // skeleton and its 240 Hz synth, built with PoseSmoothStage's own keys.
         if (dw > 0 && dh > 0 && !ctx.detail->poseDtl.frames.empty()) {
             const PoseSmootherConfig smCfg =
                 PoseSmootherConfig::fromOverrides(ctx.job.tuningOverrides);
             PoseSmootherOutput so = smoothPoseTrack(ctx.detail->poseDtl.frames, dw, dh, smCfg);
-            ctx.detail->poseDtl.smoothed    = std::move(so.smoothed);
-            ctx.detail->poseDtl.smoothedAux = std::move(so.aux);
+            ctx.detail->poseDtl.smoothed       = std::move(so.smoothed);
+            ctx.detail->poseDtl.smoothedAux    = std::move(so.aux);
+            ctx.detail->poseDtl.adaptFallbacks = so.adaptFallbacks;
+            PoseSynthConfig psCfg;
+            tuning::apply(ctx.job.tuningOverrides, "poseSynth.enabled", psCfg.enabled);
+            tuning::apply(ctx.job.tuningOverrides, "poseSynth.rateHz",  psCfg.rateHz);
+            ctx.detail->poseDtl.smoothedSynth =
+                synthesizePoseTrack(ctx.detail->poseDtl.smoothed, psCfg);
         }
         ctx.detail->timings.poseDtlMs = int(dtlWall.elapsed());
+        if (!ctx.detail->poseDtl.frames.empty()) {
+            ctx.detail->versions.poseDtl      = kDtlPoseStageVersion;
+            ctx.detail->versions.poseDtlModel = PoseRunner::modelIdentity(ctx.job.motionCaptureQuality);
+        }
         ppInfo() << "[WristAnalysis] dtl pose:" << qlonglong(ctx.detail->poseDtl.frames.size())
                  << "frames over" << qlonglong((scanHi - scanLo) / 1000) << "ms in"
                  << ctx.detail->timings.poseDtlMs << "ms";
+    }
+};
+
+// 13c-ter. The DOWN-THE-LINE club track (DtlShaftTracker; dtl_shaft_tracker_design.md). Reads the
+//      DTL pose DtlPoseStage just produced and the face-on witness ShaftStage built from the
+//      tracker's own output; writes detail->shaftDtl and nothing else. One direction only
+//      (§5.10): no face-on product, metric or score reads it — it is drawn on the DTL replay
+//      tile and persisted as analysis.clubDtl, the same bytes SwingLab's club_dtl.json holds.
+//
+//      No synth, no predicted tier, no bridging of end-on gaps (§5.9): where no frame published
+//      an angle the tile shows no shaft, and that is the honest picture.
+struct DtlShaftStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("DtlShaft"); }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        return DtlShaftConfig::fromOverrides(ctx.job.tuningOverrides).enabled
+            && ctx.window && !ctx.detail->poseDtl.frames.empty()
+            && ctx.detail->shaft.valid && ctx.foWitness;
+    }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        if (!DtlShaftConfig::fromOverrides(ctx.job.tuningOverrides).enabled)
+            return QStringLiteral("DTL shaft tracker disabled (shaft.dtl.enabled)");
+        if (ctx.detail->poseDtl.frames.empty())
+            return QStringLiteral("no down-the-line pose");
+        if (!ctx.detail->shaft.valid)
+            return QStringLiteral("no valid face-on shaft track to witness with");
+        return QStringLiteral("no face-on witness");
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        QElapsedTimer wall;
+        wall.start();
+        const FaceOnWitness *wit = ctx.foWitness->tUs.empty() ? nullptr : ctx.foWitness.get();
+        DtlShaftTrack2D t = DtlShaftTracker::track(*ctx.window, ctx.detail->poseDtl, wit, ctx.job);
+        {
+            const DtlShaftConfig cfg = DtlShaftConfig::fromOverrides(ctx.job.tuningOverrides);
+            t.configJson = dtlShaftConfigJson(cfg);
+            t.configHash = dtlConfigHash(cfg);
+        }
+        t.streamSerial = QString::fromStdString(ctx.window->formatOf(ctx.job.dtlSource).device_serial);
+        int published = 0;
+        for (const DtlSample &s : t.samples)
+            if (s.tier >= DtlTier::Ray) ++published;
+        ctx.detail->shaftDtl = std::move(t);
+        ctx.detail->versions.shaftDtl = kDtlShaftStageVersion;
+        const DtlShaftTrack2D &d = ctx.detail->shaftDtl;
+        ppInfo() << "[WristAnalysis] dtl shaft:" << (d.valid ? "valid," : "INVALID,")
+                 << published << "/" << qlonglong(d.samples.size()) << "frames published in"
+                 << qlonglong(d.bands.size()) << "bands, sighted" << d.sightedFrac
+                 << ", ball" << qPrintable(d.ball.found ? d.ball.source : QStringLiteral("not found"))
+                 << ", L" << qPrintable(d.lFullSource) << ", witness"
+                 << (ctx.job.shaftPreloaded.samples.empty() ? "traced" : "from reused flags")
+                 << "," << qlonglong(wall.elapsed()) << "ms";
     }
 };
 
@@ -1711,6 +1806,7 @@ SessionProfile wristProfile()
     p.stages.push_back(std::make_unique<KinematicsStage>());
     p.stages.push_back(std::make_unique<ShaftPlaneStage>());
     p.stages.push_back(std::make_unique<DtlPoseStage>());
+    p.stages.push_back(std::make_unique<DtlShaftStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     p.stages.push_back(std::make_unique<BindingsStage>());
     p.stages.push_back(std::make_unique<ResemblanceStage>());
@@ -1799,6 +1895,7 @@ SessionProfile cameraKinematicsProfile()
     p.stages.push_back(std::make_unique<KinematicsStage>());
     p.stages.push_back(std::make_unique<ShaftPlaneStage>());
     p.stages.push_back(std::make_unique<DtlPoseStage>());
+    p.stages.push_back(std::make_unique<DtlShaftStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     return p;
 }

@@ -28,11 +28,11 @@
 // face-on metric. A witness that has been fitted to the thing it testifies about
 // is not one.
 //
-// SwingLab-only. Nothing in the app calls it, and ShotAnalyzer does not know it
-// exists — which is why a swing with a DTL stream analyses byte-identically with
-// this tracker present.
-//
-// ⚠ STUB. track() returns an invalid track.
+// Two callers: DtlShaftStage in the app pipeline (wrist_analyzer.cpp), which fills
+// SwingAnalysis::shaftDtl, and swinglab_run --dtl. Both build the witness with
+// buildFaceOnWitness (dtl_face_on_witness.h) and write the product with
+// dtlShaftTrackToJson (dtl_shaft_json.h). Nothing face-on reads the result, so a
+// swing's face-on products are the same with or without a DTL camera.
 
 #include "dtl_shaft_types.h"
 #include "swing_analysis.h"   // PoseTrack2D

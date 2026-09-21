@@ -112,6 +112,16 @@ int pickFaceOn(const QVector<QJsonObject> &videos, const QString &faceNeedle)
 
 } // namespace
 
+int faceOnStreamIndex(const QVector<QJsonObject> &videos, const QString &faceNeedle)
+{
+    return pickFaceOn(videos, faceNeedle);
+}
+
+bool streamLooksDownTheLine(const QJsonObject &stream)
+{
+    return looksDownTheLine(stream);
+}
+
 VideoStreamInfo readVideoStream(const QString &swingDir, MarkupView view, const QString &faceNeedle)
 {
     VideoStreamInfo fo;

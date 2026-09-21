@@ -26,6 +26,7 @@
 #include <QMediaPlayer>
 #include <QTimer>
 #include <QUrl>
+#include <QVector>
 #include <QVideoSink>
 #include <algorithm>
 #include <cmath>
@@ -34,6 +35,8 @@
 #include "../Core/pp_debug.h"
 #include "../../Export/swing_doc.h"   // takeJustWritten — the document we may have just written
 #include "../../Analysis/kinematic_sequence_json.h"   // retimeKinematicSequence — one shape, three paths
+#include "../markup/markup_truth.h"                   // streamLooksDownTheLine — the setup-less DTL rule
+#include "dtl_overlay_payload.h"                      // dtlOverlayDetail — the DTL tile's overlay
 
 namespace {
 
@@ -42,6 +45,7 @@ namespace {
 constexpr qint64 kSlaveResyncMs = 120;
 
 constexpr int kPerspectiveFaceOn = 2;   // CameraInstance::FaceOn
+constexpr int kPerspectiveDtl    = 1;   // CameraInstance::DownTheLine
 constexpr int kPerspectiveImpact = 4;   // CameraInstance::Impact — the looping impact clip
 // The impact clip runs this much slower than the window's capture-time speed
 // (applyPlaybackRates): the interesting part is ~40 ms of capture time.
@@ -72,6 +76,41 @@ QVariantMap relTimedMap(const QJsonObject &o, qint64 t0)
     QVariantMap m = o.toVariantMap();
     m[QStringLiteral("t_us")] = static_cast<qlonglong>(relUs(o[QStringLiteral("t_us")], t0));
     return m;
+}
+
+// A swing.json pose block (analysis.pose2d, or the down-the-line analysis.poseDtl — one
+// shape, poseTrackToJson) as the replay payload's pose2d, every t_us re-timed into the
+// window-relative domain. The face-on and DTL tiles read the result identically.
+QVariantMap poseBlockToDetail(const QJsonObject &p2, qint64 t0)
+{
+    QVariantList frames;
+    for (const QJsonValue &fv : p2[QStringLiteral("frames")].toArray())
+        frames.append(relTimedMap(fv.toObject(), t0));
+    QVariantMap pose2d{ { QStringLiteral("camera"), p2[QStringLiteral("camera")].toInt() },
+                        { QStringLiteral("frames"), frames } };
+    // Motion-overlay smoothed companion track (pose_smoother.cpp): re-time
+    // each frame's t_us into the window-relative domain EXACTLY like `frames`
+    // (relTimedMap re-times only the top-level t_us; kp/tier/sigma pass through
+    // verbatim) so the replay playhead indexes it in the same domain. Present
+    // only when the swing was analysed with the smoother.
+    if (p2.contains(QStringLiteral("smoothed"))) {
+        QVariantList smoothed;
+        for (const QJsonValue &sv2 : p2[QStringLiteral("smoothed")].toArray())
+            smoothed.append(relTimedMap(sv2.toObject(), t0));
+        pose2d.insert(QStringLiteral("smoothed"), smoothed);
+    }
+    // Dense 240 Hz VIZ-tier pose synth (pose_synthesis.h), re-timed like `smoothed`.
+    // Present only when the analyzer ran the synthesiser. The live bridge
+    // (shot_processor.cpp toAnalysisDetail) forwards the same block, so a live shot and
+    // its reloaded self show the same body scrub. It was persisted but never read
+    // until 16 Sept 2026 — see the note there.
+    if (p2.contains(QStringLiteral("synth"))) {
+        QVariantList synth;
+        for (const QJsonValue &sv3 : p2[QStringLiteral("synth")].toArray())
+            synth.append(relTimedMap(sv3.toObject(), t0));
+        pose2d.insert(QStringLiteral("synth"), synth);
+    }
+    return pose2d;
 }
 
 } // namespace
@@ -137,10 +176,23 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
     };
     std::vector<PendingStream> pending;
 
+    // Streams with no `setup` block (the 2026-06-11 session) declare no perspective. The
+    // down-the-line one is then recognised by markup_truth's whole-token name rule — the
+    // SAME rule the Markup panel uses — and the face-on pick is never eligible, so the DTL
+    // overlay can never land on the face-on camera. Only DTL is inferred: a setup-less
+    // face-on stream stays undeclared, exactly as before.
+    QVector<QJsonObject> videoStreams;
+    for (const QJsonValue &sv : root[QStringLiteral("streams")].toArray())
+        if (sv.toObject()[QStringLiteral("kind")].toString() == QLatin1String("video"))
+            videoStreams.push_back(sv.toObject());
+    const int faceOnVideoIdx = pinpoint::markup::faceOnStreamIndex(videoStreams);
+    int videoIdx = -1;
+
     for (const QJsonValue &sv : root[QStringLiteral("streams")].toArray()) {
         const QJsonObject s = sv.toObject();
         if (s[QStringLiteral("kind")].toString() != QLatin1String("video"))
             continue;
+        ++videoIdx;
         const QString file = s[QStringLiteral("file")].toString();
         if (file.isEmpty() || !QFile::exists(swingDir + QStringLiteral("/") + file))
             continue;
@@ -159,6 +211,9 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
         // Per-stream metadata from the SWING's own doc (cross-machine safe).
         ps.perspective = s[QStringLiteral("setup")].toObject()
                           .value(QStringLiteral("perspective")).toInt(-1);
+        if (ps.perspective < 0 && !s.contains(QStringLiteral("setup"))
+            && videoIdx != faceOnVideoIdx && pinpoint::markup::streamLooksDownTheLine(s))
+            ps.perspective = kPerspectiveDtl;
         const QJsonObject src = s[QStringLiteral("source")].toObject();
         const double sw = src.value(QStringLiteral("width")).toDouble();
         const double sh = src.value(QStringLiteral("height")).toDouble();
@@ -279,37 +334,9 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
         //    produces live (shot_processor.cpp toAnalysisDetail). Frame/sample
         //    t_us are offset to the window-relative domain so they scrub with the
         //    playhead. Club is a stub today (rarely present) — degrades to none.
-        if (an.contains(QStringLiteral("pose2d"))) {
-            const QJsonObject p2 = an[QStringLiteral("pose2d")].toObject();
-            QVariantList frames;
-            for (const QJsonValue &fv : p2[QStringLiteral("frames")].toArray())
-                frames.append(relTimedMap(fv.toObject(), t0));
-            QVariantMap pose2d{ { QStringLiteral("camera"), p2[QStringLiteral("camera")].toInt() },
-                                { QStringLiteral("frames"), frames } };
-            // Motion-overlay smoothed companion track (pose_smoother.cpp): re-time
-            // each frame's t_us into the window-relative domain EXACTLY like `frames`
-            // (relTimedMap re-times only the top-level t_us; kp/tier/sigma pass through
-            // verbatim) so the replay playhead indexes it in the same domain. Present
-            // only when the swing was analysed with the smoother.
-            if (p2.contains(QStringLiteral("smoothed"))) {
-                QVariantList smoothed;
-                for (const QJsonValue &sv2 : p2[QStringLiteral("smoothed")].toArray())
-                    smoothed.append(relTimedMap(sv2.toObject(), t0));
-                pose2d.insert(QStringLiteral("smoothed"), smoothed);
-            }
-            // Dense 240 Hz VIZ-tier pose synth (pose_synthesis.h), re-timed like `smoothed`.
-            // Present only when the analyzer ran the synthesiser. The live bridge
-            // (shot_processor.cpp toAnalysisDetail) forwards the same block, so a live shot and
-            // its reloaded self show the same body scrub. It was persisted but never read
-            // until 16 Sept 2026 — see the note there.
-            if (p2.contains(QStringLiteral("synth"))) {
-                QVariantList synth;
-                for (const QJsonValue &sv3 : p2[QStringLiteral("synth")].toArray())
-                    synth.append(relTimedMap(sv3.toObject(), t0));
-                pose2d.insert(QStringLiteral("synth"), synth);
-            }
-            m_analysisDetail.insert(QStringLiteral("pose2d"), pose2d);
-        }
+        if (an.contains(QStringLiteral("pose2d")))
+            m_analysisDetail.insert(QStringLiteral("pose2d"),
+                                    poseBlockToDetail(an[QStringLiteral("pose2d")].toObject(), t0));
         if (an.contains(QStringLiteral("club"))) {
             const QJsonObject cb = an[QStringLiteral("club")].toObject();
             QVariantMap club = cb.toVariantMap();
@@ -381,6 +408,24 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
                 pinpoint::analysis::retimeKinematicSequence(
                     an[QStringLiteral("kinematicSequence")].toObject(),
                     [t0](const QJsonValue &v) { return static_cast<qint64>(relUs(v, t0)); }));
+
+        // The down-the-line tile's overlay (dtl_overlay_payload.h): analysis.poseDtl through
+        // the face-on pose shaping, analysis.clubDtl through the ONE translator the live path
+        // uses, every time re-timed window-relative like the blocks above. The face-on
+        // P-positions it looks up are the ones just re-timed into `club.positions`, and
+        // m_impactUs is the relative Impact phase, so all of it shares the playhead's domain.
+        {
+            const QVariantMap dtlPose = an.contains(QStringLiteral("poseDtl"))
+                ? poseBlockToDetail(an[QStringLiteral("poseDtl")].toObject(), t0)
+                : QVariantMap{};
+            const QVariantList foPositions = m_analysisDetail.value(QStringLiteral("club")).toMap()
+                                                 .value(QStringLiteral("positions")).toList();
+            const QVariantMap dtl = pinpoint::dtlOverlayDetail(
+                dtlPose, an[QStringLiteral("clubDtl")].toObject(), foPositions, m_impactUs,
+                [t0](const QJsonValue &v) { return relUs(v, t0); });
+            if (!dtl.isEmpty())
+                m_analysisDetail.insert(QStringLiteral("dtl"), dtl);
+        }
     }
     if (m_impactUs < 0) {
         const QJsonObject thumb = root[QStringLiteral("thumbnail")].toObject();

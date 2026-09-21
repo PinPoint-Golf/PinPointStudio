@@ -548,6 +548,8 @@ testifies about is not one. Fusion is a later document.
 `analysis.clubDtl` by `swinglab_run` only. Nothing in the app reads it; no UI, no
 wizard, no metrics. Stage version `kDtlShaftStageVersion = 1` in
 `analysis_versions.h` from the first write, so the first change re-analyses.
+*(2026-09-21: the app now produces and persists it and the DTL replay tile draws
+it — §5A.2. Still no metric reads it.)*
 
 ---
 
@@ -816,6 +818,51 @@ earned.
 real 238 px run, ρ̂_D 0.52 — publishes under C6 exactly as it did under c4. Its
 length is a measurement and its ρ̂_D clears `rhoSolveMin`, so only §8's
 per-rig-threshold item can touch it.
+
+### 5A.2 In the app (2026-09-21)
+
+The tracker now runs in the app pipeline, not only in `swinglab_run`, so a
+re-analysed two-camera swing carries its DTL products and the DTL replay tile can
+draw them. §5A's "output is a sibling file" note is superseded for the app;
+SwingLab still writes its sibling files, from the same code.
+
+- **Stages** (`wrist_analyzer.cpp`, both `wristProfile()` and
+  `cameraKinematicsProfile()`): `DtlPose` → `DtlShaft`, immediately before
+  `KinematicSequence`. `DtlPose` runs when the job has a DTL camera and EITHER the
+  pair-trunk route or `shaft.dtl.enabled` wants it, and poses SwingLab's validated
+  `--dtl` span: face-on swing span −1 s → +0.3 s (no span ⇒ impact −2.5 s/+0.8 s),
+  clamped to the DTL stream, stride 1 throughout, `twoPass` off. It smooths the
+  track and builds the 240 Hz `smoothedSynth` with PoseSmoothStage's keys. `DtlShaft`
+  runs on a DTL pose + a valid face-on shaft track and writes
+  `SwingAnalysis::shaftDtl`.
+- **Witness**: `buildFaceOnWitness` (`dtl_face_on_witness.h`), shared with
+  SwingLab. `ShaftStage` builds it from the tracker's own output and decide trace,
+  before the ladder stages rewrite `positions`. A re-analysis that REUSED the
+  recorded face-on shaft track has no trace; the witness's tier then comes from each
+  sample's flags (`ShaftMeasured` / `ShaftWedge`, not coasted ⇒ measured). The
+  tracker reads tier only as measured-or-not, so that is the only thing the
+  fall-back has to get right, and it is an approximation — a Stage-2 measured head
+  on a PRED frame also carries `ShaftMeasured`.
+- **Persisted**: `analysis.poseDtl` (the `pose2d` shape, one builder:
+  `poseTrackToJson`) and `analysis.clubDtl` (`pinpoint.clubDtl/1`, one builder:
+  `dtlShaftTrackToJson`, the bytes of `club_dtl.json`); `analysis.versions.poseDtl`
+  `{code, model}` and `.shaftDtl` `{code}`. All absent on a single-camera swing,
+  whose document is byte-identical to before. `clubDtl` is written whenever the
+  stage ran, valid or not — its reasons are why the tile shows no shaft.
+- **Reuse**: re-analysis reloads `poseDtl` under `pose2d`'s rule
+  (`kDtlPoseStageVersion`, model identity, no pose/ball/address override). The DTL
+  club track is never reused; it is recomputed every time (≈ 0.3 s).
+- **Drawn, not synthesised**: no DTL shaft synth, no predicted tier, no bridge across
+  an end-on gap (§5.9). The shaft appears on the DTL tile only on frames that
+  published an angle (tier ≥ RAY); at P2, the top and P6 it visibly disappears.
+- **Gates (2026-09-21, pinned poses)**: SwingLab's `club_dtl.json` byte-identical to
+  dbf1aaee on 07-04 s0004–0015 (12/12); the app stage's `analysis.clubDtl` frames equal
+  to `club_dtl.json` on the same runs (12/12, 5,239 frames, 0 differ); the 61-swing
+  corpus's `result.json` unchanged apart from `timings` on all 27 single-camera swings,
+  and on the 34 two-camera swings apart from `timings` and the four new keys
+  (`poseDtl`, `clubDtl`, `versions.poseDtl`, `versions.shaftDtl`) — the kinematic
+  sequence did not move. Cost: +27–40 MB per two-camera `swing.json` (indented;
+  `poseDtl` is ~13 MB compact, its 240 Hz synth the largest part).
 
 ---
 

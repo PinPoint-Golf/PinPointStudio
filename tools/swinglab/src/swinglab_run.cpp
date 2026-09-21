@@ -72,8 +72,9 @@
 #include "../../../src/Analysis/phase_segmenter.h"
 #include "../../../src/Analysis/pose_runner.h"
 #include "../../../src/Analysis/shaft_tracker.h"
-#include "../../../src/Analysis/shaft_track_shared.h"   // shaftshared::unwrap (the witness θ)
-#include "../../../src/Analysis/dtl_shaft_tracker.h"    // DTL shaft track (SwingLab-only product)
+#include "../../../src/Analysis/dtl_shaft_tracker.h"    // DTL shaft track
+#include "../../../src/Analysis/dtl_face_on_witness.h"  // buildFaceOnWitness — the app's witness
+#include "../../../src/Analysis/dtl_shaft_json.h"       // dtlShaftTrackToJson — club_dtl.json == analysis.clubDtl
 #include "../../../src/Analysis/dtl_shaft_config.h"     // the resolved scalars echoed into club_dtl.json
 #include "../../../src/Export/swing_doc.h"
 #include "../../../src/IMU/orientation_filter.h"     // MadgwickFilter (header-only)
@@ -300,8 +301,10 @@ int main(int argc, char **argv)
     QCommandLineOption optDtl("dtl",
         "Run the down-the-line shaft tracker (dtl_shaft_tracker_design.md) beside the "
         "production analysis: pose the DTL stream, build the face-on witness from this "
-        "run's own shaft track, and hand both to DtlShaftTracker. Writes pose_dtl.json "
-        "and a `dtl` block in runmeta.json; result.json is untouched. Ignored on a swing "
+        "run's own shaft track, and hand both to DtlShaftTracker. Writes pose_dtl.json, "
+        "club_dtl.json and a `dtl` block in runmeta.json; result.json is untouched by the "
+        "flag (it already carries the analysis's own analysis.poseDtl / clubDtl on any "
+        "two-camera swing — the same tracker, see DtlShaftStage). Ignored on a swing "
         "with no DTL stream, and when --face-on names the DTL stream itself.");
     QCommandLineOption optDtlPose("dtl-pose",
         "Inject the DTL PoseTrack2D from JSON instead of running ViTPose on that stream "
@@ -896,14 +899,22 @@ int main(int argc, char **argv)
                 dopt.denseStride          = 1;
                 dopt.sparseStride         = 1;
 
+                // The analysis already posed the DTL stream (DtlPoseStage, same span and
+                // density as the bounds above) — use ITS track, so this block and the
+                // app's DtlShaftStage stand on one pose. With --dtl-pose the two are the
+                // same file. Re-pose only when the stage did not run.
                 const bool poseInjected = cli.isSet(optDtlPose);
+                const bool poseFromAnalysis = result.detail && !result.detail->poseDtl.frames.empty();
                 const PoseTrack2D dtlPose =
-                    poseInjected ? PoseRunner::loadFromJson(cli.value(optDtlPose), job.dtlSource)
-                                 : PoseRunner::run(window, job.dtlSource, dopt);
+                    poseFromAnalysis ? result.detail->poseDtl
+                    : poseInjected   ? PoseRunner::loadFromJson(cli.value(optDtlPose), job.dtlSource)
+                                     : PoseRunner::run(window, job.dtlSource, dopt);
                 const qint64 dtlPoseMs = dwall.elapsed();
                 if (poseInjected)
                     std::fprintf(stderr, "[swinglab] dtl: pose LOADED from %s\n",
                                  cli.value(optDtlPose).toUtf8().constData());
+                else if (poseFromAnalysis)
+                    std::fprintf(stderr, "[swinglab] dtl: pose from the analysis (DtlPoseStage)\n");
 
                 // ── pose_dtl.json, written then READ BACK ────────────────────
                 // Exactly the shape PoseRunner::fromJsonObject reads. The round-trip
@@ -970,97 +981,15 @@ int main(int argc, char **argv)
                 // counts do not make two runs the same run: the frame where they
                 // diverge is exactly the frame where a mis-registered tier matters,
                 // and the count check cannot see it.
-                FaceOnWitness wit;
-                {
-                    const ShaftTrack2D &fo = tracedFo;
-                    std::vector<double> thetaRaw;
-                    std::vector<double> visLen, visLenAll;
-                    wit.tUs.reserve(fo.samples.size());
-                    for (const ShaftSample2D &s : fo.samples) {
-                        wit.tUs.push_back(s.t_us);
-                        thetaRaw.push_back(s.thetaRad);
-                        wit.thetaDotRadS.push_back(s.thetaDotRadS);
-                        // The face-on grip's IMAGE ROW (px, NOT normalised — the
-                        // DTL side fits y_D = a·y_F + b in pixels). Both cameras
-                        // see vertical, so this one column is a free cross-view
-                        // witness on the DTL anchor, and it is what catches the
-                        // post-impact invented hands (§5.2) — hand confidence
-                        // will not, and will not say so.
-                        wit.gripYPx.push_back(s.gripPx.y());
-                        if ((s.flags & ShaftMeasured) && s.visibleLenPx > 0.0) {
-                            visLenAll.push_back(s.visibleLenPx);
-                            // In the face-on IMAGE PLANE only: a near-horizontal shaft
-                            // (P2, the top, P6) has both ends at the hands' depth. The
-                            // near-vertical frames do not — at address and impact the head
-                            // is ~0.5 m nearer the lens than the hands and perspective
-                            // reads the club 10–17 % long (design §4.2).
-                            if (std::abs(std::cos(s.thetaRad)) >= 0.94)
-                                visLen.push_back(s.visibleLenPx);
-                        }
-                    }
-                    // Too few in-plane samples to trust a percentile ⇒ the whole series.
-                    if (visLen.size() < 8) visLen = visLenAll;
-                    // NOT redundant: ShaftSample2D::thetaRad is the DP's θ wrapped to
-                    // [0, 2π) (shaft_track_assembly reconcile: fmod(...,360)), whatever
-                    // swing_analysis.h's comment says — the corpus tracks show ~6.1 rad
-                    // steps across the branch cut. Interpolating those in `at()` would
-                    // sweep the witness the wrong way round the circle.
-                    wit.thetaUnwrapRad = shaftshared::unwrap(thetaRaw);
-                    // ρ_F's denominator: the p90 of the MEASURED, IN-PLANE visible length.
-                    // Not the max — one blurred over-long ridge would otherwise set the
-                    // scale for the whole swing — and not the whole series: a p95 over
-                    // frames that include the magnified address hold came out 328–351 px
-                    // against an in-plane 290–321 on four of six swings, which turned
-                    // ρ_F 1.00 into 0.86 at P2/P6 and ρ̂_D 0.00 into 0.51. The end-on gap
-                    // never opened and the solve ran one band straight through the top.
-                    if (!visLen.empty()) {
-                        std::sort(visLen.begin(), visLen.end());
-                        const double pos = 0.90 * double(visLen.size() - 1);
-                        const size_t lo = size_t(std::floor(pos));
-                        const size_t hi = std::min(lo + 1, visLen.size() - 1);
-                        wit.fullLenPx = visLen[lo] + (pos - double(lo)) * (visLen[hi] - visLen[lo]);
-                    }
-                    // ρ_F ONLY where visibleLenPx is a club length. On a non-measured
-                    // sample the field carries a frame-edge clamp, not a shaft, and
-                    // dividing it by the p95 gave ρ_F ≫ 1 → 1 − u_x² < 0 → a NaN ρ̂_D
-                    // that every downstream test read as "sighted", which is the exact
-                    // inversion of the schedule's job. NaN says unknown, out loud.
-                    wit.rhoF.reserve(fo.samples.size());
-                    for (const ShaftSample2D &s : fo.samples)
-                        wit.rhoF.push_back(((s.flags & ShaftMeasured) && wit.fullLenPx > 0.0)
-                                               ? std::min(1.0, s.visibleLenPx / wit.fullLenPx)
-                                               : std::numeric_limits<double>::quiet_NaN());
-                    // Tier + phase from the same run's trace, which emits one entry per
-                    // emitted frame in the same order as its samples. If the two ever
-                    // disagree in length the honest answer is PRED everywhere rather
-                    // than a mis-registered tier column.
-                    const bool traceAligned = trace.frameIdx.size() == fo.samples.size()
-                                           && trace.tier.size() == fo.samples.size();
-                    wit.tier.assign(fo.samples.size(), FoTier::Pred);
-                    wit.phase.assign(fo.samples.size(), -1);
-                    if (traceAligned) {
-                        for (size_t i = 0; i < fo.samples.size(); ++i) {
-                            const int t = trace.tier[i];
-                            if (t >= 0 && t <= 5) wit.tier[i] = FoTier(uint8_t(t));
-                            const int f = trace.frameIdx[i];
-                            if (f >= 0 && f < int(trace.phases.phase.size()))
-                                wit.phase[i] = int(trace.phases.phase[size_t(f)]);
-                        }
-                    } else if (!fo.samples.empty()) {
-                        std::fprintf(stderr, "[swinglab] dtl: trace/sample counts differ (%zu vs %zu) "
-                                             "— witness tiers left PRED\n",
-                                     trace.frameIdx.size(), fo.samples.size());
-                    }
-                    for (const ShaftPosition &p : fo.positions)
-                        wit.ladder.push_back({ p.p, p.t_us });
-                    if (wit.tUs.size() > 1) {
-                        std::vector<int64_t> d;
-                        d.reserve(wit.tUs.size() - 1);
-                        for (size_t i = 1; i < wit.tUs.size(); ++i) d.push_back(wit.tUs[i] - wit.tUs[i - 1]);
-                        std::nth_element(d.begin(), d.begin() + d.size() / 2, d.end());
-                        wit.frameIntervalUs = d[d.size() / 2];
-                    }
-                }
+                //
+                // Built by the one builder the app's DtlShaftStage uses
+                // (dtl_face_on_witness.h), from this run's traced track and ITS trace.
+                if (trace.frameIdx.size() != tracedFo.samples.size()
+                    || trace.tier.size() != tracedFo.samples.size())
+                    std::fprintf(stderr, "[swinglab] dtl: trace/sample counts differ (%zu vs %zu) "
+                                         "— witness tiers from the sample flags\n",
+                                 trace.frameIdx.size(), tracedFo.samples.size());
+                const FaceOnWitness wit = buildFaceOnWitness(tracedFo, &trace, job.impactUs);
                 // The traced run replays the production shaft stages on the
                 // production pose, so its sample TIMES must be the production ones.
                 // Element-wise, not by count — same length with different times is
@@ -1087,8 +1016,6 @@ int main(int argc, char **argv)
                                          (long long)wit.tUs[firstBad], (long long)ps[firstBad].t_us);
                     }
                 }
-                wit.impactUs = job.impactUs;
-                wit.chir     = trace.chir;
 
                 // The DTL trace is asked for by the same --trace the face-on one
                 // is, and it is the SAME RUN's internals: one solve, one post
@@ -1124,202 +1051,21 @@ int main(int argc, char **argv)
                         const qint64 tt = qint64(t);
                         return tt >= t0 ? tt - t0 : tt;
                     };
-                    // Local, not M_PI: that macro needs _USE_MATH_DEFINES on MSVC
-                    // and this tool builds there too.
-                    constexpr double kDeg2Rad = 3.14159265358979323846 / 180.0;
                     const auto jnum = [](double v) -> QJsonValue {
                         return std::isfinite(v) ? QJsonValue(v) : QJsonValue(QJsonValue::Null);
                     };
-                    const auto jpt = [&](const QPointF &p, double iw, double ih) -> QJsonValue {
-                        if (!std::isfinite(p.x()) || !std::isfinite(p.y())) return QJsonValue(QJsonValue::Null);
-                        return QJsonValue(QJsonArray{ p.x() * iw, p.y() * ih });
-                    };
-                    const double iw = dtlTrack.frameWidth  > 0 ? 1.0 / dtlTrack.frameWidth  : 0.0;
-                    const double ih = dtlTrack.frameHeight > 0 ? 1.0 / dtlTrack.frameHeight : 0.0;
 
                     // The stream this track is OF, named the way the montage tool
                     // names it: matched on the recorded serial the loader keyed the
                     // source by, so the alias cannot drift from the SourceId.
                     QString dtlAlias, dtlFile;
-                    {
-                        const QString want = QString::fromStdString(
-                            window.formatOf(job.dtlSource).device_serial);
-                        for (const QJsonValue &sv : root[QStringLiteral("streams")].toArray()) {
-                            const QJsonObject s = sv.toObject();
-                            if (s[QStringLiteral("kind")].toString() != QLatin1String("video")) continue;
-                            const QString serial =
-                                s[QStringLiteral("source")].toObject()[QStringLiteral("serial")].toString();
-                            if (!want.isEmpty() && serial != want) continue;
-                            dtlAlias = s[QStringLiteral("alias")].toString();
-                            dtlFile  = s[QStringLiteral("file")].toString();
-                            break;
-                        }
-                    }
+                    dtlStreamName(root, QString::fromStdString(window.formatOf(job.dtlSource).device_serial),
+                                  &dtlAlias, &dtlFile);
 
+                    // The one builder (dtl_shaft_json.h) — the same bytes the app
+                    // persists as analysis.clubDtl.
                     const DtlShaftConfig dcfg = DtlShaftConfig::fromOverrides(job.tuningOverrides);
-                    const QJsonObject dconf{
-                        { "enabled",              dcfg.enabled },
-                        { "truthOnly",            dcfg.truthOnly },
-                        { "rhoSolveMin",          dcfg.rhoSolveMin },
-                        { "scheduleEnabled",      dcfg.schedule.enabled },
-                        { "minBandFrames",        dcfg.minBandFrames },
-                        { "corridorEnabled",      dcfg.corridor.enabled },
-                        { "corridorW0Deg",        dcfg.corridor.w0Deg },
-                        { "corridorWCorr",        dcfg.corridor.wCorr },
-                        { "corridorRhoFMax",      dcfg.corridor.rhoFMax },
-                        { "halfWHalf",            dcfg.half.wHalf },
-                        { "lenWLen",              dcfg.len.wLen },
-                        { "lenSlack",             dcfg.len.slack },
-                        { "lenHolePx",            dcfg.len.holePx },
-                        { "armVetoDeg",           dcfg.arm.vetoDeg },
-                        { "armLatPx",             dcfg.arm.latPx },
-                        { "armWArm",              dcfg.arm.wArm },
-                        { "armMinJointPx",        dcfg.arm.minJointPx },
-                        { "revWRev",              dcfg.rev.wRev },
-                        { "revTol",               dcfg.rev.tol },
-                        { "ballWBall",            dcfg.ball.wBall },
-                        { "ballSigmaDeg",         dcfg.ball.sigmaDeg },
-                        { "ballGateDeg",          dcfg.ball.gateDeg },
-                        { "ballWGate",            dcfg.ball.wGate },
-                        { "ballStillDeg",         dcfg.ball.stillDeg },
-                        { "ballStillMaxUs",       double(dcfg.ball.stillMaxUs) },
-                        { "ballShadowMatMin",     dcfg.ball.shadowMatMin },
-                        { "ballShadowDrop",       dcfg.ball.shadowDrop },
-                        { "ballShadowLaunchRise", dcfg.ball.shadowLaunchRise },
-                        { "ballShadowToCentreR",  dcfg.ball.shadowToCentreR },
-                        { "omegaBaseDegPerFrame", dcfg.omegaBaseDegPerFrame },
-                        { "kSmooth",              dcfg.kSmooth },
-                        { "grid",                 dcfg.grid },
-                        { "wE2",                  dcfg.wE2 },
-                        { "wBand",                dcfg.wBand },
-                        { "bandTol",              dcfg.bandTol },
-                        { "evRay",                dcfg.evRay },
-                        { "supRay",               dcfg.supRay },
-                        { "revRatio",             dcfg.revRatio },
-                        { "minLenFrac",           dcfg.minLenFrac },
-                        { "snapRhoMin",           dcfg.snapRhoMin },
-                        { "evAbsFloor",           dcfg.evAbsFloor },
-                        { "evAbsFloorDif",        dcfg.evAbsFloorDif },
-                        { "contrastKsz",          dcfg.contrastKsz },
-                        { "plateMaxFrames",       dcfg.plateMaxFrames },
-                        { "quarantineP95Mult",    dcfg.quarantine.p95Mult },
-                        { "quarantineAbsPx",      dcfg.quarantine.absPx },
-                        { "quarantinePostImpactUs", double(dcfg.quarantine.postImpactUs) },
-                        { "quarantinePostAbsPx",  dcfg.quarantine.postAbsPx },
-                        { "revArmDeg",            dcfg.rev.armDeg },
-                        { "revArmMinPx",          dcfg.rev.armMinPx },
-                        { "lineConfRay",          dcfg.lineConfRay } };
-
-                    QJsonArray frames;
-                    std::vector<int> bandN(dtlTrack.bands.size(), 0), bandPub(dtlTrack.bands.size(), 0);
-                    for (const DtlSample &s : dtlTrack.samples) {
-                        if (s.band >= 0 && s.band < int(bandN.size())) {
-                            ++bandN[size_t(s.band)];
-                            if (s.tier >= DtlTier::Ray) ++bandPub[size_t(s.band)];
-                        }
-                        QJsonValue corridor = QJsonValue(QJsonValue::Null);
-                        if (s.corridorOn || std::isfinite(s.corrCentreDeg[0]))
-                            corridor = QJsonObject{
-                                { "centres", QJsonArray{ jnum(s.corrCentreDeg[0] * kDeg2Rad),
-                                                         jnum(s.corrCentreDeg[1] * kDeg2Rad) } },
-                                { "half",    jnum(s.corrHalfDeg * kDeg2Rad) },
-                                { "on",      s.corridorOn } };
-                        frames.append(QJsonObject{
-                            { "t_us",    rel(s.t_us) },
-                            { "tier",    QString::fromLatin1(dtlTierName(s.tier)) },
-                            { "grip",    jpt(s.gripPx, iw, ih) },
-                            { "head",    jpt(s.headPx, iw, ih) },
-                            { "theta",   jnum(s.thetaRad) },
-                            { "lenPx",   jnum(s.lenPx) },
-                            // "snapLine" | "latBand" | "rend" — WHERE the run was
-                            // measured. "rend" is the DP's own ridge-score argmax,
-                            // which sits at its own 98 px floor whenever the ray
-                            // from the pose grip leaves the shaft early; the other
-                            // two measured off the re-registered line. A length
-                            // with no stated provenance is a number.
-                            { "lenSrc",  QString::fromLatin1(dtlLenSrcName(s.lenSrc)) },
-                            // "ev" | "lineConf" — WHICH gate let this frame
-                            // publish. EV is read along a ray from the POSE grip,
-                            // which sits tens of px off the shaft axis; lineConf
-                            // is the support under the RE-REGISTERED line the
-                            // frame actually publishes. A published frame that
-                            // came through the second is a different claim from
-                            // one that came through the first.
-                            { "evSrc",   QString::fromLatin1(dtlEvSrcName(s.evSrc)) },
-                            { "conf",    double(s.conf) },
-                            { "rhoPred", jnum(s.rhoPred) },
-                            // "measured" | "bound" | "none" — a ρ̂_D built on the
-                            // ρ_F := 1 bound is a different claim from one built
-                            // on a measured face-on length, and address and impact
-                            // are ALL bound. A report that cannot tell them apart
-                            // cannot say what the schedule is standing on.
-                            { "rhoSrc",  QString::fromLatin1(dtlRhoSrcName(s.rhoSrc)) },
-                            { "corridor", corridor },
-                            { "escape",  s.corridorEscape },
-                            { "band",    s.band },
-                            { "reason",  s.reason } });
-                    }
-                    QJsonArray bands;
-                    QJsonObject coverageByBand;
-                    for (size_t b = 0; b < dtlTrack.bands.size(); ++b) {
-                        const DtlBand &d = dtlTrack.bands[b];
-                        bands.append(QJsonObject{ { "lo_us", rel(d.loUs) },
-                                                  { "hi_us", rel(d.hiUs) },
-                                                  { "name",  d.name } });
-                        coverageByBand[d.name] = bandN[b] ? double(bandPub[b]) / double(bandN[b]) : 0.0;
-                    }
-                    const QJsonObject doc{
-                        { "schema",        "pinpoint.clubDtl/1" },
-                        // Not in analysis_versions.h: nothing in result.json is
-                        // produced from this, so no re-analysis gate keys on it.
-                        // It is here so the first CHANGE to the producer can be
-                        // told from the first run of it.
-                        { "stageVersion",  1 },
-                        { "stream",        QJsonObject{ { "alias", dtlAlias }, { "file", dtlFile } } },
-                        { "frameWidth",    dtlTrack.frameWidth },
-                        { "frameHeight",   dtlTrack.frameHeight },
-                        { "clockOffsetUs", double(dtlTrack.clockOffsetUs) },
-                        { "config",        dconf },
-                        { "frames",        frames },
-                        { "bands",         bands },
-                        // The DTL band-lock truth is generated WITHOUT face-on
-                        // (§6) and is a separate instrument; empty here on purpose
-                        // rather than filled from this run's own band locks, which
-                        // would be the tracker grading itself.
-                        { "truth",         QJsonArray{} },
-                        { "summary",       QJsonObject{
-                            { "sightedFrac",      dtlTrack.sightedFrac },
-                            { "coverageByBand",   coverageByBand },
-                            { "publishedInEndOn", dtlTrack.publishedInEndOn },
-                            // Additive: `source` says WHICH cue answered, and the
-                            // shadow cue's own numbers are echoed whether or not
-                            // it supplied the verdict, so a scene that carries
-                            // both can be read off one file.
-                            { "ball", QJsonObject{ { "found",  dtlTrack.ball.found },
-                                                   { "x",      jnum(dtlTrack.ball.x) },
-                                                   { "y",      jnum(dtlTrack.ball.y) },
-                                                   { "reason", dtlTrack.ball.reason },
-                                                   { "source", dtlTrack.ball.source },
-                                                   { "shadowX",     jnum(dtlTrack.ball.shadowX) },
-                                                   { "shadowY",     jnum(dtlTrack.ball.shadowY) },
-                                                   { "launchRise",  jnum(dtlTrack.ball.launchRise) },
-                                                   { "radiusPx",    jnum(dtlTrack.ball.radiusPx) },
-                                                   { "nCandidates", dtlTrack.ball.nCandidates } } },
-                            { "lFullPx",     jnum(dtlTrack.lFullPx) },
-                            { "lFullSource", dtlTrack.lFullSource },
-                            { "rowFitA",     jnum(dtlTrack.rowFitA) },
-                            { "rowFitB",     jnum(dtlTrack.rowFitB) },
-                            // Which rule placed the club-away window the clean
-                            // plate's low region and the shadow ball cue are both
-                            // built from. On a swing whose ladder is short it is a
-                            // FALLBACK, and "the scene changed" and "the ladder
-                            // was short" are different findings.
-                            { "clubAwayWindow", dtlTrack.clubAwayWindow },
-                            // Which configuration produced these numbers. "The
-                            // numbers moved" and "the config moved" are different
-                            // findings, and a run whose settings live only in a
-                            // shell history cannot tell them apart.
-                            { "configHash",  dtlConfigHash(dcfg) } } } };
+                    const QJsonObject doc = dtlShaftTrackToJson(dtlTrack, t0, dcfg, dtlAlias, dtlFile);
                     QFile cf(outDir + "/club_dtl.json");
                     if (cf.open(QIODevice::WriteOnly))
                         cf.write(QJsonDocument(doc).toJson());

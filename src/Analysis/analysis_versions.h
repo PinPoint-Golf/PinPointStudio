@@ -58,14 +58,26 @@ constexpr int kShaftStageVersion = 2;
 //          Stamped; never reused — the stage is a few hundred ms and a
 //          re-analysis is exactly when a better detector should get its chance.
 constexpr int kImpactStageVersion = 1;
+// poseDtl — kDtlPoseStageVersion: the down-the-line pose (DtlPoseStage). Reused on
+//           re-analysis under pose2d's rule — this version AND the pose model identity
+//           match, and no pose./ball./address override is in play. Bump when the DTL
+//           scan span/density or its smoothing changes the track's OUTPUT.
+// shaftDtl — kDtlShaftStageVersion: the down-the-line club track (DtlShaftStage).
+//           Stamped; never reused — it is recomputed from the reused poses and face-on
+//           shaft on every re-analysis. Bump when dtl_shaft_* changes its output.
+constexpr int kDtlPoseStageVersion  = 1;
+constexpr int kDtlShaftStageVersion = 1;
 
 struct AnalysisVersions {
     int     pose  = 0;          // 0 = unknown / not stamped
     int     ball  = 0;
     int     shaft = 0;
     int     impact = 0;
+    int     poseDtl  = 0;       // 0 = the DTL pose stage did not run
+    int     shaftDtl = 0;       // 0 = the DTL shaft stage did not run
     QString poseModel;          // "<file>@<bytes>" of the ViTPose model that ran
     QString poseScope;          // "span" | "full"
+    QString poseDtlModel;       // "<file>@<bytes>" of the model that posed the DTL stream
     bool stamped() const { return pose > 0; }
 };
 

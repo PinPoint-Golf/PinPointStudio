@@ -42,6 +42,8 @@
 #include "../IMU/hm_frame.h"          // isSelected() — no frame, no binding
 #include "../Export/swing_doc.h"
 #include "../Analysis/kinematic_sequence_json.h"   // kinematicSequenceToJson — one shape, three paths
+#include "../Analysis/dtl_shaft_json.h"            // dtlShaftTrackToJson — the clubDtl/1 shape
+#include "dtl_overlay_payload.h"                   // dtlOverlayDetail — the DTL tile's overlay
 #include "../Core/club_vocabulary.h"
 #include "../Core/pp_debug.h"
 #include "../Core/pp_os_metrics.h"
@@ -228,6 +230,104 @@ QVariantMap toPlaneDetail(const pinpoint::analysis::ShaftPlaneEstimate &p)
     };
 }
 
+// The pose2d replay block from one PoseTrack2D — the face-on `detail.pose2d`, and the
+// down-the-line `detail.dtl.pose2d` through the same shaping, so the painter reads one
+// shape from either camera. Call only on a track with frames.
+QVariantMap poseTrackToDetail(const pinpoint::analysis::PoseTrack2D &t)
+{
+    using namespace pinpoint::analysis;
+    QVariantList frames;
+    for (const PoseFrame2D &f : t.frames) {
+        QVariantList kp;
+        kp.reserve(kWholeBodyJoints * 3);
+        for (int j = 0; j < kWholeBodyJoints; ++j) {
+            kp.append(f.kp[size_t(j)].x());
+            kp.append(f.kp[size_t(j)].y());
+            kp.append(double(f.conf[size_t(j)]));
+        }
+        frames.append(QVariantMap{
+            { QStringLiteral("t_us"), static_cast<qlonglong>(f.t_us) },
+            { QStringLiteral("kp"),   kp },
+            { QStringLiteral("lead"),  QVariantList{ f.leadHand.x(),  f.leadHand.y() } },
+            { QStringLiteral("trail"), QVariantList{ f.trailHand.x(), f.trailHand.y() } },
+            { QStringLiteral("handConf"), double(f.handConf) } });
+    }
+    // keypointCount mirrors the swing.json pose2d block (swing_doc.cpp) so
+    // disk and in-memory replay payloads agree; QML consumers index j*3 for
+    // j<17 and are unaffected by the wholebody tail.
+    QVariantMap pose2d{ { QStringLiteral("camera"), int(t.camera) },
+                        { QStringLiteral("keypointCount"), kWholeBodyJoints },
+                        { QStringLiteral("frames"), frames } };
+    // WB1 accuracy-pass provenance — same conditional-presence rule as the
+    // swing.json writer (swing_doc.cpp) so disk and in-memory replay agree.
+    if (t.decode == QLatin1String("dark"))
+        pose2d.insert(QStringLiteral("decode"), t.decode);
+    if (t.cropRect) {
+        const QRectF &r = *t.cropRect;
+        pose2d.insert(QStringLiteral("cropRect"),
+                      QVariantMap{ { QStringLiteral("x"), r.x() },
+                                   { QStringLiteral("y"), r.y() },
+                                   { QStringLiteral("w"), r.width() },
+                                   { QStringLiteral("h"), r.height() } });
+    }
+    // Motion-overlay smoothed companion track (pose_smoother.cpp) — same flat
+    // kp layout as `frames` (399 doubles: [x,y,c]×133, conf carries the render-
+    // alpha contract), plus per-kp honesty tier[133] (int) / sigma[133] (px). No
+    // lead/trail/handConf — hands are not smoothed. The QML renderer reads
+    // d.pose2d.smoothed[i].kp with this exact layout. Present only when the
+    // analyzer ran the smoother (absent otherwise → the UI greys the motion modes).
+    if (!t.smoothed.empty()) {
+        QVariantList smoothed;
+        const size_t n = std::min(t.smoothed.size(), t.smoothedAux.size());
+        for (size_t i = 0; i < n; ++i) {
+            const PoseFrame2D &f = t.smoothed[i];
+            const PoseKpAux   &x = t.smoothedAux[i];
+            QVariantList kp, tier, sigma;
+            kp.reserve(kWholeBodyJoints * 3);
+            for (int j = 0; j < kWholeBodyJoints; ++j) {
+                kp.append(f.kp[size_t(j)].x());
+                kp.append(f.kp[size_t(j)].y());
+                kp.append(double(f.conf[size_t(j)]));
+                tier.append(int(x.tier[size_t(j)]));
+                sigma.append(double(x.sigma[size_t(j)]));
+            }
+            smoothed.append(QVariantMap{
+                { QStringLiteral("t_us"),  static_cast<qlonglong>(f.t_us) },
+                { QStringLiteral("kp"),    kp },
+                { QStringLiteral("tier"),  tier },
+                { QStringLiteral("sigma"), sigma } });
+        }
+        pose2d.insert(QStringLiteral("smoothed"), smoothed);
+    }
+    // Dense VIZ-tier pose synth (pose_synthesis.h): the smoothed skeleton on a fixed 240 Hz
+    // grid so the body overlays scrub as smoothly as the club fan. Same lean shape the
+    // swing.json writer persists — { t_us, kp[x,y,c]×133 }, no tier/sigma, no hands — and
+    // the same conditional presence, so a live shot and its reloaded self agree
+    // (disk_replay_source.cpp forwards the persisted block the same way). Viz-only: metrics
+    // never read it, and the triangulation work will read `smoothed`, which carries the
+    // per-joint honesty this tier deliberately drops. Until 16 Sept 2026 the analyzer
+    // computed and the writer stored this tier, but neither bridge forwarded it, so the
+    // overlay's dense body mode had never once run — a silent no-op, not a design choice.
+    if (!t.smoothedSynth.empty()) {
+        QVariantList synth;
+        synth.reserve(int(t.smoothedSynth.size()));
+        for (const PoseFrame2D &f : t.smoothedSynth) {
+            QVariantList kp;
+            kp.reserve(kWholeBodyJoints * 3);
+            for (int j = 0; j < kWholeBodyJoints; ++j) {
+                kp.append(f.kp[size_t(j)].x());
+                kp.append(f.kp[size_t(j)].y());
+                kp.append(double(f.conf[size_t(j)]));
+            }
+            synth.append(QVariantMap{
+                { QStringLiteral("t_us"), static_cast<qlonglong>(f.t_us) },
+                { QStringLiteral("kp"),   kp } });
+        }
+        pose2d.insert(QStringLiteral("synth"), synth);
+    }
+    return pose2d;
+}
+
 // Convert the analyzer's rich SwingAnalysis into QML-friendly data for the shot's
 // analysisDetail role (the future scrubbable metric graph reads series + phases).
 QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
@@ -335,98 +435,8 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
     // ShaftTracker blocks for the replay overlay — IDENTICAL shapes to the
     // swing.json blocks SwingDocReader reloads (swing_doc.cpp), keypoints and
     // club grip/head normalized 0..1 so QML never sees pixel spaces.
-    if (!a.pose2d.frames.empty()) {
-        QVariantList frames;
-        for (const PoseFrame2D &f : a.pose2d.frames) {
-            QVariantList kp;
-            kp.reserve(kWholeBodyJoints * 3);
-            for (int j = 0; j < kWholeBodyJoints; ++j) {
-                kp.append(f.kp[size_t(j)].x());
-                kp.append(f.kp[size_t(j)].y());
-                kp.append(double(f.conf[size_t(j)]));
-            }
-            frames.append(QVariantMap{
-                { QStringLiteral("t_us"), static_cast<qlonglong>(f.t_us) },
-                { QStringLiteral("kp"),   kp },
-                { QStringLiteral("lead"),  QVariantList{ f.leadHand.x(),  f.leadHand.y() } },
-                { QStringLiteral("trail"), QVariantList{ f.trailHand.x(), f.trailHand.y() } },
-                { QStringLiteral("handConf"), double(f.handConf) } });
-        }
-        // keypointCount mirrors the swing.json pose2d block (swing_doc.cpp) so
-        // disk and in-memory replay payloads agree; QML consumers index j*3 for
-        // j<17 and are unaffected by the wholebody tail.
-        QVariantMap pose2d{ { QStringLiteral("camera"), int(a.pose2d.camera) },
-                            { QStringLiteral("keypointCount"), kWholeBodyJoints },
-                            { QStringLiteral("frames"), frames } };
-        // WB1 accuracy-pass provenance — same conditional-presence rule as the
-        // swing.json writer (swing_doc.cpp) so disk and in-memory replay agree.
-        if (a.pose2d.decode == QLatin1String("dark"))
-            pose2d.insert(QStringLiteral("decode"), a.pose2d.decode);
-        if (a.pose2d.cropRect) {
-            const QRectF &r = *a.pose2d.cropRect;
-            pose2d.insert(QStringLiteral("cropRect"),
-                          QVariantMap{ { QStringLiteral("x"), r.x() },
-                                       { QStringLiteral("y"), r.y() },
-                                       { QStringLiteral("w"), r.width() },
-                                       { QStringLiteral("h"), r.height() } });
-        }
-        // Motion-overlay smoothed companion track (pose_smoother.cpp) — same flat
-        // kp layout as `frames` (399 doubles: [x,y,c]×133, conf carries the render-
-        // alpha contract), plus per-kp honesty tier[133] (int) / sigma[133] (px). No
-        // lead/trail/handConf — hands are not smoothed. The QML renderer reads
-        // d.pose2d.smoothed[i].kp with this exact layout. Present only when the
-        // analyzer ran the smoother (absent otherwise → the UI greys the motion modes).
-        if (!a.pose2d.smoothed.empty()) {
-            QVariantList smoothed;
-            const size_t n = std::min(a.pose2d.smoothed.size(), a.pose2d.smoothedAux.size());
-            for (size_t i = 0; i < n; ++i) {
-                const PoseFrame2D &f = a.pose2d.smoothed[i];
-                const PoseKpAux   &x = a.pose2d.smoothedAux[i];
-                QVariantList kp, tier, sigma;
-                kp.reserve(kWholeBodyJoints * 3);
-                for (int j = 0; j < kWholeBodyJoints; ++j) {
-                    kp.append(f.kp[size_t(j)].x());
-                    kp.append(f.kp[size_t(j)].y());
-                    kp.append(double(f.conf[size_t(j)]));
-                    tier.append(int(x.tier[size_t(j)]));
-                    sigma.append(double(x.sigma[size_t(j)]));
-                }
-                smoothed.append(QVariantMap{
-                    { QStringLiteral("t_us"),  static_cast<qlonglong>(f.t_us) },
-                    { QStringLiteral("kp"),    kp },
-                    { QStringLiteral("tier"),  tier },
-                    { QStringLiteral("sigma"), sigma } });
-            }
-            pose2d.insert(QStringLiteral("smoothed"), smoothed);
-        }
-        // Dense VIZ-tier pose synth (pose_synthesis.h): the smoothed skeleton on a fixed 240 Hz
-        // grid so the body overlays scrub as smoothly as the club fan. Same lean shape the
-        // swing.json writer persists — { t_us, kp[x,y,c]×133 }, no tier/sigma, no hands — and
-        // the same conditional presence, so a live shot and its reloaded self agree
-        // (disk_replay_source.cpp forwards the persisted block the same way). Viz-only: metrics
-        // never read it, and the triangulation work will read `smoothed`, which carries the
-        // per-joint honesty this tier deliberately drops. Until 16 Sept 2026 the analyzer
-        // computed and the writer stored this tier, but neither bridge forwarded it, so the
-        // overlay's dense body mode had never once run — a silent no-op, not a design choice.
-        if (!a.pose2d.smoothedSynth.empty()) {
-            QVariantList synth;
-            synth.reserve(int(a.pose2d.smoothedSynth.size()));
-            for (const PoseFrame2D &f : a.pose2d.smoothedSynth) {
-                QVariantList kp;
-                kp.reserve(kWholeBodyJoints * 3);
-                for (int j = 0; j < kWholeBodyJoints; ++j) {
-                    kp.append(f.kp[size_t(j)].x());
-                    kp.append(f.kp[size_t(j)].y());
-                    kp.append(double(f.conf[size_t(j)]));
-                }
-                synth.append(QVariantMap{
-                    { QStringLiteral("t_us"), static_cast<qlonglong>(f.t_us) },
-                    { QStringLiteral("kp"),   kp } });
-            }
-            pose2d.insert(QStringLiteral("synth"), synth);
-        }
-        detail.insert(QStringLiteral("pose2d"), pose2d);
-    }
+    if (!a.pose2d.frames.empty())
+        detail.insert(QStringLiteral("pose2d"), poseTrackToDetail(a.pose2d));
     if (a.shaft.valid && !a.shaft.samples.empty()
         && a.shaft.frameWidth > 0 && a.shaft.frameHeight > 0) {
         const double iw = 1.0 / a.shaft.frameWidth, ih = 1.0 / a.shaft.frameHeight;
@@ -548,6 +558,29 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
     // impact overlay reads one shape from both surfaces.
     if (a.impact.valid)
         detail.insert(QStringLiteral("impact"), pinpoint::impactTrackJson(a.impact, 0).toVariantMap());
+
+    // The down-the-line tile's overlay (dtl_overlay_payload.h) — nested under `dtl` so
+    // nothing that reads a top-level pose2d/club as face-on misfires. Pose through the
+    // same shaping as face-on; shaft + ball through the ONE clubDtl translator the disk
+    // path uses, fed with t0 = 0 so every time stays in this path's absolute domain.
+    {
+        const QVariantMap dtlPose = a.poseDtl.frames.empty() ? QVariantMap{}
+                                                             : poseTrackToDetail(a.poseDtl);
+        const QJsonObject clubDtl = a.shaftDtl.valid
+            ? dtlShaftTrackToJson(a.shaftDtl, 0, a.shaftDtl.configJson,
+                                  a.shaftDtl.configHash, QString(), QString())
+            : QJsonObject{};
+        qint64 impactUs = -1;
+        for (const PhaseEvent &e : a.phases)
+            if (e.phase == Phase::Impact) { impactUs = static_cast<qint64>(e.t_us); break; }
+        const QVariantList foPositions = detail.value(QStringLiteral("club")).toMap()
+                                               .value(QStringLiteral("positions")).toList();
+        const QVariantMap dtl = pinpoint::dtlOverlayDetail(
+            dtlPose, clubDtl, foPositions, impactUs,
+            [](const QJsonValue &v) { return static_cast<qint64>(v.toDouble()); });
+        if (!dtl.isEmpty())
+            detail.insert(QStringLiteral("dtl"), dtl);
+    }
     return detail;
 }
 

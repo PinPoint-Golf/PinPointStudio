@@ -657,6 +657,7 @@ qt_add_executable(PinPointStudio
     src/Gui/markup/markup_image_provider.h
     src/Gui/shot/replay_source.h
     src/Gui/shot/disk_replay_source.h       src/Gui/shot/disk_replay_source.cpp
+    src/Gui/shot/dtl_overlay_payload.h      src/Gui/shot/dtl_overlay_payload.cpp
     src/Gui/viz/live_wrist_angles.h         src/Gui/viz/live_wrist_angles.cpp
     src/IMU/imu_base.h        src/IMU/imu_base.cpp
     src/IMU/imu_capabilities.h
@@ -2704,10 +2705,15 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/shaft_track_assembly.cpp
     src/Analysis/shaft_track_shared.h
     src/Analysis/shaft_frame_io.h
-    # Down-the-line shaft tracker (dtl_shaft_tracker_design.md). SwingLab-only —
-    # nothing in the app calls it; it builds here so the app and the offline
-    # binaries stay one source list.
+    # Down-the-line shaft tracker (dtl_shaft_tracker_design.md). Run in the app by
+    # DtlShaftStage (wrist_analyzer.cpp) and by swinglab_run --dtl, through the one
+    # witness builder and the one clubDtl/1 writer.
+    src/Analysis/dtl_shaft_track.h
     src/Analysis/dtl_shaft_types.h
+    src/Analysis/dtl_face_on_witness.h
+    src/Analysis/dtl_face_on_witness.cpp
+    src/Analysis/dtl_shaft_json.h
+    src/Analysis/dtl_shaft_json.cpp
     src/Analysis/dtl_shaft_config.h
     src/Analysis/dtl_shaft_decide.h
     src/Analysis/dtl_shaft_decide.cpp
@@ -3088,7 +3094,9 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/event_refine.cpp
         src/Analysis/shaft_tracker_math.cpp
         src/Analysis/shaft_track_assembly.cpp
-        # DTL shaft tracker — swinglab_run is its only caller (§5.11).
+        # DTL shaft tracker — DtlShaftStage and swinglab_run --dtl (§5.11).
+        src/Analysis/dtl_face_on_witness.cpp
+        src/Analysis/dtl_shaft_json.cpp
         src/Analysis/dtl_shaft_decide.cpp
         src/Analysis/dtl_shaft_post.cpp
         src/Analysis/dtl_shaft_tracker.cpp

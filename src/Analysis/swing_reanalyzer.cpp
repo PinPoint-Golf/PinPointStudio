@@ -811,8 +811,9 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
     // The recorded pose is reloaded when its producer (model file, stage version,
     // scan scope) is the one that would run now and no pose tuning override is in
     // play; the recorded ball track likewise, but only on top of a reused pose
-    // (it was computed from that pose). The shaft tracker always re-runs (stamped,
-    // not yet reusable — see the header). Everything downstream is recomputed.
+    // (it was computed from that pose), and the shaft track + ladder on top of both
+    // (see below). The down-the-line pose is reused under the face-on pose's rule;
+    // the DTL club track always re-runs. Everything downstream is recomputed.
     if (!opts.forceRerun) {
         const QJsonObject ver  = ls.analysisIn[QStringLiteral("versions")].toObject();
         const QJsonObject vp   = ver[QStringLiteral("pose")].toObject();
@@ -833,6 +834,25 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
         if (poseMatch) {
             ls.job.posePreloaded = PoseRunner::fromJsonObject(ls.analysisIn, ls.job.cameraSources.front());
             if (ls.job.posePreloaded.frames.empty()) ls.job.posePreloaded = {};
+        }
+        // The DOWN-THE-LINE pose, under the face-on pose's rule: its own stage version, the
+        // same model identity, no pose./ball./address override — and a DTL camera to put it
+        // on. Independent of whether the face-on pose was reused (the two are separate
+        // inference passes). The DTL club track is never reused: it is recomputed from the
+        // (reused) poses and face-on shaft every time.
+        const QJsonObject vpd = ver[QStringLiteral("poseDtl")].toObject();
+        const bool poseDtlMatch = !poseOverride && !vpd.isEmpty()
+            && vpd[QStringLiteral("code")].toInt() == kDtlPoseStageVersion
+            && vpd[QStringLiteral("model")].toString() == PoseRunner::modelIdentity(ls.job.motionCaptureQuality)
+            && ls.analysisIn.contains(QStringLiteral("poseDtl"))
+            && ls.job.dtlSource != kInvalidSourceId;
+        if (poseDtlMatch) {
+            // fromJsonObject reads a `pose2d` member (and its decode/cropRect provenance), so
+            // hand it the DTL block under that name.
+            ls.job.poseDtlPreloaded = PoseRunner::fromJsonObject(
+                QJsonObject{ { QStringLiteral("pose2d"), ls.analysisIn[QStringLiteral("poseDtl")] } },
+                ls.job.dtlSource);
+            if (ls.job.poseDtlPreloaded.frames.empty()) ls.job.poseDtlPreloaded = {};
         }
         const bool ballMatch = !ls.job.posePreloaded.frames.empty() && !vb.isEmpty()
             && vb[QStringLiteral("code")].toInt() == kBallStageVersion
@@ -876,7 +896,9 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
                  << (ls.job.posePreloaded.frames.empty() ? "re-run" : "recorded") << "ball"
                  << (ls.job.ballPreloaded.frames.empty() ? "re-run" : "recorded") << "shaft"
                  << (ls.job.shaftPreloaded.samples.empty() ? "re-run" : "recorded (synth refreshed)")
-                 << "ladder" << (ls.job.ladderPreloaded ? "recorded" : "re-run");
+                 << "ladder" << (ls.job.ladderPreloaded ? "recorded" : "re-run")
+                 << "dtl pose" << (ls.job.dtlSource == kInvalidSourceId ? "n/a"
+                                   : ls.job.poseDtlPreloaded.frames.empty() ? "re-run" : "recorded");
     }
     // Fail closed on an unknown discipline rather than silently analysing as Wrist
     // and writing a wrong-discipline analysis block back (our exports always carry

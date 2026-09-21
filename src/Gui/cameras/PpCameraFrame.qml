@@ -64,6 +64,19 @@ Item {
             ? (shotReplay.streams[replayStreamIndex] !== undefined
                ? shotReplay.streams[replayStreamIndex].perspective : -1)
             : (instance ? instance.perspective : -1)
+    // The replay-overlay detail FOR THIS TILE. Face-on reads the top-level blocks
+    // (pose2d / club / ball — measured on that camera); a down-the-line tile reads the
+    // nested `dtl` sub-object (dtl_overlay_payload.h), which carries the same keys and
+    // shapes so one painter serves both; any other tile has none. Phases stay on
+    // _replayDetail: they are properties of the swing, not of a camera.
+    readonly property bool _isDtl: _replayPerspective === 1   // CameraInstance.DownTheLine
+    readonly property var  _det: {
+        var d = root._replayDetail
+        if (!d) return null
+        if (root._replayPerspective === 2) return d
+        if (root._isDtl && d.dtl) return d.dtl
+        return null
+    }
 
     // Swing-window gate — during replay, analysis overlays draw ONLY while the
     // playhead is between the Address (phase 0) and Finish (phase 7) timeline
@@ -1110,28 +1123,31 @@ Item {
         // Drawn from the shot's analyzed detail (offline ViTPose pose2d + the
         // ShaftTracker club track), scrubbing with the replay playhead. The
         // live skeletonCanvas is recording-gated, so the two never co-draw.
-        // Face-on tiles only — the tracks were measured on that camera.
+        // Face-on and down-the-line tiles, each from the tracks measured on ITS
+        // camera (root._det): face-on reads the top-level blocks, DTL the nested
+        // `dtl` ones (DtlPoseStage + DtlShaftTracker). Any other tile draws nothing.
         Canvas {
             id: replayOverlay
             anchors.fill: parent
             z: 21
             visible: root.showReplayOverlay
                      && root._replayActive
-                     && root._replayPerspective === 2
+                     && root._det !== null
                      && root._inSwingWindow
                      && (_poseFrames.length > 0 || _clubSamples.length > 0
                          || _ballSamples.length > 0)
 
             // Bound from the active replay's detail — pose kp flat [x,y,c]×17 and
             // club samples with normalized grip/head (toAnalysisDetail shapes).
-            // root._replayDetail resolves to disk (Review) or in-window (Capture).
+            // root._replayDetail resolves to disk (Review) or in-window (Capture);
+            // root._det picks this tile's camera out of it (face-on top level, or dtl).
             // Smoothed-first: the Phase-2 smoothed series carries the render-alpha
             // contract (bridged points ≥0.5) and kills detector jitter; fall back to
             // raw detector frames on old swings (no smoothed) or when the dev raw
             // toggle is set. Same {t_us, kp[51]} shape either way — the frame-mode
             // painter is unchanged. Drives the FRAME pass.
             readonly property var _poseFrames: {
-                var d = root._replayDetail
+                var d = root._det
                 if (!root.showRawDetections && d && d.pose2d && d.pose2d.smoothed && d.pose2d.smoothed.length)
                     return d.pose2d.smoothed
                 return (d && d.pose2d && d.pose2d.frames) ? d.pose2d.frames : []
@@ -1141,7 +1157,7 @@ Item {
             // Empty on old swings without a smoothed series ⇒ body fan/trace draw
             // nothing (shaft fan/trace still work — club samples always exist).
             readonly property var _smoothed: {
-                var d = root._replayDetail
+                var d = root._det
                 return (d && d.pose2d && d.pose2d.smoothed && d.pose2d.smoothed.length) ? d.pose2d.smoothed : []
             }
             // Dense synthesized pose tier (pose_synthesis.h) — the smoothed skeleton
@@ -1150,7 +1166,7 @@ Item {
             // carry conf 0, which the overlays' conf-gate skips). Viz-only (metrics
             // read frames/smoothed); empty on swings analysed before this tier.
             readonly property var _poseSynth: {
-                var d = root._replayDetail
+                var d = root._det
                 return (d && d.pose2d && d.pose2d.synth && d.pose2d.synth.length) ? d.pose2d.synth : []
             }
             // Dense-preferring series the BODY overlays consume: the synth tier when
@@ -1160,18 +1176,18 @@ Item {
             readonly property var _poseFramesDense: (!root.showRawDetections && _poseSynth.length) ? _poseSynth : _poseFrames
             readonly property var _smoothedDense:   _poseSynth.length ? _poseSynth : _smoothed
             readonly property var _clubSamples: {
-                var d = root._replayDetail
+                var d = root._det
                 return (d && d.club && d.club.valid && d.club.samples) ? d.club.samples : []
             }
             // Ball samples ({t_us,x,y,r,conf,found}, normalized 0..1) — scrubs with
             // the playhead like the club shaft; drawn only on found frames.
             readonly property var _ballSamples: {
-                var d = root._replayDetail
+                var d = root._det
                 return (d && d.ball && d.ball.samples) ? d.ball.samples : []
             }
             // R7 predicted (pure R6 model) series — drawn as a dashed ghost.
             readonly property var _clubPredicted: {
-                var d = root._replayDetail
+                var d = root._det
                 return (d && d.club && d.club.predicted) ? d.club.predicted : []
             }
             // Layer C synthesized tier (shaft_position_first §2C) — kinematic
@@ -1179,7 +1195,7 @@ Item {
             // ShaftSynthesized (0x100). Same shape as `samples` minus lineConf;
             // absent/empty on pre-v3.5 swings and when synth extraction is off.
             readonly property var _clubSynth: {
-                var d = root._replayDetail
+                var d = root._det
                 return (d && d.club && d.club.synth) ? d.club.synth : []
             }
             // Fan visualization series: the dense 240 Hz synth tier. Metrics never
@@ -1231,7 +1247,7 @@ Item {
             // normalized like `samples`; absent/empty on pre-v3.5 swings and when
             // position extraction is off.
             readonly property var _clubPositions: {
-                var d = root._replayDetail
+                var d = root._det
                 return (d && d.club && d.club.positions) ? d.club.positions : []
             }
             readonly property int kTrail: 10
@@ -1392,7 +1408,14 @@ Item {
                 // with 0x10, so it renders in the same projected-dim style. The
                 // trail only bridges two measured heads (no fabricated arcs).
                 var ci = _indexFor(_clubSamples, t)
-                if (shaftMode === "frame" && ci >= 0) {
+                // Down-the-line only: the DTL track publishes a shaft ONLY on frames that
+                // measured an angle (no synth, no bridging — dtl_shaft_tracker_design §5.9),
+                // so across the end-on / occluded bands the last sample is not "now". Past
+                // kFanCurrentMaxLagUs from the playhead the tile shows no shaft rather than a
+                // frozen one. Face-on keeps its own rules (coast drawn dim) untouched.
+                var dtlStale = root._isDtl && ci >= 0
+                               && Math.abs(t - _clubSamples[ci].t_us) > kFanCurrentMaxLagUs
+                if (shaftMode === "frame" && ci >= 0 && !dtlStale) {
                     var kHeadProjected = 0x10
 
                     // Head trail — measured heads only, accent, scale-relative width.
@@ -1402,6 +1425,9 @@ Item {
                     for (var k = k0; k < ci; ++k) {
                         var cs0 = _clubSamples[k], cs1 = _clubSamples[k + 1]
                         if ((cs0.flags & kHeadProjected) || (cs1.flags & kHeadProjected))
+                            continue
+                        // DTL: never bridge a gap the track did not publish across.
+                        if (root._isDtl && cs1.t_us - cs0.t_us > kFanCurrentMaxLagUs)
                             continue
                         var h0 = cs0.head, h1 = cs1.head
                         ctx.globalAlpha = 0.45 * (k + 1 - k0) / (ci - k0 + 1) * clubMute
@@ -1668,7 +1694,7 @@ Item {
                 required property string modelData
                 readonly property bool _active: root.motionOn
                         && root._replayActive
-                        && root._replayPerspective === 2
+                        && root._det !== null
                         && root._inSwingWindow
                         && root._elemMode(modelData) === "trace"
                 property var pts: _active ? root._traceNormPoints(modelData) : []
