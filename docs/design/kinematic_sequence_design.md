@@ -179,7 +179,7 @@ may be measured while the thorax is estimated, and one ladder per metric could n
 | `pelvisAngularSpeed` | `pelvisImu` — Inertial | `faceOn+dtl` — Triangulated, **LIVE 2026-09-20, Estimated, uncalibrated** | `faceOn` — Projected, **gated by §9** |
 | `thoraxAngularSpeed` | `thoraxImu` — Inertial | `faceOn+dtl` — Triangulated, **LIVE 2026-09-20, Estimated, uncalibrated**; ring OFF, bound only | `faceOn` — Projected, **gated by §9** |
 | `leadArmAngularSpeed` | `leadArmImus` — Inertial (LeadForearm; LeadUpperArm when bound) | `faceOn+dtl` — Triangulated, PLANNED | `faceOn` — Projected |
-| `clubAngularSpeed` | `clubSensorFused` — Fused (Club role + track) | `faceOn+dtl` — Triangulated, PLANNED | `faceOnClub` — Projected |
+| `clubAngularSpeed` | `clubSensorFused` — Fused (Club role + track) | `faceOn+dtl` — the face-on angle de-projected through the FUSED two-camera downswing plane, BUILT 2026-09-21 (§14) | `faceOnClub` — Projected |
 
 > **Amended 2026-09-20.** The two trunk rungs are live. They are **Estimated, not Direct**, because
 > the pair is uncalibrated — the pixel-scale ratio is measured off the body's vertical extent, not
@@ -1097,3 +1097,25 @@ Plainly, and none of these was closed today.
 8. **A golfer whose trunk peaks inside the downswing.** Until one is measured, the rung's **bound**
    is graded and its **placement** is not graded at all — every placement path in §13.5 and §13.6
    was exercised on synthetic fixtures (`segment_rates_test` §9a–§9iii) and on nobody.
+
+---
+
+## 14. The club through the fused plane (2026-09-21)
+
+`shaft_fusion_design.md` is the document; this is what it changed here. The club's face-on angle
+was de-projected through a plane INFERRED from the face-on track's own ellipse (§5.3). On the 24
+two-camera swings that inference wandered — node bearing −57…+63°, ratio 0.65–0.98 — while the
+plane MEASURED by intersecting the two cameras' shaft angles held a ratio of 0.84–0.90 and a level
+node (7-iron: 60.3° to the ground, sd 0.7°). Where the fusion offers a downswing plane
+(≥ 8 frames, ≤ 5° rms) the club de-projects through it and its route reads `faceOn+dtl`; otherwise
+nothing changes. The lead arm is deliberately not moved.
+
+Graded against a fusion-off control (`docs/research/data/fusion/fuse_grade_20260921.md`): club-node
+lead sd 19.6 → 9.5 ms and peak CV 7.4 → 6.2 % on 07-04 s4–15; s14's node left the domain edge
+(0 → 59 ms); **one swing lost its club node** (06-11 s1, σ_t 14 → 59 ms). Only `club3d`,
+`versions.shaftFusion`, `kinematicSequence` and `clubAngularSpeed` differ, 24/24. §13.9 item 7 now
+has a third reading: through the fused plane the club's angular peak still leads impact by
+33–64 ms on every 07-04 swing, so that lead is not a de-projection artefact.
+
+The chart no longer dashes the curve outside transition → impact (`shaft_fusion_design.md` §4).
+

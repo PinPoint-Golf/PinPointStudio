@@ -540,6 +540,8 @@ DTL's long-term value is as the witness that owes nothing to face-on — sighted
 impact where face-on is a fan, and the only view that sees the depth component
 face-on's foreshortening guesses at. A witness that has been fitted to the thing it
 testifies about is not one. Fusion is a later document.
+*(2026-09-21: that document is `shaft_fusion_design.md`. It reads both tracks and feeds
+neither, so this section stands.)*
 
 ### 5.11 Output and persistence
 
