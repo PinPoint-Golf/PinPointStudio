@@ -116,3 +116,14 @@ rule and was left alone.
 5. No rate truth exists. Repeatability improved; accuracy is not graded.
 6. The backswing trunk curves outside the window are pose noise drawn faintly, and the
    club's P1→P2 ramp is synth. Both are still drawn.
+
+## 6. Later the same day: the address plane, `swingPlane`, and the camera's yaw
+
+- The fusion now also reads the **address shaft plane** from the DTL view alone (median over
+  the DTL frames published up to address; `club3d.address`, `deliveryVsAddressDeg`; stage
+  version 2). 07-04: 54.0–55.5° at address, delivered **+6.0° ± 1.2** above it; 06-11 +3.2°.
+  Published as the `swingPlane` series — `dtl_posture_design.md` §1.
+- Owed item 2 has a first answer: the alignment stick puts the 07-04 DTL camera 4–9° turned
+  toward the golfer depending on its distance, and shows it was MOVED between s3 and s4 —
+  `dtl_posture_design.md` §4.
+
