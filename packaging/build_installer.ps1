@@ -22,14 +22,24 @@
     core-only installer (the eventual auto-update payload); 'cuda' a standalone GPU
     runtime package. (The two-artifact split is groundwork for in-app auto-update.)
 
+.PARAMETER QtPrefix
+    Qt kit to build against. Default: the newest C:\Qt\6.*\msvc2022_64 actually present.
+    This used to be hardcoded to a specific version, which went stale the moment the box
+    was on a different one — every release then needed -QtPrefix passed by hand, and
+    forgetting it failed in CMake with a message about Qt rather than about the path.
+    local_release.ps1 already resolved it this way; the two now agree.
+
 .EXAMPLE
-    pwsh -File packaging\build_installer.ps1
-    pwsh -File packaging\build_installer.ps1 -Components core
+    powershell -ExecutionPolicy Bypass -File packaging\build_installer.ps1
+    powershell -ExecutionPolicy Bypass -File packaging\build_installer.ps1 -Components core
+
+    NOT `pwsh` — PowerShell 7 is not installed on the studio box, and this script is
+    written for Windows PowerShell 5.1 anyway (see the $ErrorActionPreference note below).
 #>
 [CmdletBinding()]
 param(
     [string]$BuildDir = 'build\Release-Installer',
-    [string]$QtPrefix = 'C:\Qt\6.11.1\msvc2022_64',
+    [string]$QtPrefix = '',
     [string]$OpenSslRoot = 'C:\pp-vcpkg\vcpkg_installed\x64-windows',
     [ValidateSet('both','core','cuda')]
     [string]$Components = 'both'
@@ -45,6 +55,22 @@ $cmake  = 'C:\Qt\Tools\CMake_64\bin\cmake.exe'
 $cpack  = 'C:\Qt\Tools\CMake_64\bin\cpack.exe'
 $vcvars = 'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat'
 $jom    = 'C:\Qt\Tools\QtCreator\bin\jom'
+
+# ── Qt kit: newest 6.x MSVC kit actually installed ──────────────────────────
+# Resolved, never hardcoded. A pinned version here is wrong the day the box updates, and
+# the resulting failure names Qt rather than the path, so it reads as a broken environment
+# instead of a stale default. Identical logic to local_release.ps1 — keep them in step.
+if (-not $QtPrefix) {
+    $kits = Get-ChildItem 'C:\Qt' -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^6\.\d+' } |
+            Sort-Object { [version]$_.Name } -Descending
+    foreach ($k in $kits) {
+        $candidate = Join-Path $k.FullName 'msvc2022_64'
+        if (Test-Path (Join-Path $candidate 'bin\qmake.exe')) { $QtPrefix = $candidate; break }
+    }
+    if (-not $QtPrefix) { throw "No Qt 6 MSVC kit found under C:\Qt; pass -QtPrefix." }
+    Write-Host "Qt kit: $QtPrefix" -ForegroundColor Cyan
+}
 
 # Locate the Inno Setup compiler (CPack's INNOSETUP generator shells out to ISCC).
 $iscc = (Get-Command ISCC -ErrorAction SilentlyContinue).Source

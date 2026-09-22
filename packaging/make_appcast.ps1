@@ -33,7 +33,7 @@
     https://github.com/<Repo>/releases/download/<Tag>/release-notes-win.html
 
 .EXAMPLE
-    pwsh -File packaging\make_appcast.ps1 -PrivateKeyFile C:\keys\pinpoint_win.key -Tag v0.1-alpha2
+    powershell -ExecutionPolicy Bypass -File packaging\make_appcast.ps1 -PrivateKeyFile C:\keys\pinpoint_win.key -Tag v0.1-alpha2
 #>
 [CmdletBinding()]
 param(

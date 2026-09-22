@@ -86,7 +86,10 @@ tests are *not* part of the app build — they are nine standalone CTest suites 
 [`../../BUILDING.md`](../../BUILDING.md) § Testing). Run this from a Developer (vcvars64)
 shell with CMake + Ninja on `PATH`:
 ```powershell
-$Qt  = 'C:/Qt/6.11.1/msvc2022_64'
+# The newest Qt kit ACTUALLY INSTALLED — a hardcoded version here goes stale silently and
+# the failure reads like a broken suite rather than a wrong path. (Same rule as build_installer.ps1.)
+$Qt  = (Get-ChildItem C:\Qt -Directory | Where-Object { Test-Path "$($_.FullName)\msvc2022_64\bin\qmake.exe" } |
+        Sort-Object Name -Descending | Select-Object -First 1).FullName + '\msvc2022_64'
 $OCV = 'C:/tools/opencv/build'                          # Analysis & Pose need OpenCV
 $env:PATH = "$Qt/bin;$OCV/x64/vc16/bin;$env:PATH"       # so test exes resolve Qt/OpenCV DLLs
 if (Test-Path build/tests) { Remove-Item -Recurse -Force build/tests }  # see the warning below
@@ -163,14 +166,14 @@ $exe = (Get-ChildItem C:\tmp\rel\PinPointStudioSetup-*-core.exe).FullName
 
 **Option B — build locally** (no CI, or you want to build on your own machine):
 ```powershell
-pwsh -File packaging\build_installer.ps1 -Components core
+powershell -ExecutionPolicy Bypass -File packaging\build_installer.ps1 -Components core
 $exe = (Get-ChildItem build\Release-Installer -Recurse -Filter 'PinPointStudioSetup-*-core.exe' |
         Sort-Object LastWriteTime -Desc | Select-Object -First 1).FullName
 ```
 
 ### 4. Sign it + generate the appcast
 ```powershell
-pwsh -File packaging\make_appcast.ps1 -PrivateKeyFile C:\keys\pinpoint_win.key -Tag $TAG -Installer $exe
+powershell -ExecutionPolicy Bypass -File packaging\make_appcast.ps1 -PrivateKeyFile C:\keys\pinpoint_win.key -Tag $TAG -Installer $exe
 ```
 This signs `$exe` with your offline key and writes `appcast-win.xml` next to it (the
 feed item: version, enclosure URL, signature, length). Optional: add
@@ -198,6 +201,43 @@ gh release edit   $TAG -R PinPoint-Golf/PinPointStudio --draft=false --prereleas
 # Option B (local): create the release with BOTH assets:
 gh release create $TAG -R PinPoint-Golf/PinPointStudio `
    --title "PinPoint Studio $TAG" --notes "…release notes…" $exe $appcast
+
+# Option C (THE COMMON ONE): the release already exists because the mac side published it.
+# Upload INTO it, --clobber to replace anything stale, and mind the order below.
+gh release upload $TAG -R PinPoint-Golf/PinPointStudio --clobber $exe      # 1. the enclosure
+gh release upload $TAG -R PinPoint-Golf/PinPointStudio --clobber $cuda     # 2. the GPU runtime
+gh release upload $TAG -R PinPoint-Golf/PinPointStudio --clobber $appcast  # 3. the feed, LAST
+```
+
+> ### ⛔ UPLOAD THE `.exe` FILES BEFORE THE APPCAST. ALWAYS.
+> The appcast is a *promise* that a specific enclosure exists at a specific URL with a
+> specific byte length. Upload it first and you have advertised an enclosure that 404s to
+> every Windows client that checks in the meantime. Upload it last and there is no window
+> at all. Automate it with a guard rather than care: if the `.exe` upload returns non-zero,
+> **do not upload the appcast** — a release with no feed is recoverable, a feed pointing at
+> nothing is what users actually hit.
+>
+> **This has now cost three releases, which is why it is written here and not remembered:**
+> - **alpha11** — mac published first, the `windows` job skipped, and the release inherited
+>   **alpha10's** `appcast-win.xml`. Because alpha11 was `Latest`, every client compared
+>   `10010 > 10010` → false and saw "no newer version". Silent: the UI looked complete and
+>   the stale enclosure still returned 200.
+> - **beta2** — published carrying only the `.dmg` + mac appcast, so for ~40 minutes
+>   `releases/latest/download/appcast-win.xml` **404'd**. Worse to diagnose, but it at
+>   least fails closed.
+> - **beta3** — the same again (2026-09-22, 404 from 16:33 UTC until recovery).
+>
+> A mac-first publish ALWAYS leaves Windows broken until this step runs. That is not an
+> exception to the process; on current evidence it *is* the process.
+
+**Verify the feed is actually live** — the step that would have caught all three:
+```powershell
+$r = Invoke-WebRequest 'https://github.com/PinPoint-Golf/PinPointStudio/releases/latest/download/appcast-win.xml' -UseBasicParsing
+# ⚠ -UseBasicParsing hands back .Content as byte[], so DECODE before matching or every regex
+#   silently returns empty and you "verify" nothing:
+$xml = if ($r.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($r.Content) } else { [string]$r.Content }
+$xml    # sparkle:version must be the NEW build number, length must match the signed bytes
+(Invoke-WebRequest ([regex]::Match($xml,'url="([^"]+)"')).Groups[1].Value -Method Head -UseBasicParsing).Headers['Content-Length']
 ```
 **Publish non-draft AND non-prerelease** — `releases/latest/download/appcast-win.xml`
 (the URL baked into the app) only resolves to a non-prerelease release.
@@ -218,7 +258,7 @@ with no GPU installer. (This was missed on v0.1-alpha11 and fixed after the fact
 install rules are gated on `CUDAToolkit_FOUND` / the cuDNN glob, so a CI-built `cuda`
 component would be silently EMPTY. Build it on the dev box:
 ```powershell
-pwsh -File packaging\build_installer.ps1 -Components cuda
+powershell -ExecutionPolicy Bypass -File packaging\build_installer.ps1 -Components cuda
 $cuda = (Get-ChildItem build\Release-Installer -Recurse -Filter 'PinPointStudioSetup-*-cuda.exe' |
          Sort-Object LastWriteTime -Desc | Select-Object -First 1).FullName
 gh release upload $TAG -R PinPoint-Golf/PinPointStudio $cuda
