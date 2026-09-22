@@ -14,7 +14,7 @@ It is built for golfers, coaches and researchers, and runs on Windows, macOS and
 > **Status:** beta (v0.1). Capture, analysis, review and diagnostics work end to end; the
 > ground-forces and AI-coach sessions are still in development.
 
-<img width="2558" height="1440" alt="PPS-Home" src="https://github.com/user-attachments/assets/1ac15c00-7594-4423-aed3-4a890ee43192" />
+<img width="2560" height="1440" alt="beta3-screenshot" src="https://github.com/user-attachments/assets/c060ba3b-2927-4380-8c58-a34cc4c424a2" />
 
 ## Key features
 
