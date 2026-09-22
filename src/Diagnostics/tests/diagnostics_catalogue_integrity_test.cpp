@@ -381,8 +381,18 @@ int main()
     //
     // The exemplar is now spine forward bend, which is a genuinely different case: it is SAGITTAL,
     // the plane a face-on camera foreshortens to almost nothing, and no clever reading of the
-    // frontal projection recovers it. Two reducers over one series, three characteristics behind
-    // them.
+    // frontal projection recovers it.
+    //
+    // It was two reducers over one series with three characteristics behind them until 2026-09-22,
+    // when the down-the-line posture rung was built (848512a3) and m_spineBendDive gained a producer.
+    // A measure going live takes its characteristic off the roadmap with it, so `diving` left and the
+    // row is now ONE reducer — m_spineBendAtAddress, still planned — over TWO characteristics,
+    // posture_too_upright and posture_too_bent. The ROW itself survives exactly because that one
+    // measure is still planned, which is what the first assertion below still measures.
+    //
+    // So this row has now shrunk both ways the file knows about: once because a fault was re-authored
+    // off a sagittal measure (below), and once because somebody finally built the camera rung that
+    // reads it. The second is the one this roadmap exists to produce.
     //
     // It was four until `loss_of_posture` became `coming_out_of_it` and moved off this series onto
     // head lift and trunk lean — two readings a face-on camera already resolves. That is the one
@@ -405,8 +415,8 @@ int main()
             exemplarSamples = r.value(QStringLiteral("samples")).toInt();
         }
         check(exemplarRows == 1, "a series with several reducers is ONE roadmap row");
-        check(exemplarSamples == 2, "that row knows it carries two reducers");
-        check(exemplarBlocks == 3, "and that it unblocks three characteristics");
+        check(exemplarSamples == 1, "that row knows it carries one reducer");
+        check(exemplarBlocks == 2, "and that it unblocks two characteristics");
 
         // And the metrics that LEFT the roadmap must really be gone: a producer landing has to
         // remove its row, or the roadmap keeps advertising work that is finished.

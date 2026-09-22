@@ -490,7 +490,17 @@ int main(int argc, char **argv)
         // 21 -> 23 on 2026-09-14 (the corridor review): m_shoulderPlane is noProducer on the planned
         // shoulderPlaneAngle3d (the face-on line at P4 is foreshortened into noise), and the new
         // m_pelvisSinkTop waits on a belt-line series (the hip keypoints migrate as the pelvis turns).
-        check(planned == 23, "23 shipped measures have no producer yet");
+        // 23 -> 20 on 2026-09-22: the down-the-line rungs were BUILT (848512a3), so
+        // m_pelvisThrustDown, m_spineBendDive and m_shaftPlaneDelivery each gained a producer and
+        // went live. Note the DIRECTION: every earlier move on this number came from a measure being
+        // retired to `noProducer` because its series could not answer the question honestly. This one
+        // falls because the work landed, which is the only reason this count is supposed to fall.
+        //
+        // ⚠ 848512a3 MOVED metric_catalogue_test.cpp's planned count (20 -> 13) AND STOPPED THERE.
+        // This suite and diagnostics_catalogue_integrity_test kept their old pins and went red on the
+        // next full run — a producer landing has to be walked through EVERY pinned count, in all
+        // three suites, or the ones that were missed read as regressions to whoever runs them next.
+        check(planned == 20, "20 shipped measures have no producer yet");
         check(wrong == 0, "…and not one of them produced a value");
     }
 
