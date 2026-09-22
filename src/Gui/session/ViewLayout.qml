@@ -113,6 +113,13 @@ QtObject {
           modes: { arms: "fan", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "fan", shaftGrip: "off", ball: "off", hands: "off" } },
         { id: "clubTrack", label: "Club track", hint: "trace · club grip + head",
           modes: { arms: "off", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "trace", shaftGrip: "trace", ball: "off", hands: "off" } },
+        // The hand path: the club's butt end (shaftGrip) beside the lead wrist (the
+        // arms trace's default anchor) — two measurements of one path, so a gap
+        // between them is the tracker disagreeing, not the hands. Made for DTL,
+        // where the hands coming over the top show as the downswing loop outside
+        // the backswing.
+        { id: "traceHands", label: "Trace hands", hint: "trace · club butt + lead wrist",
+          modes: { arms: "trace", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "off", shaftGrip: "trace", ball: "off", hands: "off" } },
         { id: "core", label: "Core", hint: "frame · spine + hips + shoulders",
           modes: { arms: "off", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off" } },
         { id: "tracePelvis", label: "Trace pelvis", hint: "trace · pelvis",
