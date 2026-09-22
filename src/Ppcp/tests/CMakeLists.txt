@@ -745,9 +745,26 @@ if(PP_OPENSSL_FOUND)
     target_link_libraries(ppcp_app_tu_syntax_probe PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 endif()
 
-add_test(NAME ppcp_app_tu_syntax
-         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}
-                 --target ppcp_app_tu_syntax_probe)
+# ⚠ NOT ON MSVC (2026-09-22).  `-fsyntax-only` and `-Wno-unused-command-line-argument` above are
+# Clang/GCC spellings; cl.exe rejects the second outright with `D8021: invalid numeric argument`
+# and every one of the 28 translation units fails before it compiles a line.  So on Windows this
+# row was never a syntax check — it was 28 command-line errors wearing one.
+#
+# It went unnoticed because the whole file sits behind `pp_find_openssl()`: a Windows box without
+# -DOPENSSL_ROOT_DIR never configured this suite at all, so the row had simply never run here.  It
+# first ran on 2026-09-22 and failed immediately, which is the row working — it just cannot say
+# anything about MSVC.
+#
+# The target is EXCLUDE_FROM_ALL, so guarding this row is enough: nothing else asks for it.
+# ⛔ THE COVERAGE IS GONE ON WINDOWS, NOT MERELY QUIET — exactly like libppcp's
+# `A3-headers-self-contained`, which is the same `-fsyntax-only`-vs-cl.exe gap.  MSVC's own
+# syntax-only flag is `/Zs`; porting the probe to use it per-compiler would buy the check back
+# here, and is the right fix when somebody has time for it.
+if(NOT MSVC)
+    add_test(NAME ppcp_app_tu_syntax
+             COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}
+                     --target ppcp_app_tu_syntax_probe)
+endif()
 
 
 # ── H8 — the conformance claim ───────────────────────────────────────────────

@@ -75,6 +75,15 @@ option(PINPOINT_INSTALLED "Mark this as a packaged/installed build" OFF)
 # which is worse: no -O, no NDEBUG, and nothing warns. Both now fail loudly.
 option(PP_SHIPPING_BUILD "This configure produces a distributable artefact — assert it is Release" OFF)
 
+# The escape hatch for the PPCP assertion at the bottom of this file. A shipping
+# build with no capture-device link is a decision someone has to make ON PURPOSE
+# and write in the release notes, not something a missing -D does to them quietly.
+# Declared here rather than beside the assertion so `cmake -LAH` answers "could a
+# shipped PinPointStudio have no PPCP?" from the same place as the plaintext question.
+option(PP_ALLOW_NO_PPCP
+       "Permit a shipping build with NO PPCP transport (no phone pairing). Deliberate only."
+       OFF)
+
 # ══════════════════════════════════════════════════════════════════════════
 # ⚠⚠⚠  PLAINTEXT PPCP.  OFF, AND A SHIPPING BUILD REFUSES TO TURN IT ON.  ⚠⚠⚠
 #
@@ -3437,17 +3446,58 @@ if(PP_OPENSSL_FOUND AND TARGET ppcp)
 
     target_compile_definitions(PinPointStudio PRIVATE HAVE_PPCP_TRANSPORT)
     message(STATUS "PPCP transport: OpenSSL ${PP_OPENSSL_VERSION}, libppcp ${PP_LIBPPCP_VERSION}")
-elseif(NOT PP_OPENSSL_FOUND)
-    message(WARNING
-        "PPCP transport NOT built — OpenSSL development headers not found. "
-        "The app will have no capture-device link. "
-        "macOS: brew install openssl@3.  Debian/Ubuntu: apt install libssl-dev. "
-        "Windows: vcpkg install openssl, or -DOPENSSL_ROOT_DIR=<path>.")
 else()
-    message(WARNING
-        "PPCP transport NOT built — libppcp is not embedded. "
-        "Check out github.com/PinPoint-Golf/libppcp beside this repository, or "
-        "configure with -DPP_LIBPPCP_FETCH=ON once it is public.")
+    # ⚠ A DEVELOPER'S BOX WARNS.  A DISTRIBUTABLE ARTEFACT REFUSES.  (2026-09-22)
+    #
+    # The two branches below are not fatal on their own, and that is deliberate — the
+    # argument is in cmake/PinPointOpenSSL.cmake and it still holds: a box without
+    # libssl-dev, or without a libppcp checkout, configures exactly as it always did.
+    # Nothing here is a runtime downgrade; there is no plaintext fallback to reach.
+    #
+    # But an artefact built FOR OTHER PEOPLE is a different object, and this is the one
+    # failure this project has actually shipped: v0.1-beta1 went out with no PPCP and no
+    # pairing because packaging configured without -DOPENSSL_ROOT_DIR. The warning below
+    # was printed. It scrolled past in a long configure log, the installer was published,
+    # and it had to be pulled and re-uploaded (fixed in packaging/build_installer.ps1 on
+    # 2026-09-03, which now passes the root).
+    #
+    # A warning is the wrong instrument for that, because the symptom is an ABSENCE: the
+    # build succeeds, the app starts, and the only tell is a feature nobody exercises
+    # until a phone is in front of it. So a shipping build asserts instead, and someone
+    # who genuinely wants a transport-less artefact says PP_ALLOW_NO_PPCP=ON and owns it.
+    if(PP_SHIPPING_BUILD AND NOT PP_ALLOW_NO_PPCP)
+        if(NOT PP_OPENSSL_FOUND)
+            message(FATAL_ERROR
+                "PP_SHIPPING_BUILD=ON but OpenSSL was not found, so this artefact would "
+                "ship with NO PPCP transport — no phone pairing, no capture-device link. "
+                "That is exactly how v0.1-beta1 shipped and had to be pulled.\n"
+                "  Windows:       -DOPENSSL_ROOT_DIR=<vcpkg>/vcpkg_installed/x64-windows\n"
+                "  macOS:         brew install openssl@3\n"
+                "  Debian/Ubuntu: apt install libssl-dev\n"
+                "If a transport-less artefact is genuinely intended, configure with "
+                "-DPP_ALLOW_NO_PPCP=ON and say so in the release notes.")
+        else()
+            message(FATAL_ERROR
+                "PP_SHIPPING_BUILD=ON but libppcp is not embedded, so this artefact would "
+                "ship with NO PPCP transport — no phone pairing, no capture-device link.\n"
+                "Check out github.com/PinPoint-Golf/libppcp beside this repository, or "
+                "configure with -DPP_LIBPPCP_FETCH=ON.\n"
+                "If a transport-less artefact is genuinely intended, configure with "
+                "-DPP_ALLOW_NO_PPCP=ON and say so in the release notes.")
+        endif()
+    endif()
+    if(NOT PP_OPENSSL_FOUND)
+        message(WARNING
+            "PPCP transport NOT built — OpenSSL development headers not found. "
+            "The app will have no capture-device link. "
+            "macOS: brew install openssl@3.  Debian/Ubuntu: apt install libssl-dev. "
+            "Windows: vcpkg install openssl, or -DOPENSSL_ROOT_DIR=<path>.")
+    else()
+        message(WARNING
+            "PPCP transport NOT built — libppcp is not embedded. "
+            "Check out github.com/PinPoint-Golf/libppcp beside this repository, or "
+            "configure with -DPP_LIBPPCP_FETCH=ON once it is public.")
+    endif()
 endif()
 
 # ── Dependency version header for the About box ──────────────────────────────

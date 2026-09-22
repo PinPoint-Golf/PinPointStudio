@@ -196,13 +196,43 @@ jobs:
           version: '6.11.1'
           modules: 'qtmultimedia qtwebsockets qtquick3d qtshadertools qtserialport qtconnectivity'
 
-      - name: Install Ninja + Inno Setup
-        run: choco install ninja innosetup --no-progress -y
+      - name: Install Ninja + Inno Setup + OpenSSL
+        run: choco install ninja innosetup openssl --no-progress -y
+
+      # ⚠ THE PPCP TRANSPORT NEEDS OpenSSL *HEADERS*, NOT THE RUNTIME Qt ALREADY LOADS.
+      # cmake/PinPointOpenSSL.cmake has no Windows auto-probe at all — only a macOS Homebrew
+      # one — so on this runner CMake finds OpenSSL if and only if it is handed a root.
+      #
+      # This step exists because v0.1-beta1 SHIPPED WITH NO PPCP AND NO PAIRING: packaging
+      # configured without a root, the "PPCP transport NOT built" warning scrolled past in the
+      # log, the installer was published, and it had to be pulled. packaging/build_installer.ps1
+      # was fixed on 2026-09-03; this workflow was not, and still had no OpenSSL at all.
+      #
+      # The root is DISCOVERED, not hardcoded: Chocolatey's openssl package has moved between
+      # "C:\Program Files\OpenSSL" and "...\OpenSSL-Win64" across versions, and a path that is
+      # merely plausible is how this failed the first time. Failing here is also now safe rather
+      # than silent — the app refuses to configure a PP_SHIPPING_BUILD with no transport unless
+      # PP_ALLOW_NO_PPCP is set — so a wrong guess costs a red job, never a gutted installer.
+      - name: Locate OpenSSL development headers
+        shell: pwsh
+        run: |
+          $root = Get-ChildItem 'C:\Program Files\OpenSSL*' -Directory -ErrorAction SilentlyContinue |
+                  Where-Object { Test-Path (Join-Path $_.FullName 'include\openssl\ssl.h') } |
+                  Select-Object -First 1 -ExpandProperty FullName
+          if (-not $root) {
+            Write-Host '::error::choco installed openssl but no include\openssl\ssl.h was found under C:\Program Files\OpenSSL*.'
+            Write-Host 'Candidates present:'
+            Get-ChildItem 'C:\Program Files\OpenSSL*' -Directory -ErrorAction SilentlyContinue |
+              ForEach-Object { Write-Host "  $($_.FullName)" }
+            exit 1
+          }
+          "OPENSSL_ROOT_DIR=$root" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          Write-Host "OpenSSL root: $root"
 
       - name: Configure + build (Release, core only)
         shell: cmd
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPP_SHIPPING_BUILD=ON -DCMAKE_PREFIX_PATH="%QT_ROOT_DIR%" || exit /b 1
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPP_SHIPPING_BUILD=ON -DCMAKE_PREFIX_PATH="%QT_ROOT_DIR%" -DOPENSSL_ROOT_DIR="%OPENSSL_ROOT_DIR%" || exit /b 1
           cmake --build build --target PinPointStudio || exit /b 1
 
       - name: Package -core installer (UNSIGNED)
