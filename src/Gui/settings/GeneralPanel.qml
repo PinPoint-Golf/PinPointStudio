@@ -104,6 +104,9 @@ Item {
             spacing: Theme.sp(3)
 
             Text {
+                // Fills so the toggle sits at the row's far edge even with no subtitle —
+                // a layout's max width is its children's, and a bare Text does not grow.
+                Layout.fillWidth: true
                 text:           cfr.title
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody
@@ -275,6 +278,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Language")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -324,6 +328,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Units")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -371,6 +376,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Auto-detect swing start")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -428,6 +434,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Swing detection sensitivity")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -462,6 +469,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("AI coaching on session end")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -755,6 +763,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Check for updates automatically")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -810,6 +819,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Send anonymous diagnostics")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody

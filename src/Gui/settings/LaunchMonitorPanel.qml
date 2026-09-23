@@ -304,6 +304,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.sp(3)
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Shot data folder")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -553,6 +554,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.sp(3)
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Check for new shots every")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody

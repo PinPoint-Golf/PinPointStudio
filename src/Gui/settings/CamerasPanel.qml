@@ -2888,6 +2888,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Synchronise cameras")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody

@@ -328,6 +328,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Text size")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -574,6 +575,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Density")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -608,6 +610,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Reduce motion")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -662,6 +665,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Gradient titles")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -716,6 +720,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Overlay opacity")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody

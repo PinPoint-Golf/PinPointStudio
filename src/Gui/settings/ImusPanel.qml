@@ -1566,6 +1566,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Auto-connect on session start")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -1599,6 +1600,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Auto-reconnect on signal loss")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -1632,6 +1634,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Look for a HackMotion wrist sensor")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -1670,6 +1673,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Save calibration to device flash")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody

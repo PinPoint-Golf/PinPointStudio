@@ -287,6 +287,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Athlete library location")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -516,6 +517,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Session folder naming")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -740,6 +742,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Encoding quality")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -812,6 +815,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Save raw camera frames")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -848,6 +852,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Skip analysis for raw captures")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -1062,6 +1067,7 @@ Item {
                     spacing: Theme.sp(3)
 
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Save IMU streams")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody

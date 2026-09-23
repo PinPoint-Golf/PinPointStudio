@@ -309,6 +309,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.sp(3)
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Launch on")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -361,6 +362,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.sp(3)
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Remember window size and position")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -415,6 +417,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.sp(3)
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Launch in full screen")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -496,6 +499,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.sp(3)
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Secondary display")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -545,6 +549,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.sp(3)
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Post-shot display mode")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -588,6 +593,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.sp(3)
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Display delay")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -636,6 +642,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.sp(3)
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Window dwell")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -682,6 +689,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.sp(3)
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Mirror main window")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -749,6 +757,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.sp(3)
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Frame rate cap")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
@@ -790,6 +799,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: Theme.sp(3)
                     Text {
+                        Layout.fillWidth: true
                         text:           qsTr("Hardware acceleration")
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody
