@@ -34,6 +34,9 @@ import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from pp_swingdoc import load_swing, has_swing  # noqa: E402
+
 MEASURED, COASTED, HEAD_PROJ, SYNTH, IMPLAUS = 0x01, 0x04, 0x10, 0x100, 0x200
 
 
@@ -91,7 +94,7 @@ def fuse(theta_f, theta_d, dcam):
 
 
 def load(swing_json):
-    a = json.load(open(swing_json))["analysis"]
+    a = load_swing(swing_json)["analysis"]
     return a.get("club"), a.get("clubDtl"), a.get("phases") or []
 
 
@@ -216,7 +219,7 @@ def main():
     rows, summ = [], []
     for s in sorted(os.listdir(a.session)):
         p = os.path.join(a.session, s, "swing.json")
-        if os.path.isfile(p):
+        if has_swing(p):
             summ.append(run_swing(p, dcam, rows))
     keys = ["swing", "nDtlPub", "nJoint", "nFoUnmeasured", "signDisagree", "illCond", "n_rhoF", "rhoF_med",
             "rhoF_p90abs", "n_rhoD", "rhoD_med", "rhoD_p90abs", "n_back", "incl_back", "azim_back", "oop_rms_back",

@@ -6,6 +6,8 @@ import sys, os, json, glob
 import numpy as np, cv2
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ball_state_machine import dog, robust_noise, is_blob, _at_spot, K_APPEAR
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from pp_swingdoc import load_swing  # noqa: E402
 
 ROOT = os.environ.get("BALLLAB_ROOT", "/mnt/swingdata/corpus/swings")
 PICKS = ["2026-07-03_Mark-Liversedge_Wrist_01/swing_0002",
@@ -16,7 +18,7 @@ def band(w, h):
 
 for sw in PICKS:
     d = os.path.join(ROOT, sw)
-    j = json.load(open(os.path.join(d, "swing.json")))
+    j = load_swing(d)
     vids = [s for s in j["streams"] if s.get("kind") == "video"]
     fojson = next(s for s in vids if s.get("setup", {}).get("perspective", -1) == 2)
     W, H = fojson["source"]["width"], fojson["source"]["height"]

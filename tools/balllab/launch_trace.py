@@ -8,8 +8,10 @@ Result on the corpus: response steady (never < ~85% of median) through the full
 ~3.4 s address, collapses to < 10% within 2 frames (~13 ms at 149 fps) at impact
 in healthy-exposure sessions; intermittently 0 during address in the fully
 saturated 06-11 session (the §6 exposure-QA rationale)."""
-import cv2, json, os
+import cv2, json, os, sys
 import numpy as np
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from pp_swingdoc import load_swing  # noqa: E402
 
 ROOT = "/mnt/swingdata/corpus/swings"
 picks = [
@@ -25,7 +27,7 @@ def dog(gray32, r):
 
 for sw, (bx, by) in picks:
     vp = os.path.join(ROOT, sw, "Face-On.mp4")
-    sj = json.load(open(os.path.join(ROOT, sw, "swing.json")))
+    sj = load_swing(os.path.join(ROOT, sw))
     imp_us = sj.get("capture", {}).get("impactUs") or 3500000
     cap = cv2.VideoCapture(vp)
     n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))

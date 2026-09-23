@@ -13,6 +13,8 @@ ON must not regress coverage/accuracy and must reduce release psi-violations.
 """
 import argparse, csv, json, math, os, subprocess, sys
 import numpy as np
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from pp_swingdoc import load_swing, has_swing  # noqa: E402
 
 PY = sys.executable
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -121,7 +123,7 @@ def main():
         fps = cm["fps"]; nf = len(cm["t_us"]); tt = np.array(cm["t_us"], float)
         swingdir = remap(cm["swingDir"], rules)
         sj = os.path.join(swingdir, "swing.json")
-        impactUs = json.load(open(sj)).get("capture", {}).get("impactUs") if os.path.exists(sj) else None
+        impactUs = load_swing(sj).get("capture", {}).get("impactUs") if has_swing(sj) else None
         impf = int(np.argmin(np.abs(tt - impactUs))) if impactUs else None
 
         # v2 truth for accuracy

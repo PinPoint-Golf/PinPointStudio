@@ -65,6 +65,7 @@ sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 sys.path.insert(0, str(Path(__file__).parent))
 from swinglab import Swing, RunResult  # noqa: E402  (same-dir package, see lab.py)
+from pp_swingdoc import has_swing  # noqa: E402  (tools/, put on sys.path by swinglab)
 
 # ---------------------------------------------------------------- constants
 TILE = 260                     # square P-strip tile side, px
@@ -446,7 +447,7 @@ def grid_capped(tiles, max_w=GRID_MAX_W, bg=(12, 12, 12)):
 
 def discover_swings(corpus_dir):
     return sorted(d.name for d in corpus_dir.iterdir()
-                 if d.is_dir() and (d / "swing.json").exists())
+                 if d.is_dir() and has_swing(d))
 
 
 def run_montage(run_dir, corpus_dir, out_dir, swings=None, strobe_synth=False, synth_stride=6):

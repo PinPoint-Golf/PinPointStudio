@@ -30,6 +30,8 @@ Usage:
 import argparse, bisect, collections, csv, glob, json, os, sys
 import numpy as np
 import cv2
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from pp_swingdoc import load_swing as load_swing_doc, has_swing  # noqa: E402
 
 # ── conditions ───────────────────────────────────────────────────────────────
 STEEL_CLUBS = {"7 IRON", "9 IRON", "GAP WEDGE", "GW", "PITCHING WEDGE", "SAND WEDGE",
@@ -147,8 +149,8 @@ def band_gaps(on, bg, bright, a, b):
 
 # ── per swing ────────────────────────────────────────────────────────────────
 def load_swing(d):
-    if not os.path.exists(os.path.join(d, "swing.json")): return None
-    j = json.load(open(os.path.join(d, "swing.json")))
+    if not has_swing(d): return None
+    j = load_swing_doc(d)
     sts = [s for s in j.get("streams", []) if "Face" in (s.get("alias") or s.get("file") or "")]
     if not sts: return None
     st = sts[0]

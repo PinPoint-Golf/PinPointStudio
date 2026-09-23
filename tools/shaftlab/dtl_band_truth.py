@@ -111,6 +111,9 @@ from pathlib import Path
 import numpy as np
 import cv2
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from pp_swingdoc import load_swing, has_swing  # noqa: E402
+
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
@@ -225,11 +228,11 @@ def load_json(p):
 
 def swing_dir_for(corpus_root, sid):
     corpus_root = Path(corpus_root)
-    if (corpus_root / sid / "swing.json").exists():
+    if has_swing(corpus_root / sid):
         return corpus_root / sid
     if "__" in sid:
         a, b = sid.split("__", 1)
-        if (corpus_root / a / b / "swing.json").exists():
+        if has_swing(corpus_root / a / b):
             return corpus_root / a / b
     return corpus_root / sid
 
@@ -513,7 +516,7 @@ def measure_frame(mt, img, gx, gy):
 # ------------------------------------------------------------------ per-swing
 def run_swing(sid, corpus, pose_dir, args):
     sd = swing_dir_for(corpus, sid)
-    doc = load_json(sd / "swing.json")
+    doc = load_swing(sd)
     st = pick_dtl_stream(doc)
     if st is None:
         raise RuntimeError(f"{sid}: no DTL (perspective 1) video stream")

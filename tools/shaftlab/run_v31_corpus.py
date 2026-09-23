@@ -20,6 +20,8 @@ On the Linux dev box the NAS copy of the Windows session dirs is reached with
 """
 import argparse, csv, json, os, re, subprocess, sys
 import numpy as np
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from pp_swingdoc import load_swing, has_swing  # noqa: E402
 
 PY = sys.executable
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -89,7 +91,7 @@ def main():
         fps = cm["fps"]; tt = np.array(cm["t_us"], float)
         swingdir = remap(cm["swingDir"], rules)
         sj = os.path.join(swingdir, "swing.json")
-        impactUs = json.load(open(sj)).get("capture", {}).get("impactUs") if os.path.exists(sj) else None
+        impactUs = load_swing(sj).get("capture", {}).get("impactUs") if has_swing(sj) else None
         outdir = os.path.join(args.out_dir, s)
         # 1) v3.0 track prior. Use the recorded impactUs when the session dir is
         # reachable (studio PC / s01 on the NAS); otherwise let club_track_v3

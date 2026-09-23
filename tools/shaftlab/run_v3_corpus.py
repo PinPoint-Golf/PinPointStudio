@@ -18,6 +18,8 @@ to reach the NAS copy of the Windows session dirs.
 """
 import argparse, csv, json, math, os, subprocess, sys
 import numpy as np
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from pp_swingdoc import load_swing, has_swing  # noqa: E402
 
 PY = sys.executable
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -83,8 +85,8 @@ def main():
         swingdir = remap(cm["swingDir"], rules)
         sj = os.path.join(swingdir, "swing.json")
         impactUs = None
-        if os.path.exists(sj):
-            impactUs = json.load(open(sj)).get("capture", {}).get("impactUs")
+        if has_swing(sj):
+            impactUs = load_swing(sj).get("capture", {}).get("impactUs")
         # impact from swing.json if present, else let club_track_v3 estimate it
         # hands-only (do NOT force nf//2 -- that defeats the phase model)
         impf = int(np.argmin(np.abs(tt - impactUs))) if impactUs else None

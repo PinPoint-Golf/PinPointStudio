@@ -18,6 +18,8 @@ ball's side of the hips, never from a handedness setting.
 """
 import argparse, json, math, os, sys
 import numpy as np
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from pp_swingdoc import load_swing, has_swing  # noqa: E402
 
 LSH, RSH, LHIP, RHIP, LKNE, RKNE, LANK, RANK = 5, 6, 11, 12, 13, 14, 15, 16
 LBIG, LSML, LHEEL, RBIG, RSML, RHEEL = 17, 18, 19, 20, 21, 22
@@ -46,7 +48,8 @@ def knee_flex(h, k, a):
 
 
 def run(path, dump=False):
-    a = json.load(open(path))["analysis"]
+    doc = load_swing(path)
+    a = doc["analysis"]
     pd, cd, fo = a.get("poseDtl"), a.get("clubDtl"), a.get("pose2d")
     if not pd or not cd:
         return None
@@ -62,7 +65,7 @@ def run(path, dump=False):
     s_ball = (BALL_MM / 10.0) / (2 * ball["radiusPx"]) if ball.get("found") and ball.get("radiusPx") else np.nan
     s_club = np.nan
     lf = cd["summary"].get("lFullPx")
-    clubmm = (json.load(open(path)).get("capture", {}).get("club", {}) or {}).get("lengthMm")
+    clubmm = (doc.get("capture", {}).get("club", {}) or {}).get("lengthMm")
     if lf and clubmm:
         s_club = (clubmm / 10.0) / lf
     out["cmPerPx_ball"], out["cmPerPx_club"] = s_ball, s_club
@@ -132,8 +135,8 @@ def main():
     a = ap.parse_args()
     rows = {}
     for sw in sorted(os.listdir(a.session)):
-        p = os.path.join(a.session, sw, "swing.json")
-        if os.path.isfile(p):
+        p = os.path.join(a.session, sw)
+        if has_swing(p):
             r = run(p, dump=(a.series == sw))
             if r and "skip" not in r: rows[sw] = r
             elif r: print(sw, r["skip"])

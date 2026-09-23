@@ -49,6 +49,9 @@ from pathlib import Path
 import numpy as np
 import cv2
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pp_swingdoc import load_swing as load_swing_doc, has_swing  # noqa: E402
+
 # Rays leave the frame at P3 (the head reaches the top-left corner, design Sec 1.4);
 # off-frame samples are NaN by design and the nan-aware reductions are correct.
 warnings.filterwarnings("ignore", message="Mean of empty slice")
@@ -144,11 +147,11 @@ def fmt(v, nd=2):
 def swing_dir_for(corpus_root, sid):
     """<corpus>/<sid> when flat, else <corpus>/<session>/<swing> for 'sess__swing_000N'."""
     corpus_root = Path(corpus_root)
-    if (corpus_root / sid / "swing.json").exists():
+    if has_swing(corpus_root / sid):
         return corpus_root / sid
     if "__" in sid:
         a, b = sid.split("__", 1)
-        if (corpus_root / a / b / "swing.json").exists():
+        if has_swing(corpus_root / a / b):
             return corpus_root / a / b
     return corpus_root / sid
 
@@ -239,7 +242,7 @@ def pose_extent_px(pose2d, W, H, t_lo, t_hi, conf_min=0.3):
 # ------------------------------------------------------------------ swing load
 def load_swing(corpus_root, fo_root, dtl_root, sid):
     sd = swing_dir_for(corpus_root, sid)
-    doc = load_json(sd / "swing.json")
+    doc = load_swing_doc(sd)
     dtl_s = pick_stream(doc, 1, ("dtl", "down"))
     fo_s = pick_stream(doc, 2, ("face", "fo"))
     if dtl_s is None or fo_s is None:

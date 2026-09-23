@@ -3,12 +3,14 @@
 lead-forearm extension direction (elbow->grip, image deg). Usage: prep2.py <swingDir> <outDir>"""
 import json, sys, os, csv, math
 import numpy as np, cv2
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from pp_swingdoc import load_swing  # noqa: E402
 
 force_mp4 = '--mp4' in sys.argv
 bilinear = '--bilinear' in sys.argv
 sw, out = [a for a in sys.argv[1:] if not a.startswith('--')][:2]
 os.makedirs(out, exist_ok=True)
-d = json.load(open(f"{sw}/swing.json"))
+d = load_swing(sw)
 t0 = d['clock']['t0_us']
 face = [s for s in d['streams'] if s.get('kind') == 'video'
         and (s.get('setup', {}).get('perspective') == 2 or 'Face' in s.get('alias', ''))][0]

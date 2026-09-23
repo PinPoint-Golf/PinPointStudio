@@ -9,7 +9,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from . import Swing, default_binary, git_sha, load_json, save_json
+from . import Swing, default_binary, find_swing_dirs, git_sha, load_json, save_json
 from .score import scorecard
 
 
@@ -56,8 +56,8 @@ def ingest(corpus_root):
     """Build corpus.json: every dir containing a swing.json, with quick facts."""
     root = Path(corpus_root)
     swings = []
-    for sj in sorted(root.rglob("swing.json")):
-        d = sj.parent
+    for sd in find_swing_dirs(root):
+        d = Path(sd)
         try:
             s = Swing(d)
         except Exception as e:

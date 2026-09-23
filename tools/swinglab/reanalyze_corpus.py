@@ -23,6 +23,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from pp_swingdoc import find_swing_dirs  # noqa: E402
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -41,11 +44,11 @@ def main():
         return 2
 
     root = Path(a.corpus)
-    dirs = sorted(sj.parent for sj in root.rglob("swing.json"))
+    dirs = [Path(d) for d in find_swing_dirs(root)]
     if a.only:
         dirs = [d for d in dirs if a.only in str(d)]
     if not dirs:
-        print(f"reanalyze_corpus: no swing.json under {root}", file=sys.stderr)
+        print(f"reanalyze_corpus: no swing document under {root}", file=sys.stderr)
         return 2
 
     ok = 0

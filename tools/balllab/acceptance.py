@@ -27,6 +27,8 @@ import cv2
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ball_state_machine import BallTracker, dog, robust_noise
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from pp_swingdoc import load_swing  # noqa: E402
 
 SAT_THRESH   = 250     # luma >= this is clipped (§6)
 SAT_WARN     = 0.25    # satFrac above this -> exposure warning; launch untrusted
@@ -44,7 +46,7 @@ def band(w, h):
 def read_faceon(swing_json):
     """Face-on stream geometry + impact, selecting by setup.perspective==2 (else 'face',
     else first) — MUST match markup_truth::readFaceOn; these captures carry a DTL stream too."""
-    j = json.load(open(swing_json))
+    j = load_swing(swing_json)
     vids = [s for s in j.get("streams", []) if s.get("kind") == "video"]
     fo = next((s for s in vids if s.get("setup", {}).get("perspective", -1) == 2), None)
     if fo is None:

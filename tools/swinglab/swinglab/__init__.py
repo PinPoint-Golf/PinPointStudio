@@ -4,9 +4,14 @@
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+# tools/pp_swingdoc reads a swing document whether it is swing.ppsw or swing.json.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+from pp_swingdoc import find_swing_dirs, load_swing  # noqa: E402,F401
 
 
 def default_binary():
@@ -41,7 +46,7 @@ class Swing:
 
     def __init__(self, path):
         self.path = Path(path)
-        self.doc = load_json(self.path / "swing.json")
+        self.doc = load_swing(self.path)
 
     @property
     def name(self):

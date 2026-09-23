@@ -10,8 +10,10 @@ spot for present vs absent frames. Prints per-swing separation + located positio
 Result on the 2026-06/07 corpus: 43/44 swings separate cleanly (pres10 > abs90),
 including the fully-saturated 06-11 session. See the design doc before changing
 anything here — this script is the executable form of the §2 evidence table."""
-import cv2, json, os, glob
+import cv2, json, os, glob, sys
 import numpy as np
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from pp_swingdoc import load_swing  # noqa: E402
 
 ROOT = "/mnt/swingdata/corpus/swings"
 
@@ -39,7 +41,7 @@ for sess in sorted(os.listdir(ROOT)):
         name = f"{sess}/{os.path.basename(swd)}"
         vp = os.path.join(swd, "Face-On.mp4")
         if not os.path.exists(vp): continue
-        sj = json.load(open(os.path.join(swd, "swing.json")))
+        sj = load_swing(swd)
         imp_us = sj.get("capture", {}).get("impactUs") or 3500000
         cap = cv2.VideoCapture(vp)
         n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))

@@ -63,7 +63,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import math
 import os
 import sys
@@ -76,10 +75,12 @@ from series_noise import (  # noqa: E402
     PHASE_ADDRESS,
     PHASE_IMPACT,
     find_blocks,
+    find_documents,
     fmt,
     median,
     percentile,
     phase_times,
+    read_document,
 )
 
 PHASE_TOP = LADDER_TO_PHASE[4]        # Top == P4 == phase enum 2
@@ -253,8 +254,7 @@ def win_stats(vals):
 def analyse_swing(path, root):
     """(rows, note). note non-empty => the swing contributed nothing and is counted."""
     try:
-        with open(path, "r", encoding="utf-8") as fh:
-            doc = json.load(fh)
+        doc = read_document(path)
     except Exception as exc:
         return [], f"unreadable: {exc}"
 
@@ -446,20 +446,14 @@ def main(argv=None):
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("root", metavar="ROOT", help="directory walked recursively")
     ap.add_argument("--file", default="swing.json",
-                    help="document file name (swinglab run roots hold result.json)")
+                    help="document file name (swing.json also reads swing.ppsw; "
+                         "swinglab run roots hold result.json)")
     ap.add_argument("--out", default=None, help="CSV path (default: stdout)")
     ap.add_argument("--only", default=None, help="only swings whose path contains this substring")
     args = ap.parse_args(argv)
 
     root = os.path.abspath(args.root)
-    paths = []
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
-        if args.file in filenames:
-            p = os.path.join(dirpath, args.file)
-            if args.only is None or args.only in p:
-                paths.append(p)
-    paths.sort()
+    paths = find_documents(root, args.file, args.only)
 
     rows, skipped = [], []
     for i, p in enumerate(paths, 1):

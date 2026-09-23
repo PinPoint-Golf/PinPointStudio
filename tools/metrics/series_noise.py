@@ -27,6 +27,46 @@ import math
 import os
 import sys
 
+SWING_DOC_NAMES = ("swing.json", "swing.ppsw")
+
+
+def _swingdoc():
+    """tools/pp_swingdoc, imported on first use so a result.json run stays stdlib-only."""
+    tools_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    if tools_dir not in sys.path:
+        sys.path.insert(0, tools_dir)
+    import pp_swingdoc
+    return pp_swingdoc
+
+
+def read_document(path):
+    """The document at path: a swing document (swing.json or swing.ppsw) via pp_swingdoc, anything
+    else (result.json) as plain JSON."""
+    if os.path.basename(path) in SWING_DOC_NAMES:
+        return _swingdoc().load_swing(path)
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def find_documents(root, name, only=None):
+    """Every `name` document under root, sorted. name == swing.json finds swing dirs holding
+    either swing.json or swing.ppsw and returns the file actually present."""
+    paths = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        if name in SWING_DOC_NAMES:
+            if not any(n in filenames for n in SWING_DOC_NAMES):
+                continue
+            p = _swingdoc().document_path(dirpath)
+        elif name in filenames:
+            p = os.path.join(dirpath, name)
+        else:
+            continue
+        if only is None or only in p:
+            paths.append(p)
+    paths.sort()
+    return paths
+
 # --------------------------------------------------------------------------------------
 # Contracts read out of the data, not guessed. See docs/reference/swing_json_schema.md
 # sections `metrics[]`, `phases[]` and `pose2d`.
@@ -385,8 +425,7 @@ def span_stats(pose, ia, ib, ptimes):
 def analyse_swing(path, root, keys):
     """Return (rows, absent_keys, note). rows are dicts keyed by COLUMNS."""
     try:
-        with open(path, "r", encoding="utf-8") as fh:
-            doc = json.load(fh)
+        doc = read_document(path)
     except Exception as exc:                      # a truncated or half-written swing
         return [], list(keys), f"unreadable: {exc}"
 
@@ -531,26 +570,21 @@ def print_summary(rows, absent_counts, keys, swings, out=sys.stderr):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("root", metavar="ROOT", help="directory walked recursively for swing.json")
+    ap.add_argument("root", metavar="ROOT",
+                    help="directory walked recursively for swing.json / swing.ppsw")
     ap.add_argument("--keys", default=",".join(DEFAULT_KEYS),
                     help="comma-separated metric keys (default: the lower-body and body-line set)")
     ap.add_argument("--out", default=None, help="CSV path (default: stdout)")
     ap.add_argument("--only", default=None, help="only swings whose path contains this substring")
     ap.add_argument("--file", default="swing.json",
-                    help="document file name to read (swinglab run roots hold result.json)")
+                    help="document file name to read (swing.json also reads swing.ppsw; "
+                         "swinglab run roots hold result.json)")
     args = ap.parse_args(argv)
 
     keys = [k.strip() for k in args.keys.split(",") if k.strip()]
     root = os.path.abspath(args.root)
 
-    paths = []
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
-        if args.file in filenames:
-            p = os.path.join(dirpath, args.file)
-            if args.only is None or args.only in p:
-                paths.append(p)
-    paths.sort()
+    paths = find_documents(root, args.file, args.only)
 
     rows, absent_counts, swings = [], {}, []
     for i, p in enumerate(paths, 1):

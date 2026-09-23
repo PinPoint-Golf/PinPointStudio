@@ -52,6 +52,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import span_turn_offline as sto          # noqa: E402  the FO rig; its loaders ARE the FO leg
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from pp_swingdoc import load_swing       # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SW   = sto.SW
@@ -93,7 +95,7 @@ KPIDX = {'hip': (11, 12), 'shoulder': (5, 6)}       # same pairs span_turn_offli
 
 def frame_dims(session, swing):
     """(FO w,h), (DTL w,h) from swing.json streams[].encoded — never assumed."""
-    d = json.load(open(f'{SW}/{session}/{swing}/swing.json'))
+    d = load_swing(f'{SW}/{session}/{swing}')
     fo = dtl = None
     for s in d.get('streams', []):
         if s.get('kind') != 'video':

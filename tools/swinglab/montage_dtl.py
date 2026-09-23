@@ -75,6 +75,7 @@ sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 sys.path.insert(0, str(Path(__file__).parent))
 import montage_positions as mp   # noqa: E402  (same dir; resize_smart/draw_line_alpha/...)
 from swinglab import Swing, RunResult  # noqa: E402
+from pp_swingdoc import has_swing  # noqa: E402  (tools/, put on sys.path by swinglab)
 
 # ---------------------------------------------------------------- constants
 TILE = 430                      # tile HEIGHT in the capped montage, px (the tile
@@ -204,11 +205,11 @@ def schedule(theta_F, rho_F):
 # ---------------------------------------------------------------- load data
 def swing_dir_for(corpus_dir, sid):
     corpus_dir = Path(corpus_dir)
-    if (corpus_dir / sid / "swing.json").exists():
+    if has_swing(corpus_dir / sid):
         return corpus_dir / sid
     if "__" in sid:
         a, b = sid.split("__", 1)
-        if (corpus_dir / a / b / "swing.json").exists():
+        if has_swing(corpus_dir / a / b):
             return corpus_dir / a / b
     return corpus_dir / sid
 

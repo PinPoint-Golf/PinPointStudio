@@ -23,6 +23,8 @@ Synthesis (the lab-first version of what the C++ stage will do):
 """
 import argparse, json, math, os, sys
 import numpy as np, cv2
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from pp_swingdoc import load_swing as load_swing_doc  # noqa: E402
 
 BALL_MM = 42.67
 ACCENT = (0, 160, 255)     # BGR ≈ the theme accent (amber)
@@ -30,7 +32,7 @@ ACCENT_DIM = (0, 100, 160)
 
 
 def load_swing(swing_dir):
-    d = json.load(open(os.path.join(swing_dir, 'swing.json')))
+    d = load_swing_doc(swing_dir)
     im = d.get('analysis', {}).get('impact')
     st = [s for s in d['streams'] if s.get('setup', {}).get('perspective') == 4]
     if not im or not st:
