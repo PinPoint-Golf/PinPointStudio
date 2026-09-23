@@ -127,6 +127,7 @@ set(PP_QML_FILES
     src/Gui/settings/PhonesPanel.qml
     src/Gui/settings/MicrophonesPanel.qml
     src/Gui/settings/StoragePanel.qml
+    src/Gui/settings/ArchivingPanel.qml
     src/Gui/settings/LaunchMonitorPanel.qml
     src/Gui/settings/SettingsIndex.qml
     src/Gui/home/HmTypeCard.qml

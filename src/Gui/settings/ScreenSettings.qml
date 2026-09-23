@@ -62,7 +62,7 @@ Item {
             var panels = [
                 generalPanel, appearancePanel, displaysPanel,
                 camerasPanel, imusPanel, phonesPanel, microphonesPanel,
-                launchMonitorPanel, storagePanel, null, diagnosticModelPanel
+                launchMonitorPanel, storagePanel, archivingPanel, diagnosticModelPanel
             ]
             var panel = panels[entry.panelIndex]
             if (panel) scrollWithRetry(panel, entry.itemId, 0)
@@ -567,7 +567,7 @@ Item {
                 MicrophonesPanel { id: microphonesPanel; hostVisible: root.visible; Layout.fillWidth: true; Layout.fillHeight: true }  // 6
                 LaunchMonitorPanel { id: launchMonitorPanel; Layout.fillWidth: true; Layout.fillHeight: true } // 7
                 StoragePanel {    id: storagePanel;    Layout.fillWidth: true; Layout.fillHeight: true }  // 8
-                ScreenPlaceholder { titleText: "Archiving" }                                               // 9
+                ArchivingPanel {  id: archivingPanel;  Layout.fillWidth: true; Layout.fillHeight: true }  // 9
                 DiagnosticModel { id: diagnosticModelPanel; Layout.fillWidth: true; Layout.fillHeight: true }       // 10
             }
         }

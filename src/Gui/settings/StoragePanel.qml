@@ -68,31 +68,43 @@ Item {
 
     // ── Estimated size helpers ────────────────────────────────────────────────
 
-    readonly property real codecMultiplier: (({
-        "h264": 1.0,
-        "h265": 0.6
-    })[appSettings.videoCodec]) || 1.0
+    // MEASURED, one 1280×1024 face-on camera, the full ~5 s window (swing_storage_impl.md,
+    // Phase 2 stage 4): the same raw frames re-encoded by the production exporter at each quality.
+    // h265 is not measured; 0.6 of h264 is the usual expectation, and it is labelled as one.
+    readonly property var videoMbPerCamera: ({
+        "low":      2.5,     // CRF 28
+        "medium":   7.1,     // CRF 23
+        "high":     32.5,    // CRF 18
+        "lossless": 461      // CRF 0 (High 4:4:4 Predictive)
+    })
+    readonly property real codecMultiplier: appSettings.videoCodec === "h265" ? 0.6 : 1.0
+    readonly property int  cameras: 2
+    readonly property real rawMbPerCamera: 900       // BayerRG8, the full window: 780–980 measured
+    readonly property real documentMb: 6.1           // swing.ppsw, two cameras (median, 15 swings)
 
-    readonly property real qualityMultiplier: (({
-        "low":      0.5,
-        "medium":   1.0,
-        "high":     2.0,
-        "lossless": 4.0
-    })[appSettings.videoQuality]) || 1.0
+    readonly property real clipMb: cameras * ((videoMbPerCamera[appSettings.videoQuality] || 7.1) * codecMultiplier
+                                              + (appSettings.saveRawFrames ? rawMbPerCamera : 0))
+                                   + documentMb
+    readonly property real sessionMb: clipMb * 60    // an hour at one swing a minute
 
-    readonly property real clipMb: 2 * 60 * codecMultiplier * qualityMultiplier
-                                       * (appSettings.saveRawFrames ? 4 : 1)
-    readonly property real sessionMb: clipMb * 50
-
-    readonly property int remainingSessions: root.diskInfo.freeBytes > 0 && sessionMb > 0
-        ? Math.floor(root.diskInfo.freeBytes / (sessionMb * 1024 * 1024))
+    // Hours of capture the free space holds at one swing a minute — what "can I leave it running"
+    // actually asks.
+    readonly property real remainingHours: root.diskInfo.freeBytes > 0 && sessionMb > 0
+        ? root.diskInfo.freeBytes / (sessionMb * 1024 * 1024)
         : 0
 
     // Both at startup, deliberately. StoragePanel is a direct child of a StackLayout, so it is
     // built at launch whether or not anybody opens Settings — and that is wanted here: the walk
     // warms the filesystem's attribute cache, so the first real use of the library is quick. What
     // is NOT wanted is doing it on this thread. The volume read is instant; the walk is a worker.
-    Component.onCompleted: { refreshDiskInfo(); rescanLibrarySize() }
+    Component.onCompleted: { refreshDiskInfo(); rescanLibrarySize(); root.countJsonSwings() }
+
+    // The swing file format (swing_storage_impl.md, Phase 2). A library recorded before the switch
+    // holds swing.json documents; they read fine, and this converts them to swing.ppsw — each one
+    // proven against its original before the JSON is removed. Guarded: libraryConverter is an app
+    // context property, absent in a bare QML harness.
+    readonly property bool hasConverter: typeof libraryConverter !== "undefined" && libraryConverter !== null
+    function countJsonSwings() { if (hasConverter) libraryConverter.count() }
 
     // ── Folder dialog ─────────────────────────────────────────────────────────
 
@@ -103,6 +115,7 @@ Item {
             appSettings.athleteLibraryPath = appSettings.urlToLocalFile(selectedFolder)
             root.refreshDiskInfo()
             root.rescanLibrarySize()      // a different library is a different size
+            root.countJsonSwings()
         }
     }
 
@@ -456,6 +469,49 @@ Item {
                 }
             }
 
+            // Swing file format row — only while there is something to say: JSON-era swings to
+            // convert, a conversion running, or the result of the last one.
+            RowLayout {
+                objectName: "setting_swingFormat"
+                Layout.fillWidth:  true
+                Layout.leftMargin: Theme.sp(26)
+                spacing: Theme.sp(16)
+                visible: root.hasConverter
+                         && (libraryConverter.pending > 0 || libraryConverter.running
+                             || libraryConverter.status.length > 0)
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(3)
+                    Text {
+                        text:           qsTr("Swing file format")
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        wrapMode:         Text.WordWrap
+                        text: !root.hasConverter ? ""
+                              : libraryConverter.running || libraryConverter.status.length > 0
+                                ? libraryConverter.status
+                                : qsTr("%1 swings are in the older, larger format. Converting them shrinks "
+                                       + "each swing's analysis file to a fraction of its size; each one is "
+                                       + "checked against its original before the old file is removed.")
+                                      .arg(libraryConverter.pending)
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                    }
+                }
+                PpButton {
+                    Layout.alignment: Qt.AlignVCenter
+                    label:     root.hasConverter && libraryConverter.running ? qsTr("Stop") : qsTr("Convert")
+                    enabled:   root.hasConverter && (libraryConverter.running || libraryConverter.pending > 0)
+                    onClicked: libraryConverter.running ? libraryConverter.cancel() : libraryConverter.convert()
+                }
+            }
+
             // Session folder naming row
             RowLayout {
                 objectName: "setting_sessionNaming"
@@ -512,61 +568,6 @@ Item {
                     }
                 }
                 }
-
-            // Auto-save session row (moved verbatim from GeneralPanel)
-            RowLayout {
-                objectName: "setting_autoSave"
-                Layout.fillWidth: true
-                spacing: Theme.sp(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.sp(3)
-
-                    Text {
-                        text:           qsTr("Auto-save session on completion")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Writes to archive immediately when session ends")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                }
-
-                Rectangle {
-                    id: autoSaveToggle
-                    Layout.alignment: Qt.AlignVCenter
-                    width:  Theme.sp(34)
-                    height: Theme.sp(18)
-                    radius: Theme.sp(9)
-                    color:  autoSaveToggle.checked ? Theme.colorAccent : Theme.colorBg3
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                    property bool checked: appSettings.autoSaveSession
-
-                    Rectangle {
-                        width:  Theme.sp(12)
-                        height: Theme.sp(12)
-                        radius: Theme.sp(6)
-                        color:  "white"
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: autoSaveToggle.checked ? parent.width - width - Theme.sp(3) : Theme.sp(3)
-                        Behavior on x { NumberAnimation { duration: 120 } }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape:  Qt.PointingHandCursor
-                        onClicked:    appSettings.autoSaveSession = !appSettings.autoSaveSession
-                    }
-                }
-            }
 
             PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
@@ -1008,7 +1009,8 @@ Item {
                                 var codec   = appSettings.videoCodec.toUpperCase()
                                 var quality = appSettings.videoQuality
                                 var res     = appSettings.videoResolutionMode
-                                return qsTr("2 cameras · 3 s · ") + codec + " " + quality + " · " + res
+                                return qsTr("2 cameras · full window · ") + codec + " " + quality + " · " + res
+                                       + (appSettings.saveRawFrames ? qsTr(" · raw") : "")
                             }
                             font.family:    Theme.fontData
                             font.pixelSize: Theme.fontSzMicro
@@ -1030,7 +1032,7 @@ Item {
                         spacing: Theme.sp(4)
 
                         Text {
-                            text:                qsTr("Per session (50 swings)")
+                            text:                qsTr("Per hour (60 swings)")
                             font.family:         Theme.fontData
                             font.pixelSize:      Theme.fontSzMicro
                             font.letterSpacing:  Theme.trackingMicro
@@ -1067,12 +1069,12 @@ Item {
                             color:               Theme.colorText3
                         }
                         Text {
-                            text:  root.diskInfo.freeBytes > 0
-                                       ? "~" + root.remainingSessions + qsTr(" sessions")
-                                       : "—"
+                            text:  root.diskInfo.freeBytes <= 0 ? "—"
+                                 : root.remainingHours >= 2 ? "~" + Math.floor(root.remainingHours) + qsTr(" h of capture")
+                                 : "~" + Math.floor(root.remainingHours * 60) + qsTr(" min of capture")
                             font.family:    Theme.fontData
                             font.pixelSize: Theme.fontSzBody
-                            color:          root.remainingSessions > 20 ? Theme.colorGood : Theme.colorWarn
+                            color:          root.remainingHours > 10 ? Theme.colorGood : Theme.colorWarn
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         }
                     }
@@ -1111,7 +1113,9 @@ Item {
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           qsTr("MoveNet skeleton data stored alongside each swing clip as JSON")
+                        Layout.fillWidth: true
+                        wrapMode:       Text.WordWrap
+                        text:           qsTr("The skeleton tracked in every frame, kept in each swing's analysis. Needed for skeleton overlays in replay and for a fast re-analysis; off saves about half of each swing's analysis file")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3

@@ -120,8 +120,12 @@ bool FfmpegVideoEncoder::open(const VideoEncoderConfig& cfg)
     // x264 profile name; libx265 rejects it, so only set it for x264.
     av_opt_set(m_enc->priv_data, "preset", cfg.preset.c_str(), 0);
     av_opt_set(m_enc->priv_data, "crf",    std::to_string(cfg.crf).c_str(), 0);
+    // ⚠ CRF 0 IS LOSSLESS, and x264 refuses lossless under the High profile ("high profile doesn't
+    // support lossless") — avcodec_open2 failed and every swing exported at the "lossless" video
+    // quality came out with no video at all. Lossless needs High 4:4:4 Predictive, which also
+    // carries 4:2:0, so the pixel format and everything downstream are unchanged.
     if (m_codecName == "libx264")
-        av_opt_set(m_enc->priv_data, "profile", "high", 0);
+        av_opt_set(m_enc->priv_data, "profile", cfg.crf == 0 ? "high444" : "high", 0);
 
     if (m_fmt->oformat->flags & AVFMT_GLOBALHEADER)
         m_enc->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;

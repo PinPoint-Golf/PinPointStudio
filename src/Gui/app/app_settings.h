@@ -19,6 +19,7 @@
 #pragma once
 
 #include <QObject>
+#include <algorithm>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
@@ -154,7 +155,6 @@ class AppSettings : public QObject
     Q_PROPERTY(QString language                    READ language                    WRITE setLanguage                    NOTIFY languageChanged)
     Q_PROPERTY(QString units                       READ units                       WRITE setUnits                       NOTIFY unitsChanged)
     Q_PROPERTY(QString athleteLibraryPath          READ athleteLibraryPath          WRITE setAthleteLibraryPath          NOTIFY athleteLibraryPathChanged)
-    Q_PROPERTY(bool    autoSaveSession             READ autoSaveSession             WRITE setAutoSaveSession             NOTIFY autoSaveSessionChanged)
     Q_PROPERTY(bool    autoDetectSwing             READ autoDetectSwing             WRITE setAutoDetectSwing             NOTIFY autoDetectSwingChanged)
     Q_PROPERTY(QString swingDetectionSensitivity   READ swingDetectionSensitivity   WRITE setSwingDetectionSensitivity   NOTIFY swingDetectionSensitivityChanged)
     Q_PROPERTY(QString motionCaptureQuality        READ motionCaptureQuality        WRITE setMotionCaptureQuality        NOTIFY motionCaptureQualityChanged)
@@ -287,6 +287,13 @@ class AppSettings : public QObject
     Q_PROPERTY(bool    saveRawFrames         READ saveRawFrames         WRITE setSaveRawFrames         NOTIFY saveRawFramesChanged)
     Q_PROPERTY(bool    skipAnalysisForRawCapture READ skipAnalysisForRawCapture WRITE setSkipAnalysisForRawCapture NOTIFY skipAnalysisForRawCaptureChanged)
     Q_PROPERTY(bool    savePoseKeypoints     READ savePoseKeypoints     WRITE setSavePoseKeypoints     NOTIFY savePoseKeypointsChanged)
+    // Archiving (swing_storage_impl.md, Phase 2 stage 6). Every automatic behaviour defaults OFF:
+    // moving a golfer's sessions off the library is never something an upgrade starts doing.
+    Q_PROPERTY(QString archiveLocation       READ archiveLocation       WRITE setArchiveLocation       NOTIFY archivingChanged)
+    Q_PROPERTY(int     trashRetentionDays    READ trashRetentionDays    WRITE setTrashRetentionDays    NOTIFY archivingChanged)
+    Q_PROPERTY(int     archiveAfterDays      READ archiveAfterDays      WRITE setArchiveAfterDays      NOTIFY archivingChanged)
+    Q_PROPERTY(int     archiveFloorGb        READ archiveFloorGb        WRITE setArchiveFloorGb        NOTIFY archivingChanged)
+    Q_PROPERTY(bool    archiveKeepRaw        READ archiveKeepRaw        WRITE setArchiveKeepRaw        NOTIFY archivingChanged)
     Q_PROPERTY(bool    saveImuStreams        READ saveImuStreams        WRITE setImuStreams            NOTIFY saveImuStreamsChanged)
     Q_PROPERTY(QString imuDataFormat         READ imuDataFormat         WRITE setImuDataFormat         NOTIFY imuDataFormatChanged)
     Q_PROPERTY(bool    saveLaunchMonitorData READ saveLaunchMonitorData WRITE setSaveLaunchMonitorData NOTIFY saveLaunchMonitorDataChanged)
@@ -415,7 +422,6 @@ public:
         m_language                  = ppSettings().value(QStringLiteral("General/language"),                  QStringLiteral("en_GB")).toString();
         m_units                     = ppSettings().value(QStringLiteral("General/units"),                     QStringLiteral("mph")).toString();
         m_athleteLibraryPath        = normaliseLibraryPath(ppSettings().value(QStringLiteral("General/athleteLibraryPath"), QStringLiteral("")).toString());
-        m_autoSaveSession           = ppSettings().value(QStringLiteral("General/autoSaveSession"),           true).toBool();
         m_autoDetectSwing           = ppSettings().value(QStringLiteral("General/autoDetectSwing"),           true).toBool();
         m_swingDetectionSensitivity = ppSettings().value(QStringLiteral("General/swingDetectionSensitivity"), QStringLiteral("Medium")).toString();
         m_motionCaptureQuality      = ppSettings().value(QStringLiteral("General/motionCaptureQuality"),      QStringLiteral("Medium")).toString();
@@ -515,6 +521,11 @@ public:
         m_saveRawFrames         = ppSettings().value(QStringLiteral("storage/saveRawFrames"),         false).toBool();
         m_skipAnalysisForRawCapture = ppSettings().value(QStringLiteral("storage/skipAnalysisForRawCapture"), false).toBool();
         m_savePoseKeypoints     = ppSettings().value(QStringLiteral("storage/savePoseKeypoints"),     true).toBool();
+        m_archiveLocation       = ppSettings().value(QStringLiteral("storage/archiveLocation"),       QString()).toString();
+        m_trashRetentionDays    = ppSettings().value(QStringLiteral("storage/trashRetentionDays"),    0).toInt();
+        m_archiveAfterDays      = ppSettings().value(QStringLiteral("storage/archiveAfterDays"),      0).toInt();
+        m_archiveFloorGb        = ppSettings().value(QStringLiteral("storage/archiveFloorGb"),        0).toInt();
+        m_archiveKeepRaw        = ppSettings().value(QStringLiteral("storage/archiveKeepRaw"),        true).toBool();
         m_saveImuStreams         = ppSettings().value(QStringLiteral("storage/saveImuStreams"),        true).toBool();
         m_imuDataFormat         = ppSettings().value(QStringLiteral("storage/imuDataFormat"),         QStringLiteral("json")).toString();
         m_saveLaunchMonitorData = ppSettings().value(QStringLiteral("storage/saveLaunchMonitorData"), true).toBool();
@@ -591,7 +602,6 @@ public:
     QString language()                  const { return m_language; }
     QString units()                     const { return m_units; }
     QString athleteLibraryPath()        const { return m_athleteLibraryPath; }
-    bool    autoSaveSession()           const { return m_autoSaveSession; }
     bool    autoDetectSwing()           const { return m_autoDetectSwing; }
     QString swingDetectionSensitivity() const { return m_swingDetectionSensitivity; }
     QString motionCaptureQuality()      const { return m_motionCaptureQuality; }
@@ -657,6 +667,11 @@ public:
     bool    saveRawFrames()         const { return m_saveRawFrames; }
     bool    skipAnalysisForRawCapture() const { return m_skipAnalysisForRawCapture; }
     bool    savePoseKeypoints()     const { return m_savePoseKeypoints; }
+    QString archiveLocation()       const { return m_archiveLocation; }
+    int     trashRetentionDays()    const { return m_trashRetentionDays; }   // 0 = keep forever
+    int     archiveAfterDays()      const { return m_archiveAfterDays; }     // 0 = never by age
+    int     archiveFloorGb()        const { return m_archiveFloorGb; }       // 0 = never by space
+    bool    archiveKeepRaw()        const { return m_archiveKeepRaw; }
     bool    saveImuStreams()        const { return m_saveImuStreams; }
     QString imuDataFormat()         const { return m_imuDataFormat; }
     bool    saveLaunchMonitorData() const { return m_saveLaunchMonitorData; }
@@ -925,13 +940,6 @@ public:
         emit athleteLibraryPathChanged();
     }
 
-    void setAutoSaveSession(bool v)
-    {
-        if (m_autoSaveSession == v) return;
-        m_autoSaveSession = v;
-        ppSettings().setValue(QStringLiteral("General/autoSaveSession"), v);
-        emit autoSaveSessionChanged();
-    }
 
     void setAutoDetectSwing(bool v)
     {
@@ -1486,6 +1494,45 @@ public:
         emit skipAnalysisForRawCaptureChanged();
     }
 
+    void setArchiveLocation(const QString &v)
+    {
+        if (m_archiveLocation == v) return;
+        m_archiveLocation = v;
+        ppSettings().setValue(QStringLiteral("storage/archiveLocation"), v);
+        emit archivingChanged();
+    }
+    void setTrashRetentionDays(int v)
+    {
+        v = std::max(0, v);
+        if (m_trashRetentionDays == v) return;
+        m_trashRetentionDays = v;
+        ppSettings().setValue(QStringLiteral("storage/trashRetentionDays"), v);
+        emit archivingChanged();
+    }
+    void setArchiveAfterDays(int v)
+    {
+        v = std::max(0, v);
+        if (m_archiveAfterDays == v) return;
+        m_archiveAfterDays = v;
+        ppSettings().setValue(QStringLiteral("storage/archiveAfterDays"), v);
+        emit archivingChanged();
+    }
+    void setArchiveFloorGb(int v)
+    {
+        v = std::max(0, v);
+        if (m_archiveFloorGb == v) return;
+        m_archiveFloorGb = v;
+        ppSettings().setValue(QStringLiteral("storage/archiveFloorGb"), v);
+        emit archivingChanged();
+    }
+    void setArchiveKeepRaw(bool v)
+    {
+        if (m_archiveKeepRaw == v) return;
+        m_archiveKeepRaw = v;
+        ppSettings().setValue(QStringLiteral("storage/archiveKeepRaw"), v);
+        emit archivingChanged();
+    }
+
     void setSavePoseKeypoints(bool v)
     {
         if (m_savePoseKeypoints == v) return;
@@ -1625,7 +1672,6 @@ signals:
     void languageChanged();
     void unitsChanged();
     void athleteLibraryPathChanged();
-    void autoSaveSessionChanged();
     void autoDetectSwingChanged();
     void swingDetectionSensitivityChanged();
     void motionCaptureQualityChanged();
@@ -1696,6 +1742,7 @@ signals:
     void saveRawFramesChanged();
     void skipAnalysisForRawCaptureChanged();
     void savePoseKeypointsChanged();
+    void archivingChanged();
     void saveImuStreamsChanged();
     void imuDataFormatChanged();
     void saveLaunchMonitorDataChanged();
@@ -1740,7 +1787,6 @@ private:
     QString m_language                  = QStringLiteral("en_GB");
     QString m_units                     = QStringLiteral("mph");
     QString m_athleteLibraryPath;
-    bool    m_autoSaveSession           = true;
     bool    m_autoDetectSwing           = true;    // ON since the P3 arbiter
     QString m_swingDetectionSensitivity = QStringLiteral("Medium");
     QString m_motionCaptureQuality      = QStringLiteral("Medium");
@@ -1816,6 +1862,11 @@ private:
     bool    m_saveRawFrames         = false;
     bool    m_skipAnalysisForRawCapture = false;
     bool    m_savePoseKeypoints     = true;
+    QString m_archiveLocation;
+    int     m_trashRetentionDays    = 0;
+    int     m_archiveAfterDays      = 0;
+    int     m_archiveFloorGb        = 0;
+    bool    m_archiveKeepRaw        = true;
     bool    m_saveImuStreams        = true;
     QString m_imuDataFormat         = QStringLiteral("json");
     bool    m_saveLaunchMonitorData = true;

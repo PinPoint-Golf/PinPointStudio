@@ -715,6 +715,7 @@ qt_add_executable(PinPointStudio
     $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/PinPointStudio.rc>
     src/Gui/app/app_settings.h               src/Gui/app/app_settings.cpp
     src/Gui/settings/library_converter.h     src/Gui/settings/library_converter.cpp
+    src/Gui/settings/archive_controller.h    src/Gui/settings/archive_controller.cpp
     src/Gui/app/notification_center.h        src/Gui/app/notification_center.cpp
     src/Gui/shot/ppcp_clip_filer.h           src/Gui/shot/ppcp_clip_filer.cpp
     src/Gui/imu/imu_manager.h                src/Gui/imu/imu_manager.cpp
@@ -2777,6 +2778,8 @@ target_sources(PinPointStudio PRIVATE
     src/Export/swing_zip_exporter.cpp
     src/Export/swing_doc.h
     src/Export/swing_doc.cpp
+    src/Export/session_archiver.h
+    src/Export/session_archiver.cpp
     src/Analysis/swing_analysis.h
     src/Analysis/analysis_stage.h
     src/Analysis/wrist_angles.h

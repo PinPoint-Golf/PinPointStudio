@@ -119,6 +119,10 @@ public slots:
 signals:
     void reviewActiveChanged();
     void activeShotCountChanged();
+    // An ARCHIVED session was opened (SessionArchiver): its stubs are on screen — rows, scores,
+    // chips — but no replay. main.cpp routes this to ArchiveController::restoreSession, whose
+    // sessionRestored() re-opens it complete.
+    void archivedSessionOpened(const QString &sessionDir);
 
 private:
     SessionListModel::Row buildLiveRow(qint64 nowMs) const;

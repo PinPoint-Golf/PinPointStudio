@@ -26,7 +26,7 @@ import PinPointStudio
 //   0  General        6  Microphone
 //   1  Appearance     7  Launch Monitor (placeholder — no entries yet)
 //   2  Displays       8  Storage
-//   3  Cameras        9  Archiving      (placeholder — no entries yet)
+//   3  Cameras        9  Archiving
 //   4  IMUs          10  Diagnostic Model (the whole content set)
 //   5  Phones
 //
@@ -301,10 +301,6 @@ QtObject {
           label: qsTr("Session folder naming"),            subtitle: qsTr("Pattern used when creating a new session directory"),
           itemId: "setting_sessionNaming" },
 
-        { panelIndex: 8, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Athlete library"),
-          label: qsTr("Auto-save session on completion"),  subtitle: qsTr("Writes session data to the library immediately when recording ends"),
-          itemId: "setting_autoSave" },
-
         { panelIndex: 8, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Video recording"),
           label: qsTr("Recording resolution"),             subtitle: qsTr("Applies to all cameras — must be within sensor ROI bounds"),
           itemId: "setting_videoRes" },
@@ -326,7 +322,7 @@ QtObject {
           itemId: "setting_container" },
 
         { panelIndex: 8, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
-          label: qsTr("Save pose keypoints"),              subtitle: qsTr("MoveNet skeleton data stored as JSON"),
+          label: qsTr("Save pose keypoints"),              subtitle: qsTr("The skeleton tracked in every frame — replay overlays and fast re-analysis"),
           itemId: "setting_savePose" },
 
         { panelIndex: 8, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
@@ -430,8 +426,31 @@ QtObject {
         { panelIndex: 7,  panelLabel: qsTr("Launch Monitor"), groupLabel: qsTr("Behaviour"),
           label: qsTr("Record shots the monitor sees on its own"), subtitle: qsTr("Create a swing from the monitor's reading alone, with no video and no analysis"),
           actions: "launch monitor standalone device only no camera solo shots without cameras record alone",
-          itemId: "setting_lmStandalone" }
+          itemId: "setting_lmStandalone" },
 
-        // TODO: add entries when Archiving panel is implemented (panelIndex: 8)
+        { panelIndex: 9,  panelLabel: qsTr("Archiving"), groupLabel: qsTr("Space"),
+          label: qsTr("Capture time left"),                subtitle: qsTr("Free space as hours of capture at the swing size this library records"),
+          actions: "space disk free hours minutes capture left remaining full storage",
+          itemId: "setting_archiveSpace" },
+        { panelIndex: 9,  panelLabel: qsTr("Archiving"), groupLabel: qsTr("Archive location"),
+          label: qsTr("Archive folder"),                   subtitle: qsTr("Where archived sessions are copied, on another drive"),
+          actions: "archive folder location drive move sessions off library backup",
+          itemId: "setting_archiveLocation" },
+        { panelIndex: 9,  panelLabel: qsTr("Archiving"), groupLabel: qsTr("Archive location"),
+          label: qsTr("Keep raw sensor frames in the archive"), subtitle: qsTr("Off discards them when a session is archived"),
+          actions: "raw frames bayer archive keep discard",
+          itemId: "setting_archiveKeepRaw" },
+        { panelIndex: 9,  panelLabel: qsTr("Archiving"), groupLabel: qsTr("Automatic"),
+          label: qsTr("Archive sessions older than"),      subtitle: qsTr("Move old sessions to the archive automatically"),
+          actions: "archive old sessions age days automatic",
+          itemId: "setting_archiveAge" },
+        { panelIndex: 9,  panelLabel: qsTr("Archiving"), groupLabel: qsTr("Automatic"),
+          label: qsTr("Archive when free space falls"),    subtitle: qsTr("Archive the oldest sessions below a free-space floor"),
+          actions: "archive free space floor low disk full automatic",
+          itemId: "setting_archiveFloor" },
+        { panelIndex: 9,  panelLabel: qsTr("Archiving"), groupLabel: qsTr("Automatic"),
+          label: qsTr("Empty deleted sessions and swings after"), subtitle: qsTr("The library's own trash"),
+          actions: "trash deleted empty recycle retention days",
+          itemId: "setting_trashRetention" }
     ]
 }

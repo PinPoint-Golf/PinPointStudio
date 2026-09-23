@@ -442,6 +442,22 @@ pp_add_test(swing_store_test
     LINK    ppswing::ppswing
     DEFINES PP_LIBPPSWING_FIXTURES="${ppswing_SOURCE_DIR}/tests/fixtures")
 
+# --- Session archive / restore (Export) ---------------------------------------
+# SessionArchiver on a temp library: verified copy, stubs that still list, restore byte for byte,
+# a review made while archived kept, raw dropped only on request, cancel leaves the library as it
+# was. The writer's own link line (swing_doc_test's) plus the archiver.
+pp_add_test(session_archiver_test
+    SOURCES ${SRC}/Export/tests/session_archiver_test.cpp ${SRC}/Export/session_archiver.cpp
+            ${SRC}/Export/swing_doc.cpp
+            ${SRC}/Export/swing_paths.cpp        # SwingDocReader's session helpers → sanitise
+            ${ANALYSIS}/recorded_products.cpp
+            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+            ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
+            ${SRC}/Core/pp_log_stream.cpp        # swing_paths reports through the real log
+            ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core
+    AUTOMOC)
+
 # --- Session / swing folder layout on disk (Export subsystem) ----------------
 # Filesystem logic, so the suite builds real trees under a QTemporaryDir
 # (temp_library.h) rather than varying arguments: what these functions do

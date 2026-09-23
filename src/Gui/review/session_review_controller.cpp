@@ -23,6 +23,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include "../../Export/swing_paths.h"
+#include "../../Export/session_archiver.h"
 #include <QTime>
 #include <QTimer>
 #include <QUrl>
@@ -233,6 +234,9 @@ void SessionReviewController::loadSession(const QString &sessionId)
     // called FROM one of those delegates' click handlers (PpSessionDrawer.qml), so run it
     // on the next event-loop turn rather than pulling the delegate out from under itself.
     QTimer::singleShot(0, this, [this] { refresh(); });
+
+    if (pinpoint::SessionArchiver::isArchived(m_loadedSessionDir))
+        emit archivedSessionOpened(m_loadedSessionDir);
 }
 
 void SessionReviewController::onAthleteChanged()

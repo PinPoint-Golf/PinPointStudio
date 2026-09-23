@@ -29,6 +29,7 @@
 #include "../Ppcp/ppcp_host_service.h"
 #endif
 #include <QDir>
+#include <QTimer>
 #include <QLocale>
 #include <QQmlContext>
 #include <QQuickStyle>
@@ -43,6 +44,7 @@
 #include "shot/qml_payload.h"
 #include "shot/ppcp_clip_filer.h"
 #include "settings/library_converter.h"
+#include "settings/archive_controller.h"
 #endif
 #include "app_info.h"
 #ifdef HAVE_OPENCV
@@ -242,6 +244,8 @@ int main(int argc, char *argv[])
     AppSettings              appSettings;
     // Storage panel: convert a JSON-era library to swing.ppsw, verified swing by swing.
     LibraryConverter         libraryConverter(&appSettings);
+    // Archiving tab: move sessions out of the library and back, the trash, hours of capture left.
+    ArchiveController        archiveController(&appSettings);
     // Read-only app/build/dependency info for the About box (appInfo context property).
     AppInfo                  appInfo;
     SecretsBridge            secrets;
@@ -307,6 +311,19 @@ int main(int argc, char *argv[])
     // row reflects the just-restored shots.
     SessionReviewController   sessionReviewController(&shotModel, &appSettings,
                                                       &athleteController);
+    // Opening an ARCHIVED session brings it back: its stubs show at once, the restore runs on a
+    // worker, and the session re-opens complete when it lands — if it is still the one on screen.
+    QObject::connect(&sessionReviewController, &SessionReviewController::archivedSessionOpened,
+                     &archiveController, &ArchiveController::restoreSession);
+    QObject::connect(&archiveController, &ArchiveController::sessionRestored, &sessionReviewController,
+                     [&sessionReviewController](const QString &dir) {
+                         if (sessionReviewController.reviewActive()
+                             && sessionReviewController.activeSessionId() == dir)
+                             sessionReviewController.loadSession(dir);
+                     });
+    // The startup housekeeping pass (trash retention, archive by age / below a floor), every part
+    // of it off until set. Deferred so it never competes with the launch itself.
+    QTimer::singleShot(60'000, &archiveController, &ArchiveController::runHousekeeping);
     // Sessions and the live carousel are both athlete-scoped, but the reload above only
     // ever ran once, at startup — so switching athlete left BOTH showing the previous
     // athlete's shots. Re-point them whenever the current athlete changes.
@@ -812,6 +829,7 @@ int main(int argc, char *argv[])
     engine.addImageProvider(QStringLiteral("markup"), markupProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"),       &appSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("libraryConverter"),  &libraryConverter);
+    engine.rootContext()->setContextProperty(QStringLiteral("archiveController"), &archiveController);
     engine.rootContext()->setContextProperty(QStringLiteral("appInfo"),           &appInfo);
     engine.rootContext()->setContextProperty(QStringLiteral("secrets"),           &secrets);
     engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);
