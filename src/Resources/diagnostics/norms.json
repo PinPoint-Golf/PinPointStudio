@@ -1173,6 +1173,15 @@
       "source": "heuristic"
     },
     {
+      "measure": "m_handPathLoop",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 3.3333333333333335,
+      "unit": "% hand rise",
+      "source": "heuristic",
+      "citation": "MORE THAN 10 % OF THE HAND RISE IS THE FAULT, AND SIGMA IS SET TO PUT IT THERE: 10/3, so Action begins at +10 % under the Standard policy (watchMaxZ = 3), the pelvis-thrust convention. On a one-metre rise that is the hands coming down about 10 cm outside the path they went up on, which a coach would call over the top on sight. Coaching judgement, not a fitted spread: the only data is one golfer (34 down-the-line corpus swings, 2026-06-11/07-03/07-04, +10 to +35 %), and a spread cut from one golfer who comes over the top on every swing would install his move as the standard. A CEILING, so only the outside tail grades: hands dropping inside the backswing path is the shallowing move good players make on purpose."
+    },
+    {
       "measure": "m_pelvisThrustBack",
       "context": "any",
       "mu": 0.0,

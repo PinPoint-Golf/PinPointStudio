@@ -183,10 +183,11 @@ static const Expect kExpected[] = {
       "address plane'" },
     { "sig_underPlaneStuck",      Direction::Low,  "…and stuck under the plane is the other end" },
     { "sig_overTheTop",           Direction::High,
-      "m_transitionPlaneDelta highMeans: 'the club steepened between backswing and downswing — the "
-      "over-the-top direction'. Over the top IS that steepening re-route — a DIFFERENT event from "
+      "m_handPathLoop highMeans: 'the hands came down further outside the path they went up on — "
+      "over the top'. Over the top IS that outward re-route out of the top — a DIFFERENT event from "
       "sig_steepDownswingShaft above, which reads the plane at P6: a golfer can be steep at "
-      "delivery from a steep BACKSWING without ever re-routing the club in transition" },
+      "delivery from a steep BACKSWING without ever re-routing the hands in transition. It read "
+      "m_transitionPlaneDelta until 2026-09-23, which could not agree with itself on sign" },
     { "sig_shallowing",           Direction::Low,
       "…and the club FLATTENING between the two windows is the other end of the same delta. Not a "
       "fault — it is the move good players make on purpose, which is why the condition on this "

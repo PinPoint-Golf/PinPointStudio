@@ -2087,6 +2087,21 @@
       "highMeans": "a deeper hip turn at the top, and more room to unwind into"
     },
     {
+      "id": "m_handPathLoop",
+      "kind": "provided",
+      "metricKey": "handPathLoop",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p4"
+      },
+      "status": "live",
+      "shape": "ceiling",
+      "label": "Hand path loop, through the transition",
+      "unit": "% hand rise",
+      "highMeans": "the hands came down further outside the path they went up on — over the top",
+      "viewNeeded": "downTheLine"
+    },
+    {
       "id": "m_transitionPlaneDelta",
       "kind": "provided",
       "metricKey": "transitionPlaneDelta",
@@ -2097,6 +2112,8 @@
       "status": "live",
       "label": "Transition plane delta (experimental)",
       "unit": "°",
+      "unwatchedTail": "high",
+      "unwatchedReason": "The steepening tail used to be over_the_top. On 2026-09-23 over_the_top moved to m_handPathLoop, the hands coming down outside their own backswing path in the down-the-line view: across 34 corpus swings of a golfer who comes over the top on every one, this measure read -20 to +9 degrees and changed sign from swing to swing, while the hand loop was positive on all of them. Only the shallowing tail is read here now, and this corridor's norm is a deliberate placeholder in any case.",
       "highMeans": "the club steepened between backswing and downswing — the over-the-top direction",
       "viewNeeded": "faceOn"
     },
@@ -3165,7 +3182,7 @@
       "id": "sig_overTheTop",
       "test": "outsideCorridor",
       "measures": [
-        "m_transitionPlaneDelta"
+        "m_handPathLoop"
       ],
       "direction": "high"
     },
@@ -3873,7 +3890,7 @@
         "drill.gateForPath",
         "drill.pumpToDelivery"
       ],
-      "axis": "transition_plane",
+      "axis": "hand_path",
       "detectedBy": [
         "sig_overTheTop"
       ]

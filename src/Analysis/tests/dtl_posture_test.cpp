@@ -20,7 +20,8 @@
 // Standalone tests for the down-the-line posture producer (src/Analysis/dtl_posture.h).
 // One synthetic golfer seen from down the line, ball image-right: hips that TURN (the two hip
 // joints swap depth, the midpoint stays) and then THRUST 30 px, a trunk that loses 9° of bend,
-// a trail knee that straightens at the top. Qt-only, no fixture.
+// a trail knee that straightens at the top, and a lead wrist that rises 400 px up the inside and
+// comes down `loopPx` outside that path. Qt-only, no fixture.
 //
 //   cmake --build build/tests --target dtl_posture_test
 //   ctest --test-dir build/tests -R dtl_posture_test --output-on-failure
@@ -53,7 +54,7 @@ static double smooth(double t, double a, double b)
 { const double u = std::clamp((t - a) / (b - a), 0.0, 1.0); return u * u * (3 - 2 * u); }
 
 // mirror = the same golfer facing image-LEFT.
-static PoseTrack2D makePose(bool mirror, double thrustPx = 30.0, float toeConf = 0.9f)
+static PoseTrack2D makePose(bool mirror, double thrustPx = 30.0, float toeConf = 0.9f, double loopPx = 60.0)
 {
     PoseTrack2D p;
     auto X = [mirror](double x) { return mirror ? kW - x : x; };
@@ -84,6 +85,17 @@ static PoseTrack2D makePose(bool mirror, double thrustPx = 30.0, float toeConf =
         leg(11, 13, 15, leadFlex); leg(12, 14, 16, trailFlex);
         set(17, 260, 800); set(20, 262, 800); set(19, 170, 800); set(22, 172, 800);   // toes ball-side of heels
         f.conf[17] = f.conf[20] = toeConf;
+        // lead wrist: up a straight line from (300,620) to (230,220), then down the same heights
+        // `loopPx` toward the ball, converging only in the last third before impact.
+        auto lineX = [](double y) { return 300.0 - 70.0 * (620.0 - y) / 400.0; };
+        double wy, wx;
+        if (t <= kTop) { wy = 620.0 - 400.0 * smooth(double(t), kAddr, kTop); wx = lineX(wy); }
+        else {
+            const double v = smooth(double(t), kTop, kImpact);
+            wy = 220.0 + 400.0 * v;
+            wx = lineX(wy) + loopPx * std::min(1.0, 3.0 * (1.0 - v));
+        }
+        set(9, wx, wy);
         p.frames.push_back(f);
     }
     return p;
@@ -154,6 +166,20 @@ int main()
         check(gap && ratio > 0 && near(atPhase(gap, Phase::Address), 100.0 * (470.0 - 262.0) / (153.6 * ratio), 0.2),
               "§1 ball reach = ball to the ball-most toe, over face-on's shoulder width carried across");
         check(bal && atPhase(bal, Phase::Address) > 0 && atPhase(bal, Phase::Address) < 120, "§1 balance proxy emitted");
+        check(near(atPhase(find(r, "handPathLoop"), Phase::Top), 15.0, 0.3),
+              "§1 hands down 60 px outside a 400 px rise ⇒ loop +15 %");
+    }
+
+    // §1b the loop's sign is the hands' side of the backswing path, and needs no ruler.
+    {
+        const PoseTrack2D in_ = makePose(false, 30.0, 0.9f, -40.0);
+        DtlPostureInputs in = inputs(in_, false);
+        in.ballBright = false;                              // no ruler at all
+        check(near(atPhase(find(buildDtlPosture(in, cfg), "handPathLoop"), Phase::Top), -10.0, 0.3),
+              "§1b hands down 40 px INSIDE ⇒ loop −10 %, with no ruler");
+        const PoseTrack2D m = makePose(true, 30.0, 0.9f, -40.0);
+        check(near(atPhase(find(buildDtlPosture(inputs(m, true), cfg), "handPathLoop"), Phase::Top), -10.0, 0.3),
+              "§1b mirrored: the same −10 %");
     }
 
     // §2 the same golfer facing image-LEFT reads the same numbers: the sign comes from the feet.

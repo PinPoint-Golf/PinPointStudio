@@ -78,7 +78,9 @@ int main(int argc, char **argv)
     int oneSided = 0;
     for (const Measure &mm : pack.measures)
         if (shapeIsOneSided(mm.shape)) ++oneSided;
-    check(oneSided == 14, "…and one of exactly fourteen one-sided measures in the shipped pack");
+    // 14 -> 15 on 2026-09-23: m_handPathLoop is a ceiling — hands dropping inside their backswing
+    // path is the shallowing good players make on purpose, so only the outside tail grades.
+    check(oneSided == 15, "…and one of exactly fifteen one-sided measures in the shipped pack");
 
     // ── The rows ────────────────────────────────────────────────────────────
     //

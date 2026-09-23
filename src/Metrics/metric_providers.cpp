@@ -151,7 +151,8 @@ std::vector<QString> DtlPostureProvider::provides() const
 {
     return { QStringLiteral("pelvisThrust"),     QStringLiteral("spineForwardBend"),
              QStringLiteral("leadKneeFlexion"),  QStringLiteral("trailKneeFlexion"),
-             QStringLiteral("ballBodyDistance"), QStringLiteral("balanceHeelToe") };
+             QStringLiteral("ballBodyDistance"), QStringLiteral("balanceHeelToe"),
+             QStringLiteral("handPathLoop") };
 }
 
 // ------------------------------------------------------------------------ ShaftFusionProvider

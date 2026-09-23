@@ -317,7 +317,8 @@ int main(int argc, char **argv)
     // lateral offset in a face-on image is the rotation and not the translation the measure named.
     // 135 -> 136 on 2026-09-14: m_pelvisSinkTop, noProducer on a belt-line series (the hip keypoints
     // cannot read a sink; see its gapReason).
-    check(pack.measures.size() == 136, "…and 136 measures");
+    // 136 -> 137 on 2026-09-23: m_handPathLoop, the down-the-line hand loop over_the_top now reads.
+    check(pack.measures.size() == 137, "…and 137 measures");
     check(!norms->norms().norms.empty(), "the shipped norm set loaded");
 
     QTemporaryDir tmp;
@@ -578,7 +579,10 @@ int main(int argc, char **argv)
     // fixture has no launch monitor; the third moved to m_pelvisSinkTop, noProducer on a belt-line
     // series. `top` and `sky` are NOT in the delta: each is a conjunction with another term this
     // fixture assessed and found false, which settles the AND whatever the attack term would say.
-    check(cRich.assessable == 56, "rich_7iron: 56 of 158 conditions assessable (observed)");
+    // 56 -> 55 on 2026-09-23: over_the_top. This fixture is face-on only and the condition now
+    // reads the down-the-line hand loop, so it is Unavailable here rather than assessed off a
+    // face-on plane delta whose placeholder corridor could never fire in any case.
+    check(cRich.assessable == 55, "rich_7iron: 55 of 158 conditions assessable (observed)");
     // HOW MANY OF THOSE ANSWERS RESTED ON EVIDENCE THE CAPTURE DID NOT HAVE. A conjunction
     // settled by one known-false term is a real negative, but it is a different kind of "no"
     // from one where every term was read, and it can only ever be a no. Pinned because the

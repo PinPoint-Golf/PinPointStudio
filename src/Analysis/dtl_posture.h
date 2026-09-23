@@ -41,6 +41,18 @@
 //   balanceHeelToe    % foot length      a PROXY and it says so: a mass-weighted point
 //                          (0.45 pelvis, 0.35 shoulders, 0.20 knees) over the heel→toe span. No
 //                          pressure, no segment-mass model.
+//   handPathLoop      % hand rise   where the lead wrist comes DOWN against where it went UP, at
+//                          the same height, + toward the ball. The over-the-top move seen the way a
+//                          coach sees it on a down-the-line hand trace: the loop at the top that
+//                          sends the downswing out over the backswing path.
+//
+// WHY THE HAND LOOP IS A RATIO AND NOT CENTIMETRES. Both paths are the same wrist in the same image,
+// so the offset needs no calibration at all if it is scaled by something in that image — the
+// hands' own rise from address to the top. That cancels the camera's distance, and it keeps the
+// measure alive on the swings with no ruler (06-11: every one). Heights are matched in the image,
+// so a camera above hand height tilts both paths the same way and the difference survives it.
+// Read over 40–70 % of the rise: above that the path is turning over at the top, where every
+// swing loops; below it the hands are converging on the ball, where every swing must meet.
 //
 // WHICH WAY IS THE BALL. Taken from the golfer's own feet — toes are ball-side of heels — never
 // from a handedness setting or "image-right". The DTL ball, when found, must agree, and a
@@ -85,6 +97,12 @@ struct DtlPostureConfig {
     double  ballMm        = 42.67;
     double  shoulderMinCm = 30.0;     // dtlPosture.shoulderMinCm — a ruler must measure the golfer plausibly
     double  shoulderMaxCm = 50.0;     // dtlPosture.shoulderMaxCm
+    double  loopFracLo    = 0.40;     // dtlPosture.loopFracLo — lowest height read, fraction of the hand rise
+    double  loopFracHi    = 0.70;     // dtlPosture.loopFracHi — highest
+    int     loopLevels    = 4;        // dtlPosture.loopLevels — heights read between them, inclusive
+    int     loopMinLevels = 3;        // dtlPosture.loopMinLevels — heights that must resolve on both paths
+    int64_t loopTopWindowUs = 80000;  // dtlPosture.loopTopWindowUs — the top of the hand path is sought ± this of Top
+    double  loopMinRisePx = 40.0;     // dtlPosture.loopMinRisePx — a rise shorter than this is not a swing seen
 
     static DtlPostureConfig fromOverrides(const QVariantMap &ov)
     {
@@ -97,6 +115,12 @@ struct DtlPostureConfig {
         apply(ov, "dtlPosture.maxBridgeUs",   c.maxBridgeUs);
         apply(ov, "dtlPosture.shoulderMinCm", c.shoulderMinCm);
         apply(ov, "dtlPosture.shoulderMaxCm", c.shoulderMaxCm);
+        apply(ov, "dtlPosture.loopFracLo",    c.loopFracLo);
+        apply(ov, "dtlPosture.loopFracHi",    c.loopFracHi);
+        apply(ov, "dtlPosture.loopLevels",    c.loopLevels);
+        apply(ov, "dtlPosture.loopMinLevels", c.loopMinLevels);
+        apply(ov, "dtlPosture.loopTopWindowUs", c.loopTopWindowUs);
+        apply(ov, "dtlPosture.loopMinRisePx", c.loopMinRisePx);
         return c;
     }
 };
@@ -127,7 +151,7 @@ struct DtlPostureResult {
 
 namespace dtl_posture_detail {
 
-constexpr int kNose = 0, kLSh = 5, kRSh = 6, kLHip = 11, kRHip = 12, kLKnee = 13, kRKnee = 14,
+constexpr int kNose = 0, kLSh = 5, kRSh = 6, kLWr = 9, kRWr = 10, kLHip = 11, kRHip = 12, kLKnee = 13, kRKnee = 14,
               kLAnk = 15, kRAnk = 16, kLBigToe = 17, kLHeel = 19, kRBigToe = 20, kRHeel = 22;
 
 struct View {
@@ -320,6 +344,66 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
         if (shoulderDtlPx > 8.0)
             scalar("ballBodyDistance", "Ball distance from the body", "% shoulder width",
                    100.0 * tw * (in.ballX - *toeLine) / shoulderDtlPx);
+    }
+
+    // ── the hand-path loop ─────────────────────────────────────────────────────────────────
+    //
+    // The backswing path is Address → the top of the hands; the downswing path is the top →
+    // Impact. At each height the backswing's LAST crossing (nearest the top) is compared with the
+    // downswing's FIRST, which is the pair a hand trace puts side by side. Emitted at Top: the
+    // loop is made in the transition, and Top is the one event this needs anyway.
+    const std::optional<int64_t> topT = phaseTimeOpt(ph, Phase::Top);
+    const std::optional<int64_t> impT = phaseTimeOpt(ph, Phase::Impact);
+    const int lWr = in.leadIsLeft ? kLWr : kRWr;
+    const auto wristAddrY = medianAt(v, *addrT, half, cm, { lWr }, minN,
+                                     [&](size_t i) { return v.px(i, lWr).y(); });
+    if (topT && impT && wristAddrY && cfg.loopLevels >= 1) {
+        std::optional<size_t> kTop;
+        for (size_t i = 0; i < v.size(); ++i) {
+            if (std::llabs(v.t(i) - *topT) > cfg.loopTopWindowUs || !v.ok(i, lWr, cm)) continue;
+            if (!kTop || v.px(i, lWr).y() < v.px(*kTop, lWr).y()) kTop = i;
+        }
+        const double rise = kTop ? *wristAddrY - v.px(*kTop, lWr).y() : 0.0;
+        if (kTop && rise >= cfg.loopMinRisePx) {
+            const int64_t tTop = v.t(*kTop);
+            std::vector<QPointF> up, down;
+            for (size_t i = 0; i < v.size(); ++i) {
+                if (!v.ok(i, lWr, cm)) continue;
+                const int64_t t = v.t(i);
+                if (t >= *addrT && t <= tTop) up.push_back(v.px(i, lWr));
+                if (t >= tTop && t <= *impT)  down.push_back(v.px(i, lWr));
+            }
+            // x where the polyline crosses height y — the last crossing, or the first.
+            auto crossX = [](const std::vector<QPointF> &p, double y, bool last) -> std::optional<double> {
+                std::optional<double> hit;
+                for (size_t j = 0; j + 1 < p.size(); ++j) {
+                    const double y0 = p[j].y(), y1 = p[j + 1].y();
+                    if ((y0 - y) * (y1 - y) > 0.0 || y0 == y1) continue;
+                    const double u = (y - y0) / (y1 - y0);
+                    hit = p[j].x() + u * (p[j + 1].x() - p[j].x());
+                    if (!last) return hit;
+                }
+                return hit;
+            };
+            std::vector<double> offs;
+            const int n = cfg.loopLevels;
+            for (int l = 0; l < n; ++l) {
+                const double f = n == 1 ? cfg.loopFracLo
+                                        : cfg.loopFracLo + (cfg.loopFracHi - cfg.loopFracLo) * l / (n - 1);
+                const double y = *wristAddrY - f * rise;
+                const auto xb = crossX(up, y, true), xd = crossX(down, y, false);
+                if (xb && xd) offs.push_back(100.0 * tw * (*xd - *xb) / rise);
+            }
+            if (int(offs.size()) >= cfg.loopMinLevels) {
+                double sum = 0.0;
+                for (double o : offs) sum += o;
+                MetricSeries m;
+                m.key = QStringLiteral("handPathLoop"); m.label = QStringLiteral("Hand path loop");
+                m.unit = QStringLiteral("% hand rise");
+                m.phaseSamples.push_back({ Phase::Top, *topT, sum / double(offs.size()), QString() });
+                res.series.push_back(std::move(m));
+            }
+        }
     }
 
     res.valid = !res.series.empty();

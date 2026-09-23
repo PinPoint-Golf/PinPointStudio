@@ -77,6 +77,40 @@ from this camera.
 With the heuristic norms as they stand, this golfer's 8.6 cm of thrust is ~2σ
 (`early_extension`) and +6° of delivery plane ~1.5σ.
 
+## 3a. The hand-path loop — over the top from the hand trace (2026-09-23)
+
+The down-the-line hand trace (the `traceHands` view preset) shows over the top the way a coach
+reads it: the lead wrist goes up one path, shifts toward the ball at the top, and comes down
+**outside** the path it went up on. Nothing measured that, and `over_the_top` was signalled
+from the face-on `transitionPlaneDelta` alone — whose corridor is a deliberately unreachable
+placeholder, so the condition could never fire.
+
+**`handPathLoop`** (% of the hand rise, + = outside / toward the ball). The lead wrist's
+backswing path (Address → the top of the hands) and downswing path (top → Impact) are each
+crossed at 40, 50, 60 and 70 % of the rise; at each height the backswing's last crossing is
+subtracted from the downswing's first, signed toward the ball by the feet (§1), and the mean
+is scaled by the rise. Both paths are the same wrist in the same image, so no ruler and no
+calibration: the rise cancels the camera's distance. Above 70 % every swing loops over at the
+top; below 40 % every swing converges on the ball. Emitted at Top. Needs ≥ 3 of the 4 heights.
+
+**On the 34 corpus DTL swings** (`docs/research/data/dtl_posture/hand_path_loop_20260923.csv`):
+positive on all 33 that resolve — 06-11 +4 to +24, 07-03 +6 to +32, 07-04 +18 to +32 (±4).
+The same swings' `transitionPlaneDelta` runs −20° to +9° and changes sign between swings of a
+golfer who comes over the top on every one of them; the launch monitor on the swing that
+prompted this read the club path 3.7° out-to-in. The C++ matches the Python prototype to 0.1 on
+every swing. 07-03 s2 resolves in neither (lead wrist lost near the top).
+
+**Diagnostics.** `sig_overTheTop` now reads `m_handPathLoop` (a CEILING — dropping inside is
+shallowing, which good players do on purpose); `over_the_top` moved to its own axis
+`hand_path`. The norm is a coaching fault line, not a fitted spread: Action from +10 % of the
+rise (σ = 10/3), about 10 cm outside on a one-metre rise; the detector surfaces from ~6.7 %.
+`m_transitionPlaneDelta` keeps the shallowing tail only; its steepening tail is declared
+unwatched. A face-on-only capture no longer assesses `over_the_top` at all.
+
+**Not claimed.** One golfer, and a camera behind the ball rather than on the hands line and
+turned 4–9° toward the golfer (§4): some target-line movement leaks into image x. The ratio
+is invariant to distance, not to yaw.
+
 ## 4. Where the DTL camera is pointing (the alignment stick)
 
 The fused plane's HEADING — swing direction, and so club path — moves one for one with the

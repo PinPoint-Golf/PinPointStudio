@@ -1438,8 +1438,48 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOnClub", RM::Projected, Direct, { .faceOnCamera = true, .clubTrack = true },
                 QStringLiteral("the shaft vector's own ellipse over each window, from the face-on "
                                "shaft track — no depth and no foreshortening model needed")) },
-        .usedBy = { QStringLiteral("characteristic:over_the_top"),
-                    QStringLiteral("characteristic:shallowing") },
+        // over_the_top moved to handPathLoop below on 2026-09-23: on 34 down-the-line corpus
+        // swings of one golfer who comes over the top on every one of them, this read −20° to +9°
+        // and changed sign from swing to swing.
+        .usedBy = { QStringLiteral("characteristic:shallowing") },
+    });
+
+    // The over-the-top move as a coach sees it on a down-the-line hand trace: the hands go up one
+    // path and, after a shift toward the ball at the top, come down OUTSIDE it. Both paths are the
+    // same wrist in the same image, so the offset is scaled by the hands' own rise and needs no
+    // ruler and no calibration (dtl_posture.h). First read on 2026-09-23 across the 34 corpus
+    // swings with a down-the-line camera: positive on every usable one, +10 to +35 %, ±4 within
+    // the 07-04 session — where transitionPlaneDelta, above, could not agree with itself on sign.
+    cat.addDescriptor({
+        .key = QStringLiteral("handPathLoop"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Hand path loop"),
+        .shortLabel = QStringLiteral("Hand loop"),
+        .unit = QStringLiteral("% hand rise"),
+        .group = QStringLiteral("Club delivery"),
+        .description = QStringLiteral(
+            "Where the hands come down against where they went up. Seen from down the line, the "
+            "lead wrist traces one path to the top and another back to the ball; at the same height "
+            "the downswing path sits either outside the backswing one — toward the ball — or inside "
+            "it. Hands that shift toward the ball out of the top and come down outside are the "
+            "over-the-top move, and this is the most direct picture of it there is: the club has to "
+            "come back across the ball from out there, which is where the out-to-in path comes from."),
+        .howToRead = QStringLiteral(
+            "Positive means the hands came down OUTSIDE the path they went up on — over the top. "
+            "Negative means inside, the shallowing move good players make. It is the average gap "
+            "between 40 % and 70 % of the way up, as a percentage of how far the hands rose, so a "
+            "reading of +20 on a one-metre rise is about 20 cm. Near the top every swing loops and "
+            "near the ball every swing converges, which is why neither end is read. The camera "
+            "should be behind the hands on the target line; one well off that line turns some of "
+            "the golfer's movement toward the target into apparent loop."),
+        .signPositive = QStringLiteral("the hands came down outside the backswing path — over the top"),
+        .signNegative = QStringLiteral("the hands came down inside the backswing path"),
+        .phases = { P::Top },
+        .routes = {
+            via("dtl", RM::Projected, Direct, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the lead wrist's two paths in the down-the-line image, compared at "
+                               "the same height — the face-on camera sees this move edge-on")) },
+        .usedBy = { QStringLiteral("characteristic:over_the_top") },
     });
 
     cat.addDescriptor({
