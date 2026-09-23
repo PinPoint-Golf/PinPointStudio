@@ -25,7 +25,6 @@ StandaloneVerdict decideStandalone(const StandaloneFacts &f)
 {
     if (!f.connectorConfigured) return StandaloneVerdict::NotConfigured;
     if (!f.standaloneEnabled)   return StandaloneVerdict::Disabled;
-    if (!f.storeDeviceData)     return StandaloneVerdict::StorageOff;
     if (!f.libraryConfigured)   return StandaloneVerdict::NoLibrary;
     if (!f.athleteSelected)     return StandaloneVerdict::NoAthlete;
     if (!f.sessionRunning)      return StandaloneVerdict::NoSession;
@@ -45,8 +44,6 @@ QString standaloneVerdictReason(StandaloneVerdict v)
         return tr("no launch monitor is configured");
     case StandaloneVerdict::Disabled:
         return tr("recording shots the monitor sees on its own is switched off");
-    case StandaloneVerdict::StorageOff:
-        return tr("storing launch monitor data is switched off");
     case StandaloneVerdict::NoLibrary:
         return tr("no athlete library is configured");
     case StandaloneVerdict::NoAthlete:

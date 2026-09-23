@@ -102,12 +102,11 @@ class LmSessionModel : public QAbstractListModel
     // `launchMonitor` and `appSettings` in scope, and a model that reached for the
     // singletons itself would be untestable and would couple the board to main.cpp.
     Q_PROPERTY(bool connected READ connected WRITE setConnected NOTIFY stateTextChanged)
-    Q_PROPERTY(bool saving READ saving WRITE setSaving NOTIFY stateTextChanged)
     // Whether the shots being boarded are a LOADED session's rather than the live one's.
     // It changes no reading and no statistic — only which empty line is honest, and
-    // whether the live device's name may head the scope. `connected` and `saving` are
-    // facts about capturing the NEXT shot; neither can unwrite readings already on disk,
-    // so neither may hide them.
+    // whether the live device's name may head the scope. `connected` is a fact about
+    // capturing the NEXT shot; it cannot unwrite readings already on disk, so it may not
+    // hide them.
     Q_PROPERTY(bool reviewing READ reviewing WRITE setReviewing NOTIFY stateTextChanged)
     // "GC Quad" — the short device name for the header. Empty is fine; the scope line
     // then starts with the club.
@@ -119,8 +118,7 @@ class LmSessionModel : public QAbstractListModel
     // different colour on this panel than on the metric surfaces for one reading.
     Q_PROPERTY(QString gradePolicy READ gradePolicy WRITE setGradePolicy NOTIFY gradePolicyChanged)
 
-    // The athlete's handedness, passed in for the same reason as `connected` and
-    // `saving`: the panel already has athleteController in scope and a model that
+    // The athlete's handedness, passed in for the same reason as `connected`: the panel already has athleteController in scope and a model that
     // reached for the singleton itself would be untestable. It changes only the two
     // INFERRED reads' wording and the strike diagram's mirroring — never a reading.
     Q_PROPERTY(bool leftHanded READ leftHanded WRITE setLeftHanded NOTIFY graphicsChanged)
@@ -176,8 +174,6 @@ public:
     void           setFocusedShotId(int id);
     bool           connected() const { return m_connected; }
     void           setConnected(bool on);
-    bool           saving() const { return m_saving; }
-    void           setSaving(bool on);
     bool           reviewing() const { return m_reviewing; }
     void           setReviewing(bool on);
     QString        deviceName() const { return m_deviceName; }
@@ -242,7 +238,6 @@ private:
     QPointer<ShotListModel> m_shots;
     int                     m_focusedShotId = -1;
     bool                    m_connected = false;
-    bool                    m_saving = false;
     bool                    m_reviewing = false;
     bool                    m_leftHanded = false;
     QString                 m_deviceName;

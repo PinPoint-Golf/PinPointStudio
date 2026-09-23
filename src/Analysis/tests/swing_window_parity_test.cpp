@@ -253,7 +253,6 @@ SwingExportJob baseExportJob(const RamSwing& ram, const QString& dir, bool saveR
     job.saveImu              = true;
     job.saveRaw              = saveRaw;
     job.resolutionMode       = "native";
-    job.imuFormat            = "json";
     job.athleteName          = "Test";
     job.handedness           = "Right";
     job.wallclockAnchorUtc   = QDateTime::currentDateTimeUtc();

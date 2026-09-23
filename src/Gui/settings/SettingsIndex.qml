@@ -302,7 +302,7 @@ QtObject {
           itemId: "setting_sessionNaming" },
 
         { panelIndex: 8, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Video recording"),
-          label: qsTr("Recording resolution"),             subtitle: qsTr("Applies to all cameras — must be within sensor ROI bounds"),
+          label: qsTr("Recording resolution"),             subtitle: qsTr("Native or ½ native — the size of the saved clips"),
           itemId: "setting_videoRes" },
 
         { panelIndex: 8, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Video recording"),
@@ -317,10 +317,6 @@ QtObject {
           label: qsTr("Save raw camera frames"),           subtitle: qsTr("Stores unprocessed Bayer data alongside encoded clips"),
           itemId: "setting_saveRaw" },
 
-        { panelIndex: 8, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Video recording"),
-          label: qsTr("Container format"),                 subtitle: qsTr("File format for saved swing clips"),
-          itemId: "setting_container" },
-
         { panelIndex: 8, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
           label: qsTr("Save pose keypoints"),              subtitle: qsTr("The skeleton tracked in every frame — replay overlays and fast re-analysis"),
           itemId: "setting_savePose" },
@@ -328,14 +324,6 @@ QtObject {
         { panelIndex: 8, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
           label: qsTr("Save IMU streams"),                 subtitle: qsTr("Full quaternion and accelerometer data for all enabled IMUs"),
           itemId: "setting_saveImu" },
-
-        { panelIndex: 8, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
-          label: qsTr("IMU data format"),                  subtitle: qsTr("File format for saved IMU streams"),
-          itemId: "setting_imuFormat" },
-
-        { panelIndex: 8, panelLabel: qsTr("Storage"),     groupLabel: qsTr("Sensor data"),
-          label: qsTr("Save launch monitor data"),         subtitle: qsTr("Ball-flight data from connected launch monitor"),
-          itemId: "setting_saveLaunchMon" },
 
         // ── Diagnostic Model (panelIndex: 10) ──────────────────────────────────
         //
@@ -412,11 +400,6 @@ QtObject {
           label: qsTr("Chime when a reading arrives"),     subtitle: qsTr("A short quiet tone when the monitor's data is folded into the swing"),
           actions: "launch monitor chime sound ting audio beep tone notify silence mute arrival",
           itemId: "setting_lmChime" },
-
-        { panelIndex: 7,  panelLabel: qsTr("Launch Monitor"), groupLabel: qsTr("Behaviour"),
-          label: qsTr("Store launch monitor data with each swing"), subtitle: qsTr("Off means readings are read and discarded rather than saved to the swing"),
-          actions: "launch monitor store save data swing json record keep discard",
-          itemId: "setting_lmStore" },
 
         { panelIndex: 7,  panelLabel: qsTr("Launch Monitor"), groupLabel: qsTr("Behaviour"),
           label: qsTr("Check for new shots every"),        subtitle: qsTr("How often the shot data folder is re-read — raise it only for a slow share"),

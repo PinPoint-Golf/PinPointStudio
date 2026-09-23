@@ -1462,19 +1462,10 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
     job.saveImu = s->saveImuStreams();
     job.resolutionMode = s->videoResolutionMode();
     job.saveRaw        = s->saveRawFrames();
-    job.imuFormat      = s->imuDataFormat();
     job.savePose       = s->savePoseKeypoints();
     // job.poseStreams intentionally left empty: pose production (analyzer / pose
     // buffering) is a separate scope. The exporter serialises whatever is here,
     // so this is forward-compatible — populate it upstream once a producer lands.
-
-    // Container extension drives the FFmpeg muxer (avformat guesses from the
-    // output path). mp4/mov/mkv all carry H.264/H.265; fall back to mp4 for
-    // anything else so a stale setting can never break the export.
-    QString container = s->videoContainer().toLower();
-    if (container != QLatin1String("mp4") && container != QLatin1String("mov")
-        && container != QLatin1String("mkv"))
-        container = QStringLiteral("mp4");
 
     if (m_athlete) {
         job.athleteName = m_athlete->currentName();
@@ -1548,7 +1539,7 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         pinpoint::SwingExportCamera cam;
         cam.sourceId = track.sourceId;
         cam.alias    = name;
-        cam.fileName = name + QLatin1Char('.') + container;
+        cam.fileName = name + QStringLiteral(".mp4");   // the extension picks FFmpeg's muxer
         cam.perspective  = track.ctrl->perspective();
         cam.mirrored     = track.ctrl->isMirrored();
         cam.fixedInPlace = s->cameraFixedInPlace()

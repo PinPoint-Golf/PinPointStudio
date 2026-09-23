@@ -359,11 +359,6 @@ bool LaunchMonitorController::writeDeviceOnly(const QString &swingDir,
                                               const QString &swingId, int swingIndex,
                                               const QString &sessionId, int existingShotId)
 {
-    if (m_settings && !m_settings->saveLaunchMonitorData()) {
-        ppInfo() << "LaunchMonitor: storing device data is switched off; nothing written";
-        return false;
-    }
-
     pinpoint::SwingDocWriter::DeviceOnlyMeta meta;
     // The rescue path is handed a folder somebody else allocated, so it reads the
     // identity back off the path rather than being told: <session>/<swing_NNNN>.
@@ -431,7 +426,6 @@ bool LaunchMonitorController::createStandaloneShot(const LaunchMonitorReading &r
     StandaloneFacts facts;
     facts.connectorConfigured = configured();
     facts.standaloneEnabled   = m_settings && m_settings->launchMonitorStandalone();
-    facts.storeDeviceData     = m_settings && m_settings->saveLaunchMonitorData();
     facts.libraryConfigured   = m_settings && !m_settings->athleteLibraryPath().isEmpty();
     facts.athleteSelected     = m_athletes && m_athletes->hasCurrentAthlete();
     facts.sessionRunning      = m_session  && m_session->running();
@@ -464,11 +458,6 @@ bool LaunchMonitorController::createStandaloneShot(const LaunchMonitorReading &r
 
 bool LaunchMonitorController::applyToSwing(const QString &swingDir, const LaunchMonitorReading &r)
 {
-    if (m_settings && !m_settings->saveLaunchMonitorData()) {
-        ppInfo() << "LaunchMonitor: storing device data is switched off; reading not written";
-        return false;
-    }
-
     QString error;
     if (!pinpoint::SwingDocWriter::updateLaunchMonitor(swingDir, r, &error)) {
         ppWarn() << "LaunchMonitor: cannot write reading to" << swingDir << ":" << error;

@@ -101,7 +101,6 @@ Rectangle {
         // doing now.
         reviewing:     root.reviewing
         connected:     launchMonitor.configured
-        saving:        appSettings.saveLaunchMonitorData
         deviceName:    launchMonitor.deviceName
         // The SAME setting MetricCatalog is bound to wherever it is hosted. A corridor
         // graded here against the default while the golfer has chosen Strict would put a

@@ -25,7 +25,6 @@ StandaloneFacts allGood()
     StandaloneFacts f;
     f.connectorConfigured = true;
     f.standaloneEnabled   = true;
-    f.storeDeviceData     = true;
     f.libraryConfigured   = true;
     f.athleteSelected     = true;
     f.sessionRunning      = true;
@@ -54,13 +53,6 @@ TEST(StandaloneGate, TheSettingBeingOffBlocks)
     // OFF BY DEFAULT, and this is the one that made a tester think nothing had shipped.
     auto f = allGood(); f.standaloneEnabled = false;
     EXPECT_EQ(decideStandalone(f), StandaloneVerdict::Disabled);
-}
-
-TEST(StandaloneGate, StorageBeingOffBlocks)
-{
-    // "Read the device and discard it" has to mean discard, not discard-except-this.
-    auto f = allGood(); f.storeDeviceData = false;
-    EXPECT_EQ(decideStandalone(f), StandaloneVerdict::StorageOff);
 }
 
 TEST(StandaloneGate, NoLibraryBlocks)
@@ -102,21 +94,20 @@ TEST(StandaloneGate, NothingIsTrueAndNothingRecords)
 
 TEST(StandaloneGate, EveryOtherCombinationRefuses)
 {
-    // 2^7 = 128 states. Enumerating them is the point: a precondition added later without
+    // 2^6 = 64 states. Enumerating them is the point: a precondition added later without
     // a thought about ordering, or one accidentally dropped, shows up here as a state
     // that records when it should not.
     int recorded = 0, refused = 0;
-    for (int bits = 0; bits < 128; ++bits) {
+    for (int bits = 0; bits < 64; ++bits) {
         StandaloneFacts f;
         f.connectorConfigured = bits & 1;
         f.standaloneEnabled   = bits & 2;
-        f.storeDeviceData     = bits & 4;
-        f.libraryConfigured   = bits & 8;
-        f.athleteSelected     = bits & 16;
-        f.sessionRunning      = bits & 32;
-        f.captureActive       = bits & 64;
+        f.libraryConfigured   = bits & 4;
+        f.athleteSelected     = bits & 8;
+        f.sessionRunning      = bits & 16;
+        f.captureActive       = bits & 32;
 
-        const bool all = f.connectorConfigured && f.standaloneEnabled && f.storeDeviceData
+        const bool all = f.connectorConfigured && f.standaloneEnabled
                       && f.libraryConfigured && f.athleteSelected && f.sessionRunning
                       && f.captureActive;
         const auto v = decideStandalone(f);
@@ -124,7 +115,7 @@ TEST(StandaloneGate, EveryOtherCombinationRefuses)
         else                                { ++refused;  EXPECT_FALSE(all) << "bits " << bits; }
     }
     EXPECT_EQ(recorded, 1);
-    EXPECT_EQ(refused, 127);
+    EXPECT_EQ(refused, 63);
 }
 
 // ── Which reason gets reported when several are false ───────────────────────────
@@ -165,7 +156,7 @@ TEST(StandaloneGate, EveryRefusalCarriesAReason)
     // happened silently" is what cost real time on a real machine.
     const StandaloneVerdict all[] = {
         StandaloneVerdict::NotConfigured, StandaloneVerdict::Disabled,
-        StandaloneVerdict::StorageOff,    StandaloneVerdict::NoLibrary,
+        StandaloneVerdict::NoLibrary,
         StandaloneVerdict::NoAthlete,     StandaloneVerdict::NoSession,
         StandaloneVerdict::CaptureInactive,
     };

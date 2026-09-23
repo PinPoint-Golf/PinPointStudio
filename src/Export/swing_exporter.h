@@ -335,14 +335,11 @@ struct SwingExportJob {
     bool saveImu = true;   // AppSettings saveImuStreams
 
     // AppSettings videoResolutionMode — export-time downscale (never upscale):
-    // "native" (source), "half" (½), "1080p" / "4k" (fit to that line count).
+    // "native" (source) or "half" (½ each axis).
     QString resolutionMode = QStringLiteral("native");
     // AppSettings saveRawFrames — also dump the undecoded sensor payloads to an
     // "<alias>.raw" sidecar (single concatenated blob) per camera.
     bool    saveRaw = false;
-    // AppSettings imuDataFormat — "json" (inline in swing.json), "csv", or
-    // "binary"; csv/binary write an "imu_<alias>.<ext>" sidecar instead.
-    QString imuFormat = QStringLiteral("json");
     // AppSettings savePoseKeypoints — gate for serialising poseStreams (above).
     bool    savePose = true;
 

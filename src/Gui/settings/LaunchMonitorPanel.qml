@@ -505,41 +505,6 @@ Item {
                 }
             }
 
-            // Store device data — the key already existed, waiting for a source.
-            RowLayout {
-                objectName: "setting_lmStore"
-                Layout.fillWidth: true
-                spacing: Theme.sp(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.sp(3)
-                    Text {
-                        text:           qsTr("Store launch monitor data with each swing")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Off means readings are read and discarded — nothing is written to the swing, and none of the measured metrics appear")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                        wrapMode:       Text.WordWrap
-                        Layout.fillWidth: true
-                    }
-                }
-
-                TogglePill {
-                    checked:     appSettings.saveLaunchMonitorData
-                    enabledPill: root.configured
-                    onToggled:   (v) => appSettings.saveLaunchMonitorData = v
-                    Layout.alignment: Qt.AlignVCenter
-                }
-            }
-
             // Standalone shots — the one row here that changes what a shot IS.
             RowLayout {
                 objectName: "setting_lmStandalone"

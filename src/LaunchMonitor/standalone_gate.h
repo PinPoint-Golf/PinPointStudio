@@ -32,12 +32,11 @@ namespace pinpoint::lm {
 // that is hard to get wrong.
 //
 // The rescue path — a shot the app detected but could not record — deliberately does NOT
-// come through here. It needs no permission beyond storage being on: the app saw a shot
-// and the device measured it, so there is nothing left to be cautious about.
+// come through here. It needs no permission: the app saw a shot and the device measured
+// it, so there is nothing left to be cautious about.
 struct StandaloneFacts {
     bool connectorConfigured = false;   // a launch monitor is selected at all
     bool standaloneEnabled   = false;   // launchmonitor/standaloneShots
-    bool storeDeviceData     = false;   // storage/saveLaunchMonitorData
     bool libraryConfigured   = false;   // an athlete library path exists
     bool athleteSelected     = false;   // allocateSwingDir needs a name and a uuid
     bool sessionRunning      = false;   // a session folder to land in
@@ -48,7 +47,6 @@ enum class StandaloneVerdict {
     Record,             // all of it holds — write the shot
     NotConfigured,
     Disabled,
-    StorageOff,
     NoLibrary,
     NoAthlete,
     NoSession,

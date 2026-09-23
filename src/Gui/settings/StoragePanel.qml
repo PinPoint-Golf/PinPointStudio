@@ -64,8 +64,6 @@ Item {
         return n.toFixed(1) + " GB"
     }
 
-    function recalcEstimate() {}
-
     // ── Estimated size helpers ────────────────────────────────────────────────
 
     // MEASURED, one 1280×1024 face-on camera, the full ~5 s window (swing_storage_impl.md,
@@ -78,11 +76,14 @@ Item {
         "lossless": 461      // CRF 0 (High 4:4:4 Predictive)
     })
     readonly property real codecMultiplier: appSettings.videoCodec === "h265" ? 0.6 : 1.0
+    // Not measured either: ½ native is a quarter of the pixels, and compressed size falls by less
+    // than that at a fixed CRF. 0.3 is an expectation, not a figure.
+    readonly property real resolutionMultiplier: appSettings.videoResolutionMode === "half" ? 0.3 : 1.0
     readonly property int  cameras: 2
     readonly property real rawMbPerCamera: 900       // BayerRG8, the full window: 780–980 measured
     readonly property real documentMb: 6.1           // swing.ppsw, two cameras (median, 15 swings)
 
-    readonly property real clipMb: cameras * ((videoMbPerCamera[appSettings.videoQuality] || 2.5) * codecMultiplier
+    readonly property real clipMb: cameras * ((videoMbPerCamera[appSettings.videoQuality] || 2.5) * codecMultiplier * resolutionMultiplier
                                               + (appSettings.saveRawFrames ? rawMbPerCamera : 0))
                                    + documentMb
     readonly property real sessionMb: clipMb * 60    // an hour at one swing a minute
@@ -158,9 +159,9 @@ Item {
         { label: qsTr("Date only"),                      value: "date-only"     }
     ]
 
+    // The exporter only ever downscales, so there is no 1080p or 4K: every camera we drive has
+    // fewer lines than either, and both saved exactly what Native saves.
     readonly property var resolutionOptions: [
-        { label: qsTr("4K"),       value: "4k"     },
-        { label: qsTr("1080p"),    value: "1080p"  },
         { label: qsTr("Native"),   value: "native" },
         { label: qsTr("½ native"), value: "half"   }
     ]
@@ -177,18 +178,6 @@ Item {
         { label: qsTr("Standard"), value: "medium"   },
         { label: qsTr("High"),     value: "high"     },
         { label: qsTr("Lossless"), value: "lossless" }
-    ]
-
-    readonly property var containerOptions: [
-        { label: "MP4", value: "mp4" },
-        { label: "MOV", value: "mov" },
-        { label: "MKV", value: "mkv" }
-    ]
-
-    readonly property var imuFormatOptions: [
-        { label: qsTr("JSON"),   value: "json"   },
-        { label: qsTr("CSV"),    value: "csv"    },
-        { label: qsTr("Binary"), value: "binary" }
     ]
 
     readonly property var codecDescriptions: ({
@@ -537,9 +526,9 @@ Item {
                     Text {
                         text: {
                             var p = appSettings.sessionNamingPattern
-                            if (p === "date-name-type") return "2026-05-22_Mark-Liversedge_Driver"
-                            if (p === "date-type-name") return "2026-05-22_Driver_Mark-Liversedge"
-                            if (p === "name-date-type") return "Mark-Liversedge_2026-05-22_Driver"
+                            if (p === "date-name-type") return "2026-05-22_Mark-Liversedge_Swing"
+                            if (p === "date-type-name") return "2026-05-22_Swing_Mark-Liversedge"
+                            if (p === "name-date-type") return "Mark-Liversedge_2026-05-22_Swing"
                             return "2026-05-22"
                         }
                         font.family:    Theme.fontData
@@ -603,7 +592,9 @@ Item {
                         color:          Theme.colorText
                     }
                     Text {
-                        text:           qsTr("Applies to all cameras — must be within sensor ROI bounds")
+                        Layout.fillWidth: true
+                        wrapMode:       Text.WordWrap
+                        text:           qsTr("Size of the saved clips, all cameras. ½ native saves smaller files; re-analysing from them works on half-resolution video")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         color:          Theme.colorText3
@@ -649,7 +640,6 @@ Item {
                                 id: resMa
                                 onClicked: {
                                     appSettings.videoResolutionMode = modelData.value
-                                    recalcEstimate()
                                 }
                             }
                         }
@@ -730,7 +720,6 @@ Item {
                                 id: codecMa
                                 onClicked: {
                                     appSettings.videoCodec = modelData.value
-                                    recalcEstimate()
                                 }
                             }
                         }
@@ -738,16 +727,13 @@ Item {
                 }
             }
 
-            // Encoding quality (dimmed when codec is raw)
+            // Encoding quality
             RowLayout {
                 objectName: "setting_videoQuality"
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
-                opacity: appSettings.videoCodec === "raw" ? 0.4 : 1.0
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-                enabled: appSettings.videoCodec !== "raw"
-                Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -806,7 +792,6 @@ Item {
                                 id: qualMa
                                 onClicked: {
                                     appSettings.videoQuality = modelData.value
-                                    recalcEstimate()
                                 }
                             }
                         }
@@ -901,84 +886,11 @@ Item {
                         top:  parent.top
                         leftMargin: Theme.sp(12); rightMargin: Theme.sp(12); topMargin: Theme.sp(10)
                     }
-                    text:           qsTr("Saving raw Bayer frames uses approximately 4× the storage of encoded video. Ensure the library volume has sufficient free space before recording long sessions.")
+                    text:           qsTr("Raw Bayer frames are about 900 MB per camera per swing, against 2.5 MB for a Compact clip. Check the library volume has room before recording long sessions.")
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
                     color:          Theme.colorWarn
                     wrapMode:       Text.WordWrap
-                }
-            }
-
-            // Container format
-            RowLayout {
-                objectName: "setting_container"
-                Layout.fillWidth: true
-                spacing: Theme.sp(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.sp(3)
-
-                    Text {
-                        text:           qsTr("Container format")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("File format for saved swing clips")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                }
-
-                Row {
-                    spacing: Theme.sp(4)
-                    Layout.alignment: Qt.AlignVCenter
-
-                    Repeater {
-                        model: root.containerOptions
-
-                        delegate: Rectangle {
-                            required property var modelData
-
-                            readonly property bool isSelected: appSettings.videoContainer === modelData.value
-
-                            width:        contLbl.implicitWidth + Theme.sp(20)
-                            height:       Theme.sp(24)
-                            radius:       Theme.radius
-                            color:        isSelected           ? Theme.colorAccentLight
-                                        : contMa.containsMouse ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0.6)
-                                        :                        "transparent"
-                            border.width: 1
-                            border.color: isSelected           ? Theme.colorAccent
-                                        : contMa.containsMouse ? Theme.colorAccentMid
-                                        :                        Theme.colorBorderStrong
-                            Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                            Text {
-                                id: contLbl
-                                anchors.centerIn: parent
-                                text:           modelData.label
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzMicro
-                                color:          isSelected ? Theme.colorAccent : Theme.colorText2
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
-
-                            PpPressable {
-                                id: contMa
-                                onClicked: {
-                                    appSettings.videoContainer = modelData.value
-                                    recalcEstimate()
-                                }
-                            }
-                        }
-                    }
                 }
             }
 
@@ -1007,11 +919,17 @@ Item {
                             color:          Theme.colorText
                         }
                         Text {
+                            // The labels the buttons show, not the stored values ("Compact", not "low").
                             text: {
-                                var codec   = appSettings.videoCodec.toUpperCase()
-                                var quality = appSettings.videoQuality
-                                var res     = appSettings.videoResolutionMode
-                                return qsTr("2 cameras · full window · ") + codec + " " + quality + " · " + res
+                                function labelOf(opts, v) {
+                                    for (var i = 0; i < opts.length; i++)
+                                        if (opts[i].value === v) return opts[i].label
+                                    return v
+                                }
+                                return qsTr("2 cameras · full window · ")
+                                       + labelOf(root.codecOptions, appSettings.videoCodec) + " "
+                                       + labelOf(root.qualityOptions, appSettings.videoQuality) + " · "
+                                       + labelOf(root.resolutionOptions, appSettings.videoResolutionMode)
                                        + (appSettings.saveRawFrames ? qsTr(" · raw") : "")
                             }
                             font.family:    Theme.fontData
@@ -1160,112 +1078,6 @@ Item {
                 TogglePill {
                     checked:   appSettings.saveImuStreams
                     onToggled: (v) => appSettings.saveImuStreams = v
-                    Layout.alignment: Qt.AlignVCenter
-                }
-            }
-
-            // IMU data format (dimmed when saveImuStreams is off)
-            RowLayout {
-                objectName: "setting_imuFormat"
-                Layout.fillWidth: true
-                spacing: Theme.sp(16)
-                opacity: appSettings.saveImuStreams ? 1.0 : 0.4
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-                enabled: appSettings.saveImuStreams
-                Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.sp(3)
-
-                    Text {
-                        text:           qsTr("IMU data format")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("File format for saved IMU streams")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                }
-
-                Row {
-                    spacing: Theme.sp(4)
-                    Layout.alignment: Qt.AlignVCenter
-
-                    Repeater {
-                        model: root.imuFormatOptions
-
-                        delegate: Rectangle {
-                            required property var modelData
-
-                            readonly property bool isSelected: appSettings.imuDataFormat === modelData.value
-
-                            width:        imuFmtLbl.implicitWidth + Theme.sp(20)
-                            height:       Theme.sp(24)
-                            radius:       Theme.radius
-                            color:        isSelected             ? Theme.colorAccentLight
-                                        : imuFmtMa.containsMouse ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0.6)
-                                        :                          "transparent"
-                            border.width: 1
-                            border.color: isSelected             ? Theme.colorAccent
-                                        : imuFmtMa.containsMouse ? Theme.colorAccentMid
-                                        :                          Theme.colorBorderStrong
-                            Behavior on color       { ColorAnimation { duration: Theme.durationFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                            Text {
-                                id: imuFmtLbl
-                                anchors.centerIn: parent
-                                text:           modelData.label
-                                font.family:    Theme.fontData
-                                font.pixelSize: Theme.fontSzMicro
-                                color:          isSelected ? Theme.colorAccent : Theme.colorText2
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
-
-                            PpPressable {
-                                id: imuFmtMa
-                                onClicked:    appSettings.imuDataFormat = modelData.value
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Save launch monitor data
-            RowLayout {
-                objectName: "setting_saveLaunchMon"
-                Layout.fillWidth: true
-                spacing: Theme.sp(16)
-                property bool searchHighlight: false
-                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.sp(3)
-
-                    Text {
-                        text:           qsTr("Save launch monitor data")
-                        font.family:    Theme.fontBody
-                        font.pixelSize: Theme.fontSzBody
-                        color:          Theme.colorText
-                    }
-                    Text {
-                        text:           qsTr("Ball-flight data from connected launch monitor, stored as JSON")
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText3
-                    }
-                }
-
-                TogglePill {
-                    checked:   appSettings.saveLaunchMonitorData
-                    onToggled: (v) => appSettings.saveLaunchMonitorData = v
                     Layout.alignment: Qt.AlignVCenter
                 }
             }

@@ -304,13 +304,6 @@ void LmSessionModel::setConnected(bool on)
     emit stateTextChanged();
 }
 
-void LmSessionModel::setSaving(bool on)
-{
-    if (m_saving == on) return;
-    m_saving = on;
-    emit stateTextChanged();
-}
-
 void LmSessionModel::setReviewing(bool on)
 {
     if (m_reviewing == on) return;
@@ -419,13 +412,10 @@ QString LmSessionModel::emptyText() const
         return {};
     }
 
-    // Ordered by what the user can do about it. "No monitor" outranks "not saving"
-    // outranks "nothing yet", because the fix for each is a different screen and only
-    // the innermost one is a matter of hitting another ball.
+    // Ordered by what the user can do about it. "No monitor" outranks "nothing yet",
+    // because only the second is a matter of hitting another ball.
     if (!m_connected)
         return tr("No launch monitor connected — Settings → Launch Monitor");
-    if (!m_saving)
-        return tr("Launch monitor readings are not being saved — Settings → Storage");
     if (!m_anyReadings)
         return tr("No readings yet this session");
     // Readings exist, but not for the club the focused shot was hit with. Saying "no

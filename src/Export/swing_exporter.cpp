@@ -32,7 +32,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
-#include <QTextStream>
 #include <QTimeZone>
 
 #include <opencv2/imgproc.hpp>
@@ -59,10 +58,9 @@ QJsonArray toJsonTimestamps(const std::vector<int64_t>& tUs)
 }
 
 // Export-time target size for a source frame, honoring AppSettings
-// videoResolutionMode. Preserves aspect, forces even dims (libx264/yuv420p), and
-// NEVER upscales — mirroring the exporter's "crop, never pad" rule (we don't
-// invent pixels). "1080p"/"4k" fit to that many scan lines; "half" halves both
-// axes; "native"/unknown keep the (even-cropped) source.
+// videoResolutionMode. Forces even dims (libx264/yuv420p) and NEVER upscales —
+// mirroring the exporter's "crop, never pad" rule (we don't invent pixels).
+// "half" halves both axes; "native"/unknown keep the (even-cropped) source.
 void exportTargetSize(int srcW, int srcH, const QString& mode, int& outW, int& outH)
 {
     const int evenW = srcW & ~1;
@@ -74,15 +72,8 @@ void exportTargetSize(int srcW, int srcH, const QString& mode, int& outW, int& o
         return;
     }
 
-    int targetH = 0;
-    if (mode == QLatin1String("1080p"))    targetH = 1080;
-    else if (mode == QLatin1String("4k"))  targetH = 2160;
-    else { outW = evenW; outH = evenH; return; }   // "native" / unknown
-
-    if (targetH >= srcH) { outW = evenW; outH = evenH; return; }   // never upscale
-    const double scale = static_cast<double>(targetH) / static_cast<double>(srcH);
-    outW = static_cast<int>(std::lround(srcW * scale)) & ~1;
-    outH = targetH & ~1;
+    outW = evenW;
+    outH = evenH;
 }
 
 // Demosaics the frame nearest impactUs from one camera and writes it as
@@ -587,11 +578,6 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                 imuIds.push_back(e.source_id);
         }
 
-        // imuDataFormat: "json" inlines samples in swing.json; "csv"/"binary"
-        // write an "imu_<alias>.<ext>" sidecar and reference it instead.
-        const bool imuCsv = job.imuFormat == QLatin1String("csv");
-        const bool imuBin = job.imuFormat == QLatin1String("binary");
-
         for (SourceId sid : imuIds) {
             const FormatDescriptor& fd = window.formatOf(sid);
             const QString serial = QString::fromStdString(fd.device_serial);
@@ -825,72 +811,19 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                 };
             }
 
-            // Inline-JSON samples object (also the fallback if a sidecar fails).
-            auto inlineSamples = [&]() -> QJsonObject {
+            // Samples are always inline. The csv/binary sidecar options were retired 23 Sept
+            // 2026: replay and re-analysis read only inline samples, so a sidecar swing's IMU
+            // data was saved but invisible. SwingZipExporter still carries old sidecars.
+            {
                 QJsonArray data;
                 for (const auto& r : rows)
                     data.append(QJsonArray{r[0], r[1], r[2], r[3], r[4],
                                            r[5], r[6], r[7], r[8], r[9]});
-                return QJsonObject{
+                s[QStringLiteral("samples")] = QJsonObject{
                     {QStringLiteral("count"), static_cast<qint64>(tUs.size())},
                     {QStringLiteral("t_us"),  toJsonTimestamps(tUs)},
                     {QStringLiteral("data"),  data},
                 };
-            };
-
-            if (imuCsv || imuBin) {
-                const QString fileName = QStringLiteral("imu_") + SwingPaths::sanitise(alias)
-                                       + (imuCsv ? QStringLiteral(".csv") : QStringLiteral(".bin"));
-                const QString path = job.swingDir + QLatin1Char('/') + fileName;
-                bool wrote = false;
-                QFile f(path);
-                if (imuCsv) {
-                    if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                        QTextStream out(&f);
-                        out << "t_us,accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,"
-                               "quat_w,quat_x,quat_y,quat_z\n";
-                        for (size_t i = 0; i < tUs.size(); ++i) {
-                            out << static_cast<qint64>(tUs[i]);
-                            for (float v : rows[i]) out << ',' << v;
-                            out << '\n';
-                        }
-                        out.flush();
-                        // Disk-full/short-write check: a truncated sidecar
-                        // referenced as complete by swing.json is worse than
-                        // the inline-JSON fallback.
-                        wrote = (out.status() == QTextStream::Ok
-                                 && f.error() == QFileDevice::NoError);
-                    }
-                } else {   // binary: little-endian i64 t_us + 10×f32 per record
-                    if (f.open(QIODevice::WriteOnly)) {
-                        wrote = true;
-                        for (size_t i = 0; i < tUs.size() && wrote; ++i) {
-                            const qint64 t = static_cast<qint64>(tUs[i]);
-                            const qint64 rowBytes =
-                                static_cast<qint64>(sizeof(float) * rows[i].size());
-                            wrote = f.write(reinterpret_cast<const char*>(&t),
-                                            sizeof(t)) == sizeof(t)
-                                 && f.write(reinterpret_cast<const char*>(rows[i].data()),
-                                            rowBytes) == rowBytes;
-                        }
-                    }
-                }
-                if (wrote) {
-                    s[QStringLiteral("samples")] = QJsonObject{
-                        {QStringLiteral("count"),  static_cast<qint64>(tUs.size())},
-                        {QStringLiteral("file"),   fileName},
-                        {QStringLiteral("format"), job.imuFormat},
-                        {QStringLiteral("record"), imuBin
-                             ? QStringLiteral("le: i64 t_us, f32[10] accel3,gyro3,quat4")
-                             : QStringLiteral("t_us,accel3,gyro3,quat4")},
-                    };
-                } else {
-                    ppWarn() << "[SwingExport] could not write IMU sidecar" << path
-                             << "— falling back to inline JSON";
-                    s[QStringLiteral("samples")] = inlineSamples();
-                }
-            } else {
-                s[QStringLiteral("samples")] = inlineSamples();
             }
             streams.append(s);
         }

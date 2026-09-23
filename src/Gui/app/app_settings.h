@@ -283,7 +283,6 @@ class AppSettings : public QObject
     Q_PROPERTY(QString videoResolutionMode   READ videoResolutionMode   WRITE setVideoResolutionMode   NOTIFY videoResolutionModeChanged)
     Q_PROPERTY(QString videoCodec            READ videoCodec            WRITE setVideoCodec            NOTIFY videoCodecChanged)
     Q_PROPERTY(QString videoQuality          READ videoQuality          WRITE setVideoQuality          NOTIFY videoQualityChanged)
-    Q_PROPERTY(QString videoContainer        READ videoContainer        WRITE setVideoContainer        NOTIFY videoContainerChanged)
     Q_PROPERTY(bool    saveRawFrames         READ saveRawFrames         WRITE setSaveRawFrames         NOTIFY saveRawFramesChanged)
     Q_PROPERTY(bool    skipAnalysisForRawCapture READ skipAnalysisForRawCapture WRITE setSkipAnalysisForRawCapture NOTIFY skipAnalysisForRawCaptureChanged)
     Q_PROPERTY(bool    savePoseKeypoints     READ savePoseKeypoints     WRITE setSavePoseKeypoints     NOTIFY savePoseKeypointsChanged)
@@ -295,8 +294,6 @@ class AppSettings : public QObject
     Q_PROPERTY(int     archiveFloorGb        READ archiveFloorGb        WRITE setArchiveFloorGb        NOTIFY archivingChanged)
     Q_PROPERTY(bool    archiveKeepRaw        READ archiveKeepRaw        WRITE setArchiveKeepRaw        NOTIFY archivingChanged)
     Q_PROPERTY(bool    saveImuStreams        READ saveImuStreams        WRITE setImuStreams            NOTIFY saveImuStreamsChanged)
-    Q_PROPERTY(QString imuDataFormat         READ imuDataFormat         WRITE setImuDataFormat         NOTIFY imuDataFormatChanged)
-    Q_PROPERTY(bool    saveLaunchMonitorData READ saveLaunchMonitorData WRITE setSaveLaunchMonitorData NOTIFY saveLaunchMonitorDataChanged)
 
     // ── Launch monitor ──────────────────────────────────────────────────────
     // Which connector, and where it writes. `launchMonitorKind` holds the token
@@ -511,6 +508,10 @@ public:
 
         m_sessionNamingPattern  = ppSettings().value(QStringLiteral("storage/sessionNamingPattern"),  QStringLiteral("date-name-type")).toString();
         m_videoResolutionMode   = ppSettings().value(QStringLiteral("storage/videoResolutionMode"),   QStringLiteral("native")).toString();
+        // "4k" and "1080p" were retired 23 Sept 2026: the exporter only ever downscales and every
+        // camera we drive has fewer than 1080 lines, so both saved exactly what "native" saves.
+        if (m_videoResolutionMode != QLatin1String("half"))
+            m_videoResolutionMode = QStringLiteral("native");
         m_videoCodec            = ppSettings().value(QStringLiteral("storage/videoCodec"),            QStringLiteral("h264")).toString();
         // Codecs were rationalised to the cross-platform set; coerce a persisted
         // retired value ("prores"/"raw") so the UI selection and exporter agree.
@@ -520,7 +521,6 @@ public:
         // camera against 7.1 at CRF 23, for ~0.5 px more pose error on re-analysis — and no mp4 at any
         // CRF re-analyses like the raw frames anyway. An install that saved a choice keeps it.
         m_videoQuality          = ppSettings().value(QStringLiteral("storage/videoQuality"),          QStringLiteral("low")).toString();
-        m_videoContainer        = ppSettings().value(QStringLiteral("storage/videoContainer"),        QStringLiteral("mp4")).toString();
         m_saveRawFrames         = ppSettings().value(QStringLiteral("storage/saveRawFrames"),         false).toBool();
         m_skipAnalysisForRawCapture = ppSettings().value(QStringLiteral("storage/skipAnalysisForRawCapture"), false).toBool();
         m_savePoseKeypoints     = ppSettings().value(QStringLiteral("storage/savePoseKeypoints"),     true).toBool();
@@ -530,8 +530,6 @@ public:
         m_archiveFloorGb        = ppSettings().value(QStringLiteral("storage/archiveFloorGb"),        0).toInt();
         m_archiveKeepRaw        = ppSettings().value(QStringLiteral("storage/archiveKeepRaw"),        true).toBool();
         m_saveImuStreams         = ppSettings().value(QStringLiteral("storage/saveImuStreams"),        true).toBool();
-        m_imuDataFormat         = ppSettings().value(QStringLiteral("storage/imuDataFormat"),         QStringLiteral("json")).toString();
-        m_saveLaunchMonitorData = ppSettings().value(QStringLiteral("storage/saveLaunchMonitorData"), true).toBool();
 
         // ⚠ DEFAULTS TRUE, AND THAT IS THE COMPATIBILITY-CRITICAL BIT. Every
         // existing installation has a configured connector and no such key; a
@@ -666,7 +664,6 @@ public:
     QString videoResolutionMode()   const { return m_videoResolutionMode; }
     QString videoCodec()            const { return m_videoCodec; }
     QString videoQuality()          const { return m_videoQuality; }
-    QString videoContainer()        const { return m_videoContainer; }
     bool    saveRawFrames()         const { return m_saveRawFrames; }
     bool    skipAnalysisForRawCapture() const { return m_skipAnalysisForRawCapture; }
     bool    savePoseKeypoints()     const { return m_savePoseKeypoints; }
@@ -676,8 +673,6 @@ public:
     int     archiveFloorGb()        const { return m_archiveFloorGb; }       // 0 = never by space
     bool    archiveKeepRaw()        const { return m_archiveKeepRaw; }
     bool    saveImuStreams()        const { return m_saveImuStreams; }
-    QString imuDataFormat()         const { return m_imuDataFormat; }
-    bool    saveLaunchMonitorData() const { return m_saveLaunchMonitorData; }
 
     QString launchMonitorKind()         const { return m_launchMonitorKind; }
     QString launchMonitorPath()         const { return m_launchMonitorPath; }
@@ -1474,14 +1469,6 @@ public:
         emit videoQualityChanged();
     }
 
-    void setVideoContainer(const QString &v)
-    {
-        if (m_videoContainer == v) return;
-        m_videoContainer = v;
-        ppSettings().setValue(QStringLiteral("storage/videoContainer"), v);
-        emit videoContainerChanged();
-    }
-
     void setSaveRawFrames(bool v)
     {
         if (m_saveRawFrames == v) return;
@@ -1550,22 +1537,6 @@ public:
         m_saveImuStreams = v;
         ppSettings().setValue(QStringLiteral("storage/saveImuStreams"), v);
         emit saveImuStreamsChanged();
-    }
-
-    void setImuDataFormat(const QString &v)
-    {
-        if (m_imuDataFormat == v) return;
-        m_imuDataFormat = v;
-        ppSettings().setValue(QStringLiteral("storage/imuDataFormat"), v);
-        emit imuDataFormatChanged();
-    }
-
-    void setSaveLaunchMonitorData(bool v)
-    {
-        if (m_saveLaunchMonitorData == v) return;
-        m_saveLaunchMonitorData = v;
-        ppSettings().setValue(QStringLiteral("storage/saveLaunchMonitorData"), v);
-        emit saveLaunchMonitorDataChanged();
     }
 
     void setLaunchMonitorKind(const QString &v)
@@ -1741,14 +1712,11 @@ signals:
     void videoResolutionModeChanged();
     void videoCodecChanged();
     void videoQualityChanged();
-    void videoContainerChanged();
     void saveRawFramesChanged();
     void skipAnalysisForRawCaptureChanged();
     void savePoseKeypointsChanged();
     void archivingChanged();
     void saveImuStreamsChanged();
-    void imuDataFormatChanged();
-    void saveLaunchMonitorDataChanged();
     void launchMonitorKindChanged();
     void launchMonitorPathChanged();
     void launchMonitorPollMsChanged();
@@ -1861,7 +1829,6 @@ private:
     QString m_videoResolutionMode   = QStringLiteral("native");
     QString m_videoCodec            = QStringLiteral("h264");
     QString m_videoQuality          = QStringLiteral("low");   // CRF 28 — see the load above
-    QString m_videoContainer        = QStringLiteral("mp4");
     bool    m_saveRawFrames         = false;
     bool    m_skipAnalysisForRawCapture = false;
     bool    m_savePoseKeypoints     = true;
@@ -1871,8 +1838,6 @@ private:
     int     m_archiveFloorGb        = 0;
     bool    m_archiveKeepRaw        = true;
     bool    m_saveImuStreams        = true;
-    QString m_imuDataFormat         = QStringLiteral("json");
-    bool    m_saveLaunchMonitorData = true;
     QString m_launchMonitorKind;
     QString m_launchMonitorPath;
     int     m_launchMonitorPollMs = 250;

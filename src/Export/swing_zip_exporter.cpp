@@ -42,8 +42,8 @@ namespace pinpoint {
 
 namespace {
 
-// imu_<alias>.csv / imu_<alias>.bin — written only when the user picked a
-// non-JSON IMU format; most sessions inline IMU into swing.json and have none.
+// imu_<alias>.csv / imu_<alias>.bin — legacy: written only by swings saved while the
+// csv/binary IMU format existed (retired 23 Sept 2026). New swings inline IMU samples.
 bool isImuSidecar(const QString &name)
 {
     return name.startsWith(QStringLiteral("imu_"))
