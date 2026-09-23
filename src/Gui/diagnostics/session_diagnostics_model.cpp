@@ -27,6 +27,7 @@
 #include "../../Export/swing_doc.h"
 
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDeadlineTimer>
 #include <QDir>
@@ -351,9 +352,30 @@ void SessionDiagnosticsModel::ingestShot(int shotId, const QString &swingDir)
     if (m_ingested.contains(shotId)) return;
     m_ingested.insert(shotId);
     m_swingDirs.insert(shotId, swingDir);
+    queueDetect(shotId, swingDir, false);
+}
 
+void SessionDiagnosticsModel::regradeShot(const QString &swingDir)
+{
+    if (m_sessionDir.isEmpty() || swingDir.isEmpty()) return;
+    const QFileInfo fi(swingDir);
+    if (QDir::cleanPath(fi.absolutePath()) != QDir::cleanPath(QFileInfo(m_sessionDir).absoluteFilePath()))
+        return;
+    const QString name = fi.fileName();
+    bool ok = false;
+    const int id = name.mid(name.lastIndexOf(QLatin1Char('_')) + 1).toInt(&ok);
+    if (!ok || id < 0) return;
+    if (!m_ingested.contains(id)) { ingestShot(id, swingDir); return; }
+    m_swingDirs.insert(id, swingDir);
+    queueDetect(id, swingDir, true);
+}
+
+void SessionDiagnosticsModel::queueDetect(int shotId, const QString &swingDir, bool regrade)
+{
     if (m_synchronous) {
-        applyIngested(detectShot(shotId, swingDir));
+        Ingested in = detectShot(shotId, swingDir);
+        in.regrade = regrade;
+        applyIngested(in);
         return;
     }
 
@@ -362,18 +384,36 @@ void SessionDiagnosticsModel::ingestShot(int shotId, const QString &swingDir)
     // QThreadPool::start() rather than QtConcurrent::run(): there is no QFuture to wait on
     // here — the result comes back through the queued invocation below — and run()'s future
     // is [[nodiscard]] precisely so that a caller who drops it says why.
-    m_pool.start([this, shotId, swingDir]() {
-        const Ingested in = detectShot(shotId, swingDir);
+    m_pool.start([this, shotId, swingDir, regrade]() {
+        Ingested in = detectShot(shotId, swingDir);
+        in.regrade = regrade;
         // Queued, so the row vector and every signal below are only ever touched by the
         // thread that owns this object. The worker holds no reference to anything mutable.
         QMetaObject::invokeMethod(this, [this, in]() { applyIngested(in); }, Qt::QueuedConnection);
     });
 }
 
+QString SessionDiagnosticsModel::computeContentStamp() const
+{
+    if (!m_packProv || !m_norms) return QString();
+    QCryptographicHash h(QCryptographicHash::Sha1);
+    h.addData(QJsonDocument(savePack(m_packProv->pack())).toJson(QJsonDocument::Compact));
+    h.addData(QJsonDocument(saveNormPack(m_norms->norms())).toJson(QJsonDocument::Compact));
+    h.addData(QJsonDocument(saveContextTree(m_norms->contexts())).toJson(QJsonDocument::Compact));
+    return QString::fromLatin1(h.result().toHex().left(16));
+}
+
 SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId,
                                                                      const QString &swingDir) const
 {
     Ingested out;
+    // STAMPED BEFORE THE READ. A re-analysis that rewrites the document after this point leaves
+    // a stamp that no longer matches, so the next activation regrades it — the opposite order
+    // would record the new stamp against the old reading and never look again.
+    const pinpoint::SwingStore::DocInfo doc = pinpoint::SwingStore::info(swingDir);
+    out.from.docSize    = doc.size;
+    out.from.docMtimeMs = doc.mtimeMs;
+    out.from.content    = m_contentStamp;
     if (!m_packProv || !m_norms) return out;
 
     const CharacteristicPack &pack = m_packProv->pack();
@@ -493,8 +533,9 @@ void SessionDiagnosticsModel::applyIngested(const Ingested &in)
         // A swing that could not be read is not a shot with no findings — it is a shot we
         // never looked at, and putting an all-NotAssessable row set in the ledger for it
         // would draw a full column of outlined ticks for a capture that may be fine. Drop
-        // the reservation so a later re-activation can try again.
-        m_ingested.remove(in.record.shotId);
+        // the reservation so a later re-activation can try again. A failed REGRADE keeps the
+        // row it already had: the last good reading beats none.
+        if (!in.regrade) m_ingested.remove(in.record.shotId);
         return;
     }
 
@@ -504,13 +545,18 @@ void SessionDiagnosticsModel::applyIngested(const Ingested &in)
     const int id = in.record.shotId;
     auto pos = std::lower_bound(m_shots.begin(), m_shots.end(), id,
                                 [](const ShotRecord &s, int v) { return s.shotId < v; });
-    if (pos != m_shots.end() && pos->shotId == id) return;   // belt and braces
-    m_shots.insert(pos, in.record);
+    const bool present = pos != m_shots.end() && pos->shotId == id;
+    if (present && !in.regrade) return;   // belt and braces
+    if (present) *pos = in.record;
+    else         m_shots.insert(pos, in.record);
     if (in.hasLaunchMonitor) m_lmShots.insert(id);
+    else if (in.regrade)     m_lmShots.remove(id);
+    m_gradedFrom.insert(id, in.from);
 
     rebuild();
     persist();
-    emit shotIngested(id, !m_quiet);
+    // A regrade is the same shot read again, not a shot arriving: no after-shot moment.
+    if (!in.regrade) emit shotIngested(id, !m_quiet);
 }
 
 bool SessionDiagnosticsModel::waitForIdle(int msTimeout)
@@ -538,6 +584,8 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     m_ingested.clear();
     m_lmShots.clear();
     m_swingDirs.clear();
+    m_gradedFrom.clear();
+    m_contentStamp = computeContentStamp();
     m_displayOrder.clear();
     m_patternSet.clear();
     m_explanation = Explanation();
@@ -587,6 +635,15 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
         const QJsonObject dirs = session.value(QStringLiteral("swingDirs")).toObject();
         for (auto it = dirs.constBegin(); it != dirs.constEnd(); ++it)
             m_swingDirs.insert(it.key().toInt(), it.value().toString());
+        const QJsonObject graded = session.value(QStringLiteral("gradedFrom")).toObject();
+        for (auto it = graded.constBegin(); it != graded.constEnd(); ++it) {
+            const QJsonObject g = it.value().toObject();
+            GradedFrom from;
+            from.docSize    = qint64(g.value(QStringLiteral("size")).toDouble());
+            from.docMtimeMs = qint64(g.value(QStringLiteral("mtimeMs")).toDouble());
+            from.content    = g.value(QStringLiteral("content")).toString();
+            m_gradedFrom.insert(it.key().toInt(), from);
+        }
 
         const QJsonObject intent = root.value(QStringLiteral("intent")).toObject();
         m_focusConditionId = intent.value(QStringLiteral("focusConditionId")).toString();
@@ -622,8 +679,26 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
         bool ok = false;
         const int id = name.mid(name.lastIndexOf(QLatin1Char('_')) + 1).toInt(&ok);
         if (!ok) continue;
-        if (m_ingested.contains(id)) continue;
-        ingestShot(id, dir.filePath(name));
+        const QString swingDir = dir.filePath(name);
+        if (!m_ingested.contains(id)) { ingestShot(id, swingDir); continue; }
+
+        // ── 4. Regrade what went stale ─────────────────────────────────────────────
+        //
+        // A row graded from a document that has since been rewritten — a re-analysis, in the
+        // app with this panel closed or by swinglab on another host — or against content
+        // (pack, norms, contexts) that has since changed, is re-detected and REPLACED. A ledger
+        // written before rows carried a stamp has none, so it regrades once and is stamped.
+        const auto it = m_gradedFrom.constFind(id);
+        const pinpoint::SwingStore::DocInfo doc = pinpoint::SwingStore::info(swingDir);
+        if (!doc.exists()) continue;
+        const bool stale = it == m_gradedFrom.constEnd()
+                        || it->content != m_contentStamp
+                        || it->docSize != doc.size
+                        || it->docMtimeMs != doc.mtimeMs;
+        if (stale) {
+            m_swingDirs.insert(id, swingDir);
+            queueDetect(id, swingDir, true);
+        }
     }
 
     emit intentChanged();
@@ -1019,6 +1094,13 @@ QJsonObject SessionDiagnosticsModel::envelope() const
     session[QStringLiteral("gradePolicy")]= m_policyName;
     session[QStringLiteral("lmShots")]    = lm;
     session[QStringLiteral("swingDirs")]  = dirs;
+    QJsonObject graded;
+    for (auto it = m_gradedFrom.constBegin(); it != m_gradedFrom.constEnd(); ++it)
+        graded.insert(QString::number(it.key()),
+                      QJsonObject{ { QStringLiteral("size"),    double(it->docSize) },
+                                   { QStringLiteral("mtimeMs"), double(it->docMtimeMs) },
+                                   { QStringLiteral("content"), it->content } });
+    session[QStringLiteral("gradedFrom")] = graded;
     session[QStringLiteral("writtenAtMs")]= double(QDateTime::currentMSecsSinceEpoch());
 
     QJsonObject intent;

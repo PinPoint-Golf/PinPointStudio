@@ -272,6 +272,14 @@ public:
     // the evidence.
     Q_INVOKABLE void ingestShot(int shotId, const QString &swingDir);
 
+    // Grade one shot AGAIN because its swing document changed — a re-analysis wrote it back.
+    // The one exception to ingestShot()'s idempotence, and deliberately a separate door: the
+    // row is REPLACED in place, not appended, and a closed session accepts it, because it is the
+    // same shot measured again rather than a new one arriving after the summary was written.
+    // The athlete's fault profile is not re-folded: it counts each session once, at close.
+    // A dir outside the loaded session is ignored; a shot the ledger has never seen is ingested.
+    Q_INVOKABLE void regradeShot(const QString &swingDir);
+
     // End the session: freeze at Closing, write the final diagnostics.json, and fold this
     // session's patterns into the athlete's fault profile. One-way — sessionStage() will not
     // un-close it, and neither will another shot.
@@ -375,6 +383,12 @@ signals:
     void shotIngested(int shotId, bool surfaced);
 
 private:
+    struct GradedFrom {
+        qint64  docSize    = 0;
+        qint64  docMtimeMs = 0;
+        QString content;               // computeContentStamp() at the time
+    };
+
     // ── The pipeline, in the order it runs ──────────────────────────────────────────
 
     // Worker-thread half: swing.json -> phase grid -> measures -> norms -> findings -> rows.
@@ -384,8 +398,17 @@ private:
         pinpoint::analysis::ShotRecord record;
         bool hasLaunchMonitor = false;
         bool ok = false;
+        bool regrade = false;          // replace the shot's row rather than append one
+        GradedFrom from;               // what this grading read — stamped BEFORE the read
     };
     Ingested detectShot(int shotId, const QString &swingDir) const;
+
+    // The worker hand-off both ingestShot() and regradeShot() go through.
+    void queueDetect(int shotId, const QString &swingDir, bool regrade);
+
+    // The content every row is graded against — pack, norms and contexts — as one short hash.
+    // The grade policy is deliberately NOT in it: setGradePolicy() does not rewrite history.
+    QString computeContentStamp() const;
 
     // GUI-thread half: append, re-reduce, decide the after-shot moment, persist, emit.
     void applyIngested(const Ingested &in);
@@ -498,6 +521,14 @@ private:
     QSet<int> m_ingested;      // shot ids already in the ledger or in flight
     QSet<int> m_lmShots;       // shot ids whose capture carried launch-monitor data
     QHash<int, QString> m_swingDirs;
+
+    // WHAT EACH ROW WAS GRADED FROM (diagnostics.json session.gradedFrom). A row is only as
+    // current as the swing document and the content it was read against; activateSession()
+    // regrades any shot whose document has been rewritten since (a re-analysis, in the app or
+    // by swinglab on another host) or whose content stamp is not today's. Before this existed a
+    // re-analysed session kept quoting the metrics it was first graded on, indefinitely.
+    QHash<int, GradedFrom> m_gradedFrom;
+    QString                m_contentStamp;
 
     // ── The reduction ───────────────────────────────────────────────────────────────
     std::vector<pinpoint::analysis::ConditionLedger> m_ledgers;

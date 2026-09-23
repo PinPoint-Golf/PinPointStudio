@@ -663,6 +663,12 @@ Item {
         }
         function onReanalysed(swingDir) {
             root.activeModel.refreshShot(swingDir)
+            // The session assessment is graded FROM this document, so it is graded again —
+            // otherwise the ledger keeps quoting the metrics the shot was first read with.
+            // Only when a diagnostics panel is up; with none, the next activateSession()
+            // notices the rewritten document and regrades it then.
+            if (SessionMode.sessionDiagnostics)
+                SessionMode.sessionDiagnostics.regradeShot(swingDir)
             // The Replay/Analyse panel reads shotReplay.analysisDetail — a separate,
             // independently cached disk read of swing.json (ShotReplayController /
             // DiskReplaySource), not this model — so the model-only refresh above

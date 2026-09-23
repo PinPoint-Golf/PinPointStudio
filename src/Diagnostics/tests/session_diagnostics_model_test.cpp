@@ -16,7 +16,10 @@
 //   · cadence changes `quiet` and NOTHING that is stored — the two modes' ledgers are compared
 //     byte for byte;
 //   · the focus contract and the declared miss move no tier, no count and no corridor;
-//   · the fault profile is written at close, read at the next activation, and moves no tier.
+//   · the fault profile is written at close, read at the next activation, and moves no tier;
+//   · a shot whose document is rewritten (a re-analysis) is REGRADED in place — live through
+//     regradeShot(), even in a closed session, and on the next activation otherwise — and a
+//     shot whose document has not changed is left exactly as it was.
 //
 // The fixtures are live_measure_source_test's, staged into a temporary session so the model sees
 // the swing-library shape it will see in the app (<athlete>/<session>/swing_NNNN/swing.json) — the
@@ -143,6 +146,30 @@ static bool injectCaptureHole(const QString &sessionDir, int shotId)
 static QString swingDirFor(const QString &sessionDir, int shotId)
 {
     return QDir(sessionDir).filePath(QStringLiteral("swing_%1").arg(shotId, 4, 10, QLatin1Char('0')));
+}
+
+// A re-analysis, as the ledger sees one: the shot's document is replaced by a different one.
+// The fixtures differ in size, so the stamp moves even though stageShot() pins the mtime.
+static bool swapShot(const QString &sessionDir, int shotId, const char *fixture)
+{
+    const QDir d(swingDirFor(sessionDir, shotId));
+    for (const QString &name : d.entryList(QDir::Files)) QFile::remove(d.filePath(name));
+    return stageShot(sessionDir, shotId, fixture);
+}
+
+static QJsonObject diagnosticsJsonOf(const QString &sessionDir)
+{
+    QFile f(QDir(sessionDir).filePath(QStringLiteral("diagnostics.json")));
+    if (!f.open(QIODevice::ReadOnly)) return QJsonObject();
+    return QJsonDocument::fromJson(f.readAll()).object();
+}
+
+static bool writeDiagnosticsJson(const QString &sessionDir, const QJsonObject &root)
+{
+    QFile f(QDir(sessionDir).filePath(QStringLiteral("diagnostics.json")));
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
+    f.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+    return true;
 }
 
 // ── Snapshots, so "identical surface" is a comparison rather than a claim ────────────────
@@ -604,6 +631,87 @@ int main(int argc, char **argv)
         check(o->shotCount() == 1 && c->shotCount() == 1, "both sessions ingested their swing");
         check(ledgerBytesOf(origDir) == ledgerBytesOf(copyDir),
               "a shifted mtime changes no evidence — the stamp is clock.wallclock");
+    }
+
+    // ── 4c. A re-analysed shot is graded again ───────────────────────────────────────
+    std::printf("\nregrade after re-analysis\n");
+    {
+        // The reference: the rich swing graded fresh, in a session of its own.
+        const QString refDir = makeSession(tmp, "athlete_r", "session_ref");
+        check(stageShot(refDir, 1, "rich_7iron"), "a reference session with the rich swing");
+        auto r = freshModel();
+        r->activateSession(refDir);
+        const QByteArray rich = ledgerBytesOf(refDir);
+
+        const QString dir = makeSession(tmp, "athlete_r", "session_regrade");
+        check(stageShot(dir, 1, "sparse_noclub"), "a session whose one shot starts sparse");
+        auto m = freshModel();
+        m->activateSession(dir);
+        const QByteArray sparse = ledgerBytesOf(dir);
+        check(!sparse.isEmpty() && sparse != rich, "…graded, and different from the rich reading");
+
+        // Live, in a CLOSED session: the panel is up when the re-analysis lands.
+        m->closeSession();
+        check(swapShot(dir, 1, "rich_7iron"), "the shot is re-analysed — its document rewritten");
+        m->regradeShot(swingDirFor(dir, 1));
+        check(m->shotCount() == 1, "regradeShot replaces the row — still one shot");
+        check(ledgerBytesOf(dir) == rich, "…and it now reads exactly what a fresh grading reads");
+        check(m->stage() == QLatin1String("closing"), "…without re-opening the closed session");
+
+        // With no panel up: the next activation notices the rewritten document.
+        check(swapShot(dir, 1, "sparse_noclub"), "re-analysed again while no panel is open");
+        auto m2 = freshModel();
+        m2->activateSession(dir);
+        check(ledgerBytesOf(dir) == sparse, "activation regrades a shot whose document changed");
+
+        // Nothing changed ⇒ nothing is rewritten, down to the byte.
+        QFile f(QDir(dir).filePath(QStringLiteral("diagnostics.json")));
+        f.open(QIODevice::ReadOnly);
+        const QByteArray whole = f.readAll();
+        f.close();
+        auto m3 = freshModel();
+        m3->activateSession(dir);
+        QFile g(QDir(dir).filePath(QStringLiteral("diagnostics.json")));
+        g.open(QIODevice::ReadOnly);
+        check(g.readAll() == whole, "an unchanged document is not regraded — the file is untouched");
+        g.close();
+
+        // A ledger written before rows carried a stamp regrades once and is stamped.
+        QJsonObject root = diagnosticsJsonOf(dir);
+        QJsonObject session = root.value(QStringLiteral("session")).toObject();
+        session.remove(QStringLiteral("gradedFrom"));
+        root[QStringLiteral("session")] = session;
+        check(writeDiagnosticsJson(dir, root), "the stamps are stripped, as in an old ledger");
+        auto m4 = freshModel();
+        m4->activateSession(dir);
+        const QJsonObject stamped = diagnosticsJsonOf(dir).value(QStringLiteral("session")).toObject()
+                                        .value(QStringLiteral("gradedFrom")).toObject();
+        check(stamped.contains(QStringLiteral("1")), "…and an unstamped row is regraded and stamped");
+        check(ledgerBytesOf(dir) == sparse, "…to the same reading");
+
+        // New content (pack, norms, contexts) regrades every row.
+        root = diagnosticsJsonOf(dir);
+        session = root.value(QStringLiteral("session")).toObject();
+        QJsonObject gf = session.value(QStringLiteral("gradedFrom")).toObject();
+        QJsonObject one = gf.value(QStringLiteral("1")).toObject();
+        const QString current = one.value(QStringLiteral("content")).toString();
+        one[QStringLiteral("content")] = QStringLiteral("older-content");
+        gf[QStringLiteral("1")] = one;
+        session[QStringLiteral("gradedFrom")] = gf;
+        root[QStringLiteral("session")] = session;
+        check(!current.isEmpty() && writeDiagnosticsJson(dir, root),
+              "a row is marked as graded against older content");
+        auto m5 = freshModel();
+        m5->activateSession(dir);
+        check(diagnosticsJsonOf(dir).value(QStringLiteral("session")).toObject()
+                      .value(QStringLiteral("gradedFrom")).toObject()
+                      .value(QStringLiteral("1")).toObject()
+                      .value(QStringLiteral("content")).toString() == current,
+              "…and activation regrades it against today's content");
+
+        // A dir outside the loaded session is not this ledger's business.
+        m5->regradeShot(swingDirFor(refDir, 1));
+        check(ledgerBytesOf(dir) == sparse, "regradeShot ignores a swing from another session");
     }
 
     // ── 5. Focus contract and declared miss: persisted, and inert on the evidence ────
