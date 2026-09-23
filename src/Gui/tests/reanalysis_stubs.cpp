@@ -40,7 +40,7 @@ namespace pinpoint {
 
 bool SwingDocWriter::writeSwingJson(const QString & /*swingDir*/, const QJsonObject & /*rawManifest*/,
                                     const analysis::SwingAnalysis * /*analysis*/, QString * /*error*/,
-                                    const QString & /*club*/)
+                                    const QString & /*club*/, bool /*savePose*/)
 {
     return true;   // unreached: onWorkerFinished needs an event loop the test never runs
 }
