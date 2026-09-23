@@ -76,9 +76,7 @@ static QString makeSwing(const QString &root, const QString &swingId)
 
 static QJsonObject streamElement(const QString &swingDir, const QString &alias)
 {
-    QFile f(swingDir + QStringLiteral("/swing.json"));
-    if (!f.open(QIODevice::ReadOnly)) return {};
-    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    const QJsonObject root = pinpoint::SwingStore::load(swingDir);
     for (const QJsonValue &v : root.value(QStringLiteral("streams")).toArray()) {
         const QJsonObject el = v.toObject();
         if (el.value(QStringLiteral("alias")).toString() == alias) return el;
@@ -198,13 +196,13 @@ int main(int argc, char **argv)
         // the export and the analysis fail.
         const QString dir = tmp.path() + QStringLiteral("/2026-09-01_Mark_Wrist_01/swing_0011");
         QDir().mkpath(dir);
-        check(!QFile::exists(dir + QStringLiteral("/swing.json")), "no document, as the pipeline left it");
+        check(!pinpoint::SwingStore::hasDocument(dir), "no document, as the pipeline left it");
 
         filer.onCaptureAsked(QStringLiteral("shot:6"), QStringLiteral("peer:phone-1"),
                              QStringLiteral("src:cam-wide"),
                              QStringLiteral("st:abcdef0123456789:video"), kAlias);
         filer.onSwingReady(dir);
-        check(!QFile::exists(dir + QStringLiteral("/swing.json")),
+        check(!pinpoint::SwingStore::hasDocument(dir),
               "…and still none: a document is not invented for a clip that may never come");
 
         PpcpClip c = makeClip(QStringLiteral("shot:6"), QStringLiteral("cap:h"),
@@ -213,7 +211,7 @@ int main(int argc, char **argv)
         filer.onClipReady(c);
 
         check(filed == 1, "the clip is filed anyway");
-        check(QFile::exists(dir + QStringLiteral("/swing.json")),
+        check(pinpoint::SwingStore::hasDocument(dir),
               "…and a document is created for it, once there are real bytes");
         check(QFile::exists(dir + QStringLiteral("/") + kAlias + QStringLiteral(".mov")),
               "…with the video beside it");

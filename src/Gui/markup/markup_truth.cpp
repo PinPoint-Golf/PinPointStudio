@@ -18,6 +18,8 @@
 
 #include "markup_truth.h"
 
+#include "../../Export/swing_store.h"   // the swing document, whichever format it is in
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -125,7 +127,7 @@ bool streamLooksDownTheLine(const QJsonObject &stream)
 VideoStreamInfo readVideoStream(const QString &swingDir, MarkupView view, const QString &faceNeedle)
 {
     VideoStreamInfo fo;
-    const QJsonObject root = loadObject(QDir(swingDir).filePath(QStringLiteral("swing.json")));
+    const QJsonObject root = pinpoint::SwingStore::load(swingDir);
     if (root.isEmpty()) return fo;
 
     QVector<QJsonObject> videos;
@@ -360,7 +362,7 @@ TruthSummary summarize(const QString &swingDir, MarkupView view)
 
 QString readSwingReviewClub(const QString &swingDir)
 {
-    const QJsonObject root = loadObject(QDir(swingDir).filePath(QStringLiteral("swing.json")));
+    const QJsonObject root = pinpoint::SwingStore::load(swingDir);
     return root.value(QStringLiteral("review")).toObject()
                .value(QStringLiteral("club")).toString();
 }
@@ -368,7 +370,7 @@ QString readSwingReviewClub(const QString &swingDir)
 PoseTrack readPose2d(const QString &swingDir)
 {
     PoseTrack track;
-    const QJsonObject root = loadObject(QDir(swingDir).filePath(QStringLiteral("swing.json")));
+    const QJsonObject root = pinpoint::SwingStore::load(swingDir);
     if (root.isEmpty()) return track;
 
     const qint64 t0 = root.value(QStringLiteral("clock")).toObject()

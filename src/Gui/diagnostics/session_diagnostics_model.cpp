@@ -406,8 +406,7 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
     rec.timestampMs =
         summary.wallclockMs > 0
             ? summary.wallclockMs
-            : QFileInfo(QDir(swingDir).filePath(QStringLiteral("swing.json"))).lastModified()
-                  .toMSecsSinceEpoch();
+            : pinpoint::SwingStore::info(swingDir).mtimeMs;
     // Warm-up is the FIRST-N rule only, applied inside shotWeight(). A declared warm-up flag
     // has no producer yet and inventing one from the shot index would double-count the rule.
     rec.warmUp = false;

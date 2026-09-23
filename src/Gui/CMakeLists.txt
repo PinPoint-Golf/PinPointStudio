@@ -136,10 +136,11 @@ else()
     # else a fetch), so this suite still configures on a machine that has never built
     # the app. Qt6::Network is the QTcpServer the connector owns.
     pp_require_gspro()
+    pp_require_swingstore()   # swing_doc.cpp: every document read goes through the store
     find_package(Qt6 REQUIRED COMPONENTS Network)
     target_link_libraries(qml_ui_test PRIVATE
         Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickTest Qt6::Multimedia Qt6::GuiPrivate
-        Qt6::Network gspro)
+        Qt6::Network gspro pinpoint_swingstore)
 
     # Offscreen is set on the TEST, not asked of whoever runs it, so headless CI and a developer's
     # desk do the same thing and neither steals focus.

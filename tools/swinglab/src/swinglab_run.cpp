@@ -49,6 +49,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSaveFile>
 #include <QSysInfo>
 #include <QVariantMap>
 
@@ -77,6 +78,7 @@
 #include "../../../src/Analysis/dtl_shaft_json.h"       // dtlShaftTrackToJson — club_dtl.json == analysis.clubDtl
 #include "../../../src/Analysis/dtl_shaft_config.h"     // the resolved scalars echoed into club_dtl.json
 #include "../../../src/Export/swing_doc.h"
+#include "../../../src/Export/swing_store.h"
 #include "../../../src/IMU/orientation_filter.h"     // MadgwickFilter (header-only)
 #include "../../../src/IMU/orientation_refuser.h"    // refuseOrientation / refuseOrientationAdaptive / parity
 #include "../../../src/Analysis/analysis_tuning.h"   // tuning::apply (filter.* keys)
@@ -368,14 +370,10 @@ int main(int argc, char **argv)
         if (!r.ok || !r.analysis.detail)
             return fail(QStringLiteral("re-analysis failed: ")
                         + (r.error.isEmpty() ? QStringLiteral("no analysis detail") : r.error));
-        QJsonObject manifest;
-        {
-            QFile f(swingDir + QStringLiteral("/swing.json"));
-            if (f.open(QIODevice::ReadOnly))
-                manifest = QJsonDocument::fromJson(f.readAll()).object();
-        }
+        QString rerr;
+        QJsonObject manifest = SwingStore::load(swingDir, &rerr);
         if (manifest.isEmpty())
-            return fail("swing.json missing/unreadable — not overwriting");
+            return fail(QStringLiteral("swing document missing/unreadable (%1) — not overwriting").arg(rerr));
         // Same as the in-app controller: the data-integrity verdict is re-reached by
         // this pass rather than inherited from capture, and is REMOVED when this pass
         // could not reach one. See swing_doc.h.
@@ -543,14 +541,9 @@ int main(int argc, char **argv)
     std::fprintf(stderr, "[swinglab] window rebuilt: %zu entries (%s)\n",
                  window.entries().size(), ls.usedRaw ? "raw" : "mp4");
 
-    // Provenance for runmeta — re-read swing.json for the capture echo and the
+    // Provenance for runmeta — re-read the document for the capture echo and the
     // corpus calibration verdict (independent of the reconstruction).
-    QJsonObject root;
-    {
-        QFile rf(swingDir + "/swing.json");
-        if (rf.open(QIODevice::ReadOnly))
-            root = QJsonDocument::fromJson(rf.readAll()).object();
-    }
+    const QJsonObject root = SwingStore::load(swingDir);
     const QJsonObject captureIn = root["capture"].toObject();
     int calibKnown = 0, calibTrue = 0;
     for (const QJsonValue &bv : root["analysis"].toObject()["bindings"].toArray()) {
@@ -577,10 +570,24 @@ int main(int argc, char **argv)
                                        { "frames", ls.usedRaw ? "raw" : "mp4" } };
     QString werr;
     if (result.detail) {
-        if (!SwingDocWriter::writeSwingJson(outDir, manifest, result.detail.get(), &werr))
+        // result.json stays JSON — it is a research output read by the Python rigs, not a library
+        // document. The production writer builds it (so it is exactly what write-back would store),
+        // into the run dir as swing.ppsw; it is then re-emitted as JSON and the .ppsw dropped.
+        // Written with QSaveFile, so a reused --out dir gets the NEW result — the old
+        // rename-onto-an-existing-file failed silently and left the previous run's result behind.
+        if (!SwingDocWriter::writeSwingJson(outDir, manifest, result.detail.get(), &werr)) {
             std::fprintf(stderr, "[swinglab] result write failed: %s\n",
                          werr.toUtf8().constData());
-        QFile::rename(outDir + "/swing.json", outDir + "/result.json");
+        } else {
+            QJsonObject doc = SwingStore::load(outDir, &werr);
+            doc.remove(QStringLiteral("summary"));   // the library's list index; not analysis
+            QSaveFile rf(outDir + "/result.json");
+            if (doc.isEmpty() || !rf.open(QIODevice::WriteOnly)
+                || rf.write(SwingStore::toJsonText(doc)) < 0 || !rf.commit())
+                std::fprintf(stderr, "[swinglab] result.json write failed %s\n",
+                             werr.toUtf8().constData());
+            QFile::remove(SwingStore::ppswPath(outDir));
+        }
     }
 
     QJsonObject meta;

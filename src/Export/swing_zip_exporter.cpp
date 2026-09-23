@@ -19,6 +19,7 @@
 #include "swing_zip_exporter.h"
 
 #include "../Core/pp_debug.h"
+#include "swing_store.h"
 
 #include <QDir>
 #include <QFile>
@@ -53,7 +54,8 @@ bool isImuSidecar(const QString &name)
 // The confirmed per-file export policy, applied to one entry in a shot folder.
 //   thumb.jpg          → always
 //   *.raw              → never (GB-scale; would defeat the streaming budget)
-//   swing.json         → iff includeJson
+//   swing.json         → iff includeJson — for a swing.ppsw swing, generated from it (below): the
+//                        zip is an interchange format, and JSON is what anyone else can read
 //   imu_*.csv|.bin     → iff includeJson (travels with swing.json as "data")
 //   selected video     → iff its filename is checked in the options sheet
 //   anything else      → excluded (unselected video, unknown artifact)
@@ -97,17 +99,15 @@ QVariantList SwingZipExporter::camerasForShots(const QVariantList &swingDirs) co
         const QString dir = v.toString();
         if (dir.isEmpty())
             continue;
-        QFile f(dir + QStringLiteral("/swing.json"));
-        if (!f.open(QIODevice::ReadOnly))
+        if (!SwingStore::hasDocument(dir))
             continue;
-        QJsonParseError perr;
-        const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &perr);
-        f.close();
-        if (perr.error != QJsonParseError::NoError || !doc.isObject()) {
-            ppWarn() << "[SwingZipExporter] bad swing.json in" << dir << perr.errorString();
+        QString err;
+        const QJsonObject doc = SwingStore::load(dir, &err);
+        if (doc.isEmpty()) {
+            ppWarn() << "[SwingZipExporter] bad swing document in" << dir << err;
             continue;
         }
-        const QJsonArray streams = doc.object().value(QStringLiteral("streams")).toArray();
+        const QJsonArray streams = doc.value(QStringLiteral("streams")).toArray();
         for (const QJsonValue &sv : streams) {
             const QJsonObject so = sv.toObject();
             if (so.value(QStringLiteral("kind")).toString() != QStringLiteral("video"))
@@ -245,6 +245,19 @@ SwingZipExporter::ZipResult SwingZipExporter::runZip(const ZipJob &job)
             writer.addFile(base + name, &in);   // streams; QZipWriter buffers one file
             in.close();
             ++filesAdded;
+        }
+        // A swing.ppsw travels as swing.json. The binary file is this app's storage format; a zip
+        // goes to other people and other tools, and the JSON is the form they can all read.
+        if (job.includeJson && SwingStore::info(dir).format == SwingStore::Format::Ppsw) {
+            const QJsonObject doc = SwingStore::load(dir);
+            if (doc.isEmpty()) {
+                ppWarn() << "[SwingZipExporter] skipping unreadable document in" << dir;
+            } else {
+                const QByteArray text = SwingStore::toJsonText(doc);
+                PP_PROFILE_MEM_SCOPE("Export.Staging", int64_t(text.size()));
+                writer.addFile(base + QStringLiteral("swing.json"), text);
+                ++filesAdded;
+            }
         }
     }
 

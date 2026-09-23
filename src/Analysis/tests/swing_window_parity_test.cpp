@@ -572,12 +572,11 @@ QJsonObject serializedAnalysisMinusTimings(const QString &dir, const ShotAnalysi
         std::fprintf(stderr, "  writeSwingJson failed: %s\n", err.toUtf8().constData());
         return QJsonObject();
     }
-    QFile f(dir + QStringLiteral("/swing.json"));
-    if (!f.open(QIODevice::ReadOnly)) {
-        std::fprintf(stderr, "  reopen failed: %s\n", f.errorString().toUtf8().constData());
+    const QJsonObject root = SwingStore::load(dir, &err);
+    if (root.isEmpty()) {
+        std::fprintf(stderr, "  reopen failed: %s\n", err.toUtf8().constData());
         return QJsonObject();
     }
-    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
     QJsonObject an = root.value(QStringLiteral("analysis")).toObject();
     an.remove(QStringLiteral("timings"));
     return an;

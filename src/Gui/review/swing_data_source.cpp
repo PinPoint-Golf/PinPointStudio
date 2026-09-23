@@ -22,6 +22,7 @@
 #include "swing_series_model.h"
 #include "timeline_labels.h"              // the one phase-tag vocabulary (P1…P10 + mnemonics)
 #include "../Analysis/swing_analysis.h"   // SegmentRole + segmentRoleForSlot/Name
+#include "../../Export/swing_store.h"   // the document, whichever format it is in
 
 #include <QDir>
 #include <QFile>
@@ -310,11 +311,7 @@ void SwingDataSource::reload()
     m_anyImuRoleKnown = false;
 
     if (!m_swingDir.isEmpty()) {
-        QFile f(QDir(m_swingDir).filePath(QStringLiteral("swing.json")));
-        if (f.open(QIODevice::ReadOnly)) {
-            const QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
-            if (doc.isObject()) m_doc = doc.object();
-        }
+        m_doc = pinpoint::SwingStore::load(m_swingDir);
     }
 
     const QJsonObject clock = m_doc.value(QStringLiteral("clock")).toObject();

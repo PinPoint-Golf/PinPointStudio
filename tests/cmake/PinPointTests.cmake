@@ -159,6 +159,56 @@ function(pp_require_wrist)
     FetchContent_MakeAvailable(wrist)
 endfunction()
 
+# --- libppswing + pinpoint_swingstore (lazy) -----------------------------------
+# The swing-document store (cmake/PinPointSwingStore.cmake): every suite that compiles a document
+# reader or writer — swing_doc.cpp, measure_sample.cpp, markup_truth.cpp, the replay and re-analysis
+# loaders — needs it, which is most of them. pp_add_test therefore links it into every Qt test;
+# a static library costs nothing where nothing calls it.
+#
+# Resolution order mirrors the app's: explicit -DPP_LIBPPSWING_DIR; a sibling ../libppswing
+# checkout, which WINS; any app build's FetchContent copy; else fetch main from GitHub.
+set(PP_LIBPPSWING_DIR "" CACHE PATH "libppswing source root (dir containing CMakeLists.txt)")
+function(pp_require_swingstore)
+    if(TARGET pinpoint_swingstore)
+        return()
+    endif()
+    if(NOT TARGET ppswing::ppswing)
+        set(_ppsw_src "")
+        if(PP_LIBPPSWING_DIR AND EXISTS "${PP_LIBPPSWING_DIR}/CMakeLists.txt")
+            set(_ppsw_src "${PP_LIBPPSWING_DIR}")
+        elseif(EXISTS "${PP_REPO_ROOT}/../libppswing/CMakeLists.txt")
+            get_filename_component(_ppsw_src "${PP_REPO_ROOT}/../libppswing" ABSOLUTE)
+        else()
+            file(GLOB _cand "${PP_REPO_ROOT}/build/*/_deps/ppswing-src")
+            foreach(_c ${_cand})
+                if(EXISTS "${_c}/CMakeLists.txt")
+                    set(_ppsw_src "${_c}")
+                    break()
+                endif()
+            endforeach()
+        endif()
+        if(_ppsw_src)
+            message(STATUS "PinPointTests: libppswing from ${_ppsw_src}")
+            set(FETCHCONTENT_SOURCE_DIR_PPSWING "${_ppsw_src}" CACHE PATH "" FORCE)
+        else()
+            # Cleared rather than skipped — the stale-FORCE trap, as for libppcp above.
+            unset(FETCHCONTENT_SOURCE_DIR_PPSWING CACHE)
+            message(STATUS "PinPointTests: libppswing not found locally — fetching main")
+        endif()
+        set(PPSW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+        set(PPSW_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+        include(FetchContent)
+        FetchContent_Declare(ppswing
+            GIT_REPOSITORY https://github.com/PinPoint-Golf/libppswing.git
+            GIT_TAG        main
+            GIT_SHALLOW    TRUE
+            EXCLUDE_FROM_ALL)
+        FetchContent_MakeAvailable(ppswing)
+    endif()
+    include(${PP_REPO_ROOT}/cmake/PinPointSwingStore.cmake)
+    pp_define_swingstore(${PP_REPO_ROOT})
+endfunction()
+
 # --- libppcp (lazy; defines the `ppcp` target) --------------------------------
 # Shaped exactly like pp_require_wrist above, and for the same reason: what the
 # Ppcp suite needs is a TARGET, not an include dir. Work package H0 embedded the
@@ -362,6 +412,9 @@ function(pp_add_test name)
 
     if(NOT T_NO_QT)
         target_link_libraries(${name} PRIVATE Qt6::Core Qt6::Gui)
+        # Every Qt suite gets the swing-document store (pp_require_swingstore above).
+        pp_require_swingstore()
+        target_link_libraries(${name} PRIVATE pinpoint_swingstore)
     endif()
     if(T_GTEST)
         pp_require_gtest()

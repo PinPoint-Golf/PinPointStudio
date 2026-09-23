@@ -19,6 +19,7 @@
 #include "swing_reanalyzer.h"
 #include "recorded_products.h"   // shaftTrackFromAnalysisJson / segmentationFromAnalysisJson
 #include "analysis_versions.h"
+#include "../Export/swing_store.h"   // the document, whichever format it is in
 #include "ball_runner.h"
 #include "pose_runner.h"
 
@@ -261,14 +262,10 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
 {
     LoadedSwing out;
 
-    QFile f(swingDir + QStringLiteral("/swing.json"));
-    if (!f.open(QIODevice::ReadOnly)) {
-        out.error = QStringLiteral("cannot open %1/swing.json").arg(swingDir);
-        return out;
-    }
-    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    QString docError;
+    const QJsonObject root = SwingStore::load(swingDir, &docError);
     if (root.isEmpty()) {
-        out.error = QStringLiteral("swing.json parse failed");
+        out.error = docError;
         return out;
     }
     const QJsonObject analysisIn = root[QStringLiteral("analysis")].toObject();

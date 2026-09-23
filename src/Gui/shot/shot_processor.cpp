@@ -2122,9 +2122,12 @@ void ShotProcessor::maybeJoin()
     const QJsonObject synthManifest = (persist == pinpoint::PersistPath::AnalysisOnlyDocument)
                                           ? buildSynthManifest() : QJsonObject{};
 
+    // Storage → Save pose keypoints. Read here, with the other settings, not on the worker.
+    const bool savePose = m_appSettings ? m_appSettings->savePoseKeypoints() : true;
+
     m_docWriteInFlight = true;
     m_docWriteWatcher.setFuture(QtConcurrent::run(
-        [this, persist, shotClub, synthManifest, skipRefusion]() -> SwingDocWriteResult {
+        [this, persist, shotClub, synthManifest, skipRefusion, savePose]() -> SwingDocWriteResult {
             SwingDocWriteResult out;
             out.manifest = m_exportManifest;
 
@@ -2172,7 +2175,7 @@ void ShotProcessor::maybeJoin()
                 out.wrote = pinpoint::SwingDocWriter::writeSwingJson(
                     m_swingDir, out.manifest,
                     m_analysisResult.detail ? m_analysisResult.detail.get() : nullptr,
-                    &out.error, shotClub);
+                    &out.error, shotClub, savePose);
             } else if (persist == pinpoint::PersistPath::AnalysisOnlyDocument) {
                 // Degraded persist: export failed/skipped but analysis succeeded — write a minimal,
                 // analysis-only swing.json so the shot reloads after a restart.
@@ -2182,7 +2185,7 @@ void ShotProcessor::maybeJoin()
                     if (out.manifest.contains(k))
                         synth[k] = out.manifest[k];
                 out.wrote = pinpoint::SwingDocWriter::writeSwingJson(
-                    m_swingDir, synth, m_analysisResult.detail.get(), &out.error, shotClub);
+                    m_swingDir, synth, m_analysisResult.detail.get(), &out.error, shotClub, savePose);
             }
             return out;
         }));
@@ -2221,7 +2224,7 @@ void ShotProcessor::onSwingDocWritten()
     QString savedSwingDir;
     if (res.wrote) {
         savedSwingDir = m_swingDir;
-        ppInfo() << "[SwingDoc] wrote" << m_swingDir + QStringLiteral("/swing.json")
+        ppInfo() << "[SwingDoc] wrote" << pinpoint::SwingStore::ppswPath(m_swingDir)
                  << (analysisOk ? "(with analysis)" : "(raw only)");
     } else if (!res.error.isEmpty()) {
         ppError() << "[SwingDoc]" << res.error;

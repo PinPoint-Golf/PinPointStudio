@@ -42,6 +42,7 @@
 #ifdef HAVE_PPCP_TRANSPORT
 #include "shot/qml_payload.h"
 #include "shot/ppcp_clip_filer.h"
+#include "settings/library_converter.h"
 #endif
 #include "app_info.h"
 #ifdef HAVE_OPENCV
@@ -239,6 +240,8 @@ int main(int argc, char *argv[])
     eventBuffer.start();
 
     AppSettings              appSettings;
+    // Storage panel: convert a JSON-era library to swing.ppsw, verified swing by swing.
+    LibraryConverter         libraryConverter(&appSettings);
     // Read-only app/build/dependency info for the About box (appInfo context property).
     AppInfo                  appInfo;
     SecretsBridge            secrets;
@@ -808,6 +811,7 @@ int main(int argc, char *argv[])
     markupController.setImageProvider(markupProvider);
     engine.addImageProvider(QStringLiteral("markup"), markupProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"),       &appSettings);
+    engine.rootContext()->setContextProperty(QStringLiteral("libraryConverter"),  &libraryConverter);
     engine.rootContext()->setContextProperty(QStringLiteral("appInfo"),           &appInfo);
     engine.rootContext()->setContextProperty(QStringLiteral("secrets"),           &secrets);
     engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);

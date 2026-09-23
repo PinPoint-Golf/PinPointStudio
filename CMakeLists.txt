@@ -625,6 +625,87 @@ unset(_gspro_dirty)
 unset(_gspro_local)
 unset(_gspro_origin)
 
+# ── libppswing — the PinPoint swing file format (.ppsw) ──────────────────────
+# github.com/PinPoint-Golf/libppswing, MIT. The fourth sister project, embedded
+# the way libgspro is (the block above is the pattern). It reads and writes the
+# per-swing document: swing.ppsw replaced swing.json as the written format in
+# Phase 2 of docs/implementation/swing_storage_impl.md, and swing.json is still
+# read, indefinitely. C++17, one vendored dependency (zstd), links nothing else.
+#
+# ⚠ THE APP NEVER INCLUDES A ppsw HEADER OUTSIDE src/Export/swing_store.cpp and
+# ppsw_qt.cpp. Those two files are the pinpoint_swingstore library
+# (cmake/PinPointSwingStore.cmake), and every target that touches a swing
+# document links that one name. That is what keeps dozens of test link lines
+# from each having to learn about this library.
+#
+# ⚠ SOURCE RESOLUTION: a sibling ../libppswing checkout WINS over GitHub, as for
+# the other three. NEVER edit the fetched copy under build/*/_deps/ppswing-src.
+# The repository is public, so there is no FETCH switch: a machine with no
+# sibling fetches it, and the build works for someone who has never heard of it.
+option(PP_LIBPPSWING_LOCAL "Prefer a sibling ../libppswing checkout over GitHub" ON)
+
+set(_ppsw_local "${CMAKE_CURRENT_SOURCE_DIR}/../libppswing")
+if(PP_LIBPPSWING_LOCAL AND EXISTS "${_ppsw_local}/CMakeLists.txt")
+    get_filename_component(_ppsw_local "${_ppsw_local}" ABSOLUTE)
+    set(FETCHCONTENT_SOURCE_DIR_PPSWING "${_ppsw_local}" CACHE PATH
+        "Local libppswing checkout to build against instead of fetching" FORCE)
+    set(_ppsw_origin "local ${_ppsw_local}")
+else()
+    # Cleared, not merely unset: same stale-cache trap as the three above.
+    unset(FETCHCONTENT_SOURCE_DIR_PPSWING CACHE)
+    unset(_ppsw_local)
+    set(_ppsw_origin "github main")
+endif()
+
+# Embedded, the library already defaults its tests, tools, -Werror and install
+# rules OFF (its top-level check); set them anyway so an embed never inherits a
+# gate that is the library's own.
+set(PPSW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(PPSW_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+  ppswing
+  # ⚠ Tracking a BRANCH while the format is at 1.0 draft, as libgspro does; to
+  # be pinned to a tag once the spec is final.
+  GIT_REPOSITORY https://github.com/PinPoint-Golf/libppswing.git
+  GIT_TAG        main
+  GIT_SHALLOW    TRUE
+  EXCLUDE_FROM_ALL
+)
+FetchContent_MakeAvailable(ppswing)
+
+# Provenance, for the About box: the library has no version header, so the
+# version is its project() line, plus the commit, as for the others.
+file(STRINGS "${ppswing_SOURCE_DIR}/CMakeLists.txt" _ppsw_ver_line REGEX "^[ \t]*VERSION[ \t]+[0-9]")
+string(REGEX REPLACE ".*VERSION[ \t]+([0-9.]+).*" "\\1" PP_LIBPPSWING_VERSION "${_ppsw_ver_line}")
+execute_process(
+    COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY "${ppswing_SOURCE_DIR}"
+    OUTPUT_VARIABLE _ppsw_sha OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+execute_process(
+    COMMAND git status --porcelain
+    WORKING_DIRECTORY "${ppswing_SOURCE_DIR}"
+    OUTPUT_VARIABLE _ppsw_dirty OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+if(_ppsw_sha)
+    if(_ppsw_dirty)
+        string(APPEND _ppsw_sha "-dirty")
+    endif()
+    if(_ppsw_local)
+        string(APPEND PP_LIBPPSWING_VERSION " (${_ppsw_sha}, local)")
+    else()
+        string(APPEND PP_LIBPPSWING_VERSION " (${_ppsw_sha})")
+    endif()
+endif()
+message(STATUS "libppswing: ${PP_LIBPPSWING_VERSION} — ${_ppsw_origin}")
+unset(_ppsw_ver_line)
+unset(_ppsw_sha)
+unset(_ppsw_dirty)
+unset(_ppsw_local)
+unset(_ppsw_origin)
+
+include(cmake/PinPointSwingStore.cmake)
+pp_define_swingstore(${CMAKE_CURRENT_SOURCE_DIR})
+
 # EventBuffer library — lock-free ring-buffer capture store
 add_subdirectory(src/Buffer)
 
@@ -633,6 +714,7 @@ qt_add_executable(PinPointStudio
     $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/PinPointStudio.icns>
     $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/PinPointStudio.rc>
     src/Gui/app/app_settings.h               src/Gui/app/app_settings.cpp
+    src/Gui/settings/library_converter.h     src/Gui/settings/library_converter.cpp
     src/Gui/app/notification_center.h        src/Gui/app/notification_center.cpp
     src/Gui/shot/ppcp_clip_filer.h           src/Gui/shot/ppcp_clip_filer.cpp
     src/Gui/imu/imu_manager.h                src/Gui/imu/imu_manager.cpp
@@ -1053,7 +1135,7 @@ endif()
 
 target_link_libraries(PinPointStudio
     PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Quick3D Qt6::SerialPort Qt6::Bluetooth Qt6::Multimedia Qt6::Network Qt6::WebSockets Qt6::Concurrent Qt6::GuiPrivate Qt6::CorePrivate
-            pinpoint_buffer
+            pinpoint_buffer pinpoint_swingstore
 )
 
 
@@ -3041,8 +3123,30 @@ if(PINPOINT_BUILD_LM_REPAIR)
     )
     target_include_directories(lm_repair PRIVATE
         src/Buffer src/Export src/LaunchMonitor src/Core)
-    target_link_libraries(lm_repair PRIVATE Qt6::Core Qt6::Gui)
+    target_link_libraries(lm_repair PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Launch monitor tools: lm_repair enabled")
+endif()
+
+# pps_convert_library converts JSON-era swings to swing.ppsw, proving each before the JSON goes
+# (docs/implementation/swing_storage_impl.md, Phase 2). Built by default: it is four translation
+# units on Qt Core — the swing.json writer's own link line plus the real log — and it is the tool
+# a library conversion is RUN with, so a build that can capture should always be able to run it.
+option(PINPOINT_BUILD_STORAGE_TOOLS "Build the swing-library storage tools" ON)
+if(PINPOINT_BUILD_STORAGE_TOOLS)
+    add_executable(pps_convert_library
+        tools/storage/pps_convert_library.cpp
+        src/Export/swing_doc.cpp
+        src/Export/swing_paths.cpp
+        src/LaunchMonitor/launch_monitor_reading.cpp
+        # The real log: swing_paths reports through ppWarn, and a line a conversion says on the
+        # way past must reach whoever runs it. Standalone now — no whisper, no ggml.
+        src/Core/pp_log_stream.cpp
+        src/Core/PpMessageLog.cpp
+    )
+    target_include_directories(pps_convert_library PRIVATE
+        src/Buffer src/Export src/LaunchMonitor src/Core)
+    target_link_libraries(pps_convert_library PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
+    message(STATUS "Storage tools: pps_convert_library enabled")
 endif()
 
 # ── SwingLab offline tools (docs/implementation/swinglab_impl.md) ─────────────
@@ -3178,7 +3282,7 @@ if(PINPOINT_BUILD_TOOLS)
         endif()
         target_link_libraries(${tgt} PRIVATE
             Qt6::Core Qt6::Gui Qt6::Multimedia
-            pinpoint_buffer whisper
+            pinpoint_buffer pinpoint_swingstore whisper
             # wrist_record is the .wrwire wire container and the reconciliation
             # that reads a capture back — what an offline target needs to replay a
             # recorded HackMotion session. Nothing offline CALLS it yet, so the

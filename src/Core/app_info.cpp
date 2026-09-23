@@ -78,6 +78,8 @@ AppInfo::AppInfo(QObject *parent)
 #ifdef HAVE_PPCP
     addDep(m_dependencies, QStringLiteral("libppcp"), QStringLiteral(PP_LIBPPCP_VERSION));
 #endif
+    // Always linked: every swing document is read and written through it.
+    addDep(m_dependencies, QStringLiteral("libppswing"), QStringLiteral(PP_LIBPPSWING_VERSION));
 #ifdef HAVE_ESPEAK_NG
     addDep(m_dependencies, QStringLiteral("espeak-ng"), QStringLiteral(PP_ESPEAK_VERSION));
 #endif

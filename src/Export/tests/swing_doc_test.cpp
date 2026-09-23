@@ -4,6 +4,7 @@
 
 #include "../swing_doc.h"
 #include "../swing_paths.h"
+#include "../swing_store.h"
 #include "../../LaunchMonitor/gcquad_csv_parser.h"
 #include "../../Analysis/imu_refusion_check.h"   // ImuRefusionVerdict (header-only)
 #include "../../Analysis/capture_integrity_check.h"   // CaptureIntegrityVerdict (header-only)
@@ -41,9 +42,7 @@ static bool near(double a, double b, double tol) { return std::fabs(a - b) <= to
 // writeSwingJson as its manifest.
 static QJsonObject readManifest(const QString &swingDir)
 {
-    QFile f(swingDir + QStringLiteral("/swing.json"));
-    if (!f.open(QIODevice::ReadOnly)) return {};
-    return QJsonDocument::fromJson(f.readAll()).object();
+    return SwingStore::load(swingDir);
 }
 
 int main()
@@ -176,11 +175,8 @@ int main()
         std::printf("  [FAIL] write: %s\n", err.toUtf8().constData());
         return 1;
     }
-    QFile f(dir + QStringLiteral("/swing.json"));
-    if (!f.open(QIODevice::ReadOnly))  return 1;
-    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
-    f.close();   // release the handle: on Windows an open reader blocks the
-                 // QSaveFile atomic replace that updateReview()/writeSwingJson() do below
+    check(SwingStore::hasDocument(dir), "document written");
+    const QJsonObject root = SwingStore::load(dir);
 
     check(root[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.swing/2"), "schema bumped to pinpoint.swing/2");
     check(root.contains(QStringLiteral("streams")), "raw streams preserved");
@@ -372,10 +368,8 @@ int main()
         QString serr;
         check(SwingDocWriter::writeSwingJson(dirS, mSm, &aSm, &serr), "smoothed write ok");
 
-        QFile fs(dirS + QStringLiteral("/swing.json"));
-        if (!fs.open(QIODevice::ReadOnly)) return 1;
-        const QJsonObject rs = QJsonDocument::fromJson(fs.readAll()).object();
-        fs.close();
+        check(SwingStore::hasDocument(dirS), "document written");
+        const QJsonObject rs = SwingStore::load(dirS);
         const QJsonObject p2 =
             rs[QStringLiteral("analysis")].toObject()[QStringLiteral("pose2d")].toObject();
         check(p2.contains(QStringLiteral("smoothed")), "smoothed block present when populated");
@@ -483,14 +477,12 @@ int main()
                                            QStringLiteral("7 IRON"), &rerr),
               "updateReview ok");
         // The review block lands without disturbing the raw/analysis blocks.
-        QFile fr(dir + QStringLiteral("/swing.json"));
-        if (!fr.open(QIODevice::ReadOnly)) return 1;
-        const QByteArray reviewedBytes = fr.readAll();
-        const QJsonObject r = QJsonDocument::fromJson(reviewedBytes).object();
-        fr.close();   // release before the updateReview() rewrite below (Windows replace)
-        // Every swing.json writer is Compact: indentation was 58% of a real file, and one
-        // Indented rewriter (review, LM, origin) would re-inflate it on the next edit.
-        check(!reviewedBytes.contains("\n "), "swing.json stays compact after updateReview");
+        const QJsonObject r = SwingStore::load(dir);
+        check(!r.isEmpty(), "document readable");
+        // Every rewriter (review, LM, origin) writes the binary format: one that wrote JSON back
+        // would re-inflate the swing ~10x on its next edit and leave two documents to disagree.
+        check(SwingStore::info(dir).format == SwingStore::Format::Ppsw && !QFile::exists(dir + QStringLiteral("/swing.json")),
+              "the document is still swing.ppsw after updateReview");
         check(r.contains(QStringLiteral("analysis")), "analysis block survives review write");
         const QJsonObject rv = r[QStringLiteral("review")].toObject();
         check(rv[QStringLiteral("rating")].toInt() == 4, "review.rating == 4");
@@ -662,10 +654,8 @@ int main()
         const QString dirN = dir + QStringLiteral("_norm");
         QDir().mkpath(dirN);
         SwingDocWriter::writeSwingJson(dirN, mAbs, &aAbs, nullptr);
-        QFile fn(dirN + QStringLiteral("/swing.json"));
-        if (fn.open(QIODevice::ReadOnly)) {
-            const QJsonObject rn = QJsonDocument::fromJson(fn.readAll()).object();
-            fn.close();
+        if (SwingStore::hasDocument(dirN)) {
+            const QJsonObject rn = SwingStore::load(dirN);
             const QJsonObject an = rn[QStringLiteral("analysis")].toObject();
             check(qint64(an[QStringLiteral("phases")].toArray().at(0).toObject()[QStringLiteral("t_us")].toDouble()) == 1010000,
                   "absolute phase t_us → window-relative");
@@ -680,10 +670,8 @@ int main()
         SwingAnalysis aRel;
         aRel.phases.push_back({ Phase::Impact, 1010000, 1.0f });
         SwingDocWriter::writeSwingJson(dirN, mAbs, &aRel, nullptr);
-        QFile fr(dirN + QStringLiteral("/swing.json"));
-        if (fr.open(QIODevice::ReadOnly)) {
-            const QJsonObject rr = QJsonDocument::fromJson(fr.readAll()).object();
-            fr.close();
+        if (SwingStore::hasDocument(dirN)) {
+            const QJsonObject rr = SwingStore::load(dirN);
             check(qint64(rr[QStringLiteral("analysis")].toObject()[QStringLiteral("phases")].toArray()
                             .at(0).toObject()[QStringLiteral("t_us")].toDouble()) == 1010000,
                   "relative phase t_us passed through (idempotent)");
@@ -692,50 +680,130 @@ int main()
 
     std::printf("\n=== raw-only write (analysis == nullptr) ===\n");
     SwingDocWriter::writeSwingJson(dir, manifest, nullptr);
-    QFile f2(dir + QStringLiteral("/swing.json"));
-    if (!f2.open(QIODevice::ReadOnly)) return 1;
-    const QJsonObject root2 = QJsonDocument::fromJson(f2.readAll()).object();
-    f2.close();
+    check(SwingStore::hasDocument(dir), "document written");
+    const QJsonObject root2 = SwingStore::load(dir);
     check(!root2.contains(QStringLiteral("analysis")), "no analysis block when null");
     check(root2[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.swing/2"), "schema still /2");
 
-    // ── summary sidecar ─────────────────────────────────────────────────────
-    // swing_summary.json is a regenerable cache of the scalars the session picker needs,
-    // so it never has to parse a multi-MB swing.json on the GUI thread. Everything below
-    // guards that it stays truthful — a sidecar that silently goes stale, or one that is
-    // never actually read, reintroduces the freeze it exists to prevent.
-    const QString sumPath = dir + QStringLiteral("/swing_summary.json");
-
-    std::printf("\n=== summary sidecar: written on the happy path ===\n");
+    // ── the summary ─────────────────────────────────────────────────────────
+    // The scalars the session picker needs, so it never decodes a multi-MB pose track on the GUI
+    // thread to build a row. A swing.ppsw carries them INSIDE, as the `summary` block in its root
+    // chunk, written in the same atomic rename as everything else; a JSON-era swing.json keeps the
+    // swing_summary.json sidecar. Everything below guards that both stay truthful — a summary that
+    // silently goes stale, or one that is never actually read, reintroduces the freeze it exists
+    // to prevent.
+    std::printf("\n=== summary block: written with the document ===\n");
     {
-        // updateReview() above rewrote swing.json last, so the sidecar must already be
-        // present and stamped against that rewrite.
-        check(QFile::exists(sumPath), "swing_summary.json exists after a write");
-
-        QFile f(sumPath);
-        if (!f.open(QIODevice::ReadOnly)) return 1;
-        const QJsonObject s = QJsonDocument::fromJson(f.readAll()).object();
-        f.close();
+        check(QFile::exists(dir + QStringLiteral("/swing.ppsw")), "the writers write swing.ppsw");
+        check(!QFile::exists(dir + QStringLiteral("/swing.json")), "…and never swing.json");
+        check(!QFile::exists(dir + QStringLiteral("/swing_summary.json")),
+              "…and no sidecar: the summary is inside the document");
+        const QJsonObject block = SwingStore::loadSummaryBlock(dir);
         // /4 (2026-09-16): + metrics, rating, note, lmDeviceKind, dataWarningDetail — the rest of what
-        // a carousel row shows, so loading a session never fat-parses. Bumping the tag is what makes
-        // every /3 sidecar in an existing library miss and rewrite itself.
-        check(s[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.swingsummary/4"),
-              "sidecar schema tag");
-        const QFileInfo srcInfo(dir + QStringLiteral("/swing.json"));
-        const QJsonObject src = s[QStringLiteral("source")].toObject();
-        check(qint64(src[QStringLiteral("size")].toDouble()) == srcInfo.size(),
-              "sidecar stamps the COMMITTED source size");
-        check(qint64(src[QStringLiteral("mtime_ms")].toDouble())
-                  == srcInfo.lastModified().toMSecsSinceEpoch(),
-              "sidecar stamps the COMMITTED source mtime");
+        // a carousel row shows, so loading a session never fat-parses.
+        check(block[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.swingsummary/4"),
+              "summary block schema tag");
+        check(!block.contains(QStringLiteral("source")),
+              "…with no freshness guard: it cannot be older than the file it is in");
     }
 
-    std::printf("\n=== summary sidecar: PARITY with the full reader ===\n");
+    std::printf("\n=== summary block: PARITY with the full reader ===\n");
     {
         const PersistedShot fat  = SwingDocReader::readSwingJson(dir);
         const SwingSummary  lean = SwingDocReader::readSwingSummary(dir);
         // Without this the whole section could pass while every read silently fell back to
         // the fat parse — i.e. correct data, and the stall quietly back.
+        check(lean.fromSidecar, "parity exercised the SUMMARY BLOCK, not a fat fallback");
+        check(lean.ok == fat.ok,                         "parity ok");
+        check(lean.ordinal == fat.ordinal,               "parity ordinal");
+        check(lean.timestampLabel == fat.timestampLabel, "parity timestampLabel");
+        check(lean.wallclockMs == fat.wallclockMs,       "parity wallclockMs");
+        check(lean.club == fat.club,                     "parity club");
+        check(lean.hasVideo == fat.hasVideo,             "parity hasVideo");
+        check(lean.thumbnailPath == fat.thumbnailPath,   "parity thumbnailPath");
+        check(lean.score == fat.score,                   "parity score");
+        // The /4 row fields. A carousel row is rebuilt from whichever of these two reads answered, and
+        // its card fills every required property from a model role — so a summary that dropped these
+        // would blank the metric chips, the stars and the warning tooltip on every reloaded shot, which
+        // is exactly the regression the cheap session load could otherwise introduce.
+        check(lean.metrics == fat.metrics,                     "parity metrics (the card's chips)");
+        check(lean.rating == fat.rating,                       "parity rating");
+        check(lean.note == fat.note,                           "parity note");
+        check(lean.lmDeviceKind == fat.lmDeviceKind,           "parity lmDeviceKind");
+        check(lean.dataWarning == fat.dataWarning,             "parity dataWarning");
+        check(lean.dataWarningDetail == fat.dataWarningDetail, "parity dataWarningDetail");
+    }
+
+    std::printf("\n=== summary block: review write-through keeps it fresh ===\n");
+    {
+        check(SwingDocWriter::updateReview(dir, 3, QStringLiteral("after-index"),
+                                           QStringLiteral("5 WOOD"), nullptr),
+              "updateReview ok");
+        const SwingSummary s = SwingDocReader::readSwingSummary(dir);
+        check(s.fromSidecar, "the block is still the cheap path after updateReview");
+        check(s.club == QStringLiteral("5 WOOD") && s.rating == 3, "…and carries the new club and stars");
+    }
+
+    std::printf("\n=== summary block: an unknown schema is a miss, not an error ===\n");
+    {
+        // Written straight through the store, around the writer, the way a future build's block
+        // would arrive. Must name a version this build does NOT write, or the case tests nothing.
+        QJsonObject doc = SwingStore::load(dir);
+        QJsonObject blk = doc[QStringLiteral("summary")].toObject();
+        blk[QStringLiteral("schema")] = QStringLiteral("pinpoint.swingsummary/99");
+        doc[QStringLiteral("summary")] = blk;
+        check(SwingStore::save(dir, doc), "store write of a future-schema block");
+        const SwingSummary s = SwingDocReader::readSwingSummary(dir);
+        check(!s.fromSidecar && s.ok, "unknown schema → derived from the document, still good data");
+        check(!SwingDocReader::readSwingSummary(dir, /*writeSidecar=*/false).ok,
+              "…and a caller that must not block gets !ok rather than a fat parse");
+        check(SwingDocWriter::updateReview(dir, 3, QStringLiteral("after-index"),
+                                           QStringLiteral("5 WOOD"), nullptr),
+              "a real write");
+        check(SwingDocReader::readSwingSummary(dir).fromSidecar, "…refreshes the block");
+    }
+
+    // ── A JSON-era swing: read indefinitely, sidecar-indexed, migrated by its first rewrite ────
+    // Built from the document above so it carries every block the parity checks read.
+    const QString dirJ = QStringLiteral("/tmp/swingdoc_test_json");
+    QDir(dirJ).removeRecursively();
+    QDir().mkpath(dirJ);
+    {
+        QJsonObject doc = SwingStore::load(dir);
+        doc.remove(QStringLiteral("summary"));   // a JSON-era document never had one
+        QFile o(dirJ + QStringLiteral("/swing.json"));
+        check(o.open(QIODevice::WriteOnly) && o.write(SwingStore::toJsonText(doc)) > 0,
+              "legacy swing.json fixture written");
+    }
+    const QString sumPath = dirJ + QStringLiteral("/swing_summary.json");
+
+    std::printf("\n=== JSON-era sidecar: written by the first indexing read ===\n");
+    {
+        check(SwingStore::info(dirJ).format == SwingStore::Format::Json, "the store reads it as JSON");
+        check(!QFile::exists(sumPath), "no sidecar before anything indexed it");
+        const SwingSummary first = SwingDocReader::readSwingSummary(dirJ);
+        check(first.ok && !first.fromSidecar, "the first read parses the document");
+        check(QFile::exists(sumPath), "…and writes the sidecar");
+
+        QFile f(sumPath);
+        if (!f.open(QIODevice::ReadOnly)) return 1;
+        const QJsonObject s = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+        check(s[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.swingsummary/4"),
+              "sidecar schema tag");
+        const QFileInfo srcInfo(dirJ + QStringLiteral("/swing.json"));
+        const QJsonObject src = s[QStringLiteral("source")].toObject();
+        check(qint64(src[QStringLiteral("size")].toDouble()) == srcInfo.size(),
+              "sidecar stamps the source size");
+        check(qint64(src[QStringLiteral("mtime_ms")].toDouble())
+                  == srcInfo.lastModified().toMSecsSinceEpoch(),
+              "sidecar stamps the source mtime");
+    }
+
+    std::printf("\n=== JSON-era sidecar: PARITY with the full reader ===\n");
+    {
+        const PersistedShot fat  = SwingDocReader::readSwingJson(dirJ);
+        const SwingSummary  lean = SwingDocReader::readSwingSummary(dirJ);
         check(lean.fromSidecar, "parity exercised the SIDECAR path, not a fat fallback");
         check(lean.ok == fat.ok,                         "parity ok");
         check(lean.ordinal == fat.ordinal,               "parity ordinal");
@@ -746,7 +814,7 @@ int main()
         check(lean.thumbnailPath == fat.thumbnailPath,   "parity thumbnailPath");
         check(lean.score == fat.score,                   "parity score");
         // The /4 row fields. A carousel row is rebuilt from whichever of these two reads answered, and
-        // its card fills every required property from a model role — so a sidecar that dropped these
+        // its card fills every required property from a model role — so a summary that dropped these
         // would blank the metric chips, the stars and the warning tooltip on every reloaded shot, which
         // is exactly the regression the cheap session load could otherwise introduce.
         check(lean.metrics == fat.metrics,                     "parity metrics (the card's chips)");
@@ -758,7 +826,7 @@ int main()
 
         // Delete it: the fallback must produce identical values AND self-heal.
         QFile::remove(sumPath);
-        const SwingSummary rebuilt = SwingDocReader::readSwingSummary(dir);
+        const SwingSummary rebuilt = SwingDocReader::readSwingSummary(dirJ);
         check(!rebuilt.fromSidecar, "deleted sidecar → fat fallback");
         check(rebuilt.ok == fat.ok && rebuilt.ordinal == fat.ordinal
                   && rebuilt.timestampLabel == fat.timestampLabel
@@ -768,10 +836,10 @@ int main()
                   && rebuilt.score == fat.score,
               "fat-fallback parity (identical to the sidecar path)");
         check(QFile::exists(sumPath), "fallback self-heals: sidecar rewritten");
-        check(SwingDocReader::readSwingSummary(dir).fromSidecar, "healed sidecar is used next time");
+        check(SwingDocReader::readSwingSummary(dirJ).fromSidecar, "healed sidecar is used next time");
     }
 
-    std::printf("\n=== summary sidecar: stale detection ===\n");
+    std::printf("\n=== JSON-era sidecar: stale detection ===\n");
     {
         const auto patchSidecar = [&](const char *key, const QJsonValue &v) {
             QFile f(sumPath);
@@ -791,38 +859,23 @@ int main()
         };
 
         patchSidecar("size", QJsonValue(1.0));
-        check(!SwingDocReader::readSwingSummary(dir).fromSidecar, "wrong source.size → stale");
-        check(SwingDocReader::readSwingSummary(dir).fromSidecar,  "…and is rewritten correctly");
+        check(!SwingDocReader::readSwingSummary(dirJ).fromSidecar, "wrong source.size → stale");
+        check(SwingDocReader::readSwingSummary(dirJ).fromSidecar,  "…and is rewritten correctly");
 
         patchSidecar("mtime_ms", QJsonValue(1.0));
-        check(!SwingDocReader::readSwingSummary(dir).fromSidecar, "wrong source.mtime_ms → stale");
-        check(SwingDocReader::readSwingSummary(dir).fromSidecar,  "…and is rewritten correctly");
+        check(!SwingDocReader::readSwingSummary(dirJ).fromSidecar, "wrong source.mtime_ms → stale");
+        check(SwingDocReader::readSwingSummary(dirJ).fromSidecar,  "…and is rewritten correctly");
 
-        // An unknown schema is a miss, not an error — forward compatibility is free. Must
-        // name a version this build does NOT write, or the case tests nothing.
         patchSidecar("schema", QJsonValue(QStringLiteral("pinpoint.swingsummary/99")));
-        check(!SwingDocReader::readSwingSummary(dir).fromSidecar, "unknown schema → miss, not error");
-        check(SwingDocReader::readSwingSummary(dir).ok,           "…and still returns good data");
+        check(!SwingDocReader::readSwingSummary(dirJ).fromSidecar, "unknown schema → miss, not error");
+        check(SwingDocReader::readSwingSummary(dirJ).ok,           "…and still returns good data");
     }
 
-    std::printf("\n=== summary sidecar: review write-through keeps it fresh ===\n");
-    {
-        // updateReview rewrites swing.json, changing its size+mtime. If the sidecar were
-        // not refreshed here — or were stamped BEFORE the commit — every later read would
-        // fall back to the full parse and the picker would quietly get slow again.
-        check(SwingDocWriter::updateReview(dir, 3, QStringLiteral("after-index"),
-                                           QStringLiteral("5 WOOD"), nullptr),
-              "updateReview ok");
-        const SwingSummary s = SwingDocReader::readSwingSummary(dir);
-        check(s.fromSidecar, "sidecar still fresh after updateReview (stamped post-commit)");
-        check(s.club == QStringLiteral("5 WOOD"), "sidecar carries the new club");
-    }
-
-    std::printf("\n=== summary sidecar: missing and orphan documents ===\n");
+    std::printf("\n=== summary: missing and orphan documents ===\n");
     {
         const SwingSummary none = SwingDocReader::readSwingSummary(
             QStringLiteral("/tmp/swingdoc_test_nope"));
-        check(!none.ok, "no swing.json → !ok");
+        check(!none.ok, "no document → !ok");
         check(!QFile::exists(QStringLiteral("/tmp/swingdoc_test_nope/swing_summary.json")),
               "no sidecar created for a missing document");
 
@@ -834,6 +887,24 @@ int main()
         check(!SwingDocReader::readSwingSummary(orphanDir).ok, "orphan sidecar → !ok (fail closed)");
         QDir(orphanDir).removeRecursively();
     }
+
+    std::printf("\n=== JSON-era swing: the first rewrite migrates it ===\n");
+    {
+        const PersistedShot before = SwingDocReader::readSwingJson(dirJ);
+        check(SwingDocWriter::updateReview(dirJ, 2, QStringLiteral("migrated"),
+                                           QStringLiteral("9 IRON"), nullptr),
+              "updateReview on a JSON-era swing");
+        check(QFile::exists(dirJ + QStringLiteral("/swing.ppsw")), "…writes swing.ppsw");
+        check(!QFile::exists(dirJ + QStringLiteral("/swing.json")), "…and retires swing.json");
+        check(!QFile::exists(sumPath), "…and its sidecar");
+        const PersistedShot after = SwingDocReader::readSwingJson(dirJ);
+        check(after.ok && after.club == QStringLiteral("9 IRON") && after.rating == 2,
+              "…carrying the edit");
+        check(after.metrics == before.metrics && after.score == before.score,
+              "…and everything it did not edit");
+        check(SwingDocReader::readSwingSummary(dirJ).fromSidecar, "…indexed by its summary block");
+    }
+    QDir(dirJ).removeRecursively();
 
     std::printf("\n=== summary sidecar: default parity (no review block) ===\n");
     {
@@ -865,10 +936,8 @@ int main()
                                              QStringLiteral("7 IRON")),
               "write with a capture club");
 
-        QFile cf(d5 + QStringLiteral("/swing.json"));
-        check(cf.open(QIODevice::ReadOnly), "reopen");
-        const QJsonObject croot = QJsonDocument::fromJson(cf.readAll()).object();
-        cf.close();
+        check(SwingStore::hasDocument(d5), "document written");
+        const QJsonObject croot = SwingStore::load(d5);
         check(croot[QStringLiteral("review")].toObject()[QStringLiteral("club")].toString()
                   == QStringLiteral("7 IRON"),
               "capture club seeded into review.club");
@@ -905,10 +974,8 @@ int main()
         check(SwingDocWriter::updateReview(d6, 5, QStringLiteral("keep me"),
                                            QStringLiteral("PUTTER"), nullptr),
               "rate and annotate it");
-        QFile rf(d6 + QStringLiteral("/swing.json"));
-        check(rf.open(QIODevice::ReadOnly), "reopen for re-analysis");
-        const QJsonObject reManifest = QJsonDocument::fromJson(rf.readAll()).object();
-        rf.close();
+        check(SwingStore::hasDocument(d6), "document written");
+        const QJsonObject reManifest = SwingStore::load(d6);
         check(SwingDocWriter::writeSwingJson(d6, reManifest, nullptr, &werr,
                                              QStringLiteral("3 WOOD")),
               "re-write with a different capture club");
@@ -956,10 +1023,8 @@ int main()
         check(SwingDocWriter::updateLaunchMonitor(d3, *reading, &lerr),
               "the reading folds into the existing document");
 
-        QFile f(d3 + QStringLiteral("/swing.json"));
-        f.open(QIODevice::ReadOnly);
-        const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
-        f.close();
+        check(SwingStore::hasDocument(d3), "document written");
+        const QJsonObject root = SwingStore::load(d3);
 
         const QJsonObject raw = root[QStringLiteral("launchMonitor")].toObject();
         check(raw[QStringLiteral("deviceShotId")].toString() == QStringLiteral("283"),
@@ -1007,12 +1072,10 @@ int main()
         // Re-applying must replace, not duplicate — the connector can legitimately be
         // asked to write the same swing twice.
         check(SwingDocWriter::updateLaunchMonitor(d3, *reading, &lerr), "re-apply succeeds");
-        QFile f2(d3 + QStringLiteral("/swing.json"));
-        f2.open(QIODevice::ReadOnly);
-        const QJsonArray again = QJsonDocument::fromJson(f2.readAll()).object()
+        check(SwingStore::hasDocument(d3), "document written");
+        const QJsonArray again = SwingStore::load(d3)
                                      [QStringLiteral("analysis")].toObject()
                                      [QStringLiteral("metrics")].toArray();
-        f2.close();
         check(again.size() == mets.size(), "re-applying replaces rather than appending");
 
         // ── Re-analysis must not evict the readings ─────────────────────────
@@ -1024,17 +1087,13 @@ int main()
         // leaving the raw `launchMonitor` block untouched. That is the worst shape a loss can
         // take: a file that still looks complete, and a board that reads as a launch monitor
         // which was never connected.
-        QFile f4(d3 + QStringLiteral("/swing.json"));
-        f4.open(QIODevice::ReadOnly);
-        const QJsonObject paired = QJsonDocument::fromJson(f4.readAll()).object();
-        f4.close();
+        check(SwingStore::hasDocument(d3), "document written");
+        const QJsonObject paired = SwingStore::load(d3);
         check(SwingDocWriter::writeSwingJson(d3, paired, &an, &werr),
               "re-analyse a swing that already carries a reading");
 
-        QFile f5(d3 + QStringLiteral("/swing.json"));
-        f5.open(QIODevice::ReadOnly);
-        const QJsonObject after = QJsonDocument::fromJson(f5.readAll()).object();
-        f5.close();
+        check(SwingStore::hasDocument(d3), "document written");
+        const QJsonObject after = SwingStore::load(d3);
 
         int lmAfter = 0, bareAfter = 0;
         double lmValAfter = 0;
@@ -1059,10 +1118,8 @@ int main()
         QDir().mkpath(d4);
         check(SwingDocWriter::writeSwingJson(d4, m3, nullptr, &werr), "write a doc with no analysis");
         check(SwingDocWriter::updateLaunchMonitor(d4, *reading, &lerr), "…the reading still lands");
-        QFile f3(d4 + QStringLiteral("/swing.json"));
-        f3.open(QIODevice::ReadOnly);
-        const QJsonObject r4 = QJsonDocument::fromJson(f3.readAll()).object();
-        f3.close();
+        check(SwingStore::hasDocument(d4), "document written");
+        const QJsonObject r4 = SwingStore::load(d4);
         check(r4.contains(QStringLiteral("launchMonitor")), "…as a raw block");
         check(!r4.contains(QStringLiteral("analysis")), "…without inventing an analysis block");
 
@@ -1098,10 +1155,8 @@ int main()
         check(SwingDocWriter::writeDeviceOnlySwing(d5, *reading, meta, &derr),
               "a device-only swing.json is written");
 
-        QFile f(d5 + QStringLiteral("/swing.json"));
-        f.open(QIODevice::ReadOnly);
-        const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
-        f.close();
+        check(SwingStore::hasDocument(d5), "document written");
+        const QJsonObject root = SwingStore::load(d5);
 
         check(root[QStringLiteral("streams")].toArray().isEmpty(),
               "streams is empty — the fact, not a failure");
@@ -1511,10 +1566,8 @@ int main()
             std::printf("  [FAIL] write: %s\n", err2.toUtf8().constData());
             ++g_fail;
         } else {
-            QFile f2(dir2 + QStringLiteral("/swing.json"));
-            check(f2.open(QIODevice::ReadOnly), "round-trip document readable");
-            const QJsonObject an2 = QJsonDocument::fromJson(f2.readAll()).object()[QStringLiteral("analysis")].toObject();
-            f2.close();
+            check(SwingStore::hasDocument(dir2), "document written");
+            const QJsonObject an2 = SwingStore::load(dir2)[QStringLiteral("analysis")].toObject();
             const ShaftTrack2D t = shaftTrackFromAnalysisJson(an2[QStringLiteral("club")].toObject(), 3);
             check(t.valid && t.camera == 3 && t.frameWidth == 1280 && t.frameHeight == 1024, "club: header fields");
             check(near(t.coverage, 0.91, 1e-6) && near(t.measuredClubLenPx, 301.5, 1e-3)

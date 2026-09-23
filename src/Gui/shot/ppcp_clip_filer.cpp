@@ -110,7 +110,7 @@ void PpcpClipFiler::onSwingReady(const QString &swingDir)
         // has an empty folder, and inventing a swing.json for a clip that may
         // never arrive would put an empty swing in the library.  The document is
         // created when the BYTES land and not before (see ensureSwingDocument).
-        if (!QFileInfo::exists(swingDir + QStringLiteral("/swing.json"))) {
+        if (!pinpoint::SwingStore::hasDocument(swingDir)) {
             ppDebug() << "[ppcp] no swing.json yet on" << swingDir
                       << "— the pending clip is recorded when it arrives";
             continue;
@@ -210,7 +210,7 @@ void PpcpClipFiler::onClipReady(const PpcpClip &clip)
 // speculatively.
 static bool ensureSwingDocument(const QString &swingDir)
 {
-    if (QFileInfo::exists(swingDir + QStringLiteral("/swing.json"))) return true;
+    if (pinpoint::SwingStore::hasDocument(swingDir)) return true;
     QJsonObject m;
     m[QStringLiteral("schema")]  = QStringLiteral("pinpoint.swing/1");
     m[QStringLiteral("streams")] = QJsonArray{};

@@ -19,6 +19,7 @@
 #pragma once
 
 #include "launch_monitor_reading.h"
+#include "swing_store.h"
 
 #include <QJsonObject>
 #include <QString>
@@ -110,10 +111,15 @@ public:
     // writeSwingJson(dir, manifest, &analysis, nullptr) call sites would still compile —
     // nullptr converts to QString through const char* — and silently mean "no club, drop
     // the error" instead of failing loudly.
+    //
+    // `savePose` false (AppSettings savePoseKeypoints off) omits the pose tracks — analysis.pose2d
+    // and poseDtl, about half of a document — and their version stamps, so re-analysis knows to
+    // re-run pose rather than reuse a track that is not there. The replay then has no skeleton.
     static bool writeSwingJson(const QString &swingDir, const QJsonObject &rawManifest,
                                const analysis::SwingAnalysis *analysis,
                                QString *error = nullptr,
-                               const QString &club = QString());
+                               const QString &club = QString(),
+                               bool savePose = true);
 
     // ⚠ THE DOCUMENT WE JUST WROTE, kept so the next reader does not fetch and re-parse it
     // (2026-09-16). At the end of a shot the GUI thread serialised ~28 MB, wrote it to the library —
@@ -277,6 +283,12 @@ public:
                                      const lm::LaunchMonitorReading &reading,
                                      const DeviceOnlyMeta &meta,
                                      QString *error = nullptr);
+
+    // Convert a JSON-era swing to swing.ppsw, with this writer's `summary` block, and prove it
+    // before deleting anything (SwingStore::convertDir). The library conversion — in-app and
+    // pps_convert_library — both come through here, so a converted swing is indistinguishable
+    // from one this writer wrote.
+    static SwingStore::ConvertResult convertToPpsw(const QString &swingDir, bool deleteJson);
 };
 
 // A reloaded shot — everything ShotListModel::addPersistedShot needs to rebuild a

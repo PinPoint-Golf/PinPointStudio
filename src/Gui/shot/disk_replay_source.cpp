@@ -149,12 +149,12 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
     QJsonObject root = pinpoint::SwingDocWriter::takeJustWritten(swingDir);
     const bool usedCachedDocument = !root.isEmpty();
     if (root.isEmpty()) {
-        QFile f(swingDir + QStringLiteral("/swing.json"));
-        if (!f.open(QIODevice::ReadOnly)) {
-            ppWarn() << "[ShotReplay] cannot open" << f.fileName();
+        QString err;
+        root = pinpoint::SwingStore::load(swingDir, &err);
+        if (root.isEmpty()) {
+            ppWarn() << "[ShotReplay]" << err;
             return false;   // bad path: leave any current replay intact
         }
-        root = QJsonDocument::fromJson(f.readAll()).object();
     }
     if (root.isEmpty())
         return false;

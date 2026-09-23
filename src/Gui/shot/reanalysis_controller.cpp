@@ -112,12 +112,7 @@ void ReanalysisController::onWorkerFinished()
     if (r.ok && r.analysis.detail) {
         // Write the fresh analysis back, preserving the existing manifest blocks
         // (capture / streams / review). writeSwingJson replaces only "analysis".
-        QJsonObject manifest;
-        QFile f(dir + QStringLiteral("/swing.json"));
-        if (f.open(QIODevice::ReadOnly)) {
-            manifest = QJsonDocument::fromJson(f.readAll()).object();
-            f.close();
-        }
+        QJsonObject manifest = pinpoint::SwingStore::load(dir);
         // Guard against clobbering: an empty manifest means swing.json went missing
         // or unreadable between load and write-back (the folder was trashed mid-batch,
         // or a transient read failure). Writing then would replace the whole document
@@ -125,9 +120,9 @@ void ReanalysisController::onWorkerFinished()
         QString err;
         if (manifest.isEmpty()) {
             ++m_failed;
-            m_lastError = QStringLiteral("This shot's swing.json could not be read, so it was left untouched.");
+            m_lastError = QStringLiteral("This shot's document could not be read, so it was left untouched.");
             ppWarn() << "[Reanalysis] write-back skipped —" << dir
-                     << "swing.json missing/unreadable (not overwriting)";
+                     << "document missing/unreadable (not overwriting)";
             startNext();
             return;
         }

@@ -20,6 +20,7 @@
 
 #include "../Analysis/series_reduce.h"
 #include "../Core/club_vocabulary.h"
+#include "../Export/swing_store.h"   // no FFmpeg: the store is its own library
 
 #include <QDateTime>
 #include <QDir>
@@ -514,13 +515,14 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const P
 {
     SwingPhaseGrid grid;
 
-    const QString   docPath = QDir(swingDir).filePath(QStringLiteral("swing.json"));
-    const QFileInfo docInfo(docPath);
+    // The guard keys on whichever document the swing holds (swing.ppsw, or a JSON-era swing.json):
+    // its size and mtime move on every rewrite, including the one that converts a swing.
+    const SwingStore::DocInfo docInfo = SwingStore::info(swingDir);
     if (!docInfo.exists())
         return grid;
 
-    const qint64 size    = docInfo.size();
-    const qint64 mtimeMs = docInfo.lastModified().toMSecsSinceEpoch();
+    const qint64 size    = docInfo.size;
+    const qint64 mtimeMs = docInfo.mtimeMs;
 
     // The cheap path.
     const QString sidePath = phaseGridPath(swingDir);
@@ -543,13 +545,8 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const P
     if (!writeSidecar)
         return grid;
 
-    QFile df(docPath);
-    if (!df.open(QIODevice::ReadOnly))
-        return grid;
-
-    QJsonParseError    pe{};
-    const QJsonObject  root = QJsonDocument::fromJson(df.readAll(), &pe).object();
-    if (pe.error != QJsonParseError::NoError || root.isEmpty())
+    const QJsonObject root = SwingStore::load(swingDir);
+    if (root.isEmpty())
         return grid;
 
     grid = buildPhaseGrid(root.value(QStringLiteral("analysis")).toObject(), cfg);

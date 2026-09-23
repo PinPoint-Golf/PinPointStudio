@@ -22,6 +22,8 @@
 // checkout able to win, and a conformance claim that means nothing without the
 // commit it was measured against.
 #define PP_LIBPPCP_VERSION "@PP_LIBPPCP_VERSION@"
+// The swing file format library (.ppsw): same shape, same reason.
+#define PP_LIBPPSWING_VERSION "@PP_LIBPPSWING_VERSION@"
 #define PP_ARAVIS_VERSION     "@ARAVIS_VERSION@"
 #define PP_SPINNAKER_VERSION  "@PP_SPINNAKER_VERSION@"
 #define PP_CUDA_VERSION       "@CUDAToolkit_VERSION@"

@@ -430,6 +430,18 @@ pp_add_test(swing_doc_test
     INCLUDE ${SRC}/LaunchMonitor
     DEFINES PP_SRC_DIR="${SRC}")
 
+# --- The swing-document store: swing.ppsw / legacy swing.json (Export) -------
+# The store's own suite: the Qt ↔ libppswing adapter (values AND number kinds), both formats,
+# migrate-on-rewrite, and the verified conversion failing closed. Links ppswing directly for
+# ppsw_qt.h, and reads libppswing's two corpus fixtures from its source tree.
+pp_require_swingstore()
+include(FetchContent)
+FetchContent_GetProperties(ppswing)
+pp_add_test(swing_store_test
+    SOURCES ${SRC}/Export/tests/swing_store_test.cpp
+    LINK    ppswing::ppswing
+    DEFINES PP_LIBPPSWING_FIXTURES="${ppswing_SOURCE_DIR}/tests/fixtures")
+
 # --- Session / swing folder layout on disk (Export subsystem) ----------------
 # Filesystem logic, so the suite builds real trees under a QTemporaryDir
 # (temp_library.h) rather than varying arguments: what these functions do
@@ -1097,7 +1109,8 @@ add_executable(regrade_ledger
     ${SRC}/Core/pp_log_stream.cpp
     ${SRC}/Core/PpMessageLog.cpp)
 target_include_directories(regrade_ledger PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor)
-target_link_libraries(regrade_ledger PRIVATE Qt6::Core Qt6::Gui Qt6::Qml)
+pp_require_swingstore()
+target_link_libraries(regrade_ledger PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
 set_target_properties(regrade_ledger PROPERTIES AUTOMOC ON)
 pp_apply_sanitizers(regrade_ledger)
 # Note: intentionally NOT added to add_test() — manual run only; it rewrites diagnostics.json.

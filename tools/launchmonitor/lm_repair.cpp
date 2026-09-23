@@ -50,6 +50,7 @@
 // case every swing_* beneath it is visited.
 
 #include "swing_doc.h"
+#include "swing_store.h"
 #include "launch_monitor_reading.h"
 #include "pp_debug.h"
 
@@ -129,18 +130,11 @@ int countLmRows(const QJsonObject &root)
     return n;
 }
 
-bool loadDoc(const QString &path, QJsonObject *root)
+// The swing's document, whichever format it is in (swing.ppsw, or a JSON-era swing.json).
+bool loadDoc(const QString &swingDir, QJsonObject *root)
 {
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly))
-        return false;
-    QJsonParseError pe;
-    const QJsonDocument d = QJsonDocument::fromJson(f.readAll(), &pe);
-    f.close();
-    if (pe.error != QJsonParseError::NoError)
-        return false;
-    *root = d.object();
-    return true;
+    *root = SwingStore::load(swingDir);
+    return !root->isEmpty();
 }
 
 // The outcomes are counted apart rather than summed into one "skipped", because a sweep is
@@ -154,11 +148,10 @@ struct Tally {
 
 void repairSwing(const QString &swingDir, bool dryRun, Tally &t)
 {
-    const QString path = swingDir + QStringLiteral("/swing.json");
-    if (!QFile::exists(path)) {
+    if (!SwingStore::hasDocument(swingDir)) {
         // SAID OUT LOUD, not passed over. A silent skip here reads as a clean session on the
         // report, which is the one thing a recovery sweep must never do.
-        out() << "  " << QDir(swingDir).dirName() << ": no swing.json — never analysed\n";
+        out() << "  " << QDir(swingDir).dirName() << ": no swing document — never analysed\n";
         ++t.noDoc;
         return;
     }
@@ -167,8 +160,8 @@ void repairSwing(const QString &swingDir, bool dryRun, Tally &t)
     const QString name = QDir(swingDir).dirName();
 
     QJsonObject root;
-    if (!loadDoc(path, &root)) {
-        out() << "  " << name << ": FAILED — cannot read or parse swing.json\n";
+    if (!loadDoc(swingDir, &root)) {
+        out() << "  " << name << ": FAILED — cannot read or parse its document\n";
         ++t.failed;
         return;
     }
@@ -210,7 +203,7 @@ void repairSwing(const QString &swingDir, bool dryRun, Tally &t)
     }
 
     QJsonObject after;
-    if (!loadDoc(path, &after)) {
+    if (!loadDoc(swingDir, &after)) {
         out() << "  " << name << ": FAILED — wrote, but cannot re-read to verify\n";
         ++t.failed;
         return;
@@ -259,7 +252,7 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        if (QFile::exists(clean + QStringLiteral("/swing.json"))) {
+        if (SwingStore::hasDocument(clean)) {
             out() << clean << "\n";
             repairSwing(clean, dryRun, t);
             continue;
@@ -280,11 +273,11 @@ int main(int argc, char *argv[])
     }
 
     out() << "\n" << (dryRun ? "would repair " : "repaired ") << t.repaired
-          << " of " << t.visited << " swings carrying a swing.json"
+          << " of " << t.visited << " swings carrying a document"
           << " (" << t.rows << " lm.* rows)\n"
           << "  " << t.intact    << " already intact\n"
           << "  " << t.noReading << " never had a launch monitor reading\n"
-          << "  " << t.noDoc     << " with no swing.json at all — never analysed\n"
+          << "  " << t.noDoc     << " with no document at all — never analysed\n"
           << "  " << t.failed    << " failed\n";
     out().flush();
     return t.failed == 0 ? 0 : 1;
