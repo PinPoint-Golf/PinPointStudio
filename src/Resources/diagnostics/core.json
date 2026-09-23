@@ -115,8 +115,7 @@
         "kind": "at",
         "anchor": "p1"
       },
-      "status": "held",
-      "gapReason": "Produced from the down-the-line view, but posture_too_upright has no authored cause yet.",
+      "status": "live",
       "label": "Spine forward bend, at P1",
       "unit": "°",
       "highMeans": "more forward bend from the hips, standing over the ball more"
@@ -438,8 +437,7 @@
         "kind": "at",
         "anchor": "p1"
       },
-      "status": "held",
-      "gapReason": "Produced from the down-the-line view, but ball_too_close and ball_too_far have no authored cause yet.",
+      "status": "live",
       "label": "",
       "metricKey": "ballBodyDistance",
       "highMeans": "further from the body, reaching more for the ball",
@@ -1441,7 +1439,7 @@
         "anchor": "p1"
       },
       "status": "held",
-      "gapReason": "Produced from the down-the-line view, but excessive_knee_flex and insufficient_knee_flex have no authored cause yet.",
+      "gapReason": "Produced from the down-the-line view; excessive_knee_flex (crouching) is explained by poor core stability, but insufficient_knee_flex has no authored cause yet.",
       "label": "Lead knee flexion, at address",
       "unit": "°",
       "highMeans": "more bend in the lead knee at address — sitting deeper"
@@ -1458,8 +1456,7 @@
           "p4"
         ]
       },
-      "status": "held",
-      "gapReason": "Produced from the down-the-line view, but trail_knee_straighten has no authored cause yet.",
+      "status": "live",
       "shape": "floor",
       "label": "Trail knee flexion, change from address to the top",
       "unit": "°",
@@ -1647,8 +1644,7 @@
           "p4"
         ]
       },
-      "status": "held",
-      "gapReason": "Produced from the fused 3-D shaft, but steep_backswing_plane and flat_backswing_plane have no authored cause yet.",
+      "status": "live",
       "label": "Swing plane change, P2 to the top",
       "unit": "°",
       "highMeans": "the shaft climbing further above the plane it started on — steeper",
@@ -2118,8 +2114,7 @@
         "anchor": "p1"
       },
       "shape": "ceiling",
-      "status": "held",
-      "gapReason": "Produced from the down-the-line view, but pelvis_thrust_backswing has no authored cause yet.",
+      "status": "live",
       "label": "Pelvis thrust toward the ball, peak P1 to P4 from P1",
       "unit": "cm",
       "highMeans": "the pelvis further toward the ball by the top of the backswing"
@@ -2133,7 +2128,7 @@
         "anchor": "p1"
       },
       "status": "held",
-      "gapReason": "Produced as a down-the-line proxy, but it has no norm and weight_in_heels_address has no authored cause yet.",
+      "gapReason": "Produced as a down-the-line proxy; weight_in_heels_address is explained by crouching, but the measure has no norm yet.",
       "label": "Balance heel to toe, at address",
       "unit": "% foot length",
       "highMeans": "the balance point further toward the toes at address"
@@ -4495,7 +4490,8 @@
       "id": "excessive_knee_flex",
       "label": "Sitting too deep",
       "aliases": [
-        "squatting at address"
+        "squatting at address",
+        "crouching"
       ],
       "axis": "knee_flex_address",
       "group": "setup",
@@ -4578,6 +4574,26 @@
         "tier": "practice",
         "searchedOn": "2026-07-27",
         "searchTerms": "address setup geometry stance width posture golf swing"
+      }
+    },
+    {
+      "id": "hands_set_high",
+      "label": "Hands set too high at address",
+      "aliases": [
+        "hands too high",
+        "reaching for the ball"
+      ],
+      "group": "setup",
+      "kind": "intent",
+      "prominence": "common",
+      "observability": "latent",
+      "confirmedBy": "asserted",
+      "state": "active",
+      "consequence": "Setting the hands high lifts the arms away from the body, and the golfer stands further off the ball to meet it — reaching for it. It is a setup habit, not a physical limit: nothing stops the hands hanging lower once the golfer is shown where they belong.",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-09-23",
+        "searchTerms": "golf address hands too high reaching for the ball standing too far away setup"
       }
     },
     {
@@ -10748,6 +10764,203 @@
         "tier": "practice",
         "searchedOn": "2026-08-17",
         "searchTerms": "weight stays trail side downswing reaching for the ball over the top golf — the swing centre never moves to the lead side, so the ball is further away than the arc allows and the arms throw out and around to reach it. STRONG while the sibling edge to early_extension is Moderate: both are the same failure to get left, but reaching OUT is the first compensation available and standing UP is the second, taken when the reach alone does not cover the distance."
+      }
+    },
+    {
+      "from": "poor_core_stability",
+      "to": "excessive_knee_flex",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "excessive_knee_flex",
+      "to": "posture_too_upright",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "excessive_knee_flex",
+      "to": "ball_too_close",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "excessive_knee_flex",
+      "to": "trail_knee_straighten",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "excessive_knee_flex",
+      "to": "pelvis_thrust_backswing",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "excessive_knee_flex",
+      "to": "weight_in_heels_address",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice"
+      }
+    },
+    {
+      "from": "hands_set_high",
+      "to": "ball_too_far",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-09-23",
+        "searchTerms": "golf address hands too high reaching for the ball standing too far away setup"
+      }
+    },
+    {
+      "from": "outside_takeaway",
+      "to": "steep_backswing_plane",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-09-23",
+        "searchTerms": "causes of steep upright backswing vs flat backswing plane golf takeaway arms lift inside shoulder turn"
+      }
+    },
+    {
+      "from": "disconnection",
+      "to": "steep_backswing_plane",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-09-23",
+        "searchTerms": "causes of steep upright backswing vs flat backswing plane golf takeaway arms lift inside shoulder turn"
+      }
+    },
+    {
+      "from": "flying_elbow",
+      "to": "steep_backswing_plane",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-09-23",
+        "searchTerms": "causes of steep upright backswing vs flat backswing plane golf takeaway arms lift inside shoulder turn"
+      }
+    },
+    {
+      "from": "short_backswing",
+      "to": "steep_backswing_plane",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-09-23",
+        "searchTerms": "causes of steep upright backswing vs flat backswing plane golf takeaway arms lift inside shoulder turn"
+      }
+    },
+    {
+      "from": "ball_too_close",
+      "to": "steep_backswing_plane",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-09-23",
+        "searchTerms": "causes of steep upright backswing vs flat backswing plane golf takeaway arms lift inside shoulder turn"
+      }
+    },
+    {
+      "from": "inside_takeaway",
+      "to": "flat_backswing_plane",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-09-23",
+        "searchTerms": "causes of steep upright backswing vs flat backswing plane golf takeaway arms lift inside shoulder turn"
+      }
+    },
+    {
+      "from": "arms_over_connected",
+      "to": "flat_backswing_plane",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-09-23",
+        "searchTerms": "causes of steep upright backswing vs flat backswing plane golf takeaway arms lift inside shoulder turn"
+      }
+    },
+    {
+      "from": "trail_elbow_deep",
+      "to": "flat_backswing_plane",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-09-23",
+        "searchTerms": "causes of steep upright backswing vs flat backswing plane golf takeaway arms lift inside shoulder turn"
+      }
+    },
+    {
+      "from": "over_rotation_at_top",
+      "to": "flat_backswing_plane",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-09-23",
+        "searchTerms": "causes of steep upright backswing vs flat backswing plane golf takeaway arms lift inside shoulder turn"
+      }
+    },
+    {
+      "from": "flat_shoulder_plane",
+      "to": "flat_backswing_plane",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-09-23",
+        "searchTerms": "causes of steep upright backswing vs flat backswing plane golf takeaway arms lift inside shoulder turn"
+      }
+    },
+    {
+      "from": "ball_too_far",
+      "to": "flat_backswing_plane",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-09-23",
+        "searchTerms": "causes of steep upright backswing vs flat backswing plane golf takeaway arms lift inside shoulder turn"
+      }
+    },
+    {
+      "from": "early_face_roll",
+      "to": "flat_backswing_plane",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-09-23",
+        "searchTerms": "causes of steep upright backswing vs flat backswing plane golf takeaway arms lift inside shoulder turn"
       }
     },
     {

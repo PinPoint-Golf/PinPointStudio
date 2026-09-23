@@ -232,7 +232,7 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
 
     std::printf("  club %s -> context %s (session %s)\n", qPrintable(d.club),
                 qPrintable(d.contextId), qPrintable(src.sessionId()));
-    std::printf("  COVERAGE: %d of 157 conditions assessable on %s"
+    std::printf("  COVERAGE: %d of 158 conditions assessable on %s"
                 "  (%d evaluated, %d fired, %d unavailable)\n",
                 cov.assessable, label, cov.findings, cov.fired, cov.unavailable);
     // The denominator is COUNTED, not written down. It was the literal 109 while the pack carried
@@ -302,7 +302,8 @@ int main(int argc, char **argv)
     const std::shared_ptr<const INormProvider> norms{ makeResourceNormProvider().release() };
 
     std::printf("\ncontent\n");
-    check(pack.conditions.size() == 157, "the shipped pack carries 157 conditions");
+    // 157 -> 158 on 2026-09-23: hands_set_high, the setup habit behind reaching for the ball.
+    check(pack.conditions.size() == 158, "the shipped pack carries 158 conditions");
     // 130 -> 135 with the plumb-bob work: hipLineTilt gained an impact reading and an
     // address-to-impact delta, and plumbBobDistance arrived with three of its own.
     //
@@ -500,7 +501,17 @@ int main(int argc, char **argv)
         // This suite and diagnostics_catalogue_integrity_test kept their old pins and went red on the
         // next full run — a producer landing has to be walked through EVERY pinned count, in all
         // three suites, or the ones that were missed read as regressions to whoever runs them next.
-        check(planned == 20, "20 shipped measures have no producer yet");
+        // 20 -> 17 on 2026-09-23: crouching (excessive_knee_flex, itself caused by poor core
+        // stability) was authored as the cause of standing too upright, trail knee straightening
+        // and pelvis thrust going back, so m_spineBendAtAddress, m_trailKneeFlex and
+        // m_pelvisThrustBack left `held` for live. Their producers had shipped with 848512a3; what
+        // they waited on was an explanation, not a pipeline. 17 -> 16 the same day: hands set too
+        // high (a setup habit, not a physical limit) now explains reaching for the ball, so
+        // m_ballBodyGap followed. 16 -> 15: the backswing plane faults were given their causes (the
+        // arms lifting — outside takeaway, disconnection, flying elbow — for steep; the hands working
+        // round the body — inside takeaway, pinned arms, a deep trail elbow — for flat), so
+        // m_shaftPlaneBackswing went live. Three DTL measures are still held.
+        check(planned == 15, "15 shipped measures are not live yet");
         check(wrong == 0, "…and not one of them produced a value");
     }
 
@@ -567,7 +578,7 @@ int main(int argc, char **argv)
     // fixture has no launch monitor; the third moved to m_pelvisSinkTop, noProducer on a belt-line
     // series. `top` and `sky` are NOT in the delta: each is a conjunction with another term this
     // fixture assessed and found false, which settles the AND whatever the attack term would say.
-    check(cRich.assessable == 56, "rich_7iron: 56 of 157 conditions assessable (observed)");
+    check(cRich.assessable == 56, "rich_7iron: 56 of 158 conditions assessable (observed)");
     // HOW MANY OF THOSE ANSWERS RESTED ON EVIDENCE THE CAPTURE DID NOT HAVE. A conjunction
     // settled by one known-false term is a real negative, but it is a different kind of "no"
     // from one where every term was read, and it can only ever be a no. Pinned because the
@@ -620,9 +631,9 @@ int main(int argc, char **argv)
     // and `attack_too_steep` and `attack_too_shallow` were therefore unanswerable on a swing whose
     // launch monitor had reported the attack angle outright, -2.73°, sitting in the document read
     // by nothing. Those two conditions plus `top` and `sky` are the four.
-    check(cLm.assessable   == 21, "lm_7iron: 21 of 157 conditions assessable (observed)");
+    check(cLm.assessable   == 21, "lm_7iron: 21 of 158 conditions assessable (observed)");
     check(cLm.measures     == 26, "lm_7iron: 26 live measures resolved (observed)");
-    check(cSparse.assessable == 2, "sparse_noclub: 2 of 157 conditions assessable (observed)");
+    check(cSparse.assessable == 2, "sparse_noclub: 2 of 158 conditions assessable (observed)");
     check(cSparse.measures   == 1, "sparse_noclub: 1 live measure resolved (observed)");
     check(cRich.assessable > cSparse.assessable,
           "a richer capture assesses strictly more than a degraded one");

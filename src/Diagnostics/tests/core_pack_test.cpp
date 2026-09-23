@@ -218,7 +218,12 @@ int main()
         // backswing loads INTO; if it cannot internally rotate there is nowhere for the load to go,
         // and the mass stays on the lead side because it was never invited across.
         check(coverage("limited_trail_hip_ir") == 15, "limited trail-hip internal rotation explains 15");
-        check(coverage("poor_core_stability") == 11, "poor core stability explains 11");
+        // 11 -> 12 on 2026-09-23: crouching (excessive_knee_flex). Without a stable middle the golfer
+        // sinks into the knees rather than hinging, and that one setup then explains standing too
+        // upright, crowding the ball, the trail knee straightening, the pelvis thrusting toward the
+        // ball going back and the weight sitting in the heels — a single Strong edge here reaches
+        // all five through it, rather than five edges that would hide the mechanism.
+        check(coverage("poor_core_stability") == 12, "poor core stability explains 12");
 
         const int topFive = coverage("poor_pelvic_disassociation") + coverage("limited_thoracic_rotation")
                           + coverage("limited_lead_hip_ir") + coverage("limited_trail_hip_ir")
