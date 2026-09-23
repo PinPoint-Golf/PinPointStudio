@@ -247,16 +247,34 @@ std::optional<MetricSeries> peakLeadSeries(const MetricSeries &speed,
     for (const PhaseEvent &e : phases)
         if (e.phase == Phase::Top) { fromUs = e.t_us; break; }
 
-    int best = -1, nValid = 0;
+    // The searched samples: valid, from Top to the anchor.
+    std::vector<size_t> idx;
     for (size_t i = 0; i < speed.t_us.size(); ++i) {
         if (!speed.valid.empty() && speed.valid[i] == 0u) continue;
         if (speed.t_us[i] < fromUs || speed.t_us[i] > anchorUs) continue;
-        ++nValid;
-        if (best < 0 || speed.value[i] > speed.value[size_t(best)]) best = int(i);
+        idx.push_back(i);
     }
     // Fewer than three valid samples between Top and the anchor is a track that never
     // covered the downswing; a peak "found" there would be the mask's edge, not the club's.
-    if (best < 0 || nValid < 3) return std::nullopt;
+    if (idx.size() < 3) return std::nullopt;
+
+    // SPIKES ARE NOT SPEED (2026-09-23). The search runs on a running median of those samples,
+    // ±kPeakLeadMedianHalfUs wide: a jump in the synthesized arc differentiates into a 1–3-sample
+    // speed spike, and on 16 of 38 corpus swings that spike — not the club — was the maximum, so
+    // the lead jumped ~60 or ~160 ms between two encodings of the same frames. See the constant.
+    const int64_t half = tuned::kinematics::kPeakLeadMedianHalfUs;
+    std::vector<double> med(idx.size());
+    for (size_t j = 0; j < idx.size(); ++j) {
+        std::vector<double> w;
+        for (size_t q = 0; q < idx.size(); ++q)
+            if (std::llabs(speed.t_us[idx[q]] - speed.t_us[idx[j]]) <= half)
+                w.push_back(speed.value[idx[q]]);
+        std::nth_element(w.begin(), w.begin() + w.size() / 2, w.end());
+        med[j] = w[w.size() / 2];
+    }
+    size_t bestJ = 0;
+    for (size_t j = 1; j < med.size(); ++j)
+        if (med[j] > med[bestJ]) bestJ = j;
 
     // THE PLATEAU, NOT THE ARGMAX. The composed speed flattens over the last ~60 ms before the
     // ball, so a ±3 mph tracker wobble on a flat top can move the single highest sample by tens of
@@ -265,20 +283,18 @@ std::optional<MetricSeries> peakLeadSeries(const MetricSeries &speed,
     // instant the speed was still within a hair of its maximum, so the lead is taken from the last
     // valid sample at or above 97 % of the peak: a club still at full speed into the ball reads 0
     // whatever the wobble did earlier, and a club that genuinely fell away reads the fall.
-    const double floor = 0.97 * speed.value[size_t(best)];
-    int last = best;
-    for (size_t i = size_t(best); i < speed.t_us.size(); ++i) {
-        if (!speed.valid.empty() && speed.valid[i] == 0u) continue;
-        if (speed.t_us[i] > anchorUs) break;
-        if (speed.value[i] >= floor) last = int(i);
-    }
+    const double floor = 0.97 * med[bestJ];
+    size_t lastJ = bestJ;
+    for (size_t j = bestJ; j < med.size(); ++j)
+        if (med[j] >= floor) lastJ = j;
+    const size_t last = idx[lastJ];
 
     MetricSeries m;
     m.key   = QStringLiteral("clubheadPeakLead");
     m.label = QStringLiteral("Clubhead peak lead");
     m.unit  = QStringLiteral("ms");
     m.phaseSamples.push_back({ Phase::Impact, anchorUs,
-                               double(anchorUs - speed.t_us[size_t(last)]) / 1000.0, QString() });
+                               double(anchorUs - speed.t_us[last]) / 1000.0, QString() });
     return m;
 }
 
@@ -360,6 +376,13 @@ MetricSeries buildLagSeries(const std::vector<ShaftSample2D> &track, const Shaft
 }
 
 } // namespace
+
+std::optional<MetricSeries> clubheadPeakLeadFromSpeed(const MetricSeries &speed,
+                                                     const std::vector<PhaseEvent> &phases,
+                                                     int64_t anchorUs)
+{
+    return peakLeadSeries(speed, phases, anchorUs);
+}
 
 std::vector<MetricSeries> buildKinematicSeries(const KinematicSeriesInputs &in)
 {

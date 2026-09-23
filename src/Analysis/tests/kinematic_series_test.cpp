@@ -351,6 +351,42 @@ int main()
                   plF && !plF->phaseSamples.empty()
                       && std::fabs(plF->phaseSamples.front().value) <= 12.0);
         }
+        // A SPIKE IS NOT A PEAK (2026-09-23). On the production 240 Hz arc a mislocated anchor
+        // differentiates into a speed spike one to three samples wide — 76 and 90 mph ~185 ms
+        // before impact on a curve reading 12–21 mph there (2026-07-05 Wrist_02 swing_0002). Feed
+        // the lead a speed series exactly like that: a triangle peaking at 80 mph 100 ms before the
+        // anchor, on a 4.17 ms grid, with a two-sample 110 mph spike 150 ms before it.
+        {
+            MetricSeries sp;
+            sp.key = QStringLiteral("clubheadSpeed");
+            const int64_t anchor = 300'000;
+            for (int i = 0; i * 4167 <= anchor; ++i) {
+                const int64_t t = int64_t(i) * 4167;
+                const double tMs = t / 1000.0;
+                double v = 5.0;
+                if (tMs > 100.0) v = 5.0 + 75.0 * std::max(0.0, 1.0 - std::fabs(tMs - 200.0) / 100.0);
+                if (i == 36 || i == 37) v = 110.0;                 // ~150 ms: the spike
+                sp.t_us.push_back(t);
+                sp.value.push_back(v);
+            }
+            PhaseEvent topS; topS.phase = Phase::Top; topS.t_us = 100'000;
+            const auto lead = clubheadPeakLeadFromSpeed(sp, { topS }, anchor);
+            if (lead && !lead->phaseSamples.empty())
+                std::printf("      lead with a two-sample 110 mph spike at 150 ms: %.1f ms\n",
+                            lead->phaseSamples.front().value);
+            CHECK("a two-sample speed spike is not the peak (lead ≈ 100 ms, not 150)",
+                  lead && !lead->phaseSamples.empty()
+                      && std::fabs(lead->phaseSamples.front().value - 100.0) <= 10.0);
+        }
+        // …while a GENUINE early peak survives the median: the club peaks at 200 ms and then
+        // really does lose speed, steadily, all the way to the ball (the case this metric exists
+        // for). Already covered by the triangle above (lead ≈ 100 ms); asserted here explicitly so a
+        // wider median can never quietly erase it.
+        {
+            const MetricSeries *plT = find(out, "clubheadPeakLead");
+            CHECK("a real 100 ms loss of speed still reads ≈ 100 ms under the median",
+                  plT && !plT->phaseSamples.empty() && std::fabs(plT->phaseSamples.front().value - 100.0) <= 12.0);
+        }
         // No impact and no P7 knot ⇒ no anchor ⇒ nothing, never fabricated.
         in.impactUs = -1;
         CHECK("no anchor ⇒ no peak lead", find(buildKinematicSeries(in), "clubheadPeakLead") == nullptr);

@@ -102,4 +102,12 @@ struct KinematicSeriesInputs {
 // with no shaft track the result is empty.
 std::vector<MetricSeries> buildKinematicSeries(const KinematicSeriesInputs &in);
 
+// clubheadPeakLead from an already-built clubhead speed series: the ms before `anchorUs` at which
+// the (running-median) speed was last within 97 % of its peak, searched from the Top tick. Exposed
+// so the spike rejection can be tested on a speed series directly. std::nullopt without an anchor
+// or with fewer than three valid samples between Top and the anchor.
+std::optional<MetricSeries> clubheadPeakLeadFromSpeed(const MetricSeries &speed,
+                                                     const std::vector<PhaseEvent> &phases,
+                                                     int64_t anchorUs);
+
 } // namespace pinpoint::analysis

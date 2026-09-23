@@ -1308,7 +1308,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("faceOnClub", RM::Projected, Direct, { .faceOnCamera = true, .clubTrack = true },
                 QStringLiteral("the time of the composed clubhead speed's maximum over the "
-                               "domain-masked downswing, relative to the impact anchor")) },
+                               "domain-masked downswing — on a ±17 ms running median, so an arc "
+                               "glitch's speed spike is never the peak — relative to the impact anchor")) },
         .usedBy = { QStringLiteral("characteristic:deceleration") },
     });
 

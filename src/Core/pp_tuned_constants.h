@@ -1163,6 +1163,14 @@ inline constexpr bool kEnabled = true;   // kinematics.enabled — master gate (
 // instant, i.e. two errors cancelling). The −4 % is the rate floor reading a lower bound
 // of the instantaneous rate; it closes when the θ smear at impact does.
 inline constexpr bool kComposed = true;
+// clubheadPeakLead searches a RUNNING MEDIAN of the composed speed over ±kPeakLeadMedianHalfUs —
+// in TIME, so it means the same on any sample grid (±4 samples at the 240 Hz synth cadence). A jump in the synthesized arc — a mislocated anchor, the
+// defect behind attackAngle's +82° — differentiates into a 1–3-sample speed SPIKE: 76 and 90 mph
+// ~185 ms before impact on a curve reading 12–21 mph there. The spike WAS the maximum, so the
+// plateau rule could not help, and the lead jumped ~60 / ~160 ms between two encodings of the same
+// frames on 16 of 38 swings. A genuine loss of speed lasts tens of ms and survives the median.
+// (swing_storage_impl.md Phase 2, stage 5b, 23 Sept 2026.)
+inline constexpr std::int64_t kPeakLeadMedianHalfUs = 17000;
 } // namespace kinematics
 
 // Face-on swing-plane transition delta (shaft_plane.h / ShaftPlaneStage). Ships ON:
