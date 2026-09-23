@@ -45,7 +45,15 @@ enum class MeasureStatus {
     NoProducer,     // nothing produces it yet — ROADMAP work, someone could pick this up
     NotCapturable,  // no sensor this product has can ever resolve it — a CAPTURE GAP, not roadmap
     ExternalDevice, // a producer is intended, but it reads from hardware the user may not own
+    Held,           // a producer exists and runs, but the measure is deliberately NOT graded yet
 };
+
+// Held exists because Planned was being used for two different facts. A DTL posture series that
+// ships every shot, but whose conditions have no authored cause (or whose measure has no norm), is
+// not pipeline work — the number is on screen — yet grading it would fire a fault nobody can
+// explain. It is treated exactly as Planned by everything that grades or counts live measures, and
+// differs only in what it SAYS: "held", with `gapReason` naming what content is owed. Appended, not
+// inserted: the enum's int is used as a sort key.
 
 // The distinction between NoProducer and NotCapturable is the whole reason the roadmap can be
 // trusted as a work queue. NoProducer means "we could build this"; NotCapturable means "a different

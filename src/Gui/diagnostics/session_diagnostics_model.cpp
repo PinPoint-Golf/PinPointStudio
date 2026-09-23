@@ -1840,6 +1840,7 @@ QString SessionDiagnosticsModel::ghostMark(const QString &id, const NodeSpec *ns
                 case MeasureStatus::Live:           anyLive = true;          break;
                 case MeasureStatus::ExternalDevice: anyExternal = true;      break;
                 case MeasureStatus::NotCapturable:  anyNotCapturable = true; break;
+                case MeasureStatus::Held:
                 case MeasureStatus::Planned:
                 case MeasureStatus::NoProducer:     break;
                 }

@@ -185,24 +185,29 @@ int main()
     // is available when nothing can produce it — the single most damaging kind of disagreement
     // between these two registries.
     {
-        int overclaimed = 0;
+        int overclaimed = 0, understated = 0;
         for (const Measure &m : p.measures) {
             if (m.metricKey.isEmpty()) continue;
             const MetricDescriptor *d = cat.descriptor(m.metricKey);
             if (!d) continue;
 
-            if (m.status == MeasureStatus::Live && d->planned()) {
+            if ((m.status == MeasureStatus::Live || m.status == MeasureStatus::Held)
+                && d->planned()) {
                 ++overclaimed;
-                std::printf("        measure '%s' claims live, but metric '%s' is planned\n",
+                std::printf("        measure '%s' claims a producer, but metric '%s' is planned\n",
                             qPrintable(m.id), qPrintable(m.metricKey));
             }
             if (m.status == MeasureStatus::Planned && !d->planned()) {
-                // Understating is harmless but still a disagreement worth surfacing.
-                std::printf("        note: measure '%s' says planned, metric '%s' has a producer\n",
+                // Understating used to be a note, and eight DTL/foot measures sat in the
+                // diagnostics list as "Planned" with values beside them after their producers
+                // shipped. A measure with a producer that is deliberately not graded is `held`.
+                ++understated;
+                std::printf("        measure '%s' says planned, but metric '%s' has a producer\n",
                             qPrintable(m.id), qPrintable(m.metricKey));
             }
         }
         check(overclaimed == 0, "no measure claims a producer the catalogue does not have");
+        check(understated == 0, "no measure calls planned a metric the catalogue produces");
     }
 
     // ── 5b. Every rung of an instrument ladder is real, and states the same unit ─
@@ -390,7 +395,15 @@ int main()
     // posture_too_upright and posture_too_bent. The ROW itself survives exactly because that one
     // measure is still planned, which is what the first assertion below still measures.
     //
-    // So this row has now shrunk both ways the file knows about: once because a fault was re-authored
+    // On 2026-09-23 m_spineBendAtAddress followed it: the pack still called it planned while the
+    // catalogue already had the down-the-line rung live, and the diagnostics list showed "Planned"
+    // beside a value. It is `held` now (produced, not graded until posture_too_upright has a
+    // cause), and held is not roadmap work, so the row emptied and the exemplar moved to shaftDirection —
+    // TWO reducers (at P2 and at the top) over one series, both genuinely planned, four
+    // characteristics behind them. The DTL shaft is fused into a 3-D shaft for the swing plane, but
+    // no producer yet reads a direction off it at a phase.
+    //
+    // So spineForwardBend's row shrank both ways the file knows about: once because a fault was re-authored
     // off a sagittal measure (below), and once because somebody finally built the camera rung that
     // reads it. The second is the one this roadmap exists to produce.
     //
@@ -408,15 +421,15 @@ int main()
         for (const QVariant &v : rows) {
             const QVariantMap r = v.toMap();
             if (r.value(QStringLiteral("metricKey")).toString()
-                != QStringLiteral("spineForwardBend"))
+                != QStringLiteral("shaftDirection"))
                 continue;
             ++exemplarRows;
             exemplarBlocks  = r.value(QStringLiteral("blocks")).toInt();
             exemplarSamples = r.value(QStringLiteral("samples")).toInt();
         }
         check(exemplarRows == 1, "a series with several reducers is ONE roadmap row");
-        check(exemplarSamples == 1, "that row knows it carries one reducer");
-        check(exemplarBlocks == 2, "and that it unblocks two characteristics");
+        check(exemplarSamples == 2, "that row knows it carries two reducers");
+        check(exemplarBlocks == 4, "and that it unblocks four characteristics");
 
         // And the metrics that LEFT the roadmap must really be gone: a producer landing has to
         // remove its row, or the roadmap keeps advertising work that is finished.
@@ -425,7 +438,10 @@ int main()
             const QString k = v.toMap().value(QStringLiteral("metricKey")).toString();
             for (const char *done : { "pelvisSway", "pelvisRotation", "thoraxRotation",
                                       "secondaryAxisTilt", "lowPointAhead", "attackAngle",
-                                      "trailWristFlexExt", "comOverLeadFoot" })
+                                      "trailWristFlexExt", "comOverLeadFoot",
+                                      "spineForwardBend", "ballBodyDistance", "leadKneeFlexion",
+                                      "trailKneeFlexion", "swingPlane", "pelvisThrust",
+                                      "balanceHeelToe" })
                 if (k == QLatin1String(done)) ++goneRows;
         }
         check(goneRows == 0, "a series that gained a producer leaves the roadmap");

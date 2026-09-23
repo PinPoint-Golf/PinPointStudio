@@ -301,7 +301,7 @@ int main()
 
     // ── Every characteristic resolves to Live, or to a NAMED missing measure ────
     {
-        int live = 0, planned = 0, noProducer = 0, notCapturable = 0, externalDevice = 0;
+        int live = 0, planned = 0, held = 0, noProducer = 0, notCapturable = 0, externalDevice = 0;
         bool everyGapNamed = true;
 
         for (const Condition &c : p.conditions) {
@@ -315,6 +315,10 @@ int main()
                     switch (m->status) {
                     case MeasureStatus::Live:          ++live; break;
                     case MeasureStatus::Planned:       ++planned; break;
+                    case MeasureStatus::Held:
+                        ++held;
+                        if (m->gapReason.isEmpty()) everyGapNamed = false;
+                        break;
                     case MeasureStatus::NoProducer:    ++noProducer; break;
                     case MeasureStatus::NotCapturable:
                         ++notCapturable;
@@ -330,9 +334,9 @@ int main()
                 }
             }
         }
-        std::printf("        (measure bindings: %d live, %d planned, %d no-producer, "
+        std::printf("        (measure bindings: %d live, %d held, %d planned, %d no-producer, "
                     "%d external-device, %d capture-gap)\n",
-                    live, planned, noProducer, externalDevice, notCapturable);
+                    live, held, planned, noProducer, externalDevice, notCapturable);
         check(everyGapNamed, "every characteristic resolves to a real measure, gaps named");
         check(live > 0, "some characteristics are LIVE on day one, not all stubs");
     }

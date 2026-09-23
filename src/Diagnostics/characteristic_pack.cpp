@@ -528,6 +528,13 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
                  QStringLiteral("Measure '%1' reads from an external device but does not say which. "
                                 "Name it — the roadmap and the measure page both quote this.").arg(m.id));
 
+        // A held measure HAS a producer, so the only thing that distinguishes it from a live one on
+        // screen is the reason it is not graded. Without one it reads as an arbitrary switch-off.
+        if (m.status == MeasureStatus::Held && m.gapReason.isEmpty())
+            warn(r, QStringLiteral("heldNoReason"), m.id,
+                 QStringLiteral("Measure '%1' is held but does not say why. Name the content that is "
+                                "owed — a cause, a norm — so the measure page can quote it.").arg(m.id));
+
         // --- a deliberately unwatched tail ----------------------------------
         //
         // The reason is a WARNING and the two contradictions are ERRORS, and the split is about what
@@ -1099,7 +1106,7 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
             && !measureStatusFromName(o.value(QStringLiteral("status")).toString(), m.status))
             err(r, QStringLiteral("unknownStatus"), m.id,
                 QStringLiteral("Measure '%1' declares status '%2'; the statuses are live, planned, "
-                               "noProducer, notCapturable and externalDevice.")
+                               "held, noProducer, notCapturable and externalDevice.")
                     .arg(m.id, o.value(QStringLiteral("status")).toString()));
 
         // Absent => Target, which is what every measure authored before shapes existed means. An
@@ -1129,7 +1136,8 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
                                              "in any pose layout, so this cannot come from the "
                                              "skeleton — it needs a back-contour producer on the "
                                              "down-the-line view.");
-            if (m.status == MeasureStatus::Live || m.status == MeasureStatus::Planned)
+            if (m.status == MeasureStatus::Live || m.status == MeasureStatus::Planned
+                || m.status == MeasureStatus::Held)
                 m.status = MeasureStatus::NoProducer;
         }
 

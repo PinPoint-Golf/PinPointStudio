@@ -115,7 +115,8 @@
         "kind": "at",
         "anchor": "p1"
       },
-      "status": "planned",
+      "status": "held",
+      "gapReason": "Produced from the down-the-line view, but posture_too_upright has no authored cause yet.",
       "label": "Spine forward bend, at P1",
       "unit": "°",
       "highMeans": "more forward bend from the hips, standing over the ball more"
@@ -437,7 +438,8 @@
         "kind": "at",
         "anchor": "p1"
       },
-      "status": "planned",
+      "status": "held",
+      "gapReason": "Produced from the down-the-line view, but ball_too_close and ball_too_far have no authored cause yet.",
       "label": "",
       "metricKey": "ballBodyDistance",
       "highMeans": "further from the body, reaching more for the ball",
@@ -481,7 +483,8 @@
         ],
         "sense": "max"
       },
-      "status": "planned",
+      "status": "held",
+      "gapReason": "Produced from the down-the-line view, but the lead leg is occluded by the trail leg there, so it is not trusted to grade.",
       "shape": "ceiling",
       "label": "",
       "metricKey": "leadKneeFlexion",
@@ -1437,7 +1440,8 @@
         "kind": "at",
         "anchor": "p1"
       },
-      "status": "planned",
+      "status": "held",
+      "gapReason": "Produced from the down-the-line view, but excessive_knee_flex and insufficient_knee_flex have no authored cause yet.",
       "label": "Lead knee flexion, at address",
       "unit": "°",
       "highMeans": "more bend in the lead knee at address — sitting deeper"
@@ -1454,7 +1458,8 @@
           "p4"
         ]
       },
-      "status": "planned",
+      "status": "held",
+      "gapReason": "Produced from the down-the-line view, but trail_knee_straighten has no authored cause yet.",
       "shape": "floor",
       "label": "Trail knee flexion, change from address to the top",
       "unit": "°",
@@ -1642,7 +1647,8 @@
           "p4"
         ]
       },
-      "status": "planned",
+      "status": "held",
+      "gapReason": "Produced from the fused 3-D shaft, but steep_backswing_plane and flat_backswing_plane have no authored cause yet.",
       "label": "Swing plane change, P2 to the top",
       "unit": "°",
       "highMeans": "the shaft climbing further above the plane it started on — steeper",
@@ -2112,7 +2118,8 @@
         "anchor": "p1"
       },
       "shape": "ceiling",
-      "status": "planned",
+      "status": "held",
+      "gapReason": "Produced from the down-the-line view, but pelvis_thrust_backswing has no authored cause yet.",
       "label": "Pelvis thrust toward the ball, peak P1 to P4 from P1",
       "unit": "cm",
       "highMeans": "the pelvis further toward the ball by the top of the backswing"
@@ -2125,7 +2132,8 @@
         "kind": "at",
         "anchor": "p1"
       },
-      "status": "planned",
+      "status": "held",
+      "gapReason": "Produced as a down-the-line proxy, but it has no norm and weight_in_heels_address has no authored cause yet.",
       "label": "Balance heel to toe, at address",
       "unit": "% foot length",
       "highMeans": "the balance point further toward the toes at address"

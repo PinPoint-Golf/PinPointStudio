@@ -49,6 +49,7 @@ const Row<MeasureStatus> kMeasureStatuses[] = {
     { MeasureStatus::NoProducer,     "noProducer",     "No producer" },
     { MeasureStatus::NotCapturable,  "notCapturable",  "Not measurable from capture" },
     { MeasureStatus::ExternalDevice, "externalDevice", "Needs a launch monitor" },
+    { MeasureStatus::Held,           "held",           "Held" },
 };
 
 // The label is what an AUTHOR reads beside the measure's own `highMeans` sentence, so it says what

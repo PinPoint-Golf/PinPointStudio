@@ -207,7 +207,8 @@ QVariantList relationOptions()
 QVariantList statusOptions()
 {
     QVariantList l;
-    for (MeasureStatus s : { MeasureStatus::Live, MeasureStatus::Planned, MeasureStatus::NoProducer,
+    for (MeasureStatus s : { MeasureStatus::Live, MeasureStatus::Held, MeasureStatus::Planned,
+                             MeasureStatus::NoProducer,
                              MeasureStatus::ExternalDevice, MeasureStatus::NotCapturable })
         l.append(option(measureStatusName(s), measureStatusLabel(s)));
     return l;
@@ -291,6 +292,7 @@ QString statusTone(MeasureStatus s)
 {
     switch (s) {
     case MeasureStatus::Live:           return QStringLiteral("good");
+    case MeasureStatus::Held:           return QStringLiteral("watch");
     case MeasureStatus::Planned:        return QStringLiteral("watch");
     case MeasureStatus::NoProducer:     return QStringLiteral("fault");
     case MeasureStatus::ExternalDevice: return QStringLiteral("watch");
@@ -306,6 +308,7 @@ MeasureStatus weakest(MeasureStatus a, MeasureStatus b)
     auto rank = [](MeasureStatus s) {
         switch (s) {
         case MeasureStatus::Live:           return 0;
+        case MeasureStatus::Held:           return 1;
         case MeasureStatus::Planned:        return 1;
         case MeasureStatus::NoProducer:     return 2;
         case MeasureStatus::ExternalDevice: return 3;
@@ -2749,7 +2752,9 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
                           measureStatusName(m->status), statusOptions()));
         f.append(fieldRow(QStringLiteral("highMeans"), tr("A high reading means"),
                           QStringLiteral("prose"), m->highMeans));
-        f.append(fieldRow(QStringLiteral("gapReason"), tr("Why it cannot be read"),
+        f.append(fieldRow(QStringLiteral("gapReason"),
+                          m->status == MeasureStatus::Held ? tr("Why it is not graded")
+                                                           : tr("Why it cannot be read"),
                           QStringLiteral("prose"), m->gapReason, {},
                           tr("quoted by the roadmap and the detail page")));
 
@@ -4511,7 +4516,8 @@ QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const
             // Both of these statuses say something is permanently in the way, and only the reason
             // says what. Two surfaces quote that reason, so an empty one is refused rather than
             // shipped as a blank explanation.
-            if ((s == MeasureStatus::NotCapturable || s == MeasureStatus::ExternalDevice)
+            if ((s == MeasureStatus::NotCapturable || s == MeasureStatus::ExternalDevice
+                 || s == MeasureStatus::Held)
                 && m->gapReason.isEmpty())
                 return reject(tr("“%1” needs a reason — it is what the roadmap and the detail page "
                                  "both quote.").arg(measureStatusLabel(s)));
@@ -6714,6 +6720,9 @@ QVariantList ModelBrowser::roadmap() const
         // Capture gaps are NOT roadmap items: one row implying a producer that will never be built
         // corrupts the artefact's meaning for every other row.
         if (m.status == MeasureStatus::NotCapturable) continue;
+        // Nor is a held measure: its producer is built, and what it waits on is content (a cause,
+        // a norm), not pipeline work.
+        if (m.status == MeasureStatus::Held) continue;
 
         const QString key = m.metricKey.isEmpty() ? canonicalSeriesId(m.series) : m.metricKey;
         Group        &g   = groups[key];
