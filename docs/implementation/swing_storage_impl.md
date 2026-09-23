@@ -625,6 +625,40 @@ The mean hides two eras: about **2.5 s** before address in the June–July sessi
 
 **What would make trimming safe:** make takeaway detection and the setup metrics independent of how much pre-roll exists. Then a trimmed clip, or any clip that starts late, stops mattering, and the trim could be reconsidered. A gentler cut (impact − 2.0 s, ~1 s before address, ~9 % saving) was not tested.
 
+### Stage 4c: how Swing Catalyst stores swings (for comparison, 23 Sept)
+
+**Measured** on GOLFSIMPC (read only), Swing Catalyst 10.1.5.37386, under `C:\ProgramData\Swing Catalyst`:
+- a SQLite database, `SwingCatalystDB.s3db` (2.4 MB), with dated startup backups in `database\backup`;
+- one folder per golfer and per session under `database\golfers`;
+- **25.8 GB over ~1,360 shots in 20 sessions** (Nov 2025 – Jun 2026; three golfers, about 12 GB of it Mark's).
+
+**Per shot:**
+
+| File | Size | What it is |
+|---|---|---|
+| `… Down the line.mp4` | ~17 MB | H.264 Main, 1280×1024, yuv420p, 149.3 fps, 5.0 s (747 frames), ~27.6 Mbit/s |
+| `… Face on right.mp4` | ~9.7 MB | the same format, ~15.6 Mbit/s |
+| `….jpg` per clip | ~12 KB | thumbnail |
+| `…-balltrajectory.pbuf` | ~20 KB | the launch monitor's ball flight, protobuf |
+| `….mp4.index` (some clips) | ~3 KB | binary; apparently a seek index |
+
+- Clips are muxed by libavformat (Lavf58.76), with a keyframe every 20 frames (ours: every 10), I and P frames only.
+- Mark's earliest sessions (Nov 2025) are ~1 MB a shot: the same resolution and length, but recorded at 33 fps.
+
+**The same capture as ours:** the same Chameleon3 cameras, 1280×1024 at ~150 fps, a full ~5 s window, and **no trim before address** either.
+
+**Different in what is kept:**
+- **No raw frames, no pose, and no per-frame analysis.** Beyond the ball-flight file and a database row, a shot is its two videos.
+- Their face-on video (9.7 MB) sits just above our former CRF 23 default (7.1 MB), and well above the CRF 28 default (2.5 MB). Their DTL clip is larger than their face-on for the reason ours is: a busier view.
+
+| Per two-camera shot | size |
+|---|---|
+| Swing Catalyst | ~27 MB, all video |
+| PinPoint, CRF 23 (former default) | ~23 MB (~16.5 MB video + ~6 MB `.ppsw`) |
+| PinPoint, CRF 28 (default since 23 Sept) | ~12 MB (~6 MB video + ~6 MB `.ppsw`) |
+
+**Reading.** Swing Catalyst made the choice this study converges on: moderate-bitrate video of the full window, and no raw frames. It spends its whole budget on video. PinPoint spends about half of its new, smaller budget on the swing document (pose, club track and every metric), which is what lets a swing be reviewed and re-analysed without reprocessing it.
+
 ### Stage 5: attackAngle and the club-arc family
 
 **The finding: `attackAngle` was reading the wrong heads.** It was a ±2-sample centred difference of the *measured* head positions, interpolated at impact.
