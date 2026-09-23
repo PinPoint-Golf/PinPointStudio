@@ -128,6 +128,12 @@ struct ClubDeliveryConfig {
     // Head-confidence gate. −1 in the sample means the Stage-2 pass never ran, which is a harder
     // refusal than a low confidence and is handled separately.
     double  headConfMin   = tuned::clubDelivery::kHeadConfMin;   // clubDelivery.headConfMin
+    // attackAngle comes off the synthesized arc when it has at least attackSynthMinSamples samples
+    // within ±attackSynthWinUs of Impact; otherwise off the measured heads, as before.
+    int64_t attackSynthWinUs      = tuned::clubDelivery::kAttackSynthWinUs;      // clubDelivery.attackSynthWinUs
+    int     attackSynthMinSamples = tuned::clubDelivery::kAttackSynthMinSamples; // clubDelivery.attackSynthMinSamples
+    // …and only when no step it spans exceeds this × the window's median step (a jump, not motion).
+    double  attackSynthMaxStepRatio = tuned::clubDelivery::kAttackSynthMaxStepRatio; // clubDelivery.attackSynthMaxStepRatio
 
     static ClubDeliveryConfig fromOverrides(const QVariantMap &ov)
     {
@@ -138,6 +144,9 @@ struct ClubDeliveryConfig {
         apply(ov, "clubDelivery.lowPointMinSamples", c.lowPointMinSamples);
         apply(ov, "clubDelivery.lowPointSigmaIn",    c.lowPointSigmaIn);
         apply(ov, "clubDelivery.headConfMin",        c.headConfMin);
+        apply(ov, "clubDelivery.attackSynthWinUs",      c.attackSynthWinUs);
+        apply(ov, "clubDelivery.attackSynthMinSamples", c.attackSynthMinSamples);
+        apply(ov, "clubDelivery.attackSynthMaxStepRatio", c.attackSynthMaxStepRatio);
         return c;
     }
 };

@@ -362,8 +362,10 @@ int main()
     // goes dark through impact while the arc is still there. A metric that needed both would have
     // gained nothing.
     {
-        // An arc with NO measured heads at all — every sample projected. The angles must stay
-        // silent (their input really is absent) and the low point must still land.
+        // An arc with NO measured heads at all — every sample projected. The low point must still
+        // land; so, since 2026-09-23, must attackAngle, which reads the arc when it covers impact
+        // (the measured head is a blur there on real swings). shaftAngleVsHorizontal needs a
+        // measured head AND grip and stays silent.
         std::vector<ShaftSample2D> allProjected = arc(910.0, +1.0, kImpact);
         for (ShaftSample2D &x : allProjected) { x.flags |= ShaftHeadProjected; x.headConf = -1.f; }
         auto s = buildClubDeliverySeries(
@@ -374,8 +376,9 @@ int main()
         CHECK("no measured head anywhere ⇒ lowPointAhead STILL lands",
               scalarOf(s, "lowPointAhead", lp));
         CHECK("and it is the same vertex the measured fixture found", near(lp, 0.787, 0.15));
-        CHECK("but the angles stay silent", find(s, "attackAngle") == nullptr
-                                            && find(s, "shaftAngleVsHorizontal") == nullptr);
+        double aaArc = 0.0;
+        CHECK("attackAngle is read off the arc", scalarOf(s, "attackAngle", aaArc));
+        CHECK("shaftAngleVsHorizontal stays silent", find(s, "shaftAngleVsHorizontal") == nullptr);
 
         // The mirror image: measured heads, no synthesized arc. Angles land, low point does not.
         s = buildClubDeliverySeries(
@@ -398,6 +401,28 @@ int main()
             ladder(10000, kImpact));
         CHECK("an arc with no turning point ⇒ no low point", find(s, "lowPointAhead") == nullptr);
         CHECK("and the angles are still unaffected", find(s, "attackAngle") != nullptr);
+    }
+
+    // ── 9. A JUMP in the arc near impact is not motion ─────────────────────────────────────────
+    // A mislocated anchor puts a step of hundreds of px in the synthesized arc (16 Sept Wrist_01
+    // swing_0001: ~310 px in one 4 ms step, read as +82° against the GC Quad's −3°). The arc is then
+    // refused and the swing keeps the measured estimate — exactly what it would read with no arc.
+    {
+        std::vector<ShaftSample2D> jumped = synthArc(910.0, +1.0, kImpact);
+        for (ShaftSample2D &x : jumped)
+            if (x.t_us > kImpact) x.headPx.setY(x.headPx.y() - 300.0);
+        double viaMeasured = 0.0, withJump = 0.0;
+        CHECK("measured-only reference lands",
+              scalarOf(buildClubDeliverySeries(
+                           trackClubDelivery(trackOf(arc(910.0, +1.0, kImpact)), ladder(10000, kImpact),
+                                             QPointF(900, 800), true, kMmPerPx),
+                           ladder(10000, kImpact)), "attackAngle", viaMeasured));
+        CHECK("a jumped arc still yields an attackAngle",
+              scalarOf(buildClubDeliverySeries(
+                           trackClubDelivery(trackOf(arc(910.0, +1.0, kImpact), jumped), ladder(10000, kImpact),
+                                             QPointF(900, 800), true, kMmPerPx),
+                           ladder(10000, kImpact)), "attackAngle", withJump));
+        CHECK("…and it is the measured estimate, not the jump", near(withJump, viaMeasured, 1e-9));
     }
 
     std::printf(g_fail == 0 ? "ALL PASS\n" : "%d FAILURE(S)\n", g_fail);

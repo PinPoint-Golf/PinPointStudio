@@ -140,15 +140,68 @@ ClubDeliveryResult trackClubDelivery(const ShaftTrack2D &shaft, const std::vecto
     // The denominator is |dx| again. The head's horizontal travel at impact is along the target
     // line, and which way along it the golfer is swinging has no bearing on whether the strike is
     // descending — folding the sign out is what makes this handedness- and mirror-free.
-    if (int(m.size()) > 2 * cfg.velHalfSpan) {
-        for (int i = cfg.velHalfSpan; i < int(m.size()) - cfg.velHalfSpan; ++i) {
-            const ShaftSample2D *a = m[size_t(i - cfg.velHalfSpan)];
-            const ShaftSample2D *b = m[size_t(i + cfg.velHalfSpan)];
+    //
+    // WHICH HEADS (2026-09-23). The synthesized arc when it covers impact, else the measured heads.
+    // The measured head is a blur at impact: on the 13 launch-monitor-paired corpus swings the median
+    // number of measured heads within ±2 frames of impact was zero, so the difference spanned samples
+    // ~220 px apart, well away from the strike, and read a median 36° from the GC Quad. The arc is the
+    // dense interpolation between the located P-anchors (the same channel lowPointAhead reads) and
+    // read within a median 3.6° (tools/metrics/club_arc_sensitivity.py; swing_storage_impl.md
+    // Phase 2 stage 5). A swing whose arc does not reach impact keeps the measured estimate rather
+    // than losing the metric.
+    std::vector<const ShaftSample2D *> src = m;
+    {
+        const int64_t aimUs = phaseTime(phases, Phase::Impact, -1);
+        std::vector<const ShaftSample2D *> arc;
+        int near = 0;
+        for (const ShaftSample2D &s : shaft.synth) {
+            arc.push_back(&s);
+            if (aimUs >= 0 && std::llabs(s.t_us - aimUs) <= cfg.attackSynthWinUs) ++near;
+        }
+        if (near >= cfg.attackSynthMinSamples) {
+            std::sort(arc.begin(), arc.end(),
+                      [](const ShaftSample2D *x, const ShaftSample2D *y) { return x->t_us < y->t_us; });
+            // …and only where the arc is CONTINUOUS through the steps the difference spans. The arc
+            // is an interpolation between located anchors, and a mislocated anchor near impact puts
+            // a jump in it: on 16 Sept Wrist_01 swing_0001 the head leaps ~310 px in one 4 ms step,
+            // and the difference across it read +82° against the GC Quad's −3°. A step more than
+            // attackSynthMaxStepRatio × the window's median step is a jump, not motion; the swing
+            // then keeps the measured estimate. (25 of the 143 library swings, 23 Sept.)
+            std::vector<double> steps;
+            size_t i0 = 0;
+            for (size_t i = 0; i < arc.size(); ++i) {
+                if (std::llabs(arc[i]->t_us - aimUs) < std::llabs(arc[i0]->t_us - aimUs)) i0 = i;
+                if (i > 0 && std::llabs(arc[i]->t_us - aimUs) <= cfg.attackSynthWinUs
+                          && std::llabs(arc[i - 1]->t_us - aimUs) <= cfg.attackSynthWinUs)
+                    steps.push_back(std::hypot(arc[i]->headPx.x() - arc[i - 1]->headPx.x(),
+                                               arc[i]->headPx.y() - arc[i - 1]->headPx.y()));
+            }
+            bool continuous = !steps.empty();
+            if (continuous) {
+                std::vector<double> sorted = steps;
+                std::nth_element(sorted.begin(), sorted.begin() + sorted.size() / 2, sorted.end());
+                const double med = sorted[sorted.size() / 2];
+                const size_t lo = i0 > size_t(cfg.velHalfSpan + 1) ? i0 - size_t(cfg.velHalfSpan + 1) : 0;
+                const size_t hi = std::min(arc.size() - 1, i0 + size_t(cfg.velHalfSpan + 1));
+                for (size_t i = lo + 1; i <= hi && continuous; ++i) {
+                    const double st = std::hypot(arc[i]->headPx.x() - arc[i - 1]->headPx.x(),
+                                                 arc[i]->headPx.y() - arc[i - 1]->headPx.y());
+                    continuous = med > kEps && st <= cfg.attackSynthMaxStepRatio * med;
+                }
+            }
+            if (continuous)
+                src = std::move(arc);
+        }
+    }
+    if (int(src.size()) > 2 * cfg.velHalfSpan) {
+        for (int i = cfg.velHalfSpan; i < int(src.size()) - cfg.velHalfSpan; ++i) {
+            const ShaftSample2D *a = src[size_t(i - cfg.velHalfSpan)];
+            const ShaftSample2D *b = src[size_t(i + cfg.velHalfSpan)];
             const double dx = std::abs(b->headPx.x() - a->headPx.x());
             const double dy = b->headPx.y() - a->headPx.y();
             if (dx <= kEps && std::abs(dy) <= kEps) continue;   // stationary — no direction
             // −dy because image y grows downward: rising in the world is falling in y.
-            res.attackAngle.push(m[size_t(i)]->t_us, std::atan2(-dy, dx) * kRadToDeg);
+            res.attackAngle.push(src[size_t(i)]->t_us, std::atan2(-dy, dx) * kRadToDeg);
         }
     }
 

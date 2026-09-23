@@ -880,6 +880,16 @@ inline constexpr int          kVelHalfSpan        = 2;        // clubDelivery.ve
 inline constexpr std::int64_t kLowPointWinUs      = 60000;    // clubDelivery.lowPointWinUs — ±60 ms about Impact
 inline constexpr int          kLowPointMinSamples = 5;        // clubDelivery.lowPointMinSamples
 inline constexpr double       kHeadConfMin        = 0.30;     // clubDelivery.headConfMin
+// attackAngle read off the SYNTHESIZED ARC when it covers impact (2026-09-23, swing_storage_impl.md
+// Phase 2 stage 5): at least kAttackSynthMinSamples synth samples within ±kAttackSynthWinUs of it.
+// The MEASURED head is a blur at impact — on the 13 launch-monitor-paired swings the median number
+// of measured heads within ±2 frames of impact was ZERO — so the centred difference on measured
+// heads spanned samples ~220 px apart and read a median 36° from the GC Quad; off the arc, 3.6°.
+inline constexpr std::int64_t kAttackSynthWinUs      = 20000;  // clubDelivery.attackSynthWinUs
+inline constexpr int          kAttackSynthMinSamples = 5;      // clubDelivery.attackSynthMinSamples
+// A step in the arc, within the steps the difference spans, larger than this × the window's median
+// step is a JUMP (a mislocated anchor), not motion — the swing keeps the measured estimate.
+inline constexpr double       kAttackSynthMaxStepRatio = 3.0;  // clubDelivery.attackSynthMaxStepRatio
 
 // THE PUBLISHED 1σ ON lowPointAhead, IN INCHES — the health warning, as a number.
 //
