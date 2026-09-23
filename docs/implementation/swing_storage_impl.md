@@ -576,7 +576,7 @@ x265's CRF scale is not x264's. At the same CRF, H.265 was *bigger* here, and it
    - H.265 CRF 28, at almost the same size, keeps `clubheadPeakLead` but moves pelvis speed more (86°/s).
 4. **H.265 CRF 23 is the best quality per byte measured.** At 8 MB it beats H.264 CRF 23 on pose, pelvis and thorax, and on the pinned club track (0.37 px against 1.03). But it is *not* smaller than today, and it costs about 2× the encode time on the capture machine.
 
-**Decision: Mark's; no default was changed.** The recommendation, if disk is the goal:
+**Decision (Mark, 23 Sept, after stage 5b): the default is now CRF 28** ("low", relabelled "Compact"; `AppSettings`). An install that saved a quality keeps it; neither the Mac nor the studio had one saved. The analysis before the decision: The recommendation, if disk is the goal:
 - **H.264 CRF 28 is the simple saving.** Its one outlier above, `clubheadPeakLead`, turned out to be fragile at *every* quality, and was then fixed (stage 5b): raw-vs-CRF 28 went 23.2 → 1.2 ms.
 - **Leave the default at CRF 23** if the remaining ~0.5 px pose and ~10°/s pelvis-speed cost matters more than 0.5 GB an hour.
 - Either way, the measurements say video quality is the wrong lever for faithful re-analysis. The producers are the right one, one by one, as with attackAngle and clubheadPeakLead.

@@ -740,7 +740,7 @@ The exporter reuses existing keys — **do not invent parallel settings**.
 | `general/athleteLibraryPath` | Library root for `SwingPaths` |
 | `storage/sessionNamingPattern` | Composes the session-folder name (`date`/athlete/session-type tokens) in `SwingPaths::allocateSwingDir` |
 | `storage/videoCodec` | Factory key (`"h264"` → libx264, `"h265"` → libx265; other → h264 fallback). `FfmpegVideoEncoder` |
-| `storage/videoQuality` | CRF: `low`=28, `medium`=23, `high`=18, `lossless`=0 |
+| `storage/videoQuality` | CRF: `low`=28 (**default** since 23 Sept 2026, shown as "Compact"), `medium`=23 ("Standard"), `high`=18, `lossless`=0 |
 | `storage/videoContainer` | `mp4`/`mov`/`mkv` — sets the clip file extension; the muxer is guessed from it |
 | `storage/videoResolutionMode` | `native`/`half`/`1080p`/`4k` — export-time downscale, never upscales |
 | `storage/saveImuStreams` | Gates the IMU streams in `swing.json` |

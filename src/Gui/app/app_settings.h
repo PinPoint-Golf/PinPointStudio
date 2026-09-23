@@ -516,7 +516,10 @@ public:
         // retired value ("prores"/"raw") so the UI selection and exporter agree.
         if (m_videoCodec != QLatin1String("h264") && m_videoCodec != QLatin1String("h265"))
             m_videoCodec = QStringLiteral("h264");
-        m_videoQuality          = ppSettings().value(QStringLiteral("storage/videoQuality"),          QStringLiteral("medium")).toString();
+        // Default "low" = CRF 28 since 23 Sept 2026 (swing_storage_impl.md stage 4): 2.5 MB a swing per
+        // camera against 7.1 at CRF 23, for ~0.5 px more pose error on re-analysis — and no mp4 at any
+        // CRF re-analyses like the raw frames anyway. An install that saved a choice keeps it.
+        m_videoQuality          = ppSettings().value(QStringLiteral("storage/videoQuality"),          QStringLiteral("low")).toString();
         m_videoContainer        = ppSettings().value(QStringLiteral("storage/videoContainer"),        QStringLiteral("mp4")).toString();
         m_saveRawFrames         = ppSettings().value(QStringLiteral("storage/saveRawFrames"),         false).toBool();
         m_skipAnalysisForRawCapture = ppSettings().value(QStringLiteral("storage/skipAnalysisForRawCapture"), false).toBool();
@@ -1857,7 +1860,7 @@ private:
     QString m_sessionNamingPattern  = QStringLiteral("date-name-type");
     QString m_videoResolutionMode   = QStringLiteral("native");
     QString m_videoCodec            = QStringLiteral("h264");
-    QString m_videoQuality          = QStringLiteral("medium");
+    QString m_videoQuality          = QStringLiteral("low");   // CRF 28 — see the load above
     QString m_videoContainer        = QStringLiteral("mp4");
     bool    m_saveRawFrames         = false;
     bool    m_skipAnalysisForRawCapture = false;

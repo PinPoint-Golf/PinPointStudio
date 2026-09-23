@@ -82,7 +82,7 @@ Item {
     readonly property real rawMbPerCamera: 900       // BayerRG8, the full window: 780–980 measured
     readonly property real documentMb: 6.1           // swing.ppsw, two cameras (median, 15 swings)
 
-    readonly property real clipMb: cameras * ((videoMbPerCamera[appSettings.videoQuality] || 7.1) * codecMultiplier
+    readonly property real clipMb: cameras * ((videoMbPerCamera[appSettings.videoQuality] || 2.5) * codecMultiplier
                                               + (appSettings.saveRawFrames ? rawMbPerCamera : 0))
                                    + documentMb
     readonly property real sessionMb: clipMb * 60    // an hour at one swing a minute
@@ -171,8 +171,10 @@ Item {
     ]
 
     readonly property var qualityOptions: [
-        { label: qsTr("Low"),      value: "low"      },
-        { label: qsTr("Medium"),   value: "medium"   },
+        // Stored values unchanged ("low" = CRF 28 is the default since 23 Sept 2026); only the
+        // labels changed — "Low" read as a warning on the option most people should keep.
+        { label: qsTr("Compact"),  value: "low"      },
+        { label: qsTr("Standard"), value: "medium"   },
         { label: qsTr("High"),     value: "high"     },
         { label: qsTr("Lossless"), value: "lossless" }
     ]
