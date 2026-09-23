@@ -485,8 +485,12 @@ int main()
         // The review block lands without disturbing the raw/analysis blocks.
         QFile fr(dir + QStringLiteral("/swing.json"));
         if (!fr.open(QIODevice::ReadOnly)) return 1;
-        const QJsonObject r = QJsonDocument::fromJson(fr.readAll()).object();
+        const QByteArray reviewedBytes = fr.readAll();
+        const QJsonObject r = QJsonDocument::fromJson(reviewedBytes).object();
         fr.close();   // release before the updateReview() rewrite below (Windows replace)
+        // Every swing.json writer is Compact: indentation was 58% of a real file, and one
+        // Indented rewriter (review, LM, origin) would re-inflate it on the next edit.
+        check(!reviewedBytes.contains("\n "), "swing.json stays compact after updateReview");
         check(r.contains(QStringLiteral("analysis")), "analysis block survives review write");
         const QJsonObject rv = r[QStringLiteral("review")].toObject();
         check(rv[QStringLiteral("rating")].toInt() == 4, "review.rating == 4");

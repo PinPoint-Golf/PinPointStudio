@@ -1203,7 +1203,7 @@ bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &
         if (error) *error = QStringLiteral("cannot write %1: %2").arg(path, file.errorString());
         return false;
     }
-    file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
     if (!file.commit()) {
         if (error) *error = QStringLiteral("failed to commit %1: %2").arg(path, file.errorString());
         return false;
@@ -1340,7 +1340,7 @@ bool SwingDocWriter::updateStreamOrigin(const QString &swingDir, const QString &
         if (error) *error = QStringLiteral("cannot write %1: %2").arg(path, file.errorString());
         return false;
     }
-    file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
     if (!file.commit()) {
         if (error) *error = QStringLiteral("failed to commit %1: %2").arg(path, file.errorString());
         return false;
@@ -1402,7 +1402,7 @@ bool SwingDocWriter::updateReview(const QString &swingDir, int rating, const QSt
         if (error) *error = QStringLiteral("cannot write %1: %2").arg(path, out.errorString());
         return false;
     }
-    out.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    out.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
     if (!out.commit()) {
         if (error) *error = QStringLiteral("failed to commit %1: %2").arg(path, out.errorString());
         return false;
@@ -1480,7 +1480,7 @@ bool SwingDocWriter::updateLaunchMonitor(const QString &swingDir,
         if (error) *error = QStringLiteral("cannot write %1: %2").arg(path, out.errorString());
         return false;
     }
-    out.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    out.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
     if (!out.commit()) {
         if (error) *error = QStringLiteral("failed to commit %1: %2").arg(path, out.errorString());
         return false;
@@ -1598,7 +1598,7 @@ bool SwingDocWriter::writeDeviceOnlySwing(const QString &swingDir,
         if (error) *error = QStringLiteral("cannot write %1: %2").arg(path, out.errorString());
         return false;
     }
-    out.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    out.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
     if (!out.commit()) {
         if (error) *error = QStringLiteral("failed to commit %1: %2").arg(path, out.errorString());
         return false;
