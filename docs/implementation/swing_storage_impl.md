@@ -581,6 +581,50 @@ x265's CRF scale is not x264's. At the same CRF, H.265 was *bigger* here, and it
 - **Leave the default at CRF 23** if the remaining ~0.5 px pose and ~10°/s pelvis-speed cost matters more than 0.5 GB an hour.
 - Either way, the measurements say video quality is the wrong lever for faithful re-analysis. The producers are the right one, one by one, as with attackAngle and clubheadPeakLead.
 
+### Stage 4b: trimming the pre-roll (tested and rejected, 23 Sept)
+
+**The question** (Mark): the saved clips carry seconds of the golfer standing still before address. Should they be cut, keeping a quarter-second?
+
+**Measured** over the 144 swings with video, address and impact:
+
+| | median | mean | p10–p90 |
+|---|---|---|---|
+| Clip length | 4.99 s | 4.59 s | 3.99–4.99 s |
+| **Before address** | 2.49 s | **2.08 s** | 1.40–2.55 s |
+| Address → impact | 0.98 s | 1.00 s | 0.95–1.07 s (p99 1.34, max 2.27) |
+| Impact → end | 1.50 s | 1.51 s | |
+
+The mean hides two eras: about **2.5 s** before address in the June–July sessions, and about **1.45 s** since 18 Aug, when the window was shortened.
+
+**It is worth it in bytes.** The encoder writes a keyframe every 10 frames, and sensor noise keeps still frames from being cheap, so bytes follow seconds. Cutting to address − 0.25 s would remove ~30 % of today's face-on bytes (44 % of the older DTL clips), and the same fraction of a raw sidecar.
+
+**What was tried: option A.** Keep from **impact − 1.6 s**: the p99 address plus the quarter-second, measured from impact because the export runs in parallel with the analysis and impact is the one instant it already has. It reused the exporter's existing keep band (the impact camera's), which trims the mp4 and the raw sidecar alike, for a saving of ~17 % on today's clips.
+
+**The check** (`build/rawtrim`):
+- `raw_reencode` gained `--keep-before-impact-ms`, `--save-raw` and `--write-doc`, to write a swing exactly as the app would with the trim.
+- The 38 raw-bearing corpus swings were re-analysed four ways: full raw (R1), trimmed raw (T1), full CRF 28 (M28), trimmed CRF 28 (T28).
+- R1 vs T1 isolates the trim from compression. Output: `swing_storage/preroll_trim_{summary,metrics}.csv`.
+
+**It failed:**
+- **Mechanically fine.** Impact moved 1.2 ms, and the phase count and score were unchanged.
+- **Takeaway moved 150–213 ms late** on several swings (p90 166 ms), and address a median 11 ms (p90 49 ms). With only ~0.6 s left before address, the detectors lack their stretch of stillness.
+- **44 of 47 metrics changed**, far more than compression alone:
+
+  | median change | trimmed vs full (raw) | CRF 28 vs raw |
+  |---|---|---|
+  | attackAngle | **10.2°** | 1.2° |
+  | lowPointAhead | **5.3 in** | 0.75 in |
+  | ballPosition | **23** | 1.7 |
+  | pelvisAngularSpeed | **144°/s** | 71°/s |
+
+  The late takeaway re-anchors the swing arc, which moves everything built on it.
+- **12 of 38 swings lost a metric, and about as many gained one.** The setup family (ball position, stance width, lead-heel lift, plumb-bob) flickers in and out: it is measured in the still moment at address.
+- Option B (cut at the detected address − 0.25 s) would leave even less before address.
+
+**Decision (Mark): reverted, not shipped.** Live analysis never depended on it (it reads the frames in RAM), but every later re-analysis would; the library was just swept twice. The saving (~17 %) is smaller than the harm, and CRF 28 had already cut the video ~65 %.
+
+**What would make trimming safe:** make takeaway detection and the setup metrics independent of how much pre-roll exists. Then a trimmed clip, or any clip that starts late, stops mattering, and the trim could be reconsidered. A gentler cut (impact − 2.0 s, ~1 s before address, ~9 % saving) was not tested.
+
 ### Stage 5: attackAngle and the club-arc family
 
 **The finding: `attackAngle` was reading the wrong heads.** It was a ±2-sample centred difference of the *measured* head positions, interpolated at impact.

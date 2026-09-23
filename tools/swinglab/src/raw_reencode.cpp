@@ -19,6 +19,12 @@
 // raw_reencode — re-encode a swing's face-on camera from its raw frames at a chosen CRF.
 //
 //   raw_reencode <swing_dir> --crf N[,N...] --out <dir> [--codec h264|h265] [--face-on Face]
+//                [--keep-before-impact-ms N] [--save-raw] [--write-doc]
+//
+// --keep-before-impact-ms applies the app's pre-roll trim (shot_processor kCameraKeepBeforeImpactUs)
+// with the same keep band; --save-raw writes the (trimmed) raw sidecar too; --write-doc writes a
+// swing.ppsw beside them whose face-on stream element is the exporter's own (frame table, clip band,
+// raw sidecar) — i.e. the swing as the app would now save it.
 //
 // Writes <dir>/<alias>.mp4 (the recorded stream's file name) and nothing else; with several CRFs,
 // <dir>/crf<N>/<alias>.mp4 each, from ONE load of the raw (~900 MB a swing, often over SMB). For the
@@ -38,6 +44,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 
+#include <algorithm>
 #include <cstdio>
 
 #include "../../../src/Core/PpMessageLog.h"
@@ -59,7 +66,10 @@ int main(int argc, char **argv)
     QCommandLineOption optOut({ "o", "out" }, "Output directory", "dir");
     QCommandLineOption optFace("face-on", "Substring identifying the face-on camera alias", "s", "Face");
     QCommandLineOption optCodec("codec", "Encoder factory key, as AppSettings videoCodec", "key", "h264");
-    cli.addOptions({ optCrf, optOut, optFace, optCodec });
+    QCommandLineOption optKeep("keep-before-impact-ms", "Trim the front: keep from impact − N ms", "ms");
+    QCommandLineOption optSaveRaw("save-raw", "Also write the raw sidecar");
+    QCommandLineOption optWriteDoc("write-doc", "Write swing.ppsw with the exporter's face-on stream element");
+    cli.addOptions({ optCrf, optOut, optFace, optCodec, optKeep, optSaveRaw, optWriteDoc });
     cli.addHelpOption();
     cli.process(app);
 
@@ -128,10 +138,18 @@ int main(int argc, char **argv)
         job.crf            = crf;
         job.resolutionMode = QStringLiteral("native");
         job.saveImu        = false;
-        job.saveRaw        = false;
+        job.saveRaw        = cli.isSet(optSaveRaw);
         job.savePose       = false;
         job.thumbnailSourceId    = kInvalidSourceId;
         job.thumbnailTimestampUs = -1;
+        if (cli.isSet(optKeep)) {
+            if (ls.job.impactUs < 0)
+                return fail(QStringLiteral("no impact in the document — nothing to trim from"));
+            int64_t last = 0;
+            for (const auto &e : ls.window->entriesFor(faceOn)) last = std::max(last, int64_t(e.timestamp_us));
+            job.cameras.front().keepStartUs = ls.job.impactUs - cli.value(optKeep).toLongLong() * 1000;
+            job.cameras.front().keepEndUs   = last;
+        }
 
         const SwingExportResult res = SwingExporter::run(*ls.window, job);
         if (!res.ok)
@@ -142,6 +160,22 @@ int main(int argc, char **argv)
                      (long long)out.size());
         if (!out.exists())
             return 1;
+        if (cli.isSet(optWriteDoc)) {
+            QJsonObject doc = SwingStore::load(swingDir);
+            QJsonObject mine;
+            for (const QJsonValue &v : res.manifest.value(QStringLiteral("streams")).toArray())
+                if (v.toObject().value(QStringLiteral("alias")).toString() == alias) mine = v.toObject();
+            if (mine.isEmpty())
+                return fail(QStringLiteral("the exporter wrote no stream element for %1").arg(alias));
+            QJsonArray streams = doc.value(QStringLiteral("streams")).toArray();
+            for (qsizetype i = 0; i < streams.size(); ++i)
+                if (streams.at(i).toObject().value(QStringLiteral("alias")).toString() == alias)
+                    streams.replace(i, mine);
+            doc.insert(QStringLiteral("streams"), streams);
+            QString err;
+            if (!SwingStore::writeFile(outDir + QStringLiteral("/swing.ppsw"), doc, &err))
+                return fail(err);
+        }
     }
     return 0;
 }
