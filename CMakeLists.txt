@@ -3349,6 +3349,24 @@ if(PINPOINT_BUILD_TOOLS)
     endif()
     add_test(NAME swing_window_parity COMMAND swing_window_parity_test)
     message(STATUS "SwingLab tools: swing_window_parity_test enabled")
+
+    # raw_reencode — re-encode a swing's face-on camera from its .raw at a chosen CRF, through the
+    # production SwingExporter (swing_storage_impl.md Phase 2, stage 4: the CRF 18/12 study). Same
+    # encoder stack as the parity test above; needs FFmpeg, or there is nothing to encode with.
+    if(FFMPEG_FOUND)
+        add_executable(raw_reencode
+            tools/swinglab/src/raw_reencode.cpp
+            ${_pinpoint_offline_sources}
+            src/Export/swing_exporter.cpp
+            src/Export/video_encoder.cpp
+            src/Export/ffmpeg_video_encoder.cpp
+        )
+        pinpoint_configure_offline_target(raw_reencode)
+        pinpoint_add_diagnostics_resources(raw_reencode)
+        target_compile_definitions(raw_reencode PRIVATE HAVE_FFMPEG)
+        target_link_libraries(raw_reencode PRIVATE PkgConfig::FFMPEG)
+        message(STATUS "SwingLab tools: raw_reencode enabled")
+    endif()
 endif()
 
 # The offscreen QML UI suite USED TO BE HERE, and was the only suite in the app build.

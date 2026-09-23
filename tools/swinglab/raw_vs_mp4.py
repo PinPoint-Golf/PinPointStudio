@@ -16,6 +16,12 @@ hands reported apart from the body (hand confidence is unreliable on this
 model), club theta in degrees, positions in px, times in ms.
 
     raw_vs_mp4.py --runs build/rawmp4 --out docs/implementation/swing_storage
+
+Other arm sets (the CRF study, swing_storage_impl.md Phase 2 stage 4) name their pairs and
+their output files:
+
+    raw_vs_mp4.py --runs build/rawcrf --out docs/implementation/swing_storage --name raw_vs_crf \
+        --pairs R1-R2,R1-M1,M1-M23,R1-M23,R1-M18,R1-M12,PR-PM1,PR-PM23,PR-PM18,PR-PM12
 """
 import argparse
 import csv
@@ -28,12 +34,18 @@ W, H = 1280, 1024
 BODY = range(0, 23)          # COCO body + feet of the 133-point WholeBody layout
 HANDS = range(91, 133)
 KP_CONF = 0.3
-PAIRS = [("R1", "M1"), ("R1", "R2"), ("M1", "M2"), ("PR", "PM")]
-
 ap = argparse.ArgumentParser()
 ap.add_argument("--runs", required=True)
 ap.add_argument("--out", required=True)
+ap.add_argument("--pairs", default="R1-M1,R1-R2,M1-M2,PR-PM",
+                help="comma-separated A-B arm pairs; an arm is the run tree out_<arm>")
+ap.add_argument("--raw-arms", default="R1,R2,PR",
+                help="arms whose runmeta must say frames=raw; every other arm must say mp4")
+ap.add_argument("--name", default="raw_vs_mp4", help="output file stem")
 a = ap.parse_args()
+PAIRS = [tuple(p.split("-", 1)) for p in a.pairs.split(",")]
+ARMS = list(dict.fromkeys(x for p in PAIRS for x in p))
+RAW_ARMS = set(a.raw_arms.split(","))
 
 
 def load(arm, sw):
@@ -148,11 +160,11 @@ def emit(sw, pair, item, value, n=None):
 
 coverage = {}
 for sw in swings:
-    for arm in ("R1", "R2", "M1", "M2", "PR", "PM"):
+    for arm in ARMS:
         ok = load(arm, sw) is not None
         coverage.setdefault(arm, 0)
         coverage[arm] += ok
-        want = "raw" if arm in ("R1", "R2", "PR") else "mp4"
+        want = "raw" if arm in RAW_ARMS else "mp4"
         if ok and frames_meta(arm, sw) != want:
             raise SystemExit(f"{arm} {sw}: runmeta frames={frames_meta(arm, sw)!r}, expected {want}")
     for pair in PAIRS:
@@ -192,7 +204,7 @@ for sw in swings:
             emit(sw, pair, "score_overall", abs(sx - sy))
 
 os.makedirs(a.out, exist_ok=True)
-with open(os.path.join(a.out, "raw_vs_mp4.csv"), "w", newline="") as f:
+with open(os.path.join(a.out, a.name + ".csv"), "w", newline="") as f:
     w = csv.DictWriter(f, fieldnames=["swing", "pair", "item", "value", "n"])
     w.writeheader()
     w.writerows(rows)
@@ -204,7 +216,7 @@ for r in rows:
         continue
     by.setdefault(r["item"], {}).setdefault(r["pair"], []).append(float(r["value"]))
 pairs = ["%s-%s" % p for p in PAIRS]
-with open(os.path.join(a.out, "raw_vs_mp4_summary.csv"), "w", newline="") as f:
+with open(os.path.join(a.out, a.name + "_summary.csv"), "w", newline="") as f:
     w = csv.writer(f)
     w.writerow(["item"] + [f"{p}_{s}" for p in pairs for s in ("n", "median", "p90")])
     for item in sorted(by):
@@ -221,7 +233,7 @@ for r in rows:
         continue
     key = r["item"].split(":")[1]
     per.setdefault(key, {}).setdefault(r["pair"], []).append(float(r["value"]))
-with open(os.path.join(a.out, "raw_vs_mp4_metrics.csv"), "w", newline="") as f:
+with open(os.path.join(a.out, a.name + "_metrics.csv"), "w", newline="") as f:
     w = csv.writer(f)
     w.writerow(["metric", "median_abs_value"] + [f"{p}_{s}" for p in pairs for s in ("n", "median_delta", "p90_delta")])
     for key in sorted(per):
