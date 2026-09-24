@@ -927,3 +927,72 @@ TEST(PpcpShotDisposition, OwedDeclinesArePaidOnTheWireInTheirOwnSession)
     ASSERT_EQ(h.declinedShots.size(), 1u);
     EXPECT_EQ(h.reasons[0], "discarded") << "the FIRST reason stands on a repeat";
 }
+
+// ── The report-once memory is bounded, and bounding it reports nothing twice ─
+//
+// `m_reported` used to grow by one id per Shot for the whole Session.  It now
+// forgets an id once its `t0` is past libppcp's reclaim horizon — issue hold +
+// coincidence window + heartbeat margin + 120 s — and not a nanosecond before.
+//
+// ⚠ THE GROUP IS STILL IN THE ARBITER WHEN THE ID IS FORGOTTEN, AND THAT IS THE
+// POINT OF THE TEST.  libppcp reclaims only when its table is full, so a single
+// Shot's group outlives the horizon indefinitely.  The bridge must therefore not
+// rely on the slot being freed: a forgotten id still sitting in a slot has to be
+// skipped, or every pump after the horizon reports the swing again.
+TEST(PpcpArbitration, ReportedShotIdsAreForgottenPastTheReclaimHorizonAndNeverReportedTwice)
+{
+    Fixture F;
+    ASSERT_NO_FATAL_FAILURE(F.build());
+    ASSERT_NO_FATAL_FAILURE(F.declare());
+    ASSERT_NO_FATAL_FAILURE(F.openSession());
+    ASSERT_NO_FATAL_FAILURE(F.startBridge());
+
+    // Stated from the defaults the Session was opened with, independently of
+    // the bridge's own arithmetic.  120 s is PPCP_ARBITER_RECLAIM_HORIZON_NS.
+    const std::int64_t horizon = PPCP_DEFAULT_ISSUE_HOLD_NS + PPCP_DEFAULT_COINCIDENCE_WINDOW_NS
+                                 + static_cast<std::int64_t>(PPCP_DEFAULT_HEARTBEAT_MS) * kMs
+                                 + 120000 * kMs;
+
+    const std::int64_t t0 = F.nowNs();
+    std::string err;
+    ASSERT_TRUE(F.bridge.nominate(F.hostMicSourceId(), kBasisAcoustic, t0, 0, 0.9, nullptr,
+                                  nullptr, &err)) << err;
+    ppcp_sim_clock_advance(&F.hostClk, 400 * kMs);
+    ASSERT_EQ(F.bridge.pump(F.nowNs()), 1u);
+    ASSERT_EQ(F.shots.size(), 1u);
+    const std::string first = F.shots.front();
+    EXPECT_EQ(F.bridge.reportedCount(), 1u);
+
+    // Exactly AT the horizon: libppcp keeps a group while `now - t0 <= horizon`,
+    // and so does the report-once memory.
+    ppcp_sim_clock_advance(&F.hostClk, (t0 + horizon) - F.nowNs());
+    ASSERT_EQ(F.nowNs() - t0, horizon);
+    F.bridge.pump(F.nowNs());
+    EXPECT_EQ(F.bridge.reportedCount(), 1u) << "forgotten before the horizon";
+    EXPECT_EQ(F.shots.size(), 1u);
+
+    // One millisecond past it: forgotten — while the group is still there.
+    ppcp_sim_clock_advance(&F.hostClk, 1 * kMs);
+    F.bridge.pump(F.nowNs());
+    EXPECT_EQ(F.bridge.reportedCount(), 0u) << "not forgotten past the horizon";
+    EXPECT_EQ(F.bridge.groupCount(), 1u)
+        << "precondition: the arbiter still holds the Shot, so only the skip stops a repeat";
+    F.bridge.pump(F.nowNs());
+    ppcp_sim_clock_advance(&F.hostClk, 60000 * kMs);
+    F.bridge.pump(F.nowNs());
+    EXPECT_EQ(F.shots.size(), 1u) << "a forgotten id was reported again";
+
+    // A new swing, long after: reported once, remembered, and the memory holds
+    // only it.
+    const std::int64_t t1 = F.nowNs();
+    ASSERT_TRUE(F.bridge.nominate(F.hostMicSourceId(), kBasisAcoustic, t1, 0, 0.9, nullptr,
+                                  nullptr, &err)) << err;
+    ppcp_sim_clock_advance(&F.hostClk, 400 * kMs);
+    F.bridge.pump(F.nowNs());
+    F.bridge.pump(F.nowNs());
+    ASSERT_EQ(F.shots.size(), 2u);
+    EXPECT_NE(F.shots.back(), first);
+    EXPECT_EQ(F.bridge.reportedCount(), 1u);
+    EXPECT_EQ(std::set<std::string>(F.shots.begin(), F.shots.end()).size(), F.shots.size())
+        << "no Shot is reported twice";
+}

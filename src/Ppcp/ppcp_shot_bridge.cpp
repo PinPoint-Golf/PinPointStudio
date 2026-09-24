@@ -134,6 +134,8 @@ bool PpcpShotBridge::start(const Config &cfg, IdFn idFn, std::string *err)
     (void)ppcp_arbiter_set_policy(a, &PpcpShotBridge::policyTrampoline, this);
     m_arbiter = a;
     m_reported.clear();
+    m_lastNowRefNs = 0;
+    m_haveNow = false;
     m_awaiting.clear();
     m_declinedHere.clear();
     return true;
@@ -148,6 +150,8 @@ void PpcpShotBridge::stop()
     m_arbiter = nullptr;
     m_storage.clear();
     m_reported.clear();
+    m_lastNowRefNs = 0;
+    m_haveNow = false;
     m_awaiting.clear();
 }
 
@@ -359,6 +363,8 @@ std::size_t PpcpShotBridge::pump(std::int64_t nowRefNs)
 {
     if (!m_arbiter) return 0;
     std::size_t issued = 0;
+    if (!m_haveNow || nowRefNs > m_lastNowRefNs) m_lastNowRefNs = nowRefNs;
+    m_haveNow = true;
     (void)ppcp_arbiter_pump(m_arbiter, nowRefNs, &issued);
     m_stats.issued = ppcp_arbiter_issued_count(m_arbiter);
     // 8.2h — a group issued after the mint deadline overlaps the window in
@@ -505,9 +511,62 @@ std::vector<std::string> PpcpShotBridge::abandonAwaiting()
     return ids;
 }
 
+// ⚠ THE LIBRARY'S NUMBER, RESTATED AND NOT INCLUDED.  libppcp is about to
+// reclaim an issued arbiter group once `now - t0` exceeds issue hold +
+// coincidence window + heartbeat margin + PPCP_ARBITER_RECLAIM_HORIZON_NS
+// (120 s).  That constant is not in the headers this builds against yet, so it
+// is a local one; when it lands, this should become the library's own.  The
+// rule below is safe whatever the library does — it does not depend on a slot
+// actually being freed — so a disagreement here costs memory, never a
+// duplicate.
+namespace {
+constexpr std::int64_t kReclaimHorizonNs = 120LL * 1000000000LL;   // PPCP_ARBITER_RECLAIM_HORIZON_NS
+}  // namespace
+
+std::int64_t PpcpShotBridge::reportedHorizonNs() const
+{
+    // The session parameters the ARBITER reads (arb_hold / arb_window /
+    // arb_margin in libppcp), from the same peer, with the same defaults — not
+    // PpcpLiveSession's config, which is what was asked for rather than what
+    // the Session opened with.
+    const ppcp_body_session_open *sp = m_peer ? ppcp_peer_session_params(m_peer) : nullptr;
+    const bool arb = sp && sp->has_arbitration;
+    const std::int64_t hold   = arb ? sp->issue_hold_ns : PPCP_DEFAULT_ISSUE_HOLD_NS;
+    const std::int64_t window = arb ? sp->coincidence_window_ns
+                                    : PPCP_DEFAULT_COINCIDENCE_WINDOW_NS;
+    const std::uint32_t hbMs  = (sp && sp->has_heartbeat_interval) ? sp->heartbeat_interval_ms
+                                                                   : PPCP_DEFAULT_HEARTBEAT_MS;
+    return hold + window + static_cast<std::int64_t>(hbMs) * 1000000 + kReclaimHorizonNs;
+}
+
 void PpcpShotBridge::collectIssued()
 {
     if (!m_arbiter || !m_onShot) return;
+
+    // ── The report-once memory, bounded ────────────────────────────────────
+    //
+    // ⛔ ONE PREDICATE DECIDES BOTH HALVES, AND THAT IS THE WHOLE SAFETY
+    // ARGUMENT.  An id is forgotten when its `t0` is past the horizon, and a
+    // Shot in the arbiter whose `t0` is past the horizon is never reported —
+    // so a forgotten id that is still sitting in a slot (libppcp reclaims only
+    // when the table is FULL, so an old group can outlive the horizon by a
+    // whole Session) is skipped by the second half instead of being handed on
+    // again.  `m_lastNowRefNs` only grows, so once past, always past.
+    //
+    // ⚠ WHAT THE SKIP COSTS.  A Shot first seen here more than ~2 minutes after
+    // its `t0` is not reported at all.  Every path into a slot — issue after
+    // the hold, 8.2k adoption inside the decline window — lands within seconds,
+    // and the event buffer holds seconds: a Shot that old has no swing left to
+    // record.  Such a group is also exactly what libppcp treats as reclaimable.
+    const std::int64_t horizon = reportedHorizonNs();
+    const auto pastHorizon = [&](std::int64_t t0Ns) {
+        return m_haveNow && m_lastNowRefNs - t0Ns > horizon;
+    };
+    if (m_haveNow)
+        m_reported.erase(std::remove_if(m_reported.begin(), m_reported.end(),
+                                        [&](const Reported &r) { return pastHorizon(r.t0Ns); }),
+                         m_reported.end());
+
     // Every SLOT, not group_count() of them.  ppcp_arbiter_shot_at() takes a
     // slot index (0..PPCP_ARBITER_MAX_GROUPS-1) and answers NULL for a free
     // one, while group_count() counts slots in use.  libppcp never frees a
@@ -519,8 +578,11 @@ void PpcpShotBridge::collectIssued()
         if (!s) continue;
         const std::string id = idStr(s->id);
         if (id.empty()) continue;
-        if (std::find(m_reported.begin(), m_reported.end(), id) != m_reported.end()) continue;
-        m_reported.push_back(id);
+        if (pastHorizon(s->t0.ns)) continue;
+        if (std::any_of(m_reported.begin(), m_reported.end(),
+                        [&id](const Reported &r) { return r.id == id; }))
+            continue;
+        m_reported.push_back({id, s->t0.ns});
         // 8.5c — a Shot this bridge declined is never handed on to be recorded.
         if (hasDeclined(id)) continue;
         m_onShot(*s);

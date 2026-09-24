@@ -72,9 +72,10 @@ ShotController::ShotController(pinpoint::EventBuffer *buffer,
         desc.expected_interarrival_us = std::chrono::microseconds(0); // sporadic — no stall watchdog
         desc.sync_source              = pinpoint::SyncSource::SoftwareTimestamp;
 
-        // registerSource requires Idle or Paused. Registering the first source
-        // auto-resumes the buffer — main.cpp restores the user capture intent
-        // via cameraManager.applyCaptureIntent() right after construction.
+        // registerSource requires Idle or Paused, and it does NOT resume the
+        // buffer: main.cpp restores the user capture intent (and with it
+        // Capturing) via cameraManager.applyCaptureIntent() right after
+        // construction.
         if (m_buffer->state() == pinpoint::BufferState::Capturing)
             m_buffer->pause();
         m_sourceId = m_buffer->registerSource(desc);

@@ -250,9 +250,12 @@ private:
     size_t slot_hwm_       = 0;   // highest index ever assigned + 1; merger iterates 0..slot_hwm_
     size_t active_sources_ = 0;   // count of non-null slots
     // True while the buffer is Paused solely because there are no registered
-    // sources. registerSource() clears this and calls resume() automatically
-    // when the first source is added. Set by start(), resume() (blocked), and
-    // deregisterSource() when the last source is removed.
+    // sources. Set by start(), resume() (blocked), and deregisterSource() when
+    // the last source is removed.
+    // ⚠ registerSource() does NOT clear it or resume the buffer: a started
+    // buffer stays Paused until something calls resume() — in the app,
+    // cameraManager.applyCaptureIntent() in main.cpp.  (This comment used to
+    // say otherwise; shot_controller_decline_test asserts the real behaviour.)
     bool   no_source_paused_ = false;
 
     TimelineIndex index_;

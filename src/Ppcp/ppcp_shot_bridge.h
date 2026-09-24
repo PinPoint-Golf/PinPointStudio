@@ -361,6 +361,9 @@ public:
     // candidates lands here (CONF §5).
     std::size_t retainedCount() const;
     std::size_t groupCount() const;
+    // How many Shot ids the report-once memory is holding.  For the test that
+    // asserts it is bounded; nothing else has a reason to read it.
+    std::size_t reportedCount() const { return m_reported.size(); }
 
 private:
     static ppcp_result idTrampoline(void *ctx, ppcp_id *out);
@@ -405,7 +408,26 @@ private:
     Stats                        m_stats;
     // Shot ids already handed to the embedding, so a Shot is reported once even
     // though its group stays in the arbiter for later attachment (8.2e).
-    std::vector<std::string>     m_reported;
+    //
+    // ⚠ BOUNDED BY TIME, AND IT USED NOT TO BE.  This was a bare id list cleared
+    // only by start()/stop(), so it grew by one per Shot for the whole Session
+    // and every collectIssued() walked all of it.  Each id now carries its
+    // Shot's `t0`, and one past reportedHorizonNs() is forgotten — see
+    // collectIssued() for why forgetting cannot re-report.
+    struct Reported {
+        std::string  id;
+        std::int64_t t0Ns = 0;   // `Session.timebase_ref`, as the Shot carries it
+    };
+    std::vector<Reported>        m_reported;
+    // The latest `nowRefNs` pump() was given.  collectIssued() is also reached
+    // from observe() and reconsider(), which have no clock; they trim against
+    // this.  Kept as a MAXIMUM, because the forget/skip rule in collectIssued()
+    // is only safe while the clock it reads never goes backwards.
+    std::int64_t                 m_lastNowRefNs = 0;
+    bool                         m_haveNow = false;
+    // libppcp's reclaim horizon for an issued group (hold + window + margin +
+    // 120 s), recomputed here rather than read from the library.
+    std::int64_t reportedHorizonNs() const;
 
     // ── MSG 8.5 / 8.5c — device Shots awaiting a verdict ───────────────────
     //

@@ -770,6 +770,62 @@ if(NOT MSVC)
 endif()
 
 
+# ── MSG 8.5 (CR-03) — ShotController's decline paths, EXECUTED ──────────────
+#
+# ⚠ WHY THIS ROW EXISTS.  `2560e64c` taught `ShotController` to put
+# `shot_disposition` / `declined` on the wire for every PPCP Shot it will not
+# keep — `not_corroborated`, `busy`, `review_mode`, `session_ended` — and the
+# only compiler pointed at that code was the syntax probe above.  A reason
+# string that drifted from 8.5's registry, or a `disarmReason()` that stopped
+# agreeing with `armed()`, would have built green and told the phone the wrong
+# thing.  This runs the class headless and reads `shotDeclined` off a
+# QSignalSpy.
+#
+# ⚠ THE BRIDGE IS LINKED AND NEVER REACHED.  `commitArbitratedShot()` does not
+# touch it, and nothing here calls `setPpcpBridge()`; the translation unit is
+# here only because `shot_controller.cpp` names its methods under HAVE_PPCP.
+# Its dependency list is `ppcp_arbitration_test`'s, which is the smallest that
+# links it.
+#
+# ⚠ AND THE REAL EventBuffer, NOT A STUB.  `armed()` reads `isCapturing()`, and
+# whether the constructor's `registerSource()` auto-resumes a started buffer is
+# exactly the precondition `busy` versus `session_ended` depends on — so the
+# suite asserts it rather than faking it.  Linked as the `pinpoint_buffer`
+# target the umbrella already builds; standalone, it is pulled in here.
+#
+# ⛔ NOT ON MSVC, BECAUSE THE PROBE ABOVE IS NOT.  Nothing in this repository
+# has ever compiled `shot_controller.cpp` against this suite's include set with
+# cl.exe, and the one row that would say whether it can is the one guarded off
+# there.  Lift both together.
+if(NOT MSVC)
+    if(NOT TARGET pinpoint_buffer)
+        add_subdirectory(${PP_SRC}/Buffer ${CMAKE_BINARY_DIR}/Buffer-lib EXCLUDE_FROM_ALL)
+    endif()
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+
+    pp_add_test(shot_controller_decline_test
+        SOURCES shot_controller_decline_test.cpp
+                ${PP_SRC}/Gui/shot/shot_controller.cpp
+                ${PPCP}/ppcp_shot_bridge.cpp
+                ${PPCP}/ppcp_import_ledger.cpp
+                ${PPCP}/ppcp_live_session.cpp
+                ${PPCP}/ppcp_host_engine.cpp
+                ${PPCP}/ppcp_ingest_policy.cpp
+                ${PPCP}/ppcp_source_declaration.cpp
+                # ppWarn() — every refusal in the class under test is said out loud.
+                ${PP_SRC}/Core/pp_log_stream.cpp
+                ${PP_SRC}/Core/PpMessageLog.cpp
+        INCLUDE ${PPCP} ${PP_SRC}/Core ${PP_SRC}/Buffer
+                ${PP_SRC}/Gui ${PP_SRC}/Gui/shot ${PP_SRC}/Gui/session
+        LINK    pinpoint_buffer ppcp Qt6::Core Qt6::Qml Qt6::Multimedia Qt6::Test
+                Threads::Threads
+        DEFINES HAVE_PPCP
+        STD 20
+        AUTOMOC
+        GTEST_NO_MAIN)
+endif()
+
+
 # ── H8 — the conformance claim ───────────────────────────────────────────────
 #
 # `PPCP-CONF` §2c: an implementation tested only by its own unit tests is the
