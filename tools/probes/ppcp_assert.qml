@@ -41,6 +41,33 @@ Item {
                ? parseInt(Qt.application.arguments[i + 1]) : 0
     }
 
+    // ⭐ CR-03 (#105) — A SHOT THIS HOST DECLINES, AS A RUNG.
+    //
+    // --decline-mode puts the host in the state where it refuses a phone's
+    // uncorroborated Shot: its own acoustic detector AVAILABLE (main.cpp's
+    // applyShotAudio predicate — capture intent, acoustic detection, auto
+    // detect), so a phone Candidate no host detector agreed with is excluded,
+    // the phone mints under 8.2i, and the bridge declines the unadopted Shot
+    // `not_corroborated` once the reconsider window closes.  Nothing is
+    // injected: the refusal is the rule's own, on real input.
+    //
+    // ⚠ Both settings persist, so the originals are restored in finish().
+    readonly property bool declineMode:
+        Qt.application.arguments.indexOf("--decline-mode") >= 0
+    // How many declines must go out on the wire (`shot_disposition`).  With
+    // this set the run PASSES on declines and FAILS if anything was committed —
+    // a Shot that is declined AND recorded is two answers to one question.
+    readonly property int expectDeclines: {
+        var i = Qt.application.arguments.indexOf("--expect-declines")
+        return (i >= 0 && i + 1 < Qt.application.arguments.length)
+               ? parseInt(Qt.application.arguments[i + 1]) : 0
+    }
+    property var savedAcoustic: undefined
+    property var savedAutoDetect: undefined
+    function declinesOf(s) {
+        return (s.ppcp.declinedUnadopted || 0) + (s.ppcp.shotsDeclined || 0)
+    }
+
     // ⛔ THE PROCEDURE A PERSON PERFORMS, AND THE REASON A RUN WITHOUT IT PROVES
     // NOTHING.  Watching the manual test on 1 September: connect the phone's
     // camera, WAIT FOR CLOCK AGREEMENT UNDER 5 ms, and only then start the
@@ -332,6 +359,11 @@ Item {
 
     function finish(ok, why) {
         if (probe.passed) return
+        if (probe.savedAcoustic !== undefined) {
+            appSettings.acousticShotDetectionEnabled = probe.savedAcoustic
+            appSettings.autoDetectSwing = probe.savedAutoDetect
+            probe.savedAcoustic = undefined
+        }
         var s = probe.snapshot()
         console.warn("PROBE RESULT " + (ok ? "PASS" : "FAIL") + " — " + why)
         // ⛔ The ladder on every FAILURE, not only on a timeout.  A verdict that
@@ -379,7 +411,18 @@ Item {
             // A committed Shot with no clip behind it is exactly the state that
             // was mistaken for success once already: `bulk 242550681` crossed
             // the wire and not one frame reached a swing.
-            if (probe.expectClips > 0) {
+            if (probe.expectDeclines > 0) {
+                if (s.shot.committed > 0 || s.ppcp.clipsFiled > 0)
+                    return probe.finish(false, "decline mode, but " + s.shot.committed
+                                               + " shot(s) committed and " + s.ppcp.clipsFiled
+                                               + " clip(s) filed")
+                if (probe.declinesOf(s) >= probe.expectDeclines)
+                    return probe.finish(true, "declined " + probe.declinesOf(s)
+                                              + " shot(s) on the wire (unadopted "
+                                              + s.ppcp.declinedUnadopted + ", ledger "
+                                              + s.ppcp.shotsDeclined + ", owed "
+                                              + s.ppcp.declinesOwed + ")")
+            } else if (probe.expectClips > 0) {
                 if (s.ppcp.clipsFiled >= probe.expectClips)
                     return probe.finish(true, "filed " + s.ppcp.clipsFiled + " clip(s) into "
                                               + s.shot.committed + " shot(s)")
@@ -398,12 +441,22 @@ Item {
         }
     }
 
-    Component.onCompleted: console.warn("PROBE START expect-shots=" + expectShots
+    Component.onCompleted: {
+        if (declineMode) {
+            savedAcoustic = appSettings.acousticShotDetectionEnabled
+            savedAutoDetect = appSettings.autoDetectSwing
+            appSettings.acousticShotDetectionEnabled = true
+            appSettings.autoDetectSwing = true
+        }
+        console.warn("PROBE START expect-shots=" + expectShots
                                         + " expect-clips=" + expectClips
                                         + " drive=" + drive
                                         + " sync-gate=" + syncGateMs + "ms"
                                         + " corroborate=" + corroborate
                                         + " torch=" + torch
                                         + " inject-shot-after-ms=" + injectShotAfterMs
+                                        + " decline-mode=" + declineMode
+                                        + " expect-declines=" + expectDeclines
                                         + " timeout=" + timeoutMs + "ms")
+    }
 }
