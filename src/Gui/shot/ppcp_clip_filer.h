@@ -89,6 +89,7 @@ public:
         std::size_t duplicate = 0;   // I34 — AlreadyHeld, correctly written once
         std::size_t orphaned  = 0;   // anchored to no Shot, or to one we never asked about
         std::size_t failed    = 0;   // could not be written
+        std::size_t declined  = 0;   // MSG 8.5 — shot_disposition asked for
     };
     const Stats &stats() const { return m_stats; }
 
@@ -112,6 +113,22 @@ signals:
     // swing re-analysed listens here; this class does not queue analysis, so a
     // clip landing can never steal the stage from a golfer still hitting.
     void clipFiled(const QString &swingDir, const QString &alias);
+
+    // ⭐ MSG 8.5 (CR-03) — this host will not keep anything of `shotId`, and
+    // the owning phone must be told so it can release the clip (5.14g exit 5).
+    // `reason` is 8.5's registry value: `discarded` ("Received, then
+    // abandoned") or `not_requested` ("A Capture arrived for a Shot the receiver
+    // neither asked for nor adopted").  `peerId` is the phone that owns the
+    // Capture; `sessionId` the Session the Shot belongs to where the filer knows
+    // it, and empty where it does not — PpcpHostService then uses the Session
+    // it asked in.
+    //
+    // ⛔ NEVER FOR A STORAGE FAILURE.  A clip that could not be written is a
+    // transient condition and a decline is final (8.5b): declining would evict
+    // the only copy of a real swing on a full disk.  Erratum E80 withdrew
+    // `storage_full` for exactly that reason, and the filer stays silent.
+    void shotDeclined(const QString &shotId, const QString &peerId,
+                      const QString &sessionId, const QString &reason);
 
 private:
     struct Asked {
@@ -138,4 +155,11 @@ private:
     // a season.  Eight is several shots' grace at 15-40 s per shot.
     std::deque<Shot>        m_shots;
     static constexpr std::size_t kMaxTrackedShots = 8;
+    // Shots that scrolled off the eight above.  A clip for one of them WAS
+    // asked for, so `not_requested` would be untrue of it; it is `discarded`.
+    std::deque<QString>     m_forgotten;
+    static constexpr std::size_t kMaxForgotten = 32;
+
+    void declineShot(const QString &shotId, const QString &peerId,
+                     const QString &sessionId, const char *reason);
 };

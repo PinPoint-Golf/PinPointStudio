@@ -100,6 +100,17 @@ bool ShotController::armed() const
     return m_buffer && m_buffer->isCapturing() && !m_processorBusy && !m_reviewActive;
 }
 
+const char *ShotController::disarmReason() const
+{
+    // MSG 8.5's published reasons, one per cause, in the order a golfer would
+    // name them.  Must agree with armed() above: every false there is exactly
+    // one non-null here.
+    if (m_reviewActive)                           return "review_mode";
+    if (!m_buffer || !m_buffer->isCapturing())    return "session_ended";
+    if (m_processorBusy)                          return "busy";
+    return nullptr;
+}
+
 void ShotController::setProcessorBusy(bool busy)
 {
     if (m_processorBusy == busy)
@@ -497,11 +508,20 @@ void ShotController::commitArbitratedShot(qint64 t0HostNs, const QString &shotId
         // ⚠ THIS IS NOT A RETRACTION, AND CANNOT BE.  `arb_issue` put the Shot
         // on the wire before any line of this function ran, and I7 makes an
         // issued Shot a fact.  What is refused is the LOCAL consequence — this
-        // host does not record a swing for it.  The device is not told, because
-        // PPCP has no way to say it; that is an open request to the PPC team.
+        // host does not record a swing for it.
         emit shotRefused(
             tr("Shot from the phone was not recorded — nothing here confirmed it."),
             QStringLiteral("shot.corroboration.refused"));
+        // ⭐ MSG 8.5 — AND NOW THE DEVICE IS TOLD.  `shot_disposition` /
+        // `declined` is a statement about what this receiver KEEPS, not about
+        // whether the Shot happened (8.5c: it "changes nothing about `t0`,
+        // `Shot.candidates` or the Shot's membership of `Session.shots`"), so it
+        // is exactly the thing this branch could not say before CR-03.  Without
+        // it the phone held the clip, counted as still to send, for the life of
+        // the link.  `not_corroborated`: "No detector at the receiver agreed
+        // that the Shot happened."
+        if (!shotId.isEmpty())
+            emit shotDeclined(shotId, QStringLiteral("not_corroborated"));
         return;
     }
 
@@ -511,7 +531,7 @@ void ShotController::commitArbitratedShot(qint64 t0HostNs, const QString &shotId
     // from another peer entirely, and the ordinal is persisted — see the note on
     // the enum.  It is a display and marker label, not an authority claim; the
     // authority is `Shot.issued_by` and lives on the wire.
-    if (!commitShot(Source::Ppcp, tUs)) return;
+    if (!commitShot(Source::Ppcp, tUs, shotId)) return;
 
     // ⭐ CORE §8.4 — AND NOW ASK FOR THE FOOTAGE.  Until this line the phone was
     // never asked: `requestCapture()` existed, correct and tested, with no
@@ -525,8 +545,11 @@ void ShotController::commitArbitratedShot(qint64 t0HostNs, const QString &shotId
 }
 #endif
 
-bool ShotController::commitShot(Source source, qint64 timestampUs)
+bool ShotController::commitShot(Source source, qint64 timestampUs, const QString &shotId)
 {
+#ifndef HAVE_PPCP
+    Q_UNUSED(shotId);
+#endif
     if (!armed()) {
 #ifdef HAVE_PPCP
         // ⚠ A PPCP SHOT DROPPED HERE IS A DIVERGENCE, NOT A NON-EVENT.  The
@@ -540,12 +563,37 @@ bool ShotController::commitShot(Source source, qint64 timestampUs)
         // unavailable for 15-40 s per shot, which a golfer hitting a bucket
         // will outrun.  Deliberately not attempted here.
         if (source == Source::Ppcp) {
-            ++m_counters.droppedBusy;
-            ppWarn() << "[ppcp] arbitrated shot DROPPED — still processing the previous shot"
-                     << "— t0_us" << timestampUs;
-            emit shotRefused(
-                tr("Shot from the phone was missed — still working on the previous one."),
-                QStringLiteral("shot.dropped.busy"));
+            // ⭐ MSG 8.5 — WHICH OF armed()'s THREE CONDITIONS DROPPED IT, because
+            // that is the reason the phone is given and a person may be shown:
+            // `busy`, `review_mode` or `session_ended`.  All three used to be
+            // reported here as "still working on the previous one", which was
+            // true of one of them.
+            const char *why = disarmReason();
+            if (!why) why = "busy";   // unreachable while armed() is false; never null on the wire
+            const QString reason = QString::fromLatin1(why);
+            if (reason == QLatin1String("busy")) {
+                ++m_counters.droppedBusy;
+                ppWarn() << "[ppcp] arbitrated shot DROPPED — still processing the previous shot"
+                         << "— t0_us" << timestampUs;
+                emit shotRefused(
+                    tr("Shot from the phone was missed — still working on the previous one."),
+                    QStringLiteral("shot.dropped.busy"));
+            } else if (reason == QLatin1String("review_mode")) {
+                ppWarn() << "[ppcp] arbitrated shot DROPPED — a saved session is being reviewed"
+                         << "— t0_us" << timestampUs;
+                emit shotRefused(
+                    tr("Shot from the phone was not recorded — a saved session is open for review."),
+                    QStringLiteral("shot.dropped.review"));
+            } else {
+                ppWarn() << "[ppcp] arbitrated shot DROPPED — this host is not recording"
+                         << "— t0_us" << timestampUs;
+                emit shotRefused(
+                    tr("Shot from the phone was not recorded — recording is stopped here."),
+                    QStringLiteral("shot.dropped.stopped"));
+            }
+            // The same divergence the note above describes, now SAID: the Shot
+            // stands (I7) and this receiver will not keep it (8.5a).
+            if (!shotId.isEmpty()) emit shotDeclined(shotId, reason);
             return false;
         }
 #endif

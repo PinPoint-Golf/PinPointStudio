@@ -40,6 +40,7 @@
 // the state the bugs lived in and the state a user pairing a phone is in.
 
 #include <gtest/gtest.h>
+#include <QDir>
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -1489,6 +1490,100 @@ TEST_F(HostServiceClock, PerPhoneStatsCarryTheCrTwoReadings)
     EXPECT_TRUE(one.value(QStringLiteral("deviceStatus")).toList().isEmpty());
     EXPECT_TRUE(one.value(QStringLiteral("bufferStatus")).toList().isEmpty());
     EXPECT_EQ(one.value(QStringLiteral("actuators")).toList().size(), 1);
+}
+
+// ── MSG 8.5 (CR-03, H18/H19) — the service's decline route ─────────────────
+//
+// `ShotController` and `PpcpClipFiler` emit; main.cpp wires both to
+// declineShot().  What is asserted here is the half no other suite can reach:
+// the route into the ONE ledger, the durable owed queue when the phone is not
+// here (`onSwingFailed` decides 15-40 s late), E74's strike of an unpaid commit,
+// and payment through a real connected engine the moment the phone is.  The
+// wire itself — reason, Session and I40 — is asserted over two real engines in
+// ppcp_arbitration_test (PpcpShotDisposition.*), because this suite's stub link
+// has no engine at the far end to decode it.
+//
+// ⚠ EVERY ROW REPOINTS THE LEDGER AT A TEMPORARY FILE FIRST.  The service loads
+// `<AppData>/ppcp-ledger.json` at construction, and a decline is saved the
+// moment it is recorded; a test must not write into a real one.
+
+TEST_F(HostServiceClock, ADeclineWithNoPhoneHereIsOwedDurablyAndStrikesTheUnpaidCommit)
+{
+    QTemporaryDir tmp;
+    ASSERT_TRUE(tmp.isValid());
+    const std::string file = QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString();
+    Ppcp::PpcpImportLedger &led = m_svc.ledger();
+    led.setPath(file);
+
+    const Ppcp::CaptureKey key{ "peer:away", "sess:gone", "cap:1" };
+    ASSERT_TRUE(led.queueCommitted(key, "", "shot:1"));
+
+    // The filer's call: it knows the phone and, from the clip, the Session.
+    m_svc.declineShot(QStringLiteral("shot:1"), QStringLiteral("discarded"),
+                      QStringLiteral("peer:away"), QStringLiteral("sess:gone"));
+
+    EXPECT_TRUE(led.pendingCommits("peer:away").empty())
+        << "E74 — a declining receiver owes no unpaid commit";
+    ASSERT_EQ(led.owedDeclines("peer:away").size(), 1u)
+        << "8.5i — owed until the phone is next here";
+    EXPECT_EQ(m_svc.ppcpStats().value(QStringLiteral("declinesOwed")).toInt(), 1);
+
+    // ⚠ AND ON DISK ALREADY — the link is gone, and so may the process be.
+    Ppcp::PpcpImportLedger reloaded;
+    ASSERT_TRUE(reloaded.load(file));
+    ASSERT_EQ(reloaded.owedDeclines("peer:away").size(), 1u);
+    EXPECT_EQ(reloaded.owedDeclines("peer:away")[0].reason, "discarded");
+    EXPECT_EQ(reloaded.owedDeclines("peer:away")[0].sessionId, "sess:gone");
+    EXPECT_TRUE(reloaded.pendingCommits("peer:away").empty())
+        << "the strike and the decline are one write";
+}
+
+// A Shot this service never handed out or asked about has no owner to tell.
+// Declining it into no Session would be naming a Shot that, on the wire, does
+// not exist (CORE 8.3e) — so it is refused, loudly, and nothing is recorded.
+TEST_F(HostServiceClock, AShotWithNoKnownOwnerIsNotDeclinedIntoTheVoid)
+{
+    QTemporaryDir tmp;
+    ASSERT_TRUE(tmp.isValid());
+    m_svc.ledger().setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
+    const std::size_t before = m_svc.ledger().declinedCount();
+    m_svc.declineShot(QStringLiteral("shot:nobody-knows"), QStringLiteral("busy"));
+    EXPECT_EQ(m_svc.ledger().declinedCount(), before);
+}
+
+// With the phone connected, the decline is paid at once through its engine —
+// and in the Session the caller named, which after Stop is not the live one
+// (8.5j).  Owed drops to zero only once the engine has ACCEPTED the frame.
+TEST_F(HostServiceClock, ADeclineToAConnectedPhoneIsPaidAtOnce)
+{
+    QTemporaryDir tmp;
+    ASSERT_TRUE(tmp.isValid());
+    m_svc.ledger().setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
+
+    Phone p(&m_svc);
+    ASSERT_TRUE(p.ok());
+    ASSERT_TRUE(p.dial(m_svc.port(), 71));
+    for (int i = 0; i < 200 && m_svc.connectedCount() < 1; ++i) spin(10);
+    ASSERT_EQ(m_svc.connectedCount(), 1);
+    ASSERT_TRUE(m_svc.declareForTest(0, QStringLiteral("peer:here")));
+
+    m_svc.declineShot(QStringLiteral("shot:2"), QStringLiteral("not_requested"),
+                      QStringLiteral("peer:here"), QStringLiteral("sess:earlier"));
+    const Ppcp::PpcpImportLedger::DeclinedShot *d =
+        m_svc.ledger().declined("peer:here", "sess:earlier", "shot:2");
+    ASSERT_NE(d, nullptr) << "not recorded";
+    EXPECT_EQ(d->reason, "not_requested");
+    EXPECT_FALSE(d->owed) << "the phone is here: the engine should have taken it at once";
+    EXPECT_EQ(m_svc.ppcpStats().value(QStringLiteral("declinesOwed")).toInt(), 0);
+
+    // 8.5i — a repeat is owed again and paid again; the record is not duplicated.
+    m_svc.declineShot(QStringLiteral("shot:2"), QStringLiteral("discarded"),
+                      QStringLiteral("peer:here"), QStringLiteral("sess:earlier"));
+    EXPECT_EQ(m_svc.ledger().declinedCount(), 1u);
+    d = m_svc.ledger().declined("peer:here", "sess:earlier", "shot:2");
+    ASSERT_NE(d, nullptr);
+    EXPECT_EQ(d->reason, "not_requested") << "the first reason stands";
+    EXPECT_FALSE(d->owed);
 }
 
 }  // namespace

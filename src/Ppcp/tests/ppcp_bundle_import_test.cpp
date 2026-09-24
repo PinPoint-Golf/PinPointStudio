@@ -634,6 +634,101 @@ TEST(PpcpBundleImport, AClosedSessionDoesNotCancelWhatIsOwed)
     EXPECT_EQ(host.ledger.pendingCommits("peer:dev").size(), 1u);
 }
 
+// ── MSG 8.5 (CR-03, H19) — a declined Shot outranks the commit it would owe ──
+//
+// 8.5b: "A receiver that has declined a Shot [MUST NOT] send `capture_committed`
+// for any Capture anchored to it, afterwards or ever (I40).  This takes
+// precedence over 8.3c, 8.4a and 8.4e … A receiver that owed a commit for the
+// payload before it declined, and had not yet paid it, owes it no longer."
+// Both orders are asserted: the decline arriving after the import (E74 strikes
+// the owed commit) and the import arriving after the decline (nothing is queued,
+// nothing is written, and the decline is said again under 8.5i).
+
+TEST(PpcpBundleImport, ADeclineStrikesTheCommitAnImportOwed)
+{
+    QTemporaryDir tmp;
+    ASSERT_TRUE(tmp.isValid());
+    Bundle b;
+    writeSession(b, SessionSpec{});
+
+    Host host;
+    ASSERT_TRUE(host.import(b.bytes(), tmp.path().toStdString()).r.ok);
+
+    // The row carries the Capture's Shot — the round-2 review's first item.
+    const PpcpImportLedger::CaptureRecord *rec =
+        host.ledger.capture(CaptureKey{ "peer:dev", "sess:1", "cap:1" });
+    ASSERT_NE(rec, nullptr);
+    EXPECT_EQ(rec->shotId, "shot:1");
+    ASSERT_EQ(host.ledger.pendingCommits("peer:dev").size(), 1u);
+    EXPECT_EQ(host.ledger.pendingCommits("peer:dev")[0].shotId, "shot:1");
+
+    // Days later, re-analysis gives up on the swing.
+    EXPECT_EQ(host.ledger.declineShot("peer:dev", "sess:1", "shot:1", "discarded"), 1u);
+    EXPECT_TRUE(host.ledger.pendingCommits("peer:dev").empty())
+        << "E74 — the unpaid commit is struck, not paid after the decline";
+    EXPECT_TRUE(host.ledger.isCaptureDeclined(CaptureKey{ "peer:dev", "sess:1", "cap:1" }));
+    ASSERT_EQ(host.ledger.owedDeclines("peer:dev").size(), 1u);
+    EXPECT_EQ(host.ledger.owedDeclines("peer:dev")[0].sessionId, "sess:1")
+        << "§8.5 — owed in the Session the Shot belongs to, not whatever is live";
+
+    // A decline of one Shot releases nothing anchored to another (8.5a).
+    EXPECT_FALSE(host.ledger.isCaptureDeclined(CaptureKey{ "peer:dev", "sess:1", "cap:gone" }));
+}
+
+TEST(PpcpBundleImport, AnImportOfADeclinedShotQueuesNoCommitAndSaysTheDeclineAgain)
+{
+    QTemporaryDir tmp;
+    ASSERT_TRUE(tmp.isValid());
+    Bundle b;
+    writeSession(b, SessionSpec{});
+
+    Host host;
+    host.ledger.declineShot("peer:dev", "sess:1", "shot:1", "not_corroborated");
+    host.ledger.markDeclineSent("peer:dev", "sess:1", "shot:1");   // said, then forgotten (8.5f)
+    ASSERT_EQ(host.ledger.owedDeclineCount(), 0u);
+
+    const Host::Outcome o = host.import(b.bytes(), tmp.path().toStdString());
+    ASSERT_TRUE(o.r.ok) << o.r.error;
+    EXPECT_EQ(o.stats.commitsQueued, 0u) << "8.5b — no commit for a declined Shot's Capture";
+    EXPECT_TRUE(host.ledger.pendingCommits("peer:dev").empty());
+    EXPECT_EQ(o.stats.clipsWritten, 0u)
+        << "E83 — declining means not keeping; the payload is not written";
+    EXPECT_GE(o.stats.declinesRepeated, 1u);
+    ASSERT_EQ(host.ledger.owedDeclineCount(), 1u)
+        << "8.5i — met again in a bundle, so said again at the next connection";
+    EXPECT_EQ(host.ledger.owedDeclines("peer:dev")[0].reason, "not_corroborated");
+    // The Capture is still RECORDED (I34 identity) — a later re-import is a no-op.
+    EXPECT_TRUE(host.ledger.holds(CaptureKey{ "peer:dev", "sess:1", "cap:1" }));
+}
+
+TEST(PpcpImportLedgerPersistence, DeclinesAndShotAnchorsSurviveAReload)
+{
+    QTemporaryDir tmp;
+    ASSERT_TRUE(tmp.isValid());
+    const std::string file = QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString();
+    {
+        PpcpImportLedger l;
+        l.setPath(file);
+        ASSERT_TRUE(l.queueCommitted(CaptureKey{ "peer:a", "s1", "c1" }, "", "shot:keep"));
+        l.declineShot("peer:a", "s1", "shot:gone", "busy");
+        l.declineShot("peer:a", "s1", "shot:said", "review_mode");
+        l.markDeclineSent("peer:a", "s1", "shot:said");
+        ASSERT_TRUE(l.save());
+    }
+    PpcpImportLedger r;
+    ASSERT_TRUE(r.load(file));
+    ASSERT_EQ(r.pendingCommits("peer:a").size(), 1u);
+    EXPECT_EQ(r.pendingCommits("peer:a")[0].shotId, "shot:keep");
+    EXPECT_EQ(r.declinedCount(), 2u);
+    EXPECT_EQ(r.owedDeclineCount(), 1u) << "a decline already said is not owed after a restart";
+    const PpcpImportLedger::DeclinedShot *d = r.declined("peer:a", "s1", "shot:gone");
+    ASSERT_NE(d, nullptr);
+    EXPECT_EQ(d->reason, "busy");
+    EXPECT_TRUE(d->owed);
+    // ⛔ "afterwards or ever" — a restart does not make a declined Shot committable.
+    EXPECT_FALSE(r.queueCommitted(CaptureKey{ "peer:a", "s1", "c2" }, "", "shot:said"));
+}
+
 // ── ENC 7d / I10 — completeness is asserted, and never inferred upward ────
 TEST(PpcpBundleImport, CompletenessHasThreeStatesAndTruncationNeverOverrulesAnAssertion)
 {

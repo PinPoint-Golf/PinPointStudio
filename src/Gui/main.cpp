@@ -937,6 +937,23 @@ int main(int argc, char *argv[])
     QObject::connect(&ppcpHost, &PpcpHostService::captureAsked,
                      &ppcpClipFiler, &PpcpClipFiler::onCaptureAsked);
 
+    // ⭐ MSG 8.5 (CR-03) — and the other answer: this host will NOT keep a Shot.
+    // Every refusal that used to be silent on the wire — the corroboration rule,
+    // a busy / review / stopped drop, a swing abandoned after analysis, a clip
+    // nobody asked for — now tells the phone, which releases the clip under
+    // 5.14g exit 5 instead of holding it for the life of the link.  The service
+    // owes it durably when the link is gone (8.5i).  Beside `captureRequested`
+    // on purpose: the two are the two answers to "what happened to that Shot".
+    QObject::connect(&shotController, &ShotController::shotDeclined,
+                     &ppcpHost, [](const QString &shotId, const QString &reason) {
+        ppcpHost.declineShot(shotId, reason);
+    });
+    QObject::connect(&ppcpClipFiler, &PpcpClipFiler::shotDeclined,
+                     &ppcpHost, [](const QString &shotId, const QString &peerId,
+                                   const QString &sessionId, const QString &reason) {
+        ppcpHost.declineShot(shotId, reason, peerId, sessionId);
+    });
+
     // The swing folder exists (or never will) → file, or discard, what is owed.
     QObject::connect(&shotProcessor, &ShotProcessor::shotProcessed,
                      &ppcpClipFiler, [](int, const QString &swingDir) {

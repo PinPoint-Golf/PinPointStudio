@@ -116,6 +116,22 @@ public:
         // else.
         double maxConversionSigmaNs = 5.0e6;
 
+        // ── MSG 8.5 / 8.5c — how long a device Shot may wait to be adopted ──
+        //
+        // A device-minted Shot this host did not adopt is DECLINED
+        // (`not_corroborated`), but not on arrival: its Candidate is retained,
+        // and reconsider() — on this host's own detector firing, or a relation
+        // arriving — can still admit it, at which point the Shot is re-offered
+        // and adopted under 8.2k.  Declining first and adopting after would put
+        // a `shot_disposition` on the wire for a swing this host then records
+        // (CR-03 round-1 PinPointStudio review, R-5).  So the verdict waits this
+        // long, measured from the first pump() after the Shot arrived.
+        //
+        // 0 derives it from the Session: `issue_hold_ns + heartbeat_interval`,
+        // the same span 8.2i gives the device before it may mint.  A detector
+        // of ours that has not fired within that span of the device's mint —
+        // itself that span after the strike — is not going to.
+        std::int64_t declineHoldNs = 0;
     };
 
     // ── 8.2d as a CORROBORATION policy ─────────────────────────────────────
@@ -157,6 +173,13 @@ public:
     // libppcp, which is I7 by surface as well as by behaviour.
     using ShotFn = std::function<void(const ppcp_shot &)>;
 
+    // MSG 8.5 — this bridge decided not to keep a Shot (a device Shot it never
+    // adopted).  The embedding owns the durable half — the owed-decline queue
+    // that survives a dropped link (8.5i) — so the statement is handed out
+    // rather than sent from here.  Unset, the bridge sends it on its own peer
+    // with ppcp_peer_shot_disposition(), which is what a test wants.
+    using DeclineFn = std::function<void(const std::string &shotId, const char *reason)>;
+
     // MSG 7.3 — a device asked this host for an interval it never nominated.
     // Not an error path: 8.4b makes the answer a Capture, possibly `absent`.
     using CaptureRequestFn = std::function<void(const ppcp_body_capture_request &,
@@ -188,6 +211,24 @@ public:
     // Null disables the corroboration policy; conversion-uncertainty exclusion
     // (the original 8.2d third case) is unaffected either way.
     void setCorroborationCallback(CorroborationFn f) { m_onCorroborate = std::move(f); }
+    void setDeclineCallback(DeclineFn f) { m_onDecline = std::move(f); }
+
+    // ── MSG 8.5 — the device Shots still waiting for a verdict ─────────────
+    //
+    // True while `shotId` is a device-minted Shot this host has neither adopted
+    // nor declined yet.  Anything else that would decline it — a clip for it
+    // arriving at the filer as `not_requested` — asks this first and leaves the
+    // verdict here, because only the bridge knows whether reconsider() is
+    // about to adopt it.
+    bool isAwaitingVerdict(const std::string &shotId) const;
+    // Whether this bridge declined `shotId` (8.5c: nothing un-declines it).
+    bool hasDeclined(const std::string &shotId) const;
+    // The link is going: no Candidate can arrive to adopt what is still
+    // waiting, so the verdict is reached now.  Returns the ids, and the caller
+    // records each as an OWED `not_corroborated` decline (8.5i: "at its next
+    // connection with the owning peer where it declined while not connected").
+    // Nothing is sent from here — the peer may already be unreachable.
+    std::vector<std::string> abandonAwaiting();
 
     // ── Nomination (CORE 5.12, 8.1) ────────────────────────────────────────
     //
@@ -275,7 +316,19 @@ public:
         std::size_t excluded        = 0;   // 8.2d — a conclusion, not a discard
         std::size_t issued          = 0;
         std::size_t late            = 0;   // 8.2h — this host is running slow
-        std::size_t adopted         = 0;   // 8.2k / 5.13d
+        // ⚠ ADOPTED MEANS ADOPTED.  This counted every PPCP_OK from
+        // ppcp_arbiter_observe_shot(), which answers OK whether or not it took
+        // the Shot — so a device Shot this host ignored read as one it had
+        // attached to (CR-03 round-1 review).  Now: 8.2k only, including a
+        // Shot re-offered after reconsider() and adopted then.
+        std::size_t adopted         = 0;   // 8.2k — the device's Shot is the one
+        std::size_t extended        = 0;   // 5.13d — our own Shot, extended
+        std::size_t linkedShots     = 0;   // 8.2l — both issued; `shot_link` sent
+        // A device Shot matching no group of ours when it arrived: held for the
+        // reconsider window, then adopted or declined.
+        std::size_t notAdopted      = 0;
+        // MSG 8.5 — declined `not_corroborated` once the window closed.
+        std::size_t declined        = 0;
         std::size_t captureRequests = 0;
         std::size_t shotLinks       = 0;
         std::size_t nominationsRefused = 0;  // I26 — a Source we do not own
@@ -318,6 +371,17 @@ private:
     const ppcp_source *ownSource(const std::string &sourceId) const;
     void collectIssued();
 
+    // What observe_shot() made of a Shot, read back off the arbiter — libppcp
+    // answers PPCP_OK for all four and says nothing else.
+    enum class ShotFate { Adopted, Extended, Linked, Unmatched };
+    ShotFate offerShot(const ppcp_shot &s);
+    bool isForeignDeviceShot(const ppcp_shot &s) const;
+    // Re-offers every Shot awaiting a verdict — after reconsider(), and on
+    // every pump() — and declines the ones whose window has closed.
+    void settleAwaiting(std::int64_t nowRefNs, bool haveNow);
+    std::int64_t declineHoldNs() const;
+    void decline(const std::string &shotId, const char *reason);
+
     ppcp_peer                   *m_peer = nullptr;
     const PpcpSourceDeclaration *m_declaration = nullptr;
     const PpcpLiveSession       *m_session = nullptr;
@@ -326,6 +390,7 @@ private:
     ShotFn                       m_onShot;
     CaptureRequestFn             m_onCaptureRequest;
     CorroborationFn              m_onCorroborate;
+    DeclineFn                    m_onDecline;
 
     // Set for the duration of one ppcp_arbiter_observe() call on a foreign
     // Candidate, so the policy trampoline — which libppcp calls back into with
@@ -341,6 +406,25 @@ private:
     // Shot ids already handed to the embedding, so a Shot is reported once even
     // though its group stays in the arbiter for later attachment (8.2e).
     std::vector<std::string>     m_reported;
+
+    // ── MSG 8.5 / 8.5c — device Shots awaiting a verdict ───────────────────
+    //
+    // The whole Shot is kept, because re-offering it to the arbiter is how it
+    // gets adopted once reconsider() has admitted its Candidate.  `deadlineNs`
+    // is -1 until the first pump() after arrival stamps it: observe() has no
+    // clock of its own, and the window is a span of host time, not of `t0`.
+    struct Awaiting {
+        ppcp_shot    shot{};
+        std::int64_t deadlineNs = -1;
+    };
+    std::vector<Awaiting>        m_awaiting;
+    // Bounded like the arbiter's own group table: sixteen swings awaiting a
+    // verdict at once is sixteen swings inside two seconds.
+    static constexpr std::size_t kMaxAwaiting = PPCP_ARBITER_MAX_GROUPS;
+    // Shots this bridge declined.  8.5c: a later Candidate attaching to one
+    // does not revoke it, so a declined Shot is never re-offered or reported.
+    std::vector<std::string>     m_declinedHere;
+    static constexpr std::size_t kMaxDeclinedHere = 64;
 };
 
 }  // namespace Ppcp

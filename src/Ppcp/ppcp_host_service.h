@@ -54,6 +54,8 @@
 // thread, and this is the embedding.
 
 #include <atomic>
+#include <deque>
+#include <utility>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -568,6 +570,31 @@ public:
     // used all season depends on it.
     void flushOwedCommitsNow();
 
+    // ── MSG 8.5 (CR-03) — this host will not keep a Shot, and says so ───────
+    //
+    // ⭐ THE ONE ENTRY POINT FOR EVERY DECISION POINT OUTSIDE THE BRIDGE.
+    // `ShotController` (a corroboration refusal, a busy / review / stopped drop)
+    // and `PpcpClipFiler` (a swing abandoned after analysis, a clip for a Shot
+    // nobody asked for) emit a signal; main.cpp wires both here, beside
+    // `shotRefused` and `captureRequested`.  The bridge's own verdict on a
+    // device Shot it never adopted arrives by callback and takes the same road.
+    //
+    // `peerId` names the phone that owns the Capture where the caller knows it
+    // (the filer does); empty means "whichever phone this Shot belongs to",
+    // resolved from the Shots this service has handed out or asked about.
+    // `sessionId` is the Shot's Session where known; empty means the one it was
+    // asked in, else the phone's live one.
+    //
+    // ⚠ RECORDED DURABLY FIRST, SENT SECOND.  The decline goes into the ledger —
+    // which strikes any unpaid commit for the Shot in the same write (E74) —
+    // and is paid now if the phone is connected, else on its next connection
+    // (8.5i).  `onSwingFailed` decides 15-40 s after the shot and the link is
+    // routinely gone by then; a decline sent only if the link happened to be up
+    // would be the #105 symptom with extra steps.
+    void declineShot(const QString &shotId, const QString &reason,
+                     const QString &peerId = QString(),
+                     const QString &sessionId = QString());
+
     // ── The one ledger, borrowed rather than copied ────────────────────────
     //
     // ⛔ THERE MUST BE EXACTLY ONE IN-MEMORY LEDGER OVER THE FILE.  This class
@@ -842,6 +869,12 @@ private:
         // spin the event loop, and a nested pump on the same peer would feed
         // the engine from a buffer the outer call still holds.
         bool pumping = false;
+
+        // MSG 8.5i — capture id -> the Shot it is anchored to, from this
+        // link's live `capture_announce`s, so a `payload_begin` (which names
+        // only the Capture) for a declined Shot can be answered with the
+        // decline again.  Bounded; forgetting costs one more round trip.
+        std::deque<std::pair<std::string, std::string>> captureShots;
     };
 
 
@@ -983,6 +1016,36 @@ private:
     // 5.14h — every `capture_committed` this host owes, sent to whichever phone
     // is the OWNER, once it is here to receive it.  Called from the tick.
     void flushOwedCommits(Phone *ph);
+    // MSG 8.5i — every owed `shot_disposition`, to the phone that owns the
+    // Shot, now it is here.  Before the commits on every tick, though a decline
+    // has already struck any commit it contradicts.
+    void flushOwedDeclines(Phone *ph);
+    // The Session a phone's engine currently has open, or empty.
+    static std::string liveSessionIdOf(const Phone *ph);
+    // Records one decline in the ledger (durable, strikes owed commits) and
+    // pays it at once where the phone is here.  `ph` may be null.
+    void recordDecline(Phone *ph, const std::string &peerId, const std::string &sessionId,
+                       const std::string &shotId, const std::string &reason);
+    // 8.5i on the live link: a Capture of a Shot we declined was announced or
+    // begun.  Says the decline again.
+    void observeForDeclines(Phone *ph, const ppcp_event &ev);
+
+    // ── Where each PPCP Shot lives, for MSG 8.5's envelope ─────────────────
+    //
+    // `Shot.id` is unique only within its Session (CORE 8.3e), and a decline
+    // decided after Stop must still name the Session the Shot belonged to
+    // (§8.5 preamble, 8.5j).  So when a Shot is handed to the pipeline, or a
+    // phone is asked for its footage, this remembers WHICH phone and WHICH
+    // Session.  Bounded: a Shot older than this many is past any decision the
+    // pipeline still has to make about it.
+    struct ShotHome {
+        QString     shotId;
+        QString     peerId;
+        std::string sessionId;
+    };
+    std::deque<ShotHome> m_shotHomes;
+    static constexpr std::size_t kMaxShotHomes = 64;
+    void noteShotHome(const QString &shotId, const Phone *ph);
 
     // ── ENC 2.1d — the third channel, and the thread it has to cross ────────
     //

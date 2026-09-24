@@ -195,6 +195,18 @@ void PpcpImportSink::onCapture(const ppcp_msg *m)
     }
 
     m_captureStream[key.captureId] = idStr(c.stream_id);
+    // I27 — exactly one anchor; only a Shot anchor can be declined.
+    const std::string shotId =
+        c.anchor.kind == PPCP_ANCHOR_SHOT ? idStr(c.anchor.id) : std::string();
+    if (!shotId.empty()) m_captureShot[key.captureId] = shotId;
+
+    // ⚠ 8.5i — BEFORE THE I34 NO-OP BELOW, because a re-import of a Session
+    // already held is precisely where a decline lost with a dropped link, or
+    // forgotten by the owner under 8.5f, is met again: "it says so again
+    // whenever it meets a Capture of that Shot … in a `capture_announce`, live or
+    // in a replay".  Marked owed here and paid by whoever has the owner's link.
+    if (!shotId.empty() && m_ledger.requeueDecline(key.peerId, key.sessionId, shotId))
+        ++m_stats.declinesRepeated;
 
     // I34 — the decision, made by the library's index and not by this file.
     ppcp_capture_key lk{};
@@ -213,11 +225,22 @@ void PpcpImportSink::onCapture(const ppcp_msg *m)
     rec.key = key;
     rec.digestHex = hex(c.digest);      // empty for `absent`, and for `pending`
     rec.completeness = completenessOf(c.completeness);
+    rec.shotId = shotId;                // CR-03: so a decline can find its commit
     switch (m_ledger.admit(rec)) {
     case PpcpImportLedger::Admission::Recorded:       ++m_stats.capturesNew; break;
     case PpcpImportLedger::Admission::AlreadyHeld:    ++m_stats.capturesAlreadyHeld; break;
     case PpcpImportLedger::Admission::DigestConflict: ++m_stats.digestConflicts; break;
     }
+}
+
+bool PpcpImportSink::declinedAgain(const std::string &captureId)
+{
+    auto it = m_captureShot.find(captureId);
+    if (it == m_captureShot.end()) return false;
+    if (!m_ledger.requeueDecline(m_stats.ownerPeerId, m_stats.sessionId, it->second))
+        return false;
+    ++m_stats.declinesRepeated;
+    return true;
 }
 
 void PpcpImportSink::onPayloadBegin(const ppcp_msg *m)
@@ -226,6 +249,12 @@ void PpcpImportSink::onPayloadBegin(const ppcp_msg *m)
         std::fclose(static_cast<std::FILE *>(m_open.file));
         m_open = OpenPayload{};
     }
+    // ⛔ 8.5i / 8.5b — A PAYLOAD FOR A SHOT THIS HOST DECLINED IS NOT WRITTEN.
+    // "Declining means not keeping: a receiver that means to keep the payload
+    // commits it (8.4a) rather than declining" (E83).  The decline is marked
+    // owed again instead, so the owner hears it on this link or the next and
+    // stops offering the bytes (8.5k).
+    if (declinedAgain(idStr(m->body.payload_begin.capture_id))) return;
     if (!m_cfg.writeClips) return;
     if (sessionDir().empty()) return;
 
@@ -277,8 +306,19 @@ void PpcpImportSink::onPayloadEnd(const ppcp_msg *m)
     // on the offline path, and 5.14h1 says a closed Session is no reason to
     // withhold it: without this the owning device can never evict the clip and
     // its storage fills across a season.
-    m_ledger.queueCommitted(key, hex(m->body.payload_end.digest));
-    ++m_stats.commitsQueued;
+    //
+    // ⛔ 8.5b / E74 — UNLESS THIS HOST HAS DECLINED THE SHOT, which outranks
+    // 8.4e.  queueCommitted() refuses it; the decline is said again instead
+    // (8.5i), since a Capture of it has just been met.
+    const auto shot = m_captureShot.find(capId);
+    const std::string shotId = shot != m_captureShot.end() ? shot->second : std::string();
+    if (m_ledger.queueCommitted(key, hex(m->body.payload_end.digest), shotId)) {
+        ++m_stats.commitsQueued;
+    } else {
+        ++m_stats.commitsWithheld;
+        if (m_ledger.requeueDecline(key.peerId, key.sessionId, shotId))
+            ++m_stats.declinesRepeated;
+    }
 
     m_open = OpenPayload{};
 }

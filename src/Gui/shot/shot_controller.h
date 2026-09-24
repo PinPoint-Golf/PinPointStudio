@@ -250,6 +250,18 @@ signals:
     // clip is eventually filed against is settled later, by correlation.
     void captureRequested(const QString &shotId, qint64 t0HostNs);
 
+    // ⭐ MSG 8.5 (CR-03) — this host decided not to keep a PPCP Shot, and the
+    // phone must be TOLD, or it holds the clip for the life of the link and
+    // counts it as still to send.  `reason` is 8.5's registry value —
+    // `not_corroborated`, `busy`, `review_mode` or `session_ended` from here —
+    // and is what the owner may show a person.
+    //
+    // ⚠ A SIGNAL AND NOT A CALL, for the reason `captureRequested` is one: the
+    // statement is owed to a particular phone, possibly after its link has
+    // dropped (8.5i), and only PpcpHostService knows which phone and keeps the
+    // durable queue.  main.cpp wires it beside `shotRefused`.
+    void shotDeclined(const QString &shotId, const QString &reason);
+
 private:
     // The single commit path — writes the marker and emits shotDetected.
     // Re-checks armed() (the processor may have gone busy mid-hold).
@@ -257,7 +269,18 @@ private:
     // Answers whether the shot was actually committed.  A dropped shot has no
     // swing to file anything against, so the capture request must not go out
     // for one — and the old `void` gave the caller no way to tell.
-    bool commitShot(Source source, qint64 timestampUs);
+    //
+    // `shotId` is the PPCP Shot being committed, where there is one, so a Shot
+    // dropped here can be declined with the cause that dropped it (8.5).
+    bool commitShot(Source source, qint64 timestampUs, const QString &shotId = QString());
+
+    // ⚠ armed() IS THREE CONDITIONS, AND MSG 8.5 NEEDS TO KNOW WHICH.  The
+    // reason a declined Shot carries is shown to a person at the phone, and
+    // "still processing the last one", "reviewing a saved session" and
+    // "stopped recording" are three different things to be told.  Null while
+    // armed.  Review is tested first: entering review also stops capture, and
+    // the golfer did the former.
+    const char *disarmReason() const;
     void onArbHoldExpired();
     void writeShotMarker(Source source, int64_t impactUs, int sessionType);
 

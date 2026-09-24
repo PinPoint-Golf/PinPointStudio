@@ -134,14 +134,21 @@ bool PpcpShotBridge::start(const Config &cfg, IdFn idFn, std::string *err)
     (void)ppcp_arbiter_set_policy(a, &PpcpShotBridge::policyTrampoline, this);
     m_arbiter = a;
     m_reported.clear();
+    m_awaiting.clear();
+    m_declinedHere.clear();
     return true;
 }
 
 void PpcpShotBridge::stop()
 {
+    // ⚠ WHAT IS STILL AWAITING A VERDICT IS DROPPED HERE, NOT DECLINED.  The
+    // embedding that wants it declined calls abandonAwaiting() first, while it
+    // still knows which owner and Session to owe the statement to; stop() is
+    // also reached from start() and detach(), where there is nobody to tell.
     m_arbiter = nullptr;
     m_storage.clear();
     m_reported.clear();
+    m_awaiting.clear();
 }
 
 const ppcp_source *PpcpShotBridge::ownSource(const std::string &sourceId) const
@@ -262,21 +269,60 @@ void PpcpShotBridge::observe(const ppcp_event &ev)
         m_judgingForeign = false;
         break;
     }
-    case PPCP_EVENT_SHOT:
+    case PPCP_EVENT_SHOT: {
         // 8.2k — a DEVICE-minted Shot referencing a Candidate this host still
         // holds is NOT competed with: the host attaches its own Candidates to
         // it and issues nothing of its own (I35).  8.2l — where both issued,
         // neither is withdrawn and the host emits `shot_link` with `basis:
         // shared_candidate`.  Both are libppcp's, and both are why this arm
         // hands the Shot straight over rather than deciding anything.
-        if (ppcp_arbiter_observe_shot(m_arbiter, &ev.msg->body.shot.shot) == PPCP_OK)
-            ++m_stats.adopted;
+        //
+        // ⚠ WHAT IT DOES DECIDE, SINCE CR-03, IS WHETHER ANYTHING CAME OF IT.
+        // A device Shot that shares no Candidate with any group here — the
+        // common case is 8.2i minting after our corroboration policy excluded
+        // its Candidate — is one this host is not going to record.  Until MSG
+        // 8.5 there was nothing to say, and the phone held the clip for the
+        // life of the link.  It is held here for the reconsider window and
+        // then DECLINED `not_corroborated` (settleAwaiting()).
+        const ppcp_shot &shot = ev.msg->body.shot.shot;
+        const std::string id = idStr(shot.id);
+        // 8.5c — a Shot already declined stays declined; a re-sent `shot`
+        // extending it is attachment, and "attaching a Candidate does not
+        // revoke a decline".
+        if (hasDeclined(id)) break;
+        const ShotFate fate = offerShot(shot);
+        if (fate == ShotFate::Unmatched && isForeignDeviceShot(shot)) {
+            const bool known = std::any_of(m_awaiting.begin(), m_awaiting.end(),
+                                           [&id](const Awaiting &a) {
+                                               return idStr(a.shot.id) == id;
+                                           });
+            if (known) {
+                // The device re-sent it extended (5.13d); keep the newer list
+                // so the re-offer sees every Candidate it now names.
+                for (Awaiting &a : m_awaiting)
+                    if (idStr(a.shot.id) == id) a.shot = shot;
+            } else {
+                ++m_stats.notAdopted;
+                if (m_awaiting.size() >= kMaxAwaiting) {
+                    // ⚠ Full: the OLDEST gets its verdict now rather than being
+                    // dropped silently.  It has waited longest, and silence was
+                    // the whole defect MSG 8.5 exists to end.
+                    const std::string oldest = idStr(m_awaiting.front().shot.id);
+                    m_awaiting.erase(m_awaiting.begin());
+                    decline(oldest, "not_corroborated");
+                }
+                m_awaiting.push_back(Awaiting{ shot, -1 });
+            }
+        }
         break;
+    }
     // 8.2d1 (erratum E29) — a relation arrived, so what was retained for want
     // of one is reconsidered.  The engine has already folded the update into
     // ppcp_peer_relations() by the time this event is raised.
     case PPCP_EVENT_RELATION_UPDATE:
         m_stats.reconsidered += ppcp_arbiter_reconsider(m_arbiter);
+        // …and a device Shot waiting on that Candidate may now be adoptable.
+        settleAwaiting(0, /*haveNow=*/false);
         break;
     case PPCP_EVENT_CAPTURE_REQUEST:
         // 8.4b — answered with a Capture, possibly `absent` with
@@ -297,6 +343,11 @@ std::size_t PpcpShotBridge::reconsider()
     if (!m_arbiter) return 0;
     const std::size_t n = ppcp_arbiter_reconsider(m_arbiter);
     m_stats.reconsidered += n;
+    // ⭐ 8.2k, LATE — THE REASON A DEVICE SHOT IS HELD RATHER THAN DECLINED ON
+    // ARRIVAL.  A re-admitted Candidate forms (or joins) a group; a device Shot
+    // naming it, re-offered now, finds that group unissued and is ADOPTED — the
+    // device's Shot is the one that exists, and this host records it.
+    if (n) settleAwaiting(0, /*haveNow=*/false);
     // A re-admitted Candidate may complete a group that is already past its
     // issue hold, so the Shot it now belongs to can be reported on this call
     // rather than waiting for the next pump.
@@ -315,21 +366,163 @@ std::size_t PpcpShotBridge::pump(std::int64_t nowRefNs)
     // one event with no defect on either side.  Counted, because it is how a
     // host finds out it is running slow rather than finding out from a user.
     m_stats.late = ppcp_arbiter_late_count(m_arbiter);
+    // After issuing, so a group of ours issued on this very pump near a
+    // waiting device Shot is seen as the 8.2l crossing it is, and linked.
+    settleAwaiting(nowRefNs, /*haveNow=*/true);
     collectIssued();
     return issued;
+}
+
+// ── MSG 8.5 — device Shots, and the verdict on the ones we never adopted ────
+
+bool PpcpShotBridge::isForeignDeviceShot(const ppcp_shot &s) const
+{
+    // Only a DEVICE's own mint is this host's to decline here.  A Shot this
+    // host issued comes back only as a 5.13d extension, and is adopted.
+    if (s.authority != PPCP_AUTHORITY_DEVICE) return false;
+    const ppcp_id *self = m_peer ? ppcp_peer_id(m_peer) : nullptr;
+    return !(self && idStr(*self) == idStr(s.issued_by));
+}
+
+PpcpShotBridge::ShotFate PpcpShotBridge::offerShot(const ppcp_shot &s)
+{
+    // ⚠ libppcp ANSWERS PPCP_OK WHETHER OR NOT IT TOOK THE SHOT, and exposes
+    // nothing else, so the fate is read back off the arbiter's groups — without
+    // changing libppcp, which is its own team's (PPCP spec precedes
+    // implementation).  The three outcomes are exactly observe_shot()'s three
+    // arms: an issued group carrying THIS id (5.13d, or 8.2k just now), an
+    // issued group of OURS sharing a Candidate with it (8.2l), or neither.
+    const std::string id = idStr(s.id);
+    const auto groupWithId = [this, &id]() {
+        for (std::size_t i = 0; i < PPCP_ARBITER_MAX_GROUPS; ++i) {
+            const ppcp_shot *g = ppcp_arbiter_shot_at(m_arbiter, i);
+            if (g && idStr(g->id) == id) return true;
+        }
+        return false;
+    };
+    const bool hadIt = groupWithId();
+    if (ppcp_arbiter_observe_shot(m_arbiter, &s) != PPCP_OK) return ShotFate::Unmatched;
+    if (groupWithId()) {
+        if (hadIt) { ++m_stats.extended; return ShotFate::Extended; }
+        ++m_stats.adopted;
+        return ShotFate::Adopted;
+    }
+    for (std::size_t i = 0; i < PPCP_ARBITER_MAX_GROUPS; ++i) {
+        const ppcp_shot *g = ppcp_arbiter_shot_at(m_arbiter, i);
+        if (!g) continue;
+        for (std::size_t j = 0; j < g->candidate_count; ++j)
+            for (std::size_t k = 0; k < s.candidate_count; ++k)
+                if (ppcp_id_equal(&g->candidates[j], &s.candidates[k])) {
+                    ++m_stats.linkedShots;
+                    return ShotFate::Linked;
+                }
+    }
+    return ShotFate::Unmatched;
+}
+
+std::int64_t PpcpShotBridge::declineHoldNs() const
+{
+    if (m_cfg.declineHoldNs > 0) return m_cfg.declineHoldNs;
+    if (m_session)
+        return m_session->config().issueHoldNs
+               + static_cast<std::int64_t>(m_session->config().heartbeatIntervalMs) * 1000000;
+    return PPCP_DEFAULT_ISSUE_HOLD_NS
+           + static_cast<std::int64_t>(PPCP_DEFAULT_HEARTBEAT_MS) * 1000000;
+}
+
+void PpcpShotBridge::settleAwaiting(std::int64_t nowRefNs, bool haveNow)
+{
+    if (!m_arbiter || m_awaiting.empty()) return;
+    for (auto it = m_awaiting.begin(); it != m_awaiting.end();) {
+        // Re-offered every time: a Shot that shares no group is a no-op in the
+        // arbiter, and one that now does is adopted (8.2k) or linked (8.2l).
+        const ShotFate fate = offerShot(it->shot);
+        if (fate != ShotFate::Unmatched) {
+            // 8.2l — linked, not declined: this host issued its own Shot for
+            // the same swing and keeps THAT one.  A clip anchored to the
+            // device's Shot reaches the filer as one nobody asked for, and is
+            // declined there, `not_requested` — which 8.5a's "a decline of one
+            // releases nothing anchored to the other" makes exactly right.
+            it = m_awaiting.erase(it);
+            continue;
+        }
+        if (!haveNow) { ++it; continue; }
+        if (it->deadlineNs < 0) {
+            it->deadlineNs = nowRefNs + declineHoldNs();
+            ++it;
+            continue;
+        }
+        if (nowRefNs < it->deadlineNs) { ++it; continue; }
+        // ⭐ THE WINDOW HAS CLOSED AND NOTHING HERE AGREED.  Said once, with the
+        // reason a person can be shown (8.5's table): "No detector at the
+        // receiver agreed that the Shot happened".
+        const std::string id = idStr(it->shot.id);
+        it = m_awaiting.erase(it);
+        decline(id, "not_corroborated");
+    }
+}
+
+void PpcpShotBridge::decline(const std::string &shotId, const char *reason)
+{
+    if (shotId.empty() || hasDeclined(shotId)) return;
+    m_declinedHere.push_back(shotId);
+    if (m_declinedHere.size() > kMaxDeclinedHere) m_declinedHere.erase(m_declinedHere.begin());
+    ++m_stats.declined;
+    if (m_onDecline) {
+        m_onDecline(shotId, reason);
+        return;
+    }
+    // No embedding to owe it through: said directly, which is best effort and
+    // is what a bridge under test without a host service wants.
+    if (m_peer)
+        (void)ppcp_peer_shot_disposition(m_peer, shotId.c_str(), PPCP_DISPOSITION_DECLINED,
+                                         reason);
+}
+
+bool PpcpShotBridge::isAwaitingVerdict(const std::string &shotId) const
+{
+    return std::any_of(m_awaiting.begin(), m_awaiting.end(),
+                       [&shotId](const Awaiting &a) { return idStr(a.shot.id) == shotId; });
+}
+
+bool PpcpShotBridge::hasDeclined(const std::string &shotId) const
+{
+    return std::find(m_declinedHere.begin(), m_declinedHere.end(), shotId)
+           != m_declinedHere.end();
+}
+
+std::vector<std::string> PpcpShotBridge::abandonAwaiting()
+{
+    std::vector<std::string> ids;
+    for (const Awaiting &a : m_awaiting) {
+        const std::string id = idStr(a.shot.id);
+        ids.push_back(id);
+        m_declinedHere.push_back(id);
+        ++m_stats.declined;
+    }
+    while (m_declinedHere.size() > kMaxDeclinedHere) m_declinedHere.erase(m_declinedHere.begin());
+    m_awaiting.clear();
+    return ids;
 }
 
 void PpcpShotBridge::collectIssued()
 {
     if (!m_arbiter || !m_onShot) return;
-    const std::size_t n = ppcp_arbiter_group_count(m_arbiter);
-    for (std::size_t i = 0; i < n; ++i) {
+    // Every SLOT, not group_count() of them.  ppcp_arbiter_shot_at() takes a
+    // slot index (0..PPCP_ARBITER_MAX_GROUPS-1) and answers NULL for a free
+    // one, while group_count() counts slots in use.  libppcp never frees a
+    // group today, so the in-use slots are a prefix and the two bounds agree;
+    // walking every slot stops that being an assumption this loop depends on.
+    // offerShot() reads the arbiter back the same way.
+    for (std::size_t i = 0; i < PPCP_ARBITER_MAX_GROUPS; ++i) {
         const ppcp_shot *s = ppcp_arbiter_shot_at(m_arbiter, i);
         if (!s) continue;
         const std::string id = idStr(s->id);
         if (id.empty()) continue;
         if (std::find(m_reported.begin(), m_reported.end(), id) != m_reported.end()) continue;
         m_reported.push_back(id);
+        // 8.5c — a Shot this bridge declined is never handed on to be recorded.
+        if (hasDeclined(id)) continue;
         m_onShot(*s);
     }
 }

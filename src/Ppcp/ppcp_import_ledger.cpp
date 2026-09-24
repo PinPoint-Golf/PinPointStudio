@@ -25,6 +25,10 @@
 #include <QSaveFile>
 #include <QString>
 
+#include <ppcp/envelope.h>
+#include <ppcp/message.h>
+#include <ppcp/peer.h>
+
 namespace Ppcp {
 namespace {
 
@@ -181,6 +185,9 @@ PpcpImportLedger::Admission PpcpImportLedger::admit(const CaptureRecord &rec)
         // a field that was absent is not a merge and not an upgrade: it is the
         // content check becoming possible.
         if (held.digestHex.empty() && !rec.digestHex.empty()) held.digestHex = rec.digestHex;
+        // The Shot anchor, on the same terms: a note filled in where it was
+        // missing (every row written before CR-03), never rewritten.
+        if (held.shotId.empty() && !rec.shotId.empty()) held.shotId = rec.shotId;
 
         // Completeness is the OWNER's assertion and is not re-derived from what
         // arrived (I10). It is taken only when it downgrades, for the same
@@ -222,15 +229,30 @@ bool PpcpImportLedger::setSwingRef(const CaptureKey &k, const SwingRef &ref)
     return false;
 }
 
-void PpcpImportLedger::queueCommitted(const CaptureKey &k, const std::string &digestHex)
+bool PpcpImportLedger::queueCommitted(const CaptureKey &k, const std::string &digestHex,
+                                      const std::string &shotId)
 {
+    // The anchor the caller knows, else the one admit() recorded.  A live clip
+    // and a bundle both pass it; the fallback is for a caller that predates it.
+    std::string anchor = shotId;
+    if (anchor.empty())
+        if (const CaptureRecord *r = capture(k)) anchor = r->shotId;
+
+    // ⛔ 8.5b / I40 — BEFORE ANYTHING IS QUEUED.  A receiver that declined the
+    // Shot never commits a Capture of it, "whatever it holds": the payload may
+    // have crossed the decline on the wire, or arrived in a bundle after it.
+    // This is the check the CR-03 round-2 review asked for in so many words —
+    // `queueCommitted` was unconditional.
+    if (!anchor.empty() && isDeclined(k.peerId, k.sessionId, anchor)) return false;
+
     // MSG 8.4a — the receiver says this only when it holds the payload DURABLY,
     // "written and flushed, not merely received". Whether that is true is the
     // caller's to know; the ledger's job is that the message is not forgotten
     // between now and the owner's next connection.
     for (const PendingCommit &p : m_pending)
-        if (p.key == k) return;   // owed once, not once per import
-    m_pending.push_back(PendingCommit{ k, digestHex });
+        if (p.key == k) return true;   // owed once, not once per import
+    m_pending.push_back(PendingCommit{ k, digestHex, anchor });
+    return true;
 }
 
 std::vector<PpcpImportLedger::PendingCommit> PpcpImportLedger::pendingCommits(
@@ -258,6 +280,158 @@ void PpcpImportLedger::clearCommitted(const CaptureKey &k)
             return;
         }
     }
+}
+
+// ── MSG 8.5 — the Shots this host declined ──────────────────────────────────
+
+PpcpImportLedger::DeclinedShot *PpcpImportLedger::findDeclined(const std::string &peerId,
+                                                               const std::string &sessionId,
+                                                               const std::string &shotId)
+{
+    for (DeclinedShot &d : m_declined)
+        if (d.peerId == peerId && d.sessionId == sessionId && d.shotId == shotId) return &d;
+    return nullptr;
+}
+
+const PpcpImportLedger::DeclinedShot *PpcpImportLedger::declined(
+    const std::string &peerId, const std::string &sessionId, const std::string &shotId) const
+{
+    return const_cast<PpcpImportLedger *>(this)->findDeclined(peerId, sessionId, shotId);
+}
+
+bool PpcpImportLedger::isDeclined(const std::string &peerId, const std::string &sessionId,
+                                  const std::string &shotId) const
+{
+    return declined(peerId, sessionId, shotId) != nullptr;
+}
+
+bool PpcpImportLedger::isCaptureDeclined(const CaptureKey &k) const
+{
+    const CaptureRecord *r = capture(k);
+    return r && !r->shotId.empty() && isDeclined(k.peerId, k.sessionId, r->shotId);
+}
+
+std::size_t PpcpImportLedger::declineShot(const std::string &peerId,
+                                          const std::string &sessionId,
+                                          const std::string &shotId,
+                                          const std::string &reason)
+{
+    if (peerId.empty() || sessionId.empty() || shotId.empty()) return 0;
+
+    if (DeclinedShot *d = findDeclined(peerId, sessionId, shotId)) {
+        // 8.5i — "A repeated decline is idempotent."  The FIRST reason stands:
+        // an owner may show a person whatever it receives, and a Shot that was
+        // refused as uncorroborated did not later become "discarded" because a
+        // clip for it turned up and was dropped.
+        d->owed = true;
+    } else {
+        // The bound: forget the oldest decline that has already been SAID.  An
+        // owed one is never the one dropped — see kMaxDeclined.
+        if (m_declined.size() >= kMaxDeclined) {
+            for (auto it = m_declined.begin(); it != m_declined.end(); ++it)
+                if (!it->owed) { m_declined.erase(it); break; }
+        }
+        m_declined.push_back(DeclinedShot{ peerId, sessionId, shotId, reason, true });
+    }
+
+    // ⛔ E74 — "A receiver that owed a commit for the payload before it
+    // declined, and had not yet paid it, owes it no longer."  Struck, not
+    // deferred: 8.5b outranks 8.4a and 8.4e, so paying it later would be the one
+    // commit I40 forbids.  A commit already PAID is not un-said, and needs not
+    // be — the owner holds it as exit 1, which releases the same storage.
+    std::size_t struck = 0;
+    for (auto it = m_pending.begin(); it != m_pending.end();) {
+        std::string anchor = it->shotId;
+        if (anchor.empty())
+            if (const CaptureRecord *r = capture(it->key)) anchor = r->shotId;
+        if (it->key.peerId == peerId && it->key.sessionId == sessionId && anchor == shotId) {
+            it = m_pending.erase(it);
+            ++struck;
+        } else {
+            ++it;
+        }
+    }
+    return struck;
+}
+
+bool PpcpImportLedger::requeueDecline(const std::string &peerId, const std::string &sessionId,
+                                      const std::string &shotId)
+{
+    DeclinedShot *d = findDeclined(peerId, sessionId, shotId);
+    if (!d) return false;
+    d->owed = true;
+    return true;
+}
+
+std::vector<PpcpImportLedger::DeclinedShot> PpcpImportLedger::owedDeclines(
+    const std::string &owningPeerId) const
+{
+    // ⚠ 8.5j — AND, AS FOR COMMITS, NOTHING FILTERS ON SESSION STATE.  "A
+    // `shot_disposition` naming a Session whose `state` is `closed` is
+    // ACCEPTED" — a decline decided 15-40 s after the shot, once the golfer has
+    // pressed Stop, is the ordinary case and not an edge.
+    std::vector<DeclinedShot> out;
+    for (const DeclinedShot &d : m_declined)
+        if (d.owed && d.peerId == owningPeerId) out.push_back(d);
+    return out;
+}
+
+void PpcpImportLedger::markDeclineSent(const std::string &peerId, const std::string &sessionId,
+                                       const std::string &shotId)
+{
+    if (DeclinedShot *d = findDeclined(peerId, sessionId, shotId)) d->owed = false;
+}
+
+std::size_t PpcpImportLedger::owedDeclineCount() const
+{
+    std::size_t n = 0;
+    for (const DeclinedShot &d : m_declined) if (d.owed) ++n;
+    return n;
+}
+
+std::size_t payOwedDeclines(PpcpImportLedger &ledger, ppcp_peer *peer,
+                            const std::string &owningPeerId,
+                            const std::string &liveSessionId)
+{
+    if (!peer || owningPeerId.empty()) return 0;
+    const std::vector<PpcpImportLedger::DeclinedShot> owed = ledger.owedDeclines(owningPeerId);
+    std::size_t sent = 0;
+    for (const PpcpImportLedger::DeclinedShot &d : owed) {
+        const char *reason = d.reason.empty() ? nullptr : d.reason.c_str();
+        ppcp_result r = PPCP_ERR_INVALID;
+        if (!liveSessionId.empty() && d.sessionId == liveSessionId) {
+            // The live Session: the library's own sender, which also records the
+            // decline so ppcp_peer_capture_committed() refuses a Capture of this
+            // Shot from here on (I40) and ppcp_peer_has_declined_capture()
+            // answers 8.3c (E81).
+            r = ppcp_peer_shot_disposition(peer, d.shotId.c_str(), PPCP_DISPOSITION_DECLINED,
+                                           reason);
+        } else {
+            // ⚠ ANOTHER SESSION — A BUNDLE'S, OR A LIVE ONE SINCE CLOSED.  The
+            // library's sender stamps the envelope with the peer's CURRENT
+            // Session, and `Shot.id` is unique only within its Session (CORE
+            // 8.3e), so that would name the wrong Shot or none.  The envelope is
+            // set here instead and the frame goes through ppcp_peer_send(), which
+            // leaves a set `session_id` alone.  I40 on this path is the ledger's
+            // to hold, and queueCommitted() above is where it holds it.
+            ppcp_msg m{};
+            r = ppcp_msg_init(&m, PPCP_MT_SHOT_DISPOSITION, 1);
+            if (r == PPCP_OK)
+                r = ppcp_envelope_set_session_id(&m.env, d.sessionId.c_str(), d.sessionId.size());
+            ppcp_body_shot_disposition &b = m.body.shot_disposition;
+            if (r == PPCP_OK) r = ppcp_id_set_z(&b.shot_id, d.shotId.c_str());
+            if (r == PPCP_OK) r = ppcp_id_set_z(&b.disposition, PPCP_DISPOSITION_DECLINED);
+            if (r == PPCP_OK && reason) {
+                r = ppcp_id_set_z(&b.reason, reason);
+                b.has_reason = true;
+            }
+            if (r == PPCP_OK) r = ppcp_peer_send(peer, PPCP_CHANNEL_CONTROL, &m);
+        }
+        if (r != PPCP_OK) break;   // queue full or link down — still owed, retried
+        ledger.markDeclineSent(d.peerId, d.sessionId, d.shotId);
+        ++sent;
+    }
+    return sent;
 }
 
 // ── Persistence ─────────────────────────────────────────────────────────────
@@ -292,6 +466,7 @@ bool PpcpImportLedger::load(const std::string &path)
     m_sessions.clear();
     m_captures.clear();
     m_pending.clear();
+    m_declined.clear();
 
     QFile f(q(path));
     if (!f.exists()) return true;     // an empty ledger is a valid ledger
@@ -328,6 +503,9 @@ bool PpcpImportLedger::load(const std::string &path)
         r.swingRef.sessionDir  = s(sr.value("session_dir").toString());
         r.swingRef.swingId     = s(sr.value("swing_id").toString());
         r.swingRef.streamAlias = s(sr.value("stream_alias").toString());
+        // CR-03 — absent on every row written before 24 Sep 2026, and an empty
+        // anchor is exactly what those rows honestly have.
+        r.shotId = s(o.value("shot_id").toString());
         m_captures.push_back(r);
     }
     for (const QJsonValue &v : root.value("pending_commits").toArray()) {
@@ -337,7 +515,18 @@ bool PpcpImportLedger::load(const std::string &path)
         p.key.sessionId = s(o.value("session_id").toString());
         p.key.captureId = s(o.value("capture_id").toString());
         p.digestHex = s(o.value("digest").toString());
+        p.shotId = s(o.value("shot_id").toString());
         m_pending.push_back(p);
+    }
+    for (const QJsonValue &v : root.value("declined_shots").toArray()) {
+        const QJsonObject o = v.toObject();
+        DeclinedShot d;
+        d.peerId = s(o.value("peer_id").toString());
+        d.sessionId = s(o.value("session_id").toString());
+        d.shotId = s(o.value("shot_id").toString());
+        d.reason = s(o.value("reason").toString());
+        d.owed = o.value("owed").toBool();
+        m_declined.push_back(d);
     }
     return true;
 }
@@ -376,6 +565,7 @@ bool PpcpImportLedger::save() const
             sr["stream_alias"] = q(r.swingRef.streamAlias);
             o["swing_ref"] = sr;
         }
+        if (!r.shotId.empty()) o["shot_id"] = q(r.shotId);
         captures.append(o);
     }
     QJsonArray pending;
@@ -385,7 +575,20 @@ bool PpcpImportLedger::save() const
         o["session_id"] = q(p.key.sessionId);
         o["capture_id"] = q(p.key.captureId);
         o["digest"] = q(p.digestHex);
+        if (!p.shotId.empty()) o["shot_id"] = q(p.shotId);
         pending.append(o);
+    }
+    // MSG 8.5 — kept with the commits and written by the same save(), so a
+    // decline and the commits it struck can never be read back half-applied.
+    QJsonArray declinedShots;
+    for (const DeclinedShot &d : m_declined) {
+        QJsonObject o;
+        o["peer_id"] = q(d.peerId);
+        o["session_id"] = q(d.sessionId);
+        o["shot_id"] = q(d.shotId);
+        if (!d.reason.empty()) o["reason"] = q(d.reason);
+        o["owed"] = d.owed;
+        declinedShots.append(o);
     }
 
     QJsonObject root;
@@ -393,6 +596,7 @@ bool PpcpImportLedger::save() const
     root["sessions"] = sessions;
     root["captures"] = captures;
     root["pending_commits"] = pending;
+    root["declined_shots"] = declinedShots;
 
     // QSaveFile, not QFile: a ledger torn in half by a crash mid-write would
     // make the next import duplicate everything it could not read, which is the
@@ -434,7 +638,7 @@ std::size_t PpcpImportLedger::foldIn(const std::string &legacyPath)
     // for those captures and I38 leaves it unable to evict them — the exact
     // storage trap this ledger's own header argues against.
     for (const PendingCommit &p : legacy.m_pending)
-        queueCommitted(p.key, p.digestHex);
+        queueCommitted(p.key, p.digestHex, p.shotId);
 
     // ⚠ The legacy file is deliberately NOT removed.  See the header.
     return added;

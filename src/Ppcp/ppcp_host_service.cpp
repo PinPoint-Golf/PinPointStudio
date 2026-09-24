@@ -494,10 +494,23 @@ bool PpcpHostService::configurePhonePeer(Phone *ph, std::string *err, bool liste
     // that the shot pipeline's lifetime is Qt's problem and not ours; see the
     // note on `shotBridgeChanged` for why a stored callback into main()'s stack
     // would be a use-after-free waiting for `exit()`.
-    ph->peer->shotBridge().setShotCallback([this](const ppcp_shot &s) {
-        emit arbitratedShot(static_cast<qint64>(s.t0.ns),
-                            QString::fromUtf8(s.id.v, static_cast<int>(s.id.len)));
+    ph->peer->shotBridge().setShotCallback([this, ph](const ppcp_shot &s) {
+        const QString id = QString::fromUtf8(s.id.v, static_cast<int>(s.id.len));
+        // MSG 8.5 — remembered BEFORE the pipeline sees it, because the
+        // pipeline may decline it synchronously (a corroboration refusal, a
+        // busy drop) and the decline must know which phone and Session to name.
+        noteShotHome(id, ph);
+        emit arbitratedShot(static_cast<qint64>(s.t0.ns), id);
     });
+    // MSG 8.5 — a device Shot this host never adopted, once the bridge's
+    // reconsider window has closed (see PpcpShotBridge::Config::declineHoldNs).
+    // Same durable road as every other decline: the bridge decides, the ledger
+    // remembers, the tick pays.
+    ph->peer->shotBridge().setDeclineCallback(
+        [this, ph](const std::string &shotId, const char *reason) {
+            recordDecline(ph, ph->counterpartId.toStdString(), liveSessionIdOf(ph), shotId,
+                          reason ? reason : "");
+        });
 
     ph->peer->addEventHook([this, ph](const ppcp_event &ev) {
         // ⚠ THE EVENT RING HAS EXACTLY ONE DRAINER AND IT IS PpcpHostPeer.
@@ -515,6 +528,10 @@ bool PpcpHostService::configurePhonePeer(Phone *ph, std::string *err, bool liste
         // Session's own capture, which belongs to `VideoInputPpcp` and must NOT
         // be filed as an import of somebody's archive.
         if (ph->importSink && ev.imported) ph->importSink->observeEvent(ev);
+        // MSG 8.5i — the running Session's own Captures: one anchored to a Shot
+        // this host declined is met again here, and the decline is said again.
+        // (The replayed ones are the sink's, which does the same.)
+        if (!ev.imported) observeForDeclines(ph, ev);
         // Any VideoInputPpcp a caller has attached to this peer (Settings ->
         // Cameras' ROI preview, so far) — broadcast, not drained a second
         // time, for the same reason the line above isn't a second drain.
@@ -623,7 +640,19 @@ void PpcpHostService::flushOwedCommits(Phone *ph)
     if (owed.empty()) return;
 
     std::size_t sent = 0;
+    bool        struck = false;
     for (const Ppcp::PpcpImportLedger::PendingCommit &pc : owed) {
+        // ⛔ 8.5b / I40 — belt and braces.  declineShot() strikes a commit the
+        // moment its Shot is declined (E74), so none should reach here; one
+        // that does is struck, not sent, and never mistaken for the missing-
+        // digest case below.
+        if ((!pc.shotId.empty()
+             && m_importLedger.isDeclined(pc.key.peerId, pc.key.sessionId, pc.shotId))
+            || m_importLedger.isCaptureDeclined(pc.key)) {
+            m_importLedger.clearCommitted(pc.key);
+            struck = true;   // the ledger changed and must be saved below
+            continue;
+        }
         ppcp_digest d{};
         const bool haveDigest = Ppcp::digestFromHex(pc.digestHex, &d);
         const ppcp_result cr = ppcp_peer_capture_committed(ph->engine->peer(),
@@ -655,10 +684,171 @@ void PpcpHostService::flushOwedCommits(Phone *ph)
         m_importLedger.clearCommitted(pc.key);
         ++sent;
     }
+    if (struck && !sent) m_importLedger.save();
     if (sent) {
         m_importLedger.save();
         ppWarn() << "[ppcp] capture_committed x" << sent << "->" << ph->name
                  << "(" << m_importLedger.pendingCommitCount() << "still owed)";
+    }
+}
+
+// ── MSG 8.5 (CR-03) — shot_disposition ──────────────────────────────────────
+//
+// ⭐ WHAT THIS HOST COULD NOT SAY UNTIL 24 SEPTEMBER 2026.  Every refusal below
+// already happened — the corroboration rule, the busy drop, the abandoned swing,
+// the clip nobody asked for — and each one left the phone holding the clip,
+// counted as still to send, for the life of the link (CR-03 §4, PinPointCapture
+// #105).  8.4a let a receiver say it KEPT a Capture; nothing let it say it would
+// not.  Now it does, and the phone releases the Capture under 5.14g exit 5.
+
+std::string PpcpHostService::liveSessionIdOf(const Phone *ph)
+{
+    if (!ph || !ph->engine || !ph->engine->peer()) return {};
+    const ppcp_id *sid = ppcp_peer_session_id(ph->engine->peer());
+    return sid ? std::string(sid->v, sid->len) : std::string();
+}
+
+void PpcpHostService::noteShotHome(const QString &shotId, const Phone *ph)
+{
+    if (shotId.isEmpty() || !ph || ph->counterpartId.isEmpty()) return;
+    for (const ShotHome &h : m_shotHomes)
+        if (h.shotId == shotId && h.peerId == ph->counterpartId) return;
+    m_shotHomes.push_back(ShotHome{ shotId, ph->counterpartId, liveSessionIdOf(ph) });
+    while (m_shotHomes.size() > kMaxShotHomes) m_shotHomes.pop_front();
+}
+
+void PpcpHostService::recordDecline(Phone *ph, const std::string &peerId,
+                                    const std::string &sessionId, const std::string &shotId,
+                                    const std::string &reason)
+{
+    if (peerId.empty() || sessionId.empty() || shotId.empty()) {
+        // No Session to name is no Shot to name (CORE 8.3e): said, not guessed.
+        ppWarn() << "[ppcp] shot_disposition NOT recorded for shot" << shotId.c_str()
+                 << "— no" << (peerId.empty() ? "owning phone" : "Session") << "is known for it";
+        return;
+    }
+    const std::size_t struck = m_importLedger.declineShot(peerId, sessionId, shotId, reason);
+    // ⚠ ONE save() FOR THE DECLINE AND THE COMMITS IT STRUCK (round-2 review):
+    // a crash between two writes would leave a decline owed beside a commit
+    // that contradicts it, and whichever was paid first would decide 8.5b.
+    m_importLedger.save();
+    ppInfo() << "[ppcp] shot" << shotId.c_str() << "declined —"
+             << (reason.empty() ? "(no reason)" : reason.c_str())
+             << "— owner" << peerId.c_str() << "session" << sessionId.c_str()
+             << (struck ? QStringLiteral("— %1 owed commit(s) struck (E74)").arg(struck)
+                        : QString());
+    if (ph && ph->counterpartId.toStdString() == peerId) flushOwedDeclines(ph);
+}
+
+void PpcpHostService::declineShot(const QString &shotId, const QString &reason,
+                                  const QString &peerId, const QString &sessionId)
+{
+    if (shotId.isEmpty()) return;
+    const std::string sid = shotId.toStdString();
+    const std::string why = reason.toStdString();
+
+    // ⚠ A DEVICE SHOT THE BRIDGE IS STILL DECIDING ABOUT IS THE BRIDGE'S.  A
+    // clip anchored to one can reach the filer inside the reconsider window,
+    // and the filer — which only knows it asked for nothing — says
+    // `not_requested`.  Declining on that would pre-empt the adoption the
+    // window exists for (R-5); the bridge declines it itself if the window
+    // closes, and if it adopts it instead, the capture_request that follows
+    // asks for the footage again.
+    for (const std::unique_ptr<Phone> &p : m_phones) {
+        if (!p || !p->peer) continue;
+        if (p->peer->shotBridge().isAwaitingVerdict(sid)) {
+            ppDebug() << "[ppcp] decline of shot" << shotId << "(" << reason
+                      << ") deferred — the bridge is still deciding whether to adopt it";
+            return;
+        }
+    }
+
+    // Where the statement goes: the phone(s) and Session(s) this Shot lives in.
+    struct Target { QString peer; std::string session; };
+    std::vector<Target> targets;
+    const auto addTarget = [&targets](const QString &peer, const std::string &session) {
+        for (const Target &t : targets)
+            if (t.peer == peer && t.session == session) return;
+        targets.push_back(Target{ peer, session });
+    };
+    if (!peerId.isEmpty()) {
+        std::string session = sessionId.toStdString();
+        if (session.empty())
+            for (const ShotHome &h : m_shotHomes)
+                if (h.shotId == shotId && h.peerId == peerId) { session = h.sessionId; break; }
+        if (session.empty())
+            for (const std::unique_ptr<Phone> &p : m_phones)
+                if (p && p->counterpartId == peerId) { session = liveSessionIdOf(p.get()); break; }
+        addTarget(peerId, session);
+    } else {
+        // 8.5a — "to every peer in the Session".  Every phone this Shot was
+        // handed out from or asked of: with two phones a capture_request names
+        // the one Shot to both.
+        for (const ShotHome &h : m_shotHomes)
+            if (h.shotId == shotId) addTarget(h.peerId, h.sessionId);
+    }
+    if (targets.empty()) {
+        ppWarn() << "[ppcp] shot_disposition NOT sent for shot" << shotId << "(" << reason
+                 << ") — no phone is known to own it";
+        return;
+    }
+    for (const Target &t : targets) {
+        Phone *ph = nullptr;
+        for (const std::unique_ptr<Phone> &p : m_phones)
+            if (p && p->counterpartId == t.peer) { ph = p.get(); break; }
+        recordDecline(ph, t.peer.toStdString(), t.session, sid, why);
+    }
+}
+
+void PpcpHostService::flushOwedDeclines(Phone *ph)
+{
+    if (!ph || !ph->engine || !ph->engine->peer() || ph->counterpartId.isEmpty()) return;
+    if (m_importLedger.owedDeclineCount() == 0) return;
+    const std::size_t sent = Ppcp::payOwedDeclines(m_importLedger, ph->engine->peer(),
+                                                   ph->counterpartId.toStdString(),
+                                                   liveSessionIdOf(ph));
+    if (sent) {
+        m_importLedger.save();
+        ppWarn() << "[ppcp] shot_disposition x" << sent << "->" << ph->name
+                 << "(" << m_importLedger.owedDeclineCount() << "still owed)";
+    }
+}
+
+void PpcpHostService::observeForDeclines(Phone *ph, const ppcp_event &ev)
+{
+    if (!ph || !ev.msg || ph->counterpartId.isEmpty()) return;
+    const ppcp_msg *m = ev.msg;
+    const std::string owner = ph->counterpartId.toStdString();
+    const std::string session = m->env.has_session_id
+        ? std::string(m->env.session_id.v, m->env.session_id.len)
+        : liveSessionIdOf(ph);
+
+    std::string shotId;
+    if (ev.kind == PPCP_EVENT_CAPTURE && m->type == PPCP_MT_CAPTURE_ANNOUNCE) {
+        const ppcp_capture &c = m->body.capture_announce.capture;
+        if (c.anchor.kind != PPCP_ANCHOR_SHOT) return;
+        shotId.assign(c.anchor.id.v, c.anchor.id.len);
+        ph->captureShots.emplace_back(std::string(c.id.v, c.id.len), shotId);
+        while (ph->captureShots.size() > 256) ph->captureShots.pop_front();
+    } else if (ev.kind == PPCP_EVENT_PAYLOAD && m->type == PPCP_MT_PAYLOAD_BEGIN) {
+        const std::string cap(m->body.payload_begin.capture_id.v,
+                              m->body.payload_begin.capture_id.len);
+        for (auto it = ph->captureShots.rbegin(); it != ph->captureShots.rend(); ++it)
+            if (it->first == cap) { shotId = it->second; break; }
+    } else {
+        return;
+    }
+    if (shotId.empty()) return;
+
+    // ⭐ 8.5i — "A receiver that has declined a Shot says so AGAIN whenever it
+    // meets a Capture of that Shot that it has not been told is released: in a
+    // `capture_announce` … or in a `payload_begin` … for a Capture it knows to
+    // be anchored to that Shot."  The decline may have been lost with a dropped
+    // link, or forgotten by the owner under 8.5f; this costs one round trip.
+    if (m_importLedger.requeueDecline(owner, session, shotId)) {
+        ppDebug() << "[ppcp] a Capture of declined shot" << shotId.c_str()
+                  << "arrived — saying the decline again (8.5i)";
+        flushOwedDeclines(ph);
     }
 }
 
@@ -1065,6 +1255,9 @@ int PpcpHostService::requestCaptureForShot(const QString &shotId, qint64 t0HostN
                      << "shot" << shotId << "—" << QString::fromStdString(err);
             continue;
         }
+        // MSG 8.5 — this phone now holds (or will) a Capture of this Shot, so a
+        // later decline of it is owed here too, in the Session it was asked in.
+        noteShotHome(shotId, ph.get());
 
         const ppcp_peer_desc *desc = ppcp_peer_counterpart(peer);
         for (std::size_t i = 0; i < ids.size(); ++i) {
@@ -1091,7 +1284,10 @@ int PpcpHostService::requestCaptureForShot(const QString &shotId, qint64 t0HostN
 void PpcpHostService::flushOwedCommitsNow()
 {
     for (const std::unique_ptr<Phone> &p : m_phones)
-        if (p && p->engine && p->peer) flushOwedCommits(p.get());
+        if (p && p->engine && p->peer) {
+            flushOwedDeclines(p.get());
+            flushOwedCommits(p.get());
+        }
 }
 
 std::vector<VideoInputPpcp *> PpcpHostService::previewConsumers() const
@@ -1425,6 +1621,16 @@ void PpcpHostService::dropPhone(Phone *ph, const char *why)
     // different fact from one that was never listening, and this is the only
     // place either can still be told.
     {
+        // MSG 8.5 — a device Shot still waiting for adoption can no longer be
+        // adopted: its Candidates arrive over the link that is going.  The
+        // verdict is reached now and OWED — recorded against this phone and its
+        // Session, and said at its next connection (8.5i).  The Session id is
+        // read while the engine can still answer.
+        const std::string session = liveSessionIdOf(ph);
+        for (const std::string &id : ph->peer->shotBridge().abandonAwaiting())
+            recordDecline(nullptr, ph->counterpartId.toStdString(), session, id,
+                          "not_corroborated");
+
         const Ppcp::PpcpShotBridge::Stats &st = ph->peer->shotBridge().stats();
         if (st.nominated || st.observedForeign || st.issued || st.unarbitrated)
             ppWarn() << "[ppcp] arbitration for" << ph->name
@@ -1432,6 +1638,8 @@ void PpcpHostService::dropPhone(Phone *ph, const char *why)
                      << "observed" << st.observedForeign
                      << "issued" << st.issued
                      << "adopted" << st.adopted
+                     << "linked" << st.linkedShots
+                     << "declined" << st.declined
                      << "excluded" << st.excluded
                      << "unarbitrated" << st.unarbitrated;
         ph->peer->shotBridge().stop();
@@ -2241,6 +2449,7 @@ QVariantMap PpcpHostService::ppcpStats() const
     // which link carried it, and with one phone the sum IS that phone's.
     int nominated = 0, observed = 0, issued = 0, adopted = 0, excluded = 0;
     int unarbitrated = 0, uncorroborated = 0, reconsidered = 0, refused = 0;
+    int linked = 0, notAdopted = 0, bridgeDeclined = 0;
     QVariantList perPhone;
     for (const std::unique_ptr<Phone> &p : m_phones) {
         if (!p->peer) continue;
@@ -2254,6 +2463,9 @@ QVariantMap PpcpHostService::ppcpStats() const
         uncorroborated += static_cast<int>(b.uncorroborated);
         reconsidered   += static_cast<int>(b.reconsidered);
         refused        += static_cast<int>(b.nominationsRefused);
+        linked         += static_cast<int>(b.linkedShots);
+        notAdopted     += static_cast<int>(b.notAdopted);
+        bridgeDeclined += static_cast<int>(b.declined);
 
         QVariantMap one;
         one[QStringLiteral("name")]        = p->name;
@@ -2382,6 +2594,14 @@ QVariantMap PpcpHostService::ppcpStats() const
     m[QStringLiteral("importCaptures")] = static_cast<int>(m_importLedger.captureCount());
     m[QStringLiteral("importSessions")] = static_cast<int>(m_importLedger.sessionCount());
     m[QStringLiteral("commitsOwed")]    = static_cast<int>(m_importLedger.pendingCommitCount());
+    // MSG 8.5 — the device Shots this host did not adopt, what became of them,
+    // and every decline still to be said.  `declinesOwed` above zero with a
+    // phone connected is a decline the engine would not take.
+    m[QStringLiteral("linkedShots")]    = linked;
+    m[QStringLiteral("notAdopted")]     = notAdopted;
+    m[QStringLiteral("declinedUnadopted")] = bridgeDeclined;
+    m[QStringLiteral("shotsDeclined")]  = static_cast<int>(m_importLedger.declinedCount());
+    m[QStringLiteral("declinesOwed")]   = static_cast<int>(m_importLedger.owedDeclineCount());
     return m;
 }
 
@@ -2860,9 +3080,15 @@ void PpcpHostService::onTick()
     // the tick, so a commit queued by a payload that landed during this very
     // tick goes out on the next one rather than waiting for another event; and
     // only for phones that survived it.
+    //
+    // MSG 8.5i — and every owed decline FIRST.  A decline has already struck any
+    // commit it contradicts (E74), so the order is not what keeps 8.5b; it is
+    // what gets the phone to stop sending (8.5e) before it hears anything else.
     for (const std::unique_ptr<Phone> &p : m_phones)
-        if (std::find(dead.begin(), dead.end(), p.get()) == dead.end())
+        if (std::find(dead.begin(), dead.end(), p.get()) == dead.end()) {
+            flushOwedDeclines(p.get());
             flushOwedCommits(p.get());
+        }
     // The arm state can move with nothing arriving — the stall deadline above is
     // a conclusion drawn from time passing — so the transition is noticed here
     // rather than only on a `readiness`.

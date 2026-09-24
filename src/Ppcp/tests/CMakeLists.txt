@@ -271,6 +271,9 @@ pp_add_test(ppcp_live_session_test
 pp_add_test(ppcp_arbitration_test
     SOURCES ppcp_arbitration_test.cpp
             ${PPCP}/ppcp_shot_bridge.cpp
+            # MSG 8.5 (CR-03) — the owed-decline queue and its sender, so a
+            # declined Shot is asserted ON THE WIRE between two real engines.
+            ${PPCP}/ppcp_import_ledger.cpp
             ${PPCP}/ppcp_live_session.cpp
             ${PPCP}/ppcp_host_engine.cpp
             ${PPCP}/ppcp_ingest_policy.cpp

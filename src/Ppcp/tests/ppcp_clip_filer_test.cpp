@@ -29,12 +29,14 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QJsonArray>
 #include <cmath>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
 #include <cstdio>
+#include <vector>
 
 static int g_fail = 0;
 static void check(bool c, const char *label)
@@ -316,6 +318,119 @@ int main(int argc, char **argv)
         prev.preview = true;
         filer.onClipReady(prev);
         check(led.captureCount() == 0, "a PREVIEW payload never reaches the swing library");
+    }
+
+    // ── MSG 8.5 (CR-03, H18) — the filer's three decision points ──────────
+    //
+    // The filer decides; PpcpHostService owes and sends (asserted on the wire in
+    // ppcp_arbitration_test's PpcpShotDisposition rows).  What is asserted here
+    // is that each decision emits exactly one decline with 8.5's reason, names
+    // the phone that owns the Capture, and that a storage failure emits none.
+    struct Declined { QString shot, peer, session, reason; };
+    {
+        std::printf("\n-- MSG 8.5: a swing abandoned after analysis is declined `discarded` --\n");
+        QTemporaryDir tmp;
+        Ppcp::PpcpImportLedger led;
+        led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
+        PpcpClipFiler filer;
+        filer.setLedger(&led);
+        std::vector<Declined> said;
+        QObject::connect(&filer, &PpcpClipFiler::shotDeclined,
+                         [&](const QString &sh, const QString &p, const QString &se,
+                             const QString &r) { said.push_back({ sh, p, se, r }); });
+
+        // Two Streams asked of one phone, one of another.
+        filer.onCaptureAsked(QStringLiteral("shot:20"), QStringLiteral("peer:phone-1"),
+                             QStringLiteral("src:cam-wide"), QStringLiteral("st:1"), kAlias);
+        filer.onCaptureAsked(QStringLiteral("shot:20"), QStringLiteral("peer:phone-1"),
+                             QStringLiteral("src:cam-tele"), QStringLiteral("st:2"),
+                             QStringLiteral("tele"));
+        filer.onCaptureAsked(QStringLiteral("shot:20"), QStringLiteral("peer:phone-2"),
+                             QStringLiteral("src:cam-wide"), QStringLiteral("st:3"),
+                             QStringLiteral("other"));
+        filer.onSwingFailed();
+        check(said.size() == 2, "one decline per PHONE asked, not per Stream");
+        check(said.size() == 2 && said[0].shot == QStringLiteral("shot:20")
+                  && said[0].peer == QStringLiteral("peer:phone-1")
+                  && said[1].peer == QStringLiteral("peer:phone-2"),
+              "…each naming the owning phone");
+        check(said.size() == 2 && said[0].reason == QStringLiteral("discarded")
+                  && said[1].reason == QStringLiteral("discarded"),
+              "…with 8.5's `discarded` (\"Received, then abandoned\")");
+
+        // 8.5i — a clip of it arriving later says it again, and is not filed.
+        filer.onClipReady(makeClip(QStringLiteral("shot:20"), QStringLiteral("cap:20"),
+                                   QByteArray(256, 'Z')));
+        check(said.size() == 3 && said[2].reason == QStringLiteral("discarded")
+                  && said[2].session == QStringLiteral("ses:live-1"),
+              "a clip of the abandoned shot repeats the decline, in the clip's Session (8.5i)");
+        check(led.pendingCommits("peer:phone-1").empty(), "and no capture_committed is owed");
+        check(filer.stats().declined == 3, "counted");
+    }
+    {
+        std::printf("\n-- MSG 8.5: a clip for a shot nothing asked for is declined `not_requested` --\n");
+        QTemporaryDir tmp;
+        Ppcp::PpcpImportLedger led;
+        led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
+        PpcpClipFiler filer;
+        filer.setLedger(&led);
+        std::vector<Declined> said;
+        QObject::connect(&filer, &PpcpClipFiler::shotDeclined,
+                         [&](const QString &sh, const QString &p, const QString &se,
+                             const QString &r) { said.push_back({ sh, p, se, r }); });
+
+        filer.onClipReady(makeClip(QStringLiteral("shot:unasked"), QStringLiteral("cap:u"),
+                                   QByteArray(64, 'U')));
+        check(said.size() == 1 && said[0].reason == QStringLiteral("not_requested"),
+              "declined `not_requested`");
+        check(said.size() == 1 && said[0].peer == QStringLiteral("peer:phone-1")
+                  && said[0].session == QStringLiteral("ses:live-1"),
+              "…to the phone that owns it, in the Capture's Session");
+        check(led.pendingCommits("peer:phone-1").empty(), "…and no capture_committed is owed");
+
+        // A clip anchored to NO Shot has nothing to decline (8.5 is per Shot).
+        filer.onClipReady(makeClip(QString(), QStringLiteral("cap:n"), QByteArray(64, 'N')));
+        check(said.size() == 1, "a clip with no Shot anchor declines nothing");
+
+        // A Shot that scrolled off the tracked eight WAS asked for: `discarded`.
+        for (int i = 0; i < 9; ++i)
+            filer.onCaptureAsked(QStringLiteral("shot:old-%1").arg(i),
+                                 QStringLiteral("peer:phone-1"), QStringLiteral("src:cam-wide"),
+                                 QStringLiteral("st:1"), kAlias);
+        filer.onClipReady(makeClip(QStringLiteral("shot:old-0"), QStringLiteral("cap:o"),
+                                   QByteArray(64, 'O')));
+        check(said.size() == 2 && said[1].reason == QStringLiteral("discarded"),
+              "a clip for a shot we asked about and have since forgotten is `discarded`, "
+              "not `not_requested` — each value has one meaning");
+    }
+    {
+        std::printf("\n-- MSG 8.5 / E80: a clip that cannot be WRITTEN declines nothing --\n");
+        QTemporaryDir tmp;
+        Ppcp::PpcpImportLedger led;
+        led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
+        PpcpClipFiler filer;
+        filer.setLedger(&led);
+        int said = 0;
+        QObject::connect(&filer, &PpcpClipFiler::shotDeclined,
+                         [&](const QString &, const QString &, const QString &,
+                             const QString &) { ++said; });
+        // A "folder" whose parent is a FILE: nothing can ever be written under it.
+        QFile blocker(QDir(tmp.path()).filePath(QStringLiteral("not-a-dir")));
+        blocker.open(QIODevice::WriteOnly);
+        blocker.write("x");
+        blocker.close();
+        const QString dir = blocker.fileName() + QStringLiteral("/swing_0099");
+
+        filer.onCaptureAsked(QStringLiteral("shot:disk"), QStringLiteral("peer:phone-1"),
+                             QStringLiteral("src:cam-wide"),
+                             QStringLiteral("st:abcdef0123456789:video"), kAlias);
+        filer.onSwingReady(dir);
+        filer.onClipReady(makeClip(QStringLiteral("shot:disk"), QStringLiteral("cap:disk"),
+                                   QByteArray(128, 'K')));
+        check(filer.stats().failed == 1, "precondition: the write failed");
+        check(said == 0, "⛔ SILENT — storage is transient and a decline is final (E80)");
+        check(led.pendingCommits("peer:phone-1").empty(),
+              "and nothing is committed either: the phone keeps its copy (I38)");
     }
 
     std::printf("\n%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES",

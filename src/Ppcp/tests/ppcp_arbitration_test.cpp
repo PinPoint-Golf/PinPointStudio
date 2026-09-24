@@ -25,6 +25,7 @@
 // `ShotArbiter` rather than wrapping it.
 
 #include "ppcp_host_engine.h"
+#include "ppcp_import_ledger.h"
 #include "ppcp_live_session.h"
 #include "ppcp_shot_bridge.h"
 #include "ppcp_source_declaration.h"
@@ -173,11 +174,19 @@ struct Fixture {
     }
 
     // A Candidate from the DEVICE's microphone, on the device's clock.
-    void deviceNominates(std::int64_t devNs, double confidence, const char *basis)
+    std::string deviceNominates(std::int64_t devNs, double confidence, const char *basis)
+    {
+        std::string cid;
+        deviceNominatesInto(devNs, confidence, basis, &cid);
+        return cid;
+    }
+    void deviceNominatesInto(std::int64_t devNs, double confidence, const char *basis,
+                             std::string *outId)
     {
         ppcp_candidate c{};
         static int n = 0;
         const std::string cid = "dev-c-" + std::to_string(++n);
+        if (outId) *outId = cid;
         ppcp_instant at{};
         ASSERT_EQ(ppcp_instant_make_z(&at, dev.tb.c_str(), devNs), PPCP_OK);
         ASSERT_EQ(ppcp_candidate_make(&c, cid.c_str(), dev.peerId.c_str(), "src-mic",
@@ -185,6 +194,77 @@ struct Fixture {
         ASSERT_EQ(ppcp_peer_nominate(dev.p, &c), PPCP_OK);
         toHost();
     }
+
+    // ── MSG 8.5 helpers ────────────────────────────────────────────────────
+
+    // 8.2i — the device mints on its own authority, referencing its Candidate.
+    // `t0` is in `Session.timebase_ref`, which is `tb:host` here (5.13c).
+    void deviceMints(const std::string &shotId, const std::string &candidateId,
+                     std::int64_t t0HostNs)
+    {
+        ppcp_instant t0{};
+        ASSERT_EQ(ppcp_instant_make_z(&t0, kHostTimebaseId, t0HostNs), PPCP_OK);
+        ppcp_shot s{};
+        ASSERT_EQ(ppcp_shot_make(&s, shotId.c_str(), kSession, &t0, PPCP_AUTHORITY_DEVICE,
+                                 dev.peerId.c_str(), candidateId.c_str()), PPCP_OK);
+        ASSERT_EQ(ppcp_peer_shot(dev.p, &s), PPCP_OK);
+        toHost();
+    }
+
+    // What the DEVICE received on control since the last call — the wire, read
+    // by a real engine, which is the only place a `shot_disposition` means
+    // anything.
+    struct Heard {
+        std::vector<std::string> declinedShots, reasons, sessions;
+        int commits = 0;
+    };
+    Heard hearFromHost()
+    {
+        Heard h;
+        toDevice([&h](const ppcp_event &e) {
+            if (!e.msg) return;
+            if (e.msg->type == PPCP_MT_SHOT_DISPOSITION) {
+                const ppcp_body_shot_disposition &b = e.msg->body.shot_disposition;
+                EXPECT_TRUE(ppcp_shot_disposition_is_declined(&b));
+                h.declinedShots.push_back(idStr(b.shot_id));
+                h.reasons.push_back(b.has_reason ? idStr(b.reason) : std::string());
+                h.sessions.push_back(e.msg->env.has_session_id ? idStr(e.msg->env.session_id)
+                                                               : std::string());
+            }
+            if (e.msg->type == PPCP_MT_CAPTURE_COMMITTED) ++h.commits;
+        });
+        return h;
+    }
+
+    // A shot-anchored Capture from the device, announced to the host, so the
+    // host's transfer table knows its anchor and I40 can be asserted against
+    // it.  Returns the digest a commit would carry.
+    ppcp_digest deviceAnnouncesCapture(const std::string &captureId, const std::string &shotId)
+    {
+        if (!streamOpen) {
+            ppcp_instant at{};
+            EXPECT_EQ(ppcp_instant_make(&at, dev.tb.c_str(), dev.tb.size(), dev.clockNs),
+                      PPCP_OK);
+            ppcp_stream st{};
+            EXPECT_EQ(ppcp_stream_make(&st, "str:cam", kSession, "src-cam",
+                                       PPCP_STREAM_KIND_VIDEO, "p-cap", dev.tb.c_str(),
+                                       PPCP_SHOT_WINDOWED, &at), PPCP_OK);
+            EXPECT_EQ(ppcp_peer_stream_open(dev.p, &st), PPCP_OK);
+            toHost();
+            streamOpen = true;
+        }
+        ppcp_capture c{};
+        EXPECT_EQ(ppcp_capture_make_shot(&c, captureId.c_str(), shotId.c_str(), "str:cam",
+                                         PPCP_COMPLETE), PPCP_OK);
+        const std::uint8_t bytes[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+        ppcp_digest d{};
+        EXPECT_EQ(ppcp_payload_digest(bytes, sizeof bytes, &d), PPCP_OK);
+        EXPECT_EQ(ppcp_capture_set_digest(&c, &d, sizeof bytes), PPCP_OK);
+        EXPECT_EQ(ppcp_peer_capture_announce(dev.p, &c, false, nullptr, nullptr, 0), PPCP_OK);
+        toHost();
+        return d;
+    }
+    bool streamOpen = false;
 };
 
 }  // namespace
@@ -661,4 +741,189 @@ TEST(PpcpArbitration, APolicyExclusionIsRetainedAndReconsiderTakesItBack)
     F.bridge.pump(F.nowNs());
     EXPECT_EQ(F.shots.size(), 1u)
         << "and the Shot issues, so arrival order does not decide the outcome";
+}
+
+// ── MSG 8.5 (CR-03) — a device Shot this host never adopted is DECLINED ────
+//
+// The #105 symptom, from the host's end.  The corroboration policy excludes a
+// device Candidate, so no group forms and nothing issues; the device's own 8.2i
+// deadline then mints on its authority — "the honest ending to 'it saw the
+// strike and we did not'".  Until CR-03 that ending was silent: the bridge
+// counted the Shot as `adopted` (every PPCP_OK was), the host recorded nothing,
+// and the phone held the clip for the life of the link.
+//
+// ⚠ AND NOT ON ARRIVAL.  8.5c / R-5: reconsider() can still admit the Candidate
+// and adopt the Shot, so the verdict waits out the window first.
+
+TEST(PpcpShotDisposition, AnUnadoptedDeviceShotIsDeclinedNotCorroboratedOnceTheWindowCloses)
+{
+    Fixture F;
+    ASSERT_NO_FATAL_FAILURE(F.build());
+    ASSERT_NO_FATAL_FAILURE(F.declare());
+    ASSERT_NO_FATAL_FAILURE(F.openSession());
+    ASSERT_NO_FATAL_FAILURE(F.declareRelation(0, 1000.0));
+    ASSERT_NO_FATAL_FAILURE(F.startBridge());
+    F.bridge.setCorroborationCallback([](std::int64_t) { return false; });
+
+    const std::int64_t t = F.nowNs();
+    const std::string cid = F.deviceNominates(t, 0.9, kBasisAcoustic);
+    ppcp_sim_clock_advance(&F.hostClk, 300 * kMs);
+    F.bridge.pump(F.nowNs());
+    ASSERT_TRUE(F.shots.empty()) << "precondition: the policy excluded it, nothing issued";
+
+    // 8.2i — the device mints.
+    ASSERT_NO_FATAL_FAILURE(F.deviceMints("dev-shot-1", cid, t));
+    EXPECT_EQ(F.bridge.stats().adopted, 0u)
+        << "⚠ THE STAT THIS FIXES: every PPCP_OK used to count as adopted";
+    EXPECT_EQ(F.bridge.stats().notAdopted, 1u);
+    EXPECT_TRUE(F.bridge.isAwaitingVerdict("dev-shot-1"));
+    const ppcp_digest d = F.deviceAnnouncesCapture("cap-d-1", "dev-shot-1");
+
+    // Inside the window: nothing is said.  The first pump stamps the deadline.
+    F.bridge.pump(F.nowNs());
+    ppcp_sim_clock_advance(&F.hostClk, 1000 * kMs);
+    F.bridge.pump(F.nowNs());
+    Fixture::Heard early = F.hearFromHost();
+    EXPECT_TRUE(early.declinedShots.empty())
+        << "R-5 — declined before the reconsider window closed";
+
+    // Past it (issue_hold 200 ms + heartbeat 1000 ms, from the first pump).
+    ppcp_sim_clock_advance(&F.hostClk, 300 * kMs);
+    F.bridge.pump(F.nowNs());
+    Fixture::Heard h = F.hearFromHost();
+    ASSERT_EQ(h.declinedShots.size(), 1u) << "no shot_disposition reached the device";
+    EXPECT_EQ(h.declinedShots.front(), "dev-shot-1");
+    EXPECT_EQ(h.reasons.front(), "not_corroborated");
+    EXPECT_EQ(h.sessions.front(), kSession) << "§8.5 — the envelope names the Shot's Session";
+    EXPECT_EQ(h.commits, 0);
+    EXPECT_EQ(F.bridge.stats().declined, 1u);
+    EXPECT_FALSE(F.bridge.isAwaitingVerdict("dev-shot-1"));
+    EXPECT_TRUE(F.shots.empty()) << "a declined Shot is never handed on to be recorded";
+
+    // ⛔ I40 — and no `capture_committed` can follow for a Capture of it.
+    EXPECT_TRUE(ppcp_peer_has_declined_shot(F.host->peer(), "dev-shot-1"));
+    EXPECT_TRUE(ppcp_peer_has_declined_capture(F.host->peer(), "cap-d-1"));
+    EXPECT_EQ(ppcp_peer_capture_committed(F.host->peer(), "cap-d-1", &d), PPCP_ERR_INVALID);
+    EXPECT_EQ(F.hearFromHost().commits, 0);
+
+    // Said once: later pumps and a re-sent `shot` say nothing more (8.5c).
+    ppcp_sim_clock_advance(&F.hostClk, 2000 * kMs);
+    F.bridge.pump(F.nowNs());
+    EXPECT_TRUE(F.hearFromHost().declinedShots.empty());
+}
+
+// ⭐ THE REASON FOR THE WINDOW.  The phone's Candidate beat this host's
+// microphone, was excluded, and the phone minted.  Then the microphone fires:
+// `ShotController` calls reconsider(), the Candidate is re-admitted, and the
+// device's Shot — re-offered to the arbiter — is ADOPTED under 8.2k.  Declining
+// on arrival would have told the phone to drop a swing this host then records.
+TEST(PpcpShotDisposition, ADeviceShotAdoptedInsideTheWindowIsNeverDeclined)
+{
+    Fixture F;
+    ASSERT_NO_FATAL_FAILURE(F.build());
+    ASSERT_NO_FATAL_FAILURE(F.declare());
+    ASSERT_NO_FATAL_FAILURE(F.openSession());
+    ASSERT_NO_FATAL_FAILURE(F.declareRelation(0, 1000.0));
+    ASSERT_NO_FATAL_FAILURE(F.startBridge());
+    bool corroborates = false;
+    F.bridge.setCorroborationCallback([&corroborates](std::int64_t) { return corroborates; });
+
+    const std::int64_t t = F.nowNs();
+    const std::string cid = F.deviceNominates(t, 0.9, kBasisAcoustic);
+    ppcp_sim_clock_advance(&F.hostClk, 300 * kMs);
+    F.bridge.pump(F.nowNs());
+    ASSERT_NO_FATAL_FAILURE(F.deviceMints("dev-shot-2", cid, t));
+    F.bridge.pump(F.nowNs());
+    ASSERT_TRUE(F.bridge.isAwaitingVerdict("dev-shot-2"));
+
+    // This host's own detector fires late.
+    corroborates = true;
+    EXPECT_EQ(F.bridge.reconsider(), 1u);
+    EXPECT_FALSE(F.bridge.isAwaitingVerdict("dev-shot-2"));
+    EXPECT_EQ(F.bridge.stats().adopted, 1u) << "8.2k — the device's Shot is the one that exists";
+    ASSERT_EQ(F.shots.size(), 1u);
+    EXPECT_EQ(F.shots.front(), "dev-shot-2") << "I35 — adopted, not competed with";
+
+    ppcp_sim_clock_advance(&F.hostClk, 3000 * kMs);
+    F.bridge.pump(F.nowNs());
+    EXPECT_TRUE(F.hearFromHost().declinedShots.empty())
+        << "an adopted Shot was declined";
+    EXPECT_EQ(F.bridge.stats().declined, 0u);
+}
+
+// 8.2k at arrival: a group of ours is still inside its issue hold, so the device
+// Shot is adopted outright and never waits.  `adopted` counts it; the decline
+// machinery never sees it.
+TEST(PpcpShotDisposition, ADeviceShotSharingAnUnissuedGroupIsAdoptedAndCountedOnce)
+{
+    Fixture F;
+    ASSERT_NO_FATAL_FAILURE(F.build());
+    ASSERT_NO_FATAL_FAILURE(F.declare());
+    ASSERT_NO_FATAL_FAILURE(F.openSession());
+    ASSERT_NO_FATAL_FAILURE(F.declareRelation(0, 1000.0));
+    ASSERT_NO_FATAL_FAILURE(F.startBridge());
+    F.bridge.setCorroborationCallback([](std::int64_t) { return true; });
+
+    const std::int64_t t = F.nowNs();
+    const std::string cid = F.deviceNominates(t, 0.9, kBasisAcoustic);
+    ASSERT_NO_FATAL_FAILURE(F.deviceMints("dev-shot-3", cid, t));   // before our issue hold
+    EXPECT_EQ(F.bridge.stats().adopted, 1u);
+    EXPECT_EQ(F.bridge.stats().notAdopted, 0u);
+    EXPECT_FALSE(F.bridge.isAwaitingVerdict("dev-shot-3"));
+    ppcp_sim_clock_advance(&F.hostClk, 3000 * kMs);
+    F.bridge.pump(F.nowNs());
+    EXPECT_TRUE(F.hearFromHost().declinedShots.empty());
+}
+
+// ── MSG 8.5i / 8.5j — a decline owed while the link was down ──────────────
+//
+// `onSwingFailed` decides 15-40 s after the shot, and on the last swing of a
+// session the golfer has pressed Stop by then.  The decline goes into the
+// ledger and is paid on the next connection with the owning phone, naming the
+// Session the Shot belonged to — the live one through the library's own sender
+// (which arms I40), an older one with that Session in the envelope.
+TEST(PpcpShotDisposition, OwedDeclinesArePaidOnTheWireInTheirOwnSession)
+{
+    Fixture F;
+    ASSERT_NO_FATAL_FAILURE(F.build());
+    ASSERT_NO_FATAL_FAILURE(F.declare());
+    ASSERT_NO_FATAL_FAILURE(F.openSession());
+
+    PpcpImportLedger ledger;
+    // A commit owed for a Capture of the Shot, not yet paid.
+    ASSERT_TRUE(ledger.queueCommitted(CaptureKey{ "dev-1", kSession, "cap-x" }, "", "shot-live"));
+    ASSERT_EQ(ledger.pendingCommits("dev-1").size(), 1u);
+
+    EXPECT_EQ(ledger.declineShot("dev-1", kSession, "shot-live", "discarded"), 1u)
+        << "E74 — a declining receiver owes no unpaid commit";
+    EXPECT_TRUE(ledger.pendingCommits("dev-1").empty());
+    EXPECT_FALSE(ledger.queueCommitted(CaptureKey{ "dev-1", kSession, "cap-y" }, "", "shot-live"))
+        << "8.5b — and never queues one afterwards";
+    ledger.declineShot("dev-1", "sess:yesterday", "shot-old", "not_requested");
+    ledger.declineShot("dev-2", kSession, "shot-other-phone", "busy");
+    EXPECT_EQ(ledger.owedDeclineCount(), 3u);
+
+    // The phone is here: pay what is owed TO IT, and only that.
+    EXPECT_EQ(payOwedDeclines(ledger, F.host->peer(), "dev-1", kSession), 2u);
+    Fixture::Heard h = F.hearFromHost();
+    ASSERT_EQ(h.declinedShots.size(), 2u);
+    EXPECT_EQ(h.declinedShots[0], "shot-live");
+    EXPECT_EQ(h.reasons[0], "discarded");
+    EXPECT_EQ(h.sessions[0], kSession);
+    EXPECT_EQ(h.declinedShots[1], "shot-old");
+    EXPECT_EQ(h.reasons[1], "not_requested");
+    EXPECT_EQ(h.sessions[1], "sess:yesterday")
+        << "§8.5 — a Shot of another Session is named in ITS Session, not the live one";
+    EXPECT_EQ(h.commits, 0);
+    EXPECT_EQ(ledger.owedDeclineCount(), 1u) << "dev-2's decline waits for dev-2";
+    EXPECT_TRUE(ppcp_peer_has_declined_shot(F.host->peer(), "shot-live"))
+        << "the live-Session path arms the engine's own I40 guard";
+
+    // Paid once.  8.5i — met again, it is owed again, and said again.
+    EXPECT_EQ(payOwedDeclines(ledger, F.host->peer(), "dev-1", kSession), 0u);
+    EXPECT_TRUE(ledger.requeueDecline("dev-1", kSession, "shot-live"));
+    EXPECT_EQ(payOwedDeclines(ledger, F.host->peer(), "dev-1", kSession), 1u);
+    h = F.hearFromHost();
+    ASSERT_EQ(h.declinedShots.size(), 1u);
+    EXPECT_EQ(h.reasons[0], "discarded") << "the FIRST reason stands on a repeat";
 }

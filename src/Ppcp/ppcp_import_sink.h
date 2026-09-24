@@ -91,6 +91,15 @@ public:
         std::size_t clipsWritten = 0;
         std::size_t clipBytes = 0;
         std::size_t commitsQueued = 0;
+        // MSG 8.5b / I40 — a payload landed for a Shot this host has declined,
+        // so NO commit was queued for it.  Not a failure: the owner is released
+        // by the decline (exit 5), and a commit here is the one message I40
+        // forbids.
+        std::size_t commitsWithheld = 0;
+        // 8.5i — a Capture of a declined Shot turned up (announce or payload) and
+        // the decline was marked owed again, to be said on this or the next
+        // connection with its owner.
+        std::size_t declinesRepeated = 0;
         std::size_t unknownEvents = 0;    // MSG 1b / I13 — carried, not fatal
         std::string sessionDir;
     };
@@ -170,6 +179,11 @@ private:
     // no container type at all — see the note in the .cpp.
     std::map<std::string, std::string> m_streamKind;
     std::map<std::string, std::string> m_captureStream;
+    // capture id -> the Shot it is anchored to (I27), for 8.5i on a
+    // `payload_begin`, which names only the Capture.
+    std::map<std::string, std::string> m_captureShot;
+    // 8.5i — the Capture's Shot is one this host declined; marks it owed again.
+    bool declinedAgain(const std::string &captureId);
     OpenPayload m_open;
     bool        m_sawClose = false;
 };

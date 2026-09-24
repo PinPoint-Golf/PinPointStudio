@@ -29,6 +29,9 @@
 #include <QJsonObject>
 #include <QFileInfo>
 #include <QSaveFile>
+#include <QStringList>
+
+#include <algorithm>
 
 using pinpoint::SwingDocWriter;
 
@@ -81,7 +84,11 @@ void PpcpClipFiler::onCaptureAsked(const QString &shotId, const QString &peerId,
     Shot *s = find(shotId);
     if (!s) {
         m_shots.push_back(Shot{ shotId, {}, {}, {}, false });
-        while (m_shots.size() > kMaxTrackedShots) m_shots.pop_front();
+        while (m_shots.size() > kMaxTrackedShots) {
+            m_forgotten.push_back(m_shots.front().shotId);
+            while (m_forgotten.size() > kMaxForgotten) m_forgotten.pop_front();
+            m_shots.pop_front();
+        }
         s = find(shotId);
     }
     if (!s) return;
@@ -125,6 +132,14 @@ void PpcpClipFiler::onSwingReady(const QString &swingDir)
     for (const PpcpClip &c : parked) file(*s, c);
 }
 
+void PpcpClipFiler::declineShot(const QString &shotId, const QString &peerId,
+                                const QString &sessionId, const char *reason)
+{
+    if (shotId.isEmpty()) return;
+    ++m_stats.declined;
+    emit shotDeclined(shotId, peerId, sessionId, QString::fromLatin1(reason));
+}
+
 void PpcpClipFiler::onSwingFailed()
 {
     Shot *s = awaiting();
@@ -133,6 +148,19 @@ void PpcpClipFiler::onSwingFailed()
     if (!s->parked.empty())
         ppWarn() << "[ppcp]" << s->parked.size()
                  << "clip(s) arrived for a shot that produced no swing folder — discarded";
+    // ⭐ MSG 8.5 — `discarded`, to every phone that was asked.  This verdict is
+    // reached 15-40 s after the shot (the pipeline), so the link may be gone
+    // or the Session closed by now; PpcpHostService owes it durably and says
+    // it at the next connection (8.5i), and the owner accepts it against a
+    // closed Session (8.5j).  Said whether or not a clip has arrived: the
+    // capture_request is already out, and 8.5e makes the Capture it produces
+    // "released from birth for the declining receiver".
+    QStringList told;
+    for (const Asked &a : s->asked) {
+        if (told.contains(a.peerId)) continue;
+        told << a.peerId;
+        declineShot(s->shotId, a.peerId, QString(), "discarded");
+    }
     s->parked.clear();
 }
 
@@ -177,13 +205,28 @@ void PpcpClipFiler::onClipReady(const PpcpClip &clip)
     Shot *s = find(clip.shotId);
     if (!s) {
         ++m_stats.orphaned;
+        // ⭐ MSG 8.5 — the whole payload is already here (VideoInputPpcp
+        // delivers at `payload_end`), so 8.5e's "stop sending" is moot; what
+        // the decline buys is the phone's copy, released under exit 5 instead
+        // of held for the life of the link.  A Shot this filer once tracked and
+        // has since forgotten WAS asked for, so it is `discarded`, not
+        // `not_requested` — each value has one meaning, and a person may be
+        // shown it.
+        const bool forgotten = std::find(m_forgotten.begin(), m_forgotten.end(), clip.shotId)
+                               != m_forgotten.end();
         ppWarn() << "[ppcp] clip" << clip.captureId << "for unknown shot" << clip.shotId
-                 << "— nothing here asked for it";
+                 << (forgotten ? "— it scrolled off long ago" : "— nothing here asked for it")
+                 << "— declining it";
+        declineShot(clip.shotId, clip.peerId, clip.sessionId,
+                    forgotten ? "discarded" : "not_requested");
         return;
     }
     if (s->abandoned) {
         ppWarn() << "[ppcp] clip" << clip.captureId << "for shot" << clip.shotId
                  << "— that shot produced no swing folder, so there is nowhere to put it";
+        // 8.5i — already declined at onSwingFailed(); a Capture of it arriving
+        // is exactly where the statement is made again.  Idempotent.
+        declineShot(clip.shotId, clip.peerId, clip.sessionId, "discarded");
         return;
     }
     if (s->swingDir.isEmpty()) {
@@ -271,6 +314,7 @@ bool PpcpClipFiler::file(Shot &s, const PpcpClip &clip)
     rec.key.captureId = clip.captureId.toStdString();
     rec.completeness  = ledgerCompleteness(clip.completeness);
     rec.digestHex     = clip.digestHex.toStdString();
+    rec.shotId        = clip.shotId.toStdString();
 
     const auto admission = m_ledger->admit(rec);
     if (admission == Ppcp::PpcpImportLedger::Admission::AlreadyHeld) {
@@ -296,6 +340,11 @@ bool PpcpClipFiler::file(Shot &s, const PpcpClip &clip)
 
     // QSaveFile: a clip torn in half by a crash would be a file the document
     // names and the replay cannot open.
+    //
+    // ⛔ AND A FAILURE BELOW DECLINES NOTHING.  A disk that would not take the
+    // clip is transient and a decline is final: E80 withdrew `storage_full` so
+    // that a receiver short of space stays SILENT rather than evicting the only
+    // copy of a swing.  The phone keeps holding it, which is I38 working.
     QSaveFile f(path);
     if (!f.open(QIODevice::WriteOnly)) {
         ++m_stats.failed;
@@ -325,7 +374,10 @@ bool PpcpClipFiler::file(Shot &s, const PpcpClip &clip)
         Ppcp::SwingRef{ QFileInfo(s.swingDir).dir().dirName().toStdString(),
                         QFileInfo(s.swingDir).fileName().toStdString(),
                         alias.toStdString() });
-    m_ledger->queueCommitted(rec.key, rec.digestHex);
+    // The Shot anchor rides along (CR-03): a later decline of this Shot finds
+    // and strikes this commit if it is still unpaid (E74), and a Shot already
+    // declined is refused here (8.5b).
+    m_ledger->queueCommitted(rec.key, rec.digestHex, clip.shotId.toStdString());
     m_ledger->save();
     if (m_pumpCommits) m_pumpCommits();
 
