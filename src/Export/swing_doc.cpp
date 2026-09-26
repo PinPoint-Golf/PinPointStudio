@@ -39,6 +39,7 @@
 #include "../Analysis/swing_analysis.h"
 #include "../Analysis/kinematic_sequence_json.h"   // kinematicSequenceToJson — one shape, three paths
 #include "../Analysis/shaft_fusion_json.h"         // shaftTrack3dToJson — analysis.club3d
+#include "../Analysis/skeleton3d/skeleton3d_json.h" // skeleton3dToJson — analysis.skeleton3d
 #include "../Analysis/dtl_shaft_json.h"            // dtlShaftTrackToJson — analysis.clubDtl == club_dtl.json
 #include "../Core/club_vocabulary.h"
 
@@ -204,6 +205,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
             v.insert(QStringLiteral("shaftDtl"), QJsonObject{ { QStringLiteral("code"), a.versions.shaftDtl } });
         if (a.versions.shaftFusion > 0)
             v.insert(QStringLiteral("shaftFusion"), QJsonObject{ { QStringLiteral("code"), a.versions.shaftFusion } });
+        if (a.versions.skeleton3d > 0)
+            v.insert(QStringLiteral("skeleton3d"), QJsonObject{ { QStringLiteral("code"), a.versions.skeleton3d } });
         o[QStringLiteral("versions")] = v;
     }
     o[QStringLiteral("tier")]   = a.tier;
@@ -596,6 +599,10 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
     if (a.versions.shaftFusion > 0)
         o[QStringLiteral("club3d")] = analysis::shaftTrack3dToJson(
             a.shaft3d, a.shaft3dCfg, windowT0, a.versions.shaftFusion);
+    // The fitted 3-D skeleton (Skeleton3DStage) — pinpoint.skeleton3d/1, the 3-D swing panel's
+    // input. Written whenever the stage RAN, valid or not: `reason` says why there is none.
+    if (a.versions.skeleton3d > 0)
+        o[QStringLiteral("skeleton3d")] = pinpoint::skeleton3d::skeleton3dToJson(a.skeleton3d, windowT0, a.versions.skeleton3d);
     return o;
 }
 

@@ -344,6 +344,7 @@ struct SwingExportJob {
     bool    savePose = true;
 
     QString athleteName, athleteUuid, handedness;
+    double  athleteHeightM = 0.0;   // athlete profile height (m), 0 = unknown → athlete.heightM
     QString sessionId;     // session folder name, e.g. "2026-06-05_Mark-Liversedge_Swing_01"
 
     // Club geometry for the shaft tracker's E1 band matcher, resolved from the

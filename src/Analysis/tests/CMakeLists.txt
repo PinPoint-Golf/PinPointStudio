@@ -685,6 +685,19 @@ pp_add_test(shaft_plane_test SOURCES shaft_plane_test.cpp NO_QT)
 # the bridge but kept out of the fit. Pure std header — no Qt, no OpenCV, no fixture.
 pp_add_test(shaft_fusion_test SOURCES shaft_fusion_test.cpp NO_QT)
 
+# The 3-D swing skeleton (skeleton3d/, swing_3d_viz_design.md §8.1): the rig rebuilds its own
+# rest pose and its hinges bend the right way; the analytic Jacobian matches central
+# differences; a synthetic swing through two virtual cameras recovers bone direction AND roll;
+# lengths and camera geometry are recovered from a wrong start; each constraint is ablated;
+# face-on only. Eigen, no Qt. Built -O2 even in an unoptimised tree — the solve is the test.
+pp_find_eigen(EIGEN_DIR)
+pp_add_test(skeleton3d_test
+    SOURCES skeleton3d_test.cpp ${SRC}/Analysis/skeleton3d/skeleton3d_fit.cpp
+    INCLUDE ${EIGEN_DIR} NO_QT)
+if(NOT MSVC)
+    target_compile_options(skeleton3d_test PRIVATE -O2)
+endif()
+
 # Down-the-line posture (dtl_posture.h, dtl_posture_design.md): one synthetic golfer seen from
 # down the line — a hip TURN is not a thrust (the midpoint holds), a thrust is, the same golfer
 # mirrored reads the same numbers because the sign comes from the feet, a ball that disagrees

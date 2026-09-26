@@ -57,6 +57,8 @@ public:
     QString      currentUuid()       const { return m_currentUuid; }
     QString      currentDob()        const { return currentField(QStringLiteral("dob")); }
     QString      currentSex()        const { return currentField(QStringLiteral("sex")); }
+    // Standing height in metres, 0 = unknown. Stored in feet whatever unit the form used.
+    double       currentHeightM()    const { return currentField(QStringLiteral("heightValue")).toDouble() * 0.3048; }
     QVariantList athletes()          const { return m_athletes; }
     QVariantList recentSessions()    const { return {}; }
 

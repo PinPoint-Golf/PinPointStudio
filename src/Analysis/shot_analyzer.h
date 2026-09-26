@@ -60,6 +60,10 @@ struct ShotAnalysisJob {
     pinpoint::SourceId markerSourceId = pinpoint::kInvalidSourceId;  // shot_marker_v1 source
 
     double clubLengthM = 1.12;  // shaft search radius (driver default until club selection is real)
+    // The athlete's standing height (m), 0 = unknown. The skeleton3d fit's scale prior: bone
+    // lengths start at the Y-bot's proportions × height / Y-bot height. Filled from the athlete
+    // profile on the LIVE path and from the recorded athlete block on RE-ANALYSIS.
+    double athleteHeightM = 0.0;
     // Retro-band geometry for the v3 E1 band matcher (taped clubs only). Band
     // centres measured from the butt (mm) + shaft type, taken from the athlete's
     // active club record (athlete_controller.h bandCentersMm/shaftType). Empty ⇒

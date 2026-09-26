@@ -29,7 +29,7 @@
 //                [--session-type 1] [--face-on Face] [--impact-us N] [--pose p.json]
 //                [--bind <index>=<role> ...] [--dtl [--dtl-pose p.json]]
 //                [--bands <csv mm>] [--club-length-mm N] [--hosel-mm N]
-//                [--shaft-length-mm N] [--hands-end-mm N]
+//                [--shaft-length-mm N] [--hands-end-mm N] [--height-m N]
 //
 // Outputs in <run_dir>:
 //   result.json    swing.json-shaped document with the re-run analysis block
@@ -333,6 +333,9 @@ int main(int argc, char **argv)
         "capture.club block.", "mm");
     QCommandLineOption optHandsEnd("hands-end-mm",
         "Butt → bottom of the trail hand (mm) for a swing with no capture.club block.", "mm");
+    QCommandLineOption optHeight("height-m",
+        "The athlete's standing height (m) — the skeleton3d fit's scale prior — for a swing whose "
+        "athlete block records none.", "m");
     QCommandLineOption optWriteBack("write-back",
         "Re-analyse the swing exactly as the in-app ReanalysisController does "
         "(reanalyzeSwingDir, production defaults, no overrides) and write the fresh "
@@ -340,7 +343,7 @@ int main(int argc, char **argv)
         "Exclusive: every other option except the positional swing dir is ignored.");
     cli.addOptions({ optOut, optParams, optTrace, optSession, optFaceOn, optImpact, optPose, optForce, optFullWindow,
                      optBall, optRefuse, optRefuseBeta, optWriteBack, optBind, optDtl, optDtlPose,
-                     optBands, optClubLen, optHosel, optShaftLen, optHandsEnd });
+                     optBands, optClubLen, optHosel, optShaftLen, optHandsEnd, optHeight });
     cli.process(app);
 
     if (cli.positionalArguments().isEmpty() || (!cli.isSet(optOut) && !cli.isSet(optWriteBack)))
@@ -509,6 +512,7 @@ int main(int argc, char **argv)
         if (err.isEmpty()) err = mm(optHosel,    "hosel-mm",         &job.hoselFromButtMm, 1.0);
         if (err.isEmpty()) err = mm(optShaftLen, "shaft-length-mm",  &job.shaftLengthMm,   1.0);
         if (err.isEmpty()) err = mm(optHandsEnd, "hands-end-mm",     &job.handsEndMm,      1.0);
+        if (err.isEmpty()) err = mm(optHeight,   "height-m",         &job.athleteHeightM,  1.0);
         if (!err.isEmpty())
             return fail(err);
         if (cli.isSet(optBands)) {

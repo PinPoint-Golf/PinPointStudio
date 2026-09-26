@@ -1165,6 +1165,8 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
     const QString hand = m_athlete ? m_athlete->currentHandedness() : QString();
     job.handedness = hand.compare(QLatin1String("Left"),  Qt::CaseInsensitive) == 0 ? 2
                    : hand.compare(QLatin1String("Right"), Qt::CaseInsensitive) == 0 ? 1 : 0;
+    // The skeleton3d fit's scale prior (0 = unknown ⇒ the Y-bot's own proportions).
+    job.athleteHeightM = m_athlete ? m_athlete->currentHeightM() : 0.0;
 
     // Club length (m) sizes the shaft-tracker search radius. Resolve the session's
     // active club against the athlete's bag; leave the ShotAnalysisJob default
@@ -1471,6 +1473,7 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         job.athleteName = m_athlete->currentName();
         job.athleteUuid = m_athlete->currentUuid();
         job.handedness  = m_athlete->currentHandedness();
+        job.athleteHeightM = m_athlete->currentHeightM();
     }
 
     // Wallclock anchor: right now, wallclock ~= monotonic endTimestampUs().
@@ -1963,6 +1966,13 @@ QJsonObject ShotProcessor::buildSynthManifest() const
         { QStringLiteral("uuid"),       m_exportJob.athleteUuid },
         { QStringLiteral("handedness"), m_exportJob.handedness },
     };
+    // Height rides with the swing so a re-analysis scales the skeleton exactly as the live one
+    // did — never from whatever the profile says on the day it is re-run. Absent when unknown.
+    if (m_exportJob.athleteHeightM > 0.0) {
+        QJsonObject a = root[QStringLiteral("athlete")].toObject();
+        a.insert(QStringLiteral("heightM"), m_exportJob.athleteHeightM);
+        root[QStringLiteral("athlete")] = a;
+    }
     root[QStringLiteral("session")] = QJsonObject{{ QStringLiteral("dir"), m_exportJob.sessionId }};
     root[QStringLiteral("clock")] = QJsonObject{
         { QStringLiteral("t0_us"),     static_cast<qint64>(t0) },

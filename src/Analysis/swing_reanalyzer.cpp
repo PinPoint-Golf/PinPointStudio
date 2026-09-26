@@ -721,6 +721,8 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
     job.handedness = hand.compare(QLatin1String("Left"), Qt::CaseInsensitive) == 0  ? 2
                    : hand.compare(QLatin1String("Right"), Qt::CaseInsensitive) == 0 ? 1
                                                                                      : 0;
+    // The recorded height (skeleton3d scale prior); absent on swings before it was recorded.
+    job.athleteHeightM = root[QStringLiteral("athlete")].toObject()[QStringLiteral("heightM")].toDouble(0.0);
 
     // Club geometry (shaft-tracker E1 band matcher): recover the club that was
     // used from capture.club (persisted since the club-persistence change). Absent

@@ -72,6 +72,11 @@ constexpr int kDtlShaftStageVersion = 1;
 //           arithmetic on two tracks that are already in hand. Bump when
 //           shaft_fusion.h changes its output.
 constexpr int kShaftFusionStageVersion = 2;   // 2: the address plane and deliveryVsAddressDeg (2026-09-21)
+// skeleton3d — kSkeleton3DStageVersion: the rigid, jointed skeleton fitted to both poses, the
+//           shaft, the feet and any IMUs (Skeleton3DStage, skeleton3d/; swing_3d_viz_design.md).
+//           Stamped; never reused — recomputed from the reused poses on every re-analysis.
+//           Bump when skeleton3d_fit.* or skeleton3d_rig.h changes its output.
+constexpr int kSkeleton3DStageVersion = 1;
 
 struct AnalysisVersions {
     int     pose  = 0;          // 0 = unknown / not stamped
@@ -81,6 +86,7 @@ struct AnalysisVersions {
     int     poseDtl  = 0;       // 0 = the DTL pose stage did not run
     int     shaftDtl = 0;       // 0 = the DTL shaft stage did not run
     int     shaftFusion = 0;    // 0 = the shaft fusion stage did not run
+    int     skeleton3d = 0;     // 0 = the skeleton3d stage did not run
     QString poseModel;          // "<file>@<bytes>" of the ViTPose model that ran
     QString poseScope;          // "span" | "full"
     QString poseDtlModel;       // "<file>@<bytes>" of the model that posed the DTL stream

@@ -817,7 +817,7 @@ qt_add_executable(PinPointStudio
 target_include_directories(PinPointStudio PRIVATE
     src/Gui
     src/Gui/app src/Gui/shell src/Gui/athlete src/Gui/monitor src/Gui/cameras
-    src/Gui/imu src/Gui/viz src/Gui/session src/Gui/shot src/Gui/review
+    src/Gui/imu src/Gui/viz src/Gui/swing3d src/Gui/session src/Gui/shot src/Gui/review
     src/Gui/media src/Gui/calibration src/Gui/diagnostics src/Gui/markup
     src/Gui/characteristics src/Gui/diagnosticmodel src/Gui/launchmonitor
     src/IMU src/LaunchMonitor src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer
@@ -1099,6 +1099,33 @@ qt_add_resources(PinPointStudio "app_body"
         src/Resources/body/body_RightUpLeg.glb
         src/Resources/body/body_RightLeg.glb
         src/Resources/body/body_RightFoot.glb
+)
+
+# The 3-D swing panel's own Y-bot segments (tools/extract_swing3d_rig.py) — deliberately NOT the
+# calibration views' src/Resources/body/ set (swing_3d_viz_design.md §6.1: no shared files).
+qt_add_resources(PinPointStudio "app_swing3d"
+    PREFIX "/assets/swing3d"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/swing3d"
+    FILES
+        src/Resources/swing3d/seg_Hips.glb
+        src/Resources/swing3d/seg_Spine.glb
+        src/Resources/swing3d/seg_Spine1.glb
+        src/Resources/swing3d/seg_Spine2.glb
+        src/Resources/swing3d/seg_Head.glb
+        src/Resources/swing3d/seg_LeftShoulder.glb
+        src/Resources/swing3d/seg_RightShoulder.glb
+        src/Resources/swing3d/seg_LeftArm.glb
+        src/Resources/swing3d/seg_LeftForeArm.glb
+        src/Resources/swing3d/seg_LeftHand.glb
+        src/Resources/swing3d/seg_RightArm.glb
+        src/Resources/swing3d/seg_RightForeArm.glb
+        src/Resources/swing3d/seg_RightHand.glb
+        src/Resources/swing3d/seg_LeftUpLeg.glb
+        src/Resources/swing3d/seg_LeftLeg.glb
+        src/Resources/swing3d/seg_LeftFoot.glb
+        src/Resources/swing3d/seg_RightUpLeg.glb
+        src/Resources/swing3d/seg_RightLeg.glb
+        src/Resources/swing3d/seg_RightFoot.glb
 )
 
 # ── Linux: deploy icon + .desktop to user dirs on every build ────────────────
@@ -2864,6 +2891,11 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/score_uncertainty.cpp
     src/Analysis/wrist_analyzer.h
     src/Analysis/wrist_analyzer.cpp
+    src/Analysis/skeleton3d/ybot_rig.h
+    src/Analysis/skeleton3d/skeleton3d_rig.h
+    src/Analysis/skeleton3d/skeleton3d_fit.h
+    src/Analysis/skeleton3d/skeleton3d_fit.cpp
+    src/Analysis/skeleton3d/skeleton3d_json.h
     src/Analysis/analysis_profiling.h
     src/Analysis/analysis_profiling.cpp
     src/Analysis/kinematic_series.h
@@ -3157,6 +3189,13 @@ endif()
 # pipeline (same sources, same configs) with JSON-injectable tuning params and
 # per-frame trace dumps. Built only on request — it shares the app's heavy
 # dependency set (OpenCV incl. videoio, ONNX Runtime, ViTPose model).
+# The skeleton3d solver (Skeleton3DStage) is dense small-matrix Eigen: unoptimised it is ~20×
+# slower, which a Debug app tree would feel on every shot. Optimised and assert-free in every
+# configuration on the compilers that allow it per file (MSVC's /RTC1 forbids /O2 alongside).
+set_source_files_properties(src/Analysis/skeleton3d/skeleton3d_fit.cpp PROPERTIES
+    COMPILE_DEFINITIONS "EIGEN_NO_DEBUG"
+    COMPILE_OPTIONS "$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-O2>")
+
 option(PINPOINT_BUILD_TOOLS "Build the SwingLab offline analysis tools" OFF)
 if(PINPOINT_BUILD_TOOLS)
     # Shared offline reconstruction + analysis sources (the disk → SwingWindow →
@@ -3166,6 +3205,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/swing_reanalyzer.cpp
         src/Analysis/shot_analyzer.cpp
         src/Analysis/wrist_analyzer.cpp
+        src/Analysis/skeleton3d/skeleton3d_fit.cpp
         src/Analysis/analysis_profiling.cpp
         src/Analysis/kinematic_series.cpp
         src/Analysis/imu_vision_fuser.cpp
@@ -3264,6 +3304,8 @@ if(PINPOINT_BUILD_TOOLS)
             # was added, these offline targets did not.
             src/LaunchMonitor
             "${_ort_root}/include"
+            # skeleton3d_fit.cpp (the Skeleton3DStage's solver) is Eigen.
+            ${eigen_SOURCE_DIR}
             ${OpenCV_INCLUDE_DIRS}
             ${whisper_SOURCE_DIR}/include
             ${whisper_SOURCE_DIR}/ggml/include

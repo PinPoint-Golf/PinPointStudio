@@ -59,6 +59,7 @@
 #include "pose_synthesis.h"
 #include "segment_rates.h"
 #include "shaft_plane.h"
+#include "skeleton3d/skeleton3d_json.h"
 #include "shaft_tracker.h"
 #include "tempo_metrics.h"
 #include "timeline_fusion.h"
@@ -1937,6 +1938,260 @@ struct KinematicSequenceStage : AnalysisStage {
     }
 };
 
+// 13c-septies. The 3-D SKELETON (skeleton3d/; swing_3d_viz_design.md §3). A rigid, jointed Y-bot
+//      fitted in ONE batch to everything that saw the swing: both cameras' 2-D poses, the face-on
+//      and DTL shaft angles and measured clubheads, the planted feet, IMUs and a HackMotion where
+//      worn. The bone lengths are one value per swing and the knees and elbows are hinges — the
+//      anatomy constrains the coordinates instead of being checked against them. Feeds NOTHING:
+//      it is the 3-D swing panel's input until the design §8.2 grade promotes it.
+struct Skeleton3DStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("Skeleton3D"); }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        return pinpoint::skeleton3d::fitConfigFromOverrides(ctx.job.tuningOverrides).enabled
+            && ctx.window && !ctx.job.cameraSources.empty() && !ctx.detail->pose2d.frames.empty()
+            && ctx.seg.eventFor(Phase::Impact);
+    }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        if (!pinpoint::skeleton3d::fitConfigFromOverrides(ctx.job.tuningOverrides).enabled)
+            return QStringLiteral("skeleton3d disabled (skeleton3d.enabled)");
+        if (ctx.detail->pose2d.frames.empty()) return QStringLiteral("no face-on pose");
+        return QStringLiteral("no Impact on the ladder");
+    }
+
+    // One view's keypoints at instant t: the smoothed track where it exists (σ from its honesty
+    // aux), the raw detections otherwise. DTL frames are interpolated to the face-on instant;
+    // a bracket wider than 12 ms is not a bracket.
+    static void observePose(const PoseTrack2D &trk, int W, int H, int64_t t, pinpoint::skeleton3d::ViewObs &out)
+    {
+        const bool sm = !trk.smoothed.empty() && trk.smoothedAux.size() == trk.smoothed.size();
+        const std::vector<PoseFrame2D> &F = sm ? trk.smoothed : trk.frames;
+        if (F.empty()) return;
+        auto hi = std::lower_bound(F.begin(), F.end(), t, [](const PoseFrame2D &f, int64_t tt) { return f.t_us < tt; });
+        auto kpObs = [&](size_t i, int m, double &u, double &v, double &sig) {
+            const PoseFrame2D &f = F[i];
+            u = f.kp[size_t(m)].x() * W;
+            v = f.kp[size_t(m)].y() * H;
+            if (sm) {
+                const PoseKpAux &a = trk.smoothedAux[i];
+                const auto tier = PoseTier(a.tier[size_t(m)]);
+                const double s = a.sigma[size_t(m)];
+                if (tier == PoseTier::Meas) sig = std::max(1.5, s > 0 ? s : 2.0);
+                else if (tier == PoseTier::Pred) sig = 1.5 * std::max(3.0, s > 0 ? s : 4.0);
+                else sig = f.conf[size_t(m)] >= 0.5f ? 6.0 : 0.0;
+            } else {
+                sig = f.conf[size_t(m)] >= 0.3f ? 3.0 / double(f.conf[size_t(m)]) : 0.0;
+            }
+        };
+        size_t a = 0, b = 0;
+        double w = 0;
+        if (hi == F.end()) { a = b = F.size() - 1; }
+        else if (hi == F.begin()) { a = b = 0; }
+        else {
+            b = size_t(hi - F.begin());
+            a = b - 1;
+            const double span = double(F[b].t_us - F[a].t_us);
+            if (span > 12000.0 || span <= 0) {
+                // Nearest, if it is within 6 ms.
+                const size_t n = (t - F[a].t_us) <= (F[b].t_us - t) ? a : b;
+                if (std::llabs(F[n].t_us - t) > 6000) return;
+                a = b = n;
+            } else {
+                w = double(t - F[a].t_us) / span;
+            }
+        }
+        if (a == b && std::llabs(F[a].t_us - t) > 6000) return;
+        for (int m = 0; m < pinpoint::skeleton3d::kMarkerCount; ++m) {
+            double ua, va, sa, ub, vb, sb;
+            kpObs(a, m, ua, va, sa);
+            kpObs(b, m, ub, vb, sb);
+            if (sa <= 0 || sb <= 0) continue;
+            out.kp[size_t(m)] = { ua + w * (ub - ua), va + w * (vb - va), std::max(sa, sb) };
+        }
+    }
+
+    void run(AnalysisContext &ctx) override
+    {
+        const pinpoint::skeleton3d::FitConfig cfg = pinpoint::skeleton3d::fitConfigFromOverrides(ctx.job.tuningOverrides);
+        const auto *cfmt = std::get_if<pinpoint::CameraFormat>(&ctx.window->formatOf(ctx.job.cameraSources.front()).format);
+        if (!cfmt || cfmt->width <= 0 || cfmt->height <= 0) return;
+        pinpoint::skeleton3d::FitInput in;
+        in.cfg = cfg;
+        in.foW = int(cfmt->width); in.foH = int(cfmt->height);
+        const PoseTrack2D &fo = ctx.detail->pose2d;
+        const PoseTrack2D &dt = ctx.detail->poseDtl;
+        bool haveDtl = false;
+        if (ctx.job.dtlSource != pinpoint::kInvalidSourceId && !dt.frames.empty()) {
+            const auto *dfmt = std::get_if<pinpoint::CameraFormat>(&ctx.window->formatOf(ctx.job.dtlSource).format);
+            if (dfmt && dfmt->width > 0 && dfmt->height > 0) {
+                in.dtlW = int(dfmt->width); in.dtlH = int(dfmt->height);
+                haveDtl = true;
+            }
+        }
+        in.leadIsLeft = ctx.job.handedness != 2;
+        in.heightM = ctx.job.athleteHeightM;
+        in.clubLengthM = ctx.job.clubLengthM;
+        const int64_t impactUs = ctx.seg.eventFor(Phase::Impact)->t_us;
+        const PhaseEvent *addr = ctx.seg.eventFor(Phase::Address);
+        const PhaseEvent *top = ctx.seg.eventFor(Phase::Top);
+        in.impactUs = impactUs;
+        in.addressUs = addr ? addr->t_us : impactUs - 1300000;
+        in.topUs = top ? top->t_us : impactUs - 300000;
+
+        // The frame grid: the face-on pose instants from address − 150 ms to impact + 700 ms,
+        // thinned to ≤ 600 frames.
+        const std::vector<PoseFrame2D> &FF = !fo.smoothed.empty() ? fo.smoothed : fo.frames;
+        std::vector<int64_t> grid;
+        for (const PoseFrame2D &f : FF)
+            if (f.t_us >= in.addressUs - 150000 && f.t_us <= impactUs + 700000) grid.push_back(f.t_us);
+        const size_t stride = std::max<size_t>(1, (grid.size() + 599) / 600);
+        for (size_t i = 0; i < grid.size(); i += stride) in.t_us.push_back(grid[i]);
+        if (in.t_us.size() < 10) {
+            ppInfo() << "[WristAnalysis] skeleton3d: refused — fewer than 10 face-on pose frames in the window";
+            return;
+        }
+
+        // Shaft: the face-on tracker's MEASURED samples, the DTL tracker's RAY-or-better ones.
+        const ShaftTrack2D &sF = ctx.detail->shaft;
+        const DtlShaftTrack2D &sD = ctx.detail->shaftDtl;
+        auto nearestFo = [&](int64_t t) -> const ShaftSample2D * {
+            if (!sF.valid || sF.samples.empty()) return nullptr;
+            auto it = std::lower_bound(sF.samples.begin(), sF.samples.end(), t,
+                                       [](const ShaftSample2D &s, int64_t tt) { return s.t_us < tt; });
+            const ShaftSample2D *best = nullptr;
+            for (auto c : { it, it == sF.samples.begin() ? it : it - 1 })
+                if (c != sF.samples.end() && std::llabs(c->t_us - t) <= 4000
+                    && (!best || std::llabs(c->t_us - t) < std::llabs(best->t_us - t))) best = &*c;
+            if (!best || !(best->flags & ShaftMeasured)
+                || (best->flags & (ShaftCoasted | ShaftSynthesized | ShaftImplausible | ShaftKinematicPredicted)))
+                return nullptr;
+            return best;
+        };
+        auto nearestDtl = [&](int64_t t) -> const DtlSample * {
+            if (!sD.valid || sD.samples.empty()) return nullptr;
+            const DtlSample *best = nullptr;
+            for (const DtlSample &s : sD.samples) {
+                const int64_t ts = s.t_us - sD.clockOffsetUs;
+                if (std::llabs(ts - t) <= 6000 && (!best || std::llabs(ts - t) < std::llabs(best->t_us - sD.clockOffsetUs - t)))
+                    best = &s;
+            }
+            return best && best->tier >= DtlTier::Ray && std::isfinite(best->thetaRad) ? best : nullptr;
+        };
+
+        // Planted feet: everything until just after impact except a lifted lead heel; the lead
+        // foot a little longer; nothing in the finish.
+        const FootMetricsResult feet = trackFeet(fo, in.foW, in.foH, in.leadIsLeft, in.addressUs);
+        auto leadHeelLifted = [&](int64_t t) {
+            if (feet.liftTUs.empty()) return false;
+            auto it = std::lower_bound(feet.liftTUs.begin(), feet.liftTUs.end(), t);
+            const size_t i = it == feet.liftTUs.end() ? feet.liftTUs.size() - 1 : size_t(it - feet.liftTUs.begin());
+            return std::llabs(feet.liftTUs[i] - t) <= 20000 && feet.liftValue[i] > 0.008;
+        };
+
+        // IMUs by role → the rig joint they ride on.
+        auto roleJoint = [&](SegmentRole r) -> int {
+            using namespace pinpoint::skeleton3d::ybot;
+            const bool L = in.leadIsLeft;
+            switch (r) {
+            case SegmentRole::Pelvis: return Hips;
+            case SegmentRole::Thorax: return Spine2;
+            case SegmentRole::T12: return Spine1;
+            case SegmentRole::LeadUpperArm: return L ? LeftArm : RightArm;
+            case SegmentRole::LeadForearm: return L ? LeftForeArm : RightForeArm;
+            case SegmentRole::LeadHand: return L ? LeftHand : RightHand;
+            case SegmentRole::TrailThigh: return L ? RightUpLeg : LeftUpLeg;
+            case SegmentRole::LeadThigh: return L ? LeftUpLeg : RightUpLeg;
+            default: return -1;
+            }
+        };
+        for (const SegmentStream &ss : ctx.streams.segments) {
+            if (ss.hackMotion) continue;      // the wG3 enters through its wrist angles, below
+            const int j = roleJoint(ss.role);
+            if (j < 0 || ss.qAnat.empty()) continue;
+            pinpoint::skeleton3d::ImuTrack it;
+            it.joint = j;
+            for (int64_t t : in.t_us) {
+                auto g = std::lower_bound(ctx.streams.timeGrid.begin(), ctx.streams.timeGrid.end(), t);
+                size_t i = g == ctx.streams.timeGrid.end() ? ctx.streams.timeGrid.size() - 1 : size_t(g - ctx.streams.timeGrid.begin());
+                if (i > 0 && (i >= ctx.streams.timeGrid.size() || std::llabs(ctx.streams.timeGrid[i - 1] - t) < std::llabs(ctx.streams.timeGrid[i] - t))) --i;
+                const bool ok = i < ss.qAnat.size() && i < ctx.streams.timeGrid.size() && std::llabs(ctx.streams.timeGrid[i] - t) <= 10000;
+                const QQuaternion q = ok ? ss.qAnat[i] : QQuaternion();
+                it.q.push_back({ q.scalar(), q.x(), q.y(), q.z() });
+                it.valid.push_back(ok ? 1 : 0);
+            }
+            in.imu.push_back(std::move(it));
+        }
+        // HackMotion lead wrist.
+        auto seriesAt = [&](const QString &key, int64_t t) {
+            const MetricSeries *m = findSeriesByLadder(ctx.detail->series, key);
+            if (!m) m = findSeriesByLadder(ctx.series, key);
+            if (!m || m->t_us.size() < 2) return pinpoint::skeleton3d::kNaN;
+            auto it = std::lower_bound(m->t_us.begin(), m->t_us.end(), t);
+            if (it == m->t_us.begin() || it == m->t_us.end()) return pinpoint::skeleton3d::kNaN;
+            const size_t b = size_t(it - m->t_us.begin()), a = b - 1;
+            if (m->t_us[b] - m->t_us[a] > 20000) return pinpoint::skeleton3d::kNaN;
+            const double w = double(t - m->t_us[a]) / double(m->t_us[b] - m->t_us[a]);
+            return m->value[a] + w * (m->value[b] - m->value[a]);
+        };
+
+        for (int64_t t : in.t_us) {
+            pinpoint::skeleton3d::ViewObs vf, vd;
+            observePose(fo, in.foW, in.foH, t, vf);
+            if (const ShaftSample2D *s = nearestFo(t)) {
+                vf.shaftTheta = s->thetaRad;
+                vf.shaftSigma = 2.5 * pinpoint::skeleton3d::kDeg;
+                if (s->headConf >= 0.5f && s->headSigmaPx >= 0.f && s->headPx.x() > 0)
+                    vf.headU = s->headPx.x(), vf.headV = s->headPx.y(), vf.headSigma = std::max(3.0, double(s->headSigmaPx));
+            }
+            in.fo.push_back(vf);
+            if (haveDtl) {
+                observePose(dt, in.dtlW, in.dtlH, t, vd);
+                if (const DtlSample *s = nearestDtl(t)) {
+                    vd.shaftTheta = s->thetaRad;
+                    vd.shaftSigma = 3.5 * pinpoint::skeleton3d::kDeg;
+                    if (s->tier >= DtlTier::Seg && s->headPx.x() > 0)
+                        vd.headU = s->headPx.x(), vd.headV = s->headPx.y(), vd.headSigma = 6.0;
+                }
+                in.dtl.push_back(vd);
+            }
+            std::array<uint8_t, 6> c {};
+            const bool planted = t <= impactUs + 80000;
+            const bool leadLate = t <= impactUs + 250000;
+            for (int f = 0; f < 6; ++f) {
+                const bool leadFoot = (f < 3) == in.leadIsLeft;
+                c[size_t(f)] = planted || (leadFoot && leadLate);
+            }
+            if (leadHeelLifted(t) && t < impactUs) c[size_t(in.leadIsLeft ? 2 : 5)] = 0;
+            in.footContact.push_back(c);
+            in.hmFlexDeg.push_back(seriesAt(QStringLiteral("hm.leadWristFlexExt"), t));
+            in.hmRadDeg.push_back(seriesAt(QStringLiteral("hm.leadWristRadUln"), t));
+        }
+        // The face-on ball at address, for the display origin.
+        const BallPositionResult bp = computeBallPosition(ctx.detail->ball, QPointF(), QPointF(), in.addressUs,
+                                                          in.foW, in.foH,
+                                                          BallPositionConfig::fromOverrides(ctx.job.tuningOverrides));
+        if (bp.addressBallPx.x() > 0 && bp.addressBallPx.y() > 0) {
+            in.ballU = bp.addressBallPx.x();
+            in.ballV = bp.addressBallPx.y();
+        }
+
+        ctx.detail->skeleton3d = pinpoint::skeleton3d::fitSkeleton(in);
+        ctx.detail->versions.skeleton3d = kSkeleton3DStageVersion;
+        const pinpoint::skeleton3d::FitResult &r = ctx.detail->skeleton3d;
+        if (!r.valid) {
+            ppInfo() << "[WristAnalysis] skeleton3d: refused —" << QString::fromStdString(r.reason);
+            return;
+        }
+        ppInfo() << "[WristAnalysis] skeleton3d:" << qlonglong(r.t_us.size()) << "frames,"
+                 << (r.dtlUsed ? "face-on + DTL" : "face-on only") << ", scale" << r.scaleGlobal
+                 << "(" << QString::fromStdString(r.scaleSource) << "), reprojection median"
+                 << r.reprojMedPxFo << "/" << r.reprojMedPxDtl << "px, γ" << r.gammaDeg << "°, r" << r.rRatio
+                 << ", swaps" << r.nSwapFo << "/" << r.nSwapDtl << ", limit-held" << r.nLimitHeld
+                 << ", slip p90" << r.footSlipP90Mm << "mm," << r.iterations << "iterations," << r.ms << "ms";
+    }
+};
+
 void appendBodyMetricStages(SessionProfile &p)
 {
     p.stages.push_back(std::make_unique<HeadTrackStage>());
@@ -1978,6 +2233,7 @@ SessionProfile wristProfile()
     p.stages.push_back(std::make_unique<ShaftFusionStage>());
     p.stages.push_back(std::make_unique<DtlPostureStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
+    p.stages.push_back(std::make_unique<Skeleton3DStage>());
     p.stages.push_back(std::make_unique<BindingsStage>());
     p.stages.push_back(std::make_unique<ResemblanceStage>());
     p.stages.push_back(std::make_unique<AssessmentStage>());
@@ -2069,6 +2325,7 @@ SessionProfile cameraKinematicsProfile()
     p.stages.push_back(std::make_unique<ShaftFusionStage>());
     p.stages.push_back(std::make_unique<DtlPostureStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
+    p.stages.push_back(std::make_unique<Skeleton3DStage>());
     return p;
 }
 } // namespace pinpoint::analysis
