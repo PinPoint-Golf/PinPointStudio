@@ -306,6 +306,11 @@ Rotates near 1 MB into `FSS_SDK_MANAGED_LOG_<YYYY-MM-DD>_<HH-MM-SS>.txt`.
 2. Optionally correlate against `FSS_SDK_MANAGED_LOG.txt` by shot number to recover contact
    timing. Accept that club data is unavailable.
 
+⛔ **Not built, by decision (2026-09-26).** PinPoint captures swings under GSPro without
+launch-monitor data, and that is accepted. See
+[`gspro_gcquad_connector.md`](../design/gspro_gcquad_connector.md) for why, and for what would
+reopen it.
+
 ---
 
 ## To verify
