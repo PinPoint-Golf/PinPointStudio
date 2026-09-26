@@ -473,6 +473,32 @@ Nothing in `src/Gui/viz/`, `src/Resources/body/`, `CapturePage.qml`, the session
     and geometric (verified against central differences to < 1e-7) — no AutoDiff, no sparse solver.
 12. **The View3D is never destroyed** (the design said "destroyed when hidden"): one instance per
     screen in `SwingViz3DHost`, lent to whichever slot is showing.
+13. **The panel is on the Wrist screen only** (`ScreenWrist.qml`) — Wrist Motion is the only live
+    session type; the first build wired `ScreenSessionMode`, which nothing instantiates.
+14. **Frame times are window-relative whatever the domain.** A re-analysed swing is already
+    relative; the first writer subtracted `clock.t0` again and the 4 July library swings played
+    a frozen figure. Writer and reader now apply the document's idempotent rule (≥ t0 ⇒ subtract).
+15. **The figure is a mannequin, not the Y-bot** (Mark, 26 Sept: "a transformer swinging a golf
+    club"). `tools/generate_swing3d_mannequin.py` builds smooth tapered capsules and ellipsoids —
+    one continuous torso, a neck that turns with the head, mitten hands, rounded shoes — on the
+    same skeleton, in each joint's local frame; the Y-bot segment meshes are gone (the extraction
+    tool still writes `ybot_rig.h`, and `--segments` the old meshes). A camera-riding headlight
+    keeps the shown side out of black shade.
+16. **The pelvis WOBBLED, and that was the fit, not the golfer.** Two hip keypoints cannot see
+    pelvis tilt, so tilt, hip flexion and spine flexion traded freely: on the 4 July swings the
+    pelvis seesawed a median 70° per swing (swing 5: 5°→55° and back every ~0.3 s) against the
+    hips and spine — smooth frame to frame, invisible in the video, and a figure that "looks so
+    wrong it would lose us any credibility" (Mark). Fixed with a pelvis-tilt smoothness of its own
+    (`pelvisTiltAccRad` 25 rad/s², never loosened through the downswing) and a tighter spine
+    flexion prior (7°). ⚠ First tried as "the pelvis stays near the swing's mean tilt": that let
+    the fit tilt the whole world to fake a constant tilt while the golfer turned (synthetic
+    1.0 → 8.6 cm), and was replaced. On the 15 library swings: pelvis-tilt range median 70° → 33°,
+    its 120 ms wobble 4.5° → 1.1° rms; spine flexion range 31° → 12°; hip flexion 75° → 48°.
+17. **The fit runs from address − 450 ms and keeps address − 150 ms onward** (`trimResultBefore`):
+    the first ~100 ms of any fit are weakly held. And the figure RESTS AT ADDRESS when nothing is
+    playing, not on the first kept frame. Residual: 4 July swing 2 still leans its pelvis to ~50°
+    in the 100 ms before address (its DTL keypoints fit worst of the fifteen); from address on it
+    is sane.
 
 ### 12.3 Synthetic (§8.1) — `skeleton3d_test`, 234 frames at 120 Hz, σ = 2 px
 
@@ -517,6 +543,14 @@ Ablations on the corpus (body bone direction p90 against the full fit): cameras 
 lengths fitted 21°, no smoothness 13.5°, no limits 9.5°, no contact 7.8°, no grip 1.8°, no shaft
 1.0°, no clubhead 0.9°; vision-only 0° (no swing here carries an IMU or HackMotion stream).
 Worst residual keypoint: the ankles (face-on lead ankle on 15 of 24 swings).
+
+**Re-graded after the pelvis fix (§12.2 items 16–17;** `grade_20260926b.{csv,md}`, configs full,
+control and face-on only — the ablation numbers above are from the first fit and were not re-run).
+Parity still 24/24 identical. Spine bend at address against `spineForwardBend` improved +4.8° →
+**+1.4°** (p10–p90 −4.4…+4.8); knees unchanged (+5.2° / +8.7°); γ 76.8°, r 1.11; reprojection
+6.9 / 4.8 px; pelvis rate corr 0.56, thorax 0.37; face-on only 32° from the two-view fit. ⚠ The
+downswing plane got WORSE: −3.0° median against club3d (p10 −8.2°, p90 +2.0°), from +1.8°. The
+solve takes 2.0 s median (the 300 ms lead-in).
 
 **Tiers.** On the two-camera swings 99 % of joint-frames tier `measured` ("seen by both
 cameras") and on face-on-only 100 % `constrained`. ⚠ The per-joint σ behind the tiers is the
