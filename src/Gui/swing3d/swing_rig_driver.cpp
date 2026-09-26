@@ -210,7 +210,8 @@ std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QS
         return {};
     }
     const QJsonObject an = root.value(QStringLiteral("analysis")).toObject();
-    const sk::Skeleton3DTrack trk = sk::skeleton3dFromJson(an.value(QStringLiteral("skeleton3d")).toObject());
+    const qint64 t0 = qint64(root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble());
+    const sk::Skeleton3DTrack trk = sk::skeleton3dFromJson(an.value(QStringLiteral("skeleton3d")).toObject(), t0);
     if (!trk.valid) {
         *reason = trk.reason.isEmpty() ? QObject::tr("no 3-D skeleton on this shot") : trk.reason;
         return {};
@@ -234,7 +235,6 @@ std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QS
     }
 
     // Impact, window-relative, for the ball.
-    const qint64 t0 = qint64(root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble());
     for (const QJsonValue &pv : an.value(QStringLiteral("phases")).toArray()) {
         const QJsonObject po = pv.toObject();
         if (po.value(QStringLiteral("phase")).toInt() != kPhaseImpact) continue;

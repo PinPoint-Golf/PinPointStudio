@@ -168,6 +168,35 @@ int main(int argc, char **argv)
     check(drv.shaftTier() == 3, "the shaft's tier reads back");
     check(std::fabs(drv.clubLengthM() - 0.95) < 1e-6, "the club length reads back");
 
+    // ── the time domain: a RE-ANALYSED swing is written with the real clock.t0 while its
+    // frame times are already window-relative. Subtracting t0 from them again wrote −98 s times
+    // the playhead never reached (4 July library, 26 Sept). Written with a real t0, the frames
+    // must stay where they were — and the figure must move with the playhead.
+    {
+        const qint64 t0 = 98113148038;
+        const QJsonObject j = sk::skeleton3dToJson(r, t0, 1);
+        const qint64 first = qint64(j.value(QStringLiteral("frames")).toArray().first().toObject()
+                                        .value(QStringLiteral("t")).toDouble());
+        check(first == 100000, "relative frame times survive a writer given the real clock t0");
+        const QString d2 = tmp.filePath(QStringLiteral("reanalysed"));
+        QDir().mkpath(d2);
+        QJsonObject root;
+        root[QStringLiteral("clock")] = QJsonObject { { QStringLiteral("t0_us"), double(t0) } };
+        root[QStringLiteral("analysis")] = QJsonObject { { QStringLiteral("skeleton3d"), j } };
+        QFile f(QDir(d2).filePath(QStringLiteral("swing.json")));
+        f.open(QIODevice::WriteOnly);
+        f.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+        f.close();
+        SwingRigDriver d3;
+        d3.loadNow(d2);
+        d3.setPositionUs(100000);
+        const QQuaternion a = d3.localRotation(sk::ybot::LeftForeArm, d3.revision());
+        d3.setPositionUs(300000);
+        const QQuaternion b = d3.localRotation(sk::ybot::LeftForeArm, d3.revision());
+        check(d3.startUs() == 100000 && d3.endUs() == 300000, "…and read back in the playhead's domain");
+        check(std::fabs(QQuaternion::dotProduct(a, b)) < 0.99f, "the figure moves as the playhead moves");
+    }
+
     std::printf("=== %s (%d failure%s) ===\n", g_fail ? "FAILED" : "PASSED", g_fail, g_fail == 1 ? "" : "s");
     return g_fail ? 1 : 0;
 }
