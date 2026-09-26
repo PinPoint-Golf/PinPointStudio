@@ -171,6 +171,16 @@ Item {
                         swingDir: root._focusedSwingDir
                     }
                 }
+                // 3-D swing — the fitted skeleton, club and ball from any side (swing3d/). Off
+                // until the user asks for it in View. The slot only borrows this screen's one
+                // SwingViz3DView from swing3dHost; see SwingViz3DHost.qml for why it is never rebuilt.
+                swing3dDelegate: Component {
+                    Item {
+                        id: swing3dSlot
+                        Component.onCompleted: swing3dHost.attach(swing3dSlot)
+                        Component.onDestruction: swing3dHost.detach(swing3dSlot)
+                    }
+                }
                 // Markup panel — ground-truth labelling of the focused swing. Only the
                 // visible screen's panel drives the shared markupController (panelActive).
                 markupDelegate: Component {
@@ -198,6 +208,13 @@ Item {
             metricKeys: ["leadWristFlexExt", "leadWristRadUln", "forearmPronation", "leadArmFlexion"]
             traceLabel: qsTr("LEAD-WRIST FLEXION · ADDRESS → IMPACT")
         }
+    }
+
+    // The screen's ONE 3-D swing view, created on first use and lent to the swing3d slot.
+    SwingViz3DHost {
+        id: swing3dHost
+        swingDir: root._focusedSwingDir
+        positionUs: shotReplay.active ? shotReplay.positionUs : 0
     }
 
     Component {
