@@ -16,10 +16,11 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// SwingViz3DView — the swing as the fitted Y-bot, the club and the ball, from any side
+// SwingViz3DView — the swing as the fitted skeleton, the club and the ball, from any side
 // (docs/design/swing_3d_viz_design.md §6). SwingRigDriver does the arithmetic; this file only
-// places what it answers. Its own meshes (qrc:/assets/swing3d/, tools/extract_swing3d_rig.py) —
-// NOTHING here is shared with the calibration views.
+// places what it answers. The figure is a smooth, simplified MANNEQUIN on the Y-bot's skeleton
+// (qrc:/assets/swing3d/man_*.glb, tools/generate_swing3d_mannequin.py) — the Y-bot's own shells
+// read as a robot at swing speed. NOTHING here is shared with the calibration views.
 //
 // Scene frame (the driver's): metres, +Y up, the floor at y = 0, the ball at address at the
 // origin, +X along the stance toward the lead heel, +Z toward the face-on camera's side.
@@ -39,7 +40,7 @@ Item {
     id: root
 
     property string swingDir: ""
-    property real   positionUs: 0
+    property real   positionUs: -1          // < 0: nothing playing — the figure rests at address
     property string preset: "faceOn"          // faceOn | dtl | top | target | behind | free
     readonly property alias driver: drv
     readonly property int segmentsLoaded: _loaded
@@ -68,7 +69,7 @@ Item {
         RuntimeLoader {
             visible: bone.mesh !== "" && (!drv.available || bone.tierNow > 0)
             opacity: !drv.available ? 0.35 : bone.tierNow >= 2 ? 1.0 : 0.4
-            source: bone.mesh === "" ? "" : "qrc:/assets/swing3d/seg_" + bone.mesh + ".glb"
+            source: bone.mesh === "" ? "" : "qrc:/assets/swing3d/man_" + bone.mesh + ".glb"
             scale: Qt.vector3d(drv.meshScale(bone.j, root.rev), drv.meshScale(bone.j, root.rev),
                                drv.meshScale(bone.j, root.rev))
             onStatusChanged: if (status === RuntimeLoader.Success) root._loaded += 1
@@ -85,8 +86,10 @@ Item {
             antialiasingQuality: SceneEnvironment.High
         }
 
-        DirectionalLight { eulerRotation: Qt.vector3d(-40, -30, 0); brightness: 1.1 }
-        DirectionalLight { eulerRotation: Qt.vector3d(-20, 150, 0); brightness: 0.45 }
+        // Soft, even light: a key from above, a fill from behind, and a headlight that rides the
+        // camera so whichever side is on show is never in black shade.
+        DirectionalLight { eulerRotation: Qt.vector3d(-50, -30, 0); brightness: 0.8 }
+        DirectionalLight { eulerRotation: Qt.vector3d(-20, 150, 0); brightness: 0.35 }
 
         // Orbit pivot: the mid-hip at address. The camera sits on the pivot's +Z at `dist`.
         Node {
@@ -99,6 +102,7 @@ Item {
                 clipNear: 0.02
                 clipFar: 60
                 fieldOfView: 38
+                DirectionalLight { brightness: 0.55 }     // the headlight: looks where the camera looks
             }
         }
 
@@ -173,14 +177,14 @@ Item {
             position: drv.rootPosition
             rotation: drv.rootRotation
             RuntimeLoader {
-                source: "qrc:/assets/swing3d/seg_Hips.glb"
+                source: "qrc:/assets/swing3d/man_Hips.glb"
                 scale: Qt.vector3d(drv.meshScale(0, root.rev), drv.meshScale(0, root.rev), drv.meshScale(0, root.rev))
                 onStatusChanged: if (status === RuntimeLoader.Success) root._loaded += 1
             }
             Bone { j: 1; mesh: "Spine"
                 Bone { j: 2; mesh: "Spine1"
                     Bone { j: 3; mesh: "Spine2"
-                        Bone { j: 4
+                        Bone { j: 4; mesh: "Neck"
                             Bone { j: 5; mesh: "Head"
                                 Bone { j: 6 } } }
                         Bone { j: 7; mesh: "LeftShoulder"

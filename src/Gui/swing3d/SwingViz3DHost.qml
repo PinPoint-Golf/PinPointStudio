@@ -36,7 +36,7 @@ Item {
     height: 0
 
     property string swingDir: ""
-    property real   positionUs: 0
+    property real   positionUs: -1          // < 0: nothing playing — the figure rests at address
     property Item   slot: null
     readonly property Item view: loader.item
 

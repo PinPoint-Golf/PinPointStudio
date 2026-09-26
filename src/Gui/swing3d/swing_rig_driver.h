@@ -134,7 +134,7 @@ private:
     static std::shared_ptr<const Prepared> prepare(const QString &dir, QString *reason);
 
     QString m_swingDir;
-    qint64  m_positionUs = 0;
+    qint64  m_positionUs = -1;     // < 0 = nothing playing: rest at address
     bool    m_loading = false;
     QString m_reason;
     int     m_revision = 0;

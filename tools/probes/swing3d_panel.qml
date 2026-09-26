@@ -8,7 +8,7 @@
 // Every line is prefixed "S3DPROBE". It checks, on a PRIVATE host (the on-screen panel exists only
 // when the user's persisted View layout turns it on, and a diagnostic must not write that setting):
 //   1. the driver loads the swing and says it is available, from how many views;
-//   2. the meshes load (19 segments) — ⚠ offscreen View3D renders nothing; RuntimeLoader may or may
+//   2. the meshes load (20 mannequin segments) — ⚠ offscreen View3D renders nothing; RuntimeLoader may or may
 //      not complete without a render loop, and the line says which;
 //   3. each preset moves the orbit pivot to its rotation;
 //   4. the tier chip's text at three instants;
@@ -39,6 +39,10 @@ Item {
     readonly property string swingDir: probe._arg("--probe-swing", "")
     readonly property string grabDir: probe._arg("--probe-grab", "")
     readonly property real   soakMin: parseFloat(probe._arg("--probe-soak", "0"))
+    // --probe-strip N (with --probe-grab): N frames evenly across the swing from --probe-preset
+    // (default dtl) — a filmstrip for judging motion, not a pose.
+    readonly property int    stripN: parseInt(probe._arg("--probe-strip", "0"))
+    readonly property string stripPreset: probe._arg("--probe-preset", "dtl")
 
     function say(s) { console.warn("S3DPROBE " + s) }
 
@@ -86,7 +90,7 @@ Item {
         probe._reported = true
         say("available=" + d.available + " twoViews=" + d.twoViews + " joints=" + d.jointCount
             + " span=" + d.startUs + ".." + d.endUs + " club=" + d.clubLengthM.toFixed(3))
-        say("segments loaded=" + v.segmentsLoaded + " of 19 (offscreen: a render loop may be needed)")
+        say("segments loaded=" + v.segmentsLoaded + " of 20 (offscreen: a render loop may be needed)")
         // Presets.
         var keys = ["faceOn", "dtl", "top", "target", "behind"]
         for (var i = 0; i < keys.length; ++i) {
@@ -125,6 +129,14 @@ Item {
             var s3 = slotComp.createObject(holderA)
             host.attach(s3)
             probe._grabs = []
+            if (probe.stripN > 0) {
+                for (var k2 = 0; k2 < probe.stripN; ++k2) {
+                    var tt = d.startUs + span * k2 / (probe.stripN - 1)
+                    probe._grabs.push({ preset: probe.stripPreset, name: "strip" + (k2 < 10 ? "0" : "") + k2, t: tt })
+                }
+                grabTimer.start()
+                return
+            }
             var pr = ["faceOn", "dtl", "top"]
             var at = [["address", d.startUs + 150000], ["top", d.startUs + span * 0.5], ["impact", d.startUs + span * 0.62]]
             for (var a = 0; a < at.length; ++a)

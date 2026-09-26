@@ -214,7 +214,7 @@ Item {
     SwingViz3DHost {
         id: swing3dHost
         swingDir: root._focusedSwingDir
-        positionUs: shotReplay.active ? shotReplay.positionUs : 0
+        positionUs: shotReplay.active ? shotReplay.positionUs : -1     // −1: rest at address
     }
 
     Component {

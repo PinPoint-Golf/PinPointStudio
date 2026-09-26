@@ -34,6 +34,7 @@ namespace sk = pinpoint::skeleton3d;
 
 namespace {
 
+constexpr int kPhaseAddress = 0;  // pinpoint::analysis::Phase::Address
 constexpr int kPhaseImpact = 5;   // pinpoint::analysis::Phase::Impact
 
 QQuaternion toQt(const sk::Q &q) { return QQuaternion(float(q.w), float(q.x), float(q.y), float(q.z)); }
@@ -71,6 +72,7 @@ struct SwingRigDriver::Prepared {
     QVector3D ball;
     bool ballValid = false;
     qint64 impactUs = -1;
+    qint64 addressUs = -1;     // where the figure rests when nothing is playing
     QVector3D centre;
 };
 
@@ -237,9 +239,10 @@ std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QS
     // Impact, window-relative, for the ball.
     for (const QJsonValue &pv : an.value(QStringLiteral("phases")).toArray()) {
         const QJsonObject po = pv.toObject();
-        if (po.value(QStringLiteral("phase")).toInt() != kPhaseImpact) continue;
+        const int phase = po.value(QStringLiteral("phase")).toInt();
+        if (phase != kPhaseImpact && phase != kPhaseAddress) continue;
         const qint64 raw = qint64(po.value(QStringLiteral("t_us")).toDouble());
-        P->impactUs = raw >= t0 ? raw - t0 : raw;
+        (phase == kPhaseImpact ? P->impactUs : P->addressUs) = raw >= t0 ? raw - t0 : raw;
     }
     if (trk.ballValid) {
         P->ball = S.point(trk.ball);
@@ -277,7 +280,10 @@ void SwingRigDriver::evaluate()
 {
     if (available()) {
         const Prepared &P = *m_track;
-        const qint64 t = std::clamp(m_positionUs, P.t.front(), P.t.back());
+        // A negative position is "nothing is playing": rest at address, not on the fit's first
+        // frame (the lead-in before address is the least-held part of any fit).
+        const qint64 want = m_positionUs < 0 ? (P.addressUs >= 0 ? P.addressUs : P.t.front()) : m_positionUs;
+        const qint64 t = std::clamp(want, P.t.front(), P.t.back());
         auto hi = std::upper_bound(P.t.begin(), P.t.end(), t);
         size_t b = hi == P.t.end() ? P.t.size() - 1 : size_t(hi - P.t.begin());
         size_t a = b > 0 ? b - 1 : 0;

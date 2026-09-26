@@ -176,7 +176,10 @@ def main():
         sys.exit("rest pose disagrees with the inverse-bind matrices — refusing to write the rig")
 
     write_header(rig, lengths, world_T)
-    write_segments(js, bin_, by_name, node_to_ji, ibm)
+    # The Y-bot's own segment meshes are no longer the view's figure (they read as a robot at
+    # swing speed; tools/generate_swing3d_mannequin.py makes it). `--segments` still writes them.
+    if "--segments" in sys.argv:
+        write_segments(js, bin_, by_name, node_to_ji, ibm)
 
 
 def write_header(rig, lengths, world_T):

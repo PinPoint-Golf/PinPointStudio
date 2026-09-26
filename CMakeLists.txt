@@ -1101,31 +1101,33 @@ qt_add_resources(PinPointStudio "app_body"
         src/Resources/body/body_RightFoot.glb
 )
 
-# The 3-D swing panel's own Y-bot segments (tools/extract_swing3d_rig.py) — deliberately NOT the
-# calibration views' src/Resources/body/ set (swing_3d_viz_design.md §6.1: no shared files).
+# The 3-D swing panel's own figure — a smooth mannequin on the Y-bot's skeleton
+# (tools/generate_swing3d_mannequin.py) — deliberately NOT the calibration views'
+# src/Resources/body/ set (swing_3d_viz_design.md §6.1: no shared files).
 qt_add_resources(PinPointStudio "app_swing3d"
     PREFIX "/assets/swing3d"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/swing3d"
     FILES
-        src/Resources/swing3d/seg_Hips.glb
-        src/Resources/swing3d/seg_Spine.glb
-        src/Resources/swing3d/seg_Spine1.glb
-        src/Resources/swing3d/seg_Spine2.glb
-        src/Resources/swing3d/seg_Head.glb
-        src/Resources/swing3d/seg_LeftShoulder.glb
-        src/Resources/swing3d/seg_RightShoulder.glb
-        src/Resources/swing3d/seg_LeftArm.glb
-        src/Resources/swing3d/seg_LeftForeArm.glb
-        src/Resources/swing3d/seg_LeftHand.glb
-        src/Resources/swing3d/seg_RightArm.glb
-        src/Resources/swing3d/seg_RightForeArm.glb
-        src/Resources/swing3d/seg_RightHand.glb
-        src/Resources/swing3d/seg_LeftUpLeg.glb
-        src/Resources/swing3d/seg_LeftLeg.glb
-        src/Resources/swing3d/seg_LeftFoot.glb
-        src/Resources/swing3d/seg_RightUpLeg.glb
-        src/Resources/swing3d/seg_RightLeg.glb
-        src/Resources/swing3d/seg_RightFoot.glb
+        src/Resources/swing3d/man_Hips.glb
+        src/Resources/swing3d/man_Spine.glb
+        src/Resources/swing3d/man_Spine1.glb
+        src/Resources/swing3d/man_Spine2.glb
+        src/Resources/swing3d/man_Neck.glb
+        src/Resources/swing3d/man_Head.glb
+        src/Resources/swing3d/man_LeftShoulder.glb
+        src/Resources/swing3d/man_RightShoulder.glb
+        src/Resources/swing3d/man_LeftArm.glb
+        src/Resources/swing3d/man_LeftForeArm.glb
+        src/Resources/swing3d/man_LeftHand.glb
+        src/Resources/swing3d/man_RightArm.glb
+        src/Resources/swing3d/man_RightForeArm.glb
+        src/Resources/swing3d/man_RightHand.glb
+        src/Resources/swing3d/man_LeftUpLeg.glb
+        src/Resources/swing3d/man_LeftLeg.glb
+        src/Resources/swing3d/man_LeftFoot.glb
+        src/Resources/swing3d/man_RightUpLeg.glb
+        src/Resources/swing3d/man_RightLeg.glb
+        src/Resources/swing3d/man_RightFoot.glb
 )
 
 # ── Linux: deploy icon + .desktop to user dirs on every build ────────────────
