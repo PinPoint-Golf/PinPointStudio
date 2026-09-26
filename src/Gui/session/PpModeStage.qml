@@ -39,6 +39,9 @@ Item {
     property Component wristMotionDelegate: null
     property Component tableDelegate:       null
     property Component markupDelegate:      null
+    // The 3-D swing (swing3d/). Its delegate is only a SLOT: the View3D itself lives in the
+    // screen's SwingViz3DHost and is lent to whichever slot is showing — never rebuilt here.
+    property Component swing3dDelegate:     null
 
     // Layout resolves on the active session MODE, not the session type.
     readonly property string arrangement: ViewLayout.arrangementFor(SessionMode.mode)
@@ -58,6 +61,7 @@ Item {
     readonly property var _defs: [
         { key: "sessionDiagnostics", label: qsTr("Session diagnostics"), comp: sessionDiagnosticsDelegate },
         { key: "camera",      label: qsTr("Camera"),                comp: cameraDelegate },
+        { key: "swing3d",     label: qsTr("3-D swing"),             comp: swing3dDelegate },
         { key: "launchMonitor", label: qsTr("Launch monitor"),      comp: launchMonitorDelegate },
         { key: "wristMotion", label: qsTr("Wrist motion analysis"), comp: wristMotionDelegate },
         { key: "charts",      label: qsTr("Charts"),                comp: chartsDelegate },

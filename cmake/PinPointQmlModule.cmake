@@ -48,6 +48,8 @@ set(PP_QML_FILES
     src/Gui/viz/ImuVizView.qml
     src/Gui/viz/ArmVizView.qml
     src/Gui/viz/BodyVizView.qml
+    src/Gui/swing3d/SwingViz3DView.qml
+    src/Gui/swing3d/SwingViz3DHost.qml
     src/Gui/media/FilmPage.qml
     src/Gui/cameras/VideoPage.qml
     src/Gui/cameras/PpCameraFrame.qml
@@ -233,6 +235,8 @@ set(PP_QML_SOURCES
     src/Video/bayer_video_item.cpp
     src/Gui/viz/body_pose_adapter.h
     src/Gui/viz/body_pose_adapter.cpp
+    src/Gui/swing3d/swing_rig_driver.h
+    src/Gui/swing3d/swing_rig_driver.cpp
     src/Gui/shot/shot_filter_proxy_model.h
     src/Gui/shot/shot_filter_proxy_model.cpp
     src/Gui/review/swing_data_source.h

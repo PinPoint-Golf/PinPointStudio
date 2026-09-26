@@ -70,6 +70,14 @@ pp_add_test(chart_metrics_test
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
     LINK    Qt6::Qml  AUTOMOC)
 
+# SwingRigDriver (swing3d/) — the 3-D swing panel's C++ half against a hand-built skeleton3d block
+# written by the production writer: availability and its reason, rest round trip, playhead
+# interpolation, the scene frame, tiers. Header-only rig/JSON; the store reads the document.
+pp_add_test(swing_rig_driver_test
+    SOURCES swing_rig_driver_test.cpp ${GUI}/swing3d/swing_rig_driver.cpp
+    INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Export
+    LINK    Qt6::Qml  AUTOMOC)
+
 # SwingSeriesModel — playhead→row mapping (rowForTimeUs) for the table cross-highlight.
 pp_add_test(swing_series_model_test
     SOURCES swing_series_model_test.cpp ${GUI}/review/swing_series_model.cpp

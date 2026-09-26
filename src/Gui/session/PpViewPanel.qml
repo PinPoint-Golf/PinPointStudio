@@ -37,6 +37,7 @@ Item {
     readonly property var panelMeta: [
         { key: "sessionDiagnostics", label: qsTr("Session diagnostics"), ready: true },
         { key: "camera",      label: qsTr("Camera"),                ready: true  },
+        { key: "swing3d",     label: qsTr("3-D swing"),             ready: true  },
         { key: "launchMonitor", label: qsTr("Launch monitor"),      ready: true  },
         { key: "wristMotion", label: qsTr("Wrist motion analysis"), ready: true  },
         { key: "carousel",    label: qsTr("Carousel"),              ready: true  },
