@@ -2039,12 +2039,13 @@ struct Skeleton3DStage : AnalysisStage {
         in.addressUs = addr ? addr->t_us : impactUs - 1300000;
         in.topUs = top ? top->t_us : impactUs - 300000;
 
-        // The frame grid: the face-on pose instants from address − 150 ms to impact + 700 ms,
-        // thinned to ≤ 600 frames.
+        // The frame grid: the face-on pose instants from address − 450 ms to impact + 700 ms,
+        // thinned to ≤ 600 frames. Only address − 150 ms onward is KEPT (trimResultBefore): the
+        // lead-in is there so the kept frames are not the fit's weakly-held edge.
         const std::vector<PoseFrame2D> &FF = !fo.smoothed.empty() ? fo.smoothed : fo.frames;
         std::vector<int64_t> grid;
         for (const PoseFrame2D &f : FF)
-            if (f.t_us >= in.addressUs - 150000 && f.t_us <= impactUs + 700000) grid.push_back(f.t_us);
+            if (f.t_us >= in.addressUs - 450000 && f.t_us <= impactUs + 700000) grid.push_back(f.t_us);
         const size_t stride = std::max<size_t>(1, (grid.size() + 599) / 600);
         for (size_t i = 0; i < grid.size(); i += stride) in.t_us.push_back(grid[i]);
         if (in.t_us.size() < 10) {
@@ -2177,6 +2178,7 @@ struct Skeleton3DStage : AnalysisStage {
         }
 
         ctx.detail->skeleton3d = pinpoint::skeleton3d::fitSkeleton(in);
+        pinpoint::skeleton3d::trimResultBefore(ctx.detail->skeleton3d, in.addressUs - 150000);
         ctx.detail->versions.skeleton3d = kSkeleton3DStageVersion;
         const pinpoint::skeleton3d::FitResult &r = ctx.detail->skeleton3d;
         if (!r.valid) {

@@ -666,6 +666,9 @@ double frameResiduals(const Problem &P, const State &S, int t, Rows *rows)
 double smoothSigma(const Problem &P, int t, int k)
 {
     const Dof &d = P.rig.dofs[size_t(k)];
+    // Pelvis tilt (root pitch, root roll): its own, tight σ, never loosened (see FitConfig).
+    if (d.joint == ybot::Hips && d.kind == DofKind::RootRot && k != P.rig.firstDof[ybot::Hips] + 3)
+        return P.cfg.pelvisTiltAccRad;
     double s = d.kind == DofKind::RootTrans ? P.cfg.smoothAccRootM : P.cfg.smoothAccRad;
     const int64_t tus = P.in.t_us[size_t(t)];
     if (tus >= P.fastFrom && tus <= P.fastTo) s *= P.cfg.fastFactor;

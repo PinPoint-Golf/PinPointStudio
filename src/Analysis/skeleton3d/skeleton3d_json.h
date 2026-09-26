@@ -73,6 +73,8 @@ inline FitConfig fitConfigFromOverrides(const QVariantMap &ov)
     apply(ov, "skeleton3d.stage1Iters",    c.stage1Iters);
     apply(ov, "skeleton3d.stage2Iters",    c.stage2Iters);
     apply(ov, "skeleton3d.hmFlexSign",     c.hmFlexSign);
+    apply(ov, "skeleton3d.pelvisTiltAccRad",   c.pelvisTiltAccRad);
+    apply(ov, "skeleton3d.spineFlexSigmaDeg",  c.spineFlexSigmaDeg);
     apply(ov, "skeleton3d.hmRadSign",      c.hmRadSign);
     return c;
 }

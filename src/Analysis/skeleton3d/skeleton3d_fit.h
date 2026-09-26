@@ -114,7 +114,15 @@ struct FitConfig {
     // wrist+forearm's three rotations), so wrist and pronation get a weak pull to neutral —
     // a HackMotion, where worn, overrides it.
     double spineCoupleSigmaDeg = 4.0;
-    double spineFlexSigmaDeg   = 12.0;
+    double spineFlexSigmaDeg   = 7.0;
+    // The PELVIS's forward and sideways tilt change SLOWLY: their own smoothness σ (rad/s²), with
+    // no loosening through the downswing. Two hip keypoints cannot see pelvis tilt, so without it
+    // tilt, hip flexion and spine flexion trade freely: on the corpus the pelvis seesawed 5°→55°
+    // against the hips (0°→75°) and spine (−17°→+15°) every ~0.3 s — smooth frame to frame, but a
+    // wobbling figure no golfer makes (a real pelvis changes tilt ~10–15° over a downswing,
+    // ~20 rad/s²). ⚠ Tried first as "stay near the swing's mean tilt": that let the fit tilt the
+    // whole world to fake a constant tilt while the golfer turned (synthetic: 1 → 8.6 cm).
+    double pelvisTiltAccRad    = 25.0;
     double wristSigmaDeg       = 30.0;
     double pronationSigmaDeg   = 45.0;
     double clavicleSigmaDeg    = 10.0;   // the shoulder girdle vs the upper spine: both move the shoulder point
@@ -208,6 +216,19 @@ struct FitResult {
 };
 
 FitResult fitSkeleton(const FitInput &in);
+
+// Drop every frame before `fromUs`. The first ~100 ms of any fit are weakly held (smoothness has
+// neighbours on one side only) — swing 2 of 4 July read a 56° pelvis tilt on its first frame — so
+// the stage fits from well before address and keeps only what it will show.
+inline void trimResultBefore(FitResult &r, int64_t fromUs)
+{
+    size_t k = 0;
+    while (k < r.t_us.size() && r.t_us[k] < fromUs) ++k;
+    if (k == 0 || k >= r.t_us.size()) return;
+    auto cut = [k](auto &v) { if (v.size() > k) v.erase(v.begin(), v.begin() + long(k)); };
+    cut(r.t_us); cut(r.theta); cut(r.joints); cut(r.tier); cut(r.sigmaM); cut(r.flags);
+    cut(r.grip); cut(r.shaftDir); cut(r.shaftTier);
+}
 
 // Project a world point through a fitted camera (view 0 = face-on, 1 = DTL). Returns
 // false behind the camera. Exposed for tests and the grader.
