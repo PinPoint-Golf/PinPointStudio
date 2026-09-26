@@ -499,6 +499,18 @@ Nothing in `src/Gui/viz/`, `src/Resources/body/`, `CapturePage.qml`, the session
     playing, not on the first kept frame. Residual: 4 July swing 2 still leans its pelvis to ~50°
     in the 100 ms before address (its DTL keypoints fit worst of the fifteen); from address on it
     is sane.
+18. **The figure is ONE skinned hull** (Mark: "the paunch needs fixing… a hull over the top to
+    tidy up the stack of beads"). `tools/generate_swing3d_hull.py` models the body as a smooth
+    union of anatomical shapes — pelvis, buttocks, a FLAT abdomen blended wide into the rib cage,
+    pecs, trapezius, deltoids, tapered limbs, calves, mitten hands, shoes — as a signed-distance
+    field, meshes it with surface nets (numpy, no new dependency; 32 k vertices, 2.3 MB) and
+    skins every vertex to the bones of its own body part (inverse-distance weights, top four), in
+    the rig's θ = 0 pose. `SwingHullGeometry` loads it and computes the inverse bind poses from
+    the same rig the fit uses, checked against the joint positions the generator stored (1 µm);
+    Qt Quick 3D skins it to the view's existing bone nodes. Torso and limbs join with only a narrow
+    crease (no webbing to the ribs), and the pelvis stops at the hip joints so the crotch does not
+    fold. The rigid-segment mannequin stays as a fallback (`figure: "segments"`). Per-segment tier
+    ghosting does not survive a single mesh; the frame's tier chip remains.
 
 ### 12.3 Synthetic (§8.1) — `skeleton3d_test`, 234 frames at 120 Hz, σ = 2 px
 

@@ -237,6 +237,8 @@ set(PP_QML_SOURCES
     src/Gui/viz/body_pose_adapter.cpp
     src/Gui/swing3d/swing_rig_driver.h
     src/Gui/swing3d/swing_rig_driver.cpp
+    src/Gui/swing3d/swing_hull_geometry.h
+    src/Gui/swing3d/swing_hull_geometry.cpp
     src/Gui/shot/shot_filter_proxy_model.h
     src/Gui/shot/shot_filter_proxy_model.cpp
     src/Gui/review/swing_data_source.h

@@ -42,6 +42,11 @@ Item {
     property string swingDir: ""
     property real   positionUs: -1          // < 0: nothing playing — the figure rests at address
     property string preset: "faceOn"          // faceOn | dtl | top | target | behind | free
+    // "hull": ONE smooth skinned body (tools/generate_swing3d_hull.py) — no joins to show.
+    // "segments": the rigid-piece mannequin, kept as a fallback should skinning misbehave on a GPU.
+    property string figure: "hull"
+    readonly property bool hullShown: figure === "hull" && hullGeom.ready
+    readonly property var hullGeometry: hullGeom
     readonly property alias driver: drv
     readonly property int segmentsLoaded: _loaded
 
@@ -67,7 +72,7 @@ Item {
         position: drv.offset(j, root.rev)
         rotation: drv.localRotation(j, root.rev)
         RuntimeLoader {
-            visible: bone.mesh !== "" && (!drv.available || bone.tierNow > 0)
+            visible: !root.hullShown && bone.mesh !== "" && (!drv.available || bone.tierNow > 0)
             opacity: !drv.available ? 0.35 : bone.tierNow >= 2 ? 1.0 : 0.4
             source: bone.mesh === "" ? "" : "qrc:/assets/swing3d/man_" + bone.mesh + ".glb"
             scale: Qt.vector3d(drv.meshScale(bone.j, root.rev), drv.meshScale(bone.j, root.rev),
@@ -170,6 +175,23 @@ Item {
             }
         }
 
+        // ── the hull: one skinned body over the rig's bones (joint order = ybot_rig.h) ──
+        Model {
+            id: hull
+            visible: root.hullShown && drv.available
+            geometry: SwingHullGeometry { id: hullGeom; source: ":/assets/swing3d/hull.glb" }
+            skin: Skin {
+                joints: [hips, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16,
+                         b17, b18, b19, b20, b21, b22, b23, b24, b25, b26]
+                inverseBindPoses: hullGeom.inverseBindPoses
+            }
+            materials: PrincipledMaterial {
+                baseColor: "#cdd1d8"
+                roughness: 0.55
+                metalness: 0.0
+            }
+        }
+
         // ── the rig (ybot_rig.h joint order) ──
         Node {
             id: hips
@@ -177,36 +199,37 @@ Item {
             position: drv.rootPosition
             rotation: drv.rootRotation
             RuntimeLoader {
+                visible: !root.hullShown
                 source: "qrc:/assets/swing3d/man_Hips.glb"
                 scale: Qt.vector3d(drv.meshScale(0, root.rev), drv.meshScale(0, root.rev), drv.meshScale(0, root.rev))
                 onStatusChanged: if (status === RuntimeLoader.Success) root._loaded += 1
             }
-            Bone { j: 1; mesh: "Spine"
-                Bone { j: 2; mesh: "Spine1"
-                    Bone { j: 3; mesh: "Spine2"
-                        Bone { j: 4; mesh: "Neck"
-                            Bone { j: 5; mesh: "Head"
-                                Bone { j: 6 } } }
-                        Bone { j: 7; mesh: "LeftShoulder"
-                            Bone { j: 8; mesh: "LeftArm"
-                                Bone { j: 9; mesh: "LeftForeArm"
-                                    Bone { j: 10; mesh: "LeftHand"
-                                        Bone { j: 11 } } } } }
-                        Bone { j: 12; mesh: "RightShoulder"
-                            Bone { j: 13; mesh: "RightArm"
-                                Bone { j: 14; mesh: "RightForeArm"
-                                    Bone { j: 15; mesh: "RightHand"
-                                        Bone { j: 16 } } } } } } } }
-            Bone { j: 17; mesh: "LeftUpLeg"
-                Bone { j: 18; mesh: "LeftLeg"
-                    Bone { j: 19; mesh: "LeftFoot"
-                        Bone { j: 20
-                            Bone { j: 21 } } } } }
-            Bone { j: 22; mesh: "RightUpLeg"
-                Bone { j: 23; mesh: "RightLeg"
-                    Bone { j: 24; mesh: "RightFoot"
-                        Bone { j: 25
-                            Bone { j: 26 } } } } }
+            Bone { id: b1; j: 1; mesh: "Spine"
+                Bone { id: b2; j: 2; mesh: "Spine1"
+                    Bone { id: b3; j: 3; mesh: "Spine2"
+                        Bone { id: b4; j: 4; mesh: "Neck"
+                            Bone { id: b5; j: 5; mesh: "Head"
+                                Bone { id: b6; j: 6 } } }
+                        Bone { id: b7; j: 7; mesh: "LeftShoulder"
+                            Bone { id: b8; j: 8; mesh: "LeftArm"
+                                Bone { id: b9; j: 9; mesh: "LeftForeArm"
+                                    Bone { id: b10; j: 10; mesh: "LeftHand"
+                                        Bone { id: b11; j: 11 } } } } }
+                        Bone { id: b12; j: 12; mesh: "RightShoulder"
+                            Bone { id: b13; j: 13; mesh: "RightArm"
+                                Bone { id: b14; j: 14; mesh: "RightForeArm"
+                                    Bone { id: b15; j: 15; mesh: "RightHand"
+                                        Bone { id: b16; j: 16 } } } } } } } }
+            Bone { id: b17; j: 17; mesh: "LeftUpLeg"
+                Bone { id: b18; j: 18; mesh: "LeftLeg"
+                    Bone { id: b19; j: 19; mesh: "LeftFoot"
+                        Bone { id: b20; j: 20
+                            Bone { id: b21; j: 21 } } } } }
+            Bone { id: b22; j: 22; mesh: "RightUpLeg"
+                Bone { id: b23; j: 23; mesh: "RightLeg"
+                    Bone { id: b24; j: 24; mesh: "RightFoot"
+                        Bone { id: b25; j: 25
+                            Bone { id: b26; j: 26 } } } } }
         }
     }
 

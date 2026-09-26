@@ -90,6 +90,8 @@ Item {
         probe._reported = true
         say("available=" + d.available + " twoViews=" + d.twoViews + " joints=" + d.jointCount
             + " span=" + d.startUs + ".." + d.endUs + " club=" + d.clubLengthM.toFixed(3))
+        say("hull ready=" + v.hullGeometry.ready + " shown=" + v.hullShown + " vertices=" + v.hullGeometry.vertexCount
+            + " bindMismatch=" + v.hullGeometry.bindMismatchM.toFixed(6) + " m" + (v.hullGeometry.error ? " error=" + v.hullGeometry.error : ""))
         say("segments loaded=" + v.segmentsLoaded + " of 20 (offscreen: a render loop may be needed)")
         // Presets.
         var keys = ["faceOn", "dtl", "top", "target", "behind"]

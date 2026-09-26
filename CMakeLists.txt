@@ -1128,6 +1128,7 @@ qt_add_resources(PinPointStudio "app_swing3d"
         src/Resources/swing3d/man_RightUpLeg.glb
         src/Resources/swing3d/man_RightLeg.glb
         src/Resources/swing3d/man_RightFoot.glb
+        src/Resources/swing3d/hull.glb
 )
 
 # ── Linux: deploy icon + .desktop to user dirs on every build ────────────────
