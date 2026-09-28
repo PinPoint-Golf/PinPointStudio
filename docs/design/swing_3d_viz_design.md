@@ -5,6 +5,9 @@ built, what changed from §3–§6 and why, and what the synthetic suite and the
 corpus swings reported. §1–§11 are kept as the design that was approved; where the build
 departed from them, §12.2 is the authority and the section carries a ⚠ pointer.*
 
+*§13 (28 Sept) proposes a leaner fit — fewer joints, spline trajectories, session pooling, a knob
+audit — for planning.*
+
 *Originally written after surveying what already exists (`BodyVizView.qml`,
 `BodyPoseAdapter`, `tools/extract_body_segments.py`, the shaft fusion stage, the kinematic
 sequence's pair route and the DTL posture stage).*
@@ -587,3 +590,339 @@ accuracy.
 - **Library re-analysis** has not been run: existing swings get `analysis.skeleton3d` the next
   time they are re-analysed (the stage is version-stamped, never reused).
 - §11 q1 (X-bot) — not done; q3 (ScreenWrist) — not done.
+
+## 13. A leaner fit (proposed, 28 September 2026 — for planning)
+
+*Status: **APPROVED 28 Sept, being built** — all four changes, in order, each graded before the
+next. Prompted by Mark ("how parsimonious is the 3-D swing modelling?") after the depth-branch fix
+(`skeleton3d_shaft_branch_design.md`). His answers to §13.4 are recorded there, and §13.2a is how
+the changes reach the fit without touching the viewer.*
+
+### 13.1 Where the fit stands — the counts
+
+For one swing (4 July swing 5: 152 frames kept, ~200 fitted with the lead-in):
+
+| | Count |
+|---|---|
+| Per-frame unknowns | **48 joint angles** × ~200 frames ≈ **9,600** |
+| Shared unknowns fitted | ~45: 10 camera, 1 floor, 9 grip, 1 club length, 18 foot anchors, 4 shoulder/hip surface offsets, 2 HackMotion. The 12 length scales and most marker offsets are frozen (§12.2 items 1–2). |
+| Measurements per frame | ~23 keypoints × 2 coordinates × 2 views ≈ 92, plus 2 shaft angles and ≤ 4 clubhead coordinates |
+| Measurements per swing | ~19,000: **about two per unknown** |
+| Prior terms per frame | 48 smoothness, 17 posture priors, the joint limits |
+| `FitConfig` fields | **56**: 16 switches, 3 test hooks, 4 solver iteration counts, 2 initial distances, 2 tier thresholds, 2 HackMotion signs, 8 measurement σs / robust loss, **12 prior widths**, 7 plane / branch settings |
+
+**What that means:**
+- **Face-on only is under-determined.** ~46 numbers per frame against 48 unknowns: there the priors
+  *are* the model, which is why face-on-only swings sit 16° off the two-view fit (branch design §10).
+- **Redundant joints are held together by priors rather than removed.** The three spine segments
+  are coupled (`spineCoupleSigmaDeg`), pelvis tilt needs its own smoothness (`pelvisTiltAccRad`), the
+  clavicles are pulled to neutral, and forearm rotation is split from humeral rotation by a prior
+  (`armRotSigmaDeg`).
+- **Many of the knobs were added reactively.** Pelvis-tilt smoothness, spine flexion, arm rotation,
+  the release-prior factor and the plane σ each fixed a failure on the same 15–24 swings of **one
+  golfer**. That is an overfitting risk the corpus cannot currently expose.
+- **Structure that belongs to the golfer or the session is re-estimated every swing:** bone
+  lengths, marker offsets, the grip axis, the club length and the cameras. That was §3.4's
+  "pooling", phase 3, never built. The short fitted club (0.85 m against a 0.94 m record, branch
+  design §10) is what it costs.
+
+### 13.2 The proposal — four changes, each graded on its own
+
+#### (A) Fewer joints: 48 → 38 angles
+| Today | Proposed | Angles |
+|---|---|---|
+| Spine, Spine1, Spine2 at 3 each (9), coupled by a 4° prior | **One** 3-angle spine, distributed over the three Y-bot segments in proportion to their lengths (§13.4 q3) | −6 |
+| Clavicle elevation + protraction per side (4), pulled to neutral (10°) | **Coupled to the humerus**: a fixed scapulohumeral rhythm (clavicle elevation ≈ k·arm abduction), no angles of its own | −4 |
+| Everything else (root 6; head 3; per arm: shoulder 3, elbow 1, pronation 1, wrist 2; per leg: hip 3, knee 1, ankle 2) | kept — each is a joint the metrics or the club need | 0 |
+
+The drawn figure is unchanged: the view still gets every Y-bot bone's rotation, now computed from
+fewer angles. Priors retired: `spineCoupleSigmaDeg`, `clavicleSigmaDeg`. `spineFlexSigmaDeg` stays
+unless the grade says the single spine no longer needs it.
+
+#### (B) Smooth curves instead of per-frame values
+Each joint angle becomes a **cubic B-spline** in time. Knots are dense where the swing is fast
+(top − 50 ms → impact + 60 ms, today's `fastFrom`/`fastTo`) and sparse elsewhere. Initial spacing:
+~10 ms fast, ~40 ms slow. That is ~20 knots through the backswing, ~35 through the downswing and ~15
+after, so **~75 coefficients per angle against ~200 frame values**. Together with (A):
+38 × 75 ≈ **2,900 unknowns against 9,600 — ~3.3× fewer.** ⚠ The chat estimate was "~10×"; the
+downswing's density is why it is not.
+
+- **The smoothness prior mostly becomes structure.** A spline cannot jitter faster than its knots.
+  A light second-difference penalty on the coefficients (a P-spline) is kept, so a knot with no data
+  near it stays held. `smoothAccRad`, `smoothAccRootM` and `fastFactor` collapse into two knot
+  spacings plus that one penalty.
+- **The solver keeps its shape.** A cubic B-spline touches 4 knots, so the normal matrix stays
+  block-banded (bandwidth 3 blocks, from 2). The block Cholesky + Schur solve (§12.2 item 11)
+  generalises; frame residuals reach the coefficients through fixed basis weights.
+- **The pelvis-tilt fix (§12.2 item 16) is kept as its own sparser knot row** — a pelvis that cannot
+  change tilt faster than ~100 ms — rather than as a separate smoothness σ. Whether that is enough
+  is a grade question.
+- **The label-swap and depth-branch passes operate on frame stretches today.** They become passes
+  over knot stretches, with the same logic.
+
+#### (C) Pool what belongs to the golfer and the session
+A two-level fit over a session's swings:
+- **The golfer, once per session:** bone lengths (thawing `fitLengths` at last — with many swings the
+  length prior stops being outnumbered), marker offsets, the grip axis and offsets, and the club
+  length per club.
+- **The cameras, once per camera epoch:** geometry is a property of the rig, *not* of the session —
+  the DTL camera moved between 4 July swings 3 and 4 (memory: DTL posture). An epoch breaks where a
+  swing's camera parameters, fitted alone, jump beyond a threshold.
+- **Each swing** then fits only its own motion, with those held fixed.
+
+Live analysis cannot wait for a session, so a live shot uses the session's running estimate (from
+earlier swings, else priors). The session-end or re-analysis pass does the full pooled fit.
+
+#### (D) Earn back every knob
+After (A)–(C), each of the 56 fields is reset to a neutral default one at a time and the §13.3 grade
+rerun. A knob that does not change the grade is removed; one that does is kept and documented with
+the failure it prevents. **Guard against one-golfer overfitting:** any knob that survives is tuned on
+the 4 July swings and graded on the 11 June swings (a different club and day), never the reverse.
+
+### 13.2a How the changes reach the fit — the rig and the viewer do not change
+
+`Rig`, `forwardKinematics`, the 48 `dofNames`, the JSON `d` arrays, the GUI driver (which skips any
+frame whose size is not `R.dofCount()`), the hull and the synthetic test's scoring all assume the
+48-angle layout. So the leaner model lives **inside the fit**, as its own unknowns expanded to the 48:
+- (A) is a fixed linear map, **θ₄₈ = M·q₃₈**;
+- (B) is **θ₄₈(t) = M·Σₖ Bₖ(t)·cₖ**.
+
+The Jacobians stay exact by the chain rule (`Jf₃₈ = Jf₄₈·M`). `res.theta` is still written as all 48
+derived angles, so the viewer, the documents old and new, and the test scoring are untouched.
+
+(C)'s pooled values travel on one typed route: `ReanalyzeOptions` → `ShotAnalysisJob` →
+`FitInput::fixedCalib`. They are persisted as `<sessionDir>/skeleton3d_session.json`, in the
+`diagnostics.json` pattern, with per-swing provenance. Every change sits behind a `FitConfig`
+switch: it can be ablated, and left off if it fails its gates.
+
+### 13.3 How each change is judged
+
+Every change is graded against **today's fit (v2, `2a7e57a9`)** on the same 24 two-camera swings and
+the synthetic suite, with the tools that exist (`skeleton3d_run.sh`, `skeleton3d_grade.py`,
+`--branch`, `swing3d_trace_reproject.py`):
+
+| Check | Gate |
+|---|---|
+| Synthetic suite (§12.3 + depth branch (p-a)–(p-f)) | every guard holds |
+| Club off plane at P8, and over P8 ± 20 ms | not worse than v2 (6.0°; 23 / 24 within 20°) |
+| DTL dropout from impact − 250 ms vs the full fit | not worse than v2 (9.1°) |
+| Face-on only vs the two-view fit, → P8 | **better** than v2 (15.8°) — the change most likely to benefit |
+| Reprojection, each view | not worse than 1 px median |
+| Pelvis-tilt wobble (§12.2 item 16) | not worse (1.1° rms at 120 ms) |
+| Spine bend / knee flex at address vs `dtl_posture` | reported |
+| Unknowns, `FitConfig` fields, solve time | reported: **the point of the exercise** |
+| (C) only: fitted club length vs the club record; lengths across a session's swings | reported: the pooled length should be steadier and nearer 0.94 m |
+
+**Done when** each change's table is filled and judged by Mark. A change that fails its gates is
+written up and not merged: a documented "no" counts as done.
+
+### 13.4 Order, risks, open questions
+
+**Order:** (A) first: the smallest change, and it tells us whether the removed joints mattered.
+Then (B), the largest. Then (C), which needs a session-level pass that does not exist yet. (D)
+last, once the model is settled.
+
+**Risks:**
+- A single spine may be unable to show a real thoracic–lumbar split (X-factor stretch); the grade's
+  pelvis and thorax turn rows would show it.
+- A fixed scapulohumeral rhythm is a population average; the trail shoulder at the top is where it
+  is most likely wrong.
+- Splines may round the true peak rates through impact. `skeleton3d` feeds no metric today, but
+  §3.3 made smoothness phase-aware because a future rate metric would read those peaks, and the
+  pelvis and thorax turn rates are graded against the pair route. Knot spacing is the same risk in a
+  new form, so the downswing knot spacing is the first thing (B)'s grade checks.
+- Pooling assumes the cameras did not move within an epoch; detecting a move is part of (C).
+- One golfer: (D)'s split tuning is a mitigation, not a cure.
+
+**Questions for Mark — answered 28 Sept:**
+1. **Clavicles:** coupled to the humerus (as proposed), or kept free with the prior? Coupling
+   removes a knob; freedom keeps a shoulder shrug the rhythm cannot make. **Answer: coupled to the
+   upper arm.**
+2. **Pooling:** at re-analysis and session end only, or also a running estimate for live shots?
+   **Answer: re-analysis and session end only.**
+3. **Spine split:** ⅓ each to begin with, or the Y-bot's segment lengths in proportion?
+   **Answer: by segment length** (0.117 / 0.135 / 0.151 m).
+4. **Priorities:** (A) + (B) as one piece of work and (C) as a second, or all four in order?
+   **Answer: all four, in order.**
+
+### 13.5 (A) Fewer joints — built and graded (28 September)
+
+**Built:** `FitConfig::leanRig`, with `leanClavicles`, `clavElevGain` and `clavProtGain`. The fit's
+unknowns are q, and θ₄₈ = M·q (`Problem::M`, `qRep`):
+- the frame Jacobians are filled 48-wide, as before, and multiplied by M once per frame;
+- smoothness and the posture priors run on q;
+- the limits still hold every derived angle, through its row of M;
+- `res.theta` is written as all 48 angles.
+
+**Synthetic** (`skeleton3d_test` (L)):
+- The Jacobian through M agrees to 7.5e-8, and the round trip of a lean-representable pose is exact
+  (5.6e-17 rad).
+- The existing truth is **not** lean-representable (its spine bends unevenly and its clavicles move
+  freely), so a lean-representable truth was added (`leanProject`); the old truth is reported as the
+  model-mismatch cost.
+- The first gains (0.25, a textbook scapulohumeral rhythm) put the lead forearm in a **rolled
+  minimum**: roll error 120°, not fixed by more iterations. At 0.10 it held at 23°, and 0.10 became
+  the default.
+- The guards are judged against the 48-angle fit **on the same truth**, since the absolute ones
+  were set for a truth the lean rig cannot make.
+
+**Corpus (24 two-camera swings, against v2 on the same binary):**
+
+| | v2 (48) | lean: spine + clavicles (38) | **lean: spine only (42)** |
+|---|---|---|---|
+| P8 off-plane / swings within 20° over ± 20 ms | 6.0° / 23 | 5.85° / 23 | **5.65° / 23** |
+| DTL dropout vs the full fit | 9.05° | 9.25° | **8.50°** |
+| Face-on only vs the two-view fit, median (p90) | 15.8° (31°) | 19.1° (50°) ✗ | **14.8° (32°)** |
+| Reprojection, face-on / DTL | 6.91 / 4.78 px | 7.30 / **6.02** px ✗ | **6.96 / 4.71** px |
+| Pelvis-tilt wobble (rms about a 120 ms mean) | 0.68° | 0.79° | **0.66°** |
+| Knee flex at address, lead / trail | 5.2 / 8.5° | 6.2 / 10.6° | 5.1 / 7.7° |
+| Pelvis rate correlation | 0.57 | 0.33 | 0.49 |
+| Spine bend at address | +1.55° | +1.65° | +2.2° |
+
+**The finding:** the clavicles following the upper arm (§13.4 q1) **fails** the gates. It costs
+the DTL 1.2 px and face-on-only 3° (p90 +20°). The single spine alone passes all of them. So
+(A) is **built as spine-only: 48 → 42 angles, the clavicles free with their prior**, and
+`leanClavicles` stays off by default. ⚠ This departs from Mark's answer to q1, on the numbers above.
+It is his call whether to revisit the rhythm, for example a gain measured from DTL pose.
+
+### 13.6 (B) Spline trajectories — built and graded (28 September)
+
+**Built:** `FitConfig::splineBasis`, with `knotFastMs` 10 and `knotSlowMs` 40.
+- The basis is a clamped cubic B-spline on the real frame times (Cox–de Boor). Knots are dense from
+  top − 50 ms to impact + 60 ms.
+- `State.c` holds the coefficients, and the per-frame q is a cache re-expanded after each step, so
+  residuals, poses, the branch pass and the swap pass are untouched.
+- The per-frame normal equations are projected onto the coefficient blocks. The block-banded
+  Cholesky gained a third band; with it zero and one block per frame it is the old solver exactly.
+- The smoothness became a second difference on the coefficients at their Greville times, at the
+  same physical σ (`smoothSigma`, so the phase loosening and the pelvis-tilt σ carry over).
+- The per-joint uncertainty uses the per-frame information, as before.
+
+**Synthetic** (`skeleton3d_test` (S)):
+- The knots carry the truth: round-trip p90 0.002°. The one 4.9° outlier is the generator's
+  per-frame trail-hand IK jumping at 1.458 s.
+- The Jacobian agrees, and the guards hold against the per-frame fit.
+- The unknowns drop 8,933 → 3,195 (lean).
+- The club's peak angular speed through impact is 109 % of truth with splines, against 133 %
+  per-frame (the per-frame fit overshoots).
+
+**Corpus (splines on the 48-angle rig, against v2):**
+
+| | v2 | splines |
+|---|---|---|
+| P8 off-plane / worst ± 20 ms / swings within 20° | 6.0° / 8.0° / 23 | **5.85° / 7.65° / 23** |
+| DTL dropout vs the full fit | 9.05° | **8.30°** |
+| Face-on only vs the two-view fit | 15.8° | **14.5°** |
+| Reprojection, face-on / DTL | 6.91 / 4.78 px | 6.96 / 4.87 px |
+| Pelvis-tilt wobble | 0.68° | **0.57°** |
+| Unknowns per swing | ~9,650 | **4,217** |
+| Solve | 2.7 s | 2.8 s |
+| Reported: spine bend at address; downswing plane vs club3d; pelvis rate correlation | +1.55°; +0.4°; 0.57 | −2.7°; −3.55°; 0.53 |
+
+(B) **passes every gate**. The spine bend bias flips sign and the fitted downswing plane moves 4°
+against club3d: both reported, and both for (D) to look at.
+
+**A + B together** (lean spine-only + splines, the combination that goes forward, against v2):
+
+| | v2 | spine-only (A) | splines (B) | **A + B** |
+|---|---|---|---|---|
+| P8 off-plane / worst ± 20 ms | 6.0° / 8.0° | 5.65° / 10.45° | 5.85° / 7.65° | **5.85° / 8.8°** |
+| Swings within 20° at P8 (± 20 ms) | 23 | 23 | 23 | 22 |
+| DTL dropout vs the full fit / vs DTL | 9.05° / 13.55° | 8.5° / 12.0° | 8.3° / 12.15° | **6.85° / 11.1°** |
+| Face-on only vs the two-view fit, median (p90) | 15.8° (31°) | 14.8° (32°) | 14.5° (32°) | **13.45° (32°)** |
+| Reprojection, face-on / DTL | 6.91 / 4.78 px | 6.96 / 4.71 | 6.96 / 4.87 | 6.97 / 4.95 px |
+| Pelvis-tilt wobble | 0.68° | 0.66° | 0.57° | **0.58°** |
+| Unknowns per swing | ~9,650 | 6,887 | 4,217 | **3,695** |
+| Solve | 2.7 s | 2.5 s | 2.8 s | 2.4 s |
+| Reported: spine bend; plane vs club3d; pelvis rate r | +1.55°; +0.4°; 0.57 | +2.2°; +2.0°; 0.49 | −2.7°; −3.55°; 0.53 | −1.0°; −0.3°; 0.47 |
+
+The combination is the best of the four on the dropout and on face-on only, and it has 38 % of v2's
+unknowns. **One marginal miss:** 11 June swing 3 goes from 15.7° to 20.2° worst-over-± 20 ms, so the
+count within 20° is 22 against 23. The worst swing of all (11 June s1, 64°) is the same in v2; it is
+fixed only by splines on the 48-angle rig. Splines alone had instead flipped **4 July s5** (4° → 68°),
+which A + B keeps at 2°. Pelvis rate correlation slips 0.57 → 0.47, reported. A + B goes forward.
+
+### 13.7 (C) Session pooling — built and graded (28 September)
+
+**Built:**
+- `skeleton3d_pool.h` (`poolSkeletons`, `calibFor`, the `pinpoint.skeleton3dSession/1` file) and
+  `FitInput::fixedCalib`, which seeds and freezes the pooled shared unknowns.
+- The route `ReanalyzeOptions` → `ShotAnalysisJob::skeletonCalib` → the fit.
+- `poolSkeletonSession` (pass 1 over a session's swings → pool → `<sessionDir>/skeleton3d_session.json`).
+- The app runs it after a re-analysis batch that covered two or more swings of a session, and when
+  a session folder ends (`ShotProcessor::sessionFolderEnded` → `ReanalysisController::poolSession`).
+  Either then re-analyses that session once more with the pool held. Live shots are unchanged.
+- `swinglab_run --pool/--pool-prefix/--pool-out` and `--skeleton-calib`; `skeleton3d_run.sh` takes
+  `CALIBDIR`.
+
+**What the corpus said, in the order it said it** (A + B underneath; 24 two-camera swings):
+1. **Lengths freed in pass 1 are not identifiable.** §13.4 expected pooling to identify them. Instead
+   the golfer inflated: spine ×2.0, upper arm ×1.4, forearm ×1.3, the club to 1.09–1.16 m, with a
+   9–18 % spread swing to swing. Pass 1 keeps the lengths frozen from the height, as v2 does.
+2. **The per-swing camera fit scatters more than a tripod moves.** 4 July (v2): focal ±3 %, DTL
+   centre ±8 cm, and face-on pitch trades against DTL roll by up to 11°. A 5 cm / 2° / 5 % epoch
+   rule made every swing its own epoch. The rule now splits only on a DTL yaw of 4°, a DTL move of
+   30 cm, or a focal change of 25 %. That finds the real 4 July move (swings 3 → 4, a 5° yaw) and
+   one on 11 June (swing 1 alone).
+3. **Pooling the golfer's values costs; pooling the cameras pays.** An ablation by what is held:
+
+| Held fixed from the pool | P8 off-plane / worst ± 20 ms | Face-on only, median (p90) | Reprojection, face-on / DTL |
+|---|---|---|---|
+| nothing (A + B) | 5.85° / 8.8° | 13.45° (32°) | 6.97 / 4.95 px |
+| everything (lengths frozen) | 5.2° / 7.55° | 20.3° (61°) ✗ | 7.39 / 5.05 |
+| the golfer only (grip, sym, club) | 6.15° / 9.55° | 16.95° (57°) ✗ | 7.06 / 4.91 |
+| cameras + the grip | — | 14.45° (55°) ✗ | — |
+| cameras + the shoulder/hip offsets | — | 15.5° (36°) | — |
+| cameras + the club | 4.95° / 6.35° | 12.4° (34°) | 7.87 / 4.87 |
+| **the cameras only** | **5.4° / 6.25°** | **11.15° (31°)** | 7.89 / 4.88 |
+
+The grip is the damaging one: **the golfer re-grips every swing**, so a session grip is wrong on
+every swing a little and on some a lot. The club pooled reads short (0.79 m grip-to-head for the
+wedge, 0.83 m for the 7-iron) and costs face-on only 0.5–1.2° in every pairing. So **(C) is built as
+camera pooling**; the golfer's values are behind `PoolConfig` switches that default off.
+
+**(C) against v2 and A + B:**
+
+| | v2 | A + B | **A + B + C** |
+|---|---|---|---|
+| P8 off-plane / worst ± 20 ms / swings within 20° | 6.0° / 8.0° / 23 | 5.85° / 8.8° / 22 | **5.4° / 6.25° / 23** |
+| DTL dropout vs the full fit / vs DTL | 9.05° / 13.55° | 6.85° / 11.1° | **6.0° / 9.85°** |
+| Face-on only vs the two-view fit, median (p90) | 15.8° (31°) | 13.45° (32°) | **11.15° (31°)** |
+| Reprojection, face-on / DTL | 6.91 / 4.78 px | 6.97 / 4.95 | 7.89 / 4.88 px |
+| Pelvis-tilt wobble | 0.68° | 0.58° | **0.60°** |
+| Knee flex at address, lead / trail | 5.2 / 8.45° | 4.7 / 7.4° | 4.45 / 7.95° |
+| Reported: spine bend; plane vs club3d; pelvis rate r | +1.55°; +0.4°; 0.57 | −1.0°; −0.3°; 0.47 | −1.5°; −0.7°; 0.54 |
+
+Every gate holds. The face-on reprojection is the closest: +0.98 px against the 1 px allowance.
+That is expected: a camera shared by 12 swings cannot bend to each swing's noise, which is what
+pooling is for. The pooled camera also takes the club's worst P8 swing back inside 20° (23 of 24).
+(Solve times for this run were taken with three configs in parallel and are not comparable.)
+
+### 13.8 (D) The knob audit — run and graded (28 September)
+
+Each prior width was set neutral in turn (σ × 100, or the factor 1), on A + B + C, over the 24
+two-camera swings (`tools/swinglab/skeleton3d_knob_audit.sh`;
+`docs/research/data/skeleton3d/knob_audit_20260928.csv`). Twelve were audited. **Not audited:**
+`fastFactor`, `wristSigmaDeg`, `branchReleasePriorFactor`; their runs died when the Mac's disk filled,
+and were not repeated.
+
+| Knob set neutral | P8 / worst / within 20° | Dropout | Face-on only (p90) | Verdict |
+|---|---|---|---|---|
+| — (baseline) | 5.4° / 6.25° / 23 | 6.0° | 11.15° (31°) | |
+| `planeSigmaDeg` | 13.3° / 16.5° / 13 | 31.4° | 45° (88°) | **earns it** — the depth-branch fix |
+| `smoothAccRad` | 7.0° / 21.3° / 11 | 7.35° | 21.8° (90°) | **earns it** — splines alone do not smooth enough |
+| `cauchyC` | 6.6° / 10.4° / 19 | 10.8° | 27.4° (70°) | **earns it** — the robust loss |
+| `limitSigmaDeg` | 6.85° / 9.35° / 21 | 8.15° | 19.5° (64°) | **earns it** |
+| `armRotSigmaDeg` | 4.7° / 6.9° / 23 | 6.75° | 15.8° (50°) | earns it (face-on only) |
+| `pelvisTiltAccRad` | 4.95° / 6.45° / 22 | 6.4° | 14.3° (49°) | earns it (face-on only) |
+| `pronationSigmaDeg` | 8.05° / 8.75° / 23 | 6.4° | 13.9° (44°) | earns it (P8, face-on only) |
+| `spineFlexSigmaDeg` | 3.95° / 5.5° / 24 | 6.7° | 14.2° (39°) | mixed: P8 better, face-on only worse — kept |
+| `contactSigmaM` | 5.25° / 7.4° / 23 | 6.4° | 11.45° (36°) | mixed: reprojection better, p90 worse — kept |
+| `gripSigmaM` | 4.7° / 6.25° / 23 | 6.8° | 9.1° (36°) | mixed — kept |
+| `clavicleSigmaDeg` | 5.45° / 7.85° / 23 | 6.1° | 12.5° (31°) | **nearly neutral** — the one removal candidate |
+
+**The finding:** the reactive knobs were not overfitting; every audited one but the clavicle prior
+moves a gate when removed. None is trimmed in this pass: `clavicleSigmaDeg` is the only candidate,
+and the margin (face-on only +1.35°) is within one swing's noise on 24 swings. `spineCoupleSigmaDeg`
+is dead under the lean spine (it only acts with `leanRig` off). The tune-on-4-July / test-on-11-June
+step was not run: with 24 swings from one golfer, it would tune to noise.
