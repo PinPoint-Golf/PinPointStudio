@@ -19,6 +19,8 @@
 #                     the DTL DID see, graded blind — the dropout with data behind it
 #   dtlDropDownV1     …the same, before the fix
 #
+# Env EXTRA merges extra params into every config (a candidate graded under the standard names).
+# Env CALIBDIR passes each swing's session pool (<CALIBDIR>/<session>.json) as --skeleton-calib.
 # Outputs <outroot>/<config>/<id>/{result.json,runner.log}. Grade with skeleton3d_grade.py;
 # DELETE the run trees once its CSVs are in docs/research/data/skeleton3d/.
 set -u
@@ -54,6 +56,11 @@ case $CFG in
   faceOnlyV1)    params='{"skeleton3d.useDtl": false, "skeleton3d.usePlane": false, "skeleton3d.branchPass": false}' ;;
   *) echo "unknown config $CFG"; exit 2 ;;
 esac
+# EXTRA: more `"key": value` pairs merged into every config's params — a candidate change graded
+# under the standard config names in its own root (e.g. EXTRA='"skeleton3d.leanRig": true').
+if [[ -n ${EXTRA:-} ]]; then
+  if [[ -n $params ]]; then params="${params%\}}, $EXTRA}"; else params="{$EXTRA}"; fi
+fi
 if [[ -n $params ]]; then echo $params > $OUT/params.json; fi
 
 one() {
@@ -64,6 +71,9 @@ one() {
   [[ $sess == 2026-07-04* ]] && args+=(--bands 308,362,560,758,808,854 --club-length-mm 940 --hosel-mm 882)
   [[ -n $HEIGHT ]] && args+=(--height-m $HEIGHT)
   [[ -n $params ]] && args+=(--params $OUT/params.json)
+  # CALIBDIR: a directory of session pools (<session>.json, from `swinglab_run --pool`) — pass 2 of the
+  # skeleton3d session pool (swing_3d_viz_design.md §13.2 (C)) holds each swing's pooled values fixed.
+  [[ -n ${CALIBDIR:-} ]] && args+=(--skeleton-calib $CALIBDIR/$sess.json)
   PINPOINT_LOG_STDERR=1 $BIN $C/swings/$sess/$sw --out $OUT/$id $args > $OUT/$id/runner.log 2>&1
   echo "$CFG $id exit=$?"
 }

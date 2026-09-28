@@ -41,6 +41,8 @@
 // Frames come from the raw sidecars (bit-faithful) when present, else the MP4s
 // (decoded to BGR24) — both streamed one frame at a time by SwingDiskSource.
 
+#include "../../../src/Analysis/skeleton3d/skeleton3d_pool.h"
+
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QDir>
@@ -341,10 +343,53 @@ int main(int argc, char **argv)
         "(reanalyzeSwingDir, production defaults, no overrides) and write the fresh "
         "analysis back into the SOURCE swing.json, preserving capture/streams/review. "
         "Exclusive: every other option except the positional swing dir is ignored.");
+    // skeleton3d session pool (swing_3d_viz_design.md §13.2 (C)): pass 2 holds a pool's values for
+    // this swing fixed; --pool builds a pool from pass-1 result.json files.
+    QCommandLineOption optCalib("skeleton-calib",
+        "A skeleton3d session pool (skeleton3d_session.json): this swing's values (by its directory name) are held fixed.", "file");
+    QCommandLineOption optPool("pool",
+        "Pool mode: build a skeleton3d session pool from <dir>/*/result.json (see --pool-prefix, --pool-out).", "dir");
+    QCommandLineOption optPoolPrefix("pool-prefix", "Pool mode: only the result directories whose name starts with this.", "str");
+    QCommandLineOption optPoolOut("pool-out", "Pool mode: where to write the pool JSON.", "file");
+    QCommandLineOption optPoolSession("pool-session",
+        "The app's session pass (poolSkeletonSession): pass-1 fits of <sessionDir>/swing_*, pooled into "
+        "<sessionDir>/skeleton3d_session.json. Nothing else is written; --write-back each swing after it.", "dir");
     cli.addOptions({ optOut, optParams, optTrace, optSession, optFaceOn, optImpact, optPose, optForce, optFullWindow,
                      optBall, optRefuse, optRefuseBeta, optWriteBack, optBind, optDtl, optDtlPose,
-                     optBands, optClubLen, optHosel, optShaftLen, optHandsEnd, optHeight });
+                     optBands, optClubLen, optHosel, optShaftLen, optHandsEnd, optHeight,
+                     optCalib, optPool, optPoolPrefix, optPoolOut, optPoolSession });
     cli.process(app);
+
+    if (cli.isSet(optPoolSession)) {
+        QString err;
+        int n = 0;
+        const bool ok = poolSkeletonSession(cli.value(optPoolSession), &err, &n);
+        std::fprintf(stderr, "[swinglab] pool-session: %d swings fitted, %s\n", n, ok ? "written" : qPrintable(err));
+        return ok ? 0 : 1;
+    }
+
+    // ── Pool mode ────────────────────────────────────────────────────────────
+    if (cli.isSet(optPool)) {
+        const QDir root(cli.value(optPool));
+        const QString prefix = cli.value(optPoolPrefix);
+        std::vector<std::pair<QString, QJsonObject>> swings;
+        for (const QString &d : root.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+            if (!prefix.isEmpty() && !d.startsWith(prefix)) continue;
+            QFile f(root.filePath(d + QStringLiteral("/result.json")));
+            if (!f.open(QIODevice::ReadOnly)) continue;
+            const QJsonObject res = QJsonDocument::fromJson(f.readAll()).object();
+            const QString src = res.value(QStringLiteral("source")).toObject().value(QStringLiteral("swingDir")).toString();
+            swings.push_back({ QFileInfo(src).fileName(),
+                               res.value(QStringLiteral("analysis")).toObject().value(QStringLiteral("skeleton3d")).toObject() });
+        }
+        const auto pool = pinpoint::skeleton3d::poolSkeletons(swings);
+        QFile out(cli.value(optPoolOut));
+        if (!out.open(QIODevice::WriteOnly)) return fail(QStringLiteral("--pool-out: cannot write"));
+        out.write(QJsonDocument(pinpoint::skeleton3d::sessionPoolToJson(pool)).toJson());
+        std::fprintf(stderr, "[swinglab] pool: %d swings, %zu camera epoch(s), valid %d %s\n", pool.nSwings, pool.epochs.size(),
+                     int(pool.valid), qPrintable(pool.reason));
+        return pool.valid ? 0 : 1;
+    }
 
     if (cli.positionalArguments().isEmpty() || (!cli.isSet(optOut) && !cli.isSet(optWriteBack)))
         return fail("usage: swinglab_run <swing_dir> --out <run_dir> [--params f] [--trace]\n"
@@ -515,6 +560,15 @@ int main(int argc, char **argv)
         if (err.isEmpty()) err = mm(optHeight,   "height-m",         &job.athleteHeightM,  1.0);
         if (!err.isEmpty())
             return fail(err);
+        if (cli.isSet(optCalib)) {
+            QFile pf(cli.value(optCalib));
+            if (!pf.open(QIODevice::ReadOnly)) return fail(QStringLiteral("--skeleton-calib: cannot read"));
+            const auto pool = pinpoint::skeleton3d::sessionPoolFromJson(QJsonDocument::fromJson(pf.readAll()).object());
+            pinpoint::skeleton3d::SkeletonCalib c;
+            if (!pinpoint::skeleton3d::calibFor(pool, QFileInfo(swingDir).fileName(), c))
+                return fail(QStringLiteral("--skeleton-calib: %1 is not in the pool").arg(QFileInfo(swingDir).fileName()));
+            job.skeletonCalib = c;
+        }
         if (cli.isSet(optBands)) {
             std::vector<double> bands;
             QJsonArray echo;
