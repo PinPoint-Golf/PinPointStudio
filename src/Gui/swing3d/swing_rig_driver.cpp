@@ -38,6 +38,13 @@ namespace {
 constexpr int kPhaseAddress = 0;  // pinpoint::analysis::Phase::Address
 constexpr int kPhaseImpact = 5;   // pinpoint::analysis::Phase::Impact
 constexpr int kPhaseFinish = 7;   // pinpoint::analysis::Phase::Finish
+constexpr int kPhaseP8 = 14;      // pinpoint::analysis::Phase::ShaftParallelThrough (P8)
+
+// The 3-D swing ENDS AT P8 (Mark, 28 Sept): past it the fit is at its least held — the DTL has
+// usually lost the club and the lead arm takes the wrong face-on depth mirror
+// (skeleton3d_shaft_branch_design.md) — and nothing after it is worth the mess. With no P8 on file
+// the end is impact + this (P8 sits ~95 ms after impact on the 4 July swings).
+constexpr qint64 kEndAfterImpactUs = 100000;
 
 // The fused downswing plane's quad (annotations design §5b): from the clubhead at impact, this far
 // up the shaft and this far either side of it, in metres.
@@ -193,6 +200,8 @@ struct SwingRigDriver::Prepared {
     bool ballValid = false;
     qint64 impactUs = -1;
     qint64 addressUs = -1;     // where the figure rests when nothing is playing
+    qint64 p8Us = -1;
+    qint64 endUs = -1;         // the display's end: P8 (see kEndAfterImpactUs)
     QVector3D centre;
     // Motion annotations.
     SwingAnnotTrack annot;
@@ -229,7 +238,7 @@ bool SwingRigDriver::twoViews() const { return m_track && m_track->dtl; }
 int SwingRigDriver::jointCount() const { return sk::Rig::N; }
 double SwingRigDriver::clubLengthM() const { return m_track ? m_track->clubLengthM : 0.95; }
 qint64 SwingRigDriver::startUs() const { return available() ? m_track->t.front() : 0; }
-qint64 SwingRigDriver::endUs() const { return available() ? m_track->t.back() : 0; }
+qint64 SwingRigDriver::endUs() const { return available() ? m_track->endUs : 0; }
 
 QString SwingRigDriver::frameTierText() const
 {
@@ -366,13 +375,17 @@ std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QS
     for (const QJsonValue &pv : an.value(QStringLiteral("phases")).toArray()) {
         const QJsonObject po = pv.toObject();
         const int phase = po.value(QStringLiteral("phase")).toInt();
-        if (phase != kPhaseImpact && phase != kPhaseAddress && phase != kPhaseFinish) continue;
+        if (phase != kPhaseImpact && phase != kPhaseAddress && phase != kPhaseFinish && phase != kPhaseP8) continue;
         const qint64 raw = qint64(po.value(QStringLiteral("t_us")).toDouble());
         const qint64 rel = raw >= t0 ? raw - t0 : raw;
         if (phase == kPhaseImpact) P->impactUs = rel;
         else if (phase == kPhaseAddress) P->addressUs = rel;
+        else if (phase == kPhaseP8) P->p8Us = rel;
         else P->annot.finishUs = rel;
     }
+    // The display's end: P8, else impact + 100 ms, else the fit's own end (set after the frames).
+    P->endUs = P->p8Us >= 0 ? P->p8Us : P->impactUs >= 0 ? P->impactUs + kEndAfterImpactUs : -1;
+    if (P->endUs >= 0) P->annot.finishUs = P->endUs;      // the annotations' window ends there too
     P->annot.addressUs = P->addressUs;
     P->annot.impactUs = P->impactUs;
     // P1–P8 from the face-on club track (already window-relative; the ≥ t0 rule is idempotent).
@@ -428,10 +441,24 @@ std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QS
         if (P->t.size() == 1)
             P->centre = S.point((pose.pos[sk::ybot::LeftUpLeg] + pose.pos[sk::ybot::RightUpLeg]) * 0.5);
     }
+    // Drop the frames past the end, keeping the first one beyond it so the pose AT the end
+    // interpolates exactly.
+    if (P->endUs >= 0) {
+        size_t keep = P->t.size();
+        for (size_t i = 0; i < P->t.size(); ++i)
+            if (P->t[i] >= P->endUs) { keep = i + 1; break; }
+        P->t.resize(keep); P->local.resize(keep); P->rootPos.resize(keep); P->tier.resize(keep);
+        P->shaftButt.resize(keep); P->shaftRot.resize(keep); P->shaftTier.resize(keep);
+        P->annot.t.resize(keep); P->annot.p.resize(keep); P->annot.tier.resize(keep);
+    }
     if (P->t.size() < 2) {
         *reason = QObject::tr("the 3-D skeleton has fewer than two frames");
         return {};
     }
+    if (P->endUs < 0 || P->endUs > P->t.back()) P->endUs = P->t.back();
+    P->positions.erase(std::remove_if(P->positions.begin(), P->positions.end(),
+                                      [&](const Prepared::Position &q) { return q.t > P->endUs; }),
+                       P->positions.end());
 
     // Stabilise the club for display: smooth the clubhead path, keep the butt in the fitted hands,
     // and point the drawn club at the smoothed head — the club model, its trace and the P-positions
@@ -504,7 +531,7 @@ void SwingRigDriver::evaluate()
         // A negative position is "nothing is playing": rest at address, not on the fit's first
         // frame (the lead-in before address is the least-held part of any fit).
         const qint64 want = m_positionUs < 0 ? (P.addressUs >= 0 ? P.addressUs : P.t.front()) : m_positionUs;
-        const qint64 t = std::clamp(want, P.t.front(), P.t.back());
+        const qint64 t = std::clamp(want, P.t.front(), P.endUs);     // past P8 the figure holds
         auto hi = std::upper_bound(P.t.begin(), P.t.end(), t);
         size_t b = hi == P.t.end() ? P.t.size() - 1 : size_t(hi - P.t.begin());
         size_t a = b > 0 ? b - 1 : 0;
@@ -541,7 +568,7 @@ const SwingAnnotTrack *SwingRigDriver::annotTrack() const { return available() ?
 qint64 SwingRigDriver::annotTimeUs() const
 {
     if (!available() || m_positionUs < 0) return -1;
-    return std::clamp(m_positionUs, m_track->annot.t.front(), m_track->annot.t.back());
+    return std::clamp(m_positionUs, m_track->annot.t.front(), m_track->endUs);
 }
 
 bool SwingRigDriver::inSwingWindow() const
@@ -551,6 +578,8 @@ bool SwingRigDriver::inSwingWindow() const
 
 int SwingRigDriver::positionCount() const { return available() ? int(m_track->positions.size()) : 0; }
 bool SwingRigDriver::planeAvailable() const { return available() && m_track->annot.planeValid; }
+bool SwingRigDriver::faceOnOnly() const { return available() && !(m_track->dtl && m_track->annot.planeValid); }
+bool SwingRigDriver::heldAtEnd() const { return available() && m_positionUs > m_track->endUs; }
 double SwingRigDriver::planeInclDeg() const { return planeAvailable() ? m_track->annot.planeInclDeg : 0.0; }
 bool SwingRigDriver::foMirrored() const { return available() && m_track->foMirrored; }
 

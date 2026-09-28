@@ -74,6 +74,11 @@ Item {
     readonly property bool matched: matchView >= 0 && drv.available && drv.cameraAvailable(matchView)
     readonly property var annotations: [annArms, annSpine, annShoulders, annHips, annLegs, annShaft, annGrip, annPlane]
     readonly property bool usingMatchCamera: view.camera === matchCam
+    // No DTL / no fused shaft plane ⇒ depth is the fit's guess: the swing is shown face-on only
+    // (Mark, 28 Sept) — the Face-on preset (and the face-on camera's), no orbit.
+    readonly property bool faceOnOnly: drv.faceOnOnly
+    function presetAllowed(p) { return !faceOnOnly || p === "faceOn" || p === "camFo" }
+    onFaceOnOnlyChanged: if (!presetAllowed(preset)) applyPreset("faceOn")
     function mapPosition(i) { return view.mapFrom3DScene(drv.positionHead(i, rev)) }
     // "hull": ONE smooth skinned body (tools/generate_swing3d_hull.py) — no joins to show.
     // "segments": the rigid-piece mannequin, kept as a fallback should skinning misbehave on a GPU.
@@ -149,6 +154,23 @@ Item {
             // Frame-mode body sticks are OPAQUE so they are drawn before the faded hull (§4.2);
             // traces and fans carry their fade in the vertex alpha.
             alphaMode: an.body && an.mode === "frame" ? PrincipledMaterial.Opaque : PrincipledMaterial.Blend
+        }
+    }
+
+    // ── one status chip in the bottom row ──
+    component Chip: Rectangle {
+        property string label: ""
+        radius: height / 2
+        height: Theme.sp(22)
+        width: chipText.implicitWidth + Theme.sp(18)
+        color: Theme.colorBg
+        border.width: 1; border.color: Theme.colorBorderMid
+        Text {
+            id: chipText
+            anchors.centerIn: parent
+            text: parent.label
+            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+            color: Theme.colorText2
         }
     }
 
@@ -377,7 +399,8 @@ Item {
         anchors.fill: view
         origin: pivot
         camera: cam
-        enabled: !root.matched           // a matched camera stays where the real one stood
+        // A matched camera stays where the real one stood; a face-on-only swing is not orbited.
+        enabled: !root.matched && !root.faceOnOnly
     }
 
     Vector3dAnimation {
@@ -397,6 +420,7 @@ Item {
         }
     }
     function applyPreset(p) {
+        if (!presetAllowed(p)) p = "faceOn"
         preset = p
         if (p === "camFo" || p === "camDtl") return      // the match camera: nothing to animate
         presetAnim.stop()
@@ -415,64 +439,53 @@ Item {
         // The match chips only when this swing's fitted camera (and its image size) is on file.
         readonly property bool camFo: drv.available && drv.cameraAvailable(0)
         readonly property bool camDtl: drv.available && drv.cameraAvailable(1)
-        readonly property var keys: ["faceOn", "dtl", "top", "target", "behind"]
-                                    .concat(camFo ? ["camFo"] : []).concat(camDtl ? ["camDtl"] : [])
-        options: [qsTr("Face-on"), qsTr("Down the line"), qsTr("Top"), qsTr("Target side"), qsTr("Behind")]
-                 .concat(camFo ? [qsTr("Face-on cam")] : []).concat(camDtl ? [qsTr("DTL cam")] : [])
+        readonly property bool orbit: !root.faceOnOnly
+        readonly property var keys: ["faceOn"].concat(orbit ? ["dtl", "top", "target", "behind"] : [])
+                                    .concat(camFo ? ["camFo"] : []).concat(camDtl && orbit ? ["camDtl"] : [])
+        options: [qsTr("Face-on")].concat(orbit ? [qsTr("Down the line"), qsTr("Top"), qsTr("Target side"), qsTr("Behind")] : [])
+                 .concat(camFo ? [qsTr("Face-on cam")] : []).concat(camDtl && orbit ? [qsTr("DTL cam")] : [])
         selected: keys.indexOf(root.preset) >= 0 ? options[keys.indexOf(root.preset)] : ""
         onActivated: (v) => root.applyPreset(keys[options.indexOf(v)])
     }
 
-    Rectangle {
-        id: tierChip
-        anchors { left: parent.left; bottom: parent.bottom; margins: Theme.sp(10) }
-        visible: drv.available
-        radius: height / 2
-        height: Theme.sp(22)
-        width: tierText.implicitWidth + Theme.sp(18)
-        color: Theme.colorBg
-        border.width: 1; border.color: Theme.colorBorderMid
-        Text {
-            id: tierText
-            anchors.centerIn: parent
-            text: drv.frameTierText + (drv.twoViews ? "" : qsTr(" · face-on only"))
-                  + (root.clubTraced ? qsTr(" · club path smoothed %1 ms").arg(drv.clubSmoothingMs.toFixed(0)) : "")
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-            color: Theme.colorText2
+    // The chips wrap upward rather than run off a narrow panel.
+    Flow {
+        id: chipRow
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: Theme.sp(10) }
+        spacing: Theme.sp(6)
+        Chip { id: tierChip; visible: drv.available; label: drv.frameTierText }
+        Chip {
+            visible: drv.available && root.faceOnOnly
+            label: drv.twoViews ? qsTr("face-on only: no fused shaft plane") : qsTr("face-on only")
+        }
+        Chip { visible: drv.available && drv.heldAtEnd; label: qsTr("held at P8") }
+        Chip {
+            visible: drv.available && root.clubTraced
+            label: qsTr("club path smoothed %1 ms").arg(drv.clubSmoothingMs.toFixed(0))
+        }
+        Chip {
+            id: planeChip
+            // A face-on-only swing has no plane, and its own chip already says so.
+            visible: drv.available && root.elemMode("plane") !== "off" && !root.faceOnOnly
+            label: drv.planeAvailable ? qsTr("downswing plane · club3d · %1°").arg(drv.planeInclDeg.toFixed(1))
+                                      : qsTr("no downswing plane on this shot")
         }
     }
+    // Footnotes sit under the preset bar, clear of the chips.
     Text {
-        anchors { right: parent.right; bottom: parent.bottom; margins: Theme.sp(12) }
+        anchors { right: parent.right; top: presets.bottom; margins: Theme.sp(12) }
         visible: drv.available && root.preset === "top"
         text: qsTr("Square to your stance at address")
         font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
         color: Theme.colorText3
     }
     Text {
-        anchors { right: parent.right; bottom: parent.bottom; margins: Theme.sp(12) }
+        anchors { right: parent.right; top: presets.bottom; margins: Theme.sp(12) }
         visible: root.matched
         text: (root.matchView === 0 ? qsTr("As the face-on camera saw it") : qsTr("As the DTL camera saw it"))
               + (root.matchView === 0 && drv.foMirrored ? qsTr(" · mirrored") : "")
         font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
         color: Theme.colorText3
-    }
-    Rectangle {
-        id: planeChip
-        anchors { left: tierChip.right; bottom: parent.bottom; leftMargin: Theme.sp(6); bottomMargin: Theme.sp(10) }
-        visible: drv.available && root.elemMode("plane") !== "off"
-        radius: height / 2
-        height: Theme.sp(22)
-        width: planeText.implicitWidth + Theme.sp(18)
-        color: Theme.colorBg
-        border.width: 1; border.color: Theme.colorBorderMid
-        Text {
-            id: planeText
-            anchors.centerIn: parent
-            text: drv.planeAvailable ? qsTr("downswing plane · club3d · %1°").arg(drv.planeInclDeg.toFixed(1))
-                                     : qsTr("no downswing plane on this shot")
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-            color: Theme.colorText2
-        }
     }
 
     // P-position labels: 2-D text pinned to the 3-D clubhead — 3-D text would face away from half

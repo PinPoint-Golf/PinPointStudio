@@ -124,7 +124,8 @@ Item {
         for (var i = 0; i < keys.length; ++i) {
             var want = v.presetRotation(keys[i])
             v.applyPreset(keys[i])
-            say("preset " + keys[i] + " → pivot target " + want.x.toFixed(0) + "," + want.y.toFixed(0))
+            say("preset " + keys[i] + " → pivot target " + want.x.toFixed(0) + "," + want.y.toFixed(0)
+                + " · in force: " + v.preset + (v.faceOnOnly ? " (face-on only)" : ""))
         }
         // The tier chip at three instants.
         var span = d.endUs - d.startUs
@@ -219,6 +220,9 @@ Item {
                 var clean = ViewLayout.presetCatalog().filter(function (q) { return q.id === "clean" })[0].modes
                 probe._grabs.push({ preset: "faceOn", name: "p4clean", t: t4, modes: clean })
                 probe._grabs.push({ preset: "camFo", name: "p4clean", t: t4, modes: clean })
+                // The end: at P8 and past it (held), down the line.
+                probe._grabs.push({ preset: "dtl", name: "p8", t: d.endUs, modes: probe.allModes("trace") })
+                probe._grabs.push({ preset: "dtl", name: "pastP8", t: d.endUs + 200000, modes: probe.allModes("trace") })
                 grabTimer.start()
                 return
             }

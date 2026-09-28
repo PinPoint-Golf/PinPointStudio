@@ -91,7 +91,7 @@ class SwingRigDriver : public QObject
     Q_PROPERTY(int     jointCount READ jointCount CONSTANT)
     Q_PROPERTY(double  clubLengthM READ clubLengthM NOTIFY loadedChanged)
     Q_PROPERTY(qint64  startUs    READ startUs    NOTIFY loadedChanged)
-    Q_PROPERTY(qint64  endUs      READ endUs      NOTIFY loadedChanged)
+    Q_PROPERTY(qint64  endUs      READ endUs      NOTIFY loadedChanged)   // the display's end: P8
     Q_PROPERTY(int     revision   READ revision   NOTIFY revisionChanged)
     // Per frame, updated with revision.
     Q_PROPERTY(QVector3D   rootPosition READ rootPosition NOTIFY revisionChanged)
@@ -111,6 +111,9 @@ class SwingRigDriver : public QObject
     Q_PROPERTY(double  planeInclDeg  READ planeInclDeg  NOTIFY loadedChanged)
     Q_PROPERTY(bool    foMirrored    READ foMirrored    NOTIFY loadedChanged)
     Q_PROPERTY(double  clubSmoothingMs READ clubSmoothingMs CONSTANT)   // the club's display stabiliser
+    // No DTL, or no fused shaft plane: depth is the fit's guess, so the panel shows face-on only.
+    Q_PROPERTY(bool    faceOnOnly    READ faceOnOnly    NOTIFY loadedChanged)
+    Q_PROPERTY(bool    heldAtEnd     READ heldAtEnd     NOTIFY revisionChanged)   // the playhead is past P8
 
 public:
     explicit SwingRigDriver(QObject *parent = nullptr);
@@ -162,6 +165,8 @@ public:
     double planeInclDeg() const;
     bool foMirrored() const;
     double clubSmoothingMs() const;
+    bool faceOnOnly() const;
+    bool heldAtEnd() const;
     // P-positions, in time order: the number (1–8), how it was found (1 = MilestoneFit), its
     // window-relative time, and the fitted club's butt and head at that instant.
     Q_INVOKABLE int       positionP(int i) const;

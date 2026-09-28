@@ -28,7 +28,9 @@
 //     FK joints in the scene frame; the club's ends are the drawn club's; P-positions read back in
 //     time order and window-relative; the Address → Finish window; the match cameras project
 //     exactly as the fit's pinhole does and agree with their own Qt camera pose; the fused plane's
-//     quad lies in the plane, through the clubhead at impact.
+//     quad lies in the plane, through the clubhead at impact;
+//   - THE END AT P8: frames past P8 are dropped, the figure holds its P8 pose past it, P-positions
+//     after it are not offered; a swing without a fused shaft plane is face-on only.
 
 #include <QCoreApplication>
 #include <QDir>
@@ -175,6 +177,7 @@ int main(int argc, char **argv)
     check(drv.tier(sk::ybot::Hips, drv.revision()) == sk::TierMeasured, "…for every joint");
     check(drv.shaftTier() == 3, "the shaft's tier reads back");
     check(std::fabs(drv.clubLengthM() - 0.95) < 1e-6, "the club length reads back");
+    check(drv.faceOnOnly(), "two views but no fused shaft plane on file: the swing is face-on only");
 
     // ── the time domain: a RE-ANALYSED swing is written with the real clock.t0 while its
     // frame times are already window-relative. Subtracting t0 from them again wrote −98 s times
@@ -217,12 +220,14 @@ int main(int argc, char **argv)
         const QJsonArray phases {
             QJsonObject { { QStringLiteral("phase"), 0 }, { QStringLiteral("t_us"), 150000 } },
             QJsonObject { { QStringLiteral("phase"), 5 }, { QStringLiteral("t_us"), 200000 } },
+            QJsonObject { { QStringLiteral("phase"), 14 }, { QStringLiteral("t_us"), 250000 } },   // P8
             QJsonObject { { QStringLiteral("phase"), 7 }, { QStringLiteral("t_us"), 280000 } } };
         const QJsonObject club {
             { QStringLiteral("frameWidth"), 1440 }, { QStringLiteral("frameHeight"), 1080 },
             { QStringLiteral("positions"), QJsonArray {
                   QJsonObject { { QStringLiteral("p"), 7 }, { QStringLiteral("t_us"), 200000 }, { QStringLiteral("source"), 1 } },
-                  QJsonObject { { QStringLiteral("p"), 1 }, { QStringLiteral("t_us"), 100000 }, { QStringLiteral("source"), 0 } } } } };
+                  QJsonObject { { QStringLiteral("p"), 1 }, { QStringLiteral("t_us"), 100000 }, { QStringLiteral("source"), 0 } },
+                  QJsonObject { { QStringLiteral("p"), 9 }, { QStringLiteral("t_us"), 290000 }, { QStringLiteral("source"), 0 } } } } };
         // club3d's down plane: a 60° plane, as the camera-level frame gives it.
         const double inc = 60 * sk::kDeg;
         const QJsonObject club3d { { QStringLiteral("planes"), QJsonObject { { QStringLiteral("down"), QJsonObject {
@@ -272,7 +277,7 @@ int main(int argc, char **argv)
         check(worstC < 2e-4, "the clubhead and grip are the drawn club's ends");
         check(T && T->tier[0][SwingAnnotTrack::RWrist] == sk::TierInferred, "…with the joint's own tier");
 
-        check(dv.positionCount() == 2, "two P-positions read");
+        check(dv.positionCount() == 2, "two P-positions read — the one after P8 is not offered");
         check(dv.positionP(0) == 1 && dv.positionP(1) == 7, "…in time order");
         check(dv.positionTimeUs(1) == 200000 && dv.positionSource(1) == 1, "…with their time and source");
         check((dv.positionHead(1, 0) - T->p[1][SwingAnnotTrack::ClubHead]).length() < 1e-5f, "a P-position's head is the club at that instant");
@@ -283,6 +288,20 @@ int main(int argc, char **argv)
         check(dv.inSwingWindow(), "Address → Finish: inside");
         dv.setPositionUs(-1);
         check(!dv.inSwingWindow() && dv.annotTimeUs() < 0, "nothing playing: no annotation instant");
+
+        // The end at P8: the display ends there, the figure holds its P8 pose past it.
+        check(dv.endUs() == 250000, "the 3-D swing ends at P8");
+        check(!dv.faceOnOnly(), "two views and a fused shaft plane: every preset is offered");
+        dv.setPositionUs(250000);
+        const QVector3D atP8 = dv.rootPosition();
+        const QQuaternion armP8 = dv.localRotation(sk::ybot::LeftForeArm, dv.revision());
+        check(!dv.heldAtEnd(), "at P8 the figure is not yet held");
+        dv.setPositionUs(300000);
+        check(dv.heldAtEnd() && dv.annotTimeUs() == 250000, "past P8 it is held, and the annotations stop at P8");
+        check((dv.rootPosition() - atP8).length() < 1e-6f
+              && std::fabs(QQuaternion::dotProduct(armP8, dv.localRotation(sk::ybot::LeftForeArm, dv.revision()))) > 0.999999f,
+              "…in its P8 pose");
+        dv.setPositionUs(-1);
 
         // The match cameras.
         check(dv.cameraAvailable(0) && dv.cameraAvailable(1), "both fitted cameras, with their image sizes");
