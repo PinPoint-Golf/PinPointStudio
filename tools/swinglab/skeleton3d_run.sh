@@ -67,7 +67,7 @@ one() {
   id=$1; sess=${id%%__*}; sw=${id##*__}
   mkdir -p $OUT/$id
   args=(--pose $C/pose3/$id.json)
-  (( dtl )) && args+=(--dtl --dtl-pose $REPO/build/dtl_keep/pose/${id}__dtl.json)
+  (( dtl )) && args+=(--dtl --dtl-pose $C/pose2_dtl/${id}__dtl.json)
   [[ $sess == 2026-07-04* ]] && args+=(--bands 308,362,560,758,808,854 --club-length-mm 940 --hosel-mm 882)
   [[ -n $HEIGHT ]] && args+=(--height-m $HEIGHT)
   [[ -n $params ]] && args+=(--params $OUT/params.json)

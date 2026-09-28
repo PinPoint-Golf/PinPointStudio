@@ -654,7 +654,9 @@ tools/shaftlab/dtl_probe.py           # Stage 0
 tools/swinglab/montage_dtl.py         # adjudication montages
 ```
 
-**Run folders** (all under `build/dtl/`, none of them in the repo):
+**Run folders** (all under `build/dtl/`, none of them in the repo; since deleted). The pinned DTL poses and
+the held-out band truth were kept, and live in the corpus: `/mnt/swingdata/corpus/pose2_dtl/` and
+`/mnt/swingdata/corpus/dtl_heldout_truth/`.
 
 | folder | what |
 |---|---|
