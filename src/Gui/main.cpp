@@ -451,6 +451,9 @@ int main(int argc, char *argv[])
                      &reanalysisController, [&reanalysisController, &shotProcessor] {
         reanalysisController.setLiveBusy(shotProcessor.busy());
     });
+    // Session end: the skeleton3d session pool (swing_3d_viz_design.md §13.2 (C)).
+    QObject::connect(&shotProcessor, &ShotProcessor::sessionFolderEnded,
+                     &reanalysisController, &ReanalysisController::poolSession);
 
     // ── Notifications: the act-now half of the one log ─────────────────
     //
