@@ -27,6 +27,20 @@ Per swing (config `full`):
   ablation columns               body bone direction p90 of each ablation against the full fit (°)
 Parity: `full` and `control` result.json must differ ONLY in analysis.skeleton3d,
 analysis.versions.skeleton3d and timings.
+
+--branch (skeleton3d_shaft_branch_design.md §6.2): the club's depth branch where the DTL is blind,
+from the configs full / v1 / dtlDropThrough / dtlDropThroughV1 / faceOnly / faceOnlyV1. Per swing,
+address → P8 and P8 → finish:
+  oopBlind / oopSeen    |shaft out of club3d's down plane| median on DTL-blind / DTL-seen frames (°)
+  mirrorNearer          blind frames whose face-on mirror is nearer that plane (count / blind)
+  foErr, dtlErr         shaft image angle against the face-on / DTL tracker, median (°)
+  drop*_vsFull          a dropout config: shaft vs the FULL fit on the frames DTL saw but was hidden (°)
+  drop*_vsDtl           …and against the DTL tracker's own angle there (°). dtlDropThrough hides from
+                        impact + 60 ms (little DTL data there); dtlDropDown from impact − 250 ms (≈ the top)
+  shiftArm / shiftRest  median joint shift full vs v1 on blind frames: lead arm / everything else (cm)
+  faceOnly              faceOnly vs full: shaft direction median / p90, address → P8 (°)
+  ms, kept              solve time; runs the branch pass kept
+  P8oop / P8oopMax      |shaft out of the down plane| at the P8 instant / worst over P8 ± 20 ms (°)
 """
 
 import csv
@@ -339,7 +353,263 @@ def parity(a, b):
     return 'DIFFERS: ' + ','.join(sorted(diffs))
 
 
+BRANCH_CONFIGS = ('full', 'v1', 'dtlDropThrough', 'dtlDropThroughV1', 'dtlDropDown', 'dtlDropDownV1', 'faceOnly', 'faceOnlyV1')
+DROP_CONFIGS = (('drop', 'dtlDropThrough'), ('dropV1', 'dtlDropThroughV1'), ('dropDown', 'dtlDropDown'), ('dropDownV1', 'dtlDropDownV1'))
+PHASE_P8, PHASE_FINISH = 14, 7
+LEAD_ARM = (8, 9, 10)            # LeftArm, LeftForeArm, LeftHand (a right-handed golfer)
+
+
+def _img_angle(cf, a, b, mirror_w=None):
+    pa, pb = project(cf, a), project(cf, b)
+    if pa is None or pb is None:
+        return None
+    ax, bx = pa[0], pb[0]
+    if mirror_w:
+        ax, bx = mirror_w - ax, mirror_w - bx
+    return math.degrees(math.atan2(pb[1] - pa[1], bx - ax))
+
+
+def _wrap(d):
+    return (d + 180.0) % 360.0 - 180.0
+
+
+def _near(ts, arr, t, tol=6000):
+    import bisect
+    j = bisect.bisect_left(ts, t)
+    best = None
+    for k in (j - 1, j):
+        if 0 <= k < len(ts) and abs(ts[k] - t) <= tol and (best is None or abs(ts[k] - t) < abs(ts[best] - t)):
+            best = k
+    return None if best is None else arr[best][1]     # arr holds (t, sample) pairs
+
+
+def _med(v):
+    v = [x for x in v if x is not None and not math.isnan(x)]
+    return round(statistics.median(v), 1) if v else None
+
+
+def _p90(v):
+    v = sorted(x for x in v if x is not None and not math.isnan(x))
+    return round(v[min(len(v) - 1, int(round(0.9 * (len(v) - 1))))], 1) if v else None
+
+
+def grade_branch_swing(root, sid):
+    R = {c: load(os.path.join(root, c, sid, 'result.json')) for c in BRANCH_CONFIGS}
+    full = R['full']
+    row = {'swing': sid.replace('_Mark-Liversedge_Wrist_01__swing_', ' s')}
+    if not full or not full['analysis'].get('skeleton3d', {}).get('valid'):
+        row['note'] = 'no full fit'
+        return row
+    a = full['analysis']
+    ph = phases(full)
+    t_a, t_imp, t_p8, t_fin = ph.get(0), ph.get(5), ph.get(PHASE_P8), ph.get(PHASE_FINISH)
+    if t_p8 is None and t_imp is not None:
+        t_p8 = t_imp + 100000
+    down = (a.get('club3d', {}).get('planes', {}) or {}).get('down', {}) or {}
+    n = np.array(down['normal']) if down.get('offered') and down.get('normal') else None
+    dims = stream_dims(full)
+    fo_dims = next((v for k, v in dims.items() if k and v and v[0] and 'face' in k.lower()), (None, None))
+    dtl_dims = next((v for k, v in dims.items() if k and v and v[0] and ('dtl' in k.lower() or 'down' in k.lower())), (None, None))
+    cd = a.get('clubDtl', {}) or {}
+    off = cd.get('clockOffsetUs', 0) or 0
+    dtl_pub = sorted((f['t_us'] - off, f) for f in cd.get('frames', []) or []
+                     if f.get('tier') in ('RAY', 'SEG', 'BAND') and f.get('grip') and f.get('head'))
+    dts = [x[0] for x in dtl_pub]
+    syn = sorted((s_['t_us'], s_) for s_ in (a.get('club', {}) or {}).get('synth', []) or [] if s_.get('grip') and s_.get('head'))
+    sts = [x[0] for x in syn]
+
+    def club(res):
+        sk = res['analysis']['skeleton3d']
+        L = (sk.get('grip') or {}).get('clubLengthM') or 0.95
+        F = sk['frames']
+        t = [f['t'] for f in F]
+        U = [np.array(f['u']) for f in F]
+        G = [np.array(f['g']) for f in F]
+        P = [np.array(f['p']).reshape(-1, 3) / 1000.0 for f in F]
+        return sk, L, t, U, G, P
+
+    def seg(t):
+        if t_a is not None and t < t_a:
+            return None
+        if t_p8 is not None and t <= t_p8:
+            return 'toP8'
+        if t_fin is None or t <= t_fin:
+            return 'after'
+        return None
+
+    def per_config(res, tag):
+        if not res or not res['analysis'].get('skeleton3d', {}).get('valid'):
+            return
+        sk, L, T_, U, G, _ = club(res)
+        cam = sk['camera']
+        cff = cam_frame(cam, 0, *fo_dims) if fo_dims[0] else None
+        cfd = cam_frame(cam, 1, *dtl_dims) if dtl_dims[0] and sk.get('dtl') else None
+        mir_w = fo_dims[0] if sk.get('foMirrored') else None
+        acc = {}
+        for i, t in enumerate(T_):
+            sgm = seg(t)
+            if not sgm:
+                continue
+            u, g = U[i], G[i]
+            butt, head = g - u * 0.04, g - u * 0.04 + u * L
+            seen = _near(dts, dtl_pub, t, 8000) is not None
+            if n is not None:
+                o = abs(math.degrees(math.asin(max(-1.0, min(1.0, float(u @ n))))))
+                acc.setdefault((sgm, 'oopSeen' if seen else 'oopBlind'), []).append(o)
+                if not seen:
+                    r = (g + u * (L / 2)) / np.linalg.norm(g + u * (L / 2))
+                    m = u - 2 * (u @ r) * r
+                    om = abs(math.degrees(math.asin(max(-1.0, min(1.0, float(m @ n) / np.linalg.norm(m))))))
+                    acc.setdefault((sgm, 'mirrorNearer'), []).append(1.0 if om < o else 0.0)
+            s_ = _near(sts, syn, t)
+            if s_ and cff:
+                af = _img_angle(cff, butt, head, mir_w)
+                tf = math.degrees(math.atan2((s_['head'][1] - s_['grip'][1]) * fo_dims[1], (s_['head'][0] - s_['grip'][0]) * fo_dims[0]))
+                if af is not None:
+                    acc.setdefault((sgm, 'foErr'), []).append(abs(_wrap(af - tf)))
+            d_ = _near(dts, dtl_pub, t)
+            if d_ and cfd:
+                ad = _img_angle(cfd, butt, head)
+                td = math.degrees(math.atan2((d_['head'][1] - d_['grip'][1]) * dtl_dims[1], (d_['head'][0] - d_['grip'][0]) * dtl_dims[0]))
+                if ad is not None:
+                    acc.setdefault((sgm, 'dtlErr'), []).append(abs(_wrap(ad - td)))
+        for (sgm, k), v in acc.items():
+            if k == 'mirrorNearer':
+                row['%s_%s_%s' % (tag, sgm, k)] = '%d/%d' % (int(sum(v)), len(v))
+            else:
+                row['%s_%s_%s' % (tag, sgm, k)] = _med(v)
+        diag = sk.get('diagnostics', {})
+        row[tag + '_ms'] = round(diag.get('ms') or float('nan'))
+        if tag == 'full':
+            pl = diag.get('plane', {}) or {}
+            row['kept'] = '%s/%s' % (pl.get('nBranchKept'), pl.get('nBranchRuns'))
+            row['planes'] = '%s/%s' % ((pl.get('back') or {}).get('source'), (pl.get('down') or {}).get('source'))
+
+    per_config(full, 'full')
+    per_config(R['v1'], 'v1')
+
+    # The P8 instant itself — what the panel shows last (Mark, 28 Sept: "P8 still looks like the club
+    # veers wildly off plane"): |out of plane| at P8, and the worst over P8 ± 20 ms.
+    if n is not None and t_p8 is not None:
+        for tag, res in (('full', full), ('v1', R['v1'])):
+            if not res or not res['analysis'].get('skeleton3d', {}).get('valid'):
+                continue
+            F = res['analysis']['skeleton3d']['frames']
+
+            def oop_at(t):
+                f = min(F, key=lambda f: abs(f['t'] - t))
+                return abs(math.degrees(math.asin(max(-1.0, min(1.0, float(np.array(f['u']) @ n))))))
+            row[tag + '_P8oop'] = round(oop_at(t_p8), 1)
+            row[tag + '_P8oopMax'] = round(max(oop_at(t_p8 + dt) for dt in (-20000, -10000, 0, 10000, 20000)), 1)
+
+    # The dropout: frames the DTL saw after impact + 60 ms, hidden from the fit.
+    _, Lf, Tf, Uf, _, _ = club(full)
+    for tag, cfg in DROP_CONFIGS:
+        res = R[cfg]
+        if not res or not res['analysis'].get('skeleton3d', {}).get('valid') or t_imp is None:
+            continue
+        try:
+            with open(os.path.join(root, cfg, 'params.json')) as f:
+                drop_off = int(json.load(f).get('skeleton3d.debugDropDtlShaftAfterUs', 60000))
+        except Exception:
+            drop_off = 60000
+        sk, L, T_, U, G, _ = club(res)
+        cfd = cam_frame(sk['camera'], 1, *dtl_dims) if dtl_dims[0] else None
+        acc = {'toP8': ([], []), 'after': ([], [])}
+        for i, t in enumerate(T_):
+            sgm = seg(t)
+            if not sgm or t <= t_imp + drop_off:
+                continue
+            d_ = _near(dts, dtl_pub, t)
+            if not d_:
+                continue
+            j = min(range(len(Tf)), key=lambda k: abs(Tf[k] - t))
+            acc[sgm][0].append(math.degrees(math.acos(max(-1.0, min(1.0, float(U[i] @ Uf[j]))))))
+            if cfd:
+                butt, head = G[i] - U[i] * 0.04, G[i] - U[i] * 0.04 + U[i] * L
+                ad = _img_angle(cfd, butt, head)
+                td = math.degrees(math.atan2((d_['head'][1] - d_['grip'][1]) * dtl_dims[1], (d_['head'][0] - d_['grip'][0]) * dtl_dims[0]))
+                if ad is not None:
+                    acc[sgm][1].append(abs(_wrap(ad - td)))
+        for sgm, (vf, vd) in acc.items():
+            row['%s_%s_vsFull' % (tag, sgm)] = _med(vf)
+            row['%s_%s_vsDtl' % (tag, sgm)] = _med(vd)
+            row['%s_%s_n' % (tag, sgm)] = len(vf)
+
+    # The body outside the lead arm: full vs v1, on blind frames.
+    if R['v1'] and R['v1']['analysis'].get('skeleton3d', {}).get('valid'):
+        _, _, T1, _, _, P1 = club(R['v1'])
+        _, _, T0, _, _, P0 = club(full)
+        arm, rest = [], []
+        for i, t in enumerate(T0):
+            if not seg(t) or _near(dts, dtl_pub, t, 8000) is not None:
+                continue
+            j = min(range(len(T1)), key=lambda k: abs(T1[k] - t))
+            dd = np.linalg.norm((P0[i] - P0[i][0]) - (P1[j] - P1[j][0]), axis=1) * 100
+            arm += [dd[k] for k in LEAD_ARM]
+            rest += [dd[k] for k in range(1, len(dd)) if k not in LEAD_ARM and k not in (11, 16)]
+        row['shiftArm'] = _med(arm)
+        row['shiftRest'] = _med(rest)
+
+    # Face-on only against the two-view fit, address → P8.
+    for tag, cfg in (('faceOnly', 'faceOnly'), ('faceOnlyV1', 'faceOnlyV1')):
+        res = R[cfg]
+        if not res or not res['analysis'].get('skeleton3d', {}).get('valid'):
+            continue
+        _, _, T_, U, _, _ = club(res)
+        e = []
+        for i, t in enumerate(T_):
+            if seg(t) != 'toP8':
+                continue
+            j = min(range(len(Tf)), key=lambda k: abs(Tf[k] - t))
+            e.append(math.degrees(math.acos(max(-1.0, min(1.0, float(U[i] @ Uf[j]))))))
+        row[tag + '_med'] = _med(e)
+        row[tag + '_p90'] = _p90(e)
+    return row
+
+
+def main_branch(root, csv_out, md_out):
+    sids = sorted(d for d in os.listdir(os.path.join(root, 'full')) if os.path.isdir(os.path.join(root, 'full', d)))
+    rows = [grade_branch_swing(root, s) for s in sids]
+    cols = []
+    for r in rows:
+        for k in r:
+            if k not in cols:
+                cols.append(k)
+    if csv_out:
+        with open(csv_out, 'w', newline='') as f:
+            w = csv.DictWriter(f, fieldnames=cols)
+            w.writeheader()
+            w.writerows(rows)
+
+    def colmed(c):
+        vals = [r[c] for r in rows if isinstance(r.get(c), (int, float)) and not math.isnan(r[c])]
+        if vals:
+            return round(statistics.median(vals), 1)
+        fr = [r[c] for r in rows if isinstance(r.get(c), str) and '/' in r[c]]
+        if fr:
+            num = sum(int(x.split('/')[0]) for x in fr if x.split('/')[0].isdigit())
+            den = sum(int(x.split('/')[1]) for x in fr if x.split('/')[1].isdigit())
+            return '%d/%d' % (num, den)
+        return ''
+    summary = ['| metric | median over swings (fractions: pooled) |', '|---|---|']
+    for c in cols[1:]:
+        summary.append('| %s | %s |' % (c, colmed(c)))
+    text = '\n'.join(summary)
+    if md_out:
+        with open(md_out, 'w') as f:
+            f.write('# skeleton3d depth branch — corpus grade\n\n'
+                    'Generated by `tools/swinglab/skeleton3d_grade.py <root> --branch` '
+                    '(skeleton3d_shaft_branch_design.md §6.2); per-swing rows in the CSV.\n\n' + text + '\n')
+    print(text)
+    return 0
+
+
 def main():
+    if '--branch' in sys.argv:
+        csv_out = sys.argv[sys.argv.index('--csv') + 1] if '--csv' in sys.argv else None
+        md_out = sys.argv[sys.argv.index('--md') + 1] if '--md' in sys.argv else None
+        return main_branch(sys.argv[1], csv_out, md_out)
     if len(sys.argv) < 2:
         print(__doc__)
         return 2

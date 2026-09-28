@@ -10,6 +10,14 @@
 #   visionOnly  no IMU / HackMotion terms          (the grade against HackMotion)
 #   faceOnly    skeleton3d.useDtl = false          (the face-on-only tier; the DTL pose is still loaded)
 #   noLimits | noContact | noShaft | noClubhead | noGrip | noSmooth | lengthsFitted | camerasFrozen
+#   The club's depth branch (skeleton3d_shaft_branch_design.md §6.2):
+#   v1                the fit before it (no plane term, no branch pass) — the same binary
+#   dtlDropThrough    the DTL's shaft and clubhead hidden from impact + 60 ms (the ground-truth test)
+#   dtlDropThroughV1  …the same, before the fix
+#   faceOnlyV1        face-on only, before the fix (faceOnly is after it)
+#   dtlDropDown       the DTL's shaft and clubhead hidden from impact − 250 ms (≈ the top): the downswing
+#                     the DTL DID see, graded blind — the dropout with data behind it
+#   dtlDropDownV1     …the same, before the fix
 #
 # Outputs <outroot>/<config>/<id>/{result.json,runner.log}. Grade with skeleton3d_grade.py;
 # DELETE the run trees once its CSVs are in docs/research/data/skeleton3d/.
@@ -38,6 +46,12 @@ case $CFG in
   noSmooth)      params='{"skeleton3d.useSmooth": false}' ;;
   lengthsFitted) params='{"skeleton3d.fitLengths": true}' ;;
   camerasFrozen) params='{"skeleton3d.fitCameras": false}' ;;
+  v1)            params='{"skeleton3d.usePlane": false, "skeleton3d.branchPass": false}' ;;
+  dtlDropThrough)   params='{"skeleton3d.debugDropDtlShaftAfterUs": 60000}' ;;
+  dtlDropThroughV1) params='{"skeleton3d.debugDropDtlShaftAfterUs": 60000, "skeleton3d.usePlane": false, "skeleton3d.branchPass": false}' ;;
+  dtlDropDown)   params='{"skeleton3d.debugDropDtlShaftAfterUs": -250000}' ;;
+  dtlDropDownV1) params='{"skeleton3d.debugDropDtlShaftAfterUs": -250000, "skeleton3d.usePlane": false, "skeleton3d.branchPass": false}' ;;
+  faceOnlyV1)    params='{"skeleton3d.useDtl": false, "skeleton3d.usePlane": false, "skeleton3d.branchPass": false}' ;;
   *) echo "unknown config $CFG"; exit 2 ;;
 esac
 if [[ -n $params ]]; then echo $params > $OUT/params.json; fi
