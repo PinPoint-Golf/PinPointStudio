@@ -43,6 +43,7 @@
 //    priors, IMUs, HackMotion — shared unknowns free.
 
 #include "skeleton3d_fit.h"
+#include "club_plane_catalogue.h"
 
 #include <algorithm>
 #include <chrono>
@@ -208,8 +209,17 @@ struct Problem {
     double s0 = 1.0;                        // global body scale
     double clubToHeadM = 0.9;               // lead grip point → clubhead centre (m)
     // Per-frame DoF priors: (θ_a − θ_b − mean) / σ, b = −1 for an absolute prior.
-    struct DofPrior { int a, b; double mean, sigma; };
+    // `release`: a wrist / forearm-rotation / humeral-rotation prior, loosened after impact (see
+    // priorSigma) — the release genuinely rolls the forearms and hinges the wrists.
+    struct DofPrior { int a, b; double mean, sigma; bool release = false; };
     std::vector<DofPrior> dofPriors;
+    // The club's depth branch (skeleton3d_shaft_branch_design.md). Per frame: the DTL sees no club
+    // (no shaft angle, no head); the reference plane's normal where r_plane applies (zero = none);
+    // the branch pass's temporary seed direction (zero = none).
+    std::vector<uint8_t> dtlBlind;
+    std::vector<V3> planeN, seedDir;
+    bool planeOn = false;
+    double releaseFactor = 1.0;             // the release priors' σ factor — ≠ 1 inside the branch pass only
 
     explicit Problem(const FitInput &i) : in(i), rig(skeleton3d::rig()), cfg(i.cfg) {}
 };
@@ -518,6 +528,59 @@ double frameResiduals(const Problem &P, const State &S, int t, Rows *rows)
             }
         }
 
+        // ── the swing plane where the DTL is blind, and the branch pass's seed ──
+        // r_plane = asin(d·n)/σ through the Cauchy loss: a club stays near its plane, and a
+        // genuinely off-plane position (laid off, across) costs a bounded amount. The seed is a
+        // temporary, tight pull of the shaft onto its face-on mirror (branch pass only).
+        const bool wantPlane = P.planeOn && t < int(P.planeN.size()) && P.planeN[size_t(t)].norm() > 0.5;
+        const bool wantSeed = t < int(P.seedDir.size()) && P.seedDir[size_t(t)].norm() > 0.5;
+        if (wantPlane || wantSeed) {
+            const int hand = P.in.leadIsLeft ? ybot::LeftHand : ybot::RightHand;
+            const V3 aRaw { sv[P.L.iGrip + 0], sv[P.L.iGrip + 1], sv[P.L.iGrip + 2] };
+            const double an = std::max(1e-6, aRaw.norm());
+            const V3 ah = aRaw * (1.0 / an);
+            const V3 d = pose.rot[hand].rotate(ah);
+            Mat3X dd;
+            Eigen::Matrix3d dA;
+            if (rows) {
+                dirDerivs(P, pose, hand, d, dd);
+                Eigen::Matrix3d Rh;
+                for (int c = 0; c < 3; ++c)
+                    Rh.col(c) = E(pose.rot[hand].rotate(V3 { c == 0 ? 1.0 : 0, c == 1 ? 1.0 : 0, c == 2 ? 1.0 : 0 }));
+                const Eigen::Vector3d aE = E(ah);
+                dA = Rh * (Eigen::Matrix3d::Identity() - aE * aE.transpose()) / an;
+            }
+            if (wantPlane) {
+                const V3 &n = P.planeN[size_t(t)];
+                const double sg = P.cfg.planeSigmaDeg * kDeg;
+                const double s = std::clamp(d.dot(n), -0.999999, 0.999999);
+                const double r0 = std::asin(s) / sg;
+                const double s2 = r0 * r0;
+                cost += c2 * std::log1p(s2 / c2);
+                if (rows) {
+                    const double w = std::sqrt(1.0 / (1.0 + s2 / c2));
+                    const double k = w / (sg * std::sqrt(1.0 - s * s));
+                    const Eigen::RowVector3d nE = E(n).transpose();
+                    const int row = rows->add();
+                    rows->r[row] = w * r0;
+                    rows->Jf.row(row) = k * (nE * dd);
+                    rows->Js.row(row).segment(P.L.iGrip, 3) = k * (nE * dA);
+                }
+            }
+            if (wantSeed) {
+                const double sg = P.cfg.branchSeedSigmaDeg * kDeg;
+                const V3 e = d - P.seedDir[size_t(t)];
+                for (int a = 0; a < 3; ++a) {
+                    cost += (e[a] / sg) * (e[a] / sg);
+                    if (!rows) continue;
+                    const int row = rows->add();
+                    rows->r[row] = e[a] / sg;
+                    rows->Jf.row(row) = dd.row(a) / sg;
+                    rows->Js.row(row).segment(P.L.iGrip, 3) = dA.row(a) / sg;
+                }
+            }
+        }
+
         const int64_t tus = P.in.t_us[size_t(t)];
         // ── both hands on one club ──
         if (P.cfg.useGrip && tus >= P.in.addressUs - 50000 && tus <= P.in.impactUs + 60000) {
@@ -675,6 +738,17 @@ double smoothSigma(const Problem &P, int t, int k)
     return s;
 }
 
+// A posture prior's σ at frame t. The wrist, pronation and humeral-rotation priors pull to NEUTRAL,
+// which is right where they were put — splitting rotations a straight arm hides, address → impact —
+// and wrong through the release, where the forearms genuinely roll and the wrists hinge: there
+// the neutral pull outvoted the cameras AND the swing plane and kept the club on its wrong face-on
+// mirror at P8 (4 July swings 3, 4, 7, 9, 11, 14; skeleton3d_shaft_branch_design.md §10).
+double priorSigma(const Problem &P, const Problem::DofPrior &dp, int t)
+{
+    if (dp.release && P.releaseFactor != 1.0 && P.in.t_us[size_t(t)] > P.in.impactUs + 60000) return dp.sigma * P.releaseFactor;
+    return dp.sigma;
+}
+
 double globalTerms(const Problem &P, const State &S, Lin *lin)
 {
     double cost = 0;
@@ -707,17 +781,18 @@ double globalTerms(const Problem &P, const State &S, Lin *lin)
     for (int t = 0; t < T; ++t)
         for (const Problem::DofPrior &dp : P.dofPriors) {
             const double va = S.th[size_t(t)][dp.a], vb = dp.b >= 0 ? S.th[size_t(t)][dp.b] : 0.0;
-            const double r = (va - vb - dp.mean) / dp.sigma;
+            const double sg = priorSigma(P, dp, t);
+            const double r = (va - vb - dp.mean) / sg;
             cost += r * r;
             if (!lin) continue;
-            const double w = 1.0 / (dp.sigma * dp.sigma);
+            const double w = 1.0 / (sg * sg);
             lin->D[size_t(t)](dp.a, dp.a) += w;
-            lin->gf[size_t(t)][dp.a] += r / dp.sigma;
+            lin->gf[size_t(t)][dp.a] += r / sg;
             if (dp.b >= 0) {
                 lin->D[size_t(t)](dp.b, dp.b) += w;
                 lin->D[size_t(t)](dp.a, dp.b) -= w;
                 lin->D[size_t(t)](dp.b, dp.a) -= w;
-                lin->gf[size_t(t)][dp.b] -= r / dp.sigma;
+                lin->gf[size_t(t)][dp.b] -= r / sg;
             }
         }
     // Limits.
@@ -771,6 +846,41 @@ double globalTerms(const Problem &P, const State &S, Lin *lin)
             const Eigen::Vector3d jr = E(a) / (n * s);
             lin->C.block<3, 3>(P.L.iGrip, P.L.iGrip) += jr * jr.transpose();
             lin->gs.segment<3>(P.L.iGrip) += jr * r;
+        }
+    }
+    return cost;
+}
+
+// The cross-frame terms that belong to ONE frame — its smoothness second difference, its posture
+// priors, its limits — for the branch pass's per-run cost comparison. The same formulas as
+// globalTerms (cost only).
+double frameLocalTerms(const Problem &P, const State &S, int t)
+{
+    double cost = 0;
+    const int T = P.T, nd = P.nd;
+    if (P.cfg.useSmooth && t >= 1 && t + 1 < T) {
+        const double d0 = std::max(1e-4, (P.in.t_us[size_t(t)] - P.in.t_us[size_t(t - 1)]) * 1e-6);
+        const double d1 = std::max(1e-4, (P.in.t_us[size_t(t + 1)] - P.in.t_us[size_t(t)]) * 1e-6);
+        const double cm = 2.0 / (d0 * (d0 + d1)), c0 = -2.0 / (d0 * d1), cp = 2.0 / (d1 * (d0 + d1));
+        for (int k = 0; k < nd; ++k) {
+            const double s = smoothSigma(P, t, k);
+            const double r = (cm * S.th[size_t(t - 1)][k] + c0 * S.th[size_t(t)][k] + cp * S.th[size_t(t + 1)][k]) / s;
+            cost += r * r;
+        }
+    }
+    for (const Problem::DofPrior &dp : P.dofPriors) {
+        const double va = S.th[size_t(t)][dp.a], vb = dp.b >= 0 ? S.th[size_t(t)][dp.b] : 0.0;
+        const double r = (va - vb - dp.mean) / priorSigma(P, dp, t);
+        cost += r * r;
+    }
+    if (P.cfg.useLimits) {
+        const double s = P.cfg.limitSigmaDeg * kDeg;
+        for (int k = 0; k < nd; ++k) {
+            const Dof &d = P.rig.dofs[size_t(k)];
+            if (d.lo >= d.hi) continue;
+            const double v = S.th[size_t(t)][k];
+            const double e = v < d.lo ? v - d.lo : v > d.hi ? v - d.hi : 0.0;
+            cost += (e / s) * (e / s);
         }
     }
     return cost;
@@ -972,6 +1082,20 @@ FitResult fitSkeleton(const FitInput &in)
     P.hasDtl = in.cfg.useDtl && int(in.dtl.size()) == P.T && in.dtlW > 0 && in.dtlH > 0;
     P.fo = in.fo;
     if (P.hasDtl) P.dtl = in.dtl;
+    // The grade's dropout (a test hook): the DTL's shaft angle and clubhead hidden from impact + this
+    // (negative = before impact).
+    if (P.hasDtl && in.cfg.debugDropDtlShaftAfterUs != 0)
+        for (int t = 0; t < P.T; ++t)
+            if (in.t_us[size_t(t)] > in.impactUs + in.cfg.debugDropDtlShaftAfterUs) {
+                P.dtl[size_t(t)].shaftTheta = kNaN;
+                P.dtl[size_t(t)].headSigma = 0;
+            }
+    // A frame the DTL does not see the club on: no shaft angle and no clubhead. Every frame of a
+    // face-on-only swing.
+    P.dtlBlind.assign(size_t(P.T), 1);
+    if (P.hasDtl)
+        for (int t = 0; t < P.T; ++t)
+            P.dtlBlind[size_t(t)] = !std::isfinite(P.dtl[size_t(t)].shaftTheta) && P.dtl[size_t(t)].headSigma <= 0;
     P.swapFo.assign(size_t(P.T), 0);
     P.swapDtl.assign(size_t(P.T), 0);
     P.fastFrom = in.topUs - 50000;
@@ -1030,13 +1154,13 @@ FitResult fitSkeleton(const FitInput &in)
         for (const char *n : { "spine.flex", "spine1.flex", "spine2.flex" })
             P.dofPriors.push_back({ idx(n), -1, 0.0, in.cfg.spineFlexSigmaDeg * kDeg });
         for (const char *n : { "lWrist.flex", "lWrist.rad", "rWrist.flex", "rWrist.rad" })
-            P.dofPriors.push_back({ idx(n), -1, 0.0, in.cfg.wristSigmaDeg * kDeg });
+            P.dofPriors.push_back({ idx(n), -1, 0.0, in.cfg.wristSigmaDeg * kDeg, true });
         for (const char *n : { "lForearm.pron", "rForearm.pron" })
-            P.dofPriors.push_back({ idx(n), -1, 0.0, in.cfg.pronationSigmaDeg * kDeg });
+            P.dofPriors.push_back({ idx(n), -1, 0.0, in.cfg.pronationSigmaDeg * kDeg, true });
         for (const char *n : { "lClav.elev", "lClav.prot", "rClav.elev", "rClav.prot" })
             P.dofPriors.push_back({ idx(n), -1, 0.0, in.cfg.clavicleSigmaDeg * kDeg });
         for (const char *n : { "lArm.rot", "rArm.rot" })
-            P.dofPriors.push_back({ idx(n), -1, 0.0, in.cfg.armRotSigmaDeg * kDeg });
+            P.dofPriors.push_back({ idx(n), -1, 0.0, in.cfg.armRotSigmaDeg * kDeg, true });
     }
     res.scaleGlobal = s0;
     res.scaleSource = in.heightM > 0.5 ? "height" : "default";
@@ -1395,9 +1519,13 @@ FitResult fitSkeleton(const FitInput &in)
     };
     double cost2 = 0;
     if (in.cfg.debugJacobianFrames > 0) {
-        // Robust loss off, so a row IS the residual's derivative.
+        // Robust loss off, so a row IS the residual's derivative. The plane and seed terms are
+        // switched on for the check (they are off until stage 2 has settled).
         const FitConfig saved = P.cfg;
         P.cfg.cauchyC = 1e9;
+        P.planeOn = true;
+        P.planeN.assign(size_t(T), V3 { 0.3, -0.5, 0.8 }.unit());
+        P.seedDir.assign(size_t(T), V3 { 0.2, 0.9, -0.4 }.unit());
         double worst = 0;
         std::string where;
         for (int f = 0; f < in.cfg.debugJacobianFrames; ++f) {
@@ -1435,6 +1563,9 @@ FitResult fitSkeleton(const FitInput &in)
         res.debugJacobianErr = worst;
         res.debugJacobianWorst = where;
         P.cfg = saved;
+        P.planeOn = false;
+        P.planeN.clear();
+        P.seedDir.clear();
     }
     res.costInit = evaluate(P, S, nullptr);
     // The grip ("both hands on one club") is switched on only once the rest has settled: it
@@ -1446,8 +1577,292 @@ FitResult fitSkeleton(const FitInput &in)
     res.iterations += levenbergMarquardt(P, S, in.cfg.stage2Iters, cost2, [&](int it) {
         if (it == 0 || it == 4 || it == 10) swapPass(it);
     });
+
+    // ── the club's depth branch where the DTL is blind (skeleton3d_shaft_branch_design.md) ──
+    const int leadHandJ = in.leadIsLeft ? ybot::LeftHand : ybot::RightHand;
+    auto shaftDirs = [&](const State &X) {
+        std::array<double, GroupCount> sc {};
+        for (int g = 0; g < GroupCount; ++g) sc[size_t(g)] = X.sv[L.iScale + g];
+        const V3 a = V3 { X.sv[L.iGrip], X.sv[L.iGrip + 1], X.sv[L.iGrip + 2] }.unit();
+        const V3 gOff { X.sv[L.iGrip + 3], X.sv[L.iGrip + 4], X.sv[L.iGrip + 5] };
+        std::vector<V3> d(static_cast<size_t>(T)), g(static_cast<size_t>(T));
+        Pose pz;
+        for (int t = 0; t < T; ++t) {
+            forwardKinematics(R, X.th[size_t(t)].data(), sc.data(), pz);
+            d[size_t(t)] = pz.rot[leadHandJ].rotate(a).unit();
+            g[size_t(t)] = markerWorld(pz, leadHandJ, gOff);
+        }
+        return std::pair { d, g };
+    };
+    // The reference planes: self-planes from the two-view frames (back: address → top; down: top
+    // → impact), else the club's catalogue plane in the golfer's stance. Recomputed between solves.
+    auto computePlanes = [&]() {
+        const auto [d, g] = shaftDirs(S);
+        auto selfPlane = [&](int64_t from, int64_t to) {
+            ClubPlane pl;
+            Eigen::Matrix3d M = Eigen::Matrix3d::Zero();
+            std::vector<int> ts;
+            for (int t = 0; t < T; ++t) {
+                const int64_t tu = in.t_us[size_t(t)];
+                if (tu < from || tu > to || !P.hasDtl) continue;
+                if (!std::isfinite(P.fo[size_t(t)].shaftTheta) || !std::isfinite(P.dtl[size_t(t)].shaftTheta)) continue;
+                M += E(d[size_t(t)]) * E(d[size_t(t)]).transpose();
+                ts.push_back(t);
+            }
+            pl.count = int(ts.size());
+            if (pl.count < in.cfg.planeMinFrames) return pl;
+            Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> es(M);
+            const Eigen::Vector3d n = es.eigenvectors().col(0);
+            pl.n = V3 { n[0], n[1], n[2] }.unit();
+            double s2 = 0;
+            for (int t : ts) { const double o = std::asin(std::clamp(d[size_t(t)].dot(pl.n), -1.0, 1.0)); s2 += o * o; }
+            pl.rmsDeg = std::sqrt(s2 / pl.count) / kDeg;
+            pl.valid = pl.rmsDeg <= in.cfg.planeMaxRmsDeg;
+            pl.source = "self";
+            return pl;
+        };
+        ClubPlane back = selfPlane(in.addressUs, in.topUs), down = selfPlane(in.topUs, in.impactUs);
+        if ((!back.valid || !down.valid) && in.cfg.useCataloguePlane) {
+            // The stance axis (trail heel → lead heel) and the side the golfer stands on (from the
+            // address clubhead toward the mid-heels), both on the floor.
+            const V3 lh { S.sv[L.iAnchor + 3 * 2], S.sv[L.iAnchor + 3 * 2 + 1], 0.0 };
+            const V3 rh { S.sv[L.iAnchor + 3 * 5], S.sv[L.iAnchor + 3 * 5 + 1], 0.0 };
+            V3 et = in.leadIsLeft ? lh - rh : rh - lh;
+            int ta = 0;
+            for (int t = 0; t < T; ++t)
+                if (std::llabs(in.t_us[size_t(t)] - in.addressUs) < std::llabs(in.t_us[size_t(ta)] - in.addressUs)) ta = t;
+            V3 head = g[size_t(ta)] + d[size_t(ta)] * P.clubToHeadM;
+            head.z = 0;
+            V3 eg = (lh + rh) * 0.5 - head;
+            if (et.norm() > 0.05) {
+                et = et.unit();
+                eg = eg - et * eg.dot(et);
+                if (eg.norm() > 0.05) {
+                    eg = eg.unit();
+                    const CataloguePlane cp = clubPlaneInclDeg(in.clubLengthM);
+                    const double al = cp.inclDeg * kDeg;
+                    const V3 up = eg * std::cos(al) + V3 { 0, 0, 1 } * std::sin(al);
+                    ClubPlane cat;
+                    cat.valid = true;
+                    cat.n = et.cross(up).unit();
+                    cat.source = "catalogue";
+                    res.catalogueInclDeg = cp.inclDeg;
+                    res.catalogueUncalibrated = !cp.calibrated;
+                    if (!back.valid) { cat.count = back.count; back = cat; }
+                    if (!down.valid) { cat.count = down.count; down = cat; }
+                }
+            }
+        }
+        res.planeBack = back;
+        res.planeDown = down;
+        P.planeN.assign(size_t(T), V3 {});
+        res.nPlaneFrames = 0;
+        for (int t = 0; t < T; ++t) {
+            if (!P.dtlBlind[size_t(t)]) continue;
+            const ClubPlane &pl = in.t_us[size_t(t)] <= in.topUs ? back : down;
+            if (!pl.valid) continue;
+            P.planeN[size_t(t)] = pl.n;
+            ++res.nPlaneFrames;
+        }
+    };
+    // The shaft's face-on mirror: reflected through the face-on camera's line of sight to the
+    // shaft's middle — the same face-on picture, the opposite depth.
+    auto mirrorOf = [&](const State &X, const V3 &d, const V3 &g) {
+        const CamFrame cf = camFrame(camFromSv(X.sv, L), 0, in.foW, in.foH);
+        const V3 r = (g + d * (0.5 * P.clubToHeadM) - cf.c).unit();
+        return (d - r * (2.0 * d.dot(r))).unit();
+    };
+    // Seed the mirror on these runs of frames, then relax to the true objective — with the shared
+    // unknowns frozen, or the cheapest way to turn the club is to bend the SHARED grip axis. All
+    // but the CLUB LENGTH: the face-on camera sees perspective, and a club fitted short (0.85 m
+    // against a 0.94 m record on 4 July) reaches the measured head only when tilted TOWARD that
+    // camera — the wrong branch. Frozen, the mirror lost on the face-on clubhead it cannot reach
+    // (4 July swings 7, 9: +155, +127).
+    auto seedAndRelax = [&](State &X, const std::vector<std::pair<int, int>> &runs) {
+        const std::vector<uint8_t> savedFree = P.svFree;
+        std::fill(P.svFree.begin(), P.svFree.end(), uint8_t(0));
+        P.svFree[size_t(L.iClub)] = savedFree[size_t(L.iClub)];
+        const auto [d, g] = shaftDirs(X);
+        P.seedDir.assign(size_t(T), V3 {});
+        for (const auto &rn : runs)
+            for (int t = rn.first; t <= rn.second; ++t)
+                if (P.dtlBlind[size_t(t)]) P.seedDir[size_t(t)] = mirrorOf(X, d[size_t(t)], g[size_t(t)]);
+        double c = 0;
+        res.iterations += levenbergMarquardt(P, X, in.cfg.branchIters, c);
+        P.seedDir.clear();
+        res.iterations += levenbergMarquardt(P, X, in.cfg.branchRelaxIters, c);
+        P.svFree = savedFree;
+    };
+    // Runs: maximal stretches of blind, planed frames satisfying `want` (gaps of ≤ 2 bridged),
+    // at least 3 frames long. A frame the DTL SEES always ends a run: bridging across one seeded the
+    // mirror onto frames the DTL had measured (4 July s4 after P8: 87° against the DTL tracker).
+    auto runsWhere = [&](const std::function<bool(int)> &want) {
+        std::vector<std::pair<int, int>> runs;
+        int a = -1, last = -1;
+        for (int t = 0; t < T; ++t) {
+            if (!P.dtlBlind[size_t(t)] && a >= 0) {
+                if (last - a + 1 >= 3) runs.push_back({ a, last });
+                a = last = -1;
+                continue;
+            }
+            const bool ok = P.planeN[size_t(t)].norm() > 0.5 && want(t);
+            if (!ok) continue;
+            if (a < 0) { a = t; last = t; continue; }
+            if (t - last <= 3) { last = t; continue; }
+            if (last - a + 1 >= 3) runs.push_back({ a, last });
+            a = t; last = t;
+        }
+        if (a >= 0 && last - a + 1 >= 3) runs.push_back({ a, last });
+        return runs;
+    };
+    std::vector<uint8_t> branchKept(size_t(T), 0);
+    // The planes are needed by the term AND by the branch pass (to find its runs); the term itself
+    // is `usePlane` alone, so the ablations can switch the two apart.
+    if (in.cfg.usePlane || in.cfg.branchPass || in.cfg.debugForceMirror) computePlanes();
+    P.planeOn = in.cfg.usePlane && res.nPlaneFrames > 0;
+    if (P.planeOn) res.iterations += levenbergMarquardt(P, S, std::max(4, in.cfg.stage2Iters / 2), cost2);
+    if (res.nPlaneFrames > 0 && (in.cfg.branchPass || in.cfg.debugForceMirror)) {
+        const auto tb0 = std::chrono::steady_clock::now();
+        if (in.cfg.debugForceMirror) {
+            // Test hook: put the club on its mirror branch after impact, whatever it costs.
+            const auto runs = runsWhere([&](int t) { return in.t_us[size_t(t)] > in.impactUs; });
+            if (!runs.empty()) seedAndRelax(S, runs);
+        }
+        if (in.cfg.branchPass) {
+            const auto [d, g] = shaftDirs(S);
+            auto gainDeg = [&](int t) {
+                const V3 &n = P.planeN[size_t(t)];
+                const V3 m = mirrorOf(S, d[size_t(t)], g[size_t(t)]);
+                return (std::fabs(std::asin(std::clamp(d[size_t(t)].dot(n), -1.0, 1.0)))
+                        - std::fabs(std::asin(std::clamp(m.dot(n), -1.0, 1.0)))) / kDeg;
+            };
+            // Seed WHOLE blind stretches — any with a few frames whose mirror is nearer the plane —
+            // and let the cost decide each stretch as one. Frame by frame "nearer the plane" cannot
+            // judge a finish that is genuinely off plane on either branch; the continuity with the
+            // stretch's clearly-wrong frames can (synthetic: the finish stayed mirrored when seeded
+            // frame by frame).
+            std::vector<std::pair<int, int>> runs;
+            for (const auto &rn : runsWhere([](int) { return true; })) {
+                int nearer = 0;
+                for (int t = rn.first; t <= rn.second; ++t)
+                    if (P.planeN[size_t(t)].norm() > 0.5 && gainDeg(t) > in.cfg.branchSeedDeg) ++nearer;
+                if (nearer >= 3) runs.push_back(rn);
+            }
+            res.nBranchRuns = int(runs.size());
+            if (!runs.empty()) {
+                const bool dbg = std::getenv("SK3D_BRANCH_DEBUG") != nullptr;
+                // One stretch at a time, judged on the WHOLE fit: a club length that changes for the
+                // mirror changes every frame, so a per-stretch cost would not see its price.
+                P.releaseFactor = in.cfg.branchReleasePriorFactor;
+                for (const auto &rn : runs) {
+                    State alt = S;
+                    seedAndRelax(alt, { rn });
+                    if (dbg) {
+                        // Where each branch pays: frame residuals vs the local (smoothness, priors,
+                        // limits) terms, the plane term alone, and each branch's median |off plane|.
+                        auto parts = [&](const State &X, double &fr, double &loc, double &pl, double &oop) {
+                            fr = loc = pl = 0;
+                            const auto [dd, gg] = shaftDirs(X);
+                            std::vector<double> o;
+                            const bool savedOn = P.planeOn;
+                            for (int t = std::max(0, rn.first - 3); t <= std::min(T - 1, rn.second + 3); ++t) {
+                                fr += frameResiduals(P, X, t, nullptr);
+                                loc += frameLocalTerms(P, X, t);
+                                P.planeOn = false;
+                                pl -= frameResiduals(P, X, t, nullptr);
+                                P.planeOn = savedOn;
+                                if (P.planeN[size_t(t)].norm() > 0.5)
+                                    o.push_back(std::fabs(std::asin(std::clamp(dd[size_t(t)].dot(P.planeN[size_t(t)]), -1.0, 1.0))) / kDeg);
+                            }
+                            pl += fr;
+                            std::sort(o.begin(), o.end());
+                            oop = o.empty() ? 0 : o[o.size() / 2];
+                        };
+                        double fa, la, pa, oa, fb, lb, pb, ob;
+                        parts(S, fa, la, pa, oa);
+                        parts(alt, fb, lb, pb, ob);
+                        std::fprintf(stderr, "[skeleton3d] branch run %.3f–%.3f s (%d frames): kept  frame %.0f local %.0f (plane %.0f) oop %.0f° | "
+                                     "mirror frame %.0f local %.0f (plane %.0f) oop %.0f°\n",
+                                     in.t_us[size_t(rn.first)] * 1e-6, in.t_us[size_t(rn.second)] * 1e-6, rn.second - rn.first + 1,
+                                     fa, la, pa, oa, fb, lb, pb, ob);
+                        // The local terms split: smoothness vs the posture priors, per prior.
+                        auto split = [&](const State &X, double &sm, std::vector<double> &pr) {
+                            sm = 0; pr.assign(P.dofPriors.size(), 0.0);
+                            for (int t = std::max(1, rn.first - 3); t <= std::min(T - 2, rn.second + 3); ++t) {
+                                const double d0 = std::max(1e-4, (in.t_us[size_t(t)] - in.t_us[size_t(t - 1)]) * 1e-6);
+                                const double d1 = std::max(1e-4, (in.t_us[size_t(t + 1)] - in.t_us[size_t(t)]) * 1e-6);
+                                const double cm = 2.0 / (d0 * (d0 + d1)), c0 = -2.0 / (d0 * d1), cp = 2.0 / (d1 * (d0 + d1));
+                                for (int k = 0; k < P.nd; ++k) {
+                                    const double r = (cm * X.th[size_t(t - 1)][k] + c0 * X.th[size_t(t)][k] + cp * X.th[size_t(t + 1)][k]) / smoothSigma(P, t, k);
+                                    sm += r * r;
+                                }
+                                for (size_t q = 0; q < P.dofPriors.size(); ++q) {
+                                    const auto &dp = P.dofPriors[q];
+                                    const double r = (X.th[size_t(t)][dp.a] - (dp.b >= 0 ? X.th[size_t(t)][dp.b] : 0.0) - dp.mean) / priorSigma(P, dp, t);
+                                    pr[q] += r * r;
+                                }
+                            }
+                        };
+                        double sa, sb;
+                        std::vector<double> pra, prb;
+                        split(S, sa, pra);
+                        split(alt, sb, prb);
+                        // The frame residuals split by term: each switched off in turn (DTL = the DTL view off).
+                        auto termSum = [&](const State &X, const std::function<void()> &off) {
+                            const FitConfig c0 = P.cfg; const bool d0 = P.hasDtl, p0 = P.planeOn;
+                            off();
+                            double c = 0;
+                            for (int t = std::max(0, rn.first - 3); t <= std::min(T - 1, rn.second + 3); ++t) c += frameResiduals(P, X, t, nullptr);
+                            P.cfg = c0; P.hasDtl = d0; P.planeOn = p0;
+                            return c;
+                        };
+                        struct Term { const char *name; std::function<void()> off; };
+                        const std::vector<Term> terms = {
+                            { "shaft", [&] { P.cfg.useShaft = false; } }, { "clubhead", [&] { P.cfg.useClubhead = false; } },
+                            { "grip", [&] { P.cfg.useGrip = false; } }, { "contact", [&] { P.cfg.useContact = false; } },
+                            { "DTL view", [&] { P.hasDtl = false; } } };
+                        std::fprintf(stderr, "[skeleton3d]   frame terms (kept → mirror):");
+                        const double ta = termSum(S, [] {}), tb = termSum(alt, [] {});
+                        for (const Term &tm : terms)
+                            std::fprintf(stderr, " %s %.0f→%.0f", tm.name, ta - termSum(S, tm.off), tb - termSum(alt, tm.off));
+                        std::fprintf(stderr, "\n");
+                        std::fprintf(stderr, "[skeleton3d]   smoothness kept %.0f mirror %.0f; priors:", sa, sb);
+                        for (size_t q = 0; q < pra.size(); ++q)
+                            if (std::fabs(pra[q] - prb[q]) > 5)
+                                std::fprintf(stderr, " %s%s%s %.0f→%.0f", R.dofs[size_t(P.dofPriors[q].a)].name,
+                                             P.dofPriors[q].b >= 0 ? "−" : "", P.dofPriors[q].b >= 0 ? R.dofs[size_t(P.dofPriors[q].b)].name : "",
+                                             pra[q], prb[q]);
+                        std::fprintf(stderr, "\n");
+                        for (int k = 0; k < P.nd; ++k) {
+                            double ea = 0, eb = 0;
+                            for (int t = rn.first; t <= rn.second; ++t) {
+                                const Dof &df = R.dofs[size_t(k)];
+                                auto lim = [&](double v) { return df.lo < df.hi ? (v < df.lo ? df.lo - v : v > df.hi ? v - df.hi : 0.0) : 0.0; };
+                                ea = std::max(ea, lim(S.th[size_t(t)][k]));
+                                eb = std::max(eb, lim(alt.th[size_t(t)][k]));
+                            }
+                            if (ea > 2 * kDeg || eb > 2 * kDeg)
+                                std::fprintf(stderr, "[skeleton3d]   limit %s: kept %.0f° mirror %.0f° beyond\n", R.dofs[size_t(k)].name, ea / kDeg, eb / kDeg);
+                        }
+                    }
+                    const double cS = evaluate(P, S, nullptr), cA = evaluate(P, alt, nullptr);
+                    if (dbg)
+                        std::fprintf(stderr, "[skeleton3d]   whole fit: kept %.0f mirror %.0f (club %.3f → %.3f m) → %s\n", cS, cA,
+                                     S.sv[L.iClub] + 0.04, alt.sv[L.iClub] + 0.04, cA < cS ? "FLIP" : "keep");
+                    if (cA >= cS) continue;
+                    S = alt;
+                    for (int t = rn.first; t <= rn.second; ++t) branchKept[size_t(t)] = P.dtlBlind[size_t(t)];
+                    ++res.nBranchKept;
+                }
+                P.releaseFactor = 1.0;          // the fit's own priors again for the polish
+            }
+        }
+        res.branchMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tb0).count();
+        if (!gripWanted) res.iterations += levenbergMarquardt(P, S, std::max(4, in.cfg.stage2Iters / 2), cost2);
+    }
     if (gripWanted) {
         P.cfg.useGrip = true;
+        if (res.nPlaneFrames > 0) computePlanes();
         res.iterations += levenbergMarquardt(P, S, std::max(4, in.cfg.stage2Iters / 2), cost2);
     }
     res.costFinal = cost2;
@@ -1564,6 +1979,7 @@ FitResult fitSkeleton(const FitInput &in)
             }
         }
         if (fl & FlagLimitHeld) ++res.nLimitHeld;
+        if (branchKept[size_t(t)]) fl |= FlagShaftBranch;
         res.flags[size_t(t)] = fl;
         // Grip + shaft.
         const V3 gOff { res.gripOffsetLocal[0], res.gripOffsetLocal[1], res.gripOffsetLocal[2] };

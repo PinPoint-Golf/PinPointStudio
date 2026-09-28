@@ -76,6 +76,20 @@ inline FitConfig fitConfigFromOverrides(const QVariantMap &ov)
     apply(ov, "skeleton3d.pelvisTiltAccRad",   c.pelvisTiltAccRad);
     apply(ov, "skeleton3d.spineFlexSigmaDeg",  c.spineFlexSigmaDeg);
     apply(ov, "skeleton3d.hmRadSign",      c.hmRadSign);
+    // The club's depth branch (skeleton3d_shaft_branch_design.md).
+    apply(ov, "skeleton3d.usePlane",           c.usePlane);
+    apply(ov, "skeleton3d.planeSigmaDeg",      c.planeSigmaDeg);
+    apply(ov, "skeleton3d.planeMinFrames",     c.planeMinFrames);
+    apply(ov, "skeleton3d.planeMaxRmsDeg",     c.planeMaxRmsDeg);
+    apply(ov, "skeleton3d.useCataloguePlane",  c.useCataloguePlane);
+    apply(ov, "skeleton3d.branchPass",         c.branchPass);
+    apply(ov, "skeleton3d.branchSeedDeg",      c.branchSeedDeg);
+    apply(ov, "skeleton3d.branchSeedSigmaDeg", c.branchSeedSigmaDeg);
+    apply(ov, "skeleton3d.branchIters",        c.branchIters);
+    apply(ov, "skeleton3d.branchRelaxIters",   c.branchRelaxIters);
+    apply(ov, "skeleton3d.branchReleasePriorFactor", c.branchReleasePriorFactor);
+    apply(ov, "skeleton3d.debugForceMirror",   c.debugForceMirror);
+    apply(ov, "skeleton3d.debugDropDtlShaftAfterUs", c.debugDropDtlShaftAfterUs);
     return c;
 }
 
@@ -95,6 +109,12 @@ inline double at(const QJsonArray &a, int i, double def = 0.0)
     return i < a.size() && a[i].isDouble() ? a[i].toDouble() : def;
 }
 inline V3 v3(const QJsonArray &a) { return { at(a, 0), at(a, 1), at(a, 2) }; }
+inline QJsonObject planeJson(const ClubPlane &p)
+{
+    return QJsonObject { { "valid", p.valid }, { "source", QString::fromStdString(p.source) },
+                         { "normal", p.valid ? QJsonValue(vec(p.n)) : QJsonValue() },
+                         { "count", p.count }, { "rmsDeg", num(p.rmsDeg) } };
+}
 }
 
 inline QJsonObject skeleton3dToJson(const FitResult &r, int64_t t0Us, int stageVersion)
@@ -165,7 +185,13 @@ inline QJsonObject skeleton3dToJson(const FitResult &r, int64_t t0Us, int stageV
               { "reprojMedPxFo", num(r.reprojMedPxFo) }, { "reprojMedPxDtl", num(r.reprojMedPxDtl) },
               { "rawLengthCv", rawCv },
               { "nSwapFo", r.nSwapFo }, { "nSwapDtl", r.nSwapDtl }, { "nLimitHeld", r.nLimitHeld },
-              { "footSlipP90Mm", num(r.footSlipP90Mm) } } },
+              { "footSlipP90Mm", num(r.footSlipP90Mm) },
+              { "plane", QJsonObject {
+                    { "back", planeJson(r.planeBack) }, { "down", planeJson(r.planeDown) },
+                    { "catalogueInclDeg", num(r.catalogueInclDeg) },
+                    { "catalogueUncalibrated", r.catalogueUncalibrated },
+                    { "nPlaneFrames", r.nPlaneFrames }, { "nBranchRuns", r.nBranchRuns },
+                    { "nBranchKept", r.nBranchKept }, { "branchMs", rnd(r.branchMs, 1) } } } } },
         { "dofNames",     dofNames },
         { "jointNames",   jointNames },
         { "frames",       frames } };

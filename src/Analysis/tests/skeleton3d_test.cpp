@@ -30,6 +30,7 @@
 //   ctest --test-dir build/tests -R skeleton3d_test --output-on-failure
 
 #include "../skeleton3d/skeleton3d_fit.h"
+#include "../skeleton3d/club_plane_catalogue.h"
 #include "../skeleton3d/skeleton3d_rig.h"
 
 #include <algorithm>
@@ -774,6 +775,143 @@ int main()
         check(r.valid, "(e) the face-on-only fit converged");
         const Score s = score(T, r, true);
         check(s.dirBodyP90 <= 20.0, "(e) face-on only: body bone direction ≤ 20° p90 (depth from the anatomy alone)");
+    }
+
+    // ── the club's depth branch where the DTL is blind (skeleton3d_shaft_branch_design.md §6.1) ──
+    std::printf("depth branch — the DTL's shaft and clubhead hidden from impact + 60 ms\n");
+    {
+        const Rig &R = rig();
+        // Angle between the fitted and the true shaft, on the frames `pick` selects.
+        auto shaftErr = [&](const FitResult &r, const std::function<bool(size_t)> &pick) {
+            std::vector<double> e;
+            for (size_t i = 0; i < T.t.size() && i < r.shaftDir.size(); ++i) {
+                if (!pick(i)) continue;
+                Pose p;
+                forwardKinematics(R, T.th[i].data(), T.scale.data(), p);
+                const V3 d = p.rot[ybot::LeftHand].rotate(T.gripAxis).unit();
+                e.push_back(std::acos(std::clamp(d.dot(r.shaftDir[i].unit()), -1.0, 1.0)) / kDeg);
+            }
+            return e;
+        };
+        auto med = [](std::vector<double> v) { if (v.empty()) return 0.0; std::sort(v.begin(), v.end()); return v[v.size() / 2]; };
+        const int64_t dropAfter = T.impactUs + 60000;
+        auto blind = [&](size_t i) { return T.t[i] > dropAfter; };
+        auto report = [&](const char *what, const FitResult &r) {
+            const std::vector<double> e = shaftErr(r, blind), all = shaftErr(r, [](size_t) { return true; });
+            std::printf("      %-34s blind shaft median %5.1f° p90 %5.1f° | all frames p90 %5.1f° | plane frames %d, runs %d, kept %d, %.0f ms (branch %.0f ms)\n",
+                        what, med(e), p90(e), p90(all), r.nPlaneFrames, r.nBranchRuns, r.nBranchKept, r.ms, r.branchMs);
+            return p90(e);
+        };
+        FitInput base = inB;
+        base.cfg.debugDropDtlShaftAfterUs = 60000;
+
+        // (p-a) from the fit's own start: the club stays on its true branch.
+        const FitResult rA = fitSkeleton(base);
+        std::printf("      planes: back %s n=(%.2f,%.2f,%.2f) %d frames %.1f° rms; down %s n=(%.2f,%.2f,%.2f) %d frames %.1f° rms\n",
+                    rA.planeBack.source.c_str(), rA.planeBack.n.x, rA.planeBack.n.y, rA.planeBack.n.z, rA.planeBack.count, rA.planeBack.rmsDeg,
+                    rA.planeDown.source.c_str(), rA.planeDown.n.x, rA.planeDown.n.y, rA.planeDown.n.z, rA.planeDown.count, rA.planeDown.rmsDeg);
+        const double pA = report("(p-a) the fit's own start", rA);
+        check(rA.valid && rA.nPlaneFrames > 0, "(p-a) the blind frames are held by the plane term");
+        check(pA <= 8.0, "(p-a) the club stays on its true branch: blind shaft direction ≤ 8° p90");
+
+        // (p-b) started on the MIRROR: the branch pass returns it.
+        FitInput inMir = base;
+        inMir.cfg.debugForceMirror = true;
+        const FitResult rBm = fitSkeleton(inMir);
+        const double pB = report("(p-b) forced onto the mirror", rBm);
+        check(rBm.nBranchKept >= 1, "(p-b) the branch pass flips the mirrored club back…");
+        check(pB <= 8.0, "(p-b) …onto its true branch: blind shaft direction ≤ 8° p90");
+        int flagged = 0;
+        for (uint8_t f : rBm.flags) flagged += (f & FlagShaftBranch) ? 1 : 0;
+        check(flagged > 0, "(p-b) and flags the frames it flipped");
+        if (std::getenv("SK3D_BRANCH_DEBUG")) {
+            // Per blind frame: the truth's, the forced-mirror fit's and the final fit's out-of-plane
+            // angles against the down plane, the error, and whether the frame was flipped back.
+            FitInput noPass = inMir; noPass.cfg.branchPass = false;
+            const FitResult rM = fitSkeleton(noPass);
+            const V3 n = rBm.planeDown.n;
+            for (size_t i = 0; i < T.t.size(); ++i) {
+                if (!blind(i)) continue;
+                Pose p;
+                forwardKinematics(R, T.th[i].data(), T.scale.data(), p);
+                const V3 d = p.rot[ybot::LeftHand].rotate(T.gripAxis).unit();
+                auto oop = [&](const V3 &u) { return std::asin(std::clamp(u.unit().dot(n), -1.0, 1.0)) / kDeg; };
+                auto err = [&](const V3 &u) { return std::acos(std::clamp(d.dot(u.unit()), -1.0, 1.0)) / kDeg; };
+                std::printf("        t %.3f truth oop %+6.1f | mirrored %+6.1f err %5.1f | final %+6.1f err %5.1f %s\n", T.t[i] * 1e-6, oop(d),
+                            oop(rM.shaftDir[i]), err(rM.shaftDir[i]), oop(rBm.shaftDir[i]), err(rBm.shaftDir[i]),
+                            (rBm.flags[i] & FlagShaftBranch) ? "FLIPPED" : "");
+            }
+        }
+
+        // (p-c) ablations from the mirror: neither, plane only (the barrier), both.
+        {
+            FitInput n0 = inMir; n0.cfg.usePlane = false; n0.cfg.branchPass = false;
+            const double p0 = report("(p-c) mirror, no plane, no branch", fitSkeleton(n0));
+            FitInput n1 = inMir; n1.cfg.branchPass = false;
+            const double p1 = report("(p-c) mirror, plane only", fitSkeleton(n1));
+            check(p0 > 30.0, "(p-c) without either, the mirrored club stays mirrored");
+            check(p1 > 30.0, "(p-c) the plane alone cannot cross the barrier (it needs the branch pass)");
+        }
+
+        // (p-d) the prior's pull: on blind frames where the TRUE shaft is > 15° off the down plane.
+        if (rA.planeDown.valid) {
+            const V3 n = rA.planeDown.n;
+            auto offPlane = [&](size_t i) {
+                if (!blind(i)) return false;
+                Pose p;
+                forwardKinematics(R, T.th[i].data(), T.scale.data(), p);
+                const V3 d = p.rot[ybot::LeftHand].rotate(T.gripAxis).unit();
+                return std::fabs(std::asin(std::clamp(d.dot(n), -1.0, 1.0))) / kDeg > 15.0;
+            };
+            const std::vector<double> e = shaftErr(rA, offPlane);
+            std::printf("      (p-d) truly off-plane blind frames (> 15°): %zu, shaft error median %.1f° p90 %.1f°\n", e.size(), med(e), p90(e));
+        }
+
+        // (p-e) parity: the DTL sees the shaft on EVERY frame ⇒ no blind frame, no term, the same fit.
+        {
+            FitInput full = inB;
+            for (size_t i = 0; i < T.t.size(); ++i) {
+                ViewObs &o = full.dtl[i];
+                if (std::isfinite(o.shaftTheta)) continue;
+                Pose p;
+                forwardKinematics(R, T.th[i].data(), T.scale.data(), p);
+                const V3 g = markerWorld(p, ybot::LeftHand, T.gripOff), d = p.rot[ybot::LeftHand].rotate(T.gripAxis);
+                double u1, v1, u2, v2;
+                if (projectPoint(T.cam, 1, T.dtlW, T.dtlH, g, u1, v1) && projectPoint(T.cam, 1, T.dtlW, T.dtlH, g + d * 0.9, u2, v2)) {
+                    o.shaftTheta = std::atan2(v2 - v1, u2 - u1);
+                    o.shaftSigma = 2.5 * kDeg;
+                }
+            }
+            FitInput off = full; off.cfg.usePlane = false; off.cfg.branchPass = false;
+            const FitResult ra = fitSkeleton(full), rb = fitSkeleton(off);
+            double worst = 0;
+            for (size_t i = 0; i < ra.theta.size(); ++i)
+                for (size_t k = 0; k < ra.theta[i].size(); ++k) worst = std::max(worst, std::fabs(ra.theta[i][k] - rb.theta[i][k]));
+            std::printf("      (p-e) DTL sees every frame: plane frames %d, worst DoF difference %.2e\n", ra.nPlaneFrames, worst);
+            check(ra.nPlaneFrames == 0 && worst < 1e-9, "(p-e) with no blind frame the fit is unchanged");
+        }
+
+        // (p-f) face-on only: the catalogue plane.
+        {
+            FitInput fo = observe(T, 2.0, 0.02, false, 11, false);
+            FitInput foOff = fo; foOff.cfg.usePlane = false; foOff.cfg.branchPass = false;
+            const FitResult ron = fitSkeleton(fo), roff = fitSkeleton(foOff);
+            auto every = [](size_t) { return true; };
+            const std::vector<double> eOn = shaftErr(ron, every), eOff = shaftErr(roff, every);
+            std::printf("      (p-f) face-on only: catalogue %.1f° (%s), shaft p90 %.1f° → %.1f° (median %.1f° → %.1f°), kept %d\n",
+                        ron.catalogueInclDeg, ron.catalogueUncalibrated ? "uncalibrated" : "calibrated",
+                        p90(eOff), p90(eOn), med(eOff), med(eOn), ron.nBranchKept);
+            check(ron.planeBack.source == "catalogue" && ron.planeDown.source == "catalogue", "(p-f) a face-on-only swing uses the catalogue plane");
+            check(p90(eOn) <= p90(eOff) + 2.0, "(p-f) …and its shaft is no worse for it");
+        }
+
+        // The catalogue table.
+        const CataloguePlane c7 = clubPlaneInclDeg(0.94), cw = clubPlaneInclDeg(0.89), cm = clubPlaneInclDeg(0.915),
+                             cd = clubPlaneInclDeg(1.12), cu = clubPlaneInclDeg(0.0);
+        check(std::fabs(c7.inclDeg - 60.3) < 1e-9 && c7.calibrated && std::fabs(cw.inclDeg - 62.8) < 1e-9 && cw.calibrated,
+              "catalogue: the measured 7-iron and wedge planes, calibrated");
+        check(std::fabs(cm.inclDeg - 61.55) < 1e-9 && std::fabs(cd.inclDeg - 50.0) < 1e-9 && !cd.calibrated && !cu.calibrated,
+              "catalogue: interpolated between, typical (uncalibrated) beyond, a 7-iron when unknown");
     }
 
     // Timing at a real cadence.

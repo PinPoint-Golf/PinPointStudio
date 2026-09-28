@@ -139,6 +139,35 @@ struct FitConfig {
     // Test hook: after stage 1, compare the analytic Jacobian rows of this many frames
     // against central differences (robust loss switched off) — FitResult::debugJacobianErr.
     int    debugJacobianFrames = 0;
+
+    // ── the club's depth branch where the DTL is blind (skeleton3d_shaft_branch_design.md) ──
+    // The face-on camera cannot tell a shaft tilted toward it from its mirror tilted away; only
+    // the DTL can. On frames the DTL does not see the club, a weak pull keeps the shaft near its
+    // swing plane (r_plane, Cauchy), and a branch pass tries the mirror explicitly — the two are
+    // separated by a barrier (the measured face-on clubhead) that the solver cannot cross.
+    bool   usePlane           = true;
+    double planeSigmaDeg      = 10.0;
+    int    planeMinFrames     = 8;     // a self-plane rests on at least this many two-view frames…
+    double planeMaxRmsDeg     = 5.0;   // …and fits them this well, or it is refused
+    bool   useCataloguePlane  = true;  // face-on only / a refused self-plane: the club's catalogue plane
+    bool   branchPass         = true;
+    double branchSeedDeg      = 2.0;   // seed the mirror where it is nearer the plane by more than this (the cost decides)
+    double branchSeedSigmaDeg = 2.0;
+    int    branchIters        = 8;     // seed iterations
+    // Relax iterations: the mirror must reach ITS OWN minimum before the costs are compared — at 8, a
+    // half-settled mirror lost on the face-on shaft angle it images identically (4 July swing 4).
+    int    branchRelaxIters   = 25;
+    // Inside the BRANCH PASS only (seed, relax, and the comparison): the wrist / pronation /
+    // humeral-rotation priors' σ × this after impact + 60 ms. They pull to neutral, and the release
+    // genuinely rolls the forearms — left at full weight they outvoted the cameras and the plane and
+    // kept the club on its wrong mirror at P8 (design §10). The fit itself keeps them (× 1): loosened
+    // for the whole fit they left roll unheld after impact (synthetic roll p90 8 → 13°).
+    double branchReleasePriorFactor = 4.0;
+    // Test hooks: force the mirror branch in before the branch pass (the pass must return it);
+    // hide the DTL shaft angle and clubhead from impact + this (µs, negative = before impact, 0 = off)
+    // — the grade's dropout.
+    bool    debugForceMirror        = false;
+    int64_t debugDropDtlShaftAfterUs = 0;
 };
 
 struct FitInput {
@@ -170,7 +199,17 @@ struct Cameras {
 };
 
 enum Tier : uint8_t { TierAbsent = 0, TierInferred = 1, TierConstrained = 2, TierMeasured = 3 };
-enum FrameFlag : uint8_t { FlagSwapFo = 0x01, FlagSwapDtl = 0x02, FlagLimitHeld = 0x04 };
+enum FrameFlag : uint8_t { FlagSwapFo = 0x01, FlagSwapDtl = 0x02, FlagLimitHeld = 0x04,
+                           FlagShaftBranch = 0x08 };   // the branch pass put the club on its other depth branch
+
+// A reference plane for the club (through the origin: a plane of DIRECTIONS).
+struct ClubPlane {
+    bool   valid = false;
+    V3     n;                                // unit normal
+    int    count = 0;                        // frames it rests on (self-planes)
+    double rmsDeg = std::numeric_limits<double>::quiet_NaN();
+    std::string source;                      // "self" | "catalogue" | ""
+};
 
 struct FitResult {
     bool valid = false;
@@ -206,6 +245,14 @@ struct FitResult {
     double footSlipP90Mm = kNaN;
     double debugJacobianErr = kNaN;          // max |analytic − numeric| / (1 + |numeric|)
     std::string debugJacobianWorst;
+    // The depth branch (skeleton3d_shaft_branch_design.md): the planes used (address → top, top →
+    // finish), the catalogue inclination where one stood in, how many blind frames the plane term
+    // held, and what the branch pass tried and kept.
+    ClubPlane planeBack, planeDown;
+    double catalogueInclDeg = kNaN;
+    bool   catalogueUncalibrated = false;
+    int    nPlaneFrames = 0, nBranchRuns = 0, nBranchKept = 0;
+    double branchMs = 0;
 
     // Display frame: origin (ball at address on the floor, else mid-heels) and the
     // stance axis's heading (trail heel → lead heel) in the world XY plane.
