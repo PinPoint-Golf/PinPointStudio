@@ -447,3 +447,43 @@ Frame-mode sticks are still opaque and drawn first.
 **Checked:** both tests through ctest; the probe (every preset draws its elements, and the figure fades
 whenever a body or club element is on); on-screen grabs at P4 in all seven presets, and the full trace
 set at impact from DTL (the pelvis loop visible inside the hips).
+
+## 11. The 3-D swing ends at P8; no fused plane ⇒ face-on only (28 September 2026)
+
+Mark, after the DTL grabs showed the club veering off plane in the follow-through: "we are really
+messy after P8 and it's not a priority right now since it doesn't reveal anything interesting… limit
+the 3-D swing to stop at P8. Swings with no DTL, and therefore no fused shaft plane, should be limited
+to a face-on 3-D swing view." The veer itself is root-caused in
+`skeleton3d_shaft_branch_design.md`: the fit takes the wrong face-on depth mirror of the lead arm
+wherever the DTL is blind. That fix is **deferred**.
+
+**The end at P8** (`SwingRigDriver`):
+- The display ends at P8 (`Phase::ShaftParallelThrough`). With no P8 on file it ends at
+  impact + 100 ms; P8 sits ~95 ms after impact on the 4 July swings.
+- Frames past the end are dropped, except the first one beyond it, so the pose *at* P8 interpolates
+  exactly.
+- Past P8 the figure holds its P8 pose and a chip says "held at P8". The traces and fans end at P8,
+  and P-positions after it (P9, P10) are not offered.
+- `endUs` is now the display's end.
+
+**Face-on only** (`SwingRigDriver::faceOnOnly`): no DTL, or no offered fused downswing plane. Depth is
+then the fit's guess, so:
+- the panel offers only Face-on (and the face-on camera's own view where it is on file);
+- orbiting is off;
+- any other preset falls back to Face-on;
+- a chip says "face-on only: no fused shaft plane", and the plane chip is hidden.
+
+**The chips** are now one per note (tier, face-on only, held at P8, club smoothing, plane) in a
+row that wraps upward; the old single chip ran off a narrow panel. The footnotes moved under the
+preset bar.
+
+**Checked:**
+- `swing_rig_driver_test`, through ctest:
+  - the display ends at P8, and past it the figure is held in its P8 pose;
+  - the annotations stop at P8, and a P9 is not offered;
+  - a two-view swing without a fused plane is face-on only.
+- The probe:
+  - swing 5 spans address − 150 ms → P8 (3.587 s), with 8 P-positions (was 9);
+  - on a scratch copy with the plane withdrawn, every orbit preset resolves to Face-on and the DTL
+    camera is refused.
+- On-screen grabs of both.
