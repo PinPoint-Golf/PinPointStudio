@@ -18,6 +18,13 @@
 //      (view3d-disappearance-watch): scrub the playhead at 30 Hz, change preset every 3 s, move the
 //      view to a NEW slot every 10 s, log a heartbeat every minute and grab a frame every 5 —
 //      the grabs are judged afterwards (a blank view grabs as one flat colour).
+//   8. MOTION ANNOTATIONS (docs/design/swing_3d_annotations_design.md §7.1): for every ViewLayout
+//      motion preset (read-only — presetCatalog(), never written), which elements draw and how many
+//      vertices; motion off ⇒ none; the P4 label's text and visibility at P4; the match presets
+//      switch the View3D's camera. With --probe-annot and --probe-grab, the grabs are a paused P4
+//      in all seven presets with a composite of annotations on (traces, frame sticks through the
+//      faded hull, the plane), plus the fan; with --probe-annot and --probe-soak, the soak runs
+//      with every element on trace for the first half and on fan for the second.
 //   6. (--probe-grab <dir>, ON-SCREEN runs only) the view renders itself to PNGs with grabToImage —
 //      the app's own framebuffer, not a screen capture — for face-on / DTL / top at address, top
 //      and impact. Offscreen, View3D draws nothing and the files are blank.
@@ -43,6 +50,25 @@ Item {
     // (default dtl) — a filmstrip for judging motion, not a pose.
     readonly property int    stripN: parseInt(probe._arg("--probe-strip", "0"))
     readonly property string stripPreset: probe._arg("--probe-preset", "dtl")
+    readonly property bool   annot: Qt.application.arguments.indexOf("--probe-annot") >= 0
+    // The grab composite: every kind of annotation at once.
+    readonly property var compositeModes: ({ arms: "frame", spine: "frame", shoulders: "frame", hips: "frame", legs: "off",
+                                             shaft: "trace", shaftGrip: "trace", ball: "frame", hands: "off", plane: "frame" })
+    function allModes(m) {
+        return { arms: m, spine: m, shoulders: m, hips: m, legs: m, shaft: m, shaftGrip: m, ball: "frame", hands: "off", plane: "frame" }
+    }
+    function p4Time(d) {
+        for (var i = 0; i < d.positionCount; ++i) if (d.positionP(i) === 4) return d.positionTimeUs(i)
+        return -1
+    }
+    function annotReport(v) {
+        var parts = []
+        for (var i = 0; i < v.annotations.length; ++i) {
+            var a = v.annotations[i]
+            parts.push(a.element + ":" + a.mode + "=" + a.geom.vertexCount + (a.visible ? "" : "(hidden)"))
+        }
+        return parts.join(" ")
+    }
 
     function say(s) { console.warn("S3DPROBE " + s) }
 
@@ -117,10 +143,51 @@ Item {
             s2.destroy()
             probe.slotsMade += 1
         }
+        // Motion annotations, per preset (8).
+        var p4 = probe.p4Time(d)
+        var tA = p4 >= 0 ? p4 : d.startUs + span * 0.45
+        host.positionUs = tA
+        host.motionOn = true
+        say("annot: P-positions=" + d.positionCount + " P4 at " + p4 + " inWindow=" + d.inSwingWindow
+            + " plane=" + d.planeAvailable + (d.planeAvailable ? " " + d.planeInclDeg.toFixed(1) + "°" : "")
+            + " cams fo=" + d.cameraAvailable(0) + " dtl=" + d.cameraAvailable(1)
+            + (d.cameraAvailable(0) ? " foFov=" + d.cameraFovDeg(0).toFixed(1) : "")
+            + (d.cameraAvailable(1) ? " dtlFov=" + d.cameraFovDeg(1).toFixed(1) : ""))
+        var cat = ViewLayout.presetCatalog()
+        for (var c = 0; c < cat.length; ++c) {
+            host.motionModes = cat[c].modes
+            host.motionTraceTarget = cat[c].traceTarget !== undefined ? cat[c].traceTarget : ""
+            say("annot preset " + cat[c].id + " hullFaded=" + v.hullFaded + ": " + probe.annotReport(v))
+        }
+        host.motionModes = probe.allModes("fan")
+        host.motionTraceTarget = ""
+        say("annot all-fan: " + probe.annotReport(v))
+        host.motionOn = false
+        var any = 0
+        for (var z = 0; z < v.annotations.length; ++z) any += v.annotations[z].geom.vertexCount
+        say("annot motion off: total vertices=" + any + (any === 0 ? " (none, as it should be)" : " FAIL"))
+        host.motionOn = true
+        host.motionModes = ViewLayout.presetCatalog().filter(function (q) { return q.id === "clean" })[0].modes
+        if (p4 >= 0) {
+            for (var li = 0; li < d.positionCount; ++li) if (d.positionP(li) === 4) break
+            var lab = v.positionLabels.itemAt(li)
+            var sp = v.mapPosition(li)
+            say("annot P4 label: text=" + (lab ? lab.text : "none") + " visible=" + (lab ? lab.visible : false)
+                + " at (" + sp.x.toFixed(0) + "," + sp.y.toFixed(0) + "," + sp.z.toFixed(2) + ")")
+        }
+        v.applyPreset("camFo")
+        say("annot match face-on: matched=" + v.matched + " camera is the match camera=" + v.usingMatchCamera)
+        v.applyPreset("camDtl")
+        say("annot match DTL: matched=" + v.matched + " camera is the match camera=" + v.usingMatchCamera)
+        v.applyPreset("faceOn")
+        say("annot orbit again: camera is the match camera=" + v.usingMatchCamera)
+        host.motionOn = false
+
         Qt.callLater(function() {
             say("reparent x" + probe.slotsMade + ": same view=" + (host.view === probe.firstView)
                 + " view parent is host=" + (host.view.parent !== null))
             if (probe.soakMin > 0 && probe.grabDir !== "") {
+                if (probe.annot) { host.motionOn = true; host.motionModes = probe.allModes("trace") }
                 probe._soakSlot = slotComp.createObject(holderA)
                 host.attach(probe._soakSlot)
                 probe._soakStart = Date.now()
@@ -136,6 +203,22 @@ Item {
                     var tt = d.startUs + span * k2 / (probe.stripN - 1)
                     probe._grabs.push({ preset: probe.stripPreset, name: "strip" + (k2 < 10 ? "0" : "") + k2, t: tt })
                 }
+                grabTimer.start()
+                return
+            }
+            if (probe.annot) {
+                // A paused P4 in all seven presets with the composite on, then the fan face-on / DTL.
+                var t4 = probe.p4Time(d) >= 0 ? probe.p4Time(d) : d.startUs + span * 0.45
+                var all = ["faceOn", "dtl", "top", "target", "behind", "camFo", "camDtl"]
+                for (var ai = 0; ai < all.length; ++ai)
+                    probe._grabs.push({ preset: all[ai], name: "p4", t: t4, modes: probe.compositeModes })
+                probe._grabs.push({ preset: "faceOn", name: "p4fan", t: t4, modes: probe.allModes("fan") })
+                probe._grabs.push({ preset: "dtl", name: "p4fan", t: t4, modes: probe.allModes("fan") })
+                probe._grabs.push({ preset: "dtl", name: "impact_trace", t: d.startUs + span * 0.62, modes: probe.allModes("trace") })
+                // The tiles' "Clean" (shaft in frame mode) — the P-position dots, the P4 shaft and label.
+                var clean = ViewLayout.presetCatalog().filter(function (q) { return q.id === "clean" })[0].modes
+                probe._grabs.push({ preset: "faceOn", name: "p4clean", t: t4, modes: clean })
+                probe._grabs.push({ preset: "camFo", name: "p4clean", t: t4, modes: clean })
                 grabTimer.start()
                 return
             }
@@ -171,6 +254,8 @@ Item {
                 probe._soakSlot = fresh
             }
             var minutes = (Date.now() - probe._soakStart) / 60000
+            if (probe.annot && minutes >= probe.soakMin / 2 && host.motionModes.arms === "trace")
+                host.motionModes = probe.allModes("fan")
             if (probe._soakTick % 1800 === 0)
                 probe.say("soak " + minutes.toFixed(1) + " min: same view=" + (host.view === probe.firstView)
                           + " available=" + d.available + " revision=" + d.revision + " ticks=" + probe._soakTick)
@@ -198,6 +283,7 @@ Item {
             var g = probe._grabs[probe._gi]
             if (!probe._armed) {
                 host.positionUs = g.t
+                if (g.modes) { host.motionOn = true; host.motionModes = g.modes }
                 v.applyPreset(g.preset)
                 probe._armed = true
                 return

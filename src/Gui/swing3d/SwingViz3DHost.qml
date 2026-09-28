@@ -37,6 +37,12 @@ Item {
 
     property string swingDir: ""
     property real   positionUs: -1          // < 0: nothing playing — the figure rests at address
+    // The Motion setting the camera tiles draw with (ViewLayout, for the screen's mode) — one setting
+    // dresses both (docs/design/swing_3d_annotations_design.md §3).
+    property bool   motionOn: false
+    property var    motionModes: ({})
+    property string motionTraceTarget: ""
+    property bool   leadIsLeft: true
     property Item   slot: null
     readonly property Item view: loader.item
 
@@ -57,6 +63,10 @@ Item {
         sourceComponent: SwingViz3DView {
             swingDir: host.swingDir
             positionUs: host.positionUs
+            motionOn: host.motionOn
+            motionModes: host.motionModes
+            motionTraceTarget: host.motionTraceTarget
+            leadIsLeft: host.leadIsLeft
         }
     }
 }

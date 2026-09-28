@@ -74,7 +74,16 @@ pp_add_test(chart_metrics_test
 # written by the production writer: availability and its reason, rest round trip, playhead
 # interpolation, the scene frame, tiers. Header-only rig/JSON; the store reads the document.
 pp_add_test(swing_rig_driver_test
-    SOURCES swing_rig_driver_test.cpp ${GUI}/swing3d/swing_rig_driver.cpp
+    SOURCES swing_rig_driver_test.cpp ${GUI}/swing3d/swing_rig_driver.cpp ${GUI}/swing3d/swing_annotation_mesh.cpp
+    INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Export
+    LINK    Qt6::Qml  AUTOMOC)
+
+# The 3-D swing panel's motion annotations as meshes (swing_annotation_mesh.h) — trace growth and
+# its exact end at the playhead, gaps, the swing window, the fan's ≤ 24 frames on the tiles' ramp,
+# lead side, trace targets, the plane quad. No Quick 3D: the mesh is pure arithmetic.
+pp_add_test(swing_annotation_geometry_test
+    SOURCES swing_annotation_geometry_test.cpp ${GUI}/swing3d/swing_annotation_mesh.cpp
+            ${GUI}/swing3d/swing_rig_driver.cpp
     INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Export
     LINK    Qt6::Qml  AUTOMOC)
 

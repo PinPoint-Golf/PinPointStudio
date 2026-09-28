@@ -239,6 +239,10 @@ set(PP_QML_SOURCES
     src/Gui/swing3d/swing_rig_driver.cpp
     src/Gui/swing3d/swing_hull_geometry.h
     src/Gui/swing3d/swing_hull_geometry.cpp
+    src/Gui/swing3d/swing_annotation_mesh.h
+    src/Gui/swing3d/swing_annotation_mesh.cpp
+    src/Gui/swing3d/swing_annotation_geometry.h
+    src/Gui/swing3d/swing_annotation_geometry.cpp
     src/Gui/shot/shot_filter_proxy_model.h
     src/Gui/shot/shot_filter_proxy_model.cpp
     src/Gui/review/swing_data_source.h

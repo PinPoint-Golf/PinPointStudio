@@ -38,6 +38,7 @@
 // Shares NOTHING with the calibration views (BodyVizView / BodyPoseAdapter).
 
 #include <QObject>
+#include <QPointF>
 #include <QPointer>
 #include <QQmlEngine>
 #include <QQuaternion>
@@ -49,6 +50,32 @@
 #include <vector>
 
 namespace pinpoint::skeleton3d { struct Skeleton3DTrack; }
+
+// The motion annotations' view of one swing (docs/design/swing_3d_annotations_design.md §4.3):
+// the few points the camera tiles' overlays are drawn through, per fitted frame, in the SCENE
+// frame — from the same forward kinematics as the drawn figure, so an annotation can never drift
+// off it. Plain C++ data for SwingAnnotationGeometry; never handed to QML.
+struct SwingAnnotTrack {
+    // Joint CENTRES (the fitted surface-marker offsets are not persisted — design §2).
+    enum Point : int {
+        LShoulder, RShoulder, LElbow, RElbow, LWrist, RWrist, LHip, RHip, LKnee, RKnee,
+        LAnkle, RAnkle, Head, Grip, ClubButt, ClubHead, PointCount,
+        NeckMid = PointCount, PelvisMid          // derived: the shoulder / hip midpoints
+    };
+    std::vector<qint64> t;                                   // window-relative µs
+    std::vector<std::array<QVector3D, PointCount>> p;
+    std::vector<std::array<quint8, PointCount>> tier;        // 0 absent … 3 measured (club: shaftTier)
+    qint64 addressUs = -1, impactUs = -1, finishUs = -1;
+    // The fused downswing plane (club3d.planes.down) as a quad through the clubhead at impact.
+    bool planeValid = false;
+    std::array<QVector3D, 4> planeQuad {};
+    double planeInclDeg = 0;
+
+    QVector3D at(size_t frame, int point) const;             // derived points included
+    quint8 tierAt(size_t frame, int point) const;
+    QVector3D sample(qint64 tUs, int point) const;           // interpolated (clamped to the track)
+    bool inWindow(qint64 tUs) const;                         // Address → Finish, as the tiles draw
+};
 
 class SwingRigDriver : public QObject
 {
@@ -77,6 +104,13 @@ class SwingRigDriver : public QObject
     Q_PROPERTY(QVector3D   ballPosition READ ballPosition NOTIFY loadedChanged)
     Q_PROPERTY(bool        ballVisible  READ ballVisible  NOTIFY revisionChanged)
     Q_PROPERTY(QVector3D   centre       READ centre       NOTIFY loadedChanged)   // orbit pivot: mid-hip at address
+    // Motion annotations (docs/design/swing_3d_annotations_design.md).
+    Q_PROPERTY(bool    inSwingWindow READ inSwingWindow NOTIFY revisionChanged)    // playing, Address → Finish
+    Q_PROPERTY(int     positionCount READ positionCount NOTIFY loadedChanged)      // P1–P8 on the face-on track
+    Q_PROPERTY(bool    planeAvailable READ planeAvailable NOTIFY loadedChanged)
+    Q_PROPERTY(double  planeInclDeg  READ planeInclDeg  NOTIFY loadedChanged)
+    Q_PROPERTY(bool    foMirrored    READ foMirrored    NOTIFY loadedChanged)
+    Q_PROPERTY(double  clubSmoothingMs READ clubSmoothingMs CONSTANT)   // the club's display stabiliser
 
 public:
     explicit SwingRigDriver(QObject *parent = nullptr);
@@ -120,6 +154,36 @@ public:
 
     // Synchronous load for tests and probes (the property path is asynchronous).
     Q_INVOKABLE bool loadNow(const QString &dir);
+
+    // ── motion annotations ──
+    bool inSwingWindow() const;
+    int  positionCount() const;
+    bool planeAvailable() const;
+    double planeInclDeg() const;
+    bool foMirrored() const;
+    double clubSmoothingMs() const;
+    // P-positions, in time order: the number (1–8), how it was found (1 = MilestoneFit), its
+    // window-relative time, and the fitted club's butt and head at that instant.
+    Q_INVOKABLE int       positionP(int i) const;
+    Q_INVOKABLE int       positionSource(int i) const;
+    Q_INVOKABLE qint64    positionTimeUs(int i) const;
+    Q_INVOKABLE QVector3D positionHead(int i, int revision) const;
+    Q_INVOKABLE QVector3D positionButt(int i, int revision) const;
+    // The club at that instant as a rotation of +Y onto butt → head (for a #Cylinder).
+    Q_INVOKABLE QQuaternion positionRotation(int i, int revision) const;
+    // The fitted cameras (view 0 face-on, 1 DTL) as Qt Quick 3D camera poses in the scene frame,
+    // and the vertical field of view from the focal length and the encoded image height.
+    Q_INVOKABLE bool        cameraAvailable(int view) const;
+    Q_INVOKABLE QVector3D   cameraPosition(int view) const;
+    Q_INVOKABLE QQuaternion cameraRotation(int view) const;
+    Q_INVOKABLE double      cameraFovDeg(int view) const;
+    // Project a scene point through a fitted camera, in pixels of its image (tests; −1 behind).
+    Q_INVOKABLE QPointF     projectScene(int view, const QVector3D &p) const;
+
+    // C++ only (SwingAnnotationGeometry): the annotation track, null when unavailable, and the
+    // playhead the annotations are drawn at (−1 when nothing is playing).
+    const SwingAnnotTrack *annotTrack() const;
+    qint64 annotTimeUs() const;
 
 signals:
     void swingDirChanged();

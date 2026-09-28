@@ -94,7 +94,9 @@ Item {
     ]
     readonly property var _objectRows: [
         { key: "shaft", label: qsTr("Shaft") },
-        { key: "ball",  label: qsTr("Ball") }
+        { key: "ball",  label: qsTr("Ball") },
+        // The fused downswing plane — drawn by the 3-D swing panel only (the tiles ignore it).
+        { key: "plane", label: qsTr("Swing plane (3-D)") }
     ]
 
     // Land back on Presets whenever the popup closes, and never leave Page 2
@@ -411,6 +413,8 @@ Item {
         function _available(m) {
             if (m === "off") return true
             if (!shotReplay.active) return false
+            // The plane is frame-only, and whether a shot has one the 3-D panel says itself.
+            if (seg.elementKey === "plane") return m === "frame"
             var d = shotReplay.analysisDetail
             // Either camera's series makes a mode available: the face-on blocks at the
             // top level, or the down-the-line ones nested under `dtl` (same shapes —

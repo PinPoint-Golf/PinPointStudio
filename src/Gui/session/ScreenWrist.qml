@@ -215,6 +215,11 @@ Item {
         id: swing3dHost
         swingDir: root._focusedSwingDir
         positionUs: shotReplay.active ? shotReplay.positionUs : -1     // −1: rest at address
+        // The same Motion setting the replay tiles draw with (PpCameraTiles.qml).
+        motionOn:          ViewLayout.motionOn(SessionMode.mode)
+        motionModes:       ViewLayout.motionFor(SessionMode.mode).modes
+        motionTraceTarget: ViewLayout.motionTraceTarget(SessionMode.mode)
+        leadIsLeft:        ViewLayout.leadIsLeft()
     }
 
     Component {

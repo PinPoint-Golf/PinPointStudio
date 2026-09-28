@@ -43,8 +43,9 @@
 //           on:          bool,                         // master overlay switch
 //           preset:      string,                       // preset id, or "custom"
 //           modes:       { arms, spine, shoulders, hips, legs, shaft, shaftGrip,
-//                          ball, hands:
-//                          "off"|"frame"|"fan"|"trace" },   // hands (WB4) default off
+//                          ball, hands, plane:
+//                          "off"|"frame"|"fan"|"trace" },   // hands (WB4) default off;
+//                                                            // plane (3-D panel only) off|frame
 //           traceTarget: string                        // optional — only present
 //                                                       // when the preset/edit
 //                                                       // overrides an element's
@@ -103,32 +104,34 @@ QtObject {
 
     // ── motion preset catalogue ─────────────────────────────────────────────
     // Global, read-only. Every entry lists all element keys explicitly (shaftGrip
-    // = the club's GRIP-end trace, companion to shaft = the CLUBHEAD-end trace).
+    // = the club's GRIP-end trace, companion to shaft = the CLUBHEAD-end trace;
+    // plane = the fused downswing plane, drawn by the 3-D swing panel only —
+    // docs/design/swing_3d_annotations_design.md §5b — and ignored by the tiles).
     readonly property var _presets: [
         { id: "clean", label: "Clean", hint: "frame · body + club",
-          modes: { arms: "frame", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "frame", shaftGrip: "off", ball: "off", hands: "off" } },
+          modes: { arms: "frame", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "frame", shaftGrip: "off", ball: "off", hands: "off", plane: "off" } },
         { id: "ballOnly", label: "Ball only", hint: "frame · ball",
-          modes: { arms: "off", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "off", shaftGrip: "off", ball: "frame", hands: "off" } },
+          modes: { arms: "off", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "off", shaftGrip: "off", ball: "frame", hands: "off", plane: "off" } },
         { id: "clubLeadArm", label: "Club + lead arm", hint: "fan · club + lead arm",
-          modes: { arms: "fan", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "fan", shaftGrip: "off", ball: "off", hands: "off" } },
+          modes: { arms: "fan", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "fan", shaftGrip: "off", ball: "off", hands: "off", plane: "off" } },
         { id: "clubTrack", label: "Club track", hint: "trace · club grip + head",
-          modes: { arms: "off", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "trace", shaftGrip: "trace", ball: "off", hands: "off" } },
+          modes: { arms: "off", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "trace", shaftGrip: "trace", ball: "off", hands: "off", plane: "frame" } },
         // The hand path: the club's butt end (shaftGrip) beside the lead wrist (the
         // arms trace's default anchor) — two measurements of one path, so a gap
         // between them is the tracker disagreeing, not the hands. Made for DTL,
         // where the hands coming over the top show as the downswing loop outside
         // the backswing.
         { id: "traceHands", label: "Trace hands", hint: "trace · club butt + lead wrist",
-          modes: { arms: "trace", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "off", shaftGrip: "trace", ball: "off", hands: "off" } },
+          modes: { arms: "trace", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "off", shaftGrip: "trace", ball: "off", hands: "off", plane: "off" } },
         { id: "core", label: "Core", hint: "frame · spine + hips + shoulders",
-          modes: { arms: "off", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off" } },
+          modes: { arms: "off", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off", plane: "off" } },
         { id: "tracePelvis", label: "Trace pelvis", hint: "trace · pelvis",
-          modes: { arms: "off", spine: "off", shoulders: "off", hips: "trace", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off" } },
+          modes: { arms: "off", spine: "off", shoulders: "off", hips: "trace", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off", plane: "off" } },
         { id: "traceHead", label: "Trace head", hint: "trace · head",
-          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off" },
+          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off", plane: "off" },
           traceTarget: "head" },
         { id: "traceLeadSh", label: "Trace lead shoulder", hint: "trace · lead shoulder",
-          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off" } }
+          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off", plane: "off" } }
     ]
 
     // Fresh copies only — callers must not be able to mutate the catalogue
@@ -172,7 +175,7 @@ QtObject {
         var mo = _rawMotion(mode)
         if (mode !== SessionMode.capture) return mo
 
-        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "shaftGrip", "ball", "hands"]
+        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "shaftGrip", "ball", "hands", "plane"]
         var modes = {}
         for (var i = 0; i < keys.length; i++)
             modes[keys[i]] = (keys[i] === "ball") ? mo.modes[keys[i]] : "off"
@@ -317,7 +320,7 @@ QtObject {
     }
 
     function _fillModes(modes, fallback) {
-        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "shaftGrip", "ball", "hands"]
+        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "shaftGrip", "ball", "hands", "plane"]
         var out = {}
         for (var i = 0; i < keys.length; i++) {
             var key = keys[i]

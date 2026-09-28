@@ -24,7 +24,13 @@
 //
 // Scene frame (the driver's): metres, +Y up, the floor at y = 0, the ball at address at the
 // origin, +X along the stance toward the lead heel, +Z toward the face-on camera's side.
-// Presets orbit the golfer's mid-hip at address.
+// Presets orbit the golfer's mid-hip at address; the two "cam" presets stand where the fitted
+// face-on / DTL camera stood (docs/design/swing_3d_annotations_design.md §5a).
+//
+// MOTION ANNOTATIONS (swing_3d_annotations_design.md): the camera tiles' Motion setting, drawn in
+// 3-D — the same ViewLayout object the tiles read, passed in by the host. Each element is one
+// SwingAnnotationGeometry (trace tube, frame sticks, fan); the P-positions ride the club; the fused
+// downswing plane is the "plane" element (3-D only — the tiles ignore it).
 //
 // ⚠ Lives inside SwingViz3DHost, which is created once and REPARENTED between panel slots —
 // never destroyed. Destroying View3D instances corrupted the Quick 3D render thread before
@@ -41,7 +47,34 @@ Item {
 
     property string swingDir: ""
     property real   positionUs: -1          // < 0: nothing playing — the figure rests at address
-    property string preset: "faceOn"          // faceOn | dtl | top | target | behind | free
+    property string preset: "faceOn"          // faceOn | dtl | top | target | behind | camFo | camDtl | free
+    // Motion annotations — ViewLayout's object for the screen's mode (PpCameraTiles binds the same).
+    property bool   motionOn: false
+    property var    motionModes: ({})
+    property string motionTraceTarget: ""
+    property bool   leadIsLeft: true
+    function elemMode(key) {
+        if (!root.motionOn || !root.motionModes) return "off"
+        var m = root.motionModes[key]
+        return m ? m : "off"
+    }
+    readonly property var _bodyElems: ["arms", "spine", "shoulders", "hips", "legs"]
+    // Any body or club annotation on ⇒ the figure goes see-through, so a trace inside or behind the
+    // body (the pelvis, the club going round the back) is seen (Mark, 28 Sept; design §10).
+    readonly property real hullFadeOpacity: 0.5
+    readonly property bool hullFaded: {
+        var keys = _bodyElems.concat(["shaft", "shaftGrip"])
+        for (var i = 0; i < keys.length; ++i)
+            if (elemMode(keys[i]) !== "off") return true
+        return false
+    }
+    readonly property bool clubTraced: elemMode("shaft") === "trace" || elemMode("shaftGrip") === "trace"
+    // Standing where a fitted camera stood.
+    readonly property int matchView: preset === "camFo" ? 0 : preset === "camDtl" ? 1 : -1
+    readonly property bool matched: matchView >= 0 && drv.available && drv.cameraAvailable(matchView)
+    readonly property var annotations: [annArms, annSpine, annShoulders, annHips, annLegs, annShaft, annGrip, annPlane]
+    readonly property bool usingMatchCamera: view.camera === matchCam
+    function mapPosition(i) { return view.mapFrom3DScene(drv.positionHead(i, rev)) }
     // "hull": ONE smooth skinned body (tools/generate_swing3d_hull.py) — no joins to show.
     // "segments": the rigid-piece mannequin, kept as a fallback should skinning misbehave on a GPU.
     property string figure: "hull"
@@ -81,10 +114,48 @@ Item {
         }
     }
 
+    // ── one motion annotation (design §4): its element's mode from the shared Motion setting ─────
+    component Annot: Model {
+        id: an
+        property string element: ""
+        property string mode: root.elemMode(element)
+        property color  tint: Theme.colorAccent
+        property color  tintB: "transparent"
+        property bool   lit: true                 // shaded tubes read as 3-D objects; the plane is flat
+        readonly property bool body: root._bodyElems.indexOf(element) >= 0
+        readonly property alias geom: g
+        visible: drv.available && mode !== "off" && g.vertexCount > 0
+        geometry: SwingAnnotationGeometry {
+            id: g
+            driver: drv
+            element: an.element
+            mode: an.mode
+            target: root.motionTraceTarget
+            leadLeft: root.leadIsLeft
+            // Metres: thick enough at the orbit distance for the shading to read as a tube.
+            radius: an.mode === "trace" ? 0.009 : an.element === "shaft" ? 0.006 : 0.010
+            color: an.tint
+            colorB: an.tintB
+            revision: root.rev
+        }
+        materials: PrincipledMaterial {
+            lighting: an.lit ? PrincipledMaterial.FragmentLighting : PrincipledMaterial.NoLighting
+            vertexColorsEnabled: true
+            baseColor: "white"
+            roughness: 0.45
+            // Lit tubes face outward and cull their insides (a lit inside face reads as a dark speck);
+            // the flat plane is seen from both sides.
+            cullMode: an.lit ? Material.BackFaceCulling : Material.NoCulling
+            // Frame-mode body sticks are OPAQUE so they are drawn before the faded hull (§4.2);
+            // traces and fans carry their fade in the vertex alpha.
+            alphaMode: an.body && an.mode === "frame" ? PrincipledMaterial.Opaque : PrincipledMaterial.Blend
+        }
+    }
+
     View3D {
         id: view
         anchors.fill: parent
-        camera: cam
+        camera: root.matched ? matchCam : cam
         environment: SceneEnvironment {
             backgroundMode: SceneEnvironment.Transparent
             antialiasingMode: SceneEnvironment.MSAA
@@ -144,10 +215,71 @@ Item {
             }
         }
 
+        // Where a fitted camera stood (the match presets). Scene space, not under the orbit pivot.
+        PerspectiveCamera {
+            id: matchCam
+            position: root.matchView >= 0 && drv.available ? drv.cameraPosition(root.matchView) : Qt.vector3d(0, 1, 4)
+            rotation: root.matchView >= 0 && drv.available ? drv.cameraRotation(root.matchView) : Qt.quaternion(1, 0, 0, 0)
+            fieldOfView: root.matchView >= 0 && drv.available ? drv.cameraFovDeg(root.matchView) : 38
+            clipNear: 0.02
+            clipFar: 60
+            DirectionalLight { brightness: 0.55 }
+        }
+
+        // ── motion annotations ──
+        Annot { id: annArms;      element: "arms";      tint: mode === "trace" ? Theme.colorAccent : Theme.poseBone }
+        Annot { id: annSpine;     element: "spine";     tint: mode === "trace" ? Theme.colorAccent : Theme.poseSpineTop
+                                                         tintB: mode === "trace" ? "transparent" : Theme.poseSpineBottom }
+        Annot { id: annShoulders; element: "shoulders"; tint: mode === "trace" ? Theme.colorAccent : Theme.poseBone }
+        Annot { id: annHips;      element: "hips";      tint: mode === "trace" ? Theme.colorAccent : Theme.poseBone }
+        Annot { id: annLegs;      element: "legs";      tint: mode === "trace" ? Theme.colorAccent : Theme.poseBone }
+        Annot { id: annShaft;     element: "shaft" }
+        Annot { id: annGrip;      element: "shaftGrip"; tint: Qt.lighter(Theme.colorAccent, 1.7) }
+        // The fused downswing plane (design §5b): a property of the swing, drawn whole.
+        Annot {
+            id: annPlane
+            element: "plane"
+            lit: false
+            tint: Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.15)
+            visible: drv.available && mode !== "off" && drv.planeAvailable && geom.vertexCount > 0
+        }
+
+        // ── P-positions: a dot at each one's clubhead while the shaft is drawn in frame mode, and
+        // the club at that instant + its label within ±40 ms of the playhead (the tiles' rule). ──
+        Repeater3D {
+            id: posDots
+            model: root.elemMode("shaft") === "frame" && drv.available ? drv.positionCount : 0
+            Node {
+                id: pd
+                readonly property bool near: root.positionUs >= 0
+                                             && Math.abs(drv.positionTimeUs(index) - root.positionUs) <= 40000
+                readonly property color tint: drv.positionSource(index) === 1 ? Theme.colorGood : Theme.colorAccent
+                Model {
+                    source: "#Sphere"
+                    position: drv.positionHead(index, root.rev)
+                    scale: Qt.vector3d(0.00018, 0.00018, 0.00018)
+                    materials: PrincipledMaterial { lighting: PrincipledMaterial.NoLighting; baseColor: pd.tint }
+                }
+                // The club at that position: butt at the origin, +Y along the shaft (as the club).
+                Node {
+                    visible: pd.near
+                    position: drv.positionButt(index, root.rev)
+                    rotation: drv.positionRotation(index, root.rev)
+                    Model {
+                        source: "#Cylinder"
+                        position: Qt.vector3d(0, drv.clubLengthM / 2, 0)
+                        scale: Qt.vector3d(0.00008, drv.clubLengthM / 100, 0.00008)
+                        materials: PrincipledMaterial { lighting: PrincipledMaterial.NoLighting; baseColor: pd.tint }
+                    }
+                }
+            }
+        }
+
         // ── the ball ──
         Model {
             source: "#Sphere"
-            visible: drv.available && drv.ballVisible
+            // The ball element's setting, as on the tiles.
+            visible: drv.available && drv.ballVisible && root.elemMode("ball") !== "off"
             position: drv.ballPosition
             scale: Qt.vector3d(0.000427, 0.000427, 0.000427)
             materials: PrincipledMaterial { baseColor: "#f4f4f0"; roughness: 0.35 }
@@ -189,6 +321,13 @@ Item {
                 baseColor: "#cdd1d8"
                 roughness: 0.55
                 metalness: 0.0
+                // See-through while annotations are on (design §10). The faded hull writes NO depth, so
+                // nothing it covers is hidden — a trace inside the pelvis or behind the back shows through
+                // it; back faces stay culled, so the body does not show its own far side.
+                opacity: root.hullFaded ? root.hullFadeOpacity : 1.0
+                alphaMode: root.hullFaded ? PrincipledMaterial.Blend : PrincipledMaterial.Default
+                depthDrawMode: root.hullFaded ? Material.NeverDepthDraw : Material.OpaqueOnlyDepthDraw
+                cullMode: Material.BackFaceCulling
             }
         }
 
@@ -238,6 +377,7 @@ Item {
         anchors.fill: view
         origin: pivot
         camera: cam
+        enabled: !root.matched           // a matched camera stays where the real one stood
     }
 
     Vector3dAnimation {
@@ -258,6 +398,7 @@ Item {
     }
     function applyPreset(p) {
         preset = p
+        if (p === "camFo" || p === "camDtl") return      // the match camera: nothing to animate
         presetAnim.stop()
         cam.position = Qt.vector3d(0, 0, 4.2)
         if (Theme.reduceMotion) { pivot.eulerRotation = presetRotation(p); return }
@@ -271,8 +412,13 @@ Item {
         id: presets
         anchors { top: parent.top; left: parent.left; right: parent.right; margins: Theme.sp(10) }
         solid: false
+        // The match chips only when this swing's fitted camera (and its image size) is on file.
+        readonly property bool camFo: drv.available && drv.cameraAvailable(0)
+        readonly property bool camDtl: drv.available && drv.cameraAvailable(1)
         readonly property var keys: ["faceOn", "dtl", "top", "target", "behind"]
+                                    .concat(camFo ? ["camFo"] : []).concat(camDtl ? ["camDtl"] : [])
         options: [qsTr("Face-on"), qsTr("Down the line"), qsTr("Top"), qsTr("Target side"), qsTr("Behind")]
+                 .concat(camFo ? [qsTr("Face-on cam")] : []).concat(camDtl ? [qsTr("DTL cam")] : [])
         selected: keys.indexOf(root.preset) >= 0 ? options[keys.indexOf(root.preset)] : ""
         onActivated: (v) => root.applyPreset(keys[options.indexOf(v)])
     }
@@ -290,6 +436,7 @@ Item {
             id: tierText
             anchors.centerIn: parent
             text: drv.frameTierText + (drv.twoViews ? "" : qsTr(" · face-on only"))
+                  + (root.clubTraced ? qsTr(" · club path smoothed %1 ms").arg(drv.clubSmoothingMs.toFixed(0)) : "")
             font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
             color: Theme.colorText2
         }
@@ -301,6 +448,62 @@ Item {
         font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
         color: Theme.colorText3
     }
+    Text {
+        anchors { right: parent.right; bottom: parent.bottom; margins: Theme.sp(12) }
+        visible: root.matched
+        text: (root.matchView === 0 ? qsTr("As the face-on camera saw it") : qsTr("As the DTL camera saw it"))
+              + (root.matchView === 0 && drv.foMirrored ? qsTr(" · mirrored") : "")
+        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+        color: Theme.colorText3
+    }
+    Rectangle {
+        id: planeChip
+        anchors { left: tierChip.right; bottom: parent.bottom; leftMargin: Theme.sp(6); bottomMargin: Theme.sp(10) }
+        visible: drv.available && root.elemMode("plane") !== "off"
+        radius: height / 2
+        height: Theme.sp(22)
+        width: planeText.implicitWidth + Theme.sp(18)
+        color: Theme.colorBg
+        border.width: 1; border.color: Theme.colorBorderMid
+        Text {
+            id: planeText
+            anchors.centerIn: parent
+            text: drv.planeAvailable ? qsTr("downswing plane · club3d · %1°").arg(drv.planeInclDeg.toFixed(1))
+                                     : qsTr("no downswing plane on this shot")
+            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+            color: Theme.colorText2
+        }
+    }
+
+    // P-position labels: 2-D text pinned to the 3-D clubhead — 3-D text would face away from half
+    // the presets. Re-placed when the camera or the playhead moves.
+    property int _camTick: 0
+    Connections {
+        target: cam
+        function onScenePositionChanged() { root._camTick += 1 }
+        function onSceneRotationChanged() { root._camTick += 1 }
+    }
+    onMatchedChanged: _camTick += 1
+    onWidthChanged: _camTick += 1
+    onHeightChanged: _camTick += 1
+    function mapToView(p, tick, camNow) { return view.mapFrom3DScene(p) }
+    readonly property alias positionLabels: posLabels
+    Repeater {
+        id: posLabels
+        model: posDots.model
+        Text {
+            readonly property bool near: root.positionUs >= 0
+                                         && Math.abs(drv.positionTimeUs(index) - root.positionUs) <= 40000
+            readonly property vector3d sp: root.mapToView(drv.positionHead(index, root.rev), root._camTick, view.camera)
+            visible: near && sp.z > 0 && sp.x >= 0 && sp.y >= 0 && sp.x <= root.width && sp.y <= root.height
+            x: sp.x + Theme.sp(6)
+            y: sp.y - height - Theme.sp(2)
+            text: "P" + drv.positionP(index)
+            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.bold: true
+            color: drv.positionSource(index) === 1 ? Theme.colorGood : Theme.colorAccent
+        }
+    }
+
     Text {
         anchors.centerIn: parent
         visible: !drv.available

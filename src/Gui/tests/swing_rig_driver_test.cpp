@@ -23,7 +23,12 @@
 //   - a zero pose reads back as the rig's rest (+ neutral) rotations;
 //   - the playhead interpolates (an elbow at 0° and 90° is at 45° halfway);
 //   - the root lands in the SCENE frame (the stance yaw and the axis swap applied);
-//   - a joint's tier is the persisted one.
+//   - a joint's tier is the persisted one;
+//   - MOTION ANNOTATIONS (swing_3d_annotations_design.md §7.1): the annotation anchors are the
+//     FK joints in the scene frame; the club's ends are the drawn club's; P-positions read back in
+//     time order and window-relative; the Address → Finish window; the match cameras project
+//     exactly as the fit's pinhole does and agree with their own Qt camera pose; the fused plane's
+//     quad lies in the plane, through the clubhead at impact.
 
 #include <QCoreApplication>
 #include <QDir>
@@ -39,6 +44,9 @@
 
 #include "swing_rig_driver.h"
 #include "../../Analysis/skeleton3d/skeleton3d_json.h"
+
+#include <QQuaternion>
+#include <QVector3D>
 
 namespace sk = pinpoint::skeleton3d;
 
@@ -195,6 +203,117 @@ int main(int argc, char **argv)
         const QQuaternion b = d3.localRotation(sk::ybot::LeftForeArm, d3.revision());
         check(d3.startUs() == 100000 && d3.endUs() == 300000, "…and read back in the playhead's domain");
         check(std::fabs(QQuaternion::dotProduct(a, b)) < 0.99f, "the figure moves as the playhead moves");
+    }
+
+    // ── motion annotations ──
+    {
+        sk::FitResult a = r;
+        a.cam.fF = 1000; a.cam.pF = 0; a.cam.rF = 0;
+        a.cam.cD = { 3.0, 2.0, 0.2 }; a.cam.psiD = 180 * sk::kDeg; a.cam.pD = 5 * sk::kDeg;
+        a.cam.fD = 900; a.cam.rD = 3 * sk::kDeg;
+        // A world point 0.5 m right of the face-on axis, 5 m out, at camera height — it must image
+        // 100 px right of centre (f·x/z) — carried to the scene as the "ball".
+        a.ballWorld = { 0.5, 5.0, 0.0 };
+        const QJsonArray phases {
+            QJsonObject { { QStringLiteral("phase"), 0 }, { QStringLiteral("t_us"), 150000 } },
+            QJsonObject { { QStringLiteral("phase"), 5 }, { QStringLiteral("t_us"), 200000 } },
+            QJsonObject { { QStringLiteral("phase"), 7 }, { QStringLiteral("t_us"), 280000 } } };
+        const QJsonObject club {
+            { QStringLiteral("frameWidth"), 1440 }, { QStringLiteral("frameHeight"), 1080 },
+            { QStringLiteral("positions"), QJsonArray {
+                  QJsonObject { { QStringLiteral("p"), 7 }, { QStringLiteral("t_us"), 200000 }, { QStringLiteral("source"), 1 } },
+                  QJsonObject { { QStringLiteral("p"), 1 }, { QStringLiteral("t_us"), 100000 }, { QStringLiteral("source"), 0 } } } } };
+        // club3d's down plane: a 60° plane, as the camera-level frame gives it.
+        const double inc = 60 * sk::kDeg;
+        const QJsonObject club3d { { QStringLiteral("planes"), QJsonObject { { QStringLiteral("down"), QJsonObject {
+            { QStringLiteral("normal"), QJsonArray { 0.0, -std::sin(inc), std::cos(inc) } },
+            { QStringLiteral("inclDeg"), 60.0 }, { QStringLiteral("offered"), true } } } } } };
+        const QString da = tmp.filePath(QStringLiteral("annot"));
+        QDir().mkpath(da);
+        QJsonObject root;
+        root[QStringLiteral("clock")] = QJsonObject { { QStringLiteral("t0_us"), 0 } };
+        root[QStringLiteral("streams")] = QJsonArray {
+            QJsonObject { { QStringLiteral("alias"), QStringLiteral("FaceOn") }, { QStringLiteral("kind"), QStringLiteral("video") },
+                          { QStringLiteral("encoded"), QJsonObject { { QStringLiteral("width"), 1440 }, { QStringLiteral("height"), 1080 } } } },
+            QJsonObject { { QStringLiteral("alias"), QStringLiteral("DTL") }, { QStringLiteral("kind"), QStringLiteral("video") },
+                          { QStringLiteral("encoded"), QJsonObject { { QStringLiteral("width"), 1280 }, { QStringLiteral("height"), 720 } } } } };
+        root[QStringLiteral("analysis")] = QJsonObject {
+            { QStringLiteral("skeleton3d"), sk::skeleton3dToJson(a, 0, 1) }, { QStringLiteral("phases"), phases },
+            { QStringLiteral("club"), club }, { QStringLiteral("club3d"), club3d } };
+        QFile f(QDir(da).filePath(QStringLiteral("swing.json")));
+        f.open(QIODevice::WriteOnly);
+        f.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+        f.close();
+
+        SwingRigDriver dv;
+        check(dv.loadNow(da), "annotations: the swing loads");
+        const SwingAnnotTrack *T = dv.annotTrack();
+        check(T && T->t.size() == 3, "…with an annotation track, one entry per fitted frame");
+
+        // The scene frame, rebuilt here from its definition (driver header): about Z by −stanceYaw,
+        // then −90° about X, the display origin subtracted first.
+        const sk::Q rot = (sk::Q::axisAngle({ 1, 0, 0 }, -sk::kPi / 2.0) * sk::Q::axisAngle({ 0, 0, 1 }, -a.stanceYawRad)).normalized();
+        auto scene = [&](const sk::V3 &p) { const sk::V3 v = rot.rotate(p - a.displayOrigin); return QVector3D(float(v.x), float(v.y), float(v.z)); };
+        double worstJ = 0, worstC = 0;
+        for (size_t i = 0; T && i < T->t.size(); ++i) {
+            const auto &J = a.joints[i];
+            const std::pair<int, int> m[] = { { SwingAnnotTrack::LWrist, sk::ybot::LeftHand }, { SwingAnnotTrack::RShoulder, sk::ybot::RightArm },
+                                              { SwingAnnotTrack::LAnkle, sk::ybot::LeftFoot }, { SwingAnnotTrack::RHip, sk::ybot::RightUpLeg },
+                                              { SwingAnnotTrack::Head, sk::ybot::Head } };
+            for (const auto &pr : m) worstJ = std::max(worstJ, double((T->p[i][size_t(pr.first)] - scene(J[size_t(pr.second)])).length()));
+            const sk::V3 butt = a.grip[i] - a.shaftDir[i] * 0.04, head = butt + a.shaftDir[i] * a.clubLengthM;
+            worstC = std::max(worstC, double((T->p[i][SwingAnnotTrack::ClubHead] - scene(head)).length()));
+            worstC = std::max(worstC, double((T->p[i][SwingAnnotTrack::Grip] - scene(a.grip[i])).length()));
+        }
+        std::printf("      anchors vs FK joints: %.2e m; club ends: %.2e m\n", worstJ, worstC);
+        check(worstJ < 1e-5, "the anchors are the fitted joints (FK), in the scene frame");
+        // The document rounds the grip and shaft direction to 1e-4 (skeleton3d_json.h), so the club's
+        // ends agree with the unrounded fit to that — ~0.1 mm over a 0.95 m club.
+        check(worstC < 2e-4, "the clubhead and grip are the drawn club's ends");
+        check(T && T->tier[0][SwingAnnotTrack::RWrist] == sk::TierInferred, "…with the joint's own tier");
+
+        check(dv.positionCount() == 2, "two P-positions read");
+        check(dv.positionP(0) == 1 && dv.positionP(1) == 7, "…in time order");
+        check(dv.positionTimeUs(1) == 200000 && dv.positionSource(1) == 1, "…with their time and source");
+        check((dv.positionHead(1, 0) - T->p[1][SwingAnnotTrack::ClubHead]).length() < 1e-5f, "a P-position's head is the club at that instant");
+
+        dv.setPositionUs(120000);
+        check(!dv.inSwingWindow(), "before Address: outside the swing window");
+        dv.setPositionUs(200000);
+        check(dv.inSwingWindow(), "Address → Finish: inside");
+        dv.setPositionUs(-1);
+        check(!dv.inSwingWindow() && dv.annotTimeUs() < 0, "nothing playing: no annotation instant");
+
+        // The match cameras.
+        check(dv.cameraAvailable(0) && dv.cameraAvailable(1), "both fitted cameras, with their image sizes");
+        const QPointF uv = dv.projectScene(0, dv.ballPosition());
+        std::printf("      face-on image of the test point: (%.3f, %.3f)\n", uv.x(), uv.y());
+        check(std::fabs(uv.x() - 820.0) < 1e-2 && std::fabs(uv.y() - 540.0) < 1e-2, "the face-on camera images a point as the fit's pinhole does");
+        const double fov = dv.cameraFovDeg(0);
+        check(std::fabs(fov - 2.0 * std::atan(540.0 / 1000.0) / sk::kDeg) < 1e-6, "the face-on field of view is 2·atan(H/2f)");
+        // The Qt camera pose sees the same image: a point's camera-local coordinates through the
+        // camera's own rotation give the pixel projectScene gives, in both views.
+        for (int v = 0; v < 2; ++v) {
+            const QVector3D P = dv.ballPosition() + QVector3D(0.2f, 0.9f, -0.1f) * float(v);
+            const QVector3D L = dv.cameraRotation(v).conjugated().rotatedVector(P - dv.cameraPosition(v));
+            const double f = 0.5 * (v == 0 ? 1080.0 : 720.0) / std::tan(0.5 * dv.cameraFovDeg(v) * sk::kDeg);
+            const double u = 0.5 * (v == 0 ? 1440.0 : 1280.0) + f * L.x() / -L.z();
+            const double w = 0.5 * (v == 0 ? 1080.0 : 720.0) - f * L.y() / -L.z();
+            const QPointF q = dv.projectScene(v, P);
+            std::printf("      view %d: Qt camera (%.2f, %.2f) vs pinhole (%.2f, %.2f)\n", v, u, w, q.x(), q.y());
+            check(L.z() < 0 && std::hypot(u - q.x(), w - q.y()) < 0.5, v == 0 ? "the face-on match camera sees what the pinhole sees"
+                                                                         : "the DTL match camera sees what the pinhole sees");
+        }
+
+        // The plane: through the clubhead at impact, spanning the plane.
+        check(dv.planeAvailable() && std::fabs(dv.planeInclDeg() - 60.0) < 1e-9, "the offered down plane is read");
+        const sk::V3 nw { 0.0, -std::sin(inc), std::cos(inc) };
+        const QVector3D n = scene(nw + a.displayOrigin);     // a direction: the origin cancels
+        const QVector3D H = T->sample(200000, SwingAnnotTrack::ClubHead);
+        double off = 0;
+        for (const QVector3D &c : T->planeQuad) off = std::max(off, double(std::fabs(QVector3D::dotProduct(n.normalized(), c - H))));
+        std::printf("      plane corners off the plane: %.2e m\n", off);
+        check(off < 1e-5, "the quad lies in the plane, through the clubhead at impact");
     }
 
     std::printf("=== %s (%d failure%s) ===\n", g_fail ? "FAILED" : "PASSED", g_fail, g_fail == 1 ? "" : "s");
