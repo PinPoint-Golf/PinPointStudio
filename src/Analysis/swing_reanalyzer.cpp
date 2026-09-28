@@ -20,6 +20,10 @@
 #include "recorded_products.h"   // shaftTrackFromAnalysisJson / segmentationFromAnalysisJson
 #include "analysis_versions.h"
 #include "../Export/swing_store.h"   // the document, whichever format it is in
+#include "skeleton3d/skeleton3d_pool.h"   // the session pool (§13.2 (C))
+#include "skeleton3d/skeleton3d_json.h"
+#include <QDir>
+#include <QSaveFile>
 #include "ball_runner.h"
 #include "pose_runner.h"
 
@@ -806,6 +810,17 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
     if (!opts.poseTrackPath.isEmpty())
         ls.job.poseTrackPath = opts.poseTrackPath;
     ls.job.fullWindow = opts.fullWindow;
+    // The skeleton3d session pool: given, else the session folder's file for this swing.
+    if (opts.skeletonCalib) {
+        ls.job.skeletonCalib = opts.skeletonCalib;
+    } else if (opts.useSessionPool) {
+        QFile pf(QFileInfo(swingDir).absoluteDir().absoluteFilePath(QStringLiteral("skeleton3d_session.json")));
+        if (pf.open(QIODevice::ReadOnly)) {
+            const auto pool = pinpoint::skeleton3d::sessionPoolFromJson(QJsonDocument::fromJson(pf.readAll()).object());
+            pinpoint::skeleton3d::SkeletonCalib c;
+            if (pinpoint::skeleton3d::calibFor(pool, QFileInfo(swingDir).fileName(), c)) ls.job.skeletonCalib = c;
+        }
+    }
     // ── Version-gated reuse (analysis_versions.h) ────────────────────────────
     // The recorded pose is reloaded when its producer (model file, stage version,
     // scan scope) is the one that would run now and no pose tuning override is in
@@ -958,6 +973,37 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
         out.captureIntegrity = pinpoint::checkCaptureIntegrity(*ls.window, ls.job.impactUs);
 
     return out;
+}
+
+bool poolSkeletonSession(const QString& sessionDir, QString* error, int* nSwings)
+{
+    namespace sk = pinpoint::skeleton3d;
+    const QDir root(sessionDir);
+    std::vector<std::pair<QString, QJsonObject>> fits;
+    for (const QString &name : root.entryList({ QStringLiteral("swing_*") }, QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+        ReanalyzeOptions o;
+        o.useSessionPool = false;             // each swing fits on its own (lengths frozen: freed, they are not identifiable)
+        const ReanalyzeResult r = reanalyzeSwingDir(root.filePath(name), o);
+        if (!r.ok || !r.analysis.detail || !r.analysis.detail->skeleton3d.valid) continue;
+        fits.push_back({ name, sk::skeleton3dToJson(r.analysis.detail->skeleton3d, 0, kSkeleton3DStageVersion) });
+    }
+    if (nSwings) *nSwings = int(fits.size());
+    const sk::SessionPool pool = sk::poolSkeletons(fits);
+    if (!pool.valid) {
+        if (error) *error = pool.reason;
+        return false;
+    }
+    QSaveFile f(root.filePath(QStringLiteral("skeleton3d_session.json")));
+    if (!f.open(QIODevice::WriteOnly)) {
+        if (error) *error = QStringLiteral("cannot write skeleton3d_session.json");
+        return false;
+    }
+    f.write(QJsonDocument(sk::sessionPoolToJson(pool)).toJson());
+    if (!f.commit()) {
+        if (error) *error = QStringLiteral("cannot commit skeleton3d_session.json");
+        return false;
+    }
+    return true;
 }
 
 } // namespace pinpoint::analysis

@@ -97,6 +97,10 @@ struct ReanalyzeOptions {
     // pose is reloaded and ViTPose is not run; likewise the ball track when its
     // version matches AND the pose is reused. true ⇒ always re-run everything.
     bool        forceRerun = false;
+    // skeleton3d SESSION POOL (swing_3d_viz_design.md §13.2 (C)): these values held fixed in the fit;
+    // else, when useSessionPool, the session's skeleton3d_session.json supplies this swing's.
+    std::optional<pinpoint::skeleton3d::SkeletonCalib> skeletonCalib;
+    bool        useSessionPool = true;
 };
 
 struct ReanalyzeResult {
@@ -121,5 +125,11 @@ struct ReanalyzeResult {
 // Self-contained — touches no live device. The analyzer call is wrapped so a
 // thrown analyzer degrades to { ok=false, error } rather than propagating.
 ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOptions& opts = {});
+
+// The skeleton3d SESSION POOL, pass 1 (swing_3d_viz_design.md §13.2 (C)): every swing_* in the session
+// folder is re-fitted on its own (recorded tracks reused, bone lengths free, no pool), the shared
+// values pooled, and the pool written to <sessionDir>/skeleton3d_session.json. The swings themselves
+// are NOT written back: the caller re-analyses them afterwards, and that pass picks the pool up.
+bool poolSkeletonSession(const QString& sessionDir, QString* error = nullptr, int* nSwings = nullptr);
 
 } // namespace pinpoint::analysis

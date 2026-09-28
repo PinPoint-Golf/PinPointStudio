@@ -429,6 +429,28 @@ struct Obs {
     FitInput in;
 };
 
+// The lean rig's map (design §13.2 (A)), mirrored here so a truth can be made representable by it:
+// one spine shared over Spine/Spine1/Spine2 by segment length, clavicles following the upper arm.
+static std::vector<double> leanProject(const std::vector<double> &th, double kE = 0.10, double kP = 0.10)
+{
+    const Rig &R = rig();
+    std::vector<double> o = th;
+    const double l0 = R.restT[ybot::Spine1].norm(), l1 = R.restT[ybot::Spine2].norm(), l2 = R.restT[ybot::Neck].norm();
+    const double w[3] = { l0 / (l0 + l1 + l2), l1 / (l0 + l1 + l2), l2 / (l0 + l1 + l2) };
+    for (const char *ax : { "flex", "lat", "twist" }) {
+        const int a = dofIndex((std::string("spine.") + ax).c_str()), b = dofIndex((std::string("spine1.") + ax).c_str()),
+                  c = dofIndex((std::string("spine2.") + ax).c_str());
+        const double total = th[size_t(a)] + th[size_t(b)] + th[size_t(c)];
+        o[size_t(a)] = w[0] * total; o[size_t(b)] = w[1] * total; o[size_t(c)] = w[2] * total;
+    }
+    for (const char *sd : { "l", "r" }) {
+        const std::string sdd = sd;
+        o[size_t(dofIndex((sdd + "Clav.elev").c_str()))] = kE * th[size_t(dofIndex((sdd + "Arm.abd").c_str()))];
+        o[size_t(dofIndex((sdd + "Clav.prot").c_str()))] = kP * th[size_t(dofIndex((sdd + "Arm.flex").c_str()))];
+    }
+    return o;
+}
+
 static FitInput observe(const Truth &T, double sigmaPx, double dropout, bool withDtl, unsigned seed,
                         bool labelSwapAtTop)
 {
@@ -441,6 +463,9 @@ static FitInput observe(const Truth &T, double sigmaPx, double dropout, bool wit
     in.leadIsLeft = true;
     in.heightM = (R.restHeadTopY + 0.02) * T.scale[GSpine];
     in.clubLengthM = 0.95;
+    // The suite's guards were set on the per-frame 48-angle fit; the lean (L) and spline (S) sections
+    // switch those on themselves. Pinned so the production defaults (§13.5–13.6) leave them where they were.
+    in.cfg.leanRig = false; in.cfg.leanClavicles = true; in.cfg.splineBasis = false;
     std::mt19937 rng(seed);
     std::normal_distribution<double> nz(0, 1);
     std::uniform_real_distribution<double> u01(0, 1);
@@ -912,6 +937,172 @@ int main()
               "catalogue: the measured 7-iron and wedge planes, calibrated");
         check(std::fabs(cm.inclDeg - 61.55) < 1e-9 && std::fabs(cd.inclDeg - 50.0) < 1e-9 && !cd.calibrated && !cu.calibrated,
               "catalogue: interpolated between, typical (uncalibrated) beyond, a 7-iron when unknown");
+    }
+
+    // ── (L) the lean rig: 38 unknowns expanding to the rig's 48 (design §13.2 (A)) ──
+    std::printf("(L) the lean rig\n");
+    {
+        Truth TL = T;
+        for (auto &th : TL.th) th = leanProject(th);
+        // Jacobian through θ = M·q.
+        {
+            FitInput in = observe(TL, 2.0, 0.02, true, 11, false);
+            in.cfg.leanRig = true;
+            in.cfg.debugJacobianFrames = 3;
+            in.cfg.stage2Iters = 0;
+            const FitResult r = fitSkeleton(in);
+            std::printf("      lean Jacobian worst %.3e at %s\n", r.debugJacobianErr, r.debugJacobianWorst.c_str());
+            check(r.debugJacobianErr < 1e-3, "(L) the analytic Jacobian through θ = M·q agrees with central differences");
+        }
+        // Started from the lean truth, a zero-iteration fit writes the truth back exactly: the map
+        // and its projection are exact for any pose the lean rig can make.
+        {
+            FitInput in = observe(TL, 2.0, 0.02, true, 11, false);
+            in.cfg.leanRig = true;
+            in.debugInitTheta = &TL.th;
+            in.cfg.stage2Iters = 0;
+            in.cfg.usePlane = false; in.cfg.branchPass = false; in.cfg.useGrip = false;
+            const FitResult r = fitSkeleton(in);
+            double worst = 0;
+            for (size_t i = 0; i < TL.th.size() && i < r.theta.size(); ++i)
+                for (size_t k = 0; k < TL.th[i].size(); ++k) worst = std::max(worst, std::fabs(r.theta[i][k] - TL.th[i][k]));
+            std::printf("      lean round trip: worst angle %.2e rad; rig angles written %zu\n", worst, r.theta.empty() ? 0 : r.theta[0].size());
+            check(worst < 1e-9 && !r.theta.empty() && r.theta[0].size() == 48, "(L) θ = M·q reproduces a lean pose exactly, and all 48 angles are written");
+        }
+        if (std::getenv("SK3D_LEAN_EXPERIMENT")) {
+            // Temporary: which part of the lean map causes the lead forearm to roll?
+            struct V { const char *name; double kE, kP; int it; };
+            for (const V &v : { V { "clavicles locked (0, 0)", 0.0, 0.0, 25 }, V { "gains 0.25, 60 stage-2 iters", 0.25, 0.25, 60 },
+                                V { "gains 0.1", 0.1, 0.1, 25 } }) {
+                Truth Tv = T;
+                for (auto &th : Tv.th) th = leanProject(th, v.kE, v.kP);
+                FitInput iv = observe(Tv, 2.0, 0.02, true, 11, true);
+                iv.cfg.leanRig = true; iv.cfg.clavElevGain = v.kE; iv.cfg.clavProtGain = v.kP; iv.cfg.stage2Iters = v.it;
+                const FitResult rv = fitSkeleton(iv);
+                const Score sv = score(Tv, rv, false);
+                std::printf("      EXPERIMENT %-30s body dir %.2f° roll %.2f° lFore roll %.2f° pos %.2f cm iters %d\n", v.name,
+                            sv.dirBodyP90, sv.rollP90, sv.leadForearmRollP90, sv.posP90Cm, rv.iterations);
+            }
+        }
+        // The (b) guards, on the lean truth.
+        FitInput inL = observe(TL, 2.0, 0.02, true, 11, true);
+        inL.cfg.leanRig = true;
+        const FitResult rL = fitSkeleton(inL);
+        check(rL.valid, "(L) the lean fit converged");
+        std::printf("      lean fit on the lean truth:\n");
+        const Score sL = score(TL, rL, true);
+        // Judged against the 48-angle fit on the SAME truth (the plan's "not worse than v2"): the
+        // absolute (b) guards were set for the 48-angle fit on a truth the lean rig cannot make.
+        FitInput inF = inL; inF.cfg.leanRig = false;
+        std::printf("      the 48-angle fit on the lean truth:\n");
+        const Score sF = score(TL, fitSkeleton(inF), true);
+        check(sL.dirBodyP90 <= sF.dirBodyP90 + 0.5, "(L) body bone direction no worse than the 48-angle fit (+0.5°)");
+        check(sL.rollP90 <= sF.rollP90 + 2.0, "(L) roll no worse than the 48-angle fit (+2°; forearm/hand roll is unseen by either)");
+        check(sL.leadForearmRollP90 <= 30.0, "(L) lead-forearm roll ≤ 30° p90");
+        check(sL.posP90Cm <= 2.0, "(L) root-relative joint position ≤ 2 cm p90");
+        // The model mismatch: the lean fit on the ORIGINAL truth (uneven spine, free clavicle).
+        FitInput inM = inB; inM.cfg.leanRig = true;
+        std::printf("      lean fit on the ORIGINAL truth (the model-mismatch cost):\n");
+        const Score sM = score(T, fitSkeleton(inM), true);
+        std::printf("      summary — body dir p90: lean/lean %.2f°, 48/lean %.2f°, lean/original %.2f° (48/original %.2f°)\n",
+                    sL.dirBodyP90, sF.dirBodyP90, sM.dirBodyP90, sB.dirBodyP90);
+        // Face-on only, lean vs 48, on the lean truth.
+        FitInput foL = observe(TL, 2.0, 0.02, false, 11, false);
+        FitInput fo48 = foL;
+        foL.cfg.leanRig = true;
+        std::printf("      face-on only — lean:\n");
+        const Score fL = score(TL, fitSkeleton(foL), true);
+        std::printf("      face-on only — 48:\n");
+        const Score f48 = score(TL, fitSkeleton(fo48), true);
+        std::printf("      face-on only body dir p90: lean %.2f° vs 48 %.2f°\n", fL.dirBodyP90, f48.dirBodyP90);
+    }
+
+    // ── (S) spline trajectories on the lean rig (design §13.2 (B)) ──
+    std::printf("(S) spline trajectories\n");
+    {
+        const Rig &R = rig();
+        Truth TL = T;
+        for (auto &th : TL.th) th = leanProject(th);
+        // The club's peak angular speed through impact (rad/s), fit vs truth: the risk that knots
+        // round the fast peaks (§13.4).
+        auto clubPeak = [&](const std::vector<V3> &dirs) {
+            double pk = 0;
+            for (size_t i = 1; i < dirs.size() && i < TL.t.size(); ++i) {
+                if (std::llabs(TL.t[i] - TL.impactUs) > 80000) continue;
+                const double dt = (TL.t[i] - TL.t[i - 1]) * 1e-6;
+                pk = std::max(pk, std::acos(std::clamp(dirs[i].unit().dot(dirs[i - 1].unit()), -1.0, 1.0)) / dt);
+            }
+            return pk;
+        };
+        std::vector<V3> truthDirs;
+        for (size_t i = 0; i < TL.t.size(); ++i) {
+            Pose p;
+            forwardKinematics(R, TL.th[i].data(), TL.scale.data(), p);
+            truthDirs.push_back(p.rot[ybot::LeftHand].rotate(TL.gripAxis).unit());
+        }
+        // Round trip: the truth as a spline, written back, stage 2 not run.
+        {
+            FitInput in = observe(TL, 2.0, 0.02, true, 11, false);
+            in.cfg.leanRig = true; in.cfg.splineBasis = true;
+            in.debugInitTheta = &TL.th;
+            in.cfg.stage2Iters = 0; in.cfg.usePlane = false; in.cfg.branchPass = false; in.cfg.useGrip = false;
+            const FitResult r = fitSkeleton(in);
+            double worst = 0;
+            size_t wi = 0, wk = 0;
+            std::vector<double> all;
+            for (size_t i = 0; i < TL.th.size() && i < r.theta.size(); ++i)
+                for (size_t k = 0; k < TL.th[i].size(); ++k) {
+                    const double e = std::fabs(r.theta[i][k] - TL.th[i][k]);
+                    all.push_back(e / kDeg);
+                    if (e > worst) { worst = e; wi = i; wk = k; }
+                }
+            std::printf("      spline round trip of the truth: p90 %.3f°, worst %.2f° (%s at %.3f s), unknowns %d (frames %zu)\n",
+                        p90(all), worst / kDeg, rig().dofs[wk].name, TL.t[wi] * 1e-6, r.nUnknowns, TL.t.size());
+            // The generator's truth is only C¹ (smoothstep keys, per-frame leg IK): a worst single
+            // angle is where it kinks. The knots carry the swing when the p90 is well under a degree.
+            check(p90(all) < 0.5, "(S) the knots carry the truth: round trip p90 < 0.5°");
+        }
+        // Jacobian (frame level, through θ = M·q) with the spline state.
+        {
+            FitInput in = observe(TL, 2.0, 0.02, true, 11, false);
+            in.cfg.leanRig = true; in.cfg.splineBasis = true;
+            in.cfg.debugJacobianFrames = 3; in.cfg.stage2Iters = 0;
+            const FitResult r = fitSkeleton(in);
+            check(r.debugJacobianErr < 1e-3, "(S) the analytic Jacobian agrees with central differences");
+        }
+        FitInput inS = observe(TL, 2.0, 0.02, true, 11, true);
+        inS.cfg.leanRig = true;
+        FitInput inN = inS;                       // lean, per-frame
+        inS.cfg.splineBasis = true;
+        const FitResult rS = fitSkeleton(inS), rN = fitSkeleton(inN);
+        check(rS.valid, "(S) the spline fit converged");
+        std::printf("      lean + spline:\n");
+        const Score sS = score(TL, rS, true);
+        std::printf("      lean, per frame:\n");
+        const Score sN = score(TL, rN, true);
+        std::printf("      unknowns: lean + spline %d, lean per-frame %d\n", rS.nUnknowns, rN.nUnknowns);
+        check(rS.nUnknowns < rN.nUnknowns / 2, "(S) splines at least halve the unknowns");
+        check(sS.dirBodyP90 <= sN.dirBodyP90 + 0.5, "(S) body bone direction no worse than per-frame (+0.5°)");
+        check(sS.rollP90 <= sN.rollP90 + 2.0, "(S) roll no worse than per-frame (+2°)");
+        check(sS.posP90Cm <= sN.posP90Cm + 0.3, "(S) joint position no worse than per-frame (+0.3 cm)");
+        const double pkT = clubPeak(truthDirs), pkS = clubPeak(rS.shaftDir), pkN = clubPeak(rN.shaftDir);
+        std::printf("      club peak angular speed through impact: truth %.1f rad/s, spline %.1f (%.0f%%), per-frame %.1f (%.0f%%)\n",
+                    pkT, pkS, 100 * pkS / pkT, pkN, 100 * pkN / pkT);
+        check(pkS >= 0.9 * pkT, "(S) the knots keep ≥ 90 % of the club's true peak speed through impact");
+    }
+
+    // ── (C) a session pool's values are held fixed ──
+    std::printf("(C) a fixed session calib\n");
+    {
+        SkeletonCalib cb;
+        cb.hasScale = true; cb.scale.fill(1.0); cb.scale[GUpperArm] = 1.05;
+        cb.clubToHeadM = 0.88;
+        FitInput in = inB;
+        in.fixedCalib = &cb;
+        const FitResult r = fitSkeleton(in);
+        std::printf("      upper-arm scale %.4f (fixed 1.05), club %.4f m (fixed 0.92)\n", r.scale[GUpperArm], r.clubLengthM);
+        check(r.valid && r.calibFixed && std::fabs(r.scale[GUpperArm] - 1.05) < 1e-12 && std::fabs(r.clubLengthM - 0.92) < 1e-12,
+              "(C) a session calib's values are held fixed through the fit");
     }
 
     // Timing at a real cadence.

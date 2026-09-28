@@ -2032,6 +2032,7 @@ struct Skeleton3DStage : AnalysisStage {
         in.leadIsLeft = ctx.job.handedness != 2;
         in.heightM = ctx.job.athleteHeightM;
         in.clubLengthM = ctx.job.clubLengthM;
+        if (ctx.job.skeletonCalib) in.fixedCalib = &*ctx.job.skeletonCalib;   // a session pool (§13.2 (C))
         const int64_t impactUs = ctx.seg.eventFor(Phase::Impact)->t_us;
         const PhaseEvent *addr = ctx.seg.eventFor(Phase::Address);
         const PhaseEvent *top = ctx.seg.eventFor(Phase::Top);

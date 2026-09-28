@@ -62,6 +62,13 @@ inline FitConfig fitConfigFromOverrides(const QVariantMap &ov)
     apply(ov, "skeleton3d.fitDtlRoll",     c.fitDtlRoll);
     apply(ov, "skeleton3d.fitLengths",     c.fitLengths);
     apply(ov, "skeleton3d.labelSwap",      c.labelSwap);
+    apply(ov, "skeleton3d.leanRig",        c.leanRig);
+    apply(ov, "skeleton3d.leanClavicles",  c.leanClavicles);
+    apply(ov, "skeleton3d.splineBasis",    c.splineBasis);
+    apply(ov, "skeleton3d.knotFastMs",     c.knotFastMs);
+    apply(ov, "skeleton3d.knotSlowMs",     c.knotSlowMs);
+    apply(ov, "skeleton3d.clavElevGain",   c.clavElevGain);
+    apply(ov, "skeleton3d.clavProtGain",   c.clavProtGain);
     apply(ov, "skeleton3d.faceOnDistanceM", c.faceOnDistanceM);
     apply(ov, "skeleton3d.dtlDistanceM",   c.dtlDistanceM);
     apply(ov, "skeleton3d.lengthSigma",    c.lengthSigma);
@@ -76,6 +83,14 @@ inline FitConfig fitConfigFromOverrides(const QVariantMap &ov)
     apply(ov, "skeleton3d.pelvisTiltAccRad",   c.pelvisTiltAccRad);
     apply(ov, "skeleton3d.spineFlexSigmaDeg",  c.spineFlexSigmaDeg);
     apply(ov, "skeleton3d.hmRadSign",      c.hmRadSign);
+    // The prior widths, for the knob audit (swing_3d_viz_design.md §13.2 (D)).
+    apply(ov, "skeleton3d.limitSigmaDeg",      c.limitSigmaDeg);
+    apply(ov, "skeleton3d.gripSigmaM",         c.gripSigmaM);
+    apply(ov, "skeleton3d.contactSigmaM",      c.contactSigmaM);
+    apply(ov, "skeleton3d.wristSigmaDeg",      c.wristSigmaDeg);
+    apply(ov, "skeleton3d.pronationSigmaDeg",  c.pronationSigmaDeg);
+    apply(ov, "skeleton3d.clavicleSigmaDeg",   c.clavicleSigmaDeg);
+    apply(ov, "skeleton3d.armRotSigmaDeg",     c.armRotSigmaDeg);
     // The club's depth branch (skeleton3d_shaft_branch_design.md).
     apply(ov, "skeleton3d.usePlane",           c.usePlane);
     apply(ov, "skeleton3d.planeSigmaDeg",      c.planeSigmaDeg);
@@ -174,6 +189,8 @@ inline QJsonObject skeleton3dToJson(const FitResult &r, int64_t t0Us, int stageV
         { "grip",         QJsonObject {
               { "axis", arr3(r.gripAxisLocal) }, { "offset", arr3(r.gripOffsetLocal) },
               { "trailOffset", arr3(r.trailGripOffsetLocal) },
+              { "sym", QJsonArray { rnd(r.symOffsets[0], 1e-5), rnd(r.symOffsets[1], 1e-5), rnd(r.symOffsets[2], 1e-5), rnd(r.symOffsets[3], 1e-5) } },
+              { "calibFixed", r.calibFixed },
               { "clubLengthM", num(std::isfinite(r.clubLengthM) ? rnd(r.clubLengthM, 1e-4) : r.clubLengthM) } } },
         { "display",      QJsonObject {
               { "originWorld", vec(r.displayOrigin) },
@@ -186,6 +203,7 @@ inline QJsonObject skeleton3dToJson(const FitResult &r, int64_t t0Us, int stageV
               { "rawLengthCv", rawCv },
               { "nSwapFo", r.nSwapFo }, { "nSwapDtl", r.nSwapDtl }, { "nLimitHeld", r.nLimitHeld },
               { "footSlipP90Mm", num(r.footSlipP90Mm) },
+              { "nUnknowns", r.nUnknowns },
               { "plane", QJsonObject {
                     { "back", planeJson(r.planeBack) }, { "down", planeJson(r.planeDown) },
                     { "catalogueInclDeg", num(r.catalogueInclDeg) },

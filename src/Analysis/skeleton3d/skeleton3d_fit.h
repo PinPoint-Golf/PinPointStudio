@@ -86,6 +86,24 @@ struct FitConfig {
     // a 1.96× spine and a 0.2× head. On synthetic data (no model error) they recover to 2 %.
     bool   fitLengths   = false;
     bool   labelSwap    = true;
+    // THE LEAN RIG (swing_3d_viz_design.md §13.2 (A)): the fit's own 38 unknowns expand to the
+    // rig's 48 angles, θ = M·q. One spine (flex, lat, twist) shared over Spine/Spine1/Spine2 by
+    // segment length; the clavicles follow the upper arm (elevation = clavElevGain·arm abduction,
+    // protraction = clavProtGain·arm flexion). The rig, the documents and the viewer keep all 48.
+    // The gains: 0.25 (a textbook scapulohumeral rhythm) put the synthetic lead forearm in a rolled
+    // minimum (roll error 120°, not fixed by more iterations); 0.10 held it at 23°.
+    // SPLINE TRAJECTORIES (design §13.2 (B)): each unknown is a cubic B-spline in time, knots every
+    // knotFastMs through top − 50 ms → impact + 60 ms and every knotSlowMs elsewhere. The per-frame
+    // smoothness becomes a second difference on the coefficients at the same physical σ.
+    // Both ON since §13.5–13.6 (lean spine-only + splines graded best of the four on the corpus); the
+    // clavicle rhythm failed its gates and stays off.
+    bool   splineBasis  = true;
+    double knotFastMs   = 10.0;
+    double knotSlowMs   = 40.0;
+    bool   leanRig      = true;
+    bool   leanClavicles = false;  // with leanRig: false keeps the clavicles free (the spine alone is lean, 42 angles)
+    double clavElevGain = 0.10;
+    double clavProtGain = 0.10;
 
     double faceOnDistanceM = 2.0;  // initial face-on camera → golfer distance
     double dtlDistanceM    = 2.2;  // initial DTL camera → golfer distance
@@ -170,6 +188,21 @@ struct FitConfig {
     int64_t debugDropDtlShaftAfterUs = 0;
 };
 
+// What a session pool fixes in one swing's fit (design §13.2 (C)): the golfer's shared values —
+// bone scales, the shoulder/hip surface offsets, the grip, the club — and the cameras of the swing's
+// camera epoch. Pooled at re-analysis and session end; live shots never carry one.
+struct SkeletonCalib {
+    bool hasScale = false;
+    std::array<double, GroupCount> scale {};
+    bool hasSym = false;
+    std::array<double, 2 * kSymGroups> sym {};
+    bool hasGrip = false;
+    std::array<double, 9> grip {};           // lead axis (3), lead offset (3), trail offset (3), hand-local
+    double clubToHeadM = std::numeric_limits<double>::quiet_NaN();
+    bool hasCam = false;
+    std::array<double, 10> cam {};           // fF pF cDx cDy cDz psiD pD fD rF rD
+};
+
 struct FitInput {
     std::vector<int64_t> t_us;               // the frame grid (face-on instants)
     std::vector<ViewObs> fo;                 // one per frame
@@ -188,6 +221,8 @@ struct FitInput {
     FitConfig cfg;
     // Test hook: start stage 2 from these DoFs (one vector per frame) instead of stage 1.
     const std::vector<std::vector<double>> *debugInitTheta = nullptr;
+    // A session pool's values, fixed in this fit (null: the swing fits its own).
+    const SkeletonCalib *fixedCalib = nullptr;
 };
 
 struct Cameras {
@@ -224,6 +259,8 @@ struct FitResult {
     double gammaDeg = kNaN;                  // angle between the two views' ground-plane rays
     double rRatio = kNaN;                    // DTL px-per-m ÷ face-on px-per-m, at the golfer
     std::array<double, 3> gripAxisLocal {}, gripOffsetLocal {}, trailGripOffsetLocal {};
+    std::array<double, 2 * kSymGroups> symOffsets {};   // the shoulder/hip pairs' width, height offsets
+    bool calibFixed = false;                  // the shared values came from a session pool
     double clubLengthM = kNaN;               // fitted (the club record is its prior)
 
     std::vector<int64_t> t_us;
@@ -252,6 +289,7 @@ struct FitResult {
     double catalogueInclDeg = kNaN;
     bool   catalogueUncalibrated = false;
     int    nPlaneFrames = 0, nBranchRuns = 0, nBranchKept = 0;
+    int    nUnknowns = 0;                    // the per-swing motion unknowns (per-frame or spline) + the free shared ones
     double branchMs = 0;
 
     // Display frame: origin (ball at address on the floor, else mid-heels) and the

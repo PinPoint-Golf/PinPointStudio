@@ -29,6 +29,7 @@
 
 #include "types.h"
 #include "swing_analysis.h"
+#include "skeleton3d/skeleton3d_fit.h"
 
 namespace pinpoint { class SwingWindow; }
 
@@ -64,6 +65,10 @@ struct ShotAnalysisJob {
     // lengths start at the Y-bot's proportions × height / Y-bot height. Filled from the athlete
     // profile on the LIVE path and from the recorded athlete block on RE-ANALYSIS.
     double athleteHeightM = 0.0;
+    // A skeleton3d SESSION POOL's values for this swing (swing_3d_viz_design.md §13.2 (C)): held
+    // fixed in the fit. Set on re-analysis only — from ReanalyzeOptions, else the session's
+    // skeleton3d_session.json — never on a live shot.
+    std::optional<pinpoint::skeleton3d::SkeletonCalib> skeletonCalib;
     // Retro-band geometry for the v3 E1 band matcher (taped clubs only). Band
     // centres measured from the butt (mm) + shaft type, taken from the athlete's
     // active club record (athlete_controller.h bandCentersMm/shaftType). Empty ⇒

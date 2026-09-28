@@ -213,6 +213,21 @@ struct Problem {
     // priorSigma) — the release genuinely rolls the forearms and hinges the wrists.
     struct DofPrior { int a, b; double mean, sigma; bool release = false; };
     std::vector<DofPrior> dofPriors;
+    // The lean rig (design §13.2 (A)): the fit's unknowns q (nd of them) expand to the rig's nth
+    // angles, θ = M·q. Without it M is the identity and nd = nth. qRep[k] is the rig DoF a
+    // q-component stands for (its kind and joint, for the smoothness σ).
+    int nth = 0;
+    bool lean = false;
+    MatrixXd M;
+    std::vector<int> qRep;
+    VectorXd theta(const VectorXd &q) const { return lean ? VectorXd(M * q) : q; }
+    // Spline trajectories (design §13.2 (B)): K coefficient blocks; frame t is Σₐ bW[t][a]·c[bFirst[t]+a].
+    bool spline = false;
+    int K = 0;
+    std::vector<int> bFirst;
+    std::vector<std::array<double, 4>> bW;
+    std::vector<double> greville;           // each coefficient's time (s), for its smoothness σ
+    double dtFrame = 1.0 / 120.0;           // the median frame spacing (s)
     // The club's depth branch (skeleton3d_shaft_branch_design.md). Per frame: the DTL sees no club
     // (no shaft angle, no head); the reference plane's normal where r_plane applies (zero = none);
     // the branch pass's temporary seed direction (zero = none).
@@ -225,12 +240,14 @@ struct Problem {
 };
 
 struct State {
-    std::vector<VectorXd> th;
+    std::vector<VectorXd> th;               // per frame (with splines: the cache Σ B·c, kept in step)
+    std::vector<VectorXd> c;                // spline coefficients (splines only)
     VectorXd sv;
 };
 
 struct Lin {
-    std::vector<MatrixXd> D, U1, U2, B;
+    std::vector<MatrixXd> D, U1, U2, U3, B;  // U3: the third band (splines); empty = zero
+    std::vector<MatrixXd> Dframe;             // splines: the per-FRAME information, for the tiers
     std::vector<VectorXd> gf;
     MatrixXd C;
     VectorXd gs;
@@ -268,10 +285,10 @@ void markerPJ(const Problem &P, const Pose &pose, const VectorXd &sv, int joint,
 {
     const Rig &R = P.rig;
     out.p = markerWorld(pose, joint, offLocal);
-    out.dth.setZero(3, P.nd);
+    out.dth.setZero(3, P.nth);
     out.ds.setZero(3, P.L.n);
     const uint64_t chain = R.ancestorsOrSelf[joint];
-    for (int k = 0; k < P.nd; ++k) {
+    for (int k = 0; k < P.nth; ++k) {
         const Dof &d = R.dofs[size_t(k)];
         if (!((chain >> d.joint) & 1u)) continue;
         const V3 g = d.kind == DofKind::RootTrans ? pose.dofAxisW[size_t(k)]
@@ -294,9 +311,9 @@ void markerPJ(const Problem &P, const Pose &pose, const VectorXd &sv, int joint,
 // A world direction d = rot(joint)·a — derivatives over DoFs (axis × d).
 void dirDerivs(const Problem &P, const Pose &pose, int joint, const V3 &d, Mat3X &dth)
 {
-    dth.setZero(3, P.nd);
+    dth.setZero(3, P.nth);
     const uint64_t chain = P.rig.ancestorsOrSelf[joint];
-    for (int k = 0; k < P.nd; ++k) {
+    for (int k = 0; k < P.nth; ++k) {
         const Dof &df = P.rig.dofs[size_t(k)];
         if (!((chain >> df.joint) & 1u) || df.kind == DofKind::RootTrans) continue;
         dth.col(k) = E(pose.dofAxisW[size_t(k)].cross(d));
@@ -320,7 +337,7 @@ double scaleOf(const VectorXd &sv, const Layout &L, int g) { return sv[L.iScale 
 double frameResiduals(const Problem &P, const State &S, int t, Rows *rows)
 {
     const Rig &R = P.rig;
-    const VectorXd &th = S.th[size_t(t)];
+    const VectorXd th = P.theta(S.th[size_t(t)]);   // the rig's angles (θ = M·q on the lean rig)
     const VectorXd &sv = S.sv;
     std::array<double, GroupCount> sc {};
     for (int g = 0; g < GroupCount; ++g) sc[size_t(g)] = scaleOf(sv, P.L, g);
@@ -679,8 +696,8 @@ double frameResiduals(const Problem &P, const State &S, int t, Rows *rows)
                     return E((rp - rm) * (0.5 / h));
                 };
                 const uint64_t chain = R.ancestorsOrSelf[it.joint];
-                Mat3X dth = Mat3X::Zero(3, P.nd);
-                for (int k = 0; k < P.nd; ++k) {
+                Mat3X dth = Mat3X::Zero(3, P.nth);
+                for (int k = 0; k < P.nth; ++k) {
                     const Dof &df = R.dofs[size_t(k)];
                     if (!((chain >> df.joint) & 1u) || df.kind == DofKind::RootTrans) continue;
                     dth.col(k) = dLog(pre.rotate(pose.dofAxisW[size_t(k)]));
@@ -728,9 +745,10 @@ double frameResiduals(const Problem &P, const State &S, int t, Rows *rows)
 // ── smoothness, limits, priors: the cross-frame and shared-only terms ────────
 double smoothSigma(const Problem &P, int t, int k)
 {
-    const Dof &d = P.rig.dofs[size_t(k)];
+    const int kr = P.qRep[size_t(k)];                  // the rig DoF this unknown stands for
+    const Dof &d = P.rig.dofs[size_t(kr)];
     // Pelvis tilt (root pitch, root roll): its own, tight σ, never loosened (see FitConfig).
-    if (d.joint == ybot::Hips && d.kind == DofKind::RootRot && k != P.rig.firstDof[ybot::Hips] + 3)
+    if (d.joint == ybot::Hips && d.kind == DofKind::RootRot && kr != P.rig.firstDof[ybot::Hips] + 3)
         return P.cfg.pelvisTiltAccRad;
     double s = d.kind == DofKind::RootTrans ? P.cfg.smoothAccRootM : P.cfg.smoothAccRad;
     const int64_t tus = P.in.t_us[size_t(t)];
@@ -753,8 +771,9 @@ double globalTerms(const Problem &P, const State &S, Lin *lin)
 {
     double cost = 0;
     const int T = P.T, nd = P.nd;
-    // Smoothness: second difference with the true (non-uniform) spacing.
-    if (P.cfg.useSmooth && T >= 3) {
+    // Smoothness: second difference with the true (non-uniform) spacing. With splines it is on the
+    // coefficients instead (splinePenalty).
+    if (P.cfg.useSmooth && T >= 3 && !P.spline) {
         for (int t = 1; t + 1 < T; ++t) {
             const double d0 = std::max(1e-4, (P.in.t_us[size_t(t)] - P.in.t_us[size_t(t - 1)]) * 1e-6);
             const double d1 = std::max(1e-4, (P.in.t_us[size_t(t + 1)] - P.in.t_us[size_t(t)]) * 1e-6);
@@ -795,22 +814,31 @@ double globalTerms(const Problem &P, const State &S, Lin *lin)
                 lin->gf[size_t(t)][dp.b] -= r / sg;
             }
         }
-    // Limits.
+    // Limits — on the rig's angles θ = M·q, so a derived angle (a clavicle driven by the arm, a
+    // spine segment's share) is still held inside its range, through its row of M.
     if (P.cfg.useLimits) {
         const double s = P.cfg.limitSigmaDeg * kDeg;
-        for (int t = 0; t < T; ++t)
-            for (int k = 0; k < nd; ++k) {
+        for (int t = 0; t < T; ++t) {
+            const VectorXd th = P.theta(S.th[size_t(t)]);
+            for (int k = 0; k < P.nth; ++k) {
                 const Dof &d = P.rig.dofs[size_t(k)];
                 if (d.lo >= d.hi) continue;
-                const double v = S.th[size_t(t)][k];
+                const double v = th[k];
                 const double e = v < d.lo ? v - d.lo : v > d.hi ? v - d.hi : 0.0;
                 if (e == 0.0) continue;
                 const double r = e / s;
                 cost += r * r;
                 if (!lin) continue;
-                lin->D[size_t(t)](k, k) += 1.0 / (s * s);
-                lin->gf[size_t(t)][k] += r / s;
+                if (!P.lean) {
+                    lin->D[size_t(t)](k, k) += 1.0 / (s * s);
+                    lin->gf[size_t(t)][k] += r / s;
+                } else {
+                    const Eigen::RowVectorXd m = P.M.row(k);
+                    lin->D[size_t(t)].noalias() += m.transpose() * m / (s * s);
+                    lin->gf[size_t(t)].noalias() += m.transpose() * (r / s);
+                }
             }
+        }
     }
     // Priors on the shared unknowns.
     if (!P.stage1) {
@@ -875,10 +903,11 @@ double frameLocalTerms(const Problem &P, const State &S, int t)
     }
     if (P.cfg.useLimits) {
         const double s = P.cfg.limitSigmaDeg * kDeg;
-        for (int k = 0; k < nd; ++k) {
+        const VectorXd th = P.theta(S.th[size_t(t)]);
+        for (int k = 0; k < P.nth; ++k) {
             const Dof &d = P.rig.dofs[size_t(k)];
             if (d.lo >= d.hi) continue;
-            const double v = S.th[size_t(t)][k];
+            const double v = th[k];
             const double e = v < d.lo ? v - d.lo : v > d.hi ? v - d.hi : 0.0;
             cost += (e / s) * (e / s);
         }
@@ -886,8 +915,105 @@ double frameLocalTerms(const Problem &P, const State &S, int t)
     return cost;
 }
 
-double evaluate(const Problem &P, const State &S, Lin *lin)
+// ── spline trajectories (design §13.2 (B)) ──────────────────────────────────
+void expandState(const Problem &P, State &S)
 {
+    if (!P.spline) return;
+    S.th.assign(size_t(P.T), VectorXd::Zero(P.nd));
+    for (int t = 0; t < P.T; ++t)
+        for (int a = 0; a < 4; ++a) S.th[size_t(t)] += P.bW[size_t(t)][size_t(a)] * S.c[size_t(P.bFirst[size_t(t)] + a)];
+}
+
+// The coefficients that best reproduce S.th (least squares), then the cache re-expanded from them.
+void fitCoefficients(const Problem &P, State &S)
+{
+    if (!P.spline) return;
+    MatrixXd W = MatrixXd::Zero(P.T, P.K), Th(P.T, P.nd);
+    for (int t = 0; t < P.T; ++t) {
+        for (int a = 0; a < 4; ++a) W(t, P.bFirst[size_t(t)] + a) = P.bW[size_t(t)][size_t(a)];
+        Th.row(t) = S.th[size_t(t)].transpose();
+    }
+    MatrixXd A = W.transpose() * W;
+    for (int i = 0; i < P.K; ++i) A(i, i) += 1e-9;
+    const MatrixXd C = A.ldlt().solve(W.transpose() * Th);
+    S.c.assign(size_t(P.K), VectorXd::Zero(P.nd));
+    for (int i = 0; i < P.K; ++i) S.c[size_t(i)] = C.row(i).transpose();
+    expandState(P, S);
+}
+
+// The smoothness on the coefficients: the non-uniform second difference at their Greville times,
+// at the same physical σ as the per-frame term (smoothSigma), scaled by √(spacing / frame spacing)
+// so the whole swing weighs what the per-frame sum did.
+double splinePenalty(const Problem &P, const State &S, Lin *lin)
+{
+    if (!P.cfg.useSmooth || P.K < 3) return 0.0;
+    double cost = 0;
+    const auto &g = P.greville;
+    for (int i = 1; i + 1 < P.K; ++i) {
+        const double d0 = std::max(1e-4, g[size_t(i)] - g[size_t(i - 1)]), d1 = std::max(1e-4, g[size_t(i + 1)] - g[size_t(i)]);
+        const double cm = 2.0 / (d0 * (d0 + d1)), c0 = -2.0 / (d0 * d1), cp = 2.0 / (d1 * (d0 + d1));
+        const double scale = std::sqrt(0.5 * (d0 + d1) / P.dtFrame);
+        int tn = 0;                          // the frame nearest this coefficient's time, for its σ
+        {
+            const int64_t gu = int64_t(g[size_t(i)] * 1e6);
+            auto it = std::lower_bound(P.in.t_us.begin(), P.in.t_us.end(), gu);
+            tn = std::clamp(int(it - P.in.t_us.begin()), 0, P.T - 1);
+        }
+        for (int k = 0; k < P.nd; ++k) {
+            const double s = smoothSigma(P, tn, k);
+            const double a = scale * cm / s, b = scale * c0 / s, c = scale * cp / s;
+            const double r = a * S.c[size_t(i - 1)][k] + b * S.c[size_t(i)][k] + c * S.c[size_t(i + 1)][k];
+            cost += r * r;
+            if (!lin) continue;
+            lin->D[size_t(i - 1)](k, k) += a * a;
+            lin->D[size_t(i)](k, k) += b * b;
+            lin->D[size_t(i + 1)](k, k) += c * c;
+            lin->U1[size_t(i - 1)](k, k) += a * b;
+            lin->U1[size_t(i)](k, k) += b * c;
+            lin->U2[size_t(i - 1)](k, k) += a * c;
+            lin->gf[size_t(i - 1)][k] += a * r;
+            lin->gf[size_t(i)][k] += b * r;
+            lin->gf[size_t(i + 1)][k] += c * r;
+        }
+    }
+    return cost;
+}
+
+// The per-frame normal equations carried onto the coefficient blocks: frame t touches the 4
+// coefficients from bFirst[t], with weights bW[t] — D and the bands U1–U3 by products of weights.
+void projectToCoefficients(const Problem &P, const Lin &fl, Lin &lin)
+{
+    const int nd = P.nd, ns = P.L.n, K = P.K;
+    lin.D.assign(size_t(K), MatrixXd::Zero(nd, nd));
+    lin.U1.assign(size_t(K), MatrixXd::Zero(nd, nd));
+    lin.U2.assign(size_t(K), MatrixXd::Zero(nd, nd));
+    lin.U3.assign(size_t(K), MatrixXd::Zero(nd, nd));
+    lin.B.assign(size_t(K), MatrixXd::Zero(nd, ns));
+    lin.gf.assign(size_t(K), VectorXd::Zero(nd));
+    for (int t = 0; t < P.T; ++t) {
+        const int i0 = P.bFirst[size_t(t)];
+        const auto &w = P.bW[size_t(t)];
+        for (int a = 0; a < 4; ++a) {
+            lin.gf[size_t(i0 + a)].noalias() += w[size_t(a)] * fl.gf[size_t(t)];
+            lin.B[size_t(i0 + a)].noalias() += w[size_t(a)] * fl.B[size_t(t)];
+            for (int b = a; b < 4; ++b) {
+                const double ww = w[size_t(a)] * w[size_t(b)];
+                if (ww == 0.0) continue;
+                std::vector<MatrixXd> &band = b == a ? lin.D : b - a == 1 ? lin.U1 : b - a == 2 ? lin.U2 : lin.U3;
+                band[size_t(i0 + a)].noalias() += ww * fl.D[size_t(t)];
+            }
+        }
+    }
+    lin.C = fl.C;
+    lin.gs = fl.gs;
+    lin.Dframe = fl.D;
+}
+
+double evaluate(const Problem &P, const State &S, Lin *linOut)
+{
+    // With splines the frame-level system is built in a temporary and carried onto the coefficients.
+    Lin frameLin;
+    Lin *lin = linOut ? (P.spline ? &frameLin : linOut) : nullptr;
     const int T = P.T, nd = P.nd, ns = P.L.n;
     if (lin) {
         lin->D.assign(size_t(T), MatrixXd::Zero(nd, nd));
@@ -901,10 +1027,11 @@ double evaluate(const Problem &P, const State &S, Lin *lin)
     double cost = 0;
     Rows rows;
     for (int t = 0; t < T; ++t) {
-        if (lin) rows.reset(160, nd, ns);
+        if (lin) rows.reset(160, P.nth, ns);
         cost += frameResiduals(P, S, t, lin ? &rows : nullptr);
         if (!lin || rows.n == 0) continue;
-        const auto Jf = rows.Jf.topRows(rows.n);
+        // The residuals are filled against the rig's angles; the unknowns are q (θ = M·q).
+        const MatrixXd Jf = P.lean ? MatrixXd(rows.Jf.topRows(rows.n) * P.M) : MatrixXd(rows.Jf.topRows(rows.n));
         const auto Js = rows.Js.topRows(rows.n);
         const auto r = rows.r.head(rows.n);
         lin->D[size_t(t)].noalias() += Jf.transpose() * Jf;
@@ -916,25 +1043,33 @@ double evaluate(const Problem &P, const State &S, Lin *lin)
         }
     }
     cost += globalTerms(P, S, lin);
-    if (lin) lin->cost = cost;
+    if (P.spline) {
+        if (linOut) projectToCoefficients(P, frameLin, *linOut);
+        cost += splinePenalty(P, S, linOut);
+    }
+    if (linOut) linOut->cost = cost;
     return cost;
 }
 
 // ── the block-banded Cholesky + Schur solve ─────────────────────────────────
 bool solve(const Problem &P, const Lin &lin, double lambda, std::vector<VectorXd> &dth, VectorXd &dsv)
 {
-    const int T = P.T, nd = P.nd;
+    // Blocks: frames, or spline coefficients (then with a third band, U3).
+    const int T = int(lin.D.size()), nd = P.nd;
+    const bool band3 = !lin.U3.empty();
     std::vector<int> freeIdx;
     if (!P.stage1)
         for (int i = 0; i < P.L.n; ++i) if (P.svFree[size_t(i)]) freeIdx.push_back(i);
     const int nf = int(freeIdx.size());
 
-    std::vector<MatrixXd> Ltt(static_cast<size_t>(T)), L1(static_cast<size_t>(T)), L2(static_cast<size_t>(T));
+    std::vector<MatrixXd> Ltt(static_cast<size_t>(T)), L1(static_cast<size_t>(T)), L2(static_cast<size_t>(T)),
+                          L3(static_cast<size_t>(T));
     for (int t = 0; t < T; ++t) {
         MatrixXd S = lin.D[size_t(t)];
         for (int k = 0; k < nd; ++k) S(k, k) = S(k, k) * (1.0 + lambda) + 1e-9;
         if (t >= 1) S.noalias() -= L1[size_t(t - 1)] * L1[size_t(t - 1)].transpose();
         if (t >= 2) S.noalias() -= L2[size_t(t - 2)] * L2[size_t(t - 2)].transpose();
+        if (band3 && t >= 3) S.noalias() -= L3[size_t(t - 3)] * L3[size_t(t - 3)].transpose();
         Eigen::LLT<MatrixXd> llt(S);
         if (llt.info() != Eigen::Success) return false;
         Ltt[size_t(t)] = llt.matrixL();
@@ -942,20 +1077,28 @@ bool solve(const Problem &P, const Lin &lin, double lambda, std::vector<VectorXd
         if (t + 1 < T) {
             MatrixXd M = lin.U1[size_t(t)].transpose();
             if (t >= 1) M.noalias() -= L2[size_t(t - 1)] * L1[size_t(t - 1)].transpose();
+            if (band3 && t >= 2) M.noalias() -= L3[size_t(t - 2)] * L2[size_t(t - 2)].transpose();
             L1[size_t(t)] = Lt.solve(M.transpose()).transpose();
         }
-        if (t + 2 < T) L2[size_t(t)] = Lt.solve(MatrixXd(lin.U2[size_t(t)])).transpose();
+        if (t + 2 < T) {
+            MatrixXd M = lin.U2[size_t(t)].transpose();
+            if (band3 && t >= 1) M.noalias() -= L3[size_t(t - 1)] * L1[size_t(t - 1)].transpose();
+            L2[size_t(t)] = Lt.solve(M.transpose()).transpose();
+        }
+        if (band3 && t + 3 < T) L3[size_t(t)] = Lt.solve(MatrixXd(lin.U3[size_t(t)])).transpose();
     }
-    // A⁻¹ applied to a per-frame multi-column right-hand side, in place.
+    // A⁻¹ applied to a per-block multi-column right-hand side, in place.
     auto applyInv = [&](std::vector<MatrixXd> &R) {
         for (int t = 0; t < T; ++t) {
             if (t >= 1) R[size_t(t)].noalias() -= L1[size_t(t - 1)] * R[size_t(t - 1)];
             if (t >= 2) R[size_t(t)].noalias() -= L2[size_t(t - 2)] * R[size_t(t - 2)];
+            if (band3 && t >= 3) R[size_t(t)].noalias() -= L3[size_t(t - 3)] * R[size_t(t - 3)];
             Ltt[size_t(t)].triangularView<Eigen::Lower>().solveInPlace(R[size_t(t)]);
         }
         for (int t = T - 1; t >= 0; --t) {
             if (t + 1 < T) R[size_t(t)].noalias() -= L1[size_t(t)].transpose() * R[size_t(t + 1)];
             if (t + 2 < T) R[size_t(t)].noalias() -= L2[size_t(t)].transpose() * R[size_t(t + 2)];
+            if (band3 && t + 3 < T) R[size_t(t)].noalias() -= L3[size_t(t)].transpose() * R[size_t(t + 3)];
             Ltt[size_t(t)].transpose().triangularView<Eigen::Upper>().solveInPlace(R[size_t(t)]);
         }
     };
@@ -1020,7 +1163,12 @@ int levenbergMarquardt(Problem &P, State &S, int maxIter, double &costOut,
             VectorXd dsv;
             if (!solve(P, lin, lambda, dth, dsv)) { lambda *= 10; continue; }
             State N = S;
-            for (int t = 0; t < P.T; ++t) N.th[size_t(t)] += dth[size_t(t)];
+            if (P.spline) {
+                for (int i = 0; i < P.K; ++i) N.c[size_t(i)] += dth[size_t(i)];
+                expandState(P, N);
+            } else {
+                for (int t = 0; t < P.T; ++t) N.th[size_t(t)] += dth[size_t(t)];
+            }
             N.sv += dsv;
             const double nc = evaluate(P, N, nullptr);
             if (std::isfinite(nc) && nc < cost) {
@@ -1073,7 +1221,53 @@ FitResult fitSkeleton(const FitInput &in)
     Problem P(in);
     const Rig &R = P.rig;
     P.T = int(in.t_us.size());
-    P.nd = R.dofCount();
+    P.nth = R.dofCount();
+    P.lean = in.cfg.leanRig;
+    {
+        // The lean rig's map θ = M·q (design §13.2 (A)). Removed from the unknowns: Spine1's and
+        // Spine2's angles (Spine's three stand for the whole spine, shared by segment length) and
+        // both clavicles (driven by the upper arm).
+        auto idx = [&](const std::string &n) {
+            for (int k = 0; k < P.nth; ++k) if (n == R.dofs[size_t(k)].name) return k;
+            return -1;
+        };
+        std::vector<int> q48(size_t(P.nth), -1);
+        for (int k = 0; k < P.nth; ++k) {
+            const std::string n = R.dofs[size_t(k)].name;
+            const bool clav = n.rfind("lClav.", 0) == 0 || n.rfind("rClav.", 0) == 0;
+            const bool gone = P.lean && (n.rfind("spine1.", 0) == 0 || n.rfind("spine2.", 0) == 0
+                                         || (clav && in.cfg.leanClavicles));
+            if (gone) continue;
+            q48[size_t(k)] = int(P.qRep.size());
+            P.qRep.push_back(k);
+        }
+        P.nd = int(P.qRep.size());
+        P.M = MatrixXd::Zero(P.nth, P.nd);
+        for (int k = 0; k < P.nth; ++k) if (q48[size_t(k)] >= 0) P.M(k, q48[size_t(k)]) = 1.0;
+        if (P.lean) {
+            const double l0 = R.restT[ybot::Spine1].norm(), l1 = R.restT[ybot::Spine2].norm(), l2 = R.restT[ybot::Neck].norm();
+            const double w[3] = { l0 / (l0 + l1 + l2), l1 / (l0 + l1 + l2), l2 / (l0 + l1 + l2) };
+            for (const char *ax : { "flex", "lat", "twist" }) {
+                const int q = q48[size_t(idx(std::string("spine.") + ax))];
+                P.M(idx(std::string("spine.") + ax), q) = w[0];
+                P.M(idx(std::string("spine1.") + ax), q) = w[1];
+                P.M(idx(std::string("spine2.") + ax), q) = w[2];
+            }
+            if (in.cfg.leanClavicles)
+                for (const char *sd : { "l", "r" }) {
+                    const std::string s = sd;
+                    P.M(idx(s + "Clav.elev"), q48[size_t(idx(s + "Arm.abd"))]) = in.cfg.clavElevGain;
+                    P.M(idx(s + "Clav.prot"), q48[size_t(idx(s + "Arm.flex"))]) = in.cfg.clavProtGain;
+                }
+        }
+    }
+    // The least-squares projection of a rig pose onto the unknowns (the stage-1 start, the test
+    // hook's truth): q = (MᵀM)⁻¹Mᵀθ — exact for any pose the lean rig can make.
+    const MatrixXd Mpinv = P.lean ? MatrixXd((P.M.transpose() * P.M).ldlt().solve(P.M.transpose()))
+                                  : MatrixXd::Identity(P.nth, P.nth);
+    auto toQ = [&](const double *th48) {
+        return VectorXd(Mpinv * Eigen::Map<const VectorXd>(th48, P.nth));
+    };
     if (!in.cfg.enabled) { res.reason = "disabled"; return res; }
     if (P.T < 10 || int(in.fo.size()) != P.T || in.foW <= 0 || in.foH <= 0) {
         res.reason = "fewer than 10 face-on frames";
@@ -1100,6 +1294,61 @@ FitResult fitSkeleton(const FitInput &in)
     P.swapDtl.assign(size_t(P.T), 0);
     P.fastFrom = in.topUs - 50000;
     P.fastTo = in.impactUs + 60000;
+    // ── spline trajectories: the knots and each frame's 4 basis weights (design §13.2 (B)) ──
+    {
+        std::vector<double> dts;
+        for (int t = 1; t < P.T; ++t) dts.push_back((in.t_us[size_t(t)] - in.t_us[size_t(t - 1)]) * 1e-6);
+        if (!dts.empty()) P.dtFrame = std::max(1e-4, median(dts));
+    }
+    P.spline = in.cfg.splineBasis && P.T >= 10;
+    if (P.spline) {
+        // Breakpoints: every knotFastMs inside the fast window, every knotSlowMs outside it, a slow
+        // step clipped to the window's start so the dense stretch begins where the swing speeds up.
+        const double t0 = in.t_us.front() * 1e-6, t1 = in.t_us.back() * 1e-6;
+        const double f0 = P.fastFrom * 1e-6, f1 = P.fastTo * 1e-6;
+        std::vector<double> br { t0 };
+        for (double x = t0;;) {
+            const bool fast = x >= f0 - 1e-9 && x < f1;
+            const double h = (fast ? in.cfg.knotFastMs : in.cfg.knotSlowMs) * 1e-3;
+            double nx = x + h;
+            if (!fast && x < f0 && nx > f0) nx = f0;
+            if (fast && nx > f1) nx = f1;
+            if (nx >= t1 - 0.3 * h) break;
+            br.push_back(nx);
+            x = nx;
+        }
+        br.push_back(t1);
+        const int nb = int(br.size());
+        std::vector<double> u(3, t0);                       // clamped cubic knot vector
+        u.insert(u.end(), br.begin(), br.end());
+        u.insert(u.end(), 3, t1);
+        P.K = nb + 2;
+        P.greville.resize(size_t(P.K));
+        for (int i = 0; i < P.K; ++i) P.greville[size_t(i)] = (u[size_t(i + 1)] + u[size_t(i + 2)] + u[size_t(i + 3)]) / 3.0;
+        P.bFirst.assign(size_t(P.T), 0);
+        P.bW.assign(size_t(P.T), {});
+        for (int t = 0; t < P.T; ++t) {
+            const double x = in.t_us[size_t(t)] * 1e-6;
+            int s = 3;                                        // the span: u[s] ≤ x < u[s+1]
+            while (s < nb + 1 && x >= u[size_t(s + 1)]) ++s;
+            // Cox–de Boor, degree 3 (The NURBS Book, A2.2): the 4 non-zero basis values.
+            double N[4] = { 1, 0, 0, 0 }, left[4] = {}, right[4] = {};
+            for (int j = 1; j <= 3; ++j) {
+                left[j] = x - u[size_t(s + 1 - j)];
+                right[j] = u[size_t(s + j)] - x;
+                double saved = 0;
+                for (int r = 0; r < j; ++r) {
+                    const double den = right[r + 1] + left[j - r];
+                    const double tmp = den > 0 ? N[r] / den : 0.0;
+                    N[r] = saved + right[r + 1] * tmp;
+                    saved = left[j - r] * tmp;
+                }
+                N[j] = saved;
+            }
+            P.bFirst[size_t(t)] = s - 3;
+            for (int a = 0; a < 4; ++a) P.bW[size_t(t)][size_t(a)] = N[a];
+        }
+    }
     for (double v : in.hmFlexDeg) if (std::isfinite(v)) { P.hasHm = true; break; }
     const int T = P.T;
 
@@ -1140,25 +1389,33 @@ FitResult fitSkeleton(const FitInput &in)
     // club's length ends.
     P.clubToHeadM = (in.clubLengthM > 0.5 ? in.clubLengthM : 0.95) - 0.04;
     {
+        // Priors index the UNKNOWNS (q): a rig DoF's q-index, −1 when it is not one of them.
         auto idx = [&](const char *n) {
-            for (int k = 0; k < R.dofCount(); ++k) if (std::string(R.dofs[size_t(k)].name) == n) return k;
+            for (int q = 0; q < P.nd; ++q) if (std::string(R.dofs[size_t(P.qRep[size_t(q)])].name) == n) return q;
             return -1;
         };
-        const double cs = in.cfg.spineCoupleSigmaDeg * kDeg;
-        for (const char *ax : { "flex", "lat", "twist" }) {
-            const int a = idx((std::string("spine.") + ax).c_str()), b = idx((std::string("spine1.") + ax).c_str()),
-                      c = idx((std::string("spine2.") + ax).c_str());
-            P.dofPriors.push_back({ a, b, 0.0, cs });
-            P.dofPriors.push_back({ b, c, 0.0, cs });
+        if (!P.lean) {
+            const double cs = in.cfg.spineCoupleSigmaDeg * kDeg;
+            for (const char *ax : { "flex", "lat", "twist" }) {
+                const int a = idx((std::string("spine.") + ax).c_str()), b = idx((std::string("spine1.") + ax).c_str()),
+                          c = idx((std::string("spine2.") + ax).c_str());
+                P.dofPriors.push_back({ a, b, 0.0, cs });
+                P.dofPriors.push_back({ b, c, 0.0, cs });
+            }
+            for (const char *n : { "spine.flex", "spine1.flex", "spine2.flex" })
+                P.dofPriors.push_back({ idx(n), -1, 0.0, in.cfg.spineFlexSigmaDeg * kDeg });
+        } else {
+            // One spine: its flexion is the WHOLE spine's (the three segments' sum), and three
+            // near-locked segments each held to σ bend together to about 3σ.
+            P.dofPriors.push_back({ idx("spine.flex"), -1, 0.0, 3.0 * in.cfg.spineFlexSigmaDeg * kDeg });
         }
-        for (const char *n : { "spine.flex", "spine1.flex", "spine2.flex" })
-            P.dofPriors.push_back({ idx(n), -1, 0.0, in.cfg.spineFlexSigmaDeg * kDeg });
         for (const char *n : { "lWrist.flex", "lWrist.rad", "rWrist.flex", "rWrist.rad" })
             P.dofPriors.push_back({ idx(n), -1, 0.0, in.cfg.wristSigmaDeg * kDeg, true });
         for (const char *n : { "lForearm.pron", "rForearm.pron" })
             P.dofPriors.push_back({ idx(n), -1, 0.0, in.cfg.pronationSigmaDeg * kDeg, true });
-        for (const char *n : { "lClav.elev", "lClav.prot", "rClav.elev", "rClav.prot" })
-            P.dofPriors.push_back({ idx(n), -1, 0.0, in.cfg.clavicleSigmaDeg * kDeg });
+        if (!P.lean || !in.cfg.leanClavicles)   // clavicles that follow the arm have no angles of their own to hold
+            for (const char *n : { "lClav.elev", "lClav.prot", "rClav.elev", "rClav.prot" })
+                P.dofPriors.push_back({ idx(n), -1, 0.0, in.cfg.clavicleSigmaDeg * kDeg });
         for (const char *n : { "lArm.rot", "rArm.rot" })
             P.dofPriors.push_back({ idx(n), -1, 0.0, in.cfg.armRotSigmaDeg * kDeg, true });
     }
@@ -1407,6 +1664,23 @@ FitResult fitSkeleton(const FitInput &in)
         P.svFree[size_t(L.iHm + c)] = in.cfg.useHm && P.hasHm;
         P.svSigma[L.iHm + c] = 15 * kDeg;
     }
+    // A session pool (design §13.2 (C)): its values seed the shared unknowns and are held fixed.
+    if (const SkeletonCalib *cb = in.fixedCalib) {
+        if (cb->hasScale)
+            for (int g = 0; g < GroupCount; ++g) { S.sv[L.iScale + g] = cb->scale[size_t(g)]; P.svFree[size_t(L.iScale + g)] = 0; }
+        if (cb->hasSym)
+            for (int c = 0; c < 2 * kSymGroups; ++c) { S.sv[L.iSym + c] = cb->sym[size_t(c)]; P.svFree[size_t(L.iSym + c)] = 0; }
+        if (cb->hasGrip)
+            for (int c = 0; c < 9; ++c) { S.sv[L.iGrip + c] = cb->grip[size_t(c)]; P.svFree[size_t(L.iGrip + c)] = 0; }
+        if (std::isfinite(cb->clubToHeadM)) { S.sv[L.iClub] = cb->clubToHeadM; P.svFree[size_t(L.iClub)] = 0; }
+        if (cb->hasCam)
+            for (int c = 0; c < kCamParams; ++c) {
+                if (c >= 2 && c != 8 && !P.hasDtl) continue;          // a face-on-only swing keeps its DTL slots idle
+                S.sv[L.iCam + c] = cb->cam[size_t(c)];
+                P.svFree[size_t(L.iCam + c)] = 0;
+            }
+        res.calibFixed = true;
+    }
 
     // ── stage 1: fit the rig to the triangulation ──
     {
@@ -1416,7 +1690,7 @@ FitResult fitSkeleton(const FitInput &in)
         V3 lastHip { Xh0, Yh0, Zh0 };
         for (int t = 0; t < T; ++t) {
             VectorXd &th = S.th[size_t(t)];
-            for (int k = 0; k < P.nd; ++k) th[k] = ap[size_t(k)];
+            th = toQ(ap.data());
             const V3 &a = P.tgtSig[size_t(t)][11], &b = P.tgtSig[size_t(t)][12];
             if (a.x > 0 && b.x > 0) lastHip = (P.tgt[size_t(t)][11] + P.tgt[size_t(t)][12]) * 0.5;
             const V3 root = lastHip + (tmplRoot - tmplHip);
@@ -1424,9 +1698,11 @@ FitResult fitSkeleton(const FitInput &in)
         }
         P.stage1 = true;
         double c1 = 0;
+        fitCoefficients(P, S);                 // splines: the per-frame start as coefficients
         if (in.debugInitTheta && int(in.debugInitTheta->size()) == T) {
             for (int t = 0; t < T; ++t)
-                for (int k = 0; k < P.nd; ++k) S.th[size_t(t)][k] = (*in.debugInitTheta)[size_t(t)][size_t(k)];
+                S.th[size_t(t)] = toQ((*in.debugInitTheta)[size_t(t)].data());
+            fitCoefficients(P, S);
         } else {
             res.iterations += levenbergMarquardt(P, S, in.cfg.stage1Iters, c1);
         }
@@ -1437,7 +1713,10 @@ FitResult fitSkeleton(const FitInput &in)
     auto poseAll = [&]() {
         std::array<double, GroupCount> sc {};
         for (int g = 0; g < GroupCount; ++g) sc[size_t(g)] = S.sv[L.iScale + g];
-        for (int t = 0; t < T; ++t) forwardKinematics(R, S.th[size_t(t)].data(), sc.data(), poses[size_t(t)]);
+        for (int t = 0; t < T; ++t) {
+            const VectorXd th = P.theta(S.th[size_t(t)]);
+            forwardKinematics(R, th.data(), sc.data(), poses[size_t(t)]);
+        }
     };
     poseAll();
     {
@@ -1531,17 +1810,18 @@ FitResult fitSkeleton(const FitInput &in)
         for (int f = 0; f < in.cfg.debugJacobianFrames; ++f) {
             const int t = int((long(f) * 7919 + T / 3) % T);
             Rows A;
-            A.reset(160, P.nd, L.n);
+            A.reset(160, P.nth, L.n);
             frameResiduals(P, S, t, &A);
+            const MatrixXd AJf = P.lean ? MatrixXd(A.Jf.topRows(A.n) * P.M) : MatrixXd(A.Jf.topRows(A.n));
             auto resid = [&](const State &X) {
                 Rows B;
-                B.reset(160, P.nd, L.n);
+                B.reset(160, P.nth, L.n);
                 frameResiduals(P, X, t, &B);
                 return VectorXd(B.r.head(B.n));
             };
             auto check = [&](const VectorXd &num, int col, bool shared, const std::string &name) {
                 for (int i = 0; i < A.n && i < num.size(); ++i) {
-                    const double an = shared ? A.Js(i, col) : A.Jf(i, col);
+                    const double an = shared ? A.Js(i, col) : AJf(i, col);
                     const double e = std::fabs(an - num[i]) / (1.0 + std::fabs(num[i]));
                     if (e > worst) { worst = e; where = name + " row " + std::to_string(i) + " frame " + std::to_string(t); }
                 }
@@ -1550,7 +1830,7 @@ FitResult fitSkeleton(const FitInput &in)
                 State Sp = S, Sm = S;
                 const double h = 1e-6;
                 Sp.th[size_t(t)][k] += h; Sm.th[size_t(t)][k] -= h;
-                check((resid(Sp) - resid(Sm)) / (2 * h), k, false, R.dofs[size_t(k)].name);
+                check((resid(Sp) - resid(Sm)) / (2 * h), k, false, R.dofs[size_t(P.qRep[size_t(k)])].name);
             }
             for (int i = 0; i < L.n; ++i) {
                 if (!P.svFree[size_t(i)]) continue;
@@ -1588,7 +1868,8 @@ FitResult fitSkeleton(const FitInput &in)
         std::vector<V3> d(static_cast<size_t>(T)), g(static_cast<size_t>(T));
         Pose pz;
         for (int t = 0; t < T; ++t) {
-            forwardKinematics(R, X.th[size_t(t)].data(), sc.data(), pz);
+            const VectorXd th = P.theta(X.th[size_t(t)]);
+            forwardKinematics(R, th.data(), sc.data(), pz);
             d[size_t(t)] = pz.rot[leadHandJ].rotate(a).unit();
             g[size_t(t)] = markerWorld(pz, leadHandJ, gOff);
         }
@@ -1829,17 +2110,18 @@ FitResult fitSkeleton(const FitInput &in)
                         std::fprintf(stderr, "[skeleton3d]   smoothness kept %.0f mirror %.0f; priors:", sa, sb);
                         for (size_t q = 0; q < pra.size(); ++q)
                             if (std::fabs(pra[q] - prb[q]) > 5)
-                                std::fprintf(stderr, " %s%s%s %.0f→%.0f", R.dofs[size_t(P.dofPriors[q].a)].name,
-                                             P.dofPriors[q].b >= 0 ? "−" : "", P.dofPriors[q].b >= 0 ? R.dofs[size_t(P.dofPriors[q].b)].name : "",
+                                std::fprintf(stderr, " %s%s%s %.0f→%.0f", R.dofs[size_t(P.qRep[size_t(P.dofPriors[q].a)])].name,
+                                             P.dofPriors[q].b >= 0 ? "−" : "",
+                                             P.dofPriors[q].b >= 0 ? R.dofs[size_t(P.qRep[size_t(P.dofPriors[q].b)])].name : "",
                                              pra[q], prb[q]);
                         std::fprintf(stderr, "\n");
-                        for (int k = 0; k < P.nd; ++k) {
+                        for (int k = 0; k < P.nth; ++k) {
                             double ea = 0, eb = 0;
                             for (int t = rn.first; t <= rn.second; ++t) {
                                 const Dof &df = R.dofs[size_t(k)];
                                 auto lim = [&](double v) { return df.lo < df.hi ? (v < df.lo ? df.lo - v : v > df.hi ? v - df.hi : 0.0) : 0.0; };
-                                ea = std::max(ea, lim(S.th[size_t(t)][k]));
-                                eb = std::max(eb, lim(alt.th[size_t(t)][k]));
+                                ea = std::max(ea, lim(P.theta(S.th[size_t(t)])[k]));
+                                eb = std::max(eb, lim(P.theta(alt.th[size_t(t)])[k]));
                             }
                             if (ea > 2 * kDeg || eb > 2 * kDeg)
                                 std::fprintf(stderr, "[skeleton3d]   limit %s: kept %.0f° mirror %.0f° beyond\n", R.dofs[size_t(k)].name, ea / kDeg, eb / kDeg);
@@ -1866,6 +2148,8 @@ FitResult fitSkeleton(const FitInput &in)
         res.iterations += levenbergMarquardt(P, S, std::max(4, in.cfg.stage2Iters / 2), cost2);
     }
     res.costFinal = cost2;
+    res.nUnknowns = P.nd * (P.spline ? P.K : P.T);
+    for (int i = 0; i < L.n; ++i) res.nUnknowns += P.svFree[size_t(i)] ? 1 : 0;
     poseAll();
 
     // ── outputs ──
@@ -1887,6 +2171,7 @@ FitResult fitSkeleton(const FitInput &in)
         res.gripOffsetLocal[size_t(c)] = S.sv[L.iGrip + 3 + c];
         res.trailGripOffsetLocal[size_t(c)] = S.sv[L.iGrip + 6 + c];
     }
+    for (int c = 0; c < 2 * kSymGroups; ++c) res.symOffsets[size_t(c)] = S.sv[L.iSym + c];
     {
         const double an = std::max(1e-9, std::sqrt(res.gripAxisLocal[0] * res.gripAxisLocal[0]
                                                     + res.gripAxisLocal[1] * res.gripAxisLocal[1]
@@ -1939,15 +2224,18 @@ FitResult fitSkeleton(const FitInput &in)
     };
     for (int t = 0; t < T; ++t) {
         const Pose &pz = poses[size_t(t)];
-        res.theta[size_t(t)].assign(S.th[size_t(t)].data(), S.th[size_t(t)].data() + P.nd);
-        MatrixXd Dt = lin.D[size_t(t)];
+        // Written as the RIG's angles (θ = M·q): the documents, the viewer and the tests keep all 48.
+        const VectorXd thT = P.theta(S.th[size_t(t)]);
+        res.theta[size_t(t)].assign(thT.data(), thT.data() + P.nth);
+        MatrixXd Dt = lin.Dframe.empty() ? lin.D[size_t(t)] : lin.Dframe[size_t(t)];
         for (int k = 0; k < P.nd; ++k) Dt(k, k) += 1e-9;
         const MatrixXd Sig = Dt.ldlt().solve(MatrixXd::Identity(P.nd, P.nd));
         PJ pj;
         for (int j = 0; j < Rig::N; ++j) {
             res.joints[size_t(t)][size_t(j)] = pz.pos[j];
             markerPJ(P, pz, S.sv, j, {}, -1, pj);
-            const double var = (pj.dth * Sig * pj.dth.transpose()).trace() / 3.0;
+            const MatrixXd Jq = P.lean ? MatrixXd(pj.dth * P.M) : MatrixXd(pj.dth);   // through θ = M·q
+            const double var = (Jq * Sig * Jq.transpose()).trace() / 3.0;
             const double sig = std::sqrt(std::max(0.0, var));
             res.sigmaM[size_t(t)][size_t(j)] = float(sig);
             // Seen in which views, within ±100 ms?
@@ -1971,9 +2259,9 @@ FitResult fitSkeleton(const FitInput &in)
         uint8_t fl = 0;
         if (P.swapFo[size_t(t)]) { fl |= FlagSwapFo; ++res.nSwapFo; }
         if (P.hasDtl && P.swapDtl[size_t(t)]) { fl |= FlagSwapDtl; ++res.nSwapDtl; }
-        for (int k = 0; k < P.nd; ++k) {
+        for (int k = 0; k < P.nth; ++k) {
             const Dof &d = R.dofs[size_t(k)];
-            if (d.lo < d.hi && (S.th[size_t(t)][k] < d.lo - 2 * kDeg || S.th[size_t(t)][k] > d.hi + 2 * kDeg)) {
+            if (d.lo < d.hi && (thT[k] < d.lo - 2 * kDeg || thT[k] > d.hi + 2 * kDeg)) {
                 fl |= FlagLimitHeld;
                 break;
             }

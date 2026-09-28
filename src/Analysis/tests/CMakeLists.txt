@@ -694,6 +694,12 @@ pp_find_eigen(EIGEN_DIR)
 pp_add_test(skeleton3d_test
     SOURCES skeleton3d_test.cpp ${SRC}/Analysis/skeleton3d/skeleton3d_fit.cpp
     INCLUDE ${EIGEN_DIR} NO_QT)
+
+# The skeleton3d session pool (skeleton3d_pool.h, swing_3d_viz_design.md §13.2 (C)): medians, camera
+# epochs, per-swing lookup, the JSON round trip — on blocks the production writer wrote.
+pp_add_test(skeleton3d_pool_test
+    SOURCES skeleton3d_pool_test.cpp
+    INCLUDE ${EIGEN_DIR})
 if(NOT MSVC)
     target_compile_options(skeleton3d_test PRIVATE -O2)
 endif()

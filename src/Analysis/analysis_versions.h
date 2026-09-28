@@ -76,7 +76,8 @@ constexpr int kShaftFusionStageVersion = 2;   // 2: the address plane and delive
 //           shaft, the feet and any IMUs (Skeleton3DStage, skeleton3d/; swing_3d_viz_design.md).
 //           Stamped; never reused — recomputed from the reused poses on every re-analysis.
 //           Bump when skeleton3d_fit.* or skeleton3d_rig.h changes its output.
-constexpr int kSkeleton3DStageVersion = 2;   // 2: the club held to its plane where the DTL is blind + the depth-branch pass (2026-09-28)
+constexpr int kSkeleton3DStageVersion = 3;   // 2: the club held to its plane where the DTL is blind + the depth-branch pass (2026-09-28)
+                                             // 3: the lean spine + spline trajectories; session camera pool at re-analysis (2026-09-28)
 
 struct AnalysisVersions {
     int     pose  = 0;          // 0 = unknown / not stamped
