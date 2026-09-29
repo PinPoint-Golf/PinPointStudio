@@ -537,6 +537,8 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "synth.fitEvidence", c.synth.fitEvidence);
     apply(ov, "synth.evidenceAccelSigmaDps2", c.synth.evidenceAccelSigmaDps2);
     apply(ov, "synth.evidenceSigmaMeasuredDeg", c.synth.evidenceSigmaMeasuredDeg);
+    apply(ov, "synth.ballAnchorSigmaDeg", c.synth.ballAnchorSigmaDeg);
+    apply(ov, "synth.impactAnchorSigmaDeg", c.synth.impactAnchorSigmaDeg);
     apply(ov, "synth.midConfFrac", c.synth.midConfFrac);
     apply(ov, "synth.rateHz", c.synth.rateHz);
     apply(ov, "synth.curveRate", c.synth.curveRate);
@@ -1639,7 +1641,23 @@ static void synthesizeLayerC(ShaftTrack2D& out, const std::vector<int64_t>& tUs,
             }
             for (const ShaftWedgeObs& w : out.wedgeObs)
                 ev.push_back({ w.t_us, w.thetaRad, double(w.sigmaDeg) * kPi / 180.0 });
-            fitSynthToEvidence(out.synth, out.positions, ev, cfg.synth);
+            // The ball (impact_anchor.h): the hands at the P7 instant → the address ball, as a reading.
+            bool softImpact = false;
+            if (out.ballAnchored && cfg.synth.ballAnchorSigmaDeg > 0.0 && out.samples.size() >= 2) {
+                int64_t p7 = -1;
+                for (const ShaftPosition& p : out.positions) if (p.p == 7) p7 = p.t_us;
+                const auto& S = out.samples;
+                for (size_t i = 1; p7 >= 0 && i < S.size(); ++i) {
+                    if (!(S[i - 1].t_us <= p7 && p7 <= S[i].t_us && S[i].t_us > S[i - 1].t_us)) continue;
+                    const double u = double(p7 - S[i - 1].t_us) / double(S[i].t_us - S[i - 1].t_us);
+                    const QPointF g = S[i - 1].gripPx + u * (S[i].gripPx - S[i - 1].gripPx);
+                    const double th = std::atan2(out.addressBallPx.y() - g.y(), out.addressBallPx.x() - g.x());
+                    ev.push_back({ p7, th, cfg.synth.ballAnchorSigmaDeg * kPi / 180.0 });
+                    softImpact = true;
+                    break;
+                }
+            }
+            fitSynthToEvidence(out.synth, out.positions, ev, cfg.synth, softImpact);
         }
 
         // Rule 2 — the synth may not sweep past the measurements. For every tick, the

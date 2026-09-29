@@ -161,6 +161,21 @@ struct SynthConfig {
     bool    fitEvidence              = true;      // synth.fitEvidence
     double  evidenceAccelSigmaDps2   = 5000.0;    // synth.evidenceAccelSigmaDps2 (°/s²)
     double  evidenceSigmaMeasuredDeg = 3.0;       // synth.evidenceSigmaMeasuredDeg
+    // THE BALL AS EVIDENCE (impact_anchor.h). When the address ball was found, the line from the
+    // hands to it at the P7 instant is one more reading at ballAnchorSigmaDeg (its error against the
+    // 32 hand-marked contacts: sd ~3° without the four wrong-ball swings), and P7's own tracker angle
+    // softens to impactAnchorSigmaDeg so the fit can weigh the two. Pinning P7 to the ball outright
+    // bent the curve where clubhead speed is read (typical 22 mph, 2026-09-29); as evidence it is
+    // balanced against every other reading and the plausibility term instead. Without a ball, P7
+    // stays hard and nothing changes.
+    //
+    // DARK (0) since 2026-09-29, on the corpus evidence: at σ 3° the synth after impact gets closer
+    // to the hand marks (P7–P8 |median| 5.9 → 4.9°, p90 13.5 → 8.5°) but its P6–P7 tail worsens
+    // (p90 8.2 → 12.5°), and clubhead speed at P7 moves a typical 9 mph (p90 29) both ways with no
+    // launch-monitor speed on those swings to say which is right. Switch on (3.0) once a well-lit
+    // session with launch-monitor speed shows it helps.
+    double  ballAnchorSigmaDeg       = 0.0;       // synth.ballAnchorSigmaDeg (≤ 0 ⇒ the ball is not used)
+    double  impactAnchorSigmaDeg     = 8.0;       // synth.impactAnchorSigmaDeg — P7's angle, only when the ball is in
 };
 
 namespace synth_detail {
@@ -413,7 +428,8 @@ struct SynthEvidence {
 inline int fitSynthToEvidence(std::vector<ShaftSample2D>&        synth,
                               const std::vector<ShaftPosition>&  anchors,
                               const std::vector<SynthEvidence>&  evidence,
-                              const SynthConfig&                 cfg)
+                              const SynthConfig&                 cfg,
+                              bool                               softImpact = false)
 {
     using namespace synth_detail;
     if (!cfg.fitEvidence || synth.empty() || anchors.size() < 2 || evidence.empty()
@@ -439,8 +455,9 @@ inline int fitSynthToEvidence(std::vector<ShaftSample2D>&        synth,
         std::vector<Node> nd;
         size_t j = j0;
         for (int k = k0; k <= k1 + 1; ++k) {
-            nd.push_back({ anchors[size_t(k)].t_us, anchors[size_t(k)].thetaRad, true,
-                           anchors[size_t(k)].p == 7, -1 });
+            const bool softP7 = anchors[size_t(k)].p == 7 && cfg.impactAnchorSigmaDeg > 0.0 && softImpact;
+            nd.push_back({ anchors[size_t(k)].t_us, anchors[size_t(k)].thetaRad, !softP7,
+                           anchors[size_t(k)].p == 7, softP7 ? -2L : -1L });
             while (j <= j1 && brk[j] == k) { nd.push_back({ synth[j].t_us, synth[j].thetaRad, false, false, long(j) }); ++j; }
         }
         for (size_t q = 1; q < nd.size(); ++q)                     // one continuous sheet
@@ -478,6 +495,14 @@ inline int fitSynthToEvidence(std::vector<ShaftSample2D>&        synth,
             ++used;
         }
         if (used > 0 && nu > 0) {
+            // A soft P7 (tick == -2): its tracker angle is one more reading, at impactAnchorSigmaDeg.
+            for (size_t q = 0; q < N; ++q) {
+                if (nd[q].tick != -2) continue;
+                const size_t idx[1] = { q };
+                const double c[1] = { 1.0 };
+                const double sP = cfg.impactAnchorSigmaDeg * kSynthPi / 180.0;
+                addRow(idx, c, 1, nd[q].th, 1.0 / (sP * sP));
+            }
             for (size_t q = 1; q + 1 < N; ++q) {
                 if (nd[q].impact) continue;                          // contact is a break
                 const double h0 = double(nd[q].t - nd[q - 1].t) * 1e-6, h1 = double(nd[q + 1].t - nd[q].t) * 1e-6;

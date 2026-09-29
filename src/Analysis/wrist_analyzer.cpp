@@ -772,14 +772,18 @@ struct ImpactAnchorStage : AnalysisStage {
             ppInfo() << "[WristAnalysis] impact anchor: no address ball found";
             return;
         }
-        // The ball is RECORDED, not forced into the track. Pinning the synth's P7 to the ball line
-        // bent the curve at exactly the instant clubhead speed is read, and moved it by a typical
-        // 22 mph (up to 200) on the corpus (2026-09-29). Shaft lean reads the ball line itself
-        // (buildShaftLeanSeries) and low point measures from this ball; the track stays as tracked.
+        // The ball is NOT pinned into the track: pinning the synth's P7 to the ball line bent the
+        // curve at exactly the instant clubhead speed is read, and moved it by a typical 22 mph (up
+        // to 200) on the corpus (2026-09-29). Shaft lean reads the ball line itself
+        // (buildShaftLeanSeries), low point measures from this ball, and the synth takes it as one
+        // weighted reading among the rest (below).
         ppInfo() << "[WristAnalysis] impact anchor: address ball" << ball.px << "r" << ball.radiusPx
                  << "score" << ball.score;
         shaft.ballAnchored  = true;
         shaft.addressBallPx = ball.px;
+        // …and fed to the synthetic track as one more READING at P7 (shaft_synthesis.h
+        // ballAnchorSigmaDeg), weighed against every other reading — not a pin.
+        resynthesizeLayerC(shaft, ShaftV3Config::fromOverrides(ctx.job.tuningOverrides));
     }
 };
 

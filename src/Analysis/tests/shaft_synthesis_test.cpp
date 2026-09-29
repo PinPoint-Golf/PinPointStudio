@@ -376,6 +376,42 @@ int main()
               "synth.fitEvidence=false ⇒ untouched");
     }
 
+    // ── The ball as evidence: a SOFT P7 ────────────────────────────────────────────
+    //
+    // P7's tracker angle is 6° off the truth; a reading at P7 (the ball line) carries the truth. With
+    // P7 hard the curve cannot move there; with it soft the fit moves toward the ball reading — and
+    // not all the way, because P7's own angle is still a reading too.
+    std::printf("\n=== shaft_synthesis: the ball as a soft P7 reading ===\n");
+    {
+        SynthConfig cfg; cfg.enabled = true;
+        const double d2r = 3.14159265358979323846 / 180.0;
+        const ShaftPosition a = anchor(5, 0,       300, 400, 0.0, 400.0, 0.8f);
+        const ShaftPosition c = anchor(7, 60'000,  300, 400, 1.2 + 6.0 * d2r, 400.0, 0.8f);   // tracker: +6° off
+        const ShaftPosition e = anchor(8, 120'000, 300, 400, 2.0, 400.0, 0.8f);
+        const std::vector<ShaftPosition> an{ a, c, e };
+        const QPointF z(0, 0);
+        const std::vector<QPointF> gv(3, z);
+        std::vector<int64_t> ticks;
+        for (int64_t t = 0; t <= 120'000; t += 4'167) ticks.push_back(t);
+        const std::vector<double> rate{ 20.0, 20.0, 13.0 };
+        const std::vector<ShaftSample2D> start = synthesizeBetweenAnchors(an, rate, rate, gv, ticks, cfg, HandGripTrack{});
+        std::vector<SynthEvidence> ev{ { 60'000, 1.2, 3.0 * d2r } };            // the ball: the truth at P7
+        for (int64_t t = 10'000; t < 120'000; t += 10'000)                     // loose readings elsewhere
+            if (t != 60'000) ev.push_back({ t, synthSampleAt(t < 60'000 ? a : c, 20.0, z, t < 60'000 ? c : e, 20.0, z, t, cfg).thetaRad, 6.0 * d2r });
+        const auto nearP7 = [](const std::vector<ShaftSample2D>& v) {
+            const ShaftSample2D* best = nullptr;
+            for (const ShaftSample2D& s : v) if (!best || std::llabs(s.t_us - 60'000) < std::llabs(best->t_us - 60'000)) best = &s;
+            return best->thetaRad;
+        };
+        std::vector<ShaftSample2D> hard = start, soft = start;
+        fitSynthToEvidence(hard, an, ev, cfg, false);
+        fitSynthToEvidence(soft, an, ev, cfg, true);
+        const double eHard = std::abs(nearP7(hard) - 1.2) / d2r, eSoft = std::abs(nearP7(soft) - 1.2) / d2r;
+        std::printf("    |θ − truth| next to P7: P7 hard %.2f°, P7 soft + ball %.2f°\n", eHard, eSoft);
+        check(eSoft < eHard - 2.0, "a soft P7 lets the ball reading pull the curve toward the truth");
+        check(eSoft > 0.1, "…but not all the way: P7's own angle still counts");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;
 }
