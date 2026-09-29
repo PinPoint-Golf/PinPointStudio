@@ -71,7 +71,8 @@ constexpr int kDtlShaftStageVersion = 1;
 //           shaft_fusion.h). Stamped; never reused — it is a few microseconds of
 //           arithmetic on two tracks that are already in hand. Bump when
 //           shaft_fusion.h changes its output.
-constexpr int kShaftFusionStageVersion = 2;   // 2: the address plane and deliveryVsAddressDeg (2026-09-21)
+constexpr int kShaftFusionStageVersion = 3;   // 2: the address plane and deliveryVsAddressDeg (2026-09-21)
+                                              // 3: the backswing plane fitted from ADDRESS (not takeaway) (2026-09-29)
 // skeleton3d — kSkeleton3DStageVersion: the rigid, jointed skeleton fitted to both poses, the
 //           shaft, the feet and any IMUs (Skeleton3DStage, skeleton3d/; swing_3d_viz_design.md).
 //           Stamped; never reused — recomputed from the reused poses on every re-analysis.

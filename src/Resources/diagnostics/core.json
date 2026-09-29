@@ -1637,15 +1637,11 @@
       "kind": "provided",
       "metricKey": "swingPlane",
       "reducer": {
-        "kind": "delta",
-        "anchor": "p2",
-        "window": [
-          "p2",
-          "p4"
-        ]
+        "kind": "at",
+        "anchor": "p3"
       },
       "status": "live",
-      "label": "Swing plane change, P2 to the top",
+      "label": "Swing plane, backswing (address to the top)",
       "unit": "°",
       "highMeans": "the shaft climbing further above the plane it started on — steeper",
       "viewNeeded": "downTheLine"

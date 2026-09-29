@@ -1703,35 +1703,66 @@ struct ShaftFusionStage : AnalysisStage {
                 dtl.push_back({ s.t_us - dt.clockOffsetUs, s.thetaRad, s.band });
         const int64_t topUs    = ctx.seg.eventFor(Phase::Top)->t_us;
         const int64_t impactUs = ctx.seg.eventFor(Phase::Impact)->t_us;
+        // The BACKSWING plane is the average plane from ADDRESS to the top (Mark, 29 Sept: "an
+        // avg from address to top, and average from top to impact") — it used to start at the
+        // takeaway. The still frames at address add little to the fit (the face-on track coasts
+        // there, and a Bridged sample never enters a plane fit), but the window is the stated one.
         int64_t backFromUs = topUs - 900000;
         if (const auto tk = ctx.seg.eventFor(Phase::Takeaway); tk && tk->t_us < topUs)
             backFromUs = tk->t_us;
+        if (const auto ad = ctx.seg.eventFor(Phase::Address); ad && ad->t_us < topUs)
+            backFromUs = ad->t_us;
         // The address plane is read from the DTL frames up to the takeaway (P1 on this ladder).
-        const int64_t addressToUs = ctx.seg.eventFor(Phase::Address)
-                                        ? ctx.seg.eventFor(Phase::Address)->t_us : backFromUs;
+        int64_t addressToUs = backFromUs;
+        if (const auto tk = ctx.seg.eventFor(Phase::Takeaway); tk && tk->t_us < topUs)
+            addressToUs = tk->t_us;
+        if (const auto ad = ctx.seg.eventFor(Phase::Address))
+            addressToUs = ad->t_us;
         ctx.detail->shaft3d = fusion::fuseTracks(angleTrack(fo.samples, false), angleTrack(fo.synth, true),
                                                  dtl, backFromUs, topUs, impactUs + 20000, cfg, addressToUs);
         ctx.detail->shaft3dCfg = cfg;
         ctx.detail->versions.shaftFusion = kShaftFusionStageVersion;
         const fusion::Track3D &t = ctx.detail->shaft3d;
-        // swingPlane — the DOWNSWING shaft plane against the ADDRESS shaft plane, in degrees, + =
-        // delivered steeper (above the plane the shaft started on). One fitted plane, so the series
-        // is that one number held over top → impact and nowhere else: the P2→P4 backswing reading
-        // of the same key finds no sample and stays absent, which is the truth — the backswing is
-        // not one plane and the DTL view is end-on at both of its ends.
-        if (std::isfinite(t.deliveryVsAddressDeg)) {
+        // swingPlane — the shaft's AVERAGE plane against the ADDRESS shaft plane, in degrees, + =
+        // steeper (above the plane the shaft started on), as TWO averages: the backswing plane
+        // (the fit over address → top) held from address up to the top, then the downswing plane
+        // (the fit over top → impact) held from the top to impact. The card reads one in each half
+        // (P3, P6) and their difference; the diagnostics pack reads the backswing plane at P3 and
+        // the delivery plane at P6.
+        //
+        // The backswing half is published only when its fit is COHERENT: above
+        // backIncoherentDeg of scatter the "plane" is most likely a mirrored DTL band, not a
+        // swing. The downswing half keeps its stricter `offered` gate. Either half may be absent
+        // on its own, and the other is still published.
+        {
             MetricSeries m;
             m.key   = QStringLiteral("swingPlane");
             m.label = QStringLiteral("Swing plane");
             m.unit  = QStringLiteral("°");
-            for (int64_t us = topUs; us <= impactUs; us += 5000) {
-                m.t_us.push_back(us);
-                m.value.push_back(t.deliveryVsAddressDeg);
-            }
-            for (Phase p : { Phase::ArmParallelDown, Phase::Delivery })
-                if (const PhaseEvent *e = ctx.seg.eventFor(p); e && e->t_us >= topUs && e->t_us <= impactUs)
-                    m.phaseSamples.push_back({ p, e->t_us, t.deliveryVsAddressDeg, QString() });
-            m.sigma = t.down.oopRmsDeg;
+            const bool haveAddr = std::isfinite(t.addressInclDeg);
+            const double backVs = (haveAddr && t.back.fitted && !t.backIncoherent)
+                                      ? t.back.inclDeg - t.addressInclDeg
+                                      : std::numeric_limits<double>::quiet_NaN();
+            const double downVs = t.deliveryVsAddressDeg;
+            if (std::isfinite(backVs))
+                for (int64_t us = backFromUs; us < topUs; us += 5000) {
+                    m.t_us.push_back(us);
+                    m.value.push_back(backVs);
+                }
+            if (std::isfinite(downVs))
+                for (int64_t us = topUs; us <= impactUs; us += 5000) {
+                    m.t_us.push_back(us);
+                    m.value.push_back(downVs);
+                }
+            const auto sampleAt = [&](Phase p, double v, int64_t lo, int64_t hi) {
+                if (!std::isfinite(v)) return;
+                if (const PhaseEvent *e = ctx.seg.eventFor(p); e && e->t_us >= lo && e->t_us <= hi)
+                    m.phaseSamples.push_back({ p, e->t_us, v, QString() });
+            };
+            sampleAt(Phase::MidBackswing,    backVs, backFromUs, topUs - 1);
+            sampleAt(Phase::ArmParallelDown, downVs, topUs, impactUs);
+            sampleAt(Phase::Delivery,        downVs, topUs, impactUs);
+            m.sigma = std::isfinite(downVs) ? t.down.oopRmsDeg : t.back.oopRmsDeg;
             if (m.t_us.size() >= 2) ctx.detail->series.push_back(std::move(m));
         }
         ppInfo() << "[WristAnalysis] shaft fusion:" << qlonglong(t.samples.size()) << "/" << t.nDtlPublished
