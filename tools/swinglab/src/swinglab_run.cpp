@@ -847,6 +847,25 @@ int main(int argc, char **argv)
                     line.insert("wedge_cen", trace.wedgeCentroidDeg[size_t(f)]);
                     line.insert("wedge_w",   trace.wedgeWidthDeg[size_t(f)]);
                 }
+                // The rows behind the wedge (ShaftTrackTrace::wedgeRow*), on every TRIGGERED frame
+                // whether or not a candidate came out of them — a rejected frame is evidence too.
+                if (f < int(trace.wedgeRowDeg.size()) && !trace.wedgeRowDeg[size_t(f)].empty()) {
+                    auto arr = [](const std::vector<float> &v) {
+                        QJsonArray a;
+                        for (float x : v) a.append(double(std::lround(double(x) * 1000.0)) / 1000.0);
+                        return a;
+                    };
+                    line.insert("wrow_deg", arr(trace.wedgeRowDeg[size_t(f)]));
+                    line.insert("wrow_raw", arr(trace.wedgeRowRaw[size_t(f)]));
+                    if (!trace.wedgeRowDif[size_t(f)].empty())
+                        line.insert("wrow_dif", arr(trace.wedgeRowDif[size_t(f)]));
+                    line.insert("env_c", trace.wedgeEnvCenterDeg[size_t(f)]);
+                    line.insert("env_h", trace.wedgeEnvHalfDeg[size_t(f)]);
+                    if (f < int(trace.wedgeLeadDeg.size()) && std::isfinite(trace.wedgeLeadDeg[size_t(f)]))
+                        line.insert("wedge_lead", trace.wedgeLeadDeg[size_t(f)]);
+                    if (f < int(trace.wedgeTrailDeg.size()) && std::isfinite(trace.wedgeTrailDeg[size_t(f)]))
+                        line.insert("wedge_trail", trace.wedgeTrailDeg[size_t(f)]);
+                }
                 tf.write(QJsonDocument(line).toJson(QJsonDocument::Compact) + "\n");
             }
             QJsonObject summary{
