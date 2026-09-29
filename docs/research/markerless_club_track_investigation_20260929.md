@@ -91,12 +91,21 @@ with a B pose. The studio's library sweeps have been writing B poses over High s
 - Verified on the studio with no workaround in place: the patched `swinglab_run` loads
   ViTPose++-L by itself.
 
-**Library.**
-- 16 Sept Wrist_02 s2 was re-analysed in place on the studio (`--force-rerun --write-back`):
-  pose L, cov 0.69 → 0.96, P1 132° → 100°, P3 341° → 261°, metric count 62 → 62.
-- The other 6 High swings (16 Sept Wrist_01 s1–s3, Wrist_02 s1 and s3, Wrist_03 s1) are
-  **not yet rewritten**.
-- Backups of all 7 pre-fix documents: `/mnt/swingdata/scratch/backup-pre-L-20260929/`.
+**Library.** All 7 High swings were re-analysed in place on the studio on 29 Sept
+(`--force-rerun --write-back`, the fixed Release exe), all on ViTPose-L, and none lost a metric:
+
+| 16 Sept swing | Before (B): cov / P1 / P3 / metrics | After (L): cov / P1 / P3 / metrics |
+|---|---|---|
+| Wrist_01 s1 | no club track / – / – / 54 | 0.88 / 97° / 260° / 65 |
+| Wrist_01 s2 | 0.86 / 95° / 260° / 65 | 0.87 / 100° / 256° / 65 |
+| Wrist_01 s3 | 0.85 / 91° / 256° / 65 | 0.89 / 98° / 256° / 65 |
+| Wrist_02 s1 | 0.78 / 122° / – / 57 | 0.94 / 97° / 259° / 57 |
+| Wrist_02 s2 | 0.69 / 132° / 341° / 62 | 0.96 / 100° / 261° / 62 |
+| Wrist_02 s3 | 0.94 / 99° / 270° / 62 | 0.98 / 101° / 264° / 62 |
+| Wrist_03 s1 | 0.82 / 89° / 260° / 57 | 0.85 / 81° / 252° / 57 |
+
+Backups of all 7 pre-fix documents: `/mnt/swingdata/scratch/backup-pre-L-20260929/`. Delete them
+once Mark has reviewed the swings in the app.
 
 ## 5. 15 Sept: the impact-camera rig hides the ball
 
@@ -194,7 +203,7 @@ Suggested order:
 | # | Fix | State |
 |---|---|---|
 | 1 | Large-model path independent of the executable; warn on a High → B fallback | done; verified on Mac and studio |
-| 2 | Re-analyse the 7 High swings with L | approved by Mark 29 Sept; see the library note in §4 |
+| 2 | Re-analyse the 7 High swings with L | done 29 Sept, 7 / 7 clean, no metric lost (§4) |
 | 3 | 15 Sept diagnosis | done: the impact-camera rig hides the ball (§5), confirmed by Mark |
 | 3a | Session ⚠ and face-on marked unusable when the ball is hidden | specified (§5a), not built |
 | 4 | Tracker fails soft on a poor pose or missing ball | next session |
