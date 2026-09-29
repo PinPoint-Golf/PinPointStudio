@@ -171,12 +171,22 @@ not be offered. The evidence says the setting is not the variable:
 **Recommendation:** keep Medium; the evidence does not implicate it. Mark's rule stands: if
 markerless tracking is ever shown to break at Medium, Medium is removed as an option.
 
-**Stale club record.** 16 Sept Wrist_02's record says "7 IRON" with bands at
-308/362/560/758/808/854 mm, but the club was an untaped 6-iron. The tracker therefore ran band
-matching (E1) against a bare shaft, and the club lengths it used were a 7-iron's. It tracked
-correctly on L regardless, but its numbers (lengths, speeds) rest on the wrong club. Wrist_03
-carries the same record and is unconfirmed. The swing documents should be corrected before
-their metrics are trusted.
+**Stale club record (corrected 29 Sept).** 16 Sept Wrist_02's record said "7 IRON", 940 mm,
+bands at 308/362/560/758/808/854 mm, but the club was an untaped 6-iron (Mark). So the tracker
+ran band matching (E1) against a bare shaft, with a 7-iron's lengths and pixel length prior.
+
+The three Wrist_02 documents now carry the 6-iron record PPS wrote for the same club on 9 Sept:
+"6 IRON", 953 mm, no bands, no length prior. They were re-analysed on the studio (shaft re-run,
+ViTPose-L), with the tracks unchanged and clean and no metric lost:
+
+| Swing | Coverage | P1 | P3 | Metrics |
+|---|---|---|---|---|
+| s1 | 0.94 | 97° | 259° | 57 |
+| s2 | 0.96 | 100° | 261° | 62 |
+| s3 | 0.98 | 101° | 264° | 62 |
+
+Backups: `/mnt/swingdata/scratch/backup-club-6i-20260929/`. Wrist_03 carries the same 7-iron
+record and is unconfirmed.
 
 ## 7. The underlying weakness (next session's work, item 4)
 
@@ -207,7 +217,7 @@ Suggested order:
 | 3 | 15 Sept diagnosis | done: the impact-camera rig hides the ball (§5), confirmed by Mark |
 | 3a | Session ⚠ and face-on marked unusable when the ball is hidden | specified (§5a), not built |
 | 4 | Tracker fails soft on a poor pose or missing ball | next session |
-| — | Correct 16 Sept Wrist_02 (and Wrist_03?) club record | needs Mark's confirmation of the clubs |
+| — | Correct the 16 Sept Wrist_02 club record | done 29 Sept (6-iron, re-analysed); Wrist_03 unconfirmed |
 
 ## 9. How it was established (reproducible)
 
