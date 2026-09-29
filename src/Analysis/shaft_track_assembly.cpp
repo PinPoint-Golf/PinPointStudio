@@ -2045,6 +2045,9 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     }
     std::vector<WedgeEdges> wedgeEdge(static_cast<size_t>(nf));
     const bool useEdges = cfg.wedge.enabled && cfg.wedge.leadEdge;
+    // A frame that reads the blur's EDGES rather than its centroid: from the top onward (see the
+    // measurement below for why not before it).
+    const auto edgeFrame = [&](int i) { return useEdges && (pm.top < 0 || i > pm.top); };
     // E4 per-frame probe (P3a, design §4.8 item 1): along the DP's own
     // direction — and the band's when E1 locked — never along E2 candidates,
     // which a crease or the lead arm wins on a third of frames. Called after
@@ -2134,7 +2137,13 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             }
             wedgeCand[size_t(i)] = measureWedge(pRaw.score, pDif, proxDeg, phiS[i],
                                                 cfg.armVetoDeg, cfg.evAbsFloor, cfg.wedge);
-            if (useEdges) {
+            // FROM THE TOP ONWARD ONLY. Before it the model's ω̂ is high around the top (700–980 °/s
+            // on 06-11 s7) while the club is actually REVERSING, so the "second peak" is not the
+            // blur's other end and "further along the rotation" is a guess: there the leading edge
+            // took a structure ~70° off the shaft and the DP carried the whole backswing, address
+            // included, onto it (P1 102° → 237°, 24 face-on/DTL sign disagreements). Before the top
+            // the wedge keeps its centroid, exactly as it was.
+            if (edgeFrame(i)) {
                 const double w = omegaPred[size_t(i)];
                 wedgeEdge[size_t(i)] = measureWedgeEdges(pRaw.score, pDif, proxDeg,
                                                          w > 0.0 ? 1 : (w < 0.0 ? -1 : 0),
@@ -2194,7 +2203,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         if (useEdges && tExpEdgeS > 0.0) wedgeTExp = tExpEdgeS;
         for (int i = 0; i < nf; ++i) {
             if (!wedgeTrig[size_t(i)]) continue;
-            if (useEdges) {
+            if (edgeFrame(i)) {
                 // THE LEADING EDGE: the shaft at the end of the exposure, which is the frame time.
                 // σ is the edge's own measured precision, not a half-width — the plateau width
                 // this used to take is not a blur measurement at all.
@@ -2492,7 +2501,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         // line, so it earns the wedge blessing (and spanMeas coverage) at
         // wedge.conf, deliberately below RAY's 0.55.
         if (tier == PRED && wedgeTrig[size_t(i)]
-            && (useEdges ? (wedgeEdge[size_t(i)].ok
+            && (edgeFrame(i) ? (wedgeEdge[size_t(i)].ok
                             && std::abs(circWrap(thDp - wedgeEdge[size_t(i)].leadDeg))
                                    <= wedgeSigmaDeg[size_t(i)] + cfg.wedge.dpTolDeg)
                          : (wedgeCand[size_t(i)].ok

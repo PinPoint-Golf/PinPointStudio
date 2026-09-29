@@ -50,6 +50,25 @@ added with this work.
 The synth plausibility scale (`synth.evidenceAccelSigmaDps2`) was tuned over 1k–80k °/s²;
 5 000 was best on the marks at a plausible peak |θ̈| (table in `shaft_synthesis.h`).
 
+## The 3-D fusion (34 DTL corpus swings, old tracker vs new, same build via config)
+
+The fused shaft and its plane fits are essentially unchanged: downswing plane rms 1.90 → 1.98°
+(median), |off-plane| within ±40 ms of impact 1.11 → 1.09°, plane readings shifted 0.02° median,
+sign disagreements 43 → 42, usable downswing planes 28 → 27 (07-03 s4 had exactly the minimum 8
+usable frames; two became wedge readings — that session's DTL placement is unusable for plane
+work anyway). Improvements on 07-04 s2/s3 (near-impact off-plane 4.6 → 2.2°, 4.2 → 2.6°) and
+07-03 s10 (12 → 7 sign disagreements).
+
+The first cut applied the leading edge before the top too, where the model's ω̂ is high while the
+club reverses: on 06-11 s7 it took a structure ~70° off the shaft and the DP carried the whole
+backswing onto it (P1 102° → 237°, 24 sign disagreements, both planes lost). Edges now apply from
+the top onward only; 06-11 s7 is back to 0 disagreements with both planes.
+
+Tried and NOT kept: counting wedge face-on frames as measured in the fusion. Near-impact
+|off-plane| improves (1.09 → 0.96°) but the downswing plane gets noisier (rms 1.98 → 2.24°,
+06-11 s9 1.31 → 2.68°) — wedge readings (±4.5°) are rougher than thin-line ones, and the planes
+feed the Plane metric.
+
 ## Still open
 
 - Impact TIMING: pipeline P7 median +4 ms after the mark (sd 6); 06-11 s8 is 19 ms early (+26°
