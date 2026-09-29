@@ -100,6 +100,15 @@ MetricSeries buildShaftLeanSeries(const ShaftTrack2D &shaft, int handedness,
     // spread so no corridor grades this narrower than the instrument; the BIAS is deliberately not
     // subtracted — a producer that quietly corrects itself hides the fault that needs fixing
     // (candidates: the 6.5 ms exposure smear at impact, the P7 emission geometry).
+    //
+    // FOUND AND FIXED 2026-09-29: it was the exposure smear. The blurred shaft images as two ridges
+    // — where the exposure started and where it ended — and the tracker took the trailing one
+    // (shaft_wedge.h WedgeConfig::leadEdge). Reading the leading edge, and letting it rather than the
+    // arm witness the impact frames the ψ reconstruction got wrong, moves the 32 hand-marked P7s from
+    // +12.5° median (11/32 within ±10°) to 0.0° (23/32). The SPREAD is unchanged — robust σ 9.6°,
+    // sd 9.9° — because what remains is impact TIMING × a shaft turning ~2°/ms, a few thin-line
+    // impact frames still ~13° forward, and decode-level instability on one swing. So σ stays 9.5,
+    // now measured with no bias behind it.
     m.sigma = 9.5;
 
     const double sgn = (handedness == 2) ? -1.0 : 1.0;
@@ -127,8 +136,19 @@ MetricSeries buildShaftLeanSeries(const ShaftTrack2D &shaft, int handedness,
         const int64_t dt = std::llabs(s.t_us - impactUs);
         if (dt < bestDt) { bestDt = dt; impact.t_us = s.t_us; impact.value = deg; }
     }
-    if (bestDt != std::numeric_limits<int64_t>::max())
+    // ANCHOR THE SHEET AT IMPACT. The unwrap above runs from the first sample, so one frame ~180° off
+    // anywhere in the swing (a wrong peak, an arm) adds a full turn to everything after it — 07-03 s11
+    // read +362° at impact on 2026-09-29. Lean is only a reading AT impact, so the whole curve is
+    // shifted by whole turns to put the impact value in (−180°, 180°]: the shape is untouched, the
+    // headline number cannot inherit a glitch from the backswing.
+    if (bestDt != std::numeric_limits<int64_t>::max()) {
+        const double shift = impact.value - std::remainder(impact.value, 360.0);
+        if (shift != 0.0) {
+            for (double &v : m.value) v -= shift;
+            impact.value -= shift;
+        }
         m.phaseSamples.push_back(impact);
+    }
     return m;
 }
 
