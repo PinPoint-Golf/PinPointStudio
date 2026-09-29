@@ -745,6 +745,21 @@ struct ShaftPosition {
     TimingClass timing     = TimingClass::Measured;
 };
 
+// One timed observation of the shaft angle read off a motion-blurred frame (shaft_wedge.h
+// measureWedgeEdges). A blurred frame is not one instant: the shaft sweeps through the exposure, and
+// the sweep's two ends are separately visible. LEAD is the shaft at exposure END — the frame time;
+// TRAIL at exposure START (frame time − exposure); MID the midpoint of the two, at mid-exposure.
+// TRAIL and MID exist only when the two edges sit as far apart as the blur predicts. They are
+// EVIDENCE for the synthetic track through the fast part of the swing, where a frame every 6.6 ms is
+// too sparse to pin the club down (Mark, 2026-09-29): three timed readings per frame, not one.
+enum class ShaftWedgeObsKind : uint8_t { Trail = 0, Mid = 1, Lead = 2 };
+struct ShaftWedgeObs {
+    int64_t           t_us     = 0;
+    double            thetaRad = 0.0;   // image atan2 convention, like ShaftSample2D::thetaRad
+    ShaftWedgeObsKind kind     = ShaftWedgeObsKind::Lead;
+    float             sigmaDeg = 0.f;
+};
+
 struct ShaftTrack2D {
     pinpoint::SourceId camera = pinpoint::kInvalidSourceId;
     bool  valid = false;        // coverage gate over the swing span (all-or-nothing for consumers)
@@ -799,6 +814,9 @@ struct ShaftTrack2D {
     // is defined on it outright (club_delivery.h — the head detector does not hold
     // a lock through impact). The real per-frame track stays in `samples`.
     std::vector<ShaftSample2D> synth;
+    // The blurred frames' timed edge readings (ShaftWedgeObs), in time order — on every frame the
+    // tracker accepted as a WEDGE measurement. Empty when the wedge or its edges are off.
+    std::vector<ShaftWedgeObs> wedgeObs;
 };
 
 // The IMU→segment binding as persisted in swing.json (keyed by the device

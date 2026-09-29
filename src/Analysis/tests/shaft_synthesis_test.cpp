@@ -301,6 +301,81 @@ int main()
         check(identical, "an unavailable hand track reproduces the legacy output bit for bit");
     }
 
+    // ── The curve between the anchors follows the evidence (fitSynthToEvidence) ────
+    //
+    // Four anchors through the fast part of the swing, P5 → P6 → P7 → P8. The TRUE curve accelerates
+    // into impact and loses speed AT it (30 rad/s in, 12 out). The synth starts from the anchors
+    // alone with every rate at its bracket's mean; readings of the true curve every 3.3 ms must pull
+    // it onto the truth — without moving an anchor and without smoothing across contact.
+    std::printf("\n=== shaft_synthesis: the curve follows the evidence ===\n");
+    {
+        SynthConfig cfg; cfg.enabled = true; cfg.rateHz = 240.0;
+        const ShaftPosition a = anchor(5, 0,       300, 400, 0.0, 400.0, 0.8f);
+        const ShaftPosition b = anchor(6, 50'000,  300, 400, 0.8, 400.0, 0.8f);
+        const ShaftPosition c = anchor(7, 100'000, 300, 400, 2.0, 400.0, 0.8f);
+        const ShaftPosition d = anchor(8, 150'000, 300, 400, 2.6, 400.0, 0.8f);
+        const std::vector<ShaftPosition> an{ a, b, c, d };
+        const QPointF z(0, 0);
+        const std::vector<QPointF> gv(4, z);
+        const std::vector<double> tIn{ 8.0, 20.0, 30.0, 12.0 }, tOut{ 8.0, 20.0, 12.0, 12.0 };  // truth
+        const auto truth = [&](int64_t t) {
+            if (t < 50'000)  return synthSampleAt(a, tOut[0], z, b, tIn[1], z, t, cfg).thetaRad;
+            if (t < 100'000) return synthSampleAt(b, tOut[1], z, c, tIn[2], z, t, cfg).thetaRad;
+            return synthSampleAt(c, tOut[2], z, d, tIn[3], z, t, cfg).thetaRad;
+        };
+        std::vector<int64_t> ticks;
+        for (int64_t t = 0; t <= 150'000; t += 4'167) ticks.push_back(t);
+        const std::vector<double> mean{ 16.0, 20.0, 18.0, 12.0 };      // wrong: bracket means
+        const std::vector<ShaftSample2D> start = synthesizeBetweenAnchors(an, mean, mean, gv, ticks, cfg, HandGripTrack{});
+        std::vector<SynthEvidence> ev;
+        for (int64_t t = 1'650; t < 150'000; t += 3'300)
+            ev.push_back({ t, truth(t), 1.0 * 3.14159265358979323846 / 180.0 });
+        const auto maxErr = [&](const std::vector<ShaftSample2D>& v) {
+            double m = 0;
+            for (const ShaftSample2D& s : v) m = std::max(m, std::abs(std::remainder(s.thetaRad - truth(s.t_us), 2.0 * 3.14159265358979323846)));
+            return m * 180.0 / 3.14159265358979323846;
+        };
+        std::vector<ShaftSample2D> fit = start;
+        const int used = fitSynthToEvidence(fit, an, ev, cfg);
+        std::printf("    max |θ − truth|: anchors only %.2f°, fitted %.2f°\n", maxErr(start), maxErr(fit));
+        check(used == int(ev.size()), "every reading inside the anchors is used");
+        check(maxErr(fit) < 0.5 * maxErr(start) && maxErr(fit) < 1.5, "the fitted curve sits on the truth (< 1.5°, half the anchors-only error)");
+
+        // The anchors are the P-positions' definitions: the first and last tick either side of P6
+        // bracket P6's angle, however hard the evidence pulled.
+        const double eps = 1e-9;
+        bool anchored = true;
+        for (size_t j = 0; j + 1 < fit.size(); ++j)
+            if (fit[j].t_us < b.t_us && fit[j + 1].t_us > b.t_us)
+                anchored = std::min(fit[j].thetaRad, fit[j + 1].thetaRad) - eps <= b.thetaRad
+                        && b.thetaRad <= std::max(fit[j].thetaRad, fit[j + 1].thetaRad) + eps;
+        check(anchored, "P6's angle still lies on the curve");
+
+        // Contact is a break: the rate just before P7 is the approach, just after it the departure.
+        double before = 0, after = 0;
+        for (const ShaftSample2D& s : fit) {
+            if (s.t_us < c.t_us && s.t_us > c.t_us - 5'000) before = s.thetaDotRadS;
+            if (s.t_us > c.t_us && s.t_us < c.t_us + 5'000 && after == 0) after = s.thetaDotRadS;
+        }
+        check(before > 24.0 && after < 18.0, "the club loses speed AT impact — not smoothed across contact");
+
+        // Plausibility vs fit: a much stiffer curve trusts the evidence less.
+        SynthConfig stiff = cfg; stiff.evidenceAccelSigmaDps2 = 200.0;
+        std::vector<ShaftSample2D> fs = start;
+        fitSynthToEvidence(fs, an, ev, stiff);
+        check(maxErr(fs) > maxErr(fit), "a stiffer plausibility scale follows the evidence less closely");
+
+        std::vector<ShaftSample2D> none = start;
+        check(fitSynthToEvidence(none, an, {}, cfg) == 0, "no evidence ⇒ nothing fitted");
+        bool same = true;
+        for (size_t j = 0; j < none.size(); ++j) same = same && none[j].thetaRad == start[j].thetaRad;
+        check(same, "…and the anchors-only curve is untouched, bit for bit");
+        SynthConfig off = cfg; off.fitEvidence = false;
+        std::vector<ShaftSample2D> o = start;
+        check(fitSynthToEvidence(o, an, ev, off) == 0 && o[3].thetaRad == start[3].thetaRad,
+              "synth.fitEvidence=false ⇒ untouched");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;
 }

@@ -132,6 +132,13 @@ ShaftTrack2D shaftTrackFromAnalysisJson(const QJsonObject &club, pinpoint::Sourc
         t.predicted.push_back(sampleFrom(v.toObject(), w, h));
     for (const QJsonValue &v : club.value(QStringLiteral("synth")).toArray())
         t.synth.push_back(sampleFrom(v.toObject(), w, h));
+    for (const QJsonValue &v : club.value(QStringLiteral("wedgeObs")).toArray()) {
+        const QJsonArray a = v.toArray();
+        if (a.size() < 4) continue;
+        t.wedgeObs.push_back({ int64_t(a.at(0).toDouble()), a.at(1).toDouble(),
+                               ShaftWedgeObsKind(std::clamp(a.at(2).toInt(), 0, 2)),
+                               float(a.at(3).toDouble()) });
+    }
 
     for (const QJsonValue &v : club.value(QStringLiteral("positions")).toArray()) {
         const QJsonObject o = v.toObject();

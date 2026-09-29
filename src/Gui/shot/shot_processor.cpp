@@ -531,6 +531,13 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
             { QStringLiteral("predicted"),     predicted } };
         if (!positions.isEmpty()) clubMap.insert(QStringLiteral("positions"), positions);
         if (!synth.isEmpty())     clubMap.insert(QStringLiteral("synth"), synth);
+        // Mirrors swing_doc.cpp's analysis.club.wedgeObs.
+        if (!a.shaft.wedgeObs.empty()) {
+            QVariantList wo;
+            for (const ShaftWedgeObs &w : a.shaft.wedgeObs)
+                wo.append(QVariantList{ qint64(w.t_us), w.thetaRad, int(w.kind), double(w.sigmaDeg) });
+            clubMap.insert(QStringLiteral("wedgeObs"), wo);
+        }
         detail.insert(QStringLiteral("club"), clubMap);
     }
     // Ball track (v3.4 design §9) for the replay overlay — normalized [0,1]

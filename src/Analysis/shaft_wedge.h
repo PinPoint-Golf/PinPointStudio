@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <vector>
@@ -80,6 +81,36 @@ struct WedgeConfig {
     // better and the rate got worse. Separating the trigger from the centre is
     // the prerequisite for flipping this — see docs/research/wrist_cock_model.md.
     bool   kinModelV2       = false;
+
+    // ── THE BLUR'S EDGES, NOT ITS CENTRE (2026-09-29) ─────────────────────────────────────────
+    //
+    // The proximal sweep is a RIDGE detector, and a blurred shaft is not a filled fan to it: it
+    // answers at the fan's two ENDS — the shaft where the exposure started and where it ended —
+    // as two separate peaks about ω·t_exp apart (08-18 s4 at impact: 106° and 88°, the tracker's
+    // own θ moving 121 → 106 → 88 frame to frame). The centroid of the above-threshold run sits
+    // near the larger, TRAILING peak, which is where the +13° impact shaft-lean bias came from.
+    // Against 123 hand-marked downswing frames (32 corpus swings, 2026-09-29) the LEADING peak reads
+    // −1.2° median (|4.6|), the tracker as it was +6.4° (|8.2|), the trailing peak +10.4°; at
+    // 16°+/frame the tracker was +15.9° and the leading peak +1.6°.
+    //
+    // The leading edge is the shaft at the END of the exposure, which is the frame's timestamp. The
+    // trailing edge is the shaft at its START (frame time − exposure), and their midpoint the
+    // mid-exposure angle; both are real only when the second peak sits where the blur predicts —
+    // at slow rotation the second peak stays ~12° away whatever the speed, i.e. it is the hands or
+    // an arm, not the other end of a blur. So the trailing edge is kept only when its separation
+    // from the leading one matches |ω̂|·t_exp.
+    //
+    // false ⇒ the centroid path above, byte-for-byte.
+    bool   leadEdge         = true;
+    double edgePeakRel      = 0.35;    // a peak must reach this fraction of the profile's maximum
+    double edgeMinSepDeg    = 4.0;     // two peaks closer than this are one peak
+    double edgeSigmaDeg     = 4.5;     // σ_θ of an edge (the hand-mark |median| is 4.6°)
+    double trailTolDeg      = 4.0;     // trailing peak kept if |sep − |ω̂|·t_exp| ≤ max(this,
+    double trailTolFrac     = 0.5;     //   this × |ω̂|·t_exp)
+    // The camera's exposure (µs) as recorded with the stream; ≤ 0 ⇒ unknown, and the tracker takes
+    // 99 % of the frame period — what every session that DID record it shows (6573.6 µs at
+    // 150.713 fps, 6635 µs per frame, 2026-07-08 onward).
+    double exposureUs       = 0.0;
 };
 
 // t_exp plausibility clamp (s): global-shutter golf capture sits within
@@ -172,6 +203,95 @@ inline WedgeCandidate measureWedge(const std::vector<float>& rawScore,
     out.centroidDeg = cen;
     out.widthDeg    = double(bestB - bestA) * stepDeg;
     out.energy      = bestEnergy;
+    return out;
+}
+
+// The blur's edges (WedgeConfig::leadEdge). All angles in the image atan2 convention, degrees.
+struct WedgeEdges {
+    bool   ok       = false;
+    double leadDeg  = 0.0;     // shaft at exposure END (the frame time)
+    bool   hasTrail = false;
+    double trailDeg = 0.0;     // shaft at exposure START — only when the separation fits the blur
+    double midDeg   = 0.0;     // mid-exposure: the midpoint of the two, only with a trail
+    double sepDeg   = 0.0;     // |lead − trail| of the two peaks considered (0 = one peak)
+};
+
+// Peaks of the same per-θ rows measureWedge reads (max of the two channels, [1 2 1]/4 smoothed,
+// parabolic sub-bin), taken greedily by height at least edgeMinSepDeg apart. Of the two highest,
+// the LEADING one is the one further along the direction of rotation `rotSign` (+1 = θ increasing
+// with time, −1 = decreasing; a left-handed swing simply arrives with the other sign). The other is
+// the trailing edge when |sep − expectedSweepDeg| is within tolerance. Same honesty contract as
+// measureWedge: nothing reaches the absolute threshold ⇒ no candidate; a leading edge within
+// armVetoDeg of φ+180 is the trail-arm smear ⇒ no candidate.
+inline WedgeEdges measureWedgeEdges(const std::vector<float>& rawScore,
+                                    const std::vector<float>& difScore,
+                                    const std::vector<float>& binDeg,
+                                    int rotSign, double expectedSweepDeg,
+                                    double phiSDeg, double armVetoDeg,
+                                    double absFloorRef, const WedgeConfig& cfg)
+{
+    WedgeEdges out;
+    const size_t n = binDeg.size();
+    if (n < 3 || rawScore.size() != n || (!difScore.empty() && difScore.size() != n)) return out;
+    if (absFloorRef <= 0.0 || rotSign == 0) return out;
+    auto wrapDeg = [](double d) {
+        d = std::fmod(d + 180.0, 360.0);
+        if (d < 0) d += 360.0;
+        return d - 180.0;
+    };
+    std::vector<double> p(n);
+    double pmax = 0.0;
+    for (size_t j = 0; j < n; ++j) {
+        p[j] = std::max(double(rawScore[j]), difScore.empty() ? 0.0 : double(difScore[j]));
+        pmax = std::max(pmax, p[j]);
+    }
+    if (pmax < cfg.threshScale * absFloorRef) return out;   // never fabricate
+    std::vector<double> s(n);
+    for (size_t j = 0; j < n; ++j)
+        s[j] = (p[j > 0 ? j - 1 : 0] + 2.0 * p[j] + p[j + 1 < n ? j + 1 : n - 1]) / 4.0;
+    const double smax = *std::max_element(s.begin(), s.end());
+    if (!(smax > 0.0)) return out;
+
+    // Angles as offsets from bin 0 along the arc, so an arc across 0°/360° stays monotone.
+    struct Pk { double off, h; };
+    std::vector<Pk> pk;
+    for (size_t j = 1; j + 1 < n; ++j) {
+        if (!(s[j] >= s[j - 1] && s[j] > s[j + 1] && s[j] >= cfg.edgePeakRel * smax)) continue;
+        const double a = s[j - 1], b = s[j], c = s[j + 1], den = a - 2.0 * b + c;
+        const double sub = den != 0.0 ? std::clamp(0.5 * (a - c) / den, -0.5, 0.5) : 0.0;
+        const double step = wrapDeg(double(binDeg[j + 1]) - double(binDeg[j]));
+        pk.push_back({ wrapDeg(double(binDeg[j]) - double(binDeg[0])) + sub * step, b });
+    }
+    if (pk.empty()) return out;
+    std::sort(pk.begin(), pk.end(), [](const Pk& x, const Pk& y) { return x.h > y.h; });
+    std::vector<Pk> keep;
+    for (const Pk& q : pk) {
+        bool apart = true;
+        for (const Pk& k : keep) apart = apart && std::abs(q.off - k.off) >= cfg.edgeMinSepDeg;
+        if (apart) keep.push_back(q);
+        if (keep.size() == 2) break;
+    }
+    const auto toDeg = [&](double off) {
+        double d = std::fmod(double(binDeg[0]) + off, 360.0);
+        return d < 0 ? d + 360.0 : d;
+    };
+    double leadOff = keep[0].off;
+    if (keep.size() == 2) {
+        const bool secondLeads = double(rotSign) * (keep[1].off - keep[0].off) > 0.0;
+        leadOff = secondLeads ? keep[1].off : keep[0].off;
+        const double trailOff = secondLeads ? keep[0].off : keep[1].off;
+        out.sepDeg = std::abs(leadOff - trailOff);
+        const double tol = std::max(cfg.trailTolDeg, cfg.trailTolFrac * std::abs(expectedSweepDeg));
+        if (expectedSweepDeg > 0.0 && std::abs(out.sepDeg - std::abs(expectedSweepDeg)) <= tol) {
+            out.hasTrail = true;
+            out.trailDeg = toDeg(trailOff);
+            out.midDeg   = toDeg(0.5 * (leadOff + trailOff));
+        }
+    }
+    out.leadDeg = toDeg(leadOff);
+    const double armDeg = std::fmod(phiSDeg + 180.0, 360.0);
+    if (std::abs(wrapDeg(out.leadDeg - armDeg)) < armVetoDeg) return WedgeEdges{};
+    out.ok = true;
     return out;
 }
 

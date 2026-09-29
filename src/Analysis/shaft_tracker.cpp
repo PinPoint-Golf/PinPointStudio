@@ -170,6 +170,9 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
     segGeom.gripEndMm = job.shaftLengthMm > 0.0 ? segGeom.hoselMm - job.shaftLengthMm : 265.0;
     segGeom.bandsMm   = job.bandCentersMm;
     if (job.handsEndMm > 0.0) cfg.seg.handsEndMm = float(job.handsEndMm);   // measured once with a tape (club record)
+    // The recorded exposure separates the blur's two edges (WedgeConfig::exposureUs); 0 ⇒ decideTrack
+    // takes 99 % of the frame period.
+    if (cfmt->exposure_us > 0.0) cfg.wedge.exposureUs = cfmt->exposure_us;
     out = decideTrack(frameAt, tUs, gx, gy, phiRaw, rawJoints, w, h, fps,
                       job.bandCentersMm, job.clubLengthM * 1000.0, impf, cfg, trace,
                       ball.frames.empty() ? nullptr : &ball, priorPtr,

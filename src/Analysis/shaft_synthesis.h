@@ -130,6 +130,37 @@ struct SynthConfig {
     int64_t envelopeWindowUs       = 25000;   // synth.envelopeWindowUs
     double  envelopeTolDeg         = 10.0;    // synth.envelopeTolDeg (<= 0 disables the clamp)
     double  maxFollowThroughRateDps = 1500.0; // synth.maxFollowThroughRateDps (<= 0 disables)
+    // ── The curve between the anchors follows the shaft evidence (2026-09-29) ──
+    // The Hermite above is set by the anchors alone: every measured frame between two P-positions
+    // reached it only through the anchors' smoothed rates and the 10° envelope clamp below — a
+    // replay-tier curve that clubhead speed, hand speed, lag and low point then read as a
+    // measurement. With fitEvidence the synth's θ is instead the curve that best balances
+    //   · FIT — every shaft reading in the bracket (measured/IMU-bridged frames at
+    //     evidenceSigmaMeasuredDeg, and each blurred frame's timed trail/mid/lead edges at their
+    //     own σ, ShaftWedgeObs), each weighted by 1/σ², against
+    //   · PLAUSIBILITY — ∫ (θ̈ / evidenceAccelSigmaDps2)² dt: the club does not change its rate
+    //     arbitrarily fast. The larger the scale, the more the curve trusts the evidence.
+    // The P-anchors stay HARD (they are the positions' definitions); IMPACT is a break (no
+    // plausibility term across contact, where the club loses speed in two frames). Grip, length
+    // and head placement are unchanged — only θ, θ̇ and the head derived from them. A stretch with no
+    // evidence keeps exactly the Hermite. Both σ's are tuned against the hand-marked frames, which
+    // the fit never sees.
+    //
+    // TUNED 2026-09-29 (32 corpus swings, studio Release, synth θ vs 283 hand-marked frames the fit
+    // never sees; |median| error by stretch, and the curve's median peak |θ̈| within ±150 ms of
+    // impact):
+    //     σ_a (°/s²)   P1–P4   P7–P8 (med / |med|)   peak |θ̈|
+    //     anchors only  2.7°   +7.6° / 9.5°            6k   (the Hermite: smooth, and wrong)
+    //     1 000         2.1°   +3.9° / 7.8°            8k
+    //     2 000         2.1°   +2.8° / 7.3°           12k
+    //     5 000         2.0°   +2.3° / 6.5°           18k   ← chosen
+    //     20 000        2.0°   +3.7° / 7.0°           36k   (starts chasing reading noise)
+    //     80 000        2.1°   +4.7° / 7.0°           71k
+    // P4–P7 barely moves at any setting (it was already within ~3°). Clubhead speed moves
+    // |0.5| mph, lag |0.2|°; lowPointAhead is produced on the same 27 swings.
+    bool    fitEvidence              = true;      // synth.fitEvidence
+    double  evidenceAccelSigmaDps2   = 5000.0;    // synth.evidenceAccelSigmaDps2 (°/s²)
+    double  evidenceSigmaMeasuredDeg = 3.0;       // synth.evidenceSigmaMeasuredDeg
 };
 
 namespace synth_detail {
@@ -363,6 +394,143 @@ inline std::vector<ShaftSample2D> synthesizeBetweenAnchors(
 {
     return synthesizeBetweenAnchors(anchors, thetaDotInRadS, thetaDotOutRadS, gripVelPxS, frameTUs,
                                     cfg, HandGripTrack{});
+}
+
+// One shaft reading the synthetic track is fitted to (SynthConfig::fitEvidence).
+struct SynthEvidence {
+    int64_t t_us     = 0;
+    double  thetaRad = 0.0;
+    double  sigmaRad = 0.0;
+};
+
+// Refit the θ of `synth` (sorted by time, as synthesizeLayerC emits it) to `evidence` — see
+// SynthConfig::fitEvidence. Works stretch by stretch: a stretch is a run of consecutive brackets that
+// all carry synth ticks, with its anchors as fixed nodes and its ticks as the unknowns. Minimises
+//   Σ_evidence ((θ(t_e) − y_e)/σ_e)²  +  Σ_nodes (θ̈_j / σ_a)² · Δt_j
+// with θ(t) linear between nodes and θ̈ the second divided difference, skipped at a P7 node. The
+// synth ticks' θ̇ become the central difference of the fitted nodes and the head is re-derived.
+// Returns the number of evidence readings used.
+inline int fitSynthToEvidence(std::vector<ShaftSample2D>&        synth,
+                              const std::vector<ShaftPosition>&  anchors,
+                              const std::vector<SynthEvidence>&  evidence,
+                              const SynthConfig&                 cfg)
+{
+    using namespace synth_detail;
+    if (!cfg.fitEvidence || synth.empty() || anchors.size() < 2 || evidence.empty()
+        || !(cfg.evidenceAccelSigmaDps2 > 0.0)) return 0;
+    const size_t nA = anchors.size();
+    // Bracket of each tick.
+    std::vector<int> brk(synth.size(), -1);
+    for (size_t j = 0; j < synth.size(); ++j)
+        for (size_t k = 0; k + 1 < nA; ++k)
+            if (synth[j].t_us > anchors[k].t_us && synth[j].t_us < anchors[k + 1].t_us) { brk[j] = int(k); break; }
+    const double sigA = cfg.evidenceAccelSigmaDps2 * kSynthPi / 180.0;   // rad/s²
+    int usedTotal = 0;
+    size_t j0 = 0;
+    while (j0 < synth.size()) {
+        if (brk[j0] < 0) { ++j0; continue; }
+        // A stretch: ticks whose brackets are consecutive with no bracket skipped.
+        size_t j1 = j0;
+        while (j1 + 1 < synth.size() && brk[j1 + 1] >= 0
+               && (brk[j1 + 1] == brk[j1] || brk[j1 + 1] == brk[j1] + 1)) ++j1;
+        const int k0 = brk[j0], k1 = brk[j1];
+        // Nodes in time order: anchor k0, ticks, anchor k0+1, … anchor k1+1.
+        struct Node { int64_t t; double th; bool fixed; bool impact; long tick; };
+        std::vector<Node> nd;
+        size_t j = j0;
+        for (int k = k0; k <= k1 + 1; ++k) {
+            nd.push_back({ anchors[size_t(k)].t_us, anchors[size_t(k)].thetaRad, true,
+                           anchors[size_t(k)].p == 7, -1 });
+            while (j <= j1 && brk[j] == k) { nd.push_back({ synth[j].t_us, synth[j].thetaRad, false, false, long(j) }); ++j; }
+        }
+        for (size_t q = 1; q < nd.size(); ++q)                     // one continuous sheet
+            nd[q].th = nd[q - 1].th + std::remainder(nd[q].th - nd[q - 1].th, 2.0 * kSynthPi);
+        const size_t N = nd.size();
+        std::vector<int> ui(N, -1);
+        int nu = 0;
+        for (size_t q = 0; q < N; ++q) if (!nd[q].fixed) ui[q] = nu++;
+        // Normal equations  M x = r  over the free nodes.
+        std::vector<double> M(size_t(nu) * size_t(nu), 0.0), r(size_t(nu), 0.0);
+        const auto addRow = [&](const size_t* idx, const double* c, int m, double y, double w) {
+            double rhs = y;                                          // move fixed nodes to the rhs
+            for (int a = 0; a < m; ++a) if (ui[idx[a]] < 0) rhs -= c[a] * nd[idx[a]].th;
+            for (int a = 0; a < m; ++a) {
+                const int ia = ui[idx[a]];
+                if (ia < 0) continue;
+                r[size_t(ia)] += w * c[a] * rhs;
+                for (int b = 0; b < m; ++b) {
+                    const int ib = ui[idx[b]];
+                    if (ib >= 0) M[size_t(ia) * size_t(nu) + size_t(ib)] += w * c[a] * c[b];
+                }
+            }
+        };
+        int used = 0;
+        for (const SynthEvidence& e : evidence) {
+            if (e.t_us <= nd.front().t || e.t_us >= nd.back().t || !(e.sigmaRad > 0.0)) continue;
+            size_t q = 1;
+            while (q < N && nd[q].t < e.t_us) ++q;
+            const size_t idx[2] = { q - 1, q };
+            const double u = double(e.t_us - nd[q - 1].t) / double(std::max<int64_t>(1, nd[q].t - nd[q - 1].t));
+            const double c[2] = { 1.0 - u, u };
+            const double cur = c[0] * nd[q - 1].th + c[1] * nd[q].th;
+            const double y = cur + std::remainder(e.thetaRad - cur, 2.0 * kSynthPi);
+            addRow(idx, c, 2, y, 1.0 / (e.sigmaRad * e.sigmaRad));
+            ++used;
+        }
+        if (used > 0 && nu > 0) {
+            for (size_t q = 1; q + 1 < N; ++q) {
+                if (nd[q].impact) continue;                          // contact is a break
+                const double h0 = double(nd[q].t - nd[q - 1].t) * 1e-6, h1 = double(nd[q + 1].t - nd[q].t) * 1e-6;
+                if (!(h0 > 0.0 && h1 > 0.0)) continue;
+                const double hm = 0.5 * (h0 + h1);
+                const size_t idx[3] = { q - 1, q, q + 1 };
+                const double c[3] = { 1.0 / (h0 * hm), -(1.0 / h0 + 1.0 / h1) / hm, 1.0 / (h1 * hm) };
+                addRow(idx, c, 3, 0.0, hm / (sigA * sigA));
+            }
+            // Cholesky (M is SPD: every free node is tied to its neighbours by the penalty).
+            bool ok = true;
+            std::vector<double> L = M;
+            for (int a = 0; a < nu && ok; ++a) {
+                for (int b = 0; b <= a; ++b) {
+                    double sum = L[size_t(a) * size_t(nu) + size_t(b)];
+                    for (int k = 0; k < b; ++k) sum -= L[size_t(a) * size_t(nu) + size_t(k)] * L[size_t(b) * size_t(nu) + size_t(k)];
+                    if (a == b) {
+                        if (!(sum > 0.0)) { ok = false; break; }
+                        L[size_t(a) * size_t(nu) + size_t(a)] = std::sqrt(sum);
+                    } else {
+                        L[size_t(a) * size_t(nu) + size_t(b)] = sum / L[size_t(b) * size_t(nu) + size_t(b)];
+                    }
+                }
+            }
+            if (ok) {
+                std::vector<double> x(size_t(nu), 0.0);
+                for (int a = 0; a < nu; ++a) {
+                    double sum = r[size_t(a)];
+                    for (int k = 0; k < a; ++k) sum -= L[size_t(a) * size_t(nu) + size_t(k)] * x[size_t(k)];
+                    x[size_t(a)] = sum / L[size_t(a) * size_t(nu) + size_t(a)];
+                }
+                for (int a = nu - 1; a >= 0; --a) {
+                    double sum = x[size_t(a)];
+                    for (int k = a + 1; k < nu; ++k) sum -= L[size_t(k) * size_t(nu) + size_t(a)] * x[size_t(k)];
+                    x[size_t(a)] = sum / L[size_t(a) * size_t(nu) + size_t(a)];
+                }
+                for (size_t q = 0; q < N; ++q) if (ui[q] >= 0) nd[q].th = x[size_t(ui[q])];
+                for (size_t q = 0; q < N; ++q) {
+                    if (nd[q].tick < 0) continue;
+                    ShaftSample2D& s = synth[size_t(nd[q].tick)];
+                    s.thetaRad = nd[q].th;
+                    const size_t a = q > 0 ? q - 1 : q, b = q + 1 < N ? q + 1 : q;
+                    const double dt = double(nd[b].t - nd[a].t) * 1e-6;
+                    if (dt > 0.0) s.thetaDotRadS = (nd[b].th - nd[a].th) / dt;
+                    s.headPx = QPointF{ s.gripPx.x() + s.visibleLenPx * std::cos(s.thetaRad),
+                                        s.gripPx.y() + s.visibleLenPx * std::sin(s.thetaRad) };
+                }
+                usedTotal += used;
+            }
+        }
+        j0 = j1 + 1;
+    }
+    return usedTotal;
 }
 
 // Legacy single-rate form: in == out at every anchor (C¹ everywhere).

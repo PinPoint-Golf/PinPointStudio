@@ -684,7 +684,12 @@ int main()
             return img;
         };
 
-        ShaftV3Config cfgB1 = cfg; cfgB1.positions.enabled = true;                  // fit off (default)
+        // Fit OFF, explicitly: fitEnabled has defaulted ON since B4 (shaft_positions.h), so relying on
+        // the default here only passed while the never-degrade guard happened to skip every P — P7's
+        // nearest frame was a thin-line RAY (conf 0.55 ≥ skipMeasuredConf). Since the blur's leading
+        // edge measures it (a WEDGE frame, conf 0.45) the fit runs there, as it does on any wedge.
+        ShaftV3Config cfgB1 = cfg; cfgB1.positions.enabled = true;
+        cfgB1.positions.fit.fitEnabled = false;
         ShaftV3Config cfgB2 = cfg; cfgB2.positions.enabled = true;
         cfgB2.positions.fit.fitEnabled = true;                                      // fit on
         const ShaftTrack2D b1  = decideTrack(render, tUs, gx, gy, phiRaw, joints, W, H, fps,

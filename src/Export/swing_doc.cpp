@@ -548,6 +548,14 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
             { QStringLiteral("predicted"),     predicted } };
         if (!positions.isEmpty()) clubObj.insert(QStringLiteral("positions"), positions);
         if (!synth.isEmpty())     clubObj.insert(QStringLiteral("synth"), synth);
+        // The blurred frames' timed edge readings (ShaftWedgeObs) as [t_us, theta, kind, sigmaDeg],
+        // kind 0 trail / 1 mid / 2 lead. Written only when non-empty.
+        if (!a.shaft.wedgeObs.empty()) {
+            QJsonArray wo;
+            for (const ShaftWedgeObs &w : a.shaft.wedgeObs)
+                wo.append(QJsonArray{ rel(w.t_us), w.thetaRad, int(w.kind), double(w.sigmaDeg) });
+            clubObj.insert(QStringLiteral("wedgeObs"), wo);
+        }
         o[QStringLiteral("club")] = clubObj;
     }
     // Ball track (v3.4 design §9) for the replay overlay — normalized [0,1]

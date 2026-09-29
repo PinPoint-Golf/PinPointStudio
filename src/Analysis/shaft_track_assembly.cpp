@@ -479,6 +479,12 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.wedge.kinCone", c.wedge.kinCone);
     apply(ov, "shaft.wedge.kinModelV2", c.wedge.kinModelV2);
     apply(ov, "shaft.wedge.wKinCone", c.wedge.wKinCone);
+    apply(ov, "shaft.wedge.leadEdge", c.wedge.leadEdge);
+    apply(ov, "shaft.wedge.edgePeakRel", c.wedge.edgePeakRel);
+    apply(ov, "shaft.wedge.edgeMinSepDeg", c.wedge.edgeMinSepDeg);
+    apply(ov, "shaft.wedge.edgeSigmaDeg", c.wedge.edgeSigmaDeg);
+    apply(ov, "shaft.wedge.trailTolDeg", c.wedge.trailTolDeg);
+    apply(ov, "shaft.wedge.trailTolFrac", c.wedge.trailTolFrac);
     // P7 impact geometry: "shaft.impactGeom.*" keys (impact_geom.h).
     apply(ov, "shaft.impactGeom.enabled", c.impactGeom.enabled);
     apply(ov, "shaft.impactGeom.retime", c.impactGeom.retime);
@@ -528,6 +534,9 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "positions.plateauFrac", c.positions.fit.plateauFrac);
     // Layer C synthesis between anchors: "synth.*" keys.
     apply(ov, "synth.enabled", c.synth.enabled);
+    apply(ov, "synth.fitEvidence", c.synth.fitEvidence);
+    apply(ov, "synth.evidenceAccelSigmaDps2", c.synth.evidenceAccelSigmaDps2);
+    apply(ov, "synth.evidenceSigmaMeasuredDeg", c.synth.evidenceSigmaMeasuredDeg);
     apply(ov, "synth.midConfFrac", c.synth.midConfFrac);
     apply(ov, "synth.rateHz", c.synth.rateHz);
     apply(ov, "synth.curveRate", c.synth.curveRate);
@@ -1228,7 +1237,7 @@ std::vector<double> robustIsotonic(const std::vector<double>& y, const std::vect
 ReconResult reconcilePsi(const std::vector<double>& thetaDeg, const std::vector<double>& phiS,
                          const std::vector<SwingPhase>& phase, const std::vector<char>& bandOk,
                          const std::vector<double>& evAt, int top, int nf, const ShaftV3Config& cfg,
-                         const std::vector<float>* wOverride)
+                         const std::vector<float>* wOverride, const std::vector<double>* witnessDeg)
 {
     ReconResult rr;
     rr.thetaOut = thetaDeg;
@@ -1271,8 +1280,24 @@ ReconResult reconcilePsi(const std::vector<double>& thetaDeg, const std::vector<
         for (size_t i = 0; i < fs.size(); ++i) {
             const int f = fs[i];
             rr.psiResid[f] = std::abs(psi[i] - iso[i]);
-            if (phase[f] == SwingPhase::Impact && !bandOk[f]) {    // blur: arm is the witness
-                rr.thetaOut[f] = std::fmod(std::fmod(iso[i] + ph[i], 360.0) + 360.0, 360.0);
+            if (phase[f] == SwingPhase::Impact && !bandOk[f]) {
+                // Blur: a thin-ridge θ is not a measurement here, so something else must witness the
+                // shaft. The blur's own LEADING EDGE when one was measured (witnessDeg, shaft_wedge.h
+                // measureWedgeEdges) — the arm-based ψ reconstruction only where there is none.
+                // 2026-09-29, 33 corpus swings: on the hand-marked frames this replaced, ψ+φ read
+                // +112° median off the marks and the leading edge +1.0° (|5.2|); ψ+φ is what put
+                // 06-11 s9 and 09-09 s1 at +100° of impact shaft lean.
+                //
+                // ONLY where ψ+φ would OVERRIDE the tracker (differ from its θ by more than reconTol):
+                // where the two agree the frame keeps what it always had. Substituting the edge
+                // everywhere replaced good thin-line readings with clutter (09-09 s6: ray +50/+32/+28/+13
+                // became +15/+28/+30/+32) — the witness is for the frames the arm got wrong.
+                const double wit = witnessDeg ? (*witnessDeg)[size_t(f)] : std::numeric_limits<double>::quiet_NaN();
+                const double armTh = std::fmod(std::fmod(iso[i] + ph[i], 360.0) + 360.0, 360.0);
+                const bool overrides = std::abs(circWrap(armTh - thetaDeg[f])) > cfg.reconTol;
+                rr.thetaOut[f] = (overrides && std::isfinite(wit))
+                                     ? std::fmod(std::fmod(wit, 360.0) + 360.0, 360.0)
+                                     : armTh;
                 rr.recon[f] = 1;
             }
         }
@@ -1595,6 +1620,26 @@ static void synthesizeLayerC(ShaftTrack2D& out, const std::vector<int64_t>& tUs,
                 out.synth.insert(out.synth.end(), part.begin(), part.end());
             }
             runStart = k + 1;
+        }
+
+        // The curve between the anchors follows the shaft evidence (SynthConfig::fitEvidence):
+        // every measured or IMU-bridged frame at the measured σ, and every blurred frame's timed
+        // edges (ShaftWedgeObs) at their own — a blurred frame is represented by its edges, not by
+        // its sample, when the edges exist. Rule 2's clamp below stays as the backstop.
+        if (cfg.synth.fitEvidence && !out.synth.empty()) {
+            std::vector<SynthEvidence> ev;
+            const double sM = cfg.synth.evidenceSigmaMeasuredDeg * kPi / 180.0;
+            const bool haveEdges = !out.wedgeObs.empty();
+            for (const ShaftSample2D& s : out.samples) {
+                if (s.flags & (ShaftCoasted | ShaftKinematicPredicted | ShaftSynthesized)) continue;
+                const bool wedge = (s.flags & ShaftWedge) != 0;
+                if (wedge && haveEdges) continue;
+                if (!(s.flags & (ShaftMeasured | ShaftImuBridged | ShaftWedge))) continue;
+                ev.push_back({ s.t_us, s.thetaRad, sM });
+            }
+            for (const ShaftWedgeObs& w : out.wedgeObs)
+                ev.push_back({ w.t_us, w.thetaRad, double(w.sigmaDeg) * kPi / 180.0 });
+            fitSynthToEvidence(out.synth, out.positions, ev, cfg.synth);
         }
 
         // Rule 2 — the synth may not sweep past the measurements. For every tick, the
@@ -1951,6 +1996,10 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     std::vector<double>         omegaPred(size_t(nf), 0.0);
     std::vector<double>         envCenter(size_t(nf), 0.0), envHalf(size_t(nf), 0.0);
     std::vector<WedgeCandidate> wedgeCand(static_cast<size_t>(nf));
+    // Trace-only copies of the rows measureWedge reads (ShaftTrackTrace::wedgeRow*). Sized only when a
+    // trace sink exists, so the untraced path allocates nothing and runs exactly as before.
+    std::vector<std::vector<float>> wRowDeg, wRowRaw, wRowDif;
+    if (trace) { wRowDeg.resize(size_t(nf)); wRowRaw.resize(size_t(nf)); wRowDif.resize(size_t(nf)); }
     if (cfg.wedge.enabled) {
         std::vector<double> phiPred(size_t(nf), 0.0);
         // The v2 model reads seconds-before-impact instead of swing progress —
@@ -1983,6 +2032,19 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                                    && std::abs(omegaPred[size_t(i)]) >= cfg.wedge.omegaMinDegS;
         }
     }
+    // The exposure the blur's two edges are separated by (WedgeConfig::exposureUs): the recorded
+    // one, else 99 % of the median frame period — which is what every session that recorded it shows.
+    double tExpEdgeS = cfg.wedge.exposureUs > 0.0 ? cfg.wedge.exposureUs * 1e-6 : 0.0;
+    if (!(tExpEdgeS > 0.0) && nf >= 2) {
+        std::vector<int64_t> dts;
+        for (int i = 1; i < nf; ++i) if (tUs[i] > tUs[i - 1]) dts.push_back(tUs[i] - tUs[i - 1]);
+        if (!dts.empty()) {
+            std::nth_element(dts.begin(), dts.begin() + dts.size() / 2, dts.end());
+            tExpEdgeS = 0.99 * double(dts[dts.size() / 2]) * 1e-6;
+        }
+    }
+    std::vector<WedgeEdges> wedgeEdge(static_cast<size_t>(nf));
+    const bool useEdges = cfg.wedge.enabled && cfg.wedge.leadEdge;
     // E4 per-frame probe (P3a, design §4.8 item 1): along the DP's own
     // direction — and the band's when E1 locked — never along E2 candidates,
     // which a crease or the lead arm wins on a third of frames. Called after
@@ -2072,6 +2134,18 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             }
             wedgeCand[size_t(i)] = measureWedge(pRaw.score, pDif, proxDeg, phiS[i],
                                                 cfg.armVetoDeg, cfg.evAbsFloor, cfg.wedge);
+            if (useEdges) {
+                const double w = omegaPred[size_t(i)];
+                wedgeEdge[size_t(i)] = measureWedgeEdges(pRaw.score, pDif, proxDeg,
+                                                         w > 0.0 ? 1 : (w < 0.0 ? -1 : 0),
+                                                         std::abs(w) * tExpEdgeS, phiS[i],
+                                                         cfg.armVetoDeg, cfg.evAbsFloor, cfg.wedge);
+            }
+            if (trace) {   // this frame's slot only — parallel-safe like wedgeCand
+                wRowDeg[size_t(i)] = proxDeg;
+                wRowRaw[size_t(i)] = pRaw.score;
+                wRowDif[size_t(i)] = pDif;
+            }
         }
         BandMatch bm = frameBandMatch(g8, gx[i], gy[i], rmax, bandsMm, cfg.band);
         if (bm.ok && bm.r0 > 0.0f && bm.r0 <= 260.0f) { band[i] = bm; bandOk[i] = 1; }
@@ -2114,9 +2188,28 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         } else {
             wedgeTExp = std::clamp(cfg.wedge.tExpBootstrapS, kTExpLoS, kTExpHiS);
         }
+        // The width-derived estimate above pinned at the 8 ms clamp on every corpus swing: the
+        // plateau width is not ω·t_exp (it is ≈30° at any speed — see WedgeConfig::leadEdge). With
+        // the edges on, the exposure is the recorded one.
+        if (useEdges && tExpEdgeS > 0.0) wedgeTExp = tExpEdgeS;
         for (int i = 0; i < nf; ++i) {
             if (!wedgeTrig[size_t(i)]) continue;
-            if (wedgeCand[size_t(i)].ok) {
+            if (useEdges) {
+                // THE LEADING EDGE: the shaft at the end of the exposure, which is the frame time.
+                // σ is the edge's own measured precision, not a half-width — the plateau width
+                // this used to take is not a blur measurement at all.
+                if (wedgeEdge[size_t(i)].ok) {
+                    const double sig = cfg.wedge.edgeSigmaDeg;
+                    wedgeSigmaDeg[size_t(i)] = sig;
+                    const double lead = wedgeEdge[size_t(i)].leadDeg;
+                    for (int k = 0; k < NS; ++k) {
+                        const double d = std::abs(circWrap(gridDeg[k] - lead));
+                        if (d > 3.0 * sig) continue;
+                        const double well = cfg.wedge.wWell * std::exp(-0.5 * (d / sig) * (d / sig));
+                        emis[i][k] = std::max(float(emis[i][k] - well), float(-cfg.wBand));
+                    }
+                }
+            } else if (wedgeCand[size_t(i)].ok) {
                 // σ_θ: at least the measured half-width, at least the expected
                 // half-sweep — a narrow plateau under a fast prediction is not
                 // allowed to claim delta-function precision.
@@ -2265,9 +2358,15 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     std::vector<double> evAt(nf, 0.0);
     for (int i = 0; i < nf; ++i) evAt[i] = EV[i][dp.thstar[i]];
     ReconResult rec;
+    // The blur's leading edge, where measured, witnesses an impact frame instead of the arm.
+    std::vector<double> edgeWitness;
+    if (useEdges) {
+        edgeWitness.assign(size_t(nf), std::numeric_limits<double>::quiet_NaN());
+        for (int i = 0; i < nf; ++i) if (wedgeEdge[size_t(i)].ok) edgeWitness[size_t(i)] = wedgeEdge[size_t(i)].leadDeg;
+    }
     if (cfg.psiRail)
         rec = reconcilePsi(dp.thetaDeg, phiS, pm.phase, segRun ? lockOk : bandOk, evAt, pm.top, nf, cfg,
-                           segRun ? &wRail : nullptr);
+                           segRun ? &wRail : nullptr, edgeWitness.empty() ? nullptr : &edgeWitness);
     else {
         rec.thetaOut = dp.thetaDeg;
         rec.psiResid.assign(nf, std::numeric_limits<double>::quiet_NaN());
@@ -2392,12 +2491,22 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         // measured fan — the frame is evidenced by integration, not a thin
         // line, so it earns the wedge blessing (and spanMeas coverage) at
         // wedge.conf, deliberately below RAY's 0.55.
-        if (tier == PRED && wedgeTrig[size_t(i)] && wedgeCand[size_t(i)].ok
-            && std::abs(circWrap(thDp - wedgeCand[size_t(i)].centroidDeg))
-                   <= wedgeSigmaDeg[size_t(i)] + cfg.wedge.dpTolDeg) {
+        if (tier == PRED && wedgeTrig[size_t(i)]
+            && (useEdges ? (wedgeEdge[size_t(i)].ok
+                            && std::abs(circWrap(thDp - wedgeEdge[size_t(i)].leadDeg))
+                                   <= wedgeSigmaDeg[size_t(i)] + cfg.wedge.dpTolDeg)
+                         : (wedgeCand[size_t(i)].ok
+                            && std::abs(circWrap(thDp - wedgeCand[size_t(i)].centroidDeg))
+                                   <= wedgeSigmaDeg[size_t(i)] + cfg.wedge.dpTolDeg))) {
             tier = WEDGE; conf = float(cfg.wedge.conf);
         }
         if (rec.recon[i] && std::abs(circWrap(th - thDp)) > cfg.reconTol) { tier = RECON; conf = 0.40f; }
+        // A frame the blur's leading edge witnessed (reconcilePsi) IS a wedge measurement: its θ is
+        // the edge, and its edges are evidence for the synthetic track like any other.
+        if (useEdges && rec.recon[i] && wedgeEdge[size_t(i)].ok && wedgeTrig[size_t(i)]
+            && std::abs(circWrap(th - wedgeEdge[size_t(i)].leadDeg)) < 1e-6) {
+            tier = WEDGE; conf = float(cfg.wedge.conf);
+        }
         tierOf[size_t(i)] = uint8_t(tier);
         confOf[size_t(i)] = conf;
     }
@@ -2646,6 +2755,20 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         const uint16_t s1Flag = (tier == RAY || tier == SEG) ? ShaftMeasured
                               : (tier == WEDGE) ? ShaftWedge
                                                 : ShaftCoasted;
+
+        // The blur's timed edges on a frame the tracker accepted as a wedge measurement
+        // (ShaftWedgeObs): the leading edge at the frame time, and — when the second peak sits where
+        // the blur puts it — the trailing edge at exposure start and their midpoint at mid-exposure.
+        if (useEdges && tier == WEDGE && wedgeEdge[size_t(i)].ok) {
+            const WedgeEdges &e = wedgeEdge[size_t(i)];
+            const float sg = float(cfg.wedge.edgeSigmaDeg);
+            const int64_t expUs = int64_t(std::llround(tExpEdgeS * 1e6));
+            if (e.hasTrail) {
+                out.wedgeObs.push_back({ tUs[i] - expUs, e.trailDeg * kPi / 180.0, ShaftWedgeObsKind::Trail, sg });
+                out.wedgeObs.push_back({ tUs[i] - expUs / 2, e.midDeg * kPi / 180.0, ShaftWedgeObsKind::Mid, sg });
+            }
+            out.wedgeObs.push_back({ tUs[i], e.leadDeg * kPi / 180.0, ShaftWedgeObsKind::Lead, sg });
+        }
 
         bool placed = false;
         // BAND geometry is a DIRECT measurement of the head (butt-anchored via the
@@ -3194,6 +3317,19 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 if (wedgeCand[size_t(i)].ok) {
                     trace->wedgeCentroidDeg[size_t(i)] = wedgeCand[size_t(i)].centroidDeg;
                     trace->wedgeWidthDeg[size_t(i)]    = wedgeCand[size_t(i)].widthDeg;
+                }
+            trace->wedgeRowDeg = std::move(wRowDeg);
+            trace->wedgeRowRaw = std::move(wRowRaw);
+            trace->wedgeRowDif = std::move(wRowDif);
+            trace->wedgeEnvCenterDeg = envCenter;
+            trace->wedgeEnvHalfDeg   = envHalf;
+            trace->wedgeLeadDeg.assign(size_t(nf), kWNaN);
+            trace->wedgeTrailDeg.assign(size_t(nf), kWNaN);
+            for (int i = 0; i < nf; ++i)
+                if (wedgeEdge[size_t(i)].ok) {
+                    trace->wedgeLeadDeg[size_t(i)] = wedgeEdge[size_t(i)].leadDeg;
+                    if (wedgeEdge[size_t(i)].hasTrail)
+                        trace->wedgeTrailDeg[size_t(i)] = wedgeEdge[size_t(i)].trailDeg;
                 }
         }
         // Vision-only phase landmarks: real swing ⇒ vision-grade conf, else 0.

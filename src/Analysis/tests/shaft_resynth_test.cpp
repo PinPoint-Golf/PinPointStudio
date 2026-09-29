@@ -189,15 +189,28 @@ int main()
         std::printf("    worst synth deviation from the measured (stopped) club inside P8→P10: %.1f°\n", worstDev * 180.0 / kPi);
         check(inBracket > 10 && worstDev <= (cfg.synth.envelopeTolDeg + 1.0) * kPi / 180.0,
               "inside P8→P10 the synth stays within the tolerance of the measured club — it does not sweep on");
-        ShaftV3Config noClamp = cfg; noClamp.synth.envelopeTolDeg = 0.0;
+        // The DEFECT the clamp exists for is the anchors-only Hermite's, so it is shown with the
+        // evidence fit off too (synth.fitEvidence): the curve through the anchors alone sweeps on.
+        ShaftV3Config noClamp = cfg; noClamp.synth.envelopeTolDeg = 0.0; noClamp.synth.fitEvidence = false;
         ShaftTrack2D v = u; resynthesizeLayerC(v, noClamp);
-        double worstFree = 0.0;
-        for (const ShaftSample2D &s : v.synth) {
-            if (s.t_us <= p8 + 60'000 || s.t_us >= p10 - 60'000) continue;
-            const double ms = double(s.t_us - imp) * 1e-3;
-            worstFree = std::max(worstFree, std::fabs(s.thetaRad - (1.635 + 0.05e-3 * (ms - 150.0))));
-        }
+        const auto worstPastStop = [&](const ShaftTrack2D &tr) {
+            double w = 0.0;
+            for (const ShaftSample2D &s : tr.synth) {
+                if (s.t_us <= p8 + 60'000 || s.t_us >= p10 - 60'000) continue;
+                const double ms = double(s.t_us - imp) * 1e-3;
+                w = std::max(w, std::fabs(s.thetaRad - (1.635 + 0.05e-3 * (ms - 150.0))));
+            }
+            return w;
+        };
+        const double worstFree = worstPastStop(v);
         check(worstFree > 30.0 * kPi / 180.0, "…whereas the unclamped Hermite sweeps tens of degrees past it (the defect)");
+        // …and the evidence fit on its own, clamp off, keeps the curve on the measured club: the
+        // stopped club's frames are evidence, so the curve stops with them.
+        ShaftV3Config fitOnly = cfg; fitOnly.synth.envelopeTolDeg = 0.0;
+        ShaftTrack2D fo = u; resynthesizeLayerC(fo, fitOnly);
+        std::printf("    evidence fit alone, clamp off: worst %.1f° past the stopped club\n", worstPastStop(fo) * 180.0 / kPi);
+        check(worstPastStop(fo) < (cfg.synth.envelopeTolDeg + 1.0) * kPi / 180.0,
+              "the evidence fit alone keeps the synth on the measured club — the clamp is a backstop now");
 
         // Rule 3: a MEASURED finish anchor that implies an impossible rate past P8 (the tracker
         // captured the lead arm, head confidence and all) is not bridged either.

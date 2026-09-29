@@ -562,7 +562,8 @@ ReconResult reconcilePsi(const std::vector<double>& thetaDeg,
                          const std::vector<char>& bandOk,
                          const std::vector<double>& evAt, int top, int nf,
                          const ShaftV3Config& cfg,
-                         const std::vector<float>* wOverride = nullptr);
+                         const std::vector<float>* wOverride = nullptr,
+                         const std::vector<double>* witnessDeg = nullptr);
 
 // ── SwingWindow-free decide core (shared by the live tracker + the parity
 //    harness) ────────────────────────────────────────────────────────────────
@@ -641,6 +642,15 @@ struct ShaftDecideTrace {
     // candidate). wedgeTExpS = the calibrated exposure estimate (s; −1 = wedge
     // dark). Empty unless a trace sink is present AND cfg.wedge.enabled.
     std::vector<double> wedgeOmegaDegS, wedgeCentroidDeg, wedgeWidthDeg;
+    // The RAW EVIDENCE behind each wedge measurement (2026-09-29, shaft_wedge edges study): the
+    // proximal sweep's per-θ response rows on every triggered frame — bin angle (deg), raw and
+    // scene-difference channel scores (dif empty when no scene median) — and the kinematic envelope
+    // they were confined to. Lets edge localisation be designed offline against the corpus without a
+    // rebuild per experiment. Empty rows = frame not triggered. Trace-only: nothing reads it back.
+    std::vector<std::vector<float>> wedgeRowDeg, wedgeRowRaw, wedgeRowDif;
+    std::vector<double> wedgeEnvCenterDeg, wedgeEnvHalfDeg;
+    // The blur's edges (WedgeConfig::leadEdge) per frame, NaN = none; trail NaN when not kept.
+    std::vector<double> wedgeLeadDeg, wedgeTrailDeg;
     // E4 steel-segment lock beside the E1 band lock, per frame [0,nf)
     // (markerless_club_tracker_design.md §5.1 grading). segMode 0 none / 1 full /
     // 2 terminus; segPass 1 = prior-free pass, 2 = scale-prior pass; band* are

@@ -146,6 +146,72 @@ int main()
               "plateau straddling 0/360 centres at 0");
     }
 
+    // ── THE BLUR'S EDGES (measureWedgeEdges) ────────────────────────────────
+    //
+    // A ridge detector sees a blurred shaft as two peaks, the sweep's two ends. The shape below is
+    // the 08-18 s4 impact frame's: peaks at 106° (exposure start) and 90° (exposure end), the shaft
+    // rotating toward SMALLER θ, 16° per exposure.
+    std::printf("\n=== blur edges ===\n");
+    const auto twoPeaks = [](const std::vector<float>& deg, double a, double b, float ha, float hb) {
+        std::vector<float> raw(deg.size(), 2.f);
+        for (size_t j = 0; j < deg.size(); ++j) {
+            const double da = wrapd(double(deg[j]) - a), db = wrapd(double(deg[j]) - b);
+            raw[j] += ha * float(std::exp(-0.5 * (da / 1.5) * (da / 1.5)))
+                    + hb * float(std::exp(-0.5 * (db / 1.5) * (db / 1.5)));
+        }
+        return raw;
+    };
+    {
+        const std::vector<float> deg = arcDeg(100.0, 30);                       // 70..130
+        const std::vector<float> raw = twoPeaks(deg, 106.0, 90.0, 40.f, 30.f);  // trailing peak larger
+        const WedgeEdges e = measureWedgeEdges(raw, {}, deg, -1, 16.0, kPhiFar, kArmVeto, kFloor, cfg);
+        check(e.ok, "two-peak blur measured");
+        check(e.ok && std::abs(wrapd(e.leadDeg - 90.0)) <= 0.5,
+              "LEAD is the peak further along the rotation (90°), not the larger one (106°)");
+        check(e.ok && e.hasTrail && std::abs(wrapd(e.trailDeg - 106.0)) <= 0.5,
+              "trailing edge kept at 106° — the separation (16°) is the expected sweep");
+        check(e.ok && e.hasTrail && std::abs(wrapd(e.midDeg - 98.0)) <= 0.5, "mid-exposure = midpoint (98°)");
+
+        const WedgeEdges l = measureWedgeEdges(raw, {}, deg, +1, 16.0, kPhiFar, kArmVeto, kFloor, cfg);
+        check(l.ok && std::abs(wrapd(l.leadDeg - 106.0)) <= 0.5,
+              "rotation reversed (a left-hander's image) ⇒ the leading edge is the other peak");
+
+        const WedgeEdges s = measureWedgeEdges(raw, {}, deg, -1, 4.0, kPhiFar, kArmVeto, kFloor, cfg);
+        check(s.ok && !s.hasTrail,
+              "slow club (4° expected sweep) ⇒ a peak 16° away is not the blur's other end — no trail");
+        check(s.ok && std::abs(wrapd(s.leadDeg - 90.0)) <= 0.5, "…and the leading edge still stands");
+    }
+    {
+        const std::vector<float> deg = arcDeg(100.0, 30);
+        std::vector<float> raw(deg.size(), 2.f);
+        for (size_t j = 0; j < deg.size(); ++j) {
+            const double d = wrapd(double(deg[j]) - 95.0);
+            raw[j] += 30.f * float(std::exp(-0.5 * (d / 1.5) * (d / 1.5)));
+        }
+        const WedgeEdges e = measureWedgeEdges(raw, {}, deg, -1, 12.0, kPhiFar, kArmVeto, kFloor, cfg);
+        check(e.ok && !e.hasTrail && std::abs(wrapd(e.leadDeg - 95.0)) <= 0.5,
+              "one peak ⇒ a leading edge only");
+    }
+    {
+        const std::vector<float> deg = arcDeg(100.0, 30);
+        const std::vector<float> weak = twoPeaks(deg, 106.0, 90.0, 4.f, 3.f);   // max ≈ 6 < thresh 10
+        check(!measureWedgeEdges(weak, {}, deg, -1, 16.0, kPhiFar, kArmVeto, kFloor, cfg).ok,
+              "below the absolute threshold ⇒ nothing (never fabricate)");
+        const std::vector<float> raw = twoPeaks(deg, 106.0, 90.0, 40.f, 30.f);
+        check(!measureWedgeEdges(raw, {}, deg, 0, 16.0, kPhiFar, kArmVeto, kFloor, cfg).ok,
+              "no direction of rotation ⇒ no leading edge to name");
+        check(!measureWedgeEdges(raw, {}, deg, -1, 16.0, 270.0, kArmVeto, kFloor, cfg).ok,
+              "leading edge on the trail-arm line (φ+180 = 90°) ⇒ vetoed");
+    }
+    {
+        const std::vector<float> deg = arcDeg(0.0, 30);                          // 330..30 across 0°
+        const std::vector<float> raw = twoPeaks(deg, 8.0, 352.0, 40.f, 30.f);
+        const WedgeEdges e = measureWedgeEdges(raw, {}, deg, -1, 16.0, kPhiFar, kArmVeto, kFloor, cfg);
+        check(e.ok && std::abs(wrapd(e.leadDeg - 352.0)) <= 0.5 && e.hasTrail
+                  && std::abs(wrapd(e.trailDeg - 8.0)) <= 0.5 && std::abs(wrapd(e.midDeg - 0.0)) <= 0.5,
+              "edges across the 0/360 seam: lead 352°, trail 8°, mid 0°");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;
 }
