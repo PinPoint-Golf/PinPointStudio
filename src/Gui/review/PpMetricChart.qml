@@ -356,9 +356,14 @@ Item {
                 // swings — the tile can only be a point on the line if both were told the same thing
                 // about which samples exist.
                 d.reduceValid = root._reduceMask(s, dom)
-                var wm = cm.windowedMean(s.t_us, s.value, d.reduceValid)
-                d.mean      = wm.mean
-                d.meanSigma = wm.sigma
+                // ⚠ NOT FOR A CURVE TOO FAST TO AVERAGE (MetricCardSpec::windowedMean): with no
+                // `mean` on the entry every consumer falls back to the recorded samples, so the line
+                // and the card still agree — on the persisted number, not a 40 ms blur of it.
+                if (cm.cardSpecFor(s.key).windowedMean !== false) {
+                    var wm = cm.windowedMean(s.t_us, s.value, d.reduceValid)
+                    d.mean      = wm.mean
+                    d.meanSigma = wm.sigma
+                }
                 out.push(d)
             }
         }
@@ -1413,6 +1418,7 @@ Item {
             startUs:     root.viewStartUs
             endUs:       root.viewEndUs
             impactUs:    root.impactUs
+            phases:      root.phases
             segmentName: root._preset === "Full" ? qsTr("full recording")
                        : (labels.phaseFullName(root._nearStart) + " → "
                           + labels.phaseFullName(root._nearEnd)).toLowerCase()

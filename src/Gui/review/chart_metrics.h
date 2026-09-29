@@ -250,6 +250,15 @@ public:
     // `narrowed` is either. hipLineTilt is narrowed on the LAST side only.
     Q_INVOKABLE QVariantMap domainFor(const QString &key) const;
 
+    // What the summary CARD shows for this metric — MetricDescriptor::card (metric_descriptor.h
+    // says why a card is not the same four tiles for every metric):
+    //   { readAt:[{phase:int, label:string}], peak:bool, peakSpan:bool, peakFrom:int, peakTo:int,
+    //     delta:bool, deltaSpan:bool, deltaFrom:int, deltaTo:int, deltaLabel:string, rate:bool,
+    //     windowedMean:bool }
+    // Phases are Phase ENUM values, resolved to instants by the caller as domainFor's are. An
+    // uncatalogued key gets the default — @ IMPACT, PEAK, Δ SEGMENT, PK RATE — the card as it was.
+    Q_INVOKABLE QVariantMap cardSpecFor(const QString &key) const;
+
     // Was this series actually MEASURED at `us`? — the reference form of the predicate behind the
     // suppressed phase dots, the suppressed crosshair marker and the "—" in the hover and legend
     // readouts, so those cannot drift into slightly different notions of "no reading here".

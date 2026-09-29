@@ -1507,6 +1507,44 @@ int main()
         checkEqI("com over lead foot last phase",
                  com.value(QStringLiteral("lastPhase")).toInt(), 7);
 
+        // ── cardSpecFor: what the summary card shows ────────────────────────────────────────
+        //
+        // Shaft lean is read at impact and as its Address→Impact change; its curve elsewhere is
+        // the shaft swinging through the top (+264° on the 07-04 corpus swing), so PEAK and PK
+        // RATE are withheld. The domain must reach the chart too, or the tail past impact is
+        // reduced as though it were lean.
+        const QVariantMap lean = cm.domainFor(QStringLiteral("impactShaftLean"));
+        checkEqI("shaft lean last phase", lean.value(QStringLiteral("lastPhase")).toInt(), 5);
+        const QVariantMap leanCard = cm.cardSpecFor(QStringLiteral("impactShaftLean"));
+        const QVariantList leanReads = leanCard.value(QStringLiteral("readAt")).toList();
+        checkEqI("shaft lean reads one instant", leanReads.size(), 1);
+        checkEqI("…and it is impact",
+                 leanReads.value(0).toMap().value(QStringLiteral("phase")).toInt(), 5);
+        checkEqI("shaft lean withholds PEAK", leanCard.value(QStringLiteral("peak")).toBool() ? 1 : 0, 0);
+        checkEqI("shaft lean withholds PK RATE", leanCard.value(QStringLiteral("rate")).toBool() ? 1 : 0, 0);
+        checkEqI("shaft lean Δ is a fixed span", leanCard.value(QStringLiteral("deltaSpan")).toBool() ? 1 : 0, 1);
+        checkEqI("…from Address", leanCard.value(QStringLiteral("deltaFrom")).toInt(), 0);
+        checkEqI("…to Impact",    leanCard.value(QStringLiteral("deltaTo")).toInt(),   5);
+        // …and it is read RAW: the curve turns ~2°/ms through impact, so a 40 ms mean of it read
+        // +40° on 07-04 s8 where the recorded sample is +17° and the frame near vertical.
+        checkEqI("shaft lean is not windowed-mean smoothed",
+                 leanCard.value(QStringLiteral("windowedMean")).toBool() ? 1 : 0, 0);
+        checkEqI("pelvis sway still is",
+                 cm.cardSpecFor(QStringLiteral("pelvisSway")).value(QStringLiteral("windowedMean")).toBool() ? 1 : 0, 1);
+
+        // The DEFAULT spec — an unannotated metric and an unknown key alike — is the card as it
+        // always was: @ IMPACT, PEAK, Δ over the window, PK RATE.
+        for (const char *k : { "pelvisSway", "zzzNotAMetric" }) {
+            const QVariantMap c = cm.cardSpecFor(QString::fromLatin1(k));
+            const QVariantList r = c.value(QStringLiteral("readAt")).toList();
+            const bool dflt = r.size() == 1
+                && r.value(0).toMap().value(QStringLiteral("phase")).toInt() == 5
+                && c.value(QStringLiteral("peak")).toBool() && !c.value(QStringLiteral("peakSpan")).toBool()
+                && c.value(QStringLiteral("delta")).toBool() && !c.value(QStringLiteral("deltaSpan")).toBool()
+                && c.value(QStringLiteral("rate")).toBool();
+            checkEqI(k, dflt ? 1 : 0, 1);
+        }
+
         // An uncatalogued key gets the descriptor DEFAULT — the whole swing, Address(0)→Finish(7).
         // Not knowing a metric is not a licence to hide part of its curve.
         const QVariantMap unknown = cm.domainFor(QStringLiteral("zzzNotAMetric"));

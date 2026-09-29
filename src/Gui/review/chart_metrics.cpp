@@ -527,6 +527,30 @@ QVariantMap ChartMetrics::domainFor(const QString &key) const
                         { QStringLiteral("narrowed"),      firstNarrowed || lastNarrowed } };
 }
 
+QVariantMap ChartMetrics::cardSpecFor(const QString &key) const
+{
+    // Same fallback rule as domainFor: an uncatalogued key gets the DEFAULT spec, authored once in
+    // metric_descriptor.h — which is the card this panel always drew.
+    const pinpoint::analysis::MetricDescriptor *d = m_catalogue.descriptor(key);
+    const pinpoint::analysis::MetricCardSpec c = d ? d->card : pinpoint::analysis::MetricCardSpec{};
+    QVariantList readAt;
+    for (const pinpoint::analysis::MetricCardReading &r : c.readAt)
+        readAt.push_back(QVariantMap{ { QStringLiteral("phase"), int(r.phase) },
+                                      { QStringLiteral("label"), r.label } });
+    return QVariantMap{ { QStringLiteral("readAt"),     readAt },
+                        { QStringLiteral("peak"),       c.peak },
+                        { QStringLiteral("peakSpan"),   c.hasPeakSpan },
+                        { QStringLiteral("peakFrom"),   int(c.peakFrom) },
+                        { QStringLiteral("peakTo"),     int(c.peakTo) },
+                        { QStringLiteral("delta"),      c.delta },
+                        { QStringLiteral("deltaSpan"),  c.hasDeltaSpan },
+                        { QStringLiteral("deltaFrom"),  int(c.deltaFrom) },
+                        { QStringLiteral("deltaTo"),    int(c.deltaTo) },
+                        { QStringLiteral("deltaLabel"), c.deltaLabel },
+                        { QStringLiteral("rate"),       c.rate },
+                        { QStringLiteral("windowedMean"), c.windowedMean } };
+}
+
 bool ChartMetrics::measuredAt(const QVariantList &tUs, const QVariantList &valid,
                              qint64 us, qint64 fromUs, qint64 toUs) const
 {

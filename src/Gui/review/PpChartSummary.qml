@@ -73,6 +73,9 @@ ColumnLayout {
     property real   startUs:     0
     property real   endUs:       0
     property real   impactUs:    -1       // impact instant; the @impact card reads the series here
+    // The swing's phase ladder [{phase, t_us}] — every reading, fixed Δ and fixed PEAK span a card's
+    // spec names is resolved against it, because only the swing knows when its P4 happened.
+    property var    phases:      []
     property string segmentName: ""
     property bool   showHeader:  true     // false when a host SectionHeader labels this
 
@@ -165,6 +168,13 @@ ColumnLayout {
     // a point at the domain's end rather than inverting — summaryMasked swaps an inverted pair,
     // which would turn the clamp into a window over exactly the region it was removing.
     // ⚠ The same two lines live in PpMetricChart.qml (the split-mode @end readout); keep them equal.
+    // A phase's instant on this swing, or -1 when the ladder lacks it (the tile then prints "—").
+    function _phaseUs(phase) {
+        var ps = root.phases || []
+        for (var i = 0; i < ps.length; ++i) if (ps[i].phase === phase) return ps[i].t_us
+        return -1
+    }
+
     function _winStart(s) {
         return Math.max(root.startUs, s.validFromUs !== undefined ? s.validFromUs : root.startUs)
     }
@@ -188,153 +198,230 @@ ColumnLayout {
     }
 
     // Cards — equal-width columns, wrapping to the available width.
+    //
+    // ── EVERY CARD IS THE SAME SHAPE ─────────────────────────────────────────────────
+    //
+    // Cards used to size to their own content, so one card wearing a PARTIAL chip, or one whose
+    // PEAK had no ± line, stood taller or shorter than its neighbours and its values sat on a
+    // different baseline — a row of four that read as four unrelated widgets. Three rules keep
+    // the row one shape: every card fills its grid row's height; every optional line (PARTIAL,
+    // the two ±) RESERVES its space and is merely hidden when it has nothing to say; and every
+    // cell of the 2×2 grid is top-aligned, so "@ IMPACT" and "PEAK" share a label line even
+    // though PEAK carries a ± beneath it. The PARTIAL line is reserved only when some card in
+    // the row wears one (`anyPartial`), so a row with no caveat carries no blank line.
+    //
+    // ⚠ `Layout.fillHeight: false` IS LOAD-BEARING. A nested layout fills by default, and this
+    // component sits in PpMetricChart's column beside the plot, so any spare height in the panel
+    // reached the grid — and, once the cards fill their row, stretched every card to hundreds of
+    // pixels of empty border. The grid is exactly as tall as its tallest card, and no taller.
+    //
+    // THE MINIMUM CARD WIDTH (190) is what the 2×2 grid needs to print its labels whole: at 150 px a
+    // six-card row (Pelvis & lateral) cut "Δ SEGMENT" to "Δ SEGM…" on every card. Fewer, wider
+    // columns — wrapping to a second row — beats a label that has to be guessed.
     GridLayout {
         id: grid
         Layout.fillWidth: true
+        Layout.fillHeight: false
         columnSpacing: Theme.sp(10); rowSpacing: Theme.sp(10)
         columns: Math.max(1, Math.min(root.series.length,
-                                      Math.floor(grid.width / Theme.sp(150))))
+                                      Math.floor((grid.width + grid.columnSpacing)
+                                                 / (Theme.sp(190) + grid.columnSpacing))))
+
+        readonly property bool anyPartial: {
+            for (var i = 0; i < cards.count; ++i) {
+                var c = cards.itemAt(i)
+                if (c && c.partial) return true
+            }
+            return false
+        }
 
         Repeater {
+            id: cards
             model: root.series
             delegate: Rectangle {
                 id: card
                 required property var modelData
+
+                // ── WHAT THIS CARD SHOWS (MetricDescriptor::card) ───────────────────────────
+                //
+                // Not the same four tiles for every metric any more: metric_descriptor.h's
+                // MetricCardSpec says why — shaft lean has no PEAK worth printing, past parallel is
+                // read at the top, balance at the finish, forward bend as its address→impact loss.
+                // `spec` is resolved once per card; the default is the old card exactly.
+                readonly property var    spec: cm.cardSpecFor(card.modelData.key)
+
+                // The WINDOW-SCOPED statistics: the active window CLAMPED to the metric's phase
+                // domain. Used by every tile the spec leaves window-scoped (PEAK without a span, Δ
+                // without a span, PK RATE); a fixed-span tile reduces its own span below.
                 readonly property real   winStartUs: root._winStart(card.modelData)
                 readonly property real   winEndUs:   root._winEnd(card.modelData)
                 // ⚠ `reduceValid`, NOT `valid` (F4): the host composes `valid` AND in-domain into one
                 // mask (PpMetricChart._reduceMask) and every reduction on the panel is given that
-                // same one. Without it, a swing analysed before the producers marked out-of-domain
-                // samples invalid has those samples averaged into the anchors beside the domain
-                // boundary — a hip line past impact, which measures rotation and not tilt, feeding a
-                // tile that design §5.1 says it must not reach — and the tile then differs from the
-                // line the chart drew, which was told the truth. Falls back to `valid` for a caller
-                // that has not composed one, which is the pre-Phase-6 behaviour exactly.
-                readonly property var    st:  cm.summaryMasked(card.modelData.t_us,
-                                                         card.modelData.value,
-                                                         card.modelData.reduceValid
-                                                         || card.modelData.valid || [],
-                                                         card.winStartUs, card.winEndUs)
-                // THE DOMAIN CLAMP EMPTIED THE WINDOW: the reader picked a span (IMP→P8 on a
-                // P1–P7 metric, say) lying wholly outside where this metric means anything. The
-                // three window-scoped tiles then print "—" rather than a delta of 0.0, a rate of
-                // 0 and a peak — all four of which are reductions over a single instant and read
-                // as measurements of a still, well-behaved curve. Guarded on a non-empty
-                // selection so a chart that has not sized its window yet is not called empty.
+                // same one, so a tile never differs from the line the chart drew. Falls back to
+                // `valid` for a caller that has not composed one.
+                readonly property var    mask: card.modelData.reduceValid || card.modelData.valid || []
+                readonly property var    st:  cm.summaryMasked(card.modelData.t_us, card.modelData.value,
+                                                               card.mask, card.winStartUs, card.winEndUs)
+                // THE DOMAIN CLAMP EMPTIED THE WINDOW: the selected span lies wholly outside where
+                // this metric means anything, so every window tile prints "—" rather than a Δ of
+                // 0.0 and a rate of 0 read off a single instant. Guarded on a non-empty selection
+                // so a chart that has not sized its window yet is not called empty.
                 readonly property bool   collapsed: card.winEndUs <= card.winStartUs
                                                     && root.endUs > root.startUs
-                // The card's numbers do not rest on a continuous measurement — summaryMasked says
-                // so (invalid samples inside the window, or an edge read from across them), or the
-                // window was emptied above and there is nothing behind any of them.
-                readonly property bool   partial: card.st.partial === true || card.collapsed
-                // ── IS THERE A PEAK RATE AT ALL? ────────────────────────────────────────────
-                // Phase 2 (design §5.2) makes PK RATE the steepest least-squares slope over a
-                // window of at least 50 ms holding at least 3 valid samples, and a window that
-                // short — or that sparsely measured — simply has no slope to fit. summaryMasked
-                // says so with `rateOk` and returns 0, and a 0 in this tile would read as the one
-                // thing it must not: a still, well-behaved curve. So the tile prints "—" and the
-                // "/100ms" unit token goes with it, because a unit beside an em dash still claims
-                // a quantity was measured in it.
-                //
-                // `=== true` on purpose: an older analysisDetail summarised by a build without the
-                // key gives `undefined`, and `!card.st.rateOk` would then print a rate that was
-                // never fitted.
-                readonly property bool   rateOk: card.st.rateOk === true && !card.collapsed
-                // ── IS THERE ANY READING ON THIS SERIES AT ALL? ─────────────────────────────
-                // `edgeOk` false means the series carries no valid sample anywhere — every sample
-                // bridged, or an empty curve — so PEAK, Δ and every other window number came back
-                // 0.0 out of nothing. A "PEAK 0 / Δ 0" card wearing only a PARTIAL chip reads as a
-                // still, well-behaved curve, which is the same confident absurdity `rateOk` exists
-                // to stop for the rate. Same treatment: "—".
-                //
-                // ⚠ `!== false`, where rateOk above is `=== true`, and the asymmetry is deliberate.
-                // A map without `rateOk` costs one tile; a map without `edgeOk` would blank EVERY
-                // tile on EVERY card, so the missing-key direction has to differ. (Neither can
-                // happen with this build — chart_metrics_test pins both keys as present — the
-                // guards are for a QML file that outlives a C++ change.)
+                // `edgeOk` false: the series has no valid sample anywhere, so every window number
+                // is 0.0 out of nothing. `!== false` (not `=== true`): a map from a C++ that never
+                // heard of the key must not blank every card.
                 readonly property bool   valueOk: card.st.edgeOk !== false && !card.collapsed
+                // PK RATE needs a ≥50 ms window with ≥3 valid samples (Phase 2); `=== true` so an
+                // older map without the key prints no rate that was never fitted.
+                readonly property bool   rateOk: card.st.rateOk === true && !card.collapsed
+                // PEAK's own gate (F2): no valid sample INSIDE the window means the extremum came
+                // from the interpolated edges — between measurements, not from any.
+                readonly property bool   winPeakOk: card.valueOk && card.st.extremumOk !== false
 
-                // ── PEAK's OWN GATE (F2) ────────────────────────────────────────────────────
-                //
-                // `extremumOk` false means NO VALID SAMPLE LIES IN THIS WINDOW, so min/max/peak/range
-                // were taken from the two interpolated EDGES — between measurements, not from any.
-                // It happens on a perfectly healthy series whenever the window is narrower than the
-                // sample spacing (a brush pinched to 50 ms on a 100 ms-strided address, or a phase
-                // pair closer together than a frame), and on an UNMASKED series `partial` cannot
-                // report it: that chip needs an honoured mask, so this state used to wear nothing at
-                // all and read as an ordinary PEAK.
-                //
-                // Since Phase 6 the tile claims more than it used to — the drawn line IS the reduced
-                // curve, so PEAK is advertised as a point on it — and this is the one state where no
-                // point of the line is in the window to be that peak. So it prints "—", exactly as
-                // PK RATE does on `rateOk` false. Δ SEGMENT and @IMPACT are deliberately NOT gated on
-                // it: both are statements about INSTANTS, which is precisely what the edges are.
-                //
-                // `!== false` like valueOk, not `=== true` like rateOk: a map from a C++ that never
-                // heard of the key must not blank the tile on every card of every swing.
-                readonly property bool   peakOk: card.valueOk && card.st.extremumOk !== false
+                // A FIXED PEAK SPAN (e.g. Connection over Address→Top, Lead knee over Impact→P8):
+                // reduced by the same summaryMasked over the span's own two instants, whatever
+                // window is selected. {} when the swing lacks either phase.
+                readonly property real   pkFromUs: card.spec.peakSpan ? root._phaseUs(card.spec.peakFrom) : -1
+                readonly property real   pkToUs:   card.spec.peakSpan ? root._phaseUs(card.spec.peakTo)   : -1
+                readonly property var    stSpan: (card.pkFromUs >= 0 && card.pkToUs > card.pkFromUs)
+                                                 ? cm.summaryMasked(card.modelData.t_us, card.modelData.value,
+                                                                    card.mask, card.pkFromUs, card.pkToUs)
+                                                 : ({})
+                readonly property bool   spanPeakOk: card.stSpan.edgeOk !== undefined
+                                                     && card.stSpan.edgeOk !== false
+                                                     && card.stSpan.extremumOk !== false
 
-                // Value at the impact landmark — a fixed anatomical reference, so it reads the
-                // whole series (not the view window); the more useful thing to compare against
-                // PEAK. Falls back to the window @end when no impact is known.
-                //
-                // ⚠ AND IT IS GATED ON HAVING BEEN MEASURED THERE. valueAtNearest snaps to the
-                // nearest sample unconditionally, so a series whose geometry was gated across
-                // impact — which is exactly what design §5.1 arranges — printed the bridged value
-                // as its headline number, in the band colour, as the one figure on the card a
-                // reader trusts most. `impMeasured` false ⇒ the tile prints "—" in a neutral
-                // colour. It is NOT gated on the window: this tile is deliberately not
-                // window-scoped, and an emptied window says nothing about the impact landmark.
-                readonly property bool   impMeasured: root.impactUs > 0
-                                                      && root._measuredAt(card.modelData,
-                                                                          root.impactUs)
-                //
-                // ⚠ THE MEAN, NOT THE RAW SAMPLE (Phase 6). The chart strokes the 40 ms windowed
-                // mean, so a tile quoting the persisted sample at impact could differ from the curve
-                // the reader is looking at by one frame's wobble — the panel would carry two answers
-                // for one instant, which is the exact failure design §4 principle 1 is about. The raw
-                // sample is not lost: `impRaw` puts it in this tile's tooltip, the same "raw N" the
-                // chart's hover row prints, so the reduction stays visible rather than silent.
-                //
-                // The FALLBACK is still `st.end`, the window's ±15 ms median edge, for a series with
-                // no known impact — a different reduction, but it is answering a different question
-                // ("where did this window leave off") and it always did.
-                readonly property real   impVal: root.impactUs > 0
-                                                 ? labels.valueAtNearest(card.modelData.t_us,
-                                                       root._meanOf(card.modelData), root.impactUs)
-                                                 : card.st.end
-                // The persisted sample under that reading, for the tooltip. "" when there is no
-                // reduction to explain (the tile IS the raw sample then) or no impact landmark, so
-                // the tooltip is offered only where it has something to add. Same σ step as the
-                // reading above: a raw sample is a reading like any other (design §5.3), and a
-                // tooltip printing finer digits than the tile it explains would be the false
-                // precision the step rule exists to remove, reintroduced in small type.
-                readonly property string impRaw: (root.impactUs > 0 && root._hasMean(card.modelData))
-                                                 ? qsTr("raw %1").arg(cm.formatBare(
-                                                       labels.valueAtNearest(card.modelData.t_us,
-                                                           card.modelData.value, root.impactUs),
-                                                       card.modelData.unit, card.sig))
-                                                 : ""
-                // "" = NO VERDICT, and it must stay neutral rather than green: bandAtNearest now
-                // refuses to answer when the nearest phaseSample is a frame or more away, or when
-                // there are none, instead of defaulting to "good" off nothing at all.
-                readonly property string bnd: cm.bandAtNearest(card.modelData.phaseSamples,
-                                                  root.impactUs > 0 ? root.impactUs : root.endUs)
+                // "" = NO VERDICT: bandAtNearest refuses to answer a frame or more from any
+                // phaseSample, rather than defaulting to "good" off nothing at all.
                 readonly property string nm:  cm.shortLabel(card.modelData.key)
                                               || card.modelData.label || card.modelData.key
-                // This series' measurement noise, resolved ONCE for the card: it governs the digits
-                // of every READING printed below (ChartMetrics.displayStep) and it is what the chip
-                // beside the unit quotes. Re-deriving it per tile would be four chances to disagree
-                // about how coarse this card is, and four whole-series marshals per repaint.
-                // 0 = uncharacterised, which asks for no coarsening — ChartMetrics::seriesSigma.
-                //
-                // ⚠ IT GOVERNS THE READINGS AND NOTHING ELSE. The three ± on this card are QUOTED,
-                // not quantised (ChartMetrics::formatUncertainty says why at length): an uncertainty
-                // is read against the value beside it, so a step chosen for the value would inflate
-                // a small error to a whole step and round a smaller one to a false zero.
+                // This series' measurement noise, resolved ONCE: it governs the digits of every
+                // READING (ChartMetrics.displayStep) and is what the header chip quotes. It governs
+                // the readings and nothing else — every ± on the card is QUOTED, not quantised.
                 readonly property real   sig: cm.seriesSigma(card.modelData)
 
+                // ── A READING AT AN INSTANT ─────────────────────────────────────────────────
+                //
+                // The drawn curve's value (the 40 ms windowed mean, Phase 6 — so the tile is a point
+                // on the line beside it) at the phase's instant, GATED on having been measured
+                // there: valueAtNearest snaps unconditionally, and a bridged value printed as a
+                // headline number in the band colour is the failure §5.1 exists to prevent. The raw
+                // sample rides along for the tooltip. The @ IMPACT reading keeps its old fallback,
+                // the window's @end, for a series with no impact landmark.
+                function reading(phase) {
+                    var us = root._phaseUs(phase)
+                    if (us < 0 && phase === 5 && root.impactUs > 0) us = root.impactUs
+                    if (us < 0) {
+                        return phase === 5 && card.valueOk
+                               ? { ok: true, val: card.st.end, us: root.endUs, raw: "" }
+                               : { ok: false, val: 0, us: -1, raw: "" }
+                    }
+                    var ok = root._measuredAt(card.modelData, us)
+                    var v  = labels.valueAtNearest(card.modelData.t_us, root._meanOf(card.modelData), us)
+                    var raw = root._hasMean(card.modelData)
+                              ? cm.formatBare(labels.valueAtNearest(card.modelData.t_us,
+                                                                    card.modelData.value, us),
+                                              card.modelData.unit, card.sig)
+                              : ""
+                    return { ok: ok, val: v, us: us, raw: raw }
+                }
+                function tag(phase) {
+                    var t = labels.phaseShortTag(phase)
+                    return t !== "" ? t : labels.phaseFullName(phase)
+                }
+                function readLabel(r) {
+                    if (r.label) return r.label
+                    // The four landmark names read better than their tags ("@ TOP", not "@ P4");
+                    // every other position is its P-tag, because "@ SHAFT-PARALLEL THROUGH" does
+                    // not fit a cell.
+                    var name = labels.phaseFullName(r.phase)
+                    return "@ " + (name.length <= 7 ? name.toUpperCase() : card.tag(r.phase))
+                }
+                function fmt(v) { return cm.formatBare(v, card.modelData.unit, card.sig) }
+
+                // ── THE TILES, IN SPEC ORDER: readings, PEAK, Δ, PK RATE ────────────────────
+                // Each: { label, text, ok, color, sub, unit, tip, window }. `sub` is the ± line and
+                // is "" where the tile has none; `window` marks the tiles the PARTIAL chip speaks for.
+                readonly property var tiles: {
+                    var out = [], sp = card.spec, i
+                    var rs = sp.readAt || []
+                    for (i = 0; i < rs.length; ++i) {
+                        var r = card.reading(rs[i].phase)
+                        out.push({ label: card.readLabel(rs[i]),
+                                   text: r.ok ? card.fmt(r.val) : "—",
+                                   ok: r.ok,
+                                   color: r.ok ? root._bandColor(cm.bandAtNearest(
+                                                     card.modelData.phaseSamples, r.us))
+                                               : Theme.colorText3,
+                                   sub: "", unit: "", window: false,
+                                   tip: (r.ok && r.raw !== "")
+                                        ? qsTr("Drawn value (40 ms windowed mean). "
+                                               + "Recorded sample there: raw %1.").arg(r.raw)
+                                        : "" })
+                    }
+                    if (sp.peak) {
+                        // ± is summaryMasked's peakSigma — the SE of the winning 40 ms mean about a
+                        // local line — QUOTED at one decimal, never quantised to the value's step.
+                        var span = sp.peakSpan
+                        var pOk  = span ? card.spanPeakOk : card.winPeakOk
+                        var ps   = span ? card.stSpan : card.st
+                        out.push({ label: span ? qsTr("PEAK %1→%2").arg(card.tag(sp.peakFrom))
+                                                                    .arg(card.tag(sp.peakTo))
+                                               : qsTr("PEAK"),
+                                   text: pOk ? card.fmt(ps.peak) : "—", ok: pOk,
+                                   color: pOk ? Theme.colorText : Theme.colorText3,
+                                   sub: pOk ? cm.formatUncertainty(ps.peakSigma) : "",
+                                   unit: "", tip: "", window: !span })
+                    }
+                    if (sp.delta) {
+                        // NO ± on a Δ (design §5.3 as pinned in C12): the reducers produce no error
+                        // for a difference of two edges, and this file does not invent one.
+                        if (sp.deltaSpan) {
+                            var a = card.reading(sp.deltaFrom), b = card.reading(sp.deltaTo)
+                            var dOk = a.ok && b.ok
+                            out.push({ label: sp.deltaLabel
+                                              || ("Δ " + card.tag(sp.deltaFrom) + "→" + card.tag(sp.deltaTo)),
+                                       text: dOk ? card.fmt(b.val - a.val) : "—", ok: dOk,
+                                       color: dOk ? Theme.colorText : Theme.colorText3,
+                                       sub: "", unit: "", tip: "", window: false })
+                        } else {
+                            out.push({ label: sp.deltaLabel || qsTr("Δ SEGMENT"),
+                                       text: card.valueOk ? card.fmt(card.st.delta) : "—",
+                                       ok: card.valueOk,
+                                       color: card.valueOk ? Theme.colorText : Theme.colorText3,
+                                       sub: "", unit: "", tip: "", window: true })
+                        }
+                    }
+                    if (sp.rate) {
+                        // THE MAGNITUDE of a signed slope — this tile has always answered "how
+                        // fast, at its fastest" — and NOT put through the σ step rule: σ is in the
+                        // metric's unit and this is per 100 ms. Its ± is rateSigma, quoted. Unit
+                        // hidden with the value: "— °/100ms" claims a rate that was never fitted.
+                        out.push({ label: qsTr("PK RATE"),
+                                   text: card.rateOk ? String(Math.round(Math.abs(card.st.rate))) : "—",
+                                   ok: card.rateOk,
+                                   color: card.rateOk ? Theme.colorText : Theme.colorText3,
+                                   sub: card.rateOk ? cm.formatUncertainty(card.st.rateSigma) : "",
+                                   unit: card.rateOk ? root._unit(card.modelData.unit) + qsTr("/100ms") : "",
+                                   tip: "", window: true })
+                    }
+                    return out
+                }
+
+                // PARTIAL speaks for the WINDOW: part of it was never measured (summaryMasked says
+                // so) or the domain clamp emptied it. A card with no window-scoped tile has nothing
+                // for it to qualify — its fixed readings print "—" for themselves when unmeasured —
+                // and so never wears it.
+                readonly property bool   partial: {
+                    for (var i = 0; i < card.tiles.length; ++i)
+                        if (card.tiles[i].window) return card.st.partial === true || card.collapsed
+                    return false
+                }
+
                 Layout.fillWidth: true
+                Layout.fillHeight: true             // every card as tall as its row
+                Layout.alignment: Qt.AlignTop
                 Layout.preferredWidth: 1            // equal columns
                 implicitHeight: cardCol.implicitHeight + Theme.sp(22)
                 radius: Theme.sp(10)
@@ -354,7 +441,7 @@ ColumnLayout {
                               topMargin: Theme.sp(11) }
                     spacing: Theme.sp(10)
 
-                    RowLayout {                       // name + unit
+                    RowLayout {                       // name + unit + σ
                         Layout.fillWidth: true
                         Text {
                             Layout.fillWidth: true
@@ -368,28 +455,12 @@ ColumnLayout {
                             font.letterSpacing: Theme.trackingData
                             color: Theme.colorText3
                         }
-                        // Measurement NOISE on this series, when its producer characterised one.
-                        // Sits by the unit rather than on each of the four values because it is
-                        // one number for the whole curve — repeating it four times would read as
-                        // four separate error bars. Absent ⇒ nothing is drawn: a series with no
-                        // σ has not been characterised, which is not the same as being exact.
+                        // Measurement NOISE on this series, when its producer characterised one —
+                        // one number for the whole curve, so it sits by the unit and not on each
+                        // tile. Absent ⇒ nothing drawn: uncharacterised is not exact. QUOTED, not
+                        // quantised (σ is the number that SET the step; quantising it is circular).
                         Text {
                             id: sigmaChip
-                            // Resolved once, because `visible` does not gate a binding: QML
-                            // evaluates `text` whether or not the item is shown, so a series
-                            // with no σ reached .toFixed() on undefined and warned per frame.
-                            //
-                            // ⚠ QUOTED, NOT QUANTISED, and through the same ChartMetrics call as the
-                            // other two ± on this card — which is the whole reason it stopped being
-                            // a local `.toFixed(1)` here. Two bugs went with the copy. It printed
-                            // "± 0.0in" for the plumb bob, whose σ is 0.03–0.06 in: a chip whose one
-                            // job is to deny exactness, claiming it. And it jammed the unit against
-                            // the number with no separator, the same defect formatValue exists to
-                            // prevent ("12mph"). Now: "± <0.1 in", "± 2.5°".
-                            //
-                            // It could not be step-quantised in any case — σ is the number that SET
-                            // the step, so quantising it would state the noise as the coarseness it
-                            // chose (a σ of 2.5° as "± 5°") and make the chip circular.
                             readonly property real sigma: card.sig
                             visible: sigmaChip.sigma > 0
                             text: cm.formatUncertainty(sigmaChip.sigma,
@@ -400,258 +471,101 @@ ColumnLayout {
                             HoverHandler { id: sigmaHover }
                             ToolTip.visible: sigmaHover.hovered
                             ToolTip.delay: 400
-                            // Deliberately says what it is NOT. This is frame-to-frame noise in
-                            // the detector, not the accuracy of the reading — the projection
-                            // error on a camera-derived angle is larger and uncharacterised, and
-                            // a reader who took ±σ for total accuracy would trust it too far.
                             ToolTip.text: qsTr("Frame-to-frame measurement noise on this curve. "
                                                + "Not the overall accuracy of the reading.")
                         }
                     }
 
-                    // PARTIAL — part of this window was never measured. Styled exactly like the
-                    // σ chip above (fontData, micro, colorText3) because it belongs to the same
-                    // track: both qualify the numbers below without changing one of them. It is a
-                    // caveat, not an error, so it is NOT warn-coloured — the values are the best
-                    // the valid samples support, and that is what it says.
-                    //
-                    // ⚠ ITS OWN LINE, not the header row. That row is name + unit + ±σ, and only
-                    // the NAME can give up width (it is the fillWidth item); adding a fourth token
-                    // meant three fixed-width chips competing for what was left of a 150px card and
-                    // overlapping each other on the narrow ones. A caveat that is illegible is
-                    // worse than absent, since the reader still sees ink and mistrusts the number.
+                    // PARTIAL — part of the window was never measured. Styled like the σ chip (a
+                    // caveat, not an error). ITS OWN LINE, and RESERVED whenever any card in the row
+                    // is partial, so the tile grids below stay level across the row.
                     Text {
-                        visible: card.partial
+                        visible: grid.anyPartial
+                        opacity: card.partial ? 1 : 0
                         Layout.fillWidth: true
                         elide: Text.ElideRight
                         text: qsTr("PARTIAL")
                         font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingData
                         color: Theme.colorText3
-                        HoverHandler { id: partialHover }
+                        HoverHandler { id: partialHover; enabled: card.partial }
                         ToolTip.visible: partialHover.hovered
                         ToolTip.delay: 400
                         ToolTip.text: qsTr("Part of this window had no valid measurement.")
                     }
 
-                    // ── THE 2×2 VALUE GRID, AND WHY EVERY CELL IS A LAYOUT ───────────────────
+                    // ── THE 2×2 TILE GRID — ALWAYS FOUR CELLS ────────────────────────────────
                     //
-                    // These four cells were plain `Column`s: a Column takes its width FROM its
-                    // widest child, so `Layout.fillWidth` on it granted the cell room the Texts
-                    // inside never received, and a Text with no width and no elide simply drew
-                    // past the cell into its neighbour. In a three-across row on a narrow panel
-                    // the PEAK value overprinted Δ SEGMENT's label.
-                    //
-                    // ColumnLayout + Layout.fillWidth + elide is the fix: the cell's width now
-                    // reaches the Texts, so they truncate at their own boundary instead of over
-                    // the next one. Nothing about the look changes at a width where it already
-                    // fitted — an elide is inert until it is needed.
+                    // A card with fewer tiles (past parallel has one) still lays out four cells,
+                    // the unused ones transparent, so every card in a row is one shape. Every cell
+                    // is the same three lines — label, value, ± — with the ± line reserved when
+                    // empty, and top-aligned. Every cell is a LAYOUT with fillWidth + elide, so a
+                    // long value truncates at its own boundary instead of drawing over the next
+                    // cell (the plain-Column overprint this grid once had).
                     GridLayout {
                         Layout.fillWidth: true
                         columns: 2
                         columnSpacing: Theme.sp(12); rowSpacing: Theme.sp(9)
 
-                        // @ impact — the landmark value, tinted by band at impact.
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 0
-                            Text { Layout.fillWidth: true; elide: Text.ElideRight
-                                   text: qsTr("@ IMPACT"); font.family: Theme.fontData
-                                   font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingData
-                                   color: Theme.colorText3 }
-                            // "—" where impact was not measured on this series, in the neutral
-                            // colour: a band tint on a withheld reading would still claim a verdict.
-                            // σ GOVERNS THE DIGITS: formatBare rounds to displayStep(σ, unit), so
-                            // a card whose series carries a 2.5° noise floor prints multiples of
-                            // 5° here. NO ± beside this tile — @IMPACT is a reading of the curve at
-                            // an instant, and the only uncertainty on it is the series σ already
-                            // stated in the header chip. A second ± would double-count it.
-                            Text {
-                                id: impText
-                                Layout.fillWidth: true; elide: Text.ElideRight
-                                text: card.impMeasured
-                                      ? cm.formatBare(card.impVal, card.modelData.unit, card.sig)
-                                      : "—"
-                                font.family: Theme.fontData
-                                font.pixelSize: Theme.fontSzData
-                                color: card.impMeasured ? root._bandColor(card.bnd)
-                                                        : Theme.colorText3
-                                // THE RAW SAMPLE, ONE HOVER AWAY. The tile is the drawn line's value
-                                // at impact; this is what the frame actually recorded there. It is a
-                                // tooltip rather than a second line because the 2×2 grid has no room
-                                // for a fifth number and because the reduction is the reading — the
-                                // raw sample is the evidence behind it, which is what a tooltip is
-                                // for. The chart's hover row prints the same pair side by side for a
-                                // reader who wants it at every instant, not just at impact.
-                                //
-                                // Offered ONLY where it adds something: no impact landmark, no mean,
-                                // or nothing measured there ⇒ no tooltip. A "raw N" beside a "—"
-                                // would say the reading exists and is being withheld.
-                                HoverHandler { id: impHover }
-                                ToolTip.visible: impHover.hovered && impText.ToolTip.text.length > 0
-                                ToolTip.delay: 400
-                                ToolTip.text: (card.impMeasured && card.impRaw.length > 0)
-                                              ? qsTr("Drawn value at impact (40 ms windowed mean). "
-                                                     + "Recorded sample there: %1.").arg(card.impRaw)
-                                              : ""
-                            }
-                        }
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 0
-                            Text { Layout.fillWidth: true; elide: Text.ElideRight
-                                   text: qsTr("PEAK"); font.family: Theme.fontData
-                                   font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingData
-                                   color: Theme.colorText3 }
-                            Text { Layout.fillWidth: true; elide: Text.ElideRight
-                                   text: card.peakOk
-                                         ? cm.formatBare(card.st.peak, card.modelData.unit, card.sig)
-                                         : "—"
-                                   font.family: Theme.fontData
-                                   font.pixelSize: Theme.fontSzData
-                                   color: card.peakOk ? Theme.colorText : Theme.colorText3 }
-                            // ── ± ON THE PEAK, AND WHY IT IS ITS OWN LINE ────────────────────
-                            //
-                            // summaryMasked's `peakSigma`: the standard error of the winning 40 ms
-                            // window's mean about a LOCAL STRAIGHT LINE through it, so a clean ramp
-                            // reports 0 rather than reporting its own slope as uncertainty. Design
-                            // §5.3 puts it here because PEAK and PK RATE are where a reader's trust
-                            // in this panel is decided — a peak with no error bar is the one number
-                            // on the card that invites over-reading.
-                            //
-                            // ⚠ NO UNIT ARGUMENT (the card names it above) AND NO σ ARGUMENT: this
-                            // is QUOTED at one decimal, never quantised to the value's step. For
-                            // peakSigma that distinction is the difference between a number and
-                            // nothing — it is about σ/√k for a k-sample window, so it is SMALLER
-                            // than the series σ by construction and a step chosen from σ rounded it
-                            // to zero on essentially every card.
-                            //
-                            // ⚠ ON ITS OWN LINE, for the reason the PARTIAL chip above is: this
-                            // cell is one of four in a card that can be 150px wide, and a second
-                            // fixed-width token on the value's row leaves the value and the ± both
-                            // elided into ellipses. A caveat that is illegible is worse than absent.
-                            //
-                            // Hidden with the value, not merely dimmed: `peakOk` false means either
-                            // that the series carries no valid sample at all or that none of them is
-                            // in this window, and peakSigma came back 0 out of nothing either way —
-                            // "± 0" under an em dash claims a measured exactness.
-                            Text { Layout.fillWidth: true; elide: Text.ElideRight
-                                   visible: card.peakOk
-                                   text: cm.formatUncertainty(card.st.peakSigma)
-                                   font.family: Theme.fontData
-                                   font.pixelSize: Theme.fontSzMicro
-                                   font.letterSpacing: Theme.trackingData
-                                   color: Theme.colorText3 }
-                        }
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 0
-                            Text { Layout.fillWidth: true; elide: Text.ElideRight
-                                   text: qsTr("Δ SEGMENT"); font.family: Theme.fontData
-                                   font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingData
-                                   color: Theme.colorText3 }
-                            // Same step rule; NO ±, per design §5.3 as pinned in C12. A Δ is a
-                            // difference of two ±15 ms edge medians, whose combined error is not
-                            // `peakSigma` and is not `rateSigma` — the reducers do not produce one,
-                            // and inventing σ√2 here would be this file deriving an error budget,
-                            // which is the analysis layer's job and nobody has done it yet.
-                            Text { Layout.fillWidth: true; elide: Text.ElideRight
-                                   text: card.valueOk
-                                         ? cm.formatBare(card.st.delta, card.modelData.unit, card.sig)
-                                         : "—"
-                                   font.family: Theme.fontData
-                                   font.pixelSize: Theme.fontSzData
-                                   color: card.valueOk ? Theme.colorText : Theme.colorText3 }
-                        }
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 0
-                            Text { Layout.fillWidth: true; elide: Text.ElideRight
-                                   text: qsTr("PK RATE"); font.family: Theme.fontData
-                                   font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingData
-                                   color: Theme.colorText3 }
-                            RowLayout {
+                        Repeater {
+                            model: 4
+                            delegate: ColumnLayout {
+                                id: cell
+                                required property int index
+                                readonly property var tile: cell.index < card.tiles.length
+                                                            ? card.tiles[cell.index] : null
                                 Layout.fillWidth: true
-                                spacing: Theme.sp(3)
-                                // Both halves take AlignBaseline — a RowLayout aligns to a shared
-                                // baseline only for the items that ask, and the plain `Row` this
-                                // replaced sat the unit on the value's baseline by anchor (which a
-                                // Layout forbids on its children).
-                                // The VALUE elides as well, and needs to: once the unit token
-                                // below has collapsed to its ellipsis there is nothing left to give
-                                // way, and an un-elided number then drew straight over it.
-                                // ⚠ THE MAGNITUDE, of a value that is now SIGNED. summaryMasked's
-                                // `rate` carries the direction of the steepest change since Phase
-                                // 2 (a least-squares slope has one, and throwing it away in C++
-                                // would leave no consumer able to recover it), but this tile has
-                                // always answered "how fast, at its fastest" — the same question
-                                // the corpus baseline table and design §7 item 2's "under 2 units
-                                // per 100 ms" are written against — and its neighbours PEAK and
-                                // Δ SEGMENT already carry sign where the sign IS the reading.
-                                // Printing "-291" here would silently redefine the tile mid-phase.
-                                // The signed value stays available in the map (the plumb-bob probe
-                                // prints it), and tRateUs says where it was.
-                                //
-                                // ⚠ AND IT IS NOT PUT THROUGH THE σ STEP RULE, deliberately. This
-                                // tile's quantity is units PER 100 ms, and the series' σ is in the
-                                // metric's own unit — quantising a slope to a step derived from a
-                                // position's noise is a category error, and at σ = 2.5° it would
-                                // round a rate of 291°/100 ms to 290 for a reason that has nothing
-                                // to do with how well the slope was determined. What DOES say that
-                                // is `rateSigma`, on the line below, and it is in the rate's unit.
-                                // Math.round for the same reason a rate has never carried a decimal
-                                // here: three digits of °/100ms is already more than the cell holds.
-                                Text { id: rateVal
-                                       Layout.alignment: Qt.AlignBaseline
-                                       Layout.fillWidth: true
-                                       elide: Text.ElideRight
-                                       text: card.rateOk ? Math.round(Math.abs(card.st.rate)) : "—"
-                                       font.family: Theme.fontData
-                                       font.pixelSize: Theme.fontSzData
-                                       color: card.rateOk ? Theme.colorText : Theme.colorText3 }
-                                // The ONE value whose unit differs from the card's — a rate, not a
-                                // reading — so it says so, and is the only one that may. It is also
-                                // the half that gives way when the cell is too narrow: the NUMBER is
-                                // the reading, and eliding "°/100ms" to "°/1…" costs less than
-                                // eliding the digits.
+                                Layout.preferredWidth: 1
+                                Layout.alignment: Qt.AlignTop
+                                opacity: cell.tile ? 1 : 0
+                                spacing: 0
                                 Text { Layout.fillWidth: true; elide: Text.ElideRight
-                                       Layout.alignment: Qt.AlignBaseline
-                                       // Hidden with the value, not just when the window
-                                       // collapsed: "— °/100ms" reads as a measurement in units
-                                       // per 100 ms that happens to be missing, when the truth is
-                                       // that no rate over 100 ms was fitted at all.
-                                       visible: card.rateOk
-                                       text: root._unit(card.modelData.unit) + qsTr("/100ms")
+                                       text: cell.tile ? cell.tile.label : " "
                                        font.family: Theme.fontData
-                                       font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }
+                                       font.pixelSize: Theme.fontSzMicro
+                                       font.letterSpacing: Theme.trackingData
+                                       color: Theme.colorText3 }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: Theme.sp(3)
+                                    // The value elides too: once the unit has collapsed to its
+                                    // ellipsis nothing else can give way. The UNIT is the half that
+                                    // gives way first — the number is the reading.
+                                    // NOT fillWidth: two fillWidth items split the row evenly,
+                                    // which cut "1164" to "11…" beside a unit with room to spare.
+                                    // The number takes what it needs (capped at the cell), and the
+                                    // unit — fillWidth — gets the rest.
+                                    Text { id: valText
+                                           Layout.alignment: Qt.AlignBaseline
+                                           Layout.maximumWidth: cell.width
+                                           elide: Text.ElideRight
+                                           text: cell.tile ? cell.tile.text : " "
+                                           font.family: Theme.fontData
+                                           font.pixelSize: Theme.fontSzData
+                                           color: cell.tile ? cell.tile.color : Theme.colorText3
+                                           HoverHandler { id: valHover }
+                                           ToolTip.visible: valHover.hovered && !!cell.tile
+                                                            && cell.tile.tip.length > 0
+                                           ToolTip.delay: 400
+                                           ToolTip.text: cell.tile ? cell.tile.tip : "" }
+                                    Text { Layout.fillWidth: true; elide: Text.ElideRight
+                                           Layout.alignment: Qt.AlignBaseline
+                                           visible: !!cell.tile && cell.tile.unit.length > 0
+                                           text: cell.tile ? cell.tile.unit : ""
+                                           font.family: Theme.fontData
+                                           font.pixelSize: Theme.fontSzMicro
+                                           color: Theme.colorText3 }
+                                }
+                                // The ± line — RESERVED when empty (opacity, not visible) so a
+                                // reading without one sits level with a PEAK that has one.
+                                Text { Layout.fillWidth: true; elide: Text.ElideRight
+                                       text: (cell.tile && cell.tile.sub) ? cell.tile.sub : "±"
+                                       opacity: (cell.tile && cell.tile.sub) ? 1 : 0
+                                       font.family: Theme.fontData
+                                       font.pixelSize: Theme.fontSzMicro
+                                       font.letterSpacing: Theme.trackingData
+                                       color: Theme.colorText3 }
                             }
-                            // ── ± ON THE RATE ────────────────────────────────────────────────
-                            //
-                            // summaryMasked's `rateSigma`: the standard error of the FITTED SLOPE,
-                            // so an exact fit reports 0 and a slope fitted through noise reports
-                            // the width of the family of lines that would have done as well. On the
-                            // corpus's still-address window that number is the whole story — a
-                            // "rate" of 1.8 per 100 ms with a ± of 1.5 is visibly not motion.
-                            //
-                            // Its unit is the rate's (per 100 ms), which the token above already
-                            // names for the value it sits under; that is why the ± carries no unit
-                            // of its own and why it is on this line rather than crowding that row
-                            // (see the PEAK note). Hidden with the value on `rateOk` false: no
-                            // window qualified, so rateSigma is 0 out of nothing.
-                            //
-                            // ⚠ AND IT DOES NOT TAKE THE SERIES σ. It briefly did, and a fitted-slope
-                            // standard error of 3.0 printed "± 5" because the σ had chosen a 5-unit
-                            // step — two thirds of inflation borrowed from a quantity in a different
-                            // unit. Quoted, it prints 3.0. This is the tile the still-address gate is
-                            // read on (§7 item 2), where the ± IS the finding, so it has to be the
-                            // number the reducer produced.
-                            Text { Layout.fillWidth: true; elide: Text.ElideRight
-                                   visible: card.rateOk
-                                   text: cm.formatUncertainty(card.st.rateSigma)
-                                   font.family: Theme.fontData
-                                   font.pixelSize: Theme.fontSzMicro
-                                   font.letterSpacing: Theme.trackingData
-                                   color: Theme.colorText3 }
                         }
                     }
                 }
