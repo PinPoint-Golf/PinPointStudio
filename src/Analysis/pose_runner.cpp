@@ -22,6 +22,7 @@ using pinpoint::analysis::PoseFrame2D;
 using pinpoint::analysis::PoseTrack2D;
 
 #include <algorithm>
+#include <atomic>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
@@ -134,6 +135,16 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         PoseEstimatorViTPose::isVariantAvailable(ViTVariant::WholeBodyLarge));
     PoseEstimatorViTPose estimator(useLarge ? ViTVariant::WholeBodyLarge
                                             : ViTVariant::WholeBodyB);
+    // A High swing on B is a different pose from the one it was captured for — say so (once per
+    // process). Silent, it cost a day on 2026-09-29: the studio's tools ran High swings on B unseen.
+    if (!useLarge && opt.motionCaptureQuality.compare(QLatin1String("High"), Qt::CaseInsensitive) == 0) {
+        static std::atomic<bool> warned{ false };
+        if (!warned.exchange(true)) {
+            ppWarn() << "[PoseRunner] High quality swing but ViTPose-L is not at"
+                     << PoseEstimatorViTPose::modelPath(ViTVariant::WholeBodyLarge)
+                     << "— running ViTPose-B";
+        }
+    }
 
     // Offline ORT intra-op pool size (pose.intraOpThreads). Seed from the option
     // (default 0 = legacy heuristic) and let the override map win — resolved here

@@ -114,8 +114,15 @@ QString PoseEstimatorViTPose::largeModelDir()
 {
     // Writable, survives rebuilds, never bundled (same convention as Kokoro TTS
     // voices in TtsController::modelDataDir()).
-    return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation)
-         + QStringLiteral("/models/vitpose/");
+    //
+    // The APP's data directory by name, not AppLocalDataLocation: that one is named after the
+    // RUNNING executable (nothing sets an application name), so on Windows swinglab_run looked in
+    // %LOCALAPPDATA%\swinglab_run, never found the L model the app downloaded, and ran every High
+    // swing on ViTPose-B. 2026-09-29: that B pose put 16 Sept Wrist_02 s2's whole backswing on the
+    // wrong structure; the same swing on L tracks cleanly. Generic + "PinPointStudio" is exactly
+    // the app's own AppLocalDataLocation on macOS, Windows and Linux.
+    return QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+         + QStringLiteral("/PinPointStudio/models/vitpose/");
 }
 
 QString PoseEstimatorViTPose::largeModelUrl()
