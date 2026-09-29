@@ -731,6 +731,13 @@ set_tests_properties(shaft_plane_corpus_test PROPERTIES SKIP_RETURN_CODE 77)
 # header — no Qt, no OpenCV, no fixture.
 pp_add_test(shaft_wedge_test SOURCES shaft_wedge_test.cpp NO_QT)
 
+# impact_anchor.h — the address ball found by its departure from the mat (2026-09-29): synthetic
+# frames with the distractors that fooled the background-subtraction track on the corpus.
+pp_add_test(impact_anchor_test
+    SOURCES impact_anchor_test.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS})
+
 # P7 club-at-ball impact geometry (impact_geom.h): θ==θ_ball crossing detector
 # (sub-frame, moving grip, hysteresis, ±180 seam guard, NaN-gap interpolation,
 # representation independence), the anchor-vs-geometry decision matrix

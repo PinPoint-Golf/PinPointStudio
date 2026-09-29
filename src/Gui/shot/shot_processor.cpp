@@ -531,6 +531,10 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
             { QStringLiteral("predicted"),     predicted } };
         if (!positions.isEmpty()) clubMap.insert(QStringLiteral("positions"), positions);
         if (!synth.isEmpty())     clubMap.insert(QStringLiteral("synth"), synth);
+        if (a.shaft.ballAnchored && a.shaft.frameWidth > 0 && a.shaft.frameHeight > 0)
+            clubMap.insert(QStringLiteral("addressBall"),
+                           QVariantList{ a.shaft.addressBallPx.x() / a.shaft.frameWidth,
+                                         a.shaft.addressBallPx.y() / a.shaft.frameHeight });
         // Mirrors swing_doc.cpp's analysis.club.wedgeObs.
         if (!a.shaft.wedgeObs.empty()) {
             QVariantList wo;

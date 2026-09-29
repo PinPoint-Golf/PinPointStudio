@@ -550,6 +550,9 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
         if (!synth.isEmpty())     clubObj.insert(QStringLiteral("synth"), synth);
         // The blurred frames' timed edge readings (ShaftWedgeObs) as [t_us, theta, kind, sigmaDeg],
         // kind 0 trail / 1 mid / 2 lead. Written only when non-empty.
+        if (a.shaft.ballAnchored)
+            clubObj.insert(QStringLiteral("addressBall"),
+                           QJsonArray{ a.shaft.addressBallPx.x() * iw, a.shaft.addressBallPx.y() * ih });
         if (!a.shaft.wedgeObs.empty()) {
             QJsonArray wo;
             for (const ShaftWedgeObs &w : a.shaft.wedgeObs)

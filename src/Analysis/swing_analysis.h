@@ -817,6 +817,11 @@ struct ShaftTrack2D {
     // The blurred frames' timed edge readings (ShaftWedgeObs), in time order — on every frame the
     // tracker accepted as a WEDGE measurement. Empty when the wedge or its edges are off.
     std::vector<ShaftWedgeObs> wedgeObs;
+    // THE BALL ANCHORS IMPACT (impact_anchor.h): when the address ball was found by its departure,
+    // the P7 position is the line from the hands to it (the clubhead IS at the ball at contact) and
+    // the synth passes through it. addressBallPx in image px; ballAnchored false ⇒ nothing anchored.
+    bool    ballAnchored = false;
+    QPointF addressBallPx;
 };
 
 // The IMU→segment binding as persisted in swing.json (keyed by the device

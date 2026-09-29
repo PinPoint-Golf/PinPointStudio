@@ -61,6 +61,8 @@
 #include "shaft_plane.h"
 #include "skeleton3d/skeleton3d_json.h"
 #include "shaft_tracker.h"
+#include "shaft_frame_io.h"
+#include "impact_anchor.h"
 #include "tempo_metrics.h"
 #include "timeline_fusion.h"
 #include "wrist_resemblance.h"
@@ -112,6 +114,13 @@ MetricSeries buildShaftLeanSeries(const ShaftTrack2D &shaft, int handedness,
     m.sigma = 9.5;
 
     const double sgn = (handedness == 2) ? -1.0 : 1.0;
+    // BALL-ANCHORED ⇒ THE LEAN AT IMPACT IS THE LINE FROM THE HANDS TO THE BALL (impact_anchor.h):
+    // at contact the head IS at the ball, and both ends are sharp where the shaft is a 2°/ms blur.
+    // On the 32 hand-marked corpus P7s (whose marks put the head on the ball; +3.3° mean, sd 1.9°)
+    // the error goes from sd 10.2° (7/32 within ±3°) to sd 5.3° (24/32). The curve stays the
+    // tracker's, shifted by a constant so its P7 value IS that reading — the card quotes the drawn
+    // line at impact, and the two must not disagree.
+    const std::vector<ShaftSample2D> *src = &shaft.samples;
     int64_t bestDt = std::numeric_limits<int64_t>::max();
     PhaseSample impact;
     impact.phase = Phase::Impact;
@@ -125,7 +134,7 @@ MetricSeries buildShaftLeanSeries(const ShaftTrack2D &shaft, int handedness,
     // first sample is normalised into (−π, π] so the curve starts canonically.
     double cont = 0.0, prevRaw = 0.0;
     bool first = true;
-    for (const ShaftSample2D &s : shaft.samples) {
+    for (const ShaftSample2D &s : *src) {
         const double raw = s.thetaRad - kPiD / 2.0;
         if (first) { cont = std::remainder(raw, 2.0 * kPiD); first = false; }
         else       { cont += std::remainder(raw - prevRaw, 2.0 * kPiD); }
@@ -135,6 +144,25 @@ MetricSeries buildShaftLeanSeries(const ShaftTrack2D &shaft, int handedness,
         m.value.push_back(deg);
         const int64_t dt = std::llabs(s.t_us - impactUs);
         if (dt < bestDt) { bestDt = dt; impact.t_us = s.t_us; impact.value = deg; }
+    }
+    // Anchored: the hands at the P7 instant (the tracked grip, interpolated) → the address ball,
+    // and the whole curve re-referenced to it.
+    if (shaft.ballAnchored && impactUs >= 0 && shaft.samples.size() >= 2) {
+        const auto &S = shaft.samples;
+        for (size_t i = 1; i < S.size(); ++i) {
+            if (!(S[i - 1].t_us <= impactUs && impactUs <= S[i].t_us && S[i].t_us > S[i - 1].t_us)) continue;
+            const double u = double(impactUs - S[i - 1].t_us) / double(S[i].t_us - S[i - 1].t_us);
+            const QPointF g = S[i - 1].gripPx + u * (S[i].gripPx - S[i - 1].gripPx);
+            double th = 0.0, len = 0.0;
+            ballLine(g, shaft.addressBallPx, th, len);
+            const double ballLean = sgn * std::remainder(th - kPiD / 2.0, 2.0 * kPiD) * 180.0 / kPiD;
+            const double curveAt  = m.value[i - 1] + u * (m.value[i] - m.value[i - 1]);
+            const double shift    = ballLean - curveAt;
+            for (double &v : m.value) v += shift;
+            impact.t_us  = impactUs;
+            impact.value = ballLean;
+            break;
+        }
     }
     // ANCHOR THE SHEET AT IMPACT. The unwrap above runs from the first sample, so one frame ~180° off
     // anywhere in the swing (a wrong peak, an arm) adds a full turn to everything after it — 07-03 s11
@@ -661,6 +689,100 @@ struct SegResolveStage : AnalysisStage {
 
 // 9. Shaft-lean series — appended to the LOCAL series after the
 //    wrist metrics, preserving element order for the scorer/metrics/trace.
+// 9b. ImpactAnchor — the ball anchors impact (impact_anchor.h). Finds the address ball by its
+//     departure (still through the backswing, gone after impact), then makes the P7 position the
+//     line from the hands to it and re-synthesises the track through it, so shaft lean, attack
+//     angle and low point all read a curve whose head is ON the ball at contact. Runs every analysis
+//     (the stage is cheap: ~10 decoded frames), reused tracks included. Nothing found ⇒ nothing
+//     anchored and every metric as before.
+struct ImpactAnchorStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("ImpactAnchor"); }
+    static ImpactAnchorConfig config(const QVariantMap &ov)
+    {
+        ImpactAnchorConfig c;
+        const auto b = [&ov](const char *k, bool &v) { if (ov.contains(QLatin1String(k))) v = ov.value(QLatin1String(k)).toBool(); };
+        const auto d = [&ov](const char *k, double &v) { if (ov.contains(QLatin1String(k))) v = ov.value(QLatin1String(k)).toDouble(); };
+        b("impactAnchor.enabled", c.enabled);
+        d("impactAnchor.searchHalfWidthPx", c.searchHalfWidthPx);
+        d("impactAnchor.belowToesPx", c.belowToesPx);
+        d("impactAnchor.aboveHeadPx", c.aboveHeadPx);
+        d("impactAnchor.minScore", c.minScore);
+        return c;
+    }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        const ShaftTrack2D &s = ctx.detail->shaft;
+        if (!config(ctx.job.tuningOverrides).enabled || !ctx.window || !s.valid) return false;
+        bool p1 = false, p7 = false;
+        for (const ShaftPosition &p : s.positions) { p1 = p1 || p.p == 1; p7 = p7 || p.p == 7; }
+        return p1 && p7 && !ctx.detail->pose2d.frames.empty();
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        ShaftTrack2D &shaft = ctx.detail->shaft;
+        const ImpactAnchorConfig cfg = config(ctx.job.tuningOverrides);
+        const pinpoint::SourceId cam = shaft.camera != pinpoint::kInvalidSourceId ? shaft.camera
+                                                                                 : ctx.job.cameraSources.front();
+        const pinpoint::FormatDescriptor &fd = ctx.window->formatOf(cam);
+        const auto *cfmt = std::get_if<pinpoint::CameraFormat>(&fd.format);
+        if (!cfmt || cfmt->width == 0 || cfmt->height == 0) return;
+        const int W = int(cfmt->width), H = int(cfmt->height);
+
+        const ShaftPosition *p1 = nullptr, *p3 = nullptr, *p4 = nullptr, *p7 = nullptr;
+        for (const ShaftPosition &p : shaft.positions) {
+            if (p.p == 1) p1 = &p;
+            if (p.p == 3) p3 = &p;
+            if (p.p == 4) p4 = &p;
+            if (p.p == 7) p7 = &p;
+        }
+        const int64_t impactUs = p7->t_us;
+        // BEFORE: the club in the air, the ball sitting — P3 → P4 (or the 150 ms before the top).
+        int64_t b1 = p4 ? p4->t_us : (impactUs - 250000);
+        int64_t b0 = p3 ? p3->t_us : (b1 - 150000);
+        if (b0 >= b1) b0 = b1 - 150000;
+        const int64_t a0 = impactUs + cfg.afterDelayUs, a1 = a0 + cfg.afterSpanUs;
+        const std::vector<pinpoint::IndexEntry> all = ctx.window->entriesFor(cam);
+        const auto pick = [&](int64_t t0, int64_t t1) {
+            std::vector<cv::Mat> out;
+            for (int k = 0; k < cfg.framesPerMedian; ++k) {
+                const int64_t t = t0 + (t1 - t0) * k / std::max(1, cfg.framesPerMedian - 1);
+                const auto it = std::min_element(all.begin(), all.end(), [t](const auto &x, const auto &y) {
+                    return std::llabs(x.timestamp_us - t) < std::llabs(y.timestamp_us - t); });
+                if (it != all.end() && std::llabs(it->timestamp_us - t) <= 20000)
+                    out.push_back(decodeGray(*ctx.window, *it, *cfmt));
+            }
+            return out;
+        };
+        const std::vector<cv::Mat> bf = pick(b0, b1), af = pick(a0, a1);
+        if (int(bf.size()) < 3 || int(af.size()) < 3) {
+            ppInfo() << "[WristAnalysis] impact anchor: too few frames (" << bf.size() << "/" << af.size() << ")";
+            return;
+        }
+        // The toe line at address: the lowest confident foot point (COCO-WholeBody 17–22).
+        double toeY = -1.0;
+        {
+            const PoseTrack2D &pose = ctx.detail->pose2d;
+            const auto nearest = std::min_element(pose.frames.begin(), pose.frames.end(), [&](const auto &x, const auto &y) {
+                return std::llabs(x.t_us - p1->t_us) < std::llabs(y.t_us - p1->t_us); });
+            for (int j = 17; j <= 22 && j < kWholeBodyJoints; ++j)
+                if (nearest->conf[size_t(j)] > 0.3f) toeY = std::max(toeY, nearest->kp[size_t(j)].y() * H);
+        }
+        const AddressBall ball = findAddressBallByDeparture(medianFrame(bf), medianFrame(af), p1->headPx, toeY, cfg);
+        if (!ball.ok) {
+            ppInfo() << "[WristAnalysis] impact anchor: no address ball found";
+            return;
+        }
+        // The ball is RECORDED, not forced into the track. Pinning the synth's P7 to the ball line
+        // bent the curve at exactly the instant clubhead speed is read, and moved it by a typical
+        // 22 mph (up to 200) on the corpus (2026-09-29). Shaft lean reads the ball line itself
+        // (buildShaftLeanSeries) and low point measures from this ball; the track stays as tracked.
+        ppInfo() << "[WristAnalysis] impact anchor: address ball" << ball.px << "r" << ball.radiusPx
+                 << "score" << ball.score;
+        shaft.ballAnchored  = true;
+        shaft.addressBallPx = ball.px;
+    }
+};
+
 struct ShaftLeanStage : AnalysisStage {
     QString name() const override { return QStringLiteral("ShaftLean"); }
     bool canRun(const AnalysisContext &ctx) const override { return ctx.detail->shaft.valid; }
@@ -1098,10 +1220,18 @@ struct ClubDeliveryStage : AnalysisStage {
             computeBallPosition(ctx.detail->ball, QPointF(), QPointF(), -1,
                                 int(cfmt->width), int(cfmt->height),
                                 BallPositionConfig::fromOverrides(ctx.job.tuningOverrides));
-        const bool ballOk = bp.samples > 0 && bp.mmPerPx > 0.0;
+        bool ballOk = bp.samples > 0 && bp.mmPerPx > 0.0;
+        // The ball the impact anchor found by its departure (impact_anchor.h), when there is one:
+        // the background-subtraction track misses it on recordings with no empty-mat baseline.
+        // The ruler stays computeBallPosition's — the anchor measures position, not size.
+        QPointF ballPx = bp.addressBallPx;
+        if (ctx.detail->shaft.ballAnchored) {
+            ballPx = ctx.detail->shaft.addressBallPx;
+            ballOk = bp.mmPerPx > 0.0;
+        }
 
         const ClubDeliveryResult cd =
-            trackClubDelivery(ctx.detail->shaft, ctx.seg.events, bp.addressBallPx, ballOk,
+            trackClubDelivery(ctx.detail->shaft, ctx.seg.events, ballPx, ballOk,
                               bp.mmPerPx,
                               ClubDeliveryConfig::fromOverrides(ctx.job.tuningOverrides));
         for (const MetricSeries &m : buildClubDeliverySeries(cd, ctx.seg.events))
@@ -2271,6 +2401,7 @@ SessionProfile wristProfile()
     p.stages.push_back(std::make_unique<ImpactStage>());
     p.stages.push_back(std::make_unique<ShaftStage>());
     p.stages.push_back(std::make_unique<SegResolveStage>());
+    p.stages.push_back(std::make_unique<ImpactAnchorStage>());
     p.stages.push_back(std::make_unique<ShaftLeanStage>());
     p.stages.push_back(std::make_unique<RequireProductsStage>());
     p.stages.push_back(std::make_unique<EventRefineStage>());
@@ -2357,6 +2488,7 @@ SessionProfile cameraKinematicsProfile()
     p.stages.push_back(std::make_unique<ImpactStage>());
     p.stages.push_back(std::make_unique<ShaftStage>());
     p.stages.push_back(std::make_unique<SegResolveStage>());
+    p.stages.push_back(std::make_unique<ImpactAnchorStage>());   // data-gated, as in the Wrist profile
     // PositionsLadder is data-gated (positions + ladder present), not
     // session-gated, so it runs here too — the club P-events are a property of
     // the camera, not of the session type. Same for its fusion successor: on a
