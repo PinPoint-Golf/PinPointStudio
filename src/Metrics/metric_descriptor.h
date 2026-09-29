@@ -273,6 +273,57 @@ struct PhaseDomain {
     Phase last  = Phase::Finish;
 };
 
+// ── THE REVIEW CARD'S READINGS ────────────────────────────────────────────────
+//
+// The review chart's summary card used to read every metric the same way: the value @ IMPACT, the
+// PEAK and the Δ over whatever window was selected, and the PEAK RATE. That is right for a curve
+// whose every sample is the quantity named — a sway, a speed, a knee angle — and wrong for the
+// many metrics a coach reads AT A POSITION or AS A CHANGE BETWEEN TWO. Shaft lean exists only at
+// impact (its curve is the shaft swinging through the top, +264° on the 07-04 corpus swing); past
+// parallel only at the top; balance at the finish; forward bend as the loss from address to
+// impact. For those, a window PEAK is a number about something else, printed under their name.
+//
+// So each metric says what its card shows, in at most four tiles laid out in this order:
+//   readAt  — values of the drawn curve AT these phase instants (label defaults to "@ TOP" etc.)
+//   PEAK    — the window's windowed-mean extremum, or over the FIXED span peakFrom→peakTo
+//   Δ       — the window's end minus start, or the FIXED deltaFrom→deltaTo change
+//   PK RATE — the window's steepest ≥50 ms slope
+// Each withheld tile is simply not on the card. THE DEFAULT IS THE OLD CARD EXACTLY: @ IMPACT,
+// PEAK, Δ SEGMENT, PK RATE, all window-scoped but the reading.
+//
+// Every phase named here must lie inside the metric's `domain`, and a card has at most four
+// tiles — metric_catalogue_test holds both.
+struct MetricCardReading {
+    Phase   phase = Phase::Impact;
+    QString label;                       // "" ⇒ "@ " + the phase's name, upper-cased
+};
+
+struct MetricCardSpec {
+    std::vector<MetricCardReading> readAt { MetricCardReading{} };   // default: @ IMPACT
+    bool    peak = true;                 // show PEAK
+    bool    hasPeakSpan = false;         // PEAK over peakFrom→peakTo, not the selected window
+    Phase   peakFrom = Phase::Address, peakTo = Phase::Finish;
+    bool    delta = true;                // show a Δ tile
+    bool    hasDeltaSpan = false;        // Δ = value@deltaTo − value@deltaFrom, not the window's
+    Phase   deltaFrom = Phase::Address, deltaTo = Phase::Impact;
+    QString deltaLabel;                  // "" ⇒ "Δ P1→P7" for a fixed span, "Δ SEGMENT" otherwise
+    bool    rate = true;                 // show PK RATE
+
+    // DRAW AND READ THE 40 ms WINDOWED MEAN (design §4 principle 1, Phase 6)? True for every
+    // metric but one kind: a curve that moves so fast at the instant it is read that 40 ms of it is
+    // a different number. Shaft lean turns ~2°/ms through impact (07-04 s8: +60, +47, +34, +17° in
+    // the four frames to impact), so the centred mean read +27° and — once its domain ended at
+    // impact and the mean went one-sided — +40°, where the frame shows the shaft near vertical and
+    // the recorded sample says +17°. False ⇒ the chart draws the recorded samples and every
+    // reading on the card is the recorded sample at its instant.
+    bool    windowedMean = true;
+
+    int tileCount() const
+    {
+        return int(readAt.size()) + (peak ? 1 : 0) + (delta ? 1 : 0) + (rate ? 1 : 0);
+    }
+};
+
 // P-position ladder order for every Phase value: Address = P1 … Finish = P10, with the five
 // detected events the P-system does not name slotted where they OCCUR IN TIME.
 //
@@ -455,6 +506,9 @@ struct MetricDescriptor {
     // metric documenting itself at a phase it cannot be read at is the same contradiction the
     // route ladder was introduced to remove.
     PhaseDomain        domain;
+
+    // How the review chart's SUMMARY CARD reads this metric — see MetricCardSpec above.
+    MetricCardSpec     card;
 
     bool               scored = false;     // has a band and contributes to a score
 

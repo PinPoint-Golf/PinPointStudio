@@ -394,6 +394,7 @@ void installMetricManifest(MetricCatalogue &cat)
                                        "measured as travel from address"),
         .signNegative = QStringLiteral("supination — the lead forearm rolled toward face-up"),
         .phases = { P::Top, P::Impact },
+        .card = { .readAt = { { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact, .rate = false },
         .routes = {
             via("wristImus", RM::Inertial, Direct, { .imuRoles = { R::LeadForearm } },
                 QStringLiteral("the axial twist of the forearm about its own long axis, referenced "
@@ -506,6 +507,7 @@ void installMetricManifest(MetricCatalogue &cat)
                                        "measured as travel from address"),
         .signNegative = QStringLiteral("supination — the lead forearm rolled toward face-up"),
         .phases = { P::Top, P::Impact },
+        .card = { .readAt = { { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact, .rate = false },
         .routes = {
             via("hackMotion", RM::Device, Direct, { .hackMotion = true },
                 QStringLiteral("the axial twist of the forearm since address, read from a "
@@ -587,6 +589,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "passing through zero as the body squares"),
         .signNegative = QString(),
         .phases = { P::Top, P::Impact },
+        .card = { .readAt = { { P::Top, {} }, { P::Impact, {} } }, .peak = false },
         // ⚠ THE SINGLE-CAMERA RUNG IS GONE. It estimated the turn from the collapse of the hip
         // span — `acos(w/w_address)` — and it could not do the job. A cosine is flat where the
         // swing lives: 2.1% of span scatter over STILL address frames (a real capture, 7 shots)
@@ -695,6 +698,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("turn away from address — a MAGNITUDE, so positive at the top and again at impact"),
         .signNegative = QString(),
         .phases = { P::Top, P::Impact },
+        .card = { .readAt = { { P::Top, {} }, { P::Impact, {} } }, .peak = false },
         .routes = {
             via("thoraxImu", RM::Inertial, Direct, { .imuRoles = { R::Thorax } },
                 QStringLiteral("measured directly from the thorax IMU")),
@@ -730,6 +734,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("the chest turned further than the pelvis"),
         .signNegative = QStringLiteral("the pelvis turned further than the chest"),
         .phases = { P::Top },
+        .card = { .readAt = { { P::Top, {} } }, .peak = false, .delta = false, .rate = false },
         .routes = {
             via("trunkImus", RM::Inertial, Direct, { .imuRoles = { R::Pelvis, R::Thorax } },
                 QStringLiteral("the difference of two directly measured turns")),
@@ -761,6 +766,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("separation still growing after the top — the stretch"),
         .signNegative = QStringLiteral("separation already unwinding at the top"),
         .phases = { P::Transition, P::ArmParallelDown },
+        .card = { .readAt = {}, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Top, .deltaTo = P::ArmParallelDown, .rate = false },
         .routes = {
             via("trunkImus", RM::Inertial, Direct, { .imuRoles = { R::Pelvis, R::Thorax } },
                 QStringLiteral("the measured separation, less its value at the Top")),
@@ -791,6 +797,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("internal rotation of that hip"),
         .signNegative = QStringLiteral("external rotation"),
         .phases = { P::Top, P::Impact },
+        .card = { .readAt = { { P::Top, {} }, { P::Impact, {} } }, .peak = false },
         .routes = {
             via("pelvisThighImus", RM::Inertial, Direct,
                 { .imuRoles = { R::Pelvis, R::LeadThigh, R::TrailThigh } },
@@ -836,6 +843,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("more forward bend from the hips"),
         .signNegative = QStringLiteral("standing taller than upright, which a swing does not reach"),
         .phases = { P::Address, P::Impact },
+        .card = { .readAt = { { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact, .rate = false },
         .routes = {
             via("dtl", RM::Projected, Direct, { .dtlCamera = true },
                 QStringLiteral("the trunk's hinge over the ball, seen square-on from down the "
@@ -876,6 +884,7 @@ void installMetricManifest(MetricCatalogue &cat)
         // geometry, and why ten metrics share this domain, is on P1toP7 at the top of this
         // function; the nine below point back at it rather than repeat it.
         .domain = P1toP7,
+        .card = { .readAt = { { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("lateral trunk flexion, read in the frontal plane the face-on "
@@ -915,6 +924,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .phases = { P::Top, P::Impact },
         // Frontal-plane trunk lean: see P1toP7.
         .domain = P1toP7,
+        .card = { .readAt = { { P::Top, {} }, { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Top, .deltaTo = P::Impact, .rate = false },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the frontal spine vector against vertical, in the face-on image")) },
@@ -1056,6 +1066,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("the belt line rose"),
         .signNegative = QStringLiteral("the belt line dropped"),
         .phases = { P::Top },
+        .card = { .readAt = { { P::Top, {} } }, .peak = false, .delta = false, .rate = false },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the waistband edge tracked as a line in the face-on image, its "
@@ -1097,6 +1108,7 @@ void installMetricManifest(MetricCatalogue &cat)
                     P::ArmParallelDown, P::Delivery, P::Impact },
         // The hip line foreshortens to noise as the pelvis turns: see P1toP7.
         .domain = P1toP7,
+        .card = { .readAt = { { P::Top, {} }, { P::Impact, {} } }, .peak = false },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the hip line's angle to horizontal, in the face-on image")) },
@@ -1146,6 +1158,7 @@ void installMetricManifest(MetricCatalogue &cat)
                     P::ArmParallelDown, P::Delivery, P::Impact },
         // The hip centre over the stance, in the same frontal plane: see P1toP7.
         .domain = P1toP7,
+        .card = { .readAt = { { P::Address, {} }, { P::Impact, {} } }, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact, .rate = false },
         .routes = {
             via("faceOnBall", RM::Projected, Direct,
                 { .faceOnCamera = true, .ballTrack = true },
@@ -1186,6 +1199,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .phases = { P::Top, P::Impact },
         // Lateral knee travel, same projection: see P1toP7.
         .domain = P1toP7,
+        .card = { .readAt = { { P::Top, {} }, { P::Impact, {} } }, .peak = false },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("lateral travel of the lead knee in the face-on image, against the "
@@ -1332,6 +1346,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("more lag retained — a tighter forearm-to-shaft angle"),
         .signNegative = QString(),
         .phases = { P::ArmParallelDown, P::Impact },
+        .card = { .readAt = { { P::Impact, {} } }, .hasDeltaSpan = true, .deltaFrom = P::ArmParallelDown, .deltaTo = P::Impact },
         .routes = {
             via("faceOnClub", RM::Projected, Direct, { .faceOnCamera = true, .clubTrack = true },
                 QStringLiteral("the lead forearm against the shaft, both read in the face-on "
@@ -1360,6 +1375,11 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("the shaft leaning FORWARD, toward the target"),
         .signNegative = QStringLiteral("leaning back, away from the target"),
         .phases = { P::Impact },
+        // Address → Impact, and read at its instants only: past impact the shaft is rotating
+        // through the release, and between the two it is swinging through the top — neither is
+        // lean. The card shows @ IMPACT and the Address→Impact change, nothing else.
+        .domain = P1toP7,
+        .card = { .readAt = { { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact, .rate = false, .windowedMean = false },
         .routes = {
             via("faceOnClub", RM::Projected, Direct, { .faceOnCamera = true, .clubTrack = true },
                 QStringLiteral("the shaft's lean at impact, from the face-on shaft track")) },
@@ -1391,6 +1411,10 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("delivered above the address shaft plane — steeper"),
         .signNegative = QStringLiteral("delivered below it — flatter"),
         .phases = { P::ArmParallelDown },
+        // Δ PLANE carries the SWING PATH's sign (Mark, 29 Sept): a plane that SHALLOWS into impact is
+        // +, one that STEEPENS is −. The two readings are + = steeper against the address plane, so the
+        // Δ runs backwards along them — backswing minus downswing — and deltaFrom/To are P6 → P3.
+        .card = { .readAt = { { P::MidBackswing, QStringLiteral("BACKSWING") }, { P::Delivery, QStringLiteral("DOWNSWING") } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Delivery, .deltaTo = P::MidBackswing, .deltaLabel = QStringLiteral("Δ PLANE"), .rate = false },
         .routes = {
             via("dtl", RM::Triangulated, Direct, { .dtlCamera = true, .clubTrack = true },
                 QStringLiteral("a best-fit plane through the shaft's direction needs that direction "
@@ -2410,6 +2434,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .phases = { P::Address, P::Top, P::Impact },
         // The shoulder line foreshortens as the thorax turns: see P1toP7.
         .domain = P1toP7,
+        .card = { .readAt = { { P::Top, {} }, { P::Impact, {} } }, .peak = false },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the shoulder line's angle to horizontal, in the face-on image")) },
@@ -2446,6 +2471,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("the TRAIL shoulder sits above the lead shoulder — a steeper turn"),
         .signNegative = QStringLiteral("the lead shoulder sits above the trail shoulder"),
         .phases = { P::Top },
+        .card = { .readAt = { { P::Top, {} } }, .peak = false, .delta = false, .rate = false },
         .routes = {
             via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("the shoulder joints triangulated from the calibrated pair, and the "
@@ -2473,6 +2499,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("more knee bend"),
         .signNegative = QString(),
         .phases = { P::Impact, P::ShaftParallelThrough },
+        .card = { .readAt = { { P::Impact, {} } }, .hasPeakSpan = true, .peakFrom = P::Impact, .peakTo = P::ShaftParallelThrough, .delta = false, .rate = false },
         .routes = {
             via("dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("the shin-against-thigh angle seen from down the line, where the "
@@ -2507,6 +2534,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "which side it left on"),
         .signNegative = QString(),
         .phases = { P::Impact, P::ShaftParallelThrough },
+        .card = { .readAt = { { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Impact, .deltaTo = P::ShaftParallelThrough, .rate = false },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the lead arm against the torso line, in the face-on image")) },
@@ -2567,6 +2595,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .phases = { P::Address, P::ArmParallelDown },
         // Lateral chest travel, same projection: see P1toP7.
         .domain = P1toP7,
+        .card = { .readAt = { { P::Impact, {} } }, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::ArmParallelDown },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("lateral travel of the chest centre in the face-on image, against "
@@ -2594,6 +2623,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("the trail elbow higher above the shoulder line"),
         .signNegative = QStringLiteral("below the shoulder line"),
         .phases = { P::Top },
+        .card = { .readAt = { { P::Top, {} } }, .peak = false, .delta = false, .rate = false },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("trail elbow height over shoulder width — both read in the same "
@@ -2621,6 +2651,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("the hands further from the chest — a wider arc"),
         .signNegative = QStringLiteral("the hands closer to the chest"),
         .phases = { P::Top },
+        .card = { .readAt = { { P::Top, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Top, .rate = false },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("hand distance from the body over arm length — both read in the "
@@ -2658,6 +2689,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("more knee bend"),
         .signNegative = QString(),
         .phases = { P::Address, P::Top },
+        .card = { .readAt = { { P::Top, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Top, .rate = false },
         .routes = {
             via("dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("the shin-against-thigh angle seen from down the line, where the "
@@ -2690,6 +2722,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "same fault seen from either side"),
         .signNegative = QString(),
         .phases = { P::Impact, P::Finish },
+        .card = { .readAt = { { P::Finish, {} } }, .peak = false, .delta = false, .rate = false },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the balance point against the lead foot, in the face-on image "
@@ -2721,6 +2754,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("the balance point further toward the toes"),
         .signNegative = QStringLiteral("further back toward the heels"),
         .phases = { P::Address },
+        .card = { .readAt = { { P::Address, {} } }, .peak = false, .delta = false, .rate = false },
         .routes = {
             via("dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("heel-to-toe travel lies along the face-on camera's blind axis, "
@@ -2751,6 +2785,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("a larger gap — the arm further from the chest"),
         .signNegative = QString(),
         .phases = { P::Top },
+        .card = { .readAt = { { P::Top, {} } }, .hasPeakSpan = true, .peakFrom = P::Address, .peakTo = P::Top, .delta = false, .rate = false },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the lead-arm connection gap over shoulder width — both read in "
@@ -2782,6 +2817,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("pointing RIGHT of the target line — across the line for a right-hander"),
         .signNegative = QStringLiteral("pointing left — laid off, or dragged inside"),
         .phases = { P::ShaftParallelBack, P::Top },
+        .card = { .readAt = { { P::ShaftParallelBack, {} }, { P::Top, {} } }, .peak = false, .delta = false, .rate = false },
         .routes = {
             via("dtl", RM::Triangulated, Direct, { .dtlCamera = true, .clubTrack = true },
                 QStringLiteral("where the shaft points relative to the target line is a bearing "
@@ -2814,6 +2850,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("PAST parallel to the ground; zero IS parallel"),
         .signNegative = QStringLiteral("short of parallel"),
         .phases = { P::Top },
+        .card = { .readAt = { { P::Top, {} } }, .peak = false, .delta = false, .rate = false },
         .routes = {
             via("faceOnClub", RM::Projected, Direct, { .faceOnCamera = true, .clubTrack = true },
                 QStringLiteral("the shaft against horizontal, from the face-on shaft track")) },

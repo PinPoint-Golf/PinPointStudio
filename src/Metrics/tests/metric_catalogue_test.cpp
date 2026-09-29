@@ -1056,14 +1056,39 @@ int main()
         }
         checkEqI(offenders, 0, "every descriptor's phases lie inside its domain");
 
+        // THE SUMMARY CARD'S SPEC obeys the same rule — a card reading a metric at a phase outside
+        // its domain would print a number from where the geometry means nothing — and fits the
+        // card's 2×2 grid.
+        int cardOffenders = 0, overfull = 0;
+        for (const MetricDescriptor *d : cat.all()) {
+            const MetricCardSpec &c = d->card;
+            std::vector<Phase> used;
+            for (const MetricCardReading &r : c.readAt) used.push_back(r.phase);
+            if (c.hasPeakSpan)  { used.push_back(c.peakFrom);  used.push_back(c.peakTo); }
+            if (c.hasDeltaSpan) { used.push_back(c.deltaFrom); used.push_back(c.deltaTo); }
+            for (Phase p : used)
+                if (!phaseInDomain(d->domain, p)) {
+                    ++cardOffenders;
+                    std::printf("      %s card reads phase %d outside its domain\n",
+                                qPrintable(d->key), int(p));
+                }
+            if (c.tileCount() > 4 || c.tileCount() < 1) {
+                ++overfull;
+                std::printf("      %s card has %d tiles\n", qPrintable(d->key), c.tileCount());
+            }
+        }
+        checkEqI(cardOffenders, 0, "every card phase lies inside its metric's domain");
+        checkEqI(overfull, 0, "every card has one to four tiles");
+
         // The frontal-plane family from design §5.1's table. Counted as well as spot-checked, so
         // adding an eleventh (or dropping one) has to be a deliberate edit here too.
         // …plus clubheadSpeed, narrowed for a different reason (a step at contact, not a
-        // projection that stops meaning anything — see its manifest entry).
+        // projection that stops meaning anything — see its manifest entry), and impactShaftLean,
+        // an INSTANT reading whose card compares Address with Impact and nothing in between.
         const char *kAddressToImpact[] = {
             "pelvisSway", "pelvisLift", "leadKneeDrift", "plumbBobDistance", "hipLineTilt",
             "shoulderPlaneAngle", "elbowAlignment", "spineSideBend", "secondaryAxisTilt",
-            "thoraxLateralDrift", "clubheadSpeed",
+            "thoraxLateralDrift", "clubheadSpeed", "impactShaftLean",
         };
         bool allNarrowed = true;
         for (const char *k : kAddressToImpact) {
@@ -1073,7 +1098,8 @@ int main()
                 std::printf("      %s is not authored Address->Impact\n", k);
             }
         }
-        check(allNarrowed, "the ten frontal-plane metrics and clubheadSpeed are authored Address->Impact");
+        check(allNarrowed, "the ten frontal-plane metrics, clubheadSpeed and impactShaftLean are "
+                           "authored Address->Impact");
         checkEqI(narrowed, int(std::size(kAddressToImpact)),
                  "…and they are the ONLY narrowed domains");
 
