@@ -7,7 +7,7 @@ the session warning and unusable face-on marking (§5a), and tracker robustness 
 ## 1. What was seen
 
 After the 29 Sept library re-analysis, 16 Sept Wrist_02 swing 2 (an **untaped 6-iron**; its club
-record wrongly says a banded 7-iron, see §6) showed the club track completely off the club. At
+record said a banded 7-iron, since corrected, see §6) showed the club track completely off the club. At
 mid-backswing the shaft line was drawn horizontal, to the right, at hand height, while the video
 shows the shaft pointing up. The day's tracker commits (a0391fa3..6a8b0fd7: the blur's leading
 edge, the evidence-fitted synth, the address-ball anchor) looked like the obvious suspect.
@@ -27,6 +27,9 @@ edge, the evidence-fitted synth, the address-ball anchor) looked like the obviou
   model and the bug above does not apply. The broken swings are, almost exactly, the swings
   whose address ball was not found. The impact-camera rig sat on the ball position in the
   face-on view. Mark confirmed this is the cause (29 Sept).
+- **Neither pose model is safe, and the tracker is the risk.** On the 21 Medium swings with the
+  ball visible, B tracks 19 and L 17, failing on different swings in the same way (§6). Medium
+  stays for now.
 - **Why it surfaced on 29 Sept:** the shaft stage version moved 2 → 3 → 4, which forces every
   library swing to be **re-tracked from its stored pose**. Before that, the library still held
   club tracks from earlier runs. This is an inference: the pre-change backups were cleared, so
@@ -159,17 +162,58 @@ unconfirmed.
 - The 15 Sept sessions should show the warning once it exists. Their current tracks stay in
   the library, but must not be read as results.
 
-## 6. Does markerless break on Medium? No evidence that it does
+## 6. Is ViTPose-B (Medium) the risk? Neither model is safe; the tracker is
 
 Mark asked whether markerless tracking breaks at the Medium setting; if it did, Medium should
-not be offered. The evidence says the setting is not the variable:
-- 9 Sept is Medium and clean on 7 of 7.
-- 15 Sept is Medium, and its failures follow the hidden ball (the impact-camera rig), not
-  the model.
-- On a 15 Sept failure, L does not help (§5).
+not be offered. As far as the code shows, the setting chooses only the analysis pose model
+(Medium → ViTPose-B, High → ViTPose-L). Medium is the default, and the video is recorded
+identically either way, so a Medium swing can be re-analysed on L later.
 
-**Recommendation:** keep Medium; the evidence does not implicate it. Mark's rule stands: if
-markerless tracking is ever shown to break at Medium, Medium is removed as an option.
+**The first answer given here was too quick.** An earlier draft of this section said Medium was
+"not implicated", from 15 Sept alone. On 16 Sept, three High swings broke on B and tracked on L
+with nothing else changed (§4). That is direct evidence that B can break the tracker, and it
+had to be tested before drawing a conclusion.
+
+**The test (29 Sept, studio, fresh runs of the same exe).** Every Medium swing whose ball is
+visible (9 Sept: 7; 15 Sept: 14) was run twice from scratch copies: the quality set to Medium
+(ViTPose-B) and to High (ViTPose-L). Nothing else differed.
+
+| | Clean on B | Clean on L |
+|---|---|---|
+| 9 Sept Wrist_01 (7) | 7 | 7 |
+| 15 Sept Wrist_01, ball found (10) | 9 | 9 |
+| 15 Sept Wrist_02, ball found (4) | 3 | 1 |
+| **Total (21)** | **19** | **17** |
+
+Where each model failed:
+- **B only:** 15 Sept Wrist_01 s1 (P1 188°).
+- **L only:** 15 Sept Wrist_01 s6 (no P3), Wrist_02 s1 (P1 196°), Wrist_02 s9 (P1 205°).
+- **Both:** 15 Sept Wrist_02 s8.
+
+On 9 Sept, L's coverage is higher (0.97–1.00 against 0.81–0.97); the P1/P3 angles are
+equivalent.
+
+**What it means:**
+- **L is not safer than B.** On these 21 swings B is marginally better. On the 7 High swings of
+  16 Sept, L was better. Each model breaks swings the other tracks.
+- **The failure is the same in every case.** The tracker puts the address shaft sideways
+  (P1 ≈ 185–210°) and loses the backswing. Small pose differences decide which swings fall
+  into it.
+- **So the risk is the tracker's sensitivity to pose, not the pose model.** Removing Medium
+  would not remove it, and would cost the slower machines the speed that Medium exists for.
+
+**Recommendation:** keep Medium for now. Fix the tracker's address and backswing failure mode
+(§7); it is the lever. Re-run this B/L comparison as the gate for that work: both models should
+reach 21 of 21. Mark's rule stands: if B is shown to be worse once the tracker is robust,
+Medium is removed as an option.
+
+**Artifacts:** `/mnt/swingdata/scratch/b-vs-l/`, with the scratch copies (`B/`, `L/`), the
+outputs (`out_B/`, `out_L/`) and `list.txt`. Script: the studio's
+`C:\Users\developer\wedge-patches\bvl.ps1`.
+
+**Also seen:** 15 Sept Wrist_02 s8 is clean in the library but broken on both fresh runs. The
+stored pose again differs from what today's pose code produces (as with the 5 swings in §5),
+which is further evidence of the tracker's sensitivity.
 
 **Stale club record (corrected 29 Sept).** 16 Sept Wrist_02's record said "7 IRON", 940 mm,
 bands at 308/362/560/758/808/854 mm, but the club was an untaped 6-iron (Mark). So the tracker
@@ -206,7 +250,8 @@ Suggested order:
 2. Trace 16 Sept Wrist_02 s2 on the B pose (`--trace`) to see which evidence carried the
    backswing onto the wrong structure.
 3. Design the fail-soft rules against that trace.
-4. Gate on 9 Sept + 15 Sept + 16 Sept (all markerless) on the studio.
+4. Gate on 9 Sept + 15 Sept + 16 Sept (all markerless) on the studio, including the §6 B/L
+   comparison: both models should track all 21 ball-visible Medium swings.
 
 ## 8. Fixes
 
