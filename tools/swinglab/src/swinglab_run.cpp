@@ -795,6 +795,22 @@ int main(int argc, char **argv)
                     { "conf", trace.conf[i] },
                     { "psi_err", std::isnan(psi) ? QJsonValue() : QJsonValue(psi) },
                     { "recon", f < int(trace.recon.recon.size()) ? bool(trace.recon.recon[size_t(f)]) : false } };
+                // 2026-10-01 (tracker_robustness): the frame's own time and grip (from the
+                // kept track's samples, one per coverage frame), both forearm angles and
+                // the ball direction where the address well applied — so a claim about
+                // the address can be checked from the trace alone.
+                if (f < int(tracedFo.samples.size())) {
+                    const ShaftSample2D &sm = tracedFo.samples[size_t(f)];
+                    line.insert("t_us", double(sm.t_us));
+                    line.insert("grip", QJsonArray{ sm.gripPx.x(), sm.gripPx.y() });
+                    line.insert("theta_final", sm.thetaRad * 180.0 / 3.14159265358979323846);
+                    line.insert("flags", int(sm.flags));
+                }
+                if (f < int(trace.phiSmoothed.size())) line.insert("phi", trace.phiSmoothed[size_t(f)]);
+                if (f < int(trace.phiTrailSmoothed.size()) && std::isfinite(trace.phiTrailSmoothed[size_t(f)]))
+                    line.insert("phi_trail", trace.phiTrailSmoothed[size_t(f)]);
+                if (f < int(trace.thetaBallDeg.size()) && std::isfinite(trace.thetaBallDeg[size_t(f)]))
+                    line.insert("theta_ball", trace.thetaBallDeg[size_t(f)]);
                 // Additive Phase-B head columns (guarded on the vectors being filled —
                 // empty unless the head pass ran). headR = temporal estimate (px),
                 // headZ = raw per-frame measured radius (px).
@@ -903,7 +919,29 @@ int main(int argc, char **argv)
                     // frame (-1 = dark / did not fire) and the emitted top.
                     { "topRepairApplied", trace.phases.topPreRepair >= 0 ? 1 : 0 },
                     { "topPreRepairFrame", trace.phases.topPreRepair },
-                    { "topFrame", trace.phases.top } } },
+                    { "topFrame", trace.phases.top },
+                    // 2026-10-01 robustness self-checks (shaft_track_assembly.h
+                    // PhaseModel / ShaftDecideTrace): which rule set the onset, the
+                    // suspect mask, how many swSpd retries the model took, the ball A1
+                    // accepted, the P1 frame and the two witness checks, the refusal.
+                    { "onset", trace.phases.onset },
+                    { "onsetRule", trace.phases.onsetRule },
+                    { "phaseSuspect", trace.phases.suspect },
+                    { "phaseSuspectMask", trace.phases.suspectMask },
+                    { "phaseRetries", trace.phases.retries },
+                    { "swSpdUsed", trace.phases.swSpdUsed },
+                    { "haveAddrBall", trace.haveAddrBall },
+                    { "addrBallPx", QJsonArray{ trace.addrBallX, trace.addrBallY } },
+                    { "p1Frame", trace.p1Frame },
+                    { "p1BallDeltaDeg", trace.p1BallDeltaDeg },
+                    { "lenBallRatio", trace.lenBallRatio },
+                    { "refused", shaftRefusedReasonName(uint8_t(trace.refusedReason)) },
+                    { "handPairFixed", trace.handPairFixed },
+                    { "handGlitchFixed", trace.handGlitchFixed },
+                    { "decoyVotes", trace.decoyVotes },
+                    { "ballVotes", trace.ballVotes },
+                    { "ballTrusted", trace.ballTrusted },
+                    { "handsRetried", trace.handsRetried } } },
                 { "poseFrames", int(pose.frames.size()) },
                 { "segConf", seg.conf } };
             tf.write(QJsonDocument(summary).toJson(QJsonDocument::Compact) + "\n");
