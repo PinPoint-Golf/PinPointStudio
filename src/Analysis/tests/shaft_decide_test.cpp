@@ -8,6 +8,7 @@
 //   ctest --test-dir build/analyzer-tests -R shaft_decide --output-on-failure
 
 #include "../shaft_track_assembly.h"
+#include "../shaft_hand_clean.h"
 
 #include <opencv2/imgproc.hpp>   // cv::line/circle for the Phase-B synthetic frames
 
@@ -233,11 +234,14 @@ int main()
         }
         const FrameSource noFrames = [](int) -> cv::Mat { return cv::Mat(); };
 
+        // The 2026-10-01 θ_ball well puts the ball INTO the DP at address by design,
+        // so the "ball never changes θ" contract now holds only with the well off.
+        ShaftV3Config noWell = cfg; noWell.addr.ballWell = false;
         const ShaftTrack2D a = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
                                            /*bandsMm=*/{}, /*clubLenMm=*/1120.0, /*impactFrame=*/-1,
-                                           cfg, nullptr, /*ball=*/nullptr);
+                                           noWell, nullptr, /*ball=*/nullptr);
         const ShaftTrack2D b = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
-                                           {}, 1120.0, -1, cfg, nullptr, &ball);
+                                           {}, 1120.0, -1, noWell, nullptr, &ball);
 
         bool sameCount = a.samples.size() == b.samples.size() && !a.samples.empty();
         bool thetaIdentical = sameCount;
@@ -247,10 +251,123 @@ int main()
             if (a.samples[i].headPx != b.samples[i].headPx) headDiffers = true;
         }
         check(sameCount, "same sample count with/without ball");
-        check(thetaIdentical, "θ bit-identical with/without ball");
+        check(thetaIdentical, "θ bit-identical with/without ball (addr.ballWell off)");
         check(a.measuredClubLenPx < 0 && near(b.measuredClubLenPx, 350.0, 2.0),
               "ball populates measuredClubLenPx (~350 px); null leaves −1");
         check(headDiffers, "projected head length changed (length ladder used the ball)");
+
+        // With the well ON (the default) the address hold points at the ball: grip
+        // (500,600) → ball (500,950) is 90°, and with no image evidence at all the DP
+        // would otherwise sit wherever the flat row's tie-break puts it.
+        // With no image at all the collar can neither confirm nor refute the ball, so
+        // under the default decoyCheck the ball is NOT trusted and the well stays off:
+        ShaftDecideTrace tr0;
+        const ShaftTrack2D c0 = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                            {}, 1120.0, -1, cfg, &tr0, &ball);
+        check(tr0.haveAddrBall && !tr0.ballTrusted && tr0.ballVotes == 0 && tr0.decoyVotes == 0,
+              "no image evidence ⇒ the ball is accepted by A1 but NOT trusted (no collar vote)");
+        bool sameAsNoWell = c0.samples.size() == b.samples.size();
+        for (size_t i = 0; sameAsNoWell && i < c0.samples.size(); ++i)
+            if (c0.samples[i].thetaRad != b.samples[i].thetaRad) sameAsNoWell = false;
+        check(sameAsNoWell, "untrusted ball ⇒ θ identical to the well-off run");
+        // Trusting the ball explicitly (decoyCheck off) shows the well itself:
+        ShaftV3Config trust = cfg; trust.addr.decoyCheck = false;
+        ShaftDecideTrace tr;
+        const ShaftTrack2D c = decideTrack(noFrames, tUs, gx, gy, phiRaw, joints, W, H, fps,
+                                           {}, 1120.0, -1, trust, &tr, &ball);
+        bool holdAtBall = !c.samples.empty();
+        for (size_t i = 0; i < c.samples.size() && i < 30; ++i)
+            if (std::abs(c.samples[i].thetaRad * 180.0 / kPi - 90.0) > 3.0) holdAtBall = false;
+        check(tr.haveAddrBall && near(tr.addrBallX, 500.0, 1.0) && near(tr.addrBallY, 950.0, 1.0),
+              "well on: A1 accepted the ball and the trace says where");
+        check(holdAtBall, "well on: the address hold's θ is grip→ball (90° ± 3°) with no image evidence");
+        check(tr.p1BallDeltaDeg >= 0.0 && tr.p1BallDeltaDeg < 5.0 && c.refusedReason != 1,
+              "well on: P1 agrees with the ball (no P1-ball conflict)");
+        // This synthetic swing has a 130 ms backswing (13 frames at 100 fps), below
+        // PhaseConfig::minBackswingUs, so its phase model is SUSPECT by design; with
+        // no image evidence P2/P3 cannot be located and the track is refused, reason 2.
+        // That is the fail-soft contract working on an impossible swing.
+        check(tr.phases.suspect && c.refusedReason == 2,
+              "well on: a 130 ms synthetic backswing is suspect and, without P2/P3, refused (reason 2)");
+    }
+
+    // ── 2026-10-01 robustness: hand-track cleaning (shaft_hand_clean.h) ─────
+    std::printf("=== cleanHandTrack ===\n");
+    {
+        HandCleanConfig hc;
+        // 16 Sept W02 s2 (B) address geometry in px: the lead centroid on the wrist,
+        // the trail centroid on the grip; lead elbow (743,461), lead wrist (744,530),
+        // trail wrist (668,624).
+        HandFrameIn f;
+        f.lead = QPointF(750, 556); f.trail = QPointF(677, 656);
+        f.leadWrist = QPointF(744, 530); f.trailWrist = QPointF(668, 624); f.leadElbow = QPointF(743, 461);
+        f.leadElbowConf = f.leadWristConf = f.trailWristConf = 0.9f;
+        check(fixHandPair(f, hc), "pair 123 px apart is inconsistent");
+        check(near(f.lead.x(), 677, 1e-9) && near(f.lead.y(), 656, 1e-9) && f.lead == f.trail,
+              "the hand nearer the forearm's grip point (the trail hand) becomes the grip");
+        HandFrameIn g = f; g.lead = QPointF(696, 635); g.trail = QPointF(677, 661);   // the L pose's pair
+        check(!fixHandPair(g, hc) && near(g.lead.x(), 696, 1e-9), "a consistent pair is untouched");
+        // The L pose's own geometry: hands 78 px apart on a 123 px forearm — wider than the
+        // 64 px floor but well inside one forearm, so the scale-aware rule leaves it alone.
+        HandFrameIn l; l.lead = QPointF(750, 553); l.trail = QPointF(665, 583);
+        l.leadWrist = QPointF(701, 601); l.trailWrist = QPointF(667, 618); l.leadElbow = QPointF(737, 483);
+        l.leadElbowConf = l.leadWristConf = l.trailWristConf = 0.9f;
+        check(!fixHandPair(l, hc), "a pair 0.7 forearms apart is untouched (forearm-relative tolerance)");
+        HandFrameIn h; h.lead = QPointF(750, 556); h.trail = QPointF(677, 656);   // no forearm confidence
+        check(fixHandPair(h, hc) && near(h.lead.y(), 656, 1e-9), "without a forearm the LOWER hand is the grip");
+        // Glitch: an 85 px excursion that returns next frame is replaced; a real move is not.
+        std::vector<QPointF> p;
+        for (int i = 0; i < 12; ++i) p.push_back(QPointF(677, 656));
+        p[5] = QPointF(703, 571);                 // the 16 Sept every-80-ms jump
+        for (int i = 8; i < 12; ++i) p[size_t(i)] = QPointF(677 - 60.0 * (i - 7), 656);   // a real 60 px/frame move
+        const int fixed = fixHandGlitches(p, hc.glitchPx, hc.stillPx);
+        check(fixed == 1, "exactly one glitch fixed");
+        check(near(p[5].x(), 677, 1e-9) && near(p[5].y(), 656, 1e-9), "the glitch frame is its neighbours' mean");
+        check(near(p[9].x(), 677 - 120, 1e-9), "the real move is untouched");
+        std::vector<HandFrameIn> track(12, g);
+        track[3].lead = QPointF(760, 540);        // one glitch on the lead hand
+        for (int i = 7; i < 12; ++i) {            // a bad pair that PERSISTS (not a glitch): 5 frames
+            track[size_t(i)] = f; track[size_t(i)].lead = QPointF(750, 556); track[size_t(i)].trail = QPointF(677, 656);
+        }
+        const HandCleanStats st = cleanHandTrack(track, hc);
+        // Frame 7 is the transition from the good pair to the bad one: its lead hand moved
+        // 96 px from frame 6, so it is not STILL and the pair rule skips it; 8..11 are still.
+        check(st.glitchFixed == 1 && st.pairFixed == 4, "whole-track stats: 1 glitch, 4 still bad pairs in a run (the moving transition frame is skipped)");
+        // An ISOLATED bad pair on still hands is a flicker, not a climbed centroid: the pair
+        // rule needs pairMinRun consecutive frames and leaves it alone.
+        std::vector<HandFrameIn> iso(12, g);
+        iso[5] = f; iso[5].lead = QPointF(750, 556); iso[5].trail = QPointF(677, 656);
+        iso[6] = iso[5];
+        const HandCleanStats sti = cleanHandTrack(iso, hc);
+        check(sti.pairFixed == 0, "a 2-frame bad pair (< pairMinRun) is not touched by the pair rule");
+        // A glitch on a hand that is NOT resting (the neighbours themselves moving) is left alone.
+        std::vector<QPointF> mvg;
+        for (int i = 0; i < 12; ++i) mvg.push_back(QPointF(700 - 25.0 * i, 650));   // 25 px/frame, steady motion
+        mvg[5] = QPointF(mvg[5].x(), 560);                                            // a 90 px flap that returns
+        check(fixHandGlitches(mvg, hc.glitchPx, hc.stillPx) == 0 && near(mvg[5].y(), 560, 1e-9),
+              "a one-frame flap on a moving hand is not a glitch (neighbours not resting)");
+        // The glitch rule stops at the limit (the impact frame): a finish-hold flap after it
+        // is left alone, the address flicker before it is fixed.
+        std::vector<QPointF> fin;
+        for (int i = 0; i < 6; ++i) fin.push_back(QPointF(700, 650));      // address
+        for (int i = 0; i < 6; ++i) fin.push_back(QPointF(300, 200));      // finish hold
+        fin[2] = QPointF(703, 571);                                        // address flicker
+        fin[9] = QPointF(300, 110);                                        // finish flap
+        check(fixHandGlitches(fin, hc.glitchPx, hc.stillPx, /*limit=*/6) == 1
+                  && near(fin[2].y(), 650, 1e-9) && near(fin[9].y(), 110, 1e-9),
+              "with the limit at impact: the address flicker is fixed, the finish flap is not");
+        std::vector<HandFrameIn> lim(12, g);
+        lim[2].lead = QPointF(760, 540); lim[9].lead = QPointF(760, 540);
+        check(cleanHandTrack(lim, hc, 6).glitchFixed == 1, "cleanHandTrack honours the glitch limit");
+        // A MOVING bad pair (mid-swing) is left alone: the pair rule is for the address hold.
+        std::vector<HandFrameIn> mv(12, g);
+        for (int i = 0; i < 12; ++i) { mv[size_t(i)].lead = QPointF(750 - 30.0 * i, 556); mv[size_t(i)].trail = QPointF(677 - 30.0 * i, 656); }
+        const HandCleanStats stm = cleanHandTrack(mv, hc);
+        check(stm.pairFixed == 0 && stm.glitchFixed == 0, "a bad pair on moving hands is not touched");
+        HandCleanConfig off = hc; off.enabled = false;
+        std::vector<HandFrameIn> track2(12, g); track2[3].lead = QPointF(760, 540);
+        const HandCleanStats st2 = cleanHandTrack(track2, off);
+        check(st2.glitchFixed == 0 && near(track2[3].lead.x(), 760, 1e-9), "disabled ⇒ nothing changes");
     }
 
     // ── Phase B: tier hoist is a pure refactor + head pass never perturbs θ ──
@@ -1150,5 +1267,99 @@ int main()
     }
 
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
+    // ── 2026-10-01 robustness: the θ_ball well shape ────────────────────────
+    std::printf("=== addBallWell ===\n");
+    {
+        const int NS = 360;
+        std::vector<float> gridDeg(NS);
+        for (int k = 0; k < NS; ++k) gridDeg[k] = float(k);
+        std::vector<float> row(NS, 0.f);
+        addBallWell(row, gridDeg, /*thetaBall=*/100.0, /*w=*/12.0, /*half=*/30.0);
+        check(near(row[100], 0.0, 1e-6), "well is zero at θ_ball");
+        check(near(row[115], 6.0, 1e-4), "half-way up the ramp = w/2");
+        check(near(row[130], 12.0, 1e-4) && near(row[200], 12.0, 1e-4), "capped at w beyond halfDeg");
+        check(near(row[85], 6.0, 1e-4), "symmetric on the other side");
+        check(near(row[280], 12.0, 1e-4), "wrap-safe (the antipode is capped)");
+        std::vector<float> bad(10, 0.f);
+        addBallWell(bad, gridDeg, 100.0, 12.0, 30.0);
+        check(near(bad[3], 0.0, 1e-9), "mismatched row is left alone");
+    }
+
+    // ── 2026-10-01 robustness: the trail-forearm veto in frameEmission ──────
+    std::printf("=== frameEmission trail-arm veto ===\n");
+    {
+        const int NS = 360;
+        std::vector<float> gridRad(NS), gridDeg(NS);
+        for (int k = 0; k < NS; ++k) { gridDeg[k] = float(k); gridRad[k] = float(k * kPi / 180.0); }
+        std::vector<float> evMax(NS, 0.2f), rawNorm(NS, 0.f);
+        BandMatch bm;   // no band
+        std::vector<float> em, inside;
+        // lead forearm at 0° (veto 180°), trail forearm at 60° (veto 240°)
+        frameEmission(em, inside, evMax, rawNorm, bm, /*phiSDeg=*/0.0, SwingPhase::Downswing,
+                      /*chir=*/1, /*gx=*/300, /*gy=*/300, /*poly=*/nullptr, cv::Mat(),
+                      gridRad, gridDeg, cfg, std::numeric_limits<double>::quiet_NaN(), 0.0,
+                      /*phiTrailSDeg=*/60.0);
+        check(near(em[180], cfg.wE2 * 0.8 + cfg.wArm, 1e-3), "lead veto bin unchanged");
+        check(near(em[240], cfg.wE2 * 0.8 + cfg.wArm, 1e-3), "trail veto bin (φ_trail+180) = wE2·(1-ev)+wArm");
+        check(near(em[60], cfg.wE2 * 0.8, 1e-3), "the trail forearm's own direction is not vetoed");
+        std::vector<float> emOff, insOff;
+        ShaftV3Config off = cfg; off.addr.trailArmVeto = false;
+        frameEmission(emOff, insOff, evMax, rawNorm, bm, 0.0, SwingPhase::Downswing, 1, 300, 300, nullptr,
+                      cv::Mat(), gridRad, gridDeg, off, std::numeric_limits<double>::quiet_NaN(), 0.0, 60.0);
+        check(near(emOff[240], cfg.wE2 * 0.8, 1e-3), "trailArmVeto=false ⇒ row bit-identical to no trail φ");
+        std::vector<float> emNan, insNan;
+        frameEmission(emNan, insNan, evMax, rawNorm, bm, 0.0, SwingPhase::Downswing, 1, 300, 300, nullptr,
+                      cv::Mat(), gridRad, gridDeg, cfg);
+        check(near(emNan[240], cfg.wE2 * 0.8, 1e-3), "NaN trail φ ⇒ row bit-identical (default arg)");
+    }
+
+    // ── 2026-10-01 robustness: the phase-model self-check + retry ladder ─────
+    // The 15 Sept W02 s1 shape: a takeaway that never exceeds swSpd. At 8 px/f
+    // the run detector sees only the downswing, the walk-back stalls in the top
+    // dwell and A3 pins the onset at impact − 550 ms (the manufactured-address
+    // signature). At swSpd × 0.75 the backswing run exists and the model is sane.
+    std::printf("=== segmentPhasesChecked ===\n");
+    {
+        const int nf = 450;
+        const double fps = 149.0;
+        std::vector<double> gx(nf), gy(nf);
+        double x = 700, y = 650;
+        for (int f = 0; f < nf; ++f) {
+            if (f >= 150 && f < 250)      { x -= 4.95; y -= 4.95; }   // backswing, 7 px/f (< swSpd 8, > 6)
+            else if (f >= 280 && f < 330) { x += 9.9;  y += 9.9;  }   // downswing, 14 px/f, back to address
+            else if (f >= 330 && f < 370) { x += 7.0;  y -= 7.0;  }   // follow-through, 10 px/f
+            gx[f] = x; gy[f] = y;
+        }
+        const int impactFrame = 329;
+        ShaftV3Config noRetry = cfg; noRetry.phase.retry = false;
+        const PhaseModel pm0 = segmentPhasesChecked(gx, gy, nf, fps, impactFrame, noRetry);
+        std::printf("    first pass: bs0 %d onset %d rule %d top %d suspect %d mask %d\n",
+                    pm0.bs0, pm0.onset, pm0.onsetRule, pm0.top, int(pm0.suspect), pm0.suspectMask);
+        check(pm0.suspect, "retry off: the sub-swSpd takeaway leaves a SUSPECT model");
+        check(pm0.onset > 200, "retry off: the onset is nowhere near the real takeaway (150)");
+        check(pm0.retries == 0, "retry off: retries = 0");
+        const PhaseModel pm1 = segmentPhasesChecked(gx, gy, nf, fps, impactFrame, cfg);
+        std::printf("    retried:    bs0 %d onset %d rule %d top %d suspect %d retries %d swSpd %.2f\n",
+                    pm1.bs0, pm1.onset, pm1.onsetRule, pm1.top, int(pm1.suspect), pm1.retries, pm1.swSpdUsed);
+        check(!pm1.suspect, "retry on: a non-suspect model is found");
+        check(pm1.retries >= 1 && pm1.swSpdUsed < cfg.swSpd, "retry on: it came from a lower swSpd");
+        check(pm1.onset >= 140 && pm1.onset <= 165, "retry on: onset at the real takeaway (150 ± smoothing)");
+        check(pm1.top >= 245 && pm1.top <= 285, "retry on: top in the dwell");
+        check(pm1.onsetRule == 0, "retry on: the onset came from the walk-back, not a rail");
+        // A sane profile is byte-identical: the retry never runs.
+        std::vector<double> gx2(nf), gy2(nf);
+        x = 700; y = 650;
+        for (int f = 0; f < nf; ++f) {
+            if (f >= 150 && f < 250)      { x -= 8.5; y -= 8.5; }
+            else if (f >= 280 && f < 330) { x += 17.0; y += 17.0; }
+            else if (f >= 330 && f < 370) { x += 7.0;  y -= 7.0; }
+            gx2[f] = x; gy2[f] = y;
+        }
+        const PhaseModel a = segmentPhases(gx2, gy2, nf, fps, impactFrame, cfg, nullptr, nullptr);
+        const PhaseModel b = segmentPhasesChecked(gx2, gy2, nf, fps, impactFrame, cfg, nullptr, nullptr);
+        check(!a.suspect && b.retries == 0 && a.onset == b.onset && a.top == b.top && a.bs0 == b.bs0,
+              "sane profile: not suspect, no retry, identical model");
+    }
+
     return g_fail;
 }

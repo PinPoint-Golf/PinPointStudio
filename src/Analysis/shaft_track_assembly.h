@@ -339,6 +339,72 @@ struct ShaftV3Config {
     // hands-only segmentation
     double  swSpd     = 8.0;         // grip speed (px/f) threshold for the swing
     int     impHalf   = 12;          // impact-zone half-width (frames)
+    // ── Address geometry + self-checks (2026-10-01, tracker_robustness) ──────
+    // The two 29 Sept failure families both published a confident wrong track
+    // because nothing checked the tracker against an independent witness. At
+    // address the witness is the ball: the club is AT it, so grip→ball is the
+    // shaft direction to within the head's few degrees. `ballWell` puts that
+    // geometry INSIDE the DP (a soft well on every address-like frame the hands
+    // are still on, when A1 accepted the ball) instead of painting it on after
+    // the DP as applyBallAnchor does — the post-hoc paint cannot correct a DP
+    // that measured the forearm at address (16 Sept W02 s2 on B: 132°, the
+    // origin→hands line), because its departure test uses the DP's own θ.
+    // `trailArmVeto` vetoes the TRAIL forearm the way C4 vetoes the lead one:
+    // the takeaway on that swing walked up grip→trail elbow (206–252°) with
+    // nothing in its way. The P1/length checks turn a disagreement between the
+    // DP and the ball into a REFUSAL (valid=false + reason) rather than a
+    // measurement — a refused track draws nothing and every club metric shows
+    // "-" (Mark, 30 Sept).
+    struct AddrConfig {
+        bool   ballWell          = true;   // θ_ball soft well on still address frames (A1 ball accepted)
+        double wBallWell         = 12.0;   // penalty at ≥ ballWellHalfDeg from θ_ball (cost units, cf. wE2 10)
+        double ballWellHalfDeg   = 30.0;   // penalty ramps linearly 0 → wBallWell over this angle
+        bool   trailArmVeto      = true;   // C4 veto for the trail forearm too (needs the trail elbow)
+        bool   refuse            = true;   // turn the checks below into a refusal (valid=false + reason)
+        double p1BallConflictDeg = 25.0;   // |θ(P1) − θ_ball| above this ⇒ P1 conflicts with the ball
+        double lenBallTol        = 0.30;   // |A1 length / grip→ball at P1 − 1| above this ⇒ length conflict
+        // Decoy-ball check on the still collar frames' ridge evidence (see the block
+        // before the θ_ball well): a supported RAY-quality line more than
+        // decoyMinSepDeg from θ_ball with less than half its evidence within
+        // decoyBallHalfDeg of θ_ball is a vote against the ball; decoyMinVotes such
+        // frames, outnumbering the frames that back the ball two to one, drop it.
+        bool   decoyCheck        = true;
+        double decoyMinSepDeg    = 15.0;
+        double decoyBallHalfDeg  = 8.0;
+        int    decoyMinVotes     = 3;
+        int    wellMinBallVotes  = 1;      // collar frames that must CONFIRM the ball before it anchors the address
+    } addr;
+    // Phase-model self-check + retry. The hands-only model manufactures an
+    // address when the takeaway runs under swSpd (15 Sept W02 s1 on L: the
+    // early takeaway at 2.5–6 px/f never formed a run, the ranking took the
+    // downswing, and A3 pinned the onset at impact − bsMin, 440 ms late; the
+    // whole address hold then coasted the mid-backswing θ). The signature is
+    // detectable from the model itself (onset pinned at an A3 edge, no run
+    // before top, a sub-400 ms backswing) and on the 21-swing B/L set it marks
+    // 5 of the 6 broken runs with 0 of 36 clean ones. On a suspect model the
+    // segmentation is re-run with swSpd × retryFactor (E3a: swSpd 6 tracked the
+    // swing perfectly) up to retryMax times; the first non-suspect model wins.
+    // Nothing changes when the first model is not suspect (byte-identical).
+    struct PhaseConfig {
+        bool    retry          = true;
+        double  retryFactor    = 0.75;     // swSpd multiplier per retry (8 → 6 → 4.5)
+        int     retryMax       = 2;
+        int64_t minBackswingUs = 400000;   // top − onset below this ⇒ suspect
+    } phase;
+    // Hand-track cleaning before the grip is derived (shaft_hand_clean.h): a
+    // hand pair wider than pairTolPx picks the hand at the forearm's grip point;
+    // a one-frame excursion over glitchPx that returns is replaced. Applied by
+    // ShaftTracker::track on a copy of the pose; decideTrack never sees the raw
+    // hands. Keys shaft.hands.*; byte-identical on a track with neither fault.
+    struct HandsConfig {
+        bool   enabled        = true;
+        double pairTolPx      = 64.0;
+        double pairTolForearm = 1.0;
+        double glitchPx       = 40.0;
+        double forearmGain    = 1.0;
+        double stillPx        = 20.0;
+        int    pairMinRun     = 4;
+    } hands;
     // validity gate
     double  coverageMin = 0.60;      // meas fraction over the span ⇒ track.valid
     // length-ladder pose-scale rung (A2, clubhead_length plan). When neither the
@@ -450,7 +516,38 @@ struct PhaseModel {
     // dark / no hole). Diagnostics only.
     int  captureHole = -1;
     std::vector<double> spdSmoothed;    // smoothed grip speed (px/frame)
+    // ── Self-check (2026-10-01, ShaftV3Config::PhaseConfig) ─────────────────
+    // onset = the takeaway the phase loop labelled from (== bs0 when Stage A is
+    // dark). onsetRule says which rule produced it: 0 the walk-back from the
+    // run start, 1 the top-repair reseed, 2 the A3 NEAR-edge pin (impact −
+    // bsMin — "the manufactured-Address signature"), 3 the A3 FAR-edge pin.
+    // suspect = the model shows the signature (reason bits: 1 near-edge pin,
+    // 2 no run starts before top, 4 backswing shorter than minBackswingUs);
+    // retries = how many swSpd reductions produced THIS model (0 = first pass);
+    // swSpdUsed = the threshold it was built with.
+    int    onset       = 0;
+    int    onsetRule   = 0;
+    bool   suspect     = false;
+    int    suspectMask = 0;
+    int    retries     = 0;
+    double swSpdUsed   = 0.0;
 };
+
+// The phase model with the self-check retry ladder (PhaseConfig): segmentPhases
+// once, and while the model is suspect re-run it with swSpd × retryFactor, up to
+// retryMax times; the first non-suspect model is returned, else the FIRST model
+// (still flagged suspect). Byte-identical to segmentPhases when the first model
+// is not suspect or retry is off.
+PhaseModel segmentPhasesChecked(const std::vector<double>& gx, const std::vector<double>& gy,
+                                int nf, double fps, int impactFrame, const ShaftV3Config& cfg,
+                                const std::vector<double>* phiSmoothed = nullptr,
+                                const std::vector<int64_t>* tUs = nullptr);
+
+// The θ_ball soft well (AddrConfig::ballWell): add wBallWell × min(1, |Δ|/halfDeg)
+// to every state, Δ = wrap(gridDeg[k] − thetaBallDeg). Pure; a helper so the
+// shape is unit-testable without an image.
+void addBallWell(std::vector<float>& row, const std::vector<float>& gridDeg,
+                 double thetaBallDeg, double wBallWell, double halfDeg);
 
 // Segment the swing from the hands alone. impactFrame < 0 ⇒ derive it (first
 // post-top grip-return-to-address-height frame). Degenerate (no swing) ⇒ whole
@@ -514,7 +611,11 @@ void frameEmission(std::vector<float>& emOut, std::vector<float>& insideOut,
                    const std::vector<float>& gridRad, const std::vector<float>& gridDeg,
                    const ShaftV3Config& cfg,
                    double handAxisDeg = std::numeric_limits<double>::quiet_NaN(),
-                   double handAxisConf = 0.0);
+                   double handAxisConf = 0.0,
+                   // Trail forearm angle (deg); NaN = none. With cfg.addr.trailArmVeto
+                   // the states within armVetoDeg of phiTrail+180 pay wArm like the
+                   // lead-forearm C4 veto. NaN keeps the row bit-identical.
+                   double phiTrailSDeg = std::numeric_limits<double>::quiet_NaN());
 
 // WB4 hand-axis θ prior — add `weight × handAxisConf` to every state deviating
 // more than maxDeg from handAxisDeg. Pure (deg wrap via shaftshared::circWrap);
@@ -669,6 +770,23 @@ struct ShaftDecideTrace {
     int64_t             impactGeomTUs     = -1;
     int                 impactGeomFrame   = -1;
     int                 impactGeomApplied = 0;
+    // ── Robustness diagnostics (2026-10-01) ─────────────────────────────────
+    // Per frame [0,nf): the trail forearm angle (deg, NaN = no trail elbow) and
+    // θ_ball where the ball well applied (NaN elsewhere). Summary: whether A1
+    // accepted a ball and where; the located P1 frame; the P1-vs-ball and
+    // A1-length-vs-P1-distance checks (−1 = not computable); the refusal.
+    std::vector<double> phiTrailSmoothed;
+    std::vector<double> thetaBallDeg;
+    bool                haveAddrBall   = false;
+    double              addrBallX      = -1.0, addrBallY = -1.0;   // px
+    int                 p1Frame        = -1;
+    double              p1BallDeltaDeg = -1.0;
+    double              lenBallRatio   = -1.0;
+    int                 refusedReason  = 0;
+    int                 handPairFixed  = 0, handGlitchFixed = 0;   // shaft_hand_clean.h stats (ShaftTracker)
+    bool                handsRetried   = false;                    // the cleaned-hands attempt ran
+    int                 decoyVotes     = 0, ballVotes = 0;         // the decoy-ball check's tally (lPxRejected 3 = dropped)
+    bool                ballTrusted    = false;                    // the well / P1 checks used the ball
 };
 
 // Map the hands-only phase model to an app Segmentation with real timestamps:
@@ -777,6 +895,9 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt,
                          const LengthPriorState* lengthPrior = nullptr,
                          const std::vector<double>& handAxisDeg = {},
                          const std::vector<double>& handAxisConf = {},
-                         const SegmentGeom* segGeom = nullptr);
+                         const SegmentGeom* segGeom = nullptr,
+                         // Raw trail-forearm angle per frame (deg, NaN = no elbow), the
+                         // twin of phiRaw for the other arm. nullptr = no trail veto.
+                         const std::vector<double>* phiTrailRaw = nullptr);
 
 } // namespace pinpoint::analysis

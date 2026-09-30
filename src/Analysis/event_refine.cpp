@@ -134,7 +134,7 @@ EventRefineResult refineEvents(Segmentation &seg, ShaftTrack2D &shaft,
     const int bs0 = shaft.addressPhaseFrame;
     if (bs0 >= 0 && bs0 < nf && !tb.haveBall.empty() && tb.haveBall[size_t(bs0)]
         && (shaft.samples[size_t(bs0)].flags & ShaftMeasured)
-        && !(shaft.samples[size_t(bs0)].flags & ShaftBallAnchored)) {
+        && !(shaft.samples[size_t(bs0)].flags & (ShaftBallAnchored | ShaftBallSeen))) {
         effDepart = std::max(effDepart, angDiffDeg(shaft.samples[size_t(bs0)].thetaRad,
                                                    tb.thetaBall[size_t(bs0)]));
     }
@@ -145,7 +145,7 @@ EventRefineResult refineEvents(Segmentation &seg, ShaftTrack2D &shaft,
     // θ = θ_ball by construction), with Tier-A authority but excluded from the
     // distance test.
     enum Tier { TierNone = 0, TierC = 1, TierB = 2, TierA = 3 };
-    auto anchored  = [&](int i) { return (shaft.samples[size_t(i)].flags & ShaftBallAnchored) != 0; };
+    auto anchored  = [&](int i) { return (shaft.samples[size_t(i)].flags & (ShaftBallAnchored | ShaftBallSeen)) != 0; };
     auto aEligible = [&](int i) {
         return !tb.haveBall.empty() && tb.haveBall[size_t(i)]
             && (shaft.samples[size_t(i)].flags & ShaftMeasured) && !anchored(i);

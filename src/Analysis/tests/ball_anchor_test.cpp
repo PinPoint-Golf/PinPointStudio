@@ -239,7 +239,7 @@ int main()
         std::vector<int64_t> tUs(nf);
         std::vector<double> gx(nf, 500.0), gy(nf, 500.0);
         BallTrack2D ball;
-        ShaftTrack2D out;
+        ShaftTrack2D out; out.addrBallTrusted = true;   // 2026-10-01: the anchor paints only a ball the tracker trusted
         out.frameWidth = W; out.frameHeight = H; out.addressPhaseFrame = bs0;
         for (int i = 0; i < nf; ++i) {
             tUs[i] = int64_t(i) * 10000;
@@ -282,7 +282,7 @@ int main()
         const ShotAnalysisJob job;
         std::vector<int64_t> tUs = {0, 10000, 20000};
         std::vector<double> gx = {500, 500, 500}, gy = {500, 500, 500};
-        ShaftTrack2D out;
+        ShaftTrack2D out; out.addrBallTrusted = true;   // 2026-10-01: the anchor paints only a ball the tracker trusted
         out.frameWidth = W; out.frameHeight = H; out.addressPhaseFrame = 1;
         for (int i = 0; i < 3; ++i) {
             ShaftSample2D s; s.t_us = tUs[size_t(i)]; s.headPx = QPointF(7, 9);
@@ -323,7 +323,7 @@ int main()
             return b;
         };
         auto buildTrack = [&]() {
-            ShaftTrack2D out;
+            ShaftTrack2D out; out.addrBallTrusted = true;   // 2026-10-01: the anchor paints only a ball the tracker trusted
             out.frameWidth = W; out.frameHeight = H; out.addressPhaseFrame = bs0;
             for (int i = 0; i < nf; ++i) {
                 ShaftSample2D s; s.t_us = tUs[size_t(i)];
@@ -363,7 +363,7 @@ int main()
         BallTrack2D ball;
         for (int i = 0; i < nf; ++i) { tUs[i] = int64_t(i) * 10000; addBall(ball, tUs[i], 0.50, 0.80); }
         auto buildTrack = [&]() {
-            ShaftTrack2D out;
+            ShaftTrack2D out; out.addrBallTrusted = true;   // 2026-10-01: the anchor paints only a ball the tracker trusted
             out.frameWidth = W; out.frameHeight = H; out.addressPhaseFrame = bs0;
             for (int i = 0; i < nf; ++i) {
                 ShaftSample2D s; s.t_us = tUs[size_t(i)]; s.gripPx = QPointF(500, 500);

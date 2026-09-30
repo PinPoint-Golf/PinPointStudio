@@ -600,6 +600,10 @@ enum ShaftSampleFlags : uint16_t {
     ShaftBallAnchored      = 0x40,  // theta soft-anchored from the grip->ball line (v3.4 design §9)
     ShaftHeadOffFrame      = 0x80,  // Stage-2 head expected off-frame — headPx is a ray/edge-clamped
                                     // point (NOT a head position); always co-set with ShaftHeadProjected
+    // The ball detector had the ball on this frame near the address hold (2026-10-01): a TIMING
+    // witness for the address walk-back and EventRefine, set by applyBallAnchor on every accepted
+    // (non-decoy) ball whether or not it was trusted to anchor θ. BallAnchored implies BallSeen.
+    ShaftBallSeen          = 0x400,
     ShaftImplausible       = 0x200, // demoted by the follow-through plausibility pass (2026-09-17,
                                     // shaft_track_assembly.h demoteImplausibleFollowThrough): after
                                     // impact the shaft turned faster than a club can, or pointed into
@@ -822,7 +826,53 @@ struct ShaftTrack2D {
     // the synth passes through it. addressBallPx in image px; ballAnchored false ⇒ nothing anchored.
     bool    ballAnchored = false;
     QPointF addressBallPx;
+    // ── Robustness self-checks (2026-10-01, tracker_robustness) ─────────────
+    // A refused track is one the tracker's own witnesses contradict: it keeps
+    // its samples for the lab but is NOT a measurement — valid is false, the
+    // overlay draws nothing from it and every club metric shows "-". Reasons:
+    // 1 P1 disagrees with the ball direction (the club is at the ball at address),
+    // 2 the phase model showed the manufactured-address signature and no retry
+    //   cleared it, and P2/P3 could not be located,
+    // 3 the address-hold club length disagrees with the grip→ball distance at P1,
+    // 4 the pose's hands were inconsistent on more than half its frames (shaft_hand_clean.h):
+    //   there is no grip to track from (15 Sept W01 s5, a non-swing: 223 of 234 frames).
+    // The diag fields persist as analysis.club.diag so a library sweep can be
+    // judged by them (shaft_track_assembly.h PhaseModel for the onset rules).
+    uint8_t refusedReason  = 0;
+    int     onsetRule      = 0;      // PhaseModel::onsetRule
+    int     phaseRetries   = 0;      // PhaseModel::retries of the model used
+    bool    phaseSuspect   = false;  // PhaseModel::suspect of the model used
+    float   p1BallDeltaDeg = -1.f;   // |θ(P1) − θ_ball| (deg); −1 = no ball / no P1
+    float   lenBallRatio   = -1.f;   // A1 length ÷ grip→ball at P1; −1 = not computable
+    int64_t onsetTUs       = -1;     // the takeaway the phase loop used (µs, window-relative like samples)
+    int64_t topTUs         = -1;
+    int     handPairFixed   = 0;     // shaft_hand_clean.h: pose frames whose hand pair was inconsistent
+    int     handGlitchFixed = 0;     // hand samples replaced as one-frame glitches
+    bool    ballSuspect     = false; // a MEASURED P1 disagreed with the A1 ball: the ball, not the track, is doubtful
+    bool    handsRetried    = false; // the raw-hands track failed and the cleaned hands were tried (adopted only if valid)
+    // IN-MEMORY conduit decideTrack → applyBallAnchor (never serialized): the accepted address
+    // ball was confirmed by the collar's ridge evidence and may be painted over the address hold.
+    bool    addrBallTrusted = false;
 };
+
+inline const char* shaftRefusedReasonName(uint8_t r)
+{
+    switch (r) {
+        case 1: return "p1BallConflict";
+        case 2: return "phaseSuspect";
+        case 3: return "lengthConflict";
+        case 4: return "handsUnusable";
+        default: return "";
+    }
+}
+inline uint8_t shaftRefusedReasonFromName(const QString& s)
+{
+    if (s == QLatin1String("p1BallConflict")) return 1;
+    if (s == QLatin1String("phaseSuspect"))   return 2;
+    if (s == QLatin1String("lengthConflict")) return 3;
+    if (s == QLatin1String("handsUnusable"))  return 4;
+    return 0;
+}
 
 // The IMU→segment binding as persisted in swing.json (keyed by the device
 // serial, which is stable across runs — SourceIds are not). Lets the SwingLab

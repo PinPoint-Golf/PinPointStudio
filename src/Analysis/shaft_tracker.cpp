@@ -39,6 +39,7 @@
 #include "ball_anchor.h"            // applyBallAnchor — the v3.4 post-hoc pass
 #include "hand_axis.h"              // handAxisDirection — the WB4 shaft θ prior
 #include "shaft_frame_io.h"         // lerpPoseFrame / decodeGray / buildFrameCache (shared with DTL)
+#include "shaft_hand_clean.h"       // cleanHandTrack (pair consistency + glitch rejection)
 #include "shot_analyzer.h"          // ShotAnalysisJob
 #include "swing_window.h"
 #include "format_descriptor.h"
@@ -96,8 +97,9 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
 
     // derive grip / φ / joints per frame from the pose (mirrors prep_swing.py)
     const int leadElbow = (job.handedness == 2) ? 8 : 7;   // right-lead=7(L), left-lead=8(R)
+    const int trailElbow = (leadElbow == 7) ? 8 : 7;       // the other arm (cfg.addr.trailArmVeto)
     std::vector<int64_t> tUs(nf);
-    std::vector<double> gx(nf), gy(nf), phiRaw(nf);
+    std::vector<double> gx(nf), gy(nf), phiRaw(nf), phiTrailRaw(nf);
     std::vector<std::vector<cv::Point2d>> rawJoints(nf, std::vector<cv::Point2d>(8));
     // WB4 hand-axis θ prior (dark unless shaft.handAxisPrior.enabled): per-frame
     // grip hand-axis direction (deg, image atan2) + confidence. Left empty when
@@ -108,29 +110,51 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
         handAxisDeg.assign(size_t(nf), std::numeric_limits<double>::quiet_NaN());
         handAxisConf.assign(size_t(nf), 0.0);
     }
-    size_t poseIdx = 0;
-    for (int i = 0; i < nf; ++i) {
-        tUs[i] = cov[i].timestamp_us;
-        while (poseIdx + 1 < pose.frames.size() && pose.frames[poseIdx + 1].t_us <= cov[i].timestamp_us) ++poseIdx;
-        const PoseFrame2D pf = lerpPoseFrame(pose, poseIdx, std::min(poseIdx + 1, pose.frames.size() - 1),
-                                             cov[i].timestamp_us);
-        const double grx = 0.5 * (pf.leadHand.x() + pf.trailHand.x()) * w;
-        const double gry = 0.5 * (pf.leadHand.y() + pf.trailHand.y()) * h;
-        gx[i] = grx; gy[i] = gry;
-        const double ex = pf.kp[size_t(leadElbow)].x() * w, ey = pf.kp[size_t(leadElbow)].y() * h;
-        const double plen = std::hypot(grx - ex, gry - ey);
-        phiRaw[i] = (pf.conf[size_t(leadElbow)] > 0.30f && plen > 8.0)
-                        ? std::atan2(gry - ey, grx - ex) * 180.0 / kPi
-                        : std::numeric_limits<double>::quiet_NaN();
-        for (int j = 0; j < 8; ++j)
-            rawJoints[i][j] = {pf.kp[size_t(kBodyJoints[j])].x() * w, pf.kp[size_t(kBodyJoints[j])].y() * h};
-        if (wantHandAxis) {
-            double aDeg = std::numeric_limits<double>::quiet_NaN();
-            const float aConf = handAxisDirection(pf, w, h, cfg.handAxisPrior.confMin, aDeg);
-            handAxisDeg[size_t(i)]  = (aConf > 0.f) ? aDeg : std::numeric_limits<double>::quiet_NaN();
-            handAxisConf[size_t(i)] = aConf;
+    // Hand-track cleaning (shaft_hand_clean.h, cfg.hands): the grip below is the
+    // mean of the two hand centroids, and on 16 Sept 2026 (W02 s2, ViTPose-B) the
+    // lead centroid sat on the wrist while the trail one glitched 85 px every
+    // 80 ms. Applied to a COPY of the pose, hands only; the persisted pose track
+    // is untouched. Byte-identical when the pose shows neither fault.
+    PoseTrack2D poseC = pose;
+    {
+        HandCleanConfig hc;
+        hc.enabled = cfg.hands.enabled; hc.pairTolPx = cfg.hands.pairTolPx;
+        hc.glitchPx = cfg.hands.glitchPx; hc.forearmGain = cfg.hands.forearmGain;
+        hc.pairTolForearm = cfg.hands.pairTolForearm; hc.stillPx = cfg.hands.stillPx;
+        hc.pairMinRun = cfg.hands.pairMinRun;
+        const int leadWrist = (leadElbow == 7) ? 9 : 10, trailWrist = (leadElbow == 7) ? 10 : 9;
+        std::vector<HandFrameIn> hf(poseC.frames.size());
+        for (size_t k = 0; k < poseC.frames.size(); ++k) {
+            const PoseFrame2D& f = poseC.frames[k];
+            HandFrameIn& o = hf[k];
+            o.lead  = QPointF(f.leadHand.x() * w,  f.leadHand.y() * h);
+            o.trail = QPointF(f.trailHand.x() * w, f.trailHand.y() * h);
+            o.leadWrist  = QPointF(f.kp[size_t(leadWrist)].x() * w,  f.kp[size_t(leadWrist)].y() * h);
+            o.trailWrist = QPointF(f.kp[size_t(trailWrist)].x() * w, f.kp[size_t(trailWrist)].y() * h);
+            o.leadElbow  = QPointF(f.kp[size_t(leadElbow)].x() * w,  f.kp[size_t(leadElbow)].y() * h);
+            o.leadElbowConf  = f.conf[size_t(leadElbow)];
+            o.leadWristConf  = f.conf[size_t(leadWrist)];
+            o.trailWristConf = f.conf[size_t(trailWrist)];
         }
+        // The glitch rule stops at impact: the finish hold's flaps are the phase
+        // model's last motion run and stay as they were (see HandCleanConfig).
+        size_t glitchLimit = size_t(-1);
+        if (job.impactUs >= 0) {
+            glitchLimit = 0;
+            while (glitchLimit < poseC.frames.size() && poseC.frames[glitchLimit].t_us < job.impactUs) ++glitchLimit;
+        }
+        const HandCleanStats st = cleanHandTrack(hf, hc, glitchLimit);
+        for (size_t k = 0; k < poseC.frames.size(); ++k) {
+            poseC.frames[k].leadHand  = QPointF(hf[k].lead.x() / w,  hf[k].lead.y() / h);
+            poseC.frames[k].trailHand = QPointF(hf[k].trail.x() / w, hf[k].trail.y() / h);
+        }
+        out.handPairFixed   = st.pairFixed;
+        out.handGlitchFixed = st.glitchFixed;
+        if (st.pairFixed || st.glitchFixed)
+            ppInfo() << "[ShaftTracker] hands cleaned: pair" << st.pairFixed << "glitch" << st.glitchFixed
+                     << "of" << int(poseC.frames.size()) << "pose frames";
     }
+    const int handPairFixed = out.handPairFixed, handGlitchFixed = out.handGlitchFixed;
 
     int impf = -1;
     if (job.impactUs >= 0) {
@@ -140,6 +164,39 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
             if (d < best) { best = d; impf = i; }
         }
     }
+    for (int i = 0; i < nf; ++i) tUs[i] = cov[i].timestamp_us;
+
+    // Per-frame grip / φ / joints from a pose track (mirrors prep_swing.py). Called
+    // once on the RAW pose and, only if that track fails, once on the cleaned one.
+    const auto derive = [&](const PoseTrack2D& P) {
+        size_t poseIdx = 0;
+        for (int i = 0; i < nf; ++i) {
+            while (poseIdx + 1 < P.frames.size() && P.frames[poseIdx + 1].t_us <= cov[i].timestamp_us) ++poseIdx;
+            const PoseFrame2D pf = lerpPoseFrame(P, poseIdx, std::min(poseIdx + 1, P.frames.size() - 1),
+                                                 cov[i].timestamp_us);
+            const double grx = 0.5 * (pf.leadHand.x() + pf.trailHand.x()) * w;
+            const double gry = 0.5 * (pf.leadHand.y() + pf.trailHand.y()) * h;
+            gx[i] = grx; gy[i] = gry;
+            const double ex = pf.kp[size_t(leadElbow)].x() * w, ey = pf.kp[size_t(leadElbow)].y() * h;
+            const double plen = std::hypot(grx - ex, gry - ey);
+            phiRaw[i] = (pf.conf[size_t(leadElbow)] > 0.30f && plen > 8.0)
+                            ? std::atan2(gry - ey, grx - ex) * 180.0 / kPi
+                            : std::numeric_limits<double>::quiet_NaN();
+            const double tex = pf.kp[size_t(trailElbow)].x() * w, tey = pf.kp[size_t(trailElbow)].y() * h;
+            const double tlen = std::hypot(grx - tex, gry - tey);
+            phiTrailRaw[i] = (pf.conf[size_t(trailElbow)] > 0.30f && tlen > 8.0)
+                                 ? std::atan2(gry - tey, grx - tex) * 180.0 / kPi
+                                 : std::numeric_limits<double>::quiet_NaN();
+            for (int j = 0; j < 8; ++j)
+                rawJoints[i][j] = {pf.kp[size_t(kBodyJoints[j])].x() * w, pf.kp[size_t(kBodyJoints[j])].y() * h};
+            if (wantHandAxis) {
+                double aDeg = std::numeric_limits<double>::quiet_NaN();
+                const float aConf = handAxisDirection(pf, w, h, cfg.handAxisPrior.confMin, aDeg);
+                handAxisDeg[size_t(i)]  = (aConf > 0.f) ? aDeg : std::numeric_limits<double>::quiet_NaN();
+                handAxisConf[size_t(i)] = aConf;
+            }
+        }
+    };
 
     // ── decode-once span cache with parallel decode (shaft_frame_io.h) ───────
     // The cache vector stays OURS: buildFrameCache's callable closes over it by
@@ -173,18 +230,84 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
     // The recorded exposure separates the blur's two edges (WedgeConfig::exposureUs); 0 ⇒ decideTrack
     // takes 99 % of the frame period.
     if (cfmt->exposure_us > 0.0) cfg.wedge.exposureUs = cfmt->exposure_us;
-    out = decideTrack(frameAt, tUs, gx, gy, phiRaw, rawJoints, w, h, fps,
-                      job.bandCentersMm, job.clubLengthM * 1000.0, impf, cfg, trace,
-                      ball.frames.empty() ? nullptr : &ball, priorPtr,
-                      handAxisDeg, handAxisConf, &segGeom);
-    out.camera = pose.camera;
 
-    // v3.4 (design §9): additive post-hoc ball anchor — reads the frozen DP
-    // output above, never re-solves it. No-op when `ball` is empty.
-    applyBallAnchor(out, ball, gx, gy, tUs, w, h, impf, job, trace);
+    // One tracking attempt on a pose track: decideTrack, the post-hoc ball anchor,
+    // and the P1 re-sample from the anchored samples.
+    const auto attempt = [&](const PoseTrack2D& P) -> ShaftTrack2D {
+        derive(P);
+        ShaftTrack2D t = decideTrack(frameAt, tUs, gx, gy, phiRaw, rawJoints, w, h, fps,
+                                     job.bandCentersMm, job.clubLengthM * 1000.0, impf, cfg, trace,
+                                     ball.frames.empty() ? nullptr : &ball, priorPtr,
+                                     handAxisDeg, handAxisConf, &segGeom, &phiTrailRaw);
+        t.camera = pose.camera;
+        // v3.4 (design §9): additive post-hoc ball anchor — reads the frozen DP
+        // output above, never re-solves it. No-op when `ball` is empty.
+        applyBallAnchor(t, ball, gx, gy, tUs, w, h, impf, job, trace);
+        // The anchor rewrites the address-hold SAMPLES after the P-positions were
+        // sampled from them, so P1 could carry a θ its own samples no longer show
+        // (16 Sept W02 s2 on B: samples 100°, P1 132°). A track-sampled P1 whose
+        // nearest sample the anchor moved now follows that sample; a milestone-fit
+        // P1 (measured from the pixels) is left alone.
+        for (ShaftPosition& pos : t.positions) {
+            if (pos.p != 1 || pos.source != uint8_t(PositionSource::TrackSample)) continue;
+            const ShaftSample2D* ns = nullptr;
+            int64_t bd = std::numeric_limits<int64_t>::max();
+            for (const ShaftSample2D& sm : t.samples) {
+                const int64_t d = std::llabs(sm.t_us - pos.t_us);
+                if (d < bd) { bd = d; ns = &sm; }
+            }
+            if (!ns || !(ns->flags & ShaftBallAnchored)) continue;
+            pos.thetaRad = ns->thetaRad;
+            pos.gripPx   = ns->gripPx;
+            pos.headPx   = ns->headPx;
+            pos.lenPx    = ns->visibleLenPx;
+            pos.conf     = std::max(pos.conf, ns->conf);
+        }
+        return t;
+    };
+
+    // ── The hands ladder (2026-10-01) ───────────────────────────────────────
+    // Track on the RAW hands first: every swing the raw pose tracks stays exactly
+    // as it was. Only a track that comes back invalid or refused is tried again on
+    // the CLEANED hands (pair consistency + de-glitching), and that second track is
+    // taken only if it is valid. The cleaning rescues 16 Sept W02 s2 on ViTPose-B
+    // (a lead centroid on the wrist, an 85 px flicker every 80 ms), but applied to
+    // every swing it also moved the onset and P1 of clean 09-09 swings whose poses
+    // flicker just as much (the onset heuristics were tuned on that flicker).
+    bool handsRetried = false;
+    out = attempt(pose);
+    const bool cleaned = handPairFixed > 0 || handGlitchFixed > 0;
+    if (cfg.hands.enabled && cleaned && (!out.valid || out.refusedReason)) {
+        ShaftTrack2D second = attempt(poseC);
+        handsRetried = true;
+        if (second.valid && second.refusedReason == 0) out = std::move(second);
+        else if (trace) {
+            // keep the first attempt's verdict; the trace now describes the second —
+            // re-run the first so the trace matches what is published
+            out = attempt(pose);
+        }
+        ppInfo() << "[ShaftTracker] raw hands gave" << (out.valid ? "a valid" : "an invalid")
+                 << "track; cleaned hands" << (second.valid && second.refusedReason == 0 ? "ADOPTED" : "rejected");
+    }
+    out.handPairFixed   = handPairFixed;     // the stats are reported whether or not the cleaned hands were used
+    out.handGlitchFixed = handGlitchFixed;
+    out.handsRetried    = handsRetried;
+    if (trace) { trace->handPairFixed = handPairFixed; trace->handGlitchFixed = handGlitchFixed; trace->handsRetried = handsRetried; }
+    // Hands inconsistent on more than half the pose frames: the pose has no grip to
+    // offer and every downstream witness (phase model, ray origin, ball geometry)
+    // read from it is fiction. Refuse (reason 4) unless something stronger already did.
+    if (cfg.addr.refuse && out.refusedReason == 0 && !poseC.frames.empty()
+        && handPairFixed * 2 > int(poseC.frames.size())) {
+        out.refusedReason = 4;
+        out.valid = false;
+    }
 
     ppInfo() << "[ShaftTracker] v3 frames" << nf << "coverage" << out.coverage
              << (out.valid ? "VALID" : "invalid") << "," << wall.elapsed() << "ms";
+    if (out.refusedReason)
+        ppWarn() << "[ShaftTracker] track REFUSED:" << shaftRefusedReasonName(out.refusedReason)
+                 << "(P1-ball" << out.p1BallDeltaDeg << "deg, length ratio" << out.lenBallRatio
+                 << ", phase retries" << out.phaseRetries << (out.phaseSuspect ? "suspect" : "ok") << ")";
     return out;
 }
 

@@ -43,7 +43,7 @@ namespace pinpoint::analysis {
 
 constexpr int kPoseStageVersion  = 1;
 constexpr int kBallStageVersion  = 1;
-constexpr int kShaftStageVersion = 4;
+constexpr int kShaftStageVersion = 5;
                                               // 3: the blur wedge reads its LEADING edge; timed trail/mid/lead evidence (2026-09-29)
                                               // 4: …from the top onward only — a v3 track can carry a flipped backswing (2026-09-29)
 // shaft — REUSABLE since 2026-09-17 (swing_reanalyzer.cpp): the recorded samples,

@@ -394,6 +394,31 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.topRepair.maxDownswingUs", c.topRepairMaxDownswingUs);
     apply(ov, "shaft.topRepair.onsetReseed", c.topRepairOnsetReseed);
     apply(ov, "shaft.spanBound", c.spanBound);
+    // 2026-10-01 robustness (tracker_robustness): address geometry inside the
+    // DP, the trail-arm veto, the self-checks and the phase-model retry ladder.
+    apply(ov, "shaft.addr.ballWell",          c.addr.ballWell);
+    apply(ov, "shaft.addr.wBallWell",         c.addr.wBallWell);
+    apply(ov, "shaft.addr.ballWellHalfDeg",   c.addr.ballWellHalfDeg);
+    apply(ov, "shaft.addr.trailArmVeto",      c.addr.trailArmVeto);
+    apply(ov, "shaft.addr.refuse",            c.addr.refuse);
+    apply(ov, "shaft.addr.p1BallConflictDeg", c.addr.p1BallConflictDeg);
+    apply(ov, "shaft.addr.lenBallTol",        c.addr.lenBallTol);
+    apply(ov, "shaft.addr.decoyCheck",        c.addr.decoyCheck);
+    apply(ov, "shaft.addr.decoyMinSepDeg",    c.addr.decoyMinSepDeg);
+    apply(ov, "shaft.addr.decoyBallHalfDeg",  c.addr.decoyBallHalfDeg);
+    apply(ov, "shaft.addr.decoyMinVotes",     c.addr.decoyMinVotes);
+    apply(ov, "shaft.addr.wellMinBallVotes",  c.addr.wellMinBallVotes);
+    apply(ov, "shaft.phase.retry",            c.phase.retry);
+    apply(ov, "shaft.phase.retryFactor",      c.phase.retryFactor);
+    apply(ov, "shaft.phase.retryMax",         c.phase.retryMax);
+    apply(ov, "shaft.phase.minBackswingUs",   c.phase.minBackswingUs);
+    apply(ov, "shaft.hands.enabled",          c.hands.enabled);
+    apply(ov, "shaft.hands.pairTolPx",        c.hands.pairTolPx);
+    apply(ov, "shaft.hands.glitchPx",         c.hands.glitchPx);
+    apply(ov, "shaft.hands.forearmGain",      c.hands.forearmGain);
+    apply(ov, "shaft.hands.pairTolForearm",   c.hands.pairTolForearm);
+    apply(ov, "shaft.hands.stillPx",          c.hands.stillPx);
+    apply(ov, "shaft.hands.pairMinRun",       c.hands.pairMinRun);
     apply(ov, "shaft.bodyMargin", c.bodyMargin);
     apply(ov, "shaft.rasterC2", c.rasterC2);
     apply(ov, "shaft.psiRail", c.psiRail);
@@ -704,6 +729,13 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
     if (runs.empty()) {
         m.phase.assign(nf, SwingPhase::Addr);
         m.bs0 = 0; m.top = nf / 2; m.impact = nf / 2; m.fin0 = nf - 1;
+        // No motion run at all: the model is a placeholder, not a segmentation
+        // (2026-10-01: a non-swing on 15 Sept W01 s5 published P1 = 187° at t = 0
+        // from exactly this path). Mark it SUSPECT (bit 8) so the retry ladder
+        // tries a lower swSpd and, failing that, the track is refused rather than
+        // published with a confident wrong address.
+        m.onset = 0; m.onsetRule = 0; m.swSpdUsed = cfg.swSpd;
+        m.suspectMask = 8; m.suspect = true;
         return m;
     }
     // m3gate (FROZEN ON 2026-07-18 at 0.2; 0 = off) — chain-qualified
@@ -946,7 +978,11 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
             if (reseedBs0 >= 0 && onset > hiEdge) {
                 wb = walkBack(reseedBs0);
                 onset = wb.first;
+                m.onsetRule = 1;
             }
+            // Which rail, if any, produced the onset (PhaseModel::onsetRule).
+            if (onset > hiEdge)      m.onsetRule = 2;
+            else if (onset < loEdge) m.onsetRule = 3;
             onset = std::clamp(onset, loEdge, hiEdge);
         }
         // Publish the no-return boundary as the address-walk-back floor
@@ -976,6 +1012,28 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
             if (m.topPreRepair < 0) m.topPreRepair = top;
             top = amin;
         }
+    }
+    // ── Self-check (PhaseConfig): the manufactured-address signature ─────────
+    // A model whose onset came off the A3 near rail, or that has no run
+    // starting before its top, or whose backswing is shorter than a swing can
+    // be, was not segmented from the takeaway it claims. It is still returned
+    // (the caller decides what to do — segmentPhasesChecked retries at a lower
+    // swSpd); the flag is what makes the failure visible instead of published.
+    m.onset     = onset;
+    m.swSpdUsed = cfg.swSpd;
+    {
+        // Bits: 1 the A3 near-edge pin, 4 a backswing shorter than a swing can be,
+        // 8 the degenerate no-run model (set on the early return above). "No run
+        // starts before top" was tried as a bit and dropped: after the top repair
+        // and the reseed have done their job the surviving run list legitimately
+        // has no pre-top run (06-11 s1, taped, clean), so it flagged sane swings
+        // and the retry then moved their finish.
+        int mask = 0;
+        if (m.onsetRule == 2) mask |= 1;
+        if (fps > 0.0 && cfg.phase.minBackswingUs > 0
+            && double(top - onset) * 1e6 / fps < double(cfg.phase.minBackswingUs)) mask |= 4;
+        m.suspectMask = mask;
+        m.suspect     = mask != 0;
     }
     m.phase.resize(nf);
     for (int f = 0; f < nf; ++f) {
@@ -1084,7 +1142,8 @@ void frameEmission(std::vector<float>& emOut, std::vector<float>& insideOut,
                    const BandMatch& band, double phiSDeg, SwingPhase phase, int chir,
                    double gx, double gy, const BodyPoly* poly, const cv::Mat& mask,
                    const std::vector<float>& gridRad, const std::vector<float>& gridDeg,
-                   const ShaftV3Config& cfg, double handAxisDeg, double handAxisConf)
+                   const ShaftV3Config& cfg, double handAxisDeg, double handAxisConf,
+                   double phiTrailSDeg)
 {
     const int NS = int(evMax.size());
     emOut.assign(NS, 0.f);
@@ -1105,6 +1164,14 @@ void frameEmission(std::vector<float>& emOut, std::vector<float>& insideOut,
     const double arm = std::fmod(phiSDeg + 180.0, 360.0);
     for (int k = 0; k < NS; ++k)
         if (std::abs(circWrap(gridDeg[k] - arm)) < cfg.armVetoDeg) emOut[k] += float(cfg.wArm);
+    // The same veto for the TRAIL forearm (2026-10-01): the shaft never points
+    // from the grip into the trail elbow either. On 16 Sept W02 s2 (B pose) the
+    // takeaway walked up exactly that line, 206–252°, with nothing in its way.
+    if (cfg.addr.trailArmVeto && !std::isnan(phiTrailSDeg)) {
+        const double armT = std::fmod(phiTrailSDeg + 180.0, 360.0);
+        for (int k = 0; k < NS; ++k)
+            if (std::abs(circWrap(gridDeg[k] - armT)) < cfg.armVetoDeg) emOut[k] += float(cfg.wArm);
+    }
 
     // C4 wide reachable cone (chirality-centred), off addr/finish/top
     if (phase != SwingPhase::Addr && phase != SwingPhase::Finish && phase != SwingPhase::Top) {
@@ -1349,6 +1416,35 @@ void interpFillNan(std::vector<double>& v)
 }
 
 } // namespace shaftshared
+
+PhaseModel segmentPhasesChecked(const std::vector<double>& gx, const std::vector<double>& gy,
+                                int nf, double fps, int impactFrame, const ShaftV3Config& cfg,
+                                const std::vector<double>* phiSmoothed,
+                                const std::vector<int64_t>* tUs)
+{
+    PhaseModel first = segmentPhases(gx, gy, nf, fps, impactFrame, cfg, phiSmoothed, tUs);
+    if (!cfg.phase.retry || !first.suspect || cfg.phase.retryMax <= 0
+        || !(cfg.phase.retryFactor > 0.0 && cfg.phase.retryFactor < 1.0))
+        return first;
+    ShaftV3Config c2 = cfg;
+    for (int r = 1; r <= cfg.phase.retryMax; ++r) {
+        c2.swSpd *= cfg.phase.retryFactor;
+        PhaseModel alt = segmentPhases(gx, gy, nf, fps, impactFrame, c2, phiSmoothed, tUs);
+        alt.retries = r;
+        if (!alt.suspect) return alt;
+    }
+    return first;
+}
+
+void addBallWell(std::vector<float>& row, const std::vector<float>& gridDeg,
+                 double thetaBallDeg, double wBallWell, double halfDeg)
+{
+    if (row.size() != gridDeg.size() || !(halfDeg > 0.0) || !(wBallWell > 0.0)) return;
+    for (size_t k = 0; k < row.size(); ++k) {
+        const double d = std::abs(shaftshared::circWrap(double(gridDeg[k]) - thetaBallDeg));
+        row[k] += float(wBallWell * std::min(1.0, d / halfDeg));
+    }
+}
 
 Segmentation phasesToSegmentation(const PhaseModel& pm, const std::vector<int64_t>& tUs, float conf,
                                   int addressFrame, bool emitTakeaway)
@@ -1835,7 +1931,8 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                          const BallTrack2D* ball, const LengthPriorState* lengthPrior,
                          const std::vector<double>& handAxisDeg,
                          const std::vector<double>& handAxisConf,
-                         const SegmentGeom* segGeom)
+                         const SegmentGeom* segGeom,
+                         const std::vector<double>* phiTrailRaw)
 {
     ShaftTrack2D out;
     out.frameWidth = frameW; out.frameHeight = frameH;
@@ -1872,8 +1969,22 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     std::vector<double> phiRaw = phiRawIn;
     interpFillNan(phiRaw);
     const std::vector<double> phiS = smoothPhi(phiRaw, cfg);
+    // Trail forearm (the C4 veto's other half, cfg.addr.trailArmVeto). Empty when
+    // the caller has no trail elbow or it was never confident (all NaN), so the
+    // emission rows stay bit-identical in that case.
+    std::vector<double> phiTrailS;
+    if (cfg.addr.trailArmVeto && phiTrailRaw && int(phiTrailRaw->size()) == nf) {
+        bool any = false;
+        for (double v : *phiTrailRaw) if (!std::isnan(v)) { any = true; break; }
+        if (any) {
+            std::vector<double> r = *phiTrailRaw;
+            interpFillNan(r);
+            phiTrailS = smoothPhi(r, cfg);
+        }
+    }
+    if (trace) trace->phiTrailSmoothed = phiTrailS;
 
-    const PhaseModel pm = segmentPhases(gx, gy, nf, fps, impactFrame, cfg, &phiS, &tUs);
+    const PhaseModel pm = segmentPhasesChecked(gx, gy, nf, fps, impactFrame, cfg, &phiS, &tUs);
 
     // chirality from unwrapped φ over [bs0, top]
     int chir = 1;
@@ -2180,9 +2291,17 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         const double haDeg  = (i < int(handAxisDeg.size()))  ? handAxisDeg[size_t(i)]
                                                              : std::numeric_limits<double>::quiet_NaN();
         const double haConf = (i < int(handAxisConf.size())) ? handAxisConf[size_t(i)] : 0.0;
+        // The trail-forearm veto applies through the TOP only: that is where the
+        // takeaway walked up the trail arm (16 Sept B, 206–252°). After the top the
+        // trail elbow is often behind the body and its φ is noise, and on 15 Sept
+        // W01 s8 the veto there cost the through-swing 66 of 119 measured frames.
+        const bool preTop = pm.phase[i] == SwingPhase::Addr || pm.phase[i] == SwingPhase::Backswing
+                            || pm.phase[i] == SwingPhase::Top;
         frameEmission(em, inside, evMax, normRaw, band[i], phiS[i], pm.phase[i], chir,
                       gx[i], gy[i], polys.empty() ? nullptr : &polys[i],
-                      masks.empty() ? cv::Mat() : masks[i], gridRad, gridDeg, cfg, haDeg, haConf);
+                      masks.empty() ? cv::Mat() : masks[i], gridRad, gridDeg, cfg, haDeg, haConf,
+                      (phiTrailS.empty() || !preTop) ? std::numeric_limits<double>::quiet_NaN()
+                                                     : phiTrailS[size_t(i)]);
         emis[i] = std::move(em);
     };
     if (parFrames)
@@ -2269,6 +2388,94 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 }
             }
         }
+    }
+
+    // ── θ_ball well (serial, pre-DP; cfg.addr.ballWell) ─────────────────────
+    // The one witness that knows the shaft direction at address is the ball the
+    // club is resting behind. Where A1 accepted it, every address-like frame
+    // (before the evidence span, or labelled Addr) on which the hands are STILL
+    // pays a soft penalty for states away from grip→ball. Still frames only:
+    // inside the collar a frame labelled Addr can already be the early takeaway
+    // (bs0 lag), and a moving grip is that signal. Frames before spanLo have a
+    // flat wE2 row, so the well alone decides them — which is the point: the DP
+    // used to carry whatever θ it had at spanLo backwards over the whole hold
+    // (196° on 15 Sept W02 s1: a mid-backswing angle published as P1). The band
+    // well is re-asserted afterwards, as everywhere else (a band lock outranks).
+    // ── Is the accepted ball the one the club rests behind? (cfg.addr.decoyCheck) ──
+    // A1 accepts any consistent lock below the ankle line and between the feet: a
+    // second ball on the mat, or the ball the golfer is NOT addressing, passes it
+    // (07-03 untaped 7-iron: grip→ball 115–124° against a marked address of ~97°,
+    // all six swings; 15 Sept W01 s2: a cluster 200 px from the address ball). A
+    // witness the ball does not control: the ridge evidence on the still collar
+    // frames, which the sweep has just computed. Where a strong, supported line
+    // (RAY quality) sits more than decoyMinSepDeg from θ_ball and nothing
+    // comparable sits at θ_ball, the shaft is not pointing at that ball. Enough
+    // such frames ⇒ the ball is a DECOY: no well, no A1 length (the ladder
+    // degrades to its pose-scale rung as when no ball was found), flagged.
+    // Undecidable frames (no line anywhere — bare steel on a lit mat) vote for
+    // nothing, so a real ball with an invisible shaft is kept.
+    bool ballDecoy = false;
+    bool ballTrusted = haveAddrBall;   // decoyCheck off ⇒ the accepted ball is trusted as before
+    if (cfg.addr.decoyCheck && haveAddrBall) {
+        int decoyVotes = 0, ballVotes = 0;
+        const int hi = std::min({pm.bs0, spanHi, nf - 1});
+        for (int i = spanLo; i <= hi; ++i) {
+            if (std::isnan(gx[i]) || !heavyMark[size_t(i)] || !stat[i]) continue;
+            const double thB = std::atan2(addrBallPx.y() - gy[i], addrBallPx.x() - gx[i]) * 180.0 / kPi;
+            const double armL = std::fmod(phiS[i] + 180.0 + 360.0, 360.0);
+            const double armT = phiTrailS.empty() ? std::numeric_limits<double>::quiet_NaN()
+                                                  : std::fmod(phiTrailS[size_t(i)] + 180.0 + 360.0, 360.0);
+            float evBall = 0.f, evBest = 0.f; int kBest = -1;
+            for (int k = 0; k < NS; ++k) {
+                const double d = std::abs(circWrap(double(gridDeg[k]) - thB));
+                if (d <= cfg.addr.decoyBallHalfDeg) evBall = std::max(evBall, EV[i][k]);
+                if (std::abs(circWrap(double(gridDeg[k]) - armL)) < cfg.armVetoDeg) continue;
+                if (!std::isnan(armT) && std::abs(circWrap(double(gridDeg[k]) - armT)) < cfg.armVetoDeg) continue;
+                if (cfg.raySupportMin > 0.0 && SUP[i][k] < float(cfg.raySupportMin)) continue;
+                if (EV[i][k] > evBest) { evBest = EV[i][k]; kBest = k; }
+            }
+            if (kBest < 0 || evBest < float(cfg.rayEvMin)) continue;          // no line anywhere: no vote
+            const double sep = std::abs(circWrap(double(gridDeg[kBest]) - thB));
+            if (sep > cfg.addr.decoyMinSepDeg && evBall < 0.5f * evBest) ++decoyVotes;
+            else if (sep <= cfg.addr.decoyMinSepDeg || evBall >= float(cfg.rayEvMin)) ++ballVotes;
+        }
+        ballDecoy = decoyVotes >= cfg.addr.decoyMinVotes && decoyVotes > 2 * ballVotes;
+        if (trace) { trace->decoyVotes = decoyVotes; trace->ballVotes = ballVotes; }
+        if (ballDecoy) {
+            haveAddrBall = false;
+            out.measuredClubLenPx = -1.f;
+            out.ballSuspect = true;
+            if (trace) trace->lPxRejected = 3;
+        }
+        // The ball may anchor the address only when the image CONFIRMED it at least
+        // once (a supported line at θ_ball on a still collar frame). With no vote
+        // either way (07-03, daylight, bare steel: no line anywhere) the well would
+        // be geometry against nothing, and on that session it moved P1 from 5° to
+        // 24° off the marks; without it the DP's own answer stands, as before.
+        ballTrusted = haveAddrBall && ballVotes >= cfg.addr.wellMinBallVotes;
+    }
+    if (trace) trace->ballTrusted = ballTrusted;
+    out.addrBallTrusted = ballTrusted;
+    if (cfg.addr.ballWell && ballTrusted) {
+        if (trace) trace->thetaBallDeg.assign(size_t(nf), std::numeric_limits<double>::quiet_NaN());
+        for (int i = 0; i < nf; ++i) {
+            if (std::isnan(gx[i])) continue;
+            const bool addressLike = (i < spanLo) || pm.phase[i] == SwingPhase::Addr;
+            if (!addressLike) continue;
+            if (i >= spanLo && !stat[i]) continue;
+            const double thB = std::atan2(addrBallPx.y() - gy[i], addrBallPx.x() - gx[i]) * 180.0 / kPi;
+            addBallWell(emis[i], gridDeg, thB, cfg.addr.wBallWell, cfg.addr.ballWellHalfDeg);
+            if (bandOk[i]) {
+                int bi = int(std::lround(band[i].thetaDeg / cfg.grid)) % NS;
+                if (bi < 0) bi += NS;
+                emis[i][bi] = float(-cfg.wBand);
+            }
+            if (trace) trace->thetaBallDeg[size_t(i)] = thB;
+        }
+    }
+    if (trace) {
+        trace->haveAddrBall = haveAddrBall;
+        if (haveAddrBall) { trace->addrBallX = addrBallPx.x(); trace->addrBallY = addrBallPx.y(); }
     }
 
     const DPResult dp = viterbiDP(emis, pm.phase, cfg);
@@ -3117,7 +3324,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         // BallAnchored flag span when present (shaft_positions.h addressHoldEndFrame).
         std::vector<char> baByFrame(size_t(nf), 0);
         for (const ShaftSample2D& s : out.samples) {
-            if (!(s.flags & ShaftBallAnchored)) continue;
+            if (!(s.flags & (ShaftBallAnchored | ShaftBallSeen))) continue;
             int best = 0; int64_t bd = std::numeric_limits<int64_t>::max();
             for (int i = 0; i < nf; ++i) {
                 const int64_t d = std::llabs(tUs[i] - s.t_us);
@@ -3327,6 +3534,81 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     // EventRefine slot re-floors its Address walk-back on it (swing_analysis.h
     // ShaftTrack2D::onsetFloorFrame). -1 when the veto is dark / never fired.
     out.onsetFloorFrame = pm.onsetFloor;
+
+    // ── Self-checks and refusal (2026-10-01, cfg.addr) ──────────────────────
+    // Two independent witnesses the track must agree with: the ball at address
+    // (P1 points at it) and the address-hold club length (the same grip→ball
+    // distance measured over the hold must match the one at P1 — on 15 Sept
+    // W02 s1 the hold window had drifted into the backswing and read 407 px for
+    // a 280 px club). A phase model that stayed suspect after the retry ladder
+    // AND could not locate P2/P3 is the third refusal: the backswing it
+    // labelled did not exist. A refused track keeps its samples for the lab and
+    // is not a measurement (valid=false).
+    out.onsetRule    = pm.onsetRule;
+    out.phaseRetries = pm.retries;
+    out.phaseSuspect = pm.suspect;
+    if (pm.onset >= 0 && pm.onset < nf) out.onsetTUs = tUs[size_t(pm.onset)];
+    if (pm.top   >= 0 && pm.top   < nf) out.topTUs   = tUs[size_t(pm.top)];
+    {
+        const ShaftPosition* p1 = nullptr;
+        bool haveP2 = false, haveP3 = false;
+        for (const ShaftPosition& p : out.positions) {
+            if (p.p == 1) p1 = &p;
+            if (p.p == 2) haveP2 = true;
+            if (p.p == 3) haveP3 = true;
+        }
+        if (ballTrusted && p1) {
+            const double thB = std::atan2(addrBallPx.y() - p1->gripPx.y(), addrBallPx.x() - p1->gripPx.x()) * 180.0 / kPi;
+            out.p1BallDeltaDeg = float(std::abs(circWrap(p1->thetaRad * 180.0 / kPi - thB)));
+            const double dist = std::hypot(addrBallPx.x() - p1->gripPx.x(), addrBallPx.y() - p1->gripPx.y());
+            if (dist > 1.0 && out.measuredClubLenPx > 0.f)
+                out.lenBallRatio = float(double(out.measuredClubLenPx) / dist);
+        }
+        uint8_t reason = 0;
+        // A P1-ball disagreement has two readings. When P1 rests on a real vision
+        // measurement (RAY/SEG tier) that beat the θ_ball well, the BALL is the suspect
+        // — on 15 Sept W01 s2 the A1 cluster at (509,948) was a second object 200 px
+        // from the address ball at (690,978), and the measured P1 (97°) was right — so
+        // the track stands and the ball is flagged (diag.ballSuspect) for the consumers
+        // that anchor on it. Only an unmeasured P1 that still contradicts the ball is
+        // refused: with the well in the DP that means the evidence overrode geometry
+        // without a measurement to show for it.
+        const bool p1Conflict = out.p1BallDeltaDeg >= 0.f && double(out.p1BallDeltaDeg) > cfg.addr.p1BallConflictDeg;
+        // "P1 rests on evidence" = a real vision measurement (RAY/SEG/BAND/WEDGE, not a
+        // coast) within ±6 frames of the P1 frame whose median θ agrees with P1 to 10°.
+        // Not the position's TimingClass: that reads Proxy as soon as ONE straddling
+        // sample is a coast fill, which a measured address hold produces every few frames.
+        bool p1Measured = false;
+        if (p1 && addressEventFrame >= 0) {
+            std::vector<double> near;
+            for (size_t k = 0; k < out.samples.size() && k < sampleFrame.size(); ++k) {
+                if (std::abs(sampleFrame[k] - addressEventFrame) > 6) continue;
+                const ShaftSample2D& s = out.samples[k];
+                if ((s.flags & (ShaftMeasured | ShaftWedge)) && !(s.flags & ShaftCoasted))
+                    near.push_back(s.thetaRad * 180.0 / kPi);
+            }
+            if (!near.empty()) {
+                std::nth_element(near.begin(), near.begin() + near.size() / 2, near.end());
+                p1Measured = std::abs(circWrap(near[near.size() / 2] - p1->thetaRad * 180.0 / kPi)) <= 10.0;
+            }
+        }
+        if (p1Conflict && p1Measured) out.ballSuspect = true;
+        if (cfg.addr.refuse) {
+            if (p1Conflict && !p1Measured)
+                reason = 1;
+            else if (pm.suspect && cfg.positions.enabled && (!haveP2 || !haveP3))
+                reason = 2;
+            else if (out.lenBallRatio > 0.f && std::abs(double(out.lenBallRatio) - 1.0) > cfg.addr.lenBallTol)
+                reason = 3;
+        }
+        if (reason) { out.refusedReason = reason; out.valid = false; }
+        if (trace) {
+            trace->p1Frame        = addressEventFrame;
+            trace->p1BallDeltaDeg = out.p1BallDeltaDeg;
+            trace->lenBallRatio   = out.lenBallRatio;
+            trace->refusedReason  = reason;
+        }
+    }
 
     if (trace) {
         trace->phases = pm; trace->phiSmoothed = phiS; trace->chir = chir;

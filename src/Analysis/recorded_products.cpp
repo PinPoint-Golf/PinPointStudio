@@ -136,6 +136,21 @@ ShaftTrack2D shaftTrackFromAnalysisJson(const QJsonObject &club, pinpoint::Sourc
         t.addressBallPx = pointPx(club.value(QStringLiteral("addressBall")), w, h);
         t.ballAnchored  = true;
     }
+    // Robustness self-checks (2026-10-01): the diag block and the refusal reason
+    // round-trip so a reused track keeps its verdict (valid is already false).
+    const QJsonObject dg = club.value(QStringLiteral("diag")).toObject();
+    if (!dg.isEmpty()) {
+        t.onsetRule      = dg.value(QStringLiteral("onsetRule")).toInt();
+        t.phaseRetries   = dg.value(QStringLiteral("phaseRetries")).toInt();
+        t.phaseSuspect   = dg.value(QStringLiteral("phaseSuspect")).toBool();
+        t.p1BallDeltaDeg = float(dg.value(QStringLiteral("p1BallDeltaDeg")).toDouble(-1.0));
+        t.lenBallRatio   = float(dg.value(QStringLiteral("lenBallRatio")).toDouble(-1.0));
+        t.handPairFixed   = dg.value(QStringLiteral("handPairFixed")).toInt();
+        t.handGlitchFixed = dg.value(QStringLiteral("handGlitchFixed")).toInt();
+        t.ballSuspect     = dg.value(QStringLiteral("ballSuspect")).toBool();
+        t.handsRetried    = dg.value(QStringLiteral("handsRetried")).toBool();
+    }
+    t.refusedReason = shaftRefusedReasonFromName(club.value(QStringLiteral("refused")).toString());
     for (const QJsonValue &v : club.value(QStringLiteral("wedgeObs")).toArray()) {
         const QJsonArray a = v.toArray();
         if (a.size() < 4) continue;

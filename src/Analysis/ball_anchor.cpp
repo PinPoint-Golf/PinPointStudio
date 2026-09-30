@@ -338,7 +338,21 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
     // the last still run at bs0), so it can drive the length ladder; this
     // pass no longer recomputes it.
     const int addressEnd = tk0 >= 0 ? tk0 : nf;   // tk0 defaults to bs0 above; -1 only when bs0 itself is unset
-    if (tk0 >= 0) {
+    // 2026-10-01: paint only a ball the tracker TRUSTED (ShaftTrack2D::addrBallTrusted —
+    // A1 accepted it and a still collar frame's ridge evidence confirmed it). An
+    // unconfirmed ball painted the 07-03 address hold at 124° against marks at 99.7°
+    // (the old code was spared only because its departure test read the DP's 94°
+    // as "already departed"); a decoy ball (15 Sept W01 s2) would paint the wrong
+    // object's direction outright. The impact anchor below reads the DEPARTING
+    // ball, which is the one that was hit, and is unaffected.
+    // The timing witness (ShaftBallSeen) is set for every accepted, non-decoy ball — the
+    // address walk-back and EventRefine read it as "the ball was here on this frame" —
+    // even when the ball was not trusted to paint θ below.
+    if (tk0 >= 0 && !out.ballSuspect) {
+        for (int i = 0; i < addressEnd; ++i)
+            if (haveBall[size_t(i)]) out.samples[size_t(i)].flags |= ShaftBallSeen;
+    }
+    if (tk0 >= 0 && out.addrBallTrusted) {
         for (int i = 0; i < addressEnd; ++i) {
             if (!haveBall[size_t(i)]) continue;
             ShaftSample2D &sm = out.samples[size_t(i)];
