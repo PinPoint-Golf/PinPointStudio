@@ -2001,6 +2001,34 @@ there carries a ladder half a second early throughout — which is the sharpest
 statement yet of the limit §19 already names: the guarantee is about the code,
 not about a re-run.
 
+### What broke, and why (30 Sept – 1 Oct 2026)
+
+The bare club's tracker broke on a pose difference of 0.6 % of the frame, and the
+investigation (`data/markerless/tracker_robustness_20261001.md`) found not one
+weakness but two families, both read from existing run trees without a new run.
+In the first, ViTPose-B put the lead-hand centroid on the wrist, the ray origin
+sat 42 px up the arm, the strongest line through it was origin→hands, and the
+takeaway then climbed the unvetoed trail forearm. In the second, the early
+takeaway ran at 2.5–6 px/frame against a run threshold of 8, no backswing run
+formed, and the hands-only model pinned its address at impact − 550 ms — the
+code's own "manufactured-Address signature" — after which the DP carried a
+mid-backswing angle back over the whole hold. The structural reading is that the
+tracker was one chain in which each stage trusted the one before, and the two
+witnesses that know where the club is at address — the ball and the steel probe
+along grip→ball — ran *after* the DP and were accepted only if it already agreed.
+
+What changed: the ball's direction is a well inside the DP on still address
+frames, but only once a collar frame's ridge evidence has confirmed the ball —
+A1 accepts decoys (a second ball, the ball the golfer is not addressing: 07-03
+all six swings, 15 Sept W01 s2), and a decoy painted in is worse than nothing
+(24° at P1 against 1.3° without); both forearms are vetoed; the phase model
+checks itself (the A3 pin, a sub-400 ms backswing, no run at all) and retries at
+a lower threshold; the hand pair is cleaned on still frames by a forearm-relative
+rule; and a track the witnesses contradict is refused rather than published.
+Every rule is default-on with a bit-identical off. The 16 Sept B-pose swing that
+every code version since 17 Sept had tracked identically wrong now agrees with
+the L run to 7° at P1 and 11° at P4; the 15 Sept L-pose swing tracks like B.
+
 ## 17. Phase 14 — Down the line
 
 Every measurement in this report before now came from one camera. The studio

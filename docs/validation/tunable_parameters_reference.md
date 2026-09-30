@@ -959,6 +959,66 @@ timings against a newer swing's without allowing for that camera's lag.
 
 ---
 
+### 2.21 `shaft.addr.*` / `shaft.phase.*` / `shaft.hands.*` — the tracker's witnesses and self-checks (2026-10-01)
+Defaults in `ShaftV3Config` (`shaft_track_assembly.h` `AddrConfig`/`PhaseConfig`/`HandsConfig`), hand
+cleaning in `shaft_hand_clean.h`. Built against the two 29 Sept failure families
+(`docs/research/data/markerless/tracker_robustness_20261001.md`): a grip origin off the club (16 Sept
+W02 s2 on ViTPose-B) and a phase model that manufactured its address (15 Sept W02 s1 on ViTPose-L).
+All ON by default; every key has an OFF value that restores the previous behaviour bit-for-bit on a
+swing the rule does not fire on.
+
+- **`shaft.addr.ballWell`** (**true**), **`shaft.addr.wBallWell`** (12.0), **`shaft.addr.ballWellHalfDeg`**
+  (30.0). When A1 accepted the address ball, every address-like frame (before the evidence span, or
+  labelled Addr) on which the hands are still pays `wBallWell × min(1, |θ − θ_ball| / halfDeg)` inside
+  the DP emission — the ball is the one witness that knows the shaft direction at address, and it now
+  sits INSIDE the DP instead of being painted on afterwards by `applyBallAnchor` (whose departure test
+  reads the DP's own θ and so cannot correct a wrong one). Frames before the span have a flat row, so
+  the well alone decides them; a band lock is re-asserted after it.
+- **`shaft.addr.decoyCheck`** (**true**), **`shaft.addr.decoyMinSepDeg`** (15), **`shaft.addr.decoyBallHalfDeg`**
+  (8), **`shaft.addr.decoyMinVotes`** (3), **`shaft.addr.wellMinBallVotes`** (1). The ball's own witness
+  before it may anchor anything: on the still collar frames a supported RAY-quality line more than
+  `decoyMinSepDeg` from θ_ball with less than half its evidence within `decoyBallHalfDeg` of θ_ball votes
+  against the ball; `decoyMinVotes` such frames outnumbering the confirming ones two to one make it a
+  DECOY (no well, no A1 length, `diag.ballSuspect`, trace `lPxRejected` 3). The well and the post-hoc
+  paint apply only with at least `wellMinBallVotes` confirming frames; with no vote either way the DP's
+  own answer stands (07-03: marked P1 1.3° off without the well, 24° with it forced on).
+- **`shaft.addr.trailArmVeto`** (**true**). The C4 forearm veto for the TRAIL forearm too
+  (`phiTrail + 180°` within `armVetoDeg` pays `wArm`); needs the trail elbow (COCO 7/8, conf > 0.3).
+  Address, Backswing and Top frames only: after the top the trail elbow's angle is noise (behind the
+  body) and the veto there cost a through-swing 66 of 119 measured frames (15 Sept W01 s8).
+- **`shaft.addr.refuse`** (**true**), **`shaft.addr.p1BallConflictDeg`** (25.0), **`shaft.addr.lenBallTol`**
+  (0.30). The self-checks: |θ(P1) − θ_ball| above the first, or the A1 hold length off the P1 grip→ball
+  distance by more than the second, or a phase model still suspect after the retries with no P2/P3 ⇒
+  the track is REFUSED: `valid=false`, `analysis.club.refused` = `p1BallConflict` / `lengthConflict` /
+  `phaseSuspect`, samples kept for the lab, nothing drawn, club metrics "-", ⚠ on the card
+  (`dataWarningDetail.clubRefused`; the body/wrist rows stay in the session assessment).
+- **`shaft.phase.retry`** (**true**), **`shaft.phase.retryFactor`** (0.75), **`shaft.phase.retryMax`** (2),
+  **`shaft.phase.minBackswingUs`** (400000). `segmentPhasesChecked`: the hands-only model is SUSPECT when
+  its onset came off the A3 near rail (impact − `bsMinBeforeImpactUs`, the "manufactured-Address
+  signature"), or no run starts before its top, or top − onset is shorter than `minBackswingUs`. A
+  suspect model is re-segmented at `swSpd × retryFactor` up to `retryMax` times and the first non-suspect
+  model wins (15 Sept W02 s1: swSpd 6 tracked it perfectly). On the 21-swing B/L set the signature
+  marked 5 of 6 broken runs and 0 of 36 clean ones. A model with no motion run at all (a non-swing)
+  is suspect too. "No run before the top" is NOT a signature: it fires on repaired-but-sane models. Diagnostics: `analysis.club.diag.{onsetRule,
+  phaseRetries, phaseSuspect}` and the trace summary.
+- **`shaft.hands.enabled`** (**true**), **`shaft.hands.pairTolForearm`** (1.0), **`shaft.hands.pairTolPx`**
+  (64, used only when no lead forearm is confident), **`shaft.hands.pairMinRun`** (4), **`shaft.hands.stillPx`**
+  (20), **`shaft.hands.glitchPx`** (40), **`shaft.hands.forearmGain`** (1.0). A SECOND ATTEMPT: the tracker
+  runs on the raw hands first and re-runs on the cleaned hands only when that track is invalid or
+  refused, adopting the second only if valid (`diag.handsRetried`) — so every swing the raw pose tracks
+  is bit-identical to before. The cleaning, on a COPY of the pose (the persisted pose is untouched): on a run of at least `pairMinRun` consecutive frames
+  where both hands moved less than `stillPx` to their neighbours and the pair is wider than
+  `pairTolForearm` × the lead forearm length, the hand nearer the forearm's grip point (wrist-mid +
+  `forearmGain` × forearm length along elbow→wrist; the lower hand when no forearm is confident) becomes
+  the grip; a one-frame excursion larger than `glitchPx` that returns next frame, from a hand resting
+  (`stillPx`) before and after it, is replaced by its neighbours' mean — BEFORE IMPACT only (the tracker
+  passes the impact frame as the limit; the finish hold's flaps are the phase model's last motion run).
+  16 Sept W02 s2 (B): 42 pairs and 12 glitches cleaned, top 2.00 → 2.20 s, P3 341° → 265°. Hands
+  inconsistent on more than half the pose frames refuse the track (`handsUnusable`). Diagnostics:
+  `analysis.club.diag.{handPairFixed, handGlitchFixed}`. The ball's presence on a frame is a separate
+  timing witness (`ShaftBallSeen`, 0x400) set for every accepted non-decoy ball; θ is painted
+  (`ShaftBallAnchored`) only for a trusted one.
+
 ## 3. The frozen-defaults header — the single freeze edit-point
 
 `src/Core/pp_tuned_constants.h` (`namespace pinpoint::tuned`) is the **single source of truth** for every

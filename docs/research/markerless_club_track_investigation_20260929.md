@@ -4,6 +4,16 @@
 (the impact-camera rig hides the ball) and confirmed by Mark. Two things remain for next time:
 the session warning and unusable face-on marking (§5a), and tracker robustness (§7).
 
+**Correction (1 Oct 2026, `data/markerless/tracker_robustness_20261001.md`):** the §5 reading that
+the 15 Sept tracks broke *because* the ball was not found is partly circular. On 15 Sept W02 s1
+and s2 the ball detector found the ball (one cluster at (666, 942) on both models); the tracks
+broke because the hands-only phase model never formed a backswing run (the early takeaway runs
+at 2.5–6 px/frame against a threshold of 8) and manufactured its address at impact − 550 ms;
+the sideways P1 that followed is why `ImpactAnchorStage` then found no address ball. Item 4 is
+built and gated there. The rig may still hide the ball on other swings; Mark's capture-time rule
+(no ball seen on the face-on camera ⇒ the shot is not recorded, with a toast) stands as a
+separate, mechanical item.
+
 ## 1. What was seen
 
 After the 29 Sept library re-analysis, 16 Sept Wrist_02 swing 2 (an **untaped 6-iron**; its club
