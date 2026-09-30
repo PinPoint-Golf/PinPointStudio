@@ -68,13 +68,15 @@ constexpr int kImpactStageVersion = 1;
 //           Stamped; never reused — it is recomputed from the reused poses and face-on
 //           shaft on every re-analysis. Bump when dtl_shaft_* changes its output.
 constexpr int kDtlPoseStageVersion  = 1;
-constexpr int kDtlShaftStageVersion = 1;
+constexpr int kDtlShaftStageVersion = 2;   // 2: HELD / OCCLUDED_WRIST / OCCLUDED_ROW tiers, END_ON before quarantine,
+                                           //    band-edge runs, one drawn length, late escapes refused (2026-10-02)
 // shaftFusion — kShaftFusionStageVersion: the fused 3-D shaft (ShaftFusionStage,
 //           shaft_fusion.h). Stamped; never reused — it is a few microseconds of
 //           arithmetic on two tracks that are already in hand. Bump when
 //           shaft_fusion.h changes its output.
-constexpr int kShaftFusionStageVersion = 3;   // 2: the address plane and deliveryVsAddressDeg (2026-09-21)
+constexpr int kShaftFusionStageVersion = 4;   // 2: the address plane and deliveryVsAddressDeg (2026-09-21)
                                               // 3: the backswing plane fitted from ADDRESS (not takeaway) (2026-09-29)
+                                              // 4: the DTL camera's roll, offset and calibrated flag in club3d.camera (2026-10-02)
 // skeleton3d — kSkeleton3DStageVersion: the rigid, jointed skeleton fitted to both poses, the
 //           shaft, the feet and any IMUs (Skeleton3DStage, skeleton3d/; swing_3d_viz_design.md).
 //           Stamped; never reused — recomputed from the reused poses on every re-analysis.

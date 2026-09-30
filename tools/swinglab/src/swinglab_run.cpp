@@ -315,6 +315,13 @@ int main(int argc, char **argv)
         "(the pose-cache reuse --pose is for the face-on side). Pins it for BOTH consumers: "
         "the --dtl shaft block, and DtlPoseStage inside the analysis, which feeds the "
         "kinematic sequence's paired trunk route. Works without --dtl.", "file");
+    QCommandLineOption optDtlCalib("dtl-calib",
+        "The DTL camera's pose relative to the face-on camera, MEASURED: a JSON "
+        "{calibrated, yawDeg, pitchDeg, rollDeg, offset:[x,y,z]} as camera_pose_sticks.h / "
+        "tools/shaftlab/dtl_calib_solve.py write it from the two-camera protocol's stick "
+        "clips. The shaft fusion and the 3-D synthetic shaft read it instead of assuming a "
+        "level camera on the target line (dtl_continuous_track_design_update.md §4). An "
+        "explicit shaft.fusion.* override still wins.", "file");
     // ── the club record, injected ────────────────────────────────────────────
     // A swing recorded before the app persisted capture.club carries no club
     // geometry at all, so job.bandCentersMm is empty and the E1 band matcher —
@@ -355,7 +362,7 @@ int main(int argc, char **argv)
         "The app's session pass (poolSkeletonSession): pass-1 fits of <sessionDir>/swing_*, pooled into "
         "<sessionDir>/skeleton3d_session.json. Nothing else is written; --write-back each swing after it.", "dir");
     cli.addOptions({ optOut, optParams, optTrace, optSession, optFaceOn, optImpact, optPose, optForce, optFullWindow,
-                     optBall, optRefuse, optRefuseBeta, optWriteBack, optBind, optDtl, optDtlPose,
+                     optBall, optRefuse, optRefuseBeta, optWriteBack, optBind, optDtl, optDtlPose, optDtlCalib,
                      optBands, optClubLen, optHosel, optShaftLen, optHandsEnd, optHeight,
                      optCalib, optPool, optPoolPrefix, optPoolOut, optPoolSession });
     cli.process(app);
@@ -523,6 +530,23 @@ int main(int argc, char **argv)
     // imply running the DTL shaft tracker.
     if (cli.isSet(optDtlPose))
         job.poseDtlTrackPath = cli.value(optDtlPose);
+    if (cli.isSet(optDtlCalib)) {
+        QFile cf(cli.value(optDtlCalib));
+        if (!cf.open(QIODevice::ReadOnly))
+            return fail("cannot open --dtl-calib file");
+        const QJsonObject o = QJsonDocument::fromJson(cf.readAll()).object();
+        auto &cal = job.dtlCameraCalib;
+        cal.calibrated = o.value("calibrated").toBool(true);
+        cal.yawDeg   = o.value("yawDeg").toDouble();
+        cal.pitchDeg = o.value("pitchDeg").toDouble();
+        cal.rollDeg  = o.value("rollDeg").toDouble();
+        const QJsonArray off = o.value("offset").toArray();
+        for (int k = 0; k < 3 && k < off.size(); ++k) cal.offsetM[k] = off.at(k).toDouble();
+        cal.source = cli.value(optDtlCalib);
+        std::fprintf(stderr, "[swinglab] dtl-calib: %s yaw %.2f pitch %.2f roll %.2f offset (%.3f, %.3f, %.3f) m\n",
+                     cal.calibrated ? "calibrated" : "NOT calibrated", cal.yawDeg, cal.pitchDeg, cal.rollDeg,
+                     cal.offsetM[0], cal.offsetM[1], cal.offsetM[2]);
+    }
     if (cli.isSet(optBall))
         job.ballTrackPath = cli.value(optBall);
     if (cli.isSet(optSession) || job.sessionType < 0)
@@ -1187,7 +1211,20 @@ int main(int argc, char **argv)
                     // The one builder (dtl_shaft_json.h) — the same bytes the app
                     // persists as analysis.clubDtl.
                     const DtlShaftConfig dcfg = DtlShaftConfig::fromOverrides(job.tuningOverrides);
-                    const QJsonObject doc = dtlShaftTrackToJson(dtlTrack, t0, dcfg, dtlAlias, dtlFile);
+                    // The 3-D synthetic shaft is a product of the ANALYSIS (DtlSynth3DStage
+                    // needs the fused planes and the skeleton), so club_dtl.json carries the
+                    // analysis's copy when the two tracks are the same frames — which they are
+                    // on a pinned pose — so club_dtl.json == analysis.clubDtl still holds.
+                    DtlShaftTrack2D dtlDoc = dtlTrack;
+                    if (result.detail && !result.detail->shaftDtl.synth3d.empty()
+                        && result.detail->shaftDtl.samples.size() == dtlTrack.samples.size()) {
+                        dtlDoc.synth3d         = result.detail->shaftDtl.synth3d;
+                        dtlDoc.synth3dPreview  = result.detail->shaftDtl.synth3dPreview;
+                        dtlDoc.synth3dYawDeg   = result.detail->shaftDtl.synth3dYawDeg;
+                        dtlDoc.synth3dPitchDeg = result.detail->shaftDtl.synth3dPitchDeg;
+                        dtlDoc.synth3dRollDeg  = result.detail->shaftDtl.synth3dRollDeg;
+                    }
+                    const QJsonObject doc = dtlShaftTrackToJson(dtlDoc, t0, dcfg, dtlAlias, dtlFile);
                     QFile cf(outDir + "/club_dtl.json");
                     if (cf.open(QIODevice::WriteOnly))
                         cf.write(QJsonDocument(doc).toJson());

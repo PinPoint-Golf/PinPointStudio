@@ -39,22 +39,60 @@
 namespace pinpoint::analysis {
 
 // ── what a DTL frame earned ──────────────────────────────────────────────────
-// Ordered least- to most-evidenced; the three absences come first so `>= Ray`
-// reads as "this frame published an angle".
-enum class DtlTier : uint8_t { Unseen, EndOn, Occluded, Ray, Seg, Band };
+// The first six are the original ladder, least- to most-evidenced, and their
+// integer values are FROZEN: the trace and the persisted tier ints of every run
+// before 2026-10-02 read them, and a bit-identical "continuous track OFF" run
+// depends on nothing renumbering. The three added by the continuous-track update
+// (dtl_continuous_track_design_update.md §3.1) are APPENDED, so "published"
+// can no longer be spelled `>= Ray` — use dtlMeasured() / dtlDrawn() below.
+//
+//   Held          — a frame INSIDE a sighted band that failed the RAY gate, bounded
+//                   on both sides by measured frames of the SAME band, carrying the
+//                   band's own Viterbi θ_D. Drawn (dimmer), never fed to fusion or
+//                   any metric, never across an end-on gap. Not the PRED tier the
+//                   design rejected: PRED invented measurements at impact across a
+//                   gap; this coasts a solved path between two measurements.
+//   OccludedWrist — the anchor was quarantined because the pose had no confident
+//                   wrist: the HANDS were hidden, the club may be in plain view.
+//   OccludedRow   — quarantined on the cross-view row residual: the anchor is not
+//                   where face-on says the hands are.
+//   Occluded stays for the two causes that name neither (no grip at all, or a
+//   caller-supplied quarantine).
+enum class DtlTier : uint8_t {
+    Unseen = 0, EndOn = 1, Occluded = 2, Ray = 3, Seg = 4, Band = 5,
+    Held = 6, OccludedWrist = 7, OccludedRow = 8
+};
+
+// A MEASURED angle: earned from DTL pixels (§5.9). This is what fusion, the
+// P-position borrow and every count of "published" read.
+inline bool dtlMeasured(DtlTier t)
+{ return t == DtlTier::Ray || t == DtlTier::Seg || t == DtlTier::Band; }
+// DRAWN on the tile: measured, or held inside a band between two measurements.
+inline bool dtlDrawn(DtlTier t) { return dtlMeasured(t) || t == DtlTier::Held; }
+// The anchor was quarantined, whichever cause.
+inline bool dtlOccluded(DtlTier t)
+{ return t == DtlTier::Occluded || t == DtlTier::OccludedWrist || t == DtlTier::OccludedRow; }
 
 inline const char* dtlTierName(DtlTier t)
 {
     switch (t) {
-        case DtlTier::Unseen:   return "UNSEEN";
-        case DtlTier::EndOn:    return "END_ON";
-        case DtlTier::Occluded: return "OCCLUDED";
-        case DtlTier::Ray:      return "RAY";
-        case DtlTier::Seg:      return "SEG";
-        case DtlTier::Band:     return "BAND";
+        case DtlTier::Unseen:        return "UNSEEN";
+        case DtlTier::EndOn:         return "END_ON";
+        case DtlTier::Occluded:      return "OCCLUDED";
+        case DtlTier::Ray:           return "RAY";
+        case DtlTier::Seg:           return "SEG";
+        case DtlTier::Band:          return "BAND";
+        case DtlTier::Held:          return "HELD";
+        case DtlTier::OccludedWrist: return "OCCLUDED_WRIST";
+        case DtlTier::OccludedRow:   return "OCCLUDED_ROW";
     }
     return "UNSEEN";
 }
+
+// Why an anchor was quarantined (dtl_shaft_decide's cross-view check, §5.2),
+// carried on the solve state so the tier ladder can NAME the cause rather than
+// parse it back out of a reason string.
+enum class DtlQuarantineCause : int8_t { None = 0, NoGrip = 1, Wrist = 2, RowResidual = 3, Caller = 4 };
 
 namespace dtl {
 // Absent numerics are NaN, never 0 and never −1: 0 is a legal angle and −1 a
@@ -100,7 +138,13 @@ inline const char* dtlRhoSrcName(DtlRhoSrc s)
 //              origin offsets, for frames the snap did not or could not move.
 // Face-on made this same correction ("the head search never looked at the club")
 // by measuring off the re-registered line, and this is that sentence in this view.
-enum class DtlLenSrc : uint8_t { Rend, SnapLine, LatBand };
+//   Schedule — (continuous-track update §3.1 "one length per band") the DRAWN
+//              length is the visibility law's own ρ̂_D · L̂_D, with L̂_D from the
+//              ball at address and held for the whole swing; the measured run the
+//              ladder judged is carried beside it as `runPx`. The three sources
+//              above switched frame by frame, and that switching was the flicker
+//              in the drawn head.
+enum class DtlLenSrc : uint8_t { Rend, SnapLine, LatBand, Schedule };
 
 inline const char* dtlLenSrcName(DtlLenSrc s)
 {
@@ -108,6 +152,7 @@ inline const char* dtlLenSrcName(DtlLenSrc s)
         case DtlLenSrc::Rend:     return "rend";
         case DtlLenSrc::SnapLine: return "snapLine";
         case DtlLenSrc::LatBand:  return "latBand";
+        case DtlLenSrc::Schedule: return "schedule";
     }
     return "rend";
 }
@@ -188,8 +233,13 @@ struct DtlSample {
     QPointF gripPx;                      // DTL pose anchor (image px)
     QPointF headPx;                      // measured terminus, or absent (see tier)
     double  thetaRad    = dtl::kNan;     // image angle, atan2 convention (NOT unwrapped)
-    double  lenPx       = dtl::kNan;     // evidenced run length along θ
+    double  lenPx       = dtl::kNan;     // the DRAWN length along θ (the evidenced run, or ρ̂_D·L̂_D — see lenSrc)
     DtlLenSrc lenSrc    = DtlLenSrc::Rend;   // … and where that number came from
+    // The evidenced run the tier ladder actually judged, kept beside lenPx once
+    // lenSrc is Schedule so the measurement is never lost behind the drawn length.
+    // NaN where none was measured (a Held frame) or where lenSrc is not Schedule
+    // (then lenPx IS the run).
+    double  runPx       = dtl::kNan;
     // … and which gate let the RAY tier through: the ray's own EV, or the support
     // under the snapped line. Ev on an absence, because a frame that published
     // nothing satisfied neither.
@@ -224,6 +274,11 @@ struct DtlBand {
     int     lo = -1, hi = -1;            // inclusive frame indices
     int64_t loUs = 0, hiUs = 0;
     QString name;                        // e.g. "address", "P2.5-P3.5" — for the report, never gated on
+    // Admitted by the band-EDGE rule (continuous-track update §3.1): a sighted run
+    // shorter than minBandFrames that sits within a few non-end-on frames of a
+    // full band. Solved on its own, joined to nothing, and the Held tier never
+    // crosses the hole between them.
+    bool    edge = false;
 };
 
 // ── the DTL ball (§4.3, §5.5) ────────────────────────────────────────────────
@@ -265,6 +320,24 @@ struct DtlTruthSample {
     QPointF gripPx, headPx;
 };
 
+// One frame of the 3-D SYNTHETIC shaft projected into the DTL tile
+// (dtl_shaft_synth3d.h; dtl_continuous_track_design_update.md §3.2). Never a
+// measurement: drawn dimmer, read by no metric and no fusion, absent unless the
+// stage was enabled. `plane` is synth3d::PlaneUsed as int, `anchorSrc`
+// synth3d::AnchorSrc as int; `preview` is true when the camera it was projected
+// through was the assumed-zero placement rather than a measured calibration.
+struct DtlSynth3DSample {
+    int64_t t_us     = 0;
+    QPointF gripPx;                  // the anchor used (DTL px)
+    QPointF headPx;                  // grip + lenPx·(cos θ, sin θ)
+    double  thetaRad = dtl::kNan;    // projected DTL angle
+    double  lenPx    = dtl::kNan;    // ρ_D · L̂_D
+    double  rhoD     = dtl::kNan;
+    double  u[3]     = { dtl::kNan, dtl::kNan, dtl::kNan };   // butt → head, cameras' frame
+    int     plane    = 0;
+    int     anchorSrc = 0;
+};
+
 // The product. Produced in the app by DtlShaftStage (SwingAnalysis::shaftDtl) and
 // by swinglab_run --dtl; persisted as swing.json `analysis.clubDtl` and SwingLab's
 // club_dtl.json through the one builder in dtl_shaft_json.h (§5.11). Drawn on the
@@ -284,6 +357,21 @@ struct DtlShaftTrack2D {
     // A pin: how many samples were published in a frame whose ρ̂_D put it END-ON.
     // Should be 0. Anything else means the schedule was overruled.
     int    publishedInEndOn = 0;
+    // ── the continuous-track update's own ledger (design update §3.1) ────────
+    // `continuous` is true when ANY of its rules was enabled for this run, and
+    // only then does the JSON carry a `summary.continuous` block — so a run with
+    // every rule off writes the bytes it wrote before the update. Every count is
+    // a count, never asserted: "held" is how many frames the HELD tier filled,
+    // "lateEscapesRefused" how many post-P8 corridor escapes were kept off the
+    // tile, "endOnBeforeQuarantine" how many quarantined frames the schedule had
+    // already called end-on, "edgeBands" how many short runs the band-edge rule
+    // admitted as bands of their own.
+    bool   continuous = false;
+    int    held = 0;
+    int    lateEscapesRefused = 0;
+    int    endOnBeforeQuarantine = 0;
+    int    occludedWrist = 0, occludedRow = 0;
+    int    edgeBands = 0;
     // The DTL ball and the DTL full club length L̂_D that D3/D6 were built on —
     // carried on the product because the report has to say which SOURCE the
     // length came from (§5.6 D3: address grip→ball / ρ̂_D, else the cross-view
@@ -307,6 +395,12 @@ struct DtlShaftTrack2D {
     // RAN without needing DtlShaftConfig. Set by DtlShaftStage.
     QJsonObject configJson;
     QString     configHash;
+    // The 3-D synthetic shaft's DTL projection (DtlSynth3DStage), empty unless
+    // that stage ran and was enabled. `synth3dPreview` records that the camera was
+    // uncalibrated. Persisted as `synth3d` + `summary.synth3d` only when non-empty.
+    std::vector<DtlSynth3DSample> synth3d;
+    bool    synth3dPreview = true;
+    double  synth3dYawDeg = 0, synth3dPitchDeg = 0, synth3dRollDeg = 0;
     // The recorded serial of the stream this track is OF (the window's
     // device_serial for `camera`), so a writer holding the manifest can name the
     // stream (dtlStreamName) without the SwingWindow. Not serialised itself.

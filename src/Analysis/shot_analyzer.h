@@ -134,6 +134,17 @@ struct ShotAnalysisJob {
     // then run the model. Both empty in live capture.
     pinpoint::analysis::PoseTrack2D poseDtlPreloaded;
     QString                         poseDtlTrackPath;
+    // The DTL camera's pose relative to the face-on camera, MEASURED (camera_pose_sticks.h
+    // on the two-camera protocol's stick clips) — dtl_continuous_track_design_update.md §4
+    // item 1. The shaft fusion and the 3-D synthetic shaft read it instead of assuming a
+    // level camera on the target line; `calibrated` false is that assumption. SwingLab fills
+    // it from `--dtl-calib <json>`; the app has no producer yet (no protocol session exists).
+    struct DtlCameraCalib {
+        bool   calibrated = false;
+        double yawDeg = 0.0, pitchDeg = 0.0, rollDeg = 0.0;
+        double offsetM[3] = { 0.0, 0.0, 0.0 };   // DTL centre − face-on centre, fusion frame
+        QString source;                          // where the record came from, for the log
+    } dtlCameraCalib;
     // The recorded shaft track and the RESOLVED phase ladder, reloaded together under the
     // same gate (2026-09-17, recorded_products.h): the Shaft stage adopts the track and
     // re-synthesises only its visualisation tier, and the ladder stages (SegResolve,

@@ -39,6 +39,7 @@ static void check(bool c, const char *label)
     if (!c) ++g_fail;
 }
 
+static bool near(double a, double b, double tol) { return std::abs(a - b) <= tol; }
 static constexpr double kPi = 3.14159265358979323846;
 static constexpr int W = 320, H = 320;
 static constexpr double GX = 160.0, GY = 160.0;     // the TRUE line's origin
@@ -77,6 +78,10 @@ static DtlShaftConfig testCfg()
     c.evAbsFloor = 0.0;
     c.evAbsFloorDif = -1.0;
     c.ridge.rHi = 200.0f;     // the scene is 320 px; 470 would be all off-frame samples
+    // P1–P10 grade the MEASURED run through lenPx; since 2026-10-02 the default drawn
+    // length is the schedule's ρ̂·L̂ with the run carried as runPx (C3 tests that rule on
+    // its own), so the measurement tests run with it off.
+    c.lenSchedule = false;
     return c;
 }
 
@@ -753,6 +758,192 @@ int main()
               "P10: a BAND lock at 98 px is exempt — the lock measured the line itself");
         check(at98.publishedInEndOn == 0 && at120.publishedInEndOn == 0,
               "P10: nothing published in an end-on frame either way");
+    }
+
+
+    // ── C1–C4 the continuous-track update (dtl_continuous_track_design_update.md §3.1) ──
+    std::printf("\n=== C1: HELD — a bounded hole inside a band keeps the band's own θ; a tail does not ===\n");
+    {
+        const int n = 12;
+        std::vector<cv::Mat> frames;
+        frames.resize(size_t(n));
+        for (int i = 0; i < n; ++i) { cv::Mat m = baseScene(); drawStripedShaft(m, kClub, 15.0, kLen); frames[size_t(i)] = m; }
+        const FrameSource frameAt = [&frames](int i) -> cv::Mat {
+            return (i >= 0 && i < int(frames.size())) ? frames[size_t(i)] : cv::Mat();
+        };
+        std::vector<int64_t> tUs(size_t(n), 0);
+        for (int i = 0; i < n; ++i) tUs[size_t(i)] = int64_t(i) * 6640;
+        DtlAnchors an;
+        an.gx.assign(size_t(n), GX); an.gy.assign(size_t(n), GY); an.quarantined.assign(size_t(n), 0);
+        const SegmentGeom geom;
+        DtlShaftConfig c = cfg;
+        c.snap.enabled = false;          // keep θ where the DP put it: this test is about the ladder
+        c.lenSchedule = false;
+        // frames 4–6: evidence and support gone at the solved bin ⇒ the RAY gate fails; frames
+        // 9–11: the same, but nothing measured after them (a tail).
+        auto stateWithHoles = [&]() {
+            DtlSolveState st = makeState(n, kClub, kLen, 0.93, c);
+            const int bi = int(std::lround(kClub / c.grid));
+            for (int i : { 4, 5, 6, 9, 10, 11 }) { st.EV[size_t(i)][size_t(bi)] = 0.05f; st.SUP[size_t(i)][size_t(bi)] = 0.05f; }
+            return st;
+        };
+        {
+            DtlShaftConfig on = c; on.held.enabled = true; on.held.maxFrames = 6;
+            DtlSolveState st = stateWithHoles();
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, nullptr, st, W, H, geom, on, nullptr);
+            bool heldMid = true, tailUnseen = true;
+            for (int i : { 4, 5, 6 }) heldMid = heldMid && tr.samples[size_t(i)].tier == DtlTier::Held;
+            for (int i : { 9, 10, 11 }) tailUnseen = tailUnseen && tr.samples[size_t(i)].tier == DtlTier::Unseen;
+            check(heldMid, "C1: the 3-frame hole between measured frames is HELD");
+            check(tailUnseen, "C1: the tail at the band's end is NOT held — no measurement after it");
+            check(tr.held == 3 && tr.continuous, "C1: the ledger counts three held frames");
+            const DtlSample &h = tr.samples[5];
+            check(std::isfinite(h.thetaRad) && std::abs(shaftshared::circWrap(h.thetaRad * 180.0 / kPi - kClub)) < 1e-9,
+                  "C1: a held frame carries the band's Viterbi θ");
+            check(near(h.conf, tr.samples[3].conf, 1e-6) && h.reason.startsWith(QLatin1String("held:")),
+                  "C1: … the neighbours' confidence, and a reason that says held and why it had failed");
+            check(std::isfinite(h.lenPx) && std::isfinite(h.headPx.x()) && !std::isfinite(h.runPx),
+                  "C1: it draws a length (the neighbours' mean here) and measured no run");
+            int published = 0;
+            for (const DtlSample &s : tr.samples) if (dtlMeasured(s.tier)) ++published;
+            check(published == 6 && tr.publishedInEndOn == 0, "C1: held frames are not published (6 measured of 12)");
+        }
+        {
+            DtlShaftConfig on = c; on.held.enabled = true; on.held.maxFrames = 2;
+            DtlSolveState st = stateWithHoles();
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, nullptr, st, W, H, geom, on, nullptr);
+            check(tr.samples[5].tier == DtlTier::Unseen && tr.held == 0, "C1: a hole longer than maxFrames is not held");
+        }
+        {
+            DtlShaftConfig off = c; off.held.enabled = false;
+            DtlSolveState st = stateWithHoles();
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, nullptr, st, W, H, geom, off, nullptr);
+            check(tr.samples[5].tier == DtlTier::Unseen && tr.held == 0, "C1: OFF ⇒ the hole stays UNSEEN");
+        }
+    }
+
+    std::printf("\n=== C2: END_ON before the quarantine, and the quarantine's cause in the tier ===\n");
+    {
+        const int n = 4;
+        const std::vector<int64_t> tUs = { 0, 6640, 13280, 19920 };
+        DtlAnchors an;
+        an.gx.assign(size_t(n), GX); an.gy.assign(size_t(n), GY); an.quarantined.assign(size_t(n), 0);
+        const FrameSource frameAt = [](int) { return cv::Mat(); };
+        const SegmentGeom geom;
+        auto mk = [&]() {
+            DtlSolveState st = makeState(n, kClub, kLen, 0.93, cfg);
+            for (int i = 0; i < n; ++i) { st.solved[size_t(i)] = 0; st.sighted[size_t(i)] = 0; st.thetaDeg[size_t(i)] = kNan; }
+            st.bands.clear();
+            st.quarantined = { 1, 1, 1, 0 };
+            st.quarantineCause = { int8_t(DtlQuarantineCause::Wrist), int8_t(DtlQuarantineCause::RowResidual),
+                                   int8_t(DtlQuarantineCause::RowResidual), 0 };
+            st.rhoPred = { 0.9, 0.9, 0.3, 0.3 };
+            st.reason  = { QStringLiteral("anchor quarantined: wrist keypoint unconfident"),
+                           QStringLiteral("anchor quarantined: row residual 90 px"),
+                           QStringLiteral("anchor quarantined: row residual 90 px"), QStringLiteral("end-on ρ̂=0.30") };
+            return st;
+        };
+        {
+            DtlShaftConfig on = cfg; on.endOnFirst = true; on.quarantineCause = true;
+            DtlSolveState st = mk();
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, nullptr, st, W, H, geom, on, nullptr);
+            check(tr.samples[0].tier == DtlTier::OccludedWrist, "C2: a wrist-unconfident quarantine is OCCLUDED_WRIST");
+            check(tr.samples[1].tier == DtlTier::OccludedRow, "C2: a row-residual quarantine is OCCLUDED_ROW");
+            check(tr.samples[2].tier == DtlTier::EndOn && tr.samples[2].reason.startsWith(QLatin1String("end-on")),
+                  "C2: quarantined AND end-on by the schedule ⇒ END_ON, the quarantine kept in the reason");
+            check(tr.samples[3].tier == DtlTier::EndOn, "C2: a plain end-on frame is still END_ON");
+            check(tr.endOnBeforeQuarantine == 1 && tr.occludedWrist == 1 && tr.occludedRow == 1, "C2: the ledger counts them");
+        }
+        {
+            DtlShaftConfig off = cfg; off.endOnFirst = false; off.quarantineCause = false;
+            DtlSolveState st = mk();
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, nullptr, st, W, H, geom, off, nullptr);
+            check(tr.samples[0].tier == DtlTier::Occluded && tr.samples[1].tier == DtlTier::Occluded
+                  && tr.samples[2].tier == DtlTier::Occluded && tr.samples[3].tier == DtlTier::EndOn,
+                  "C2: OFF ⇒ the original order and the one OCCLUDED tier");
+        }
+    }
+
+    std::printf("\n=== C3: one drawn length — ρ̂_D·L̂_D, the measured run kept beside it ===\n");
+    {
+        const int n = 3;
+        std::vector<cv::Mat> frames;
+        frames.resize(size_t(n));
+        for (int i = 0; i < n; ++i) { cv::Mat m = baseScene(); drawStripedShaft(m, kClub, 15.0, kLen); frames[size_t(i)] = m; }
+        const FrameSource frameAt = [&frames](int i) -> cv::Mat {
+            return (i >= 0 && i < int(frames.size())) ? frames[size_t(i)] : cv::Mat();
+        };
+        const std::vector<int64_t> tUs = { 0, 6640, 13280 };
+        DtlAnchors an;
+        an.gx.assign(size_t(n), GX); an.gy.assign(size_t(n), GY); an.quarantined.assign(size_t(n), 0);
+        const SegmentGeom geom;
+        DtlShaftConfig c = cfg; c.snap.enabled = false;
+        {
+            DtlShaftConfig on = c; on.lenSchedule = true;
+            DtlSolveState st = makeState(n, kClub, kLen, 0.80, on);
+            st.lFullPx = 200.0; st.lFullSource = QStringLiteral("ball");
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, nullptr, st, W, H, geom, on, nullptr);
+            const DtlSample &s = tr.samples[1];
+            check(s.tier == DtlTier::Ray && s.lenSrc == DtlLenSrc::Schedule && near(s.lenPx, 160.0, 1e-9),
+                  "C3: the drawn length is 0.80 × 200 = 160 px, source 'schedule'");
+            check(std::isfinite(s.runPx) && s.runPx > 0 && !near(s.runPx, 160.0, 1e-9),
+                  "C3: the measured run is carried as runPx and is a different number");
+            check(near(std::hypot(s.headPx.x() - s.gripPx.x(), s.headPx.y() - s.gripPx.y()), 160.0, 1e-6),
+                  "C3: the head is drawn at the scheduled length");
+        }
+        {
+            DtlShaftConfig on = c; on.lenSchedule = true;
+            DtlSolveState st = makeState(n, kClub, kLen, 0.80, on);   // no L̂_D
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, nullptr, st, W, H, geom, on, nullptr);
+            check(tr.samples[1].lenSrc != DtlLenSrc::Schedule && !std::isfinite(tr.samples[1].runPx),
+                  "C3: with no L̂_D the measured run is drawn, as before");
+        }
+        {
+            DtlShaftConfig off = c; off.lenSchedule = false;
+            DtlSolveState st = makeState(n, kClub, kLen, 0.80, off);
+            st.lFullPx = 200.0;
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, nullptr, st, W, H, geom, off, nullptr);
+            check(tr.samples[1].lenSrc != DtlLenSrc::Schedule && !std::isfinite(tr.samples[1].runPx),
+                  "C3: OFF ⇒ the run is the length and runPx is absent");
+        }
+    }
+
+    std::printf("\n=== C4: a corridor escape after P8 is not published ===\n");
+    {
+        const int n = 4;
+        std::vector<cv::Mat> frames;
+        frames.resize(size_t(n));
+        for (int i = 0; i < n; ++i) { cv::Mat m = baseScene(); drawStripedShaft(m, kClub, 15.0, kLen); frames[size_t(i)] = m; }
+        const FrameSource frameAt = [&frames](int i) -> cv::Mat {
+            return (i >= 0 && i < int(frames.size())) ? frames[size_t(i)] : cv::Mat();
+        };
+        const std::vector<int64_t> tUs = { 0, 6640, 13280, 19920 };
+        DtlAnchors an;
+        an.gx.assign(size_t(n), GX); an.gy.assign(size_t(n), GY); an.quarantined.assign(size_t(n), 0);
+        const SegmentGeom geom;
+        FaceOnWitness wit;
+        wit.ladder = { { 7, 5000 }, { 8, 10000 } };
+        wit.impactUs = 5000;
+        DtlShaftConfig c = cfg; c.snap.enabled = false;
+        {
+            DtlShaftConfig on = c; on.refuseLateEscape = true;
+            DtlSolveState st = makeState(n, kClub, kLen, 0.93, on);
+            st.corridorOn = { 1, 1, 1, 1 }; st.corridorEscape = { 1, 1, 1, 0 };
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, &wit, st, W, H, geom, on, nullptr);
+            check(tr.samples[0].tier == DtlTier::Ray && tr.samples[1].tier == DtlTier::Ray,
+                  "C4: escapes BEFORE P8 still publish");
+            check(tr.samples[2].tier == DtlTier::Unseen && tr.samples[2].reason.contains(QLatin1String("after P8")),
+                  "C4: an escape after P8 is refused with its reason");
+            check(tr.samples[3].tier == DtlTier::Ray && tr.lateEscapesRefused == 1,
+                  "C4: a non-escape after P8 publishes; the ledger counts one refusal");
+        }
+        {
+            DtlShaftConfig off = c; off.refuseLateEscape = false;
+            DtlSolveState st = makeState(n, kClub, kLen, 0.93, off);
+            st.corridorOn = { 1, 1, 1, 1 }; st.corridorEscape = { 1, 1, 1, 0 };
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, &wit, st, W, H, geom, off, nullptr);
+            check(tr.samples[2].tier == DtlTier::Ray && tr.lateEscapesRefused == 0, "C4: OFF ⇒ it publishes as before");
+        }
     }
 
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);

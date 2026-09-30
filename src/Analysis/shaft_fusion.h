@@ -82,17 +82,22 @@ inline Camera faceOnCamera() { return { { 0, 1, 0 }, { 1, 0, 0 }, { 0, 0, -1 } }
 
 // yaw > 0 turns the view ray from +X toward +Y — the camera standing on the BALL
 // side of the hands line looking across at the golfer, which is where "behind the
-// ball" puts it. pitch > 0 looks down.
-inline Camera dtlCamera(double yawDeg, double pitchDeg)
+// ball" puts it. pitch > 0 looks down. roll > 0 turns the image clockwise about the
+// view ray (image-right dips toward image-down), as camera_pose_sticks.h measures
+// it; 0 is the level camera every run before 2026-10-02 assumed.
+inline Camera dtlCamera(double yawDeg, double pitchDeg, double rollDeg)
 {
-    const double p = pitchDeg * kPi / 180.0, a = yawDeg * kPi / 180.0;
+    const double p = pitchDeg * kPi / 180.0, a = yawDeg * kPi / 180.0, r = rollDeg * kPi / 180.0;
     const Vec3 d0 { 1, 0, 0 }, r0 { 0, -1, 0 }, dn0 { 0, 0, -1 };
     const Vec3 d1  = d0 * std::cos(p) + dn0 * std::sin(p);
     const Vec3 dn1 = dn0 * std::cos(p) - d0 * std::sin(p);
     const double c = std::cos(a), s = std::sin(a);
     auto rz = [c, s](const Vec3 &v) { return Vec3 { c * v.x - s * v.y, s * v.x + c * v.y, v.z }; };
-    return { rz(d1), rz(r0), rz(dn1) };
+    const Vec3 right = rz(r0), down = rz(dn1);
+    // Roll about the axis: right → cos r·right + sin r·down, down → −sin r·right + cos r·down.
+    return { rz(d1), right * std::cos(r) + down * std::sin(r), down * std::cos(r) - right * std::sin(r) };
 }
+inline Camera dtlCamera(double yawDeg, double pitchDeg) { return dtlCamera(yawDeg, pitchDeg, 0.0); }
 
 inline Vec3 imageDir(const Camera &c, double theta)
 { return c.right * std::cos(theta) + c.down * std::sin(theta); }
@@ -110,6 +115,15 @@ struct Config {
     bool   enabled     = true;
     double dtlYawDeg   = 0.0;
     double dtlPitchDeg = 0.0;
+    // The DTL camera's roll and its centre relative to the face-on camera (fusion
+    // frame, metres), and whether the four came from a MEASURED calibration
+    // (camera_pose_sticks.h on the protocol's stick clips) rather than the
+    // assumed-zero placement. The orthographic fusion reads yaw/pitch/roll; the
+    // offset is carried for the perspective projection (dtl_shaft_synth3d.h) and
+    // for the record. All zero + calibrated=false is every run before 2026-10-02.
+    double dtlRollDeg  = 0.0;
+    double dtlOffsetM[3] = { 0.0, 0.0, 0.0 };
+    bool   calibrated  = false;
     double minCond     = 0.26;   // view planes within 15° of each other ⇒ not a direction
     double maxGapUs    = 12000;  // face-on bracket wider than this is not a bracket
     int    minPlaneN   = 8;      // fewer joint frames than this is not a plane
@@ -166,7 +180,9 @@ struct Track3D {
     int nDtlPublished = 0, nNoFaceOn = 0, nBridged = 0;
     int nSignDisagree = 0, nIllConditioned = 0, nOffPlane = 0;
     bool backIncoherent = false;
-    double dtlYawDeg = 0, dtlPitchDeg = 0;
+    double dtlYawDeg = 0, dtlPitchDeg = 0, dtlRollDeg = 0;
+    double dtlOffsetM[3] = { 0, 0, 0 };
+    bool   calibrated = false;
     // The ADDRESS shaft plane — the plane through the target line's parallel and the shaft at
     // address — as its inclination to the ground. Read from the DTL view alone: a DTL image angle
     // confines the shaft to a plane through that camera's view ray, and with the camera looking
@@ -282,8 +298,11 @@ inline Track3D fuseTracks(const std::vector<FoSample> &fo, const std::vector<FoS
     Track3D out;
     out.dtlYawDeg = cfg.dtlYawDeg;
     out.dtlPitchDeg = cfg.dtlPitchDeg;
+    out.dtlRollDeg = cfg.dtlRollDeg;
+    for (int k = 0; k < 3; ++k) out.dtlOffsetM[k] = cfg.dtlOffsetM[k];
+    out.calibrated = cfg.calibrated;
     if (!cfg.enabled || fo.size() < 2 || dtl.empty()) return out;
-    const Camera cf = faceOnCamera(), cd = dtlCamera(cfg.dtlYawDeg, cfg.dtlPitchDeg);
+    const Camera cf = faceOnCamera(), cd = dtlCamera(cfg.dtlYawDeg, cfg.dtlPitchDeg, cfg.dtlRollDeg);
 
     auto at = [&cfg](const std::vector<FoSample> &v, int64_t t, bool needMeasured, double &theta) {
         auto hi = std::lower_bound(v.begin(), v.end(), t,

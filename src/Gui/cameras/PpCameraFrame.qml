@@ -1202,6 +1202,15 @@ Item {
                 var d = root._det
                 return (d && d.club && d.club.valid && d.club.synth) ? d.club.synth : []
             }
+            // Down-the-line only: the 3-D synthetic shaft's projection (dtl_shaft_synth3d.h,
+            // dtl_continuous_track_design_update.md §3.2). Drawn as a dim lone pen UNDER
+            // whatever the measured track draws, never as the hero line, and never in the
+            // fan: it is a synthesis, and with `synth3dPreview` it was projected through an
+            // uncalibrated camera. Empty unless the stage ran (dark by default).
+            readonly property var _clubSynth3d: {
+                var d = root._det
+                return (root._isDtl && d && d.club && d.club.valid && d.club.synth3d) ? d.club.synth3d : []
+            }
             // Fan visualization series: the dense 240 Hz synth tier. Metrics never
             // read this (synth is ShaftSynthesized-flagged and excluded from all
             // scoring/estimands — the real per-frame track stays in `samples`), so
@@ -1247,6 +1256,17 @@ Item {
             // against the playhead is not "now" — it is the last thing the club was seen
             // doing, and holding it bright while the coast runs on is the fan carrying on.
             readonly property int kFanCurrentMaxLagUs: 40000
+            // Down-the-line only: how far from the playhead a DTL sample may sit and
+            // still be "now". With the tracker's HELD tier available (dtl_overlay_payload
+            // `club.heldTier`) every in-band hole is either a HELD sample or nothing, so
+            // the window is one and a half frame intervals — the fixed 40 ms used to
+            // bridge up to six frames silently. Without it the old window stands.
+            readonly property int _dtlCurrentLagUs: {
+                var d = root._det
+                if (root._isDtl && d && d.club && d.club.heldTier && d.club.intervalUs > 0)
+                    return Math.round(1.5 * d.club.intervalUs)
+                return kFanCurrentMaxLagUs
+            }
             // Coaching P-positions P1–P8 (shaft_position_first §2B) — grip/head
             // normalized like `samples`; absent/empty on pre-v3.5 swings and when
             // position extraction is off.
@@ -1418,7 +1438,26 @@ Item {
                 // kFanCurrentMaxLagUs from the playhead the tile shows no shaft rather than a
                 // frozen one. Face-on keeps its own rules (coast drawn dim) untouched.
                 var dtlStale = root._isDtl && ci >= 0
-                               && Math.abs(t - _clubSamples[ci].t_us) > kFanCurrentMaxLagUs
+                               && Math.abs(t - _clubSamples[ci].t_us) > _dtlCurrentLagUs
+                // The 3-D synthetic shaft, dim, under the measured line (or alone in a gap).
+                if (shaftMode === "frame" && _clubSynth3d.length) {
+                    var si = _indexFor(_clubSynth3d, t)
+                    if (si >= 0 && Math.abs(t - _clubSynth3d[si].t_us) <= _dtlCurrentLagUs) {
+                        var ss = _clubSynth3d[si]
+                        var sgx = ss.grip[0] * cr.width + cr.x, sgy = ss.grip[1] * cr.height + cr.y
+                        var shx = ss.head[0] * cr.width + cr.x, shy = ss.head[1] * cr.height + cr.y
+                        var shd = _clampHeadToRect(sgx, sgy, shx, shy, cr)
+                        if (shd) {
+                            ctx.strokeStyle = cClub
+                            ctx.globalAlpha = 0.28 * clubMute
+                            ctx.lineWidth   = Math.max(1, 0.014 * S)
+                            ctx.setLineDash([0.06 * S, 0.04 * S])
+                            ctx.beginPath(); ctx.moveTo(sgx, sgy); ctx.lineTo(shd[0], shd[1]); ctx.stroke()
+                            ctx.setLineDash([])
+                            ctx.globalAlpha = 1.0
+                        }
+                    }
+                }
                 if (shaftMode === "frame" && ci >= 0 && !dtlStale) {
                     var kHeadProjected = 0x10
 
@@ -1431,7 +1470,7 @@ Item {
                         if ((cs0.flags & kHeadProjected) || (cs1.flags & kHeadProjected))
                             continue
                         // DTL: never bridge a gap the track did not publish across.
-                        if (root._isDtl && cs1.t_us - cs0.t_us > kFanCurrentMaxLagUs)
+                        if (root._isDtl && cs1.t_us - cs0.t_us > _dtlCurrentLagUs)
                             continue
                         var h0 = cs0.head, h1 = cs1.head
                         ctx.globalAlpha = 0.45 * (k + 1 - k0) / (ci - k0 + 1) * clubMute

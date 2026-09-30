@@ -93,11 +93,13 @@ inline QJsonObject dtlShaftTrackToJson(const DtlShaftTrack2D& track, int64_t t0U
     const double ih = track.frameHeight > 0 ? 1.0 / track.frameHeight : 0.0;
 
     QJsonArray frames;
-    std::vector<int> bandN(track.bands.size(), 0), bandPub(track.bands.size(), 0);
+    std::vector<int> bandN(track.bands.size(), 0), bandPub(track.bands.size(), 0),
+                     bandHeld(track.bands.size(), 0);
     for (const DtlSample &s : track.samples) {
         if (s.band >= 0 && s.band < int(bandN.size())) {
             ++bandN[size_t(s.band)];
-            if (s.tier >= DtlTier::Ray) ++bandPub[size_t(s.band)];
+            if (dtlMeasured(s.tier)) ++bandPub[size_t(s.band)];
+            if (s.tier == DtlTier::Held) ++bandHeld[size_t(s.band)];
         }
         QJsonValue corridor = QJsonValue(QJsonValue::Null);
         if (s.corridorOn || std::isfinite(s.corrCentreDeg[0]))
@@ -106,7 +108,7 @@ inline QJsonObject dtlShaftTrackToJson(const DtlShaftTrack2D& track, int64_t t0U
                                          jnum(s.corrCentreDeg[1] * kDeg2Rad) } },
                 { "half",    jnum(s.corrHalfDeg * kDeg2Rad) },
                 { "on",      s.corridorOn } };
-        frames.append(QJsonObject{
+        QJsonObject fr{
             { "t_us",    rel(s.t_us) },
             { "tier",    QString::fromLatin1(dtlTierName(s.tier)) },
             { "grip",    jpt(s.gripPx, iw, ih) },
@@ -139,18 +141,59 @@ inline QJsonObject dtlShaftTrackToJson(const DtlShaftTrack2D& track, int64_t t0U
             { "corridor", corridor },
             { "escape",  s.corridorEscape },
             { "band",    s.band },
-            { "reason",  s.reason } });
+            { "reason",  s.reason } };
+        // The measured run beside the drawn length, ONLY where the two differ
+        // (lenSrc "schedule"): a run with every continuous-track rule off writes
+        // the frame it wrote before the update, byte for byte.
+        if (s.lenSrc == DtlLenSrc::Schedule) fr.insert("runPx", jnum(s.runPx));
+        frames.append(fr);
     }
     QJsonArray bands;
-    QJsonObject coverageByBand;
+    QJsonObject coverageByBand, heldByBand, coverageDrawnByBand;
     for (size_t b = 0; b < track.bands.size(); ++b) {
         const DtlBand &d = track.bands[b];
-        bands.append(QJsonObject{ { "lo_us", rel(d.loUs) },
-                                  { "hi_us", rel(d.hiUs) },
-                                  { "name",  d.name } });
+        QJsonObject bo{ { "lo_us", rel(d.loUs) },
+                        { "hi_us", rel(d.hiUs) },
+                        { "name",  d.name } };
+        if (track.continuous) bo.insert("edge", d.edge);
+        bands.append(bo);
         coverageByBand[d.name] = bandN[b] ? double(bandPub[b]) / double(bandN[b]) : 0.0;
+        heldByBand[d.name] = bandHeld[b];
+        coverageDrawnByBand[d.name] = bandN[b] ? double(bandPub[b] + bandHeld[b]) / double(bandN[b]) : 0.0;
     }
-    return QJsonObject{
+    // The continuous-track ledger (dtl_shaft_track.h), present only when a rule
+    // was on. coverageByBand above stays MEASURED coverage; the drawn coverage
+    // (measured + held) is the second number, never folded into the first.
+    QJsonObject continuous;
+    if (track.continuous)
+        continuous = QJsonObject{
+            { "held",                  track.held },
+            { "heldByBand",            heldByBand },
+            { "coverageDrawnByBand",   coverageDrawnByBand },
+            { "lateEscapesRefused",    track.lateEscapesRefused },
+            { "endOnBeforeQuarantine", track.endOnBeforeQuarantine },
+            { "occludedWrist",         track.occludedWrist },
+            { "occludedRow",           track.occludedRow },
+            { "edgeBands",             track.edgeBands } };
+    // The 3-D synthetic shaft's projection, when the stage produced one. A
+    // separate array from `frames` — SYNTHESISED, never a tier — and absent
+    // otherwise so a run without it writes the file it wrote before.
+    QJsonArray synth3d;
+    for (const DtlSynth3DSample &s : track.synth3d) {
+        synth3d.append(QJsonObject{
+            { "t_us",      rel(s.t_us) },
+            { "grip",      jpt(s.gripPx, iw, ih) },
+            { "head",      jpt(s.headPx, iw, ih) },
+            { "theta",     jnum(s.thetaRad) },
+            { "lenPx",     jnum(s.lenPx) },
+            { "rhoD",      jnum(s.rhoD) },
+            { "u",         QJsonArray{ jnum(s.u[0]), jnum(s.u[1]), jnum(s.u[2]) } },
+            { "plane",     s.plane },
+            { "anchorSrc", s.anchorSrc },
+            { "flags",     QStringLiteral("synthesized") } });
+    }
+
+    QJsonObject doc{
         { "schema",        "pinpoint.clubDtl/1" },
         // The producer's version (analysis_versions.h), echoed so the
         // first CHANGE to the producer can be told from the first run of
@@ -168,7 +211,8 @@ inline QJsonObject dtlShaftTrackToJson(const DtlShaftTrack2D& track, int64_t t0U
         // rather than filled from this run's own band locks, which
         // would be the tracker grading itself.
         { "truth",         QJsonArray{} },
-        { "summary",       QJsonObject{
+        { "summary",       [&] {
+          QJsonObject sm{
             { "sightedFrac",      track.sightedFrac },
             { "coverageByBand",   coverageByBand },
             { "publishedInEndOn", track.publishedInEndOn },
@@ -200,7 +244,24 @@ inline QJsonObject dtlShaftTrackToJson(const DtlShaftTrack2D& track, int64_t t0U
             // numbers moved" and "the config moved" are different
             // findings, and a run whose settings live only in a
             // shell history cannot tell them apart.
-            { "configHash",  configHash } } } };
+            { "configHash",  configHash } };
+          if (track.continuous) sm.insert("continuous", continuous);
+          if (!track.synth3d.empty())
+              sm.insert("synth3d", QJsonObject{
+                  { "n",        int(track.synth3d.size()) },
+                  { "preview",  track.synth3dPreview },
+                  { "camera",   QJsonObject{ { "calibrated", !track.synth3dPreview },
+                                             { "yawDeg", track.synth3dYawDeg },
+                                             { "pitchDeg", track.synth3dPitchDeg },
+                                             { "rollDeg", track.synth3dRollDeg } } },
+                  { "note",     track.synth3dPreview
+                                    ? QStringLiteral("PREVIEW: projected through the assumed-zero DTL camera; "
+                                                     "the heading is off by the unknown yaw")
+                                    : QStringLiteral("projected through the measured DTL camera") } });
+          return sm;
+        }() } };
+    if (!track.synth3d.empty()) doc.insert("synth3d", synth3d);
+    return doc;
 }
 
 // The DTL stream's alias and file as swing.json's streams[] names them, matched

@@ -28,20 +28,29 @@ namespace pinpoint {
 
 namespace {
 
-// ShaftSample2D::flags bit the face-on painter reads as "a measurement" (ShaftMeasured).
-// Every published DTL frame is one; none is coasted/predicted/synthesised, so no other
-// bit is ever set and the painter's _restsOnMeasurement() admits them all.
-constexpr int kFlagMeasured = 0x01;
+// ShaftSample2D::flags bits the face-on painter reads. Every MEASURED DTL frame
+// (RAY/SEG/BAND) carries ShaftMeasured alone, so _restsOnMeasurement() admits it.
+// A HELD frame (dtl_shaft_track.h: the band's own Viterbi θ between two
+// measurements) carries ShaftCoasted | ShaftHeadProjected instead: the painter
+// then draws it as its dim lone pen and the fan never treats it as a measurement.
+constexpr int kFlagMeasured      = 0x01;
+constexpr int kFlagCoasted       = 0x04;
+constexpr int kFlagHeadProjected = 0x10;
 
 // Used only when the track has fewer than two frames to measure its own interval.
 constexpr qint64 kFallbackFrameIntervalUs = 8333;   // 120 fps
 
-// A clubDtl frame published an angle: tier RAY or better (dtl_shaft_types.h DtlTier).
-bool isPublished(const QJsonObject &f)
+// A clubDtl frame MEASURED an angle: tier RAY/SEG/BAND (dtl_shaft_track.h DtlTier).
+bool isMeasured(const QJsonObject &f)
 {
     const QString tier = f.value(QStringLiteral("tier")).toString();
     return tier == QLatin1String("RAY") || tier == QLatin1String("SEG")
         || tier == QLatin1String("BAND");
+}
+// … or is DRAWN: measured, or HELD inside a band between two measurements.
+bool isDrawn(const QJsonObject &f)
+{
+    return isMeasured(f) || f.value(QStringLiteral("tier")).toString() == QLatin1String("HELD");
 }
 
 // A normalised [x, y] pair from clubDtl, or false when the point is absent (null).
@@ -77,23 +86,26 @@ QVariantMap dtlOverlayDetail(const QVariantMap &pose2d,
     if (frames.isEmpty() || fw <= 0 || fh <= 0)
         return dtl;
 
-    // ── Club samples: published frames only. grip/head in clubDtl are already
-    //    normalised to the DTL frame (x / frameWidth, y / frameHeight), which is the
-    //    face-on payload's convention, so they pass through as numbers.
+    // ── Club samples: DRAWN frames only (measured, plus HELD). grip/head in clubDtl
+    //    are already normalised to the DTL frame (x / frameWidth, y / frameHeight),
+    //    which is the face-on payload's convention, so they pass through as numbers.
+    //    The P-position borrow below reads MEASURED samples only.
     QVariantList samples;
-    std::vector<qint64> sampleT;
+    std::vector<qint64> sampleT;        // every drawn sample's time (parallel to `samples`)
+    std::vector<char>   sampleMeasured;
     std::vector<qint64> allT;
     allT.reserve(size_t(frames.size()));
     for (const QJsonValue &fv : frames) {
         const QJsonObject f = fv.toObject();
         const qint64 t = retime(f.value(QStringLiteral("t_us")));
         allT.push_back(t);
-        if (!isPublished(f))
+        if (!isDrawn(f))
             continue;
         QVariantList grip, head;
         if (!point2(f.value(QStringLiteral("grip")), grip)
             || !point2(f.value(QStringLiteral("head")), head))
             continue;
+        const bool measured = isMeasured(f);
         samples.append(QVariantMap{
             { QStringLiteral("t_us"),  t },
             { QStringLiteral("grip"),  grip },
@@ -101,8 +113,10 @@ QVariantMap dtlOverlayDetail(const QVariantMap &pose2d,
             { QStringLiteral("theta"), numOr(f.value(QStringLiteral("theta")), 0.0) },
             { QStringLiteral("lenPx"), numOr(f.value(QStringLiteral("lenPx")), -1.0) },
             { QStringLiteral("conf"),  numOr(f.value(QStringLiteral("conf")), 0.0) },
-            { QStringLiteral("flags"), kFlagMeasured } });
+            { QStringLiteral("flags"), measured ? kFlagMeasured : (kFlagCoasted | kFlagHeadProjected) },
+            { QStringLiteral("held"),  !measured } });
         sampleT.push_back(t);
+        sampleMeasured.push_back(measured ? 1 : 0);
     }
 
     // The track's own frame interval (median spacing of ALL its frames, published or
@@ -142,7 +156,7 @@ QVariantMap dtlOverlayDetail(const QVariantMap &pose2d,
                 const qint64 dt = std::llabs(*c - want);
                 if (best < 0 || dt < bestDt) { best = int(c - sampleT.begin()); bestDt = dt; }
             }
-            if (best < 0 || bestDt > intervalUs)
+            if (best < 0 || bestDt > intervalUs || !sampleMeasured[size_t(best)])
                 continue;
             const QVariantMap s = samples.at(best).toMap();
             positions.push_back(Pos{ sampleT[size_t(best)], QVariantMap{
@@ -161,13 +175,55 @@ QVariantMap dtlOverlayDetail(const QVariantMap &pose2d,
         QVariantList posList;
         for (const Pos &p : positions) posList.append(p.m);
 
+        // `heldTier` says the track was produced with the HELD tier available, so
+        // the tile ties its "is this sample current?" window to ONE frame interval
+        // instead of the fixed 40 ms that used to bridge holes silently: with the
+        // tier on, a hole is either a HELD sample (drawn dim) or nothing. Off, the
+        // tile keeps its old rule. `intervalUs` is the track's own frame interval.
+        const QJsonObject continuous = clubDtl.value(QStringLiteral("summary")).toObject()
+                                              .value(QStringLiteral("continuous")).toObject();
+        const bool heldTier = clubDtl.value(QStringLiteral("config")).toObject()
+                                     .value(QStringLiteral("heldEnabled")).toBool(false)
+                              && !continuous.isEmpty();
         QVariantMap club{
             { QStringLiteral("valid"),       true },
             { QStringLiteral("frameWidth"),  fw },
             { QStringLiteral("frameHeight"), fh },
+            { QStringLiteral("heldTier"),    heldTier },
+            { QStringLiteral("intervalUs"),  intervalUs },
             { QStringLiteral("samples"),     samples } };
         if (!posList.isEmpty())
             club.insert(QStringLiteral("positions"), posList);
+        // The 3-D synthetic shaft's projection (clubDtl `synth3d`), as its own series:
+        // flags ShaftSynthesized | ShaftHeadProjected, so the painter's dim lone pen is
+        // the most it can ever be drawn as, and `preview` says the camera was uncalibrated.
+        const QJsonArray synth3d = clubDtl.value(QStringLiteral("synth3d")).toArray();
+        if (!synth3d.isEmpty()) {
+            constexpr int kFlagSynthesized = 0x100;
+            QVariantList syn;
+            for (const QJsonValue &sv : synth3d) {
+                const QJsonObject f = sv.toObject();
+                QVariantList grip, head;
+                if (!point2(f.value(QStringLiteral("grip")), grip)
+                    || !point2(f.value(QStringLiteral("head")), head))
+                    continue;
+                syn.append(QVariantMap{
+                    { QStringLiteral("t_us"),  retime(f.value(QStringLiteral("t_us"))) },
+                    { QStringLiteral("grip"),  grip },
+                    { QStringLiteral("head"),  head },
+                    { QStringLiteral("theta"), numOr(f.value(QStringLiteral("theta")), 0.0) },
+                    { QStringLiteral("lenPx"), numOr(f.value(QStringLiteral("lenPx")), -1.0) },
+                    { QStringLiteral("conf"),  0.3 },
+                    { QStringLiteral("flags"), kFlagSynthesized | kFlagHeadProjected } });
+            }
+            if (!syn.isEmpty()) {
+                club.insert(QStringLiteral("synth3d"), syn);
+                club.insert(QStringLiteral("synth3dPreview"),
+                            clubDtl.value(QStringLiteral("summary")).toObject()
+                                   .value(QStringLiteral("synth3d")).toObject()
+                                   .value(QStringLiteral("preview")).toBool(true));
+            }
+        }
         dtl.insert(QStringLiteral("club"), club);
     }
 

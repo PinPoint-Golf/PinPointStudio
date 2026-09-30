@@ -269,6 +269,10 @@ struct DtlSolveState {
     // caller may not have asked for; a tier decided off a re-derivation is a
     // second opinion nobody asked for either.
     std::vector<char>      quarantined;               // cross-view row check refused the anchor
+    // WHY it was refused (DtlQuarantineCause as int8), beside the flag: the tier
+    // ladder names the cause in the tier (OCCLUDED_WRIST / OCCLUDED_ROW) so the
+    // tile and the report can tell "the hands were hidden" from "the club was".
+    std::vector<signed char> quarantineCause;
     std::vector<char>      sighted;                   // inside a solved band
     // Inside the INHERITED swing span. Kept per frame, not just counted, because
     // the tier ladder must not read "we never looked here" as END-ON: END-ON is a

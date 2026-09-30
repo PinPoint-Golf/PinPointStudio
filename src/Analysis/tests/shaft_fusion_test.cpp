@@ -69,10 +69,10 @@ struct Swing {
 // Face-on at 5 ms from t=0; DTL offset by 3.2 ms (the streams are not frame-synchronous,
 // so every fused sample is an INTERPOLATION of face-on). α sweeps slowly enough that
 // linear interpolation of θ_F is exact to ~1e-3°.
-static Swing makeSwing(double yawDeg, double pitchDeg)
+static Swing makeSwing(double yawDeg, double pitchDeg, double rollDeg = 0.0)
 {
     Swing s;
-    const Camera cf = faceOnCamera(), cd = dtlCamera(yawDeg, pitchDeg);
+    const Camera cf = faceOnCamera(), cd = dtlCamera(yawDeg, pitchDeg, rollDeg);
     const Plane back(50.0), down(60.0);
     const int64_t dt = 5000;
     const int nBack = 160, nDown = 60;
@@ -257,6 +257,36 @@ int main()
         check(t.valid && !t.down.fitted && !t.down.offered(cfg), "§7 below minPlaneN ⇒ no plane");
         Config off; off.enabled = false;
         check(!fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, off).valid, "§7 disabled ⇒ invalid");
+    }
+
+    // §R the DTL camera's roll (2026-10-02, camera_pose_sticks.h / dtl_continuous_track
+    // update). roll = 0 is the camera every earlier run used, bit for bit; a rolled
+    // camera still recovers the plane's inclination and the direction once the
+    // fusion is told the roll, and gets it wrong by about the roll if it is not.
+    {
+        const Camera a = dtlCamera(7.0, 4.0), b = dtlCamera(7.0, 4.0, 0.0);
+        check(a.d.x == b.d.x && a.d.y == b.d.y && a.d.z == b.d.z
+              && a.right.x == b.right.x && a.right.y == b.right.y && a.right.z == b.right.z
+              && a.down.x == b.down.x && a.down.y == b.down.y && a.down.z == b.down.z,
+              "§R dtlCamera(yaw, pitch) is dtlCamera(yaw, pitch, 0) exactly");
+        const Camera r = dtlCamera(7.0, 4.0, 5.0);
+        check(near(r.right.dot(r.down), 0.0, 1e-12) && near(r.right.dot(r.d), 0.0, 1e-12)
+              && near(r.right.norm(), 1.0, 1e-12) && near(r.down.norm(), 1.0, 1e-12),
+              "§R a rolled camera is still orthonormal");
+        check(near(std::atan2(r.right.dot(b.down), r.right.dot(b.right)) * 180.0 / kPi, 5.0, 1e-9),
+              "§R its image-right sits 5° toward image-down of the level camera's");
+        // A swing imaged by a rolled DTL camera: told the roll, the fusion recovers it.
+        const Swing s = makeSwing(0.0, 0.0, 6.0);
+        Config told; told.dtlRollDeg = 6.0; told.calibrated = true;
+        const Track3D t1 = fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, told);
+        check(t1.valid && t1.down.fitted && near(t1.down.inclDeg, 60.0, 0.1),
+              "§R told the 6° roll, the downswing plane reads 60° within 0.1°");
+        check(t1.calibrated && near(t1.dtlRollDeg, 6.0, 1e-12), "§R the track carries roll and the calibrated flag");
+        Config blind;
+        const Track3D t0 = fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, blind);
+        check(t0.valid && t0.down.fitted && std::fabs(t0.down.inclDeg - 60.0) > 1.0,
+              "§R blind to the roll, the same swing's plane is off by more than 1°");
+        std::printf("       rolled DTL camera: told 6° ⇒ down %.2f°; blind ⇒ %.2f°\n", t1.down.inclDeg, t0.down.inclDeg);
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "ALL PASS\n", g_fail);

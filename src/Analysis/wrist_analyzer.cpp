@@ -38,6 +38,7 @@
 #include "dtl_shaft_config.h"
 #include "dtl_shaft_json.h"
 #include "shaft_fusion_json.h"   // shaftFusionConfigFromOverrides (ShaftFusionStage)
+#include "dtl_shaft_synth3d.h"   // the 3-D synthetic shaft into the DTL tile (DtlSynth3DStage)
 #include "dtl_posture.h"         // buildDtlPosture (DtlPostureStage)
 #include "dtl_shaft_tracker.h"
 #include "event_refine.h"
@@ -1791,12 +1792,12 @@ struct DtlShaftStage : AnalysisStage {
         t.streamSerial = QString::fromStdString(ctx.window->formatOf(ctx.job.dtlSource).device_serial);
         int published = 0;
         for (const DtlSample &s : t.samples)
-            if (s.tier >= DtlTier::Ray) ++published;
+            if (dtlMeasured(s.tier)) ++published;
         ctx.detail->shaftDtl = std::move(t);
         ctx.detail->versions.shaftDtl = kDtlShaftStageVersion;
         const DtlShaftTrack2D &d = ctx.detail->shaftDtl;
         ppInfo() << "[WristAnalysis] dtl shaft:" << (d.valid ? "valid," : "INVALID,")
-                 << published << "/" << qlonglong(d.samples.size()) << "frames published in"
+                 << published << "/" << qlonglong(d.samples.size()) << "frames published (+" << d.held << "held) in"
                  << qlonglong(d.bands.size()) << "bands, sighted" << d.sightedFrac
                  << ", ball" << qPrintable(d.ball.found ? d.ball.source : QStringLiteral("not found"))
                  << ", L" << qPrintable(d.lFullSource) << ", witness"
@@ -1846,14 +1847,31 @@ struct ShaftFusionStage : AnalysisStage {
         }
         return out;
     }
+    // The camera the fusion runs with: a MEASURED calibration on the job first
+    // (camera_pose_sticks.h; dtl_continuous_track_design_update.md §4 item 1), then any
+    // explicit shaft.fusion.* override on top — a sweep knob beats the record, a record
+    // beats the assumed-zero placement.
+    static fusion::Config configFor(const ShotAnalysisJob &job)
+    {
+        fusion::Config seed;
+        const auto &cal = job.dtlCameraCalib;
+        if (cal.calibrated) {
+            seed.dtlYawDeg   = cal.yawDeg;
+            seed.dtlPitchDeg = cal.pitchDeg;
+            seed.dtlRollDeg  = cal.rollDeg;
+            for (int k = 0; k < 3; ++k) seed.dtlOffsetM[k] = cal.offsetM[k];
+            seed.calibrated  = true;
+        }
+        return shaftFusionConfigFromOverrides(job.tuningOverrides, seed);
+    }
     void run(AnalysisContext &ctx) override
     {
-        const fusion::Config cfg = shaftFusionConfigFromOverrides(ctx.job.tuningOverrides);
+        const fusion::Config cfg = configFor(ctx.job);
         const ShaftTrack2D    &fo = ctx.detail->shaft;
         const DtlShaftTrack2D &dt = ctx.detail->shaftDtl;
         std::vector<fusion::DtlSampleIn> dtl;
         for (const DtlSample &s : dt.samples)
-            if (s.tier >= DtlTier::Ray && std::isfinite(s.thetaRad))
+            if (dtlMeasured(s.tier) && std::isfinite(s.thetaRad))
                 dtl.push_back({ s.t_us - dt.clockOffsetUs, s.thetaRad, s.band });
         const int64_t topUs    = ctx.seg.eventFor(Phase::Top)->t_us;
         const int64_t impactUs = ctx.seg.eventFor(Phase::Impact)->t_us;
@@ -2263,7 +2281,7 @@ struct Skeleton3DStage : AnalysisStage {
                 if (std::llabs(ts - t) <= 6000 && (!best || std::llabs(ts - t) < std::llabs(best->t_us - sD.clockOffsetUs - t)))
                     best = &s;
             }
-            return best && best->tier >= DtlTier::Ray && std::isfinite(best->thetaRad) ? best : nullptr;
+            return best && dtlMeasured(best->tier) && std::isfinite(best->thetaRad) ? best : nullptr;
         };
 
         // Planted feet: everything until just after impact except a lifted lead heel; the lead
@@ -2337,7 +2355,7 @@ struct Skeleton3DStage : AnalysisStage {
                 if (const DtlSample *s = nearestDtl(t)) {
                     vd.shaftTheta = s->thetaRad;
                     vd.shaftSigma = 3.5 * pinpoint::skeleton3d::kDeg;
-                    if (s->tier >= DtlTier::Seg && s->headPx.x() > 0)
+                    if ((s->tier == DtlTier::Seg || s->tier == DtlTier::Band) && s->headPx.x() > 0)
                         vd.headU = s->headPx.x(), vd.headV = s->headPx.y(), vd.headSigma = 6.0;
                 }
                 in.dtl.push_back(vd);
@@ -2377,6 +2395,122 @@ struct Skeleton3DStage : AnalysisStage {
                  << r.reprojMedPxFo << "/" << r.reprojMedPxDtl << "px, γ" << r.gammaDeg << "°, r" << r.rRatio
                  << ", swaps" << r.nSwapFo << "/" << r.nSwapDtl << ", limit-held" << r.nLimitHeld
                  << ", slip p90" << r.footSlipP90Mm << "mm," << r.iterations << "iterations," << r.ms << "ms";
+    }
+};
+
+// 13c-octies. The 3-D SYNTHETIC SHAFT projected into the down-the-line tile
+//      (dtl_shaft_synth3d.h; dtl_continuous_track_design_update.md §3.2). The face-on Layer C
+//      synth de-projected through the per-phase fused planes and projected through the DTL
+//      camera — the calibrated one when the job carries a calibration, else the assumed-zero
+//      placement, in which case every sample is a PREVIEW and says so. Anchored on the DTL
+//      tracker's grip, or on the 3-D skeleton's hands where that grip was quarantined.
+//      SYNTHESISED: flagged, drawn dimmer, read by no metric and no fusion. DARK by default
+//      (shaft.dtl.synth3d.enabled) until the protocol session's camera exists.
+struct DtlSynth3DStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("DtlSynth3D"); }
+    static synth3d::Config configFor(const ShotAnalysisJob &job)
+    {
+        using namespace tuning;
+        synth3d::Config c;
+        apply(job.tuningOverrides, "shaft.dtl.synth3d.enabled",        c.enabled);
+        apply(job.tuningOverrides, "shaft.dtl.synth3d.holdDownPlaneUs", c.holdDownPlaneUs);
+        apply(job.tuningOverrides, "shaft.dtl.synth3d.minCond",        c.minCond);
+        return c;
+    }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        return configFor(ctx.job).enabled && ctx.detail->shaftDtl.valid && ctx.detail->shaft.valid
+            && !ctx.detail->shaft.synth.empty() && ctx.detail->shaft3d.valid;
+    }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        if (!configFor(ctx.job).enabled) return QStringLiteral("3-D synthetic shaft disabled (shaft.dtl.synth3d.enabled)");
+        if (!ctx.detail->shaftDtl.valid) return QStringLiteral("no valid down-the-line shaft track");
+        if (ctx.detail->shaft.synth.empty()) return QStringLiteral("no face-on synth tier");
+        return QStringLiteral("no fused 3-D shaft (no planes)");
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        const synth3d::Config cfg = configFor(ctx.job);
+        const fusion::Config fcfg = ShaftFusionStage::configFor(ctx.job);
+        const fusion::Track3D &t3 = ctx.detail->shaft3d;
+        DtlShaftTrack2D &dt = ctx.detail->shaftDtl;
+        const fusion::Camera cf = fusion::faceOnCamera();
+        const fusion::Camera cd = fusion::dtlCamera(fcfg.dtlYawDeg, fcfg.dtlPitchDeg, fcfg.dtlRollDeg);
+
+        // The face-on synth angle, in the DTL clock (offset 0 today).
+        std::vector<synth3d::FoAngle> fo;
+        fo.reserve(ctx.detail->shaft.synth.size());
+        for (const ShaftSample2D &s : ctx.detail->shaft.synth)
+            if (std::isfinite(s.thetaRad)) fo.push_back({ s.t_us + dt.clockOffsetUs, s.thetaRad });
+
+        // The planes: address from the DTL view alone, back/down from the fusion where
+        // fitted. The windows are the fusion stage's.
+        synth3d::Planes pl;
+        {
+            const int64_t topUs = ctx.seg.eventFor(Phase::Top) ? ctx.seg.eventFor(Phase::Top)->t_us : 0;
+            const int64_t impactUs = ctx.seg.eventFor(Phase::Impact) ? ctx.seg.eventFor(Phase::Impact)->t_us : 0;
+            int64_t addrToUs = topUs - 900000;
+            if (const auto tk = ctx.seg.eventFor(Phase::Takeaway); tk && tk->t_us < topUs) addrToUs = tk->t_us;
+            if (const auto ad = ctx.seg.eventFor(Phase::Address)) addrToUs = ad->t_us;
+            pl.addrToUs = addrToUs; pl.topUs = topUs; pl.downToUs = impactUs + 20000;
+            if (t3.back.fitted) { pl.back = true; pl.nBack = t3.back.normal; }
+            if (t3.down.fitted) { pl.down = true; pl.nDown = t3.down.normal; }
+            std::vector<double> addrTh;
+            for (const DtlSample &s : dt.samples)
+                if (dtlMeasured(s.tier) && std::isfinite(s.thetaRad) && s.t_us - dt.clockOffsetUs <= addrToUs)
+                    addrTh.push_back(s.thetaRad);
+            pl.addr = synth3d::addressPlaneNormal(cd, addrTh, pl.nAddr, fcfg.minAddressN);
+        }
+
+        // The anchors: the tracker's grip where it was not quarantined, else the
+        // skeleton's hands projected into the DTL view.
+        const pinpoint::skeleton3d::FitResult &sk = ctx.detail->skeleton3d;
+        std::vector<synth3d::Anchor> anchors;
+        anchors.reserve(dt.samples.size());
+        int nSkel = 0, nTracker = 0;
+        for (const DtlSample &s : dt.samples) {
+            synth3d::Anchor a;
+            a.t_us = s.t_us;
+            if (!dtlOccluded(s.tier) && std::isfinite(s.gripPx.x()) && std::isfinite(s.gripPx.y())) {
+                a.ok = true; a.gx = s.gripPx.x(); a.gy = s.gripPx.y(); a.src = synth3d::AnchorSrc::Tracker; ++nTracker;
+            } else if (sk.valid && sk.dtlUsed && !sk.t_us.empty()) {
+                const auto it = std::lower_bound(sk.t_us.begin(), sk.t_us.end(), s.t_us);
+                size_t k = size_t(it - sk.t_us.begin());
+                if (k > 0 && (k >= sk.t_us.size() || sk.t_us[k] - s.t_us > s.t_us - sk.t_us[k - 1])) --k;
+                if (k < sk.t_us.size() && std::llabs(sk.t_us[k] - s.t_us) <= 10000 && k < sk.grip.size()) {
+                    double u, v;
+                    if (pinpoint::skeleton3d::projectPoint(sk.cam, 1, dt.frameWidth, dt.frameHeight, sk.grip[k], u, v)) {
+                        a.ok = true; a.gx = u; a.gy = v; a.src = synth3d::AnchorSrc::Skeleton; ++nSkel;
+                    }
+                }
+            }
+            anchors.push_back(a);
+        }
+
+        const std::vector<synth3d::Sample> out =
+            synth3d::synthesize(fo, pl, cf, cd, anchors, dt.lFullPx, cfg);
+        dt.synth3d.clear();
+        for (const synth3d::Sample &s : out) {
+            if (!s.ok) continue;
+            DtlSynth3DSample d;
+            d.t_us = s.t_us;
+            d.gripPx = QPointF(s.gx, s.gy);
+            d.thetaRad = s.thetaD; d.lenPx = s.lenPx; d.rhoD = s.rhoD;
+            d.u[0] = s.u.x; d.u[1] = s.u.y; d.u[2] = s.u.z;
+            d.plane = int(s.plane); d.anchorSrc = int(s.anchor);
+            if (std::isfinite(d.lenPx))
+                d.headPx = QPointF(s.gx + d.lenPx * std::cos(s.thetaD), s.gy + d.lenPx * std::sin(s.thetaD));
+            dt.synth3d.push_back(d);
+        }
+        dt.synth3dPreview  = !fcfg.calibrated;
+        dt.synth3dYawDeg   = fcfg.dtlYawDeg;
+        dt.synth3dPitchDeg = fcfg.dtlPitchDeg;
+        dt.synth3dRollDeg  = fcfg.dtlRollDeg;
+        ppInfo() << "[WristAnalysis] dtl synth3d:" << qlonglong(dt.synth3d.size()) << "of"
+                 << qlonglong(anchors.size()) << "frames (anchors: tracker" << nTracker << "skeleton" << nSkel
+                 << ") planes addr/back/down" << pl.addr << pl.back << pl.down
+                 << (fcfg.calibrated ? ", calibrated camera" : ", PREVIEW: uncalibrated camera (yaw/pitch/roll assumed 0)");
     }
 };
 
@@ -2423,6 +2557,7 @@ SessionProfile wristProfile()
     p.stages.push_back(std::make_unique<DtlPostureStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     p.stages.push_back(std::make_unique<Skeleton3DStage>());
+    p.stages.push_back(std::make_unique<DtlSynth3DStage>());
     p.stages.push_back(std::make_unique<BindingsStage>());
     p.stages.push_back(std::make_unique<ResemblanceStage>());
     p.stages.push_back(std::make_unique<AssessmentStage>());
@@ -2516,6 +2651,7 @@ SessionProfile cameraKinematicsProfile()
     p.stages.push_back(std::make_unique<DtlPostureStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     p.stages.push_back(std::make_unique<Skeleton3DStage>());
+    p.stages.push_back(std::make_unique<DtlSynth3DStage>());
     return p;
 }
 } // namespace pinpoint::analysis

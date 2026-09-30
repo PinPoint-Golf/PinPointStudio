@@ -128,15 +128,18 @@ REASON_LINES = 2                # the reason wraps onto at most this many lines
 
 TIER_COLOR = {"BAND": COL_BAND, "SEG": COL_SEG, "RAY": COL_RAY,
               "END_ON": COL_ENDON, "OCCLUDED": COL_OCCL, "UNSEEN": COL_UNSEEN,
-              "MEAS": COL_RAY, "COAST": COL_COAST, "SIGHTED": COL_SIGHTED}
+              "MEAS": COL_RAY, "COAST": COL_COAST, "SIGHTED": COL_SIGHTED,
+              # continuous-track update (2026-10-02): HELD draws in the coast grey,
+              # the two quarantine causes in the OCCLUDED purple
+              "HELD": COL_COAST, "OCCLUDED_WRIST": COL_OCCL, "OCCLUDED_ROW": COL_OCCL}
 # the timeline wants UNSEEN recessive; a STAMP has to be readable on a black
 # tile, so the two use different greys for the same tier
 STAMP_COLOR = dict(TIER_COLOR, UNSEEN=(165, 165, 165))
-NO_LINE_TIERS = ("END_ON", "OCCLUDED", "UNSEEN")
-PUBLISHED_TIERS = ("BAND", "SEG", "RAY", "MEAS", "COAST")
+NO_LINE_TIERS = ("END_ON", "OCCLUDED", "OCCLUDED_WRIST", "OCCLUDED_ROW", "UNSEEN")
+PUBLISHED_TIERS = ("BAND", "SEG", "RAY", "HELD", "MEAS", "COAST")
 # an absence tile publishes nothing, so its `reason` is all the reader gets --
 # END-ON is one of them: "end-on rho^=0.48" is why that tile is blank
-REASON_TIERS = ("UNSEEN", "OCCLUDED", "END_ON")
+REASON_TIERS = ("UNSEEN", "OCCLUDED", "OCCLUDED_WRIST", "OCCLUDED_ROW", "END_ON", "HELD")
 
 # --- timeline strip (item 4) -------------------------------------------------
 TL_H = 48                       # strip height at grid scale, px

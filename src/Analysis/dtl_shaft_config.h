@@ -82,6 +82,65 @@ struct DtlShaftConfig {
     // per-frame pick wearing a global solve's clothes.
     int minBandFrames = 6;
 
+    // ── the continuous-track update (dtl_continuous_track_design_update.md §3.1) ──
+    // Six rules for the SPORADIC holes inside a sighted band. None of them bridges
+    // an end-on gap; every one is a separate switch with a bit-identical OFF, and
+    // each default is set by its own gate on the 21 DTL corpus swings against the
+    // held-out band truth (docs/research/data/markerless/dtl_continuous_20261002.md).
+    //
+    // held — a frame inside a sighted band that failed the RAY gate, bounded on
+    // BOTH sides by measured frames of the same band, keeps the band's own Viterbi
+    // θ_D with tier HELD and the neighbours' confidence, for a hole of at most
+    // maxFrames (6 ≈ 40 ms at 150 fps — the same span the tile used to bridge
+    // silently). Never at a band's edge: a hole with a measurement on one side
+    // only is a tail, and coasting into a tail is the PRED-at-impact failure.
+    //
+    // ON by Mark's decision (1 Oct 2026, dtl_continuous_20261002.md §3.4): the gate's
+    // ≥ 0.85 threshold was not met — the tier fills 97 mid-backswing and 43 delivery
+    // frames on the 21 corpus swings, drawn coverage 0.69 → 0.80 and 0.66 → 0.75, no
+    // truth frame worse, and the deficit that remains is band-edge tails no
+    // hole-filling rule can reach — so it ships on to be judged in the app on the
+    // re-analysed 4 July session, and this one key turns it back off.
+    struct Held {
+        bool enabled   = true;
+        int  maxFrames = 6;
+    } held;
+    // endOnFirst — classify END_ON (ρ̂_D < rhoSolveMin) BEFORE the quarantine. The
+    // ladder used to let OCCLUDED outrank END_ON, so the whole top of the
+    // backswing read as "hands hidden" when the geometry alone had already said
+    // nothing could be seen. Counted: 1,078 of 2,063 OCCLUDED frames on the 21
+    // corpus swings were end-on by the schedule.
+    bool endOnFirst = true;
+    // quarantineCause — split OCCLUDED into OCCLUDED_WRIST (the pose had no
+    // confident wrist: the HANDS were hidden) and OCCLUDED_ROW (the anchor is not
+    // where face-on says the hands are). A tier name, not a reason string, so the
+    // tile and the report can act on it.
+    bool quarantineCause = true;
+    // edge — a sighted run shorter than minBandFrames but at least minFrames long
+    // becomes a band of its own when it sits within maxGapFrames NON-end-on frames
+    // of a full band: the hole between them is a quarantined or undecodable frame
+    // or two, not the schedule saying the club has gone end-on. Solved
+    // independently and never joined — the Held tier does not cross the hole.
+    // … or (b) when the run's own ρ̂_D median is at or above minRho: the six-frame
+    // minimum guards a run sitting AT rhoSolveMin, and a short run at ρ̂_D 0.95 is
+    // a sighted club whose neighbours flickered (07-04 s7's whole impact band).
+    struct Edge {
+        bool   enabled      = true;
+        int    minFrames    = 3;
+        int    maxGapFrames = 2;
+        double minRho       = 0.70;
+    } edge;
+    // lenSchedule — ONE drawn length: ρ̂_D · L̂_D, L̂_D from the ball at address,
+    // instead of the per-frame switch between rend / snapLine / latBand that was
+    // the flicker in the drawn head (506 source switches and 713 jumps of more
+    // than 40 px between consecutive published frames on the 21 corpus swings).
+    // The measured run still decides the tier and is carried as runPx.
+    bool lenSchedule = true;
+    // refuseLateEscape — a RAY frame after P8 whose solved θ escaped the face-on
+    // corridor is not published: measured on the corpus these are θ ≈ 2π with the
+    // head at the frame edge (07-04 s4, three frames), noise the tile drew.
+    bool refuseLateEscape = true;
+
     // ── D5 the face-on corridor (§5.7) ───────────────────────────────────────
     struct Corridor {
         bool   enabled = true;
@@ -347,6 +406,16 @@ struct DtlShaftConfig {
         tn::apply(ov, "shaft.dtl.rhoSolveMin",         c.rhoSolveMin);
         tn::apply(ov, "shaft.dtl.schedule.enabled",    c.schedule.enabled);
         tn::apply(ov, "shaft.dtl.minBandFrames",       c.minBandFrames);
+        tn::apply(ov, "shaft.dtl.held.enabled",        c.held.enabled);
+        tn::apply(ov, "shaft.dtl.held.maxFrames",      c.held.maxFrames);
+        tn::apply(ov, "shaft.dtl.endOnFirst",          c.endOnFirst);
+        tn::apply(ov, "shaft.dtl.quarantineCause",     c.quarantineCause);
+        tn::apply(ov, "shaft.dtl.edge.enabled",        c.edge.enabled);
+        tn::apply(ov, "shaft.dtl.edge.minFrames",      c.edge.minFrames);
+        tn::apply(ov, "shaft.dtl.edge.maxGapFrames",   c.edge.maxGapFrames);
+        tn::apply(ov, "shaft.dtl.edge.minRho",         c.edge.minRho);
+        tn::apply(ov, "shaft.dtl.lenSchedule",         c.lenSchedule);
+        tn::apply(ov, "shaft.dtl.refuseLateEscape",    c.refuseLateEscape);
         tn::apply(ov, "shaft.dtl.corridor.enabled",    c.corridor.enabled);
         tn::apply(ov, "shaft.dtl.corridor.w0Deg",      c.corridor.w0Deg);
         tn::apply(ov, "shaft.dtl.corridor.wCorr",      c.corridor.wCorr);
@@ -398,6 +467,14 @@ struct DtlShaftConfig {
     }
 };
 
+// Any of the six continuous-track rules on ⇒ the track is marked `continuous`
+// and its JSON carries a summary.continuous ledger (dtl_shaft_track.h).
+inline bool dtlContinuousAny(const DtlShaftConfig& c)
+{
+    return c.held.enabled || c.endOnFirst || c.quarantineCause || c.edge.enabled
+        || c.lenSchedule || c.refuseLateEscape;
+}
+
 // ── the resolved config's fingerprint ────────────────────────────────────────
 // A stable 64-bit FNV-1a over every RESOLVED scalar, formatted as 16 hex digits
 // and written into club_dtl.json and trace_dtl.jsonl. It exists so a montage or
@@ -426,6 +503,13 @@ inline QString dtlConfigHash(const DtlShaftConfig& c)
     n(c.evAbsFloor); n(c.evAbsFloorDif); i(c.contrastKsz); i(c.plateMaxFrames);
     n(c.quarantine.p95Mult); n(c.quarantine.absPx); i(c.quarantine.postImpactUs);
     n(c.quarantine.postAbsPx);
+    // The continuous-track rules (2026-10-02). Appended AFTER every field above so a
+    // run with all six off still hashes to a different value from a pre-update run
+    // — that is correct: the producer changed (kDtlShaftStageVersion 2), and the
+    // frames' byte-identity is what the OFF gate measures, not the hash.
+    i(c.held.enabled); i(c.held.maxFrames); i(c.endOnFirst); i(c.quarantineCause);
+    i(c.edge.enabled); i(c.edge.minFrames); i(c.edge.maxGapFrames); n(c.edge.minRho);
+    i(c.lenSchedule); i(c.refuseLateEscape);
     // The shared engines belong in the fingerprint too: "shaft.ridge.*" and
     // "shaft.snap.*" reach this view (fromOverrides above), so a sweep that moved
     // one of them produced a different DTL run and the hash has to say so.

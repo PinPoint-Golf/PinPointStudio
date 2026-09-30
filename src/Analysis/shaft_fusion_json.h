@@ -38,13 +38,19 @@
 
 namespace pinpoint::analysis {
 
-inline fusion::Config shaftFusionConfigFromOverrides(const QVariantMap &ov)
+inline fusion::Config shaftFusionConfigFromOverrides(const QVariantMap &ov,
+                                                     const fusion::Config &seed = fusion::Config{})
 {
     using namespace tuning;
-    fusion::Config c;
+    fusion::Config c = seed;
     apply(ov, "shaft.fusion.enabled",           c.enabled);
     apply(ov, "shaft.fusion.dtlYawDeg",         c.dtlYawDeg);
     apply(ov, "shaft.fusion.dtlPitchDeg",       c.dtlPitchDeg);
+    apply(ov, "shaft.fusion.dtlRollDeg",        c.dtlRollDeg);
+    apply(ov, "shaft.fusion.dtlOffsetX",        c.dtlOffsetM[0]);
+    apply(ov, "shaft.fusion.dtlOffsetY",        c.dtlOffsetM[1]);
+    apply(ov, "shaft.fusion.dtlOffsetZ",        c.dtlOffsetM[2]);
+    apply(ov, "shaft.fusion.calibrated",        c.calibrated);
     apply(ov, "shaft.fusion.minCond",           c.minCond);
     apply(ov, "shaft.fusion.maxGapUs",          c.maxGapUs);
     apply(ov, "shaft.fusion.minPlaneN",         c.minPlaneN);
@@ -103,8 +109,15 @@ inline QJsonObject shaftTrack3dToJson(const fusion::Track3D &t, const fusion::Co
         { "stageVersion", stageVersion },
         { "valid",        t.valid },
         { "frame",        QStringLiteral("cameras: X face-on image-right, Y face-on view ray, Z up") },
+        // The DTL camera the fusion USED. dtlYawDeg / dtlPitchDeg are the original
+        // keys (every reader before 2026-10-02); yawDeg / pitchDeg / rollDeg / offset /
+        // calibrated are the record dtl_continuous_track_design_update.md §4 names,
+        // filled from a measured calibration (camera_pose_sticks.h) when there is one.
         { "camera",       QJsonObject { { "dtlYawDeg", t.dtlYawDeg }, { "dtlPitchDeg", t.dtlPitchDeg },
-                                        { "calibrated", false } } },
+                                        { "calibrated", t.calibrated },
+                                        { "yawDeg", t.dtlYawDeg }, { "pitchDeg", t.dtlPitchDeg },
+                                        { "rollDeg", t.dtlRollDeg },
+                                        { "offset", QJsonArray { t.dtlOffsetM[0], t.dtlOffsetM[1], t.dtlOffsetM[2] } } } },
         { "address",      QJsonObject { { "inclDeg", num(t.addressInclDeg) }, { "n", t.addressN } } },
         { "deliveryVsAddressDeg", num(t.deliveryVsAddressDeg) },
         { "planes",       QJsonObject { { "back", planeJson(t.back, t.back.offered(cfg)) },

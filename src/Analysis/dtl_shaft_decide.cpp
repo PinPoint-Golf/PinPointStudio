@@ -34,6 +34,7 @@
 #include <limits>
 #include <utility>
 
+#include "dtl_shaft_bands.h"       // sightedRuns — the band / band-edge rule, pure std
 #include "shaft_track_shared.h"   // circWrap / normScores / percentile / viterbiBanded
 
 namespace pinpoint::analysis {
@@ -574,6 +575,7 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
     st.thetaDeg.assign(size_t(nf), nan);
     st.solved.assign(size_t(nf), 0);
     st.quarantined.assign(size_t(nf), 0);
+    st.quarantineCause.assign(size_t(nf), 0);
     st.sighted.assign(size_t(nf), 0);
     st.inSpan.assign(size_t(nf), 0);
     st.rowResid.assign(size_t(nf), nan);
@@ -731,6 +733,11 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
         const bool pre = i < int(anchors.quarantined.size()) && anchors.quarantined[size_t(i)];
         if (noGrip || noWrist || wide || late || pre) {
             st.quarantined[size_t(i)] = 1;
+            st.quarantineCause[size_t(i)] =
+                noGrip  ? int8_t(DtlQuarantineCause::NoGrip)
+              : noWrist ? int8_t(DtlQuarantineCause::Wrist)
+              : (wide || late) ? int8_t(DtlQuarantineCause::RowResidual)
+                               : int8_t(DtlQuarantineCause::Caller);
             st.reason[size_t(i)] =
                 noGrip  ? QStringLiteral("anchor quarantined: no grip")
               : noWrist ? QStringLiteral("anchor quarantined: wrist keypoint unconfident")
@@ -905,23 +912,34 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
         st.sighted[size_t(i)] = 1;
     }
     // Maximal runs, minBandFrames or longer. A shorter run is a flicker at an
-    // end-on edge, and a Viterbi over it is a per-frame pick in disguise.
-    for (int i = 0; i < nf; ) {
-        if (!st.sighted[size_t(i)]) { ++i; continue; }
-        int j = i;
-        while (j + 1 < nf && st.sighted[size_t(j + 1)]) ++j;
-        if (j - i + 1 < cfg.minBandFrames) {
-            for (int k = i; k <= j; ++k) {
+    // end-on edge, and a Viterbi over it is a per-frame pick in disguise — unless
+    // the band-EDGE rule (dtl_shaft_bands.h) admits it: within a couple of
+    // NON-end-on frames of a full band, where the hole is a quarantined or
+    // undecodable frame and not the schedule. The rule is pure std and lives in
+    // its own header so the test can hand it a sighted/end-on pattern directly.
+    {
+        std::vector<char> endOn(size_t(nf), 0), rhoOk(size_t(nf), 0);
+        for (int i = 0; i < nf; ++i) {
+            const double rho = st.rhoPred[size_t(i)];
+            if (cfg.schedule.enabled && witness && (!fin(rho) || rho < cfg.rhoSolveMin))
+                endOn[size_t(i)] = 1;
+            if (fin(rho) && rho >= cfg.edge.minRho) rhoOk[size_t(i)] = 1;
+        }
+        const dtlbands::Result runs = dtlbands::sightedRuns(
+            st.sighted, endOn, cfg.minBandFrames, cfg.edge.enabled, cfg.edge.minFrames,
+            cfg.edge.maxGapFrames, rhoOk);
+        for (const dtlbands::Refused& r : runs.refused)
+            for (int k = r.lo; k <= r.hi; ++k) {
                 st.sighted[size_t(k)] = 0;
                 st.reason[size_t(k)] = QStringLiteral("sighted run of %1 frames is shorter than %2")
-                                           .arg(j - i + 1).arg(cfg.minBandFrames);
+                                           .arg(r.hi - r.lo + 1).arg(cfg.minBandFrames);
             }
-        } else {
+        for (const dtlbands::Run& r : runs.bands) {
             DtlBand b;
-            b.lo = i; b.hi = j; b.loUs = tUs[size_t(i)]; b.hiUs = tUs[size_t(j)];
+            b.lo = r.lo; b.hi = r.hi; b.loUs = tUs[size_t(r.lo)]; b.hiUs = tUs[size_t(r.hi)];
+            b.edge = r.edge;
             st.bands.push_back(b);
         }
-        i = j + 1;
     }
     // Names: the nearest ladder P at each end, interpolated between entries.
     // Never gated on — they exist so a report row can be read without a clock.

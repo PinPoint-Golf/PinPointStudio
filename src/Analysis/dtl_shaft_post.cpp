@@ -366,6 +366,21 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
     // the one deferred item of this package; a half-built SEG that published a
     // terminus it had not earned would be worse than no SEG at all, so the tier
     // stays reachable only through dtlTierName and nothing emits it.
+    // ── the one TIME this half inherits (continuous-track update §3.1) ──────
+    // The late-escape rule needs to know when P8 was. That is inherited TIMING,
+    // the same kind the ball gate takes from the ladder (§5A) — never a direction
+    // and never a tier: a frame's tier is still earned from DTL pixels alone.
+    // P8 from the ladder; else impact + 150 ms (the shaft is back to parallel with
+    // the ground about then); else the rule is inert.
+    int64_t tP8 = -1;
+    if (witness) {
+        for (const auto& e : witness->ladder)
+            if (e.first == 8 && (tP8 < 0 || e.second < tP8)) tP8 = e.second;
+        if (tP8 < 0 && witness->impactUs >= 0) tP8 = witness->impactUs + 150000;
+    }
+    out.continuous = dtlContinuousAny(cfg);
+    for (const DtlBand& b : out.bands) if (b.edge) ++out.edgeBands;
+
     out.samples.reserve(size_t(nf));
     int bandIdx = 0;
     for (int i = 0; i < nf; ++i) {
@@ -388,18 +403,39 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
         s.band = inBand ? bandIdx : -1;
 
         if (!state.solved[size_t(i)]) {
-            // Order matters: a quarantined frame is OCCLUDED even where the
-            // schedule would also have called it end-on, because the anchor is the
-            // thing that failed and the reason has to say so.
             const bool inSpan = i < int(state.inSpan.size()) && state.inSpan[size_t(i)];
-            if (i < int(state.quarantined.size()) && state.quarantined[size_t(i)])
-                s.tier = DtlTier::Occluded;
+            const bool quarantined = i < int(state.quarantined.size()) && state.quarantined[size_t(i)];
             // END-ON is a claim about the GEOMETRY, so only a frame we actually
             // looked at can make it. Outside the inherited span we did not look.
-            else if (!inSpan) s.tier = DtlTier::Unseen;
-            else if (!fin(s.rhoPred) || s.rhoPred < cfg.rhoSolveMin) s.tier = DtlTier::EndOn;
-            else s.tier = DtlTier::Unseen;
+            const bool endOn = inSpan && (!fin(s.rhoPred) || s.rhoPred < cfg.rhoSolveMin);
             s.reason = (i < int(state.reason.size())) ? state.reason[size_t(i)] : QString();
+            if (cfg.endOnFirst && quarantined && endOn) {
+                // The schedule had already said nothing could be seen here; the
+                // anchor failing on top of that is a fact about the hands, not the
+                // club, and it is kept in the reason rather than in the tier. The
+                // old order let OCCLUDED outrank END_ON and the whole top of the
+                // backswing read "hands hidden" (1,078 of 2,063 corpus frames).
+                s.tier = DtlTier::EndOn;
+                ++out.endOnBeforeQuarantine;
+                s.reason = QStringLiteral("end-on ρ̂=%1 (%2)").arg(s.rhoPred, 0, 'f', 2).arg(s.reason);
+            } else if (quarantined) {
+                // The ORIGINAL order: a quarantined frame is OCCLUDED even where the
+                // schedule would also have called it end-on, because the anchor is
+                // the thing that failed and the reason has to say so.
+                const int cause = i < int(state.quarantineCause.size())
+                                      ? int(state.quarantineCause[size_t(i)]) : 0;
+                if (cfg.quarantineCause && cause == int(DtlQuarantineCause::Wrist))
+                    s.tier = DtlTier::OccludedWrist;
+                else if (cfg.quarantineCause && cause == int(DtlQuarantineCause::RowResidual))
+                    s.tier = DtlTier::OccludedRow;
+                else
+                    s.tier = DtlTier::Occluded;
+            }
+            else if (!inSpan) s.tier = DtlTier::Unseen;
+            else if (endOn)   s.tier = DtlTier::EndOn;
+            else s.tier = DtlTier::Unseen;
+            if (s.tier == DtlTier::OccludedWrist) ++out.occludedWrist;
+            if (s.tier == DtlTier::OccludedRow)   ++out.occludedRow;
             if (s.reason.isEmpty()) s.reason = QStringLiteral("not solved");
             out.samples.push_back(s);
             continue;
@@ -522,8 +558,15 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
         const bool evOk   = ev >= cfg.evRay;
         const bool lcOk   = snapAcc[size_t(i)] && fin(snapBest[size_t(i)])
                             && snapBest[size_t(i)] >= cfg.lineConfRay;
+        // ── a corridor escape after P8 is not a club (continuous-track §3.1) ──
+        // The solved θ left the face-on corridor on a frame after the shaft was
+        // last parallel to the ground: measured on the corpus these are θ ≈ 2π
+        // with the head parked at the frame edge. Refused on TIMING alone — the
+        // corridor is face-on's, the time is P8's, the pixels never earned it.
+        const bool lateEscape = cfg.refuseLateEscape && s.corridorEscape && tP8 >= 0
+                                && tUs[size_t(i)] > tP8;
         const bool rayOk = (evOk || lcOk) && sup >= cfg.supRay && beatsReverse && !vetoed
-                           && longEnough && !lenIsFloor;
+                           && longEnough && !lenIsFloor && !lateEscape;
         // Ev unless the LINE is what let this frame through: an absence satisfied
         // neither gate and must not read as though it satisfied the second.
         s.evSrc = (rayOk && !evOk && lcOk) ? DtlEvSrc::LineConf : DtlEvSrc::Ev;
@@ -546,7 +589,9 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
             s.tier     = DtlTier::Unseen;
             s.thetaRad = dtl::kNan;
             s.gripPx   = QPointF(gx[size_t(i)], gy[size_t(i)]);   // unpublished ⇒ the pose anchor, unmoved
-            s.reason   = vetoed        ? QStringLiteral("solved direction runs into a %1")
+            if (lateEscape) ++out.lateEscapesRefused;
+            s.reason   = lateEscape    ? QStringLiteral("corridor escape after P8 — not published")
+                       : vetoed        ? QStringLiteral("solved direction runs into a %1")
                                              .arg(QLatin1String(
                                                  dtlLimbName(int(state.ARMJOINT[size_t(i)][size_t(bi)]))))
                        : !beatsReverse ? QStringLiteral("reverse ray as strong (ev %1 vs %2)")
@@ -575,12 +620,77 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
                                                          "not a measurement")
                                              .arg(runPx, 0, 'f', 0);
         }
-        if (s.tier >= DtlTier::Ray && fin(runPx) && runPx > 0.0) {
+        if (dtlMeasured(s.tier) && fin(runPx) && runPx > 0.0) {
             s.lenPx  = runPx;
-            s.headPx = QPointF(s.gripPx.x() + runPx * std::cos(s.thetaRad),
-                               s.gripPx.y() + runPx * std::sin(s.thetaRad));
+            // ── one drawn length (continuous-track §3.1) ─────────────────────
+            // The visibility law's own ρ̂_D · L̂_D, L̂_D from the ball at address and
+            // held for the swing, in place of the per-frame switch between three
+            // measured runs. The run the ladder judged stays beside it as runPx;
+            // the tier was decided on the run and is not touched here.
+            const double schedLen = (cfg.lenSchedule && fin(state.lFullPx) && fin(s.rhoPred))
+                                        ? s.rhoPred * state.lFullPx : nan;
+            if (fin(schedLen) && schedLen > 0.0) {
+                s.runPx  = runPx;
+                s.lenPx  = schedLen;
+                s.lenSrc = DtlLenSrc::Schedule;
+            }
+            s.headPx = QPointF(s.gripPx.x() + s.lenPx * std::cos(s.thetaRad),
+                               s.gripPx.y() + s.lenPx * std::sin(s.thetaRad));
         }
         out.samples.push_back(s);
+    }
+
+    // ── the HELD tier (continuous-track §3.1) ───────────────────────────────
+    // Inside ONE band, a run of at most held.maxFrames frames that earned no tier,
+    // with a MEASURED frame of the same band on BOTH sides, keeps the band's own
+    // Viterbi θ_D (snapped where the snap was accepted) at the neighbours'
+    // confidence. Never at a band's edge, never across a band boundary — and the
+    // band boundaries are where the end-on gaps are, so this cannot bridge one by
+    // construction. The refusal it overrides is kept in the reason.
+    if (cfg.held.enabled && cfg.held.maxFrames > 0) {
+        const int n = int(out.samples.size());
+        for (int i = 0; i < n; ) {
+            DtlSample& a = out.samples[size_t(i)];
+            if (a.band < 0 || dtlMeasured(a.tier)) { ++i; continue; }
+            int j = i;
+            while (j + 1 < n && out.samples[size_t(j + 1)].band == a.band
+                   && !dtlMeasured(out.samples[size_t(j + 1)].tier)) ++j;
+            const bool leftOk  = i > 0 && out.samples[size_t(i - 1)].band == a.band
+                                 && dtlMeasured(out.samples[size_t(i - 1)].tier);
+            const bool rightOk = j + 1 < n && out.samples[size_t(j + 1)].band == a.band
+                                 && dtlMeasured(out.samples[size_t(j + 1)].tier);
+            if (leftOk && rightOk && (j - i + 1) <= cfg.held.maxFrames) {
+                const DtlSample& L = out.samples[size_t(i - 1)];
+                const DtlSample& R = out.samples[size_t(j + 1)];
+                for (int k = i; k <= j; ++k) {
+                    DtlSample& h = out.samples[size_t(k)];
+                    if (!state.solved[size_t(k)] || !fin(thetaOutDeg[size_t(k)])) continue;
+                    h.tier     = DtlTier::Held;
+                    h.thetaRad = thetaOutDeg[size_t(k)] * kPi / 180.0;
+                    h.gripPx   = QPointF(gxOut[size_t(k)], gyOut[size_t(k)]);
+                    h.conf     = std::min(L.conf, R.conf);
+                    // The drawn length: the schedule's where it is on, else the
+                    // neighbours' mean — a held frame measured no run of its own.
+                    double len = nan;
+                    if (cfg.lenSchedule && fin(state.lFullPx) && fin(h.rhoPred))
+                        len = h.rhoPred * state.lFullPx;
+                    else if (fin(L.lenPx) && fin(R.lenPx))
+                        len = 0.5 * (L.lenPx + R.lenPx);
+                    if (fin(len) && len > 0.0) {
+                        h.lenPx  = len;
+                        h.lenSrc = (cfg.lenSchedule && fin(state.lFullPx) && fin(h.rhoPred))
+                                       ? DtlLenSrc::Schedule : L.lenSrc;
+                        h.headPx = QPointF(h.gripPx.x() + len * std::cos(h.thetaRad),
+                                           h.gripPx.y() + len * std::sin(h.thetaRad));
+                    }
+                    h.runPx  = nan;
+                    h.reason = QStringLiteral("held: %1-frame hole between measured frames (was: %2)")
+                                   .arg(j - i + 1).arg(h.reason);
+                    ++out.held;
+                }
+            }
+            i = j + 1;
+        }
     }
 
     // The two coverage numbers §5.9 insists on, and the pin it insists on
@@ -590,7 +700,9 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
     int published = 0, inBandFrames = 0;
     for (const DtlSample& s : out.samples) {
         if (s.band >= 0) ++inBandFrames;
-        if (s.tier >= DtlTier::Ray) {
+        // A HELD frame is drawn, not published: it counts toward nothing here, and
+        // it is inside a band by construction, so the end-on pin is not asked of it.
+        if (dtlMeasured(s.tier)) {
             ++published;
             if (!fin(s.rhoPred) || s.rhoPred < cfg.rhoSolveMin) ++out.publishedInEndOn;
         }
@@ -626,11 +738,12 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
         }
     }
 
-    // The witness is not read here: every inheritance it carries was consumed by
-    // the solve, and re-reading it after the fact is how a tier ends up decided on
-    // face-on's word (§5.9). `geom` is the segment probe's club geometry and waits
-    // with the SEG tier above.
-    (void)witness; (void)geom;
+    // The witness is read here for ONE thing: the P8 instant of the late-escape
+    // rule (above). Every other inheritance it carries was consumed by the solve,
+    // and re-reading it after the fact is how a tier ends up decided on face-on's
+    // word (§5.9). `geom` is the segment probe's club geometry and waits with the
+    // SEG tier above.
+    (void)geom;
     return out;
 }
 

@@ -685,6 +685,21 @@ pp_add_test(shaft_plane_test SOURCES shaft_plane_test.cpp NO_QT)
 # the bridge but kept out of the fit. Pure std header — no Qt, no OpenCV, no fixture.
 pp_add_test(shaft_fusion_test SOURCES shaft_fusion_test.cpp NO_QT)
 
+# The stick-based camera pose solve (camera_pose_sticks.h; camera_calibration_design.md §4.4,
+# dtl_continuous_track_design_update.md §4 item 1): one synthetic bay, two cameras with
+# deliberate yaw/pitch/roll and ROI'd principal points, lines fitted through projected stick
+# points; the pose and the DTL-relative-to-face-on numbers must come back exactly.
+pp_add_test(camera_pose_sticks_test SOURCES camera_pose_sticks_test.cpp NO_QT)
+
+# The sighted-band rule and its band-EDGE extension (dtl_shaft_bands.h;
+# dtl_continuous_track_design_update.md §3.1): pure std over sighted/end-on patterns.
+pp_add_test(dtl_shaft_bands_test SOURCES dtl_shaft_bands_test.cpp NO_QT)
+
+# The 3-D synthetic shaft projected into the DTL tile (dtl_shaft_synth3d.h;
+# dtl_continuous_track_design_update.md §3.2): a synthetic swing on known planes, the face-on
+# angle de-projected and re-projected must land on the true DTL angle; dark by default.
+pp_add_test(dtl_shaft_synth3d_test SOURCES dtl_shaft_synth3d_test.cpp NO_QT)
+
 # The 3-D swing skeleton (skeleton3d/, swing_3d_viz_design.md §8.1): the rig rebuilds its own
 # rest pose and its hinges bend the right way; the analytic Jacobian matches central
 # differences; a synthetic swing through two virtual cameras recovers bone direction AND roll;

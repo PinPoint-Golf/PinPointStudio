@@ -75,7 +75,18 @@ QJsonObject dtlShaftConfigJson(const DtlShaftConfig& cfg)
         { "quarantinePostAbsPx",  cfg.quarantine.postAbsPx },
         { "revArmDeg",            cfg.rev.armDeg },
         { "revArmMinPx",          cfg.rev.armMinPx },
-        { "lineConfRay",          cfg.lineConfRay } };
+        { "lineConfRay",          cfg.lineConfRay },
+        // The continuous-track rules (design update §3.1, 2026-10-02).
+        { "heldEnabled",          cfg.held.enabled },
+        { "heldMaxFrames",        cfg.held.maxFrames },
+        { "endOnFirst",           cfg.endOnFirst },
+        { "quarantineCause",      cfg.quarantineCause },
+        { "edgeEnabled",          cfg.edge.enabled },
+        { "edgeMinFrames",        cfg.edge.minFrames },
+        { "edgeMaxGapFrames",     cfg.edge.maxGapFrames },
+        { "edgeMinRho",           cfg.edge.minRho },
+        { "lenSchedule",          cfg.lenSchedule },
+        { "refuseLateEscape",     cfg.refuseLateEscape } };
 }
 
 QJsonObject dtlShaftTrackToJson(const DtlShaftTrack2D& track, int64_t t0Us,

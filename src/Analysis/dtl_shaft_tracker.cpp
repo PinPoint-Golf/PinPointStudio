@@ -190,7 +190,7 @@ DtlShaftTrack2D DtlShaftTracker::track(const pinpoint::SwingWindow& window,
     // witness interpolates across the ~3.2 ms phase difference.
     out.clockOffsetUs = 0;
 
-    int tierCount[6] = {0, 0, 0, 0, 0, 0};
+    int tierCount[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
     int vetoedAtSolve = 0, escapes = 0, snapN = 0, gated = 0, limbVetoed = 0, bound = 0;
     std::vector<double> snapOffsets;
     for (int i = 0; i < int(out.samples.size()); ++i) {
@@ -224,6 +224,9 @@ DtlShaftTrack2D DtlShaftTracker::track(const pinpoint::SwingWindow& window,
              << "UNSEEN" << tierCount[int(DtlTier::Unseen)]
              << "END_ON" << tierCount[int(DtlTier::EndOn)]
              << "OCCLUDED" << tierCount[int(DtlTier::Occluded)]
+             << "OCCLUDED_WRIST" << tierCount[int(DtlTier::OccludedWrist)]
+             << "OCCLUDED_ROW" << tierCount[int(DtlTier::OccludedRow)]
+             << "HELD" << tierCount[int(DtlTier::Held)]
              << "| sightedFrac" << out.sightedFrac
              << "publishedInEndOn" << out.publishedInEndOn
              << "| ball" << (st.ball.found ? "yes" : "no") << st.ball.x << st.ball.y
@@ -233,6 +236,10 @@ DtlShaftTrack2D DtlShaftTracker::track(const pinpoint::SwingWindow& window,
              << "| D2 vetoed-at-solve" << limbVetoed << "escapes" << escapes
              << "| ballGated" << gated << "ρ̂ bound" << bound
              << "| snap" << snapN << "median" << snapMedian << "px"
+             << "| continuous" << out.continuous << "held" << out.held
+             << "lateEscapesRefused" << out.lateEscapesRefused
+             << "endOnBeforeQuarantine" << out.endOnBeforeQuarantine
+             << "edgeBands" << out.edgeBands
              << "," << wall.elapsed() << "ms";
     for (int b = 0; b < int(out.bands.size()); ++b) {
         int nB = 0, nPub = 0, sPlus = 0, sMinus = 0, esc = 0;
@@ -244,10 +251,14 @@ DtlShaftTrack2D DtlShaftTracker::track(const pinpoint::SwingWindow& window,
             }
             if (i < int(st.corridorEscape.size()) && st.corridorEscape[size_t(i)]) ++esc;
         }
-        for (const DtlSample& s : out.samples)
-            if (s.band == b && s.tier >= DtlTier::Ray) ++nPub;
+        int nHeld = 0;
+        for (const DtlSample& s : out.samples) {
+            if (s.band == b && dtlMeasured(s.tier)) ++nPub;
+            if (s.band == b && s.tier == DtlTier::Held) ++nHeld;
+        }
         ppInfo() << "[DtlShaftTracker]   band" << b << qPrintable(out.bands[size_t(b)].name)
-                 << "frames" << nB << "published" << nPub
+                 << (out.bands[size_t(b)].edge ? "(edge)" : "")
+                 << "frames" << nB << "published" << nPub << "held" << nHeld
                  << "corrSign +/-" << sPlus << sMinus << "escapes" << esc;
     }
     if (!out.valid)
