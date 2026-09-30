@@ -1534,6 +1534,9 @@ int main()
         b.shaft.camera = 3; b.shaft.valid = true; b.shaft.coverage = 0.91f; b.shaft.imuVisionCorr = 0.5f;
         b.shaft.frameWidth = 1280; b.shaft.frameHeight = 1024;
         b.shaft.measuredClubLenPx = 301.5f; b.shaft.modelVisionResidualDeg = 2.5f;
+        // 2026-10-01 robustness self-checks: the diag block and the refusal reason.
+        b.shaft.refusedReason = 1; b.shaft.onsetRule = 2; b.shaft.phaseRetries = 1; b.shaft.phaseSuspect = true;
+        b.shaft.p1BallDeltaDeg = 31.5f; b.shaft.lenBallRatio = 1.46f;
         for (int i = 0; i < 6; ++i) {
             ShaftSample2D s;
             s.t_us = 300000 + i * 8333; s.gripPx = QPointF(600 + 5 * i, 650 - 3 * i);
@@ -1572,6 +1575,19 @@ int main()
             check(t.valid && t.camera == 3 && t.frameWidth == 1280 && t.frameHeight == 1024, "club: header fields");
             check(near(t.coverage, 0.91, 1e-6) && near(t.measuredClubLenPx, 301.5, 1e-3)
                       && near(t.modelVisionResidualDeg, 2.5, 1e-6), "club: scalars");
+            check(t.refusedReason == 1 && t.onsetRule == 2 && t.phaseRetries == 1 && t.phaseSuspect
+                      && near(t.p1BallDeltaDeg, 31.5, 1e-4) && near(t.lenBallRatio, 1.46, 1e-4),
+                  "club: diag + refused round-trip (2026-10-01 self-checks)");
+            {
+                const QJsonObject clubJ = an2[QStringLiteral("club")].toObject();
+                check(clubJ.value(QStringLiteral("refused")).toString() == QLatin1String("p1BallConflict"),
+                      "club.refused is the reason NAME, not a code");
+                QJsonObject rootRef = SwingStore::load(dir2);
+                const QVariantMap warn = pinpoint::dataWarningDetailFrom(rootRef);
+                check(warn.value(QStringLiteral("clubRefused")).toString() == QLatin1String("p1BallConflict")
+                          && !warn.contains(QStringLiteral("capture")),
+                      "dataWarningDetailFrom: a refused club is a ⚠ fact WITHOUT the capture/imu exclusion facts");
+            }
             check(t.samples.size() == 6 && t.predicted.size() == 1 && t.synth.size() == 1 && t.positions.size() == 2,
                   "club: sample / predicted / synth / position counts");
             bool samplesExact = true;

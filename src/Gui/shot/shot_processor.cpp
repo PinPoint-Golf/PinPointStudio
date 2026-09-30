@@ -438,7 +438,9 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
     // club grip/head normalized 0..1 so QML never sees pixel spaces.
     if (!a.pose2d.frames.empty())
         detail.insert(QStringLiteral("pose2d"), poseTrackToDetail(a.pose2d));
-    if (a.shaft.valid && !a.shaft.samples.empty()
+    // A refused track (2026-10-01) is carried too — valid=false with `refused`/`diag` — so the
+    // live card's ⚠ and the overlay gate see the reason; mirrors swing_doc.cpp.
+    if ((a.shaft.valid || a.shaft.refusedReason) && !a.shaft.samples.empty()
         && a.shaft.frameWidth > 0 && a.shaft.frameHeight > 0) {
         const double iw = 1.0 / a.shaft.frameWidth, ih = 1.0 / a.shaft.frameHeight;
         QVariantList samples;
@@ -535,6 +537,24 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
             clubMap.insert(QStringLiteral("addressBall"),
                            QVariantList{ a.shaft.addressBallPx.x() / a.shaft.frameWidth,
                                          a.shaft.addressBallPx.y() / a.shaft.frameHeight });
+        // Mirrors swing_doc.cpp's analysis.club.diag / analysis.club.refused
+        // (2026-10-01 robustness self-checks). Times here are absolute like the
+        // samples' t_us in this map.
+        clubMap.insert(QStringLiteral("diag"), QVariantMap{
+            { QStringLiteral("onsetRule"),      a.shaft.onsetRule },
+            { QStringLiteral("phaseRetries"),   a.shaft.phaseRetries },
+            { QStringLiteral("phaseSuspect"),   a.shaft.phaseSuspect },
+            { QStringLiteral("p1BallDeltaDeg"), double(a.shaft.p1BallDeltaDeg) },
+            { QStringLiteral("lenBallRatio"),   double(a.shaft.lenBallRatio) },
+            { QStringLiteral("onsetTUs"),       double(a.shaft.onsetTUs) },
+            { QStringLiteral("topTUs"),         double(a.shaft.topTUs) },
+            { QStringLiteral("handPairFixed"),  a.shaft.handPairFixed },
+            { QStringLiteral("handGlitchFixed"), a.shaft.handGlitchFixed },
+            { QStringLiteral("ballSuspect"),    a.shaft.ballSuspect },
+            { QStringLiteral("handsRetried"),   a.shaft.handsRetried } });
+        if (a.shaft.refusedReason)
+            clubMap.insert(QStringLiteral("refused"),
+                           QString::fromLatin1(pinpoint::analysis::shaftRefusedReasonName(a.shaft.refusedReason)));
         // Mirrors swing_doc.cpp's analysis.club.wedgeObs.
         if (!a.shaft.wedgeObs.empty()) {
             QVariantList wo;
@@ -2183,6 +2203,13 @@ void ShotProcessor::maybeJoin()
                 }
             }
             out.dataWarningDetail = pinpoint::dataWarningDetailFrom(out.manifest);
+            // The live manifest carries no `analysis` block yet, so the refused-club fact
+            // (swing_doc.cpp dataWarningDetailFrom reads analysis.club.refused on disk) is
+            // added from the in-memory track here — same key, same card tooltip.
+            if (m_analysisResult.detail && m_analysisResult.detail->shaft.refusedReason)
+                out.dataWarningDetail.insert(QStringLiteral("clubRefused"),
+                    QString::fromLatin1(pinpoint::analysis::shaftRefusedReasonName(
+                        m_analysisResult.detail->shaft.refusedReason)));
 
             // The ONE unified swing.json (raw manifest + inline "analysis"). No parallel-write race:
             // the export worker wrote only media and returned, and the analyzer returned a value.

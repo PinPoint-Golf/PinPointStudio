@@ -508,8 +508,14 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
     // already keeps out of every denominator (diagnostic_ledger.h tierAtPrefix). Done
     // here rather than in the ledger arithmetic so the reason reads in the corridor
     // slot like any other withheld row, and the ledger needs no new rule.
-    if (summary.dataWarning) {
-        rec.dataWarning = true;
+    // A refused CLUB track (dataWarningDetail.clubRefused, 2026-10-01) also carries
+    // the ⚠ but withholds nothing here: its club rows are already absent (the
+    // track is invalid, so no club-derived producer ran) and the body/wrist rows
+    // are untouched by it. Only the two recording-integrity facts exclude the shot.
+    if (summary.dataWarning) rec.dataWarning = true;
+    if (summary.dataWarning
+        && (summary.dataWarningDetail.value(QStringLiteral("capture")).toBool()
+            || summary.dataWarningDetail.value(QStringLiteral("imu")).toBool())) {
         for (ConditionRow &r : rec.rows) {
             r.state               = ShotState::NotAssessable;
             r.direction           = 0;

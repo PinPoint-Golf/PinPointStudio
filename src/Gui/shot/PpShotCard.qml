@@ -72,7 +72,25 @@ Rectangle {
             parts.push(qsTr("IMU data integrity check failed — the recorded motion data is "
                             + "inconsistent (orientation re-fusion mismatch), so this shot "
                             + "cannot be re-analysed."))
-        parts.push(qsTr("This shot is not included in the session assessment."))
+        if (d.capture || d.imu)
+            parts.push(qsTr("This shot is not included in the session assessment."))
+        // A refused club track (analysis.club.refused): the tracker's own witnesses
+        // contradicted what it saw, so nothing from the face-on club is shown or
+        // measured on this shot; body and wrist measurements are unaffected.
+        if (d.clubRefused) {
+            const why = d.clubRefused === "p1BallConflict"
+                          ? qsTr("the shaft at address did not point at the ball")
+                          : d.clubRefused === "phaseSuspect"
+                          ? qsTr("the takeaway could not be found from the hands")
+                          : d.clubRefused === "lengthConflict"
+                          ? qsTr("the club length at address disagreed with the ball distance")
+                          : d.clubRefused === "handsUnusable"
+                          ? qsTr("the pose could not place the hands on most frames")
+                          : d.clubRefused
+            parts.push(qsTr("The club track was refused (%1), so the club is not drawn and "
+                            + "club measurements show \"-\" on this shot. Body and wrist "
+                            + "measurements are unaffected.").arg(why))
+        }
         return parts.join(" ")
     }
 

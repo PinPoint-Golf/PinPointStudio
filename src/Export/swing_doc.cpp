@@ -118,9 +118,24 @@ QVariantMap dataWarningDetailFrom(const QJsonObject &manifest)
             d.insert(QStringLiteral("worstMaxDeg"), ii.value(QStringLiteral("worstMaxDeg")).toDouble());
         }
     }
-    if (!capture && !imu) return {};
-    d.insert(QStringLiteral("capture"), capture);
-    d.insert(QStringLiteral("imu"),     imu);
+    // A REFUSED club track (2026-10-01, analysis.club.refused): the tracker's own
+    // witnesses contradicted it, so nothing from the face-on club is a measurement
+    // on this shot. Unlike the two integrity blocks this does NOT withhold the
+    // shot's body/wrist rows from the session assessment — the club rows are
+    // simply absent (valid=false ⇒ every club-derived stage skipped) — so the
+    // consumers that key the all-rows exclusion on `capture`/`imu` keep doing so.
+    QString clubRefused;
+    if (manifest.contains(QStringLiteral("analysis"))) {
+        const QJsonObject club = manifest[QStringLiteral("analysis")].toObject()
+                                     .value(QStringLiteral("club")).toObject();
+        clubRefused = club.value(QStringLiteral("refused")).toString();
+    }
+    if (!capture && !imu && clubRefused.isEmpty()) return {};
+    if (capture || imu) {
+        d.insert(QStringLiteral("capture"), capture);
+        d.insert(QStringLiteral("imu"),     imu);
+    }
+    if (!clubRefused.isEmpty()) d.insert(QStringLiteral("clubRefused"), clubRefused);
     return d;
 }
 
@@ -397,7 +412,10 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
     // for re-analysis reuse (swing_reanalyzer.cpp). Absent when no DTL pose ran.
     if (!a.poseDtl.frames.empty())
         o[QStringLiteral("poseDtl")] = poseTrackToJson(a.poseDtl, windowT0);
-    if (a.shaft.valid && !a.shaft.samples.empty()
+    // A REFUSED track (2026-10-01) is written too — valid=false with `refused` and `diag`,
+    // samples kept for the lab — so the reason survives into the ⚠ and the reload. A track
+    // that merely failed the coverage gate is still omitted, as before.
+    if ((a.shaft.valid || a.shaft.refusedReason) && !a.shaft.samples.empty()
         && a.shaft.frameWidth > 0 && a.shaft.frameHeight > 0) {
         const double iw = 1.0 / a.shaft.frameWidth, ih = 1.0 / a.shaft.frameHeight;
         QJsonArray samples;
@@ -553,6 +571,24 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
         if (a.shaft.ballAnchored)
             clubObj.insert(QStringLiteral("addressBall"),
                            QJsonArray{ a.shaft.addressBallPx.x() * iw, a.shaft.addressBallPx.y() * ih });
+        // Robustness self-checks (2026-10-01, swing_analysis.h ShaftTrack2D): how the
+        // phase model found its takeaway, whether it was suspect, and the two witness
+        // checks. `refused` names the reason when the track was refused (valid=false).
+        clubObj.insert(QStringLiteral("diag"), QJsonObject{
+            { QStringLiteral("onsetRule"),      a.shaft.onsetRule },
+            { QStringLiteral("phaseRetries"),   a.shaft.phaseRetries },
+            { QStringLiteral("phaseSuspect"),   a.shaft.phaseSuspect },
+            { QStringLiteral("p1BallDeltaDeg"), double(a.shaft.p1BallDeltaDeg) },
+            { QStringLiteral("lenBallRatio"),   double(a.shaft.lenBallRatio) },
+            { QStringLiteral("onsetTUs"),       a.shaft.onsetTUs >= 0 ? rel(a.shaft.onsetTUs) : -1.0 },
+            { QStringLiteral("topTUs"),         a.shaft.topTUs   >= 0 ? rel(a.shaft.topTUs)   : -1.0 },
+            { QStringLiteral("handPairFixed"),  a.shaft.handPairFixed },
+            { QStringLiteral("handGlitchFixed"), a.shaft.handGlitchFixed },
+            { QStringLiteral("ballSuspect"),    a.shaft.ballSuspect },
+            { QStringLiteral("handsRetried"),   a.shaft.handsRetried } });
+        if (a.shaft.refusedReason)
+            clubObj.insert(QStringLiteral("refused"),
+                           QString::fromLatin1(analysis::shaftRefusedReasonName(a.shaft.refusedReason)));
         if (!a.shaft.wedgeObs.empty()) {
             QJsonArray wo;
             for (const ShaftWedgeObs &w : a.shaft.wedgeObs)

@@ -1186,9 +1186,13 @@ Item {
                 return (d && d.ball && d.ball.samples) ? d.ball.samples : []
             }
             // R7 predicted (pure R6 model) series — drawn as a dashed ghost.
+            // A REFUSED track (club.valid false with club.refused set, 2026-10-01) draws
+            // nothing: not the synth, not the predicted ghost, not the P-positions — the
+            // tracker's own witnesses contradicted it, so none of it is a club position.
+            // Gated on club.valid like _clubSamples.
             readonly property var _clubPredicted: {
                 var d = root._det
-                return (d && d.club && d.club.predicted) ? d.club.predicted : []
+                return (d && d.club && d.club.valid && d.club.predicted) ? d.club.predicted : []
             }
             // Layer C synthesized tier (shaft_position_first §2C) — kinematic
             // boundary-value fit interpolated between P anchors, each flagged
@@ -1196,7 +1200,7 @@ Item {
             // absent/empty on pre-v3.5 swings and when synth extraction is off.
             readonly property var _clubSynth: {
                 var d = root._det
-                return (d && d.club && d.club.synth) ? d.club.synth : []
+                return (d && d.club && d.club.valid && d.club.synth) ? d.club.synth : []
             }
             // Fan visualization series: the dense 240 Hz synth tier. Metrics never
             // read this (synth is ShaftSynthesized-flagged and excluded from all
@@ -1248,7 +1252,7 @@ Item {
             // position extraction is off.
             readonly property var _clubPositions: {
                 var d = root._det
-                return (d && d.club && d.club.positions) ? d.club.positions : []
+                return (d && d.club && d.club.valid && d.club.positions) ? d.club.positions : []
             }
             readonly property int kTrail: 10
 

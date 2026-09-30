@@ -187,6 +187,28 @@ Item {
             verify(t.indexOf("not included in the session assessment") >= 0)
         }
 
+        // 2026-10-01 tracker robustness: a REFUSED club track is its own ⚠ fact. The
+        // shot stays in the session assessment (only capture/IMU facts exclude it).
+        function test_a_refused_club_track_is_described_and_does_not_exclude_the_shot() {
+            card.dataWarning = true
+            card.dataWarningDetail = ({ clubRefused: "p1BallConflict" })
+            const t = card.dataWarningText
+            verify(t.indexOf("club track was refused") >= 0)
+            verify(t.indexOf("did not point at the ball") >= 0)
+            verify(t.indexOf("show \"-\"") >= 0)
+            verify(t.indexOf("Body and wrist measurements are unaffected") >= 0)
+            verify(t.indexOf("not included in the session assessment") < 0)
+            card.dataWarningDetail = ({ clubRefused: "handsUnusable" })
+            verify(card.dataWarningText.indexOf("could not place the hands") >= 0)
+            // beside a capture hole the exclusion sentence returns, and both facts read
+            card.dataWarningDetail = ({ capture: true, imu: false, holes: 1, framesLost: 4,
+                                        worstHoleMs: 40, preImpact: true, postImpact: false,
+                                        clubRefused: "phaseSuspect" })
+            const u = card.dataWarningText
+            verify(u.indexOf("not included in the session assessment") >= 0)
+            verify(u.indexOf("takeaway could not be found") >= 0)
+        }
+
         function test_several_holes_are_described_in_the_plural() {
             card.dataWarning       = true
             card.dataWarningDetail = ({ capture: true, imu: false, holes: 3,
