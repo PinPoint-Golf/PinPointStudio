@@ -1,6 +1,6 @@
 # The down-the-line club track: why it is sporadic, why it cannot synthesise itself, and what makes it continuous
 
-**Status:** design update, 30 Sept 2026. Seeds the two-camera protocol session
+**Status:** design update, 30 Sept 2026; §3.2a added 1 Oct 2026 after §3.1 shipped. Seeds the two-camera protocol session
 (`docs/validation/two_camera_capture_protocol.md`). Supersedes nothing yet: the DTL tracker's
 "never bridge an end-on gap" rule (`dtl_shaft_tracker_design.md` §5.8–5.9) stays for what the
 tracker *measures*; this note is about what the product *draws and computes* in the gaps, and what
@@ -118,6 +118,123 @@ Skeleton3d already fits a continuous 3-D club with a plane prior and has a "DTL 
 the 3-D view; the shortest path to a first drawn line is to project *that* onto the tile, as a
 preview, before the fusion-plane product replaces it.
 
+### 3.2a Before the calibration: four improvements the two views already carry (added 1 Oct 2026)
+
+*Written after §3.1 shipped (`dtl_continuous_20261002.md`) and after a first reading of the
+re-analysed 4 July session. Mark's question: "are there any improvements we can put into the
+synthetic and fused tracks before we have calibration?" There are four, and they are ordered by
+what each buys. None needs a stick clip; each is gated on data that exists; each ships dark
+until its gate passes. What none of them reaches is stated at the end, so the calibration is not
+mistaken for optional.*
+
+**Where things stand.** The fused track (`club3d`) exists only on frames the DTL tracker
+MEASURED, in bands, bridged on the face-on side by the Layer C synth where face-on coasted. The
+continuous 3-D club that the kinematic sequence and the 3-D panel use is not the fused track: it
+is the face-on synth de-projected through the fused *downswing* plane (the sequence), and the
+skeleton fit's own club held to the plane where DTL is blind (the panel). §3.1's new DTL synth is
+that same de-projection, in-plane, projected back into the DTL tile. The in-plane assumption is
+the thing all three share, and it is the thing the DTL view can correct.
+
+**(A) The out-of-plane angle η(t) from the DTL view's own frames** — the deferred §5.8 item of
+the tracker design, and the piece §3.2 names as "the right place for the DTL's information to
+enter".
+
+- *Signal.* Every fused frame already carries `oopDeg`: the signed angle of its direction off
+  its phase's fitted plane. Unlike θ_D, η is finite and smooth through P2, the top and P6, so it
+  can be fitted across the end-on gaps where θ_D cannot.
+- *Fit.* One smooth curve per swing over address → P8 (a cubic smoothing spline or a Hermite
+  through per-band medians; knots every ~30 ms), fitted on frames that are face-on-MEASURED,
+  unflagged (`signDisagree`, `illConditioned`, `offPlane` all clear) and not `bridged`; pulled
+  to zero with a weak prior where no band is within ~150 ms, so a gap coasts to in-plane
+  rather than extrapolating a slope.
+- *Use.* De-project the face-on synth angle through the plane **rotated by η(t) about the
+  face-on view line of that frame** — equivalently, choose the direction in the face-on view
+  plane that sits η(t) off the phase plane, on the side the sign says. That direction is the
+  continuous 3-D shaft; project it into the DTL tile as §3.1's synth does now.
+- *Why it survives the unknown yaw.* η is a residual within one camera model, like the
+  inclination, which moved ≤ 1° over ±15° of yaw. The heading still moves 1:1 with yaw; the
+  shape does not.
+- *Gate.* Leave-one-band-out on the 21 DTL swings: fit η without a band, predict θ_D on that
+  band's measured frames through the de-projection, and compare with what the tracker measured
+  (p50/p90 in degrees, per band family). Pass = the prediction with η beats the in-plane
+  prediction on the mid-backswing and delivery bands and is no worse anywhere; the fused
+  planes and every metric unchanged (the curve feeds the synth and the tile, nothing else, until
+  a separate decision moves the sequence onto it).
+- *Files.* `shaft_fusion.h` (the fit, pure std, beside `fitPlane`); `dtl_shaft_synth3d.h` (an
+  η input to `deproject`); `club3d` JSON gains `eta: {knots, values, n, rms}`; `synth3d` samples
+  gain `etaDeg`. Test: a synthetic swing with a known sinusoidal η recovered through the gaps.
+
+**(B) The camera from the skeleton fit** — a self-calibration from the golfer's body rather
+than from a stick.
+
+- *Signal.* `skeleton3d` fits both cameras (`fitCameras`, `fitDtlRoll`): on 07-04 s7 it reads
+  the two views' ground-plane rays 77.8° apart, i.e. a DTL yaw of about 12° from square, plus a
+  pitch and a roll. The session pool (`skeleton3d_pool.h`) medians the shared values per
+  session. The fusion and the DTL synth assume 0, 0, 0.
+- *Cross-check first, then use.* The alignment-stick probe (`dtl_yaw_probe.py`) read 4–9° on the
+  same rig, depending on the assumed distance. Before either number is trusted: put the skeleton's
+  per-swing yaw, its session median and the stick probe's range side by side for 07-04 s4–15
+  and 06-11 s1–9. Agreement within ~3° makes the skeleton's camera the fusion's seed (it fills
+  `ShotAnalysisJob::dtlCameraCalib` with `source: "skeleton3d pool"`, `calibrated` still false,
+  a new `estimated: true`); disagreement is a finding about one of the two and stops here.
+- *What it changes.* The fused planes' heading and the DTL synth's drawn heading — on s7 the
+  synth read 61° at P1 against a measured 55°, which is this yaw. Inclination barely.
+- *Gate.* With the skeleton camera in, the DTL synth's θ_D on MEASURED frames (where it can be
+  compared) must land nearer the tracker than with the zero camera, per band, on the 21 swings;
+  the corpus's `deliveryVsAddressDeg` spread across a session must not widen; the sequence's club
+  node timing (`clubheadPeakLead` sd) must not worsen. Ships behind `shaft.fusion.cameraFromSkeleton`.
+- *Caveat.* The skeleton's camera model is pinhole with an assumed principal point and no lens
+  distortion, and its lengths are frozen to the height for that reason (`fitLengths` note). Its
+  yaw is a measurement with an unstated uncertainty; the cross-check is what states it.
+
+**(C) Anchor the fusion on the DTL view at impact** — the mirror of what the DTL synth does
+with face-on, at the one moment the roles reverse.
+
+- *Why.* Face-on coasts through impact (the club is a fan); DTL sees impact sharply, in plain
+  view, at ρ̂_D ≈ 0.95. Today the fused frames there are `bridged`: the DTL measurement is
+  intersected with the face-on *synth*, so the impact direction rests on the weaker witness.
+- *Rule.* On a frame where the DTL tracker MEASURED and face-on did not (the bracket is not
+  measured on both sides), take the direction as the DTL view plane's intersection with the
+  phase's fitted plane — the same de-projection as the address plane and as (A), from the
+  other camera. Flag it `dtlAnchored`; keep it out of the plane fits like `bridged`; publish it
+  in `club3d.frames` beside the bridged value so the two can be compared on every such frame.
+  With (A) in, the rotation by η(t) applies here too.
+- *Where it matters.* P6.5 → P7.5: the direction attack angle, lag and the impact lean read.
+  It gives the impact instant a shaft that owes nothing to the face-on bridge.
+- *Gate.* On the 21 swings, the `dtlAnchored` direction against the `bridged` one on the same
+  frames: the angle between them, per swing, and which lies nearer the neighbouring
+  fully-measured fused frames (the last before and first after the coast). Pass = nearer on
+  the median swing and never worse by more than the fusion's own rms. Then, separately and by
+  decision: whether the sequence's club channel reads it through impact.
+
+**(D) Repair the mirrored backswing band inside the fusion** — the fusion's own finding
+(`shaft_fusion_design.md` §0 item 1, §5 owed item 1).
+
+- *Why here and not in the tracker.* The tracker design's one-direction rule (§5.10) stands:
+  face-on and the plane must not steer the DTL tracker. The fusion reads both and feeds
+  neither, so a decision it makes about how to *read* a DTL band is its own.
+- *Rule.* When the backswing plane fit is incoherent (`backIncoherent`, rms > 12°), refit with
+  each DTL band's θ_D reflected about the band's corridor centre line (θ → 2·centre − θ, the
+  other depth sign of §4.1 (c)); keep the reflection for a band only if the refit's rms drops
+  below the coherence threshold AND the reflected band's `signDisagree` count does not rise.
+  Record `reflectedBands` in `club3d.summary`.
+- *Gate.* 07-04 s1–3 and the wedge session, where the fusion first saw it: the backswing plane
+  becomes coherent (rms 17–23° → under 12°) and its inclination lands within a few degrees of
+  s4–15's; no swing that was coherent changes. The DTL track itself is untouched, byte for byte.
+
+**Order.** A, then B, then C, then D. A is the honest continuous track and its gate needs no new
+data; B changes only headings and needs its cross-check; C slots into A's de-projection; D is
+small and independent. Each behind its own switch, each with a bit-identical OFF, each judged on
+the 21 DTL swings by the grader that exists (`dtl_continuous_grade.py` extended with the per-item
+columns above) before its default moves.
+
+**What none of this reaches.** The club's heading as a number that could be called club path,
+and any depth of the hands or the grip. The first needs the camera's yaw to a degree; the second
+needs a perspective model with the camera's position. Those are what the protocol's stick and
+card clips give (`camera_pose_sticks.h` is waiting for them) and nothing above substitutes for
+them. Everything here improves the shape and the continuity of the 3-D club; it makes the
+calibration worth more, not less.
+
 ### 3.3 Later: a DTL tracker that knows its own geometry
 
 With a calibrated camera the tracker can predict its own end-on schedule from the 3-D shaft rather
@@ -155,7 +272,8 @@ What the session does *not* need: a third camera, or any new markers on the golf
 ## 5. Order of work
 
 1. §3.1 on today's data, gated on the 21 DTL swings and the held-out band truth; a small,
-   contained change to `dtl_shaft_post` and the tile.
+   contained change to `dtl_shaft_post` and the tile. **Done 1 Oct 2026 — `dtl_continuous_20261002.md`.**
+1a. §3.2a A–D, in that order, each behind its own switch and gated on the same 21 swings. Next.
 2. Record the protocol session (§4).
 3. Calibration: the card/stick solve for the DTL pose; store it; re-run fusion with the real
    camera and re-measure the plane fits and the heading.
