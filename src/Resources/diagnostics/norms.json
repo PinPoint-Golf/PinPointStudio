@@ -2014,6 +2014,26 @@
       "unit": "% stance width",
       "source": "heuristic",
       "citation": "Carried over from m_pelvisLiftTop (0 ± 6.2) for the measure that will read the belt line; nothing produces it yet."
+    },
+    {
+      "measure": "m_shaftLieDelta",
+      "context": "any",
+      "mu": 3.5,
+      "sigmaLo": 0.5,
+      "sigmaHi": 0.5,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "TWO TO FIVE DEGREES STEEPER IS THE BAND, AND THE FAULT LINES ARE ITS EDGES: mu 3.5 with sigma 0.5 either side, so under the Standard policy (watchMaxZ = 3) Action begins at exactly +2.0 (returns flat) and +5.0 (returns steep) and moves with the policy as every corridor in this pack does. Coaching judgement (Mark, 2026-10-01), not a fitted spread: fitting and launch-monitor practice puts the shaft 2-5 degrees more upright at impact than at address on an iron, the hands 1.5-3 in higher. WHAT THE INSTRUMENT CAN HOLD: the address reading sits within 0.5 degrees of the hand-marked DTL truth on six 07-04 corpus swings; the IMPACT reading has no truth mark (the band marks stop at the takeaway) and between two runs of the same swing moved 0.5 degrees on five of six and 2.5 on one, so the corridor's half-width (1.5) is about three times the typical run-to-run noise and about equal to the worst seen. One golfer, one club (7 iron, 15 swings: 1.0 to 6.0, median 4.5) — a corridor that will grade him on three of fifteen, which is the authored intent, not a spread. The face-direction consequence of a lie error scales with loft (the face moves by roughly the lie error times the sine of the loft), so the SAME lie error matters more on a wedge than a long iron and barely at all on a driver; that is carried by the driver row below, not by watching one tail per loft."
+    },
+    {
+      "measure": "m_shaftLieDelta",
+      "context": "driver",
+      "mu": 3.5,
+      "sigmaLo": 1.0,
+      "sigmaHi": 1.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "The driver's loft is small, so the face barely turns with a lie error — the band is doubled (+0.5 to +6.5) rather than switched off, because a shaft returning far from where it was set is still a fact about the hands worth reporting. Carried from the `any` row, not measured on a driver: no driver swing with a down-the-line camera exists yet."
     }
   ]
 }

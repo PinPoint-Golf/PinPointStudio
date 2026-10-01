@@ -1427,7 +1427,9 @@ void installMetricManifest(MetricCatalogue &cat)
             via("dtl", RM::Projected, Direct, { .dtlCamera = true, .clubTrack = true },
                 QStringLiteral("the shaft line's angle to the image horizontal in the down-the-line "
                                "club track — one camera, no depth needed for an inclination")) },
-        .usedBy = { QStringLiteral("chart:review") },
+        .usedBy = { QStringLiteral("chart:review"),
+                    QStringLiteral("characteristic:lie_steep_at_impact"),
+                    QStringLiteral("characteristic:lie_flat_at_impact") },
     });
 
     // ------------------ Club delivery (part LIVE — club_delivery.cpp; the rest is down-the-line work)

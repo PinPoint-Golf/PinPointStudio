@@ -232,7 +232,7 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
 
     std::printf("  club %s -> context %s (session %s)\n", qPrintable(d.club),
                 qPrintable(d.contextId), qPrintable(src.sessionId()));
-    std::printf("  COVERAGE: %d of 158 conditions assessable on %s"
+    std::printf("  COVERAGE: %d of 160 conditions assessable on %s"
                 "  (%d evaluated, %d fired, %d unavailable)\n",
                 cov.assessable, label, cov.findings, cov.fired, cov.unavailable);
     // The denominator is COUNTED, not written down. It was the literal 109 while the pack carried
@@ -265,8 +265,8 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
     dumpCoverage(cov, label);
 
     check(shapeOk, "every finding is assessed WITH evidence or unavailable WITHOUT it");
-    check(cov.findings == 130,
-          "detect() asked all 130 non-latent, non-withdrawn conditions (the shipped pack binds none)");
+    check(cov.findings == 132,
+          "detect() asked all 132 non-latent, non-withdrawn conditions (the shipped pack binds none)");   // +2 lie tails (2026-10-01)
 
     // (d) Where a norm resolved, the corridor on the evidence is a real band and z is finite.
     bool corridorsOk = true;
@@ -303,7 +303,7 @@ int main(int argc, char **argv)
 
     std::printf("\ncontent\n");
     // 157 -> 158 on 2026-09-23: hands_set_high, the setup habit behind reaching for the ball.
-    check(pack.conditions.size() == 158, "the shipped pack carries 158 conditions");
+    check(pack.conditions.size() == 160, "the shipped pack carries 160 conditions");   // +lie_steep_at_impact, +lie_flat_at_impact (2026-10-01)
     // 130 -> 135 with the plumb-bob work: hipLineTilt gained an impact reading and an
     // address-to-impact delta, and plumbBobDistance arrived with three of its own.
     //
@@ -318,7 +318,7 @@ int main(int argc, char **argv)
     // 135 -> 136 on 2026-09-14: m_pelvisSinkTop, noProducer on a belt-line series (the hip keypoints
     // cannot read a sink; see its gapReason).
     // 136 -> 137 on 2026-09-23: m_handPathLoop, the down-the-line hand loop over_the_top now reads.
-    check(pack.measures.size() == 137, "…and 137 measures");
+    check(pack.measures.size() == 138, "…and 138 measures");   // +m_shaftLieDelta
     check(!norms->norms().norms.empty(), "the shipped norm set loaded");
 
     QTemporaryDir tmp;
@@ -582,7 +582,7 @@ int main(int argc, char **argv)
     // 56 -> 55 on 2026-09-23: over_the_top. This fixture is face-on only and the condition now
     // reads the down-the-line hand loop, so it is Unavailable here rather than assessed off a
     // face-on plane delta whose placeholder corridor could never fire in any case.
-    check(cRich.assessable == 55, "rich_7iron: 55 of 158 conditions assessable (observed)");
+    check(cRich.assessable == 55, "rich_7iron: 55 of 160 conditions assessable (observed)");
     // HOW MANY OF THOSE ANSWERS RESTED ON EVIDENCE THE CAPTURE DID NOT HAVE. A conjunction
     // settled by one known-false term is a real negative, but it is a different kind of "no"
     // from one where every term was read, and it can only ever be a no. Pinned because the
@@ -635,7 +635,7 @@ int main(int argc, char **argv)
     // and `attack_too_steep` and `attack_too_shallow` were therefore unanswerable on a swing whose
     // launch monitor had reported the attack angle outright, -2.73°, sitting in the document read
     // by nothing. Those two conditions plus `top` and `sky` are the four.
-    check(cLm.assessable   == 21, "lm_7iron: 21 of 158 conditions assessable (observed)");
+    check(cLm.assessable   == 21, "lm_7iron: 21 of 160 conditions assessable (observed)");
     check(cLm.measures     == 26, "lm_7iron: 26 live measures resolved (observed)");
     check(cSparse.assessable == 2, "sparse_noclub: 2 of 158 conditions assessable (observed)");
     check(cSparse.measures   == 1, "sparse_noclub: 1 live measure resolved (observed)");

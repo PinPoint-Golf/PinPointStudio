@@ -192,6 +192,13 @@ static const Expect kExpected[] = {
       "…and the club FLATTENING between the two windows is the other end of the same delta. Not a "
       "fault — it is the move good players make on purpose, which is why the condition on this "
       "tail is kind Delivery" },
+    { "sig_shaftLieSteep",        Direction::High,
+      "m_shaftLieDelta highMeans: 'the shaft came back STEEPER to the ground at impact than it was "
+      "set at address — more upright, the toe up'. Returns steep IS the high tail: impact minus "
+      "address, positive for steeper (Mark, 2026-10-01: '+ve delta is steepening')" },
+    { "sig_shaftLieFlat",         Direction::Low,
+      "…and the shaft coming back no more upright than address, or flatter, is the other end of "
+      "the same delta — the toe down, the face pointing right" },
     { "sig_hipSpinOut",           Direction::High,
       "pelvisRotation at P5: spinning out is the pelvis ALREADY further open in early downswing" },
     { "sig_hipStall",             Direction::Low,
