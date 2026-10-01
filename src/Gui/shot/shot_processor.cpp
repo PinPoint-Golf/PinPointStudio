@@ -34,6 +34,7 @@
 #include "shot_list_model.h"
 #include "shot_outcome.h"
 #include "../Analysis/club_length_fusion.h"
+#include "../Analysis/uncertainty_json.h"
 #include "../Analysis/imu_refusion_check.h"
 #include "../Analysis/capture_integrity_check.h"
 #include "../Analysis/imu_vision_fuser.h"
@@ -340,11 +341,14 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
         QVariantList ts, vs, samples;
         for (const int64_t t : m.t_us) ts.append(static_cast<qlonglong>(t));
         for (const double v : m.value) vs.append(v);
-        for (const PhaseSample &ps : m.phaseSamples)
-            samples.append(QVariantMap{ { QStringLiteral("phase"), int(ps.phase) },
-                                        { QStringLiteral("t_us"),  static_cast<qlonglong>(ps.t_us) },
-                                        { QStringLiteral("value"), ps.value },
-                                        { QStringLiteral("band"),  ps.band } });
+        for (const PhaseSample &ps : m.phaseSamples) {
+            QVariantMap po{ { QStringLiteral("phase"), int(ps.phase) },
+                            { QStringLiteral("t_us"),  static_cast<qlonglong>(ps.t_us) },
+                            { QStringLiteral("value"), ps.value },
+                            { QStringLiteral("band"),  ps.band } };
+            insertPhaseSampleSigma(po, ps);   // per-instant σ (uncertainty design §7), only when set
+            samples.append(po);
+        }
         QVariantMap sm{ { QStringLiteral("key"),   m.key },
                         { QStringLiteral("label"), m.label },
                         { QStringLiteral("unit"),  m.unit },
@@ -356,6 +360,8 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
         // Mirrored in disk_replay_source.cpp: a live shot and its reloaded self must agree.
         if (m.sigma)
             sm.insert(QStringLiteral("sigma"), *m.sigma);
+        if (m.sigmaKind > 0)
+            sm.insert(QStringLiteral("sigmaKind"), int(m.sigmaKind));
         // Per-sample validity, parallel to t_us (design §5.1): 0 marks a sample the grid
         // BRIDGED across a gated or absent run — drawn dashed, skipped by every reducer.
         // Written on the same discipline as `sigma` above: present ONLY when there is
@@ -1220,8 +1226,10 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
             const QVariantMap rec = m_athlete->clubsFor(m_athlete->currentUuid())
                                         .value(club).toMap();
             const int lengthMm = rec.value(QStringLiteral("lengthMm")).toInt();
-            if (lengthMm > 0)
+            if (lengthMm > 0) {
                 job.clubLengthM = lengthMm / 1000.0;
+                job.clubLengthKnown = true;
+            }
             // Retro-band geometry for the v3 E1 band matcher. Empty (untaped
             // club) ⇒ the shaft tracker runs E2 (ray) evidence only, no band tier.
             const QVariantList bands = rec.value(QStringLiteral("bandCentersMm")).toList();

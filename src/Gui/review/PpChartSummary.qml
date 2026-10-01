@@ -347,6 +347,9 @@ ColumnLayout {
                 // READING (ChartMetrics.displayStep) and is what the header chip quotes. It governs
                 // the readings and nothing else — every ± on the card is QUOTED, not quantised.
                 readonly property real   sig: cm.seriesSigma(card.modelData)
+                // The σ chip's provenance and the gross-error caveat (chart_metrics.h sigmaInfo) —
+                // resolved once per card, like `sig`, because the map marshals the whole series.
+                readonly property var    sinfo: cm.sigmaInfo(card.modelData)
 
                 // ── A READING AT AN INSTANT ─────────────────────────────────────────────────
                 //
@@ -577,8 +580,21 @@ ColumnLayout {
                             HoverHandler { id: sigmaHover }
                             ToolTip.visible: sigmaHover.hovered
                             ToolTip.delay: 400
-                            ToolTip.text: qsTr("Frame-to-frame measurement noise on this curve. "
-                                               + "Not the overall accuracy of the reading.")
+                            ToolTip.text: card.sinfo.tip
+                        }
+                        // ⚠ — the reading may rest on the tracker following the wrong structure
+                        // (any phase sample's grossRisk above tuned::uncertainty::kGrossWarn). A
+                        // caveat beside σ, never a refusal: the number is still the best we have.
+                        Text {
+                            id: grossChip
+                            visible: card.sinfo.warn === true
+                            text: "⚠"
+                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                            color: Theme.colorWarn
+                            HoverHandler { id: grossHover }
+                            ToolTip.visible: grossHover.hovered
+                            ToolTip.delay: 400
+                            ToolTip.text: card.sinfo.warnTip
                         }
                     }
 

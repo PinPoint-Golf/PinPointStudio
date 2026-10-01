@@ -370,6 +370,17 @@ public:
     // changes with the DATA, and passes the resulting number down to the per-frame formatters.
     Q_INVOKABLE double seriesSigma(const QVariantMap &series) const;
 
+    // What backs the σ chip, and whether the reading carries the gross-error caveat
+    // (shaft_uncertainty_propagation_design.md §7, stage U7). → { tip: QString, warn: bool,
+    // warnTip: QString }. `tip` names the provenance from the series' `sigmaKind` (calibrated,
+    // propagated, an assumed input, or the frame-to-frame noise every older producer quotes);
+    // `warn` is true when the headline reading's `grossRisk` (the Impact sample's, else the worst
+    // phase sample's) exceeds tuned::uncertainty::kGrossWarn —
+    // the probability the reading rests on the tracker following the wrong structure, reported
+    // BESIDE σ and never folded into it. Same marshalling cost as seriesSigma: resolve it once per
+    // card, on a binding that changes with the data.
+    Q_INVOKABLE QVariantMap sigmaInfo(const QVariantMap &series) const;
+
     // formatValue = the number and its unit, for a surface with no header to lean on (legend
     // chips, the hover tooltip, the transit bead). Degrees keep the signed-deviation convention
     // ("+12°", closed up); every other unit takes a space ("75 mph", "12 %").

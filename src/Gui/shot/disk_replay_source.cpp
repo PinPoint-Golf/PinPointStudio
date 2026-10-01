@@ -38,6 +38,7 @@
 #include "../markup/markup_truth.h"                   // streamLooksDownTheLine — the setup-less DTL rule
 #include "dtl_overlay_payload.h"                      // dtlOverlayDetail — the DTL tile's overlay
 #include "../../Analysis/address_marks_json.h"        // viewMarksPayload — the coach lines' edges
+#include "../../Analysis/uncertainty_json.h"          // copyPhaseSampleSigma — σ keys, one spelling
 
 namespace {
 
@@ -277,11 +278,13 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
                 vs.append(v.toDouble());
             for (const QJsonValue &sv2 : m[QStringLiteral("phaseSamples")].toArray()) {
                 const QJsonObject s2 = sv2.toObject();
-                samples.append(QVariantMap{
+                QVariantMap po{
                     { QStringLiteral("phase"), s2[QStringLiteral("phase")].toInt() },
                     { QStringLiteral("t_us"),  static_cast<qlonglong>(relUs(s2[QStringLiteral("t_us")], t0)) },
                     { QStringLiteral("value"), s2[QStringLiteral("value")].toDouble() },
-                    { QStringLiteral("band"),  s2[QStringLiteral("band")].toString() } });
+                    { QStringLiteral("band"),  s2[QStringLiteral("band")].toString() } };
+                pinpoint::analysis::copyPhaseSampleSigma(s2, po);   // ShotProcessor's twin
+                samples.append(po);
             }
             QVariantMap sm{
                 { QStringLiteral("key"),   m[QStringLiteral("key")].toString() },
@@ -294,6 +297,8 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
             // swing analysed before σ existed reloads without inventing a perfect measurement.
             if (m.contains(QStringLiteral("sigma")))
                 sm.insert(QStringLiteral("sigma"), m[QStringLiteral("sigma")].toDouble());
+            if (m.contains(QStringLiteral("sigmaKind")))
+                sm.insert(QStringLiteral("sigmaKind"), m[QStringLiteral("sigmaKind")].toInt());
             // Per-sample validity (design §5.1), ShotProcessor's twin again: an int list
             // parallel to t_us where 0 marks a sample BRIDGED across a gated or absent run.
             // ABSENT means every sample is valid — which is how every swing analysed before

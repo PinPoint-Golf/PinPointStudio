@@ -726,6 +726,38 @@ int main()
                  cm.displayStep(cm.seriesSigma(withSigma(QVariant())), QStringLiteral("°")), 1.0);
     }
 
+    // ── sigmaInfo: the σ chip's provenance and the ⚠ (shaft uncertainty design, U7) ──
+    {
+        std::printf("sigmaInfo — provenance text by sigmaKind, ⚠ above kGrossWarn\n");
+        auto series = [](int kind, double risk) {
+            QVariantMap m{ { QStringLiteral("key"), QStringLiteral("impactShaftLean") } };
+            if (kind >= 0) m.insert(QStringLiteral("sigmaKind"), kind);
+            QVariantMap ps{ { QStringLiteral("phase"), 5 }, { QStringLiteral("value"), 4.0 } };
+            if (risk >= 0) ps.insert(QStringLiteral("grossRisk"), risk);
+            m.insert(QStringLiteral("phaseSamples"), QVariantList{ ps });
+            return m;
+        };
+        const QVariantMap none = cm.sigmaInfo(series(-1, -1));
+        checkTrue("no sigmaKind ⇒ the frame-noise text every older producer quoted",
+              none.value("tip").toString().startsWith(QStringLiteral("Frame-to-frame")));
+        checkTrue("no grossRisk ⇒ no ⚠", !none.value("warn").toBool());
+        checkTrue("calibrated names the hand marks",
+              cm.sigmaInfo(series(2, -1)).value("tip").toString().contains(QStringLiteral("hand-marked")));
+        checkTrue("an assumed input says so",
+              cm.sigmaInfo(series(3, -1)).value("tip").toString().contains(QStringLiteral("assumed")));
+        checkTrue("risk 0.1 ⇒ no ⚠", !cm.sigmaInfo(series(1, 0.1)).value("warn").toBool());
+        const QVariantMap w = cm.sigmaInfo(series(1, 0.35));
+        checkTrue("risk 0.35 ⇒ ⚠", w.value("warn").toBool());
+        checkTrue("the ⚠ tooltip quotes the risk", w.value("warnTip").toString().contains(QStringLiteral("35")));
+        // The headline is impact: a risky ADDRESS reading beside a clean impact one draws no ⚠.
+        QVariantMap two = series(1, 0.05);
+        QVariantList pss = two.value(QStringLiteral("phaseSamples")).toList();
+        pss.push_back(QVariantMap{ { QStringLiteral("phase"), 0 }, { QStringLiteral("value"), 0.0 },
+                                   { QStringLiteral("grossRisk"), 0.4 } });
+        two.insert(QStringLiteral("phaseSamples"), pss);
+        checkTrue("a risky address reading does not flag an impact card", !cm.sigmaInfo(two).value("warn").toBool());
+    }
+
     // ── shortLabel reads the manifest, so a new metric is short-named on arrival ──
     {
         std::printf("shortLabel — served from the catalogue\n");

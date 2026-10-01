@@ -21,6 +21,8 @@
 #include "../../Analysis/series_reduce.h"   // C8 — reduceAt / reduceExtremum / reduceRate
 #include "../Analysis/dashboard_reductions.h"   // barDomain
 #include "timeline_labels.h"                    // the one phase-tag vocabulary (hasPositionTag)
+#include "../../Analysis/swing_analysis.h"      // SigmaKind (sigmaInfo)
+#include "../../Core/pp_tuned_constants.h"     // tuned::uncertainty::kGrossWarn
 
 #include <QHash>
 #include <QSet>
@@ -727,6 +729,48 @@ double ChartMetrics::seriesSigma(const QVariantMap &series) const
     const double s = it->toDouble(&ok);
     if (!ok || !std::isfinite(s) || s <= 0.0) return 0.0;
     return s;
+}
+
+QVariantMap ChartMetrics::sigmaInfo(const QVariantMap &series) const
+{
+    QVariantMap out;
+    QString tip;
+    switch (series.value(QStringLiteral("sigmaKind")).toInt()) {
+    case int(pinpoint::analysis::SigmaKind::Calibrated):
+        tip = tr("1σ uncertainty of this reading, checked against hand-marked swings.");
+        break;
+    case int(pinpoint::analysis::SigmaKind::Propagated):
+        tip = tr("1σ uncertainty of this reading, propagated from the tracker's calibrated errors. "
+                 "Not checked against independent truth for this metric.");
+        break;
+    case int(pinpoint::analysis::SigmaKind::AssumedInput):
+        tip = tr("1σ uncertainty of this reading. Wide on purpose: no club was recorded, so the "
+                 "club length was assumed.");
+        break;
+    default:
+        tip = tr("Frame-to-frame measurement noise on this curve. Not the overall accuracy of the reading.");
+    }
+    // The HEADLINE reading's risk: the Impact sample's when the series has one (every shaft card
+    // quotes impact), else the worst. Taking the worst over all phases put a ⚠ on 38 of 90 speed
+    // cards (1 Oct sigma sweep) for the ADDRESS reading — a coasted, near-zero speed nobody reads.
+    double risk = -1.0, impactRisk = -1.0;
+    for (const QVariant &v : series.value(QStringLiteral("phaseSamples")).toList()) {
+        const QVariantMap ps = v.toMap();
+        const auto it = ps.constFind(QStringLiteral("grossRisk"));
+        if (it == ps.constEnd()) continue;
+        risk = std::max(risk, it->toDouble());
+        if (ps.value(QStringLiteral("phase")).toInt() == int(pinpoint::analysis::Phase::Impact))
+            impactRisk = it->toDouble();
+    }
+    if (impactRisk >= 0.0) risk = impactRisk;
+    const bool warn = risk > pinpoint::tuned::uncertainty::kGrossWarn;
+    out.insert(QStringLiteral("tip"), tip);
+    out.insert(QStringLiteral("warn"), warn);
+    out.insert(QStringLiteral("warnTip"),
+               warn ? tr("This reading may rest on the tracker following the wrong structure "
+                         "(about %1 % likely). Check it against the video.").arg(qRound(risk * 100.0))
+                    : QString());
+    return out;
 }
 
 double ChartMetrics::displayStep(double sigma, const QString &unit) const
