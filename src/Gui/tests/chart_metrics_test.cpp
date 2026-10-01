@@ -337,6 +337,28 @@ int main()
         checkStr("third",  g.at(2).toMap().value(QStringLiteral("group")).toString(), "Club & speed");
     }
 
+    // ── Cards without a curve, and curves that are only cards (2026-10-01) ────────────
+    {
+        std::printf("seriesGroups — a phase sample is a member; drawsCurve is the card's rule\n");
+        // A scalar WITH a phase sample is a card, so it lands in its group; the bare scalar above
+        // (no curve, no sample) still does not.
+        QVariantMap aa = scalar("attackAngle");
+        aa.insert(QStringLiteral("phaseSamples"),
+                  QVariantList{ QVariantMap{ { QStringLiteral("phase"), 5 }, { QStringLiteral("t_us"), 1000 },
+                                             { QStringLiteral("value"), -3.0 } } });
+        const QVariantList g = cm.seriesGroups({ aa, scalar("tempoRatio") });
+        checkStr("attack angle is a Club delivery member", groupOf(g, "attackAngle"), "Club delivery");
+        checkStr("a sample-less scalar still is not",      groupOf(g, "tempoRatio"),  "");
+        checkEqI("a cards-only group is offered", g.size(), 1);
+
+        checkTrue("clubheadSpeed draws its curve (PEAK, rate)",      cm.drawsCurve(QStringLiteral("clubheadSpeed")));
+        checkTrue("impactShaftLean is a card only (@P7, Δ P1→P7)",  !cm.drawsCurve(QStringLiteral("impactShaftLean")));
+        checkTrue("shaftLie is a card only",                         !cm.drawsCurve(QStringLiteral("shaftLie")));
+        checkTrue("swingPlane is a card only (two held halves)",     !cm.drawsCurve(QStringLiteral("swingPlane")));
+        checkTrue("leadKneeFlexion keeps its curve (span PEAK)",     cm.drawsCurve(QStringLiteral("leadKneeFlexion")));
+        checkTrue("an uncatalogued key draws",                       cm.drawsCurve(QStringLiteral("nobodyKnowsMe")));
+    }
+
     // ── The split of the old "Spine & pelvis" ─────────────────────────────────────
     {
         std::printf("seriesGroups — spine/pelvis split\n");
@@ -1666,6 +1688,11 @@ int main()
         // Outside the domain nothing is measured, mask or no mask.
         checkTrue("past the domain ⇒ not measured", !cm.measuredAt(t, QVariantList{}, 3000, 0, 2000));
         checkTrue("inside the domain ⇒ measured",    cm.measuredAt(t, QVariantList{}, 1000, 0, 2000));
+        // The domain is judged on the NEAREST SAMPLE, not the asked instant: a reading asked 400 µs
+        // past a domain end that was snapped to the 2000 sample reads that sample, which is inside.
+        // (2026-10-01: the DTL shaft lie's P7 frame sat 2.9 ms before the face-on impact instant.)
+        checkTrue("just past the end, nearest sample inside ⇒ measured", cm.measuredAt(t, QVariantList{}, 2400, 0, 2000));
+        checkTrue("…but nearer to a sample outside ⇒ not",              !cm.measuredAt(t, QVariantList{}, 2600, 0, 2000));
     }
 
     // ── segments: the chip list, and the SWING entry the chart opens on ───────────

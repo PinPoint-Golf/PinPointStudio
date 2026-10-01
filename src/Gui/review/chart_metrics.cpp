@@ -527,6 +527,12 @@ QVariantMap ChartMetrics::domainFor(const QString &key) const
                         { QStringLiteral("narrowed"),      firstNarrowed || lastNarrowed } };
 }
 
+bool ChartMetrics::drawsCurve(const QString &key) const
+{
+    const pinpoint::analysis::MetricDescriptor *d = m_catalogue.descriptor(key);
+    return d ? d->card.drawsCurve() : true;
+}
+
 QVariantMap ChartMetrics::cardSpecFor(const QString &key) const
 {
     // Same fallback rule as domainFor: an uncatalogued key gets the DEFAULT spec, authored once in
@@ -555,26 +561,34 @@ QVariantMap ChartMetrics::cardSpecFor(const QString &key) const
 bool ChartMetrics::measuredAt(const QVariantList &tUs, const QVariantList &valid,
                              qint64 us, qint64 fromUs, qint64 toUs) const
 {
-    // Outside the domain first: no amount of validity makes a reading of a foreshortened body
-    // line mean something, so the domain test does not depend on there being samples at all.
-    if (toUs > fromUs && (us < fromUs || us > toUs)) return false;
-
-    // ONE short-mask rule for the whole file — see haveMask(). `n` is the CURVE's length, so a
-    // mask shorter than it is discarded wholesale rather than bounding the search: bounding it at
-    // qMin(sizes) silently answered a different question than lift() did about the same
-    // series, which is how two views of one curve start disagreeing.
-    const int n = tUs.size();
-    if (!haveMask(n, valid)) return true;          // nothing marked ⇒ every sample is a measurement
-
     // Nearest sample. Linear, because the ONE remaining caller asks this once per phase dot
     // (≤10 a series) at data-change time — every per-frame caller answers it in JS off an index
     // instead (PpChartPlot._measured), since marshalling a whole series per frame is not free.
+    const int n = tUs.size();
     int    best = -1;
     qint64 bestD = std::numeric_limits<qint64>::max();
     for (int i = 0; i < n; ++i) {
         const qint64 d = qAbs(tUs.at(i).toLongLong() - us);
         if (d < bestD) { bestD = d; best = i; }
     }
+
+    // ⚠ THE DOMAIN IS JUDGED ON THE NEAREST SAMPLE'S TIME, NOT ON `us` (2026-10-01). The domain
+    // ends are snapped to the series' own sample grid (PpMetricChart._domainWindow), and a phase
+    // instant lies between two frames: on a series sampled on ANOTHER camera's clock the nearest
+    // frame to P7 sat 2.9 ms BEFORE the face-on impact instant, so the snapped end was 2.9 ms
+    // before `us` and the reading AT impact — of the very sample the domain was snapped to
+    // include — printed "—". The reading comes from that sample, so that sample is what the domain
+    // judges. The index form (PpMetricChart._measuredIdx) always worked this way. No sample at all
+    // falls back to `us` itself: no amount of validity makes a reading outside the domain mean
+    // something, so the test does not depend on there being samples.
+    const qint64 at = best >= 0 ? tUs.at(best).toLongLong() : us;
+    if (toUs > fromUs && (at < fromUs || at > toUs)) return false;
+
+    // ONE short-mask rule for the whole file — see haveMask(). `n` is the CURVE's length, so a
+    // mask shorter than it is discarded wholesale rather than bounding the search: bounding it at
+    // qMin(sizes) silently answered a different question than lift() did about the same
+    // series, which is how two views of one curve start disagreeing.
+    if (!haveMask(n, valid)) return true;          // nothing marked ⇒ every sample is a measurement
     // No sample at all is not the same as an invalid one: there is nothing here to call bridged,
     // and the caller's own "is there a curve" test already gated it.
     return best < 0 || valid.at(best).toInt() != 0;
@@ -798,12 +812,14 @@ QString ChartMetrics::formatUncertainty(double err, const QString &unit) const
 
 QVariantList ChartMetrics::seriesGroups(const QVariantList &seriesList) const
 {
-    // The keys this swing can actually DRAW. `> 1` (not `> 0`) matches PpMetricChart's own
-    // _visible test: a single sample is a point, not a trace, and the plot skips it.
+    // The keys this swing can actually SHOW: a curve (`> 1`, not `> 0` — a single sample is a
+    // point, not a trace, and the plot skips it, the same test as PpMetricChart's _plottable), or
+    // a phase sample to put on a card. See the header: a card without a curve is still a member.
     QSet<QString> plotted;
     for (const QVariant &v : seriesList) {
         const QVariantMap m = v.toMap();
-        if (m.value(QStringLiteral("t_us")).toList().size() > 1)
+        if (m.value(QStringLiteral("t_us")).toList().size() > 1
+            || !m.value(QStringLiteral("phaseSamples")).toList().isEmpty())
             plotted.insert(m.value(QStringLiteral("key")).toString());
     }
     if (plotted.isEmpty())

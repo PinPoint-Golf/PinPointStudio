@@ -489,10 +489,12 @@ public:
     // in MANIFEST order (MetricCatalogue::all()'s order, which is also the order the Metric
     // Library lists groups in, so the two surfaces agree).
     //
-    // Only PLOTTABLE series count — a curve of at least two samples, the same test the chart's
-    // own `_visible` applies. The setup scalars (stance width, tempo, attack angle …) carry one
-    // phaseSample and an empty curve, so a group made only of those is omitted rather than
-    // offered as a preset that draws nothing.
+    // Only SHOWABLE series count: a curve of at least two samples, OR a series carrying at least
+    // one phaseSample. The first is the chart's own `_plottable` test; the second is a metric that
+    // has no curve but a reading at an instant (attack angle, hand path loop, every `lm.` number),
+    // which since 2026-10-01 gets a SUMMARY CARD on its group's preset — so a group made only of
+    // those is a card panel with an empty plot, and is offered. A series with neither is nothing
+    // to show and does not count.
     //
     // A group is present only when this swing produced at least one of its members, which is
     // what makes the control degrade honestly: no IMU wrist data and there is simply no "Wrist
@@ -508,6 +510,12 @@ public:
     // rather than dropped: a metric added to the pipeline before the manifest should be awkward
     // to find, not invisible.
     Q_INVOKABLE QVariantList seriesGroups(const QVariantList &seriesList) const;
+
+    // Does this metric's curve belong on the chart? Straight off MetricCardSpec::drawsCurve
+    // (metric_descriptor.h says why): false for a metric read only at fixed instants — shaft lean,
+    // shaft lie, x-factor at the top … — whose card stands without a trace or a legend chip. An
+    // uncatalogued key draws, as it always did: unknown is not a licence to hide a curve.
+    Q_INVOKABLE bool drawsCurve(const QString &key) const;
 
     // ── The kinematic-sequence strip (design kinematic_sequence_design.md §8) ─────────────────
     //

@@ -312,7 +312,10 @@ Item {
     // empty curve and a single phaseSample, and they are dropped here. They had been reaching the
     // legend, which iterated the raw series list: a dozen chips that toggled a trace that does not
     // exist, on a panel already too crowded to read.
-    readonly property var _plottable: {
+    // Every curve this swing carries, decorated (domain, mask, drawn mean, colour) — the pool
+    // BOTH the plot and the summary draw from. Split below into `_plottable` (the curves the chart
+    // draws) and the instant-only ones that reach the cards and nothing else.
+    readonly property var _curves: {
         var out = []
         for (var i = 0; i < root._list.length; ++i) {
             var s = root._list[i]
@@ -366,6 +369,50 @@ Item {
                 }
                 out.push(d)
             }
+        }
+        return out
+    }
+
+    // ── WHAT IS DRAWN, AND WHAT IS ONLY A CARD (MetricCardSpec::drawsCurve) ───────────────
+    //
+    // A metric whose card has no window-scoped tile — shaft lean, shaft lie, x-factor at the
+    // top, balance at address … — means something at its instants and nothing between them, so
+    // its curve is not drawn and it gets no legend chip; it keeps its summary card. The rule is
+    // the card spec's, authored once per metric in the manifest (Mark, 2026-10-01: apply it to
+    // all, and a preset with no curve left — Club delivery — is a card panel with an empty plot).
+    readonly property var _plottable: {
+        var out = []
+        for (var i = 0; i < root._curves.length; ++i)
+            if (cm.drawsCurve(root._curves[i].key)) out.push(root._curves[i])
+        return out
+    }
+
+    // The cards: the preset's members in MANIFEST order — a drawn curve while its chip is on, an
+    // instant-only curve always, and a series with no curve but a phase sample (attack angle, the
+    // hand loop, every `lm.` reading) always. "All" is every showable series in list order.
+    readonly property var _cardSeries: {
+        var base = root._presetBase
+        var keys = (base === "" || base === "All") ? null : root._keysFor(base)
+        var byKey = {}
+        for (var c = 0; c < root._curves.length; ++c) byKey[root._curves[c].key] = root._curves[c]
+        var out = []
+        var take = function (s) {
+            if (!s) return
+            var cv = byKey[s.key]
+            if (cv) {
+                if (!cm.drawsCurve(s.key) || root._isOn(s.key)) out.push(cv)
+            } else if (s.phaseSamples && s.phaseSamples.length > 0) {
+                var d = Object.assign({}, s)
+                d.color = Theme.colorText3            // no curve, so no series colour to echo
+                out.push(d)
+            }
+        }
+        if (keys === null) {
+            for (var i = 0; i < root._list.length; ++i) take(root._list[i])
+        } else {
+            for (var k = 0; k < keys.length; ++k)
+                for (var j = 0; j < root._list.length; ++j)
+                    if (root._list[j] && root._list[j].key === keys[k]) { take(root._list[j]); break }
         }
         return out
     }
@@ -1414,7 +1461,7 @@ Item {
             visible: !root.compact && !root.summaryCollapsed
             Layout.fillWidth: true
             showHeader:  false
-            series:      root._visible
+            series:      root._cardSeries
             startUs:     root.viewStartUs
             endUs:       root.viewEndUs
             impactUs:    root.impactUs

@@ -52,6 +52,15 @@
 // away in its tooltip (same "raw N" the chart's hover row prints). No reading on this panel is
 // anything other than the line beside it.
 
+//
+// ── CARDS WITHOUT A CURVE (2026-10-01) ─────────────────────────────────────────────────────────
+// Two kinds of series reach this row with nothing to reduce: a curve the chart does NOT draw
+// because its card is instant-only (MetricCardSpec::drawsCurve false — shaft lean, shaft lie …),
+// which reads its card off the curve exactly as before; and a series with NO curve at all, only
+// phase samples (attack angle, hand path loop, every `lm.` reading), which until now had no card
+// anywhere on the panel. For the second kind the card is one tile per phase sample, read straight
+// off the sample — there is no line for it to be a point on — and no window tile at all.
+
 pragma ComponentBehavior: Bound
 
 import QtQuick
@@ -132,6 +141,14 @@ ColumnLayout {
     function _meanOf(s) {
         return root._hasMean(s) ? s.mean : s.value
     }
+    // A series with no curve: its reading at a phase IS the phase sample, or nothing.
+    function _hasCurve(s) { return !!(s && s.t_us && s.t_us.length > 1) }
+    function _phaseSampleReading(s, phase) {
+        var ps = (s && s.phaseSamples) ? s.phaseSamples : []
+        for (var i = 0; i < ps.length; ++i)
+            if (ps[i].phase === phase) return { ok: true, val: ps[i].value, us: ps[i].t_us, raw: "" }
+        return { ok: false, val: 0, us: -1, raw: "" }
+    }
 
     // The measured-at-an-instant test, in JS for the reason chart_metrics.h gives: cm.measuredAt
     // marshals the whole series per call, and these bindings re-evaluate as the window moves.
@@ -142,10 +159,10 @@ ColumnLayout {
     // as a reading — `formatBare` on one renders "nan", in the band colour, as the card's headline
     // number. Same fold as PpChartPlot._measured and SeriesView::isValid, for the same reason:
     // nothing in the pipeline should produce a NaN, which is exactly why it cannot be assumed.
+    // ⚠ The domain is judged on the NEAREST SAMPLE'S time, not on `t` (chart_metrics.cpp
+    // measuredAt says why: a domain end snapped to a frame 2.9 ms before the impact instant was
+    // refusing the reading AT impact of that very frame). Same as PpMetricChart._measuredIdx.
     function _measuredAt(s, t) {
-        if (s.validFromUs !== undefined && s.validToUs !== undefined
-            && s.validToUs > s.validFromUs && (t < s.validFromUs || t > s.validToUs))
-            return false
         var tt = s.t_us
         if (!tt || tt.length === 0) return true
         var best = -1, bd = Infinity
@@ -154,6 +171,9 @@ ColumnLayout {
             if (d < bd) { bd = d; best = i }
         }
         if (best < 0) return true
+        if (s.validFromUs !== undefined && s.validToUs !== undefined
+            && s.validToUs > s.validFromUs && (tt[best] < s.validFromUs || tt[best] > s.validToUs))
+            return false
         if (s.value && !isFinite(s.value[best])) return false
         if (!s.valid || s.valid.length < tt.length) return true
         return s.valid[best] !== 0
@@ -336,7 +356,9 @@ ColumnLayout {
                 // headline number in the band colour is the failure §5.1 exists to prevent. The raw
                 // sample rides along for the tooltip. The @ IMPACT reading keeps its old fallback,
                 // the window's @end, for a series with no impact landmark.
+                readonly property bool   hasCurve: root._hasCurve(card.modelData)
                 function reading(phase) {
+                    if (!card.hasCurve) return root._phaseSampleReading(card.modelData, phase)
                     var us = root._phaseUs(phase)
                     if (us < 0 && phase === 5 && root.impactUs > 0) us = root.impactUs
                     if (us < 0) {
@@ -372,6 +394,21 @@ ColumnLayout {
                 // is "" where the tile has none; `window` marks the tiles the PARTIAL chip speaks for.
                 readonly property var tiles: {
                     var out = [], sp = card.spec, i
+                    if (!card.hasCurve) {
+                        // No curve: one tile per phase sample, nothing window-scoped.
+                        var pss = card.modelData.phaseSamples || []
+                        for (i = 0; i < pss.length; ++i)
+                            out.push({ label: card.readLabel({ phase: pss[i].phase }),
+                                       text: card.fmt(pss[i].value), ok: true,
+                                       color: root._bandColor(cm.bandAtNearest(pss, pss[i].t_us)),
+                                       sub: "", unit: "", tip: "", window: false })
+                        var cos0 = grid._companionsOf(card.modelData.key)
+                        for (i = 0; i < cos0.length; ++i) {
+                            var ct0 = card.companionTiles(cos0[i])
+                            for (var j0 = 0; j0 < ct0.length; ++j0) out.push(ct0[j0])
+                        }
+                        return out
+                    }
                     var rs = sp.readAt || []
                     for (i = 0; i < rs.length; ++i) {
                         var r = card.reading(rs[i].phase)
@@ -446,6 +483,7 @@ ColumnLayout {
                 // Readings and a fixed-span Δ only — the spec's other tiles are refused by the
                 // catalogue test. The unit rides on each tile because it may differ from the host's.
                 function companionReading(s, phase) {
+                    if (!root._hasCurve(s)) return root._phaseSampleReading(s, phase)
                     var us = root._phaseUs(phase)
                     if (us < 0) return { ok: false, val: 0, us: -1 }
                     return { ok: root._measuredAt(s, us),
@@ -459,7 +497,7 @@ ColumnLayout {
                     var rs = sp.readAt || []
                     for (i = 0; i < rs.length; ++i) {
                         var r = card.companionReading(s, rs[i].phase)
-                        out.push({ label: nm + " " + card.readLabel(rs[i]),
+                        out.push({ label: rs[i].label ? rs[i].label : nm + " " + card.readLabel(rs[i]),
                                    text: r.ok ? cm.formatBare(r.val, s.unit, sig) : "—", ok: r.ok,
                                    color: r.ok ? root._bandColor(cm.bandAtNearest(s.phaseSamples, r.us))
                                                : Theme.colorText3,
