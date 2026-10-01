@@ -160,9 +160,28 @@ under another metric's name is the confusion the card spec exists to prevent —
 `metric_catalogue_test` holds that, the same-group rule, and the six-cell ceiling. When the host is
 not on the chart the companion keeps its own card, so nothing disappears.
 
-**Owed.** σ is not characterised: the DTL truth marks (`DtlTruthSample`) carry hand-marked θ at
-P-instants, and the P1/P7 error against them is the measurement to make before any corridor. No
-norm; the metric records and accumulates.
+**The corridor (2026-10-01, same day).** `m_shaftLieDelta` is the P1→P7 delta, with two tails on
+the `shaft_lie` axis: `lie_steep_at_impact` ("Returns steep", the high tail) and `lie_flat_at_impact`
+("Returns flat", the low tail), both kind Delivery, group impact, state draft, down-the-line only.
+The norm at `any` is mu 3.5 ± 0.5, so under the Standard policy Action begins at exactly +2.0 and
++5.0 — Mark's band, "two to five degrees steeper is normal" — and the `driver` row doubles the width
+because a lie error barely turns a driver's face. Edges: `early_extension` → returns steep (the
+hands lifting to make room for a pelvis that has moved toward the ball), `casting` → returns flat
+(the clubhead passing the hands flattens the shaft), returns steep → `pull` and `strike_heel`,
+returns flat → `push` and `strike_toe`. The face-direction consequence is the fitter's: toe up
+points the face left, toe down right, and the shift scales with the sine of the loft, so the same
+lie error matters more on a wedge than a 4-iron. That physics runs the OTHER way from the
+plane/path reading of "steep" and "shallow" (a shallowed plane delivers in-to-out and draws), and
+the pack states the lie mechanism because the measure is a lie; which reading a coach wants
+reported is Mark's call and the text is one edit.
+
+**What the instrument can hold.** The address reading sits within 0.5° of the hand-marked band
+truth on all six 07-04 corpus swings that have it (truth 54.0–54.75°, track 54.0–54.5°). The impact
+reading has NO truth: the band marks stop at the takeaway on every swing. Between two runs of the
+same swing (the library's recorded pose against the pinned corpus pose) the impact reading moved
+0.5° on five of six and 2.5° on one (07-04 s11, 56.0 vs 58.5), so the corridor's half-width of 1.5°
+is three times the typical run-to-run noise and about equal to the worst seen. σ on the series is
+still unset — the honest number needs P7 truth marks, which do not exist yet.
 
 ## 4. Where the DTL camera is pointing (the alignment stick)
 
