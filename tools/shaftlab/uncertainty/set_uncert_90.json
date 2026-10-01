@@ -1,0 +1,737 @@
+[
+ {
+  "id": "2026-06-11_Mark-Liversedge_Wrist_01__swing_0001",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-06-11_Mark-Liversedge_Wrist_01\\swing_0001",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0001.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0001__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-06-11_Mark-Liversedge_Wrist_01__swing_0002",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-06-11_Mark-Liversedge_Wrist_01\\swing_0002",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0002.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0002__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-06-11_Mark-Liversedge_Wrist_01__swing_0003",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-06-11_Mark-Liversedge_Wrist_01\\swing_0003",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0003.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0003__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-06-11_Mark-Liversedge_Wrist_01__swing_0004",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-06-11_Mark-Liversedge_Wrist_01\\swing_0004",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0004.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0004__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-06-11_Mark-Liversedge_Wrist_01__swing_0005",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-06-11_Mark-Liversedge_Wrist_01\\swing_0005",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0005.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0005__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-06-11_Mark-Liversedge_Wrist_01__swing_0006",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-06-11_Mark-Liversedge_Wrist_01\\swing_0006",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0006.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0006__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-06-11_Mark-Liversedge_Wrist_01__swing_0007",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-06-11_Mark-Liversedge_Wrist_01\\swing_0007",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0007.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0007__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-06-11_Mark-Liversedge_Wrist_01__swing_0008",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-06-11_Mark-Liversedge_Wrist_01\\swing_0008",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0008.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0008__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-06-11_Mark-Liversedge_Wrist_01__swing_0009",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-06-11_Mark-Liversedge_Wrist_01\\swing_0009",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0009.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-06-11_Mark-Liversedge_Wrist_01__swing_0009__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-07-03_Mark-Liversedge_Wrist_01__swing_0002",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-03_Mark-Liversedge_Wrist_01\\swing_0002",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0002.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0002__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-07-03_Mark-Liversedge_Wrist_01__swing_0003",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-03_Mark-Liversedge_Wrist_01\\swing_0003",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0003.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0003__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-07-03_Mark-Liversedge_Wrist_01__swing_0004",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-03_Mark-Liversedge_Wrist_01\\swing_0004",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0004.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0004__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-07-03_Mark-Liversedge_Wrist_01__swing_0005",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-03_Mark-Liversedge_Wrist_01\\swing_0005",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0005.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0005__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-07-03_Mark-Liversedge_Wrist_01__swing_0006",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-03_Mark-Liversedge_Wrist_01\\swing_0006",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0006.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0006__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-07-03_Mark-Liversedge_Wrist_01__swing_0007",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-03_Mark-Liversedge_Wrist_01\\swing_0007",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0007.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0007__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-07-03_Mark-Liversedge_Wrist_01__swing_0008",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-03_Mark-Liversedge_Wrist_01\\swing_0008",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0008.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0008__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-07-03_Mark-Liversedge_Wrist_01__swing_0009",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-03_Mark-Liversedge_Wrist_01\\swing_0009",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0009.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0009__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-07-03_Mark-Liversedge_Wrist_01__swing_0010",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-03_Mark-Liversedge_Wrist_01\\swing_0010",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0010.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0010__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-07-03_Mark-Liversedge_Wrist_01__swing_0011",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-03_Mark-Liversedge_Wrist_01\\swing_0011",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0011.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-03_Mark-Liversedge_Wrist_01__swing_0011__dtl.json",
+  "args": []
+ },
+ {
+  "id": "2026-07-04_Mark-Liversedge_Wrist_01__swing_0001",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-04_Mark-Liversedge_Wrist_01\\swing_0001",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0001.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0001__dtl.json",
+  "args": [
+   "--bands",
+   "308,362,560,758,808,854",
+   "--club-length-mm",
+   "940",
+   "--hosel-mm",
+   "882"
+  ]
+ },
+ {
+  "id": "2026-07-04_Mark-Liversedge_Wrist_01__swing_0002",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-04_Mark-Liversedge_Wrist_01\\swing_0002",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0002.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0002__dtl.json",
+  "args": [
+   "--bands",
+   "308,362,560,758,808,854",
+   "--club-length-mm",
+   "940",
+   "--hosel-mm",
+   "882"
+  ]
+ },
+ {
+  "id": "2026-07-04_Mark-Liversedge_Wrist_01__swing_0003",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-04_Mark-Liversedge_Wrist_01\\swing_0003",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0003.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0003__dtl.json",
+  "args": [
+   "--bands",
+   "308,362,560,758,808,854",
+   "--club-length-mm",
+   "940",
+   "--hosel-mm",
+   "882"
+  ]
+ },
+ {
+  "id": "2026-07-04_Mark-Liversedge_Wrist_01__swing_0004",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-04_Mark-Liversedge_Wrist_01\\swing_0004",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0004.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0004__dtl.json",
+  "args": [
+   "--bands",
+   "308,362,560,758,808,854",
+   "--club-length-mm",
+   "940",
+   "--hosel-mm",
+   "882"
+  ]
+ },
+ {
+  "id": "2026-07-04_Mark-Liversedge_Wrist_01__swing_0005",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-04_Mark-Liversedge_Wrist_01\\swing_0005",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0005.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0005__dtl.json",
+  "args": [
+   "--bands",
+   "308,362,560,758,808,854",
+   "--club-length-mm",
+   "940",
+   "--hosel-mm",
+   "882"
+  ]
+ },
+ {
+  "id": "2026-07-04_Mark-Liversedge_Wrist_01__swing_0006",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-04_Mark-Liversedge_Wrist_01\\swing_0006",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0006.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0006__dtl.json",
+  "args": [
+   "--bands",
+   "308,362,560,758,808,854",
+   "--club-length-mm",
+   "940",
+   "--hosel-mm",
+   "882"
+  ]
+ },
+ {
+  "id": "2026-07-04_Mark-Liversedge_Wrist_01__swing_0007",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-04_Mark-Liversedge_Wrist_01\\swing_0007",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0007.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0007__dtl.json",
+  "args": [
+   "--bands",
+   "308,362,560,758,808,854",
+   "--club-length-mm",
+   "940",
+   "--hosel-mm",
+   "882"
+  ]
+ },
+ {
+  "id": "2026-07-04_Mark-Liversedge_Wrist_01__swing_0008",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-04_Mark-Liversedge_Wrist_01\\swing_0008",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0008.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0008__dtl.json",
+  "args": [
+   "--bands",
+   "308,362,560,758,808,854",
+   "--club-length-mm",
+   "940",
+   "--hosel-mm",
+   "882"
+  ]
+ },
+ {
+  "id": "2026-07-04_Mark-Liversedge_Wrist_01__swing_0009",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-04_Mark-Liversedge_Wrist_01\\swing_0009",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0009.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0009__dtl.json",
+  "args": [
+   "--bands",
+   "308,362,560,758,808,854",
+   "--club-length-mm",
+   "940",
+   "--hosel-mm",
+   "882"
+  ]
+ },
+ {
+  "id": "2026-07-04_Mark-Liversedge_Wrist_01__swing_0010",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-04_Mark-Liversedge_Wrist_01\\swing_0010",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0010.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0010__dtl.json",
+  "args": [
+   "--bands",
+   "308,362,560,758,808,854",
+   "--club-length-mm",
+   "940",
+   "--hosel-mm",
+   "882"
+  ]
+ },
+ {
+  "id": "2026-07-04_Mark-Liversedge_Wrist_01__swing_0011",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-04_Mark-Liversedge_Wrist_01\\swing_0011",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0011.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0011__dtl.json",
+  "args": [
+   "--bands",
+   "308,362,560,758,808,854",
+   "--club-length-mm",
+   "940",
+   "--hosel-mm",
+   "882"
+  ]
+ },
+ {
+  "id": "2026-07-04_Mark-Liversedge_Wrist_01__swing_0012",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-04_Mark-Liversedge_Wrist_01\\swing_0012",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0012.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0012__dtl.json",
+  "args": [
+   "--bands",
+   "308,362,560,758,808,854",
+   "--club-length-mm",
+   "940",
+   "--hosel-mm",
+   "882"
+  ]
+ },
+ {
+  "id": "2026-07-04_Mark-Liversedge_Wrist_01__swing_0013",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-04_Mark-Liversedge_Wrist_01\\swing_0013",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0013.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0013__dtl.json",
+  "args": [
+   "--bands",
+   "308,362,560,758,808,854",
+   "--club-length-mm",
+   "940",
+   "--hosel-mm",
+   "882"
+  ]
+ },
+ {
+  "id": "2026-07-04_Mark-Liversedge_Wrist_01__swing_0014",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-04_Mark-Liversedge_Wrist_01\\swing_0014",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0014.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0014__dtl.json",
+  "args": [
+   "--bands",
+   "308,362,560,758,808,854",
+   "--club-length-mm",
+   "940",
+   "--hosel-mm",
+   "882"
+  ]
+ },
+ {
+  "id": "2026-07-04_Mark-Liversedge_Wrist_01__swing_0015",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-04_Mark-Liversedge_Wrist_01\\swing_0015",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0015.json",
+  "dtlPose": "C:\\PinPointStudio\\corpus\\pose2_dtl\\2026-07-04_Mark-Liversedge_Wrist_01__swing_0015__dtl.json",
+  "args": [
+   "--bands",
+   "308,362,560,758,808,854",
+   "--club-length-mm",
+   "940",
+   "--hosel-mm",
+   "882"
+  ]
+ },
+ {
+  "id": "2026-07-05_Mark-Liversedge_Wrist_02__swing_0001",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-05_Mark-Liversedge_Wrist_02\\swing_0001",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-05_Mark-Liversedge_Wrist_02__swing_0001.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-05_Mark-Liversedge_Wrist_02__swing_0002",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-05_Mark-Liversedge_Wrist_02\\swing_0002",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-05_Mark-Liversedge_Wrist_02__swing_0002.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-05_Mark-Liversedge_Wrist_02__swing_0003",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-05_Mark-Liversedge_Wrist_02\\swing_0003",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-05_Mark-Liversedge_Wrist_02__swing_0003.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-05_Mark-Liversedge_Wrist_02__swing_0004",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-05_Mark-Liversedge_Wrist_02\\swing_0004",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-05_Mark-Liversedge_Wrist_02__swing_0004.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-05_Mark-Liversedge_Wrist_02__swing_0005",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-05_Mark-Liversedge_Wrist_02\\swing_0005",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-05_Mark-Liversedge_Wrist_02__swing_0005.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-05_Mark-Liversedge_Wrist_02__swing_0006",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-05_Mark-Liversedge_Wrist_02\\swing_0006",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-05_Mark-Liversedge_Wrist_02__swing_0006.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-05_Mark-Liversedge_Wrist_02__swing_0007",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-05_Mark-Liversedge_Wrist_02\\swing_0007",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-05_Mark-Liversedge_Wrist_02__swing_0007.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-05_Mark-Liversedge_Wrist_02__swing_0008",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-05_Mark-Liversedge_Wrist_02\\swing_0008",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-05_Mark-Liversedge_Wrist_02__swing_0008.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-05_Mark-Liversedge_Wrist_02__swing_0009",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-05_Mark-Liversedge_Wrist_02\\swing_0009",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-05_Mark-Liversedge_Wrist_02__swing_0009.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-05_Mark-Liversedge_Wrist_02__swing_0010",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-05_Mark-Liversedge_Wrist_02\\swing_0010",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-05_Mark-Liversedge_Wrist_02__swing_0010.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-08_Mark-Liversedge_Wrist_01__swing_0001",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-08_Mark-Liversedge_Wrist_01\\swing_0001",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-08_Mark-Liversedge_Wrist_01__swing_0001.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-08_Mark-Liversedge_Wrist_01__swing_0002",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-08_Mark-Liversedge_Wrist_01\\swing_0002",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-08_Mark-Liversedge_Wrist_01__swing_0002.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-08_Mark-Liversedge_Wrist_01__swing_0003",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-08_Mark-Liversedge_Wrist_01\\swing_0003",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-08_Mark-Liversedge_Wrist_01__swing_0003.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-08_Mark-Liversedge_Wrist_01__swing_0004",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-08_Mark-Liversedge_Wrist_01\\swing_0004",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-08_Mark-Liversedge_Wrist_01__swing_0004.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-08_Mark-Liversedge_Wrist_01__swing_0005",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-08_Mark-Liversedge_Wrist_01\\swing_0005",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-08_Mark-Liversedge_Wrist_01__swing_0005.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-08_Mark-Liversedge_Wrist_01__swing_0006",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-08_Mark-Liversedge_Wrist_01\\swing_0006",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-08_Mark-Liversedge_Wrist_01__swing_0006.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-08_Mark-Liversedge_Wrist_01__swing_0007",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-08_Mark-Liversedge_Wrist_01\\swing_0007",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-08_Mark-Liversedge_Wrist_01__swing_0007.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-08_Mark-Liversedge_Wrist_01__swing_0008",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-08_Mark-Liversedge_Wrist_01\\swing_0008",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-08_Mark-Liversedge_Wrist_01__swing_0008.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-08_Mark-Liversedge_Wrist_01__swing_0009",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-08_Mark-Liversedge_Wrist_01\\swing_0009",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-08_Mark-Liversedge_Wrist_01__swing_0009.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-08_Mark-Liversedge_Wrist_01__swing_0010",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-08_Mark-Liversedge_Wrist_01\\swing_0010",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-08_Mark-Liversedge_Wrist_01__swing_0010.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-08_Mark-Liversedge_Wrist_01__swing_0011",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-08_Mark-Liversedge_Wrist_01\\swing_0011",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-08_Mark-Liversedge_Wrist_01__swing_0011.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-09_Mark-Liversedge_Wrist_01__swing_0001",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-09_Mark-Liversedge_Wrist_01\\swing_0001",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-09_Mark-Liversedge_Wrist_01__swing_0001.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-09_Mark-Liversedge_Wrist_01__swing_0002",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-09_Mark-Liversedge_Wrist_01\\swing_0002",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-09_Mark-Liversedge_Wrist_01__swing_0002.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-09_Mark-Liversedge_Wrist_01__swing_0003",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-09_Mark-Liversedge_Wrist_01\\swing_0003",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-09_Mark-Liversedge_Wrist_01__swing_0003.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-09_Mark-Liversedge_Wrist_01__swing_0004",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-09_Mark-Liversedge_Wrist_01\\swing_0004",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-09_Mark-Liversedge_Wrist_01__swing_0004.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-09_Mark-Liversedge_Wrist_01__swing_0005",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-09_Mark-Liversedge_Wrist_01\\swing_0005",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-09_Mark-Liversedge_Wrist_01__swing_0005.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-09_Mark-Liversedge_Wrist_01__swing_0006",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-09_Mark-Liversedge_Wrist_01\\swing_0006",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-07-09_Mark-Liversedge_Wrist_01__swing_0006.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-10_Mark-Liversedge_Wrist_01__swing_0001",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-10_Mark-Liversedge_Wrist_01\\swing_0001",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-07-10_Mark-Liversedge_Wrist_01__swing_0001.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-10_Mark-Liversedge_Wrist_01__swing_0002",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-10_Mark-Liversedge_Wrist_01\\swing_0002",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-07-10_Mark-Liversedge_Wrist_01__swing_0002.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-10_Mark-Liversedge_Wrist_01__swing_0003",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-10_Mark-Liversedge_Wrist_01\\swing_0003",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-07-10_Mark-Liversedge_Wrist_01__swing_0003.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-10_Mark-Liversedge_Wrist_01__swing_0004",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-10_Mark-Liversedge_Wrist_01\\swing_0004",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-07-10_Mark-Liversedge_Wrist_01__swing_0004.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-10_Mark-Liversedge_Wrist_01__swing_0005",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-10_Mark-Liversedge_Wrist_01\\swing_0005",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-07-10_Mark-Liversedge_Wrist_01__swing_0005.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-10_Mark-Liversedge_Wrist_02__swing_0001",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-10_Mark-Liversedge_Wrist_02\\swing_0001",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-07-10_Mark-Liversedge_Wrist_02__swing_0001.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-10_Mark-Liversedge_Wrist_02__swing_0002",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-10_Mark-Liversedge_Wrist_02\\swing_0002",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-07-10_Mark-Liversedge_Wrist_02__swing_0002.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-10_Mark-Liversedge_Wrist_02__swing_0003",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-10_Mark-Liversedge_Wrist_02\\swing_0003",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-07-10_Mark-Liversedge_Wrist_02__swing_0003.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-10_Mark-Liversedge_Wrist_02__swing_0004",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-10_Mark-Liversedge_Wrist_02\\swing_0004",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-07-10_Mark-Liversedge_Wrist_02__swing_0004.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-10_Mark-Liversedge_Wrist_02__swing_0005",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-10_Mark-Liversedge_Wrist_02\\swing_0005",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-07-10_Mark-Liversedge_Wrist_02__swing_0005.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-07-10_Mark-Liversedge_Wrist_02__swing_0006",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-07-10_Mark-Liversedge_Wrist_02\\swing_0006",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-07-10_Mark-Liversedge_Wrist_02__swing_0006.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-08-18_Mark-Liversedge_Wrist_01__swing_0001",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-08-18_Mark-Liversedge_Wrist_01\\swing_0001",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-08-18_Mark-Liversedge_Wrist_01__swing_0001.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-08-18_Mark-Liversedge_Wrist_01__swing_0002",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-08-18_Mark-Liversedge_Wrist_01\\swing_0002",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-08-18_Mark-Liversedge_Wrist_01__swing_0002.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-08-18_Mark-Liversedge_Wrist_01__swing_0003",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-08-18_Mark-Liversedge_Wrist_01\\swing_0003",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-08-18_Mark-Liversedge_Wrist_01__swing_0003.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-08-18_Mark-Liversedge_Wrist_01__swing_0004",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-08-18_Mark-Liversedge_Wrist_01\\swing_0004",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-08-18_Mark-Liversedge_Wrist_01__swing_0004.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-08-18_Mark-Liversedge_Wrist_01__swing_0005",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-08-18_Mark-Liversedge_Wrist_01\\swing_0005",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-08-18_Mark-Liversedge_Wrist_01__swing_0005.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-08-18_Mark-Liversedge_Wrist_02__swing_0001",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-08-18_Mark-Liversedge_Wrist_02\\swing_0001",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-08-18_Mark-Liversedge_Wrist_02__swing_0001.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-08-18_Mark-Liversedge_Wrist_02__swing_0002",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-08-18_Mark-Liversedge_Wrist_02\\swing_0002",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-08-18_Mark-Liversedge_Wrist_02__swing_0002.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-08-18_Mark-Liversedge_Wrist_02__swing_0003",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-08-18_Mark-Liversedge_Wrist_02\\swing_0003",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-08-18_Mark-Liversedge_Wrist_02__swing_0003.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-08-18_Mark-Liversedge_Wrist_02__swing_0004",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-08-18_Mark-Liversedge_Wrist_02\\swing_0004",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-08-18_Mark-Liversedge_Wrist_02__swing_0004.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-08-18_Mark-Liversedge_Wrist_02__swing_0005",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-08-18_Mark-Liversedge_Wrist_02\\swing_0005",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-08-18_Mark-Liversedge_Wrist_02__swing_0005.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-08-18_Mark-Liversedge_Wrist_02__swing_0006",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-08-18_Mark-Liversedge_Wrist_02\\swing_0006",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3_extra\\2026-08-18_Mark-Liversedge_Wrist_02__swing_0006.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-09-09_Mark-Liversedge_Wrist_01__swing_0001",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-09-09_Mark-Liversedge_Wrist_01\\swing_0001",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-09-09_Mark-Liversedge_Wrist_01__swing_0001.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-09-09_Mark-Liversedge_Wrist_01__swing_0002",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-09-09_Mark-Liversedge_Wrist_01\\swing_0002",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-09-09_Mark-Liversedge_Wrist_01__swing_0002.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-09-09_Mark-Liversedge_Wrist_01__swing_0003",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-09-09_Mark-Liversedge_Wrist_01\\swing_0003",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-09-09_Mark-Liversedge_Wrist_01__swing_0003.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-09-09_Mark-Liversedge_Wrist_01__swing_0004",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-09-09_Mark-Liversedge_Wrist_01\\swing_0004",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-09-09_Mark-Liversedge_Wrist_01__swing_0004.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-09-09_Mark-Liversedge_Wrist_01__swing_0005",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-09-09_Mark-Liversedge_Wrist_01\\swing_0005",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-09-09_Mark-Liversedge_Wrist_01__swing_0005.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-09-09_Mark-Liversedge_Wrist_01__swing_0006",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-09-09_Mark-Liversedge_Wrist_01\\swing_0006",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-09-09_Mark-Liversedge_Wrist_01__swing_0006.json",
+  "dtlPose": null,
+  "args": []
+ },
+ {
+  "id": "2026-09-09_Mark-Liversedge_Wrist_01__swing_0007",
+  "dir": "C:\\PinPointStudio\\corpus\\swings\\2026-09-09_Mark-Liversedge_Wrist_01\\swing_0007",
+  "pose": "C:\\PinPointStudio\\corpus\\pose3\\2026-09-09_Mark-Liversedge_Wrist_01__swing_0007.json",
+  "dtlPose": null,
+  "args": []
+ }
+]

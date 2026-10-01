@@ -583,6 +583,7 @@ int main(int argc, char **argv)
             return {};
         };
         QString err = mm(optClubLen,  "club-length-mm",  &job.clubLengthM,     0.001);
+        if (err.isEmpty() && cli.isSet(optClubLen)) job.clubLengthKnown = true;
         if (err.isEmpty()) err = mm(optHosel,    "hosel-mm",         &job.hoselFromButtMm, 1.0);
         if (err.isEmpty()) err = mm(optShaftLen, "shaft-length-mm",  &job.shaftLengthMm,   1.0);
         if (err.isEmpty()) err = mm(optHandsEnd, "hands-end-mm",     &job.handsEndMm,      1.0);
@@ -834,6 +835,23 @@ int main(int argc, char **argv)
                     line.insert("grip", QJsonArray{ sm.gripPx.x(), sm.gripPx.y() });
                     line.insert("theta_final", sm.thetaRad * 180.0 / 3.14159265358979323846);
                     line.insert("flags", int(sm.flags));
+                    // Shaft uncertainty (shaft_uncertainty_propagation_design.md): the published σθ
+                    // and gross risk, only when the pass assessed them.
+                    if (sm.sigmaThetaDeg >= 0.f) line.insert("sig_theta", double(sm.sigmaThetaDeg));
+                    if (sm.pGross >= 0.f)        line.insert("p_gross", double(sm.pGross));
+                }
+                // U5 forward–backward summary at every traced temperature: fb_sigma / fb_palt are
+                // arrays parallel to the summary line's fbTemps.
+                if (!trace.fbTemps.empty()) {
+                    QJsonArray fs, fa;
+                    for (size_t ti = 0; ti < trace.fbTemps.size(); ++ti) {
+                        const double sv = f < int(trace.fbSigma[ti].size()) ? trace.fbSigma[ti][size_t(f)] : std::numeric_limits<double>::quiet_NaN();
+                        const double av = f < int(trace.fbPAlt[ti].size())  ? trace.fbPAlt[ti][size_t(f)]  : std::numeric_limits<double>::quiet_NaN();
+                        fs.append(std::isfinite(sv) ? QJsonValue(sv) : QJsonValue());
+                        fa.append(std::isfinite(av) ? QJsonValue(av) : QJsonValue());
+                    }
+                    line.insert("fb_sigma", fs);
+                    line.insert("fb_palt", fa);
                 }
                 if (f < int(trace.phiSmoothed.size())) line.insert("phi", trace.phiSmoothed[size_t(f)]);
                 if (f < int(trace.phiTrailSmoothed.size()) && std::isfinite(trace.phiTrailSmoothed[size_t(f)]))
@@ -973,6 +991,15 @@ int main(int argc, char **argv)
                     { "handsRetried", trace.handsRetried } } },
                 { "poseFrames", int(pose.frames.size()) },
                 { "segConf", seg.conf } };
+            // U5 temperatures, only when the uncertainty pass traced any (keeps a dark run's
+            // trace byte-identical).
+            if (!trace.fbTemps.empty()) {
+                QJsonObject inner = summary.value("summary").toObject();
+                QJsonArray a;
+                for (double t : trace.fbTemps) a.append(t);
+                inner.insert("fbTemps", a);
+                summary.insert("summary", inner);
+            }
             tf.write(QJsonDocument(summary).toJson(QJsonDocument::Compact) + "\n");
             std::fprintf(stderr, "[swinglab] v3 trace: %zu emitted frames, heavy=%d chir=%d\n",
                          trace.frameIdx.size(), trace.heavyFrames, trace.chir);
