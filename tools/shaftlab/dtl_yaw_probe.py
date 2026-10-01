@@ -74,6 +74,7 @@ def main():
     rows = []
     for sw in sorted(os.listdir(a.session)):
         v = os.path.join(a.session, sw, "DTL.mp4")
+        if not os.path.isfile(v): v = os.path.join(a.session, sw, "Down-the-Line.mp4")   # the 11 June naming
         if not os.path.isfile(v): continue
         g = address_plate(v)
         if g is None: continue
