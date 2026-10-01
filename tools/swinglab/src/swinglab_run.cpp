@@ -34,9 +34,14 @@
 // Outputs in <run_dir>:
 //   result.json    swing.json-shaped document with the re-run analysis block
 //   runmeta.json   provenance: source kind, wall times, params echo
-//   trace.jsonl    (--trace) one line per frame: anchor + every candidate +
-//                  the association choice; final line: the s_hand fit record
+//   trace.jsonl    (--trace) one line per emitted frame with the decide internals
+//                  (phase, tier, theta_dp/theta_out, psi residual, phi/phi_trail,
+//                  theta_ball, head tier/radii, raw/dif p97, support at the DP θ,
+//                  seg_*/band_* lock fields, wedge rows/edges); final line: the
+//                  swing summary (landmarks, span, ladder rung, onset rule, ball
+//                  trust, P1/length checks, refusal)
 //   pose_dtl.json  (--dtl) the down-the-line pose pass, in the pose2d shape
+//   club_dtl.json, trace_dtl.jsonl  (--dtl) the DTL track and its per-frame trace
 //
 // Frames come from the raw sidecars (bit-faithful) when present, else the MP4s
 // (decoded to BGR24) — both streamed one frame at a time by SwingDiskSource.

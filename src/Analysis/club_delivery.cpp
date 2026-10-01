@@ -101,8 +101,9 @@ ClubDeliveryResult trackClubDelivery(const ShaftTrack2D &shaft, const std::vecto
     if (!shaft.valid)
         return res;
 
-    // The measured-head subset, in time order. THE TWO ANGLES read this and only this; the low
-    // point deliberately does not (see the header). An empty subset is therefore not a refusal —
+    // The measured-head subset, in time order. The top-of-swing angle reads this and only this;
+    // the attack angle reads it only as the fallback when the synth arc is not continuous through
+    // impact; the low point deliberately does not (see the header). An empty subset is therefore not a refusal —
     // it silences the angles and leaves the arc channel to answer for itself.
     std::vector<const ShaftSample2D *> m;
     m.reserve(shaft.samples.size());

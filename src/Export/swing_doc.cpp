@@ -407,8 +407,9 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
     // Additive ShaftTracker blocks (S3). pose2d keypoints are already
     // normalized 0..1 frame coords; club grip/head are normalized here by the
     // camera dims so every consumer (replay overlay, reload) is
-    // resolution-independent. The club block is written only for a VALID
-    // track — the all-or-nothing consumer contract.
+    // resolution-independent. The club block is written for a VALID track and
+    // for a REFUSED one (valid=false + `refused`, kept for the lab); consumers
+    // gate on `valid`, so a refused track still draws nothing.
     if (!a.pose2d.frames.empty())
         o[QStringLiteral("pose2d")] = poseTrackToJson(a.pose2d, windowT0);
     // The DOWN-THE-LINE pose (DtlPoseStage) in the same shape, for the DTL replay tile and
@@ -569,8 +570,6 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
             { QStringLiteral("predicted"),     predicted } };
         if (!positions.isEmpty()) clubObj.insert(QStringLiteral("positions"), positions);
         if (!synth.isEmpty())     clubObj.insert(QStringLiteral("synth"), synth);
-        // The blurred frames' timed edge readings (ShaftWedgeObs) as [t_us, theta, kind, sigmaDeg],
-        // kind 0 trail / 1 mid / 2 lead. Written only when non-empty.
         if (a.shaft.ballAnchored)
             clubObj.insert(QStringLiteral("addressBall"),
                            QJsonArray{ a.shaft.addressBallPx.x() * iw, a.shaft.addressBallPx.y() * ih });
@@ -592,6 +591,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
         if (a.shaft.refusedReason)
             clubObj.insert(QStringLiteral("refused"),
                            QString::fromLatin1(analysis::shaftRefusedReasonName(a.shaft.refusedReason)));
+        // The blurred frames' timed edge readings (ShaftWedgeObs) as [t_us, theta, kind, sigmaDeg],
+        // kind 0 trail / 1 mid / 2 lead. Written only when non-empty.
         if (!a.shaft.wedgeObs.empty()) {
             QJsonArray wo;
             for (const ShaftWedgeObs &w : a.shaft.wedgeObs)

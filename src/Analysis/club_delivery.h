@@ -43,12 +43,19 @@
 //
 // ── Two channels, on purpose ────────────────────────────────────────────────
 //
-// The two ANGLES are taken from `ShaftSample2D::headPx`, and `headPx` is NOT always a measurement:
+// The shaft angle at the top is taken from `ShaftSample2D::headPx`, and `headPx` is NOT always a measurement:
 // without the Stage-2 head pass it is projected from the grip along the shaft direction at an
 // assumed club length (`ShaftHeadProjected`). A projected head is a rigid function of θ and length,
 // so its "velocity" is the grip's velocity plus a length-scaled rotation term — differentiating it
 // produces a confident attack angle that contains no information about the clubhead at all. Samples
-// carrying `ShaftHeadProjected` are therefore EXCLUDED from the angles, not down-weighted.
+// carrying `ShaftHeadProjected` are therefore EXCLUDED from the measured-head channel, not
+// down-weighted.
+//
+// `attackAngle` has since (2026-09-23) moved to PREFER the synthesized arc below wherever it is
+// continuous through impact, and falls back to the measured-head channel only where it is not: the
+// measured heads read a median 36° from the GC Quad, the arc 3.6°. A synth head IS grip + L·dir(θ) —
+// the rigid function the paragraph above warns about — so what justifies it is the launch-monitor
+// comparison, not the argument above.
 //
 // `lowPointAhead` DOES NOT USE THAT CHANNEL, and the reason is a corpus fact rather than a
 // preference. Across 108 recorded swings the head detector holds a measured lock through roughly
@@ -65,14 +72,12 @@
 // few ms of impact, and its attack angle at impact is UNBIASED against a launch monitor (+0.02°)
 // where the measured-head channel was out by tens of degrees.
 //
-// ⚠ THIS READS THE SYNTHESIZED TIER, and it is not the first metric to. `shaft_synthesis.h` still
-// describes that tier as "excluded from every metric/scoring/estimand"; that sentence stopped being
-// true before this metric existed. `kinematic_series.cpp` already prefers `shaft.synth` over
-// `shaft.samples` for `clubheadSpeed`, `handSpeed` and `lagAngle` — explicitly, because a C¹ curve
-// differentiates better than a gappy one. So the honest statement is that the synthesized arc is
-// the input for the metrics that need the club's PATH, and the measured samples are the input for
-// everything that needs a per-frame observation. Scoring, the estimands, the plane fit and the
-// wrist channel still exclude it.
+// ⚠ THIS READS THE SYNTHESIZED TIER, and it is not the only metric that does — `shaft_synthesis.h`
+// lists them (the speeds, lag, attack angle, the kinematic sequence's club rate, the conic plane's
+// fallback channel, the fusion bridge). The honest statement is that the synthesized arc is the
+// input for the metrics that need the club's PATH, and the measured samples are the input for
+// everything that needs a per-frame observation. Scoring, the estimands, the fusion plane fits and
+// the wrist channel still exclude it.
 //
 // The coupling that comes with it, for this metric as for the speeds: `synth.enabled=false` takes
 // `lowPointAhead` with it. (The speeds survive — they fall back to `samples`; the low point does

@@ -484,7 +484,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.seg.sigFrac", c.seg.sigFrac);
     // Stage-2 measured-clubhead (Phase B): "shaft.head.*" keys. Kept a separate
     // sub-parse (clubhead_track.cpp) so the head parameter set travels with its
-    // module; still default enabled=false (dark at merge).
+    // module; ON since 2026-07-09.
     c.head = ClubheadConfig::fromOverrides(ov);
     // Multi-estimator club-length fusion: "fusion.*" keys (club_length_fusion.h).
     c.fusion = LengthFusionConfig::fromOverrides(ov);
@@ -1553,14 +1553,14 @@ static void synthesizeLayerC(ShaftTrack2D& out, const std::vector<int64_t>& tUs,
     const int nf = int(tUs.size());
     if (nf < 2 || int(thetaDeg.size()) != nf || int(gx.size()) != nf || int(gy.size()) != nf
         || int(isPred.size()) != nf || int(isMeas.size()) != nf) return;
-    // Dark by default. With ≥2 located P-anchors, fill a VISUALIZATION-TIER series
+    // ON by default. With ≥2 located P-anchors, fill the synthesized series
     // (out.synth) — C¹ Hermite-interpolated samples on a dense fixed cadence
     // (cfg.synth.rateHz, default 240 Hz) STRICTLY between consecutive anchors, so
-    // ¼× replay / the fan fill the inter-frame gaps. Flagged ShaftSynthesized so
-    // metrics/scoring/
-    // estimands EXCLUDE it (shaft_synthesis.h). samples[]/positions[]/θ/coverage/
-    // length above are untouched — synth rides alongside. cfg.synth.enabled==false
-    // ⇒ out.synth stays empty ⇒ swing.json byte-identical (soak contract).
+    // ¼× replay / the fan fill the inter-frame gaps, then fitted to the evidence
+    // (synth.fitEvidence). Flagged ShaftSynthesized: scoring and the estimands
+    // exclude it, the club-path metrics read it (the ⚠ in shaft_synthesis.h).
+    // samples[]/positions[]/θ/coverage/length above are untouched — synth rides
+    // alongside. cfg.synth.enabled==false ⇒ out.synth stays empty.
     if (cfg.synth.enabled && out.positions.size() >= 2) {
         // Per-anchor slopes from the smoothed track: θ̇ (deg/s) = central-difference
         // ω of the reconciled θ(t), median(5)+Gaussian(2) (the ω(t) convention shared

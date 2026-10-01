@@ -1634,25 +1634,20 @@ The tracker's tiers are carefully honest. Several metrics then read across them:
 
 34. **Round-trip gaps.** `addressPhaseFrame`, `onsetFloorFrame` and `addrBallTrusted` are not persisted; `diag.onsetTUs`/`topTUs` are written but not read back. A re-written reused document carries −1 for onset and top. The reuse path cannot reproduce the trust decision for the address ball; it re-derives what it can from flags.
 
-35. **Stale and contradictory comments.** These mislead readers and future code:
-    - `swing_analysis.h` `ShaftSynthesized` ("excluded from metrics");
-    - `shaft_synthesis.h` (says both "metrics do read it" and "metrics never read synth"; its list of readers is incomplete);
-    - `club_delivery.h`/`.cpp` ("the two angles read headPx and only this" — attack angle prefers synth);
-    - the ClubDeliveryStage comment and the catalogue `attackAngle.howToRead` ("needs a MEASURED clubhead");
-    - the catalogue clubheadSpeed / handSpeed routes ("scaled by the ball-diameter ruler" — they use club length);
-    - the catalogue `swingPlane.howToRead` ("one number per swing");
-    - the ImpactAnchorStage header ("re-synthesises the track through [the ball]" — the body says the ball is NOT pinned);
-    - `shaft_track_assembly.h` comments calling seg, snap, positions, synth, head and impactBoundary "dark at merge" or "enabled=false by default" when all ship ON;
-    - "dark" master-gate comments on Kinematics and ShaftPlane, both ON;
-    - `analysis_versions.h` "shaft NOT yet reused" (reusable since 17 Sept);
-    - `swing_doc.cpp` "only for a VALID track" (refused tracks are written);
-    - `ShaftPosition::timing` "in-memory only" (it is persisted);
-    - `FaceOnWitness::fullLenPx` described as p95 in the type and as p90 in the builder (the code uses p90);
-    - `kinematic_series.h` "up to three series" (four);
-    - the `swinglab_run` trace description;
-    - the shaftlab README's file table.
+35. **Stale and contradictory text.** The code comments this guide originally listed here were corrected in the commit after it:
+    - the `ShaftSynthesized` / `ShaftImuBridged` / `ShaftKinematicPredicted` / `ShaftWedge` / `thetaRad` / `ShaftPosition::timing` / `imuVisionCorr` / `predicted` notes in `swing_analysis.h`;
+    - the synth readers in `shaft_synthesis.h` and `club_delivery.h/.cpp`;
+    - the "dark at merge" config comments in `shaft_track_assembly.h/.cpp`;
+    - the ClubDelivery, ImpactAnchor, Kinematics, ShaftPlane, shaft-lean and fusion address-plane stage comments in `wrist_analyzer.cpp`;
+    - `kinematic_series.h`, `shaft_plane.h`, `shaft_positions.h`, `analysis_versions.h` (reuse note and the missing version-history entries), `swing_doc.cpp`, `dtl_shaft_types.h` (p90, not p95);
+    - the `swinglab_run` header and a status note on the shaftlab README.
 
-    `feature_switches_developer_guide.md` §5 lists some of these. They should be fixed in the code.
+    **Still stale, because they are user-visible catalogue text rather than comments** (`metric_catalogue_manifest.cpp`, and pinned by the catalogue tests):
+    - `attackAngle.howToRead` ("needs a MEASURED clubhead");
+    - the `clubheadSpeed` / `handSpeed` routes ("scaled by the ball-diameter ruler" — they use club length);
+    - `swingPlane.howToRead` ("one number per swing").
+
+    The behaviours the corrected comments now describe (dead flags, the reuse `isPred` divergence, the three impact instants) are unchanged and remain shortcomings in their own right (items 25–34).
 
 36. **The deciding core is one ~1,750-line function.** `decideTrack` interleaves evidence, emission edits, DP, segment passes, reconciliation, length ladder, two fusions, the head pass, placement, demotion, snap, impact geometry, positions, the milestone fit, synthesis, self-checks and trace filling.
     - Its correctness rests on a documented but fragile **evaluation order**: the band well last, re-asserted after the wedge and ball well; tiers before placement; demotion before snap and anchors.

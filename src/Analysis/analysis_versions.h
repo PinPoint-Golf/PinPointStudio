@@ -33,9 +33,10 @@
 //   ball  — kBallStageVersion (bump when ball_runner changes its output). Reused
 //           only when the pose it was computed from is reused too.
 //   shaft — kShaftStageVersion (bump when shaft_tracker / shaft_track_assembly /
-//           clubhead_track / the ball anchor change their output). Stamped now;
-//           NOT yet reused — the club block is lossy (onsetFloorFrame,
-//           addressPhaseFrame) and has no deserialiser.
+//           clubhead_track / the ball anchor change their output). REUSED since
+//           2026-09-17 — see the shaft note below the constant. The club block is
+//           still lossy: onsetFloorFrame, addressPhaseFrame and addrBallTrusted are
+//           not persisted, and diag.onsetTUs/topTUs are written but not read back.
 //
 // A recorded swing without a versions block (everything before 2026-09-09) never
 // matches, so it re-runs once and is stamped by the write-back.
@@ -44,8 +45,11 @@ namespace pinpoint::analysis {
 constexpr int kPoseStageVersion  = 1;
 constexpr int kBallStageVersion  = 1;
 constexpr int kShaftStageVersion = 5;
+                                              // 1: first stamped version (2026-09-09)
+                                              // 2: markerless stack ON — seg lock, snap, projPrior (2026-09-10)
                                               // 3: the blur wedge reads its LEADING edge; timed trail/mid/lead evidence (2026-09-29)
                                               // 4: …from the top onward only — a v3 track can carry a flipped backswing (2026-09-29)
+                                              // 5: address ball well + decoy check, trail-arm veto, phase self-check/retry, hands ladder, refusal (2026-09-30)
 // shaft — REUSABLE since 2026-09-17 (swing_reanalyzer.cpp): the recorded samples,
 //         P-anchors, lengths and plane fit are reloaded when this version matches,
 //         the pose and ball were themselves reused, and no tuning override is in

@@ -99,7 +99,8 @@ struct PlaneAnchor {
 };
 
 struct ShaftPlaneInput {
-    // The honest channel: measured heads only (headConf > 0, ShaftSynthesized
+    // The honest channel: samples with a Stage-2 head result (headConf > 0 — NB that is not
+    // the same as a MEASURED head: pred- and off-tier heads can carry headConf > 0 too), ShaftSynthesized
     // excluded) — the selection plane_probe.load_run makes.
     std::vector<ShaftPlanePoint> measured;
     // The C¹ Hermite through the P-anchors. Really "the plane implied by the

@@ -1,5 +1,14 @@
 # shaftlab — shaft + clubhead detection exemplar (Python)
 
+> **Status (Oct 2026): retired as a development surface.** The C++ tracker
+> (`src/Analysis/shaft_tracker*`, `shaft_track_assembly*`, `dtl_shaft_*`,
+> `shaft_fusion.h`) superseded this exemplar (Mark, 2026-09-08); the scripts
+> remain for parity pins, graders and montages. The file table below predates
+> club_track v3 and does not list the v3, DTL, fusion and grading scripts
+> (`club_track_v3.py`, `dtl_*.py`, `fuse_*.py`, `fusion_geom.py`,
+> `plane_probe.py`, `robust_*.py`, `segment_*.py`, …). The current algorithms
+> are described in `docs/developer/shaft_tracker_developer_guide.md`.
+
 The **validated reference implementation** for automated club markup, built
 lab-first with frame-by-frame visual adjudication. It must be proven here
 (visually + numerically) before any C++ port goes near the app — the one

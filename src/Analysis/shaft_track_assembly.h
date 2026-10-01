@@ -418,14 +418,12 @@ struct ShaftV3Config {
     RidgeConfig     ridge;
     BandMatchConfig band;
     // E4 steel-segment lock (markerless_club_tracker_design.md §4.2): "shaft.seg.*"
-    // keys. enabled=false by default (dark at merge) — the engine is never called
-    // and the tracker is byte-identical.
+    // keys. ON since the P6 flip (b419d646, 10 Sept 2026); enabled=false ⇒ the engine
+    // is never called and the tracker is byte-identical to the pre-E4 one.
     SegmentConfig   seg;
-    // Stage-2 measured-clubhead config (Phase B, clubhead_track.h). Defaults to
-    // enabled=false (dark at merge). NOTE: ShaftV3Config::fromOverrides (in
-    // shaft_track_assembly.cpp) does NOT populate this — the B3 wiring agent adds
-    // `head = ClubheadConfig::fromOverrides(ov);` there so "shaft.head.*" keys
-    // apply. Until then head keeps its validated-constant defaults.
+    // Stage-2 measured-clubhead config (Phase B, clubhead_track.h). ON since
+    // 2026-07-09 (df76fe9d). fromOverrides populates it via
+    // `c.head = ClubheadConfig::fromOverrides(ov)`, so "shaft.head.*" keys apply.
     ClubheadConfig  head;
     // Multi-estimator club-length fusion (club_length_fusion.h): "fusion.*" keys.
     // fromOverrides populates it (`fusion = LengthFusionConfig::fromOverrides(ov)`).
@@ -433,22 +431,23 @@ struct ShaftV3Config {
     // no-regression gate runs with "fusion.enabled" = 0, which reproduces today's
     // ladder byte-for-byte.
     LengthFusionConfig fusion;
-    // Layer A line re-registration («snap») — "shaft.snap.*" keys. enabled=false
-    // by default (dark at merge); fromOverrides populates it.
+    // Layer A line re-registration («snap») — "shaft.snap.*" keys. ON since the P6
+    // flip (10 Sept 2026); fromOverrides populates it.
     SnapConfig      snap;
     // Layer B P-position extraction (shaft_position_first §2 Layer B) —
-    // "positions.*" keys. enabled=false by default (dark); when on, decideTrack
-    // locates P1–P8 and fills ShaftTrack2D.positions from the emitted track
-    // (report-only in B1). fromOverrides populates it.
+    // "positions.*" keys. ON since B4 (2026-07-11): decideTrack locates P1–P8
+    // (+P10) and fills ShaftTrack2D.positions from the emitted track; the B2
+    // milestone fit (positions.fitEnabled, also ON) re-measures lost positions.
+    // fromOverrides populates it.
     PositionsConfig positions;
     // Layer C synthesis between anchors (shaft_position_first §2 Layer C) —
-    // "synth.*" keys. enabled=false by default (dark); when on, decideTrack fills
-    // ShaftTrack2D.synth with the VISUALIZATION-tier interpolated series between the
-    // located P-anchors. fromOverrides populates it.
+    // "synth.*" keys. ON (dense 240 Hz tier live since 2026-07-16): decideTrack fills
+    // ShaftTrack2D.synth with the series between the located P-anchors — a
+    // visualization tier that the club-path metrics also read (see the ⚠ in
+    // shaft_synthesis.h). fromOverrides populates it.
     SynthConfig     synth;
     // Impact as a boundary in the θ chain — "shaft.impactBoundary.*" keys
-    // (tuned::shaft::impactBoundary has the why). enabled=false by default (dark);
-    // when on, the P7 anchor carries an IN and an OUT rate fitted one-sided about
+    // (tuned::shaft::impactBoundary has the why). ON since 2026-09-06: the P7 anchor carries an IN and an OUT rate fitted one-sided about
     // impact, and the bracket-start anchor an OUT rate fitted forward, so the
     // synthesized tier (and clubheadSpeed composed from it) no longer peaks at the
     // bracket midpoint. (The two smoothers upstream — the φ Gaussian and the DP step
@@ -468,20 +467,21 @@ struct ShaftV3Config {
         double  minShaftForearmDeg = tuned::shaft::followThrough::kMinShaftForearmDeg;
         int64_t peakWindowUs       = tuned::shaft::followThrough::kPeakWindowUs;
     } followThrough;
-    // Hand-axis θ prior (WB4) — "shaft.handAxisPrior.*" keys. enabled=false by
-    // default (dark); when on, the per-frame hand-axis direction penalises the DP
+    // Hand-axis θ prior (WB4) — "shaft.handAxisPrior.*" keys. DARK (enabled=false;
+    // its corpus gate was never run); when on, the per-frame hand-axis direction penalises the DP
     // states far from it near the grip. fromOverrides populates it.
     HandAxisPriorConfig handAxisPrior;
-    // R8-T1 blur-wedge (S2, shaft_wedge.h) — "shaft.wedge.*" keys. enabled=false
-    // by default (dark); when on, frames whose R6-predicted club rate clears
+    // R8-T1 blur-wedge (S2, shaft_wedge.h) — "shaft.wedge.*" keys. ON since
+    // 2026-08-10 (d0c9ff27): frames whose R6-predicted club rate clears
     // wedge.omegaMinDegS get a proximal fan sweep inside the kinematic envelope,
-    // an emission well at the measured centroid (pre-DP, clamped at −wBand), the
+    // an emission well at the measured centroid — from the top onward at the
+    // blur's leading edge (wedge.leadEdge, 2026-09-29) — clamped at −wBand, the
     // WEDGE tier, and (wedge.kinCone) an off-envelope penalty. fromOverrides
     // populates it. The wedge threshold scales from evAbsFloor (S1) — with the
     // floor unset the wedge measures nothing (never fabricate).
     WedgeConfig     wedge;
     // P7 impact from club-at-ball geometry (impact_geom.h) — "shaft.impactGeom.*"
-    // keys. enabled=false by default (dark); when on, the theta==theta_ball
+    // keys. ON since 2026-08-10 (retime stays dark): the theta==theta_ball
     // crossing arbitrates the acoustic anchor's frame mapping (a coverage gap
     // around impact lands the nearest-frame mapping 234-362 ms late on 3 truth
     // swings and poisons the P6 window), and (impactGeom.retime) retimes the

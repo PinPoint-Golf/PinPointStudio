@@ -26,8 +26,8 @@
 
 #include <vector>
 
-// Club-kinematics chart series (clubhead speed, hand speed, lag angle) — three
-// per-frame curves the session review chart shows alongside the wrist/shaft metrics.
+// Club-kinematics chart series (clubhead speed, hand speed, lag angle — plus the
+// clubheadPeakLead scalar read off the speed curve) — per-frame curves the session review chart shows alongside the wrist/shaft metrics.
 //
 // These are UNSCORED display curves (no reference band, no scorer/trace involvement),
 // appended to SwingAnalysis::series exactly like the head/foot detail series. They are
@@ -54,7 +54,7 @@ namespace pinpoint::analysis {
 // Config for the kinematics display stage (developer guide §6.3): the master gate and
 // the composed-speed producer switch, "kinematics.*" keys.
 struct KinematicSeriesConfig {
-    bool enabled  = tuned::kinematics::kEnabled;    // kinematics.enabled — master gate (dark)
+    bool enabled  = tuned::kinematics::kEnabled;    // kinematics.enabled — master gate (ON since 2026-07-18)
     bool composed = tuned::kinematics::kComposed;   // kinematics.composed — see KinematicSeriesInputs (ON 2026-09-06)
 
     static KinematicSeriesConfig fromOverrides(const QVariantMap &ov)
@@ -97,8 +97,9 @@ struct KinematicSeriesInputs {
     std::vector<PhaseEvent> phases;
 };
 
-// Returns up to three MetricSeries in a stable order: clubhead speed (mph), hand
-// speed (mph), lag angle (°). A curve is included only when its camera product exists;
+// Returns up to four MetricSeries in a stable order: clubhead speed (mph), clubheadPeakLead
+// (ms, when the speed curve has a peak before the anchor), hand speed (mph), lag angle (°).
+// A curve is included only when its camera product exists;
 // with no shaft track the result is empty.
 std::vector<MetricSeries> buildKinematicSeries(const KinematicSeriesInputs &in);
 

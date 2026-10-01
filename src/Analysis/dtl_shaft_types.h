@@ -97,7 +97,7 @@ struct FaceOnWitness {
     std::vector<std::pair<int, int64_t>> ladder;   // (p, t_us), P1..P10
     int64_t impactUs  = -1;
     int     chir      = 0;                  // face-on chirality (+1/−1)
-    double  fullLenPx = 0.0;                // the ρ_F denominator (p95 of visibleLenPx over measured samples)
+    double  fullLenPx = 0.0;                // the ρ_F denominator (p90 of visibleLenPx over MEASURED, near-horizontal samples; the whole measured series when < 8)
     // Median inter-sample interval (µs). Filled by the builder; `at()` needs a
     // frame interval to apply the 3-interval bracket rule and a mean over a
     // gappy track is not one. 0 ⇒ at() falls back to the mean interval.

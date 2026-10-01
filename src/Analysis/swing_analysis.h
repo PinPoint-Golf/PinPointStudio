@@ -593,11 +593,17 @@ struct BallBaselineRef {
 // int, so no schema/JSON/QML break.
 enum ShaftSampleFlags : uint16_t {
     ShaftMeasured          = 0x01,  // vision measurement fused at this sample
-    ShaftImuBridged        = 0x02,  // IMU channel fused (no vision this sample)
+    ShaftImuBridged        = 0x02,  // IMU channel fused (no vision this sample). NO PRODUCER since the v3
+                                    // port (7 Jul 2026): the tracker is vision-only; the bit survives for
+                                    // old documents and is still read/cleared by consumers
     ShaftCoasted           = 0x04,  // predict-only (neither channel)
-    ShaftWedge             = 0x08,  // vision measurement was a blur-wedge centroid
+    ShaftWedge             = 0x08,  // vision measurement was a blur-wedge centroid or leading edge —
+                                    // deliberately NOT co-set with ShaftMeasured, so a consumer that
+                                    // tests only ShaftMeasured treats wedge frames as unmeasured
     ShaftHeadProjected     = 0x10,  // headPx projected from grip + L·dir(θ), not measured
-    ShaftKinematicPredicted= 0x20,  // pure R6 kinematic-model sample (predicted series / fallback)
+    ShaftKinematicPredicted= 0x20,  // pure R6 kinematic-model sample (predicted series / fallback). NO
+                                    // PRODUCER in v3: nothing sets it and `predicted` stays empty, so
+                                    // resynthesizeLayerC's isPred (read from this bit) is always false
     ShaftBallAnchored      = 0x40,  // theta soft-anchored from the grip->ball line (v3.4 design §9)
     ShaftHeadOffFrame      = 0x80,  // Stage-2 head expected off-frame — headPx is a ray/edge-clamped
                                     // point (NOT a head position); always co-set with ShaftHeadProjected
@@ -612,15 +618,21 @@ enum ShaftSampleFlags : uint16_t {
                                     // so every consumer that already treats a coast as a prediction
                                     // treats this as one too; the bit itself is provenance.
     ShaftSynthesized       = 0x100, // kinematically synthesized between P anchors (shaft_position_first
-                                    // §2 Layer C) — VISUALIZATION tier; EXCLUDED from metrics/scoring/
-                                    // estimands. Carried only in ShaftTrack2D.synth, never in samples[].
+                                    // §2 Layer C). Carried only in ShaftTrack2D.synth, never in samples[].
+                                    // Scoring, the estimands, the fusion plane fits and the wrist channel
+                                    // exclude it; the club-PATH metrics read it on purpose (clubheadSpeed,
+                                    // handSpeed, lagAngle, clubheadPeakLead, attackAngle, lowPointAhead,
+                                    // clubAngularSpeed, the conic plane's synth channel, the fusion bridge)
+                                    // — see the ⚠ in shaft_synthesis.h.
 };
 
 struct ShaftSample2D {
     int64_t t_us         = 0;
     QPointF gripPx;             // anchor used for detection (image px)
     QPointF headPx;             // measured terminus blob, or projected (see flags)
-    double  thetaRad     = 0.0; // RTS-smoothed image angle, WRAPPED to [0, 2π) (atan2 convention)
+    double  thetaRad     = 0.0; // image angle (atan2 convention), normally WRAPPED to [0, 2π) — but
+                                // applyBallAnchor writes raw atan2 (may be negative): wrap or unwrap
+                                // before comparing
     double  thetaDotRadS = 0.0; // smoothed angular velocity
     double  visibleLenPx = 0.0; // ridge extent (median/hold-filtered — θ is the precision channel)
     float    conf        = 0.f; // 0..1 from the smoothed θ posterior variance
@@ -743,10 +755,9 @@ struct ShaftPosition {
     // How the TIME was located, for timeline arbitration (timeline-fusion.md
     // §4.2): Measured when the crossing/milestone sat on a real vision sample
     // (BAND/RAY/WEDGE tier), Proxy when it was resolved on a coasted, IMU-bridged
-    // or model-predicted sample. IN-MEMORY ONLY — never serialized (the same
-    // same-pass conduit ShaftTrack2D::onsetFloorFrame is), so adding it keeps
-    // swing.json byte-identical; the class that survives into the file is the one
-    // stamped on the PhaseEvent fusion published.
+    // or model-predicted sample. PERSISTED as "timing" in analysis.club.positions
+    // (swing_doc.cpp, read back by recorded_products.cpp); resynthesizeLayerC also
+    // re-derives it from the straddling samples on a reused track.
     TimingClass timing     = TimingClass::Measured;
 };
 
@@ -769,7 +780,8 @@ struct ShaftTrack2D {
     pinpoint::SourceId camera = pinpoint::kInvalidSourceId;
     bool  valid = false;        // coverage gate over the swing span (all-or-nothing for consumers)
     float coverage = 0.f;       // fraction of span frames Measured|ImuBridged
-    float imuVisionCorr = 0.f;  // Pearson corr of vision vs IMU θ̇ (0 = no channel) — health metric
+    float imuVisionCorr = 0.f;  // Pearson corr of vision vs IMU θ̇ (0 = no channel). Never written
+                                // since the vision-only v3 port: always 0, persisted for old readers
     int   frameWidth  = 0;      // camera dims so px samples can be normalized by consumers
     int   frameHeight = 0;
     // bs0 from the internal hands-only phase model (segmentPhases) — always
@@ -786,11 +798,12 @@ struct ShaftTrack2D {
     // is a same-pass conduit decideTrack → EventRefine, recomputed on re-analysis),
     // so adding it keeps swing.json byte-identical.
     int   onsetFloorFrame = -1;
-    std::vector<ShaftSample2D> samples;     // ACTUAL — detector-inferred (vision+IMU fused)
+    std::vector<ShaftSample2D> samples;     // ACTUAL — detector-inferred, vision only since the v3 port
     // R7 dual output (skeleton-aware enhancement): the pure R6 kinematic-model
     // prediction emitted per frame alongside `samples`, plus its agreement with
     // the prior-free vision measurement. Empty / -1 until the K3 phase fills them.
-    std::vector<ShaftSample2D> predicted;        // PREDICTED — pure kinematic model, all flags = ShaftKinematicPredicted
+    std::vector<ShaftSample2D> predicted;        // PREDICTED — pure kinematic model, all flags = ShaftKinematicPredicted.
+                                                 // Never filled by the v3 tracker: always empty (persisted as [])
     float modelVisionResidualDeg = -1.f;         // RMS|actual − predicted| over prior-free measured frames (-1 = unset)
     // Measured club length in px, grip-to-ball at address (v3.4 design §9.4) — a scale floor for
     // implausibly-short shafts. -1.f = unmeasured (no ball anchor available for this swing).

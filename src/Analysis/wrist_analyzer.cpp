@@ -152,8 +152,10 @@ MetricSeries buildShaftLeanSeries(const ShaftTrack2D &shaft, int handedness,
         const int64_t dt = std::llabs(s.t_us - impactUs);
         if (dt < bestDt) { bestDt = dt; impact.t_us = s.t_us; impact.value = deg; }
     }
-    // Anchored: the hands at the P7 instant (the tracked grip, interpolated) → the address ball,
-    // and the whole curve re-referenced to it.
+    // Anchored: the hands at `impactUs` (the tracked grip, interpolated) → the address ball, and the
+    // whole curve re-referenced to it. NB impactUs is the caller's — ShaftLeanStage passes
+    // job.impactUs (the acoustic/marker anchor), NOT the P7 knot or the ladder Impact that other
+    // club metrics read; the two can differ by the anchor's 13–22 ms trigger bias or more.
     if (shaft.ballAnchored && impactUs >= 0 && shaft.samples.size() >= 2) {
         const auto &S = shaft.samples;
         for (size_t i = 1; i < S.size(); ++i) {
@@ -697,9 +699,11 @@ struct SegResolveStage : AnalysisStage {
 // 9. Shaft-lean series — appended to the LOCAL series after the
 //    wrist metrics, preserving element order for the scorer/metrics/trace.
 // 9b. ImpactAnchor — the ball anchors impact (impact_anchor.h). Finds the address ball by its
-//     departure (still through the backswing, gone after impact), then makes the P7 position the
-//     line from the hands to it and re-synthesises the track through it, so shaft lean, attack
-//     angle and low point all read a curve whose head is ON the ball at contact. Runs every analysis
+//     departure (still through the backswing, gone after impact) and records it on the track
+//     (ballAnchored / addressBallPx), then re-synthesises Layer C. The ball is NOT pinned into the
+//     track: shaft lean reads the hands→ball line directly, low point reads the ball position, and
+//     the synth takes the ball as evidence only when synth.ballAnchorSigmaDeg > 0 (dark, 0 by
+//     default). Runs every analysis
 //     (the stage is cheap: ~10 decoded frames), reused tracks included. Nothing found ⇒ nothing
 //     anchored and every metric as before.
 struct ImpactAnchorStage : AnalysisStage {
@@ -1201,10 +1205,11 @@ struct BodyRotationStage : AnalysisStage {
 // 13e. Club delivery from the face-on camera — backswing length at the top, attack
 //      angle and low point relative to the ball. DETAIL series only, UNSCORED.
 //
-//      Needs the shaft track WITH a measured clubhead: every reading here is taken
-//      from headPx, and a projected head carries the grip's motion rather than the
-//      club's. The producer enforces that per sample; canRun only checks that a
-//      valid track exists at all.
+//      The top-of-swing angle needs a MEASURED clubhead (headPx; a projected head
+//      carries the grip's motion rather than the club's). The attack angle prefers
+//      the synthesized arc through impact and falls back to measured heads; the low
+//      point reads the synthesized arc only (club_delivery.h). The producer enforces
+//      that per sample; canRun only checks that a valid track exists at all.
 struct ClubDeliveryStage : AnalysisStage {
     QString name() const override { return QStringLiteral("ClubDelivery"); }
     bool canRun(const AnalysisContext &ctx) const override
@@ -1290,8 +1295,8 @@ struct TempoStage : AnalysisStage {
 //      Derived purely from the face-on camera products: the shaft track (clubhead/grip
 //      px → linear speed, preferring the dense synth channel) and pose (lead forearm vs
 //      shaft direction → lag). No IMU input; a curve is omitted, never fabricated, when
-//      its product is absent. Lands DARK behind kinematics.enabled (developer guide
-//      §6.3): OFF ⇒ skipped ⇒ detail->series byte-identical to the pre-stage pipeline.
+//      its product is absent. Gated by kinematics.enabled (ON since 2026-07-18):
+//      OFF ⇒ skipped ⇒ detail->series byte-identical to the pre-stage pipeline.
 //      Runs after RequireProducts, so a halted shot skips it free.
 struct KinematicsStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Kinematics"); }
@@ -1323,7 +1328,7 @@ struct KinematicsStage : AnalysisStage {
 // Master gate only — the conic gates themselves are NOT tunable: relaxing them is
 // a measured mistake (brief §9), not a knob.
 struct ShaftPlaneConfig {
-    bool enabled = pinpoint::tuned::shaftPlane::kEnabled;   // shaftPlane.enabled — master gate (dark)
+    bool enabled = pinpoint::tuned::shaftPlane::kEnabled;   // shaftPlane.enabled — master gate (ON since 2026-08-11)
 
     static ShaftPlaneConfig fromOverrides(const QVariantMap &ov)
     {
@@ -1334,8 +1339,10 @@ struct ShaftPlaneConfig {
     }
 };
 
-// 13c. Face-on swing plane — the transition delta the over_the_top axis has been
-//      waiting for (shaft_plane.h; transition_plane_producer_brief.md). Fits a conic
+// 13c. Face-on swing plane — the transition delta (shaft_plane.h;
+//      transition_plane_producer_brief.md). over_the_top moved to the DTL hand-path
+//      loop on 2026-09-23 (this read −20°..+9° and changed sign on a golfer who comes
+//      over the top every swing); today only `shallowing` reads it. Fits a conic
 //      to the SHAFT VECTOR (headPx − gripPx) over takeaway→top and top→impact and
 //      reports the change in plane inclination between them. EXPERIMENTAL and
 //      normless: the measure it feeds is `planned` with no norm row, so it cannot
@@ -1373,9 +1380,12 @@ struct ShaftPlaneStage : AnalysisStage {
         const ShaftTrack2D &track = ctx.detail->shaft;
 
         ShaftPlaneInput in;
-        // The honest channel: measured heads only. ShaftSynthesized never appears
-        // in samples[] by construction, but the flag test is kept as explicit
-        // parity with plane_probe.load_run — the selection this is graded against.
+        // The "measured" channel: every sample with headConf > 0 (a Stage-2 head
+        // result exists). NB that admits ShaftHeadProjected / Coasted / Implausible
+        // samples whose head pass produced a pred- or off-tier radius — looser than
+        // club_delivery's headMeasured (≥ 0.30, projected excluded). ShaftSynthesized
+        // never appears in samples[] by construction, but the flag test is kept as
+        // explicit parity with plane_probe.load_run — the selection this is graded against.
         for (const ShaftSample2D &s : track.samples) {
             if (!(s.headConf > 0.f)) continue;
             if (s.flags & ShaftSynthesized) continue;
@@ -1890,7 +1900,8 @@ struct ShaftFusionStage : AnalysisStage {
             backFromUs = tk->t_us;
         if (const auto ad = ctx.seg.eventFor(Phase::Address); ad && ad->t_us < topUs)
             backFromUs = ad->t_us;
-        // The address plane is read from the DTL frames up to the takeaway (P1 on this ladder).
+        // The address plane is read from the DTL frames up to the Address event when the
+        // ladder has one, else up to the Takeaway, else up to backFromUs.
         int64_t addressToUs = backFromUs;
         if (const auto tk = ctx.seg.eventFor(Phase::Takeaway); tk && tk->t_us < topUs)
             addressToUs = tk->t_us;

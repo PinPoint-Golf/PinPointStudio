@@ -41,16 +41,21 @@
 // real per-frame track and this series rides alongside.
 //
 // ⚠ METRICS DO READ IT, and the "display channel only" framing below is no longer the whole truth.
-// Scoring, the estimands, the plane fit and the wrist channel all still filter this tier out by flag
-// (§2 Layer C, same discipline as ShaftKinematicPredicted). But the metrics that measure the club's
-// PATH take it on purpose:
-//   * `clubheadSpeed`, `handSpeed`, `lagAngle` (kinematic_series.cpp) PREFER synth over samples and
-//     fall back to samples — a C¹ curve differentiates better than a gappy one.
+// Scoring, the estimands, the fusion plane fits and the wrist channel all still filter this tier out
+// by flag (§2 Layer C). But the metrics that measure the club's PATH take it on purpose:
+//   * `clubheadSpeed`, `handSpeed`, `lagAngle`, `clubheadPeakLead` (kinematic_series.cpp) PREFER
+//     synth over samples and fall back to samples — a C¹ curve differentiates better than a gappy one.
+//   * `clubAngularSpeed` (segment_rates.cpp, the kinematic sequence) likewise prefers it.
+//   * `attackAngle` (club_delivery.cpp) prefers the synth arc where it is continuous through impact
+//     and falls back to measured heads.
 //   * `lowPointAhead` (club_delivery.h) is DEFINED on it, with no fallback: the clubhead detector
 //     does not hold a measured lock through impact, so the interpolated arc is the best statement
 //     about the club's path there that exists. It ships as an ESTIMATE with a published ±2 in.
-// The consequence to know: `enabled=false` below no longer changes nothing — the speeds drop back
-// to the measured samples, and `lowPointAhead` disappears entirely.
+//   * the face-on conic plane (shaft_plane.h) has a synth CHANNEL, used when the measured one fails,
+//     and shaft fusion (shaft_fusion.h) uses it as the BRIDGE where face-on did not measure (bridged
+//     frames are checked against the planes but never fitted).
+// The consequence to know: `enabled=false` below no longer changes nothing — the speeds, lag and
+// attack angle drop back to the measured samples, and `lowPointAhead` disappears entirely.
 //
 // SYNTHESIS MODEL (per bracket [a,b] of consecutive anchors, τ = (t−t_a)/(t_b−t_a)):
 //   θ(t)   C¹ monotone-safe cubic Hermite through the two anchors' (θ, θ̇). The
@@ -61,9 +66,9 @@
 //          are located as monotone-elevation crossings), so the Fritsch–Carlson
 //          slope limiter is a no-op in the common case and C¹ is exact at anchors;
 //          it engages only to veto overshoot at a reversal anchor (θ̇≈0 at the top).
-//   grip(t) plain cubic Hermite per axis through the anchor grips with endpoint
-//          velocities from the pose-grip path (the grip traces an arc — NOT monotone,
-//          so no limiter).
+//   grip(t) the per-frame HAND track (gripFromHands below), never an interpolation
+//          between anchors (2026-09-17). A plain cubic Hermite per axis through the
+//          anchor grips is only the fallback for a tick the hand track cannot bracket.
 //   L(t)   linear interpolation of the anchor drawn-lengths (lenPx).
 //   conf   min(anchor confs) · decay — 1.0 at anchors, midConfFrac at the midpoint
 //          (the parabola 4τ(1−τ) peaks 1 in the middle), so a synthesized run reads
@@ -90,16 +95,14 @@ namespace pinpoint::analysis {
 
 // "synth.*" tuning namespace (design §4). Nested in ShaftV3Config as `synth` (lives
 // here beside the Layer-C code, mirroring PositionsConfig in shaft_positions.h).
-// enabled defaults ON: the synthesized tier is a visualization channel PLUS the one
-// input `lowPointAhead` is defined on (see the ⚠ above) — everything else is
-// ShaftSynthesized-flagged and filtered out, so it moves no other number; the real
-// per-frame track stays in samples[]. Set enabled=false to go dark again
-// (ShaftTrack2D.synth stays empty ⇒ swing.json omits the club.synth block,
-// byte-identical to the pre-synth baseline) — which now ALSO suppresses
-// `lowPointAhead`, where before it changed nothing. Keys
+// enabled defaults ON: the synthesized tier is a visualization channel AND an input
+// to the club-path metrics listed in the ⚠ above; the real per-frame track stays in
+// samples[]. Set enabled=false to go dark again (ShaftTrack2D.synth stays empty ⇒
+// swing.json omits the club.synth block) — which now ALSO moves those metrics onto
+// the measured samples and suppresses `lowPointAhead`. Keys
 // "synth.enabled" / "synth.midConfFrac" / "synth.rateHz" via ShaftV3Config::fromOverrides.
 struct SynthConfig {
-    bool   enabled     = true;    // master gate — VIZ tier is live; metrics never read synth
+    bool   enabled     = true;    // master gate — VIZ tier is live, and the club-path metrics read it (⚠ above)
     double midConfFrac = 0.6;     // conf multiplier at a span midpoint (1.0 at the anchors)
     double rateHz      = 240.0;   // dense visualization cadence (Hz). The series is sampled on
                                   // this FIXED grid, not the source frame rate, so a low-fps or
@@ -284,8 +287,8 @@ inline ShaftSample2D synthSampleAt(const ShaftPosition& a, double thetaDotA, con
     s.gripPx       = QPointF{ gxp, gyp };
     s.thetaRad     = theta;
     // θ̇ — the analytic rate of the emitted curve (curveRate), or the legacy linear
-    // interpolation of the anchor rates (a viz-tier field; the precision channel is
-    // samples[], never this synthesized series).
+    // interpolation of the anchor rates. With curveRate (ON) this is what
+    // clubheadSpeed composes from.
     s.thetaDotRadS = (cfg.curveRate && hSec > 0.0)
                    ? hermiteDeriv(a.thetaRad, thB, mA, mB, tau) / hSec
                    : thetaDotA + (thetaDotB - thetaDotA) * tau;

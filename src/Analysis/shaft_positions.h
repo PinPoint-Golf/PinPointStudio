@@ -145,7 +145,7 @@ struct PositionsConfig {
     // truth-labelled P6 within 5 ms; p2/p8 windows keep first-crossing —
     // correct for their geometry).
     bool   p6LastCrossing = true;
-    PositionFitConfig fit;          // B2 milestone fit (dark until fit.fitEnabled flips)
+    PositionFitConfig fit;          // B2 milestone fit (ON: fit.fitEnabled defaults true since B4)
 };
 
 // One located P-time. `p` is the coaching P-index 1..8, or 10 (Finish) — P9 and a
