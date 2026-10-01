@@ -192,6 +192,260 @@ Strict rule: the profile biases **ranking and presentation only** — never firi
 never corridors. This is athlete *history*, not per-athlete norms (which remain out of
 scope). Storage: per-athlete `fault_profile.json` updated at session close.
 
+### A8. Measurement uncertainty through the DAG *(added 1 October 2026)*
+
+**Status:** implemented 1 October 2026, all three switches ON. Gates G1–G3 and cost pass on the 7 library sessions; G4 (the root order) is reported for Mark in `docs/research/data/diag_uncertainty/gates_20261001.md`. The ranking score was revised during the run (§A8.6: an assessed cause is not inferred). It extends the shaft uncertainty work
+(`docs/design/shaft_uncertainty_propagation_design.md`, which left σ in scoring as its
+Q5), and it should have been part of that work.
+
+#### A8.1 The problem
+
+Every reading now carries an uncertainty. The shaft metrics carry a per-reading 1σ and a
+gross-error probability; other producers carry a per-series σ or none. Detection ignores
+all of it. A signal is a hard yes/no on the value alone, so 12 ± 3 against an edge at 10
+fires exactly as hard as 12 ± 0.1. Everything downstream inherits that: the ledger counts
+a borderline shot as one full firing, the tiers count it, and the explanation pass treats
+the Pattern set as certain (`confidence = 1`).
+
+Two different σ are involved, and they must not be confused.
+
+- **The norm's σ** describes how golfers vary. It places the corridor and the deviation
+  edge, and it is unchanged by this section.
+- **The measurement σ** describes how wrong this reading might be. It decides how sure
+  we are which side of the edge the golfer really was.
+
+Only the second turns a verdict into a probability. For a reading v with measurement
+σ_m against a deviation edge e on the high tail:
+
+    P(fire) = Φ((v − e) / σ_m)
+
+So 12 ± 3 against an edge at 10 gives Φ(0.67) ≈ 0.75. There is a one-in-four chance the
+true value never crossed the edge. The probability is ½ only when the reading sits
+exactly on the edge.
+
+#### A8.2 What the model already had
+
+The pack's words were already numbers.
+
+| Word | Meaning | Value |
+|---|---|---|
+| **Edge strength** | P(effect \| cause), `strengthWeight()` | rarely 0.10, sometimes 0.30, often 0.60, usually 0.80, always 0.95 |
+| **Condition prominence** | the prior P(cause), `prominenceWeight()` | rare 0.05, uncommon 0.10, occasional 0.20, common 0.35, ubiquitous 0.60 |
+
+The explanation score was P(cause) × Σ P(effect | cause) over the fired findings a cause
+covers, ranked by a greedy set cover. That score is ordinal, not a probability, and it had
+two blind spots this section closes:
+
+- **Measurement uncertainty never entered it.**
+- **Negative evidence never entered it.** Take a cause that "usually" produces a
+  characteristic which was assessed on every shot and never fired. That cause lost nothing
+  for the absence of its most typical effect.
+
+#### A8.3 Stage D1: σ reaches the measures
+
+**The phase grid carries σ** (sidecar schema 5). Each phase value takes the first source
+available:
+
+1. the per-reading σ and gross risk of the metric's own `phaseSamples` entry at that phase;
+2. the series σ (`MetricSeries::sigma`);
+3. none.
+
+The source is recorded on the value:
+
+| Source | Meaning |
+|---|---|
+| `reading` | the producer's per-instant budget |
+| `series` | a σ the producer characterised for the whole curve |
+| `noise` | a series σ with `sigmaKind` Unspecified: frame-to-frame noise, a lower bound on the error, not its size |
+| `none` | no σ was stated |
+
+A span takes the larger of the series σ and its two endpoint σ.
+
+**The reducers propagate σ:**
+
+| Reducer | σ |
+|---|---|
+| At | the value's σ |
+| Delta | the two endpoints in quadrature |
+| Rate | the two endpoints in quadrature, over the elapsed time. Timing σ is not included; stated, not hidden. |
+| Extremum | the aggregated spans' σ, ⊕ the anchor's σ when anchored |
+
+**Ladder measures** take the σ of the rung that answered. `MeasureReading` gains
+`measSigma` (NaN = none), `grossRisk` and the source.
+
+#### A8.4 Stage D2: a probability on every shot's verdict
+
+`evaluate()` computes, beside the verdict:
+
+- **Outside the corridor:** P(fire) = Φ(±(v − e)/σ_m), where e is the tail's deviation
+  edge (the value at which the grade turns Watch). An open tail gives 0.
+- **Threshold:** e is the authored threshold.
+- **Order:** Φ((v₁ − v₂)/√(σ₁² + σ₂²)).
+- **Ratio:** no σ is propagated through a quotient, so it stays hard.
+- **No σ:** P(fire) is 1 or 0, and the reading is marked *unquantified*. A σ is never
+  invented.
+
+Gross risk g is carried separately. P(fire) is the probability **given that the reading
+is not gross**, and g is the probability it is.
+
+**Combining a condition's signals:**
+
+- **ANY** = 1 − Π(1 − pᵢ) over the available signals;
+- **ALL** = Π pᵢ;
+- g = the largest of the signals'.
+
+Signals read off one capture are correlated, so the product overstates certainty. The
+caveat is stated rather than corrected, because correlation between signals is not
+modelled anywhere.
+
+**The verdict does not change.** Fired / NotFired / Unavailable are computed exactly as
+before, and P(fire) > ½ holds exactly when a single quantified signal is past its edge.
+D2 only adds information. The ledger row persists `pFire`, `measSigma`, `grossRisk` and
+`quantified`, each only when set.
+
+#### A8.5 Stage D3: soft session counts
+
+**The Wilson bound takes expected counts.** The ledger already weighs shots (warm-up),
+so this is the same machinery:
+
+    effA = Σ w·(1 − g)          effF = Σ w·(1 − g)·pFire
+
+over the assessable shots. A gross reading is the share of a shot that assessed nothing.
+
+**What stays hard:**
+
+- The captions remain hard integer counts ("8 of 12 measurable shots"). A count is what a
+  golfer can check against the ticks.
+- The 3-shot floor stays on the hard assessable count.
+
+**P(Pattern) comes from a deterministic Monte Carlo.** There are 200 draws. In each, every
+shot independently is:
+
+- not assessable, with probability g;
+- otherwise fired, with probability pFire.
+
+The tier rule is applied to each draw, and the share of draws reaching Pattern is
+P(Pattern). It is the probability that "this is a pattern" would survive the measurement
+error, and it is what D4 consumes.
+
+**Unchanged:** the link 2×2 and Fisher test stay on hard states. Fisher needs integer
+cells, and a link grade is a caption over counted shots.
+
+#### A8.6 Stage D4: a posterior ranking that sees uncertainty and absence
+
+**Inside the existing greedy set cover**, each candidate cause c gets a probability of being
+present, and its score becomes the expected explained mass:
+
+    score(c) = P(c | evidence) × Σ over the findings it would explain of q_e · s(c → e)
+
+This is the old score with the base rate replaced by an evidence-updated probability, and each
+finding weighted by how sure we are of it. The Σ keeps what the old score meant to keep: a cause
+that explains four findings outranks one that explains one.
+
+**A cause that was itself assessed is not inferred.** Its P(c | evidence) is its own P(Pattern),
+and its children do not update it. The noisy-OR is how the model reasons about causes it cannot
+see. A first cut let it update measured causes too, and it read 0.000 for a measured pattern
+whose usual effects were absent: the inference overruling the observation. That was wrong.
+
+**For a cause nobody measured**, P(c | evidence) is its noisy-OR posterior given its children:
+
+    odds(c | evidence) = π_c / (1 − π_c) × Π_e LR_e(c)
+
+- **Prior π_c:** its prominence.
+- **Child e, with soft evidence q_e = P(Pattern):**
+
+      P(obs_e | c)  = q_e · (1 − (1 − s)(1 − λ_e)) + (1 − q_e) · (1 − s)(1 − λ_e)
+      P(obs_e | ¬c) = q_e · λ_e + (1 − q_e) · (1 − λ_e)
+      LR_e(c)       = P(obs_e | c) / P(obs_e | ¬c)
+
+  Here s is the edge strength and λ_e is the leak, the chance e appears without c. The
+  leak is e's own prominence: its population base rate.
+- **Which children count.** Unassessed children contribute nothing (LR = 1). Immaterial
+  ones contribute nothing either; materiality stays ranking-only. A child already
+  explained by an earlier root drops out of later rounds, as the cover already does: this
+  is the approximation to explaining away. **A child assessed and not a pattern stays in
+  every round.** That is the negative evidence the old score could not see.
+- **The rules are unchanged:** rule 1 (no fired characteristic with an in-pack cause is a
+  root), rule 2 (an Asserted cause is offered, never concluded), screens, exclusions and
+  corroboration.
+
+**Stability.** The same 200 draws of hard session states are each run through `explain()`.
+Every root carries the share of draws in which it was still selected as a root, shown in
+words:
+
+| Share of draws | Word |
+|---|---|
+| ≥ 80% | firm |
+| ≥ 50% | likely |
+| below 50% | fragile |
+
+**No percentage is shown, ever** (principle 5). The posterior orders the roots, and the
+stability word says how much that order depends on readings near their edges.
+
+**Inferred drivers say so.** A root that was never measured in the session and that no entered
+screen confirms is labelled "inferred, not measured" under its name on the driver footer. This
+covers latent causes whose screen is unanswered, and observable characteristics whose measure has
+no producer.
+
+Why it matters: on the re-analysed library (1 October 2026) the posterior ranking put S-posture
+first or second in all four sessions with patterns, and its lumbar-curve measure has no producer.
+It rises because it has only two authored effects, so little can count against it. Limited trail
+hip IR falls because it has fifteen, and most were measured absent. Mark chose to label inferred
+drivers rather than demote them, and to return to screenings as their own feature (below).
+
+#### A8.7 Stage D5: keeping the words grounded
+
+The posterior is computed from authored words, and it would be easy to present it as more
+than it is. Three devices keep it honest:
+
+1. **Word sensitivity**, in the report tool. For each session, move every strength and
+   prominence rung one step either way and count the top-root flips. An edge whose single
+   word decides a top root is listed by name for review.
+2. **Calibration against screens.** A screened condition is the only ground truth the
+   model has about a latent cause. Across sessions, the tool tabulates P(effect is a
+   Pattern | screened cause positive) against the authored rung. Edges whose word
+   disagrees with what the screens show get flagged. The table fills as screens are
+   entered. It is empty today.
+3. **Ordinal presentation.** As above: words and orderings, never percentages.
+
+#### A8.8 Switches, gates and what is not done
+
+| Switch | Stage | Default |
+|---|---|---|
+| `diagnostics.uncertainty.enabled` | D1 + D2: verdict-identical | ON |
+| `diagnostics.uncertainty.softTier` | D3 | per its gate |
+| `diagnostics.uncertainty.posteriorRank` | D4 | per Mark's review of the rank-shift report |
+
+The gates were fixed before any number was seen. They run on the re-analysed library, read
+only (`tools/diagnostics/diag_uncertainty_report`):
+
+- **G1, verdicts identical.** With D1 and D2 on, every shot's Fired / NotFired /
+  Unavailable matches with the switch off.
+- **G2, no σ means no change.** With every σ withheld, D3 and D4 reproduce today's tiers,
+  and D3 reproduces today's roots. D4 cannot: its ranking differs by construction, and that
+  difference is reported, not gated.
+- **G3, a soft tier moves only borderline conditions.** Every condition whose tier changes
+  under D3 must have a shot with 0.2 < pFire < 0.8 or g > 0.2. A change on confidently
+  measured shots is a bug.
+- **G4, ranking reported, not gated.** Root-order changes under D4 are listed per session,
+  with the posterior, the old score and the stability word. This follows the repo's rule
+  for ranking changes (`rank_shift_report.cpp`): the output is the deliverable, and a
+  frozen-parity gate would pin authored weights.
+- **Cost:** under 50 ms per re-rank (200 `explain()` runs).
+
+**Not done, and stated:**
+
+- The link 2×2 stays hard.
+- Correlation between signals of one shot is ignored.
+- Rate σ omits timing.
+- A `noise`-sourced σ understates the error, and is tagged so.
+- Strength and prominence words stay uncalibrated until screened sessions exist.
+- The fault profile (A7) still counts hard Pattern sessions.
+- **Screenings are the next feature** (Mark, 1 October 2026). They are the only ground truth for
+  latent causes, so they are what can confirm an inferred driver and calibrate the strength and
+  prominence words (A8.7). How a screen is prompted, entered and folded into the posterior is a
+  design of its own.
+
 ---
 
 ## Part B — What is surfaced as the session progresses
@@ -400,6 +654,9 @@ the test asset everything else leans on; build it first.
 | Rank-band width (hysteresis) | 1 band | Cards move on decisive change only |
 | Driver-footer stability debounce | pattern set unchanged 3 shots | |
 | Warm-up default | first 3 shots down-weighted, wizard-adjustable | §5.4 |
+| Monte Carlo draws for P(Pattern) and root stability | 200, fixed seed | A8.5, A8.6 |
+| Stability words | firm ≥ 0.8, likely ≥ 0.5, else fragile | A8.6 |
+| Borderline shot (G3) | 0.2 < pFire < 0.8 or grossRisk > 0.2 | A8.8 |
 
 ---
 

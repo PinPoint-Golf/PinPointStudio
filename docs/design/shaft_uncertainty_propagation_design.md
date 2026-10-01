@@ -395,7 +395,7 @@ Each stage is buildable and gateable on its own. Per standing practice (memory "
 2. **Q2: soft anchors.** They make the synthetic track honest at P7 but move the curve. Accept a moved-swing list as the decision basis?
 3. **Q3: gross risk.** At what pGross should a card show ⚠ (the design proposes 0.2)? Should anything be *refused* on pGross alone, or does refusal stay with the witness checks?
 4. **Q4: one impact instant.** The ladder Impact for everything, accepting the value moves on lean and the speed mask?
-5. **Q5: scoring.** A follow-up could let faults fire only when |value − norm| > k·σ, or weight resemblance by σ. Out of scope here. Should it be the next design?
+5. **Q5: scoring.** A follow-up could let faults fire only when |value − norm| > k·σ, or weight resemblance by σ. Out of scope here. Should it be the next design? *Answered 1 October 2026: yes. The design is `docs/design/session_diagnostics_design.md` §A8 — a probability of firing on every signal, soft session counts, and a noisy-OR posterior ranking that also sees negative evidence.*
 6. **Q6: DTL σ beyond address.** It rests on an assumed 1/ρ̂_D inflation until DTL hand marks exist. Acceptable to ship as `propagated` (not `calibrated`) on that basis?
 
 ## 10. Risks

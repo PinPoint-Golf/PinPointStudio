@@ -359,6 +359,14 @@ Design: `docs/design/shaft_uncertainty_propagation_design.md`. Calibration and g
 
 Version stamps bumped with this: `kShaftStageVersion` 6, `kDtlShaftStageVersion` 3, `kShaftFusionStageVersion` 6. A library re-analysis is needed for stored swings to gain σ (§1.3).
 
+**Diagnostics** (`tuned::diagUncertainty`, `session_diagnostics_design.md` §A8). These are compile-time constants, with the report tool's per-run overrides through `SessionDiagnosticsModel::setUncertaintyModes`:
+
+| Switch | Default | What it does |
+|---|---|---|
+| `kEnabled` | LIVE | Readings carry their measurement σ, and every finding carries P(fire), gross risk and `quantified`. Verdict-identical: gate G1, 0 mismatches over 7,260 rows. |
+| `kSoftTier` | LIVE | The Wilson bound takes expected counts, and each condition gets P(Pattern) from 200 deterministic draws. Gate G3: the 3 tier moves on the library all rested on borderline shots. |
+| `kPosteriorRank` | LIVE, pending Mark's review of the rank-shift report | Roots rank by P(c \| evidence) × Σ q·s, with negative evidence, and carry a stability word (firm / likely / fragile). |
+
 ---
 
 ## 4. Switches outside the analysis pipeline

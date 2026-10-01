@@ -1,0 +1,205 @@
+{
+    "sessions": [
+        {
+            "patternsM0": [
+                "early_extension",
+                "flying_elbow",
+                "lead_knee_drifts_in_at_top",
+                "lie_steep_at_impact",
+                "low_point_behind_ball",
+                "over_the_top",
+                "pelvis_thrust_backswing",
+                "reverse_spine_p4",
+                "trail_knee_straighten"
+            ],
+            "patternsM3": [
+                "early_extension",
+                "flying_elbow",
+                "lead_knee_drifts_in_at_top",
+                "lie_steep_at_impact",
+                "over_the_top",
+                "pelvis_thrust_backswing",
+                "reverse_spine_p4",
+                "trail_knee_straighten"
+            ],
+            "rootsAfter": [
+                "limited_lead_ankle_dorsiflexion",
+                "s_posture",
+                "c_posture",
+                "hips_under_rotated_at_top",
+                "excessive_knee_flex"
+            ],
+            "rootsBefore": [
+                "limited_thoracic_rotation",
+                "casting",
+                "excessive_knee_flex"
+            ],
+            "rootsM0": [
+                "limited_thoracic_rotation",
+                "hanging_back",
+                "excessive_knee_flex"
+            ],
+            "rootsM3": [
+                "limited_lead_ankle_dorsiflexion",
+                "s_posture",
+                "c_posture",
+                "hips_under_rotated_at_top",
+                "excessive_knee_flex"
+            ],
+            "session": "2026-07-04_Mark-Liversedge_Wrist_01",
+            "tierMoves": 1
+        },
+        {
+            "patternsM0": [
+                "lead_knee_drifts_in_at_top",
+                "reverse_spine_p4",
+                "sway"
+            ],
+            "patternsM3": [
+                "lead_knee_drifts_in_at_top",
+                "reverse_spine_p4",
+                "sway"
+            ],
+            "rootsAfter": [
+                "s_posture",
+                "limited_lead_ankle_dorsiflexion",
+                "over_rotation_at_top"
+            ],
+            "rootsBefore": [
+                "limited_trail_hip_ir"
+            ],
+            "rootsM0": [
+                "limited_trail_hip_ir"
+            ],
+            "rootsM3": [
+                "s_posture",
+                "limited_lead_ankle_dorsiflexion",
+                "over_rotation_at_top"
+            ],
+            "session": "2026-09-09_Mark-Liversedge_Wrist_01",
+            "tierMoves": 0
+        },
+        {
+            "patternsM0": [
+                "ball_back",
+                "reverse_spine_p4",
+                "stance_narrow",
+                "trail_elbow_deep"
+            ],
+            "patternsM3": [
+                "ball_back",
+                "reverse_spine_p4",
+                "stance_narrow",
+                "trail_elbow_deep"
+            ],
+            "rootsAfter": [
+                "s_posture",
+                "limited_shoulder_external_rotation",
+                "limited_trail_hip_ir"
+            ],
+            "rootsBefore": [
+                "limited_trail_hip_ir",
+                "limited_shoulder_external_rotation"
+            ],
+            "rootsM0": [
+                "limited_trail_hip_ir",
+                "limited_shoulder_external_rotation"
+            ],
+            "rootsM3": [
+                "s_posture",
+                "limited_shoulder_external_rotation",
+                "limited_trail_hip_ir"
+            ],
+            "session": "2026-09-15_Mark-Liversedge_Wrist_01",
+            "tierMoves": 0
+        },
+        {
+            "patternsM0": [
+                "ball_back",
+                "club_short_of_parallel",
+                "reverse_spine_p4",
+                "stance_narrow",
+                "trail_elbow_deep"
+            ],
+            "patternsM3": [
+                "ball_back",
+                "club_short_of_parallel",
+                "reverse_spine_p4",
+                "stance_narrow",
+                "trail_elbow_deep"
+            ],
+            "rootsAfter": [
+                "short_backswing",
+                "s_posture",
+                "limited_shoulder_external_rotation",
+                "limited_trail_hip_ir"
+            ],
+            "rootsBefore": [
+                "limited_trail_hip_ir",
+                "short_backswing",
+                "limited_shoulder_external_rotation"
+            ],
+            "rootsM0": [
+                "limited_trail_hip_ir",
+                "short_backswing",
+                "limited_shoulder_external_rotation"
+            ],
+            "rootsM3": [
+                "short_backswing",
+                "s_posture",
+                "limited_shoulder_external_rotation",
+                "limited_trail_hip_ir"
+            ],
+            "session": "2026-09-15_Mark-Liversedge_Wrist_02",
+            "tierMoves": 0
+        },
+        {
+            "patternsM0": [
+            ],
+            "patternsM3": [
+            ],
+            "rootsAfter": [
+            ],
+            "rootsBefore": [
+            ],
+            "rootsM0": [
+            ],
+            "rootsM3": [
+            ],
+            "session": "2026-09-16_Mark-Liversedge_Wrist_01",
+            "tierMoves": 0
+        },
+        {
+            "patternsM0": [
+            ],
+            "patternsM3": [
+            ],
+            "rootsAfter": [
+            ],
+            "rootsBefore": [
+            ],
+            "rootsM0": [
+            ],
+            "rootsM3": [
+            ],
+            "session": "2026-09-16_Mark-Liversedge_Wrist_02",
+            "tierMoves": 0
+        },
+        {
+            "patternsM0": [
+            ],
+            "patternsM3": [
+            ],
+            "rootsAfter": [
+            ],
+            "rootsBefore": [
+            ],
+            "rootsM0": [
+            ],
+            "rootsM3": [
+            ],
+            "session": "2026-09-16_Mark-Liversedge_Wrist_03",
+            "tierMoves": 0
+        }
+    ]
+}

@@ -1,0 +1,84 @@
+{
+    "sessions": [
+        {
+            "rootsAfter": [
+                "s_posture",
+                "c_posture",
+                "hips_under_rotated_at_top",
+                "limited_lead_ankle_dorsiflexion",
+                "over_rotation_at_top",
+                "excessive_knee_flex"
+            ],
+            "rootsBefore": [
+                "poor_pelvic_disassociation",
+                "limited_thoracic_rotation",
+                "excessive_knee_flex"
+            ],
+            "session": "2026-07-04_Mark-Liversedge_Wrist_01",
+            "tierMoves": 1
+        },
+        {
+            "rootsAfter": [
+                "s_posture",
+                "over_rotation_at_top",
+                "limited_thoracic_rotation"
+            ],
+            "rootsBefore": [
+                "limited_thoracic_rotation",
+                "limited_trail_hip_ir"
+            ],
+            "session": "2026-09-09_Mark-Liversedge_Wrist_01",
+            "tierMoves": 1
+        },
+        {
+            "rootsAfter": [
+                "s_posture",
+                "limited_trail_hip_ir"
+            ],
+            "rootsBefore": [
+                "limited_trail_hip_ir"
+            ],
+            "session": "2026-09-15_Mark-Liversedge_Wrist_01",
+            "tierMoves": 1
+        },
+        {
+            "rootsAfter": [
+                "short_backswing",
+                "s_posture",
+                "limited_shoulder_external_rotation",
+                "limited_trail_hip_ir"
+            ],
+            "rootsBefore": [
+                "limited_trail_hip_ir",
+                "short_backswing",
+                "limited_shoulder_external_rotation"
+            ],
+            "session": "2026-09-15_Mark-Liversedge_Wrist_02",
+            "tierMoves": 0
+        },
+        {
+            "rootsAfter": [
+            ],
+            "rootsBefore": [
+            ],
+            "session": "2026-09-16_Mark-Liversedge_Wrist_01",
+            "tierMoves": 0
+        },
+        {
+            "rootsAfter": [
+            ],
+            "rootsBefore": [
+            ],
+            "session": "2026-09-16_Mark-Liversedge_Wrist_02",
+            "tierMoves": 0
+        },
+        {
+            "rootsAfter": [
+            ],
+            "rootsBefore": [
+            ],
+            "session": "2026-09-16_Mark-Liversedge_Wrist_03",
+            "tierMoves": 0
+        }
+    ]
+}

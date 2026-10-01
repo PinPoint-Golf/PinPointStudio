@@ -456,12 +456,53 @@ class IMeasureValueSource {           // raw values, no grading
 class NormMeasureSource final : public IMeasureSource;   // joins values + norms -> graded readings
 ```
 
+### Measurement uncertainty: a probability on every verdict (`session_diagnostics_design.md` §A8)
+
+Since October 2026, a finding carries `pFire`, `grossRisk` and `quantified` beside its unchanged
+verdict.
+
+- **Where σ comes from.** The phase grid (sidecar schema 5) carries each value's measurement σ and
+  where it came from (`SigmaSource`: reading, series, noise, none). `reduceOverGridReading()`
+  propagates it through every reducer. `LiveMeasureSource` hands it to `MeasureReading::measSigma`
+  behind `diagnostics.uncertainty.enabled`.
+- **How a signal uses it.** Each signal computes P(fire) = Φ(±(v − e)/σ) against the tail's
+  deviation edge, `deviationEdges()`. That helper mirrors `grade()` term for term; change both or
+  neither.
+- **How signals combine.** ANY combines as 1 − Π(1 − p) and ALL as Π p.
+- **No σ.** P(fire) restates the verdict as 1 or 0, and `quantified` is false. A σ is never invented.
+- **The verdict is never changed by any of this.** The report tool's gate G1 checks it on every row.
+
+The measurement σ (how wrong this reading might be) is not the norm's σ (how golfers vary). Only
+the first makes a verdict a probability.
+
+In the session layer:
+
+- **Soft counts.** `LedgerOptions::softTier` feeds expected counts into the Wilson bound.
+  `patternDraws()` gives each condition's P(Pattern) from 200 deterministic draws.
+- **Hard captions.** Recurrence captions and the integer counts stay hard.
+
 ### `relation_resolver.h` — the explanation pass
 
 Fired conditions → ranked root causes + test recommendations. Two rules do the work:
 
 1. **A characteristic with an in-pack cause is never a root.** The graph is not two clean layers — early extension causes loss of posture, casting causes scooping. Presenting a leaf as a root hands the coach a symptom and calls it the diagnosis.
 2. **An `Asserted` cause is offered, never concluded.**
+
+**The ranking score** (`ExplainOptions::posteriorRank`, §A8.6) is
+
+    P(c | evidence) × Σ q_e · s(c → e)
+
+over the findings c would explain. P(c | evidence) has two sources:
+
+- **A cause nobody measured** gets its noisy-OR posterior: prominence as the prior, and each
+  assessed child's likelihood ratio under soft evidence q_e. A child assessed and absent counts
+  against the cause.
+- **A cause that was itself assessed** keeps its own P(present), un-updated. An inference through
+  authored words never overrules a measurement of the thing itself.
+
+Every root also carries a stability word, from `stampStability()` over the session's
+measurement-uncertainty draws: firm, likely or fragile. Neither the score nor the posterior is
+ever shown as a percentage. `legacyScore` keeps the pre-§A8 score for rank-shift reports.
 
 `TestRecommendation` ("screen this — it would explain four of your findings") is the highest-value output of the model and costs no capture hardware: the dominant causes in the pack are screen-backed, so a handful of physical tests explain most of what was detected. The `screenRef` it carries now resolves to a protocol and a pass criterion in `screens.json`, so the recommendation names a test somebody can actually run.
 
