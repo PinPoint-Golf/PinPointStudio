@@ -273,7 +273,12 @@ What the session does *not* need: a third camera, or any new markers on the golf
 
 1. §3.1 on today's data, gated on the 21 DTL swings and the held-out band truth; a small,
    contained change to `dtl_shaft_post` and the tile. **Done 1 Oct 2026 — `dtl_continuous_20261002.md`.**
-1a. §3.2a A–D, in that order, each behind its own switch and gated on the same 21 swings. Next.
+1a. §3.2a A–D, in that order, each behind its own switch and gated on the same 21 swings (+ 07-04 s1–3
+   for D). **Done 3 Oct 2026 — `dtl_precalibration_20261003.md`:** A built, gate not met (η is not
+   continuous across an end-on gap on this golfer), dark; B stopped at its cross-check (skeleton yaw
+   12.6° vs the stick 9.0–9.9°, ranges disjoint); C degenerate — down the line the DTL view plane at
+   impact IS the swing plane, kept as a diagnostic, off; D on (s2/s3 coherent again, headings within 1°
+   of the downswing plane's).
 2. Record the protocol session (§4).
 3. Calibration: the card/stick solve for the DTL pose; store it; re-run fusion with the real
    camera and re-measure the plane fits and the heading.
