@@ -1084,6 +1084,15 @@ pp_add_test(measure_sample_test
     SOURCES ${DIAG}/tests/measure_sample_test.cpp ${DIAG}/measure_sample.cpp ${DIAG_NORM}
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})
 
+# Measurement uncertainty through the diagnostics DAG (session_diagnostics_design.md §A8): σ through
+# the phase grid and its reducers, P(fire) on every verdict with the verdict unchanged, soft session
+# counts that reproduce today's tier when no reading has a σ, and the noisy-OR posterior ranking with
+# its negative evidence and stability.
+pp_add_test(diag_uncertainty_test
+    SOURCES ${DIAG}/tests/diag_uncertainty_test.cpp ${DIAG}/measure_sample.cpp
+            ${DIAG}/characteristic_engine.cpp ${DIAG}/relation_resolver.cpp ${DIAG_NORM}
+    INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})
+
 # THE FIRST LIVE WIRING: the shipped pack and norm set run over REAL RECORDED SWINGS.
 #
 # Every other Diagnostics test is dark — synthetic values, fake norms, hand-written grids — so none
@@ -1187,6 +1196,34 @@ target_link_libraries(regrade_ledger PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoin
 set_target_properties(regrade_ledger PROPERTIES AUTOMOC ON)
 pp_apply_sanitizers(regrade_ledger)
 # Note: intentionally NOT added to add_test() — manual run only; it rewrites diagnostics.json.
+
+# diag_uncertainty_report — the session_diagnostics_design.md §A8.8 gates over real sessions: the panel's
+# model run under each measurement-uncertainty switch, verdict identity, the soft tier's moves, the
+# posterior's root order, re-rank cost and word sensitivity. READ-ONLY on the library: it runs over a
+# scratch layout made by tools/diagnostics/diag_uncertainty_prep.py. Same link line as regrade_ledger.
+add_executable(diag_uncertainty_report
+    ${PP_REPO_ROOT}/tools/diagnostics/diag_uncertainty_report.cpp
+    ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
+    ${DIAG}/live_measure_source.cpp ${DIAG}/measure_sample.cpp
+    ${DIAG}/characteristic_engine.cpp ${DIAG}/relation_resolver.cpp
+    ${DIAG}/screen_pack.cpp
+    ${DIAG_NORM}
+    ${DIAG}/resource_norm_provider.cpp ${DIAG}/file_norm_provider.cpp
+    ${DIAG}/merged_norm_provider.cpp
+    ${DIAG}/resource_pack_provider.cpp ${DIAG}/file_pack_provider.cpp
+    ${DIAG}/merged_pack_provider.cpp
+    ${SRC}/Export/swing_doc.cpp
+    ${SRC}/Export/swing_paths.cpp
+    ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+    ${SRC}/Core/pp_log_stream.cpp
+    ${SRC}/Core/PpMessageLog.cpp)
+target_include_directories(diag_uncertainty_report PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor)
+target_link_libraries(diag_uncertainty_report PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
+set_target_properties(diag_uncertainty_report PROPERTIES AUTOMOC ON)
+# Optimised, because it MEASURES the re-rank cost (gate §A8.8) and an -O0 test build reads several
+# times slower than the studio's Release; the Mac Debug app's figure is quoted beside it in the report.
+target_compile_options(diag_uncertainty_report PRIVATE -O2)
+pp_apply_sanitizers(diag_uncertainty_report)
 
 # Every corridor signal points the way its own condition claims. An inverted signal does not fail
 # loudly — it fires on the wrong swings with correct-sounding text attached — so the fixture states
