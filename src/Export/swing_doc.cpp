@@ -41,6 +41,7 @@
 #include "../Analysis/shaft_fusion_json.h"         // shaftTrack3dToJson — analysis.club3d
 #include "../Analysis/skeleton3d/skeleton3d_json.h" // skeleton3dToJson — analysis.skeleton3d
 #include "../Analysis/dtl_shaft_json.h"            // dtlShaftTrackToJson — analysis.clubDtl == club_dtl.json
+#include "../Analysis/address_marks_json.h"        // addressMarksToJson — analysis.addressMarks
 #include "../Core/club_vocabulary.h"
 
 namespace pinpoint {
@@ -222,6 +223,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
             v.insert(QStringLiteral("shaftFusion"), QJsonObject{ { QStringLiteral("code"), a.versions.shaftFusion } });
         if (a.versions.skeleton3d > 0)
             v.insert(QStringLiteral("skeleton3d"), QJsonObject{ { QStringLiteral("code"), a.versions.skeleton3d } });
+        if (a.versions.addressMarks > 0)
+            v.insert(QStringLiteral("addressMarks"), QJsonObject{ { QStringLiteral("code"), a.versions.addressMarks } });
         o[QStringLiteral("versions")] = v;
     }
     o[QStringLiteral("tier")]   = a.tier;
@@ -650,6 +653,10 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
     // input. Written whenever the stage RAN, valid or not: `reason` says why there is none.
     if (a.versions.skeleton3d > 0)
         o[QStringLiteral("skeleton3d")] = pinpoint::skeleton3d::skeleton3dToJson(a.skeleton3d, windowT0, a.versions.skeleton3d);
+    // The body's outer edges at hip height at address (AddressMarksStage) — pinpoint.addressMarks/1,
+    // the coach lines' input. Written whenever the stage RAN: `found` false per view is the record.
+    if (a.versions.addressMarks > 0)
+        o[QStringLiteral("addressMarks")] = analysis::addressMarksToJson(a.addressMarks, windowT0, a.versions.addressMarks);
     return o;
 }
 

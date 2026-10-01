@@ -19,6 +19,7 @@
 #pragma once
 
 #include "analysis_versions.h"
+#include "address_marks.h"
 
 #include <QHash>
 #include <QMetaType>
@@ -957,6 +958,10 @@ struct SwingAnalysis {
     // (Skeleton3DStage; swing_3d_viz_design.md). Feeds NO metric. Invalid when the stage did not
     // run or refused. Persisted as `analysis.skeleton3d` (pinpoint.skeleton3d/1); never reused.
     skeleton3d::FitResult     skeleton3d;
+    // The body's outer edges at hip height on each camera's address frame (AddressMarksStage;
+    // address_marks.h) — the coach's static lines. Feeds NO metric; persisted as
+    // `analysis.addressMarks`; never reused.
+    addressmarks::AddressMarks addressMarks;
     BallTrack2D               ball;    // face-on ball track for the replay overlay (empty ⇒ none)
     ImpactTrack2D             impact;  // the impact camera's ball + club track (check .valid)
     AnalysisTimings           timings; // per-stage wall times (telemetry); -1 = not measured

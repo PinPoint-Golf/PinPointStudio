@@ -2158,13 +2158,12 @@ if(EXISTS "${_seg_model_path}")
         install(FILES "${_seg_model_path}"
                 DESTINATION "${CMAKE_INSTALL_BINDIR}/models" COMPONENT core)
     endif()
-    if(EXISTS "${_movenet_lightning_path}")
-        target_sources(PinPointStudio PRIVATE
-            src/Pose/person_segmenter.h
-            src/Pose/person_segmenter.cpp
-        )
-        message(STATUS "PersonSegmenter: enabled")
-    endif()
+    # The segmenter stands alone (the address-marks stage reads it with or without MoveNet).
+    target_sources(PinPointStudio PRIVATE
+        src/Pose/person_segmenter.h
+        src/Pose/person_segmenter.cpp
+    )
+    message(STATUS "PersonSegmenter: enabled")
 else()
     message(STATUS "Segmenter: model unavailable -- background suppression disabled")
 endif()
@@ -3318,6 +3317,18 @@ if(PINPOINT_BUILD_TOOLS)
             $<$<BOOL:${_vitpose_model_file}>:HAVE_VITPOSE>
             $<$<BOOL:${_vitpose_model_file}>:VITPOSE_MODEL_FILE="${_vitpose_model_file}">
         )
+        # The person segmenter (AddressMarksStage reads it: the coach lines' body edges). Same
+        # model file the app bundles; the bare exe finds it under _deps/segmenter through
+        # pinpoint::modelFilePath, like the pose models.
+        if(EXISTS "${_seg_model_path}")
+            target_compile_definitions(${tgt} PRIVATE HAVE_SEGMENTER SEGMENTER_MODEL_FILE="${_seg_model_file}")
+            # The segmenter reports its VRAM through pp_gpu_metrics (the app compiles it at ~line 927;
+            # the Metal query on macOS is the .mm with the ARC flag set beside the app's sources).
+            target_sources(${tgt} PRIVATE src/Pose/person_segmenter.cpp src/Core/pp_gpu_metrics.cpp)
+            if(APPLE)
+                target_sources(${tgt} PRIVATE src/Core/pp_gpu_metrics_mac.mm)
+            endif()
+        endif()
         # Same platform-guarded EP defines as the app target (~line 951ff);
         # without them the offline pose pass is compile-time pinned to CPU even
         # on the CUDA studio box. The EP cascade try/catches registration at

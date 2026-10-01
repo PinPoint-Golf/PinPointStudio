@@ -83,6 +83,11 @@ constexpr int kShaftFusionStageVersion = 5;   // 2: the address plane and delive
 //           shaft, the feet and any IMUs (Skeleton3DStage, skeleton3d/; swing_3d_viz_design.md).
 //           Stamped; never reused — recomputed from the reused poses on every re-analysis.
 //           Bump when skeleton3d_fit.* or skeleton3d_rig.h changes its output.
+// addressMarks — kAddressMarksStageVersion: the body's outer edges at hip height on each camera's
+//           address frame, from the person mask (AddressMarksStage, address_marks.h;
+//           auto_annotations_design.md). Stamped; never reused — two frames and a mask, cheap.
+constexpr int kAddressMarksStageVersion = 1;
+
 constexpr int kSkeleton3DStageVersion = 3;   // 2: the club held to its plane where the DTL is blind + the depth-branch pass (2026-09-28)
                                              // 3: the lean spine + spline trajectories; session camera pool at re-analysis (2026-09-28)
 
@@ -95,6 +100,7 @@ struct AnalysisVersions {
     int     shaftDtl = 0;       // 0 = the DTL shaft stage did not run
     int     shaftFusion = 0;    // 0 = the shaft fusion stage did not run
     int     skeleton3d = 0;     // 0 = the skeleton3d stage did not run
+    int     addressMarks = 0;   // 0 = the address-marks stage did not run (address_marks.h)
     QString poseModel;          // "<file>@<bytes>" of the ViTPose model that ran
     QString poseScope;          // "span" | "full"
     QString poseDtlModel;       // "<file>@<bytes>" of the model that posed the DTL stream

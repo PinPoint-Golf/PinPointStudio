@@ -39,6 +39,11 @@
 #include "dtl_shaft_json.h"
 #include "shaft_fusion_json.h"   // shaftFusionConfigFromOverrides (ShaftFusionStage)
 #include "dtl_shaft_synth3d.h"   // the 3-D synthetic shaft into the DTL tile (DtlSynth3DStage)
+#include "address_marks.h"       // the body's edges at hip height at address (AddressMarksStage)
+#include <opencv2/imgcodecs.hpp>  // the address-marks debug dump
+#ifdef HAVE_SEGMENTER
+#include "../Pose/person_segmenter.h"
+#endif
 #include "dtl_posture.h"         // buildDtlPosture (DtlPostureStage)
 #include "dtl_shaft_tracker.h"
 #include "event_refine.h"
@@ -2527,6 +2532,135 @@ struct DtlSynth3DStage : AnalysisStage {
     }
 };
 
+
+// 13c-nonies. ADDRESS MARKS (address_marks.h; auto_annotations_design.md §1): the body's
+//      OUTER edges at hip height on the frame nearest Address, on each camera, from the person
+//      mask — the coach lines' input (the outside of each hip face-on, the rear of the butt down
+//      the line). The pose knows joint centres; this reads the silhouette. Two frames and two
+//      mask passes; feeds no metric; persisted as `analysis.addressMarks`; never reused.
+//      Without the segmenter in the build the stage records that it did not run.
+struct AddressMarksStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("AddressMarks"); }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+#ifdef HAVE_SEGMENTER
+        return ctx.window && ctx.seg.eventFor(Phase::Address)
+            && (!ctx.detail->pose2d.frames.empty() || !ctx.detail->poseDtl.frames.empty());
+#else
+        (void)ctx;
+        return false;
+#endif
+    }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+#ifndef HAVE_SEGMENTER
+        (void)ctx;
+        return QStringLiteral("person segmenter not built in");
+#else
+        if (!ctx.seg.eventFor(Phase::Address)) return QStringLiteral("no Address on the ladder");
+        return QStringLiteral("no pose on either camera");
+#endif
+    }
+#ifdef HAVE_SEGMENTER
+    // The pose frame nearest `t` (the smoothed series when complete, else the detections),
+    // or nullptr beyond 60 ms.
+    static const PoseFrame2D *poseAt(const PoseTrack2D &trk, int64_t t)
+    {
+        const bool sm = !trk.smoothed.empty() && trk.smoothed.size() == trk.frames.size();
+        const std::vector<PoseFrame2D> &F = sm ? trk.smoothed : trk.frames;
+        const PoseFrame2D *best = nullptr;
+        for (const PoseFrame2D &f : F)
+            if (!best || std::llabs(f.t_us - t) < std::llabs(best->t_us - t)) best = &f;
+        return best && std::llabs(best->t_us - t) <= 60000 ? best : nullptr;
+    }
+    static addressmarks::ViewMarks measure(const AnalysisContext &ctx, PersonSegmenter &seg,
+                                           pinpoint::SourceId src, const PoseTrack2D &trk,
+                                           int64_t addressUs, bool dtl, QString &why)
+    {
+        addressmarks::ViewMarks none;
+        if (src == pinpoint::kInvalidSourceId || trk.frames.empty()) { why = QStringLiteral("no camera / no pose"); return none; }
+        const auto *cfmt = std::get_if<pinpoint::CameraFormat>(&ctx.window->formatOf(src).format);
+        if (!cfmt || cfmt->width <= 0 || cfmt->height <= 0) { why = QStringLiteral("no camera format"); return none; }
+        const int W = int(cfmt->width), H = int(cfmt->height);
+        const PoseFrame2D *pf = poseAt(trk, addressUs);
+        if (!pf) { why = QStringLiteral("no pose frame within 60 ms of address"); return none; }
+        if (pf->conf[11] < 0.3f || pf->conf[12] < 0.3f) { why = QStringLiteral("hips not seen at address"); return none; }
+        // The frame nearest the pose frame's instant on this camera.
+        const std::vector<pinpoint::IndexEntry> entries = ctx.window->entriesFor(src);
+        if (entries.empty()) { why = QStringLiteral("no frames"); return none; }
+        const pinpoint::IndexEntry *e = nullptr;
+        for (const pinpoint::IndexEntry &it : entries)
+            if (!e || std::llabs(it.timestamp_us - pf->t_us) < std::llabs(e->timestamp_us - pf->t_us)) e = &it;
+        if (!e || std::llabs(e->timestamp_us - pf->t_us) > 60000) { why = QStringLiteral("no frame at address"); return none; }
+        cv::Mat bgr;
+        {
+            const pinpoint::SourceRing::ReadHandle handle = ctx.window->payloadOf(*e);
+            cv::Mat view;
+            if (!pinpoint::decodeToBgr(*cfmt, handle.data, handle.bytes, view) || view.empty()) {
+                why = QStringLiteral("frame not decodable to BGR"); return none;
+            }
+            bgr = view.channels() == 3 ? view.clone() : cv::Mat();
+            if (bgr.empty()) cv::cvtColor(view, bgr, cv::COLOR_GRAY2BGR);
+        }
+        const cv::Mat mask = seg.segment(bgr);
+        if (mask.empty()) { why = QStringLiteral("segmenter returned nothing"); return none; }
+        // PINPOINT_ADDRESS_MARKS_DUMP=<dir>: the frame and the mask it read, for looking at.
+        if (const QByteArray dump = qgetenv("PINPOINT_ADDRESS_MARKS_DUMP"); !dump.isEmpty()) {
+            const QString base = QString::fromUtf8(dump) + (dtl ? "/dtl" : "/faceOn");
+            cv::Mat m8; mask.convertTo(m8, CV_8U, 255.0);
+            cv::imwrite((base + "_frame.png").toStdString(), bgr);
+            cv::imwrite((base + "_mask.png").toStdString(), m8);
+        }
+        const double hx = 0.5 * (pf->leadHand.x() + pf->trailHand.x()) * W;
+        // The wrists (9, 10) and knees (13, 14), for the face-on row choice (address_marks.h).
+        double wristY = addressmarks::kNan, kneeY = addressmarks::kNan;
+        for (int j : { 9, 10 })
+            if (pf->conf[size_t(j)] > 0.3f) wristY = std::isfinite(wristY) ? std::max(wristY, double(pf->kp[size_t(j)].y()) * H) : double(pf->kp[size_t(j)].y()) * H;
+        for (int j : { 13, 14 })
+            if (pf->conf[size_t(j)] > 0.3f) kneeY = std::isfinite(kneeY) ? std::min(kneeY, double(pf->kp[size_t(j)].y()) * H) : double(pf->kp[size_t(j)].y()) * H;
+        addressmarks::ViewMarks v = addressmarks::measureView(
+            mask, W, H, e->timestamp_us,
+            pf->kp[11].x() * W, pf->kp[11].y() * H, pf->kp[12].x() * W, pf->kp[12].y() * H,
+            pf->handConf > 0.3f ? hx : addressmarks::kNan, dtl, wristY, kneeY);
+        if (!v.found) why = QStringLiteral("no person mask on the hip rows");
+        return v;
+    }
+#endif
+    void run(AnalysisContext &ctx) override
+    {
+#ifdef HAVE_SEGMENTER
+        QElapsedTimer wall; wall.start();
+        PersonSegmenter seg;
+        if (!seg.load()) {
+            ppWarn() << "[WristAnalysis] address marks: segmenter model not available —" << PersonSegmenter::modelPath();
+            return;
+        }
+        const int64_t addressUs = ctx.seg.eventFor(Phase::Address)->t_us;
+        QString whyF, whyD;
+        addressmarks::AddressMarks &m = ctx.detail->addressMarks;
+        if (!ctx.job.cameraSources.empty())
+            m.faceOn = measure(ctx, seg, ctx.job.cameraSources.front(), ctx.detail->pose2d, addressUs, false, whyF);
+        m.dtl = measure(ctx, seg, ctx.job.dtlSource, ctx.detail->poseDtl, addressUs, true, whyD);
+        ctx.detail->versions.addressMarks = kAddressMarksStageVersion;
+        ppInfo() << "[WristAnalysis] address marks: face-on"
+                 << (m.faceOn.found ? QStringLiteral("hips %1..%2 → edges %3..%4 (%5 rows at the %6)")
+                                          .arg(m.faceOn.hipLeftX, 0, 'f', 3).arg(m.faceOn.hipRightX, 0, 'f', 3)
+                                          .arg(m.faceOn.leftX, 0, 'f', 3).arg(m.faceOn.rightX, 0, 'f', 3).arg(m.faceOn.rows)
+                                          .arg(m.faceOn.rowSource == 1 ? QStringLiteral("wrists") : QStringLiteral("hips"))
+                                    : QStringLiteral("none (%1)").arg(whyF))
+                 << "; DTL"
+                 << (m.dtl.found ? QStringLiteral("hips %1..%2 → edges %3..%4, butt %5 (side %6, %7 rows)")
+                                       .arg(m.dtl.hipLeftX, 0, 'f', 3).arg(m.dtl.hipRightX, 0, 'f', 3)
+                                       .arg(m.dtl.leftX, 0, 'f', 3).arg(m.dtl.rightX, 0, 'f', 3)
+                                       .arg(m.dtl.buttX, 0, 'f', 3).arg(m.dtl.side).arg(m.dtl.rows)
+                                 : QStringLiteral("none (%1)").arg(whyD))
+                 << "," << qlonglong(wall.elapsed()) << "ms";
+#else
+        (void)ctx;
+#endif
+    }
+};
+
 void appendBodyMetricStages(SessionProfile &p)
 {
     p.stages.push_back(std::make_unique<HeadTrackStage>());
@@ -2565,6 +2699,7 @@ SessionProfile wristProfile()
     p.stages.push_back(std::make_unique<KinematicsStage>());
     p.stages.push_back(std::make_unique<ShaftPlaneStage>());
     p.stages.push_back(std::make_unique<DtlPoseStage>());
+    p.stages.push_back(std::make_unique<AddressMarksStage>());
     p.stages.push_back(std::make_unique<DtlShaftStage>());
     p.stages.push_back(std::make_unique<ShaftFusionStage>());
     p.stages.push_back(std::make_unique<DtlPostureStage>());
@@ -2659,6 +2794,7 @@ SessionProfile cameraKinematicsProfile()
     p.stages.push_back(std::make_unique<KinematicsStage>());
     p.stages.push_back(std::make_unique<ShaftPlaneStage>());
     p.stages.push_back(std::make_unique<DtlPoseStage>());
+    p.stages.push_back(std::make_unique<AddressMarksStage>());
     p.stages.push_back(std::make_unique<DtlShaftStage>());
     p.stages.push_back(std::make_unique<ShaftFusionStage>());
     p.stages.push_back(std::make_unique<DtlPostureStage>());
