@@ -66,7 +66,27 @@ struct SignalVerdict {
     // otherwise.
     std::optional<MeasureReading> driving;
     QString                       drivingMeasureId;
+
+    // The verdict as a probability (session_diagnostics_design.md §A8.4). Defaults restate the hard
+    // verdict; a branch with a σ and an edge to measure it against replaces them.
+    float pFire      = -1.f;
+    float grossRisk  = -1.f;
+    bool  quantified = false;
 };
+
+// Φ, the standard normal CDF.
+double normCdf(double z) { return 0.5 * std::erfc(-z / std::sqrt(2.0)); }
+
+// P(the TRUE value lies beyond `edge` on tail `d`) for a reading with measurement σ. A non-finite
+// edge is an open tail: nothing there can deviate, with any σ.
+float pBeyond(double value, double edge, double sigma, Direction d)
+{
+    if (!std::isfinite(edge)) return 0.f;
+    const double z = (d == Direction::High) ? (value - edge) / sigma : (edge - value) / sigma;
+    return float(normCdf(z));
+}
+
+bool hasSigma(const MeasureReading &r) { return std::isfinite(r.measSigma) && r.measSigma > 0.0; }
 
 SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
 {
@@ -136,6 +156,17 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
         const bool onTail   = (d == Direction::High) ? (r.value > r.greenHi) : (r.value < r.greenLo);
         v.fired = !tailOpen && deviated && onTail;
 
+        // §A8.4: the edge the verdict crossed is the LATER of the deviation edge and the Ideal edge
+        // on this tail (onTail asks for both), so P(fire) is measured against that one.
+        if (hasSigma(r) && r.hasDevEdges) {
+            const double edge = tailOpen ? std::numeric_limits<double>::quiet_NaN()
+                              : (d == Direction::High) ? std::max(r.devHi, r.greenHi)
+                                                       : std::min(r.devLo, r.greenLo);
+            v.pFire      = tailOpen ? 0.f : pBeyond(r.value, edge, r.measSigma, d);
+            v.quantified = true;
+        }
+        v.grossRisk = r.grossRisk;
+
         // A context the shot never declared is a weaker basis for a finding than one it did. Reuse
         // the confidence channel rather than inventing a second signal for it — assessment_rules
         // already demotes on low confidence, and a parallel mechanism would need its own UI.
@@ -177,12 +208,24 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
         const bool tailOpen = (d == Direction::High) ? r.highOpen : r.lowOpen;
 
         v.fired = !tailOpen && ((d == Direction::High) ? (r.value > t) : (r.value < t));
+        if (hasSigma(r)) {
+            v.pFire      = tailOpen ? 0.f : pBeyond(r.value, t, r.measSigma, d);
+            v.quantified = true;
+        }
+        v.grossRisk = r.grossRisk;
         break;
     }
     case SignalTest::Order:
         // Measures are ordered: the first is expected to peak before the second. Values carry the
         // event time, so "out of order" is first >= second.
         v.fired = readings[0].value >= readings[1].value;
+        // §A8.4: P(first ≥ second) with both readings' σ in quadrature.
+        if (hasSigma(readings[0]) && hasSigma(readings[1])) {
+            const double s = std::hypot(readings[0].measSigma, readings[1].measSigma);
+            v.pFire      = float(normCdf((readings[0].value - readings[1].value) / s));
+            v.quantified = true;
+        }
+        v.grossRisk = std::max(readings[0].grossRisk, readings[1].grossRisk);
         break;
     case SignalTest::Ratio: {
         // THE RATIO CONTRACT, and why it is not the obvious one.
@@ -255,6 +298,9 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
     // against an authored number — and MeasureEvidence handles that without inventing a band.
     v.driving          = readings.front();
     v.drivingMeasureId = sig.measures.value(0);
+
+    // No σ (or a Ratio, which propagates none): the probability is the hard verdict restated.
+    if (!v.quantified) v.pFire = v.fired ? 1.f : 0.f;
 
     return v;
 }
@@ -339,6 +385,13 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
         bool  anyAssessedNotFired = false;   // ALL mode only — see the verdict block below
         float conf          = 1.0f;
 
+        // §A8.4 — the finding's probability from its signals'. ANY: 1 − Π(1 − p); ALL: Π p. The
+        // signals of one capture are correlated and the product treats them as independent, so it
+        // overstates certainty; stated, not corrected (nothing models that correlation).
+        double notAny = 1.0, all = 1.0;
+        bool   quantifiedAll = true, anyAvailable = false;
+        float  gross = -1.f;
+
         std::vector<EvidenceCandidate> candidates;   // in c.detectedBy order — see pickEvidence()
 
         for (const QString &sid : c.detectedBy) {
@@ -359,6 +412,11 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
                 anyAssessedNotFired = true;
             }
             conf = std::min(conf, v.confidence);
+            anyAvailable   = true;
+            notAny        *= 1.0 - double(v.pFire);
+            all           *= double(v.pFire);
+            quantifiedAll  = quantifiedAll && v.quantified;
+            gross          = std::max(gross, v.grossRisk);
 
             if (v.driving) candidates.push_back({ sid, v.drivingMeasureId, *v.driving,
                                                   v.confidence, v.fired });
@@ -378,11 +436,19 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
         //
         // ONLY WITH NOTHING FALSE does an unreadable conjunct make it unassessable, because then
         // the answer really does turn on what we could not see.
+        const auto stampProbability = [&](Finding &fd, bool conjunction) {
+            if (!anyAvailable) return;
+            fd.pFire      = float(conjunction ? all : 1.0 - notAny);
+            fd.grossRisk  = gross;
+            fd.quantified = quantifiedAll;
+        };
+
         if (c.detection == DetectionMode::All) {
             if (anyAssessedNotFired) {
                 f.state      = FindingState::NotFired;
                 f.confidence = conf;
                 f.evidence   = pickEvidence(candidates, /*firedOnly*/ false);
+                stampProbability(f, true);
             } else if (anyUnavailable) {
                 f.state      = FindingState::Unavailable;
                 f.confidence = 0.0f;
@@ -390,6 +456,7 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
                 f.state      = FindingState::Fired;
                 f.confidence = conf;
                 f.evidence   = pickEvidence(candidates, /*firedOnly*/ true);
+                stampProbability(f, true);
             }
             out.findings.push_back(std::move(f));
             continue;
@@ -403,6 +470,7 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
             f.state      = FindingState::Fired;
             f.confidence = conf;
             f.evidence   = pickEvidence(candidates, /*firedOnly*/ true);
+            stampProbability(f, false);
         } else if (anyUnavailable) {
             f.state      = FindingState::Unavailable;
             f.confidence = 0.0f;
@@ -413,6 +481,7 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
             f.state      = FindingState::NotFired;
             f.confidence = conf;
             f.evidence   = pickEvidence(candidates, /*firedOnly*/ false);
+            stampProbability(f, false);
         }
 
         out.findings.push_back(std::move(f));

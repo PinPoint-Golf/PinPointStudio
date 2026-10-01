@@ -19,6 +19,7 @@
 #pragma once
 
 #include "measure_vocabulary.h"    // Measure
+#include "sigma_source.h"
 #include "../Core/pp_tuned_constants.h"
 #include "../Metrics/metric_reducer.h"
 
@@ -26,6 +27,7 @@
 #include <QJsonObject>
 #include <QString>
 
+#include <limits>
 #include <optional>
 #include <vector>
 
@@ -114,7 +116,12 @@ namespace pinpoint::analysis {
 //    seed is gone from the aggregation (see PhaseGridSpan and reduceOverGrid). Together those three
 //    were making the engine disagree with the review chart on 36 of 170 extremum cases on one corpus
 //    swing, by up to 9.4° — and a cache is only worth having if it answers what the chart answers.
-inline constexpr int kPhaseGridSchemaVersion = 4;
+// 5: every value and span carries the measurement σ, gross risk and where the σ came from
+//    (session_diagnostics_design.md §A8.3). Additive — the numbers are unchanged — but a v4 sidecar
+//    has no σ to serve, so the bump retires it.
+inline constexpr int kPhaseGridSchemaVersion = 5;
+
+// SigmaSource — where a reading's measurement σ came from — lives in sigma_source.h.
 
 struct PhaseGridConfig {
     // ±15 ms about the phase instant, the WristAngleSampler convention.
@@ -148,6 +155,10 @@ struct PhaseGridValue {
     Phase   phase = Phase::Address;
     int64_t tUs   = 0;
     double  value = 0.0;
+    // Measurement uncertainty of this value (§A8.3): NaN = none stated. grossRisk −1 = not assessed.
+    double      sigma     = std::numeric_limits<double>::quiet_NaN();
+    float       grossRisk = -1.f;
+    SigmaSource sigmaSrc  = SigmaSource::None;
 };
 
 // The extremes of the continuous curve BETWEEN two adjacent segmented phases, CLOSED AT BOTH ENDS
@@ -176,6 +187,10 @@ struct PhaseGridSpan {
     Phase  to   = Phase::Address;
     double min  = 0.0;
     double max  = 0.0;
+    // The larger of the series σ and the two endpoint σ (§A8.3) — an extreme inside the span is no
+    // better known than the readings that bound it. NaN = none stated.
+    double      sigma    = std::numeric_limits<double>::quiet_NaN();
+    SigmaSource sigmaSrc = SigmaSource::None;
 };
 
 struct MetricPhaseGrid {
@@ -183,6 +198,10 @@ struct MetricPhaseGrid {
     QString                     unit;
     std::vector<PhaseGridValue> values;   // ascending by time; one per segmented phase with samples
     std::vector<PhaseGridSpan>  spans;    // between consecutive `values` entries
+    // The series' own σ (MetricSeries::sigma) and its source (Series, or Noise when the producer
+    // stated no sigmaKind). NaN = none.
+    double      seriesSigma    = std::numeric_limits<double>::quiet_NaN();
+    SigmaSource seriesSigmaSrc = SigmaSource::None;
 
     const PhaseGridValue *at(Phase p) const;
 };
@@ -247,6 +266,24 @@ std::optional<double> reduceOverGrid(const SwingPhaseGrid &grid, const Measure &
 // tests, a future producer) reaches the identical arithmetic.
 std::optional<double> reduceOverGrid(const SwingPhaseGrid &grid, const QString &metricKey,
                                      const Reducer &r);
+
+// The same reduction with its measurement uncertainty (§A8.3). `value` is bit-identical to
+// reduceOverGrid's; σ propagates as:
+//   At       the value's σ
+//   Delta    the endpoints' σ in quadrature
+//   Rate     the endpoints' σ in quadrature over the elapsed time (timing σ NOT included — stated)
+//   Extremum the WINNING span's σ (the one whose extreme was taken), ⊕ the anchor's σ when anchored
+// Any term without a σ makes the whole reading unquantified (sigma NaN): a partial budget would
+// claim a precision nobody measured. grossRisk is the largest of the terms', −1 when none had one.
+struct GridReading {
+    double      value     = 0.0;
+    double      sigma     = std::numeric_limits<double>::quiet_NaN();
+    float       grossRisk = -1.f;
+    SigmaSource sigmaSrc  = SigmaSource::None;   // the WEAKEST source among the terms
+};
+std::optional<GridReading> reduceOverGridReading(const SwingPhaseGrid &grid, const QString &metricKey,
+                                                 const Reducer &r);
+std::optional<GridReading> reduceOverGridReading(const SwingPhaseGrid &grid, const Measure &m);
 
 // ── Sidecar ─────────────────────────────────────────────────────────────────
 //

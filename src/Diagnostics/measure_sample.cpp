@@ -167,7 +167,7 @@ SwingPhaseGrid buildPhaseGrid(const QJsonObject &analysis, const PhaseGridConfig
         // read once at a position, so there is no curve to sample. A builder that read only `value[]`
         // silently produced nothing for all of them, and the failure looks exactly like "no swing
         // carries this measure".
-        struct Labelled { int64_t tUs; double value; };
+        struct Labelled { int64_t tUs; double value; double sigma; float grossRisk; };
         std::vector<std::pair<Phase, Labelled>> labelled;
         for (const QJsonValue &sv : mo.value(QStringLiteral("phaseSamples")).toArray()) {
             const QJsonObject so = sv.toObject();
@@ -177,8 +177,12 @@ SwingPhaseGrid buildPhaseGrid(const QJsonObject &analysis, const PhaseGridConfig
             Phase back{};
             if (!phaseFromToken(phaseToken(p), back) || back != p)
                 continue;
+            // The per-reading σ (§A8.3): written only when the producer assessed one.
+            const double sg = so.contains(QStringLiteral("sigma")) ? so.value(QStringLiteral("sigma")).toDouble(-1.0) : -1.0;
             labelled.emplace_back(p, Labelled{ so.value(QStringLiteral("t_us")).toVariant().toLongLong(),
-                                               so.value(QStringLiteral("value")).toDouble() });
+                                               so.value(QStringLiteral("value")).toDouble(),
+                                               sg > 0.0 ? sg : std::numeric_limits<double>::quiet_NaN(),
+                                               float(so.value(QStringLiteral("grossRisk")).toDouble(-1.0)) });
         }
 
         if (n == 0 && labelled.empty())
@@ -187,6 +191,27 @@ SwingPhaseGrid buildPhaseGrid(const QJsonObject &analysis, const PhaseGridConfig
         MetricPhaseGrid mg;
         mg.key  = key;
         mg.unit = mo.value(QStringLiteral("unit")).toString();
+        // The series σ (§A8.3). A producer that stated no sigmaKind quoted frame-to-frame noise
+        // (metric presentation honesty, §5.3): a LOWER bound on the error, kept and tagged as such.
+        {
+            const double ss = mo.value(QStringLiteral("sigma")).toDouble(-1.0);
+            if (ss > 0.0 && std::isfinite(ss)) {
+                mg.seriesSigma    = ss;
+                mg.seriesSigmaSrc = mo.value(QStringLiteral("sigmaKind")).toInt() > 0 ? SigmaSource::Series
+                                                                                       : SigmaSource::Noise;
+            }
+        }
+        // A value's σ: the labelled reading's own at that phase, else the series σ.
+        const auto stampSigma = [&](PhaseGridValue &v) {
+            const auto it = std::find_if(labelled.begin(), labelled.end(),
+                                         [&](const auto &pr) { return pr.first == v.phase; });
+            if (it != labelled.end() && std::isfinite(it->second.sigma)) {
+                v.sigma = it->second.sigma; v.sigmaSrc = SigmaSource::Reading;
+            } else if (std::isfinite(mg.seriesSigma)) {
+                v.sigma = mg.seriesSigma; v.sigmaSrc = mg.seriesSigmaSrc;
+            }
+            if (it != labelled.end() && it->second.grossRisk >= 0.f) v.grossRisk = it->second.grossRisk;
+        };
 
         // The phases this METRIC can answer at: the swing's ladder, plus any phase its own
         // phaseSamples name. A producer that labelled P6 knows something the ladder did not record,
@@ -216,13 +241,18 @@ SwingPhaseGrid buildPhaseGrid(const QJsonObject &analysis, const PhaseGridConfig
         for (const PhaseAt &e : candidates) {
             const Reduced r = reduceAt(view, e.tUs, rc);
             if (r.ok) {
-                mg.values.push_back(PhaseGridValue{ e.phase, e.tUs, r.value });
+                PhaseGridValue v{ e.phase, e.tUs, r.value };
+                stampSigma(v);
+                mg.values.push_back(v);
                 continue;
             }
             const auto it = std::find_if(labelled.begin(), labelled.end(),
                                          [&](const auto &pr) { return pr.first == e.phase; });
-            if (it != labelled.end())
-                mg.values.push_back(PhaseGridValue{ e.phase, it->second.tUs, it->second.value });
+            if (it != labelled.end()) {
+                PhaseGridValue v{ e.phase, it->second.tUs, it->second.value };
+                stampSigma(v);
+                mg.values.push_back(v);
+            }
         }
 
         std::stable_sort(mg.values.begin(), mg.values.end(),
@@ -271,6 +301,11 @@ SwingPhaseGrid buildPhaseGrid(const QJsonObject &analysis, const PhaseGridConfig
             sp.to   = mg.values[i].phase;
             sp.min  = mn.value;
             sp.max  = mx.value;
+            // §A8.3: no better known than the readings that bound it, nor than the series.
+            for (const auto &[sg, src] : { std::pair<double, SigmaSource>{ mg.values[i - 1].sigma, mg.values[i - 1].sigmaSrc },
+                                           std::pair<double, SigmaSource>{ mg.values[i].sigma, mg.values[i].sigmaSrc },
+                                           std::pair<double, SigmaSource>{ mg.seriesSigma, mg.seriesSigmaSrc } })
+                if (std::isfinite(sg) && (!std::isfinite(sp.sigma) || sg > sp.sigma)) { sp.sigma = sg; sp.sigmaSrc = src; }
             mg.spans.push_back(sp);
         }
 
@@ -388,6 +423,102 @@ std::optional<double> reduceOverGrid(const SwingPhaseGrid &grid, const Measure &
     return std::nullopt;
 }
 
+// ── Reduction with measurement uncertainty (session_diagnostics_design.md §A8.3) ──
+
+namespace {
+// Fold one term into a reading's budget: quadrature on σ, the largest gross risk, the weakest source.
+// A term with no σ poisons the budget (NaN) — a partial sum would claim an unmeasured precision.
+struct Budget {
+    double      var  = 0.0;
+    bool        ok   = true;
+    bool        any  = false;
+    float       gross = -1.f;
+    SigmaSource src  = SigmaSource::Reading;
+    void add(double sg, SigmaSource s, float g, double scale = 1.0)
+    {
+        any = true;
+        if (std::isfinite(sg)) var += (sg * scale) * (sg * scale); else ok = false;
+        if (s < src) src = s;
+        if (g > gross) gross = g;
+    }
+    void into(GridReading &r) const
+    {
+        r.grossRisk = gross;
+        if (any && ok) { r.sigma = std::sqrt(var); r.sigmaSrc = src; }
+    }
+};
+} // namespace
+
+std::optional<GridReading> reduceOverGridReading(const SwingPhaseGrid &grid, const QString &metricKey,
+                                                 const Reducer &r)
+{
+    const std::optional<double> v = reduceOverGrid(grid, metricKey, r);
+    if (!v) return std::nullopt;
+    GridReading out;
+    out.value = *v;
+    const MetricPhaseGrid *mg = grid.metric(metricKey);
+    if (!mg) return out;
+    Budget b;
+    switch (r.kind) {
+    case ReducerKind::At:
+        if (const PhaseGridValue *a = r.anchor ? mg->at(*r.anchor) : nullptr)
+            b.add(a->sigma, a->sigmaSrc, a->grossRisk);
+        break;
+    case ReducerKind::Delta:
+    case ReducerKind::Rate: {
+        const PhaseGridValue *a = r.anchor ? mg->at(*r.anchor) : nullptr;
+        const PhaseGridValue *e = mg->at(r.window.second);
+        if (!a || !e) break;
+        const double scale = r.kind == ReducerKind::Rate
+                                 ? 1.0 / std::max(1e-9, std::fabs(double(e->tUs - a->tUs) / 1'000'000.0))
+                                 : 1.0;
+        b.add(a->sigma, a->sigmaSrc, a->grossRisk, scale);
+        b.add(e->sigma, e->sigmaSrc, e->grossRisk, scale);
+        break;
+    }
+    case ReducerKind::Extremum: {
+        const PhaseGridValue *lo = mg->at(r.window.first);
+        const PhaseGridValue *hi = mg->at(r.window.second);
+        if (!lo || !hi) break;
+        // The winning term: the span (or, on the last-resort path, the endpoint) whose extreme was
+        // taken — the same walk reduceOverGrid makes, tracking WHICH term won rather than matching
+        // values afterwards (an anchored reading cannot be matched exactly in floating point).
+        const PhaseGridValue *anc = r.anchor ? mg->at(*r.anchor) : nullptr;
+        const PhaseGridSpan  *win = nullptr;
+        double best = 0.0;
+        for (const PhaseGridSpan &sp : mg->spans) {
+            const PhaseGridValue *f = mg->at(sp.from);
+            const PhaseGridValue *t = mg->at(sp.to);
+            if (!f || !t || f->tUs < lo->tUs || t->tUs > hi->tUs) continue;
+            const double x = (r.sense == ExtremumSense::Min) ? sp.min : sp.max;
+            if (!win || ((r.sense == ExtremumSense::Min) ? x < best : x > best)) { best = x; win = &sp; }
+        }
+        if (win) {
+            const PhaseGridValue *f = mg->at(win->from), *t = mg->at(win->to);
+            b.add(win->sigma, win->sigmaSrc, std::max(f->grossRisk, t->grossRisk));
+        } else {
+            const bool pickLo = (r.sense == ExtremumSense::Min) ? lo->value <= hi->value : lo->value >= hi->value;
+            const PhaseGridValue *w = pickLo ? lo : hi;
+            b.add(w->sigma, w->sigmaSrc, w->grossRisk);
+        }
+        if (anc) b.add(anc->sigma, anc->sigmaSrc, anc->grossRisk);
+        break;
+    }
+    }
+    b.into(out);
+    return out;
+}
+
+std::optional<GridReading> reduceOverGridReading(const SwingPhaseGrid &grid, const Measure &m)
+{
+    if (m.metricKey.isEmpty() && m.preferKeys.isEmpty())
+        return std::nullopt;
+    for (const QString &key : measureKeyLadder(m))
+        if (const std::optional<GridReading> v = reduceOverGridReading(grid, key, m.reducer))
+            return v;
+    return std::nullopt;
+}
+
 // ── Sidecar ─────────────────────────────────────────────────────────────────
 
 QString phaseGridPath(const QString &swingDir)
@@ -422,6 +553,10 @@ QJsonObject savePhaseGrid(const SwingPhaseGrid &grid, qint64 sourceSize, qint64 
         QJsonObject mo;
         mo.insert(QStringLiteral("key"),  m.key);
         mo.insert(QStringLiteral("unit"), m.unit);
+        if (std::isfinite(m.seriesSigma)) {
+            mo.insert(QStringLiteral("sigma"), m.seriesSigma);
+            mo.insert(QStringLiteral("sigmaSrc"), int(m.seriesSigmaSrc));
+        }
 
         QJsonArray vals;
         for (const PhaseGridValue &v : m.values) {
@@ -429,6 +564,11 @@ QJsonObject savePhaseGrid(const SwingPhaseGrid &grid, qint64 sourceSize, qint64 
             vo.insert(QStringLiteral("phase"), int(v.phase));
             vo.insert(QStringLiteral("t_us"),  qint64(v.tUs));
             vo.insert(QStringLiteral("value"), v.value);
+            if (std::isfinite(v.sigma)) {
+                vo.insert(QStringLiteral("sigma"), v.sigma);
+                vo.insert(QStringLiteral("sigmaSrc"), int(v.sigmaSrc));
+            }
+            if (v.grossRisk >= 0.f) vo.insert(QStringLiteral("grossRisk"), double(v.grossRisk));
             vals.append(vo);
         }
         mo.insert(QStringLiteral("values"), vals);
@@ -440,6 +580,10 @@ QJsonObject savePhaseGrid(const SwingPhaseGrid &grid, qint64 sourceSize, qint64 
             so.insert(QStringLiteral("to"),   int(s.to));
             so.insert(QStringLiteral("min"),  s.min);
             so.insert(QStringLiteral("max"),  s.max);
+            if (std::isfinite(s.sigma)) {
+                so.insert(QStringLiteral("sigma"), s.sigma);
+                so.insert(QStringLiteral("sigmaSrc"), int(s.sigmaSrc));
+            }
             spans.append(so);
         }
         mo.insert(QStringLiteral("spans"), spans);
@@ -487,21 +631,32 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
         mg.unit = mo.value(QStringLiteral("unit")).toString();
         if (mg.key.isEmpty())
             continue;
+        const auto readSigma = [](const QJsonObject &o, double &sg, SigmaSource &src) {
+            if (!o.contains(QStringLiteral("sigma"))) return;
+            sg  = o.value(QStringLiteral("sigma")).toDouble();
+            src = static_cast<SigmaSource>(o.value(QStringLiteral("sigmaSrc")).toInt());
+        };
+        readSigma(mo, mg.seriesSigma, mg.seriesSigmaSrc);
 
         for (const QJsonValue &vv : mo.value(QStringLiteral("values")).toArray()) {
             const QJsonObject vo = vv.toObject();
-            mg.values.push_back(PhaseGridValue{
+            PhaseGridValue v{
                 static_cast<Phase>(vo.value(QStringLiteral("phase")).toInt()),
                 vo.value(QStringLiteral("t_us")).toVariant().toLongLong(),
-                vo.value(QStringLiteral("value")).toDouble() });
+                vo.value(QStringLiteral("value")).toDouble() };
+            readSigma(vo, v.sigma, v.sigmaSrc);
+            v.grossRisk = float(vo.value(QStringLiteral("grossRisk")).toDouble(-1.0));
+            mg.values.push_back(v);
         }
         for (const QJsonValue &sv : mo.value(QStringLiteral("spans")).toArray()) {
             const QJsonObject so = sv.toObject();
-            mg.spans.push_back(PhaseGridSpan{
+            PhaseGridSpan sp{
                 static_cast<Phase>(so.value(QStringLiteral("from")).toInt()),
                 static_cast<Phase>(so.value(QStringLiteral("to")).toInt()),
                 so.value(QStringLiteral("min")).toDouble(),
-                so.value(QStringLiteral("max")).toDouble() });
+                so.value(QStringLiteral("max")).toDouble() };
+            readSigma(so, sp.sigma, sp.sigmaSrc);
+            mg.spans.push_back(sp);
         }
         if (!mg.values.empty())
             grid.metrics.push_back(std::move(mg));

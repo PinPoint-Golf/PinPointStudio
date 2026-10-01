@@ -103,7 +103,7 @@ std::optional<IMeasureValueSource::Value> LiveMeasureSource::value(const QString
         return std::nullopt;
     }
 
-    if (const std::optional<double> v = reduceOverGrid(m_grid, *m)) {
+    if (const std::optional<GridReading> v = reduceOverGridReading(m_grid, *m)) {
         note(measureId, MissingKind::None);
 
         // CONFIDENCE IS 1.0, and that is a gap rather than a claim. The swing doc records a per-
@@ -112,7 +112,15 @@ std::optional<IMeasureValueSource::Value> LiveMeasureSource::value(const QString
         // no producer stands behind. The channel is live either way — NormMeasureSource demotes an
         // inferred context through it — so a future grid that keeps phase confidence lands here
         // with nothing else to change.
-        return Value{ *v, 1.0f };
+        Value out{ v->value, 1.0f };
+        // The measurement σ (session_diagnostics_design.md §A8.3), behind its switch so the off
+        // state reproduces the pre-uncertainty source exactly.
+        if (m_withSigma) {
+            out.sigma     = v->sigma;
+            out.grossRisk = v->grossRisk;
+            out.sigmaSrc  = v->sigmaSrc;
+        }
+        return out;
     }
 
     // reduceOverGrid() returns one nullopt for two situations, and the panel needs them apart. The

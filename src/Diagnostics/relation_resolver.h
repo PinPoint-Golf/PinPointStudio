@@ -19,6 +19,7 @@
 #pragma once
 
 #include "characteristic_engine.h"
+#include "../Core/pp_tuned_constants.h"   // tuned::diagUncertainty (§A8.6)
 
 namespace pinpoint::analysis {
 
@@ -53,6 +54,26 @@ struct RankedCause {
     ConfirmedBy confirmedBy = ConfirmedBy::Measured;
     bool        offeredOnly = false;   // Asserted: shown, never counted as resolving
     bool        unknown     = false;   // Screened and not yet entered — driving a recommendation
+
+    // ── session_diagnostics_design.md §A8.6 ──────────────────────────────────────────────
+    // posterior: P(this cause present | the evidence). For a cause nobody measured, noisy-OR — its
+    // prominence times each assessed child's likelihood ratio under soft evidence, NEGATIVE evidence
+    // included. For a cause that was itself assessed, its own P(present), un-updated: an inference
+    // through authored words does not overrule a measurement of the thing itself.
+    // legacyScore: the pre-§A8 score, kept so a rank-shift report can show both. `score` is, under
+    // ExplainOptions::posteriorRank, posterior × Σ q_e·s over the findings it explains (the expected
+    // explained mass), else legacyScore. None of the three is ever shown as a percentage.
+    double      posterior   = 0.0;
+    double      legacyScore = 0.0;
+    // The share of measurement-uncertainty draws in which this cause was still selected
+    // (stampStability), −1 until stamped, and its word: firm / likely / fragile.
+    double      stability     = -1.0;
+    QString     stabilityWord;
+};
+
+// What the ranking runs on (§A8.6, §A8.8).
+struct ExplainOptions {
+    bool posteriorRank = tuned::diagUncertainty::kPosteriorRank;
 };
 
 // "Screen this — it would explain four of your findings." The highest-value output of the whole
@@ -102,8 +123,21 @@ QStringList relatedBy(const CharacteristicPack &pack, const QString &conditionId
 // `knownScreenResults` carries any physical-screen answers already entered — condition id -> present.
 // Absent from the map means "not screened yet", which is what generates a recommendation rather
 // than an assumption either way.
+//
+// Soft evidence (§A8.6): a finding's pFire, when formed, is read as P(that condition is present);
+// without it a Fired finding is certain and a NotFired one certainly absent, which is exactly what
+// the pre-§A8 ranking assumed.
 Explanation explain(const CharacteristicPack &pack, const DetectionResult &detection,
-                    const QHash<QString, bool> &knownScreenResults = {});
+                    const QHash<QString, bool> &knownScreenResults = {},
+                    const ExplainOptions &opt = {});
+
+// The word for a stability share (§A8.6): firm ≥ kFirmShare, likely ≥ kLikelyShare, else fragile.
+QString stabilityWordFor(double share);
+
+// Stamp every root's and offered cause's stability from explanations of the session's
+// measurement-uncertainty draws (§A8.6): the share of draws in which that cause was again selected
+// as a root (an offered cause: offered again). An empty draw set stamps nothing.
+void stampStability(Explanation &ex, const std::vector<Explanation> &draws);
 
 // Which fired findings a given candidate cause would account for. Exposed because the UI must
 // always be able to answer "why is this being suggested?" for any proposed root — a ranking the

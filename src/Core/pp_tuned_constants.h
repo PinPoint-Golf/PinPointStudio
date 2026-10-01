@@ -1273,4 +1273,21 @@ inline constexpr int    kBootstrapBlock       = 5;
 inline constexpr double kGrossWarn            = 0.2;     // card ⚠ above this (Q3)
 } // namespace uncertainty
 
+// Measurement uncertainty through the diagnostics DAG (session_diagnostics_design.md §A8).
+// kEnabled is D1+D2: the phase grid's σ reaches every MeasureReading and every finding carries a
+// probability of firing — VERDICT-IDENTICAL by construction. kSoftTier (D3) and kPosteriorRank (D4)
+// change what the panel concludes and are set by their gates (§A8.8).
+namespace diagUncertainty {
+inline constexpr bool     kEnabled       = true;    // diagnostics.uncertainty.enabled
+inline constexpr bool     kSoftTier      = true;    // diagnostics.uncertainty.softTier — gate G3
+inline constexpr bool     kPosteriorRank = true;    // diagnostics.uncertainty.posteriorRank — Mark's review (G4)
+inline constexpr int      kMcDraws       = 200;     // draws for P(Pattern) and root stability
+inline constexpr uint64_t kSeed          = 0xD1A6D1A6D1A6D1A6ull;
+inline constexpr double   kFirmShare     = 0.80;    // a root held in ≥ this share of draws is "firm"
+inline constexpr double   kLikelyShare   = 0.50;    // ≥ this "likely", else "fragile"
+inline constexpr double   kBorderLo      = 0.20;    // a shot is borderline when kBorderLo < pFire < kBorderHi
+inline constexpr double   kBorderHi      = 0.80;
+inline constexpr double   kBorderGross   = 0.20;    // … or its gross risk exceeds this
+} // namespace diagUncertainty
+
 } // namespace pinpoint::tuned

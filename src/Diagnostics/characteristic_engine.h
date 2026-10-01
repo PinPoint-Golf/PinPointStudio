@@ -21,6 +21,7 @@
 #include "characteristic_pack.h"
 #include "context_tree.h"
 #include "norm.h"
+#include "sigma_source.h"
 
 #include <QString>
 
@@ -53,6 +54,22 @@ struct MeasureReading {
     double greenLo     = 0.0;
     double greenHi     = 0.0;
     float  confidence  = 1.0f;   // 0..1; propagates into the finding
+
+    // ── Measurement uncertainty (session_diagnostics_design.md §A8.3–§A8.4) ─────────────────
+    //
+    // measSigma is how wrong THIS READING might be — NOT the norm's σ, which is how golfers vary
+    // and places the corridor. NaN = no σ stated: the verdict stays hard and the finding says it
+    // is unquantified. grossRisk is the probability the reading rests on a gross error, kept
+    // apart from σ (−1 = not assessed).
+    double      measSigma = std::numeric_limits<double>::quiet_NaN();
+    float       grossRisk = -1.f;
+    SigmaSource sigmaSrc  = SigmaSource::None;
+
+    // Where grade() turns a deviation on each tail (deviationEdges()). Set beside `grade` by every
+    // path that sets the grade; hasDevEdges false ⇒ no probability can be formed for a corridor test.
+    bool   hasDevEdges = false;
+    double devLo       = 0.0;
+    double devHi       = 0.0;
 
     // The resolved grade. NotMeasured whenever hasCorridor is false, so the two can never disagree.
     //
@@ -118,6 +135,8 @@ struct MeasureReading {
         // path could not express Floor or Ceiling even if it had a Measure to read one off.
         // Qualified: the `grade` MEMBER shadows the free grade() inside this scope.
         r.grade   = ::pinpoint::analysis::grade(value, n, Shape::Target, policy);
+        deviationEdges(n, Shape::Target, policy, r.devLo, r.devHi);
+        r.hasDevEdges = true;
         return r;
     }
 };
@@ -239,6 +258,19 @@ struct Finding {
     // The reading that graded this finding. See MeasureEvidence: present for Fired and NotFired
     // alike, absent for Unavailable.
     MeasureEvidence evidence;
+
+    // ── The verdict as a probability (session_diagnostics_design.md §A8.4) ──────────────────
+    //
+    // pFire is P(the condition is really present | the readings are not gross), from each signal's
+    // P(fire) = Φ(±(v − e)/σ) combined ANY → 1 − Π(1 − p), ALL → Π p. grossRisk is the largest
+    // gross risk among the signals that decided it. −1 on both = not formed (Unavailable).
+    //
+    // THE VERDICT ABOVE IS UNCHANGED BY THIS. `state` is computed exactly as before; pFire only
+    // adds what the verdict could not say. `quantified` is false when any deciding signal had no σ:
+    // its pFire is then 1 or 0, a hard verdict restated, never an invented probability.
+    float pFire      = -1.f;
+    float grossRisk  = -1.f;
+    bool  quantified = false;
 };
 
 struct DetectionResult {

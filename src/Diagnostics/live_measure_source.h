@@ -144,12 +144,18 @@ public:
 
     const SwingPhaseGrid &grid() const { return m_grid; }
 
+    // Whether readings carry their measurement σ (session_diagnostics_design.md §A8.3). Defaults to
+    // tuned::diagUncertainty::kEnabled; the report tool turns it off to reproduce the hard verdicts.
+    void setWithSigma(bool on) { m_withSigma = on; }
+    bool withSigma() const     { return m_withSigma; }
+
 private:
     void note(const QString &measureId, MissingKind k) const;
 
     SwingPhaseGrid                  m_grid;
     const CharacteristicPack       &m_pack;
     mutable QHash<QString, MissingKind> m_reasons;
+    bool                            m_withSigma = tuned::diagUncertainty::kEnabled;
 };
 
 // ── The whole stack, for one swing ──────────────────────────────────────────

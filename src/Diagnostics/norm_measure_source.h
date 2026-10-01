@@ -44,6 +44,11 @@ public:
     struct Value {
         double value      = 0.0;
         float  confidence = 1.0f;
+        // Measurement uncertainty (session_diagnostics_design.md §A8.3): NaN = none stated, and the
+        // engine then keeps the verdict hard. grossRisk −1 = not assessed.
+        double      sigma     = std::numeric_limits<double>::quiet_NaN();
+        float       grossRisk = -1.f;
+        SigmaSource sigmaSrc  = SigmaSource::None;
     };
 
     // nullopt => this measure could not be produced for this swing. Distinct from a value of zero,
@@ -95,6 +100,9 @@ public:
         MeasureReading r;
         r.value      = v->value;
         r.confidence = v->confidence;
+        r.measSigma  = v->sigma;
+        r.grossRisk  = v->grossRisk;
+        r.sigmaSrc   = v->sigmaSrc;
 
         if (!m_norms)
             return r;                     // no norms wired: hasCorridor stays false, engine greys it
@@ -119,6 +127,8 @@ public:
         r.lowOpen         = e.lowOpen;
         r.highOpen        = e.highOpen;
         r.grade           = grade(v->value, *res.norm, shape, m_policy);
+        deviationEdges(*res.norm, shape, m_policy, r.devLo, r.devHi);
+        r.hasDevEdges     = true;
         r.implausible     = res.norm->isImplausible(v->value);
         r.normContextId   = res.contextId;
         r.normCohort      = res.cohort();

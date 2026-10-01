@@ -25,20 +25,6 @@
 
 namespace pinpoint::analysis {
 
-namespace {
-
-// The ladder itself now lives beside the enum, in characteristic.h — this file was where it was
-// first needed, not where it belongs, and the graph view had already grown a second copy of it.
-double edgeWeight(const CharacteristicPack &pack, const QString &from, const QString &to)
-{
-    for (const Edge &e : pack.edges)
-        if (e.type == EdgeType::Causes && e.from == from && e.to == to)
-            return strengthWeight(e.strength);
-    return 0.0;
-}
-
-} // namespace
-
 QStringList findingsCoveredBy(const CharacteristicPack &pack, const DetectionResult &detection,
                               const QString &causeId)
 {
@@ -66,7 +52,7 @@ QStringList relatedBy(const CharacteristicPack &pack, const QString &conditionId
 }
 
 Explanation explain(const CharacteristicPack &pack, const DetectionResult &detection,
-                    const QHash<QString, bool> &knownScreenResults)
+                    const QHash<QString, bool> &knownScreenResults, const ExplainOptions &opt)
 {
     Explanation ex;
 
@@ -160,6 +146,23 @@ Explanation explain(const CharacteristicPack &pack, const DetectionResult &detec
     // which root cause to put first. That is the whole of what ContextBinding::material means, and
     // the weight is zero rather than some fraction because a made-up fraction would be a number
     // nobody could defend when asked why one cause outranked another.
+    // The pack's Causes edges, indexed ONCE per call (§A8.6 made the ranking re-run per draw, and
+    // the per-candidate scans of pack.edges — effectsOf, causesOf, edgeWeight — were its cost).
+    // Built in edge order, so every list below is the one those scans returned, duplicates and
+    // first-match semantics included.
+    QHash<QString, QStringList> effectsIdx;          // from → tos, edge order
+    QHash<QString, double>      weightIdx;           // "from\x1fto" → the FIRST edge's strength
+    QSet<QString>               hasCauseIdx;         // any Causes edge points at it
+    QHash<QString, std::vector<const Edge *>> childEdges;
+    for (const Edge &e : pack.edges) {
+        if (e.type != EdgeType::Causes) continue;
+        effectsIdx[e.from] << e.to;
+        const QString k = e.from + QChar(0x1f) + e.to;
+        if (!weightIdx.contains(k)) weightIdx.insert(k, strengthWeight(e.strength));
+        hasCauseIdx.insert(e.to);
+        childEdges[e.from].push_back(&e);
+    }
+
     QSet<QString> immaterial;
     for (const Finding &f : detection.findings)
         if (f.state == FindingState::Fired && !f.material) immaterial.insert(f.conditionId);
@@ -181,12 +184,87 @@ Explanation explain(const CharacteristicPack &pack, const DetectionResult &detec
     // Still not a probability, and `RankedCause::score` never was — it SUMS over covered findings,
     // so a cause explaining four of them scores past any single term and is meant to. The quantity
     // is ordinal and only ever reaches a comparison.
-    const auto rankWeight = [&pack, &immaterial](const QString &from, const QString &to) {
+    const auto rankWeight = [&pack, &immaterial, &weightIdx](const QString &from, const QString &to) {
         if (immaterial.contains(to)) return 0.0;
         const Condition *cause = pack.condition(from);
         const double     base  = cause ? prominenceWeight(cause->prominence)
                                        : prominenceWeight(Prominence::Occasional);
-        return base * edgeWeight(pack, from, to);
+        return base * weightIdx.value(from + QChar(0x1f) + to, 0.0);
+    };
+
+    // ── The noisy-OR posterior (session_diagnostics_design.md §A8.6) ──────────────────────
+    //
+    //   odds(c | evidence) = π_c / (1 − π_c) × Π_e LR_e(c)
+    //   P(obs_e | c)  = q·(1 − (1 − s)(1 − λ)) + (1 − q)·(1 − s)(1 − λ)
+    //   P(obs_e | ¬c) = q·λ + (1 − q)·(1 − λ)
+    //
+    // q = P(e present) from the finding (pFire, else its hard state), s = the edge's strength, λ =
+    // the leak — the chance e shows up without c — read as e's own prominence (its base rate).
+    // π_c is c's prominence.
+    //
+    // A CAUSE THAT WAS ITSELF ASSESSED IS NOT INFERRED. Its probability is its own P(present), and its
+    // children do not update it: the noisy-OR is how the model reasons about causes it cannot see,
+    // and letting authored words overrule a direct measurement of the thing itself would be the
+    // inference beating the observation. (The first cut did that — a measured pattern whose usual
+    // effects were absent read 0.000 — and it was wrong.)
+    //
+    // What enters the product: every assessed child of c (Fired or NotFired), EXCEPT a child a
+    // previous round's root already explains (`explained`, the cover's explaining-away), a child an
+    // exclusion ruled out, and an immaterial one (materiality stays ranking-zero). A child that was
+    // assessed and absent STAYS IN EVERY ROUND — that is the negative evidence the sum never saw:
+    // a cause that "usually" produces something measured clean on every shot pays for it here.
+    //
+    // Clamped away from 0 and 1 on both q and π: a probability of exactly 0 or 1 is absorbing, the
+    // same reason strengthWeight() keeps "always" at 0.95.
+    QHash<QString, const Finding *> findingOf;
+    for (const Finding &f : detection.findings) findingOf.insert(f.conditionId, &f);
+    QSet<QString> suppressedIds;
+    for (const Suppression &sp : ex.suppressed) suppressedIds.insert(sp.conditionId);
+
+    const auto qOf = [](const Finding &f) {
+        const double q = f.pFire >= 0.f ? double(f.pFire) : (f.state == FindingState::Fired ? 1.0 : 0.0);
+        return std::clamp(q, 0.001, 0.999);
+    };
+    const auto posteriorOf = [&](const QString &causeId, const QSet<QString> &explained) {
+        if (const Finding *self = findingOf.value(causeId, nullptr);
+            self && self->state != FindingState::Unavailable)
+            return qOf(*self);
+        const Condition *c = pack.condition(causeId);
+        double pi = c ? prominenceWeight(c->prominence) : prominenceWeight(Prominence::Occasional);
+        pi = std::clamp(pi, 0.001, 0.999);
+        double logOdds = std::log(pi / (1.0 - pi));
+        for (const Edge *ep : childEdges.value(causeId)) {
+            const Edge &e = *ep;
+            const Finding *f = findingOf.value(e.to, nullptr);
+            if (!f || f->state == FindingState::Unavailable) continue;
+            if (immaterial.contains(e.to) || suppressedIds.contains(e.to) || explained.contains(e.to)) continue;
+            const Condition *child = pack.condition(e.to);
+            const double lam = std::clamp(child ? prominenceWeight(child->prominence) : 0.2, 0.001, 0.999);
+            const double s   = strengthWeight(e.strength);
+            const double q   = qOf(*f);
+            const double absentGivenC = (1.0 - s) * (1.0 - lam);
+            const double pC  = q * (1.0 - absentGivenC) + (1.0 - q) * absentGivenC;
+            const double pNC = q * lam + (1.0 - q) * (1.0 - lam);
+            logOdds += std::log(pC / pNC);
+        }
+        return 1.0 / (1.0 + std::exp(-logOdds));
+    };
+
+    // THE RANKING SCORE under posteriorRank (§A8.6): the expected explained mass,
+    //
+    //   score(c) = P(c | evidence) × Σ over the findings it would explain of q_e · s(c → e)
+    //
+    // — the pre-§A8 score with its base rate replaced by the evidence-updated probability and each
+    // finding weighted by how sure we are of it. The Σ keeps what the old score meant to keep: a cause
+    // accounting for four findings outranks one accounting for one. Ordinal, like the old score.
+    const auto posteriorScore = [&](const QString &causeId, const QStringList &explains, double post) {
+        double mass = 0.0;
+        for (const QString &e : explains) {
+            if (immaterial.contains(e)) continue;
+            const Finding *f = findingOf.value(e, nullptr);
+            mass += (f ? qOf(*f) : 1.0) * weightIdx.value(causeId + QChar(0x1f) + e, 0.0);
+        }
+        return post * mass;
     };
 
     // Every condition that explains at least one fired finding is a candidate — including other
@@ -194,9 +272,11 @@ Explanation explain(const CharacteristicPack &pack, const DetectionResult &detec
     // What a cause explains, AFTER exclusions. `findingsCoveredBy()` reads the raw detection because
     // it is the public "why is this being suggested?" query and must answer about the whole result;
     // the ranking below must not count a finding an exclusion has already ruled out.
-    const auto coversNow = [&pack, &detection, &fired](const QString &causeId) {
+    // effectsOf ∩ fired — exactly findingsCoveredBy() filtered, since `fired` is a subset of the
+    // raw detection's fired set — from the index rather than a scan per candidate.
+    const auto coversNow = [&effectsIdx, &fired](const QString &causeId) {
         QStringList out;
-        for (const QString &e : findingsCoveredBy(pack, detection, causeId))
+        for (const QString &e : effectsIdx.value(causeId))
             if (fired.contains(e)) out << e;
         return out;
     };
@@ -223,15 +303,17 @@ Explanation explain(const CharacteristicPack &pack, const DetectionResult &detec
         rc.unknown     = (c.confirmedBy == ConfirmedBy::Screened
                           && !knownScreenResults.contains(c.id));
 
-        for (const QString &e : covers) rc.score += rankWeight(c.id, e);
+        for (const QString &e : covers) rc.legacyScore += rankWeight(c.id, e);
+        rc.posterior = posteriorOf(c.id, {});
+        rc.score     = opt.posteriorRank ? posteriorScore(c.id, covers, rc.posterior) : rc.legacyScore;
         candidates.push_back(std::move(rc));
     }
 
     // RULE 1: a fired characteristic that itself has an in-pack cause is a link in the chain, not a
     // root. Offering it as the answer would hand the coach a symptom and call it a diagnosis.
-    const auto isRootEligible = [&pack, &fired](const QString &id) {
+    const auto isRootEligible = [&hasCauseIdx, &fired](const QString &id) {
         if (!fired.contains(id)) return true;               // latent causes are always eligible
-        return causesOf(pack, id).isEmpty();                 // a fired characteristic needs no cause
+        return !hasCauseIdx.contains(id);                    // a fired characteristic needs no cause
     };
 
     std::vector<RankedCause> concludable, offered;
@@ -282,12 +364,15 @@ Explanation explain(const CharacteristicPack &pack, const DetectionResult &detec
         for (const RankedCause &rc : concludable) {
             RankedCause trimmed = rc;
             trimmed.explains.clear();
-            trimmed.score = 0.0;
+            trimmed.legacyScore = 0.0;
             for (const QString &e : rc.explains)
                 if (!covered.contains(e)) {
                     trimmed.explains << e;
-                    trimmed.score += rankWeight(rc.conditionId, e);
+                    trimmed.legacyScore += rankWeight(rc.conditionId, e);
                 }
+            trimmed.posterior = posteriorOf(rc.conditionId, covered);
+            trimmed.score     = opt.posteriorRank ? posteriorScore(rc.conditionId, trimmed.explains, trimmed.posterior)
+                                                  : trimmed.legacyScore;
             trimmed.coverage = int(trimmed.explains.size());
             if (trimmed.coverage > 0) remaining.push_back(std::move(trimmed));
         }
@@ -346,6 +431,31 @@ Explanation explain(const CharacteristicPack &pack, const DetectionResult &detec
         }
 
     return ex;
+}
+
+QString stabilityWordFor(double share)
+{
+    if (share >= tuned::diagUncertainty::kFirmShare)   return QStringLiteral("firm");
+    if (share >= tuned::diagUncertainty::kLikelyShare) return QStringLiteral("likely");
+    return QStringLiteral("fragile");
+}
+
+void stampStability(Explanation &ex, const std::vector<Explanation> &draws)
+{
+    if (draws.empty()) return;
+    const auto stamp = [&](RankedCause &rc, bool offered) {
+        int k = 0;
+        for (const Explanation &d : draws) {
+            const auto &list = offered ? d.offered : d.roots;
+            if (std::any_of(list.begin(), list.end(),
+                            [&](const RankedCause &o) { return o.conditionId == rc.conditionId; }))
+                ++k;
+        }
+        rc.stability     = double(k) / double(draws.size());
+        rc.stabilityWord = stabilityWordFor(rc.stability);
+    };
+    for (RankedCause &rc : ex.roots)   stamp(rc, false);
+    for (RankedCause &rc : ex.offered) stamp(rc, true);
 }
 
 } // namespace pinpoint::analysis

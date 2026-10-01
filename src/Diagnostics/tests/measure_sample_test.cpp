@@ -857,8 +857,10 @@ int main()
         // endpoint-median seed) — but neither rewrote a swing.json, so an old sidecar's size+mtime
         // guard still MATCHES. Without the bump every cached grid in the library would keep serving
         // superseded peaks to the corridor editor with nothing anywhere saying so.
-        check(kPhaseGridSchemaVersion == 4,
-              "the sidecar schema is 4: closed spans, no zero-width span, no endpoint seed");
+        // Schema 5 (session_diagnostics_design.md §A8.3) added each value's measurement σ — additive,
+        // numbers unchanged, but a v4 sidecar has no σ to serve, so it too must be retired.
+        check(kPhaseGridSchemaVersion == 5,
+              "the sidecar schema is 5: closed spans, no zero-width span, no endpoint seed, σ carried");
         for (const int old : { 2, 3 }) {
             QJsonObject prev = doc;
             prev.insert(QStringLiteral("schema"), old);

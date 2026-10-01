@@ -25,6 +25,7 @@
 #include <QString>
 
 #include <cmath>
+#include <algorithm>
 #include <limits>
 #include <optional>
 #include <vector>
@@ -504,6 +505,23 @@ inline Grade grade(double value, const Norm &norm, Shape shape, const GradePolic
 
 // True when the grade says something deviated. NotMeasured is NOT a deviation — see the enum.
 inline bool isDeviation(Grade g) { return g == Grade::Watch || g == Grade::Action; }
+
+// The values at which grade() turns a deviation (Watch) on each tail — the edges a measurement σ is
+// measured against when a verdict becomes a probability (session_diagnostics_design.md §A8.4).
+// The Good band's edge, tightened by an explicit monitor bound where the norm states one (outside
+// the monitor is Action whatever z says). An open tail returns ±infinity: nothing there deviates.
+// Mirrors grade() term for term; a change to one must change the other.
+inline void deviationEdges(const Norm &n, Shape shape, const GradePolicy &policy, double &lo, double &hi)
+{
+    lo = (shape == Shape::Ceiling) ? -std::numeric_limits<double>::infinity()
+                                   : n.mu - policy.goodMaxZ * n.sigmaLo;
+    hi = (shape == Shape::Floor)   ?  std::numeric_limits<double>::infinity()
+                                   : n.mu + policy.goodMaxZ * n.sigmaHi;
+    if (n.hasExplicitMonitor(shape)) {
+        if (shape != Shape::Ceiling && n.monitorLo.has_value()) lo = std::max(lo, *n.monitorLo);
+        if (shape != Shape::Floor   && n.monitorHi.has_value()) hi = std::min(hi, *n.monitorHi);
+    }
+}
 
 // ── The edges a norm DRAWS as ───────────────────────────────────────────────
 //
