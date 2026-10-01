@@ -132,6 +132,45 @@ struct Config {
     double offPlaneFloorDeg = 6.0;
     double backIncoherentDeg = 12.0; // backswing scatter above this ⇒ suspect a mirrored DTL band
     int    minAddressN = 5;          // fewer published DTL address frames than this is not an address plane
+
+    // ── dtl_continuous_track_design_update.md §3.2a: three items, each its own switch,
+    // each bit-identical OFF (the code below runs only inside `if (cfg.x)` blocks). ──
+    // (A) The out-of-plane angle η(t): one smooth curve per swing through the fused
+    // frames' oopDeg, fitted on face-on-MEASURED, unflagged frames (bridged excluded);
+    // knots every knotMs; a second-difference smoothness penalty λ; and a zero prior on
+    // every knot with no measured frame within priorReachMs (weight priorFar) so a gap
+    // coasts to in-plane instead of extrapolating a slope — the one-swing probe read
+    // 6–10° WORSE with a slope across the top (priorReach 400 ms). Feeds the DTL synth
+    // and the record; the plane fits and every metric never read it.
+    // ON by Mark's decision (1 Oct 2026) after reading dtl_precalibration_20261003.md: the
+    // leave-one-band-out gate fails on this golfer (η is not continuous across an end-on
+    // gap), the curve's value is at the band edges, and only the tile can show that.
+    struct Eta {
+        bool   enabled      = true;
+        double knotMs       = 30.0;
+        double lambda       = 4.0;
+        double priorReachMs = 150.0;
+        double priorFar     = 1.0;
+        double priorNear    = 1e-3;
+        double maxAbsDeg    = 25.0;   // a knot beyond this is clamped: a plane 25° off is not "out of plane", it is another plane
+    } eta;
+    // (C) The DTL-anchored direction on a bridged frame: the DTL view plane's intersection
+    // with the phase's fitted plane (rotated by η(t) when (A) is on). Published beside the
+    // bridged value; kept out of every fit; REFUSED where the two planes are within
+    // asin(minCond) of each other — which, with a camera on the plane's node line, is
+    // every impact frame (the one-swing probe: cond 0.06–0.08).
+    bool   dtlAnchor = false;
+    // (D) A mirrored backswing band re-read inside the fusion: when the backswing fit is
+    // incoherent, each non-address backswing band is tried reflected about the DTL
+    // image's vertical (θ → π − θ: the corridor's two centres of tracker design §4.1 (c)
+    // are atan2(s, ∓q), symmetric about the vertical, so that IS the corridor's centre
+    // line) and kept, greedily, while the refit's rms falls by more than reflectMinGainDeg;
+    // the set is kept only if the final rms is under backIncoherentDeg AND no reflected
+    // band's sign-disagreement count rose. The DTL track is untouched. ON by its gate
+    // (dtl_precalibration_20261003.md §5): 07-04 s2/s3 20.9°/18.0° → 12.0°/4.4° rms, headings
+    // within 1° of the downswing plane's, no coherent swing of 24 changed.
+    bool   reflectBands = true;
+    double reflectMinGainDeg = 0.5;
 };
 
 // One face-on angle sample, already unwrapped by the caller. `measured` false = the
@@ -145,6 +184,8 @@ enum SampleFlag : uint8_t {
     SignDisagree   = 0x01,   // the two views disagree on which way along the line the head is
     IllConditioned = 0x02,   // |n_F × n_D| < minCond
     OffPlane       = 0x04,   // far off its phase's fitted plane (set after the fit)
+    DtlAnchored    = 0x08,   // (C) u is the DTL de-projection; uBridged holds the bridged value
+    Reflected      = 0x10,   // (D) thetaD is the tracker's angle reflected about the vertical
 };
 
 struct Sample3D {
@@ -157,6 +198,9 @@ struct Sample3D {
     double   thetaF = 0, thetaD = 0;  // the two inputs, as used (θ_F interpolated)
     double   rhoF = kNan, rhoD = kNan;   // projected length fractions the direction PREDICTS
     double   oopDeg = kNan;           // signed distance off its phase plane; NaN = no plane / outside both
+    double   etaDeg = kNan;           // (A) the fitted η(t) at this instant; NaN when no curve
+    Vec3     uBridged;                // (C) the bridged direction this sample had before anchoring (DtlAnchored only)
+    double   anchorCond = kNan;       // (C) |n_plane × n_viewD| on a bridged frame the anchor was tried on
 };
 
 struct PlaneFit {
@@ -173,10 +217,45 @@ struct PlaneFit {
     bool offered(const Config &c) const { return fitted && oopRmsDeg <= c.planeOopMaxDeg; }
 };
 
+// (A) The out-of-plane curve: knot values on a uniform grid, evaluated as a Catmull-Rom
+// spline through them (C¹, constant beyond the ends). `near` says which knots had a
+// measured frame within reach; the others rest on the zero prior.
+struct EtaFit {
+    bool   fitted = false;
+    std::vector<int64_t> knotsUs;
+    std::vector<double>  values;    // degrees
+    std::vector<uint8_t> near;
+    int    n = 0;                   // frames fitted
+    double rmsDeg = kNan;           // residual over the fitted frames
+    double at(int64_t t) const
+    {
+        const size_t K = knotsUs.size();
+        if (!fitted || K < 2) return kNan;
+        if (t <= knotsUs.front()) return values.front();
+        if (t >= knotsUs.back())  return values.back();
+        const double h = double(knotsUs[1] - knotsUs[0]);
+        size_t k = size_t(std::floor(double(t - knotsUs[0]) / h));
+        k = std::min(k, K - 2);
+        const double s = double(t - knotsUs[k]) / h;
+        const double p0 = k > 0 ? values[k - 1] : values[k];
+        const double p1 = values[k], p2 = values[k + 1];
+        const double p3 = k + 2 < K ? values[k + 2] : values[k + 1];
+        return 0.5 * ((2 * p1) + (-p0 + p2) * s + (2 * p0 - 5 * p1 + 4 * p2 - p3) * s * s
+                      + (-p0 + 3 * p1 - 3 * p2 + p3) * s * s * s);
+    }
+};
+
 struct Track3D {
     bool valid = false;
     std::vector<Sample3D> samples;
     PlaneFit back, down;
+    // §3.2a records. (A) the curve; (C) how many bridged frames were anchored and how
+    // many refused for conditioning; (D) which DTL bands the backswing fit reads
+    // reflected, and the backswing rms before the reflection.
+    EtaFit eta;
+    int    nDtlAnchored = 0, nDtlAnchorRefused = 0;
+    std::vector<int> reflectedBands;
+    double backRmsBeforeReflectDeg = kNan;
     int nDtlPublished = 0, nNoFaceOn = 0, nBridged = 0;
     int nSignDisagree = 0, nIllConditioned = 0, nOffPlane = 0;
     bool backIncoherent = false;
@@ -284,6 +363,116 @@ inline PlaneFit fitPlane(const std::vector<Vec3> &U, const Camera &fo, const Con
     return f;
 }
 
+// ── de-projection: one camera's image angle through a plane ──────────────────
+// u ⊥ n_plane and u ⊥ the view-plane normal, headed along the image direction. `cond`
+// is |n_plane × n_view|: 0 where the view plane IS the plane — a camera on the plane's
+// node line (down the line, at impact) has no direction to give. false when < minCond.
+inline bool deproject(const Camera &c, double theta, const Vec3 &nPlane, double minCond, Vec3 &u, double &cond)
+{
+    const Vec3 img = imageDir(c, theta);
+    const Vec3 nV  = c.d.cross(img).unit();
+    const Vec3 x   = nPlane.cross(nV);
+    cond = x.norm();
+    if (cond < minCond) return false;
+    u = x * (1.0 / cond);
+    if (u.dot(img) < 0) u = u * -1.0;
+    return true;
+}
+
+// (A) The same, with the direction sitting η off the plane, on the side the sign says:
+// u(φ) = cos φ·u0 + sin φ·w with w = n_view × u0 (in the view plane, ⊥ u0), so that
+// u·n = sin φ·(w·n) and w·n = cond ⇒ sin φ = sin η / cond. |sin η| > cond has no such
+// direction in the view plane and the frame is refused. η = 0 is `deproject` bit for bit.
+inline bool deprojectEta(const Camera &c, double theta, const Vec3 &nPlane, double etaDeg,
+                         double minCond, Vec3 &u, double &cond)
+{
+    if (!deproject(c, theta, nPlane, minCond, u, cond)) return false;
+    if (!std::isfinite(etaDeg) || etaDeg == 0.0) return true;
+    const Vec3 img = imageDir(c, theta);
+    const Vec3 nV  = c.d.cross(img).unit();
+    const Vec3 w   = nV.cross(u);
+    const double wn = w.dot(nPlane);
+    if (std::fabs(wn) < 1e-12) return true;
+    const double sn = std::sin(etaDeg * kPi / 180.0) / wn;
+    if (std::fabs(sn) > 1.0) return false;
+    const double phi = std::asin(sn);
+    Vec3 v = u * std::cos(phi) + w * std::sin(phi);
+    if (v.dot(img) < 0) v = v * -1.0;
+    u = v;
+    return true;
+}
+
+// (A) One smooth curve through (t, oop) pairs — knot values v_k on a uniform grid every
+// knotUs from tLo to ≥ tHi minimising
+//     Σ_i (η(t_i) − oop_i)²  +  λ Σ_k (v_{k−1} − 2v_k + v_{k+1})²  +  Σ_k μ_k v_k²
+// with η(t) the piecewise-linear interpolant in the data term (the evaluation is
+// Catmull-Rom through the same values, C¹, equal at the knots) and μ_k = priorFar on a
+// knot with no frame within priorReach, priorNear otherwise. One dense Cholesky solve
+// (K ≈ 40–60). Mirrored in tools/shaftlab/fusion_geom.py (fit_eta) so a grader can
+// re-fit leave-one-band-out from a run root; the two agree at the knots to < 1e-6°.
+inline EtaFit fitEtaCurve(const std::vector<int64_t> &t, const std::vector<double> &oop,
+                          int64_t tLo, int64_t tHi, const Config::Eta &e)
+{
+    EtaFit f;
+    if (t.size() < 4 || t.size() != oop.size() || tHi <= tLo || e.knotMs <= 0) return f;
+    const int64_t knotUs = int64_t(std::llround(e.knotMs * 1000.0));
+    const int K = std::max(2, int(std::ceil(double(tHi - tLo) / double(knotUs))) + 1);
+    f.knotsUs.resize(size_t(K));
+    for (int k = 0; k < K; ++k) f.knotsUs[size_t(k)] = tLo + int64_t(k) * knotUs;
+    std::vector<double> A(size_t(K) * size_t(K), 0.0), b(size_t(K), 0.0);
+    auto at = [&](int i, int j) -> double & { return A[size_t(i) * size_t(K) + size_t(j)]; };
+    const double h = double(knotUs);
+    for (size_t i = 0; i < t.size(); ++i) {
+        int k = int(std::floor(double(t[i] - f.knotsUs[0]) / h));
+        k = std::max(0, std::min(K - 2, k));
+        double a = double(t[i] - f.knotsUs[size_t(k)]) / h;
+        a = std::max(0.0, std::min(1.0, a));
+        const double c0 = 1.0 - a, c1 = a;
+        at(k, k) += c0 * c0; at(k, k + 1) += c0 * c1;
+        at(k + 1, k) += c1 * c0; at(k + 1, k + 1) += c1 * c1;
+        b[size_t(k)] += c0 * oop[i]; b[size_t(k) + 1] += c1 * oop[i];
+    }
+    for (int k = 1; k < K - 1; ++k) {
+        const int idx[3] = { k - 1, k, k + 1 }; const double co[3] = { 1.0, -2.0, 1.0 };
+        for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j) at(idx[i], idx[j]) += e.lambda * co[i] * co[j];
+    }
+    const int64_t reach = int64_t(std::llround(e.priorReachMs * 1000.0));
+    f.near.assign(size_t(K), 0);
+    for (int k = 0; k < K; ++k) {
+        for (int64_t ti : t) if (std::llabs(ti - f.knotsUs[size_t(k)]) <= reach) { f.near[size_t(k)] = 1; break; }
+        at(k, k) += f.near[size_t(k)] ? e.priorNear : e.priorFar;
+    }
+    // Cholesky A = L Lᵀ (A is SPD: a Gram matrix plus positive diagonal terms).
+    std::vector<double> L(size_t(K) * size_t(K), 0.0);
+    auto Lat = [&](int i, int j) -> double & { return L[size_t(i) * size_t(K) + size_t(j)]; };
+    for (int i = 0; i < K; ++i)
+        for (int j = 0; j <= i; ++j) {
+            double sum = at(i, j);
+            for (int m = 0; m < j; ++m) sum -= Lat(i, m) * Lat(j, m);
+            if (i == j) { if (sum <= 0) return f; Lat(i, i) = std::sqrt(sum); }
+            else Lat(i, j) = sum / Lat(j, j);
+        }
+    std::vector<double> y(static_cast<size_t>(K));
+    for (int i = 0; i < K; ++i) {
+        double sum = b[size_t(i)];
+        for (int m = 0; m < i; ++m) sum -= Lat(i, m) * y[size_t(m)];
+        y[size_t(i)] = sum / Lat(i, i);
+    }
+    f.values.assign(size_t(K), 0.0);
+    for (int i = K - 1; i >= 0; --i) {
+        double sum = y[size_t(i)];
+        for (int m = i + 1; m < K; ++m) sum -= Lat(m, i) * f.values[size_t(m)];
+        f.values[size_t(i)] = sum / Lat(i, i);
+    }
+    for (double &v : f.values) v = std::max(-e.maxAbsDeg, std::min(e.maxAbsDeg, v));
+    f.fitted = true;
+    f.n = int(t.size());
+    double ss = 0;
+    for (size_t i = 0; i < t.size(); ++i) { const double r = f.at(t[i]) - oop[i]; ss += r * r; }
+    f.rmsDeg = std::sqrt(ss / double(t.size()));
+    return f;
+}
+
 // ── the track ────────────────────────────────────────────────────────────────
 // `fo` ascending in time with θ UNWRAPPED; `foBridge` the same for the track the
 // face-on tracker draws where it did not measure (its synth; may be empty). A DTL
@@ -351,14 +540,101 @@ inline Track3D fuseTracks(const std::vector<FoSample> &fo, const std::vector<FoS
     out.valid = !out.samples.empty();
     if (!out.valid) return out;
 
+    // A sample enters a fit when it is face-on measured and carries no DISAGREEMENT flag;
+    // (D)'s Reflected is a reading, not a disagreement, and the fits are what it is for.
     auto fitWindow = [&](int64_t from, int64_t to) {
         std::vector<Vec3> U;
         if (to > from)
             for (const Sample3D &s : out.samples)
-                if (s.t_us >= from && s.t_us <= to && s.flags == 0 && s.foSrc == FoSource::Measured)
+                if (s.t_us >= from && s.t_us <= to && (s.flags & ~uint8_t(Reflected)) == 0 && s.foSrc == FoSource::Measured)
                     U.push_back(s.u);
         return fitPlane(U, cf, cfg);
     };
+
+    // ── (D) a mirrored backswing band, re-read ─────────────────────────────────
+    // Only when the backswing fit is incoherent. Every non-address backswing band is a
+    // candidate; the address band never is (the DTL ball anchors it, and reflecting it
+    // is the mirror image of reflecting all the others). Greedy: the band whose
+    // reflection lowers the refit's rms most is taken, while the gain exceeds
+    // reflectMinGainDeg and the band's own sign disagreements do not rise; the whole set
+    // is kept only if the final fit is coherent, else every sample is put back exactly.
+    if (cfg.reflectBands && topUs > backFromUs) {
+        const PlaneFit b0 = fitWindow(backFromUs, topUs - 1);
+        if (b0.fitted && b0.oopRmsDeg > cfg.backIncoherentDeg) {
+            out.backRmsBeforeReflectDeg = b0.oopRmsDeg;
+            const std::vector<Sample3D> original = out.samples;
+            std::vector<int> cand, addr;
+            for (const Sample3D &s : out.samples) {
+                if (s.dtlBand < 0) continue;
+                if (s.t_us <= addressToUs) { addr.push_back(s.dtlBand); continue; }
+                if (s.t_us >= backFromUs && s.t_us < topUs) cand.push_back(s.dtlBand);
+            }
+            std::sort(cand.begin(), cand.end()); cand.erase(std::unique(cand.begin(), cand.end()), cand.end());
+            cand.erase(std::remove_if(cand.begin(), cand.end(), [&](int b) {
+                return std::find(addr.begin(), addr.end(), b) != addr.end(); }), cand.end());
+            auto signDis = [&](int band) {
+                int n = 0;
+                for (const Sample3D &s : out.samples) if (s.dtlBand == band && (s.flags & SignDisagree)) ++n;
+                return n;
+            };
+            // Reflect a band in place (about the DTL image's vertical: θ → π − θ) and re-fuse.
+            auto reflect = [&](int band) {
+                for (Sample3D &s : out.samples) {
+                    if (s.dtlBand != band || s.t_us < backFromUs || s.t_us >= topUs) continue;
+                    const double th = kPi - s.thetaD;
+                    Vec3 u; double cond; bool agree = false;
+                    if (!fuseOne(cf, cd, s.thetaF, th, u, cond, agree)) continue;
+                    s.thetaD = th; s.u = u; s.cond = cond;
+                    s.flags &= uint8_t(~(SignDisagree | IllConditioned));
+                    if (!agree)            s.flags |= SignDisagree;
+                    if (cond < cfg.minCond) s.flags |= IllConditioned;
+                    s.flags ^= Reflected;
+                    double t; project(cf, s.u, t, s.rhoF); project(cd, s.u, t, s.rhoD);
+                }
+            };
+            // Reflecting one band or reflecting all the others gives the same scatter and
+            // MIRROR-IMAGE planes; only one of the two faces the way the swing does. The
+            // downswing plane, fitted from frames no reflection touches, says which: a refit
+            // whose normal points away from it (n · n_down < 0) is the mirror, and refused.
+            // (On 07-04 s2 the face-on track starts after the address instant, so the
+            // address band's fused frames all lie past it and the time rule alone let the
+            // greedy pick that band first — the 82.7° → 54.8° plane with a 137° heading.)
+            const PlaneFit downRef = fitWindow(topUs, downToUs);
+            auto facesTheSwing = [&](const PlaneFit &pf) {
+                return !downRef.fitted || pf.normal.dot(downRef.normal) > 0;
+            };
+            std::vector<int> kept;
+            double best = b0.oopRmsDeg;
+            for (;;) {
+                int bestBand = -1; double bestRms = best;
+                for (int b : cand) {
+                    if (std::find(kept.begin(), kept.end(), b) != kept.end()) continue;
+                    const int disBefore = signDis(b);
+                    reflect(b);
+                    const PlaneFit pf = fitWindow(backFromUs, topUs - 1);
+                    const bool better = pf.fitted && pf.oopRmsDeg < bestRms - cfg.reflectMinGainDeg && signDis(b) <= disBefore
+                                     && facesTheSwing(pf);
+                    reflect(b);   // undo the trial
+                    if (better) { bestBand = b; bestRms = pf.oopRmsDeg; }
+                }
+                if (bestBand < 0) break;
+                reflect(bestBand);
+                kept.push_back(bestBand);
+                best = bestRms;
+            }
+            if (!kept.empty() && best < cfg.backIncoherentDeg && facesTheSwing(fitWindow(backFromUs, topUs - 1))) {
+                out.reflectedBands = kept;
+                int dis = 0, ill = 0, dis0 = 0, ill0 = 0;
+                for (const Sample3D &s : out.samples) { dis += (s.flags & SignDisagree) != 0; ill += (s.flags & IllConditioned) != 0; }
+                for (const Sample3D &s : original)    { dis0 += (s.flags & SignDisagree) != 0; ill0 += (s.flags & IllConditioned) != 0; }
+                out.nSignDisagree += dis - dis0;
+                out.nIllConditioned += ill - ill0;
+            } else {
+                out.samples = original;
+            }
+        }
+    }
+
     out.back = fitWindow(backFromUs, topUs - 1);
     out.down = fitWindow(topUs, downToUs);
     out.backIncoherent = out.back.fitted && out.back.oopRmsDeg > cfg.backIncoherentDeg;
@@ -381,6 +657,57 @@ inline Track3D fuseTracks(const std::vector<FoSample> &fo, const std::vector<FoS
             && std::fabs(s.oopDeg) > std::max(cfg.offPlaneK * pf->oopRmsDeg, cfg.offPlaneFloorDeg)) {
             s.flags |= OffPlane;
             ++out.nOffPlane;
+        }
+    }
+
+    auto phasePlane = [&](int64_t t) -> const PlaneFit * {
+        if (t >= topUs && t <= downToUs)       return out.down.fitted ? &out.down : nullptr;
+        if (t >= backFromUs && t < topUs)      return out.back.fitted ? &out.back : nullptr;
+        return nullptr;
+    };
+
+    // ── (A) the out-of-plane curve η(t) ────────────────────────────────────────
+    // Fitted on the frames the plane fits themselves rest on (face-on measured,
+    // unflagged, with a phase plane), over the fusion's window. Recorded on every
+    // sample inside the window; read by the DTL synth and by (C), by nothing else.
+    if (cfg.eta.enabled && downToUs > backFromUs) {
+        std::vector<int64_t> t; std::vector<double> oop;
+        for (const Sample3D &s : out.samples)
+            if (s.foSrc == FoSource::Measured && s.flags == 0 && std::isfinite(s.oopDeg)) {
+                t.push_back(s.t_us); oop.push_back(s.oopDeg);
+            }
+        // The grid runs one prior-reach past the window so the curve decays to in-plane
+        // over that reach after impact (the held-plane frames the synth still draws)
+        // instead of holding its last fitted value.
+        const int64_t reach = int64_t(std::llround(cfg.eta.priorReachMs * 1000.0));
+        out.eta = fitEtaCurve(t, oop, backFromUs, downToUs + reach, cfg.eta);
+        if (out.eta.fitted)
+            for (Sample3D &s : out.samples)
+                if (s.t_us >= backFromUs && s.t_us <= downToUs) s.etaDeg = out.eta.at(s.t_us);
+    }
+
+    // ── (C) the DTL-anchored direction where face-on coasted ───────────────────
+    // A bridged frame's direction becomes the DTL view plane's intersection with the
+    // phase plane (η(t) off it when (A) fitted); the bridged value is kept beside it.
+    // Refused, with the conditioning on the record, where the DTL view plane and the
+    // phase plane are within asin(minCond) of each other — the down-the-line camera
+    // looks along the plane's node, so at impact that is the rule, not the exception.
+    if (cfg.dtlAnchor) {
+        for (Sample3D &s : out.samples) {
+            if (s.foSrc != FoSource::Bridged) continue;
+            const PlaneFit *pf = phasePlane(s.t_us);
+            if (!pf) continue;
+            Vec3 ua; double cond = 0;
+            const bool ok = deprojectEta(cd, s.thetaD, pf->normal, s.etaDeg, cfg.minCond, ua, cond);
+            s.anchorCond = cond;
+            if (!ok) { ++out.nDtlAnchorRefused; continue; }
+            s.uBridged = s.u;
+            s.u = ua;
+            s.flags |= DtlAnchored;
+            if (s.flags & OffPlane) { s.flags &= uint8_t(~OffPlane); --out.nOffPlane; }
+            double th; project(cf, s.u, th, s.rhoF); project(cd, s.u, th, s.rhoD);
+            s.oopDeg = std::asin(std::clamp(s.u.dot(pf->normal), -1.0, 1.0)) * 180.0 / kPi;
+            ++out.nDtlAnchored;
         }
     }
     return out;

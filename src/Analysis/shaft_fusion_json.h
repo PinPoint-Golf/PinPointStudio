@@ -59,6 +59,17 @@ inline fusion::Config shaftFusionConfigFromOverrides(const QVariantMap &ov,
     apply(ov, "shaft.fusion.offPlaneFloorDeg",  c.offPlaneFloorDeg);
     apply(ov, "shaft.fusion.backIncoherentDeg", c.backIncoherentDeg);
     apply(ov, "shaft.fusion.minAddressN",       c.minAddressN);
+    // dtl_continuous_track_design_update.md §3.2a — (A) η(t), (C) the DTL anchor, (D) the reflected band.
+    apply(ov, "shaft.fusion.eta.enabled",       c.eta.enabled);
+    apply(ov, "shaft.fusion.eta.knotMs",        c.eta.knotMs);
+    apply(ov, "shaft.fusion.eta.lambda",        c.eta.lambda);
+    apply(ov, "shaft.fusion.eta.priorReachMs",  c.eta.priorReachMs);
+    apply(ov, "shaft.fusion.eta.priorFar",      c.eta.priorFar);
+    apply(ov, "shaft.fusion.eta.priorNear",     c.eta.priorNear);
+    apply(ov, "shaft.fusion.eta.maxAbsDeg",     c.eta.maxAbsDeg);
+    apply(ov, "shaft.fusion.dtlAnchor.enabled", c.dtlAnchor);
+    apply(ov, "shaft.fusion.reflectBands.enabled",    c.reflectBands);
+    apply(ov, "shaft.fusion.reflectBands.minGainDeg", c.reflectMinGainDeg);
     return c;
 }
 
@@ -90,7 +101,9 @@ inline QJsonObject shaftTrack3dToJson(const fusion::Track3D &t, const fusion::Co
         if (s.flags & fusion::SignDisagree)   flags.append(QStringLiteral("signDisagree"));
         if (s.flags & fusion::IllConditioned) flags.append(QStringLiteral("illConditioned"));
         if (s.flags & fusion::OffPlane)       flags.append(QStringLiteral("offPlane"));
-        frames.append(QJsonObject {
+        if (s.flags & fusion::DtlAnchored)    flags.append(QStringLiteral("dtlAnchored"));
+        if (s.flags & fusion::Reflected)      flags.append(QStringLiteral("reflected"));
+        QJsonObject fr {
             { "t_us",    qint64(s.t_us >= t0Us ? s.t_us - t0Us : s.t_us) },
             { "u",       QJsonArray { s.u.x, s.u.y, s.u.z } },
             { "cond",    s.cond },
@@ -102,8 +115,29 @@ inline QJsonObject shaftTrack3dToJson(const fusion::Track3D &t, const fusion::Co
             { "thetaD",  s.thetaD },
             { "rhoF",    num(s.rhoF) },
             { "rhoD",    num(s.rhoD) },
-            { "oopDeg",  num(s.oopDeg) } });
+            { "oopDeg",  num(s.oopDeg) } };
+        // §3.2a keys are written only where an item produced them, so a run with every
+        // item off writes the frames the previous version wrote, key for key.
+        if (std::isfinite(s.etaDeg))     fr["etaDeg"] = s.etaDeg;
+        if (std::isfinite(s.anchorCond)) fr["anchorCond"] = s.anchorCond;
+        if (s.flags & fusion::DtlAnchored) fr["uBridged"] = QJsonArray { s.uBridged.x, s.uBridged.y, s.uBridged.z };
+        frames.append(fr);
     }
+    QJsonObject eta { { "fitted", t.eta.fitted } };
+    if (t.eta.fitted) {
+        QJsonArray k, v, nr;
+        for (size_t i = 0; i < t.eta.knotsUs.size(); ++i) {
+            k.append(qint64(t.eta.knotsUs[i] >= t0Us ? t.eta.knotsUs[i] - t0Us : t.eta.knotsUs[i]));
+            v.append(t.eta.values[i]);
+            nr.append(int(t.eta.near[i]));
+        }
+        eta["knotsUs"] = k; eta["values"] = v; eta["near"] = nr;
+        eta["n"] = t.eta.n; eta["rmsDeg"] = num(t.eta.rmsDeg);
+        eta["knotMs"] = cfg.eta.knotMs; eta["lambda"] = cfg.eta.lambda; eta["priorReachMs"] = cfg.eta.priorReachMs;
+        eta["priorFar"] = cfg.eta.priorFar; eta["priorNear"] = cfg.eta.priorNear; eta["maxAbsDeg"] = cfg.eta.maxAbsDeg;
+    }
+    QJsonArray refl;
+    for (int b : t.reflectedBands) refl.append(b);
     return QJsonObject {
         { "schema",       QStringLiteral("pinpoint.club3d/1") },
         { "stageVersion", stageVersion },
@@ -129,7 +163,16 @@ inline QJsonObject shaftTrack3dToJson(const fusion::Track3D &t, const fusion::Co
                                         { "nSignDisagree",   t.nSignDisagree },
                                         { "nIllConditioned", t.nIllConditioned },
                                         { "nOffPlane",       t.nOffPlane },
-                                        { "backIncoherent",  t.backIncoherent } } },
+                                        { "backIncoherent",  t.backIncoherent },
+                                        // §3.2a (C) and (D) records
+                                        { "nDtlAnchored",       t.nDtlAnchored },
+                                        { "nDtlAnchorRefused",  t.nDtlAnchorRefused },
+                                        { "reflectedBands",     refl },
+                                        { "backRmsBeforeReflectDeg", num(t.backRmsBeforeReflectDeg) } } },
+        // §3.2a (A): the out-of-plane curve, and which items ran.
+        { "eta",          eta },
+        { "items",        QJsonObject { { "eta", cfg.eta.enabled }, { "dtlAnchor", cfg.dtlAnchor },
+                                        { "reflectBands", cfg.reflectBands } } },
         { "frames",       frames } };
 }
 

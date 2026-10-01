@@ -70,7 +70,8 @@ using fusion::kNan;
 using fusion::kPi;
 
 struct Config {
-    bool    enabled = false;         // DARK until the protocol session exists (§3.2)
+    bool    enabled = true;          // ON by Mark's decision (1 Oct 2026), as a PREVIEW through the assumed-zero camera until the protocol session exists (§3.2)
+    bool    useEta  = true;          // (§3.2a A) rotate the de-projection by the fusion's η(t) when it fitted one
     int64_t holdDownPlaneUs = 250000; // past the downswing window, hold its plane this long (flagged)
     double  minCond = 0.15;          // |n_plane × n_F| below this: the face-on line runs along the plane's node — no direction
     int64_t maxFoGapUs = 12000;      // a face-on bracket wider than this is not a bracket
@@ -103,6 +104,7 @@ struct Sample {
     double    rhoD = kNan;           // projected length fraction
     Vec3      u;                     // butt → head, unit, cameras' frame
     double    cond = 0;              // |n_plane × n_F|
+    double    etaDeg = kNan;         // (§3.2a A) the out-of-plane angle applied; NaN = in-plane
     PlaneUsed plane = PlaneUsed::None;
     AnchorSrc anchor = AnchorSrc::None;
     double    gx = kNan, gy = kNan, lenPx = kNan;   // the drawn line: grip and ρ_D·L̂_D
@@ -130,24 +132,18 @@ inline bool addressPlaneNormal(const Camera &cd, const std::vector<double> &thet
     return true;
 }
 
-// De-project one face-on angle through a plane: u ⊥ n_plane and u ⊥ n_F, headed
-// along the face-on image direction. false when ill-conditioned.
-inline bool deproject(const Camera &cf, double thetaF, const Vec3 &nPlane, double minCond, Vec3 &u, double &cond)
-{
-    const Vec3 img = fusion::imageDir(cf, thetaF);
-    const Vec3 nF  = cf.d.cross(img).unit();
-    const Vec3 c   = nPlane.cross(nF);
-    cond = c.norm();
-    if (cond < minCond) return false;
-    u = c * (1.0 / cond);
-    if (u.dot(img) < 0) u = u * -1.0;
-    return true;
-}
+// De-projection of one face-on angle through a plane: fusion::deproject (shaft_fusion.h)
+// — the same operations in the same order as the copy that lived here before 2026-10-03,
+// so every sample a run wrote before is reproduced bit for bit.
+using fusion::deproject;
 
+// `eta` (§3.2a A): the fusion's out-of-plane curve, or null. With one, each sample's
+// direction sits η(t) off the phase plane instead of on it (fusion::deprojectEta);
+// the plane and the anchor are unchanged, so a null curve is the pre-η synth exactly.
 inline std::vector<Sample> synthesize(const std::vector<FoAngle> &fo, const Planes &p,
                                       const Camera &cf, const Camera &cd,
                                       const std::vector<Anchor> &anchors, double lFullPx,
-                                      const Config &cfg)
+                                      const Config &cfg, const fusion::EtaFit *eta = nullptr)
 {
     std::vector<Sample> out;
     if (!cfg.enabled || fo.size() < 2) return out;
@@ -181,7 +177,10 @@ inline std::vector<Sample> synthesize(const std::vector<FoAngle> &fo, const Plan
             if (p.down)      { n = &p.nDown; s.plane = PlaneUsed::DownExtrapolated; }
         }
         if (!an.ok || !n || !foAt(an.t_us, s.thetaF)) { out.push_back(s); continue; }
-        if (!deproject(cf, s.thetaF, *n, cfg.minCond, s.u, s.cond)) { out.push_back(s); continue; }
+        if (cfg.useEta && eta && eta->fitted) {
+            s.etaDeg = eta->at(an.t_us);
+            if (!fusion::deprojectEta(cf, s.thetaF, *n, s.etaDeg, cfg.minCond, s.u, s.cond)) { out.push_back(s); continue; }
+        } else if (!deproject(cf, s.thetaF, *n, cfg.minCond, s.u, s.cond)) { out.push_back(s); continue; }
         double th, rho;
         fusion::project(cd, s.u, th, rho);
         s.thetaD = th;

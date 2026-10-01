@@ -191,6 +191,11 @@ inline QJsonObject dtlShaftTrackToJson(const DtlShaftTrack2D& track, int64_t t0U
             { "plane",     s.plane },
             { "anchorSrc", s.anchorSrc },
             { "flags",     QStringLiteral("synthesized") } });
+        if (std::isfinite(s.etaDeg)) {   // §3.2a (A): only where a curve was applied, so the pre-η record is unchanged
+            QJsonObject o = synth3d.last().toObject();
+            o.insert(QStringLiteral("etaDeg"), s.etaDeg);
+            synth3d[synth3d.size() - 1] = o;
+        }
     }
 
     QJsonObject doc{

@@ -336,6 +336,7 @@ struct DtlSynth3DSample {
     double  u[3]     = { dtl::kNan, dtl::kNan, dtl::kNan };   // butt → head, cameras' frame
     int     plane    = 0;
     int     anchorSrc = 0;
+    double  etaDeg   = dtl::kNan;    // (§3.2a A) the out-of-plane angle applied; NaN = in-plane
 };
 
 // The product. Produced in the app by DtlShaftStage (SwingAnalysis::shaftDtl) and

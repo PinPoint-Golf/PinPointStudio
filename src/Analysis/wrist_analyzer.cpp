@@ -1948,7 +1948,17 @@ struct ShaftFusionStage : AnalysisStage {
                  << "; disagreements: sign" << t.nSignDisagree << "off-plane" << t.nOffPlane
                  << "; address plane" << t.addressInclDeg << "° over" << t.addressN << "frames, delivery"
                  << t.deliveryVsAddressDeg << "° above it"
-                 << (t.backIncoherent ? "; BACKSWING INCOHERENT — suspect a mirrored DTL band" : "");
+                 << (t.backIncoherent ? "; BACKSWING INCOHERENT — suspect a mirrored DTL band" : "")
+                 << (t.eta.fitted ? QStringLiteral("; η(t) over %1 frames, %2 knots, rms %3°")
+                                        .arg(t.eta.n).arg(t.eta.knotsUs.size()).arg(t.eta.rmsDeg, 0, 'f', 2)
+                                  : QString())
+                 << (cfg.dtlAnchor ? QStringLiteral("; DTL anchor %1 frames, %2 refused (conditioning)")
+                                         .arg(t.nDtlAnchored).arg(t.nDtlAnchorRefused)
+                                   : QString())
+                 << (!t.reflectedBands.empty() ? QStringLiteral("; backswing read with %1 band(s) reflected, rms %2° → %3°")
+                                                     .arg(t.reflectedBands.size()).arg(t.backRmsBeforeReflectDeg, 0, 'f', 1)
+                                                     .arg(t.back.oopRmsDeg, 0, 'f', 1)
+                                               : QString());
     }
 };
 
@@ -2415,6 +2425,7 @@ struct DtlSynth3DStage : AnalysisStage {
         apply(job.tuningOverrides, "shaft.dtl.synth3d.enabled",        c.enabled);
         apply(job.tuningOverrides, "shaft.dtl.synth3d.holdDownPlaneUs", c.holdDownPlaneUs);
         apply(job.tuningOverrides, "shaft.dtl.synth3d.minCond",        c.minCond);
+        apply(job.tuningOverrides, "shaft.dtl.synth3d.useEta",         c.useEta);
         return c;
     }
     bool canRun(const AnalysisContext &ctx) const override
@@ -2489,7 +2500,7 @@ struct DtlSynth3DStage : AnalysisStage {
         }
 
         const std::vector<synth3d::Sample> out =
-            synth3d::synthesize(fo, pl, cf, cd, anchors, dt.lFullPx, cfg);
+            synth3d::synthesize(fo, pl, cf, cd, anchors, dt.lFullPx, cfg, &t3.eta);
         dt.synth3d.clear();
         for (const synth3d::Sample &s : out) {
             if (!s.ok) continue;
@@ -2499,6 +2510,7 @@ struct DtlSynth3DStage : AnalysisStage {
             d.thetaRad = s.thetaD; d.lenPx = s.lenPx; d.rhoD = s.rhoD;
             d.u[0] = s.u.x; d.u[1] = s.u.y; d.u[2] = s.u.z;
             d.plane = int(s.plane); d.anchorSrc = int(s.anchor);
+            d.etaDeg = s.etaDeg;
             if (std::isfinite(d.lenPx))
                 d.headPx = QPointF(s.gx + d.lenPx * std::cos(s.thetaD), s.gy + d.lenPx * std::sin(s.thetaD));
             dt.synth3d.push_back(d);
@@ -2510,7 +2522,8 @@ struct DtlSynth3DStage : AnalysisStage {
         ppInfo() << "[WristAnalysis] dtl synth3d:" << qlonglong(dt.synth3d.size()) << "of"
                  << qlonglong(anchors.size()) << "frames (anchors: tracker" << nTracker << "skeleton" << nSkel
                  << ") planes addr/back/down" << pl.addr << pl.back << pl.down
-                 << (fcfg.calibrated ? ", calibrated camera" : ", PREVIEW: uncalibrated camera (yaw/pitch/roll assumed 0)");
+                 << (fcfg.calibrated ? ", calibrated camera" : ", PREVIEW: uncalibrated camera (yaw/pitch/roll assumed 0)")
+                 << (cfg.useEta && t3.eta.fitted ? ", η(t) applied" : ", in-plane");
     }
 };
 

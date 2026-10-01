@@ -183,7 +183,7 @@ int main()
         Swing s = makeSwing(0, 0);
         for (DtlSampleIn &d : s.dtl)
             if (d.t_us > s.top / 2 && d.t_us < s.top) d.theta = kPi - d.theta;
-        Config cfg;
+        Config cfg; cfg.reflectBands = false;   // the repair (§D below) is on by default since 2026-10-03
         const Track3D t = fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, cfg);
         check(t.backIncoherent, "§4 mirrored backswing band ⇒ backIncoherent");
         check(t.down.fitted && near(t.down.inclDeg, 60.0, 0.05), "§4 and the downswing plane is untouched");
@@ -247,6 +247,244 @@ int main()
         check(near(t.deliveryVsAddressDeg, 10.0, 0.15), "§8 delivered 10° above the address plane");
         const Track3D none = fuseTracks(s.fo, {}, s.dtl, s.backFrom, s.top, s.downTo, cfg);
         check(none.addressN == 0 && !std::isfinite(none.deliveryVsAddressDeg), "§8 no address window ⇒ no claim");
+    }
+
+    // ── dtl_continuous_track_design_update.md §3.2a ──────────────────────────────
+
+    // §A the out-of-plane curve η(t): a swing whose direction leaves its plane by a known
+    // sinusoid, imaged by both cameras, published in three DTL bands with two gaps. The
+    // fit recovers η inside the bands, coasts to zero in a long gap (the prior), and the
+    // rotated de-projection reproduces every fused direction from its face-on angle alone.
+    {
+        auto makeEta = [](double ampDeg, int64_t periodUs, bool gaps) {
+            Swing s;
+            const Camera cf = faceOnCamera(), cd = dtlCamera(0, 0);
+            const Plane back(50.0), down(60.0);
+            const int64_t dt = 5000;
+            const int nBack = 160, nDown = 60;
+            s.backFrom = 0; s.top = nBack * dt; s.downTo = (nBack + nDown) * dt;
+            auto etaAt = [&](double t) { return ampDeg * std::sin(2 * kPi * t / double(periodUs)); };
+            auto dirAt = [&](double t) {
+                const Plane &p = t < double(s.top) ? back : down;
+                const Vec3 in = t < double(s.top) ? back.at(-100.0 + 180.0 * t / double(s.top))
+                                                  : down.at(80.0 - 175.0 * (t - double(s.top)) / double(s.downTo - s.top));
+                const double e = etaAt(t) * kPi / 180.0;
+                return in * std::cos(e) + p.n * std::sin(e);
+            };
+            double prev = 0; bool first = true;
+            for (int64_t t = 0; t <= s.downTo + dt; t += dt) {
+                double th, rho; project(cf, dirAt(double(t)), th, rho);
+                if (!first) { while (th - prev > kPi) th -= 2 * kPi; while (th - prev < -kPi) th += 2 * kPi; }
+                prev = th; first = false;
+                s.fo.push_back({ t, th, true });
+            }
+            s.bridge = s.fo;
+            for (int64_t t = 3200; t < s.downTo; t += dt) {
+                const Vec3 u = dirAt(double(t));
+                double th, rho; project(cd, u, th, rho);
+                if (rho < 0.3) continue;
+                int band = 0;
+                if (gaps) {
+                    if (t >= 250000 && t < 370000) continue;          // a 120 ms gap
+                    if (t >= 560000 && t < 960000) continue;          // a 400 ms gap over the top
+                    band = t < 250000 ? 0 : t < 560000 ? 1 : 2;
+                }
+                s.dtl.push_back({ t, th, band });
+                s.truth.push_back(u);
+            }
+            return s;
+        };
+        const double amp = 6.0; const int64_t period = 700000;
+        auto etaTrue = [&](int64_t t) { return amp * std::sin(2 * kPi * double(t) / double(period)); };
+
+        Swing s = makeEta(amp, period, false);
+        Config on; on.eta.enabled = true;
+        check(Config().eta.enabled, "§A on by default (Mark, 2026-10-01)");
+        const Track3D t = fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, on);
+        check(t.eta.fitted && t.eta.n > 100, "§A the curve is fitted on the measured frames");
+        double worstIn = 0, worstDe = 0; int nDe = 0;
+        const Camera cf = faceOnCamera();
+        for (const Sample3D &p : t.samples) {
+            // The planes switch at the top (50° → 60°): the frames' out-of-plane angle JUMPS
+            // there and a smooth curve cannot follow a jump — that is the fixture's kink, and
+            // the curve's clamped ends are the other exclusion.
+            if (std::llabs(p.t_us - s.top) < 90000) continue;
+            if (p.t_us < 40000 || p.t_us > s.downTo - 40000) continue;
+            // The fitted plane absorbs the sinusoid's mean over its window, so the truth the
+            // curve must follow is each frame's own oopDeg (η relative to THAT plane), not
+            // the analytic η relative to the generating plane.
+            worstIn = std::max(worstIn, std::fabs(p.etaDeg - p.oopDeg));
+            const PlaneFit &pf = p.t_us < s.top ? t.back : t.down;
+            Vec3 u; double cond;
+            if (deprojectEta(cf, p.thetaF, pf.normal, p.oopDeg, on.minCond, u, cond)) {
+                ++nDe;
+                worstDe = std::max(worstDe, std::acos(std::clamp(u.dot(p.u), -1.0, 1.0)) * 180 / kPi);
+            }
+        }
+        std::printf("       η follows the frames' out-of-plane angle to %.3f° worst (amplitude %.0f°); de-projection through η reproduces %d fused directions to %.4f° worst\n",
+                    worstIn, amp, nDe, worstDe);
+        check(worstIn < 0.6, "§A η(t) follows the measured out-of-plane angle to < 0.6°");
+        check(nDe > 100 && worstDe < 0.01, "§A the face-on angle rotated by the frame's own η IS the fused direction");
+        // η = 0 is `deproject` bit for bit.
+        {
+            Vec3 a, b; double ca, cb; const Sample3D &p = t.samples[t.samples.size() / 3];
+            deproject(cf, p.thetaF, t.back.normal, on.minCond, a, ca);
+            deprojectEta(cf, p.thetaF, t.back.normal, 0.0, on.minCond, b, cb);
+            check(a.x == b.x && a.y == b.y && a.z == b.z && ca == cb, "§A η = 0 is the plain de-projection, bit for bit");
+        }
+        // Gaps: inside the bands the curve still follows; across the 400 ms gap it rests on the prior.
+        Swing g = makeEta(amp, period, true);
+        const Track3D tg = fuseTracks(g.fo, g.bridge, g.dtl, g.backFrom, g.top, g.downTo, on);
+        double worstBand = 0, midGap = std::fabs(tg.eta.at(760000));
+        for (const Sample3D &p : tg.samples) {
+            if (p.t_us < 40000 || std::llabs(p.t_us - s.top) < 90000 || p.t_us > g.downTo - 40000) continue;
+            worstBand = std::max(worstBand, std::fabs(p.etaDeg - p.oopDeg));
+        }
+        // The true direction in the middle of the gap, off the plane the fit found.
+        double trueMid = 0;
+        {
+            const Plane back(50.0);
+            const double e = etaTrue(760000) * kPi / 180.0;
+            const Vec3 u = back.at(-100.0 + 180.0 * 760000.0 / double(s.top)) * std::cos(e) + back.n * std::sin(e);
+            trueMid = std::asin(std::clamp(u.dot(tg.back.normal), -1.0, 1.0)) * 180 / kPi;
+        }
+        std::printf("       with two gaps: %.3f° worst inside the bands; mid-gap (400 ms, truly %.1f° off the fitted plane) the curve reads %.2f°\n",
+                    worstBand, trueMid, tg.eta.at(760000));
+        check(worstBand < 1.0, "§A inside the bands η still follows the frames (< 1°)");
+        check(midGap < 0.75 && std::fabs(trueMid) > 2.0, "§A in a 400 ms gap the curve coasts to the in-plane prior, it does not extrapolate");
+        // OFF: no curve, no etaDeg, directions untouched.
+        Config off; off.eta.enabled = false;
+        const Track3D to = fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, off);
+        bool same = !to.eta.fitted && to.samples.size() == t.samples.size();
+        for (size_t i = 0; same && i < to.samples.size(); ++i)
+            same = !std::isfinite(to.samples[i].etaDeg) && to.samples[i].u.x == t.samples[i].u.x
+                && to.samples[i].u.y == t.samples[i].u.y && to.samples[i].u.z == t.samples[i].u.z;
+        check(same, "§A OFF: no curve, no etaDeg, and the fused directions are the same bits");
+    }
+
+    // §C the DTL-anchored direction where face-on coasted. With the camera on the plane's
+    // node line (down the line, yaw 0) the DTL view plane at impact IS the swing plane and
+    // every anchor is refused for conditioning; with the camera 25° off the node the anchor
+    // lands on the truth where the bridge (a face-on synth 4° wrong) does not.
+    {
+        auto coast = [](double yawDeg) {
+            Swing s = makeSwing(yawDeg, 0);
+            const int64_t from = s.downTo - 60000;
+            for (FoSample &f : s.fo) if (f.t_us >= from) f.measured = false;
+            for (FoSample &f : s.bridge) if (f.t_us >= from) f.theta += 4.0 * kPi / 180.0;   // the bridge is not the truth
+            return s;
+        };
+        {
+            Swing s = coast(0.0);
+            Config on; on.dtlAnchor = true;
+            const Track3D t = fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, on);
+            double worstCond = 0;
+            for (const Sample3D &p : t.samples) if (p.foSrc == FoSource::Bridged) worstCond = std::max(worstCond, p.anchorCond);
+            std::printf("       camera on the node: %d bridged frames, %d anchored, %d refused, conditioning ≤ %.4f\n",
+                        t.nBridged, t.nDtlAnchored, t.nDtlAnchorRefused, worstCond);
+            check(t.nBridged > 5 && t.nDtlAnchored == 0 && t.nDtlAnchorRefused == t.nBridged,
+                  "§C down the line, the DTL view plane at impact is the swing plane: every anchor refused");
+            check(worstCond < 0.05, "§C …and the record says why (conditioning ≈ 0)");
+        }
+        {
+            Swing s = coast(25.0);
+            Config on; on.dtlAnchor = true; on.dtlYawDeg = 25.0;
+            Config off; off.dtlYawDeg = 25.0;
+            const Track3D t = fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, on);
+            const Track3D b = fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, off);
+            double worstA = 0, bestB = 999; int n = 0; bool beside = true;
+            size_t j = 0;
+            for (size_t i = 0; i < t.samples.size(); ++i) {
+                const Sample3D &p = t.samples[i];
+                while (j < s.dtl.size() && s.dtl[j].t_us != p.t_us) ++j;
+                if (!(p.flags & DtlAnchored) || j >= s.dtl.size()) continue;
+                ++n;
+                const double ea = std::acos(std::clamp(p.u.dot(s.truth[j]), -1.0, 1.0)) * 180 / kPi;
+                const double eb = std::acos(std::clamp(b.samples[i].u.dot(s.truth[j]), -1.0, 1.0)) * 180 / kPi;
+                worstA = std::max(worstA, ea); bestB = std::min(bestB, eb);
+                beside = beside && p.uBridged.x == b.samples[i].u.x && p.uBridged.y == b.samples[i].u.y && p.uBridged.z == b.samples[i].u.z;
+            }
+            std::printf("       camera 25° off the node: %d anchored; anchored error ≤ %.3f°, bridged error ≥ %.3f°\n", n, worstA, bestB);
+            check(n > 5 && n == t.nDtlAnchored, "§C off the node, the bridged frames anchor");
+            check(worstA < 0.05 && bestB > 1.0, "§C the anchored direction is the truth; the bridged one carries the synth's error");
+            check(beside, "§C the bridged value is kept beside it, bit for bit");
+            check(t.down.n == b.down.n && near(t.down.inclDeg, b.down.inclDeg, 1e-9), "§C anchored frames never enter the plane fit");
+        }
+    }
+
+    // §D the mirrored backswing band, re-read. The §4 swing again, with band ids: the
+    // address-to-P2 band, the mirrored mid-backswing band, the rest. Reflected inside the
+    // fusion the backswing is coherent and 50° again; the address band is never a
+    // candidate; a clean swing is untouched; a swing the reflection cannot make coherent
+    // is put back exactly.
+    {
+        auto banded = [](bool mirror, bool wreck) {
+            Swing s = makeSwing(0, 0);
+            for (size_t i = 0; i < s.dtl.size(); ++i) {
+                DtlSampleIn &d = s.dtl[i];
+                d.band = d.t_us < s.top / 2 ? 0 : d.t_us < s.top ? 1 : 2;
+                if (mirror && d.band == 1) d.theta = kPi - d.theta;
+                // A band no reflection can repair: every other frame mirrored, so the band's
+                // reflection only swaps which half is wrong and the rms does not move.
+                if (wreck && d.band == 1) { if ((d.t_us / 5000) % 2) d.theta = kPi - d.theta; d.band = 3; }
+            }
+            return s;
+        };
+        Config on; on.reflectBands = true;
+        Config off; off.reflectBands = false;
+        check(Config().reflectBands, "§D the repair is on by default (its gate passed, 2026-10-03)");
+        {
+            Swing s = banded(true, false);
+            const Track3D t = fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, on, 60000);
+            const Track3D b = fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, off, 60000);
+            std::printf("       mirrored band: backswing rms %.1f° → %.1f°, inclination %.1f° → %.1f°, reflected bands %zu\n",
+                        b.back.oopRmsDeg, t.back.oopRmsDeg, b.back.inclDeg, t.back.inclDeg, t.reflectedBands.size());
+            check(b.backIncoherent && !t.backIncoherent, "§D the incoherent backswing is coherent once the band is reflected");
+            check(t.reflectedBands.size() == 1 && t.reflectedBands[0] == 1, "§D the reflected band is the mirrored one, and only it");
+            check(near(t.back.inclDeg, 50.0, 0.1) && t.back.oopRmsDeg < 0.1, "§D the backswing plane is 50° again");
+            check(near(t.backRmsBeforeReflectDeg, b.back.oopRmsDeg, 1e-9), "§D the rms before the reflection is on the record");
+            bool flagged = true, restored = true;
+            size_t j = 0;
+            for (const Sample3D &p : t.samples) {
+                while (j < s.dtl.size() && s.dtl[j].t_us != p.t_us) ++j;
+                if (p.dtlBand == 1) {
+                    flagged = flagged && (p.flags & Reflected);
+                    if (std::llabs(p.t_us - s.top) < 5000) continue;   // the fixture's own kink (§1)
+                    restored = restored && j < s.dtl.size()
+                        && std::acos(std::clamp(p.u.dot(s.truth[j]), -1.0, 1.0)) * 180 / kPi < 0.05;
+                } else flagged = flagged && !(p.flags & Reflected);
+            }
+            check(flagged, "§D every sample of that band is flagged Reflected, no other is");
+            check(restored, "§D and its directions are the truth again");
+            check(near(t.down.inclDeg, b.down.inclDeg, 1e-9), "§D the downswing plane is untouched");
+            check(t.back.normal.dot(t.down.normal) > 0, "§D the repaired plane faces the downswing plane's way");
+            // The address band is the mirror-image candidate: with no address window declared it
+            // is a candidate by time, and only the downswing plane's side keeps it out.
+            const Track3D noAddr = fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, on);
+            check(noAddr.reflectedBands.size() == 1 && noAddr.reflectedBands[0] == 1 && near(noAddr.back.inclDeg, 50.0, 0.1),
+                  "§D without an address window the mirror-image choice (the address band) is refused by the downswing plane's side");
+        }
+        {
+            Swing s = banded(false, false);
+            const Track3D t = fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, on, 60000);
+            const Track3D b = fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, off, 60000);
+            bool same = t.reflectedBands.empty() && !std::isfinite(t.backRmsBeforeReflectDeg) && t.samples.size() == b.samples.size();
+            for (size_t i = 0; same && i < t.samples.size(); ++i)
+                same = t.samples[i].u.x == b.samples[i].u.x && t.samples[i].thetaD == b.samples[i].thetaD && t.samples[i].flags == b.samples[i].flags;
+            check(same, "§D a coherent swing is not touched: the same samples, bit for bit");
+        }
+        {
+            Swing s = banded(false, true);
+            const Track3D t = fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, on, 60000);
+            const Track3D b = fuseTracks(s.fo, s.bridge, s.dtl, s.backFrom, s.top, s.downTo, off, 60000);
+            std::printf("       a half-mirrored band: rms before %.1f°, after the search %.1f°, kept %zu\n",
+                        b.back.oopRmsDeg, t.back.oopRmsDeg, t.reflectedBands.size());
+            bool same = t.samples.size() == b.samples.size();
+            for (size_t i = 0; same && i < t.samples.size(); ++i)
+                same = t.samples[i].u.x == b.samples[i].u.x && t.samples[i].thetaD == b.samples[i].thetaD && t.samples[i].flags == b.samples[i].flags;
+            check(t.backIncoherent && t.reflectedBands.empty() && same,
+                  "§D when no reflection reaches coherence nothing is kept and every sample is put back exactly");
+        }
     }
 
     // §7 too few frames is not a plane; disabled is not a track.

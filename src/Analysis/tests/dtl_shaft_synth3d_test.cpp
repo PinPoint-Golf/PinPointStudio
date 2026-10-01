@@ -87,8 +87,8 @@ int main()
     {
         const Camera cd = dtlCamera(0, 0);
         const Scene s = makeScene(cd, true);
-        synth3d::Config off;
-        check(!off.enabled, "§0 the default config is disabled");
+        synth3d::Config off; off.enabled = false;
+        check(synth3d::Config().enabled, "§0 on by default (Mark, 2026-10-01), a preview through the assumed-zero camera");
         check(synthesize(s.fo, s.planes, cf, cd, s.anchors, 330.0, off).empty(), "§0 disabled ⇒ no samples at all");
     }
 
@@ -182,6 +182,59 @@ int main()
         check(addressPlaneNormal(cd, th, n) && near(std::acos(std::fabs(n.z)) * 180.0 / kPi, 55.0, 1e-6),
               "§4 nine address frames on a 55° plane give a 55° normal");
         check(!addressPlaneNormal(cd, std::vector<double>(th.begin(), th.begin() + 3), n), "§4 fewer than minN frames is no plane");
+    }
+
+    std::printf("=== §5 (design update §3.2a A) an out-of-plane swing: told η(t), the projection is the DTL angle again ===\n");
+    {
+        const Camera cd = dtlCamera(6.0, 3.0, -2.0);
+        const Plane back(50.0), down(60.0);
+        const int64_t dt = 4167, addrTo = 200000, top = 900000, downTo = 1200000;
+        const double amp = 7.0; const int64_t period = 800000;
+        auto etaAt = [&](double t) { return amp * std::sin(2 * kPi * t / double(period)); };
+        auto dirAt = [&](double t) {
+            const Plane &p = t < double(top) ? back : down;
+            const Vec3 in = t < double(top) ? back.at(-100.0 + 180.0 * (t - double(addrTo)) / double(top - addrTo))
+                                            : down.at(80.0 - 175.0 * (t - double(top)) / double(downTo - top));
+            const double e = etaAt(t) * kPi / 180.0;
+            return in * std::cos(e) + p.n * std::sin(e);
+        };
+        Scene s;
+        for (int64_t t = 0; t <= downTo + 200000; t += dt) { double th, rho; project(cf, dirAt(double(t)), th, rho); s.fo.push_back({ t, th }); }
+        s.planes.addr = true; s.planes.nAddr = back.n; s.planes.back = true; s.planes.nBack = back.n; s.planes.down = true; s.planes.nDown = down.n;
+        s.planes.addrToUs = addrTo; s.planes.topUs = top; s.planes.downToUs = downTo;
+        for (int64_t t = 3200; t <= downTo; t += 6700) {
+            Anchor a; a.t_us = t; a.ok = true; a.gx = 250.0; a.gy = 560.0; a.src = AnchorSrc::Tracker;
+            s.anchors.push_back(a);
+            double th, rho; project(cd, dirAt(double(t)), th, rho);
+            s.truthThetaD.push_back(th); s.truthRhoD.push_back(rho);
+        }
+        // The curve as the fusion would hand it over: the true η sampled at 30 ms knots.
+        pinpoint::analysis::fusion::EtaFit eta;
+        for (int64_t k = 0; k <= downTo + 30000; k += 30000) { eta.knotsUs.push_back(k); eta.values.push_back(etaAt(double(k))); eta.near.push_back(1); }
+        eta.fitted = true; eta.n = int(eta.knotsUs.size());
+        synth3d::Config cfg; cfg.enabled = true;
+        const std::vector<Sample> with = synthesize(s.fo, s.planes, cf, cd, s.anchors, 330.0, cfg, &eta);
+        const std::vector<Sample> without = synthesize(s.fo, s.planes, cf, cd, s.anchors, 330.0, cfg, nullptr);
+        double worstWith = 0, worstWithout = 0; int n = 0;
+        for (size_t i = 0; i < with.size(); ++i) {
+            if (!with[i].ok || !without[i].ok || s.truthRhoD[i] < 0.3) continue;
+            if (std::llabs(s.anchors[i].t_us - top) < 20000) continue;     // the fixture's kink at the top
+            ++n;
+            worstWith = std::max(worstWith, std::fabs(wrapDeg((with[i].thetaD - s.truthThetaD[i]) * 180.0 / kPi)));
+            worstWithout = std::max(worstWithout, std::fabs(wrapDeg((without[i].thetaD - s.truthThetaD[i]) * 180.0 / kPi)));
+        }
+        std::printf("       %d frames: worst θ_D error with η(t) %.3f°, in-plane %.2f° (true η up to ±%.0f°)\n", n, worstWith, worstWithout, amp);
+        check(n > 100 && worstWith < 0.3, "§5 with the curve the DTL angle is reproduced (< 0.3°, the spline's own interpolation)");
+        check(worstWithout > 3.0, "§5 in-plane, the same swing is off by degrees");
+        bool recorded = true;
+        for (const Sample &x : with) if (x.ok) recorded = recorded && std::isfinite(x.etaDeg);
+        for (const Sample &x : without) if (x.ok) recorded = recorded && !std::isfinite(x.etaDeg);
+        check(recorded, "§5 etaDeg is on every sample the curve touched and on none it did not");
+        synth3d::Config noEta = cfg; noEta.useEta = false;
+        const std::vector<Sample> off = synthesize(s.fo, s.planes, cf, cd, s.anchors, 330.0, noEta, &eta);
+        bool same = off.size() == without.size();
+        for (size_t i = 0; same && i < off.size(); ++i) same = off[i].thetaD == without[i].thetaD || (!off[i].ok && !without[i].ok);
+        check(same, "§5 useEta off ⇒ the in-plane synth, bit for bit, curve or no curve");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "ALL PASS\n", g_fail);
