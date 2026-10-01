@@ -37,6 +37,7 @@
 #include "../../Analysis/kinematic_sequence_json.h"   // retimeKinematicSequence — one shape, three paths
 #include "../markup/markup_truth.h"                   // streamLooksDownTheLine — the setup-less DTL rule
 #include "dtl_overlay_payload.h"                      // dtlOverlayDetail — the DTL tile's overlay
+#include "../../Analysis/address_marks_json.h"        // viewMarksPayload — the coach lines' edges
 
 namespace {
 
@@ -420,9 +421,20 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
                 : QVariantMap{};
             const QVariantList foPositions = m_analysisDetail.value(QStringLiteral("club")).toMap()
                                                  .value(QStringLiteral("positions")).toList();
-            const QVariantMap dtl = pinpoint::dtlOverlayDetail(
+            QVariantMap dtl = pinpoint::dtlOverlayDetail(
                 dtlPose, an[QStringLiteral("clubDtl")].toObject(), foPositions, m_impactUs,
                 [t0](const QJsonValue &v) { return relUs(v, t0); });
+            // The coach lines' edges (analysis.addressMarks, address_marks_json.h): the face-on
+            // view's object at the top level, the DTL view's under `dtl`, re-timed like the rest.
+            if (an.contains(QStringLiteral("addressMarks"))) {
+                const QJsonObject am = an[QStringLiteral("addressMarks")].toObject();
+                const auto rt = [t0](const QJsonValue &v) { return relUs(v, t0); };
+                m_analysisDetail.insert(QStringLiteral("addressMarks"),
+                                        pinpoint::analysis::viewMarksPayload(am.value(QStringLiteral("faceOn")).toObject(), rt));
+                if (!dtl.isEmpty())
+                    dtl.insert(QStringLiteral("addressMarks"),
+                               pinpoint::analysis::viewMarksPayload(am.value(QStringLiteral("dtl")).toObject(), rt));
+            }
             if (!dtl.isEmpty())
                 m_analysisDetail.insert(QStringLiteral("dtl"), dtl);
         }

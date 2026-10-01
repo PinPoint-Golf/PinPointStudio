@@ -43,9 +43,16 @@
 //           on:          bool,                         // master overlay switch
 //           preset:      string,                       // preset id, or "custom"
 //           modes:       { arms, spine, shoulders, hips, legs, shaft, shaftGrip,
-//                          ball, hands, plane:
+//                          ball, hands, plane, synth:
 //                          "off"|"frame"|"fan"|"trace" },   // hands (WB4) default off;
-//                                                            // plane (3-D panel only) off|frame
+//                                                            // plane (3-D panel only) off|frame;
+//                                                            // synth (the 3-D synthetic shaft, DTL
+//                                                            // tile) off|frame — auto_annotations_design.md
+//           traceTarget: string                        // optional (see below)
+//       },
+//       coachLines: bool                               // the View menu's static address marks
+//                                                       // (auto_annotations_design.md §1); Replay and
+//                                                       // Analyse only — Capture never draws them
 //           traceTarget: string                        // optional — only present
 //                                                       // when the preset/edit
 //                                                       // overrides an element's
@@ -109,29 +116,33 @@ QtObject {
     // docs/design/swing_3d_annotations_design.md §5b — and ignored by the tiles).
     readonly property var _presets: [
         { id: "clean", label: "Clean", hint: "frame · body + club",
-          modes: { arms: "frame", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "frame", shaftGrip: "off", ball: "off", hands: "off", plane: "off" } },
+          modes: { arms: "frame", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "frame", shaftGrip: "off", ball: "off", hands: "off", plane: "off", synth: "off" } },
         { id: "ballOnly", label: "Ball only", hint: "frame · ball",
-          modes: { arms: "off", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "off", shaftGrip: "off", ball: "frame", hands: "off", plane: "off" } },
+          modes: { arms: "off", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "off", shaftGrip: "off", ball: "frame", hands: "off", plane: "off", synth: "off" } },
         { id: "clubLeadArm", label: "Club + lead arm", hint: "fan · club + lead arm",
-          modes: { arms: "fan", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "fan", shaftGrip: "off", ball: "off", hands: "off", plane: "off" } },
+          modes: { arms: "fan", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "fan", shaftGrip: "off", ball: "off", hands: "off", plane: "off", synth: "off" } },
         { id: "clubTrack", label: "Club track", hint: "trace · club grip + head",
-          modes: { arms: "off", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "trace", shaftGrip: "trace", ball: "off", hands: "off", plane: "frame" } },
+          modes: { arms: "off", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "trace", shaftGrip: "trace", ball: "off", hands: "off", plane: "frame", synth: "off" } },
         // The hand path: the club's butt end (shaftGrip) beside the lead wrist (the
         // arms trace's default anchor) — two measurements of one path, so a gap
         // between them is the tracker disagreeing, not the hands. Made for DTL,
         // where the hands coming over the top show as the downswing loop outside
         // the backswing.
         { id: "traceHands", label: "Trace hands", hint: "trace · club butt + lead wrist",
-          modes: { arms: "trace", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "off", shaftGrip: "trace", ball: "off", hands: "off", plane: "off" } },
+          modes: { arms: "trace", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "off", shaftGrip: "trace", ball: "off", hands: "off", plane: "off", synth: "off" } },
         { id: "core", label: "Core", hint: "frame · spine + hips + shoulders",
-          modes: { arms: "off", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off", plane: "off" } },
+          modes: { arms: "off", spine: "frame", shoulders: "frame", hips: "frame", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off", plane: "off", synth: "off" } },
         { id: "tracePelvis", label: "Trace pelvis", hint: "trace · pelvis",
-          modes: { arms: "off", spine: "off", shoulders: "off", hips: "trace", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off", plane: "off" } },
+          modes: { arms: "off", spine: "off", shoulders: "off", hips: "trace", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off", plane: "off", synth: "off" } },
         { id: "traceHead", label: "Trace head", hint: "trace · head",
-          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off", plane: "off" },
+          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off", plane: "off", synth: "off" },
           traceTarget: "head" },
         { id: "traceLeadSh", label: "Trace lead shoulder", hint: "trace · lead shoulder",
-          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off", plane: "off" } }
+          modes: { arms: "off", spine: "off", shoulders: "trace", hips: "off", legs: "off", shaft: "off", shaftGrip: "off", ball: "off", hands: "off", plane: "off", synth: "off" } },
+        // The measured club with its 3-D synthesis dashed under it (dtl_shaft_synth3d.h; the
+        // DTL tile only), nothing else, so the two can be compared frame by frame.
+        { id: "syntheticClub", label: "Synthetic club", hint: "frame · club + its 3-D synthesis (DTL)",
+          modes: { arms: "off", spine: "off", shoulders: "off", hips: "off", legs: "off", shaft: "frame", shaftGrip: "off", ball: "off", hands: "off", plane: "off", synth: "frame" } },
     ]
 
     // Fresh copies only — callers must not be able to mutate the catalogue
@@ -175,7 +186,7 @@ QtObject {
         var mo = _rawMotion(mode)
         if (mode !== SessionMode.capture) return mo
 
-        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "shaftGrip", "ball", "hands", "plane"]
+        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "shaftGrip", "ball", "hands", "plane", "synth"]
         var modes = {}
         for (var i = 0; i < keys.length; i++)
             modes[keys[i]] = (keys[i] === "ball") ? mo.modes[keys[i]] : "off"
@@ -195,6 +206,15 @@ QtObject {
     function motionTraceTarget(mode) {
         var mo = motionFor(mode)
         return mo.traceTarget !== undefined ? mo.traceTarget : ""
+    }
+
+    // The coach's static marks (auto_annotations_design.md): a VIEW property, not a motion
+    // element — they are reference lines, available whenever a swing is being looked at.
+    // Off by default; never in Capture.
+    function coachLinesOn(mode) {
+        if (mode === SessionMode.capture) return false
+        var l = _layout(mode)
+        return l.coachLines === true
     }
 
     // Shim — pre-existing callers (PpViewPanel.qml, PpCameraTiles.qml, Main.qml)
@@ -220,6 +240,10 @@ QtObject {
 
     function setArrangement(mode, name) {
         _write(mode, enabledKeysFor(mode).slice(), name)
+    }
+
+    function setCoachLines(mode, on) {
+        _write(mode, enabledKeysFor(mode).slice(), arrangementFor(mode), undefined, on === true)
     }
 
     function setMotionOn(mode, on) {
@@ -254,13 +278,14 @@ QtObject {
         setMotionOn(mode, on)
     }
 
-    // motion is optional — omitted by setPanel/setArrangement, so preserve the
-    // mode's current value (migrating an old bool `overlays` entry into a full
-    // `motion` object at that moment; the old key is not written back).
-    function _write(mode, panels, arrangement, motion) {
+    // motion and coachLines are optional — omitted by setPanel/setArrangement, so
+    // preserve the mode's current value (migrating an old bool `overlays` entry into a
+    // full `motion` object at that moment; the old key is not written back).
+    function _write(mode, panels, arrangement, motion, coachLines) {
         var m = _clone(appSettings.viewLayoutByMode)
         var mo = (motion !== undefined) ? motion : _rawMotion(mode)
-        m[_key(mode)] = { panels: panels, arrangement: arrangement, motion: mo }
+        var cl = (coachLines !== undefined) ? coachLines : (_layout(mode).coachLines === true)
+        m[_key(mode)] = { panels: panels, arrangement: arrangement, motion: mo, coachLines: cl }
         appSettings.viewLayoutByMode = m
     }
 
@@ -320,7 +345,7 @@ QtObject {
     }
 
     function _fillModes(modes, fallback) {
-        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "shaftGrip", "ball", "hands", "plane"]
+        var keys = ["arms", "spine", "shoulders", "hips", "legs", "shaft", "shaftGrip", "ball", "hands", "plane", "synth"]
         var out = {}
         for (var i = 0; i < keys.length; i++) {
             var key = keys[i]

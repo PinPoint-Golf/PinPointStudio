@@ -96,7 +96,10 @@ Item {
         { key: "shaft", label: qsTr("Shaft") },
         { key: "ball",  label: qsTr("Ball") },
         // The fused downswing plane — drawn by the 3-D swing panel only (the tiles ignore it).
-        { key: "plane", label: qsTr("Swing plane (3-D)") }
+        { key: "plane", label: qsTr("Swing plane (3-D)") },
+        // The 3-D synthetic shaft projected into the DTL tile (dtl_shaft_synth3d.h) — a synthesis,
+        // frame-only, its own switch so it never hides inside the measured club's.
+        { key: "synth", label: qsTr("Synthetic shaft") }
     ]
 
     // Land back on Presets whenever the popup closes, and never leave Page 2
@@ -416,6 +419,11 @@ Item {
             // The plane is frame-only, and whether a shot has one the 3-D panel says itself.
             if (seg.elementKey === "plane") return m === "frame"
             var d = shotReplay.analysisDetail
+            // The synthetic shaft: frame-only, and only a two-camera swing analysed since
+            // 2026-10-01 carries it (dtl.club.synth3d).
+            if (seg.elementKey === "synth")
+                return m === "frame" && !!(d && d.dtl && d.dtl.club && d.dtl.club.synth3d && d.dtl.club.synth3d.length > 0)
+
             // Either camera's series makes a mode available: the face-on blocks at the
             // top level, or the down-the-line ones nested under `dtl` (same shapes —
             // dtl_overlay_payload.h), which the DTL tile draws.

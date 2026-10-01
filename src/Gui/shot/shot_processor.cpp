@@ -42,6 +42,7 @@
 #include "../IMU/hm_frame.h"          // isSelected() — no frame, no binding
 #include "../Export/swing_doc.h"
 #include "../Analysis/kinematic_sequence_json.h"   // kinematicSequenceToJson — one shape, three paths
+#include "../Analysis/address_marks_json.h"        // viewMarksPayload — the coach lines' edges
 #include "../Analysis/dtl_shaft_json.h"            // dtlShaftTrackToJson — the clubDtl/1 shape
 #include "dtl_overlay_payload.h"                   // dtlOverlayDetail — the DTL tile's overlay
 #include "../Core/club_vocabulary.h"
@@ -607,9 +608,19 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
             if (e.phase == Phase::Impact) { impactUs = static_cast<qint64>(e.t_us); break; }
         const QVariantList foPositions = detail.value(QStringLiteral("club")).toMap()
                                                .value(QStringLiteral("positions")).toList();
-        const QVariantMap dtl = pinpoint::dtlOverlayDetail(
+        QVariantMap dtl = pinpoint::dtlOverlayDetail(
             dtlPose, clubDtl, foPositions, impactUs,
             [](const QJsonValue &v) { return static_cast<qint64>(v.toDouble()); });
+        // The coach lines' edges (address_marks_json.h): one view's object on each tile's
+        // detail, identity time mapping like everything else on this path.
+        if (a.versions.addressMarks > 0) {
+            const auto ident = [](const QJsonValue &v) { return static_cast<qint64>(v.toDouble()); };
+            detail.insert(QStringLiteral("addressMarks"),
+                          viewMarksPayload(viewMarksToJson(a.addressMarks.faceOn, 0), ident));
+            if (!dtl.isEmpty())
+                dtl.insert(QStringLiteral("addressMarks"),
+                           viewMarksPayload(viewMarksToJson(a.addressMarks.dtl, 0), ident));
+        }
         if (!dtl.isEmpty())
             detail.insert(QStringLiteral("dtl"), dtl);
     }

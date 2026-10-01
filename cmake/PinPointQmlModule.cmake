@@ -53,6 +53,7 @@ set(PP_QML_FILES
     src/Gui/media/FilmPage.qml
     src/Gui/cameras/VideoPage.qml
     src/Gui/cameras/PpCameraFrame.qml
+    src/Gui/cameras/AutoAnnotations.js
     src/Gui/cameras/AnnotationTool.qml
     src/Gui/cameras/PpAnnotationIcon.qml
     src/Gui/cameras/PpAnnotationLayer.qml

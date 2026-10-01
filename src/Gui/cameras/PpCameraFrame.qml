@@ -31,6 +31,7 @@ import QtQuick
 import QtQuick.Shapes
 import PinPointStudio
 import QtMultimedia
+import "AutoAnnotations.js" as AutoAnnotations
 
 Item {
     id: root
@@ -1206,7 +1207,7 @@ Item {
             // dtl_continuous_track_design_update.md §3.2). Drawn as a dim lone pen UNDER
             // whatever the measured track draws, never as the hero line, and never in the
             // fan: it is a synthesis, and with `synth3dPreview` it was projected through an
-            // uncalibrated camera. Empty unless the stage ran (dark by default).
+            // uncalibrated camera. Empty unless the stage ran; drawn only by the "synth" element.
             readonly property var _clubSynth3d: {
                 var d = root._det
                 return (root._isDtl && d && d.club && d.club.valid && d.club.synth3d) ? d.club.synth3d : []
@@ -1275,6 +1276,15 @@ Item {
                 return (d && d.club && d.club.valid && d.club.positions) ? d.club.positions : []
             }
             readonly property int kTrail: 10
+
+            // The coach's static marks (AutoAnnotations.js; auto_annotations_design.md): measured
+            // once on the address frame of THIS tile's camera, held for the whole swing. Derived
+            // from the detail and the address instant, never per paint.
+            readonly property var _annotations: {
+                var d = root._det
+                if (!d || !root._isReplay || !ViewLayout.coachLinesOn(SessionMode.mode)) return []
+                return AutoAnnotations.build(d, root._isDtl, root._addressUs)
+            }
 
             // Greatest index with t_us <= t (−1 when empty).
             function _indexFor(arr, t) {
@@ -1374,6 +1384,38 @@ Item {
                 }
                 var shaftMode = root._elemMode("shaft")
 
+                // ANNOTATE pass — the coach's marks, under everything that moves. One thin pen
+                // in the "good" ink so they read as reference, not as body or club; the plane
+                // line dashed (it is an extension past anything measured), the rest solid.
+                if (_annotations.length > 0) {
+                    ctx.save()
+                    ctx.strokeStyle = cGood
+                    ctx.globalAlpha = 0.75
+                    ctx.lineWidth   = 1.5
+                    ctx.lineCap     = "butt"
+                    for (var ai = 0; ai < _annotations.length; ++ai) {
+                        var an = _annotations[ai]
+                        if (an.kind === "circle") {
+                            ctx.setLineDash([])
+                            ctx.beginPath()
+                            ctx.arc(an.cx * cr.width + cr.x, an.cy * cr.height + cr.y, an.r * cr.height, 0, 2 * Math.PI)
+                            ctx.stroke()
+                        } else if (an.kind === "vline") {
+                            ctx.setLineDash([])
+                            var vx = an.x * cr.width + cr.x
+                            ctx.beginPath(); ctx.moveTo(vx, cr.y); ctx.lineTo(vx, cr.y + cr.height); ctx.stroke()
+                        } else if (an.kind === "line") {
+                            ctx.setLineDash([0.04 * S, 0.03 * S])
+                            ctx.beginPath()
+                            ctx.moveTo(an.x0 * cr.width + cr.x, an.y0 * cr.height + cr.y)
+                            ctx.lineTo(an.x1 * cr.width + cr.x, an.y1 * cr.height + cr.y)
+                            ctx.stroke()
+                        }
+                    }
+                    ctx.setLineDash([])
+                    ctx.restore()
+                }
+
                 // FRAME pass — Biomech Blueprint, muted (sits over footage); only the
                 // body elements in "frame" mode draw. The mask returns true for every
                 // element when motionModes is empty ⇒ legacy full skeleton.
@@ -1439,8 +1481,9 @@ Item {
                 // frozen one. Face-on keeps its own rules (coast drawn dim) untouched.
                 var dtlStale = root._isDtl && ci >= 0
                                && Math.abs(t - _clubSamples[ci].t_us) > _dtlCurrentLagUs
-                // The 3-D synthetic shaft, dim, under the measured line (or alone in a gap).
-                if (shaftMode === "frame" && _clubSynth3d.length) {
+                // The 3-D synthetic shaft, dim, under the measured line (or alone in a gap) —
+                // its OWN element ("synth", auto_annotations_design.md §2), never the Shaft's.
+                if (root._elemMode("synth") === "frame" && _clubSynth3d.length) {
                     var si = _indexFor(_clubSynth3d, t)
                     if (si >= 0 && Math.abs(t - _clubSynth3d[si].t_us) <= _dtlCurrentLagUs) {
                         var ss = _clubSynth3d[si]
@@ -1448,9 +1491,12 @@ Item {
                         var shx = ss.head[0] * cr.width + cr.x, shy = ss.head[1] * cr.height + cr.y
                         var shd = _clampHeadToRect(sgx, sgy, shx, shy, cr)
                         if (shd) {
+                            // 0.55, not 0.28: at 0.28 over the video the dashed line could not be
+                            // seen at all (Mark, 1 Oct 2026 — the same floor the charts' out-of-window
+                            // runs needed). Still under the hero line, still dashed, still a synthesis.
                             ctx.strokeStyle = cClub
-                            ctx.globalAlpha = 0.28 * clubMute
-                            ctx.lineWidth   = Math.max(1, 0.014 * S)
+                            ctx.globalAlpha = 0.55 * clubMute
+                            ctx.lineWidth   = Math.max(1, 0.016 * S)
                             ctx.setLineDash([0.06 * S, 0.04 * S])
                             ctx.beginPath(); ctx.moveTo(sgx, sgy); ctx.lineTo(shd[0], shd[1]); ctx.stroke()
                             ctx.setLineDash([])
