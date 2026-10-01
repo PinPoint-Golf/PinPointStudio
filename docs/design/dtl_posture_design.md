@@ -111,6 +111,59 @@ unwatched. A face-on-only capture no longer assesses `over_the_top` at all.
 turned 4–9° toward the golfer (§4): some target-line movement leaks into image x. The ratio
 is invariant to distance, not to yaw.
 
+## 3b. Shaft lie — the shaft's angle to the ground at address and at impact (2026-10-01)
+
+Mark asked for the lie-like reading a down-the-line frame gives for free: how upright the shaft
+stands at address, how upright it comes back at impact, and the change between the two. It is
+`shaftLie` (`src/Analysis/dtl_shaft_lie.h`, `DtlShaftLieStage` after the posture stage), on the
+Club & speed preset beside shaft lean, and it shares shaft lean's summary card.
+
+**What it is.** The angle between the shaft line and the image horizontal in the DTL frame, 0° flat
+along the ground and 90° straight up, read off the DTL club track at the Address and Impact
+instants. It is the shaft's *inclination*; a fitter's dynamic lie is this plus the club's built-in
+lie, a constant per club, so the Δ is the same number either way. The launch monitor's
+`lm.lieAngle` — the sole toe-up at impact — is a different quantity and keeps its name.
+
+**Sign.** Δ = impact − address. Positive is the shaft coming back STEEPER than it was set up,
+negative flatter — "+ve delta is steepening" (Mark). This runs the other way from `swingPlane`'s
+Δ PLANE, which was set positive-for-shallowing on 29 Sept; the two are different questions (a
+plane's average over a half-swing against the whole-swing path convention, versus a reading at two
+instants) and each carries its sign in the catalogue and in `pinpoint_sign_conventions.md`.
+
+**The fold, and why there is no ball-side convention.** The reading is the line's angle to the
+ground, unsigned: 95° past vertical reads 85°, and a golfer facing image-left reads the same as one
+facing image-right. At address and impact the shaft sits at 55–65° on every club, far from either
+fold, which is where the metric is read; between them the curve rises to the vertical around P3
+and P5 and falls toward the ground at the top, and is drawn as the shaft's angle to the ground
+through the swing, not as a lie. Unsigned means the producer does not inherit the posture stage's
+feet-and-ball refusals (§1): it runs on the DTL club track alone.
+
+**What becomes a reading.** Only MEASURED DTL tiers (Ray, Seg, Band — `dtlMeasured`); a Held frame
+has a finite θ and is not a measurement. Each phase reading is the nearest measured frame within a
+frame and a half (12.5 ms) of the instant; further than that, the band covering the instant is
+missing and the reading is absent — the card prints "—" rather than borrowing from the nearest band
+that does exist. Address and impact are exactly the two bands where the DTL shaft runs down the
+trouser line and the tracker stands on the grip→ball prior (tracker design §4.3), so a swing whose
+DTL ball was not found usually has neither reading. The curve carries every DTL frame of the span
+so the chart can draw it, with unmeasured frames bridged by interpolation and flagged `valid` 0.
+
+**The camera.** The absolute angle depends on where the DTL camera stands — above hand height or
+off the target line, as the corpus camera is (§4), projects the shaft at a different inclination —
+so the two readings compare within a session, not across cameras. The camera does not move during
+a swing, so the Δ is sound on any placement.
+
+**The shared card.** `MetricCardSpec::mergeInto` is new: a metric whose spec names a host that is
+also on the chart draws no card of its own; its reading and fixed-span Δ tiles are appended to the
+host's card with its short name as a prefix ("LIE @ ADDRESS", "LIE @ IMPACT", "Δ LIE"), and the
+host's 2×2 grid grows by whole rows of two. Only fixed-instant tiles travel — a window PEAK or rate
+under another metric's name is the confusion the card spec exists to prevent — and
+`metric_catalogue_test` holds that, the same-group rule, and the six-cell ceiling. When the host is
+not on the chart the companion keeps its own card, so nothing disappears.
+
+**Owed.** σ is not characterised: the DTL truth marks (`DtlTruthSample`) carry hand-marked θ at
+P-instants, and the P1/P7 error against them is the measurement to make before any corridor. No
+norm; the metric records and accumulates.
+
 ## 4. Where the DTL camera is pointing (the alignment stick)
 
 The fused plane's HEADING — swing direction, and so club path — moves one for one with the

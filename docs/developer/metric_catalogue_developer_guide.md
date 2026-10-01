@@ -409,6 +409,7 @@ a magnitude — a carry, a spin rate, a duration.
 | `clubheadPeakLead` | ms | live | the clubhead peaked earlier, further before the ball | the peak sat at, or just past, the impact anchor |
 | `lagAngle` | ° | live | more lag retained — a tighter forearm-to-shaft angle | *cannot go negative* |
 | `impactShaftLean` | ° | live | the shaft leaning FORWARD, toward the target | leaning back, away from the target |
+| `shaftLie` | ° | live | the shaft steeper to the ground, down the line — more upright; its Δ (impact − address) positive = came back steeper | *a reading cannot go negative*; the Δ negative = came back flatter |
 | `lm.clubheadSpeed` | mph | device | a faster clubhead | *cannot go negative* |
 
 #### Club delivery
@@ -1072,6 +1073,7 @@ not scale with the player, and they differ **by club**, including in sign.
 | `lm.attackAngle` | device | **LM** | GC Quad connector ✓ | — | `gcquad_csv_parser_test` |
 | `lm.clubPath` | device | **LM** | GC Quad connector ✓ | — | `gcquad_csv_parser_test` |
 | `lm.lieAngle` | device | **LM** | GC Quad connector ✓ | — | `gcquad_csv_parser_test` |
+| `shaftLie` | live | **DTL** + Club | the DTL shaft line's angle to the image horizontal, folded 0–90°, at Address and Impact (`dtl_shaft_lie.h`) ✓ | — (an angle) | `dtl_shaft_lie_test` · (DTL truth marks: owed) |
 | `lm.closureRate` | device | **LM** | GC Quad connector ✓ | — | `gcquad_csv_parser_test` |
 
 ### Tempo & sequence

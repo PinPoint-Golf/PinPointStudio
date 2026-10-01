@@ -242,6 +242,7 @@ All written right-handed; handedness is a transform applied at read time, never 
 | `strikeLocation` | toward the TOE; negative toward the heel |
 | `dynamicLoft`, `spinLoft` | more loft delivered / a larger loft-to-path angle |
 | `shaftDirection` | pointing right of the target — across the line at the top, outside in the takeaway |
+| `shaftLie` | the shaft STEEPER to the ground — more upright — as the down-the-line camera sees it, 0° flat along the ground and 90° straight up; the card's Δ is impact − address, so positive is the shaft coming back steeper than it was set up and negative flatter (Mark, 2026-10-01: "+ve delta is steepening"). NOT the sole's lie: that is `lieAngle` below, a different quantity |
 | `lieAngle` | the clubhead sole **toe UP** relative to the ground at impact; negative is toe down and zero is flat. Foresight's published convention, taken unchanged |
 | `closureRate` | the face rotating **CLOSED** through impact — a higher positive value is a faster closing rate, a low or stable one a squarer, held-off release. Foresight's published convention. Reported by the device in dps **or** rpm; the connector converts on the header's declared unit, so ours is always °/s |
 | `shaftAngleVsHorizontal` | past parallel; zero IS parallel to the ground |
