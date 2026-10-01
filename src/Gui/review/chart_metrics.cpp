@@ -548,7 +548,8 @@ QVariantMap ChartMetrics::cardSpecFor(const QString &key) const
                         { QStringLiteral("deltaTo"),    int(c.deltaTo) },
                         { QStringLiteral("deltaLabel"), c.deltaLabel },
                         { QStringLiteral("rate"),       c.rate },
-                        { QStringLiteral("windowedMean"), c.windowedMean } };
+                        { QStringLiteral("windowedMean"), c.windowedMean },
+                        { QStringLiteral("mergeInto"),  c.mergeInto } };
 }
 
 bool ChartMetrics::measuredAt(const QVariantList &tUs, const QVariantList &valid,

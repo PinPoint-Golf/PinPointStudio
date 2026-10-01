@@ -223,7 +223,7 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.fillHeight: false
         columnSpacing: Theme.sp(10); rowSpacing: Theme.sp(10)
-        columns: Math.max(1, Math.min(root.series.length,
+        columns: Math.max(1, Math.min(grid.cardSeries.length,
                                       Math.floor((grid.width + grid.columnSpacing)
                                                  / (Theme.sp(190) + grid.columnSpacing))))
 
@@ -235,9 +235,36 @@ ColumnLayout {
             return false
         }
 
+        // ── CARDS THAT SQUEEZE ONTO ANOTHER (MetricCardSpec::mergeInto) ──────────────────
+        //
+        // A series whose spec names a host that is ALSO on this chart draws no card: its reading
+        // and Δ tiles are appended to the host's card instead, each label prefixed with its short
+        // name ("LIE @ ADDRESS", "Δ LIE"). A host that is not on the chart leaves the companion
+        // its own card, so nothing disappears when the preset shows one without the other.
+        function _hostOf(s) {
+            var sp = cm.cardSpecFor(s.key)
+            var h = sp && sp.mergeInto ? sp.mergeInto : ""
+            if (h === "") return ""
+            for (var i = 0; i < root.series.length; ++i)
+                if (root.series[i].key === h) return h
+            return ""
+        }
+        readonly property var cardSeries: {
+            var out = []
+            for (var i = 0; i < root.series.length; ++i)
+                if (grid._hostOf(root.series[i]) === "") out.push(root.series[i])
+            return out
+        }
+        function _companionsOf(key) {
+            var out = []
+            for (var i = 0; i < root.series.length; ++i)
+                if (grid._hostOf(root.series[i]) === key) out.push(root.series[i])
+            return out
+        }
+
         Repeater {
             id: cards
-            model: root.series
+            model: grid.cardSeries
             delegate: Rectangle {
                 id: card
                 required property var modelData
@@ -406,6 +433,47 @@ ColumnLayout {
                                    unit: card.rateOk ? root._unit(card.modelData.unit) + qsTr("/100ms") : "",
                                    tip: "", window: true })
                     }
+                    // The companions' fixed-instant tiles, after the host's own.
+                    var cos = grid._companionsOf(card.modelData.key)
+                    for (i = 0; i < cos.length; ++i) {
+                        var ct = card.companionTiles(cos[i])
+                        for (var j = 0; j < ct.length; ++j) out.push(ct[j])
+                    }
+                    return out
+                }
+
+                // ── A COMPANION'S TILES, read off ITS series (reading() above reads this card's) ──
+                // Readings and a fixed-span Δ only — the spec's other tiles are refused by the
+                // catalogue test. The unit rides on each tile because it may differ from the host's.
+                function companionReading(s, phase) {
+                    var us = root._phaseUs(phase)
+                    if (us < 0) return { ok: false, val: 0, us: -1 }
+                    return { ok: root._measuredAt(s, us),
+                             val: labels.valueAtNearest(s.t_us, root._meanOf(s), us), us: us }
+                }
+                function companionTiles(s) {
+                    var out = [], sp = cm.cardSpecFor(s.key), i
+                    var nm  = (cm.shortLabel(s.key) || s.label || s.key).toUpperCase()
+                    var sig = cm.seriesSigma(s)
+                    var unit = root._unit(s.unit) === root._unit(card.modelData.unit) ? "" : root._unit(s.unit)
+                    var rs = sp.readAt || []
+                    for (i = 0; i < rs.length; ++i) {
+                        var r = card.companionReading(s, rs[i].phase)
+                        out.push({ label: nm + " " + card.readLabel(rs[i]),
+                                   text: r.ok ? cm.formatBare(r.val, s.unit, sig) : "—", ok: r.ok,
+                                   color: r.ok ? root._bandColor(cm.bandAtNearest(s.phaseSamples, r.us))
+                                               : Theme.colorText3,
+                                   sub: "", unit: r.ok ? unit : "", tip: "", window: false })
+                    }
+                    if (sp.delta && sp.deltaSpan) {
+                        var a = card.companionReading(s, sp.deltaFrom), b = card.companionReading(s, sp.deltaTo)
+                        var dOk = a.ok && b.ok
+                        out.push({ label: sp.deltaLabel
+                                          || ("Δ " + nm + " " + card.tag(sp.deltaFrom) + "→" + card.tag(sp.deltaTo)),
+                                   text: dOk ? cm.formatBare(b.val - a.val, s.unit, sig) : "—", ok: dOk,
+                                   color: dOk ? Theme.colorText : Theme.colorText3,
+                                   sub: "", unit: dOk ? unit : "", tip: "", window: false })
+                    }
                     return out
                 }
 
@@ -494,10 +562,13 @@ ColumnLayout {
                         ToolTip.text: qsTr("Part of this window had no valid measurement.")
                     }
 
-                    // ── THE 2×2 TILE GRID — ALWAYS FOUR CELLS ────────────────────────────────
+                    // ── THE 2×2 TILE GRID — FOUR CELLS, SIX FOR A CARD WITH A COMPANION ──────
                     //
                     // A card with fewer tiles (past parallel has one) still lays out four cells,
-                    // the unused ones transparent, so every card in a row is one shape. Every cell
+                    // the unused ones transparent, so every card in a row is one shape. A card that
+                    // carries another metric's tiles (mergeInto) grows by whole rows of two, and the
+                    // row it sits in grows with it — that is the one card the row has to make room
+                    // for, by design. Every cell
                     // is the same three lines — label, value, ± — with the ± line reserved when
                     // empty, and top-aligned. Every cell is a LAYOUT with fillWidth + elide, so a
                     // long value truncates at its own boundary instead of drawing over the next
@@ -508,7 +579,7 @@ ColumnLayout {
                         columnSpacing: Theme.sp(12); rowSpacing: Theme.sp(9)
 
                         Repeater {
-                            model: 4
+                            model: Math.max(4, Math.ceil(card.tiles.length / 2) * 2)
                             delegate: ColumnLayout {
                                 id: cell
                                 required property int index
