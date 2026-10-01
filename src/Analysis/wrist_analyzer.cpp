@@ -68,6 +68,7 @@
 #include "skeleton3d/skeleton3d_json.h"
 #include "shaft_tracker.h"
 #include "shaft_frame_io.h"
+#include "dtl_shaft_lie.h"
 #include "impact_anchor.h"
 #include "tempo_metrics.h"
 #include "timeline_fusion.h"
@@ -2029,6 +2030,39 @@ struct DtlPostureStage : AnalysisStage {
     }
 };
 
+struct DtlShaftLieStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("DtlShaftLie"); }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        return ctx.detail->shaftDtl.valid && !ctx.detail->shaftDtl.samples.empty()
+            && ctx.seg.eventFor(Phase::Address);
+    }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        if (!ctx.detail->shaftDtl.valid || ctx.detail->shaftDtl.samples.empty())
+            return QStringLiteral("no valid down-the-line shaft track");
+        return QStringLiteral("no Address on the ladder");
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        DtlShaftLieResult r = buildDtlShaftLie(ctx.detail->shaftDtl, ctx.seg.events);
+        if (!r.valid) {
+            ppInfo() << "[WristAnalysis] shaft lie: refused —" << qPrintable(r.reason);
+            return;
+        }
+        ppInfo() << "[WristAnalysis] shaft lie:" << r.nMeasured << "measured DTL frames; address"
+                 << (std::isfinite(r.addressDeg) ? QStringLiteral("%1° (%2 ms off P1)").arg(r.addressDeg, 0, 'f', 1).arg(r.addressSnapUs / 1000.0, 0, 'f', 1)
+                                                 : QStringLiteral("absent"))
+                 << ", impact"
+                 << (std::isfinite(r.impactDeg) ? QStringLiteral("%1° (%2 ms off P7)").arg(r.impactDeg, 0, 'f', 1).arg(r.impactSnapUs / 1000.0, 0, 'f', 1)
+                                                : QStringLiteral("absent"))
+                 << (std::isfinite(r.addressDeg) && std::isfinite(r.impactDeg)
+                         ? QStringLiteral(", delta %1° (+ = steeper)").arg(r.impactDeg - r.addressDeg, 0, 'f', 1)
+                         : QString());
+        ctx.detail->series.push_back(std::move(r.series));
+    }
+};
+
 struct KinematicSequenceStage : AnalysisStage {
     QString name() const override { return QStringLiteral("KinematicSequence"); }
     static bool anyInput(const AnalysisContext &ctx)
@@ -2703,6 +2737,7 @@ SessionProfile wristProfile()
     p.stages.push_back(std::make_unique<DtlShaftStage>());
     p.stages.push_back(std::make_unique<ShaftFusionStage>());
     p.stages.push_back(std::make_unique<DtlPostureStage>());
+    p.stages.push_back(std::make_unique<DtlShaftLieStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     p.stages.push_back(std::make_unique<Skeleton3DStage>());
     p.stages.push_back(std::make_unique<DtlSynth3DStage>());
@@ -2798,6 +2833,7 @@ SessionProfile cameraKinematicsProfile()
     p.stages.push_back(std::make_unique<DtlShaftStage>());
     p.stages.push_back(std::make_unique<ShaftFusionStage>());
     p.stages.push_back(std::make_unique<DtlPostureStage>());
+    p.stages.push_back(std::make_unique<DtlShaftLieStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     p.stages.push_back(std::make_unique<Skeleton3DStage>());
     p.stages.push_back(std::make_unique<DtlSynth3DStage>());

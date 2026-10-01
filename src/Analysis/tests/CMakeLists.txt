@@ -735,6 +735,12 @@ endif()
 # with the feet refuses everything, and no ruler means no centimetres rather than another unit.
 pp_add_test(dtl_posture_test SOURCES dtl_posture_test.cpp)
 
+# The down-the-line shaft lie (dtl_shaft_lie.h): the fold reads a line's angle to the ground
+# whichever way it points, only MEASURED tiers become readings, a reading further than a frame
+# and a half from its instant is an absence, the Δ is impact − address (+ = steeper), and the
+# unmeasured frames are bridged and flagged. Qt-only, no fixture.
+pp_add_test(dtl_shaft_lie_test SOURCES dtl_shaft_lie_test.cpp)
+
 # GOLDEN CROSS-CHECK for shaft_plane.h against the corpus reference the research
 # note published (transition_plane_corpus.csv, from `plane_probe.py corpus`).
 # Reads the EXISTING result.json at each swing dir — no pipeline re-run, no
