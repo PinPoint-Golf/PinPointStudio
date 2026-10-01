@@ -77,7 +77,11 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QHash>
+#include <QSet>
 #include <QString>
+
+#include "../Core/pp_tuned_constants.h"   // tuned::diagUncertainty (§A8)
+#include "det_rng.h"                       // the P(Pattern) Monte Carlo
 
 #include <algorithm>
 #include <array>
@@ -176,7 +180,9 @@ inline constexpr std::array<double, 5> kDiagSeveritySteps{ 0.5, 1.0, 1.5, 2.0, 3
 // Unknown, which is exactly right: the writer did not record which side of the corridor was
 // open, so the strength meter withholds itself on that session's clean rows rather than
 // guessing. Fired rows are unaffected — their strength never needed the shape.
-inline constexpr int kDiagSchemaVersion = 2;
+// 3 added the §A8 probability — pFire, quantified, grossRisk — written only when formed. A file
+// at 2 reads back with none, and every row then restates its hard verdict in the soft counts.
+inline constexpr int kDiagSchemaVersion = 3;
 
 // Every §4 tunable in one injectable bundle.
 struct LedgerOptions {
@@ -196,6 +202,14 @@ struct LedgerOptions {
     // 1.0 disables warm-up handling entirely without a second flag to keep in step.
     double warmUpWeight           = kDiagWarmUpWeight;
     double wilsonZ                = kDiagWilsonZ;
+
+    // Measurement uncertainty in the session counts (session_diagnostics_design.md §A8.5). With
+    // softTier the Wilson bound takes EXPECTED counts — effA = Σ w(1 − g), effF = Σ w(1 − g)·pFire —
+    // while the integer counts, the captions and the 3-shot floor stay hard. P(Pattern) comes from
+    // mcDraws deterministic draws of every shot's state.
+    bool     softTier = tuned::diagUncertainty::kSoftTier;
+    int      mcDraws  = tuned::diagUncertainty::kMcDraws;
+    uint64_t mcSeed   = tuned::diagUncertainty::kSeed;
 };
 
 // ── Statistical primitives ──────────────────────────────────────────────────────
@@ -440,7 +454,25 @@ struct ConditionRow {
     // tracked". Never blank on a NotAssessable row: the review strip prints it in the
     // slot where a corridor would go, and a blank there reads as a bug.
     QString notAssessableReason;
+
+    // The verdict as a probability (session_diagnostics_design.md §A8.4) — Finding::pFire,
+    // grossRisk, quantified. −1 = not formed (a row written before §A8, or NotAssessable). The
+    // state above is unchanged by these; they only say how sure the verdict is.
+    float pFire      = -1.f;
+    float grossRisk  = -1.f;
+    bool  quantified = false;
 };
+
+// One assessable row's contribution to the soft counts (§A8.5): the share of the shot that
+// assessed anything (1 − g) and the probability it fired given that. A row with no probability
+// (pre-§A8, or no σ anywhere) restates its hard verdict, so a session of such rows counts exactly
+// as before.
+inline double rowTrustedShare(const ConditionRow &r) { return r.grossRisk > 0.f ? 1.0 - double(r.grossRisk) : 1.0; }
+inline double rowFireProb(const ConditionRow &r)
+{
+    if (r.pFire >= 0.f) return double(r.pFire);
+    return r.state == ShotState::Fired ? 1.0 : 0.0;
+}
 
 // One shot: its metadata and one row per condition the pack tried to assess.
 struct ShotRecord {
@@ -573,6 +605,14 @@ struct ConditionLedger {
     double wilsonLower = 0.0;
     Tier   tier        = Tier::Clean;
 
+    // P(this is a Pattern) under the readings' measurement uncertainty: the share of
+    // LedgerOptions::mcDraws draws of every shot's state in which the tier rule reaches Pattern
+    // (§A8.5). Exactly 1 or 0 when no row carries a probability. What the explanation pass reads.
+    double pPattern = 0.0;
+    // Some assessable shot was BORDERLINE — kBorderLo < pFire < kBorderHi, or gross risk above
+    // kBorderGross. Gate G3 needs it, and the panel can say "near the edge".
+    bool   borderline = false;
+
     int  sinceLastFiring = -1;      // ASSESSABLE shots since the last firing; −1 = never
     bool freshThisShot   = false;   // crossed into Pattern within opt.freshWindow shots
     bool resolving       = false;   // Pattern && sinceLastFiring >= opt.resolvingWindow
@@ -649,23 +689,92 @@ struct TierSnapshot {
     Tier   tier        = Tier::Clean;
 };
 
+// `soft`, when given and opt.softTier is set, carries each shot's (P(fire), trusted share) — the
+// §A8.5 expected counts. Absent, or softTier off, every assessable shot counts 1 × its weight.
 inline TierSnapshot tierAtPrefix(const std::vector<ShotState> &run,
                                  const std::vector<double>    &weights,
-                                 int n, const LedgerOptions &opt)
+                                 int n, const LedgerOptions &opt,
+                                 const std::vector<std::pair<double, double>> *soft = nullptr)
 {
     TierSnapshot s;
     double effA = 0.0, effF = 0.0;
     const int lim = std::clamp(n, 0, int(run.size()));
+    const bool useSoft = opt.softTier && soft && int(soft->size()) >= lim;
     for (int i = 0; i < lim; ++i) {
         if (run[size_t(i)] == ShotState::NotAssessable) continue;   // rule 1
         const double w = i < int(weights.size()) ? weights[size_t(i)] : 1.0;
         ++s.assessable;
-        effA += w;
-        if (run[size_t(i)] == ShotState::Fired) { ++s.fired; effF += w; }
+        if (run[size_t(i)] == ShotState::Fired) ++s.fired;
+        if (useSoft) {
+            const auto [p, trust] = (*soft)[size_t(i)];
+            effA += w * trust;
+            effF += w * trust * p;
+        } else {
+            effA += w;
+            if (run[size_t(i)] == ShotState::Fired) effF += w;
+        }
     }
     s.wilsonLower = wilsonLowerBound(effF, effA, opt.wilsonZ);
     s.tier = conditionTier(s.assessable, s.fired, s.wilsonLower, opt);
     return s;
+}
+
+// The session's Pattern set under measurement uncertainty, drawn opt.mcDraws times
+// (session_diagnostics_design.md §A8.5). In each draw every assessable row independently becomes
+// NotAssessable with its gross risk, else Fired with its P(fire); the HARD tier rule is applied to
+// the drawn states. Deterministic: one DetRng seeded from opt.mcSeed, rows visited in shot order
+// then row order, so live and replay draw identically. A session whose rows carry no probability
+// draws its own hard states every time, so its draws are all the hard Pattern set.
+//
+// Used twice: conditionLedgers() reads each condition's share of draws as pPattern, and the
+// explanation's root stability re-runs explain() on every draw (§A8.6).
+inline std::vector<QSet<QString>> patternDraws(const std::vector<ShotRecord> &shots, const LedgerOptions &opt)
+{
+    std::vector<QSet<QString>> out;
+    const int n = int(shots.size());
+    if (n == 0 || opt.mcDraws <= 0) return out;
+
+    std::vector<double> weights(size_t(n), 1.0);
+    for (int i = 0; i < n; ++i) weights[size_t(i)] = shotWeight(shots[size_t(i)], i, opt);
+
+    std::vector<QString> order;
+    QHash<QString, int>  index;
+    for (const ShotRecord &s : shots)
+        for (const ConditionRow &r : s.rows)
+            if (!r.conditionId.isEmpty() && !index.contains(r.conditionId)) {
+                index.insert(r.conditionId, int(order.size()));
+                order.push_back(r.conditionId);
+            }
+
+    LedgerOptions hard = opt;
+    hard.softTier = false;
+    // The assessable rows, flattened once: (condition, shot, trusted share, P(fire)). The draw loop
+    // then touches plain numbers — a hash lookup per row per draw was most of the cost.
+    struct Cell { int c; int i; double trust; double p; };
+    std::vector<Cell> cells;
+    for (int i = 0; i < n; ++i)
+        for (const ConditionRow &r : shots[size_t(i)].rows)
+            if (r.state != ShotState::NotAssessable && !r.conditionId.isEmpty())
+                cells.push_back({ index.value(r.conditionId), i, rowTrustedShare(r), rowFireProb(r) });
+
+    pinpoint::analysis::DetRng rng(opt.mcSeed);
+    out.reserve(size_t(opt.mcDraws));
+    std::vector<std::vector<ShotState>> runs(order.size(), std::vector<ShotState>(size_t(n), ShotState::NotAssessable));
+    for (int d = 0; d < opt.mcDraws; ++d) {
+        for (auto &run : runs) std::fill(run.begin(), run.end(), ShotState::NotAssessable);
+        for (const Cell &x : cells) {
+            // Two uniforms per row, always, so the stream stays aligned whatever a row holds.
+            const double u1 = rng.uniform(), u2 = rng.uniform();
+            ShotState st = ShotState::NotAssessable;
+            if (u1 < x.trust) st = (u2 < x.p) ? ShotState::Fired : ShotState::Clean;
+            runs[size_t(x.c)][size_t(x.i)] = st;
+        }
+        QSet<QString> pat;
+        for (size_t c = 0; c < order.size(); ++c)
+            if (tierAtPrefix(runs[c], weights, n, hard).tier == Tier::Pattern) pat.insert(order[c]);
+        out.push_back(std::move(pat));
+    }
+    return out;
 }
 
 // Every condition's ledger, in FIRST-SEEN order across the session.
@@ -711,6 +820,7 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
 
         int signedFirings = 0, positives = 0, negatives = 0;
         std::vector<double> absZ, ordinal, firingExcesses;
+        std::vector<std::pair<double, double>> soft(size_t(std::max(n, 0)), { 0.0, 1.0 });
 
         for (int i = 0; i < n; ++i) {
             const ConditionRow *r = rowFor(shots[size_t(i)], id);
@@ -718,6 +828,10 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
             L.run[size_t(i)] = r->state;
             if (L.drivingMeasureId.isEmpty()) L.drivingMeasureId = r->drivingMeasureId;
             if (r->state == ShotState::NotAssessable) continue;   // rule 1
+            soft[size_t(i)] = { rowFireProb(*r), rowTrustedShare(*r) };
+            if ((r->pFire > float(tuned::diagUncertainty::kBorderLo) && r->pFire < float(tuned::diagUncertainty::kBorderHi))
+                || r->grossRisk > float(tuned::diagUncertainty::kBorderGross))
+                L.borderline = true;
 
             if (std::isfinite(r->z)) {
                 L.zRun[size_t(i)] = r->z;
@@ -739,15 +853,20 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
             L.firingExcess = std::isfinite(m) ? m : 0.0;
         }
 
-        const TierSnapshot now = tierAtPrefix(L.run, weights, n, opt);
+        const TierSnapshot now = tierAtPrefix(L.run, weights, n, opt, &soft);
         L.assessable  = now.assessable;
         L.fired       = now.fired;
         L.wilsonLower = now.wilsonLower;
         L.tier        = now.tier;
         for (int i = 0; i < n; ++i) {
             if (L.run[size_t(i)] == ShotState::NotAssessable) continue;
-            L.effAssessable += weights[size_t(i)];
-            if (L.run[size_t(i)] == ShotState::Fired) L.effFired += weights[size_t(i)];
+            if (opt.softTier) {
+                L.effAssessable += weights[size_t(i)] * soft[size_t(i)].second;
+                L.effFired      += weights[size_t(i)] * soft[size_t(i)].second * soft[size_t(i)].first;
+            } else {
+                L.effAssessable += weights[size_t(i)];
+                if (L.run[size_t(i)] == ShotState::Fired) L.effFired += weights[size_t(i)];
+            }
         }
         L.recurrence = recurrenceText(L.fired, L.assessable);
         L.latest = n > 0 ? L.run[size_t(n - 1)] : ShotState::NotAssessable;
@@ -768,7 +887,7 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
         // The comparison is against the ledger's own past, not against a remembered flag,
         // so replay and live agree by construction.
         const TierSnapshot then =
-            tierAtPrefix(L.run, weights, std::max(0, n - opt.freshWindow), opt);
+            tierAtPrefix(L.run, weights, std::max(0, n - opt.freshWindow), opt, &soft);
         L.freshThisShot = L.tier == Tier::Pattern && then.tier != Tier::Pattern;
 
         L.resolving = L.tier == Tier::Pattern && L.sinceLastFiring >= opt.resolvingWindow;
@@ -798,6 +917,18 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
         }
 
         out.push_back(std::move(L));
+    }
+
+    // P(Pattern) from the joint draws (§A8.5). Without softTier the hard tier is the answer.
+    if (opt.softTier) {
+        const std::vector<QSet<QString>> draws = patternDraws(shots, opt);
+        for (ConditionLedger &L : out) {
+            int k = 0;
+            for (const QSet<QString> &d : draws) k += d.contains(L.id) ? 1 : 0;
+            L.pPattern = draws.empty() ? (L.tier == Tier::Pattern ? 1.0 : 0.0) : double(k) / double(draws.size());
+        }
+    } else {
+        for (ConditionLedger &L : out) L.pPattern = L.tier == Tier::Pattern ? 1.0 : 0.0;
     }
     return out;
 }
@@ -1602,6 +1733,12 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
             ro[QStringLiteral("contextInferred")] = r.contextInferred;
             ro[QStringLiteral("material")]        = r.material;
             ro[QStringLiteral("notAssessableReason")] = r.notAssessableReason;
+            // §A8.4 — written only when formed, so a ledger with none is byte-identical to before.
+            if (r.pFire >= 0.f) {
+                ro[QStringLiteral("pFire")]      = double(r.pFire);
+                ro[QStringLiteral("quantified")] = r.quantified;
+            }
+            if (r.grossRisk >= 0.f) ro[QStringLiteral("grossRisk")] = double(r.grossRisk);
             rowArr.append(ro);
         }
         QJsonObject so;
@@ -1693,6 +1830,9 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
             // Absent on a schema-1 file, and Unknown is the honest answer there.
             r.corridorShape    = corridorShapeFromString(
                                      ro.value(QStringLiteral("corridorShape")).toString());
+            r.pFire            = float(ro.value(QStringLiteral("pFire")).toDouble(-1.0));
+            r.quantified       = ro.value(QStringLiteral("quantified")).toBool();
+            r.grossRisk        = float(ro.value(QStringLiteral("grossRisk")).toDouble(-1.0));
             r.contextId        = ro.value(QStringLiteral("contextId")).toString();
             r.contextInferred  = ro.value(QStringLiteral("contextInferred")).toBool();
             r.material         = ro.value(QStringLiteral("material")).toBool(true);
