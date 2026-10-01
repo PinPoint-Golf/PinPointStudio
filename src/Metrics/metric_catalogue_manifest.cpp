@@ -395,7 +395,11 @@ void installMetricManifest(MetricCatalogue &cat)
                                        "measured as travel from address"),
         .signNegative = QStringLiteral("supination — the lead forearm rolled toward face-up"),
         .phases = { P::Top, P::Impact },
-        .card = { .readAt = { { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact, .rate = false },
+        // THE CURVE STAYS (Mark, 2026-10-01: "watching it between P1 and P2 is quite informative"):
+        // a PEAK over the takeaway, address → shaft parallel back, is the reading that keeps it
+        // drawn under the card rule (MetricCardSpec::drawsCurve) and names what is watched there —
+        // how far the forearm rolls in the first move away.
+        .card = { .readAt = { { P::Impact, {} } }, .peak = true, .hasPeakSpan = true, .peakFrom = P::Address, .peakTo = P::ShaftParallelBack, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact, .rate = false },
         .routes = {
             via("wristImus", RM::Inertial, Direct, { .imuRoles = { R::LeadForearm } },
                 QStringLiteral("the axial twist of the forearm about its own long axis, referenced "
@@ -508,7 +512,11 @@ void installMetricManifest(MetricCatalogue &cat)
                                        "measured as travel from address"),
         .signNegative = QStringLiteral("supination — the lead forearm rolled toward face-up"),
         .phases = { P::Top, P::Impact },
-        .card = { .readAt = { { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact, .rate = false },
+        // THE CURVE STAYS (Mark, 2026-10-01: "watching it between P1 and P2 is quite informative"):
+        // a PEAK over the takeaway, address → shaft parallel back, is the reading that keeps it
+        // drawn under the card rule (MetricCardSpec::drawsCurve) and names what is watched there —
+        // how far the forearm rolls in the first move away.
+        .card = { .readAt = { { P::Impact, {} } }, .peak = true, .hasPeakSpan = true, .peakFrom = P::Address, .peakTo = P::ShaftParallelBack, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact, .rate = false },
         .routes = {
             via("hackMotion", RM::Device, Direct, { .hackMotion = true },
                 QStringLiteral("the axial twist of the forearm since address, read from a "

@@ -625,7 +625,8 @@ fixed span (lead knee flexion over impact → P8) keeps the curve: the reduction
 same day a series with NO curve and a phase sample (attack angle, hand path loop, every `lm.`
 number) gets a card too — one tile per sample — so a group with no curve left, which Club delivery
 now is, is a card panel with an empty plot. `metric_catalogue_test` ledgers the instant-only set
-(19 on 2026-10-01); `chart_metrics_test` pins the rule's edges.
+(17 on 2026-10-01 — forearm rotation keeps its curve with a PEAK over the takeaway, because the roll
+between P1 and P2 is watched); `chart_metrics_test` pins the rule's edges.
 
 ### Step C — claim the key
 **One line.** Add the key to a provider's `provides()` in `src/Metrics/metric_providers.{h,cpp}`, or

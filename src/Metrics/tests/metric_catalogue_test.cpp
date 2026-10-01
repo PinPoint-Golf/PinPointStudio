@@ -1091,9 +1091,10 @@ int main()
                 if (!d->card.drawsCurve()) { ++instantOnly; who << d->key; }
             }
             std::printf("    instant-only time series: %s\n", qPrintable(who.join(QStringLiteral(", "))));
-            checkEqI(instantOnly, 19, "19 time-series metrics are instant-only — a card, no curve (2026-10-01)");
+            checkEqI(instantOnly, 17, "17 time-series metrics are instant-only — a card, no curve (2026-10-01)");   // 19 → 17: the two forearm rotations keep their curve with a PEAK over P1→P2
             for (const char *k : { "leadKneeFlexion", "leadUpperArmToChest", "plumbBobDistance", "lagAngle",
-                                   "clubheadSpeed", "pelvisSway", "headSway", "leadWristFlexExt" })
+                                   "clubheadSpeed", "pelvisSway", "headSway", "leadWristFlexExt",
+                                   "forearmRotation", "hm.forearmRotation" })
                 check(cat.descriptor(QString::fromLatin1(k)) && cat.descriptor(QString::fromLatin1(k))->card.drawsCurve(),
                       "a card with a PEAK or a rate keeps its curve");
         }
