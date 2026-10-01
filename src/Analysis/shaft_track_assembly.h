@@ -35,6 +35,7 @@
 #include "shaft_synthesis.h"       // SynthConfig / synthesizeBetweenAnchors (Layer C synthesis)
 #include "shaft_wedge.h"           // WedgeConfig / measureWedge (R8-T1 blur-wedge, S2)
 #include "impact_geom.h"           // ImpactGeomConfig / locateImpactGeom (P7 club-at-ball)
+#include "uncertainty_config.h"    // UncertaintyConfig (shaft_uncertainty_propagation_design.md)
 
 // Shaft-tracker v3.0-r1 DECIDING HALF — the physics/statistics that turn
 // per-frame evidence into one globally-consistent shaft-angle track. Faithful
@@ -488,6 +489,9 @@ struct ShaftV3Config {
     // corroborated P7/Impact instant sub-frame. fromOverrides populates it.
     // Gated on the A1 address-ball cluster resolving — data, never sessionType.
     ImpactGeomConfig impactGeom;
+    // Shaft uncertainty — "uncertainty.*" keys (uncertainty_config.h). enabled=false ⇒ no σ is
+    // computed or written and the track is byte-identical.
+    UncertaintyConfig unc;
 
     static ShaftV3Config fromOverrides(const QVariantMap& ov);
 };
@@ -787,6 +791,11 @@ struct ShaftDecideTrace {
     bool                handsRetried   = false;                    // the cleaned-hands attempt ran
     int                 decoyVotes     = 0, ballVotes = 0;         // the decoy-ball check's tally (lPxRejected 3 = dropped)
     bool                ballTrusted    = false;                    // the well / P1 checks used the ball
+    // Uncertainty U5 (shaft_uncertainty_propagation_design.md §4.6): the forward–backward posterior
+    // summary at the published θ of every frame, at each temperature in fbTemps (the calibration
+    // reads all of them from one run). [temperature][frame]; NaN where the frame carries no sample.
+    std::vector<double>              fbTemps;
+    std::vector<std::vector<double>> fbSigma, fbPAlt;
 };
 
 // Map the hands-only phase model to an app Segmentation with real timestamps:

@@ -61,6 +61,10 @@ struct ShotAnalysisJob {
     pinpoint::SourceId markerSourceId = pinpoint::kInvalidSourceId;  // shot_marker_v1 source
 
     double clubLengthM = 1.12;  // shaft search radius (driver default until club selection is real)
+    // True when clubLengthM came from a club record (athlete club, capture.club.lengthMm, or
+    // --club-length-mm) rather than the 1.12 m default above. The uncertainty budgets read it:
+    // a defaulted length carries σ 0.12 m into every speed (shaft uncertainty design Q1).
+    bool   clubLengthKnown = false;
     // The athlete's standing height (m), 0 = unknown. The skeleton3d fit's scale prior: bone
     // lengths start at the Y-bot's proportions × height / Y-bot height. Filled from the athlete
     // profile on the LIVE path and from the recorded athlete block on RE-ANALYSIS.

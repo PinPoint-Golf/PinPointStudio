@@ -38,6 +38,7 @@
 #include "../Analysis/lm_inferred_reads.h"
 #include "../Analysis/swing_analysis.h"
 #include "../Analysis/kinematic_sequence_json.h"   // kinematicSequenceToJson — one shape, three paths
+#include "../Analysis/uncertainty_json.h"         // σ fields — one spelling, four paths
 #include "../Analysis/shaft_fusion_json.h"         // shaftTrack3dToJson — analysis.club3d
 #include "../Analysis/skeleton3d/skeleton3d_json.h" // skeleton3dToJson — analysis.skeleton3d
 #include "../Analysis/dtl_shaft_json.h"            // dtlShaftTrackToJson — analysis.clubDtl == club_dtl.json
@@ -235,11 +236,14 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
         QJsonArray ts, vs, samples;
         for (const int64_t t : m.t_us) ts.append(rel(t));
         for (const double v : m.value) vs.append(v);
-        for (const PhaseSample &ps : m.phaseSamples)
-            samples.append(QJsonObject{ { QStringLiteral("phase"), int(ps.phase) },
-                                        { QStringLiteral("t_us"),  rel(ps.t_us) },
-                                        { QStringLiteral("value"), ps.value },
-                                        { QStringLiteral("band"),  ps.band } });
+        for (const PhaseSample &ps : m.phaseSamples) {
+            QJsonObject po{ { QStringLiteral("phase"), int(ps.phase) },
+                            { QStringLiteral("t_us"),  rel(ps.t_us) },
+                            { QStringLiteral("value"), ps.value },
+                            { QStringLiteral("band"),  ps.band } };
+            analysis::insertPhaseSampleSigma(po, ps);   // per-instant σ — only when set
+            samples.append(po);
+        }
         QJsonObject mo{ { QStringLiteral("key"),   m.key },
                         { QStringLiteral("label"), m.label },
                         { QStringLiteral("unit"),  m.unit },
@@ -252,6 +256,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
         // before (the optional-absence contract at the serialization layer).
         if (m.sigma)
             mo.insert(QStringLiteral("sigma"), *m.sigma);
+        if (m.sigmaKind > 0)
+            mo.insert(QStringLiteral("sigmaKind"), int(m.sigmaKind));
         // Per-sample validity, parallel to t_us (design §5.1): 0 marks a sample the grid
         // BRIDGED across a gated or absent run, so a reader knows which part of the curve
         // was measured and which was drawn between measurements. Same optional-absence
@@ -442,6 +448,7 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
             // under the drawn line. Written ONLY when measured (≥0) so a snap-off
             // run stays byte-identical; absent ⇒ reader defaults −1.
             if (s.lineConf >= 0.f) so.insert(QStringLiteral("lineConf"), double(s.lineConf));
+            analysis::insertShaftSigma(so, s);   // uncertainty design §7 — only when assessed
             samples.append(so);
         }
         // R7 dual output (additive): the pure-model predicted series + its
@@ -464,8 +471,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
         // (synth off / < 2 anchors ⇒ absent, block byte-identical). Consumers must
         // EXCLUDE these from metrics/scoring by the flag.
         QJsonArray synth;
-        for (const ShaftSample2D &s : a.shaft.synth)
-            synth.append(QJsonObject{
+        for (const ShaftSample2D &s : a.shaft.synth) {
+            QJsonObject so{
                 { QStringLiteral("t_us"),  rel(s.t_us) },
                 { QStringLiteral("grip"),  QJsonArray{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
                 { QStringLiteral("head"),  QJsonArray{ s.headPx.x() * iw, s.headPx.y() * ih } },
@@ -475,7 +482,10 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
                 { QStringLiteral("conf"),  double(s.conf) },
                 { QStringLiteral("headConf"),  double(s.headConf) },
                 { QStringLiteral("headSigma"), double(s.headSigmaPx) },
-                { QStringLiteral("flags"), int(s.flags) } });
+                { QStringLiteral("flags"), int(s.flags) } };
+            analysis::insertShaftSigma(so, s);
+            synth.append(so);
+        }
         // Multi-estimator club-length fusion (club_length_fusion.h) — identical
         // shape in both parity writers (shot_processor.cpp toLengthsDetail is the
         // live-detail twin). Always written, even on abstain (nEstimators==0,
@@ -503,8 +513,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
         // ⇒ absent, so the block stays byte-identical). "image-plane parallel"
         // (P2/P6/P8) is accepted face-on coaching practice, not 3-D geometry.
         QJsonArray positions;
-        for (const ShaftPosition &p : a.shaft.positions)
-            positions.append(QJsonObject{
+        for (const ShaftPosition &p : a.shaft.positions) {
+            QJsonObject po{
                 { QStringLiteral("p"),     p.p },
                 { QStringLiteral("t_us"),  rel(p.t_us) },
                 { QStringLiteral("grip"),  QJsonArray{ p.gripPx.x() * iw, p.gripPx.y() * ih } },
@@ -518,7 +528,10 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
                 { QStringLiteral("source"), int(p.source) },
                 // How the instant was OBTAINED (TimingClass) — the follow-through synth gate
                 // reads it (2026-09-17). Additive; readers default to Measured.
-                { QStringLiteral("timing"), int(p.timing) } });
+                { QStringLiteral("timing"), int(p.timing) } };
+            if (p.sigmaTUs >= 0.f) po.insert(QStringLiteral("sigmaTUs"), double(p.sigmaTUs));
+            positions.append(po);
+        }
         // Face-on swing-plane transition delta (shaft_plane.h). Written ALWAYS,
         // even when nothing fitted, so a reader can tell "the producer ran and
         // found nothing" (valid false, channel -1, per-window reject codes set)
@@ -548,11 +561,20 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
                 { QStringLiteral("rejectBack"),       c.rejectBack },
                 { QStringLiteral("rejectDown"),       c.rejectDown } };
         };
+        // Uncertainty design §4.7: the block-bootstrap σ, written only when assessed.
+        auto planeChanSig = [&planeChan](const analysis::ShaftPlaneChannel &c) {
+            QJsonObject o = planeChan(c);
+            if (c.sigmaIotaBackDeg >= 0.0) o.insert(QStringLiteral("sigmaIotaBackDeg"), c.sigmaIotaBackDeg);
+            if (c.sigmaIotaDownDeg >= 0.0) o.insert(QStringLiteral("sigmaIotaDownDeg"), c.sigmaIotaDownDeg);
+            if (c.sigmaDeltaDeg    >= 0.0) o.insert(QStringLiteral("sigmaDeltaDeg"),    c.sigmaDeltaDeg);
+            if (c.pNeedle          >= 0.0) o.insert(QStringLiteral("pNeedle"),          c.pNeedle);
+            return o;
+        };
         const QJsonObject plane{
             { QStringLiteral("valid"),    a.shaft.plane.valid },
             { QStringLiteral("channel"),  a.shaft.plane.channel },
-            { QStringLiteral("measured"), planeChan(a.shaft.plane.measured) },
-            { QStringLiteral("synth"),    planeChan(a.shaft.plane.synth) } };
+            { QStringLiteral("measured"), planeChanSig(a.shaft.plane.measured) },
+            { QStringLiteral("synth"),    planeChanSig(a.shaft.plane.synth) } };
         QJsonObject clubObj{
             { QStringLiteral("camera"),        int(a.shaft.camera) },
             { QStringLiteral("valid"),         a.shaft.valid },
@@ -573,6 +595,10 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
         if (a.shaft.ballAnchored)
             clubObj.insert(QStringLiteral("addressBall"),
                            QJsonArray{ a.shaft.addressBallPx.x() * iw, a.shaft.addressBallPx.y() * ih });
+        if (a.shaft.addressBallSigmaPx >= 0.f)
+            clubObj.insert(QStringLiteral("addressBallSigmaPx"), double(a.shaft.addressBallSigmaPx));
+        if (a.shaft.synthKappa >= 0.f)
+            clubObj.insert(QStringLiteral("synthKappa"), double(a.shaft.synthKappa));
         // Robustness self-checks (2026-10-01, swing_analysis.h ShaftTrack2D): how the
         // phase model found its takeaway, whether it was suspect, and the two witness
         // checks. `refused` names the reason when the track was refused (valid=false).

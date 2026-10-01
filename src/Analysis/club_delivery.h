@@ -111,6 +111,7 @@
 #include "swing_analysis.h"          // ShaftTrack2D, MetricSeries, PhaseEvent
 #include "metric_channel.h"          // MetricChannel, buildChannelSeries
 #include "analysis_tuning.h"         // tuning::apply
+#include "uncertainty_config.h"      // UncertaintyConfig
 #include "../Core/pp_tuned_constants.h"   // tuned::clubDelivery::
 
 namespace pinpoint::analysis {
@@ -187,5 +188,16 @@ ClubDeliveryResult trackClubDelivery(const ShaftTrack2D &shaft, const std::vecto
 // as phaseSamples over an empty curve — the representation every setup metric already uses).
 std::vector<MetricSeries> buildClubDeliverySeries(const ClubDeliveryResult &res,
                                                   const std::vector<PhaseEvent> &phases);
+
+// Uncertainty (shaft_uncertainty_propagation_design.md §6) on the club-delivery readings, in place:
+// the top angle from its measured head's σ and the grip's (delta method); attack angle and low point
+// by a Monte Carlo over the synth posterior's draws (each draw run through trackClubDelivery itself),
+// the low point ⊕ the ball's position σ and the ruler's. A reading the draws could not reproduce on
+// more than a tenth of them carries that fraction as its gross risk. No-op without a posterior for
+// the two Monte Carlo readings.
+void addClubDeliverySigma(std::vector<MetricSeries> &series, const ShaftTrack2D &shaft,
+                          const std::vector<PhaseEvent> &phases, QPointF addressBallPx, bool ballValid,
+                          double mmPerPx, double ballSigmaPx, const PoseTrack2D *pose,
+                          const UncertaintyConfig &unc, const ClubDeliveryConfig &cfg = {});
 
 } // namespace pinpoint::analysis

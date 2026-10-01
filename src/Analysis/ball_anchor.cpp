@@ -17,6 +17,7 @@
  */
 
 #include "ball_anchor.h"
+#include "uncertainty_config.h"   // sigTableDeg (the BALL row)
 
 #include <algorithm>
 #include <cmath>
@@ -376,6 +377,12 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
                                          ballPx[size_t(i)].y() - gy[size_t(i)]);
             sm.conf     = std::max(sm.conf, kAnchorConf);
             sm.flags    = uint16_t((sm.flags & ~ShaftHeadProjected) | ShaftBallAnchored);
+            // Uncertainty (design §4.1): a painted sample is the ball line now, not the tier
+            // it came from — the BALL row. Only where the tracker assessed σ at all.
+            if (sm.sigmaThetaDeg >= 0.f) {
+                sm.sigmaThetaDeg = float(sigTableDeg(SigTier::Ball, SigGroup::Address, 0.0));
+                sm.pGross        = float(pGrossTable(SigTier::Ball, SigGroup::Address));
+            }
         }
     }
 
@@ -400,6 +407,10 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
                 sm.visibleLenPx = std::hypot(bx - gx[size_t(fImp)], by - gy[size_t(fImp)]);
                 sm.conf     = std::max(sm.conf, kAnchorConf);
                 sm.flags    = uint16_t((sm.flags & ~ShaftHeadProjected) | ShaftBallAnchored);
+                if (sm.sigmaThetaDeg >= 0.f) {
+                    sm.sigmaThetaDeg = float(sigTableDeg(SigTier::Ball, SigGroup::Impact, 0.0));
+                    sm.pGross        = float(pGrossTable(SigTier::Ball, SigGroup::Impact));
+                }
             }
         }
     }

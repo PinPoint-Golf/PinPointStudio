@@ -1357,3 +1357,16 @@ pp_add_test(corridor_plot_test
             ${ANALYSIS}/reference_bands.cpp
     INCLUDE ${NORM_INC}
     LINK    Qt6::Qml)
+
+# Shaft uncertainty (docs/design/shaft_uncertainty_propagation_design.md): the deterministic
+# random source, the closed-form budgets, the synth posterior, the forward–backward lattice and
+# the plane bootstraps.
+pp_add_test(det_rng_test SOURCES det_rng_test.cpp NO_QT)
+pp_add_test(uncertainty_delta_test SOURCES uncertainty_delta_test.cpp)
+pp_add_test(synth_posterior_test SOURCES synth_posterior_test.cpp)
+pp_add_test(forward_backward_test
+    SOURCES forward_backward_test.cpp ${ANALYSIS}/shaft_track_assembly.cpp ${ANALYSIS}/shaft_tracker_math.cpp ${ANALYSIS}/ball_anchor.cpp ${ANALYSIS}/clubhead_track.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    COMPILE_OPTIONS -O2)
+pp_add_test(plane_bootstrap_test SOURCES plane_bootstrap_test.cpp NO_QT)

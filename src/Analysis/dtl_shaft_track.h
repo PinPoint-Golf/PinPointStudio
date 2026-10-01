@@ -266,6 +266,11 @@ struct DtlSample {
     QString reason;                      // why an absence is an absence; empty when published
     double  bandS       = dtl::kNan;     // E1 lock scale (px/mm) when tier == Band
     double  bandR0      = dtl::kNan;     // E1 lock butt→anchor offset (mm) when tier == Band
+    // Shaft uncertainty (shaft_uncertainty_propagation_design.md §4.1): 1σ of thetaRad in
+    // degrees and the gross-error probability; NaN = not assessed. The DTL table is
+    // calibrated at address only — beyond it σ is inflated by 1/ρ̂_D and tagged propagated.
+    double  sigmaThetaDeg = dtl::kNan;
+    double  pGross        = dtl::kNan;
 };
 
 // A maximal run of solvable frames (§5.8). Bands are solved INDEPENDENTLY;

@@ -17,6 +17,7 @@
  */
 
 #include "recorded_products.h"
+#include "uncertainty_json.h"
 
 #include <QJsonArray>
 #include <QJsonValue>
@@ -51,6 +52,7 @@ ShaftSample2D sampleFrom(const QJsonObject &o, double w, double h)
     s.headConf     = float(o.value(QStringLiteral("headConf")).toDouble(-1.0));
     s.headSigmaPx  = float(o.value(QStringLiteral("headSigma")).toDouble(-1.0));
     s.lineConf     = float(o.value(QStringLiteral("lineConf")).toDouble(-1.0));
+    readShaftSigma(o, s);   // uncertainty design §7 — absent keys read as "not assessed"
     return s;
 }
 
@@ -76,6 +78,10 @@ ShaftPlaneChannel planeChannelFrom(const QJsonObject &o)
     c.anchorConfMin    = float(o.value(QStringLiteral("anchorConfMin")).toDouble());
     c.rejectBack       = o.value(QStringLiteral("rejectBack")).toInt();
     c.rejectDown       = o.value(QStringLiteral("rejectDown")).toInt();
+    c.sigmaIotaBackDeg = o.value(QStringLiteral("sigmaIotaBackDeg")).toDouble(-1.0);
+    c.sigmaIotaDownDeg = o.value(QStringLiteral("sigmaIotaDownDeg")).toDouble(-1.0);
+    c.sigmaDeltaDeg    = o.value(QStringLiteral("sigmaDeltaDeg")).toDouble(-1.0);
+    c.pNeedle          = o.value(QStringLiteral("pNeedle")).toDouble(-1.0);
     return c;
 }
 
@@ -136,6 +142,8 @@ ShaftTrack2D shaftTrackFromAnalysisJson(const QJsonObject &club, pinpoint::Sourc
         t.addressBallPx = pointPx(club.value(QStringLiteral("addressBall")), w, h);
         t.ballAnchored  = true;
     }
+    t.addressBallSigmaPx = float(club.value(QStringLiteral("addressBallSigmaPx")).toDouble(-1.0));
+    t.synthKappa         = float(club.value(QStringLiteral("synthKappa")).toDouble(-1.0));
     // Robustness self-checks (2026-10-01): the diag block and the refusal reason
     // round-trip so a reused track keeps its verdict (valid is already false).
     const QJsonObject dg = club.value(QStringLiteral("diag")).toObject();
@@ -174,6 +182,7 @@ ShaftTrack2D shaftTrackFromAnalysisJson(const QJsonObject &club, pinpoint::Sourc
         pos.stackN        = o.value(QStringLiteral("stackN")).toInt();
         pos.source        = uint8_t(o.value(QStringLiteral("source")).toInt());
         pos.timing        = TimingClass(o.value(QStringLiteral("timing")).toInt(int(TimingClass::Measured)));
+        pos.sigmaTUs      = float(o.value(QStringLiteral("sigmaTUs")).toDouble(-1.0));
         t.positions.push_back(pos);
     }
     return t;

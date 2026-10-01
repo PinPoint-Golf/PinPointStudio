@@ -65,6 +65,9 @@
 #include "pose_synthesis.h"
 #include "segment_rates.h"
 #include "shaft_plane.h"
+#include "det_rng.h"
+#include "shaft_sigma.h"           // uncertainty budgets (shaft_uncertainty_propagation_design.md)
+#include "uncertainty_config.h"
 #include "skeleton3d/skeleton3d_json.h"
 #include "shaft_tracker.h"
 #include "shaft_frame_io.h"
@@ -95,7 +98,8 @@ constexpr double kPiD = 3.14159265358979323846;
 // Unscored — no validated reference band yet; the scorer's band table simply
 // doesn't list the key.
 MetricSeries buildShaftLeanSeries(const ShaftTrack2D &shaft, int handedness,
-                                  int64_t impactUs)
+                                  int64_t impactUs, const PoseTrack2D *pose = nullptr,
+                                  const UncertaintyConfig *unc = nullptr, double impactSigmaTUs = -1.0)
 {
     MetricSeries m;
     m.key   = QStringLiteral("impactShaftLean");
@@ -170,6 +174,28 @@ MetricSeries buildShaftLeanSeries(const ShaftTrack2D &shaft, int handedness,
             for (double &v : m.value) v += shift;
             impact.t_us  = impactUs;
             impact.value = ballLean;
+            // Uncertainty (design §6, ball-anchored lean): the angle of the hands→ball line, so
+            // σ² = (σ_grip² + σ_ball²)/L² + (ġ⊥/L · σ_t)², where ġ⊥ is the grip's speed across
+            // the line — a timing error moves the hands, and with them the line.
+            if (unc && unc->enabled) {
+                const double sGrip = pose ? shaftsigma::gripSigmaPx(*pose, impactUs)
+                                          : pinpoint::tuned::uncertainty::kGripSigmaFloorPx;
+                const double sBall = shaft.addressBallSigmaPx >= 0.f ? double(shaft.addressBallSigmaPx)
+                                                                     : pinpoint::tuned::uncertainty::kDepartureBallSigmaPx;
+                const double dtS = double(S[i].t_us - S[i - 1].t_us) * 1e-6;
+                const QPointF gv = dtS > 0.0 ? (S[i].gripPx - S[i - 1].gripPx) / dtS : QPointF(0, 0);
+                const double ux = std::cos(th), uy = std::sin(th);
+                const double gPerp = std::abs(-gv.x() * uy + gv.y() * ux);           // px/s across the line
+                const double rateDegS = len > 1.0 ? gPerp / len * shaftsigma::kRad2Deg : 0.0;
+                const double sig = shaftsigma::quad(shaftsigma::lineAngleSigmaDeg(sGrip, sBall, len),
+                                                    shaftsigma::timingTerm(rateDegS, impactSigmaTUs))
+                                   * pinpoint::tuned::uncertainty::kInflateLean;
+                if (std::isfinite(sig)) {
+                    impact.sigma     = sig;
+                    impact.sigmaKind = shaftsigma::kindOf(pinpoint::tuned::uncertainty::kCalLean);
+                    impact.grossRisk = float(shaft.ballSuspect ? 0.5 : 0.0);
+                }
+            }
             break;
         }
     }
@@ -184,6 +210,19 @@ MetricSeries buildShaftLeanSeries(const ShaftTrack2D &shaft, int handedness,
             for (double &v : m.value) v -= shift;
             impact.value -= shift;
         }
+        // Uncertainty (design §6, tracked lean): the shaft angle's own σ at the impact instant
+        // ⊕ the rotation rate × the instant's timing σ. The gross risk is the samples'.
+        if (unc && unc->enabled && !impact.sigma) {
+            const shaftsigma::SigmaAt sa = shaftsigma::sigmaAt(shaft.samples, impact.t_us);
+            if (std::isfinite(sa.sigDeg)) {
+                impact.sigma     = shaftsigma::quad(sa.sigDeg, shaftsigma::timingTerm(sa.thetaDotDegS, impactSigmaTUs))
+                                   * pinpoint::tuned::uncertainty::kInflateLean;
+                impact.sigmaKind = shaftsigma::kindOf(pinpoint::tuned::uncertainty::kCalLean);
+                impact.grossRisk = float(sa.pGross);
+            }
+        }
+        // The card's σ is the impact reading's (an instant-only card), not the old constant.
+        if (impact.sigma) { m.sigma = impact.sigma; m.sigmaKind = impact.sigmaKind; }
         m.phaseSamples.push_back(impact);
     }
     return m;
@@ -792,6 +831,10 @@ struct ImpactAnchorStage : AnalysisStage {
                  << "score" << ball.score;
         shaft.ballAnchored  = true;
         shaft.addressBallPx = ball.px;
+        // Uncertainty (design §4.3): the departure finder's measured placement accuracy
+        // (median 1.9 px, 29/32 within 10 px of the marked ball).
+        if (UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides).enabled)
+            shaft.addressBallSigmaPx = float(pinpoint::tuned::uncertainty::kDepartureBallSigmaPx);
         // …and fed to the synthetic track as one more READING at P7 (shaft_synthesis.h
         // ballAnchorSigmaDeg), weighed against every other reading — not a pin.
         resynthesizeLayerC(shaft, ShaftV3Config::fromOverrides(ctx.job.tuningOverrides));
@@ -803,8 +846,18 @@ struct ShaftLeanStage : AnalysisStage {
     bool canRun(const AnalysisContext &ctx) const override { return ctx.detail->shaft.valid; }
     void run(AnalysisContext &ctx) override
     {
-        ctx.series.push_back(buildShaftLeanSeries(ctx.detail->shaft, ctx.job.handedness,
-                                                  ctx.job.impactUs));
+        const UncertaintyConfig unc = UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides);
+        // One impact instant (design §4.4, uncertainty.oneImpact): the ladder's Impact, which the
+        // other club metrics read, instead of the raw trigger. Off ⇒ the trigger, as before.
+        int64_t impactUs = ctx.job.impactUs;
+        double  sigT     = pinpoint::tuned::uncertainty::kTriggerSigmaUs;
+        if (unc.enabled && unc.oneImpact)
+            if (const PhaseEvent *e = ctx.seg.eventFor(Phase::Impact)) {
+                impactUs = e->t_us;
+                sigT     = shaftsigma::impactSigmaTUs(ctx.detail->shaft);
+            }
+        ctx.series.push_back(buildShaftLeanSeries(ctx.detail->shaft, ctx.job.handedness, impactUs,
+                                                  &ctx.detail->pose2d, &unc, sigT));
     }
 };
 
@@ -1246,11 +1299,23 @@ struct ClubDeliveryStage : AnalysisStage {
             ballOk = bp.mmPerPx > 0.0;
         }
 
+        const ClubDeliveryConfig cdCfg = ClubDeliveryConfig::fromOverrides(ctx.job.tuningOverrides);
         const ClubDeliveryResult cd =
             trackClubDelivery(ctx.detail->shaft, ctx.seg.events, ballPx, ballOk,
-                              bp.mmPerPx,
-                              ClubDeliveryConfig::fromOverrides(ctx.job.tuningOverrides));
-        for (const MetricSeries &m : buildClubDeliverySeries(cd, ctx.seg.events))
+                              bp.mmPerPx, cdCfg);
+        std::vector<MetricSeries> cds = buildClubDeliverySeries(cd, ctx.seg.events);
+        const UncertaintyConfig unc = UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides);
+        if (unc.enabled) {
+            // The low point's σ replaces the old published constant: the series' sigma is reset
+            // here and set again from the propagated budget (absent if the draws cannot give one).
+            for (MetricSeries &m : cds) if (m.key == QStringLiteral("lowPointAhead")) m.sigma.reset();
+            const double ballSig = ctx.detail->shaft.addressBallSigmaPx >= 0.f
+                                       ? double(ctx.detail->shaft.addressBallSigmaPx)
+                                       : pinpoint::tuned::uncertainty::kDepartureBallSigmaPx;
+            addClubDeliverySigma(cds, ctx.detail->shaft, ctx.seg.events, ballPx, ballOk, bp.mmPerPx, ballSig,
+                                 ctx.detail->pose2d.frames.empty() ? nullptr : &ctx.detail->pose2d, unc, cdCfg);
+        }
+        for (const MetricSeries &m : cds)
             ctx.detail->series.push_back(m);
     }
 };
@@ -1319,6 +1384,9 @@ struct KinematicsStage : AnalysisStage {
         in.phases      = ctx.seg.events;
         in.composed    = KinematicSeriesConfig::fromOverrides(ctx.job.tuningOverrides).composed;
         in.gripDownM   = ShaftV3Config::fromOverrides(ctx.job.tuningOverrides).lenGripDownM;
+        const UncertaintyConfig unc = UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides);
+        in.unc             = &unc;
+        in.clubLengthKnown = ctx.job.clubLengthKnown;
         for (MetricSeries &m : buildKinematicSeries(in))
             ctx.detail->series.push_back(std::move(m));
     }
@@ -1440,6 +1508,22 @@ struct ShaftPlaneStage : AnalysisStage {
         est.channel = int(r.channel);
         record(est.measured, r.measured, false);
         record(est.synth,    r.synth,    true);
+        // Uncertainty (design §4.7): the block-bootstrap σ of each fitted channel.
+        const UncertaintyConfig unc = UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides);
+        if (unc.enabled && unc.planeBootstrap) {
+            DetRng rng(unc.seed ^ 0x9A4Eu);
+            const auto boot = [&](ShaftPlaneChannel &dst, const std::vector<ShaftPlanePoint> &pts) {
+                if (!dst.fitted) return;
+                const PlaneBootstrap b = bootstrapPlaneChannel(pts, in.takeawayUs, in.topUs, in.impactUs,
+                                                               unc.bootstrapN, unc.bootstrapBlock, rng);
+                dst.sigmaIotaBackDeg = b.sigmaBack;
+                dst.sigmaIotaDownDeg = b.sigmaDown;
+                dst.sigmaDeltaDeg    = b.sigmaDelta;
+                dst.pNeedle          = b.pNeedle;
+            };
+            boot(est.measured, in.measured);
+            boot(est.synth,    in.synth);
+        }
         ctx.detail->shaft.plane = est;
 
         if (!r.valid) {
@@ -1462,17 +1546,25 @@ struct ShaftPlaneStage : AnalysisStage {
         // anything else and the measure silently resolves nothing. The TIME is
         // free, and top-of-backswing is the honest instant — it is where the two
         // windows meet.
+        const ShaftPlaneChannel &selCh = (r.channel == PlaneChannel::Measured) ? est.measured : est.synth;
         auto push = [&ctx](const QString &key, const QString &label,
-                           Phase phase, int64_t tUs, double value) {
+                           Phase phase, int64_t tUs, double value, double sigma = -1.0, double grossRisk = -1.0) {
             MetricSeries m;
             m.key   = key;
             m.label = label;
             m.unit  = QStringLiteral("°");
-            m.phaseSamples.push_back({ phase, tUs, value, QString() });
+            PhaseSample ps{ phase, tUs, value, QString() };
+            if (sigma > 0.0) {
+                ps.sigma = sigma; ps.sigmaKind = uint8_t(SigmaKind::Propagated);
+                m.sigma = sigma;  m.sigmaKind = ps.sigmaKind;
+            }
+            if (grossRisk >= 0.0) ps.grossRisk = float(grossRisk);
+            m.phaseSamples.push_back(ps);
             ctx.detail->series.push_back(std::move(m));
         };
         push(QStringLiteral("transitionPlaneDelta"),
-             QStringLiteral("Transition plane delta"), Phase::Transition, tp->t_us, r.deltaDeg);
+             QStringLiteral("Transition plane delta"), Phase::Transition, tp->t_us, r.deltaDeg,
+             selCh.sigmaDeltaDeg, selCh.pNeedle);
         // The absolute inclinations are NOT calibrated (brief §9 bounds a 64° body-depth
         // bias) — carried for the trace and the node-line research, never as a coaching
         // output, which is why neither has a measure or a catalogue descriptor.
@@ -1859,7 +1951,9 @@ struct ShaftFusionStage : AnalysisStage {
             const bool measured = allMeasured
                 || ((s.flags & ShaftMeasured)
                     && !(s.flags & (ShaftCoasted | ShaftSynthesized | ShaftImplausible | ShaftKinematicPredicted)));
-            out.push_back({ s.t_us, th, measured });
+            fusion::FoSample fs{ s.t_us, th, measured };
+            if (s.sigmaThetaDeg >= 0.f) fs.sigmaDeg = double(s.sigmaThetaDeg);   // uncertainty §4.7
+            out.push_back(fs);
         }
         return out;
     }
@@ -1882,13 +1976,22 @@ struct ShaftFusionStage : AnalysisStage {
     }
     void run(AnalysisContext &ctx) override
     {
-        const fusion::Config cfg = configFor(ctx.job);
+        fusion::Config cfg = configFor(ctx.job);
+        const UncertaintyConfig unc = UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides);
+        if (unc.enabled && unc.planeBootstrap) {
+            cfg.uncertainty    = true;
+            cfg.bootstrapN     = unc.bootstrapN;
+            cfg.bootstrapBlock = unc.bootstrapBlock;
+            cfg.seed           = unc.seed;
+            cfg.cameraFloorDeg = pinpoint::tuned::uncertainty::kCameraFloorDeg;
+            cfg.rho            = unc.rho;
+        }
         const ShaftTrack2D    &fo = ctx.detail->shaft;
         const DtlShaftTrack2D &dt = ctx.detail->shaftDtl;
         std::vector<fusion::DtlSampleIn> dtl;
         for (const DtlSample &s : dt.samples)
             if (dtlMeasured(s.tier) && std::isfinite(s.thetaRad))
-                dtl.push_back({ s.t_us - dt.clockOffsetUs, s.thetaRad, s.band });
+                dtl.push_back({ s.t_us - dt.clockOffsetUs, s.thetaRad, s.band, s.sigmaThetaDeg });
         const int64_t topUs    = ctx.seg.eventFor(Phase::Top)->t_us;
         const int64_t impactUs = ctx.seg.eventFor(Phase::Impact)->t_us;
         // The BACKSWING plane is the average plane from ADDRESS to the top (Mark, 29 Sept: "an
@@ -1943,15 +2046,31 @@ struct ShaftFusionStage : AnalysisStage {
                     m.t_us.push_back(us);
                     m.value.push_back(downVs);
                 }
-            const auto sampleAt = [&](Phase p, double v, int64_t lo, int64_t hi) {
-                if (!std::isfinite(v)) return;
-                if (const PhaseEvent *e = ctx.seg.eventFor(p); e && e->t_us >= lo && e->t_us <= hi)
-                    m.phaseSamples.push_back({ p, e->t_us, v, QString() });
+            // σ of a plane-vs-address reading (uncertainty §4.7): the plane's bootstrap σ ⊕ the
+            // address plane's; NaN (absent) when either was not assessed.
+            const auto planeSig = [&](const fusion::PlaneFit &pf) {
+                return (std::isfinite(pf.inclSigmaDeg) && std::isfinite(t.addressInclSigmaDeg))
+                           ? std::hypot(pf.inclSigmaDeg, t.addressInclSigmaDeg)
+                           : std::numeric_limits<double>::quiet_NaN();
             };
-            sampleAt(Phase::MidBackswing,    backVs, backFromUs, topUs - 1);
-            sampleAt(Phase::ArmParallelDown, downVs, topUs, impactUs);
-            sampleAt(Phase::Delivery,        downVs, topUs, impactUs);
+            const auto sampleAt = [&](Phase p, double v, int64_t lo, int64_t hi, double sig) {
+                if (!std::isfinite(v)) return;
+                if (const PhaseEvent *e = ctx.seg.eventFor(p); e && e->t_us >= lo && e->t_us <= hi) {
+                    PhaseSample ps{ p, e->t_us, v, QString() };
+                    if (std::isfinite(sig)) { ps.sigma = sig; ps.sigmaKind = uint8_t(SigmaKind::Propagated); }
+                    m.phaseSamples.push_back(ps);
+                }
+            };
+            sampleAt(Phase::MidBackswing,    backVs, backFromUs, topUs - 1, planeSig(t.back));
+            sampleAt(Phase::ArmParallelDown, downVs, topUs, impactUs, planeSig(t.down));
+            sampleAt(Phase::Delivery,        downVs, topUs, impactUs, planeSig(t.down));
             m.sigma = std::isfinite(downVs) ? t.down.oopRmsDeg : t.back.oopRmsDeg;
+            // With the uncertainty pass the card's σ is the delivery reading's (the uncertainty of
+            // the plane), not the frames' scatter about it.
+            if (unc.enabled) {
+                const double ds = planeSig(std::isfinite(downVs) ? t.down : t.back);
+                if (std::isfinite(ds)) { m.sigma = ds; m.sigmaKind = uint8_t(SigmaKind::Propagated); }
+            }
             if (m.t_us.size() >= 2) ctx.detail->series.push_back(std::move(m));
         }
         ppInfo() << "[WristAnalysis] shaft fusion:" << qlonglong(t.samples.size()) << "/" << t.nDtlPublished
@@ -2056,7 +2175,16 @@ struct DtlShaftLieStage : AnalysisStage {
     }
     void run(AnalysisContext &ctx) override
     {
-        DtlShaftLieResult r = buildDtlShaftLie(ctx.detail->shaftDtl, ctx.seg.events);
+        const UncertaintyConfig unc = UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides);
+        double sigTAddr = 0.0;
+        for (const ShaftPosition &p : ctx.detail->shaft.positions)
+            if (p.p == 1 && p.sigmaTUs >= 0.f) sigTAddr = double(p.sigmaTUs);
+        DtlShaftLieResult r = buildDtlShaftLie(ctx.detail->shaftDtl, ctx.seg.events, 12500, unc.enabled,
+                                               sigTAddr, shaftsigma::impactSigmaTUs(ctx.detail->shaft));
+        // The card's σ: the impact reading's (the delta's other end is in its own sample).
+        if (unc.enabled)
+            for (const PhaseSample &ps : r.series.phaseSamples)
+                if (ps.phase == Phase::Impact && ps.sigma) { r.series.sigma = ps.sigma; r.series.sigmaKind = ps.sigmaKind; }
         if (!r.valid) {
             ppInfo() << "[WristAnalysis] shaft lie: refused —" << qPrintable(r.reason);
             return;

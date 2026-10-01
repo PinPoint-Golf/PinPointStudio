@@ -1182,4 +1182,95 @@ namespace shaftPlane {
 inline constexpr bool kEnabled = true;   // shaftPlane.enabled — master gate (ON 2026-08-11)
 } // namespace shaftPlane
 
+// --- Shaft uncertainty (docs/design/shaft_uncertainty_propagation_design.md) -----------
+// Per-sample 1σ of the shaft angle and the gross-error probability, by tier × phase
+// group, CALIBRATED on the corpus hand marks by tools/shaftlab/uncertainty/
+// calibrate_sigma.py (report: docs/research/data/uncertainty/). σ = base[tier][group]
+// + slope[tier]·|θ̇| (deg, deg/frame). Rows: Pred, Ray, Band, Recon, Wedge, Seg, Ball
+// (the address paint), and the DTL tiers below. Groups: address, early_bs, backswing,
+// top, downswing, impact, through, finish. ONE golfer, one studio — re-run the
+// calibration when the corpus grows (design §10).
+namespace uncertainty {
+inline constexpr int kTiers  = 7;
+inline constexpr int kGroups = 8;
+// CALIBRATION_TABLE_BEGIN (generated — calibrate_sigma.py --emit-cpp)
+inline constexpr double kSigBaseDeg[kTiers][kGroups] = {
+    { 4.91, 4.91, 4.91, 7.62, 6.88, 46.19, 43.99, 48.29 },   // pred
+    { 3.75, 3.75, 2.99, 5.81, 5.25, 6.14, 6.07, 6.07 },   // ray
+    { 1.72, 0.50, 1.21, 2.66, 2.82, 0.53, 0.50, 0.53 },   // band
+    { 10.00, 10.00, 10.00, 15.50, 14.00, 10.50, 10.00, 10.00 },   // recon
+    { 11.20, 11.20, 11.20, 17.37, 15.69, 11.76, 11.20, 11.20 },   // wedge
+    { 3.00, 3.00, 3.31, 4.65, 5.89, 4.75, 4.37, 4.37 },   // seg
+    { 4.00, 4.00, 4.00, 6.20, 5.60, 4.20, 4.00, 4.00 },   // ball
+};
+inline constexpr double kSigSlope[kTiers] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };   // deg per deg/frame
+inline constexpr double kPGross[kTiers][kGroups] = {
+    { 0.2024, 0.2024, 0.2024, 0.2024, 0.2024, 0.0296, 0.0296, 0.0038 },   // pred
+    { 0.0506, 0.0506, 0.0781, 0.0506, 0.0506, 0.0417, 0.0738, 0.0738 },   // ray
+    { 0.0018, 0.0052, 0.0093, 0.0018, 0.0051, 0.0033, 0.0098, 0.0051 },   // band
+    { 0.2000, 0.2000, 0.2000, 0.2000, 0.2000, 0.2000, 0.2000, 0.2000 },   // recon
+    { 0.0143, 0.0143, 0.0143, 0.0143, 0.0143, 0.0143, 0.0143, 0.0143 },   // wedge
+    { 0.0108, 0.0108, 0.0069, 0.0108, 0.0119, 0.0694, 0.0818, 0.0818 },   // seg
+    { 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500 },   // ball
+};
+// DTL rows (address-calibrated): Ray, Band, Held. Beyond the address band σ is inflated
+// by 1/max(ρ̂_D, 0.5) and the sample is tagged propagated.
+inline constexpr double kDtlSigDeg[3]  = { 0.50, 1.00, 4.00 };
+inline constexpr double kDtlPGross[3]  = { 0.0012, 0.0200, 0.1000 };
+// Lag-1 autocorrelation of the residual series (effective sample size, design §5.2).
+inline constexpr double kRho = 0.84;
+// Synth posterior reading-weight inflation κ = n_eff/n (design §4.5) and the forward–backward
+// temperature (design §4.6).
+inline constexpr double kSynthKappa  = 0.33;
+// The overall synth posterior σ scale (SynthPosterior::scale), fitted on held-out hand marks by
+// grade_coverage.py: 0.40 (A half 0.40, B half 0.45; held-out ±1σ 78 %, ±2σ 94 % on 663 ticks).
+inline constexpr double kSynthSigmaScale = 0.40;
+inline constexpr double kFbTemperature = 1.0;
+// Per-metric inflation factors fitted where the held-out coverage missed (design §6.4 /
+// gate rule); 1 = the propagated budget was honest as it stood.
+inline constexpr double kInflateLean       = 1.0;
+inline constexpr double kInflateTopAngle   = 1.0;
+inline constexpr double kInflateLag        = 1.0;
+inline constexpr double kInflateAttack     = 1.0;
+inline constexpr double kInflateSpeed      = 1.0;
+inline constexpr double kInflateLowPoint   = 1.0;
+inline constexpr double kInflateLie        = 1.0;
+// Which per-metric σ passed its held-out coverage (SigmaKind::Calibrated) vs propagated.
+inline constexpr bool kCalLean = true,  kCalTopAngle = false, kCalLag = false, kCalAttack = false,
+                      kCalSpeed = false, kCalLowPoint = false, kCalLie = false;
+// Gate-decided defaults (design §8, plan gate rules).
+inline constexpr bool kSynthSoftAnchors = false;
+inline constexpr bool kOneImpact        = false;
+inline constexpr bool kFbPosterior      = false;
+// The kinematic sequence's club node reads the per-sample σθ (segment_rates.h calibratedClubSigma).
+// Moves node placement, so it is Mark's decision, not a gate's: off.
+inline constexpr bool kSequenceSigma    = false;
+// Timing (design §4.4): the acoustic/marker trigger's scatter about video truth once its
+// bias is removed (µs), and the floor on any sub-frame crossing's σ_t as a fraction of the
+// frame period (1/√12 = uniform quantisation).
+inline constexpr double kTriggerSigmaUs   = 5000.0;
+inline constexpr double kCrossingFloorFrac = 0.288675;
+// The grip's positional σ (px) where the pose smoother left no posterior.
+inline constexpr double kGripSigmaFloorPx = 2.0;
+// The smoothed lead-forearm angle's 1σ (deg) — the P3/P5 crossings' angular error. An ASSUMPTION
+// (the φ self-jitter in the downswing was 1.79°, wrist_cock_model.md; doubled for the
+// elbow-confidence gaps), stated rather than calibrated: no truth exists for φ alone.
+inline constexpr double kPhiSigmaDeg = 3.6;
+// The ball-diameter ruler's relative 1σ (mm/px): a ±½ px edge on a ~12 px ball. Stated, not
+// calibrated — no independent ruler exists in the corpus.
+inline constexpr double kRulerRelSigma = 0.05;
+// CALIBRATION_TABLE_END
+inline constexpr bool   kEnabled            = true;    // uncertainty.enabled — master gate, ON 2026-10-01 after the corpus gates (off ⇒ byte-identical)
+inline constexpr int    kMcDraws            = 200;
+inline constexpr uint64_t kSeed             = 0x5eedc1ab5eedc1abull;
+inline constexpr double kClubLenSigmaKnownM   = 0.005;   // σ of a measured club length (m)
+inline constexpr double kClubLenSigmaDefaultM = 0.12;    // σ when clubLengthM is the 1.12 m default (Q1: wide σ)
+inline constexpr double kBallSigmaFloorPx     = 1.0;
+inline constexpr double kDepartureBallSigmaPx = 2.0;     // impact_anchor ball: median 1.9 px, 29/32 within 10 px
+inline constexpr double kCameraFloorDeg       = 0.5;     // plane inclination floor (≤ 1° over ±15° yaw)
+inline constexpr int    kBootstrapN           = 200;
+inline constexpr int    kBootstrapBlock       = 5;
+inline constexpr double kGrossWarn            = 0.2;     // card ⚠ above this (Q3)
+} // namespace uncertainty
+
 } // namespace pinpoint::tuned

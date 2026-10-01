@@ -46,6 +46,7 @@
 #include "analysis_tuning.h"          // pinpoint::analysis::tuning::apply
 #include "shaft_track_assembly.h"     // ShaftV3Config (the source of the shared defaults)
 #include "shaft_tracker_math.h"       // RidgeConfig / BandMatchConfig / SegmentConfig
+#include "uncertainty_config.h"       // UncertaintyConfig (shaft_uncertainty_propagation_design.md)
 
 namespace pinpoint::analysis {
 
@@ -383,6 +384,8 @@ struct DtlShaftConfig {
     BandMatchConfig band  = ShaftV3Config{}.band;
     SegmentConfig   seg   = ShaftV3Config{}.seg;
     SnapConfig      snap  = ShaftV3Config{}.snap;
+    // Shaft uncertainty — the same "uncertainty.*" keys as face-on. Off ⇒ no σ written.
+    UncertaintyConfig unc;
 
     static DtlShaftConfig fromOverrides(const QVariantMap& ov)
     {
@@ -401,6 +404,7 @@ struct DtlShaftConfig {
         // first and the DTL spelling below is the per-view escape hatch.
         c.evAbsFloor    = fo.evAbsFloor;
         c.evAbsFloorDif = fo.evAbsFloorDif;
+        c.unc           = fo.unc;
         tn::apply(ov, "shaft.dtl.enabled",             c.enabled);
         tn::apply(ov, "shaft.dtl.truthOnly",           c.truthOnly);
         tn::apply(ov, "shaft.dtl.rhoSolveMin",         c.rhoSolveMin);
@@ -523,6 +527,9 @@ inline QString dtlConfigHash(const DtlShaftConfig& c)
     i(c.snap.corridorHalfPx); n(c.snap.coarseStepPx); n(c.snap.coarseStepDeg);
     n(c.snap.fineHalfPx); n(c.snap.fineHalfDeg);
     i(c.snap.skipAddr); i(c.snap.skipTakeawayUs); i(c.snap.skipBlur);
+    // The uncertainty pass adds σ to the frames; it enters the fingerprint only when on, so an
+    // uncertainty-off run hashes exactly as before the design existed.
+    if (c.unc.enabled) { i(1); n(c.unc.rho); }
     const QByteArray b = s.toUtf8();
     uint64_t h = 1469598103934665603ull;
     for (const char ch : b) { h ^= uint64_t(uint8_t(ch)); h *= 1099511628211ull; }

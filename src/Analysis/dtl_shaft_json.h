@@ -146,6 +146,9 @@ inline QJsonObject dtlShaftTrackToJson(const DtlShaftTrack2D& track, int64_t t0U
         // (lenSrc "schedule"): a run with every continuous-track rule off writes
         // the frame it wrote before the update, byte for byte.
         if (s.lenSrc == DtlLenSrc::Schedule) fr.insert("runPx", jnum(s.runPx));
+        // Uncertainty (design §4.1): only where assessed, so an off run writes the same frames.
+        if (std::isfinite(s.sigmaThetaDeg)) fr.insert("sigTheta", s.sigmaThetaDeg);
+        if (std::isfinite(s.pGross))        fr.insert("pGross",   s.pGross);
         frames.append(fr);
     }
     QJsonArray bands;

@@ -19,6 +19,7 @@
 #pragma once
 
 #include "swing_analysis.h"
+#include "uncertainty_config.h"
 #include "analysis_tuning.h"
 #include "../Core/pp_tuned_constants.h"
 
@@ -95,6 +96,12 @@ struct KinematicSeriesInputs {
     // Phase timeline (ctx.seg.events) so the curves carry Address/Top/Impact phase dots
     // matching the other detail series. Empty ⇒ only an Impact dot (from impactUs).
     std::vector<PhaseEvent> phases;
+
+    // Uncertainty (shaft_uncertainty_propagation_design.md §6): null or !enabled ⇒ no σ is
+    // computed and the series are byte-identical. clubLengthKnown false ⇒ the speeds carry the
+    // defaulted club length's σ (Q1: wide σ, not a refusal).
+    const UncertaintyConfig *unc = nullptr;
+    bool    clubLengthKnown = false;
 };
 
 // Returns up to four MetricSeries in a stable order: clubhead speed (mph), clubheadPeakLead

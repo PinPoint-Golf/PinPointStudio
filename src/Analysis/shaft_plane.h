@@ -544,6 +544,60 @@ inline int countAnchors(const std::vector<PlaneAnchor> &an, std::int64_t lo, std
 
 } // namespace plane_detail
 
+// Block-bootstrap uncertainty of one channel's two windows (shaft_uncertainty_propagation_design.md
+// §4.7): resample each window's points in blocks of `block` consecutive samples (the correlation
+// correction), refit, and report the standard deviation of ι_back, ι_down and their delta over the
+// resamples, and the fraction of resamples that became needles (ConicReject::IllConditioned).
+// `rng` must provide below(n). Leaves the outputs at −1 when a window has too few points or too few
+// resamples fitted.
+struct PlaneBootstrap { double sigmaBack = -1.0, sigmaDown = -1.0, sigmaDelta = -1.0, pNeedle = -1.0; };
+template <class Rng>
+inline PlaneBootstrap bootstrapPlaneChannel(const std::vector<ShaftPlanePoint> &pts, std::int64_t takeawayUs,
+                                            std::int64_t topUs, std::int64_t impactUs, int nBoot, int block, Rng &rng)
+{
+    PlaneBootstrap out;
+    std::vector<double> bx, by, dx, dy;
+    plane_detail::window(pts, takeawayUs, topUs, bx, by);
+    plane_detail::window(pts, topUs, impactUs, dx, dy);
+    if (bx.size() < 12 || dx.size() < 12 || nBoot < 10) return out;
+    const auto resample = [&](const std::vector<double> &x, const std::vector<double> &y,
+                              std::vector<double> &rx, std::vector<double> &ry) {
+        const int n = int(x.size()), B = std::max(1, block);
+        rx.clear(); ry.clear();
+        while (int(rx.size()) < n) {
+            const int s0 = int(rng.below(std::uint64_t(std::max(1, n - B + 1))));
+            for (int k = 0; k < B && int(rx.size()) < n; ++k) {
+                rx.push_back(x[std::size_t(std::min(n - 1, s0 + k))]);
+                ry.push_back(y[std::size_t(std::min(n - 1, s0 + k))]);
+            }
+        }
+    };
+    std::vector<double> ib, id, dd, rx, ry;
+    int needles = 0, tries = 0;
+    for (int b = 0; b < nBoot; ++b) {
+        resample(bx, by, rx, ry);
+        const ConicFit fb = fitConic(rx.data(), ry.data(), int(rx.size()));
+        resample(dx, dy, rx, ry);
+        const ConicFit fd = fitConic(rx.data(), ry.data(), int(rx.size()));
+        ++tries;
+        if (fb.reject == ConicReject::IllConditioned || fd.reject == ConicReject::IllConditioned) ++needles;
+        if (fb.ok) ib.push_back(fb.iotaDeg);
+        if (fd.ok) id.push_back(fd.iotaDeg);
+        if (fb.ok && fd.ok) dd.push_back(fb.iotaDeg - fd.iotaDeg);
+    }
+    const auto sd = [](const std::vector<double> &v) {
+        if (v.size() < 10) return -1.0;
+        double m = 0.0; for (double x : v) m += x; m /= double(v.size());
+        double s2 = 0.0; for (double x : v) s2 += (x - m) * (x - m);
+        return std::sqrt(s2 / double(v.size() - 1));
+    };
+    out.sigmaBack  = sd(ib);
+    out.sigmaDown  = sd(id);
+    out.sigmaDelta = sd(dd);
+    out.pNeedle    = double(needles) / double(std::max(1, tries));
+    return out;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // The producer. Fits BOTH channels, tags the emission, and never merges them.
 //

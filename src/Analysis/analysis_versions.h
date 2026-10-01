@@ -44,12 +44,14 @@ namespace pinpoint::analysis {
 
 constexpr int kPoseStageVersion  = 1;
 constexpr int kBallStageVersion  = 1;
-constexpr int kShaftStageVersion = 5;
+constexpr int kShaftStageVersion = 6;
                                               // 1: first stamped version (2026-09-09)
                                               // 2: markerless stack ON — seg lock, snap, projPrior (2026-09-10)
                                               // 3: the blur wedge reads its LEADING edge; timed trail/mid/lead evidence (2026-09-29)
                                               // 4: …from the top onward only — a v3 track can carry a flipped backswing (2026-09-29)
                                               // 5: address ball well + decoy check, trail-arm veto, phase self-check/retry, hands ladder, refusal (2026-09-30)
+                                              // 6: per-sample σθ / gross risk / tier, P-position timing σ, synth posterior σ
+                                              //    (shaft_uncertainty_propagation_design.md, 2026-10-01)
 // shaft — REUSABLE since 2026-09-17 (swing_reanalyzer.cpp): the recorded samples,
 //         P-anchors, lengths and plane fit are reloaded when this version matches,
 //         the pose and ball were themselves reused, and no tuning override is in
@@ -72,17 +74,20 @@ constexpr int kImpactStageVersion = 1;
 //           Stamped; never reused — it is recomputed from the reused poses and face-on
 //           shaft on every re-analysis. Bump when dtl_shaft_* changes its output.
 constexpr int kDtlPoseStageVersion  = 1;
-constexpr int kDtlShaftStageVersion = 2;   // 2: HELD / OCCLUDED_WRIST / OCCLUDED_ROW tiers, END_ON before quarantine,
+constexpr int kDtlShaftStageVersion = 3;   // 2: HELD / OCCLUDED_WRIST / OCCLUDED_ROW tiers, END_ON before quarantine,
                                            //    band-edge runs, one drawn length, late escapes refused (2026-10-02)
+                                           // 3: per-frame σθ and gross risk (shaft uncertainty design, 2026-10-01)
 // shaftFusion — kShaftFusionStageVersion: the fused 3-D shaft (ShaftFusionStage,
 //           shaft_fusion.h). Stamped; never reused — it is a few microseconds of
 //           arithmetic on two tracks that are already in hand. Bump when
 //           shaft_fusion.h changes its output.
-constexpr int kShaftFusionStageVersion = 5;   // 2: the address plane and deliveryVsAddressDeg (2026-09-21)
+constexpr int kShaftFusionStageVersion = 6;   // 2: the address plane and deliveryVsAddressDeg (2026-09-21)
                                               // 3: the backswing plane fitted from ADDRESS (not takeaway) (2026-09-29)
                                               // 4: the DTL camera's roll, offset and calibrated flag in club3d.camera (2026-10-02)
                                               // 5: §3.2a — the η(t) curve, the DTL anchor and the reflected band, each switched;
                                               //    club3d gains eta / items and the (C)/(D) summary keys (2026-10-03)
+                                              // 6: per-frame direction σ, plane inclination σ by block bootstrap,
+                                              //    address-plane σ (shaft uncertainty design, 2026-10-01)
 // skeleton3d — kSkeleton3DStageVersion: the rigid, jointed skeleton fitted to both poses, the
 //           shaft, the feet and any IMUs (Skeleton3DStage, skeleton3d/; swing_3d_viz_design.md).
 //           Stamped; never reused — recomputed from the reused poses on every re-analysis.

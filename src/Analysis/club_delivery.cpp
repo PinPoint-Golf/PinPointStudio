@@ -18,8 +18,13 @@
 
 #include "club_delivery.h"
 
+#include "det_rng.h"           // deterministic Monte Carlo (uncertainty design principle 7)
+#include "shaft_sigma.h"
+#include "shaft_synthesis.h"   // synthDraws
+
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace pinpoint::analysis {
 namespace {
@@ -293,6 +298,93 @@ std::vector<MetricSeries> buildClubDeliverySeries(const ClubDeliveryResult &res,
     pushScalar(res.lowPointValid, QStringLiteral("lowPointAhead"), QStringLiteral("Low point"),
                QStringLiteral("in"), res.lowPointIn, res.lowPointTUs, res.lowPointSigmaIn);
     return out;
+}
+
+namespace {
+double robustSdCd(std::vector<double> v)
+{
+    v.erase(std::remove_if(v.begin(), v.end(), [](double x) { return !std::isfinite(x); }), v.end());
+    if (v.size() < 5) return std::numeric_limits<double>::quiet_NaN();
+    std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end());
+    const double med = v[v.size() / 2];
+    for (double &x : v) x = std::abs(x - med);
+    std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end());
+    return 1.4826 * v[v.size() / 2];
+}
+} // namespace
+
+void addClubDeliverySigma(std::vector<MetricSeries> &series, const ShaftTrack2D &shaft,
+                          const std::vector<PhaseEvent> &phases, QPointF addressBallPx, bool ballValid,
+                          double mmPerPx, double ballSigmaPx, const PoseTrack2D *pose,
+                          const UncertaintyConfig &unc, const ClubDeliveryConfig &cfg)
+{
+    if (!unc.enabled) return;
+    // ── the top angle: atan2(dy, |dx|) of the measured head against the grip ─────────────────
+    for (MetricSeries &m : series) {
+        if (m.key != QStringLiteral("shaftAngleVsHorizontal")) continue;
+        for (PhaseSample &ps : m.phaseSamples) {
+            const ShaftSample2D *best = nullptr;
+            int64_t bd = std::numeric_limits<int64_t>::max();
+            for (const ShaftSample2D &s : shaft.samples) {
+                if (!headMeasured(s, cfg.headConfMin)) continue;
+                const int64_t d = std::llabs(s.t_us - ps.t_us);
+                if (d < bd) { bd = d; best = &s; }
+            }
+            if (!best || best->headSigmaPx <= 0.f) continue;
+            const double sGrip = pose ? shaftsigma::gripSigmaPx(*pose, ps.t_us) : tuned::uncertainty::kGripSigmaFloorPx;
+            const double L = std::hypot(best->headPx.x() - best->gripPx.x(), best->headPx.y() - best->gripPx.y());
+            const double sig = shaftsigma::lineAngleSigmaDeg(best->headSigmaPx, sGrip, L) * tuned::uncertainty::kInflateTopAngle;
+            if (!std::isfinite(sig)) continue;
+            ps.sigma     = sig;
+            ps.sigmaKind = shaftsigma::kindOf(tuned::uncertainty::kCalTopAngle);
+            if (best->pGross >= 0.f) ps.grossRisk = best->pGross;
+            if (ps.phase == Phase::Top) { m.sigma = sig; m.sigmaKind = ps.sigmaKind; }
+        }
+    }
+    // ── attack angle and low point: the readings recomputed on each posterior draw ────────────
+    if (!shaft.synthPost || !unc.synthPosterior || shaft.synth.empty()) return;
+    DetRng rng(unc.seed ^ 0xC1DDE1u);
+    const std::vector<std::vector<ShaftSample2D>> draws =
+        synthDraws(shaft.synth, shaft.positions, *shaft.synthPost, unc.mcDraws, rng);
+    if (draws.empty()) return;
+    ShaftTrack2D work = shaft;
+    std::vector<double> aa, lp;
+    for (const auto &d : draws) {
+        work.synth = d;
+        const ClubDeliveryResult r = trackClubDelivery(work, phases, addressBallPx, ballValid, mmPerPx, cfg);
+        const std::vector<MetricSeries> sr = buildClubDeliverySeries(r, phases);
+        for (const MetricSeries &m : sr) {
+            if (m.phaseSamples.empty()) continue;
+            if (m.key == QStringLiteral("attackAngle"))   aa.push_back(m.phaseSamples.front().value);
+            if (m.key == QStringLiteral("lowPointAhead")) lp.push_back(m.phaseSamples.front().value);
+        }
+    }
+    const double n = double(draws.size());
+    for (MetricSeries &m : series) {
+        if (m.phaseSamples.empty()) continue;
+        PhaseSample &ps = m.phaseSamples.front();
+        if (m.key == QStringLiteral("attackAngle")) {
+            const double sd = robustSdCd(aa);
+            // No spread at all ⇒ the reading did not come from the synth curve (the measured-head
+            // estimator: too few synth heads near impact), so the draws say nothing about it.
+            // Publish NO σ — absent is "not characterised"; 0 would claim the reading is exact
+            // (the 1 Oct sigma sweep: 18 of 90 swings, every one an implausible −33…−86°).
+            if (!std::isfinite(sd) || sd <= 1e-9) continue;
+            ps.sigma     = sd * tuned::uncertainty::kInflateAttack;
+            ps.sigmaKind = shaftsigma::kindOf(tuned::uncertainty::kCalAttack);
+            ps.grossRisk = float(1.0 - double(aa.size()) / n);
+            m.sigma = ps.sigma; m.sigmaKind = ps.sigmaKind;
+        } else if (m.key == QStringLiteral("lowPointAhead")) {
+            const double sd = robustSdCd(lp);
+            if (!std::isfinite(sd)) continue;
+            const double sBall  = ballSigmaPx * mmPerPx / kMmPerIn;
+            const double sRuler = std::abs(ps.value) * tuned::uncertainty::kRulerRelSigma;
+            ps.sigma     = shaftsigma::quad(sd, sBall, sRuler) * tuned::uncertainty::kInflateLowPoint;
+            ps.sigmaKind = shaftsigma::kindOf(tuned::uncertainty::kCalLowPoint);
+            ps.grossRisk = float(1.0 - double(lp.size()) / n);
+            m.sigma = ps.sigma; m.sigmaKind = ps.sigmaKind;
+        }
+    }
 }
 
 } // namespace pinpoint::analysis

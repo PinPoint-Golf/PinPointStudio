@@ -112,6 +112,10 @@ struct SegmentRatesConfig {
     double  pairSwapMinFrac    = tuned::sequence::kPairSwapMinFrac;    // sequence.pairSwapMinFrac
     double  pairMaxTurnDps     = tuned::sequence::kPairMaxTurnDps;     // sequence.pairMaxTurnDps
     bool    pairTrunkThoraxPlacement = tuned::sequence::kPairTrunkThoraxPlacement; // sequence.pairTrunk.thoraxPlacement
+    // The club angle's per-sample σ from the shaft uncertainty pass (sigmaThetaDeg) in place of
+    // shaftThetaSigmaRad / conf. A VALUE change, not a σ-only one: the wider σ un-places the club
+    // node on some swings (the 1 Oct sigma sweep), so it has its own switch, off until Mark rules.
+    bool    calibratedClubSigma = tuned::uncertainty::kSequenceSigma;  // uncertainty.sequenceSigma
 
     static SegmentRatesConfig fromOverrides(const QVariantMap &ov)
     {
@@ -133,6 +137,7 @@ struct SegmentRatesConfig {
         apply(ov, "sequence.kpSigmaPx",         c.kpSigmaPx);
         apply(ov, "sequence.gyroNoiseDps",      c.gyroNoiseDps);
         apply(ov, "sequence.faceOnTrunkPlacement", c.faceOnTrunkPlacement);
+        apply(ov, "uncertainty.sequenceSigma",  c.calibratedClubSigma);
         apply(ov, "sequence.sightedTurnDeg",    c.sightedTurnDeg);
         apply(ov, "sequence.minAfterReversalMs", c.minAfterReversalMs);
         apply(ov, "sequence.minCredibleClubMph", c.minCredibleClubMph);

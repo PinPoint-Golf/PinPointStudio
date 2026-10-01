@@ -87,6 +87,7 @@ inline QJsonObject planeJson(const fusion::PlaneFit &p, bool offered)
     o["oopP90Deg"] = num(p.oopP90Deg);
     o["foRatio"]   = num(p.foRatio);
     o["foNodeDeg"] = num(p.foNodeDeg);
+    if (std::isfinite(p.inclSigmaDeg)) o["inclSigmaDeg"] = p.inclSigmaDeg;   // uncertainty §4.7, only when assessed
     return o;
 }
 } // namespace fusion_json_detail
@@ -120,6 +121,7 @@ inline QJsonObject shaftTrack3dToJson(const fusion::Track3D &t, const fusion::Co
         // item off writes the frames the previous version wrote, key for key.
         if (std::isfinite(s.etaDeg))     fr["etaDeg"] = s.etaDeg;
         if (std::isfinite(s.anchorCond)) fr["anchorCond"] = s.anchorCond;
+        if (std::isfinite(s.sigmaDeg))   fr["sigmaDeg"] = s.sigmaDeg;   // uncertainty §4.7
         if (s.flags & fusion::DtlAnchored) fr["uBridged"] = QJsonArray { s.uBridged.x, s.uBridged.y, s.uBridged.z };
         frames.append(fr);
     }
@@ -152,7 +154,10 @@ inline QJsonObject shaftTrack3dToJson(const fusion::Track3D &t, const fusion::Co
                                         { "yawDeg", t.dtlYawDeg }, { "pitchDeg", t.dtlPitchDeg },
                                         { "rollDeg", t.dtlRollDeg },
                                         { "offset", QJsonArray { t.dtlOffsetM[0], t.dtlOffsetM[1], t.dtlOffsetM[2] } } } },
-        { "address",      QJsonObject { { "inclDeg", num(t.addressInclDeg) }, { "n", t.addressN } } },
+        { "address",      std::isfinite(t.addressInclSigmaDeg)
+                              ? QJsonObject { { "inclDeg", num(t.addressInclDeg) }, { "n", t.addressN },
+                                              { "inclSigmaDeg", t.addressInclSigmaDeg } }
+                              : QJsonObject { { "inclDeg", num(t.addressInclDeg) }, { "n", t.addressN } } },
         { "deliveryVsAddressDeg", num(t.deliveryVsAddressDeg) },
         { "planes",       QJsonObject { { "back", planeJson(t.back, t.back.offered(cfg)) },
                                         { "down", planeJson(t.down, t.down.offered(cfg)) } } },

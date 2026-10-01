@@ -48,6 +48,7 @@
 // chart draws as not-measured; a reading is only ever taken off a frame whose `valid` is 1.
 
 #include "dtl_shaft_track.h"
+#include "../Core/pp_tuned_constants.h"   // tuned::uncertainty (σ budget)
 #include "swing_analysis.h"
 
 #include <QString>
@@ -81,9 +82,15 @@ inline double dtlShaftLieDeg(double thetaRad)
 // within this of it — one and a half frames at 120 fps. Further than that and the band that
 // covers the instant is missing, which is an absence, not a reading from the nearest band that
 // does exist.
+// `withSigma` (uncertainty design §6): each reading carries its frame's σθ_D (the fold has slope
+// ±1) ⊕ the lie's rate there × the instant's timing σ (sigTAddrUs / sigTImpUs), and the frame's
+// gross risk. The DTL σ is address-calibrated and propagated beyond it, so the kind is Propagated
+// unless the per-metric calibration said otherwise.
 inline DtlShaftLieResult buildDtlShaftLie(const DtlShaftTrack2D &track,
                                           const std::vector<PhaseEvent> &phases,
-                                          int64_t maxSnapUs = 12500)
+                                          int64_t maxSnapUs = 12500,
+                                          bool withSigma = false,
+                                          double sigTAddrUs = 0.0, double sigTImpUs = 0.0)
 {
     DtlShaftLieResult res;
     auto refuse = [&res](const QString &why) { res.reason = why; return res; };
@@ -153,7 +160,30 @@ inline DtlShaftLieResult buildDtlShaftLie(const DtlShaftTrack2D &track,
         if (best < 0 || bestD > maxSnapUs) return;
         outDeg  = pts[size_t(best)].v;
         outSnap = bestD;
-        m.phaseSamples.push_back({ ph, at, outDeg, QString() });
+        PhaseSample ps{ ph, at, outDeg, QString() };
+        if (withSigma) {
+            // The DTL sample the reading came from, by time (pts is sorted; samples are not).
+            const DtlSample *src = nullptr;
+            for (const DtlSample &s : track.samples)
+                if (s.t_us - track.clockOffsetUs == pts[size_t(best)].t && dtlMeasured(s.tier)) { src = &s; break; }
+            if (src && std::isfinite(src->sigmaThetaDeg)) {
+                // The lie's rate at the reading: the neighbouring measured frames' slope.
+                double rate = 0.0;
+                int a = best - 1, b = best + 1;
+                while (a >= 0 && !pts[size_t(a)].measured) --a;
+                while (b < int(pts.size()) && !pts[size_t(b)].measured) ++b;
+                if (a >= 0 && b < int(pts.size()) && pts[size_t(b)].t > pts[size_t(a)].t)
+                    rate = (pts[size_t(b)].v - pts[size_t(a)].v) / (double(pts[size_t(b)].t - pts[size_t(a)].t) * 1e-6);
+                const double sigT = ph == Phase::Address ? sigTAddrUs : sigTImpUs;
+                const double sig  = std::sqrt(src->sigmaThetaDeg * src->sigmaThetaDeg
+                                              + std::pow(std::abs(rate) * sigT * 1e-6, 2.0))
+                                    * tuned::uncertainty::kInflateLie;
+                ps.sigma     = sig;
+                ps.sigmaKind = uint8_t(tuned::uncertainty::kCalLie ? SigmaKind::Calibrated : SigmaKind::Propagated);
+                ps.grossRisk = float(std::isfinite(src->pGross) ? src->pGross : -1.0);
+            }
+        }
+        m.phaseSamples.push_back(ps);
     };
     readAt(Phase::Address, *addrUs, res.addressDeg, res.addressSnapUs);
     if (impactUs) readAt(Phase::Impact, *impactUs, res.impactDeg, res.impactSnapUs);

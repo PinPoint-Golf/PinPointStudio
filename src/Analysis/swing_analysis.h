@@ -271,7 +271,23 @@ struct PhaseSample {
     int64_t t_us  = 0;
     double  value = 0.0;
     QString band;           // "green"/"yellow"/"red" at scored phases, else ""
+    // 1σ measurement uncertainty of THIS reading (unit-space), propagated per instant
+    // (shaft_uncertainty_propagation_design.md). Same absence contract as
+    // MetricSeries::sigma: absent = not characterised. sigmaKind says what backs it
+    // (SigmaKind below); grossRisk is the probability the reading rests on a gross error
+    // (the tracker on the wrong structure) — reported beside σ, never folded into it.
+    // −1 = not assessed. All three serialise only when set.
+    std::optional<double> sigma;
+    uint8_t sigmaKind = 0;
+    float   grossRisk = -1.f;
 };
+
+// What backs a published σ (design §6.4). Unspecified = a producer that predates the
+// field (body rotation, tempo); Propagated = budget propagated from calibrated inputs,
+// no truth of its own; Calibrated = propagated AND its held-out coverage checked;
+// AssumedInput = propagated, and one input was ASSUMED rather than measured (the club length
+// defaulted because no club was recorded — design §9 Q1): the σ is wide on purpose.
+enum class SigmaKind : uint8_t { Unspecified = 0, Propagated = 1, Calibrated = 2, AssumedInput = 3 };
 
 // A per-frame metric curve over the window's TimeGrid plus sparse phase samples.
 struct MetricSeries {
@@ -295,6 +311,7 @@ struct MetricSeries {
     // dashed, skipped by every reducer, never the site of a phase sample.
     std::vector<uint8_t> valid;
     bool flexPositive = true;             // stored-sign polarity (flip only at the label)
+    uint8_t sigmaKind = 0;                // SigmaKind of `sigma`; 0 = unspecified (serialised only when > 0)
 };
 
 // Find a series by anatomical key, BEST INSTRUMENT FIRST.
@@ -649,6 +666,17 @@ struct ShaftSample2D {
     // tier (no measurement). Serialized only when ≥ 0 so a snap-off run stays
     // byte-identical.
     float   lineConf     = -1.f;
+    // Shaft uncertainty (shaft_uncertainty_propagation_design.md §4.1): 1σ of thetaRad in
+    // DEGREES, and the probability this sample rests on a gross error (the wrong structure),
+    // which σ does not describe. −1 = not assessed (uncertainty off / pre-design document).
+    // Serialised only when ≥ 0, so an uncertainty-off run stays byte-identical.
+    float   sigmaThetaDeg = -1.f;
+    float   pGross        = -1.f;
+    // The decide tier that earned thetaRad (0 pred / 1 ray / 2 band / 3 recon / 4 wedge / 5 seg,
+    // shaft_track_assembly.cpp), recorded with the σ so a REUSED track knows which samples were
+    // model predictions (resynthesizeLayerC's isPred) without the dead ShaftKinematicPredicted
+    // flag. −1 = not recorded (uncertainty off / older document). Serialised only when ≥ 0.
+    int8_t  tier          = -1;
 };
 
 // Multi-estimator club-length fusion result (club_length_fusion.h), recorded per
@@ -712,6 +740,12 @@ struct ShaftPlaneChannel {
     float  anchorConfMin    = -1.f;   // SYNTH only: the weakest anchor over both windows
     int    rejectBack       = 0;      // ConicReject as int — WHY a window failed
     int    rejectDown       = 0;
+    // Block-bootstrap uncertainty (uncertainty design §4.7): 1σ of ι per window and of the
+    // delta, and the fraction of resamples that became needles. < 0 = not assessed.
+    double sigmaIotaBackDeg = -1.0;
+    double sigmaIotaDownDeg = -1.0;
+    double sigmaDeltaDeg    = -1.0;
+    double pNeedle          = -1.0;
 };
 
 // The face-on swing-plane transition delta, recorded per swing. EXPERIMENTAL and
@@ -750,6 +784,7 @@ struct ShaftPosition {
     float    conf          = 0.f;
     float    sigmaThetaDeg = -1.f;    // θ posterior σ (deg); −1 = not fitted (B1)
     float    sigmaLenPx    = -1.f;    // length posterior σ (px); −1 = not fitted (B1)
+    float    sigmaTUs      = -1.f;    // 1σ of t_us (µs) — the instant's timing uncertainty (U4); −1 = not assessed
     int      stackN        = 0;       // shift-and-stack frame count (B2); 0 = track sample
     uint8_t  source        = 0;       // PositionSource
     // How the TIME was located, for timeline arbitration (timeline-fusion.md
@@ -775,6 +810,8 @@ struct ShaftWedgeObs {
     ShaftWedgeObsKind kind     = ShaftWedgeObsKind::Lead;
     float             sigmaDeg = 0.f;
 };
+
+struct SynthPosterior;   // shaft_synthesis.h — the Layer C fit's posterior (uncertainty design §4.5)
 
 struct ShaftTrack2D {
     pinpoint::SourceId camera = pinpoint::kInvalidSourceId;
@@ -835,11 +872,18 @@ struct ShaftTrack2D {
     // The blurred frames' timed edge readings (ShaftWedgeObs), in time order — on every frame the
     // tracker accepted as a WEDGE measurement. Empty when the wedge or its edges are off.
     std::vector<ShaftWedgeObs> wedgeObs;
+    // The Layer C evidence fit's posterior (per-stretch Cholesky factor, node map, anchor σ),
+    // kept so the uncertainty Monte Carlo can draw alternative synthetic tracks
+    // (shaft_synthesis.h synthDraws). IN-MEMORY ONLY — never serialised; rebuilt with the synth
+    // (synthesizeLayerC / resynthesizeLayerC). Null when the uncertainty pass is off.
+    std::shared_ptr<const SynthPosterior> synthPost;
     // THE BALL ANCHORS IMPACT (impact_anchor.h): when the address ball was found by its departure,
     // the P7 position is the line from the hands to it (the clubhead IS at the ball at contact) and
     // the synth passes through it. addressBallPx in image px; ballAnchored false ⇒ nothing anchored.
     bool    ballAnchored = false;
     QPointF addressBallPx;
+    float   addressBallSigmaPx = -1.f;   // 1σ of addressBallPx (px); −1 = not assessed (uncertainty design §4.3)
+    float   synthKappa         = -1.f;   // the synth posterior's reading-weight inflation used (§4.5); −1 = no posterior
     // ── Robustness self-checks (2026-10-01, tracker_robustness) ─────────────
     // A refused track is one the tracker's own witnesses contradict: it keeps
     // its samples for the lab but is NOT a measurement — valid is false, the

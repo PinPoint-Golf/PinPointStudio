@@ -18,6 +18,10 @@
 
 #include "kinematic_series.h"
 
+#include "det_rng.h"           // deterministic Monte Carlo (uncertainty design principle 7)
+#include "shaft_sigma.h"       // σ helpers
+#include "shaft_synthesis.h"   // synthDraws
+
 #include <QPointF>
 
 #include <algorithm>
@@ -375,6 +379,151 @@ MetricSeries buildLagSeries(const std::vector<ShaftSample2D> &track, const Shaft
     return m;
 }
 
+// Robust spread (1.4826 × MAD) of a sample; NaN when fewer than 5 values.
+double robustSd(std::vector<double> v)
+{
+    v.erase(std::remove_if(v.begin(), v.end(), [](double x) { return !std::isfinite(x); }), v.end());
+    if (v.size() < 5) return std::numeric_limits<double>::quiet_NaN();
+    std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end());
+    const double med = v[v.size() / 2];
+    for (double &x : v) x = std::abs(x - med);
+    std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end());
+    return 1.4826 * v[v.size() / 2];
+}
+
+// A keypoint's smoother σ (px) at time t, floored; the floor when the smoother left nothing.
+double kpSigmaPx(const PoseTrack2D &pose, int64_t t, int kp)
+{
+    const double floorPx = tuned::uncertainty::kGripSigmaFloorPx;
+    if (pose.smoothed.empty() || pose.smoothedAux.size() != pose.smoothed.size()) return floorPx;
+    size_t best = 0;
+    int64_t bd = std::numeric_limits<int64_t>::max();
+    for (size_t i = 0; i < pose.smoothed.size(); ++i) {
+        const int64_t d = std::llabs(pose.smoothed[i].t_us - t);
+        if (d < bd) { bd = d; best = i; }
+    }
+    const float s = pose.smoothedAux[best].sigma[size_t(kp)];
+    return s > 0.f ? std::max(floorPx, double(s)) : floorPx;
+}
+
+// The median camera-frame interval of the measured track (s) — the spacing the grip's jitter
+// lives on, whatever cadence the drawn track has.
+double cameraPeriodS(const ShaftTrack2D &shaft)
+{
+    std::vector<int64_t> d;
+    for (size_t i = 1; i < shaft.samples.size(); ++i)
+        if (shaft.samples[i].t_us > shaft.samples[i - 1].t_us) d.push_back(shaft.samples[i].t_us - shaft.samples[i - 1].t_us);
+    if (d.empty()) return 1.0 / 150.0;
+    std::nth_element(d.begin(), d.begin() + d.size() / 2, d.end());
+    return double(d[d.size() / 2]) * 1e-6;
+}
+
+// σ on the kinematic series' phase readings (uncertainty design §6). Clubhead speed: a Monte
+// Carlo over the synth posterior's draws (the rotation-rate term, anchors included) ⊕ the club
+// length (the composed speed is linear in it) ⊕ the grip velocity. Peak lead: the same draws.
+// Hand speed: the grip velocity. Lag: the shaft angle ⊕ the forearm angle.
+void addKinematicSigma(std::vector<MetricSeries> &out, const KinematicSeriesInputs &in,
+                       const std::vector<ShaftSample2D> &track, double mPerPx, double lengthM,
+                       int64_t boundaryUs)
+{
+    const ShaftTrack2D &shaft = *in.shaft;
+    const UncertaintyConfig &unc = *in.unc;
+    const double hCam  = cameraPeriodS(shaft);
+    const double sClub = in.clubLengthKnown ? tuned::uncertainty::kClubLenSigmaKnownM
+                                            : tuned::uncertainty::kClubLenSigmaDefaultM;
+    // The grip velocity's σ (px/s) from a ±1-frame difference of two grip positions.
+    const auto gripVelSigma = [&](int64_t t) {
+        const double sg = in.pose ? shaftsigma::gripSigmaPx(*in.pose, t) : tuned::uncertainty::kGripSigmaFloorPx;
+        return std::sqrt(2.0) * sg / (2.0 * hCam);
+    };
+    const bool synthTrack = &track == &shaft.synth;
+    std::vector<std::vector<ShaftSample2D>> draws;
+    if (synthTrack && shaft.synthPost && unc.synthPosterior) {
+        DetRng rng(unc.seed);
+        draws = synthDraws(shaft.synth, shaft.positions, *shaft.synthPost, unc.mcDraws, rng);
+    }
+    for (MetricSeries &m : out) {
+        if (m.key == QStringLiteral("clubheadSpeed") || m.key == QStringLiteral("handSpeed")) {
+            const bool head = m.key == QStringLiteral("clubheadSpeed");
+            std::vector<std::vector<double>> drawSp;
+            if (head && in.composed)
+                for (const auto &d : draws) drawSp.push_back(composedHeadSpeedMph(d, shaft, mPerPx));
+            for (PhaseSample &ps : m.phaseSamples) {
+                const int i = nearestIndex(m.t_us, ps.t_us);
+                if (i < 0) continue;
+                double sMc = 0.0;
+                if (!drawSp.empty()) {
+                    std::vector<double> v;
+                    for (const auto &sp : drawSp) if (size_t(i) < sp.size()) v.push_back(sp[size_t(i)]);
+                    sMc = robustSd(v);
+                } else if (head) {
+                    // No posterior: the measured samples' σθ through the rotation term, L·σθ̇.
+                    const shaftsigma::SigmaAt sa = shaftsigma::sigmaAt(shaft.samples, ps.t_us);
+                    const double L = shaft.lengths.fusedPx > 0.0 ? shaft.lengths.fusedPx : shaft.measuredClubLenPx;
+                    if (std::isfinite(sa.sigDeg) && L > 0.0)
+                        sMc = L * (std::sqrt(2.0) * sa.sigDeg * kPi / 180.0 / (2.0 * hCam)) * mPerPx * kMps2Mph;
+                }
+                if (!std::isfinite(sMc)) continue;
+                const double sGrip = gripVelSigma(ps.t_us) * mPerPx * kMps2Mph / (head ? 1.0 : std::sqrt(unc.nEff(5.0)));
+                const double sLen  = lengthM > 0.0 ? std::abs(ps.value) * sClub / lengthM : 0.0;
+                const double sig   = shaftsigma::quad(sMc, sGrip, sLen)
+                                     * (head ? tuned::uncertainty::kInflateSpeed : 1.0);
+                ps.sigma     = sig;
+                ps.sigmaKind = head ? (in.clubLengthKnown ? shaftsigma::kindOf(tuned::uncertainty::kCalSpeed)
+                                                          : uint8_t(SigmaKind::AssumedInput))
+                                    : uint8_t(SigmaKind::Propagated);
+                const shaftsigma::SigmaAt sa = shaftsigma::sigmaAt(track, ps.t_us);
+                if (std::isfinite(sa.pGross)) ps.grossRisk = float(sa.pGross);
+                if (ps.phase == Phase::Impact) { m.sigma = sig; m.sigmaKind = ps.sigmaKind; }
+            }
+        } else if (m.key == QStringLiteral("clubheadPeakLead")) {
+            if (draws.empty() || !in.composed || m.phaseSamples.empty()) continue;
+            std::vector<int64_t> t;
+            for (const ShaftSample2D &e : track) t.push_back(e.t_us);
+            std::vector<double> v;
+            for (const auto &d : draws) {
+                const MetricSeries sp = makeSpeedSeries(QStringLiteral("clubheadSpeed"), QString(), t,
+                                                        composedHeadSpeedMph(d, shaft, mPerPx),
+                                                        in.phases, in.impactUs, boundaryUs);
+                if (const std::optional<MetricSeries> lead =
+                        peakLeadSeries(sp, in.phases, boundaryUs >= 0 ? boundaryUs : in.impactUs))
+                    if (!lead->phaseSamples.empty()) v.push_back(lead->phaseSamples.front().value);
+            }
+            // The peak lands on a sample, so the draws' spread is quantised: when most draws pick the
+            // same sample the robust spread is 0, which would claim an exact time. Floor it at the
+            // sample quantum, period/√12 (the 1 Oct sigma sweep: 13 of 90 swings read ±0).
+            const double rawSig = robustSd(v);
+            if (!std::isfinite(rawSig)) continue;
+            const double sig = std::max(rawSig, cameraPeriodS(shaft) * 1e3 * tuned::uncertainty::kCrossingFloorFrac);
+            PhaseSample &ps = m.phaseSamples.front();
+            ps.sigma = sig;
+            ps.sigmaKind = uint8_t(SigmaKind::Propagated);
+            // The share of draws in which the peak could not be read at all is its gross risk.
+            ps.grossRisk = float(1.0 - double(v.size()) / double(std::max<size_t>(1, draws.size())));
+            m.sigma = sig; m.sigmaKind = ps.sigmaKind;
+        } else if (m.key == QStringLiteral("lagAngle")) {
+            const bool leadLeft = (in.handedness != 2);
+            const int elbowKp = leadLeft ? kLeftElbow : kRightElbow;
+            const int wristKp = leadLeft ? kLeftWrist : kRightWrist;
+            for (PhaseSample &ps : m.phaseSamples) {
+                const shaftsigma::SigmaAt sa = shaftsigma::sigmaAt(track, ps.t_us);
+                if (!std::isfinite(sa.sigDeg) || !in.pose) continue;
+                double dx = 0.0, dy = 0.0;
+                if (!forearmDirAt(*in.pose, ps.t_us, elbowKp, wristKp, shaft.frameWidth, shaft.frameHeight, dx, dy))
+                    continue;
+                const double sPhi = shaftsigma::lineAngleSigmaDeg(kpSigmaPx(*in.pose, ps.t_us, elbowKp),
+                                                                  kpSigmaPx(*in.pose, ps.t_us, wristKp),
+                                                                  std::hypot(dx, dy));
+                if (!std::isfinite(sPhi)) continue;
+                ps.sigma     = shaftsigma::quad(sa.sigDeg, sPhi) * tuned::uncertainty::kInflateLag;
+                ps.sigmaKind = shaftsigma::kindOf(tuned::uncertainty::kCalLag);
+                if (std::isfinite(sa.pGross)) ps.grossRisk = float(sa.pGross);
+                if (ps.phase == Phase::Impact) { m.sigma = ps.sigma; m.sigmaKind = ps.sigmaKind; }
+            }
+        }
+    }
+}
+
 } // namespace
 
 std::optional<MetricSeries> clubheadPeakLeadFromSpeed(const MetricSeries &speed,
@@ -417,6 +566,10 @@ std::vector<MetricSeries> buildKinematicSeries(const KinematicSeriesInputs &in)
         boundaryUs = in.impactUs;
         for (const ShaftPosition &p : shaft.positions)
             if (p.p == 7) { boundaryUs = p.t_us; break; }
+        // One impact instant (uncertainty design §4.4, uncertainty.oneImpact): the ladder's.
+        if (in.unc && in.unc->enabled && in.unc->oneImpact)
+            for (const PhaseEvent &e : in.phases)
+                if (e.phase == Phase::Impact) { boundaryUs = e.t_us; break; }
     }
     out.push_back(makeSpeedSeries(QStringLiteral("clubheadSpeed"), QStringLiteral("Clubhead speed"),
                                   t, in.composed ? composedHeadSpeedMph(track, shaft, mPerPx)
@@ -436,6 +589,8 @@ std::vector<MetricSeries> buildKinematicSeries(const KinematicSeriesInputs &in)
             out.push_back(std::move(lag));
     }
 
+    if (in.unc && in.unc->enabled)
+        addKinematicSigma(out, in, track, mPerPx, lengthM, boundaryUs);
     return out;
 }
 

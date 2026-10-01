@@ -1338,7 +1338,12 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             for (size_t i = 0; i < n; ++i) {
                 a.t[i]        = track[i].t_us;
                 a.angleRad[i] = track[i].thetaRad;
-                a.sigmaRad[i] = cfg.shaftThetaSigmaRad / std::max(double(track[i].conf), 0.2);
+                // The calibrated per-sample σθ where the uncertainty pass assessed one
+                // (shaft_uncertainty_propagation_design.md §6); else the old confidence-scaled
+                // constant. Feeds only the rate's σ and the node placement σ, never the rate.
+                a.sigmaRad[i] = (cfg.calibratedClubSigma && track[i].sigmaThetaDeg > 0.f)
+                                    ? double(track[i].sigmaThetaDeg) * 3.14159265358979323846 / 180.0
+                                    : cfg.shaftThetaSigmaRad / std::max(double(track[i].conf), 0.2);
             }
             unwrapInPlace(a.angleRad);
             // The fused two-camera plane where the fusion offered one (kinematic_sequence_design.md

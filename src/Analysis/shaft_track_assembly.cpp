@@ -28,6 +28,7 @@
 #include "analysis_tuning.h"       // pinpoint::analysis::tuning::apply
 #include "ball_anchor.h"           // medianGripBallLenPx (A1 — L_px before head placement)
 #include "shaft_kinematics.h"      // R6 predictor (swingProgress/phiClubPred/envelope, S2 wedge)
+#include "shaft_sigma.h"           // uncertainty helpers (shaft_uncertainty_propagation_design.md)
 #include "shaft_position_fit.h"    // sampleClamp/med4/ridgeLineIntegral (shared) + fitPosition (Layer B B-fit)
 
 #include <QElapsedTimer>           // Stage-2 head-pass wall-clock (trace->headMs)
@@ -151,6 +152,22 @@ inline int phaseSign(SwingPhase p)
         case SwingPhase::Finish:    return -1;
         default:                    return 0;   // addr, top
     }
+}
+
+// Uncertainty phase group (design §4.1) of a frame: its SwingPhase, with the backswing split
+// at P2 (shaft parallel) — the early takeaway behaves unlike the rest of the backswing.
+inline SigGroup sigGroupOf(SwingPhase p, int64_t tUs, int64_t p2Us)
+{
+    switch (p) {
+        case SwingPhase::Addr:      return SigGroup::Address;
+        case SwingPhase::Backswing: return (p2Us >= 0 && tUs < p2Us) ? SigGroup::EarlyBs : SigGroup::Backswing;
+        case SwingPhase::Top:       return SigGroup::Top;
+        case SwingPhase::Downswing: return SigGroup::Downswing;
+        case SwingPhase::Impact:    return SigGroup::Impact;
+        case SwingPhase::Thru:      return SigGroup::Through;
+        case SwingPhase::Finish:    return SigGroup::Finish;
+    }
+    return SigGroup::Finish;
 }
 
 inline bool isMidswing(SwingPhase p)
@@ -339,6 +356,84 @@ DPResult viterbiBanded(const std::vector<std::vector<float>>& emis,
     out.thetaDeg.resize(nf);
     for (int f = 0; f < nf; ++f) out.thetaDeg[f] = out.thstar[f] * gridDeg;
     return out;
+}
+
+std::vector<std::vector<float>> forwardBackwardBanded(const std::vector<std::vector<float>>& emis,
+                                                      const std::vector<int>& wmaxBins,
+                                                      const std::vector<int>& sgn,
+                                                      double kSmooth, double gridDeg, double T)
+{
+    const int nf = int(emis.size());
+    std::vector<std::vector<float>> out;
+    if (nf == 0 || emis[0].empty() || !(T > 0.0)) return out;
+    const int NS = int(emis[0].size());
+    // α_f(k): cost-to-arrive, soft-min over predecessors; β_f(k): cost-to-go.
+    std::vector<std::vector<double>> alpha(static_cast<size_t>(nf), std::vector<double>(static_cast<size_t>(NS)));
+    std::vector<std::vector<double>> beta(static_cast<size_t>(nf), std::vector<double>(size_t(NS), 0.0));
+    for (int k = 0; k < NS; ++k) alpha[0][size_t(k)] = emis[0][size_t(k)];
+    std::vector<double> acc(static_cast<size_t>(NS));
+    for (int f = 1; f < nf; ++f) {
+        const int wmax = wmaxBins[size_t(f)], s = sgn[size_t(f)];
+        const int dLo = (s > 0) ? 0 : -wmax, dHi = (s < 0) ? 0 : wmax;
+        for (int k = 0; k < NS; ++k) {
+            double m = std::numeric_limits<double>::infinity();
+            for (int d = dLo; d <= dHi; ++d) {
+                const int src = ((k - d) % NS + NS) % NS;
+                m = std::min(m, alpha[size_t(f - 1)][size_t(src)] + kSmooth * (d * gridDeg) * (d * gridDeg));
+            }
+            double sum = 0.0;
+            for (int d = dLo; d <= dHi; ++d) {
+                const int src = ((k - d) % NS + NS) % NS;
+                sum += std::exp(-(alpha[size_t(f - 1)][size_t(src)] + kSmooth * (d * gridDeg) * (d * gridDeg) - m) / T);
+            }
+            alpha[size_t(f)][size_t(k)] = emis[size_t(f)][size_t(k)] + m - T * std::log(sum);
+        }
+    }
+    for (int f = nf - 2; f >= 0; --f) {
+        const int wmax = wmaxBins[size_t(f + 1)], s = sgn[size_t(f + 1)];
+        const int dLo = (s > 0) ? 0 : -wmax, dHi = (s < 0) ? 0 : wmax;
+        for (int j = 0; j < NS; ++j) {
+            double m = std::numeric_limits<double>::infinity();
+            for (int d = dLo; d <= dHi; ++d) {
+                const int dst = ((j + d) % NS + NS) % NS;
+                m = std::min(m, kSmooth * (d * gridDeg) * (d * gridDeg) + emis[size_t(f + 1)][size_t(dst)]
+                                + beta[size_t(f + 1)][size_t(dst)]);
+            }
+            double sum = 0.0;
+            for (int d = dLo; d <= dHi; ++d) {
+                const int dst = ((j + d) % NS + NS) % NS;
+                sum += std::exp(-(kSmooth * (d * gridDeg) * (d * gridDeg) + emis[size_t(f + 1)][size_t(dst)]
+                                  + beta[size_t(f + 1)][size_t(dst)] - m) / T);
+            }
+            beta[size_t(f)][size_t(j)] = m - T * std::log(sum);
+        }
+    }
+    out.assign(size_t(nf), std::vector<float>(size_t(NS), 0.f));
+    for (int f = 0; f < nf; ++f) {
+        double m = std::numeric_limits<double>::infinity();
+        for (int k = 0; k < NS; ++k) { acc[size_t(k)] = alpha[size_t(f)][size_t(k)] + beta[size_t(f)][size_t(k)]; m = std::min(m, acc[size_t(k)]); }
+        double z = 0.0;
+        for (int k = 0; k < NS; ++k) { acc[size_t(k)] = std::exp(-(acc[size_t(k)] - m) / T); z += acc[size_t(k)]; }
+        for (int k = 0; k < NS; ++k) out[size_t(f)][size_t(k)] = float(acc[size_t(k)] / z);
+    }
+    return out;
+}
+
+FbSummary fbSummary(const std::vector<float>& marginal, double gridDeg, double thetaDeg)
+{
+    FbSummary r;
+    if (marginal.empty()) return r;
+    double w = 0.0, s2 = 0.0, alt = 0.0, tot = 0.0;
+    for (size_t k = 0; k < marginal.size(); ++k) {
+        const double p = marginal[k];
+        const double d = circWrap(double(k) * gridDeg - thetaDeg);
+        tot += p;
+        if (std::abs(d) > 15.0) alt += p;
+        if (std::abs(d) <= 30.0) { w += p; s2 += p * d * d; }
+    }
+    if (w > 0.0) r.sigmaDeg = std::sqrt(s2 / w);
+    if (tot > 0.0) r.pAlt = alt / tot;
+    return r;
 }
 
 } // namespace shaftshared
@@ -586,6 +681,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.handAxisPrior.weight",  c.handAxisPrior.weight);
     apply(ov, "shaft.handAxisPrior.confMin", c.handAxisPrior.confMin);
     apply(ov, "shaft.handAxisPrior.maxDeg",  c.handAxisPrior.maxDeg);
+    c.unc = UncertaintyConfig::fromOverrides(ov);
     return c;
 }
 
@@ -1533,6 +1629,18 @@ double projectedClubLenPx(double measuredClubLenPx, double sTypical, double r0Me
     return std::min(L, ceil);
 }
 
+// σ (rad) of a P-anchor's angle for the synth posterior (uncertainty design §4.5): the milestone
+// fit's own σθ where it re-measured the position, else the track's σθ at the instant; ⊕ the rate ×
+// the instant's timing σ. 0 = not assessed (the samples carry no σ).
+static double anchorSigmaRad(const ShaftTrack2D& out, const ShaftPosition& p)
+{
+    const shaftsigma::SigmaAt sa = shaftsigma::sigmaAt(out.samples, p.t_us);
+    double sig = p.sigmaThetaDeg > 0.f ? double(p.sigmaThetaDeg) : sa.sigDeg;
+    if (!std::isfinite(sig)) return 0.0;
+    sig = shaftsigma::quad(sig, shaftsigma::timingTerm(sa.thetaDotDegS, p.sigmaTUs >= 0.f ? double(p.sigmaTUs) : 0.0));
+    return sig * kPi / 180.0;
+}
+
 // ── Layer C: synthesis between anchors (shaft_position_first §2 Layer C) ─────────
 // Factored out of decideTrack (2026-09-17) so the SAME code runs on a track rebuilt
 // from a swing document (resynthesizeLayerC below): the synth tier is a pure function
@@ -1753,7 +1861,39 @@ static void synthesizeLayerC(ShaftTrack2D& out, const std::vector<int64_t>& tUs,
                     break;
                 }
             }
-            fitSynthToEvidence(out.synth, out.positions, ev, cfg.synth, softImpact);
+            // Uncertainty U3 (shaft_uncertainty_propagation_design.md §4.5): keep the fit's
+            // posterior, and — only under synthSoftAnchors — let the anchors move by their σ.
+            const bool wantPost = cfg.unc.enabled && cfg.unc.synthPosterior;
+            const bool soft     = cfg.unc.enabled && cfg.unc.synthSoftAnchors;
+            std::vector<double> anchorSig;
+            if (wantPost || soft) {
+                anchorSig.reserve(out.positions.size());
+                for (const ShaftPosition& p : out.positions) anchorSig.push_back(anchorSigmaRad(out, p));
+            }
+            auto post = wantPost ? std::make_shared<SynthPosterior>() : nullptr;
+            fitSynthToEvidence(out.synth, out.positions, ev, cfg.synth, softImpact, post.get(),
+                               cfg.unc.synthKappa, soft ? &anchorSig : nullptr);
+            if (post) {
+                post->anchorT.clear();
+                for (const ShaftPosition& p : out.positions) post->anchorT.push_back(p.t_us);
+                // A soft anchor's σ already lives in M; carrying it again by the bracket weights
+                // would count it twice.
+                post->anchorSigmaRad = soft ? std::vector<double>(anchorSig.size(), 0.0) : anchorSig;
+                post->scale = cfg.unc.synthSigmaScale;
+                synthPosteriorSigma(out.synth, out.positions, *post);
+                // Gross risk of a tick: the larger of its two anchors' (the curve is pinned to them).
+                for (ShaftSample2D& s : out.synth)
+                    for (size_t k = 0; k + 1 < out.positions.size(); ++k)
+                        if (s.t_us > out.positions[k].t_us && s.t_us < out.positions[k + 1].t_us) {
+                            const shaftsigma::SigmaAt a = shaftsigma::sigmaAt(out.samples, out.positions[k].t_us);
+                            const shaftsigma::SigmaAt b = shaftsigma::sigmaAt(out.samples, out.positions[k + 1].t_us);
+                            if (std::isfinite(a.pGross) && std::isfinite(b.pGross))
+                                s.pGross = float(std::max(a.pGross, b.pGross));
+                            break;
+                        }
+                out.synthPost  = post;
+                out.synthKappa = float(cfg.unc.synthKappa);
+            }
         }
 
         // Rule 2 — the synth may not sweep past the measurements. For every tick, the
@@ -1904,7 +2044,10 @@ void resynthesizeLayerC(ShaftTrack2D& track, const ShaftV3Config& cfg)
         thetaDeg[i] = s.thetaRad * 180.0 / kPi;
         gx[i]       = s.gripPx.x();
         gy[i]       = s.gripPx.y();
-        isPred[i]   = (s.flags & ShaftKinematicPredicted) ? 1 : 0;
+        // The recorded decide tier where the document carries one (uncertainty on): PRED is
+        // exactly what the live run treated as a prediction. Older documents fall back to the
+        // flag, which no v3 producer sets (so those reuse with isPred all 0, as before).
+        isPred[i]   = s.tier >= 0 ? (s.tier == 0 ? 1 : 0) : ((s.flags & ShaftKinematicPredicted) ? 1 : 0);
         // The envelope admits IMU-bridged samples too: a bridged θ is a real reading.
         isMeas[i]   = ((s.flags & (ShaftMeasured | ShaftWedge | ShaftImuBridged)) && !(s.flags & ShaftCoasted)) ? 1 : 0;
     }
@@ -3505,6 +3648,114 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                     // pixels themselves (the P1 stack fit included), so it upgrades
                     // a position the DP had only predicted to a real measurement.
                     pos.timing        = TimingClass::Measured;
+                }
+            }
+        }
+    }
+
+    // ── Shaft uncertainty U1 (shaft_uncertainty_propagation_design.md §4.1) ──────
+    // Every sample gets its calibrated σθ and gross-error probability from the tier ×
+    // phase-group table, read with its own rotation rate. Runs after the positions so the
+    // early-backswing group (onset → P2) is known, and before Layer C so the synth posterior
+    // can read the anchors' σ. Off ⇒ nothing here runs (byte-identical).
+    if (cfg.unc.enabled && cfg.unc.shaftTable) {
+        int64_t p2Us = -1;
+        for (const ShaftPosition& p : out.positions) if (p.p == 2) { p2Us = p.t_us; break; }
+        const double framePeriodS = fps > 0.0 ? 1.0 / fps : 1.0 / 150.0;
+        for (size_t k = 0; k < out.samples.size() && k < sampleFrame.size(); ++k) {
+            ShaftSample2D& s = out.samples[k];
+            const int i = sampleFrame[k];
+            const int tier = int(tierOf[size_t(i)]);
+            s.tier = int8_t(tier);
+            const SigTier row = (s.flags & ShaftImplausible) ? SigTier::Pred : SigTier(std::clamp(tier, 0, 5));
+            const SigGroup g = sigGroupOf(pm.phase[size_t(i)], s.t_us, p2Us);
+            const double thd = std::abs(s.thetaDotRadS) * 180.0 / kPi * framePeriodS;
+            s.sigmaThetaDeg = float(sigTableDeg(row, g, thd));
+            s.pGross        = float(pGrossTable(row, g));
+        }
+
+        // ── U4: the timing σ of every located P-position (design §4.4) ───────────────
+        // A crossing is located where an angle passes a level, so its time is uncertain by the
+        // angle's σ over the angle's rate there; never below a sub-frame quantisation floor.
+        const double periodUs = fps > 0.0 ? 1e6 / fps : 6667.0;
+        const double floorUs  = tuned::uncertainty::kCrossingFloorFrac * periodUs;
+        const auto rateAt = [&](const std::vector<double>& sigDeg, int64_t t) {   // |d/dt| (deg/s) at t
+            int f = 0;
+            while (f + 1 < nf && tUs[size_t(f + 1)] <= t) ++f;
+            const int a = std::max(0, f - 1), b = std::min(nf - 1, f + 1);
+            const double dt = double(tUs[size_t(b)] - tUs[size_t(a)]) * 1e-6;
+            return dt > 0.0 ? std::abs(circWrap(sigDeg[size_t(b)] - sigDeg[size_t(a)])) / dt : 0.0;
+        };
+        for (ShaftPosition& p : out.positions) {
+            double sT = floorUs;
+            if (p.p == 2 || p.p == 6 || p.p == 8) {
+                const shaftsigma::SigmaAt sa = shaftsigma::sigmaAt(out.samples, p.t_us);
+                const double rate = rateAt(rec.thetaOut, p.t_us);
+                if (std::isfinite(sa.sigDeg) && rate > 1e-6) sT = std::max(floorUs, sa.sigDeg / rate * 1e6);
+            } else if (p.p == 3 || p.p == 5) {
+                const double rate = rateAt(phiS, p.t_us);
+                if (rate > 1e-6) sT = std::max(floorUs, tuned::uncertainty::kPhiSigmaDeg / rate * 1e6);
+            } else if (p.p == 1) {
+                sT = std::max(floorUs, double(cfg.positions.p1StillWindow) * periodUs * 0.288675);
+            } else if (p.p == 4) {
+                // The top: the half-width of the grip-speed minimum at 1.5 × its value, as a
+                // uniform spread.
+                if (pm.top >= 0 && pm.top < nf && !pm.spdSmoothed.empty()) {
+                    const double lim = 1.5 * std::max(pm.spdSmoothed[size_t(pm.top)], 0.1);
+                    int lo = pm.top, hi = pm.top;
+                    while (lo > 0 && pm.spdSmoothed[size_t(lo - 1)] <= lim) --lo;
+                    while (hi + 1 < nf && pm.spdSmoothed[size_t(hi + 1)] <= lim) ++hi;
+                    sT = std::max(floorUs, double(tUs[size_t(hi)] - tUs[size_t(lo)]) * 0.288675);
+                }
+            } else if (p.p == 7) {
+                if (impactApplied != kImpactGeomKept) {
+                    // The geometric crossing θ = θ_ball: the shaft's σ (the ball line's few px are
+                    // small beside it at impact) over the closing rate.
+                    const shaftsigma::SigmaAt sa = shaftsigma::sigmaAt(out.samples, p.t_us);
+                    const double rate = rateAt(rec.thetaOut, p.t_us);
+                    if (std::isfinite(sa.sigDeg) && rate > 1e-6) sT = std::max(floorUs, sa.sigDeg / rate * 1e6);
+                } else {
+                    sT = tuned::uncertainty::kTriggerSigmaUs;
+                }
+            }
+            p.sigmaTUs = float(sT);
+        }
+    }
+
+    // ── U5: the forward–backward posterior over the DP's own lattice (design §4.6) ────────
+    // σ and the probability that another structure was the club, per frame, read off the same
+    // emission and transitions the Viterbi solved. Replaces the table's σ on in-span measured
+    // frames only under uncertainty.fbPosterior (its own gate); always traced when a trace sink
+    // asks, at several temperatures, so the calibration needs one run.
+    if (cfg.unc.enabled && (cfg.unc.fbPosterior || trace)) {
+        std::vector<int> wmaxBins(size_t(nf), 0), sgnV(size_t(nf), 0);
+        for (int f = 0; f < nf; ++f) { wmaxBins[size_t(f)] = wmaxFor(pm.phase[size_t(f)], cfg); sgnV[size_t(f)] = phaseSign(pm.phase[size_t(f)]); }
+        std::vector<double> temps;
+        if (trace) temps = { 0.5, 1.0, 2.0, 4.0, 8.0 };
+        if (cfg.unc.fbPosterior && std::find(temps.begin(), temps.end(), cfg.unc.fbTemperature) == temps.end())
+            temps.push_back(cfg.unc.fbTemperature);
+        if (trace) {
+            trace->fbTemps = temps;
+            trace->fbSigma.assign(temps.size(), std::vector<double>(size_t(nf), std::numeric_limits<double>::quiet_NaN()));
+            trace->fbPAlt  = trace->fbSigma;
+        }
+        for (size_t ti = 0; ti < temps.size(); ++ti) {
+            const std::vector<std::vector<float>> marg =
+                forwardBackwardBanded(emis, wmaxBins, sgnV, cfg.kSmooth, cfg.grid, temps[ti]);
+            if (marg.empty()) continue;
+            const bool apply = cfg.unc.fbPosterior && temps[ti] == cfg.unc.fbTemperature;
+            for (size_t k = 0; k < out.samples.size() && k < sampleFrame.size(); ++k) {
+                ShaftSample2D& s = out.samples[k];
+                const int i = sampleFrame[k];
+                const FbSummary fs = fbSummary(marg[size_t(i)], cfg.grid, s.thetaRad * 180.0 / kPi);
+                if (trace) { trace->fbSigma[ti][size_t(i)] = fs.sigmaDeg; trace->fbPAlt[ti][size_t(i)] = fs.pAlt; }
+                // Only where the lattice is what decided θ: in the evidence span, and not a frame
+                // whose θ was replaced after the DP (a reconstruction, a ball paint, a demotion).
+                const bool lattice = heavyMark[size_t(i)] && tierOf[size_t(i)] != RECON
+                                     && !(s.flags & (ShaftBallAnchored | ShaftImplausible));
+                if (apply && lattice && std::isfinite(fs.sigmaDeg) && s.sigmaThetaDeg >= 0.f) {
+                    s.sigmaThetaDeg = float(fs.sigmaDeg);
+                    s.pGross        = float(std::max(double(s.pGross), fs.pAlt));
                 }
             }
         }

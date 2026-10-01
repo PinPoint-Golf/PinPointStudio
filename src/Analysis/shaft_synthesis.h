@@ -421,6 +421,34 @@ struct SynthEvidence {
     double  sigmaRad = 0.0;
 };
 
+// The Layer C fit's posterior, kept for the uncertainty pass (shaft_uncertainty_propagation_design.md
+// §4.5). For every stretch the fit solved: its nodes in time order, which of them were free, and the
+// Cholesky factor L of the normal matrix M (row-major, lower). Under the fit's own model the free
+// nodes' posterior covariance is M⁻¹; the readings are correlated in time, so the published
+// covariance is M⁻¹/κ (κ = n_eff/n ≤ 1, calibrated) — the MEAN is untouched by κ. The anchors are
+// fixed nodes of the fit with their own uncertainty (anchorSigmaRad); that uncertainty is carried
+// into the ticks by the linear weights of the bracket (the fitted curve is linear in the fixed node
+// values to first order), not by moving them — soft anchors (softAnchorSigmaRad) are the separate,
+// value-changing alternative.
+struct SynthPosterior {
+    struct Stretch {
+        std::vector<int64_t> t;        // node times
+        std::vector<long>    tick;     // synth index, or −1 for an anchor node
+        std::vector<int>     anchor;   // anchor index (into the positions) for anchor nodes, else −1
+        std::vector<int>     ui;       // free-variable index, or −1 for a fixed node
+        std::vector<double>  L;        // nu×nu lower Cholesky factor of M (row-major)
+        int nu = 0;
+    };
+    std::vector<Stretch> stretches;
+    std::vector<int64_t> anchorT;          // positions' times
+    std::vector<double>  anchorSigmaRad;   // per anchor; 0 = exact (no uncertainty assessed)
+    double kappa = 1.0;
+    // An overall scale on the posterior's spread (σ AND the draws' deviation from the mean), fitted
+    // on held-out hand marks (grade_coverage.py; tuned::uncertainty::kSynthSigmaScale). κ alone
+    // cannot set it: κ scales only the evidence share, and the anchors' share does not move with it.
+    double scale = 1.0;
+};
+
 // Refit the θ of `synth` (sorted by time, as synthesizeLayerC emits it) to `evidence` — see
 // SynthConfig::fitEvidence. Works stretch by stretch: a stretch is a run of consecutive brackets that
 // all carry synth ticks, with its anchors as fixed nodes and its ticks as the unknowns. Minimises
@@ -428,14 +456,30 @@ struct SynthEvidence {
 // with θ(t) linear between nodes and θ̈ the second divided difference, skipped at a P7 node. The
 // synth ticks' θ̇ become the central difference of the fitted nodes and the head is re-derived.
 // Returns the number of evidence readings used.
+//
+// Uncertainty (all three default to "off", which is the pre-design behaviour bit for bit):
+//   post               — filled with every stretch's factor (stretches with no evidence too: their
+//                        mean stays the Hermite, their factor is the smoothness prior's).
+//   kappa              — recorded on post (see SynthPosterior).
+//   softAnchorSigmaRad — per anchor (positions order); > 0 makes that anchor a FREE node with its
+//                        own angle as one reading at that σ, instead of a fixed node. This CHANGES the
+//                        fitted curve (uncertainty.synthSoftAnchors, gated separately).
 inline int fitSynthToEvidence(std::vector<ShaftSample2D>&        synth,
                               const std::vector<ShaftPosition>&  anchors,
                               const std::vector<SynthEvidence>&  evidence,
                               const SynthConfig&                 cfg,
-                              bool                               softImpact = false)
+                              bool                               softImpact = false,
+                              SynthPosterior*                    post = nullptr,
+                              double                             kappa = 1.0,
+                              const std::vector<double>*         softAnchorSigmaRad = nullptr)
 {
     using namespace synth_detail;
-    if (!cfg.fitEvidence || synth.empty() || anchors.size() < 2 || evidence.empty()
+    if (post) {
+        post->stretches.clear();
+        post->kappa = kappa;
+    }
+    const bool wantFit = cfg.fitEvidence && !evidence.empty();
+    if (!(wantFit || post) || synth.empty() || anchors.size() < 2
         || !(cfg.evidenceAccelSigmaDps2 > 0.0)) return 0;
     const size_t nA = anchors.size();
     // Bracket of each tick.
@@ -444,6 +488,9 @@ inline int fitSynthToEvidence(std::vector<ShaftSample2D>&        synth,
         for (size_t k = 0; k + 1 < nA; ++k)
             if (synth[j].t_us > anchors[k].t_us && synth[j].t_us < anchors[k + 1].t_us) { brk[j] = int(k); break; }
     const double sigA = cfg.evidenceAccelSigmaDps2 * kSynthPi / 180.0;   // rad/s²
+    const auto softSig = [&](size_t k) -> double {
+        return (softAnchorSigmaRad && k < softAnchorSigmaRad->size()) ? (*softAnchorSigmaRad)[k] : 0.0;
+    };
     int usedTotal = 0;
     size_t j0 = 0;
     while (j0 < synth.size()) {
@@ -454,14 +501,16 @@ inline int fitSynthToEvidence(std::vector<ShaftSample2D>&        synth,
                && (brk[j1 + 1] == brk[j1] || brk[j1 + 1] == brk[j1] + 1)) ++j1;
         const int k0 = brk[j0], k1 = brk[j1];
         // Nodes in time order: anchor k0, ticks, anchor k0+1, … anchor k1+1.
-        struct Node { int64_t t; double th; bool fixed; bool impact; long tick; };
+        // tick: ≥ 0 synth index; −1 fixed anchor; −2 soft P7 (ball reading); −3 soft anchor (own reading).
+        struct Node { int64_t t; double th; bool fixed; bool impact; long tick; int anchor; };
         std::vector<Node> nd;
         size_t j = j0;
         for (int k = k0; k <= k1 + 1; ++k) {
             const bool softP7 = anchors[size_t(k)].p == 7 && cfg.impactAnchorSigmaDeg > 0.0 && softImpact;
-            nd.push_back({ anchors[size_t(k)].t_us, anchors[size_t(k)].thetaRad, !softP7,
-                           anchors[size_t(k)].p == 7, softP7 ? -2L : -1L });
-            while (j <= j1 && brk[j] == k) { nd.push_back({ synth[j].t_us, synth[j].thetaRad, false, false, long(j) }); ++j; }
+            const bool softA  = !softP7 && softSig(size_t(k)) > 0.0;
+            nd.push_back({ anchors[size_t(k)].t_us, anchors[size_t(k)].thetaRad, !(softP7 || softA),
+                           anchors[size_t(k)].p == 7, softP7 ? -2L : (softA ? -3L : -1L), k });
+            while (j <= j1 && brk[j] == k) { nd.push_back({ synth[j].t_us, synth[j].thetaRad, false, false, long(j), -1 }); ++j; }
         }
         for (size_t q = 1; q < nd.size(); ++q)                     // one continuous sheet
             nd[q].th = nd[q - 1].th + std::remainder(nd[q].th - nd[q - 1].th, 2.0 * kSynthPi);
@@ -485,25 +534,38 @@ inline int fitSynthToEvidence(std::vector<ShaftSample2D>&        synth,
             }
         };
         int used = 0;
-        for (const SynthEvidence& e : evidence) {
-            if (e.t_us <= nd.front().t || e.t_us >= nd.back().t || !(e.sigmaRad > 0.0)) continue;
-            size_t q = 1;
-            while (q < N && nd[q].t < e.t_us) ++q;
-            const size_t idx[2] = { q - 1, q };
-            const double u = double(e.t_us - nd[q - 1].t) / double(std::max<int64_t>(1, nd[q].t - nd[q - 1].t));
-            const double c[2] = { 1.0 - u, u };
-            const double cur = c[0] * nd[q - 1].th + c[1] * nd[q].th;
-            const double y = cur + std::remainder(e.thetaRad - cur, 2.0 * kSynthPi);
-            addRow(idx, c, 2, y, 1.0 / (e.sigmaRad * e.sigmaRad));
-            ++used;
-        }
-        if (used > 0 && nu > 0) {
+        if (wantFit)
+            for (const SynthEvidence& e : evidence) {
+                if (e.t_us <= nd.front().t || e.t_us >= nd.back().t || !(e.sigmaRad > 0.0)) continue;
+                size_t q = 1;
+                while (q < N && nd[q].t < e.t_us) ++q;
+                const size_t idx[2] = { q - 1, q };
+                const double u = double(e.t_us - nd[q - 1].t) / double(std::max<int64_t>(1, nd[q].t - nd[q - 1].t));
+                const double c[2] = { 1.0 - u, u };
+                const double cur = c[0] * nd[q - 1].th + c[1] * nd[q].th;
+                const double y = cur + std::remainder(e.thetaRad - cur, 2.0 * kSynthPi);
+                addRow(idx, c, 2, y, 1.0 / (e.sigmaRad * e.sigmaRad));
+                ++used;
+            }
+        // The posterior of a stretch with no evidence: the smoothness prior about the Hermite. Its
+        // mean is left as the Hermite (nothing is refitted); only its factor is kept.
+        const bool fitMean = used > 0 && nu > 0;
+        const bool keepPost = post && nu > 0;
+        if (fitMean || keepPost) {
             // A soft P7 (tick == -2): its tracker angle is one more reading, at impactAnchorSigmaDeg.
             for (size_t q = 0; q < N; ++q) {
                 if (nd[q].tick != -2) continue;
                 const size_t idx[1] = { q };
                 const double c[1] = { 1.0 };
                 const double sP = cfg.impactAnchorSigmaDeg * kSynthPi / 180.0;
+                addRow(idx, c, 1, nd[q].th, 1.0 / (sP * sP));
+            }
+            // A soft anchor (tick == -3): its own angle, at its own σ.
+            for (size_t q = 0; q < N; ++q) {
+                if (nd[q].tick != -3) continue;
+                const size_t idx[1] = { q };
+                const double c[1] = { 1.0 };
+                const double sP = softSig(size_t(nd[q].anchor));
                 addRow(idx, c, 1, nd[q].th, 1.0 / (sP * sP));
             }
             for (size_t q = 1; q + 1 < N; ++q) {
@@ -513,6 +575,8 @@ inline int fitSynthToEvidence(std::vector<ShaftSample2D>&        synth,
                 const double hm = 0.5 * (h0 + h1);
                 const size_t idx[3] = { q - 1, q, q + 1 };
                 const double c[3] = { 1.0 / (h0 * hm), -(1.0 / h0 + 1.0 / h1) / hm, 1.0 / (h1 * hm) };
+                // With the mean held at the Hermite (no evidence), the rhs is irrelevant; the row
+                // still shapes M.
                 addRow(idx, c, 3, 0.0, hm / (sigA * sigA));
             }
             // Cholesky (M is SPD: every free node is tied to its neighbours by the penalty).
@@ -530,7 +594,7 @@ inline int fitSynthToEvidence(std::vector<ShaftSample2D>&        synth,
                     }
                 }
             }
-            if (ok) {
+            if (ok && fitMean) {
                 std::vector<double> x(size_t(nu), 0.0);
                 for (int a = 0; a < nu; ++a) {
                     double sum = r[size_t(a)];
@@ -555,10 +619,131 @@ inline int fitSynthToEvidence(std::vector<ShaftSample2D>&        synth,
                 }
                 usedTotal += used;
             }
+            if (ok && keepPost) {
+                SynthPosterior::Stretch st;
+                st.nu = nu;
+                st.L  = std::move(L);
+                st.ui = ui;
+                for (const Node& n : nd) { st.t.push_back(n.t); st.tick.push_back(n.tick >= 0 ? n.tick : -1); st.anchor.push_back(n.anchor); }
+                post->stretches.push_back(std::move(st));
+            }
         }
         j0 = j1 + 1;
     }
     return usedTotal;
+}
+
+namespace synth_detail {
+// Solve Lᵀ y = z in place (L lower, row-major nu×nu): the draw y = L⁻ᵀ z has covariance (L Lᵀ)⁻¹ = M⁻¹.
+inline void solveLt(const std::vector<double>& L, int nu, std::vector<double>& z)
+{
+    for (int a = nu - 1; a >= 0; --a) {
+        double sum = z[size_t(a)];
+        for (int k = a + 1; k < nu; ++k) sum -= L[size_t(k) * size_t(nu) + size_t(a)] * z[size_t(k)];
+        z[size_t(a)] = sum / L[size_t(a) * size_t(nu) + size_t(a)];
+    }
+}
+// Linear weight of anchor node `qa` (and the next anchor qb) at node q of a stretch.
+inline double linW(int64_t ta, int64_t tb, int64_t t)
+{
+    return tb > ta ? std::clamp(double(t - ta) / double(tb - ta), 0.0, 1.0) : 0.0;
+}
+} // namespace synth_detail
+
+// Per-tick posterior σθ (deg) of `synth` from `post`: √(diag(M⁻¹)/κ) ⊕ the bracketing anchors' σ
+// carried by the linear bracket weights. Writes s.sigmaThetaDeg on every tick a stretch covers; a
+// tick outside every stretch (the fit never ran there) keeps the anchors' share alone.
+inline void synthPosteriorSigma(std::vector<ShaftSample2D>& synth, const std::vector<ShaftPosition>& anchors,
+                                const SynthPosterior& post)
+{
+    using namespace synth_detail;
+    const double toDeg = 180.0 / kSynthPi, kap = std::max(1e-6, post.kappa);
+    std::vector<double> var(synth.size(), 0.0);
+    std::vector<char>   have(synth.size(), 0);
+    for (const SynthPosterior::Stretch& st : post.stretches) {
+        const int nu = st.nu;
+        // diag(M⁻¹) = column norms² of L⁻¹: invert L column by column (forward substitution).
+        std::vector<double> e(static_cast<size_t>(nu)), dg(static_cast<size_t>(nu), 0.0);
+        for (int c = 0; c < nu; ++c) {
+            std::fill(e.begin(), e.end(), 0.0);
+            e[size_t(c)] = 1.0;
+            for (int a = c; a < nu; ++a) {          // y = L⁻¹ e_c (zero above c)
+                double sum = e[size_t(a)];
+                for (int k = c; k < a; ++k) sum -= st.L[size_t(a) * size_t(nu) + size_t(k)] * e[size_t(k)];
+                e[size_t(a)] = sum / st.L[size_t(a) * size_t(nu) + size_t(a)];
+            }
+            // e now holds column c of L⁻¹ (rows a ≥ c). M⁻¹ = L⁻ᵀ L⁻¹ ⇒ M⁻¹_cc = Σ_a (L⁻¹)_{a,c}².
+            for (int a = c; a < nu; ++a) dg[size_t(c)] += e[size_t(a)] * e[size_t(a)];
+        }
+        for (size_t q = 0; q < st.t.size(); ++q) {
+            if (st.tick[q] < 0 || st.ui[q] < 0) continue;
+            const size_t ti = size_t(st.tick[q]);
+            if (ti >= synth.size()) continue;
+            var[ti] = dg[size_t(st.ui[q])] / kap;
+            have[ti] = 1;
+        }
+    }
+    // Anchor share, by the linear weights of each tick's bracket.
+    for (size_t j = 0; j < synth.size(); ++j) {
+        for (size_t k = 0; k + 1 < anchors.size(); ++k) {
+            if (!(synth[j].t_us > anchors[k].t_us && synth[j].t_us < anchors[k + 1].t_us)) continue;
+            const double w  = linW(anchors[k].t_us, anchors[k + 1].t_us, synth[j].t_us);
+            const double sa = k     < post.anchorSigmaRad.size() ? post.anchorSigmaRad[k]     : 0.0;
+            const double sb = k + 1 < post.anchorSigmaRad.size() ? post.anchorSigmaRad[k + 1] : 0.0;
+            var[j] += ((1.0 - w) * sa) * ((1.0 - w) * sa) + (w * sb) * (w * sb);
+            have[j] = 1;
+            break;
+        }
+        if (have[j]) synth[j].sigmaThetaDeg = float(std::sqrt(var[j]) * toDeg * post.scale);
+    }
+}
+
+// N alternative synthetic tracks drawn from the posterior (design §4.5): each tick's θ moved by
+// L⁻ᵀz/√κ of its stretch, plus every anchor moved by its own σ and the move spread over its brackets
+// by the linear weights. θ̇ is rebuilt by central difference over the draw and the head re-derived,
+// exactly as the fit rebuilds them. Deterministic for a given rng state.
+template <class Rng>
+inline std::vector<std::vector<ShaftSample2D>> synthDraws(const std::vector<ShaftSample2D>& synth,
+                                                          const std::vector<ShaftPosition>& anchors,
+                                                          const SynthPosterior& post, int n, Rng& rng)
+{
+    using namespace synth_detail;
+    std::vector<std::vector<ShaftSample2D>> out;
+    if (synth.empty() || n <= 0) return out;
+    const double kap = std::max(1e-6, post.kappa);
+    out.reserve(size_t(n));
+    for (int d = 0; d < n; ++d) {
+        std::vector<ShaftSample2D> s = synth;
+        std::vector<double> delta(s.size(), 0.0);
+        for (const SynthPosterior::Stretch& st : post.stretches) {
+            std::vector<double> z(static_cast<size_t>(st.nu));
+            for (double& v : z) v = rng.normal();
+            solveLt(st.L, st.nu, z);
+            for (size_t q = 0; q < st.t.size(); ++q)
+                if (st.tick[q] >= 0 && st.ui[q] >= 0 && size_t(st.tick[q]) < s.size())
+                    delta[size_t(st.tick[q])] += z[size_t(st.ui[q])] / std::sqrt(kap);
+        }
+        std::vector<double> da(anchors.size(), 0.0);
+        for (size_t k = 0; k < anchors.size(); ++k)
+            da[k] = (k < post.anchorSigmaRad.size() ? post.anchorSigmaRad[k] : 0.0) * rng.normal();
+        for (size_t j = 0; j < s.size(); ++j)
+            for (size_t k = 0; k + 1 < anchors.size(); ++k)
+                if (s[j].t_us > anchors[k].t_us && s[j].t_us < anchors[k + 1].t_us) {
+                    const double w = linW(anchors[k].t_us, anchors[k + 1].t_us, s[j].t_us);
+                    delta[j] += (1.0 - w) * da[k] + w * da[k + 1];
+                    break;
+                }
+        for (size_t j = 0; j < s.size(); ++j) s[j].thetaRad += delta[j] * post.scale;
+        for (size_t j = 0; j < s.size(); ++j) {
+            const size_t a = j > 0 ? j - 1 : j, b = j + 1 < s.size() ? j + 1 : j;
+            const double dt = double(s[b].t_us - s[a].t_us) * 1e-6;
+            if (dt > 0.0) s[j].thetaDotRadS = std::remainder(s[b].thetaRad - s[a].thetaRad, 2.0 * kSynthPi) / dt;
+            s[j].headPx = QPointF{ s[j].gripPx.x() + s[j].visibleLenPx * std::cos(s[j].thetaRad),
+                                   s[j].gripPx.y() + s[j].visibleLenPx * std::sin(s[j].thetaRad) };
+        }
+        out.push_back(std::move(s));
+    }
+    return out;
 }
 
 // Legacy single-rate form: in == out at every anchor (C¹ everywhere).

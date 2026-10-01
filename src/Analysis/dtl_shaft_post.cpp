@@ -697,6 +697,20 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
     // counting: how many samples were published in a frame the schedule put
     // END-ON. Should be 0 BY CONSTRUCTION (an end-on frame is never in a band);
     // counted anyway, because a construction nobody measures is a belief.
+    // ── Uncertainty (shaft_uncertainty_propagation_design.md §4.1) ─────────────────
+    // σθ for every drawn frame from the DTL rows, calibrated at address where the club lies
+    // across the view; beyond it the angular error grows as the projection shortens, so σ is
+    // inflated by 1/max(ρ̂_D, 0.5) — a stated assumption until DTL hand marks exist (Q6).
+    if (cfg.unc.enabled && cfg.unc.shaftTable) {
+        for (DtlSample& s : out.samples) {
+            const int row = s.tier == DtlTier::Ray ? 0 : s.tier == DtlTier::Band ? 1 : s.tier == DtlTier::Held ? 2 : -1;
+            if (row < 0) continue;
+            const double rho = fin(s.rhoPred) ? std::max(s.rhoPred, 0.5) : 0.5;
+            s.sigmaThetaDeg = tuned::uncertainty::kDtlSigDeg[row] / rho;
+            s.pGross        = tuned::uncertainty::kDtlPGross[row];
+        }
+    }
+
     int published = 0, inBandFrames = 0;
     for (const DtlSample& s : out.samples) {
         if (s.band >= 0) ++inBandFrames;

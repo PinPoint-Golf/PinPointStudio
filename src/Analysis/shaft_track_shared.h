@@ -33,6 +33,7 @@
 
 #include <cstdint>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 #include <opencv2/core.hpp>
@@ -110,5 +111,23 @@ SnapResult snapSearch(const cv::Mat& g32, double gx, double gy, double theta0Rad
 DPResult viterbiBanded(const std::vector<std::vector<float>>& emis,
                        const std::vector<int>& wmaxBins, const std::vector<int>& sgn,
                        double kSmooth, double gridDeg);
+
+// ── forward–backward over the same banded lattice (shaft uncertainty U5) ─────
+// Where viterbiBanded MINIMISES over paths, this SUMS over them, reading every cost as a negative
+// log-likelihood at temperature T: P(path) ∝ exp(−Cost/T). Returns, per frame, the marginal
+// probability of every θ state (rows sum to 1), on exactly the transitions viterbiBanded allows
+// (same band, same direction rule, same kSmooth·Δ² cost). As T → 0 the marginal collapses onto the
+// Viterbi path. Log-sum-exp throughout, so no state underflows to a false zero. Empty input ⇒
+// empty result (the viterbiBanded contract).
+std::vector<std::vector<float>> forwardBackwardBanded(const std::vector<std::vector<float>>& emis,
+                                                      const std::vector<int>& wmaxBins,
+                                                      const std::vector<int>& sgn,
+                                                      double kSmooth, double gridDeg, double T);
+
+// From one frame's marginal: the circular standard deviation (deg) of the mass within ±30° of
+// `thetaDeg` (the published angle), and pAlt — the mass more than 15° from it, the lattice's own
+// probability that another structure was the club. NaN σ when the row is empty.
+struct FbSummary { double sigmaDeg = std::numeric_limits<double>::quiet_NaN(); double pAlt = std::numeric_limits<double>::quiet_NaN(); };
+FbSummary fbSummary(const std::vector<float>& marginal, double gridDeg, double thetaDeg);
 
 } // namespace pinpoint::analysis::shaftshared

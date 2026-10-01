@@ -24,6 +24,8 @@
 #include <limits>
 #include <vector>
 
+#include "det_rng.h"   // the plane bootstrap (uncertainty design principle 7)
+
 // The shaft, in three dimensions, from the two image angles the face-on and the
 // down-the-line trackers already publish (docs/design/shaft_fusion_design.md).
 //
@@ -171,12 +173,24 @@ struct Config {
     // within 1° of the downswing plane's, no coherent swing of 24 changed.
     bool   reflectBands = true;
     double reflectMinGainDeg = 0.5;
+
+    // Uncertainty (shaft_uncertainty_propagation_design.md §4.7). false ⇒ nothing below runs and
+    // every output is bit-identical. With it: each fused frame's direction σ from the two inputs'
+    // σθ (finite differences), the planes' inclination σ by a block bootstrap of their frames
+    // (blocks of bootstrapBlock consecutive frames — the correlation correction), ⊕ the camera
+    // floor, and the address plane's σ from its spread over √n_eff.
+    bool     uncertainty    = false;
+    int      bootstrapN     = 200;
+    int      bootstrapBlock = 5;
+    uint64_t seed           = 0x5eedc1ab5eedc1abull;
+    double   cameraFloorDeg = 0.5;
+    double   rho            = 0.6;
 };
 
 // One face-on angle sample, already unwrapped by the caller. `measured` false = the
 // tracker coasted, predicted or synthesised it.
-struct FoSample  { int64_t t_us = 0; double theta = 0; bool measured = false; };
-struct DtlSampleIn { int64_t t_us = 0; double theta = 0; int band = -1; };
+struct FoSample  { int64_t t_us = 0; double theta = 0; bool measured = false; double sigmaDeg = kNan; };
+struct DtlSampleIn { int64_t t_us = 0; double theta = 0; int band = -1; double sigmaDeg = kNan; };
 
 enum class FoSource : uint8_t { Measured = 0, Bridged = 1 };
 
@@ -201,6 +215,7 @@ struct Sample3D {
     double   etaDeg = kNan;           // (A) the fitted η(t) at this instant; NaN when no curve
     Vec3     uBridged;                // (C) the bridged direction this sample had before anchoring (DtlAnchored only)
     double   anchorCond = kNan;       // (C) |n_plane × n_viewD| on a bridged frame the anchor was tried on
+    double   sigmaDeg = kNan;         // 1σ of u's direction (deg) propagated from σθ_F, σθ_D (uncertainty §4.7); NaN = not assessed
 };
 
 struct PlaneFit {
@@ -214,6 +229,10 @@ struct PlaneFit {
     // PlaneParams): minor/major ratio of the imaged circle, and the node line's bearing
     // in the face-on image's atan2 convention.
     double foRatio = kNan, foNodeDeg = kNan;
+    // 1σ of inclDeg from a block bootstrap of the input frames ⊕ the camera floor
+    // (uncertainty §4.7); NaN = not assessed. NOT the out-of-plane rms above, which is
+    // the frames' scatter about the plane, not the uncertainty of the plane.
+    double inclSigmaDeg = kNan;
     bool offered(const Config &c) const { return fitted && oopRmsDeg <= c.planeOopMaxDeg; }
 };
 
@@ -270,6 +289,7 @@ struct Track3D {
     // the DTL tracker has ninety. Median over the DTL frames published up to `addressToUs`.
     double addressInclDeg = kNan;
     int    addressN = 0;
+    double addressInclSigmaDeg = kNan;   // 1σ of addressInclDeg (scaled MAD / √n_eff); NaN = not assessed
     // Delivery plane against the address plane: + = delivered STEEPER (above the address plane).
     // NaN unless both exist and the downswing plane was offered.
     double deliveryVsAddressDeg = kNan;
@@ -517,6 +537,16 @@ inline Track3D fuseTracks(const std::vector<FoSample> &fo, const std::vector<FoS
         if (out.addressN >= cfg.minAddressN) {
             std::sort(incl.begin(), incl.end());
             out.addressInclDeg = incl[incl.size() / 2];
+            if (cfg.uncertainty) {
+                std::vector<double> dev;
+                for (double v : incl) dev.push_back(std::fabs(v - out.addressInclDeg));
+                std::sort(dev.begin(), dev.end());
+                const double n = double(incl.size()), r = std::clamp(cfg.rho, 0.0, 0.95);
+                const double nEff = std::max(1.0, n * (1.0 - r) / (1.0 + r));
+                // the median's standard error ≈ 1.2533 σ/√n_eff, σ from the scaled MAD
+                out.addressInclSigmaDeg = std::max(cfg.cameraFloorDeg,
+                                                   1.2533 * 1.4826 * dev[dev.size() / 2] / std::sqrt(nEff));
+            }
         }
     }
     for (const DtlSampleIn &d : dtl) {
@@ -535,6 +565,32 @@ inline Track3D fuseTracks(const std::vector<FoSample> &fo, const std::vector<FoS
         double th;
         project(cf, s.u, th, s.rhoF);
         project(cd, s.u, th, s.rhoD);
+        // Direction σ (deg): perturb each input by its σ and take the angular change, in
+        // quadrature. Grows as 1/cond where the two view planes close up.
+        if (cfg.uncertainty) {
+            double fSig = kNan;
+            {
+                auto hi = std::lower_bound(fo.begin(), fo.end(), d.t_us,
+                                           [](const FoSample &x, int64_t tt) { return x.t_us < tt; });
+                if (hi != fo.end() && std::isfinite(hi->sigmaDeg)) fSig = hi->sigmaDeg;
+                if (hi != fo.begin() && std::isfinite((hi - 1)->sigmaDeg))
+                    fSig = std::isfinite(fSig) ? std::max(fSig, (hi - 1)->sigmaDeg) : (hi - 1)->sigmaDeg;
+                if (s.foSrc == FoSource::Bridged) {
+                    auto hb = std::lower_bound(foBridge.begin(), foBridge.end(), d.t_us,
+                                               [](const FoSample &x, int64_t tt) { return x.t_us < tt; });
+                    if (hb != foBridge.end() && std::isfinite(hb->sigmaDeg)) fSig = hb->sigmaDeg;
+                }
+            }
+            if (std::isfinite(fSig) && std::isfinite(d.sigmaDeg)) {
+                const auto turn = [&](double dF, double dD) {
+                    Vec3 u2; double c2; bool ag;
+                    if (!fuseOne(cf, cd, s.thetaF + dF, d.theta + dD, u2, c2, ag)) return kNan;
+                    return std::acos(std::clamp(std::fabs(u2.dot(s.u)), -1.0, 1.0)) * 180.0 / kPi;
+                };
+                const double eF = turn(fSig * kPi / 180.0, 0.0), eD = turn(0.0, d.sigmaDeg * kPi / 180.0);
+                if (std::isfinite(eF) && std::isfinite(eD)) s.sigmaDeg = std::sqrt(eF * eF + eD * eD);
+            }
+        }
         out.samples.push_back(s);
     }
     out.valid = !out.samples.empty();
@@ -637,6 +693,36 @@ inline Track3D fuseTracks(const std::vector<FoSample> &fo, const std::vector<FoS
 
     out.back = fitWindow(backFromUs, topUs - 1);
     out.down = fitWindow(topUs, downToUs);
+    // Inclination σ by a block bootstrap of the window's own frames (uncertainty §4.7).
+    if (cfg.uncertainty) {
+        DetRng rng(cfg.seed);
+        const auto boot = [&](int64_t from, int64_t to, PlaneFit &pf) {
+            if (!pf.fitted) return;
+            std::vector<Vec3> U;
+            for (const Sample3D &s : out.samples)
+                if (s.t_us >= from && s.t_us <= to && (s.flags & ~uint8_t(Reflected)) == 0 && s.foSrc == FoSource::Measured)
+                    U.push_back(s.u);
+            const int B = std::max(1, cfg.bootstrapBlock), n = int(U.size());
+            if (n < cfg.minPlaneN) return;
+            std::vector<double> inc;
+            for (int b = 0; b < cfg.bootstrapN; ++b) {
+                std::vector<Vec3> R;
+                while (int(R.size()) < n) {
+                    const int s0 = int(rng.below(uint64_t(std::max(1, n - B + 1))));
+                    for (int k = 0; k < B && int(R.size()) < n; ++k) R.push_back(U[size_t(std::min(n - 1, s0 + k))]);
+                }
+                const PlaneFit f = fitPlane(R, cf, cfg);
+                if (f.fitted) inc.push_back(f.inclDeg);
+            }
+            if (inc.size() < 10) return;
+            double m = 0.0; for (double v : inc) m += v; m /= double(inc.size());
+            double v2 = 0.0; for (double v : inc) v2 += (v - m) * (v - m);
+            const double sd = std::sqrt(v2 / double(inc.size() - 1));
+            pf.inclSigmaDeg = std::sqrt(sd * sd + cfg.cameraFloorDeg * cfg.cameraFloorDeg);
+        };
+        boot(backFromUs, topUs - 1, out.back);
+        boot(topUs, downToUs, out.down);
+    }
     out.backIncoherent = out.back.fitted && out.back.oopRmsDeg > cfg.backIncoherentDeg;
     if (out.down.offered(cfg) && std::isfinite(out.addressInclDeg))
         out.deliveryVsAddressDeg = out.down.inclDeg - out.addressInclDeg;
