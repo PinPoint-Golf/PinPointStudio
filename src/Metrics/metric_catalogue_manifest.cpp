@@ -1302,8 +1302,8 @@ void installMetricManifest(MetricCatalogue &cat)
     cat.addDescriptor({
         .key = QStringLiteral("clubheadPeakLead"),
         .type = MetricType::PointInTime,
-        .label = QStringLiteral("Clubhead peak lead"),
-        .shortLabel = QStringLiteral("Peak lead"),
+        .label = QStringLiteral("Speed peak before the ball"),
+        .shortLabel = QStringLiteral("Speed peak"),
         .unit = QStringLiteral("ms"),
         .group = QStringLiteral("Club & speed"),
         .description = QStringLiteral(
@@ -1320,6 +1320,10 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("the clubhead peaked earlier, further before the ball"),
         .signNegative = QStringLiteral("the peak sat at, or just past, the impact anchor"),
         .phases = { P::Impact },
+        // ON CLUB SPEED'S CARD (Mark, 2026-10-01: "a confusing name, and should be on the card with
+        // the club speed numbers"): one tile, "SPEED PEAK BEFORE BALL", in ms beside the mph. A
+        // single number per swing, so nothing window-scoped to show.
+        .card = { .readAt = { { P::Impact, QStringLiteral("SPEED PEAK BEFORE BALL") } }, .peak = false, .delta = false, .rate = false, .mergeInto = QStringLiteral("clubheadSpeed") },
         .routes = {
             via("faceOnClub", RM::Projected, Direct, { .faceOnCamera = true, .clubTrack = true },
                 QStringLiteral("the time of the composed clubhead speed's maximum over the "

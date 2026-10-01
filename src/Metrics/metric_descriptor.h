@@ -320,7 +320,8 @@ struct MetricCardSpec {
 
     // SQUEEZE ONTO ANOTHER METRIC'S CARD. When the review chart shows both this metric and the
     // one named here, this metric's reading and Δ tiles are appended to THAT card, each label
-    // prefixed with this metric's short name, and this metric draws no card of its own (Mark,
+    // prefixed with this metric's short name (an AUTHORED readAt label stands as written — the
+    // speed peak's "SPEED PEAK BEFORE BALL"), and this metric draws no card of its own (Mark,
     // 2026-10-01: shaft lean and shaft lie on one summary tile). Only the fixed-instant tiles
     // travel — readAt and a fixed-span Δ — because a window PEAK or rate under another metric's
     // name is exactly the confusion the card spec exists to prevent; metric_catalogue_test holds
@@ -331,6 +332,18 @@ struct MetricCardSpec {
     {
         return int(readAt.size()) + (peak ? 1 : 0) + (delta ? 1 : 0) + (rate ? 1 : 0);
     }
+
+    // DOES THIS METRIC DRAW A CURVE ON THE CHART? A card with a PEAK, a PK RATE or a window Δ
+    // reduces the curve, so the curve belongs on screen beside it. A card made only of readings at
+    // fixed instants (and a fixed-span Δ between two of them) is a metric that means something AT
+    // those instants and nothing between them — shaft lean's curve is the shaft swinging through
+    // the top, shaft lie's the shaft folding through the vertical — so the chart draws no trace
+    // and offers no legend chip, and the card stands on its own (Mark, 2026-10-01: "lie and lean
+    // are only really relevant at address and impact"). The card spec is the single author of
+    // this: a metric opts into or out of a curve by how its card is written, and a PEAK over a
+    // fixed span (lead knee flexion over impact → P8) keeps the curve because the reduction needs
+    // it. metric_catalogue_test ledgers which metrics are instant-only.
+    bool drawsCurve() const { return peak || rate || (delta && !hasDeltaSpan); }
 };
 
 // P-position ladder order for every Phase value: Address = P1 … Finish = P10, with the five

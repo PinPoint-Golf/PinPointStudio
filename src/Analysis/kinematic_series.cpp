@@ -291,7 +291,7 @@ std::optional<MetricSeries> peakLeadSeries(const MetricSeries &speed,
 
     MetricSeries m;
     m.key   = QStringLiteral("clubheadPeakLead");
-    m.label = QStringLiteral("Clubhead peak lead");
+    m.label = QStringLiteral("Speed peak before the ball");
     m.unit  = QStringLiteral("ms");
     m.phaseSamples.push_back({ Phase::Impact, anchorUs,
                                double(anchorUs - speed.t_us[last]) / 1000.0, QString() });

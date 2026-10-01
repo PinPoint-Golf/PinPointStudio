@@ -1080,6 +1080,24 @@ int main()
         checkEqI(cardOffenders, 0, "every card phase lies inside its metric's domain");
         checkEqI(overfull, 0, "every card has one to four tiles");
 
+        // INSTANT-ONLY METRICS (MetricCardSpec::drawsCurve false): no curve on the chart, a card
+        // only. A ledger, so a card edit that silently turns a curve off (or on) has to be a
+        // deliberate edit here too. lm. readings are PointInTime and never had a curve.
+        {
+            int instantOnly = 0;
+            QStringList who;
+            for (const MetricDescriptor *d : cat.all()) {
+                if (d->type != MetricType::TimeSeries || d->key.startsWith(QLatin1String("lm."))) continue;
+                if (!d->card.drawsCurve()) { ++instantOnly; who << d->key; }
+            }
+            std::printf("    instant-only time series: %s\n", qPrintable(who.join(QStringLiteral(", "))));
+            checkEqI(instantOnly, 19, "19 time-series metrics are instant-only — a card, no curve (2026-10-01)");
+            for (const char *k : { "leadKneeFlexion", "leadUpperArmToChest", "plumbBobDistance", "lagAngle",
+                                   "clubheadSpeed", "pelvisSway", "headSway", "leadWristFlexExt" })
+                check(cat.descriptor(QString::fromLatin1(k)) && cat.descriptor(QString::fromLatin1(k))->card.drawsCurve(),
+                      "a card with a PEAK or a rate keeps its curve");
+        }
+
         // A card that SQUEEZES onto another's (card.mergeInto) names a metric that exists, is not
         // itself merged, and carries only fixed-instant tiles — a window PEAK or rate under the
         // host's name would be a number about something else. The two together fit six cells.
