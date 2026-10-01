@@ -155,6 +155,13 @@ std::vector<QString> DtlPostureProvider::provides() const
              QStringLiteral("handPathLoop") };
 }
 
+// ------------------------------------------------------------------------ DtlShaftLieProvider
+
+std::vector<QString> DtlShaftLieProvider::provides() const
+{
+    return { QStringLiteral("shaftLie") };
+}
+
 // ------------------------------------------------------------------------ ShaftFusionProvider
 
 std::vector<QString> ShaftFusionProvider::provides() const

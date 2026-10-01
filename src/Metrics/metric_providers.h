@@ -148,6 +148,13 @@ public:
     std::vector<QString> provides() const override;
 };
 
+// dtl_shaft_lie.h (DtlShaftLieStage) — the shaft's angle to the ground as the down-the-line camera
+// sees it, read at address and impact, off the DTL club track alone.
+class DtlShaftLieProvider : public IMetricProvider {
+public:
+    std::vector<QString> provides() const override;
+};
+
 // wrist_analyzer.cpp ShaftFusionStage (shaft_fusion.h) — swingPlane, the downswing shaft plane
 // against the address shaft plane, from the two cameras' shaft angles intersected.
 class ShaftFusionProvider : public IMetricProvider {

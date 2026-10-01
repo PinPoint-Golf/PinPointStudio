@@ -86,7 +86,7 @@ int main()
         // sequence is read from (pelvis / thorax / leadArm / club — segment_rates.h); the
         // Sequence itself went from planned to live the same day.
         // 104 -> 105 on 2026-09-23 with handPathLoop, the down-the-line hand loop over the top reads.
-        checkEqI(static_cast<int>(cat.all().size()), 105, "descriptor count == 105");   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
+        checkEqI(static_cast<int>(cat.all().size()), 106, "descriptor count == 106");   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
                                "clubheadPeakLead",
@@ -128,7 +128,7 @@ int main()
 
     // 2. Type / group / scored filtering.
     {
-        checkEqI(countType(cat, MetricType::TimeSeries),  51, "TimeSeries count");   // +4 segment angular speeds (2026-09-17)   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
+        checkEqI(countType(cat, MetricType::TimeSeries),  52, "TimeSeries count");   // +shaftLie (2026-10-01)   // +4 segment angular speeds (2026-09-17)   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
         // 26, not 28: `shoulderAlignment` and `hipAlignment` were both PointInTime and both retired
         // as duplicates of a series the catalogue already carries.
         // 45 -> 47 on 2026-09-14, both PLANNED and both the honest replacement for a measure that
@@ -1080,6 +1080,27 @@ int main()
         checkEqI(cardOffenders, 0, "every card phase lies inside its metric's domain");
         checkEqI(overfull, 0, "every card has one to four tiles");
 
+        // A card that SQUEEZES onto another's (card.mergeInto) names a metric that exists, is not
+        // itself merged, and carries only fixed-instant tiles — a window PEAK or rate under the
+        // host's name would be a number about something else. The two together fit six cells.
+        int mergeOffenders = 0;
+        for (const MetricDescriptor *d : cat.all()) {
+            const MetricCardSpec &c = d->card;
+            if (c.mergeInto.isEmpty()) continue;
+            const MetricDescriptor *host = cat.descriptor(c.mergeInto);
+            const bool ok = host && host->card.mergeInto.isEmpty() && host->group == d->group
+                         && !c.peak && !c.rate && (!c.delta || c.hasDeltaSpan)
+                         && host->card.tileCount() + c.tileCount() <= 6;
+            if (!ok) {
+                ++mergeOffenders;
+                std::printf("      %s merges into %s badly\n", qPrintable(d->key), qPrintable(c.mergeInto));
+            }
+        }
+        checkEqI(mergeOffenders, 0, "every merged card names a same-group host and brings only fixed tiles");
+        check(cat.descriptor(QStringLiteral("shaftLie"))
+                  && cat.descriptor(QStringLiteral("shaftLie"))->card.mergeInto == QLatin1String("impactShaftLean"),
+              "shaftLie squeezes onto shaft lean's card");
+
         // The frontal-plane family from design §5.1's table. Counted as well as spot-checked, so
         // adding an eleventh (or dropping one) has to be a deliberate edit here too.
         // …plus clubheadSpeed, narrowed for a different reason (a step at contact, not a
@@ -1088,7 +1109,7 @@ int main()
         const char *kAddressToImpact[] = {
             "pelvisSway", "pelvisLift", "leadKneeDrift", "plumbBobDistance", "hipLineTilt",
             "shoulderPlaneAngle", "elbowAlignment", "spineSideBend", "secondaryAxisTilt",
-            "thoraxLateralDrift", "clubheadSpeed", "impactShaftLean",
+            "thoraxLateralDrift", "clubheadSpeed", "impactShaftLean", "shaftLie",
         };
         bool allNarrowed = true;
         for (const char *k : kAddressToImpact) {

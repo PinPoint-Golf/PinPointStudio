@@ -318,6 +318,15 @@ struct MetricCardSpec {
     // reading on the card is the recorded sample at its instant.
     bool    windowedMean = true;
 
+    // SQUEEZE ONTO ANOTHER METRIC'S CARD. When the review chart shows both this metric and the
+    // one named here, this metric's reading and Δ tiles are appended to THAT card, each label
+    // prefixed with this metric's short name, and this metric draws no card of its own (Mark,
+    // 2026-10-01: shaft lean and shaft lie on one summary tile). Only the fixed-instant tiles
+    // travel — readAt and a fixed-span Δ — because a window PEAK or rate under another metric's
+    // name is exactly the confusion the card spec exists to prevent; metric_catalogue_test holds
+    // that. Empty ⇒ its own card, as every metric had.
+    QString mergeInto;
+
     int tileCount() const
     {
         return int(readAt.size()) + (peak ? 1 : 0) + (delta ? 1 : 0) + (rate ? 1 : 0);

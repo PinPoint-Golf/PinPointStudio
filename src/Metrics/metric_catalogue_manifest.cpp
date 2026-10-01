@@ -28,10 +28,11 @@
 // `.requirement` and no `.planned` field any more: a flat requirement could only ever state the
 // floor, so the rest of the ladder lived in provider C++ and in prose, and the two drifted.
 //
-// PRODUCED (50) — metric_extractor ×4, kinematic_series ×3 + shaft-lean, foot_metrics ×5 +
+// PRODUCED (51) — metric_extractor ×4, kinematic_series ×3 + shaft-lean, foot_metrics ×5 +
 //   ball_position ×1, head_track ×3, lower_body_metrics ×6, upper_body_metrics ×9,
 //   body_rotation ×4, club_delivery ×3, the trail-wrist series ×1, tempo_metrics ×2, the two
-//   wrist Summary scores, and segment_rates ×4 + the kinematic Sequence over them (2026-09-17).
+//   wrist Summary scores, segment_rates ×4 + the kinematic Sequence over them (2026-09-17), and the
+//   down-the-line shaft lie ×1 (dtl_shaft_lie.h, 2026-10-01).
 //
 // DEVICE (26) — the `lm.` readings a connected launch monitor supplies. Live, not planned: the
 //   GC Quad connector reads them out of FSX2020's LastShot.CSV. They resolve Measured on a shot the
@@ -1386,6 +1387,47 @@ void installMetricManifest(MetricCatalogue &cat)
         .usedBy = { QStringLiteral("chart:review"),
                     QStringLiteral("characteristic:insufficient_shaft_lean"),
                     QStringLiteral("characteristic:excessive_shaft_lean") },
+    });
+
+    // The shaft's angle to the ground as the down-the-line camera sees it (dtl_shaft_lie.h), read
+    // at address and at impact. Mark, 2026-10-01: a lie-like reading the DTL view gives for free,
+    // and its Δ is "+ve is steepening" — so the Δ runs FORWARD, address → impact, unlike swingPlane's.
+    // It shares shaft lean's card (card.mergeInto): one summary tile for the two shaft readings at
+    // impact. Filed under Club & speed with shaft lean so the two are on the same preset chart.
+    cat.addDescriptor({
+        .key = QStringLiteral("shaftLie"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Shaft lie"),
+        .shortLabel = QStringLiteral("Lie"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Club & speed"),
+        .description = QStringLiteral(
+            "How upright the shaft stands, seen from down the line: the angle between the shaft "
+            "and the ground, read at address and again at impact. It is the shaft's inclination, "
+            "which a fitter's dynamic lie is built from — the sole's own lie angle is a constant per "
+            "club on top of it — and the change from address to impact says whether the club came "
+            "back steeper or flatter than it was set up."),
+        .howToRead = QStringLiteral(
+            "Two readings, @ ADDRESS and @ IMPACT, and their difference: POSITIVE means the shaft "
+            "came back STEEPER (more upright) than at address, negative that it came back flatter. "
+            "Most golfers return the shaft a little steeper than they set it, with the hands higher "
+            "at impact; a large steepening with the toe digging in is the dynamic-lie fault, a "
+            "flattening the shallowing one. The absolute angle depends on where the down-the-line "
+            "camera stands, so compare readings within a session; the Δ holds across any camera "
+            "because it does not move during a swing. Between the two instants the curve is the "
+            "shaft's angle to the ground through the swing, folded to 0–90°, and is not a lie. Each "
+            "reading needs the down-the-line club track to have a measured frame at that instant, "
+            "which rests on the down-the-line ball having been found; otherwise it prints —."),
+        .signPositive = QStringLiteral("the shaft steeper to the ground — more upright; Δ = came back steeper than at address"),
+        .signNegative = QStringLiteral("flatter; Δ = came back flatter — cannot go negative as a reading, only as a Δ"),
+        .phases = { P::Address, P::Impact },
+        .domain = P1toP7,
+        .card = { .readAt = { { P::Address, {} }, { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact, .deltaLabel = QStringLiteral("Δ LIE"), .rate = false, .windowedMean = false, .mergeInto = QStringLiteral("impactShaftLean") },
+        .routes = {
+            via("dtl", RM::Projected, Direct, { .dtlCamera = true, .clubTrack = true },
+                QStringLiteral("the shaft line's angle to the image horizontal in the down-the-line "
+                               "club track — one camera, no depth needed for an inclination")) },
+        .usedBy = { QStringLiteral("chart:review") },
     });
 
     // ------------------ Club delivery (part LIVE — club_delivery.cpp; the rest is down-the-line work)
