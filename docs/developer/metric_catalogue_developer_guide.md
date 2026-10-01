@@ -614,6 +614,19 @@ availability reason for an `Estimated` rung, against a number that IS on screen 
 IMU" there reads as a refusal. The missing-kit sentence is generated separately, from the
 requirement.
 
+#### The card decides whether the curve is drawn
+
+`MetricCardSpec::drawsCurve()` is `peak || rate || (delta && !hasDeltaSpan)`: a card with a PEAK, a
+PK RATE or a window Δ reduces the curve, so the chart draws it. A card made only of readings at
+fixed instants and a fixed-span Δ is a metric that means something at those instants and nothing
+between them — shaft lean, shaft lie, x-factor at the top, balance at address — so the chart draws
+no trace and offers no legend chip, and the card stands alone on its group's preset. A PEAK over a
+fixed span (lead knee flexion over impact → P8) keeps the curve: the reduction needs it. Since the
+same day a series with NO curve and a phase sample (attack angle, hand path loop, every `lm.`
+number) gets a card too — one tile per sample — so a group with no curve left, which Club delivery
+now is, is a card panel with an empty plot. `metric_catalogue_test` ledgers the instant-only set
+(19 on 2026-10-01); `chart_metrics_test` pins the rule's edges.
+
 ### Step C — claim the key
 **One line.** Add the key to a provider's `provides()` in `src/Metrics/metric_providers.{h,cpp}`, or
 add a new provider class if none fits. That is the whole step: every provider we ship is a claim list
