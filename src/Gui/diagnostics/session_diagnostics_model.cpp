@@ -420,7 +420,8 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
 
     // writeSidecar true: the phase grid is cached beside the swing, so a re-activation of the
     // same session costs a small read rather than a second fat parse of every document.
-    const LiveMeasureSource src(swingDir, pack);
+    LiveMeasureSource src(swingDir, pack);
+    src.setWithSigma(m_withSigma);
     const LiveDetection     d = detectForSwing(src, pack, m_norms, gradePolicyByName(m_policyName));
 
     ShotRecord rec;
@@ -457,6 +458,9 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
         r.conditionId      = f.conditionId;
         r.confidence       = f.confidence;
         r.material         = f.material;
+        r.pFire            = f.pFire;        // §A8.4 — −1 when not formed
+        r.grossRisk        = f.grossRisk;
+        r.quantified       = f.quantified;
         r.contextId        = d.contextId;
         // LiveMeasureSource::club() applies the house-wide DRIVER stub for a shot that
         // declares none, so this seam cannot tell an undeclared club from a declared driver
@@ -984,6 +988,11 @@ void SessionDiagnosticsModel::refreshExplanation()
     // Fired, every other assessed condition as NotFired — so the greedy set cover runs over
     // what the session believes rather than over what the last ball happened to do. That is
     // the whole of §A5's "over the pattern-tier fired set, not per shot".
+    //
+    // §A8.6: each condition also carries its P(Pattern) as soft evidence (pFire), so a pattern that
+    // only just survives its readings' uncertainty weighs less than a certain one, and an assessed
+    // non-pattern that nearly made it is not read as a clean absence. With softTier off pPattern is
+    // the hard tier, and the evidence is exactly the pre-§A8 assertion.
     DetectionResult det;
     for (const ConditionLedger &l : m_ledgers) {
         if (l.tier == Tier::Pattern) {
@@ -991,15 +1000,48 @@ void SessionDiagnosticsModel::refreshExplanation()
             f.conditionId = l.id;
             f.state       = FindingState::Fired;
             f.confidence  = 1.0f;
+            f.pFire       = float(l.pPattern);
             det.findings.push_back(std::move(f));
         } else if (l.assessable >= 1) {
             Finding f;
             f.conditionId = l.id;
             f.state       = FindingState::NotFired;
+            f.pFire       = float(l.pPattern);
             det.findings.push_back(std::move(f));
         }
     }
-    m_explanation = explain(m_packProv->pack(), det, m_screens);
+    m_explanation = explain(m_packProv->pack(), det, m_screens, m_explainOpt);
+
+    // Root stability (§A8.6): the same draws that gave pPattern, each explained as a HARD session
+    // (the drawn Pattern set Fired, every other assessed condition NotFired). A session whose rows
+    // carry no probability draws its hard set every time, and every root is then "firm".
+    if (m_opt.softTier) {
+        // Most draws repeat a handful of Pattern sets — only borderline conditions ever vary — so
+        // each DISTINCT set is explained once and the draw list holds copies.
+        std::vector<Explanation> drawn;
+        QHash<QString, int>      seen;
+        for (const QSet<QString> &pat : patternDraws(m_shots, m_opt)) {
+            QStringList key(pat.begin(), pat.end());
+            key.sort();
+            const QString k = key.join(QLatin1Char('|'));
+            if (const auto it = seen.constFind(k); it != seen.constEnd()) {
+                drawn.push_back(drawn[size_t(it.value())]);
+                continue;
+            }
+            DetectionResult dd;
+            for (const ConditionLedger &l : m_ledgers) {
+                if (l.assessable < 1) continue;
+                Finding f;
+                f.conditionId = l.id;
+                f.state       = pat.contains(l.id) ? FindingState::Fired : FindingState::NotFired;
+                f.confidence  = 1.0f;
+                dd.findings.push_back(std::move(f));
+            }
+            seen.insert(k, int(drawn.size()));
+            drawn.push_back(explain(m_packProv->pack(), dd, m_screens, m_explainOpt));
+        }
+        stampStability(m_explanation, drawn);
+    }
 }
 
 // THE ONLY READER OF THE FAULT PROFILE. hystereticOrder()'s comment names this as the one
@@ -2188,6 +2230,34 @@ void SessionDiagnosticsModel::buildDriver()
             .arg(conditionName(top.conditionId))
             .arg(top.coverage)
             .arg(top.coverage == 1 ? QStringLiteral("pattern") : QStringLiteral("patterns"));
+
+    // INFERRED, NOT MEASURED. A root this session never assessed (no assessable shot — its measure
+    // has no producer, or it is latent) and that no entered screen confirms is a conclusion the
+    // model REACHED from its effects, not one it SAW. Said on the footer, because the posterior
+    // ranking (session_diagnostics_design.md §A8.6) can put such a cause first — S-posture, whose
+    // lumbar-curve measure has no producer, led three of four library sessions on 1 Oct 2026.
+    {
+        const ConditionLedger *own = ledgerFor(m_ledgers, top.conditionId);
+        const bool measured  = own && own->assessable >= 1;
+        const bool screened  = m_screens.value(top.conditionId, false);
+        const bool inferred  = !measured && !screened;
+        m_driver[QStringLiteral("inferred")] = inferred;
+        if (inferred)
+            m_driver[QStringLiteral("inferredText")] = QStringLiteral("inferred, not measured");
+    }
+
+    // HOW MUCH THE DRIVER DEPENDS ON READINGS NEAR THEIR EDGES (session_diagnostics_design.md
+    // §A8.6) — the share of measurement-uncertainty draws that name it again, in WORDS. Never a
+    // percentage: principle 5. Absent when not stamped (softTier off).
+    if (top.stability >= 0.0) {
+        m_driver[QStringLiteral("stability")] = top.stabilityWord;
+        m_driver[QStringLiteral("stabilityText")] =
+            top.stabilityWord == QLatin1String("firm")
+                ? QStringLiteral("firm: it holds whichever way the borderline readings fall")
+            : top.stabilityWord == QLatin1String("likely")
+                ? QStringLiteral("likely: a borderline reading or two could change it")
+                : QStringLiteral("fragile: it rests on readings close to their edges");
+    }
 
     QVariantList explains;
     for (const QString &id : top.explains)

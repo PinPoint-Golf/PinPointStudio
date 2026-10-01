@@ -492,6 +492,18 @@ int main(int argc, char **argv)
             check(drv.value(QStringLiteral("whyText")).toString()
                       .contains(QLatin1String("would explain")),
                   "…and says why, as a count of what it accounts for");
+            // §A8.6: the inferred marker is exactly "never assessed this session and not screened" —
+            // an assessed root never carries it, an unassessed one always does.
+            {
+                const QString rootId = drv.value(QStringLiteral("rootId")).toString();
+                const auto *own = pinpoint::analysis::ledgerFor(m->ledgerRows(), rootId);
+                const bool measured = own && own->assessable >= 1;
+                check(drv.value(QStringLiteral("inferred")).toBool() == !measured,
+                      "the driver is marked inferred exactly when this session never measured it");
+                check(!drv.value(QStringLiteral("inferred")).toBool()
+                          || drv.value(QStringLiteral("inferredText")).toString() == QLatin1String("inferred, not measured"),
+                      "…and an inferred driver says so in words");
+            }
             std::printf("      driver: %s\n",
                         qPrintable(drv.value(QStringLiteral("whyText")).toString()));
         } else if (drv.value(QStringLiteral("final")).toBool()) {

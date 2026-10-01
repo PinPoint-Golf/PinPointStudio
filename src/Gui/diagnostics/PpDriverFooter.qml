@@ -158,6 +158,20 @@ Rectangle {
                 font.weight: Theme.fontBodyWeight
                 color: Theme.colorText
             }
+            // The driver was INFERRED from its effects — never measured this session, no screen
+            // entered. Kept in compact mode too: it qualifies the name itself, and a name read
+            // without it claims an observation nobody made.
+            Text {
+                objectName: "sdDriverInferred"
+                width: parent.width
+                visible: text !== ""
+                text: root.driver && root.driver.inferred === true ? (root.driver.inferredText || "") : ""
+                elide: Text.ElideRight
+                font.family: Theme.fontData
+                font.pixelSize: root.tzCaption
+                font.letterSpacing: Theme.trackingLabel
+                color: Theme.colorText3
+            }
             // 12c keeps the driver and the screen; the sentence that ranks it is the first
             // thing to go, because the golfer can act on the screen and not on the ranking.
             Text {
@@ -173,6 +187,21 @@ Rectangle {
                 font.pixelSize: root.tzMicro
                 font.weight: Theme.fontBodyWeight
                 color: Theme.colorText2
+            }
+            // How much the driver depends on readings near their edges — a WORD, never a
+            // percentage (session_diagnostics_design.md §A8.6). Fragile reads in the attention
+            // colour: it is the one state that should make a coach look before acting.
+            Text {
+                objectName: "sdDriverStability"
+                width: parent.width
+                visible: !root.compact && text !== ""
+                text: root.driver ? (root.driver.stabilityText || "") : ""
+                elide: Text.ElideRight
+                font.family: Theme.fontBody
+                font.pixelSize: root.tzMicro
+                font.weight: Theme.fontBodyWeight
+                color: root.driver && root.driver.stability === "fragile" ? Theme.colorAttention
+                                                                            : Theme.colorText3
             }
             // ...and takes the CTA under the name instead of beside it.
             Text {

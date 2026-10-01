@@ -358,6 +358,20 @@ public:
     // a unit test asserting a stage progression should not also be asserting that an event
     // loop ran. This is the whole of the concession — the code path is otherwise identical.
     Q_INVOKABLE void setSynchronous(bool on) { m_synchronous = on; }
+
+    // The measurement-uncertainty switches (session_diagnostics_design.md §A8.8), for the report
+    // tool that grades each stage against the others. Production leaves them at the tuned defaults.
+    // Set BEFORE activateSession(): detection reads withSigma as each shot is ingested.
+    void setUncertaintyModes(bool withSigma, bool softTier, bool posteriorRank)
+    {
+        m_withSigma              = withSigma;
+        m_opt.softTier           = softTier;
+        m_explainOpt.posteriorRank = posteriorRank;
+    }
+    // Read-outs for the same tool — the evidence and what was concluded from it.
+    const std::vector<pinpoint::analysis::ShotRecord>      &shotRecords() const { return m_shots; }
+    const std::vector<pinpoint::analysis::ConditionLedger> &ledgerRows()  const { return m_ledgers; }
+    const pinpoint::analysis::Explanation                  &explanation() const { return m_explanation; }
     Q_INVOKABLE bool synchronous() const { return m_synchronous; }
     // Spin the caller's event loop until every in-flight ingest has landed. Returns false on
     // timeout. A no-op in synchronous mode.
@@ -518,6 +532,8 @@ private:
     // ── The evidence ────────────────────────────────────────────────────────────────
     std::vector<pinpoint::analysis::ShotRecord> m_shots;
     pinpoint::analysis::LedgerOptions           m_opt;
+    pinpoint::analysis::ExplainOptions          m_explainOpt;
+    bool m_withSigma = pinpoint::tuned::diagUncertainty::kEnabled;   // §A8.3 — readings carry σ
     QSet<int> m_ingested;      // shot ids already in the ledger or in flight
     QSet<int> m_lmShots;       // shot ids whose capture carried launch-monitor data
     QHash<int, QString> m_swingDirs;
