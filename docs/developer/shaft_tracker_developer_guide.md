@@ -1853,6 +1853,56 @@ It is then differentiated. The same plane is also used to de-project the *lead a
 - **The club length** and its long-term memory.
 - **Skeleton3D's club direction**, which reads face-on measured samples within ±4 ms and DTL measured samples within ±6 ms.
 
+### 8.11 How far to trust each number: the uncertainty budgets
+
+Since 1 October 2026 the shaft metrics carry a per-reading uncertainty, set up by `docs/design/shaft_uncertainty_propagation_design.md`. The figures behind it are in `docs/research/data/uncertainty/calibration_20261001.md`. Everything sits behind `uncertainty.enabled` (feature switches guide §3.18).
+
+**Two numbers per sample, never one.** Every face-on sample carries:
+
+- `sigTheta`, its 1σ angle error in degrees;
+- `pGross`, the probability that it is on the wrong structure altogether (a forearm, a shadow, the mat).
+
+Both come from one table, indexed by the tier that produced the sample and by the phase group it falls in (address, early backswing, backswing, top, downswing, impact, through, finish). The table was calibrated against 996 hand-marked frames on 58 swings. σ is set by coverage, not by a Gaussian fit to the scatter: the residuals have heavier tails than a Gaussian, so the larger of the 68th-percentile |error| and half the 93rd percentile is used. Each phase-group column was then checked on held-out swings and widened where it missed. The two numbers are kept apart deliberately, because folding a 5 % chance of a 40° error into a σ would make every reading look uncertain, when in fact most are good and a few are wrong.
+
+**The synthetic curve's σ is a posterior.** The evidence fit (§7.1.5) solves a regularised least-squares problem by Cholesky factorisation. The same factor gives the curve's covariance, and its diagonal is each tick's σ. Two corrections apply:
+
+- the weight on each reading is scaled by κ, so that correlated neighbouring readings are not counted as independent;
+- each anchor's own σ spreads into the stretch beside it through the linear bracket weights.
+
+The posterior also yields Monte Carlo draws of whole curves, using a fixed-seed generator (`det_rng.h`), so a re-analysis reproduces the same σ. Metrics that are non-linear functions of the curve take their σ from the spread over those draws.
+
+**Each metric's budget**, all 1σ:
+
+| Metric | Budget |
+|---|---|
+| Shaft lean (`impactShaftLean`) | Tracked: σθ at the reading ⊕ (rate × σ_t of the impact instant). Ball-anchored: the hands→ball line's angle, (σ_grip² + σ_ball²)/L², ⊕ the hands' sweep across the line × σ_t. |
+| Lie (`shaftLie`) | DTL σθ at address and at impact, each ⊕ its timing term; the Δ in quadrature. |
+| Top angle (`shaftAngleVsHorizontal`) | The head and grip positional σ through the line-angle formula. |
+| Attack angle, low point | Monte Carlo over the synth posterior through `trackClubDelivery`; the low point adds ball σ and the ball-diameter ruler (5 %). |
+| Clubhead speed | Monte Carlo over the synth posterior ⊕ grip velocity σ ⊕ s·σ_L/L. σ_L is 5 mm with a recorded club and 0.12 m with a defaulted one. The card says when the club length was assumed. |
+| Speed-peak timing | Monte Carlo over the posterior. |
+| Hand speed | Grip velocity σ from the pose smoother over n_eff. |
+| Lag | σθ ⊕ the forearm angle's σ (3.6°, stated, not calibrated). |
+| Swing plane, transition plane delta | A block bootstrap of the plane fit (blocks of 5 frames, 200 resamples) ⊕ a 0.5° camera floor, with the address plane's σ in quadrature. The conic channel also reports how often a resample turned into a needle. |
+| Club rotation (`clubAngularSpeed`) | The per-sample σθ now feeds the rate and placement σ of the kinematic sequence, in place of the old `0.5°/conf`. |
+
+**Timing σ.** Each P-position carries `sigmaTUs`:
+
+- a crossing: σθ divided by the rate, floored at the frame quantum;
+- P3 and P5: the forearm angle's σ divided by its rate;
+- P4: the width of the speed minimum;
+- P7: the geometry estimate against the trigger.
+
+A reading taken at an instant inherits the rate × σ_t term.
+
+**What the card shows.** The ± chip is the displayed reading's own σ. Its tooltip names the provenance:
+
+- *calibrated*: checked against independent truth;
+- *propagated*: from calibrated inputs, unchecked for this metric;
+- *assumed input*: the club length was defaulted.
+
+A ⚠ appears beside the chip when the reading's gross risk exceeds 0.2. It is a caveat, not a refusal.
+
 ---
 
 ## 9. Plumbing: where it runs, what it stores, how it is drawn, how it is tested
@@ -2165,11 +2215,12 @@ Since the evidence fit (§7.1.5) the synthetic curve is a fit to the measurement
 
 Each choice has a reason in its own comment. But the metric layer does not inherit the tracker's honesty automatically; each metric re-decides it.
 
-**Uncertainty is not propagated.**
+**Uncertainty is propagated now, with gaps (1 October 2026, §8.11).** Every sample carries σθ and a gross risk, and every shaft metric carries a per-reading σ. What remains:
 
-- Shaft lean publishes a fixed ±9.5° even when anchored to the ball, where the measured scatter is 5.3°.
-- The low point's ±2.0 in comes from six swings.
-- Most metrics publish no uncertainty, so a value read off a reconstructed frame and one read off a band lock look the same on the card.
+- **Few metrics are calibrated.** Only lean has independent truth enough to be checked (30 P7 marks: 63 % within ±1σ, 90 % within ±2σ, bias +0.7°). Attack angle and speed have six launch-monitor pairs in the corpus. Lag, top angle, lie and the planes are propagated from calibrated inputs but are unchecked as metrics.
+- **The gross risk misses some gross readings.** The two lean readings off by 15° and 18° both carried a gross risk of 0.
+- **One golfer.** The table was calibrated on 996 marks from one golfer, so a second golfer's swings may need a recalibration (`calibrate_sigma.py`).
+- **Three switches that would change values ship dark**: soft anchors and one impact instant failed their gates, and the sequence's calibrated club σ is awaiting a decision.
 
 **The attack angle is shown but trusted by nothing.** It is computed and charted, but no fault or characteristic reads it, because the camera value "flipped shallow ↔ steep on the same swings".
 

@@ -1,0 +1,4 @@
+metric,n,cov1,cov2,bias,median_sigma,median_abs_err,inflate
+impactShaftLean (P7 marks),30,0.633,0.900,0.7337,2.3438,1.6403,1.207
+attackAngle (GC Quad),6,1.000,1.000,6.5411,2.8420,0.7436,1.000
+clubheadSpeed (GC Quad, scale removed),5,0.200,0.800,0.9074,5.3895,15.2553,1.816

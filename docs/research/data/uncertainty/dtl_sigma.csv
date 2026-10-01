@@ -1,0 +1,4 @@
+tier,sigma_deg,p_gross,bias_deg,n_near_address,n_all,cov1_inflated,cov2_inflated
+RAY,0.500,0.0012,0.250,425,425,0.899,1.000
+BAND,1.000,0.0200,0.000,0,0,nan,nan
+HELD,4.000,0.1000,0.000,0,0,nan,nan

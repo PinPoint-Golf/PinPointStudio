@@ -1,6 +1,6 @@
 # Shaft Uncertainty Propagation — Design
 
-**Status:** design, not started. Written 1 October 2026 for a clean implementation session.
+**Status:** implemented 1 October 2026 (U0–U7). `uncertainty.enabled` is ON. Soft anchors (U3), one impact instant (U4) and the forward–backward posterior (U5) are built and dark: each failed its gate. Calibration and verdicts are in `docs/research/data/uncertainty/calibration_20261001.md`. Written 1 October 2026 for a clean implementation session.
 **Owner:** Mark. **Implements:** the shortcoming recorded in `docs/developer/shaft_tracker_developer_guide.md` §10.4 ("uncertainty is not propagated").
 **Deliverables:**
 1. This design note.
