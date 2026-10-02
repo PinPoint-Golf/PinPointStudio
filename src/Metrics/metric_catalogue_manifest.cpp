@@ -1803,11 +1803,14 @@ void installMetricManifest(MetricCatalogue &cat)
                 { .imuRoles = { R::Pelvis, R::Thorax, R::LeadForearm }, .clubTrack = true },
                 QStringLiteral("each segment's gyro projected onto its turn axis, no "
                                "differentiation — the reference route")),
-            via("faceOn+dtl", RM::Triangulated, Direct,
+            // LIVE piece by piece and Estimated: the trunk from the uncalibrated pair (2026-09-20),
+            // the club through the fused two-camera plane (2026-09-21), the lead arm from the
+            // two-camera skeleton (2026-10-02). Nodes carry `faceOn+dtl` or `faceOn+dtl3d`.
+            via("faceOn+dtl", RM::Triangulated, Estimated,
                 { .faceOnCamera = true, .dtlCamera = true, .clubTrack = true },
-                QStringLiteral("the hip and shoulder bearings from the two views' spans "
-                               "(atan2 of the pair), the arm and club from the triangulated "
-                               "vectors"), PLANNED),
+                QStringLiteral("the hip and shoulder turn from the two views' horizontal "
+                               "separations (uncalibrated), the lead arm from the two-camera "
+                               "skeleton fit, the club through the plane the two cameras measured")),
             via("faceOnClub", RM::Projected, Estimated,
                 { .faceOnCamera = true, .clubTrack = true },
                 QStringLiteral("arm and club de-projected through the swing-plane ellipse; "
@@ -1950,8 +1953,15 @@ void installMetricManifest(MetricCatalogue &cat)
             via("leadArmImus", RM::Inertial, Direct, { .imuRoles = { R::LeadForearm } },
                 QStringLiteral("the lead-arm gyro's component across the arm's long axis (the "
                                "upper arm when bound, else the forearm)")),
-            via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
-                QStringLiteral("the triangulated shoulder→wrist vector's angular speed"), PLANNED),
+            // LIVE 2026-10-02 (segment_rates.cpp skeletonArmTrack): the shoulder → wrist direction
+            // from skeleton3d's two-camera fit, its angle in the arm's own downswing plane.
+            // ESTIMATED, not Direct: the fit's cameras are assumed until calibrated, a gain error
+            // its peak σ carries. On 07-04 its node sat a median 6.7 ms from the face-on arm's
+            // (ks_skeleton3d_route_design.md K0). Its own id, so a document says which rung fired.
+            via("faceOn+dtl3d", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the shoulder→wrist line from the two-camera skeleton fit, measured "
+                               "in the arm's own swing plane — the second camera's placement is "
+                               "assumed until it is calibrated")),
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
                 QStringLiteral("the shoulder→wrist image angle de-projected through the "
                                "swing-plane ellipse and differentiated")) },

@@ -556,12 +556,25 @@ int main()
             const MetricAvailability a = cat.resolve(QStringLiteral("pelvisAngularSpeed"), pairShot);
             check(a.routeId == QStringLiteral("faceOn+dtl"), "the pair rung fires on a two-camera shot");
             check(a.state == MetricAvailability::Bridged, "…and is reported as an estimate");
-            // The composite Sequence's own pair rung is still PLANNED: nothing produces the arm
-            // or the club from the pair, so the device-level answer must not claim it does.
+            // The composite Sequence's two-camera rung went LIVE on 2026-10-02, once every member
+            // had a two-camera producer: the trunk from the pair (09-20), the club through the
+            // fused plane (09-21), the lead arm from the skeleton (10-02). Estimated, like each.
             const MetricDescriptor *seq = cat.descriptor(QStringLiteral("kinematicSequence"));
             for (const MetricRoute &r : seq->routes)
                 if (r.id == QStringLiteral("faceOn+dtl"))
-                    check(r.planned, "the SEQUENCE's pair rung is still planned — only the trunk landed");
+                    check(!r.planned && r.quality == RouteQuality::Estimated,
+                          "the SEQUENCE's two-camera rung is live and Estimated — every member has a producer");
+            // The lead arm's skeleton rung: its own id, live, Estimated, and only on two cameras.
+            const MetricDescriptor *arm = cat.descriptor(QStringLiteral("leadArmAngularSpeed"));
+            const MetricRoute *skel = nullptr;
+            for (const MetricRoute &r : arm->routes)
+                if (r.id == QStringLiteral("faceOn+dtl3d")) skel = &r;
+            check(skel && !skel->planned && skel->quality == RouteQuality::Estimated,
+                  "leadArmAngularSpeed's faceOn+dtl3d rung is live and Estimated");
+            check(cat.resolve(QStringLiteral("leadArmAngularSpeed"), pairShot).routeId == QStringLiteral("faceOn+dtl3d"),
+                  "…and fires on a two-camera shot");
+            check(cat.resolve(QStringLiteral("leadArmAngularSpeed"), wristShot({}, true)).routeId == QStringLiteral("faceOn"),
+                  "…and not on a face-on-only shot");
         }
 
         // And the reason a golfer sees for one names the camera, not the tier.
