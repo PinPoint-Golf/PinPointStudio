@@ -6,7 +6,17 @@ coast through impact, because the down-the-line hips overlap just after the ball
 therefore **not built**: the pelvis and thorax stay IMU → pair → face-on.
 
 **What is built is the lead-arm rung** (§5.3, `faceOn+dtl3d`), plus the shared extractor (§5.1),
-the stage reorder (§8) and the catalogue (§9). Sections 4, 5.2, 7 and 10 describe the trunk rung as
+the stage reorder (§8) and the catalogue (§9).
+
+**Later the same day:**
+
+- **The coast was fixed at its source.** skeleton3d now gives pelvis yaw its own acceleration σ
+  (v4, K0 §10).
+- **The trunk rung was then built** (§5.2), behind `sequence.skel3d.trunk`, and measured (K0 §11).
+  On 07-04 it placed nothing. Where it held it repeated the pair's answer with 3–6× the timing σ.
+- **So it was moved BELOW the pair and turned ON**, at Mark's call: IMU → pair → skeleton → span.
+  On 07-04 it then fires on none of the 15 swings, so nothing changes; it is there for the swings
+  where the pair cannot produce. Sections 4, 5.2, 7 and 10 describe the trunk rung as
 designed and are kept for the record. Two follow-ons were agreed with Mark on 2 October: a
 time-boxed look at what holds the fitted pelvis back, and an honesty guard on the rotation route's
 pelvis near impact.
@@ -114,8 +124,8 @@ Per series, best first. New rungs are in bold.
 
 | Series | 1 | 2 | 3 | 4 |
 |---|---|---|---|---|
-| `pelvisAngularSpeed` | `pelvisImu` | **`faceOn+dtl3d` (skeleton)** | `faceOn+dtl` (pair) | `faceOn` (span) |
-| `thoraxAngularSpeed` | `thoraxImu` | **`faceOn+dtl3d` (skeleton)** | `faceOn+dtl` (pair) | `faceOn` (span) |
+| `pelvisAngularSpeed` | `pelvisImu` | `faceOn+dtl` (pair) | **`faceOn+dtl3d` (skeleton)** — *below the pair as built, K0 §11* | `faceOn` (span) |
+| `thoraxAngularSpeed` | `thoraxImu` | `faceOn+dtl` (pair) | **`faceOn+dtl3d` (skeleton)** — *below the pair as built* | `faceOn` (span) |
 | `leadArmAngularSpeed` | `leadArmImus` | **`faceOn+dtl3d` (skeleton)** | `faceOn` (de-projected) | |
 | `clubAngularSpeed` | `clubSensorFused` | `faceOn+dtl` (fused plane), unchanged | `faceOnClub` | |
 

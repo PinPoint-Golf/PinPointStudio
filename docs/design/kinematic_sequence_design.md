@@ -176,8 +176,8 @@ may be measured while the thorax is estimated, and one ladder per metric could n
 
 | Series | Rung 1 (Direct) | Rung 2 (Direct) | Rung 3 (Estimated) |
 |---|---|---|---|
-| `pelvisAngularSpeed` | `pelvisImu` — Inertial | `faceOn+dtl` — Triangulated, **LIVE 2026-09-20, Estimated, uncalibrated** | `faceOn` — Projected, **gated by §9** |
-| `thoraxAngularSpeed` | `thoraxImu` — Inertial | `faceOn+dtl` — Triangulated, **LIVE 2026-09-20, Estimated, uncalibrated**; ring OFF, bound only | `faceOn` — Projected, **gated by §9** |
+| `pelvisAngularSpeed` | `pelvisImu` — Inertial | `faceOn+dtl` — Triangulated, **LIVE 2026-09-20, Estimated, uncalibrated**; then `faceOn+dtl3d` (skeleton, LIVE 2026-10-02, §15) | `faceOn` — Projected, **gated by §9** |
+| `thoraxAngularSpeed` | `thoraxImu` — Inertial | `faceOn+dtl` — Triangulated, **LIVE 2026-09-20, Estimated, uncalibrated**; ring OFF, bound only; then `faceOn+dtl3d` (skeleton, ring OFF, §15) | `faceOn` — Projected, **gated by §9** |
 | `leadArmAngularSpeed` | `leadArmImus` — Inertial (LeadForearm; LeadUpperArm when bound) | `faceOn+dtl3d` — the two-camera skeleton's shoulder→wrist line in the arm's own plane, **LIVE 2026-10-02, Estimated** (§15) | `faceOn` — Projected |
 | `clubAngularSpeed` | `clubSensorFused` — Fused (Club role + track) | `faceOn+dtl` — the face-on angle de-projected through the FUSED two-camera downswing plane, BUILT 2026-09-21 (§14) | `faceOnClub` — Projected |
 
@@ -1134,7 +1134,11 @@ pelvis, thorax and lead arm. Its offline measurement (K0,
   it steps aside when switched off (`sequence.skel3d.leadArm`), when less than 80% of the domain is
   usable, or when it can neither place nor bound. The assumed camera widens the peak's σ by 10%
   of the peak (3% once calibrated), and never its instant.
-- **The trunk is not built.** The fit coasts through impact: the down-the-line hips overlap just
+- **The trunk was built later the same day, below the pair** (K0 §10–11). The pelvis-yaw prior
+  (skeleton3d v4) removed the coast. Ranked above the pair, the rung placed nothing and only
+  widened σ, so it now runs IMU → pair → skeleton → span. On 07-04 it fires on none of the 15.
+  The §4 rows read accordingly.
+- **The trunk was first left unbuilt.** The fit coasted through impact: the down-the-line hips overlap just
   after the ball, the fit discounts them, and the coast reaches about 13 ms back before impact.
   A ring on it would have placed a pelvis node a median 67 ms before impact on 13 of 15 swings.
   The pair's pre-impact data is clean (its |ψ| reaches 10° of square only after impact, on 15 of

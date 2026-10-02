@@ -331,3 +331,52 @@ coast took about 30% off `hip_stall`'s rate. The bound fixes that at the source.
 - **Run-to-run variation on the library path is real.** The same swing re-analysed twice gave
   visibly different pelvis curves (s8: 162 vs 209 °/s at impact), because the DTL shaft is re-run.
   Per-swing K0 numbers carry that noise.
+
+## 11. The trunk rung, built dark and measured in the app's own terms (2 October)
+
+The pelvis and thorax skeleton rung is in `segment_rates.cpp` behind `sequence.skel3d.trunk`
+(default OFF), with the thorax ring off as on the pair. `segment_rates_test` §12 shows it placing a
+synthetic pelvis within one skeleton frame through square, for either hand.
+
+**07-04 measurement.** All 15 library swings (skeleton3d v4) were re-analysed into scratch on
+GOLFSIMPC, twice, with the rung on and off. This is the question K0's nominal σ could not answer:
+what the rung places with its real σ_t.
+
+| | Pelvis | Thorax |
+|---|---|---|
+| swings where the skeleton rung held (the rest stepped aside to the pair) | 3/15 (s5, s6, s12) | 1/15 (s13) |
+| nodes placed | **0** | 0 |
+| what it said on those swings | "did not peak before impact", the pair's answer | the same |
+| σ_t (s5 / s6 / s12) | 68 / 57 / 148 ms (the pair's on the same swings: 23 / 23 / 18 ms) | 12 ms |
+| verdicts changed | **none of 15** | |
+
+**Reading.**
+
+- **The wiggles are never placed.** On 12/15 swings the curve's highest point sits inside the
+  downswing with σ_t above the 40 ms threshold. So it is neither placed nor bounded, and the rung
+  steps aside, as designed.
+- **It never outdoes the pair.** Where it holds, it says what the pair says with three to six times
+  the timing σ. Ranked above the pair, it would replace a better reading with a vaguer one of the
+  same thing.
+- **So it does not belong above the pair.** The pair remains the two-camera trunk route; the
+  skeleton remains the two-camera lead-arm route.
+
+**Moved below the pair and turned on (Mark: "if it does no harm we may see benefits as new swings
+are recorded").** The order is now IMU → pair → skeleton → face-on span. The rung costs nothing
+where the pair produces, and it replaces the span, which is blind at square, where the pair cannot.
+
+The confirmation sweep re-ran the same 15 swings on GOLFSIMPC, on (the new default) and off:
+
+- **Routes, placements, peak instants and verdicts:** identical, 15/15.
+- **Pelvis / thorax curves:** within 0.015 °/s.
+- **The arm (up to 24 °/s) and the club (2.8 °/s):** they also differ between the two runs. The
+  rung cannot touch them; this is the library path's run-to-run variation (the DTL shaft re-run).
+- **The rung fired on none of the 15.** The pair always produced the pelvis. Where the pair handed
+  the thorax over (9/15), the skeleton's thorax, with its ring off, also stepped aside to the span.
+
+It is there for the swings where the pair refuses: a failed scale, a pairing below the correlation
+floor, an unconfident second view.
+- **What could change that:**
+  - a measured camera calibration (a tighter skeleton σ);
+  - a golfer whose trunk peaks inside the downswing, which the pair has not yet been seen to place;
+  - a trunk IMU session to grade both.

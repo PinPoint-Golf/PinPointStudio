@@ -295,11 +295,18 @@ All from b82de8a3 (2026-10-01); gate in `dtl_precalibration_20261003.md`.
 | `debugForceMirror` | :187 | DARK (test) | Test hook. |
 | `pool{Club,Scale,Sym,Grip}` | `skeleton3d_pool.h:59–62` | **DARK** | Hold the golfer's pooled values fixed. |
 | `ReanalyzeOptions::useSessionPool` | `swing_reanalyzer.h:103` | LIVE | Use the session's pooled cameras. Forced off in SwingLab pass 1. |
+| `pelvisYawAccRad` | `skeleton3d_fit.h` (FitConfig) | LIVE (200) | The pelvis yaw's own acceleration σ, rad/s², never loosened through the downswing (0 = the general σ). |
 
 - **Base fit** — d9b466f7 (2026-09-26).
 - **Plane / branch** — 2a7e57a9 (09-28): P8 off-plane 51.9° → 6.0°; face-on-only 50° → 15.8°.
 - **Lean + splines + pool** — 3edbcba3 (09-28), graded in `docs/design/swing_3d_viz_design.md` §13.5–13.7. Spine-only lean + splines was best of four (face-on-only 15.8 → 13.45°). Pooling cameras only gives 11.15°.
 - The doc records that leaving `leanClavicles` off departs from Mark's answer to q1, on the numbers.
+- **pelvisYawAccRad** — 5bef75f3 (2026-10-02), `kSkeleton3DStageVersion` 4. With the general σ (about 1800 rad/s² in the fast window), the pelvis stopped and restarted at the ball on 15/15 07-04 swings.
+  - At 200: implied acceleration 11 700 → 3 700 °/s²; reprojection, slip and limit holds unchanged; `hip_stall`'s P6→P7 rate 160 → 225 °/s, and three false stalls cleared.
+  - At 100 the result is the same; at 400 a shallow dip remains.
+  - `{"skeleton3d.pelvisYawAccRad": 0}` is the control.
+  - The record is `docs/research/data/kinematic_sequence/skeleton_rate_k0_20261002.md` §10.
+  - A debug term ledger sits beside it, behind the env var `PINPOINT_SKEL_TERMS=<path>`.
 
 ### 3.15 Event refinement & timeline fusion (`refine.*`)
 
@@ -324,9 +331,29 @@ All from b82de8a3 (2026-10-01); gate in `dtl_precalibration_20261003.md`.
 | `kFaceOnTrunkPlacement` (PTC:794) | `sequence.faceOnTrunkPlacement` | LIVE | Face-on pelvis/thorax nodes may be placed, but only inside the sighted band (\|turn\| ≥20°); elsewhere they are BOUNDS. |
 | `kPairTrunkEnabled` / `kPairTrunkPlacement` (PTC:821–822) | `sequence.pairTrunk.*` | LIVE | Paired FO+DTL trunk route (between the IMU and face-on rungs) and its own placement gate. |
 | `kPairTrunkThoraxPlacement` (PTC:865) | `sequence.pairTrunk.thoraxPlacement` | **DARK** | Thorax node placement on the pair route. |
+| `kSkel3dLeadArm` | `sequence.skel3d.leadArm` | LIVE | The lead arm from the two-camera skeleton (`faceOn+dtl3d`), below a lead-arm IMU and above the face-on arm. |
+| `kSkel3dMinUsableFrac` | `sequence.skel3d.minUsableFrac` | LIVE (0.8) | Below this usable fraction of the domain a skeleton rung steps aside. |
+| `kSkel3dTrunk` / `kSkel3dPlacement` | `sequence.skel3d.trunk` / `.placement` | LIVE | The pelvis/thorax from the two-camera skeleton, **below the pair** and above the face-on span, with its own placement gate. |
+| `kSkel3dThoraxPlacement` | `sequence.skel3d.thoraxPlacement` | **DARK** | Thorax node placement on the skeleton route. |
+| — | `sequence.skel3d.scaleFrac` | LIVE (0.10) | The assumed camera's gain on a skeleton rung's peak σ; 0.03 once skeleton3d is calibrated. |
 
 - **sequence.enabled** — ON from birth in 3b8dc071 (2026-09-17).
 - **faceOnTrunkPlacement** — born OFF in 3b8dc071: the nodes were spikes from the address *reference*. ON in c1b7c995 (09-18) after the square-up reference replaced it. Pelvis 0 placed / 45 bounded; thorax 2 / 42. Design §12.4.
+- **skel3d.leadArm** — bfa63ced (2026-10-02). On 07-04 the rung fired on 14/15 swings:
+  - the node moved from a median 100.5 to 107.3 ms before impact, and σ_t from 18.7 to 14.3 ms;
+  - s10 went from unresolved to partial;
+  - it agrees with the face-on arm to a median 6.7 ms.
+
+  Mark: "a material difference in stability and plausibility". The record is
+  `skeleton_arm_g3_20261002.md`. With `false`, the output is byte-identical apart from timings.
+- **skel3d.trunk** — built dark, then measured on 07-04 (`skeleton_rate_k0_20261002.md` §11).
+  - Ranked above the pair, it held on 3/15 swings and placed nothing, saying what the pair said
+    with 3–6× the timing σ.
+  - So it was moved BELOW the pair and turned ON (Mark: "if it does no harm we may see
+    benefits"). There it replaces the blind-banded span wherever the pair cannot produce.
+  - The confirmation sweep, on vs off, 15 swings: routes, placements, instants and verdicts
+    identical. On 07-04 it fires on none of them.
+  - `{"sequence.skel3d.trunk": false}` is the control.
 - **pairTrunk** — 840e37eb (2026-09-20), measured on 21 two-camera swings. The pelvis went from an 84 ms face-on bound to "did not peak before impact" on 20/21. **No trunk node is placed**, because on this golfer both trunk rates are still rising at impact, so placement "cannot be validated until a swing that peaks the trunk in the downswing, or rotation truth, exists". `{"sequence.pairTrunk.enabled": false}` is the named face-on control.
 
 ### 3.17 Kinematics, tempo, ball position, shaft plane, club delivery

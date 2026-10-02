@@ -95,6 +95,13 @@ These are the known sources as of 2 October 2026. The census should confirm each
     - the link 2×2 on hard counts;
     - uncalibrated strength and prominence words.
 11. **skeleton3d's posterior σ.** It assumes the rigid model and its priors are right, so it is probably optimistic. The high thorax readings on 4 July (about 103° at the top) are a candidate example.
+    - **The priors shape readings where the data is silent.** Through impact the face-on view is blind to pelvis yaw and the down-the-line hips turn end-on. Before skeleton3d v4 the fit stopped and restarted the pelvis there, and `hip_stall`'s rate read about 30% low. The pelvis-yaw prior (`skeleton3d.pelvisYawAccRad`) now bounds it. The census must state, for each skeleton-fed metric, whether a reading falls in such a window, because there the σ is the prior's, not the data's (`docs/research/data/kinematic_sequence/skeleton_rate_k0_20261002.md` §8–10).
+    - **The thorax's equivalent is open.** A spine-twist trough persists mid-downswing, and nothing bounds it yet.
+13. **The two-camera skeleton routes in the kinematic sequence (2 October).** These are `leadArmAngularSpeed` and, below the pair, `pelvisAngularSpeed` / `thoraxAngularSpeed`, all under route `faceOn+dtl3d`.
+    - **Per-sample angle σ:** the fit's joint σ through the line angle.
+    - **Assumed camera:** a gain on the peak value only: 10%, or 3% once calibrated (`sequence.skel3d.scaleFrac`).
+    - **Timing:** no timing term beyond the peak finder's own.
+    - **What the census checks:** that this composition is honest. On 07-04 the arm's σ_t (median 14 ms) sat beside a 7 ms disagreement with the face-on arm, which is a first coverage datum.
 12. **Smoothing and reducer bias.** The windowed median at phases and the 40 ms windowed-mean extremum pull peaks toward the mean. That is a bias, not noise.
 
 ## 4. Method
