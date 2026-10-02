@@ -380,3 +380,98 @@ floor, an unconfident second view.
   - a measured camera calibration (a tighter skeleton σ);
   - a golfer whose trunk peaks inside the downswing, which the pair has not yet been seen to place;
   - a trunk IMU session to grade both.
+
+## 12. The thorax trough (item 4, 2 October): measured, not fixable without truth
+
+The skeleton's thorax rate dips mid-downswing. On s8 (Mac, pinned poses) it runs 892 °/s at −134 ms,
+360 at −30, and 900 after impact. Two tests:
+
+1. **A spine-twist acceleration bound** (the pelvis-yaw treatment, applied to `spine*.twist`) at 50,
+   100 and 200 rad/s². It **changes nothing**: the curve is identical within ±25 °/s and so is the
+   cost. The twist is not moving freely, so this is not the pelvis's failure.
+2. **Two observables of the same chest, frame by frame on s8:**
+
+| ms | pelvis | shoulder line (arm roots) | spine chain (root yaw + twists) | clavicle roots | trail clavicle protraction |
+|---|---|---|---|---|---|
+| −134 | 108 | 892 | 691 | 889 | 27.9° |
+| −95 | 242 | 576 | 427 | 360 | 34.7° |
+| −56 | 264 | 465 | 778 | 535 | 23.7° |
+| −30 | 323 | 360 | 628 | 436 | 17.1° |
+| −4 | 300 | 485 | 553 | 373 | 20.3° |
+| +22 | 377 | 842 | 840 | 860 | 23.9° |
+
+**Reading.** The trail clavicle protracts by 20° and back within about 80 ms, and the shoulder line
+through the arm roots carries that motion. The spine chain, which has no clavicle in it, has two
+humps but no trough. So the chest rate's SHAPE is decided by how the fit splits the motion between
+spine and clavicle, and the two cameras do not pin that split.
+
+Unlike the pelvis there is no stop-restart: the implied accelerations are physically possible
+(about 5 000 °/s²). There is no principled fix without chest truth (a sternum IMU), so **none is
+adopted** and the twist setting was reverted.
+
+**Effect on what ships:** nil today.
+
+- The thorax ring is off on every route.
+- The skeleton's thorax rung sits below the pair, and it stepped aside on all 15 07-04 swings.
+- `thoraxRotation` LEVELS (top, finish) are unaffected (K0 §10).
+
+Where it shows is the 3-D view's chest motion. If a chest observable is ever chosen for the
+sequence, the spine chain is the clavicle-free candidate, to be decided against a sternum IMU.
+
+## 13. The feet (item 6, 2 October): the shod foot
+
+Mark saw this in the 3-D view: "the feet look quite wrong (no lift and toes in the air)".
+
+**The cause.** The rig's foot markers sit where a BARE sole's toe and heel are: 1.3 cm and 2.5 cm off
+the floor, with the ankle joint at 10.5 cm. The pose model marks a SHOE's toe and heel, up on the
+shoe. In the down-the-line view the ankle keypoint sits only 4–6 cm above them (s3, s8, s12). The
+fit reconciled the two by raising the floor and tipping the feet toes-up. On s8 that put the ankle
+joint 3.8 cm off the floor, both feet pitched about 20° toes-up, and the ankles dorsiflexed 20–35°
+at ADDRESS.
+
+**The fix.** `skeleton3d.footToeLiftM` / `footHeelLiftM` lift the six foot markers along the
+foot's own up axis. The floor read-back includes the lift. Version 5. While building it a bug turned
+up: only symmetric-group markers had an up axis in the rig, so the foot markers now get one. On s8,
+nine pairs were tried, and toe 6 cm / heel 3 cm was the cheapest fit.
+
+| s8 | bare sole | toe 6 / heel 3 cm |
+|---|---|---|
+| cost / reprojection FO, DTL | 88 633 / 8.06, 4.39 px | 81 251 / 6.91, 3.69 px |
+| slip p90 / limits held | 21.3 mm / 23 | 19.2 mm / 22 |
+| ankle above the floor, address | 3.8 cm | 8–9 cm |
+| lead / trail ankle dorsiflexion, address | 23.6° / 19.7° | 20.4° / 1.4° |
+
+**The heel lift was there, from a wrong foot.** The face-on trail-heel keypoint shows the heel
+staying DOWN until impact (±1 cm), rising 2–3 cm by +30 ms and 5–9 cm by +100 ms, on s3, s8, s12 and
+s14. The time rule releases the planted foot at impact + 80 ms, and the fit then lifts the heel.
+With the shod foot it starts flat (ankle 10 cm, pitch −17°, the rest pose) and rolls onto the toes
+(ankle 24 cm, pitch −86° by +250 ms). With the bare sole it started toes-up, so the roll read as
+wrong. **No contact change is needed.** The keypoint-driven release of §10 stays reverted.
+
+**15 swings** (GOLFSIMPC, library path, lift on vs off, one sweep):
+
+| | off | on | |
+|---|---|---|---|
+| cost (median) | 86 691 | 80 140 | better on 15/15 |
+| reprojection FO / DTL | 7.07 / 4.53 px | 6.26 / 4.06 px | better on 15/15 / 15/15 |
+| slip p90 | 22.1 mm | 22.9 mm | worse on 10/15 by ≤ 4.6 mm |
+| limits held | 30 | 24 | |
+| lead / trail ankle dorsiflexion, address | 22.4° / 16.9° | 13.2° / 2.7° | |
+| lead / trail ankle → toe pitch, address (flat ≈ −17°) | +2.1° / −1.8° | −2.1° / −10.6° | |
+| pelvis at P7 · thorax at top · at finish | 2.1 · 100.6 · 131.7° | 1.8 · 100.8 · 130.9° | |
+| **X-factor at top** | 66.7° | **60.0°** (Δ −20 … +2) | the pelvis now turns more at the top |
+| **pelvis rate P6 → P7** | 198 °/s | **276 °/s** (Δ −17 … +165) | |
+| sequence verdicts | | unchanged | |
+
+**The lead foot is better but not right.** At address it is still a median ~15° toes-up of flat.
+The lead foot is the far foot to the DTL camera and half hidden behind the trail leg (DTL foot
+keypoint confidence about 0.55), so its pitch is weakly observed. That is open.
+
+**The library.** 07-04 was re-analysed in place with items 5 and 6, and regraded. The backup is
+`scratch/backup-pre-items56-20261002`, and the old ledger is `diagnostics.json.pre-items56-20261002`.
+
+- `sequence_order`: clean 15 → **not assessable 15** (item 5).
+- `hips_under_rotated_at_top`: fired 2 → 1.
+- `over_rotation_at_top`: fired 4 → 5.
+- Nothing else changed: 9 patterns, 78 of 160 measurable (79 before, the difference being
+  `sequence_order`).

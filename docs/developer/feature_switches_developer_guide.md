@@ -296,6 +296,7 @@ All from b82de8a3 (2026-10-01); gate in `dtl_precalibration_20261003.md`.
 | `pool{Club,Scale,Sym,Grip}` | `skeleton3d_pool.h:59–62` | **DARK** | Hold the golfer's pooled values fixed. |
 | `ReanalyzeOptions::useSessionPool` | `swing_reanalyzer.h:103` | LIVE | Use the session's pooled cameras. Forced off in SwingLab pass 1. |
 | `pelvisYawAccRad` | `skeleton3d_fit.h` (FitConfig) | LIVE (200) | The pelvis yaw's own acceleration σ, rad/s², never loosened through the downswing (0 = the general σ). |
+| `footToeLiftM` / `footHeelLiftM` | `skeleton3d_fit.h` (FitConfig) | LIVE (0.06 / 0.03) | The shod foot: the toe and heel keypoint markers lifted along the foot's up axis (0 = bare-sole priors). |
 
 - **Base fit** — d9b466f7 (2026-09-26).
 - **Plane / branch** — 2a7e57a9 (09-28): P8 off-plane 51.9° → 6.0°; face-on-only 50° → 15.8°.
@@ -336,6 +337,7 @@ All from b82de8a3 (2026-10-01); gate in `dtl_precalibration_20261003.md`.
 | `kSkel3dTrunk` / `kSkel3dPlacement` | `sequence.skel3d.trunk` / `.placement` | LIVE | The pelvis/thorax from the two-camera skeleton, **below the pair** and above the face-on span, with its own placement gate. |
 | `kSkel3dThoraxPlacement` | `sequence.skel3d.thoraxPlacement` | **DARK** | Thorax node placement on the skeleton route. |
 | — | `sequence.skel3d.scaleFrac` | LIVE (0.10) | The assumed camera's gain on a skeleton rung's peak σ; 0.03 once skeleton3d is calibrated. |
+| `kPeakTimes` | `sequence.peakTimes` | LIVE | Emit `pelvisPeakTime` / `thoraxPeakTime` (placed nodes only) — what `sequence_order` reads. |
 
 - **sequence.enabled** — ON from birth in 3b8dc071 (2026-09-17).
 - **faceOnTrunkPlacement** — born OFF in 3b8dc071: the nodes were spikes from the address *reference*. ON in c1b7c995 (09-18) after the square-up reference replaced it. Pelvis 0 placed / 45 bounded; thorax 2 / 42. Design §12.4.

@@ -499,6 +499,13 @@ Nothing is committed until Mark has seen the §9 results.
    the gain measures and the cross-shot timing-consistency measure (the discriminator the benchmark
    found — amateur SDs at least double the professionals'), which needs Appendix B.8's `Range`
    reducer.
+   **Re-point DONE 2026-10-02.** `sig_sequenceOrder` now reads `m_pelvisPeakTime` and
+   `m_thoraxPeakTime`. These are `pelvisPeakTime` / `thoraxPeakTime`: the PLACED nodes' instants,
+   in ms relative to impact, with σ = σ_t (`segment_rates.h` `sequencePeakTimeSeries`). Its Order
+   test compares event TIMES. It had been fed the rotation peaks, which are ANGLES (21–47° against
+   about 100°), so it could not fire: it read "clean" on 15/15 07-04 shots. An unplaced node emits
+   nothing, so on this golfer (no trunk node placed) the characteristic is honestly NOT ASSESSABLE.
+   The gain and consistency measures remain open.
 4. **Per-tier corridors.** A camera-estimated node and an IMU-measured one against one corridor is
    the compromise `body_rotation_estimation.md` §6.2 already names. Not before a single shot carries
    a trunk IMU; Stage 2 will be that shot.
