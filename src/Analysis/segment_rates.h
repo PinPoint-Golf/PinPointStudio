@@ -52,6 +52,14 @@
 //              as an ~800 °/s peak one grid step later — on 21 of 21 measured swings. See
 //              docs/research/data/kinematic_sequence/pair_span_turn_20260920.md §3.1, and the
 //              G1 case in segment_rates_test §9.
+//   skeleton   LEAD ARM ONLY, routeId "faceOn+dtl3d" (ks_skeleton3d_route_design.md §5.3). The
+//              shoulder → wrist direction from skeleton3d's two-camera fit, its angle in the arm's
+//              OWN downswing plane (the least-variance axis of the directions over the domain),
+//              differentiated. Estimated: the fit's cameras are assumed until calibrated, a gain
+//              error carried on the PEAK VALUE's σ (scaleFrac·|peak|), never on its instant. The
+//              pelvis and thorax have no skeleton rung: the fit coasts through impact where the
+//              down-the-line hips overlap (docs/research/data/kinematic_sequence/
+//              skeleton_rate_k0_20261002.md §8), and the pair reads clean data there.
 //   face-on    arm and club: the image angle DE-PROJECTED through the shaft-plane conic's axis
 //              ratio k and node bearing ν (tan(ψ−ν) = k·tan α), then differentiated. Estimated,
 //              but the correction factor is bounded in [k, 1/k] and the timing barely moves.
@@ -69,6 +77,7 @@
 
 #include <QString>
 #include <QVariantMap>
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -112,6 +121,12 @@ struct SegmentRatesConfig {
     double  pairSwapMinFrac    = tuned::sequence::kPairSwapMinFrac;    // sequence.pairSwapMinFrac
     double  pairMaxTurnDps     = tuned::sequence::kPairMaxTurnDps;     // sequence.pairMaxTurnDps
     bool    pairTrunkThoraxPlacement = tuned::sequence::kPairTrunkThoraxPlacement; // sequence.pairTrunk.thoraxPlacement
+    // The two-camera skeleton's lead-arm rung, and the camera-scale fraction its peak σ carries
+    // (the rotation route's constant: one assumed camera, one assumed error).
+    bool    skel3dLeadArm       = tuned::sequence::kSkel3dLeadArm;       // sequence.skel3d.leadArm
+    double  skel3dMinUsableFrac = tuned::sequence::kSkel3dMinUsableFrac; // sequence.skel3d.minUsableFrac
+    double  skel3dScaleFrac     = tuned::bodyRotation::kTriScaleFrac;    // sequence.skel3d.scaleFrac
+    double  skel3dScaleFracCalibrated = tuned::bodyRotation::kTriScaleFracCalibrated;
     // The club angle's per-sample σ from the shaft uncertainty pass (sigmaThetaDeg) in place of
     // shaftThetaSigmaRad / conf. A VALUE change, not a σ-only one: the wider σ un-places the club
     // node on some swings (the 1 Oct sigma sweep), so it has its own switch, off until Mark rules.
@@ -149,6 +164,9 @@ struct SegmentRatesConfig {
         apply(ov, "sequence.pairSwapMinFrac",     c.pairSwapMinFrac);
         apply(ov, "sequence.pairMaxTurnDps",      c.pairMaxTurnDps);
         apply(ov, "sequence.pairTrunk.thoraxPlacement", c.pairTrunkThoraxPlacement);
+        apply(ov, "sequence.skel3d.leadArm",       c.skel3dLeadArm);
+        apply(ov, "sequence.skel3d.minUsableFrac", c.skel3dMinUsableFrac);
+        apply(ov, "sequence.skel3d.scaleFrac",     c.skel3dScaleFrac);
         return c;
     }
 };
@@ -157,7 +175,7 @@ struct SegmentRatesConfig {
 struct SegmentRateChannel {
     MetricSeries         series;        // °/s on the route's own grid; sigma = median over the domain
     std::vector<double>  sampleSigma;   // per-sample 1σ, parallel to series.t_us (for the peak finder)
-    QString              routeId;       // "pelvisImu" | "thoraxImu" | "leadArmImus" | "clubSensorFused" | "faceOn+dtl" | "faceOn" | "faceOnClub"
+    QString              routeId;       // "pelvisImu" | "thoraxImu" | "leadArmImus" | "clubSensorFused" | "faceOn+dtl" | "faceOn+dtl3d" | "faceOn" | "faceOnClub"
     bool                 direct = false;
     bool produced() const { return !series.key.isEmpty(); }
 };
@@ -195,6 +213,19 @@ struct PairDiagnostics {
     PairSegmentDiag pelvis, thorax;
 };
 
+// The LEAD arm as skeleton3d's two-camera fit placed it (the stage picks the side): per fitted
+// frame, the unit shoulder → wrist direction in world coordinates, its 1σ (rad, the two joints'
+// posterior position σ over the arm's length), and whether the frame is usable — both joints
+// measured or constrained by the fit, never merely inferred. Plain arrays, so this producer never
+// includes a skeleton3d header.
+struct SkeletonLeadArm {
+    std::vector<int64_t>               t_us;
+    std::vector<std::array<double, 3>> dir;
+    std::vector<double>                sigmaRad;
+    std::vector<uint8_t>               usable;
+    bool camerasCalibrated = false;    // skeleton3d solved from a MEASURED calibration
+};
+
 struct SegmentRatesInputs {
     const PoseTrack2D             *pose    = nullptr;   // face-on pose (smoothed preferred)
     int                            frameW  = 0, frameH = 0;
@@ -220,6 +251,8 @@ struct SegmentRatesInputs {
     // either; one thing changes at a time.
     struct FusedPlane { bool have = false; double ratio = 1.0, nodeRad = 0.0; };
     FusedPlane                     fusedClubPlane;
+    // The two-camera skeleton's lead arm (null ⇒ the arm reads off the face-on image as before).
+    const SkeletonLeadArm         *skelArm = nullptr;
 };
 
 struct SegmentRatesResult {

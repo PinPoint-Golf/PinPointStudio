@@ -878,6 +878,15 @@ inline constexpr double       kPairMaxTurnDps       = 2000.0; // sequence.pairMa
 // face-on shoulder that survives its own square-up exists. The pelvis never crosses (0 sign
 // changes on 21 of 21) and is unaffected.
 inline constexpr bool         kPairTrunkThoraxPlacement = false; // sequence.pairTrunk.thoraxPlacement
+// The lead arm from the TWO-CAMERA SKELETON (ks_skeleton3d_route_design.md §5.3; K0 2026-10-02):
+// the shoulder → wrist direction in 3-D, its angle in the arm's own fitted downswing plane. ON:
+// K0 put its node a median 6.7 ms from the face-on arm's on 07-04 (12/15 within 15 ms), the
+// cross-check the arm never had. The trunk has NO skeleton rung — the fit coasts through impact
+// where the down-the-line hips overlap (K0 §8), so the pelvis and thorax stay on the pair.
+inline constexpr bool         kSkel3dLeadArm        = true;   // sequence.skel3d.leadArm
+// Below this fraction of usable frames (both joints measured or constrained) over the domain, the
+// gaps are wider than the derivative window and the rung steps aside for the face-on arm.
+inline constexpr double       kSkel3dMinUsableFrac  = 0.8;    // sequence.skel3d.minUsableFrac
 } // namespace sequence
 
 // --- Club delivery from a face-on camera (src/Analysis/club_delivery.h) -------

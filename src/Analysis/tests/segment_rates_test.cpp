@@ -53,6 +53,10 @@
 //       docs/research/data/kinematic_sequence/pair_span_turn_20260920.md), must mirror for a
 //       left-hander, and must fall through to face-on — leaving §2 exactly as it was — whenever
 //       the second view is missing, dark, unconfident, too small or inconsistent.
+//   §11 THE SKELETON'S LEAD ARM (faceOn+dtl3d). The arm's 3-D direction in a plane tilted off every
+//       axis places on the truth with no de-projection; agrees with the face-on arm; carries the
+//       assumed camera on its peak σ and never its instant; leaves the other segments alone; and
+//       steps aside to the face-on arm when switched off, too sparse, or unable to place or bound.
 
 #include "../segment_rates.h"
 #include "../kinematic_sequence_json.h"
@@ -373,6 +377,38 @@ static FusedStreams makeStreams(bool leadIsLeft, bool withGyro = true)
 }
 
 static const KsNode *nodeOf(const SegmentRatesResult &r, SeqSegment s) { return r.sequence.node(s); }
+
+// §11's skeleton lead arm: the arm's direction swinging through kArm's bump in a plane TILTED out of
+// every axis (normal (0.3, −0.5, 0.8)), sampled at skeleton3d's ~150 fps from address to finish.
+// `usableFrac` < 1 marks every k-th frame unusable, as frames the fit only inferred would be.
+static SkeletonLeadArm makeSkelArm(bool calibrated, double usableFrac = 1.0)
+{
+    double nrm[3] = { 0.3, -0.5, 0.8 };
+    const double nl = std::sqrt(nrm[0] * nrm[0] + nrm[1] * nrm[1] + nrm[2] * nrm[2]);
+    for (double &x : nrm) x /= nl;
+    // e1 ⟂ n in the XY-plane, e2 = n × e1.
+    double e1[3] = { -nrm[1], nrm[0], 0.0 };
+    const double l1 = std::hypot(e1[0], e1[1]);
+    e1[0] /= l1; e1[1] /= l1;
+    const double e2[3] = { nrm[1] * e1[2] - nrm[2] * e1[1], nrm[2] * e1[0] - nrm[0] * e1[2],
+                           nrm[0] * e1[1] - nrm[1] * e1[0] };
+    SkeletonLeadArm a;
+    a.camerasCalibrated = calibrated;
+    const int64_t step = 6667;
+    const int every = usableFrac < 1.0 ? std::max(2, int(std::lround(1.0 / (1.0 - usableFrac)))) : 0;
+    int k = 0;
+    for (int64_t t = kAddressUs; t <= kFinishUs; t += step, ++k) {
+        const double sec = t * 1e-6;
+        const double alpha = (100.0 - (sec > kTopUs * 1e-6 ? turnFromTop(kArm, sec) : 0.0)) * kD2R;
+        a.t_us.push_back(t);
+        a.dir.push_back({ std::cos(alpha) * e1[0] + std::sin(alpha) * e2[0],
+                          std::cos(alpha) * e1[1] + std::sin(alpha) * e2[1],
+                          std::cos(alpha) * e1[2] + std::sin(alpha) * e2[2] });
+        a.sigmaRad.push_back(0.01);
+        a.usable.push_back(every > 0 && k % every != 0 ? 0u : 1u);
+    }
+    return a;
+}
 static double msFromTruth(const KsNode *n, const Bump &b)
 {
     return n ? std::fabs(double(n->tPeakUs) * 1e-3 - b.tPeakS * 1e3) : 1e9;
@@ -1098,6 +1134,76 @@ int main()
         in.fusedClubPlane.ratio = 0.1;     // below planeRatioFloor (0.20): not a plane to de-project through
         CHECK("§10 a fused ratio below the floor falls back to the ellipse",
               buildSegmentRates(in, cfg).club.routeId == QLatin1String("faceOnClub"));
+    }
+
+    // ── §11 the two-camera skeleton's lead arm (faceOn+dtl3d; ks_skeleton3d_route_design.md §5.3) ──
+    {
+        const PoseTrack2D pose = makePose(true);
+        const ShaftTrack2D shaft = makeShaft();
+        const SkeletonLeadArm sk = makeSkelArm(false), skCal = makeSkelArm(true);
+        SegmentRatesInputs in;
+        in.pose = &pose; in.frameW = kW; in.frameH = kH; in.leadIsLeft = true;
+        in.shaft = &shaft; in.phases = &ph; in.impactUs = kImpactUs;
+        in.skelArm = &sk;
+        const SegmentRatesResult r = buildSegmentRates(in, cfg);
+        const KsNode *a = nodeOf(r, SeqSegment::LeadArm);
+        CHECK("§11 skeleton arm: the lead arm reads faceOn+dtl3d, Estimated",
+              r.leadArm.routeId == QLatin1String("faceOn+dtl3d") && !r.leadArm.direct
+              && a && a->routeId == QLatin1String("faceOn+dtl3d") && !a->direct);
+        CHECK("§11 skeleton arm: node placed within 4 ms of the truth, in a plane tilted off every axis",
+              a && a->placed && msFromTruth(a, kArm) <= 4.0);
+        // 5 %, the IMU route's tolerance (§3): placePeak's centred 40 ms windowed mean flattens a
+        // 40 ms-wide bump by ~3 % on EVERY route; there is no de-projection here to add to it.
+        CHECK("§11 skeleton arm: peak within 5 % of 980 °/s (the IMU route's tolerance)",
+              a && near(a->peakDps, kArm.peakDps, 0.05 * kArm.peakDps));
+        const KsNode *af = nodeOf(faceOn, SeqSegment::LeadArm);
+        CHECK("§11 skeleton arm: agrees with §2's face-on arm within 6 ms (the cross-check)",
+              a && af && std::llabs(a->tPeakUs - af->tPeakUs) <= 6000);
+        // The other three segments are untouched by the arm's rung.
+        bool othersSame = true;
+        for (SeqSegment g : { SeqSegment::Pelvis, SeqSegment::Thorax, SeqSegment::Club }) {
+            const SegmentRateChannel &x = r.channel(g), &y = faceOn.channel(g);
+            othersSame = othersSame && x.routeId == y.routeId && x.series.value == y.series.value;
+        }
+        CHECK("§11 skeleton arm: pelvis, thorax and club identical to §2", othersSame);
+        // The assumed camera is a GAIN: the peak's σ grows by scaleFrac·|peak|, its instant's does not.
+        in.skelArm = &skCal;
+        const SegmentRatesResult rc = buildSegmentRates(in, cfg);
+        const KsNode *ac = nodeOf(rc, SeqSegment::LeadArm);
+        CHECK("§11 skeleton arm: the camera-scale term widens peakSigmaDps (10 % assumed vs 3 % calibrated)",
+              a && ac && a->peakSigmaDps > ac->peakSigmaDps
+              && a->peakSigmaDps >= cfg.skel3dScaleFrac * std::fabs(a->peakDps) - 1e-9);
+        CHECK("§11 skeleton arm: …and leaves the timing σ and the instant alone",
+              a && ac && a->tSigmaMs == ac->tSigmaMs && a->tPeakUs == ac->tPeakUs);
+        // Falling through to the face-on arm, which must then be exactly §2's.
+        const auto sameAsFaceOn = [&](const SegmentRatesResult &x) {
+            return x.leadArm.routeId == QLatin1String("faceOn")
+                && x.leadArm.series.value == faceOn.leadArm.series.value;
+        };
+        SegmentRatesConfig off = cfg;
+        off.skel3dLeadArm = false;
+        in.skelArm = &sk;
+        CHECK("§11 sequence.skel3d.leadArm=false: the face-on arm, exactly as §2", sameAsFaceOn(buildSegmentRates(in, off)));
+        const SkeletonLeadArm sparse = makeSkelArm(false, 0.5);
+        in.skelArm = &sparse;
+        CHECK("§11 half the frames unusable (below minUsableFrac 0.8): steps aside to the face-on arm",
+              sameAsFaceOn(buildSegmentRates(in, cfg)));
+        SegmentRatesConfig strict = cfg;
+        strict.maxPlaceSigmaMs = 0.0;          // nothing placeable, and no band to bound against
+        in.skelArm = &sk;
+        const SegmentRatesResult rs = buildSegmentRates(in, strict);
+        CHECK("§11 neither placed nor bounded: the rung withdraws and the face-on arm runs",
+              rs.leadArm.routeId == QLatin1String("faceOn") && nodeOf(rs, SeqSegment::LeadArm)
+              && nodeOf(rs, SeqSegment::LeadArm)->routeId == QLatin1String("faceOn"));
+        in.skelArm = nullptr;
+        CHECK("§11 no skeleton: the face-on arm, exactly as §2", sameAsFaceOn(buildSegmentRates(in, cfg)));
+        // An IMU-measured arm is never displaced by a camera.
+        const FusedStreams fs = makeStreams(true);
+        in.streams = &fs; in.skelArm = &sk;
+        CHECK("§11 a lead-arm IMU outranks the skeleton", buildSegmentRates(in, cfg).leadArm.routeId == QLatin1String("leadArmImus"));
+        if (a)
+            std::printf("    skel3d leadArm %s t=%.1f ms before impact ±%.1f  peak %.0f ±%.0f\n",
+                        a->placed ? "placed  " : "UNPLACED", a->beforeImpactMs, a->tSigmaMs, a->peakDps, a->peakSigmaDps);
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

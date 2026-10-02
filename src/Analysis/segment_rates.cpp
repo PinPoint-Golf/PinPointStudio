@@ -1011,6 +1011,102 @@ void deprojectTrack(AngleTrack &a, const PlaneParams &pl, const SegmentRatesConf
     unwrapInPlace(a.angleRad);
 }
 
+// ── The two-camera skeleton's lead arm (ks_skeleton3d_route_design.md §5.3) ─────────────────────
+
+// Eigen-decomposition of a symmetric 3×3 by cyclic Jacobi: eigenvalues in `d`, eigenvectors as the
+// COLUMNS of `V`, sorted by descending eigenvalue. Converges in a handful of sweeps at this size.
+void symEigen3(const double A[3][3], double d[3], double V[3][3])
+{
+    double a[3][3];
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j) { a[i][j] = A[i][j]; V[i][j] = i == j ? 1.0 : 0.0; }
+    for (int sweep = 0; sweep < 50; ++sweep) {
+        const double off = a[0][1] * a[0][1] + a[0][2] * a[0][2] + a[1][2] * a[1][2];
+        if (off < 1e-30) break;
+        for (int p = 0; p < 2; ++p) {
+            for (int q = p + 1; q < 3; ++q) {
+                if (std::fabs(a[p][q]) < 1e-300) continue;
+                const double theta = (a[q][q] - a[p][p]) / (2.0 * a[p][q]);
+                const double t = (theta >= 0 ? 1.0 : -1.0) / (std::fabs(theta) + std::sqrt(theta * theta + 1.0));
+                const double c = 1.0 / std::sqrt(t * t + 1.0), sn = t * c;
+                for (int k = 0; k < 3; ++k) {           // A ← Jᵀ A J
+                    const double akp = a[k][p], akq = a[k][q];
+                    a[k][p] = c * akp - sn * akq;
+                    a[k][q] = sn * akp + c * akq;
+                }
+                for (int k = 0; k < 3; ++k) {
+                    const double apk = a[p][k], aqk = a[q][k];
+                    a[p][k] = c * apk - sn * aqk;
+                    a[q][k] = sn * apk + c * aqk;
+                }
+                for (int k = 0; k < 3; ++k) {           // V ← V J
+                    const double vkp = V[k][p], vkq = V[k][q];
+                    V[k][p] = c * vkp - sn * vkq;
+                    V[k][q] = sn * vkp + c * vkq;
+                }
+            }
+        }
+    }
+    int order[3] = { 0, 1, 2 };
+    std::sort(order, order + 3, [&](int x, int y) { return a[x][x] > a[y][y]; });
+    double Vs[3][3];
+    for (int c = 0; c < 3; ++c) {
+        d[c] = a[order[c]][order[c]];
+        for (int r = 0; r < 3; ++r) Vs[r][c] = V[r][order[c]];
+    }
+    for (int r = 0; r < 3; ++r) for (int c = 0; c < 3; ++c) V[r][c] = Vs[r][c];
+}
+
+// The arm's angle in its OWN downswing plane. The plane is the least-variance axis of the usable
+// directions over the domain (through the origin — these are directions, not points), so the roll
+// of the arm about its own axis is excluded by construction and nothing about the shaft's plane or
+// the face-on ellipse is assumed. Returns an empty track when too little of the domain is usable.
+AngleTrack skeletonArmTrack(const SkeletonLeadArm &sk, const Domain &dom, const SegmentRatesConfig &cfg)
+{
+    AngleTrack a;
+    const size_t n = sk.t_us.size();
+    if (n < 3 || sk.dir.size() != n || sk.sigmaRad.size() != n || sk.usable.size() != n) return a;
+    int inDom = 0, usableInDom = 0;
+    double S[3][3] = {};
+    for (size_t i = 0; i < n; ++i) {
+        if (sk.t_us[i] < dom.fromUs || sk.t_us[i] > dom.toUs) continue;
+        ++inDom;
+        if (!sk.usable[i]) continue;
+        ++usableInDom;
+        const std::array<double, 3> &u = sk.dir[i];
+        for (int r = 0; r < 3; ++r) for (int c = 0; c < 3; ++c) S[r][c] += u[size_t(r)] * u[size_t(c)];
+    }
+    if (inDom < cfg.addrMinFrames || usableInDom < cfg.addrMinFrames
+        || double(usableInDom) < cfg.skel3dMinUsableFrac * double(inDom))
+        return a;
+    double d[3], V[3][3];
+    symEigen3(S, d, V);
+    const double e1[3] = { V[0][0], V[1][0], V[2][0] }, e2[3] = { V[0][1], V[1][1], V[2][1] };
+
+    a.t = sk.t_us;
+    a.angleRad.assign(n, 0.0);
+    a.sigmaRad.assign(n, 0.0);
+    a.valid.assign(n, 0u);
+    std::vector<double> adm;
+    for (size_t i = 0; i < n; ++i) {
+        if (!sk.usable[i] || !std::isfinite(sk.sigmaRad[i])) continue;
+        const std::array<double, 3> &u = sk.dir[i];
+        const double x = u[0] * e1[0] + u[1] * e1[1] + u[2] * e1[2];
+        const double y = u[0] * e2[0] + u[1] * e2[1] + u[2] * e2[2];
+        const double inPlane = std::hypot(x, y);
+        if (!(inPlane > 0.2)) continue;               // the arm pointing along the normal: no angle
+        a.angleRad[i] = std::atan2(y, x);
+        a.sigmaRad[i] = sk.sigmaRad[i] / inPlane;     // an out-of-plane arm turns more angle per mm
+        a.valid[i]    = 1u;
+        adm.push_back(a.angleRad[i]);
+    }
+    if (adm.size() < 3) return AngleTrack{};
+    unwrapInPlace(adm);
+    size_t q = 0;
+    for (size_t i = 0; i < n; ++i) if (a.valid[i]) a.angleRad[i] = adm[q++];
+    return a;
+}
+
 } // namespace
 
 // ── Exposed geometry ───────────────────────────────────────────────────────────────────────────
@@ -1152,6 +1248,38 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
         finishChannel(res.club, swingFromImu(*clubImu), SeqSegment::Club,
                       QStringLiteral("Club angular speed"), QStringLiteral("clubSensorFused"), true,
                       clubDom, phases, cfg, nodes);
+
+    // ── The two-camera skeleton's lead arm, for an arm the IMUs did not cover ─────────────────
+    // Above the face-on arm and below the IMU. It steps aside — channel and node — when too little
+    // of the domain is usable, or when it could neither place the node nor bound it, so the face-on
+    // arm below runs exactly as it did before this rung existed.
+    if (!res.leadArm.produced() && cfg.skel3dLeadArm && in.skelArm) {
+        AngleTrack at = skeletonArmTrack(*in.skelArm, dom, cfg);
+        if (!at.t.empty()) {
+            std::vector<uint8_t> seen;
+            PlacementGate gate;
+            gate.bandIsHole = true;              // frames the fit only inferred are interior holes
+            validityBand(at, dom.fromUs, dom.toUs, seen, gate);
+            const size_t before = nodes.size();
+            finishChannel(res.leadArm, differentiate(at, windowUs, 1.0, /*magnitude*/ true),
+                          SeqSegment::LeadArm, QStringLiteral("Lead arm angular speed"),
+                          QStringLiteral("faceOn+dtl3d"), false, dom, phases, cfg, nodes, gate);
+            if (nodes.size() > before) {
+                KsNode &nd = nodes.back();
+                if (!nd.placed && !nd.bounded()) {
+                    nodes.pop_back();
+                    res.leadArm = SegmentRateChannel{};
+                } else {
+                    // The assumed camera is a GAIN on every triangulated angle: it scales the peak
+                    // and leaves its instant alone, so it widens the peak's σ and never tSigmaMs
+                    // (ks_skeleton3d_route_design.md §6).
+                    const double frac = in.skelArm->camerasCalibrated ? cfg.skel3dScaleFracCalibrated
+                                                                      : cfg.skel3dScaleFrac;
+                    nd.peakSigmaDps = std::hypot(nd.peakSigmaDps, frac * std::fabs(nd.peakDps));
+                }
+            }
+        }
+    }
 
     // ── Face-on routes, for whatever the IMUs did not cover ────────────────────────────────────
     const bool havePose = in.pose && in.frameW > 0 && in.frameH > 0

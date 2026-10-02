@@ -1719,6 +1719,7 @@ struct PoseAssessmentStage : AnalysisStage {
 //      Impact on the ladder plus at least one input that can carry a segment — a
 //      face-on pose track, a valid shaft track, or a bound segment IMU. Absent all
 //      of those it emits nothing and skipReason names which.
+//      Runs AFTER Skeleton3D (2026-10-02): the lead arm's two-camera rung reads the fit.
 // 13c-bis. The DOWN-THE-LINE pose pass. Two consumers: the kinematic sequence's paired trunk
 //      route (segment_rates.h "faceOn+dtl"; kinematic_sequence_design.md §5.2) and the DTL club
 //      track (DtlShaftStage below; dtl_shaft_tracker_design.md), whose anchors it is. Runs when
@@ -2202,6 +2203,67 @@ struct DtlShaftLieStage : AnalysisStage {
     }
 };
 
+// skeleton3d's body lines, read ONE way for every consumer (ks_skeleton3d_route_design.md §5.1):
+// the hip and shoulder lines' bearings for the two-camera rotation route (13h), and the lead arm's
+// direction for the kinematic sequence's skeleton rung (13d). A frame counts only when both of a
+// line's joints were measured or constrained by the fit — never merely inferred.
+struct SkeletonLines {
+    TriangulatedTurnInput trunk;
+    SkeletonLeadArm       leadArm;
+};
+SkeletonLines skeletonLines(const pinpoint::skeleton3d::FitResult &fr, bool leadIsLeft)
+{
+    namespace sk = pinpoint::skeleton3d;
+    const double kNan = std::numeric_limits<double>::quiet_NaN();
+    SkeletonLines out;
+    // skeleton3d solves its own cameras (skeleton3d_json writes "calibrated": false); a measured
+    // calibration does not reach it yet, so the camera-scale σ stays at the assumed-placement value.
+    out.trunk.t_us = fr.t_us;
+    out.trunk.camerasCalibrated = false;
+    out.leadArm.t_us = fr.t_us;
+    out.leadArm.camerasCalibrated = false;
+    const auto line = [&](size_t t, int a, int b, double &bearing, double &sigma) {
+        bearing = sigma = kNan;
+        if (t >= fr.joints.size() || t >= fr.tier.size() || t >= fr.sigmaM.size()) return;
+        const auto ok = [&](int j) { return fr.tier[t][size_t(j)] >= sk::TierConstrained; };
+        if (!ok(a) || !ok(b)) return;
+        const sk::V3 &pa = fr.joints[t][size_t(a)], &pb = fr.joints[t][size_t(b)];
+        const double dx = pb.x - pa.x, dy = pb.y - pa.y;      // world Z up: the horizontal plane is XY
+        const double L = std::hypot(dx, dy);
+        if (L < pinpoint::tuned::bodyRotation::kTriMinBaselineM) return;
+        bearing = std::atan2(dy, dx);
+        sigma   = std::hypot(double(fr.sigmaM[t][size_t(a)]), double(fr.sigmaM[t][size_t(b)])) / L;
+    };
+    // The lead arm: shoulder (the upper arm's root) → wrist, in 3-D. Unit direction and the two
+    // joints' σ over the arm's length; shorter than 10 cm is not an arm the fit can point.
+    const int sh = leadIsLeft ? sk::ybot::LeftArm  : sk::ybot::RightArm;
+    const int wr = leadIsLeft ? sk::ybot::LeftHand : sk::ybot::RightHand;
+    const auto arm = [&](size_t t, std::array<double, 3> &u, double &sigma) -> bool {
+        u = { 0.0, 0.0, 0.0 };
+        sigma = kNan;
+        if (t >= fr.joints.size() || t >= fr.tier.size() || t >= fr.sigmaM.size()) return false;
+        if (fr.tier[t][size_t(sh)] < sk::TierConstrained || fr.tier[t][size_t(wr)] < sk::TierConstrained) return false;
+        const sk::V3 &ps = fr.joints[t][size_t(sh)], &pw = fr.joints[t][size_t(wr)];
+        const double dx = pw.x - ps.x, dy = pw.y - ps.y, dz = pw.z - ps.z;
+        const double L = std::sqrt(dx * dx + dy * dy + dz * dz);
+        if (!(L > 0.10)) return false;
+        u = { dx / L, dy / L, dz / L };
+        sigma = std::hypot(double(fr.sigmaM[t][size_t(sh)]), double(fr.sigmaM[t][size_t(wr)])) / L;
+        return true;
+    };
+    for (size_t t = 0; t < fr.t_us.size(); ++t) {
+        double b, s;
+        line(t, sk::ybot::LeftUpLeg, sk::ybot::RightUpLeg, b, s); out.trunk.pelvisBearing.push_back(b); out.trunk.pelvisSigma.push_back(s);
+        line(t, sk::ybot::LeftArm,   sk::ybot::RightArm,   b, s); out.trunk.thoraxBearing.push_back(b); out.trunk.thoraxSigma.push_back(s);
+        std::array<double, 3> u;
+        const bool use = arm(t, u, s);
+        out.leadArm.dir.push_back(u);
+        out.leadArm.sigmaRad.push_back(s);
+        out.leadArm.usable.push_back(use ? 1u : 0u);
+    }
+    return out;
+}
+
 struct KinematicSequenceStage : AnalysisStage {
     QString name() const override { return QStringLiteral("KinematicSequence"); }
     static bool anyInput(const AnalysisContext &ctx)
@@ -2262,6 +2324,13 @@ struct KinematicSequenceStage : AnalysisStage {
             in.fusedClubPlane.have    = true;
             in.fusedClubPlane.ratio   = ctx.detail->shaft3d.down.foRatio;
             in.fusedClubPlane.nodeRad = ctx.detail->shaft3d.down.foNodeDeg * M_PI / 180.0;
+        }
+        // The lead arm from skeleton3d's two-camera fit (Skeleton3DStage ran before this one).
+        // Absent ⇒ the arm reads off the face-on image exactly as before.
+        SkeletonLeadArm skelArm;
+        if (ctx.detail->skeleton3d.valid && ctx.detail->skeleton3d.dtlUsed) {
+            skelArm = skeletonLines(ctx.detail->skeleton3d, in.leadIsLeft).leadArm;
+            if (!skelArm.t_us.empty()) in.skelArm = &skelArm;
         }
         // The same track's headline linear speed at impact, from the Kinematics stage that ran
         // before this one — the club node's credibility gate (segment_rates.h).
@@ -2623,30 +2692,7 @@ struct BodyRotationTriangulatedStage : AnalysisStage {
         const bool wantPelvis = !has(ctx, "pelvisRotation");
         const bool wantThorax = !has(ctx, "thoraxRotation");
         const BodyRotationConfig cfg = BodyRotationConfig::fromOverrides(ctx.job.tuningOverrides);
-        const double kNan = std::numeric_limits<double>::quiet_NaN();
-
-        TriangulatedTurnInput in;
-        in.t_us = fr.t_us;
-        // skeleton3d solves its own cameras (skeleton3d_json writes "calibrated": false); a measured
-        // calibration does not reach it yet, so the camera-scale σ stays at the assumed-placement value.
-        in.camerasCalibrated = false;
-        const auto line = [&](size_t t, int a, int b, double &bearing, double &sigma) {
-            bearing = sigma = kNan;
-            if (t >= fr.joints.size() || t >= fr.tier.size() || t >= fr.sigmaM.size()) return;
-            const auto ok = [&](int j) { return fr.tier[t][size_t(j)] >= sk::TierConstrained; };
-            if (!ok(a) || !ok(b)) return;
-            const sk::V3 &pa = fr.joints[t][size_t(a)], &pb = fr.joints[t][size_t(b)];
-            const double dx = pb.x - pa.x, dy = pb.y - pa.y;      // world Z up: the horizontal plane is XY
-            const double L = std::hypot(dx, dy);
-            if (L < pinpoint::tuned::bodyRotation::kTriMinBaselineM) return;
-            bearing = std::atan2(dy, dx);
-            sigma   = std::hypot(double(fr.sigmaM[t][size_t(a)]), double(fr.sigmaM[t][size_t(b)])) / L;
-        };
-        for (size_t t = 0; t < fr.t_us.size(); ++t) {
-            double b, s;
-            line(t, sk::ybot::LeftUpLeg, sk::ybot::RightUpLeg, b, s); in.pelvisBearing.push_back(b); in.pelvisSigma.push_back(s);
-            line(t, sk::ybot::LeftArm,   sk::ybot::RightArm,   b, s); in.thoraxBearing.push_back(b); in.thoraxSigma.push_back(s);
-        }
+        const TriangulatedTurnInput in = skeletonLines(fr, ctx.job.handedness != 2).trunk;
         const BodyRotationResult br = trackBodyRotationTriangulated(in, ctx.job.handedness != 2, ctx.seg.events,
                                                                     wantPelvis, wantThorax, cfg);
         int n = 0;
@@ -2953,9 +2999,11 @@ SessionProfile wristProfile()
     p.stages.push_back(std::make_unique<ShaftFusionStage>());
     p.stages.push_back(std::make_unique<DtlPostureStage>());
     p.stages.push_back(std::make_unique<DtlShaftLieStage>());
-    p.stages.push_back(std::make_unique<KinematicSequenceStage>());
+    // The sequence runs AFTER the two-camera skeleton: its lead-arm rung reads the fit
+    // (ks_skeleton3d_route_design.md §8). Neither skeleton stage reads anything the sequence writes.
     p.stages.push_back(std::make_unique<Skeleton3DStage>());
     p.stages.push_back(std::make_unique<BodyRotationTriangulatedStage>());
+    p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     p.stages.push_back(std::make_unique<DtlSynth3DStage>());
     p.stages.push_back(std::make_unique<BindingsStage>());
     p.stages.push_back(std::make_unique<ResemblanceStage>());
@@ -3050,9 +3098,11 @@ SessionProfile cameraKinematicsProfile()
     p.stages.push_back(std::make_unique<ShaftFusionStage>());
     p.stages.push_back(std::make_unique<DtlPostureStage>());
     p.stages.push_back(std::make_unique<DtlShaftLieStage>());
-    p.stages.push_back(std::make_unique<KinematicSequenceStage>());
+    // The sequence runs AFTER the two-camera skeleton: its lead-arm rung reads the fit
+    // (ks_skeleton3d_route_design.md §8). Neither skeleton stage reads anything the sequence writes.
     p.stages.push_back(std::make_unique<Skeleton3DStage>());
     p.stages.push_back(std::make_unique<BodyRotationTriangulatedStage>());
+    p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     p.stages.push_back(std::make_unique<DtlSynth3DStage>());
     return p;
 }
