@@ -406,12 +406,15 @@ int main(int argc, char **argv)
                 ids << rv.toMap().value(QStringLiteral("id")).toString();
             return ids;
         };
-        check(rowKeys("needsTags", "Body IMUs").contains(QStringLiteral("pelvisRotation")),
-              "pelvisRotation needs the IMU that measures it");
-        check(!rowKeys("needsTags", "Face-on camera").contains(QStringLiteral("pelvisRotation")),
-              "…and no longer reads as something a single camera can deliver");
-        check(!rowKeys("improvesTags", "Body IMUs").contains(QStringLiteral("pelvisRotation")),
-              "…nor as something IMUs merely improve, now that they are the floor");
+        // Since 2026-10-01 the floor is the two-camera skeleton fit (body_rotation.h triangulated
+        // route): pelvisRotation is filed under the down-the-line camera it needs beside the face-on
+        // one, and the body IMUs move up to what would IMPROVE it — they measure the turn outright.
+        check(rowKeys("needsTags", "Down-the-line camera").contains(QStringLiteral("pelvisRotation")),
+              "pelvisRotation needs the second camera of the pair that estimates it");
+        check(rowKeys("improvesTags", "Body IMUs").contains(QStringLiteral("pelvisRotation")),
+              "…and the body IMUs are what would improve on it");
+        check(!rowKeys("needsTags", "Body IMUs").contains(QStringLiteral("pelvisRotation")),
+              "…not what it needs, now that two cameras deliver an estimate");
 
         // A metric that still HAS two rungs, so the two-answer behaviour itself stays covered.
         check(rowKeys("needsTags", "Face-on camera").contains(QStringLiteral("attackAngle")),

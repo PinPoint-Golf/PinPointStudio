@@ -512,7 +512,11 @@ int main(int argc, char **argv)
         // arms lifting — outside takeaway, disconnection, flying elbow — for steep; the hands working
         // round the body — inside takeaway, pinned arms, a deep trail elbow — for flat), so
         // m_shaftPlaneBackswing went live. Three DTL measures are still held.
-        check(planned == 15, "15 shipped measures are not live yet");
+        // 15 -> 14 on 2026-10-01: m_pelvisRotRateP6P7 (hip_stall) went live on the two-camera
+        // route's pelvisRotationSigned. This fixture is a single-camera capture, so it still
+        // produces nothing for it — which the next check (no value from a non-live measure) and the
+        // live measure's own absence here both stay honest about.
+        check(planned == 14, "14 shipped measures are not live yet");
         check(wrong == 0, "…and not one of them produced a value");
     }
 
