@@ -57,6 +57,9 @@
 //       axis places on the truth with no de-projection; agrees with the face-on arm; carries the
 //       assumed camera on its peak σ and never its instant; leaves the other segments alone; and
 //       steps aside to the face-on arm when switched off, too sparse, or unable to place or bound.
+//   §12 THE SKELETON'S TRUNK (faceOn+dtl3d, below the pair). Off, the trunk is §2's; on, the pelvis places
+//       within one skeleton frame of the truth through square, opening-positive for either hand, the thorax ring obeys its own
+//       switch, the camera term rides the peak only, and the pair and an IMU both outrank it.
 
 #include "../segment_rates.h"
 #include "../kinematic_sequence_json.h"
@@ -381,6 +384,25 @@ static const KsNode *nodeOf(const SegmentRatesResult &r, SeqSegment s) { return 
 // §11's skeleton lead arm: the arm's direction swinging through kArm's bump in a plane TILTED out of
 // every axis (normal (0.3, −0.5, 0.8)), sampled at skeleton3d's ~150 fps from address to finish.
 // `usableFrac` < 1 marks every k-th frame unusable, as frames the fit only inferred would be.
+// §12's skeleton trunk: the hip and shoulder lines' world bearings at ~150 fps, the SAME closing /
+// opening turns the face-on spans are rendered from (pelvis 45° closed at the top, thorax 90°).
+// Opening is +bearing for a right-hander and −bearing for a left-hander (the producer's leadSign).
+static SkeletonTrunk makeSkelTrunk(bool leadIsLeft, bool calibrated)
+{
+    SkeletonTrunk k;
+    k.camerasCalibrated = calibrated;
+    const double s = leadIsLeft ? 1.0 : -1.0;
+    for (int64_t t = kAddressUs; t <= kFinishUs; t += 6667) {
+        const double sec = t * 1e-6;
+        k.t_us.push_back(t);
+        k.pelvisBearing.push_back(s * -closedAngleDeg(kPelvis, 45.0, sec) * kD2R);
+        k.thoraxBearing.push_back(s * -closedAngleDeg(kThorax, 90.0, sec) * kD2R);
+        k.pelvisSigma.push_back(0.01);
+        k.thoraxSigma.push_back(0.01);
+    }
+    return k;
+}
+
 static SkeletonLeadArm makeSkelArm(bool calibrated, double usableFrac = 1.0)
 {
     double nrm[3] = { 0.3, -0.5, 0.8 };
@@ -1204,6 +1226,96 @@ int main()
         if (a)
             std::printf("    skel3d leadArm %s t=%.1f ms before impact ±%.1f  peak %.0f ±%.0f\n",
                         a->placed ? "placed  " : "UNPLACED", a->beforeImpactMs, a->tSigmaMs, a->peakDps, a->peakSigmaDps);
+    }
+
+    // ── §12 the two-camera skeleton's trunk (faceOn+dtl3d, below the pair, above the span) ──
+    {
+        const PoseTrack2D pose = makePose(true);
+        const ShaftTrack2D shaft = makeShaft();
+        const SkeletonTrunk sk = makeSkelTrunk(true, false), skCal = makeSkelTrunk(true, true);
+        SegmentRatesInputs in;
+        in.pose = &pose; in.frameW = kW; in.frameH = kH; in.leadIsLeft = true;
+        in.shaft = &shaft; in.phases = &ph; in.impactUs = kImpactUs;
+        in.skelTrunk = &sk;
+        // Switched off, the trunk is exactly §2's.
+        SegmentRatesConfig off = cfg;
+        off.skel3dTrunk = false;
+        const SegmentRatesResult dark = buildSegmentRates(in, off);
+        CHECK("§12 sequence.skel3d.trunk off: pelvis and thorax exactly as §2",
+              dark.pelvis.routeId == faceOn.pelvis.routeId && dark.pelvis.series.value == faceOn.pelvis.series.value
+              && dark.thorax.routeId == faceOn.thorax.routeId && dark.thorax.series.value == faceOn.thorax.series.value);
+        const SegmentRatesConfig on = cfg;          // ON by default, below the pair
+        CHECK("§12 the trunk rung is on by default", cfg.skel3dTrunk);
+        const SegmentRatesResult r = buildSegmentRates(in, on);
+        const KsNode *p = nodeOf(r, SeqSegment::Pelvis);
+        CHECK("§12 trunk on: the pelvis reads faceOn+dtl3d, Estimated",
+              r.pelvis.routeId == QLatin1String("faceOn+dtl3d") && !r.pelvis.direct && p && p->routeId == QLatin1String("faceOn+dtl3d"));
+        // One skeleton frame (6.7 ms): the fit's grid is coarser than the face-on route's 120 fps,
+        // which §2 holds to 6 ms.
+        CHECK("§12 trunk on: pelvis node placed within one skeleton frame of the truth — through square, no blind band",
+              p && p->placed && msFromTruth(p, kPelvis) <= 6.7);
+        CHECK("§12 trunk on: pelvis peak opening-POSITIVE and within 5 % of 480 °/s",
+              p && p->peakDps > 0.0 && near(p->peakDps, kPelvis.peakDps, 0.05 * kPelvis.peakDps));
+        // The thorax ring is off by default: an interior peak it may not place is neither placed nor
+        // bounded, so the rung steps aside — exactly the pair's rule — and the face-on rung runs.
+        CHECK("§12 thorax ring off: the rung steps aside and the thorax is §2's",
+              r.thorax.routeId == faceOn.thorax.routeId && r.thorax.series.value == faceOn.thorax.series.value);
+        SegmentRatesConfig onTh = on;
+        onTh.skel3dThoraxPlacement = true;
+        const SegmentRatesResult rTh = buildSegmentRates(in, onTh);
+        const KsNode *th = nodeOf(rTh, SeqSegment::Thorax);
+        CHECK("§12 thorax ring on: faceOn+dtl3d, placed within one skeleton frame of the truth",
+              th && th->routeId == QLatin1String("faceOn+dtl3d") && th->placed && msFromTruth(th, kThorax) <= 6.7);
+        SegmentRatesConfig noRing = on;
+        noRing.skel3dPlacement = false;
+        const SegmentRatesResult rNo = buildSegmentRates(in, noRing);
+        const KsNode *q = nodeOf(rNo, SeqSegment::Pelvis);
+        CHECK("§12 sequence.skel3d.placement=false: the pelvis is not placed by the skeleton",
+              q && !(q->routeId == QLatin1String("faceOn+dtl3d") && q->placed));
+        // The camera term rides the peak value only.
+        in.skelTrunk = &skCal;
+        const SegmentRatesResult rc = buildSegmentRates(in, on);
+        const KsNode *pc = nodeOf(rc, SeqSegment::Pelvis);
+        CHECK("§12 the camera-scale term widens the pelvis peak σ and leaves its instant and timing σ",
+              p && pc && p->peakSigmaDps > pc->peakSigmaDps && p->tSigmaMs == pc->tSigmaMs && p->tPeakUs == pc->tPeakUs);
+        // The arm and club are untouched by the trunk rung.
+        in.skelTrunk = &sk;
+        CHECK("§12 the lead arm and club are untouched",
+              r.leadArm.series.value == faceOn.leadArm.series.value && r.club.series.value == faceOn.club.series.value);
+        // A left-hander: the producer mirrors the bearing, the pelvis still opens positive.
+        const PoseTrack2D poseL = makePose(false);
+        const SkeletonTrunk skL = makeSkelTrunk(false, false);
+        SegmentRatesInputs inL = in;
+        inL.pose = &poseL; inL.leadIsLeft = false; inL.skelTrunk = &skL;
+        const SegmentRatesResult rl = buildSegmentRates(inL, on);
+        const KsNode *pl = nodeOf(rl, SeqSegment::Pelvis);
+        CHECK("§12 left-hander: pelvis opening-positive, placed within one skeleton frame",
+              pl && pl->peakDps > 0.0 && pl->placed && msFromTruth(pl, kPelvis) <= 6.7);
+        // THE PAIR OUTRANKS IT: with both views posed, the pelvis is the pair's, untouched by the
+        // skeleton's presence (skeleton_rate_k0_20261002.md §11 — where both held, the pair's σ_t
+        // was 3–6× tighter for the same answer).
+        {
+            PoseTrack2D fo2 = makePose(true, 45.0, 0.0, kPelvis, 0.0, /*signedSpans*/ true);
+            PoseTrack2D dt2 = makeDtlPose();
+            fo2.smoothed = fo2.frames;
+            dt2.smoothed = dt2.frames;
+            SegmentRatesInputs ip = in;
+            ip.pose = &fo2; ip.poseDtl = &dt2; ip.dtlFrameW = kWD; ip.dtlFrameH = kHD;
+            ip.skelTrunk = nullptr;
+            const SegmentRatesResult pairOnly = buildSegmentRates(ip, cfg);
+            ip.skelTrunk = &sk;
+            const SegmentRatesResult both = buildSegmentRates(ip, cfg);
+            CHECK("§12 with the pair present the pelvis stays the pair's, value for value",
+                  both.pelvis.routeId == QLatin1String("faceOn+dtl")
+                  && both.pelvis.series.value == pairOnly.pelvis.series.value);
+        }
+        // A pelvis IMU outranks it.
+        const FusedStreams fs = makeStreams(true);
+        in.streams = &fs;
+        CHECK("§12 a pelvis IMU outranks the skeleton", buildSegmentRates(in, on).pelvis.routeId == QLatin1String("pelvisImu"));
+        if (p)
+            std::printf("    skel3d pelvis %s t=%.1f ms before impact ±%.1f  peak %.0f ±%.0f\n",
+                        p->placed ? "placed  " : "UNPLACED", p->beforeImpactMs, p->tSigmaMs, p->peakDps, p->peakSigmaDps);
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

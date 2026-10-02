@@ -1107,6 +1107,41 @@ AngleTrack skeletonArmTrack(const SkeletonLeadArm &sk, const Domain &dom, const 
     return a;
 }
 
+// One trunk line's bearing as an angle track: unwrapped over its usable frames. Empty when too
+// little of the domain is usable — the gaps would then be wider than the derivative window.
+AngleTrack skeletonTrunkTrack(const std::vector<int64_t> &t, const std::vector<double> &bearing,
+                              const std::vector<double> &sigma, const Domain &dom, const SegmentRatesConfig &cfg)
+{
+    AngleTrack a;
+    const size_t n = t.size();
+    if (n < 3 || bearing.size() != n || sigma.size() != n) return a;
+    int inDom = 0, usableInDom = 0;
+    for (size_t i = 0; i < n; ++i) {
+        if (t[i] < dom.fromUs || t[i] > dom.toUs) continue;
+        ++inDom;
+        if (std::isfinite(bearing[i]) && std::isfinite(sigma[i])) ++usableInDom;
+    }
+    if (inDom < cfg.addrMinFrames || usableInDom < cfg.addrMinFrames
+        || double(usableInDom) < cfg.skel3dMinUsableFrac * double(inDom))
+        return a;
+    a.t = t;
+    a.angleRad.assign(n, 0.0);
+    a.sigmaRad.assign(n, 0.0);
+    a.valid.assign(n, 0u);
+    std::vector<double> adm;
+    for (size_t i = 0; i < n; ++i) {
+        if (!std::isfinite(bearing[i]) || !std::isfinite(sigma[i])) continue;
+        a.angleRad[i] = bearing[i];
+        a.sigmaRad[i] = sigma[i];
+        a.valid[i] = 1u;
+        adm.push_back(bearing[i]);
+    }
+    unwrapInPlace(adm);
+    size_t q = 0;
+    for (size_t i = 0; i < n; ++i) if (a.valid[i]) a.angleRad[i] = adm[q++];
+    return a;
+}
+
 } // namespace
 
 // ── Exposed geometry ───────────────────────────────────────────────────────────────────────────
@@ -1248,6 +1283,47 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
         finishChannel(res.club, swingFromImu(*clubImu), SeqSegment::Club,
                       QStringLiteral("Club angular speed"), QStringLiteral("clubSensorFused"), true,
                       clubDom, phases, cfg, nodes);
+
+    // ── The two-camera skeleton's trunk: BELOW the pair, above the face-on span ────────────────
+    // The hip and shoulder lines' bearing in the horizontal plane — the quantity §3.1 defines —
+    // differentiated, signed so that opening is positive (the rotation route's lead-relative sign).
+    // Below the pair because on 07-04 it never placed a node the pair did not, and where both held
+    // it said the same thing with 3–6× the timing σ (skeleton_rate_k0_20261002.md §11); above the
+    // span because, unlike one camera, it has no blind band at square. It runs where the pair could
+    // not produce or stepped aside, and itself steps aside when it can neither place nor bound.
+    const auto skeletonTrunk = [&]() {
+        if (!cfg.skel3dTrunk || !in.skelTrunk || (res.pelvis.produced() && res.thorax.produced())) return;
+        const SkeletonTrunk &sk = *in.skelTrunk;
+        const auto trunk = [&](SegmentRateChannel &ch, SeqSegment seg, const std::vector<double> &b,
+                               const std::vector<double> &sg, const QString &label) {
+            AngleTrack at = skeletonTrunkTrack(sk.t_us, b, sg, dom, cfg);
+            if (at.t.empty()) return;
+            std::vector<uint8_t> seen;
+            PlacementGate gate;
+            gate.may          = cfg.skel3dPlacement && (seg != SeqSegment::Thorax || cfg.skel3dThoraxPlacement);
+            gate.spikeGuard   = true;
+            gate.endEdgeBound = true;
+            gate.bandIsHole   = true;
+            validityBand(at, dom.fromUs, dom.toUs, seen, gate);
+            const size_t before = nodes.size();
+            finishChannel(ch, differentiate(at, windowUs, sign, /*magnitude*/ false), seg, label,
+                          QStringLiteral("faceOn+dtl3d"), false, dom, phases, cfg, nodes, gate);
+            if (nodes.size() > before) {
+                KsNode &nd = nodes.back();
+                if (!nd.placed && !nd.bounded()) {
+                    nodes.pop_back();
+                    ch = SegmentRateChannel{};
+                } else {
+                    const double frac = sk.camerasCalibrated ? cfg.skel3dScaleFracCalibrated : cfg.skel3dScaleFrac;
+                    nd.peakSigmaDps = std::hypot(nd.peakSigmaDps, frac * std::fabs(nd.peakDps));
+                }
+            }
+        };
+        if (!res.pelvis.produced())
+            trunk(res.pelvis, SeqSegment::Pelvis, sk.pelvisBearing, sk.pelvisSigma, QStringLiteral("Pelvis angular speed"));
+        if (!res.thorax.produced())
+            trunk(res.thorax, SeqSegment::Thorax, sk.thoraxBearing, sk.thoraxSigma, QStringLiteral("Thorax angular speed"));
+    };
 
     // ── The two-camera skeleton's lead arm, for an arm the IMUs did not cover ─────────────────
     // Above the face-on arm and below the IMU. It steps aside — channel and node — when too little
@@ -1405,6 +1481,9 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             }
         }
 
+        // The skeleton's trunk, where the pair did not produce (above).
+        skeletonTrunk();
+
         // The trunk from its spans. The node is claimed only where the camera can see the rate —
         // the sighted band, |turn| ≥ sightedTurnDeg — and bounded where it could not (§12.4).
         const auto trunkFromSpan = [&](SegmentRateChannel &ch, SeqSegment seg, int a, int b, const QString &label) {
@@ -1455,6 +1534,9 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
                           QStringLiteral("faceOn"), false, dom, phases, cfg, nodes);
         }
     }
+
+    // No face-on pose, so no pair and no span: the skeleton's trunk on its own.
+    if (!havePose) skeletonTrunk();
 
     if (!res.club.produced() && in.shaft && in.shaft->valid) {
         const std::vector<ShaftSample2D> &track =

@@ -887,6 +887,17 @@ inline constexpr bool         kSkel3dLeadArm        = true;   // sequence.skel3d
 // Below this fraction of usable frames (both joints measured or constrained) over the domain, the
 // gaps are wider than the derivative window and the rung steps aside for the face-on arm.
 inline constexpr double       kSkel3dMinUsableFrac  = 0.8;    // sequence.skel3d.minUsableFrac
+// The TRUNK from the two-camera skeleton — the hip / shoulder line's bearing, the rotation route's
+// own lines. ON, ranked BELOW the pair and above the face-on span (segment_rates.cpp). Before the
+// pelvis-yaw prior (skeleton3d v4) the fit coasted through impact; with it, on 07-04, the rung held
+// on 3/15 swings above the pair and placed nothing, saying what the pair said with 3–6× the timing
+// σ (skeleton_rate_k0_20261002.md §11) — so it sits below the pair, where it costs nothing and
+// replaces the blind-banded span when the pair cannot produce. The pelvis and thorax rings have
+// their own switches, as on the pair; the thorax trough lives in the spine twist and is not
+// addressed, so its ring stays off.
+inline constexpr bool         kSkel3dTrunk          = true;   // sequence.skel3d.trunk
+inline constexpr bool         kSkel3dPlacement      = true;   // sequence.skel3d.placement
+inline constexpr bool         kSkel3dThoraxPlacement = false; // sequence.skel3d.thoraxPlacement
 } // namespace sequence
 
 // --- Club delivery from a face-on camera (src/Analysis/club_delivery.h) -------

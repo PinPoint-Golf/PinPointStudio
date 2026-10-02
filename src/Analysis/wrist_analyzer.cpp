@@ -2328,9 +2328,18 @@ struct KinematicSequenceStage : AnalysisStage {
         // The lead arm from skeleton3d's two-camera fit (Skeleton3DStage ran before this one).
         // Absent ⇒ the arm reads off the face-on image exactly as before.
         SkeletonLeadArm skelArm;
+        SkeletonTrunk   skelTrunk;
         if (ctx.detail->skeleton3d.valid && ctx.detail->skeleton3d.dtlUsed) {
-            skelArm = skeletonLines(ctx.detail->skeleton3d, in.leadIsLeft).leadArm;
+            const SkeletonLines lines = skeletonLines(ctx.detail->skeleton3d, in.leadIsLeft);
+            skelArm = lines.leadArm;
             if (!skelArm.t_us.empty()) in.skelArm = &skelArm;
+            skelTrunk.t_us          = lines.trunk.t_us;
+            skelTrunk.pelvisBearing = lines.trunk.pelvisBearing;
+            skelTrunk.pelvisSigma   = lines.trunk.pelvisSigma;
+            skelTrunk.thoraxBearing = lines.trunk.thoraxBearing;
+            skelTrunk.thoraxSigma   = lines.trunk.thoraxSigma;
+            skelTrunk.camerasCalibrated = lines.trunk.camerasCalibrated;
+            if (!skelTrunk.t_us.empty()) in.skelTrunk = &skelTrunk;
         }
         // The same track's headline linear speed at impact, from the Kinematics stage that ran
         // before this one — the club node's credibility gate (segment_rates.h).
