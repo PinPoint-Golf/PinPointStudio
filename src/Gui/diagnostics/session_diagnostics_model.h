@@ -135,6 +135,14 @@ class SessionDiagnosticsModel : public QObject
     // it never owns a selection of its own (brief §8).
     Q_PROPERTY(int selectedShotId READ selectedShotId WRITE setSelectedShotId NOTIFY selectedShotIdChanged)
 
+    // ⚠ THE SELECTION BY SWING FOLDER, which is how the panel should set it. The carousel's
+    // shot ids are ShotListModel's own counter, and this model's are the swing_NNN folder number
+    // (back-fill) or the processor's id (live) — three numbering schemes that only coincide by
+    // luck, so a selection passed by id missed and THIS SHOT read nothing. The folder is the one
+    // identity every side agrees on; setting it resolves selectedShotId here, and re-resolves
+    // as shots arrive. Empty clears the selection.
+    Q_PROPERTY(QString selectedSwingDir READ selectedSwingDir WRITE setSelectedSwingDir NOTIFY selectedSwingDirChanged)
+
     // ── Session identity and lifecycle ──────────────────────────────────────────────
     Q_PROPERTY(QString sessionDir READ sessionDir NOTIFY sessionChanged)
     // "cold" | "forming" | "established" | "closing". Ratcheted one way within a session.
@@ -217,6 +225,13 @@ public:
     void    setReviewing(bool on);
     int     selectedShotId() const { return m_selectedShotId; }
     void    setSelectedShotId(int id);
+    QString selectedSwingDir() const { return m_selectedSwingDir; }
+    void    setSelectedSwingDir(const QString &dir);
+
+    // This model's id for a swing folder, or -1. Exact path first, then the folder's name (a
+    // ledger written on another host records the same swing under a different mount), then the
+    // swing_NNN number when that is a shot this ledger holds.
+    Q_INVOKABLE int shotIdForSwingDir(const QString &dir) const;
 
     QString sessionDir() const { return m_sessionDir; }
     QString stage() const;
@@ -382,6 +397,7 @@ signals:
     void gradePolicyChanged();
     void reviewingChanged();
     void selectedShotIdChanged();
+    void selectedSwingDirChanged();
     void sessionChanged();
     void intentChanged();
     void busyChanged();
@@ -571,6 +587,10 @@ private:
     bool    m_closed = false;
     bool    m_reviewing = false;
     int     m_selectedShotId = -1;
+    QString m_selectedSwingDir;
+    // Re-points m_selectedShotId at m_selectedSwingDir without a rebuild of its own — for the
+    // callers that are about to rebuild anyway. True when the id changed.
+    bool    resolveSelectedSwingDir();
     QString m_cadence = QStringLiteral("bandwidth");
     QString m_focusConditionId;
     int     m_focusFromShot = -1;

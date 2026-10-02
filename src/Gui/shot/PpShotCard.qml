@@ -304,10 +304,15 @@ Rectangle {
             // which the QML compiler drops.
             property int _rev: 0
 
-            pips:       (SessionMode.sessionDiagnostics && pipRow._rev >= 0)
-                        ? SessionMode.sessionDiagnostics.pipsFor(card.shotId) : []
-            firedCount: (SessionMode.sessionDiagnostics && pipRow._rev >= 0)
-                        ? SessionMode.sessionDiagnostics.firedCountFor(card.shotId) : 0
+            // ⚠ BY SWING FOLDER. card.shotId is the carousel model's own counter, which the
+            // diagnostics ledger does not use — asking for it returned another swing's pips, or
+            // none. The ledger resolves the folder to its own id.
+            readonly property int _diagId: (SessionMode.sessionDiagnostics && pipRow._rev >= 0)
+                        ? SessionMode.sessionDiagnostics.shotIdForSwingDir(card.swingDir) : -1
+            pips:       (SessionMode.sessionDiagnostics && _diagId >= 0)
+                        ? SessionMode.sessionDiagnostics.pipsFor(_diagId) : []
+            firedCount: (SessionMode.sessionDiagnostics && _diagId >= 0)
+                        ? SessionMode.sessionDiagnostics.firedCountFor(_diagId) : 0
 
             Connections {
                 target: SessionMode.sessionDiagnostics

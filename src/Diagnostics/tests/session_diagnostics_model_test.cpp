@@ -34,6 +34,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
@@ -643,6 +644,45 @@ int main(int argc, char **argv)
         check(o->shotCount() == 1 && c->shotCount() == 1, "both sessions ingested their swing");
         check(ledgerBytesOf(origDir) == ledgerBytesOf(copyDir),
               "a shifted mtime changes no evidence — the stamp is clock.wallclock");
+    }
+
+    // ── 4b'. The selection is by swing folder ───────────────────────────────────────
+    //
+    // The carousel numbers its shots with its own counter; this model numbers them by swing
+    // folder (back-fill) or by the processor's id (live). A selection passed by id missed and
+    // THIS SHOT read nothing, so the panel passes the FOLDER and the model resolves it.
+    std::printf("\nselection by swing folder\n");
+    {
+        const QString dir = makeSession(tmp, "athlete_sel", "session_sel");
+        check(stageShot(dir, 1, "rich_7iron") && stageShot(dir, 2, "sparse_noclub"),
+              "a two-swing session on disk");
+        auto m = freshModel();
+        m->activateSession(dir);
+        check(m->shotCount() == 2, "both back-filled");
+
+        m->setSelectedSwingDir(swingDirFor(dir, 2));
+        check(m->selectedShotId() == 2, "the folder resolves to the ledger's own id");
+        check(!m->shotReadout(m->selectedShotId()).isEmpty(), "…and the shot can be read");
+
+        // The same swing under another mount — a ledger and a carousel on different hosts.
+        m->setSelectedSwingDir(QStringLiteral("/elsewhere/athlete_sel/session_sel/")
+                               + QFileInfo(swingDirFor(dir, 1)).fileName());
+        check(m->selectedShotId() == 1, "a different root still finds the swing by its folder name");
+
+        m->setSelectedSwingDir(QStringLiteral("/nowhere/swing_999"));
+        check(m->selectedShotId() == -1, "a swing this ledger does not hold selects nothing");
+        m->setSelectedSwingDir(QString());
+        check(m->selectedShotId() == -1, "and empty clears the selection");
+
+        // Live: the processor's id is NOT the folder number, and the pick can come first.
+        const QString live = makeSession(tmp, "athlete_sel", "session_sel_live");
+        check(stageShot(live, 1, "rich_7iron"), "a live session's first swing on disk");
+        auto l = freshModel();
+        l->activateSession(QString());
+        l->setSelectedSwingDir(swingDirFor(live, 1));
+        check(l->selectedShotId() == -1, "picked before it is in the ledger: nothing yet");
+        l->ingestShot(57, swingDirFor(live, 1));
+        check(l->selectedShotId() == 57, "the pick resolves when the swing arrives, to the live id");
     }
 
     // ── 4c. A re-analysed shot is graded again ───────────────────────────────────────

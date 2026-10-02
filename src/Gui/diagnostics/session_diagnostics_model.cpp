@@ -320,6 +320,44 @@ void SessionDiagnosticsModel::setSelectedShotId(int id)
     rebuild();
 }
 
+void SessionDiagnosticsModel::setSelectedSwingDir(const QString &dir)
+{
+    if (m_selectedSwingDir == dir) return;
+    m_selectedSwingDir = dir;
+    emit selectedSwingDirChanged();
+    if (resolveSelectedSwingDir()) rebuild();
+}
+
+bool SessionDiagnosticsModel::resolveSelectedSwingDir()
+{
+    const int id = m_selectedSwingDir.isEmpty() ? -1 : shotIdForSwingDir(m_selectedSwingDir);
+    if (id == m_selectedShotId) return false;
+    m_selectedShotId = id;
+    emit selectedShotIdChanged();
+    return true;
+}
+
+int SessionDiagnosticsModel::shotIdForSwingDir(const QString &dir) const
+{
+    if (dir.isEmpty()) return -1;
+    const QString want = QDir::cleanPath(dir);
+    for (auto it = m_swingDirs.constBegin(); it != m_swingDirs.constEnd(); ++it)
+        if (QDir::cleanPath(it.value()) == want && indexOfShot(it.key()) >= 0)
+            return it.key();
+
+    const QString name = QFileInfo(want).fileName();
+    for (auto it = m_swingDirs.constBegin(); it != m_swingDirs.constEnd(); ++it)
+        if (QFileInfo(QDir::cleanPath(it.value())).fileName() == name && indexOfShot(it.key()) >= 0)
+            return it.key();
+
+    if (name.startsWith(QLatin1String("swing_"))) {
+        bool ok = false;
+        const int n = name.mid(name.lastIndexOf(QLatin1Char('_')) + 1).toInt(&ok);
+        if (ok && indexOfShot(n) >= 0) return n;
+    }
+    return -1;
+}
+
 Stage SessionDiagnosticsModel::effectiveStage() const
 {
     return (m_closed || m_reviewing) ? Stage::Closing : m_stage;
@@ -562,6 +600,8 @@ void SessionDiagnosticsModel::applyIngested(const Ingested &in)
     if (in.hasLaunchMonitor) m_lmShots.insert(id);
     else if (in.regrade)     m_lmShots.remove(id);
     m_gradedFrom.insert(id, in.from);
+    // The selected swing may be the one that just arrived (a back-fill landing after the pick).
+    resolveSelectedSwingDir();
 
     rebuild();
     persist();
@@ -712,6 +752,7 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     }
 
     emit intentChanged();
+    resolveSelectedSwingDir();
     rebuild();
 }
 

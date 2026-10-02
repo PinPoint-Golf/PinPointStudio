@@ -88,7 +88,12 @@ Item {
         // carousel is already at the foot of the stage and is post-session the ONLY way in;
         // a second selection control on the panel would be a second answer to "which shot",
         // and the two would disagree the moment either was used.
-        selectedShotId: SessionMode.focusedShotId
+        //
+        // BY SWING FOLDER, NOT BY ID. SessionMode.focusedShotId is the carousel model's own
+        // counter and this model numbers shots differently, so passing the id selected nothing
+        // and THIS SHOT stayed empty. The folder is the identity both sides share; the model
+        // resolves it to its own id (SessionDiagnosticsModel::selectedSwingDir).
+        selectedSwingDir: SessionMode.focusedSwingDir
     }
 
     // THE SESSION THE PANEL IS POINTED AT — the loaded one while reviewing, the live one
@@ -124,9 +129,17 @@ Item {
     // second publishes a state that has both facts in it, and the pair converges within the
     // same event-loop turn either way. Pinning it would mean breaking the declarative binding
     // on `reviewing` to set it by hand, which buys a transient nobody can observe.
-    onSessionDirChanged: _pointAtSession()
+    onSessionDirChanged: { _pointAtSession(); _refreshReadout() }
     Component.onCompleted: {
         _pointAtSession()
+        // ⚠ FETCHED HERE AS WELL AS FROM THE SIGNALS, and it has to be. The panel is built when
+        // its stage tab first shows — typically on entering Analyse with a shot already picked —
+        // and _pointAtSession() loads the ledger and resolves that pick SYNCHRONOUSLY, inside
+        // this handler, before the Connections below are connected. The selectedShotIdChanged
+        // it emits is lost, nothing else changes afterwards, and THIS SHOT sat on "pick a shot"
+        // with shot 8 selected and readable. Reproduced and verified end to end with
+        // --probe-qml (load a session, pick shot 8, enter Analyse).
+        _refreshReadout()
         // THE CAROUSEL'S SEAM, CLAIMED UNCONDITIONALLY BY THE MOST RECENT PANEL. Both the
         // session-mode and the wrist screens can host one of these, and the shot cards read
         // their pips through the singleton — so the last panel to come up is the one whose
@@ -152,10 +165,12 @@ Item {
     // shotReadout() IS AN INVOKABLE, SO IT CANNOT BE BOUND — somebody has to call it, and
     // this is the only file with the model's signals in front of it. Re-fetched on all three
     // things that can change the answer: which shot is selected, whether the panel is in
-    // review at all, and any republication of the surface (a late back-fill landing changes
+    // review (the ledger it reads against), and any republication of the surface (a late back-fill landing changes
     // the tiers the readout's cells carry).
     function _refreshReadout() {
-        body.readout = (diagModel.reviewing && diagModel.selectedShotId >= 0)
+        // Live as well as in review: the body decides what a live pick of the newest swing
+        // shows (the after-shot strip), and needs the readout for every other pick.
+        body.readout = diagModel.selectedShotId >= 0
                        ? diagModel.shotReadout(diagModel.selectedShotId)
                        : null
     }
