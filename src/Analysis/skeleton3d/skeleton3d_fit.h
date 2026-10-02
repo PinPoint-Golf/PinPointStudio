@@ -149,6 +149,16 @@ struct FitConfig {
     // data pins it there. On s8: total cost +0.08 %, reprojection unchanged, the stall gone; 100
     // reads the same, 400 keeps a shallow dip (skeleton_rate_k0_20261002.md §10). 0 = the general σ.
     double pelvisYawAccRad     = 200.0;
+    // THE SHOD FOOT: how far above the rig's bare-sole foot markers the pose model's toe and heel
+    // keypoints sit (m, at unit scale), applied along the foot's up axis. 0 = bare-foot priors.
+    // ON since 2026-10-02 (skeleton3d v5): with bare-sole priors the fit put the ankle joint 3.8 cm
+    // off the floor and tipped both feet ~20° toes-up (ankle dorsiflexed 20–35° at address); the
+    // down-the-line view shows the shoe's toe and heel keypoints only 4–6 cm below the ankle. On
+    // 07-04 s8, toe 6 cm / heel 3 cm was the cheapest fit of nine pairs — reprojection 8.06/4.39 →
+    // 6.91/3.69 px, slip 21.3 → 19.2 mm, ankle 9–10 cm, the trail foot flat at address and rolling
+    // onto its toes after impact (skeleton_rate_k0_20261002.md §13).
+    double footToeLiftM        = 0.06;
+    double footHeelLiftM       = 0.03;
     double wristSigmaDeg       = 30.0;
     double pronationSigmaDeg   = 45.0;
     double clavicleSigmaDeg    = 10.0;   // the shoulder girdle vs the upper spine: both move the shoulder point

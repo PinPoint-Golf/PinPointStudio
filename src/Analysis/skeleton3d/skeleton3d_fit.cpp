@@ -321,6 +321,9 @@ void dirDerivs(const Problem &P, const Pose &pose, int joint, const V3 &d, Mat3X
     }
 }
 
+// The foot marker lift (m, at unit scale): toes 17, 18, 20, 21; heels 19, 22.
+double footLift(const FitConfig &c, int m) { return (m == 19 || m == 22) ? c.footHeelLiftM : c.footToeLiftM; }
+
 V3 markerOffset(const Problem &P, const VectorXd &sv, int m)
 {
     const Marker &M = P.rig.markers[size_t(m)];
@@ -328,6 +331,9 @@ V3 markerOffset(const Problem &P, const VectorXd &sv, int m)
     V3 o = slot < 0 ? M.offsetPrior * P.s0 : V3 { sv[slot], sv[slot + 1], sv[slot + 2] };
     if (M.symGroup >= 0)
         o += M.latLocal * (M.side * sv[P.L.iSym + 2 * M.symGroup]) + M.upLocal * sv[P.L.iSym + 2 * M.symGroup + 1];
+    // THE SHOD FOOT (item 6, 2026-10-02): the pose model marks a shoe's toe and heel up on the shoe,
+    // not at the sole, so the foot markers are lifted along the foot's own up axis (footLift).
+    if (m >= 17 && m <= 22) o += M.upLocal * (footLift(P.cfg, m) * P.s0);
     return o;
 }
 
@@ -2238,7 +2244,7 @@ FitResult fitSkeleton(const FitInput &in)
     // The floor: the planted markers' anchors, less their flat-foot heights (median).
     if (in.cfg.useContact) {
         std::vector<double> z;
-        for (int f = 0; f < 6; ++f) z.push_back(S.sv[L.iAnchor + 3 * f + 2] - R.markers[size_t(17 + f)].floorHeight * s0);
+        for (int f = 0; f < 6; ++f) z.push_back(S.sv[L.iAnchor + 3 * f + 2] - (R.markers[size_t(17 + f)].floorHeight + footLift(in.cfg, 17 + f)) * s0);
         S.sv[L.iZg] = median(z);
     }
     res.cam = camFromSv(S.sv, L);

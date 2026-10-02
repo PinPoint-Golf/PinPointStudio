@@ -285,11 +285,19 @@ static Truth makeSwing(double fps, std::array<double, GroupCount> scale, double 
     T.trailOff = (bone * 0.08 + R.palmLocal[1] * 0.02) * scale[GHand];
     std::mt19937 rng(7);
     std::normal_distribution<double> n01(0, 1);
+    // A SHOD foot, as the fit assumes by default (FitConfig::foot*LiftM): the pose model's toe and
+    // heel keypoints sit up on the shoe, so the synthetic markers are lifted the same way.
+    const FitConfig defaults;
+    const auto shodLift = [&](int m) {
+        return (m < 17 || m > 22) ? 0.0 : (m == 19 || m == 22) ? defaults.footHeelLiftM : defaults.footToeLiftM;
+    };
     for (int m = 0; m < kMarkerCount; ++m) {
         const Marker &M = R.markers[size_t(m)];
         const V3 jit = M.fitOffset ? V3 { n01(rng), n01(rng), n01(rng) } * 0.008 : V3 {};
-        T.off[size_t(m)] = M.offsetPrior + jit;
+        T.off[size_t(m)] = M.offsetPrior + jit + M.upLocal * shodLift(m);
     }
+    // A marker's height above the floor on a flat foot: the rig's, plus the shoe.
+    const auto flatHeight = [&](int m) { return R.markers[size_t(m)].floorHeight + shodLift(m); };
 
     // Root placement: feet on the floor at address.
     const int nF = int(std::round(1.95 * fps));
@@ -370,11 +378,11 @@ static Truth makeSwing(double fps, std::array<double, GroupCount> scale, double 
                                                  dofIndex(side == 0 ? "lAnkle.inv" : "rAnkle.inv") };
                     double base = 1e9;
                     for (int k = 0; k < 3; ++k)
-                        base = std::min(base, f[size_t(3 * side + k)].z - R.markers[size_t(17 + 3 * side + k)].floorHeight);
+                        base = std::min(base, f[size_t(3 * side + k)].z - flatHeight(17 + 3 * side + k));
                     std::vector<V3> tgt;
                     for (int k = 0; k < 3; ++k) {
                         V3 q = f[size_t(3 * side + k)];
-                        q.z = base + R.markers[size_t(17 + 3 * side + k)].floorHeight;
+                        q.z = base + flatHeight(17 + 3 * side + k);
                         tgt.push_back(q);
                     }
                     ik(th, ank, [&](const std::vector<double> &x) {
@@ -385,12 +393,12 @@ static Truth makeSwing(double fps, std::array<double, GroupCount> scale, double 
             }
             const std::vector<V3> f = footPts(th);
             double zmin = 1e9;
-            for (int k = 0; k < 6; ++k) zmin = std::min(zmin, f[size_t(k)].z - R.markers[size_t(17 + k)].floorHeight);
+            for (int k = 0; k < 6; ++k) zmin = std::min(zmin, f[size_t(k)].z - flatHeight(17 + k));
             th[2] += T.cam.zG - zmin;
             // …and BOTH feet on the floor: the whole legs take the difference.
             {
                 std::vector<V3> tgt = footPts(th);
-                for (int k = 0; k < 6; ++k) tgt[size_t(k)].z = T.cam.zG + R.markers[size_t(17 + k)].floorHeight;
+                for (int k = 0; k < 6; ++k) tgt[size_t(k)].z = T.cam.zG + flatHeight(17 + k);
                 const std::vector<double> ref = th;
                 ik(th, legDofs, footPts, tgt, 40, &ref);
             }
@@ -575,7 +583,8 @@ static Score score(const Truth &T, const FitResult &r, bool print)
         forwardKinematics(R, T.th[0].data(), T.scale.data(), p0);
         for (int k = 0; k < 6; ++k)
             worstFoot = std::max(worstFoot, std::fabs(markerWorld(p0, R.markers[size_t(17 + k)].joint, T.off[size_t(17 + k)]).z
-                                                      - T.cam.zG - R.markers[size_t(17 + k)].floorHeight));
+                                                      - T.cam.zG - R.markers[size_t(17 + k)].floorHeight
+                                                      - ((k == 2 || k == 5) ? FitConfig{}.footHeelLiftM : FitConfig{}.footToeLiftM)));
         std::printf("      truth feet at address off their flat heights by ≤ %.1f mm\n", worstFoot * 1000);
     }
     return s;

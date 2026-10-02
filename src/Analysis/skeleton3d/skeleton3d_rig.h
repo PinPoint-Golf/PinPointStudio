@@ -444,6 +444,9 @@ inline Rig buildRig()
         for (int k = 0; k < 3; ++k) {
             Marker &M = rig.markers[size_t(base + k)];
             M.floorHeight = (restP[ft] + neutW[ft].rotate(M.offsetPrior)).y;
+            // The foot's own up axis, joint-local — the direction FitConfig::foot*LiftM raises a
+            // shod foot's keypoint markers along (only sym-group markers had one before).
+            M.upLocal = neutW[ft].conj().rotate({ 0, 1, 0 });
         }
     }
     rig.restEyeY = restP[Head].y + 0.085;
