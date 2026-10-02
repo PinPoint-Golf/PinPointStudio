@@ -610,10 +610,14 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("pelvisImu", RM::Inertial, Direct, { .imuRoles = { R::Pelvis } },
                 QStringLiteral("measured directly from the pelvis IMU")),
-            via("faceOn+dtl", RM::Triangulated, Direct,
+            // LIVE 1 Oct 2026 (body_rotation.h trackBodyRotationTriangulated): skeleton3d's two-camera
+            // fit. ESTIMATED, not Direct, until a measured calibration reaches skeleton3d — the DTL
+            // camera's placement is assumed, and its σ carries a camera-scale term for that.
+            via("faceOn+dtl", RM::Triangulated, Estimated,
                 { .faceOnCamera = true, .dtlCamera = true },
-                QStringLiteral("the hip line's bearing, triangulated from the calibrated pair — "
-                               "the turn read off geometry instead of inferred from foreshortening"), PLANNED) },
+                QStringLiteral("the hip line's bearing from the two-camera skeleton fit — read off "
+                               "geometry, but the second camera's placement is assumed until it is "
+                               "calibrated")) },
         .usedBy = { QStringLiteral("characteristic:hip_spin_out"),
                     QStringLiteral("characteristic:hips_closed_at_impact"),
                     QStringLiteral("characteristic:sequence_order"),
@@ -681,7 +685,14 @@ void installMetricManifest(MetricCatalogue &cat)
             via("pelvisImu", RM::Inertial, Direct, { .imuRoles = { R::Pelvis } },
                 QStringLiteral("the pelvis medio-lateral axis carried into world by q_anat and "
                                "projected into the horizontal plane, keeping the sign that the "
-                               "magnitude convention discards"), PLANNED) },
+                               "magnitude convention discards"), PLANNED),
+            // LIVE 1 Oct 2026: the hip line's signed bearing from the two-camera skeleton fit — the
+            // first producer this series has had, and the reason hip_stall can be assessed at all.
+            via("faceOn+dtl", RM::Triangulated, Estimated,
+                { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the hip line's signed bearing from the two-camera skeleton fit, "
+                               "lead-relative — the second camera's placement is assumed until it "
+                               "is calibrated")) },
         .usedBy = { QStringLiteral("characteristic:hip_stall") },
     });
 
@@ -711,10 +722,10 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("thoraxImu", RM::Inertial, Direct, { .imuRoles = { R::Thorax } },
                 QStringLiteral("measured directly from the thorax IMU")),
-            via("faceOn+dtl", RM::Triangulated, Direct,
+            via("faceOn+dtl", RM::Triangulated, Estimated,
                 { .faceOnCamera = true, .dtlCamera = true },
-                QStringLiteral("the shoulder line's bearing, triangulated from the calibrated "
-                               "pair — a real reading, though the IMU stays authoritative"), PLANNED) },
+                QStringLiteral("the shoulder line's bearing from the two-camera skeleton fit — the "
+                               "second camera's placement is assumed until it is calibrated")) },
         .usedBy = { QStringLiteral("characteristic:abbreviated_finish"),
                     QStringLiteral("characteristic:sequence_order"),
                     QStringLiteral("characteristic:short_backswing"),
@@ -747,10 +758,10 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("trunkImus", RM::Inertial, Direct, { .imuRoles = { R::Pelvis, R::Thorax } },
                 QStringLiteral("the difference of two directly measured turns")),
-            via("faceOn+dtl", RM::Triangulated, Direct,
+            via("faceOn+dtl", RM::Triangulated, Estimated,
                 { .faceOnCamera = true, .dtlCamera = true },
-                QStringLiteral("both bearings triangulated from the calibrated pair, so the "
-                               "separation no longer inherits two foreshortening estimates"), PLANNED), },
+                QStringLiteral("both bearings from the two-camera skeleton fit, so the separation "
+                               "carries both turns' uncertainty")), },
     });
 
     cat.addDescriptor({
@@ -779,9 +790,9 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("trunkImus", RM::Inertial, Direct, { .imuRoles = { R::Pelvis, R::Thorax } },
                 QStringLiteral("the measured separation, less its value at the Top")),
-            via("faceOn+dtl", RM::Triangulated, Direct,
+            via("faceOn+dtl", RM::Triangulated, Estimated,
                 { .faceOnCamera = true, .dtlCamera = true },
-                QStringLiteral("the triangulated separation, less its value at the Top"), PLANNED) },
+                QStringLiteral("the two-camera separation, less its value at the Top")) },
         .usedBy = { QStringLiteral("characteristic:xfactor_deficit"),
                     QStringLiteral("characteristic:excessive_separation_stretch") },
     });

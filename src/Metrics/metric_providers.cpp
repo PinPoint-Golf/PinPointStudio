@@ -106,7 +106,8 @@ std::vector<QString> TrailWristProvider::provides() const
 std::vector<QString> BodyRotationProvider::provides() const
 {
     return { QStringLiteral("pelvisRotation"), QStringLiteral("thoraxRotation"),
-             QStringLiteral("xFactor"),        QStringLiteral("xFactorStretch") };
+             QStringLiteral("xFactor"),        QStringLiteral("xFactorStretch"),
+             QStringLiteral("pelvisRotationSigned") };   // the two-camera route, 1 Oct 2026
 }
 
 // ----------------------------------------------------------------------- ClubDeliveryProvider

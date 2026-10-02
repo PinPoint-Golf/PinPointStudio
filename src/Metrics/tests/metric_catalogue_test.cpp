@@ -306,10 +306,20 @@ int main()
                   == MetricAvailability::Unavailable,
               "…and a separation cannot be had from half a pair");
 
-        // The signed series is nobody's today: no route emits it, however the shot is equipped.
+        // The signed series' IMU rung is still planned, so an IMU alone gives nothing…
         check(cat.resolve(QStringLiteral("pelvisRotationSigned"), pelvisImu).state
                   == MetricAvailability::Unavailable,
-              "pelvisRotationSigned awaits a producer, even with the IMU bound");
+              "pelvisRotationSigned's IMU rung is still planned: the pelvis IMU alone gives nothing");
+        // …and the two-camera fit ESTIMATES it (live 2026-10-01, body_rotation.h triangulated route).
+        {
+            ShotContext pair = wristShot({}, /*faceOn*/ true);
+            pair.hasDtl = true;
+            const MetricAvailability a = cat.resolve(QStringLiteral("pelvisRotationSigned"), pair);
+            check(a.state == MetricAvailability::Bridged && a.routeId == QStringLiteral("faceOn+dtl"),
+                  "two cameras estimate pelvisRotationSigned off the skeleton fit (Bridged, faceOn+dtl)");
+            check(cat.resolve(QStringLiteral("pelvisRotation"), pair).state == MetricAvailability::Bridged,
+                  "…and pelvisRotation, estimated until the second camera is calibrated");
+        }
 
         ShotContext bothImu = wristShot({ SegmentRole::Pelvis, SegmentRole::Thorax }, false);
         check(cat.resolve(QStringLiteral("xFactor"), bothImu).state == MetricAvailability::Measured,
@@ -399,7 +409,7 @@ int main()
         // 20 -> 13 on 2026-09-21: the down-the-line rungs of pelvisThrust, spineForwardBend, the two
         // knee flexions, ballBodyDistance and balanceHeelToe (dtl_posture.h) and of swingPlane
         // (shaft_fusion.h) were built.
-        checkEqI(planned, 13, "13 planned metrics — nothing produces them by any route");   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view; −kinematicSequence (live 2026-09-17, segment_rates.cpp)
+        checkEqI(planned, 12, "12 planned metrics — nothing produces them by any route");   // −pelvisRotationSigned (two-camera route live 2026-10-01)   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view; −kinematicSequence (live 2026-09-17, segment_rates.cpp)
         checkEqI(unavailable, planned,
                  "every planned metric resolves Unavailable even with every device present");
         checkEqI(saysPlanned, planned,
@@ -480,17 +490,17 @@ int main()
         // lives and carries no sign, so it could not support the readings taken from it. What the
         // directory tells a golfer changed with it: rotation is no longer something their phone
         // can estimate, it is something a pelvis IMU measures.
+        // ⚠ AND SINCE 2026-10-01 THE FLOOR IS THE TWO-CAMERA FIT. The triangulated rung went live
+        // (body_rotation.h trackBodyRotationTriangulated, off skeleton3d): it reads the hip line's
+        // BEARING off geometry, which the removed foreshortening estimate never could. It is the
+        // last live rung, so it is what the directory reports as "needs" — two cameras, not one —
+        // and the IMU above it is the upgrade that measures the turn outright.
         const MetricDescriptor *pr = cat.descriptor(QStringLiteral("pelvisRotation"));
-        check(!pr->baselineRequirement().faceOnCamera,
-              "pelvisRotation's floor is no longer the camera");
-        check(!pr->baselineRequirement().imuRoles.empty(),
-              "…it is the IMU that actually measures it");
-        // One rung above the floor now: the triangulated pair, which reads the hip line's BEARING
-        // off geometry rather than inferring it from a collapsing span.
-        // NOTHING SITS ABOVE THE IMU. The triangulated pair is authored BELOW it in the ladder —
-        // an alternative for a shot with two cameras and no IMU, not an upgrade from one — so a
-        // golfer whose pelvis IMU is bound has nothing better to be sold.
-        check(pr->upgradeDevices().empty(), "…and nothing above it to be upgraded to");
+        check(pr->baselineRequirement().faceOnCamera && pr->baselineRequirement().dtlCamera,
+              "pelvisRotation's floor is the two-camera pair, never one camera");
+        check(pr->baselineRequirement().imuRoles.empty(),
+              "…not the IMU, which is the rung above it");
+        check(!pr->upgradeDevices().empty(), "…so the pelvis IMU is what it can be upgraded to");
 
         // The knees are the user-facing case for the whole change: readable face-on in principle,
         // properly resolvable only from down the line. The DOWN-THE-LINE rung is BUILT since
@@ -579,8 +589,10 @@ int main()
         // xFactor's stereo rung used to sit above a foreshortening estimate, which is what
         // `Improves` meant. With the estimate gone the pair does not improve on a reading — it
         // UNLOCKS one, for a shot that has two cameras and no trunk IMUs.
-        check(gain("xFactor")   == SG::None,
-              "xFactor's floor is the trunk IMUs, which a second camera does not improve on");
+        // …and with the pair's rung LIVE (2026-10-01) the second camera is what makes it at all on a
+        // camera-only shot.
+        check(gain("xFactor")   == SG::Unlocks,
+              "xFactor is unlocked by the second camera on a shot with no trunk IMUs");
         check(gain("shoulderPlaneAngle") == SG::Refines,
               "shoulderPlaneAngle is a projected line read at the Top — foreshortened, so refined");
 
@@ -640,8 +652,10 @@ int main()
         check(est.upgrade.isEmpty(), "…nothing is dangled as an upgrade, because nothing fired");
         check(est.reason.contains(QStringLiteral("Pelvis")),
               "…the reason names the pelvis IMU as the thing that is missing");
-        check(!est.reason.contains(QStringLiteral("down-the-line")),
-              "…and NOT a second camera, which is still the weaker fix");
+        // Since the two-camera rung went live (2026-10-01) a second camera is a real way to get the
+        // turn on a camera-only shot, so the reason may name it beside the IMU — the IMU stays the
+        // better instrument, which the ladder's order already says.
+        std::printf("    face-on-only pelvisRotation reason: %s\n", qPrintable(est.reason));
 
         ShotContext pelvisImu = wristShot({ SegmentRole::Pelvis }, /*faceOn*/ true);
         const MetricAvailability best = cat.resolve(QStringLiteral("pelvisRotation"), pelvisImu);
