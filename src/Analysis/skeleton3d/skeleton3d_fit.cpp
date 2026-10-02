@@ -552,6 +552,60 @@ double frameResiduals(const Problem &P, const State &S, int t, Rows *rows)
             }
         }
 
+        // ── the club grounded at address ──
+        // r = (head.z − floor − lift)/σ, Cauchy. The floor is the mean of this frame's planted
+        // markers' anchors less their flat-foot heights — the same floor the outputs read.
+        // TWO CAMERAS ONLY: with one, the head's depth is a prior's, and the term moved a face-on-only
+        // fit to another basin without grounding anything (09-16 s2: 10 cm → 20 cm above the floor).
+        if (P.cfg.groundedClubSigmaM > 0 && P.hasDtl && P.cfg.useContact && P.cfg.useClubhead && !P.stage1
+            && t < int(P.in.footContact.size())
+            && P.in.t_us[size_t(t)] >= P.in.addressUs - 200000 && P.in.t_us[size_t(t)] <= P.in.addressUs + 30000) {
+            int nf = 0;
+            double zf = 0;
+            for (int f = 0; f < 6; ++f)
+                if (P.in.footContact[size_t(t)][size_t(f)]) {
+                    zf += sv[P.L.iAnchor + 3 * f + 2] - (R.markers[size_t(17 + f)].floorHeight + footLift(P.cfg, 17 + f)) * P.s0;
+                    ++nf;
+                }
+            if (nf > 0) {
+                zf /= nf;
+                const int hand = P.in.leadIsLeft ? ybot::LeftHand : ybot::RightHand;
+                const V3 gOff { sv[P.L.iGrip + 3], sv[P.L.iGrip + 4], sv[P.L.iGrip + 5] };
+                const V3 aRaw { sv[P.L.iGrip + 0], sv[P.L.iGrip + 1], sv[P.L.iGrip + 2] };
+                const double an = std::max(1e-6, aRaw.norm());
+                const V3 ah = aRaw * (1.0 / an);
+                const double Lh = sv[P.L.iClub];
+                PJ g;
+                markerPJ(P, pose, sv, hand, gOff, P.L.iGrip + 3, g);
+                const V3 d = pose.rot[hand].rotate(ah);
+                const V3 hp = g.p + d * Lh;
+                const double sg = P.cfg.groundedClubSigmaM;
+                const double r = (hp.z - zf - P.cfg.groundedClubLiftM) / sg;
+                cost += c2 * std::log1p(r * r / c2);
+                if (rows) {
+                    const double w = std::sqrt(1.0 / (1.0 + r * r / c2));
+                    Mat3X dd;
+                    dirDerivs(P, pose, hand, d, dd);
+                    Eigen::Matrix3d Rh;
+                    for (int c = 0; c < 3; ++c)
+                        Rh.col(c) = E(pose.rot[hand].rotate(V3 { c == 0 ? 1.0 : 0, c == 1 ? 1.0 : 0, c == 2 ? 1.0 : 0 }));
+                    const Eigen::Vector3d aE = E(ah);
+                    const Eigen::Matrix3d dA = Rh * (Eigen::Matrix3d::Identity() - aE * aE.transpose()) / an;
+                    const Mat3X dth = g.dth + Lh * dd;
+                    Mat3X ds = g.ds;
+                    ds.middleCols(P.L.iGrip, 3) += Lh * dA;
+                    const int row = rows->add();
+                    rows->r[row] = w * r;
+                    rows->Jf.row(row) = w / sg * dth.row(2);
+                    rows->Js.row(row) = w / sg * ds.row(2);
+                    rows->Js(row, P.L.iClub) += w / sg * d.z;
+                    for (int f = 0; f < 6; ++f)
+                        if (P.in.footContact[size_t(t)][size_t(f)])
+                            rows->Js(row, P.L.iAnchor + 3 * f + 2) -= w / sg / nf;
+                }
+            }
+        }
+
         // ── the swing plane where the DTL is blind, and the branch pass's seed ──
         // r_plane = asin(d·n)/σ through the Cauchy loss: a club stays near its plane, and a
         // genuinely off-plane position (laid off, across) costs a bounded amount. The seed is a
@@ -1741,7 +1795,9 @@ FitResult fitSkeleton(const FitInput &in)
     // measured heads see it (both views, ~0.9 m of lever), and a club record that is only the
     // driver default (job.clubLengthM) must not be allowed to roll the forearms to fit it.
     S.sv[L.iClub] = P.svPrior[L.iClub] = P.clubToHeadM;
-    P.svSigma[L.iClub] = in.clubLengthM > 0.5 ? 0.08 : 0.15;
+    P.svSigma[L.iClub] = in.cfg.clubLengthSigmaM > 0 ? in.cfg.clubLengthSigmaM
+                       : (P.hasDtl && in.clubLengthKnown && in.clubLengthM > 0.5 && in.cfg.clubLengthSigmaKnownM > 0) ? in.cfg.clubLengthSigmaKnownM
+                       : in.clubLengthM > 0.5 ? 0.08 : 0.15;
     P.svFree[size_t(L.iClub)] = in.cfg.useClubhead;
     for (int c = 0; c < 18; ++c) P.svFree[size_t(L.iAnchor + c)] = in.cfg.useContact;
     for (int i = 0; i < int(in.imu.size()); ++i)

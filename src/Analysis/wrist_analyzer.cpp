@@ -2515,6 +2515,7 @@ struct Skeleton3DStage : AnalysisStage {
         in.leadIsLeft = ctx.job.handedness != 2;
         in.heightM = ctx.job.athleteHeightM;
         in.clubLengthM = ctx.job.clubLengthM;
+        in.clubLengthKnown = ctx.job.clubLengthKnown;
         if (ctx.job.skeletonCalib) in.fixedCalib = &*ctx.job.skeletonCalib;   // a session pool (§13.2 (C))
         const int64_t impactUs = ctx.seg.eventFor(Phase::Impact)->t_us;
         const PhaseEvent *addr = ctx.seg.eventFor(Phase::Address);
@@ -2656,7 +2657,16 @@ struct Skeleton3DStage : AnalysisStage {
         const BallPositionResult bp = computeBallPosition(ctx.detail->ball, QPointF(), QPointF(), in.addressUs,
                                                           in.foW, in.foH,
                                                           BallPositionConfig::fromOverrides(ctx.job.tuningOverrides));
-        if (bp.addressBallPx.x() > 0 && bp.addressBallPx.y() > 0) {
+        // THE TRACKER'S ADDRESS BALL FIRST (skeleton3d v6). It is the ball the club left from, found
+        // by its departure (impact_anchor.h), and on 07-04 it sits within 12 px across all 15 swings.
+        // The ball track's median address sample was 100–195 px from it on 13 of them — on something
+        // else on the mat — which put the 3-D ball, and the display origin with it, up to half a
+        // metre from the clubhead.
+        const ShaftTrack2D &shaftForBall = ctx.detail->shaft;
+        if (shaftForBall.ballAnchored && shaftForBall.addressBallPx.x() > 0 && shaftForBall.addressBallPx.y() > 0) {
+            in.ballU = shaftForBall.addressBallPx.x();
+            in.ballV = shaftForBall.addressBallPx.y();
+        } else if (bp.addressBallPx.x() > 0 && bp.addressBallPx.y() > 0) {
             in.ballU = bp.addressBallPx.x();
             in.ballV = bp.addressBallPx.y();
         }

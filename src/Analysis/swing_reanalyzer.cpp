@@ -818,7 +818,12 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
         if (pf.open(QIODevice::ReadOnly)) {
             const auto pool = pinpoint::skeleton3d::sessionPoolFromJson(QJsonDocument::fromJson(pf.readAll()).object());
             pinpoint::skeleton3d::SkeletonCalib c;
-            if (pinpoint::skeleton3d::calibFor(pool, QFileInfo(swingDir).fileName(), c)) ls.job.skeletonCalib = c;
+            // A pool from an older skeleton3d is not used: its cameras are that fit's, and this
+            // swing then solves its own until the session is re-pooled.
+            if (pool.stageVersion != kSkeleton3DStageVersion)
+                ppInfo() << "[Reanalysis] skeleton3d session pool is from stage version" << pool.stageVersion
+                         << "— not used (now" << kSkeleton3DStageVersion << "); re-analyse the session to re-pool";
+            else if (pinpoint::skeleton3d::calibFor(pool, QFileInfo(swingDir).fileName(), c)) ls.job.skeletonCalib = c;
         }
     }
     // ── Version-gated reuse (analysis_versions.h) ────────────────────────────
@@ -988,7 +993,8 @@ bool poolSkeletonSession(const QString& sessionDir, QString* error, int* nSwings
         fits.push_back({ name, sk::skeleton3dToJson(r.analysis.detail->skeleton3d, 0, kSkeleton3DStageVersion) });
     }
     if (nSwings) *nSwings = int(fits.size());
-    const sk::SessionPool pool = sk::poolSkeletons(fits);
+    sk::SessionPool pool = sk::poolSkeletons(fits);
+    pool.stageVersion = kSkeleton3DStageVersion;
     if (!pool.valid) {
         if (error) *error = pool.reason;
         return false;

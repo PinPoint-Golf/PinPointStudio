@@ -65,6 +65,10 @@ struct PoolConfig {
 struct SessionPool {
     bool valid = false;
     int nSwings = 0;
+    // The skeleton3d stage version whose fits were pooled (0 = a pool written before it was
+    // stamped). A pool holds CAMERAS, and a fit that changes what the cameras solve to — v6 levels
+    // the world on the grounded club — must not be held to an older fit's cameras.
+    int stageVersion = 0;
     SkeletonCalib golfer;           // scale, sym, grip, club (no cameras)
     struct Epoch { std::vector<QString> swings; SkeletonCalib cams; };
     std::vector<Epoch> epochs;
@@ -222,6 +226,7 @@ inline QJsonObject sessionPoolToJson(const SessionPool &P)
     }
     return QJsonObject {
         { "schema", QStringLiteral("pinpoint.skeleton3dSession/1") }, { "valid", P.valid }, { "nSwings", P.nSwings },
+        { "stageVersion", P.stageVersion },
         { "reason", P.reason },
         { "golfer", QJsonObject { { "scale", P.golfer.hasScale ? QJsonValue(arr(P.golfer.scale)) : QJsonValue() },
                                   { "sym", P.golfer.hasSym ? QJsonValue(arr(P.golfer.sym)) : QJsonValue() },
@@ -236,6 +241,7 @@ inline SessionPool sessionPoolFromJson(const QJsonObject &o)
     if (o.value(QStringLiteral("schema")).toString() != QLatin1String("pinpoint.skeleton3dSession/1")) return P;
     P.valid = o.value(QStringLiteral("valid")).toBool();
     P.nSwings = o.value(QStringLiteral("nSwings")).toInt();
+    P.stageVersion = o.value(QStringLiteral("stageVersion")).toInt(0);
     P.reason = o.value(QStringLiteral("reason")).toString();
     const QJsonObject g = o.value(QStringLiteral("golfer")).toObject();
     auto fill = [](const QJsonValue &v, auto &a) {

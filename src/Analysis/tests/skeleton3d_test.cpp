@@ -460,7 +460,7 @@ static std::vector<double> leanProject(const std::vector<double> &th, double kE 
 }
 
 static FitInput observe(const Truth &T, double sigmaPx, double dropout, bool withDtl, unsigned seed,
-                        bool labelSwapAtTop)
+                        bool labelSwapAtTop, bool grounded = false)
 {
     const Rig &R = rig();
     FitInput in;
@@ -470,7 +470,24 @@ static FitInput observe(const Truth &T, double sigmaPx, double dropout, bool wit
     in.addressUs = T.addressUs; in.topUs = T.topUs; in.impactUs = T.impactUs;
     in.leadIsLeft = true;
     in.heightM = (R.restHeadTopY + 0.02) * T.scale[GSpine];
-    in.clubLengthM = 0.95;
+    // The club. The suite's guards were set on a 0.95 m club that is NOT grounded at address (the
+    // keyframed posture holds its head well off the floor), so the grounded-club term is pinned
+    // off for them. `grounded` is the (G) section's golfer: his club is as long as it takes for its
+    // head to rest groundedClubLiftM above the floor at address, and the term is left at its default.
+    double clubToHead = 0.95 - 0.04;
+    if (grounded) {
+        size_t ia = 0;
+        for (size_t i = 0; i < T.t.size(); ++i)
+            if (std::llabs(T.t[i] - T.addressUs) < std::llabs(T.t[ia] - T.addressUs)) ia = i;
+        Pose p;
+        forwardKinematics(R, T.th[ia].data(), T.scale.data(), p);
+        const V3 g = markerWorld(p, ybot::LeftHand, T.gripOff);
+        const V3 d = p.rot[ybot::LeftHand].rotate(T.gripAxis);
+        if (d.z < -0.2) clubToHead = (g.z - T.cam.zG - FitConfig().groundedClubLiftM) / -d.z;
+    } else {
+        in.cfg.groundedClubSigmaM = 0;
+    }
+    in.clubLengthM = clubToHead + 0.04;
     // The suite's guards were set on the per-frame 48-angle fit; the lean (L) and spline (S) sections
     // switch those on themselves. Pinned so the production defaults (§13.5–13.6) leave them where they were.
     in.cfg.leanRig = false; in.cfg.leanClavicles = true; in.cfg.splineBasis = false;
@@ -503,7 +520,7 @@ static FitInput observe(const Truth &T, double sigmaPx, double dropout, bool wit
             }
             // The clubhead, measured on about half the frames (blur takes the rest).
             double hu, hv;
-            if (projectPoint(T.cam, view, W, H, g + d * (0.95 - 0.04), hu, hv) && u01(rng) < 0.5)
+            if (projectPoint(T.cam, view, W, H, g + d * clubToHead, hu, hv) && u01(rng) < 0.5)
                 vo[view].headU = hu + 4.0 * nz(rng), vo[view].headV = hv + 4.0 * nz(rng), vo[view].headSigma = 4.0;
         }
         const int64_t tus = T.t[i];
@@ -1112,6 +1129,29 @@ int main()
         std::printf("      upper-arm scale %.4f (fixed 1.05), club %.4f m (fixed 0.92)\n", r.scale[GUpperArm], r.clubLengthM);
         check(r.valid && r.calibFixed && std::fabs(r.scale[GUpperArm] - 1.05) < 1e-12 && std::fabs(r.clubLengthM - 0.92) < 1e-12,
               "(C) a session calib's values are held fixed through the fit");
+    }
+
+    // ── (G) the grounded club levels the world ─────────────────────────────────────────────────
+    // A face-on camera pitched p used to tilt the fitted world by ~p/2: nothing measures gravity,
+    // the planted feet are too short a baseline, and the pitch prior pulls to level. A club
+    // grounded at address touches the floor half a metre in front of the feet, and that is a
+    // baseline. Same golfer, same observations, the term off and on.
+    std::printf("(G) the grounded club levels the world: face-on camera pitched 6°\n");
+    {
+        Truth Tg = makeSwing(120.0, unit, 10.0);
+        Tg.cam.pF = 6 * kDeg;
+        FitInput off = observe(Tg, 2.0, 0.02, true, 11, false, true);
+        const double clubM = off.clubLengthM;
+        off.cfg.groundedClubSigmaM = 0;
+        const FitInput on = observe(Tg, 2.0, 0.02, true, 11, false, true);
+        const FitResult rOff = fitSkeleton(off), rOn = fitSkeleton(on);
+        const double eOff = std::fabs(rOff.cam.pF - Tg.cam.pF) / kDeg, eOn = std::fabs(rOn.cam.pF - Tg.cam.pF) / kDeg;
+        std::printf("      club %.3f m; face-on pitch error: term off %.2f°, on %.2f°; floor off %.3f, on %.3f (truth %.3f)\n",
+                    clubM, eOff, eOn, rOff.cam.zG, rOn.cam.zG, Tg.cam.zG);
+        check(rOff.valid && rOn.valid, "(G) both fits converged");
+        check(eOff > 1.5, "(G) without it the world tilts with the camera's pitch");
+        check(eOn < 1.0, "(G) with it the face-on pitch is recovered within 1°");
+        check(std::fabs(rOn.cam.zG - Tg.cam.zG) < 0.02, "(G) …and the floor within 2 cm");
     }
 
     // Timing at a real cadence.

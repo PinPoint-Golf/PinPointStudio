@@ -159,6 +159,26 @@ struct FitConfig {
     // onto its toes after impact (skeleton_rate_k0_20261002.md §13).
     double footToeLiftM        = 0.06;
     double footHeelLiftM       = 0.03;
+    // THE CLUB IS GROUNDED AT ADDRESS (σ m, Cauchy; 0 = off). Over address − 200 ms … + 30 ms the
+    // fitted clubhead sits groundedClubLiftM above the floor the planted feet give. ON since
+    // 2026-10-02 (skeleton3d v6). It is the one thing in the swing that touches the floor half a
+    // metre in FRONT of the feet, so it is what holds the world level about the target line: the
+    // planted feet are too short a baseline, and the face-on pitch prior and the DTL roll prior
+    // are all that held it before. On 07-04 the same fixed face-on camera solved at 1.5° of pitch
+    // on swings 1–3 and 8.3° on swings 4–15; on the latter the floor came out 8–10 cm below a
+    // full-length club's head and the club was fitted 9–21 cm short to make up the rest. On s8
+    // with free cameras: pitch 8.1° → 0.3°, the head 16.4 → 3.6 cm above the floor, the address
+    // shaft 46° → 56° to the ground (the DTL image reads 54.5°), reprojection and total cost
+    // unchanged — the tilt was a free direction (swing_3d_viz_design.md §14). TWO-CAMERA FITS ONLY,
+    // and so is the tighter club length below: a face-on-only fit is left exactly as it was.
+    double groundedClubSigmaM  = 0.02;
+    double groundedClubLiftM   = 0.02;
+    // The club length's prior σ (m): a RECORDED club's length is known to the tape, and what is
+    // left is where on the head the tracker's "clubhead" sits (hosel … centre), ±3 cm. It was 0.08,
+    // which let the fit shorten a 0.94 m club to 0.73. An unrecorded club keeps its loose 0.15 (a
+    // driver default must not roll the forearms to fit). > 0 here overrides both.
+    double clubLengthSigmaKnownM = 0.03;
+    double clubLengthSigmaM    = 0.0;
     double wristSigmaDeg       = 30.0;
     double pronationSigmaDeg   = 45.0;
     double clavicleSigmaDeg    = 10.0;   // the shoulder girdle vs the upper spine: both move the shoulder point
@@ -230,6 +250,7 @@ struct FitInput {
     bool   leadIsLeft = true;
     double heightM = 0;                      // 0 = unknown
     double clubLengthM = 0;                  // for drawing / reporting; 0 = unknown
+    bool   clubLengthKnown = false;          // clubLengthM is the club record's (tape), not a default
     // Per frame, per foot marker (17..22): planted on the floor.
     std::vector<std::array<uint8_t, 6>> footContact;
     std::vector<ImuTrack> imu;

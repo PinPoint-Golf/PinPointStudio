@@ -89,6 +89,16 @@ int main(int argc, char **argv)
     check(std::fabs(c1.cam[2] - 3.00) < 1e-9 && std::fabs(c4.cam[2] - 3.505) < 1e-9, "…with its own epoch's cameras");
     sk::SkeletonCalib cx;
     check(!sk::calibFor(P, "swing_0099", cx), "a swing not in the pool gets none");
+    // The pool is stamped with the skeleton3d stage version that fitted it; one written before the
+    // stamp reads 0, which no current fit matches (swing_reanalyzer then lets the swing solve its own cameras).
+    {
+        sk::SessionPool V = A;
+        V.stageVersion = 6;
+        check(sk::sessionPoolFromJson(sk::sessionPoolToJson(V)).stageVersion == 6, "the stage version round-trips");
+        QJsonObject old = sk::sessionPoolToJson(V);
+        old.remove(QStringLiteral("stageVersion"));
+        check(sk::sessionPoolFromJson(old).stageVersion == 0, "an unstamped pool reads version 0");
+    }
     const sk::SessionPool Q = sk::sessionPoolFromJson(sk::sessionPoolToJson(A));
     sk::SkeletonCalib q4, a4;
     check(Q.valid && sk::calibFor(Q, "swing_0004", q4) && sk::calibFor(A, "swing_0004", a4)
