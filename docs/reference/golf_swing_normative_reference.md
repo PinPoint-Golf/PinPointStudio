@@ -23,9 +23,9 @@ across studies. This document is context. It is not ground truth.
 |---|---|
 | **NR-01** | Every surfaced normative value carries its cohort and n. "19 PGA tour professionals (Cheetham et al., 2008)" is compliant. "Tour average" is not. |
 | **NR-02** | Every surfaced normative value carries the segment definition it was measured under. Where PinPoint's definition differs from the source's, PinPoint either normalises to the source definition or withholds the comparison. |
-| **NR-03** | PinPoint reports direction of difference in preference to absolute gap. "Your pelvis peaks after your thorax; professionals peak pelvis first" is compliant. "You are 47°/s below tour average" asserts a precision the literature does not support and is not compliant. |
+| **NR-03** | PinPoint reports direction of difference in preference to absolute gap. "Your pelvis peaks after your thorax; professionals peak pelvis first" is compliant. "You are 47°/s below tour average" asserts a precision the literature does not support and is not compliant. **Amended 2026-10-02 (Mark):** the kinematic-sequence tile shows each placed peak as a % of the Cheetham professional peak, plain ("70%"), with the source on the tile. Mark chose readability over the σ. |
 | **NR-04** | PinPoint surfaces variability alongside magnitude. Consistency, not peak magnitude, is the most robust discriminator in this literature (§2.3). |
-| **NR-05** | Normative values are not targets. PinPoint does not present a normative value as a goal state, and does not gate a good/bad verdict on proximity to one. |
+| **NR-05** | Normative values are not targets. PinPoint does not present a normative value as a goal state, and does not gate a good/bad verdict on proximity to one. **Amended 2026-10-02 (Mark):** the kinematic-sequence tile shows the professional order as the order the segments SHOULD peak in. It marks the verdict ✓ / ✗ against that categorical order (§2.3), never against a magnitude. |
 | **NR-06** | PinPoint makes no injury-risk claim. Injury-adjacent metrics (crunch factor, lateral bend, wrist loading) may be reported as descriptive values. They are not interpreted as risk. PinPoint is not a medical device. |
 | **NR-07** | Peer-reviewed sources and commercial datasets are labelled distinctly. Trackman figures are cited as "Trackman tour averages", never as research. |
 
@@ -113,7 +113,7 @@ PinPoint's shaft tracker output and requires no normative comparison.
 
 | ID | Statement |
 |---|---|
-| **NR-11** | Sequence timing is computed over a set of swings and reported as dispersion. A single-swing timing delta against a published mean is not surfaced. |
+| **NR-11** | Sequence timing is computed over a set of swings and reported as dispersion. A single-swing timing delta against a published mean is not surfaced. **Amended 2026-10-02 (Mark):** the kinematic-sequence tile shows a single swing's actual peak ORDER against the professional order, and each peak's time from impact. It does not grade the time against the published mean. |
 | **NR-12** | Pelvis deceleration before impact is reported as a binary present/absent characteristic. Its magnitude is not compared to a normative value. |
 
 ### 2.4 Corroborating work

@@ -381,6 +381,50 @@ Club at analysis time, for §9 and for any future capture that predates a placem
 > bounds as labelled spans, and it was noise). The bound stays in the node, the JSON and the
 > report. `PpSequenceStrip` is now one line: the chain with its leads ("Lead arm −87 ms → Club
 > −4 ms (+83 ms)") and the verdict. Probe: `tools/probes/ks_overlay_chart.qml`.
+>
+> **2026-10-02 — the strip becomes the sequence TILE.** It summarises the chart for a reader new
+> to the kinematic sequence (Mark rejected a wordy first cut and a cut that hid values). There
+> are four rows in the order the segments SHOULD peak: pelvis, chest, arm, club. Each row shows:
+> - SHOULD and ACTUAL position;
+> - the peak time as −N / +N ms from impact, ±σ_t;
+> - the peak °/s ±σ;
+> - % of the Cheetham professional peak ±σ.
+>
+> Every peak on the plot has its numbers in the tile. An unplaced one is dimmed, with a "?" on
+> its rank, never hidden. ACTUAL is red at both ends of an inverted pair. The verdict is In /
+> Out of sequence, In order so far, or Order unclear. This overrides NR-03/05/11 at Mark's call
+> (golf_swing_normative_reference.md).
+>
+> Code: `ChartMetrics::sequenceTable`. Tests: `chart_metrics_test` ("tile: …"),
+> `tst_chart_presets` test_016, probe `tools/probes/ks_rising_chart.qml`.
+>
+> **Same day — the club gate.** Mark: "it says club not placed and it's clearly just before
+> impact". The club node's broken-track gate read the clubhead speed AT impact. On a club peaking
+> 25–90 ms early, that sample had already fallen to 12–40 mph, below the 40 mph floor. It refused
+> 27 of 55 library club nodes whose timing σ was 5–21 ms; their downswing PEAK was 53–116 mph on
+> every swing. The gate now reads the downswing peak (`clubheadSpeedPeakMph`, Top → Impact).
+>
+> **Same day — the sequence runs P4 → P8 (`sequence.throughP8`, default ON).** Mark: "the peak
+> is the value before P8 … a peak after impact is just as interesting as a peak in sequence".
+> This reverses §13's "do NOT search past impact".
+> - The peak is searched over Transition → P8 for every segment, the club included. P8 is the
+>   ladder's ShaftParallelThrough, else the track's P8 knot, else impact as before.
+> - The peak is simply the maximum before P8. The "still rising at the end" refusal applies only
+>   to the old impact-ended domain.
+> - The curves are drawn from P4 (the top) to P8, and cut outside that, not dashed.
+>
+> Library (55 swings, re-analysed and regraded 2 Oct):
+> - the club is placed on 53 swings (was 34);
+> - the pelvis newly places on 14 of the 15 two-camera 07-04 swings, all +20…+40 ms AFTER impact.
+>   This matches the offline +39 ms of §13. Its magnitude (~867 °/s, ~180 % of the pros) carries
+>   the same doubt §13 raised;
+> - the chest is still unplaced (`pairTrunk.thoraxPlacement` off);
+> - ledgers are unchanged.
+>
+> **OPEN — the lead arm's rate rising after impact.** Mark: "almost certainly wrong, but that's a
+> data issue". On some swings the arm curve climbs again into P8 and becomes the max before P8
+> (07-04 s8: +80 ms). Suspect the arm keypoints / skeleton through the follow-through, not the
+> rule.
 
 
 **The preset is free.** `ChartMetrics::seriesGroups()` already builds cross-cutting presets from
