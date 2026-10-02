@@ -1119,3 +1119,12 @@ has a third reading: through the fused plane the club's angular peak still leads
 
 The chart no longer dashes the curve outside transition → impact (`shaft_fusion_design.md` §4).
 
+---
+
+## 15. A skeleton rung, designed (2026-10-02)
+
+`ks_skeleton3d_route_design.md` adds a two-camera **skeleton** rung, `faceOn+dtl3d`, to the pelvis,
+thorax and lead-arm series. It sits below the IMU and above the pair, and it reads the same skeleton3d
+lines as the rotation route (`body_rotation_estimation.md` §7). The §4 table changes when it is built.
+Not built yet; it starts with an offline measurement (K0) on 07-04.
+

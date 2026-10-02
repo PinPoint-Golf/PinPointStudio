@@ -198,5 +198,5 @@ The route's largest error term is the assumed camera placement. It will improve 
 
 - **Forearm rotation, elbow flexion and hip internal rotation stay unproduced.** They depend on hand keypoints or thigh axial roll, which skeleton3d does not observe reliably (hand confidence lies on this pose model).
 - **The left-handed mirror is unverified.** The sign was checked on right-handed captures only; no left-handed capture exists.
-- **`kinematicSequence` keeps its own pelvis and thorax rate producer.** That producer runs before skeleton3d.
+- **`kinematicSequence` keeps its own pelvis and thorax rate producer.** That producer runs before skeleton3d. The plan to give it a skeleton rung that reads the same lines is `ks_skeleton3d_route_design.md` (designed 2 October 2026, not built).
 
