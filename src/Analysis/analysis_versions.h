@@ -100,7 +100,8 @@ constexpr int kShaftFusionStageVersion = 6;   // 2: the address plane and delive
 //           auto_annotations_design.md). Stamped; never reused — two frames and a mask, cheap.
 constexpr int kAddressMarksStageVersion = 1;
 
-constexpr int kSkeleton3DStageVersion = 6;   // 6: the club grounded at address levels the world; a recorded club's length held to ±3 cm; session pools stamped (2026-10-02)
+constexpr int kSkeleton3DStageVersion = 7;   // 7: a recorded club's length is held (σ 5 mm), and the grounded head rests ON the floor (lift 0) (2026-10-02)
+                                             // 6: the club grounded at address levels the world; a recorded club's length held to ±3 cm; session pools stamped (2026-10-02)
                                              // 2: the club held to its plane where the DTL is blind + the depth-branch pass (2026-09-28); 4: the pelvis yaw's own acceleration σ (2026-10-02); 5: the shod-foot marker lift (2026-10-02)
                                              // 3: the lean spine + spline trajectories; session camera pool at re-analysis (2026-09-28)
 

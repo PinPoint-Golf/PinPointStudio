@@ -171,13 +171,18 @@ struct FitConfig {
     // shaft 46° → 56° to the ground (the DTL image reads 54.5°), reprojection and total cost
     // unchanged — the tilt was a free direction (swing_3d_viz_design.md §14). TWO-CAMERA FITS ONLY,
     // and so is the tighter club length below: a face-on-only fit is left exactly as it was.
+    // The lift is 0: the trackers' clubhead point at address is the SOLE (both views, 07-04 s8), so
+    // the fitted head is the club's end and rests ON the floor. At 2 cm it cost the club 2.4 cm.
     double groundedClubSigmaM  = 0.02;
-    double groundedClubLiftM   = 0.02;
-    // The club length's prior σ (m): a RECORDED club's length is known to the tape, and what is
-    // left is where on the head the tracker's "clubhead" sits (hosel … centre), ±3 cm. It was 0.08,
-    // which let the fit shorten a 0.94 m club to 0.73. An unrecorded club keeps its loose 0.15 (a
-    // driver default must not roll the forearms to fit). > 0 here overrides both.
-    double clubLengthSigmaKnownM = 0.03;
+    double groundedClubLiftM   = 0.0;
+    // A RECORDED CLUB IS NOT FITTED (v7): its length is the tape's, and σ 5 mm holds it there. It
+    // was 0.08, which let the fit shorten a 0.94 m club to 0.73, and then 0.03 (v6), which still
+    // gave 0.90: the fit has almost nothing to measure a length WITH — a clubhead is handed to it
+    // on ~20 of ~750 face-on samples and never at address — so any slack went wherever the cameras'
+    // error pushed it. Held, on 07-04 s1 / s8 / s9: 0.938–0.940 m, reprojection unchanged to 0.01 px
+    // and the total cost up 0.02 %, the hands 2–3 cm higher. An unrecorded club keeps its loose
+    // 0.15 (a driver default must not roll the forearms to fit). `clubLengthSigmaM` > 0 overrides both.
+    double clubLengthSigmaKnownM = 0.005;
     double clubLengthSigmaM    = 0.0;
     double wristSigmaDeg       = 30.0;
     double pronationSigmaDeg   = 45.0;
