@@ -298,8 +298,8 @@ All from b82de8a3 (2026-10-01); gate in `dtl_precalibration_20261003.md`.
 | `ReanalyzeOptions::useSessionPool` | `swing_reanalyzer.h:103` | LIVE | Use the session's pooled cameras. Forced off in SwingLab pass 1. |
 | `pelvisYawAccRad` | `skeleton3d_fit.h` (FitConfig) | LIVE (200) | The pelvis yaw's own acceleration σ, rad/s², never loosened through the downswing (0 = the general σ). |
 | `footToeLiftM` / `footHeelLiftM` | `skeleton3d_fit.h` (FitConfig) | LIVE (0.06 / 0.03) | The shod foot: the toe and heel keypoint markers lifted along the foot's up axis (0 = bare-sole priors). |
-| `groundedClubSigmaM` / `groundedClubLiftM` | `skeleton3d_fit.h` (FitConfig) | LIVE (0.02 / 0.02), two cameras only | The club grounded at address: the fitted head rests 2 cm above the feet's floor, which levels the world about the target line (0 = off). |
-| `clubLengthSigmaKnownM` | `skeleton3d_fit.h` (FitConfig) | LIVE (0.03), two cameras only | A RECORDED club's length prior σ (was 0.08). `clubLengthSigmaM` > 0 overrides it and the unrecorded 0.15. |
+| `groundedClubSigmaM` / `groundedClubLiftM` | `skeleton3d_fit.h` (FitConfig) | LIVE (0.02 / 0), two cameras only | The club grounded at address: the fitted head rests on the feet's floor, which levels the world about the target line (σ 0 = off). |
+| `clubLengthSigmaKnownM` | `skeleton3d_fit.h` (FitConfig) | LIVE (0.005), two cameras only | A RECORDED club's length is held to the tape (was 0.08, then 0.03 in v6). `clubLengthSigmaM` > 0 overrides it and the unrecorded 0.15. |
 
 - **Base fit** — d9b466f7 (2026-09-26).
 - **Plane / branch** — 2a7e57a9 (09-28): P8 off-plane 51.9° → 6.0°; face-on-only 50° → 15.8°.
@@ -315,6 +315,7 @@ All from b82de8a3 (2026-10-01); gate in `dtl_precalibration_20261003.md`.
   - `{"skeleton3d.groundedClubSigmaM": 0, "skeleton3d.clubLengthSigmaKnownM": 0}` is the control.
   - A session pool from another stage version is ignored; re-analyse the session to re-pool.
   - The record is `docs/design/swing_3d_viz_design.md` §14.
+- **Recorded club held** — 2026-10-02, `kSkeleton3DStageVersion` 7. v6 still fitted 0.90 m for a 0.94 m club; held, s1 / s8 / s9 read 0.938–0.940 with reprojection unchanged. `{"skeleton3d.clubLengthSigmaKnownM": 0.03, "skeleton3d.groundedClubLiftM": 0.02}` is v6. Record: §14.1.
 
 ### 3.15 Event refinement & timeline fusion (`refine.*`)
 

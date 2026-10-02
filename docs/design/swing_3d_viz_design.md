@@ -980,3 +980,41 @@ sequence not at all. Synthetic (skeleton3d_test (G), face-on camera pitched 6°)
   has to be re-pooled and re-analysed before the pooled cameras are known.
 - **A golfer who hovers the club** is held by the Cauchy loss, not tested.
 
+### 14.1 The recorded club is held, not fitted (same day) — skeleton3d v7
+
+v6 still fitted the club short: 0.903 m on s8, 0.896 on s9, 0.929 on s1, against 0.94 on the tape.
+
+**Why a known length came out short at all.** The length was a free unknown with the club record
+as its prior. The fit has almost nothing to measure it with: a clubhead point reaches it on about
+20 of 750 face-on samples (the rest are blurred, coasted or synthesised and are not handed over),
+and on none at address, where both trackers' samples are below the measured tier. So the length
+was decided by the prior's slack and by whatever else in the model was wrong. Before v6 that was
+the tilted world (§14): the floor ran too low in front of the feet, and a shorter club was the
+cheapest way to keep the head on its measured pixels. In v6 the slack was ±3 cm and the grounded
+head was asked to sit 2 cm ABOVE the floor, which by itself costs a 56° shaft 2.4 cm of length —
+and both trackers mark the SOLE at address, so there was no 2 cm to leave.
+
+**The change.** `clubLengthSigmaKnownM` 0.03 → 0.005 (a recorded club is held to the tape) and
+`groundedClubLiftM` 0.02 → 0. Two-camera fits only, as before.
+
+| free cameras | club | head above floor at address | hands above floor | reprojection FO / DTL | cost |
+|---|---|---|---|---|---|
+| s1 v6 → v7 | 0.929 → 0.940 | 1.7 → −0.1 cm | 72.1 → 71.3 cm | 4.65 / 5.53 → 4.65 / 5.54 px | 84 138 → 84 142 |
+| s8 v6 → v7 | 0.903 → 0.938 | 3.6 → 2.0 cm | 75.1 → 77.1 cm | 5.37 / 3.86 → 5.37 / 3.86 px | 82 046 → 82 060 |
+| s9 v6 → v7 | 0.896 → 0.938 | 4.6 → 3.0 cm | 72.8 → 75.6 cm | 4.44 / 4.86 → 4.44 / 4.87 px | 82 528 → 82 541 |
+
+Holding the length costs the fit nothing it can see (reprojection to 0.01 px, cost 0.02 %); the
+3–4 cm goes into the hands, which sit 2–3 cm higher.
+
+**Still open.**
+- **The head at impact.** With the right length the head is still 14–24 cm short of the ball
+  along the target line at the impact instant on s1 / s8 / s9, and 5–11 cm high; 10 ms later it is
+  within 8 cm. The fit is given no club through impact (the samples there are not measured-tier)
+  and its spline carries the club across on smoothness alone. The face-on tracker solved this in
+  2-D with the ball anchor (impact_anchor.h). The 3-D equivalent is the head on the ball's pixel
+  in the DOWN-THE-LINE image at impact — that view sees the head's height and distance from the
+  golfer and is blind to the one direction a few ms of timing error moves it. Not built.
+- **A face-on-only fit still shortens a recorded club** (09-16 s2: 0.76 m against 0.902). Holding
+  the length there, with or without the grounded head, lifted the hands to 82–95 cm instead: with
+  one camera the club's depth is a prior's, and that is what has to be fixed first.
+
