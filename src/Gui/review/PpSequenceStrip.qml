@@ -36,6 +36,11 @@ ColumnLayout {
 
     property var  kinematicSequence: null      // analysisDetail.kinematicSequence (may be null)
     property real impactUs: -1                 // carried for parity with the summary; the rows are already impact-relative
+    // Folded, the tile is its title line alone — the caret, SEQUENCE and the verdict — so the
+    // plot above takes the height back and the one answer the tile gives is still on screen.
+    // The host owns the state (and persists it); the title line asks for the toggle.
+    property bool collapsed: false
+    signal toggled()
 
     spacing: Theme.sp(6)
 
@@ -76,6 +81,14 @@ ColumnLayout {
             // ── title + the verdict ────────────────────────────────────────────────────────────
             RowLayout {
                 Layout.fillWidth: true
+                spacing: Theme.sp(7)
+                Text {
+                    objectName: "sequenceCaret"
+                    text: "▸"; rotation: root.collapsed ? 0 : 90
+                    color: Theme.colorText3; font.pixelSize: Theme.fontSzBody2
+                    Behavior on rotation { enabled: !Theme.reduceMotion
+                                           NumberAnimation { duration: Theme.durationFast } }
+                }
                 HeadText { objectName: "sequenceStripHeader"; text: qsTr("SEQUENCE") }
                 Item { Layout.fillWidth: true }
                 Text {
@@ -92,6 +105,7 @@ ColumnLayout {
             }
 
             RowLayout {
+                visible: !root.collapsed
                 Layout.fillWidth: true
                 spacing: Theme.sp(12)
                 HeadText { text: "";                 Layout.preferredWidth: root._wLabel }
@@ -108,6 +122,7 @@ ColumnLayout {
                     id: seg
                     required property var modelData
                     objectName: "sequenceRow:" + seg.modelData.segment
+                    visible: !root.collapsed
                     Layout.fillWidth: true
                     spacing: Theme.sp(12)
                     // A peak the producer could not pin down is shown — it is on the curve — but
@@ -151,9 +166,17 @@ ColumnLayout {
             }
 
             HeadText {
+                visible: !root.collapsed
                 text: qsTr("Pro = tour average, Cheetham 2008")
                 font.letterSpacing: 0
             }
+        }
+
+        // The whole title line toggles, edge to edge — the same hit area a section header has.
+        Item {
+            x: 0; y: 0; width: parent.width
+            height: Theme.sp(10) + Theme.sp(24)
+            PpPressable { objectName: "sequenceToggle"; hoverScale: 1.0; onClicked: root.toggled() }
         }
     }
 }

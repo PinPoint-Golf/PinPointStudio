@@ -1781,6 +1781,40 @@ int main()
         checkEqI("no phases ⇒ Full alone", cm.segments(QVariantList{}, 2500000).size(), 1);
     }
 
+    // ── dataWindow: a trimmed chart opens on the P-positions that enclose its curves ───────────
+    {
+        std::printf("dataWindow — the P-positions around the drawn data\n");
+        auto ph = [](int phase, qlonglong tUs) {
+            return QVariant(QVariantMap{ { QStringLiteral("phase"), phase },
+                                         { QStringLiteral("t_us"),  tUs } });
+        };
+        // Address, Top (P4), Transition (untagged), Impact (P7), P8 (14), Finish.
+        const QVariantList phases{ ph(0, 200000), ph(2, 900000), ph(3, 930000), ph(5, 1200000),
+                                   ph(14, 1290000), ph(7, 1400000) };
+        // Curves cut to P4 → P8: the first sample lands a frame after P4, the last a frame before P8.
+        const QVariantMap w = cm.dataWindow(phases, 904000, 1286000, 200000, 1400000);
+        checkTrue("curves inside the swing ⇒ trimmed", w.value(QStringLiteral("trimmed")).toBool());
+        checkEqI("starts at P4",  w.value(QStringLiteral("startUs")).toLongLong(), 900000);
+        checkEqI("ends at P8",    w.value(QStringLiteral("endUs")).toLongLong(), 1290000);
+        checkEqI("phaseA is Top", w.value(QStringLiteral("phaseA")).toInt(), 2);
+        checkEqI("phaseB is P8",  w.value(QStringLiteral("phaseB")).toInt(), 14);
+        // Data over the whole swing ⇒ the caller's window, untouched.
+        const QVariantMap all = cm.dataWindow(phases, 0, 2500000, 200000, 1400000);
+        checkTrue("data over the whole swing ⇒ not trimmed", !all.value(QStringLiteral("trimmed")).toBool());
+        checkEqI("…and the window is the caller's", all.value(QStringLiteral("startUs")).toLongLong(), 200000);
+        // An untagged phase is never an edge: data starting at Transition still opens at P4.
+        const QVariantMap tr = cm.dataWindow(phases, 931000, 1286000, 200000, 1400000);
+        checkEqI("an untagged phase is not an edge", tr.value(QStringLiteral("startUs")).toLongLong(), 900000);
+        // One side only: data from the start of the swing to P8.
+        const QVariantMap right = cm.dataWindow(phases, 100000, 1286000, 200000, 1400000);
+        checkTrue("one trimmed side is still trimmed", right.value(QStringLiteral("trimmed")).toBool());
+        checkEqI("…the open side keeps Address", right.value(QStringLiteral("startUs")).toLongLong(), 200000);
+        checkEqI("…and is named for it", right.value(QStringLiteral("phaseA")).toInt(), 0);
+        // Empty data ⇒ nothing to trim to.
+        checkTrue("no data ⇒ not trimmed",
+                  !cm.dataWindow(phases, 0, 0, 200000, 1400000).value(QStringLiteral("trimmed")).toBool());
+    }
+
     // ── sequenceRows / sequenceVerdictText / sequenceRouteText: the strip's three answers ─────
     //
     // The map is the shape kinematic_sequence_json.h writes. What is at risk is the WALK — placed

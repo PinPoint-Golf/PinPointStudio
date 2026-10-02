@@ -274,6 +274,44 @@ QVariantList ChartMetrics::segments(const QVariantList &phases, qint64 spanUs) c
     return out;
 }
 
+QVariantMap ChartMetrics::dataWindow(const QVariantList &phases, qint64 dataStartUs, qint64 dataEndUs,
+                                     qint64 fromUs, qint64 toUs) const
+{
+    QVariantMap out;
+    out.insert(QStringLiteral("startUs"), fromUs);
+    out.insert(QStringLiteral("endUs"),   toUs);
+    out.insert(QStringLiteral("phaseA"),  -1);
+    out.insert(QStringLiteral("phaseB"),  -1);
+    out.insert(QStringLiteral("trimmed"), false);
+    if (!(dataEndUs > dataStartUs) || !(toUs > fromUs)) return out;
+
+    // The same endpoints the chips have: P-positions only (see segments()).
+    const TimelineLabels tags;
+    qint64 a = fromUs, b = toUs;
+    int phaseA = -1, phaseB = -1;
+    bool haveA = false, haveB = false;
+    for (const QVariant &pv : phases) {
+        const QVariantMap p = pv.toMap();
+        const int ph = p.value(QStringLiteral("phase")).toInt();
+        if (!tags.hasPositionTag(ph)) continue;
+        const qint64 t = p.value(QStringLiteral("t_us")).toLongLong();
+        if (t < fromUs || t > toUs) continue;
+        // A side the data do not trim keeps the window's own edge — and its name, when that edge
+        // is a P-position (it is, for the swing window: Address and Finish).
+        if (t == fromUs && !haveA) phaseA = ph;
+        if (t == toUs && !haveB)   phaseB = ph;
+        if (t <= dataStartUs + kDataWindowSlackUs && (!haveA || t > a)) { a = t; phaseA = ph; haveA = true; }
+        if (t >= dataEndUs - kDataWindowSlackUs && (!haveB || t < b))   { b = t; phaseB = ph; haveB = true; }
+    }
+    if (!(b > a) || (a <= fromUs && b >= toUs)) return out;
+    out.insert(QStringLiteral("startUs"), a);
+    out.insert(QStringLiteral("endUs"),   b);
+    out.insert(QStringLiteral("phaseA"),  phaseA);
+    out.insert(QStringLiteral("phaseB"),  phaseB);
+    out.insert(QStringLiteral("trimmed"), true);
+    return out;
+}
+
 QVariantMap ChartMetrics::summary(const QVariantList &tUs, const QVariantList &value,
                                   qint64 startUs, qint64 endUs) const
 {

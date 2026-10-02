@@ -62,6 +62,22 @@ public:
     // segment vocabulary is identical. `phases` is analysisDetail.phases ([{phase,t_us,…}]).
     Q_INVOKABLE QVariantList segments(const QVariantList &phases, qint64 spanUs) const;
 
+    // THE WINDOW A TRIMMED CHART OPENS ON. Some families are drawn over part of the swing only —
+    // the kinematic sequence's four curves run P4 → P8 and nowhere else — and opening those on
+    // Address→Finish spends most of the axis on a blank either side of them. Given the drawn
+    // series' time extent [dataStartUs, dataEndUs] and the window the chart would otherwise open on
+    // [fromUs, toUs], this returns the P-POSITIONS that enclose the data inside that window:
+    //   { startUs, endUs, phaseA:int, phaseB:int, trimmed:bool }
+    // startUs is the last P-position at or before the first sample, endUs the first at or after
+    // the last one (each with one frame of slack, kDataWindowSlackUs, because a curve cut AT a
+    // phase starts on the first sample after it). A side with no such P-position keeps the
+    // window's own edge, named for the P-position that sits on it (−1 when none does). `trimmed` is false — and the caller keeps its
+    // window — when nothing would be dropped, when the data are empty, or when the result would
+    // be an empty span. Bounded by P-positions so the window has the same vocabulary as the chips.
+    Q_INVOKABLE QVariantMap dataWindow(const QVariantList &phases, qint64 dataStartUs, qint64 dataEndUs,
+                                       qint64 fromUs, qint64 toUs) const;
+    static constexpr qint64 kDataWindowSlackUs = 15000;
+
     // Per-metric summary over [startUs, endUs]:
     //   { start, end, min, max, peak, range, delta, rate, tPeakUs, partial,
     //     peakSigma, rateSigma, edgeOk, rateOk, tRateUs }

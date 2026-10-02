@@ -119,6 +119,9 @@ Item {
     property bool controlsCollapsed: false
     property bool chartCollapsed:    false
     property bool summaryCollapsed:  false
+    // The SEQUENCE tile under the kinematic sequence chart folds to its title line (the verdict
+    // stays on it), which hands its height back to the plot. Persisted with the other three.
+    property bool sequenceCollapsed: false
 
     readonly property string _sectionKeyBase: root.sessionType + ":" + SessionMode.mode + ":"
     on_SectionKeyBaseChanged: { root._restoreSections(); root._restorePrefs() }
@@ -130,6 +133,7 @@ Item {
         root.controlsCollapsed = m[b + "controls"] === true
         root.chartCollapsed    = m[b + "chart"]    === true
         root.summaryCollapsed  = m[b + "summary"]  === true
+        root.sequenceCollapsed = m[b + "sequence"] === true
     }
     function _persistSection(name, val) {
         if (root.sessionType < 0) return            // compact / transient — don't persist
@@ -852,11 +856,47 @@ Item {
             if (root._segments[i].swing === true) return root._segments[i]
         return null
     }
-    readonly property real _defaultStart: root._defaultSeg ? root._defaultSeg.startUs
+    // ── …AND ON THE CURVES, WHERE THE CURVES ARE SHORTER THAN THE SWING (Mark, 2026-10-02) ──
+    //
+    // A family drawn over part of the swing only — the kinematic sequence's four curves run
+    // P4 → P8 — opened on Address→Finish with most of the axis blank either side of it. So when
+    // every drawn series sits inside the swing window, the chart opens on the P-positions that
+    // enclose them (ChartMetrics.dataWindow) and offers that span as a chip of its own, beside
+    // the swing's. The swing and the full recording are still one chip away.
+    readonly property var _dataWindow: {
+        if (!root._defaultSeg) return null
+        var lo = Infinity, hi = -Infinity
+        for (var i = 0; i < root._visible.length; ++i) {
+            var t = root._visible[i].t_us
+            if (!t || !t.length) continue
+            lo = Math.min(lo, t[0]); hi = Math.max(hi, t[t.length - 1])
+        }
+        if (!(hi > lo)) return null
+        var w = cm.dataWindow(root.phases, lo, hi, root._defaultSeg.startUs, root._defaultSeg.endUs)
+        return w.trimmed ? w : null
+    }
+    // The chips: ChartMetrics' segments, with the data window slotted in after the swing unless
+    // a chip for exactly that span is already there.
+    readonly property var _chipSegments: {
+        var out = [], dw = root._dataWindow, done = !dw
+        for (var i = 0; i < root._segments.length; ++i) {
+            var sg = root._segments[i]
+            if (!done && sg.phaseA === dw.phaseA && sg.phaseB === dw.phaseB) done = true
+        }
+        for (var j = 0; j < root._segments.length; ++j) {
+            out.push(root._segments[j])
+            if (!done && root._segments[j].swing === true) { out.push(dw); done = true }
+        }
+        return out
+    }
+    readonly property real _defaultStart: root._dataWindow ? root._dataWindow.startUs
+                                        : root._defaultSeg ? root._defaultSeg.startUs
                                                            : root._axisStart
-    readonly property real _defaultEnd:   root._defaultSeg ? root._defaultSeg.endUs
+    readonly property real _defaultEnd:   root._dataWindow ? root._dataWindow.endUs
+                                        : root._defaultSeg ? root._defaultSeg.endUs
                                                            : root._axisEnd
-    readonly property string _defaultLabel: root._defaultSeg ? root._segLabel(root._defaultSeg)
+    readonly property string _defaultLabel: root._dataWindow ? root._segLabel(root._dataWindow)
+                                          : root._defaultSeg ? root._segLabel(root._defaultSeg)
                                                              : qsTr("Full")
 
     function _selectSegment(seg) {
@@ -1086,7 +1126,7 @@ Item {
             }
 
             Repeater {
-                model: root._segments
+                model: root._chipSegments
                 delegate: Rectangle {
                     id: segChip
                     required property var modelData
@@ -1372,6 +1412,9 @@ Item {
             Layout.fillWidth: true
             kinematicSequence: root.kinematicSequence
             impactUs: root.impactUs
+            collapsed: root.sequenceCollapsed
+            onToggled: { root.sequenceCollapsed = !root.sequenceCollapsed
+                         root._persistSection("sequence", root.sequenceCollapsed) }
         }
 
         // Legend chips = toggle + live value / Δ-from-address readout at the playhead.

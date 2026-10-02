@@ -437,5 +437,61 @@ Item {
             chart.kinematicSequence = null
             verify(!strip.visible)
         }
+
+        // The tile folds to its title line (Mark, 2026-10-02): the rows go, the verdict stays, and
+        // the height goes back to the plot. The state is the chart's, persisted beside the sections'.
+        function test_018_the_sequence_tile_folds_to_its_title_line() {
+            chart.seriesList = probe.sequenceAndWrist
+            chart.kinematicSequence = probe.sequenceMap
+            chart._applyPreset("Kinematic sequence", true)
+            chart.sequenceCollapsed = false
+            var strip = findChild(chart, "sequenceStrip")
+            var row = findChild(chart, "sequenceRow:pelvis")
+            verify(strip.visible && row.visible)
+            var open = strip.implicitHeight
+
+            findChild(chart, "sequenceToggle").clicked(null)
+            verify(chart.sequenceCollapsed)
+            verify(strip.visible)                          // the tile is still there…
+            verify(!row.visible)                           // …without its rows
+            verify(findChild(chart, "sequenceVerdict").visible)
+            tryVerify(function () { return strip.implicitHeight < open / 2 })   // after the layout's polish
+            compare(appSettings.sectionCollapse[chart._sectionKeyBase + "sequence"], true)
+
+            findChild(chart, "sequenceToggle").clicked(null)
+            verify(!chart.sequenceCollapsed && row.visible)
+            chart.kinematicSequence = null
+        }
+
+        // Curves drawn over part of the swing open the chart on the P-positions around them
+        // (Mark, 2026-10-02) instead of on Address→Finish with a blank either side.
+        function test_019_a_trimmed_chart_opens_on_its_data_span() {
+            function cut(key) {                            // 200 → 290 ms, a frame inside P4 and P8
+                var t = [], v = []
+                for (var i = 0; i < 10; ++i) { t.push(201000 + i * 9800); v.push(i) }
+                return { key: key, label: key, unit: "°/s", t_us: t, value: v, phaseSamples: [] }
+            }
+            chart.startUs = 1000; chart.endUs = 500000; chart.impactUs = 260000
+            chart.phases = [{ phase: 0, t_us: 20000 }, { phase: 2, t_us: 200000 }, { phase: 5, t_us: 260000 },
+                            { phase: 14, t_us: 295000 }, { phase: 7, t_us: 450000 }]
+            chart.seriesList = [cut("pelvisAngularSpeed"), cut("thoraxAngularSpeed"),
+                                cut("leadArmAngularSpeed"), cut("clubAngularSpeed"),
+                                probe.curve("leadWristFlexExt", "°")]
+            chart._applyPreset("Kinematic sequence", true)
+            compare(chart.viewStartUs, 200000)             // P4
+            compare(chart.viewEndUs, 295000)               // P8
+            compare(chart._preset, "P4→P8")
+            // …offered as a chip of its own, straight after the swing's.
+            compare(chart._chipSegments.length, chart._segments.length + 1)
+            compare(chart._segLabel(chart._chipSegments[2]), "P4→P8")
+            // The swing is one chip away, and a family that covers it opens on it as before.
+            chart._selectSegment(chart._chipSegments[1])
+            compare(chart.viewStartUs, 20000)
+            compare(chart.viewEndUs, 450000)
+
+            chart.phases = []
+            chart.startUs = 0; chart.endUs = 70000; chart.impactUs = 40000
+            chart.seriesList = probe.wristAndSpeed
+        }
     }
 }
