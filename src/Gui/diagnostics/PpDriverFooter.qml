@@ -75,7 +75,12 @@ Rectangle {
     border.color: Theme.colorBorderMid
     clip: true
 
-    implicitHeight: compact ? px(56) : px(74)
+    // The old fixed 74 px is the FLOOR, not the height: the driver column grew two optional lines
+    // (inferred marker, stability — session_diagnostics_design.md §A8.6) and a fixed height clipped
+    // them. Grown from the column's own implicit height, which does not depend on the footer's —
+    // no binding loop through the anchors.
+    implicitHeight: compact ? px(56)
+                            : Math.max(px(74), eligible ? driverCol.implicitHeight + 2 * px(9) : 0)
 
     // ── waiting for the pattern set to hold still ────────────────────────────
     Column {
@@ -135,6 +140,7 @@ Rectangle {
         spacing: root.px(16)
 
         Column {
+            id: driverCol
             width: Math.max(0, wide.width - (screenCol.visible ? screenCol.width + wide.spacing : 0)
                                - (asideCol.visible ? asideCol.width + wide.spacing : 0))
             anchors.verticalCenter: parent.verticalCenter
