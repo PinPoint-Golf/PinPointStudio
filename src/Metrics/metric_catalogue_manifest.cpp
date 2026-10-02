@@ -1882,6 +1882,13 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("the hip line's turn from the two views' horizontal separations "
                                "(atan2 of the pair, uncalibrated), differentiated")),
+            // LIVE 2026-10-02, BELOW the pair: the two-camera skeleton's hip-line bearing. Where the
+            // pair cannot produce it replaces the span, which is blind at square; where the pair
+            // can, the pair's tighter timing stands (skeleton_rate_k0_20261002.md §11).
+            via("faceOn+dtl3d", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the hip line's bearing from the two-camera skeleton fit, "
+                               "differentiated — used where the two-view separations cannot be; "
+                               "the second camera's placement is assumed until it is calibrated")),
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
                 QStringLiteral("the hip span's cosine unfolded across the square-up and "
                                "differentiated, with the uncertainty propagated through 1/sin θ")) },
@@ -1922,6 +1929,10 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("the shoulder line's turn from the two views' horizontal "
                                "separations (atan2 of the pair, uncalibrated), differentiated")),
+            via("faceOn+dtl3d", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the shoulder line's bearing from the two-camera skeleton fit, "
+                               "differentiated — used where the two-view separations cannot be; "
+                               "the second camera's placement is assumed until it is calibrated")),
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
                 QStringLiteral("the shoulder span's cosine unfolded across the square-up and "
                                "differentiated, with the uncertainty propagated through 1/sin θ")) },
