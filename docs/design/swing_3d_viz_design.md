@@ -926,3 +926,57 @@ moves a gate when removed. None is trimmed in this pass: `clavicleSigmaDeg` is t
 and the margin (face-on only +1.35°) is within one swing's noise on 24 swings. `spineCoupleSigmaDeg`
 is dead under the lean spine (it only acts with `leanRig` off). The tune-on-4-July / test-on-11-June
 step was not run: with 24 swings from one golfer, it would tune to noise.
+
+## 14. The club that did not reach the ground (2 October 2026) — skeleton3d v6
+
+**What was seen.** In the 3-D view the club stopped short of the floor at address.
+
+**What was new and what was not.** The fitted club had been short since at least 30 September:
+0.73–0.85 m on 07-04 swings 4–15 against a recorded 0.94 m (0.88–0.93 on swings 1–3). What made it
+visible was the shod foot (v5, skeleton_rate_k0_20261002.md §13): it lowered the floor 5.0 cm under the same body, so a head
+that hung 8–14 cm above the floor now hung 14–25 cm.
+
+**Why the club was short: the world was not level.** Nothing measures gravity. The world's level
+about the target line was held by the face-on pitch prior (0 ± 4°) and the DTL roll prior, and seen
+only through the planted feet, which all sit at one depth. The same fixed face-on camera solved at
+1.5° of pitch and 1.10 m above the floor on swings 1–3, and at 8.3° and 1.27 m on swings 4–15 (the
+DTL camera was moved between them, so they are two pools). On the second pool the model's floor ran
+8–10 cm below a full-length club's head half a metre in front of the feet — in both images the
+floor point under the head projects 50–80 px below the mat — and the fit closed the rest of the gap
+by shortening the club, which its prior (σ 8 cm) allowed.
+
+**The fix (two-camera fits only).**
+- `groundedClubSigmaM` 0.02 / `groundedClubLiftM` 0.02: over address − 200 ms … + 30 ms the fitted
+  clubhead rests 2 cm above the floor the planted feet give (Cauchy). It is the one thing that
+  touches the floor in front of the feet, so it is the baseline the level needed.
+- `clubLengthSigmaKnownM` 0.03: a recorded club's length is held to ±3 cm (what is left is where on
+  the head the tracker's point sits). An unrecorded club keeps 0.15.
+- The 3-D ball and display origin come from the tracker's address ball (the ball the club left
+  from) before the ball track's: on 07-04 the two were 100–195 px apart on 13 of 15 swings.
+- Session pools are stamped with the stage version, and a pool from another version is not used:
+  the swing solves its own cameras until the session is re-pooled.
+
+**Measured** (free cameras, the studio's stored keypoints):
+
+| | pitch | floor | club | head above floor at address | shaft to ground | reprojection FO / DTL | cost |
+|---|---|---|---|---|---|---|---|
+| s8 before | 8.1° | −1.279 | 0.843 | 16.4 cm | 46° | 5.37 / 3.88 px | 82 048 |
+| s8 after | 0.3° | −1.026 | 0.903 | 3.6 cm | 56° (the DTL image reads 54.5°) | 5.37 / 3.86 px | 82 046 |
+| s1 before | 3.0° | −1.108 | 0.871 | 7.8 cm | 51° | 4.64 / 5.52 px | 84 128 |
+| s1 after | 2.9° | −1.103 | 0.929 | 1.7 cm | 52° | 4.65 / 5.53 px | 84 138 |
+
+The cost and reprojection do not move: the tilt was a free direction. Head to ball at address:
+s8 27.6 → 7.1 cm, s9 64 → 8.6 cm. On s8 the rotation readings move by ≤ 2.5° and the kinematic
+sequence not at all. Synthetic (skeleton3d_test (G), face-on camera pitched 6°): pitch error
+3.09° → 0.23°, floor −0.896 → −0.991 against −1.000.
+
+**Not fixed, and not measured.**
+- **Face-on-only fits are left exactly as they were.** With one camera the head's depth is a
+  prior's; the term moved 09-16 s2 to another basin without grounding anything (10 → 20 cm), so it
+  is off there. That swing's club is still 0.76 m against 0.902 and 10 cm off the floor.
+- **Impact.** On s8 the head is still 12.5 cm above the floor and 27 cm from the ball at impact
+  (was 25.5 / 40): the P7 miss §10 of the annotations design records, one view of the club there.
+- **The pooled result.** Every number above is a single swing solving its own cameras. The session
+  has to be re-pooled and re-analysed before the pooled cameras are known.
+- **A golfer who hovers the club** is held by the Cauchy loss, not tested.
+
