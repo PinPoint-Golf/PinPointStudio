@@ -394,7 +394,8 @@ int main(int argc, char **argv)
             swings.push_back({ QFileInfo(src).fileName(),
                                res.value(QStringLiteral("analysis")).toObject().value(QStringLiteral("skeleton3d")).toObject() });
         }
-        const auto pool = pinpoint::skeleton3d::poolSkeletons(swings);
+        auto pool = pinpoint::skeleton3d::poolSkeletons(swings);
+        pool.stageVersion = pinpoint::analysis::kSkeleton3DStageVersion;
         QFile out(cli.value(optPoolOut));
         if (!out.open(QIODevice::WriteOnly)) return fail(QStringLiteral("--pool-out: cannot write"));
         out.write(QJsonDocument(pinpoint::skeleton3d::sessionPoolToJson(pool)).toJson());
