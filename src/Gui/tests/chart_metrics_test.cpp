@@ -2102,6 +2102,15 @@ int main()
             checkStr("route ids match whatever their case",
                      cm.sequenceRows(upper).at(2).toMap().value(QStringLiteral("method")).toString(), "triangulated");
         }
+        // The skeleton's lead-arm rung (faceOn+dtl3d, 2026-10-02) lands on the same glyph by shape.
+        {
+            QVariantMap sk = ks;
+            QVariantList nn = sk.value(QStringLiteral("nodes")).toList();
+            { QVariantMap t = nn.at(0).toMap(); t.insert(QStringLiteral("routeId"), QStringLiteral("faceOn+dtl3d")); nn[0] = t; }
+            sk.insert(QStringLiteral("nodes"), nn);
+            checkStr("the skeleton rung faceOn+dtl3d reads triangulated",
+                     cm.sequenceRows(sk).at(2).toMap().value(QStringLiteral("method")).toString(), "triangulated");
+        }
     }
 
     std::printf("\n%s — %d failure(s)\n", g_fail ? "FAILED" : "OK", g_fail);

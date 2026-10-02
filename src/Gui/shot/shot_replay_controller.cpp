@@ -158,8 +158,9 @@ QVariantMap ShotReplayController::shotContext(int sessionType) const
         const QVariantList ksNodes = d.value(QStringLiteral("kinematicSequence"))
                                          .toMap().value(QStringLiteral("nodes")).toList();
         for (const QVariant &nv : ksNodes)
+            // faceOn+dtl (the pair, the fused club) and faceOn+dtl3d (the skeleton's lead arm).
             if (nv.toMap().value(QStringLiteral("routeId")).toString()
-                    .compare(QStringLiteral("faceOn+dtl"), Qt::CaseInsensitive) == 0) { dtl = true; break; }
+                    .startsWith(QStringLiteral("faceOn+dtl"), Qt::CaseInsensitive)) { dtl = true; break; }
     }
     ctx.insert(QStringLiteral("hasDtl"), dtl);
 
