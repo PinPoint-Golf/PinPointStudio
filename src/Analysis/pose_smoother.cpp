@@ -364,6 +364,7 @@ void smoothKeypoint(const std::vector<double> &zx, const std::vector<double> &zy
     std::vector<int> segFrames;
     double coastMs = 0.0;
     int    coastCount = 0;
+    int    rejectRun = 0;      // consecutive gate-rejected confident detections (re-acquisition)
 
     // innov policy state: the normalised innovations of the last innovRun ACCEPTED
     // steps, as a tiny ring. Reset when a segment OPENS (a break must not carry
@@ -388,6 +389,7 @@ void smoothKeypoint(const std::vector<double> &zx, const std::vector<double> &zy
                 segFrames = { f };
                 accepted[std::size_t(f)] = 1;
                 innovHead = 0; innovCount = 0;      // a new segment starts with no evidence
+                rejectRun = 0;
             }
             // else: this frame joins no segment ⇒ stays Off (raw passthrough).
             continue;
@@ -435,6 +437,15 @@ void smoothKeypoint(const std::vector<double> &zx, const std::vector<double> &zy
             // Joint 2D acceptance: a keypoint is a point — reject the whole frame
             // unless BOTH axes clear their 3σ gate (keeps x/y segments identical).
             acc = kfx->gatePass(zx[f], R) && kfy->gatePass(zy[f], R);
+            // Re-acquisition: only a CONFIDENT detection counts towards the run, and only one can
+            // end it. A rejected unconfident one breaks the run — it is not evidence the filter is lost.
+            const bool confident = sigMeas[f] <= cfg.reacquireSigMaxPx;
+            if (!acc && cfg.reacquireRun > 0 && confident && rejectRun >= cfg.reacquireRun) acc = true;
+            rejectRun = (acc || !confident) ? 0 : rejectRun + 1;
+        } else {
+            rejectRun = 0;
+        }
+        if (hasZ[f]) {
             // Read the gate's own statistic here, on the SAME pending prediction the
             // gate just judged. Both axes share ONE scale — the MAX of the two
             // statistics — for exactly the reason the accept flag is shared: x and y
@@ -678,6 +689,7 @@ PoseSmootherOutput smoothPoseTrack(const std::vector<PoseFrame2D> &frames,
         const double measSlope = cfg.measSigSlopePx * sigScale;
         PoseSmootherConfig kcfg = cfg;
         kcfg.sigmaJerk = cfg.sigmaJerk * jerkScale;
+        kcfg.reacquireSigMaxPx = measBase + (1.0 - cfg.reacquireConfMin) * measSlope;
 
         for (int f = 0; f < nf; ++f) {
             const PoseFrame2D &in = frames[std::size_t(f)];

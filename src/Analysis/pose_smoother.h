@@ -216,6 +216,21 @@ struct PoseSmootherConfig {
     int    runMin         = 4;      // RUN_MIN — confirmed-run length for the meas tier
                                     //   (tolerates a single-frame hole, club flush logic)
 
+    // RE-ACQUISITION (ON since 2026-10-02; reacquireRun 0 = off, the smoother before it). A
+    // gate-rejected step coasts on the model's own velocity AND acceleration, so once the filter
+    // has left the joint every later detection is further outside the gate. After reacquireRun
+    // CONSECUTIVE confident detections were rejected, the next confident one is accepted
+    // regardless. "Confident" is its own, higher bar (reacquireConfMin): at the top the trail
+    // shoulder's detection flips between two places 70 px apart at confidence ~0.55, and
+    // re-acquiring on those moved the shoulder 100 px and thoraxRotation 17° (07-04 s8). The
+    // wrists this exists for are detected at 0.85–0.95 when the filter loses them. The record is
+    // pp_tuned_constants.h and kinematic_sequence_design.md §8.
+    int    reacquireRun     = pinpoint::tuned::pose::smoother::kReacquireRun;
+    double reacquireConfMin = pinpoint::tuned::pose::smoother::kReacquireConfMin;
+    // Derived per keypoint by smoothPoseTrack (the σ_meas of a detection AT reacquireConfMin, with
+    // the keypoint's group scale applied) — not a setting.
+    double reacquireSigMaxPx = 1e300;
+
     // ── filter init covariance (loose priors; the RTS pass corrects early frames) ─
     double initSigPPx     = 10.0;   // KF init σ_p (px)
     double initSigV       = 4000.0; // KF init σ_v (px/s)  — a wrist can move fast
@@ -277,6 +292,8 @@ struct PoseSmootherConfig {
         PoseSmootherConfig c;
         tuning::apply(ov, "poseSmooth.legsSigmaScale", c.legsSigmaScale);
         tuning::apply(ov, "poseSmooth.legsJerkScale",  c.legsJerkScale);
+        tuning::apply(ov, "poseSmooth.reacquireRun",     c.reacquireRun);   // 0 = off (the parity switch)
+        tuning::apply(ov, "poseSmooth.reacquireConfMin", c.reacquireConfMin);
 
         // Phase-5 adapt keys. mode/group are STRINGS, and analysis_tuning.h has no
         // QString overload (nor is it this phase's file to extend), so those two are

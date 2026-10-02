@@ -1697,6 +1697,59 @@ int main()
               "a quiet real-cadence swing at the shipped defaults does not trip the guard");
     }
 
+    // ── re-acquisition: a joint the filter coasted off is taken back ─────────────
+    // The 07-04 s8 shape (kinematic_sequence_design.md §8), in that swing's own px per frame: the
+    // lead wrist climbs at 7 px a frame, the detection speeds up over three frames (12, 20, 25 —
+    // the trail hand rolling over it, each step inside the gate, so the filter learns a large
+    // acceleration) and then carries on at 5. The filter coasts on at 25 and rising, and every
+    // later detection is further outside the gate than the last.
+    std::printf("=== smoothPoseTrack: re-acquisition ===\n");
+    {
+        const double fps = 150.0;
+        const int    nPre = 48, nPost = 24;               // nPre includes the three fast steps
+        auto build = [&](float conf) {
+            std::vector<PoseFrame2D> f(std::size_t(nPre + nPost));
+            double y = 900.0;
+            for (int i = 0; i < nPre + nPost; ++i) {
+                const double step = i == 0 ? 0.0 : i < nPre - 3 ? 7.0 : i == nPre - 3 ? 12.0
+                                  : i == nPre - 2 ? 20.0 : i == nPre - 1 ? 25.0 : 5.0;
+                y -= step;
+                f[std::size_t(i)].t_us = int64_t(std::llround(i / fps * 1e6));
+                f[std::size_t(i)].kp[KP]   = QPointF(600.0 / double(W), y / double(H));
+                f[std::size_t(i)].conf[KP] = conf;
+            }
+            return f;
+        };
+        // Mean distance from the detection over the stretch after the hop, once the rule has had
+        // its three rejections (frames nPre+4 …).
+        auto tailErr = [&](const std::vector<PoseFrame2D> &in, const PoseSmootherOutput &o) {
+            double sum = 0.0; int n = 0;
+            for (int i = nPre + 4; i < nPre + nPost; ++i, ++n)
+                sum += std::hypot((o.smoothed[std::size_t(i)].kp[KP].x() - in[std::size_t(i)].kp[KP].x()) * W,
+                                  (o.smoothed[std::size_t(i)].kp[KP].y() - in[std::size_t(i)].kp[KP].y()) * H);
+            return sum / n;
+        };
+        PoseSmootherConfig off; off.reacquireRun = 0;
+        const PoseSmootherConfig on;                       // the shipped defaults
+        check(on.reacquireRun == 3 && on.reacquireConfMin == 0.7, "re-acquisition ships ON at 3 / 0.7");
+
+        const auto hi = build(0.9f);
+        const double eOff = tailErr(hi, smoothPoseTrack(hi, W, H, off));
+        const double eOn  = tailErr(hi, smoothPoseTrack(hi, W, H, on));
+        std::printf("       confident detections: mean distance after the hop  off %.1f px   on %.1f px\n", eOff, eOn);
+        check(eOff > 20.0, "without it the filter coasts away from confident detections");
+        check(eOn < 8.0,   "with it the joint is taken back");
+
+        // The other half of the rule: detections below the bar never re-acquire. The same hop at
+        // confidence 0.55 — the trail shoulder at the top — is byte-identical with the rule on.
+        const auto lo = build(0.55f);
+        const auto loOff = smoothPoseTrack(lo, W, H, off), loOn = smoothPoseTrack(lo, W, H, on);
+        bool same = loOff.smoothed.size() == loOn.smoothed.size();
+        for (std::size_t i = 0; same && i < loOn.smoothed.size(); ++i)
+            same = exactEq(loOff.smoothed[i].kp[KP], loOn.smoothed[i].kp[KP]);
+        check(same, "unconfident detections never re-acquire (byte-identical to off)");
+    }
+
     // ── degenerate inputs ─────────────────────────────────────────────────────
     std::printf("=== smoothPoseTrack: degenerate ===\n");
     {

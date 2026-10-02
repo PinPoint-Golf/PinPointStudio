@@ -44,7 +44,7 @@ namespace pinpoint::analysis {
 
 constexpr int kPoseStageVersion  = 1;
 constexpr int kBallStageVersion  = 1;
-constexpr int kShaftStageVersion = 6;
+constexpr int kShaftStageVersion = 7;
                                               // 1: first stamped version (2026-09-09)
                                               // 2: markerless stack ON — seg lock, snap, projPrior (2026-09-10)
                                               // 3: the blur wedge reads its LEADING edge; timed trail/mid/lead evidence (2026-09-29)
@@ -52,6 +52,9 @@ constexpr int kShaftStageVersion = 6;
                                               // 5: address ball well + decoy check, trail-arm veto, phase self-check/retry, hands ladder, refusal (2026-09-30)
                                               // 6: per-sample σθ / gross risk / tier, P-position timing σ, synth posterior σ
                                               //    (shaft_uncertainty_propagation_design.md, 2026-10-01)
+                                              // 7: the tracker's INPUT changed — the pose smoother re-acquires a joint it
+                                              //    coasted off (poseSmooth.reacquireRun), so the hands the track is anchored
+                                              //    on move wherever a wrist had coasted (2026-10-02)
 // shaft — REUSABLE since 2026-09-17 (swing_reanalyzer.cpp): the recorded samples,
 //         P-anchors, lengths and plane fit are reloaded when this version matches,
 //         the pose and ball were themselves reused, and no tuning override is in

@@ -343,6 +343,22 @@ namespace smoother {
 inline constexpr double kLegsSigmaScale = 1.0;   // poseSmooth.legsSigmaScale — × measSigBasePx/measSigSlopePx, kp 11–16
 inline constexpr double kLegsJerkScale  = 1.0;   // poseSmooth.legsJerkScale  — × sigmaJerk, kp 11–16
 
+// --- RE-ACQUISITION (poseSmooth.reacquireRun / .reacquireConfMin) — ON since 2026-10-02 ---
+// A detection the 3σ gate rejects makes the filter coast on its own velocity AND acceleration,
+// so the smoothed point runs away from the joint and every later detection lands further
+// outside the gate, for up to the 250 ms coast budget. On 07-04 s8 the face-on lead wrist left
+// its detections 60 ms after impact (confidence 0.9) and was 55 px off 40 ms later; the
+// skeleton followed it, the two-camera lead-arm rung failed to place and the kinematic
+// sequence reported the arm's "peak" 80 ms after impact (kinematic_sequence_design.md §8).
+//
+// After kReacquireRun CONSECUTIVE rejected detections at confidence ≥ kReacquireConfMin, the
+// next such detection is accepted regardless of the gate. The confidence bar is the rule's
+// other half: at the top the trail shoulder's detection flips between two places 70 px apart
+// at confidence ~0.55, and re-acquiring on those moved thoraxRotation 17° on the same swing.
+// kReacquireRun 0 is the parity switch (the smoother before this).
+inline constexpr int    kReacquireRun     = 3;
+inline constexpr double kReacquireConfMin = 0.7;
+
 // --- Phase 5: the MOTION-ADAPTIVE window (poseSmooth.adapt.*) ------------------
 // Phase 4.2 measured the static legs scale and it failed on its own terms: at
 // legsJerkScale 0.1 the hip jitter falls exactly as the window law predicts, but the
