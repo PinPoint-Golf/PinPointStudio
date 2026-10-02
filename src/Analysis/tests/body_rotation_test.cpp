@@ -32,7 +32,9 @@
 
 #include "../body_rotation.h"
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <cstdio>
 #include <vector>
 
@@ -279,6 +281,69 @@ int main()
             trackBodyRotation(t, fs, kW, kH, true, noTop), noTop);
         CHECK("no Top => no xFactorStretch", find(series, "xFactorStretch") == nullptr);
         CHECK("but the turns themselves still land", find(series, "pelvisRotation") != nullptr);
+    }
+
+    // ── The two-camera route (trackBodyRotationTriangulated) ────────────────────────────────
+    {
+        std::printf("\n--- triangulated: skeleton3d bearings ---\n");
+        const double kD = 3.14159265358979323846 / 180.0;
+        TriangulatedTurnInput in;
+        // 5 ms frames 0..1.6 s. Pelvis: still to 0.3 s, turns to 45° CLOSED (bearing −45°) at the
+        // top, through square at impact, 30° open after. Thorax: 90° closed at the top.
+        for (int64_t t = 0; t <= 1600000; t += 5000) {
+            double p = 0.0, x = 0.0;
+            if (t > 300000 && t <= kTopUs)      { const double u = double(t - 300000) / double(kTopUs - 300000); p = -45.0 * u; x = -90.0 * u; }
+            else if (t > kTopUs && t <= kImpactUs) { const double u = double(t - kTopUs) / double(kImpactUs - kTopUs); p = -45.0 + 45.0 * u; x = -90.0 + 90.0 * u; }
+            else if (t > kImpactUs)             { p = 30.0 * std::min(1.0, double(t - kImpactUs) / 200000.0); x = p; }
+            in.t_us.push_back(t);
+            in.pelvisBearing.push_back((180.0 + p) * kD); in.pelvisSigma.push_back(1.0 * kD);
+            in.thoraxBearing.push_back((180.0 + x) * kD); in.thoraxSigma.push_back(1.0 * kD);
+        }
+        const auto ph = ladder();
+        const BodyRotationResult r = trackBodyRotationTriangulated(in, /*leadIsLeft*/ true, ph, true, true);
+        const auto series = buildBodyRotationSeries(r, ph);
+        const MetricSeries *pm = find(series, "pelvisRotation");
+        const MetricSeries *ps = find(series, "pelvisRotationSigned");
+        const MetricSeries *xf = find(series, "xFactor");
+        CHECK("every channel lands", pm && ps && xf && find(series, "thoraxRotation") && find(series, "xFactorStretch"));
+        const auto at = [](const MetricSeries *m, Phase p) -> const PhaseSample * {
+            for (const PhaseSample &s : m->phaseSamples) if (s.phase == p) return &s;
+            return nullptr;
+        };
+        CHECK("magnitude at the top ≈ 45°, the corridors' convention", at(pm, Phase::Top) && std::fabs(at(pm, Phase::Top)->value - 45.0) < 0.5);
+        CHECK("signed at the top ≈ −45° (closed, lead-relative)", at(ps, Phase::Top) && std::fabs(at(ps, Phase::Top)->value + 45.0) < 0.5);
+        CHECK("X-factor at the top ≈ 45°", at(xf, Phase::Top) && std::fabs(at(xf, Phase::Top)->value - 45.0) < 0.5);
+        // A left-handed golfer's same physical bearing change reads the other way round.
+        const BodyRotationResult rl = trackBodyRotationTriangulated(in, /*leadIsLeft*/ false, ph, true, false);
+        const auto lhSeries = buildBodyRotationSeries(rl, ph);   // held: find() points into it
+        const MetricSeries *psl = find(lhSeries, "pelvisRotationSigned");
+        CHECK("the sign is lead-relative: mirrored for a left-handed golfer", psl && at(psl, Phase::Top) && at(psl, Phase::Top)->value > 40.0);
+        // σ: bigger at the top than at address (the camera-scale term grows with the turn), and
+        // every phase reading carries one, tagged propagated.
+        const PhaseSample *a0 = at(pm, Phase::Address), *a4 = at(pm, Phase::Top);
+        CHECK("phase readings carry σ, propagated", a0 && a4 && a0->sigma && a4->sigma
+              && a4->sigmaKind == uint8_t(SigmaKind::Propagated) && pm->sigmaKind == uint8_t(SigmaKind::Propagated));
+        CHECK("σ grows with the turn (assumed camera placement)", a0 && a4 && *a4->sigma > *a0->sigma + 2.0);
+        // Calibrated cameras shrink it.
+        TriangulatedTurnInput cal = in; cal.camerasCalibrated = true;
+        const auto calSeries = buildBodyRotationSeries(trackBodyRotationTriangulated(cal, true, ph, true, true), ph);
+        const MetricSeries *pc = find(calSeries, "pelvisRotation");
+        CHECK("a calibrated pair shrinks the σ at the top", pc && at(pc, Phase::Top) && *at(pc, Phase::Top)->sigma < *a4->sigma);
+        // Only the asked-for segment, and no separation from half a pair.
+        const auto onlyThorax = buildBodyRotationSeries(trackBodyRotationTriangulated(in, true, ph, false, true), ph);
+        CHECK("an IMU-measured pelvis is not overwritten, and no separation from half a pair",
+              !find(onlyThorax, "pelvisRotation") && find(onlyThorax, "thoraxRotation") && !find(onlyThorax, "xFactor"));
+        // No usable frame near Address ⇒ refuse rather than reference the wrong zero.
+        TriangulatedTurnInput late = in;
+        for (size_t i = 0; i < late.t_us.size(); ++i) if (late.t_us[i] < 400000) late.pelvisBearing[i] = std::numeric_limits<double>::quiet_NaN();
+        CHECK("no bearing near Address ⇒ no pelvis turn at all",
+              !find(buildBodyRotationSeries(trackBodyRotationTriangulated(late, true, ph, true, false), ph), "pelvisRotation"));
+        // An unusable stretch mid-swing is masked, never graded.
+        TriangulatedTurnInput gap = in;
+        for (size_t i = 0; i < gap.t_us.size(); ++i) if (gap.t_us[i] > 850000 && gap.t_us[i] < 950000) gap.pelvisBearing[i] = std::numeric_limits<double>::quiet_NaN();
+        const auto gapSeries = buildBodyRotationSeries(trackBodyRotationTriangulated(gap, true, ph, true, false), ph);
+        const MetricSeries *pg = find(gapSeries, "pelvisRotation");
+        CHECK("a gap is masked: no Top sample from a bridged value", pg && !pg->valid.empty() && !at(pg, Phase::Top));
     }
 
     return g_fail == 0 ? 0 : 1;

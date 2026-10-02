@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace pinpoint::analysis {
 namespace {
@@ -111,7 +112,107 @@ void fillFromImu(RotationChannel &out, const SegmentStream &seg, const std::vect
         out.tier = RotationTier::Imu;   // sigma left unset: no error budget is propagated here
 }
 
+// ── The triangulated tier ──────────────────────────────────────────────────────────────────────
+//
+// The reference: the circular median of the usable bearings within cfg.addrWindowUs of Address,
+// read only if the nearest usable frame sits within cfg.triAddrMaxGapUs of it. Its σ is the median
+// frame σ over √n, × 1.2533 for a median. Returns false when there is no honest reference.
+bool triReference(const std::vector<int64_t> &t, const std::vector<double> &b, const std::vector<double> &s,
+                  int64_t addressUs, const BodyRotationConfig &cfg, double &ref, double &refSigma)
+{
+    std::vector<size_t> idx;
+    int64_t nearest = std::numeric_limits<int64_t>::max();
+    for (size_t i = 0; i < t.size(); ++i) {
+        if (!std::isfinite(b[i])) continue;
+        const int64_t d = std::llabs(t[i] - addressUs);
+        nearest = std::min(nearest, d);
+        if (d <= cfg.addrWindowUs) idx.push_back(i);
+    }
+    if (idx.empty() || nearest > cfg.triAddrMaxGapUs) return false;
+    // Circular: unwrap every bearing against the first before taking the median.
+    std::vector<double> v, sg;
+    for (size_t i : idx) { v.push_back(b[idx[0]] + wrapPi(b[i] - b[idx[0]])); sg.push_back(s[i]); }
+    ref = medianOfCopy(v);
+    refSigma = 1.2533 * medianOfCopy(sg) / std::sqrt(double(v.size()));
+    return true;
+}
+
+// One segment's triangulated turn: |Δ| into `mag`, leadSign·Δ into `sgn` (when given), each with its
+// per-sample σ. Frames with no usable bearing are skipped; the series builder masks the gaps.
+bool fillTriangulated(RotationChannel &mag, RotationChannel *sgn, const TriangulatedTurnInput &in,
+                      const std::vector<double> &b, const std::vector<double> &s, int64_t addressUs,
+                      double leadSign, const BodyRotationConfig &cfg)
+{
+    double ref = 0.0, refSigma = 0.0;
+    if (!triReference(in.t_us, b, s, addressUs, cfg, ref, refSigma)) return false;
+    const double frac = in.camerasCalibrated ? tuned::bodyRotation::kTriScaleFracCalibrated : cfg.triScaleFrac;
+    std::vector<double> sig;
+    for (size_t i = 0; i < in.t_us.size(); ++i) {
+        if (!std::isfinite(b[i]) || !std::isfinite(s[i])) continue;
+        const double d   = wrapPi(b[i] - ref);
+        const double sd  = std::sqrt(s[i] * s[i] + refSigma * refSigma + (frac * d) * (frac * d)) * kRadToDeg;
+        mag.turn.push(in.t_us[i], std::abs(d) * kRadToDeg);
+        mag.sigmaPerSample.push_back(sd);
+        if (sgn) { sgn->turn.push(in.t_us[i], leadSign * d * kRadToDeg); sgn->sigmaPerSample.push_back(sd); }
+        sig.push_back(sd);
+    }
+    if (mag.turn.empty()) return false;
+    mag.tier     = RotationTier::Triangulated;
+    mag.sigmaDeg = medianOfCopy(sig);
+    if (sgn) { sgn->tier = RotationTier::Triangulated; sgn->sigmaDeg = mag.sigmaDeg; }
+    return true;
+}
+
 } // namespace
+
+BodyRotationResult trackBodyRotationTriangulated(const TriangulatedTurnInput &in, bool leadIsLeft,
+                                                 const std::vector<PhaseEvent> &phases,
+                                                 bool wantPelvis, bool wantThorax,
+                                                 const BodyRotationConfig &cfg)
+{
+    BodyRotationResult res;
+    const size_t n = in.t_us.size();
+    if (!cfg.triangulated || n < 2 || in.pelvisBearing.size() != n || in.thoraxBearing.size() != n
+        || in.pelvisSigma.size() != n || in.thoraxSigma.size() != n)
+        return res;
+    res.grid = in.t_us;
+    const int64_t addressUs = phaseTime(phases, Phase::Address, in.t_us.front());
+    // LEAD-RELATIVE (sign conventions doc): the bearing of left → right turns one way for a golfer
+    // whose lead side is the left and the other way for one whose lead side is the right, while
+    // describing the same movement. Checked on right-handed captures (2026-07-04: the pelvis reads
+    // negative at the top, positive after impact); no left-handed capture exists to check the mirror.
+    const double leadSign = leadIsLeft ? 1.0 : -1.0;
+
+    if (wantPelvis)
+        fillTriangulated(res.pelvis, &res.pelvisSigned, in, in.pelvisBearing, in.pelvisSigma, addressUs, leadSign, cfg);
+    if (wantThorax)
+        fillTriangulated(res.thorax, nullptr, in, in.thoraxBearing, in.thoraxSigma, addressUs, leadSign, cfg);
+
+    // A gap is three frame periods with no usable bearing (the series builder masks it).
+    {
+        std::vector<int64_t> dts;
+        for (size_t i = 1; i < n; ++i) if (in.t_us[i] > in.t_us[i - 1]) dts.push_back(in.t_us[i] - in.t_us[i - 1]);
+        std::sort(dts.begin(), dts.end());
+        res.triGapUs = dts.empty() ? -1 : 3 * dts[dts.size() / 2];
+    }
+
+    // X-factor from THIS route only, both halves (see the header).
+    if (!res.pelvis.turn.empty() && !res.thorax.turn.empty()) {
+        for (int64_t t : res.grid) {
+            const double p = interpChannel(res.pelvis.turn.t_us, res.pelvis.turn.value, t);
+            const double x = interpChannel(res.thorax.turn.t_us, res.thorax.turn.value, t);
+            res.xFactor.push(t, x - p);
+        }
+        const int64_t topUs = phaseTime(phases, Phase::Top, -1);
+        if (topUs >= 0) {
+            const double atTop = interpChannel(res.xFactor.t_us, res.xFactor.value, topUs);
+            for (size_t i = 0; i < res.xFactor.t_us.size(); ++i)
+                res.xFactorStretch.push(res.xFactor.t_us[i], res.xFactor.value[i] - atTop);
+        }
+    }
+    res.valid = !res.pelvis.turn.empty() || !res.thorax.turn.empty();
+    return res;
+}
 
 BodyRotationResult trackBodyRotation(const PoseTrack2D &pose, const FusedStreams &streams,
                                      int frameW, int frameH, bool leadIsLeft,
@@ -186,8 +287,12 @@ std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
     const QString deg = QStringLiteral("°");
 
     const auto emitRotation = [&](const RotationChannel &ch, const char *key, const char *label) {
+        // The triangulated route masks its gaps — a frame whose bearing was unusable is bridged,
+        // never graded. The IMU route keeps its unmasked behaviour.
+        const bool tri = ch.tier == RotationTier::Triangulated;
         MetricSeries m = buildChannelSeries(res.grid, ch.turn, QString::fromLatin1(key),
-                                            QString::fromUtf8(label), deg, phases);
+                                            QString::fromUtf8(label), deg, phases,
+                                            defaultPhaseSamples(), tri ? res.triGapUs : -1);
         if (m.key.isEmpty())
             return;
         // Carry the propagated uncertainty ONLY where one was actually computed. The field's
@@ -196,17 +301,44 @@ std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
         // claiming a perfect measurement.
         if (ch.sigmaDeg > 0.0)
             m.sigma = ch.sigmaDeg;
+        // Triangulated: each phase reading carries ITS OWN σ (session_diagnostics_design.md §A8.3
+        // reads it), tagged propagated — an assumed camera, no truth to calibrate it against.
+        if (tri && ch.sigmaPerSample.size() == ch.turn.size()) {
+            m.sigmaKind = uint8_t(SigmaKind::Propagated);
+            for (PhaseSample &ps : m.phaseSamples) {
+                ps.sigma     = interpChannel(ch.turn.t_us, ch.sigmaPerSample, ps.t_us);
+                ps.sigmaKind = uint8_t(SigmaKind::Propagated);
+            }
+        }
         out.push_back(std::move(m));
     };
 
     emitRotation(res.pelvis, "pelvisRotation", "Pelvis rotation");
     emitRotation(res.thorax, "thoraxRotation", "Thorax rotation");
+    emitRotation(res.pelvisSigned, "pelvisRotationSigned", "Pelvis rotation (signed)");
 
-    appendIfProduced(out, buildChannelSeries(res.grid, res.xFactor, QStringLiteral("xFactor"),
-                                             QStringLiteral("X-factor"), deg, phases));
-    appendIfProduced(out, buildChannelSeries(res.grid, res.xFactorStretch,
-                                             QStringLiteral("xFactorStretch"),
-                                             QStringLiteral("X-factor stretch"), deg, phases));
+    // From the triangulated route both halves carry σ, so the separation carries both in quadrature
+    // (a difference of two turns is no better known than either); the IMU route stays as it was.
+    const bool triPair = res.pelvis.tier == RotationTier::Triangulated && res.thorax.tier == RotationTier::Triangulated
+                      && res.pelvis.sigmaPerSample.size() == res.pelvis.turn.size()
+                      && res.thorax.sigmaPerSample.size() == res.thorax.turn.size();
+    const auto emitSeparation = [&](const MetricChannel &ch, const char *key, const char *label) {
+        MetricSeries m = buildChannelSeries(res.grid, ch, QString::fromLatin1(key), QString::fromUtf8(label),
+                                            deg, phases, defaultPhaseSamples(), triPair ? res.triGapUs : -1);
+        if (m.key.isEmpty()) return;
+        if (triPair) {
+            m.sigma     = std::hypot(res.pelvis.sigmaDeg, res.thorax.sigmaDeg);
+            m.sigmaKind = uint8_t(SigmaKind::Propagated);
+            for (PhaseSample &ps : m.phaseSamples) {
+                ps.sigma = std::hypot(interpChannel(res.pelvis.turn.t_us, res.pelvis.sigmaPerSample, ps.t_us),
+                                      interpChannel(res.thorax.turn.t_us, res.thorax.sigmaPerSample, ps.t_us));
+                ps.sigmaKind = uint8_t(SigmaKind::Propagated);
+            }
+        }
+        out.push_back(std::move(m));
+    };
+    emitSeparation(res.xFactor, "xFactor", "X-factor");
+    emitSeparation(res.xFactorStretch, "xFactorStretch", "X-factor stretch");
     return out;
 }
 

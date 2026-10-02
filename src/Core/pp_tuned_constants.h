@@ -736,6 +736,21 @@ inline constexpr std::int64_t kAddrWindowUs  = 250000;  // bodyRotation.addrWind
 inline constexpr double       kMinSpanPx     = 30.0;    // bodyRotation.minSpanPx — denominator floor
 inline constexpr double       kSpanNoisePx   = 3.0;     // bodyRotation.spanNoisePx — 1σ of the span
 inline constexpr double       kSinFloor      = 0.0872;  // bodyRotation.sinFloor — sin 5°
+// The two-camera route (skeleton3d's triangulated hip and shoulder lines; body_rotation.h
+// trackBodyRotationTriangulated). ON: it only ever fills a segment no IMU measured.
+inline constexpr bool         kTriangulated  = true;    // bodyRotation.triangulated
+// The address reference must be read within this of the Address instant, or the route refuses —
+// a turn referenced to a mid-takeaway frame is a confident number about the wrong zero.
+inline constexpr std::int64_t kTriAddrMaxGapUs = 100000; // bodyRotation.triAddrMaxGapUs
+// The camera-scale term of σ, as a FRACTION OF THE TURN. With the DTL camera's placement ASSUMED
+// (skeleton3d solves its own cameras; no measured calibration reaches it yet) a mis-placed camera
+// stretches or shrinks every triangulated angle, so the error grows with the turn rather than being
+// a constant. 10% is a stated ASSUMPTION — no IMU truth exists in the corpus to calibrate it. A
+// measured two-camera calibration is what shrinks it (kTriScaleFracCalibrated, design note).
+inline constexpr double       kTriScaleFrac  = 0.10;    // bodyRotation.triScaleFrac
+inline constexpr double       kTriScaleFracCalibrated = 0.03;
+// A body line shorter than this in the horizontal plane (m) has no bearing worth reading.
+inline constexpr double       kTriMinBaselineM = 0.08;
 } // namespace bodyRotation
 
 // --- Kinematic sequence (src/Analysis/segment_rates.h) -----------------------

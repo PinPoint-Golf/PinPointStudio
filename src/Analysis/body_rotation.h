@@ -105,6 +105,10 @@ struct BodyRotationConfig {
     // instead of running to infinity. sin 5° ≈ 0.087 caps the reported uncertainty at roughly
     // 11× the span noise in radians.
     double  sinFloor     = tuned::bodyRotation::kSinFloor;      // bodyRotation.sinFloor
+    // The two-camera route (trackBodyRotationTriangulated).
+    bool    triangulated    = tuned::bodyRotation::kTriangulated;      // bodyRotation.triangulated
+    int64_t triAddrMaxGapUs = tuned::bodyRotation::kTriAddrMaxGapUs;   // bodyRotation.triAddrMaxGapUs
+    double  triScaleFrac    = tuned::bodyRotation::kTriScaleFrac;      // bodyRotation.triScaleFrac
 
     static BodyRotationConfig fromOverrides(const QVariantMap &ov)
     {
@@ -116,19 +120,27 @@ struct BodyRotationConfig {
         apply(ov, "bodyRotation.minSpanPx",     c.minSpanPx);
         apply(ov, "bodyRotation.spanNoisePx",   c.spanNoisePx);
         apply(ov, "bodyRotation.sinFloor",      c.sinFloor);
+        apply(ov, "bodyRotation.triangulated",  c.triangulated);
+        apply(ov, "bodyRotation.triAddrMaxGapUs", c.triAddrMaxGapUs);
+        apply(ov, "bodyRotation.triScaleFrac",  c.triScaleFrac);
         return c;
     }
 };
 
 // Which path produced a channel. Carried out of the producer so the stage can record it and the
 // provider can answer Measured vs Bridged from the same fact rather than re-deriving it.
-enum class RotationTier { None, Imu, Foreshortening };
+// Triangulated = the hip / shoulder line's bearing from skeleton3d's two-camera fit (an ESTIMATE:
+// the DTL camera's placement is assumed until a measured calibration reaches skeleton3d).
+enum class RotationTier { None, Imu, Foreshortening, Triangulated };
 
 // One segment's turn curve plus how it was obtained.
 struct RotationChannel {
     MetricChannel turn;                        // degrees, unsigned magnitude from address
     RotationTier  tier     = RotationTier::None;
     double        sigmaDeg = 0.0;              // representative 1σ (median over the swing); 0 = unset
+    // Per-sample 1σ, parallel to `turn` (Triangulated only; empty otherwise). Phase samples carry
+    // the value at their instant, so a reading near square is quoted with its own, smaller σ.
+    std::vector<double> sigmaPerSample;
 };
 
 struct BodyRotationResult {
@@ -138,6 +150,11 @@ struct BodyRotationResult {
     RotationChannel thorax;                    // thoraxRotation   °
     MetricChannel   xFactor;                   // thorax − pelvis  °
     MetricChannel   xFactorStretch;            // xFactor(t) − xFactor(Top)  °
+    // pelvisRotationSigned — LEAD-RELATIVE, + open (toward the lead side), crossing zero at the
+    // square-up instead of folding there. Triangulated route only: a cosine carries no sign, and the
+    // IMU's signed reading is still PLANNED. Its σ rides in pelvisSigned.sigmaPerSample's twin below.
+    RotationChannel pelvisSigned;
+    int64_t triGapUs = -1;                     // Triangulated: frames further apart than this are a gap
 
     double addrHipSpanPx = 0.0, addrShoulderSpanPx = 0.0;
     bool   valid = false;                      // at least one segment produced a turn curve
@@ -159,5 +176,37 @@ BodyRotationResult trackBodyRotation(const PoseTrack2D &pose, const FusedStreams
 // produced is simply absent — never a curve of zeros.
 std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
                                                   const std::vector<PhaseEvent> &phases);
+
+// ── The two-camera route ────────────────────────────────────────────────────────────────────
+//
+// skeleton3d fits one rigid skeleton to BOTH views, so the hip line (LeftUpLeg → RightUpLeg) and
+// the shoulder line (LeftArm → RightArm) have a BEARING in the horizontal plane — the geometry the
+// foreshortening tier never had. Turn is that bearing against its own value at Address:
+//
+//   pelvisRotation / thoraxRotation   |Δbearing| — the magnitude convention every corridor asks for
+//   pelvisRotationSigned              leadSign · Δbearing, + open, crossing zero at the square-up
+//   xFactor / xFactorStretch          as the IMU route: thorax − pelvis, less its value at the Top
+//
+// σ per sample, in quadrature: the bearing's own σ from the fit (the two joints' posterior position
+// σ through the line-angle formula), the address reference's σ, and a camera-scale term
+// scaleFrac·|turn| — an ASSUMED placement stretches every triangulated angle in proportion, so the
+// error grows with the turn. A measured two-camera calibration shrinks that last term
+// (kTriScaleFracCalibrated); until one reaches skeleton3d the route is an estimate and says so.
+//
+// The stage decides which segments this fills: only those no IMU measured. A segment it is not
+// asked for stays empty, and xFactor needs both halves from THIS route — a separation of one IMU
+// turn and one triangulated turn would mix two references for the same zero.
+struct TriangulatedTurnInput {
+    std::vector<int64_t> t_us;                 // skeleton3d frame instants, ascending
+    // Bearings (rad, world XY, atan2 of left → right) and their 1σ (rad); NaN = unusable frame
+    // (an endpoint the fit only inferred, or a line too short in plan to have a bearing).
+    std::vector<double>  pelvisBearing, pelvisSigma;
+    std::vector<double>  thoraxBearing, thoraxSigma;
+    bool camerasCalibrated = false;            // skeleton3d solved from a MEASURED calibration
+};
+BodyRotationResult trackBodyRotationTriangulated(const TriangulatedTurnInput &in, bool leadIsLeft,
+                                                 const std::vector<PhaseEvent> &phases,
+                                                 bool wantPelvis, bool wantThorax,
+                                                 const BodyRotationConfig &cfg = {});
 
 } // namespace pinpoint::analysis

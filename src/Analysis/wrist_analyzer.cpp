@@ -2586,6 +2586,82 @@ struct Skeleton3DStage : AnalysisStage {
     }
 };
 
+// 13h. Body rotation from the TWO-CAMERA fit — the catalogue's "faceOn+dtl" route
+//      (body_rotation.h trackBodyRotationTriangulated). skeleton3d gives the hip and shoulder lines
+//      a bearing in the horizontal plane, which a single face-on view never could; this stage turns
+//      them into pelvisRotation / thoraxRotation / pelvisRotationSigned / xFactor / xFactorStretch
+//      for every segment NO IMU measured (BodyRotationStage ran first and wrote what the IMUs gave).
+//      A frame counts only when both of a line's joints were measured or constrained by the fit —
+//      never merely inferred. An ESTIMATE until a measured two-camera calibration reaches skeleton3d:
+//      the σ's camera-scale term says so, and shrinks when one does.
+struct BodyRotationTriangulatedStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("BodyRotationTriangulated"); }
+    static bool has(const AnalysisContext &ctx, const char *key)
+    {
+        for (const MetricSeries &m : ctx.detail->series)
+            if (m.key == QLatin1String(key)) return true;
+        return false;
+    }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        return BodyRotationConfig::fromOverrides(ctx.job.tuningOverrides).triangulated
+            && ctx.detail->skeleton3d.valid && ctx.detail->skeleton3d.dtlUsed
+            && (!has(ctx, "pelvisRotation") || !has(ctx, "thoraxRotation"));
+    }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        if (!BodyRotationConfig::fromOverrides(ctx.job.tuningOverrides).triangulated)
+            return QStringLiteral("triangulated body rotation disabled (bodyRotation.triangulated)");
+        if (!ctx.detail->skeleton3d.valid || !ctx.detail->skeleton3d.dtlUsed)
+            return QStringLiteral("no two-camera skeleton fit");
+        return QStringLiteral("both trunk segments already measured by IMU");
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        namespace sk = pinpoint::skeleton3d;
+        const sk::FitResult &fr = ctx.detail->skeleton3d;
+        const bool wantPelvis = !has(ctx, "pelvisRotation");
+        const bool wantThorax = !has(ctx, "thoraxRotation");
+        const BodyRotationConfig cfg = BodyRotationConfig::fromOverrides(ctx.job.tuningOverrides);
+        const double kNan = std::numeric_limits<double>::quiet_NaN();
+
+        TriangulatedTurnInput in;
+        in.t_us = fr.t_us;
+        // skeleton3d solves its own cameras (skeleton3d_json writes "calibrated": false); a measured
+        // calibration does not reach it yet, so the camera-scale σ stays at the assumed-placement value.
+        in.camerasCalibrated = false;
+        const auto line = [&](size_t t, int a, int b, double &bearing, double &sigma) {
+            bearing = sigma = kNan;
+            if (t >= fr.joints.size() || t >= fr.tier.size() || t >= fr.sigmaM.size()) return;
+            const auto ok = [&](int j) { return fr.tier[t][size_t(j)] >= sk::TierConstrained; };
+            if (!ok(a) || !ok(b)) return;
+            const sk::V3 &pa = fr.joints[t][size_t(a)], &pb = fr.joints[t][size_t(b)];
+            const double dx = pb.x - pa.x, dy = pb.y - pa.y;      // world Z up: the horizontal plane is XY
+            const double L = std::hypot(dx, dy);
+            if (L < pinpoint::tuned::bodyRotation::kTriMinBaselineM) return;
+            bearing = std::atan2(dy, dx);
+            sigma   = std::hypot(double(fr.sigmaM[t][size_t(a)]), double(fr.sigmaM[t][size_t(b)])) / L;
+        };
+        for (size_t t = 0; t < fr.t_us.size(); ++t) {
+            double b, s;
+            line(t, sk::ybot::LeftUpLeg, sk::ybot::RightUpLeg, b, s); in.pelvisBearing.push_back(b); in.pelvisSigma.push_back(s);
+            line(t, sk::ybot::LeftArm,   sk::ybot::RightArm,   b, s); in.thoraxBearing.push_back(b); in.thoraxSigma.push_back(s);
+        }
+        const BodyRotationResult br = trackBodyRotationTriangulated(in, ctx.job.handedness != 2, ctx.seg.events,
+                                                                    wantPelvis, wantThorax, cfg);
+        int n = 0;
+        for (MetricSeries &m : buildBodyRotationSeries(br, ctx.seg.events)) {
+            if (has(ctx, m.key.toLatin1().constData())) continue;   // an IMU reading always wins
+            ctx.detail->series.push_back(std::move(m));
+            ++n;
+        }
+        ppInfo() << "[WristAnalysis] body rotation (two cameras):" << n << "series; pelvis"
+                 << (br.pelvis.turn.empty() ? QStringLiteral("none") : QStringLiteral("σ %1°").arg(br.pelvis.sigmaDeg, 0, 'f', 1))
+                 << "thorax"
+                 << (br.thorax.turn.empty() ? QStringLiteral("none") : QStringLiteral("σ %1°").arg(br.thorax.sigmaDeg, 0, 'f', 1));
+    }
+};
+
 // 13c-octies. The 3-D SYNTHETIC SHAFT projected into the down-the-line tile
 //      (dtl_shaft_synth3d.h; dtl_continuous_track_design_update.md §3.2). The face-on Layer C
 //      synth de-projected through the per-phase fused planes and projected through the DTL
@@ -2879,6 +2955,7 @@ SessionProfile wristProfile()
     p.stages.push_back(std::make_unique<DtlShaftLieStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     p.stages.push_back(std::make_unique<Skeleton3DStage>());
+    p.stages.push_back(std::make_unique<BodyRotationTriangulatedStage>());
     p.stages.push_back(std::make_unique<DtlSynth3DStage>());
     p.stages.push_back(std::make_unique<BindingsStage>());
     p.stages.push_back(std::make_unique<ResemblanceStage>());
@@ -2975,6 +3052,7 @@ SessionProfile cameraKinematicsProfile()
     p.stages.push_back(std::make_unique<DtlShaftLieStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     p.stages.push_back(std::make_unique<Skeleton3DStage>());
+    p.stages.push_back(std::make_unique<BodyRotationTriangulatedStage>());
     p.stages.push_back(std::make_unique<DtlSynth3DStage>());
     return p;
 }
