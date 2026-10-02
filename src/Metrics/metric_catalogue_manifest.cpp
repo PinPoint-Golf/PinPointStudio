@@ -620,7 +620,6 @@ void installMetricManifest(MetricCatalogue &cat)
                                "calibrated")) },
         .usedBy = { QStringLiteral("characteristic:hip_spin_out"),
                     QStringLiteral("characteristic:hips_closed_at_impact"),
-                    QStringLiteral("characteristic:sequence_order"),
                     QStringLiteral("characteristic:hips_too_open_at_impact"),
                     QStringLiteral("characteristic:late_pelvis_rotation"),
                     QStringLiteral("characteristic:hips_under_rotated_at_top") },
@@ -727,7 +726,6 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the shoulder line's bearing from the two-camera skeleton fit — the "
                                "second camera's placement is assumed until it is calibrated")) },
         .usedBy = { QStringLiteral("characteristic:abbreviated_finish"),
-                    QStringLiteral("characteristic:sequence_order"),
                     QStringLiteral("characteristic:short_backswing"),
                     QStringLiteral("characteristic:over_rotation_at_top") },
     });
@@ -1817,9 +1815,10 @@ void installMetricManifest(MetricCatalogue &cat)
                                "pelvis and chest from the unfolded span cosine with the "
                                "uncertainty propagated, so a node the view cannot resolve is "
                                "left unplaced rather than guessed")) },
-        // No `usedBy`: the pack's `sequence_order` still grades the pelvis / thorax ROTATION peaks
-        // (m_pelvisRotPeak / m_thoraxRotPeak); re-pointing it at the nodes is design §11 item 3,
-        // after the §9 gate. The integrity test checks this claim in both directions.
+        // No `usedBy`: since 2026-10-02 the pack's `sequence_order` reads pelvisPeakTime /
+        // thoraxPeakTime (below), the placed nodes' instants; before that it graded the ROTATION peaks
+        // (m_pelvisRotPeak / m_thoraxRotPeak) — angles, which its Order test cannot read (design §11
+        // item 3, done). The integrity test checks this claim in both directions.
     });
 
     // ── The four segment angular-speed series the sequence is read from (segment_rates.h) ──────
@@ -2010,6 +2009,74 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOnClub", RM::Projected, Estimated, { .faceOnCamera = true, .clubTrack = true },
                 QStringLiteral("the tracker's shaft angle rate de-projected through the "
                                "swing-plane ellipse")) },
+    });
+
+    // ── The PLACED trunk nodes' instants (segment_rates.h sequencePeakTimeSeries, 2026-10-02) ───────
+    //
+    // What `sequence_order` reads. Its Order test compares event TIMES, first ≥ second ⇒ out of
+    // order; until 2026-10-02 it was fed the pelvis and thorax ROTATION peaks (angles, 21–47° vs
+    // ~100°), so it could not fire. A node the sequence could not place emits nothing, and the
+    // characteristic is then not assessable — the honest answer where the camera cannot see the
+    // peak. The routes mirror the angular-speed series they are read from.
+    cat.addDescriptor({
+        .key = QStringLiteral("pelvisPeakTime"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Pelvis speed peak"),
+        .shortLabel = QStringLiteral("Pelvis peak"),
+        .unit = QStringLiteral("ms"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .description = QStringLiteral(
+            "When the pelvis reached its top turning speed in the downswing, in milliseconds relative "
+            "to impact — negative is before the ball. The first link of the kinematic sequence: an "
+            "efficient downswing fires the hips first. Reported only when the sequence could place "
+            "the peak with confidence."),
+        .howToRead = QStringLiteral(
+            "Professionals peak the pelvis about 87 ms before impact, ahead of the chest. Read it "
+            "beside the chest's peak: the pelvis should come first. Absent means the peak could not "
+            "be placed — most often because the hips were still speeding up at impact."),
+        .signPositive = QStringLiteral("the peak came after impact"),
+        .signNegative = QStringLiteral("the peak came before impact"),
+        .phases = { P::Impact },
+        .routes = {
+            via("pelvisImu", RM::Inertial, Direct, { .imuRoles = { R::Pelvis } },
+                QStringLiteral("the pelvis gyro's vertical rate peak")),
+            via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the peak of the two-view hip-line turn rate (uncalibrated)")),
+            via("faceOn+dtl3d", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the peak of the two-camera skeleton's hip-line turn rate")),
+            via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
+                QStringLiteral("the peak of the face-on hip span's turn rate, only where in sight")) },
+        .usedBy = { QStringLiteral("characteristic:sequence_order") },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("thoraxPeakTime"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Chest speed peak"),
+        .shortLabel = QStringLiteral("Chest peak"),
+        .unit = QStringLiteral("ms"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .description = QStringLiteral(
+            "When the chest reached its top turning speed in the downswing, in milliseconds relative "
+            "to impact — negative is before the ball. The second link of the kinematic sequence. "
+            "Reported only when the sequence could place the peak with confidence."),
+        .howToRead = QStringLiteral(
+            "Professionals peak the chest about 68 ms before impact, a little after the pelvis. A "
+            "chest that peaks before the pelvis is the out-of-order sequence. Absent means the peak "
+            "could not be placed."),
+        .signPositive = QStringLiteral("the peak came after impact"),
+        .signNegative = QStringLiteral("the peak came before impact"),
+        .phases = { P::Impact },
+        .routes = {
+            via("thoraxImu", RM::Inertial, Direct, { .imuRoles = { R::Thorax } },
+                QStringLiteral("the thorax gyro's vertical rate peak")),
+            via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the peak of the two-view shoulder-line turn rate (uncalibrated)")),
+            via("faceOn+dtl3d", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the peak of the two-camera skeleton's shoulder-line turn rate")),
+            via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
+                QStringLiteral("the peak of the face-on shoulder span's turn rate, only where in sight")) },
+        .usedBy = { QStringLiteral("characteristic:sequence_order") },
     });
 
     // ------------------------------------------------ Feet & stance (whole-body pose, face-on, 2D)

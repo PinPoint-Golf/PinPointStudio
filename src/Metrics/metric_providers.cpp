@@ -176,7 +176,8 @@ std::vector<QString> KinematicSequenceProvider::provides() const
 {
     return { QStringLiteral("pelvisAngularSpeed"),  QStringLiteral("thoraxAngularSpeed"),
              QStringLiteral("leadArmAngularSpeed"), QStringLiteral("clubAngularSpeed"),
-             QStringLiteral("kinematicSequence") };
+             QStringLiteral("kinematicSequence"),
+             QStringLiteral("pelvisPeakTime"),      QStringLiteral("thoraxPeakTime") };   // the placed trunk instants, 2026-10-02
 }
 
 // ---------------------------------------------------------------------------------- ScoreProvider
