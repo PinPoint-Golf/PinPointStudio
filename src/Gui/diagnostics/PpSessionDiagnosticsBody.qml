@@ -95,6 +95,61 @@ Rectangle {
     // (PpSessionDiagnosticsWindow.interactive). Nothing about what the panel SAYS changes.
     property bool interactive: true
 
+    // ── the two tabs: THIS SHOT and SESSION ──────────────────────────────────
+    //
+    // THEY USED TO BE STACKED, and on a desktop stage the two competed for the same height: the
+    // shot strip squeezed the card grid and the card grid capped the shot strip at two rows. They
+    // answer different questions — "what did this swing do" and "what keeps happening" — so each
+    // now gets the whole body and the tab label carries the other one's headline count, which is
+    // what keeps the tab you are NOT on from going silent.
+    //
+    // A VIEW STATE, panel-local. The user's choice is `tab` and EVERY TAB CAN ALWAYS BE
+    // PRESSED: a tab with nothing to show says why (pick a shot in the carousel; nothing below
+    // the pattern gate yet) rather than ignoring the press — a disabled THIS SHOT in review with
+    // nothing picked read as a broken control. `_tab` only differs on the auto-closing post-shot
+    // cast, where nobody can press a tab and the shot is what the cast is for.
+    property string tab: "session"           // "shot" | "session" | "watching"
+    // Hoisted for the same reason as the filter chips: a literal in the Repeater's binding would
+    // be a new array, and new delegates, on every re-evaluation.
+    readonly property var _tabDefs: [
+        { key: "shot",     label: qsTr("THIS SHOT") },
+        { key: "session",  label: qsTr("SESSION") },
+        { key: "watching", label: qsTr("WATCHING") }
+    ]
+    readonly property bool _shotAvailable: readingShot || (!isClosing && !reviewing)
+    readonly property string _tab: interactive ? tab
+                                 : (_shotAvailable ? "shot" : "session")
+    // PICKING A SHOT OFF THE CAROUSEL IS ASKING ABOUT IT. Only on the edge into shot-reading,
+    // never on every re-fetch of the readout, so a reader who then goes back to SESSION to see
+    // the wide tick in the cards is not dragged back on the next republish.
+    onReadingShotChanged: if (readingShot) tab = "shot"
+
+    readonly property int _shotFiredCount: {
+        const xs = readingShot ? (readout.conditions || [])
+                                 : (source ? (source.thisShot || []) : [])
+        let n = 0
+        for (let i = 0; i < xs.length; ++i)
+            if ((readingShot ? xs[i].stateKind : xs[i].kind) === "fired") ++n
+        return n
+    }
+    readonly property string _shotTabNote: {
+        if (!_shotAvailable) return ""
+        if (!readingShot && source && source.quiet === true) return qsTr("quiet")
+        return _shotFiredCount > 0 ? qsTr("%1 fired").arg(_shotFiredCount) : ""
+    }
+    readonly property int _watchingCount: (source && source.watching) ? source.watching.length : 0
+    readonly property string _sessionTabNote: {
+        const n = header ? (header.patternCount || 0) : 0
+        return n > 0 ? (n === 1 ? qsTr("1 pattern") : qsTr("%1 patterns").arg(n)) : ""
+    }
+
+    // The session's patterns that fired on this swing, which the THIS SHOT tab draws under the
+    // strip. The strip's ghosted chips say "its card is where it is read" — with the cards on
+    // another tab that would point at nothing, so the cards come with the chips.
+    readonly property var _firedCards: (cards || []).filter(function (c) {
+        return c.thisShot === "fired"
+    })
+
     // ── the two declarations the golfer can make (design §A6) ────────────────
     //
     // BOTH GO STRAIGHT TO THE MODEL AND NEITHER IS MIRRORED HERE. declareFocus, clearFocus and
@@ -220,7 +275,7 @@ Rectangle {
         root.pulseCue = { token: root._pulseToken, ids: ids, focusId: focusId }
     }
 
-    // A screen was asked for, from the driver footer's CTA or from a screened root on the
+    // A screen was asked for, from a screened root on the
     // rail. `screenRef` is the model's when it recommended that screen and empty when it did
     // not; `conditionId` always names what the screen would settle, so a host can route on
     // whichever it has. THIS PANEL RUNS NO SCREEN: the protocol UI is not designed yet
@@ -313,8 +368,16 @@ Rectangle {
     // ...and a SHOT IS BEING READ only once the carousel has focused one. Review without a
     // selection is the finished session's own summary — bookends and all — because the panel
     // holds the final state and selection is what enters shot-reading (brief §6).
-    readonly property bool reviewingShot:
-        reviewing && !!readout && !!readout.conditions && readout.conditions.length > 0
+    //
+    // ⚠ LIVE TOO, NOT ONLY IN REVIEW. THIS SHOT used to read the selection only while reviewing,
+    // so in a live session picking an older swing off the carousel changed the replay and left
+    // THIS SHOT on the latest one — a panel that ignored the carousel it says it follows. A live
+    // pick of any swing but the newest now reads that swing; the newest keeps the after-shot
+    // strip, because that strip IS the newest swing, with its delta and its quiet state, which a
+    // readout does not carry.
+    readonly property bool readingShot:
+        !!readout && !!readout.conditions && readout.conditions.length > 0
+        && (reviewing || readout.shotIndex !== readout.shotCount - 1)
 
     // ── how many cards fit, and how many are left over ───────────────────────
     // The MODEL decides which cards come first (hystereticOrder), so taking a prefix is a
@@ -398,13 +461,12 @@ Rectangle {
     readonly property string _screenConditionId: driver ? (driver.screenConditionId || "") : ""
     readonly property string _screenRef:         driver ? (driver.screenRef || "") : ""
 
-    // The footer exists in Established and Closing, which is where the mock has it.
-    readonly property bool _hasDriverFooter: (isEstablished || isClosing) && !!driver
-    // ...but it only carries the coverage line in the wide arrangement with a driver to sit
-    // beside. A waiting footer and 12c's three-line footer both drop the right-hand column,
-    // and the coverage line is never dropped with it (brief §1) — it goes back to the bottom.
-    readonly property bool _footerCarriesCoverage:
-        _hasDriverFooter && !compact && driver.eligible === true
+    // ⚠ THE LIKELY DRIVER FOOTER AND THE UNCHAINED PATTERN ROW ARE GONE FROM THIS PANEL. Both
+    // were causal-chain claims made at session level, under a card grid where every card
+    // already opens its own condition's causes and effects (PpConditionDetail) — and the footer
+    // never said what it was anchored on, so it read as a second, unexplained answer to the
+    // question the detail answers properly. `driver` is still read above for the screen ids
+    // the detail's screened roots need; `unchainedLine` stays published by the model.
 
     // 12c's collapsed chain, from the model's own node names — the arrow and the separator are
     // the only things composed here, the same contribution PpWatchingRow makes to its line.
@@ -435,18 +497,23 @@ Rectangle {
         spacing: root.px(8)
 
         // ── header ───────────────────────────────────────────────────────────
+        // ONE LINE OF CHIPS AND THE TABS. The captions that used to trail along it — the count
+        // line, the review note, the cadence note — each said something already on the panel at
+        // a second weight, and now say it once, in the tab it is about: the count leads the
+        // SESSION tab, the review note foots THIS SHOT, quiet is the strip's own state and the
+        // THIS SHOT tab's note.
         Item {
+            id: headerItem
             Layout.fillWidth: true
             Layout.preferredHeight: root.px(34)
+                                    + (root.compact && tabBar.visible ? tabBar.height + root.px(4) : 0)
 
             Row {
                 anchors.left: parent.left
                 anchors.leftMargin: root.px(2)
-                // Anchored past the cadence note only while there IS one. Collapsing the
-                // note's own width instead would make its implicitWidth depend on its width.
-                anchors.right: cadenceNote.visible ? cadenceNote.left : parent.right
+                anchors.right: (tabBar.visible && !root.compact) ? tabBar.left : parent.right
                 anchors.rightMargin: root.px(9)
-                anchors.verticalCenter: parent.verticalCenter
+                y: Math.round((root.px(34) - height) / 2)
                 spacing: root.px(9)
 
                 // ── back, out of the condition detail ────────────────────────
@@ -501,6 +568,10 @@ Rectangle {
                 Text {
                     objectName: "sdShotLabel"
                     anchors.verticalCenter: parent.verticalCenter
+                    // In review the badge names the shot ("REVIEWING · shot 9 of 14"), so the
+                    // label would say it twice side by side.
+                    // Live, it names the newest swing — wrong while an older one is being read.
+                    visible: !root.reviewing && !root.readingShot && !root.detailOpen
                     text: root.header ? (root.header.shotLabel || "") : ""
                     font.family: Theme.fontData
                     font.pixelSize: root.tzMicro
@@ -513,7 +584,7 @@ Rectangle {
                     height: stageText.implicitHeight + root.px(4)
                     radius: Math.max(1, root.px(3))
                     color: "transparent"
-                    border.width: 1
+                    border.width: 0      // quiet: the stage is a word, not a control
                     border.color: Theme.colorBorderMid
                     visible: stageText.text !== ""
 
@@ -618,48 +689,89 @@ Rectangle {
                     }
                 }
 
-                Text {
-                    objectName: "sdReviewNote"
-                    anchors.verticalCenter: parent.verticalCenter
-                    // "final session state · this shot read inside the finished ledger" — the
-                    // sentence that stops the counts beside it being read as this shot's.
-                    visible: !root.compact && text !== ""
-                    text: root.header ? (root.header.reviewNote || "") : ""
-                    font.family: Theme.fontData
-                    font.pixelSize: root.tzMicro
-                    color: Theme.colorText2
-                }
-                Text {
-                    objectName: "sdStageNote"
-                    anchors.verticalCenter: parent.verticalCenter
-                    // In review the count line moves to the right-hand end (13a), where it
-                    // reads as the session's total rather than as a note on the stage.
-                    visible: !root.compact && !root.reviewing && text !== ""
-                    text: root.header ? (root.header.countLine || "") : ""
-                    font.family: Theme.fontData
-                    font.pixelSize: root.tzMicro
-                    color: Theme.colorText2
-                }
             }
 
-            Text {
-                id: cadenceNote
-                objectName: "sdCadenceNote"
-                anchors.right: parent.right
-                anchors.rightMargin: root.px(2)
-                anchors.verticalCenter: parent.verticalCenter
-                // The right-hand end carries ONE of them, and never both: cadence is a live
-                // statement (there is no cadence gating in review, brief §6) and the count
-                // line is the reviewed session's total. So the slot changes tense with the
-                // panel instead of stacking two captions nobody asked to compare.
-                visible: !root.compact && text !== ""
-                text: root.header
-                      ? (root.reviewing ? (root.header.countLine || "")
-                                        : (root.header.cadenceNote || ""))
-                      : ""
-                font.family: Theme.fontData
-                font.pixelSize: root.tzCaption
-                color: Theme.colorText3
+            // ── the tabs ─────────────────────────────────────────────────────
+            // Right-hand end of the header in the wide arrangement; a row of its own under it
+            // in the narrow one, where the chips already fill the line. Hidden on the detail,
+            // which is one condition's page and belongs to neither tab.
+            Row {
+                id: tabBar
+                objectName: "sdTabBar"
+                visible: !root.detailOpen
+                x: root.compact ? root.px(2) : parent.width - width - root.px(2)
+                y: root.compact ? root.px(34) : Math.round((root.px(34) - height) / 2)
+                spacing: root.px(4)
+
+                Repeater {
+                    model: root._tabDefs
+
+                    Rectangle {
+                        id: tabChip
+                        required property var modelData
+                        objectName: "sdTab"
+                        readonly property string key: modelData.key
+                        readonly property bool on: root._tab === key
+                        readonly property string note:
+                            key === "shot"     ? root._shotTabNote
+                          : key === "watching" ? (root._watchingCount > 0 ? String(root._watchingCount) : "")
+                                               : root._sessionTabNote
+                        width:  tabRow.implicitWidth + root.px(16)
+                        height: tabRow.implicitHeight + root.px(8)
+                        radius: Math.max(1, root.px(3))
+                        color: on ? Theme.colorSurface : "transparent"
+                        border.width: 1
+                        border.color: on ? Theme.colorBorderMid : "transparent"
+
+                        Rectangle {
+                            // The active tab's accent rule — the one mark that says which body
+                            // is on screen.
+                            visible: tabChip.on
+                            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                            anchors.leftMargin:  root.px(6)
+                            anchors.rightMargin: root.px(6)
+                            height: Math.max(1, root.px(2))
+                            color: Theme.colorAccent
+                        }
+
+                        Row {
+                            id: tabRow
+                            anchors.centerIn: parent
+                            spacing: root.px(6)
+
+                            Text {
+                                id: tabLabel
+                                objectName: "sdTabLabel"
+                                text: tabChip.modelData.label
+                                font.family: Theme.fontData
+                                font.pixelSize: root.tzMicro
+                                font.letterSpacing: Theme.trackingMicro
+                                color: tabChip.on ? Theme.colorText
+                                     : (tabTap.containsMouse ? Theme.colorText2 : Theme.colorText3)
+                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                            }
+                            Text {
+                                objectName: "sdTabNote"
+                                visible: text !== ""
+                                anchors.baseline: tabLabel.baseline
+                                text: tabChip.note
+                                font.family: Theme.fontData
+                                font.pixelSize: root.tzCaption
+                                color: tabChip.key === "shot" && root._shotFiredCount > 0
+                                       ? Theme.colorError : Theme.colorText3
+                            }
+                        }
+
+                        MouseArea {
+                            id: tabTap
+                            anchors.fill: parent
+                            enabled: root.interactive
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.tab = tabChip.key
+                        }
+                    }
+                }
             }
         }
 
@@ -685,16 +797,17 @@ Rectangle {
             onCloseRequested: root._closeDetail()
         }
 
-        // ── the after-shot strip, the bookends, or the reviewed shot ─────────
-        // ONE SLOT, THREE TENSES. A live session reports the moment after the swing; a closed
-        // one has no after-shot moment, so the strip that reported one is REPLACED rather than
-        // emptied; and a closed one with a shot picked off the carousel reports that shot,
-        // read inside the finished ledger. They are the same slot because they are the same
-        // question — "what does this panel have to say about a swing" — asked in three tenses.
+        // ══ THIS SHOT ═══════════════════════════════════════════════════════
+        // TWO TENSES OF ONE QUESTION — "what does this panel have to say about a swing". A live
+        // session reports the moment after the swing, with the session's patterns that fired on
+        // it underneath; a reviewed one with a shot picked off the carousel reports that shot,
+        // every condition, read inside the finished ledger. A closed live session has no
+        // after-shot moment and the tab stands down (see `_shotAvailable`).
         PpThisShotStrip {
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
-            visible: !root.detailOpen && !root.isClosing && !root.reviewingShot
+            visible: !root.detailOpen && root._tab === "shot" && !root.isClosing
+                     && !root.readingShot
             chips:   root.source ? root.source.thisShot : []
             delta:   root.source ? root.source.afterShotDelta : null
             quiet:   root.source ? root.source.quiet === true : false
@@ -703,27 +816,184 @@ Rectangle {
         }
 
         PpReviewShotStrip {
+            id: reviewStrip
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
-            visible: !root.detailOpen && root.reviewingShot
+            visible: !root.detailOpen && root._tab === "shot" && root.readingShot
             readout: root.readout
             fit:     root.k
             compact: root.compact
-            // The strip bounds ITSELF to the mock's two-row band and scrolls inside it, so this
-            // is a backstop rather than the working limit: whatever the strip asks for — a
-            // taller cell at a large font scale, the tail opened on a thirty-condition set — it
-            // never takes half the panel away from the body it is the preface to.
-            maxHeight: Math.round(root.height * 0.45)
+            // The tab is the strip's now, so it is bounded by the body rather than by the mock's
+            // two-row band: every condition is laid out and the grid scrolls only once the tab
+            // itself is full.
+            maxRows: 1000
+            maxHeight: Math.max(root.px(80),
+                                root.height - headerItem.height - root.px(10) - root.px(8)
+                                - (shotFoot.visible ? shotFoot.implicitHeight + root.px(8) : 0))
         }
 
+        // The patterns that fired here, as the session tab draws them — the place the strip's
+        // ghosted chips point at. In review the strip's cells already carry each condition's
+        // reading, corridor and tier, so the space is the strip's.
+        Item {
+            id: shotRest
+            objectName: "sdShotCardsBody"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: !root.detailOpen && root._tab === "shot"
+
+            // The live after-shot moment, with its fired cards. Review draws its strip instead,
+            // and with no shot to read the tab says where one comes from.
+            readonly property bool live: root._shotAvailable && !root.readingShot
+
+            Text {
+                objectName: "sdShotEmpty"
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                anchors.topMargin: root.px(14)
+                anchors.leftMargin: root.px(4)
+                visible: !root._shotAvailable
+                text: root.reviewing
+                      ? qsTr("Pick a shot in the carousel to read it here.")
+                      : qsTr("The session has closed — pick a shot in the carousel to read it here.")
+                wrapMode: Text.WordWrap
+                font.family: Theme.fontBody
+                font.pixelSize: root.tzBody
+                font.weight: Theme.fontBodyWeight
+                color: Theme.colorText3
+            }
+
+            Item {
+                id: shotCardsHeader
+                visible: shotRest.live
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                anchors.leftMargin:  root.px(2)
+                anchors.rightMargin: root.px(2)
+                height: firedLabel.implicitHeight
+
+                Text {
+                    id: firedLabel
+                    objectName: "sdFiredLabel"
+                    anchors.left: parent.left
+                    text: qsTr("YOUR PATTERNS THAT FIRED HERE")
+                    font.family: Theme.fontData
+                    font.pixelSize: root.tzMicro
+                    font.letterSpacing: Theme.trackingMicro
+                    color: Theme.colorText2
+                }
+                // THE METER'S ONLY LEGEND. It sat on the strip's headline line, crowding the one
+                // sentence the golfer reads between balls; here it heads the cards whose meters
+                // and dashed chips it explains, and is still on screen, not behind a hover.
+                Text {
+                    objectName: "sdChipHint"
+                    anchors.left: firedLabel.right
+                    anchors.leftMargin: root.px(12)
+                    anchors.right: parent.right
+                    anchors.baseline: firedLabel.baseline
+                    horizontalAlignment: Text.AlignRight
+                    visible: !root.compact
+                    text: qsTr("bars = how far outside the corridor · dashed chip = one of your patterns")
+                    elide: Text.ElideLeft
+                    font.family: Theme.fontData
+                    font.pixelSize: root.tzCaption
+                    color: Theme.colorText3
+                }
+            }
+
+            Text {
+                objectName: "sdFiredEmpty"
+                anchors { left: parent.left; right: parent.right; top: shotCardsHeader.bottom }
+                anchors.topMargin: root.px(10)
+                anchors.leftMargin: root.px(2)
+                visible: shotRest.live && root._firedCards.length === 0
+                text: (root.cards && root.cards.length > 0)
+                      ? qsTr("None of this session's patterns fired on this swing.")
+                      : qsTr("No patterns yet — the strip above is everything this swing said.")
+                wrapMode: Text.WordWrap
+                font.family: Theme.fontBody
+                font.pixelSize: root.tzLabel
+                font.weight: Theme.fontBodyWeight
+                color: Theme.colorText3
+            }
+
+            Flickable {
+                id: shotFlick
+                objectName: "sdShotCardsFlick"
+                visible: shotRest.live && root._firedCards.length > 0
+                anchors { left: parent.left; right: parent.right
+                          top: shotCardsHeader.bottom; bottom: parent.bottom }
+                anchors.topMargin: root.px(8)
+                contentWidth: width
+                contentHeight: shotGrid.implicitHeight
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+
+                Grid {
+                    id: shotGrid
+                    width: shotFlick.width
+                    columns: root._cardCols
+                    spacing: root._cardGap
+
+                    Repeater {
+                        model: shotFlick.visible ? root._firedCards.length : 0
+
+                        PpPatternCard {
+                            required property int index
+                            card: root._firedCards[index]
+                            fit: root.k
+                            interactive: root.interactive
+                            pulseCue: root.pulseCue
+                            onFocusToggled: (id, on) => root._declareFocus(id, on)
+                            onDetailRequested: (id) => root._openDetail(id)
+                            width: Math.max(0, (shotGrid.width - (root._cardCols - 1) * shotGrid.spacing)
+                                               / Math.max(1, root._cardCols))
+                            // The design height: a fired card here is read for its reading and
+                            // direction, and stretching two of them to fill the tab would only
+                            // spread the same lines further apart.
+                            height: root._cardH
+                        }
+                    }
+                }
+            }
+        }
+
+        // The review tense, stated under the shot it qualifies: the tier tags in the cells are
+        // SESSION tiers, and the panel does not rewind to what it knew at this shot.
+        Flow {
+            id: shotFoot
+            Layout.fillWidth: true
+            Layout.leftMargin: root.px(4)
+            Layout.preferredHeight: visible ? implicitHeight : 0
+            visible: !root.detailOpen && root._tab === "shot" && root.readingShot
+            spacing: root.px(6)
+
+            Text {
+                objectName: "sdReviewNote"
+                visible: text !== ""
+                text: root.header ? (root.header.reviewNote || "") : ""
+                font.family: Theme.fontData
+                font.pixelSize: root.tzCaption
+                color: Theme.colorText3
+            }
+            Text {
+                objectName: "sdReviewHint"
+                visible: !root.compact
+                text: (root.header && root.header.reviewNote ? "· " : "")
+                      + qsTr("every condition shown · IN / OUT is this swing against its corridor")
+                font.family: Theme.fontData
+                font.pixelSize: root.tzCaption
+                color: Theme.colorText3
+            }
+        }
+
+        // ══ SESSION ═════════════════════════════════════════════════════════
         Rectangle {
             objectName: "sdBookends"
             Layout.fillWidth: true
             Layout.preferredHeight: root.px(56)
-            visible: !root.detailOpen && root.isClosing && !root.reviewingShot
+            visible: !root.detailOpen && root._tab === "session" && root.isClosing
             color: Theme.colorSurface
             radius: Theme.radius
-            border.width: 1
+            border.width: 0      // quiet: one frame per panel, fills separate the regions
             border.color: Theme.colorBorderMid
             clip: true
 
@@ -845,8 +1115,9 @@ Rectangle {
             id: stageBody
             Layout.fillWidth: true
             Layout.fillHeight: true
-            // THE SWAP. Hidden, never torn down — see root._openDetail().
-            visible: !root.detailOpen
+            // THE SWAP. Hidden, never torn down — see root._openDetail(). The tab is the same
+            // kind of swap: the session body is hidden behind THIS SHOT, never rebuilt.
+            visible: !root.detailOpen && root._tab === "session"
 
             // ── Cold ─────────────────────────────────────────────────────────
             Rectangle {
@@ -855,7 +1126,7 @@ Rectangle {
                 visible: root.isCold
                 color: Theme.colorSurface
                 radius: Theme.radius
-                border.width: 1
+                border.width: 0      // quiet: one frame per panel, fills separate the regions
                 border.color: Theme.colorBorderMid
                 clip: true
 
@@ -999,11 +1270,16 @@ Rectangle {
                     anchors.rightMargin: root.px(2)
                     height: pictureLabel.implicitHeight
 
+                    // THE SESSION'S COUNT LEADS ITS TAB. It was "SESSION PICTURE" here with the
+                    // count trailing along the header; the tab already says SESSION, and the
+                    // count is the one thing this label can add — "counted over all N shots" is
+                    // the reminder that every number below is a session total.
                     Text {
                         id: pictureLabel
+                        objectName: "sdStageNote"
                         anchors.left: parent.left
                         anchors.top: parent.top
-                        text: qsTr("SESSION PICTURE")
+                        text: root.header ? (root.header.countLine || "") : ""
                         font.family: Theme.fontData
                         font.pixelSize: root.tzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -1065,39 +1341,6 @@ Rectangle {
                         }
                     }
 
-                    Text {
-                        objectName: "sdFormingNote"
-                        anchors.left: filterChips.visible ? filterChips.right : pictureLabel.right
-                        anchors.leftMargin: root.px(9)
-                        anchors.right: moreTail.visible ? moreTail.left : parent.right
-                        anchors.rightMargin: root.px(9)
-                        anchors.baseline: pictureLabel.baseline
-                        // THE MODEL'S SENTENCE IF IT HAS ONE, AND THE WAY IN IF IT DOES NOT.
-                        //
-                        // The closing sentence is stated ONCE, along the bottom in review, where
-                        // 13a puts it — saying it here as well would be the same disclosure at
-                        // two weights. What fills the slot the rest of the time is the route to
-                        // the causal chain, which left this page and needs saying: the whole
-                        // card is the door, and TRACE ▸ on each card is the handle. An
-                        // affordance nobody can see is one nobody uses, which is the argument
-                        // the FOCUS micro-label was already here on.
-                        //
-                        // It is static UI text rather than the model's, and that is the line
-                        // §6.2 actually draws: the model owns every CLAIM ABOUT THE SESSION, and
-                        // this claims nothing about one. It says where the button is.
-                        text: {
-                            const closing = (root.header && !root.reviewing)
-                                            ? (root.header.closingLine || "") : ""
-                            if (closing !== "") return closing
-                            return root.interactive && root._cardsShown > 0
-                                   ? qsTr("tap a card to trace what the model says causes it")
-                                   : ""
-                        }
-                        elide: Text.ElideRight
-                        font.family: Theme.fontData
-                        font.pixelSize: root.tzMicro
-                        color: Theme.colorText3
-                    }
                     Text {
                         id: moreTail
                         objectName: "sdMoreTail"
@@ -1211,111 +1454,75 @@ Rectangle {
             // one line apiece. A golfer who wants to know what caused a fault asks about that
             // fault; they do not ask the panel to guess which two chains to open with.
             //
-            // `chains` stays published and stays read — the unchained line and the driver
-            // footer are reductions over it. What ended is its claim on the panel's middle.
+            // `chains` stays published; what ended is its claim on the panel's middle.
         }
 
-        // ── unchained pattern ────────────────────────────────────────────────
-        // A pattern the model authors no edge for gets its OWN line — reported, never
-        // forced onto a chain (brief §5.3).
-        Rectangle {
-            objectName: "sdUnchainedRow"
+        // ══ WATCHING ══════════════════════════════════════════════════════
+        // ITS OWN TAB, and that is the design's restraint kept rather than dropped: a watched
+        // condition never headlines, so it has never earned a line of the SESSION tab's height.
+        // It sat there as a folded row costing a line on every session; here it is the same
+        // rows, unfolded, one tap from the session picture and never under it.
+        Item {
+            objectName: "sdWatchingBody"
             Layout.fillWidth: true
-            Layout.preferredHeight: root.px(26)
-            visible: !root.detailOpen && unchainedText.text !== ""
-            color: "transparent"
-            radius: Theme.radius
-            border.width: 1
-            border.color: Theme.colorBorderMid
+            Layout.fillHeight: true
+            visible: !root.detailOpen && root._tab === "watching"
 
-            Row {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.leftMargin:  root.px(10)
-                anchors.rightMargin: root.px(10)
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: root.px(9)
+            Text {
+                objectName: "sdWatchingEmpty"
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                anchors.topMargin: root.px(14)
+                anchors.leftMargin: root.px(4)
+                visible: root._watchingCount === 0
+                text: qsTr("Nothing below the pattern gate yet — a condition that fires but has not recurred enough to be a pattern is listed here.")
+                wrapMode: Text.WordWrap
+                font.family: Theme.fontBody
+                font.pixelSize: root.tzBody
+                font.weight: Theme.fontBodyWeight
+                color: Theme.colorText3
+            }
 
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("UNCHAINED PATTERN")
-                    font.family: Theme.fontData
-                    font.pixelSize: root.tzCaption
-                    font.letterSpacing: Theme.trackingMicro
-                    color: Theme.colorAttention
-                }
-                Text {
-                    id: unchainedText
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: root.source ? (root.source.unchainedLine || "") : ""
-                    elide: Text.ElideRight
-                    font.family: Theme.fontBody
-                    font.pixelSize: root.tzLabel
-                    font.weight: Theme.fontBodyWeight
-                    color: Theme.colorText
+            Flickable {
+                anchors.fill: parent
+                visible: root._watchingCount > 0
+                contentWidth: width
+                contentHeight: watchingRow.implicitHeight
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+
+                PpWatchingRow {
+                    id: watchingRow
+                    width: parent.width
+                    height: implicitHeight
+                    items: root.source ? root.source.watching : []
+                    foldable: false
+                    expanded: true
+                    suppressed: root.detailOpen || root._tab !== "watching"
+                    fit: root.k
+                    // A watched condition has a ledger like any other; opening one is the same
+                    // verb the cards and the rail nodes take.
+                    onItemActivated: (id) => root._openDetail(id)
                 }
             }
         }
 
-        // ── watching, then coverage ──────────────────────────────────────────
-        PpWatchingRow {
-            Layout.fillWidth: true
-            Layout.preferredHeight: implicitHeight
-            items: root.source ? root.source.watching : []
-            expanded: root.watchingExpanded
-            suppressed: root.detailOpen
-            fit: root.k
-            onToggled: root.watchingExpanded = !root.watchingExpanded
-            // A watched condition has a ledger like any other; opening one is the same verb the
-            // cards and the rail nodes take.
-            onItemActivated: (id) => root._openDetail(id)
-        }
-
-        // STATED EXACTLY ONCE. In Established and Closing the driver footer carries the
-        // coverage line, because the mock puts it in the footer's right-hand column beside
-        // the rival it could not adjudicate — the two are the same disclosure. Drawing it in
-        // both places would not be twice as honest, it would read as two different numbers.
+        // THE CAPTURE'S COVERAGE, stated once along the bottom of the session picture. It used
+        // to ride in the LIKELY DRIVER footer's right-hand column; that footer is gone.
         PpCoverageLine {
             Layout.fillWidth: true
             Layout.preferredHeight: visible ? implicitHeight : 0
             Layout.leftMargin: root.px(4)
             // Stated on the session picture. The detail is one condition's page and the
              // coverage line is a fact about the capture, which belongs to the panel behind it.
-            line: root.detailOpen ? ""
-                                  : (root._footerCarriesCoverage
-                                     ? "" : (root.source ? (root.source.coverageLine || "") : ""))
+            line: (root.detailOpen || root._tab !== "session") ? ""
+                                  : (root.source ? (root.source.coverageLine || "") : "")
             fit: root.k
         }
 
-        // ── likely driver ────────────────────────────────────────────────────
-        PpDriverFooter {
-            Layout.fillWidth: true
-            Layout.preferredHeight: visible ? implicitHeight : 0
-            visible: !root.detailOpen && root._hasDriverFooter
-            driver: root.driver
-            coverageLine: root.source ? (root.source.coverageLine || "") : ""
-            fit: root.k
-            compact: root.compact
-            onScreenRequested: (ref, cond) => root.screenRequested(ref, cond)
-        }
-
-        // ── the tense, stated in words ───────────────────────────────────────
-        // 13a's footer, and it is not a caption. Everything above it in review is a SESSION
-        // total with one wide tick in it, and that is only unambiguous to a reader who has
-        // been told the panel does not rewind to what it knew at the selected shot. It is
-        // model copy (headerInfo.reviewFootLine), because it names the shot count.
-        Text {
-            objectName: "sdTenseFooter"
-            Layout.fillWidth: true
-            Layout.leftMargin: root.px(4)
-            Layout.preferredHeight: visible ? implicitHeight : 0
-            visible: !root.detailOpen && text !== ""
-            text: root.header ? (root.header.reviewFootLine || "") : ""
-            elide: Text.ElideRight
-            font.family: Theme.fontData
-            font.pixelSize: root.tzCaption
-            color: Theme.colorText3
-        }
+        // ⚠ THE TENSE FOOTER IS GONE TOO ("The ledger stays at the finished session: counts
+        // under each node are the totals…"). A paragraph along the bottom explaining a tick
+        // device was clutter under every reviewed session; the review note under THIS SHOT
+        // states the tense in one line.
     }
 
     // ── the miss picker ──────────────────────────────────────────────────────

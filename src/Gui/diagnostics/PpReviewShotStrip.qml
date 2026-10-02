@@ -141,8 +141,12 @@ Item {
     readonly property int _gridH: Math.min(flow.implicitHeight, _gridMax)
 
     readonly property int _tailH: tailRow.visible ? tailRow.implicitHeight + px(5) : 0
+    // headRow.HEIGHT, not its implicitHeight: it is a plain Item whose height is bound to the
+    // headline's, so its implicitHeight is 0 and reading it left the strip one line short —
+    // hidden while the grid was a two-row band that scrolled anyway, visible once the strip had
+    // a tab to itself and the last row came out clipped.
     readonly property int _wanted:
-        2 * px(8) + headRow.implicitHeight + px(6) + _gridH + _tailH
+        2 * px(8) + headRow.height + px(6) + _gridH + _tailH
     implicitHeight: maxHeight > 0 ? Math.min(_wanted, maxHeight) : _wanted
 
     Rectangle {
@@ -150,7 +154,7 @@ Item {
         anchors.fill: parent
         color: Theme.colorSurface
         radius: Theme.radius
-        border.width: 1
+        border.width: 0      // quiet: the panel is the frame; the fill marks the region
         border.color: Theme.colorBorderMid
         clip: true
 
@@ -170,7 +174,11 @@ Item {
                 objectName: "sdReviewStripLabel"
                 anchors.left: parent.left
                 anchors.baseline: headline.baseline
-                text: qsTr("THIS SHOT")
+                // WHICH swing, said on the strip that reads it: in a live session the header's
+                // shot label names the newest, and this may be any of them.
+                text: (root.readout && root.readout.shotCount > 0)
+                      ? qsTr("SHOT %1 OF %2").arg(root.readout.shotIndex + 1).arg(root.readout.shotCount)
+                      : qsTr("THIS SHOT")
                 font.family: Theme.fontData
                 font.pixelSize: root.tzMicro
                 font.letterSpacing: Theme.trackingMicro
@@ -196,8 +204,9 @@ Item {
                 objectName: "sdReviewSubline"
                 anchors.left: headline.right
                 anchors.leftMargin: root.px(10)
-                anchors.right: cellHint.visible ? cellHint.left : parent.right
-                anchors.rightMargin: root.px(9)
+                // The cell legend is stated under the strip now, with the review note
+                // (PpSessionDiagnosticsBody, sdReviewHint), so the line is the headline's.
+                anchors.right: parent.right
                 anchors.baseline: headline.baseline
                 visible: text !== ""
                 text: root.readout ? (root.readout.note || "") : ""
@@ -205,16 +214,6 @@ Item {
                 font.family: Theme.fontData
                 font.pixelSize: root.tzMicro
                 color: Theme.colorText2
-            }
-            Text {
-                id: cellHint
-                anchors.right: parent.right
-                anchors.baseline: headline.baseline
-                visible: !root.compact
-                text: qsTr("every condition shown · IN / OUT is this swing against its corridor")
-                font.family: Theme.fontData
-                font.pixelSize: root.tzCaption
-                color: Theme.colorText3
             }
         }
 

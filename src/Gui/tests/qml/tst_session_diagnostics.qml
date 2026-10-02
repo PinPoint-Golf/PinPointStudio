@@ -838,6 +838,8 @@ Item {
             body.watchingExpanded = false
             body.cardFilter = "all"
             probe.readout = null
+            body.tab = "session"
+            body.interactive = true
             probe.pipFixture = []
             probe.pipFired = 0
             probe.lastScreenRef = ""
@@ -860,8 +862,7 @@ Item {
         // visibility swap over a Loader, and it is not assertable one item at a time.
         readonly property var compositionNames: [
             "sdThisShotStrip", "sdBookends", "sdColdBody", "sdCardsBody",
-            "sdUnchainedRow", "sdWatchingRow", "sdCoverageLine",
-            "sdDriverFooter", "sdTenseFooter", "sdPatternCard"
+            "sdWatchingRow", "sdCoverageLine", "sdPatternCard"
         ]
         function compositionSnapshot() {
             const out = []
@@ -973,10 +974,10 @@ Item {
             // The slot that used to explain the missing rail now carries the way to it. The
             // no-authored-edge claim did not vanish with it — it is on the UNCHAINED row, per
             // pattern, which is where a statement about conditions belongs.
-            verify(one(body, "sdFormingNote").text.indexOf("trace") >= 0,
-                   "the way into the causal chain is on screen")
-            verify(shown(one(body, "sdUnchainedRow")),
-                   "and the no-authored-edge claim is still made, on its own row")
+            verify(findAll(cards[0], "sdCardTap")[0].enabled,
+                   "the whole card is the way into the causal chain")
+            compare(findAll(cards[0], "sdCardFocusTag")[0].opacity, 0,
+                    "and the FOCUS offer is quiet until the pointer is on the card")
         }
 
         // ── the run ──────────────────────────────────────────────────────────
@@ -1180,6 +1181,8 @@ Item {
 
         function test_06_quietSwapsTheStripWithoutCollapsingIt() {
             setSource(formingSource(false))
+            body.tab = "shot"
+            wait(0)
             const strip = one(body, "sdThisShotStrip")
             const loudH = strip.height
             verify(shown(one(body, "sdChipState")), "the delta strip is up")
@@ -1210,37 +1213,123 @@ Item {
             verify(shown(one(body, "sdCardsBody")), "the cards survive the close")
         }
 
-        // ── watching + coverage ──────────────────────────────────────────────
+        // ── the tabs ─────────────────────────────────────────────────────────
 
-        function test_08_watchingCollapsesAndExpandsIntoTheSameContent() {
+        // THIS SHOT and SESSION used to be stacked and competed for one body's height. Each is a
+        // tab now, the tab you are not on still says its headline count, and the shot's fired
+        // patterns come with the strip so its ghosted chips have somewhere to point.
+        function test_07b_theShotAndTheSessionAreTabsNotAStack() {
             setSource(formingSource(false))
 
-            const row = one(body, "sdWatchingRow")
-            verify(row.visible, "two watched conditions put the row on screen")
-            compare(one(body, "sdWatchingLabel").text.indexOf("WATCHING (2)") >= 0, true)
-            verify(one(body, "sdWatchingLine").visible, "collapsed to one truncating line")
-            compare(findAll(body, "sdWatchingItem").length, 0, "with no rows of its own")
+            compare(findAll(body, "sdTab").length, 3, "three tabs")
+            verify(shown(one(body, "sdCardsBody")), "SESSION is the resting tab")
+            verify(!shown(one(body, "sdThisShotStrip")), "and the strip is not stacked over it")
+            compare(findAll(body, "sdTabNote")[0].text, "2 fired",
+                    "the THIS SHOT tab says what the swing did without being opened")
 
-            const collapsedH = row.height
-            body.watchingExpanded = true
+            mouseClick(findAll(body, "sdTab")[0])
             wait(0)
-            compare(findAll(body, "sdWatchingItem").length, 2,
-                    "expanding opens the same two, one per line")
-            // The row's new height reaches the panel through the layout, which settles on a
-            // polish rather than on the binding — hence tryVerify and not verify.
-            tryVerify(function () { return row.height > collapsedH }, 2000,
-                      "the row grew to hold them")
+            compare(body.tab, "shot")
+            verify(shown(one(body, "sdThisShotStrip")), "the strip has the tab")
+            verify(!shown(one(body, "sdCardsBody")), "and the session body steps aside")
+            verify(!shown(one(body, "sdWatchingRow")), "with its footers")
+            const fired = visibleAll(body, "sdPatternCard")
+            compare(fired.length, 1, "the one pattern that fired here is drawn under the strip")
+            compare(one(fired[0], "sdCardName").text, "Casting")
+            verify(shown(one(body, "sdChipHint")), "with the meter's legend heading it")
+
+            // A closed live session has no after-shot moment — but the tab still takes the press
+            // and says where a shot comes from, rather than ignoring it.
+            setSource(closingSource())
+            body.tab = "session"
+            wait(0)
+            mouseClick(findAll(body, "sdTab")[0])
+            wait(0)
+            compare(body._tab, "shot", "THIS SHOT can always be pressed")
+            verify(shown(one(body, "sdShotEmpty")), "and it says how to get a shot to read")
+            verify(one(body, "sdShotEmpty").text.indexOf("carousel") >= 0)
         }
 
-        function test_09_coverageAndUnchainedAreAlwaysStated() {
+        function test_07c_pickingAShotOpensItsTabAndTheCastHoldsIt() {
+            setReview(reviewSource(), null)
+            compare(body._tab, "session", "review with nothing picked rests on the session")
+            probe.readout = reviewReadout()
+            wait(0)
+            compare(body._tab, "shot", "picking a shot off the carousel opens THIS SHOT")
+            verify(shown(one(body, "sdReviewStrip")))
+
+            // ...once, on the edge: a reader who goes back to SESSION is not dragged back by
+            // the next re-fetch of the same selection.
+            body.tab = "session"
+            probe.readout = reviewReadout()
+            wait(0)
+            compare(body._tab, "session")
+
+            // The auto-closing cast cannot be pressed, and it is there for the shot.
+            setReview(formingSource(false), null)
+            body.interactive = false
+            wait(0)
+            compare(body._tab, "shot")
+            verify(shown(one(body, "sdThisShotStrip")))
+        }
+
+        // LIVE, THIS SHOT FOLLOWS THE CAROUSEL. It used to read the selection only in review, so a
+        // live pick of an older swing changed the replay and left THIS SHOT on the newest one.
+        function test_07d_aLivePickOfAnOlderSwingIsTheShotRead() {
+            setSource(formingSource(false))
+            body.tab = "shot"
+            probe.readout = reviewReadout()          // shot 9 of 14 — not the newest
+            wait(0)
+            compare(body.reviewing, false, "a live session, not review")
+            verify(shown(one(body, "sdReviewStrip")), "the picked swing is read")
+            verify(!shown(one(body, "sdThisShotStrip")), "not the newest swing's after-shot strip")
+            compare(one(body, "sdReviewStripLabel").text, "SHOT 9 OF 14", "and it says which")
+            verify(!shown(one(body, "sdShotLabel")), "the header's newest-shot label stands down")
+
+            // Picking the newest swing is the after-shot moment, delta and all.
+            const newest = reviewReadout()
+            newest.shotIndex = 13
+            probe.readout = newest
+            wait(0)
+            verify(shown(one(body, "sdThisShotStrip")), "the newest swing keeps the after-shot strip")
+            verify(!shown(one(body, "sdReviewStrip")))
+        }
+
+        // ── watching + coverage ──────────────────────────────────────────────
+
+        function test_08_watchingIsATabOfItsOwn() {
+            setSource(formingSource(false))
+
+            // It never headlines, so it no longer costs the SESSION tab a line.
+            verify(!shown(one(body, "sdWatchingRow")), "not on the session tab")
+            compare(findAll(body, "sdTabNote")[2].text, "2", "the WATCHING tab counts them")
+
+            mouseClick(findAll(body, "sdTab")[2])
+            laidOut()
+            compare(body._tab, "watching")
+            verify(shown(one(body, "sdWatchingRow")), "the rows are the tab")
+            compare(shownAll(body, "sdWatchingItem").length, 2, "unfolded, one per line")
+            verify(!shown(one(body, "sdWatchingLine")), "with no truncating one-liner")
+            verify(!shown(one(body, "sdCardsBody")), "and the session body steps aside")
+
+            // An empty tab says what would be there rather than going blank.
+            const none = formingSource(false)
+            none.watching = []
+            setSource(none)
+            verify(shown(one(body, "sdWatchingEmpty")), "nothing watched is stated, not blank")
+        }
+
+        function test_09_coverageIsAlwaysStated() {
             setSource(formingSource(false))
 
             const cov = one(body, "sdCoverageLine")
             verify(cov.visible, "the coverage line is never omitted")
             verify(cov.text.indexOf("140") >= 0, "and states the whole pack, not the measured few")
 
-            verify(shown(one(body, "sdUnchainedRow")),
-                   "a pattern with no authored edge gets its own line")
+            // Established used to tuck it into the LIKELY DRIVER footer; that footer is gone,
+            // so it is its own line at every stage.
+            setSource(establishedSource(true))
+            verify(shown(one(body, "sdCoverageLine")), "stated at Established too")
         }
 
         // ── the fit ──────────────────────────────────────────────────────────
@@ -1268,7 +1357,8 @@ Item {
             compare(body.k, 1.0, "never below the design's own type size")
             compare(body.compact, true, "the narrow arrangement's reductions are on")
             compare(one(body, "sdTitle").text, "SESSION DIAG.", "the title abbreviates, never elides")
-            compare(one(body, "sdStageNote").visible, false, "the count line stands down")
+            verify(one(body, "sdTabBar").y >= body.px(34),
+                   "the tabs drop to a row of their own under the header's chips")
 
             // ONE CARD WIDE, and as deep as the panel allows. This used to assert one card and
             // a "+1 more" tail, which was the single row's answer: it could show one of the two
@@ -1321,7 +1411,7 @@ Item {
         function test_11b_theViewportHoldsWholeRowsOfCards() {
             const many = formingSource(false)
             many.cards = []
-            for (let i = 0; i < 9; ++i) {
+            for (let i = 0; i < 12; ++i) {
                 const c = JSON.parse(JSON.stringify(patternCards()[0]))
                 c.id = "c" + i
                 c.name = "Condition " + i
@@ -1333,7 +1423,8 @@ Item {
             const flick = one(body, "sdCardsFlick")
             const rows  = body._cardRowsVisible
             compare(body._cardCols, 3, "three columns at the design size")
-            compare(rows, 2, "and two whole rows of them in the height there is")
+            // Three, not two: the SESSION tab no longer shares its height with the shot strip.
+            compare(rows, 3, "and three whole rows of them in the height there is")
 
             // The rows EXACTLY fill the viewport — no dead strip, no cut row. Integer division
             // leaves at most a pixel per row.
@@ -1344,7 +1435,7 @@ Item {
             // The last visible row ends at the fold, and the row after it starts below it —
             // which is what "no partial row" means when you say it in geometry.
             const cards = visibleAll(body, "sdPatternCard")
-            compare(cards.length, 9, "every card is still laid out")
+            compare(cards.length, 12, "every card is still laid out")
             const lastVisible = cards[rows * body._cardCols - 1]
             const firstBelow  = cards[rows * body._cardCols]
             verify(lastVisible.mapToItem(flick, 0, lastVisible.height).y <= flick.height + 1,
@@ -1573,50 +1664,7 @@ Item {
 
         // ── the driver footer ────────────────────────────────────────────────
 
-        function test_17_driverPrintsItsOwnFalsifiers() {
-            setSource(establishedSource(true))
 
-            verify(shown(one(body, "sdDriverFooter")), "the footer is up")
-            compare(one(body, "sdDriverName").text, "Rushed transition")
-            verify(one(body, "sdDriverWhy").text.indexOf("3 of your patterns") >= 0,
-                   "a count of what it accounts for, never a score")
-            verify(shown(one(body, "sdScreenCta")), "with the screen that would anchor it")
-            verify(one(body, "sdScreenWhy").text.indexOf("4 of your patterns") >= 0)
-
-            // The two disclosures that stop the driver reading as a verdict.
-            verify(one(body, "sdDriverRival").text.indexOf("not adjudicated") >= 0,
-                   "the rival parent is named and explicitly not adjudicated")
-            verify(one(body, "sdDriverCoverage").text.indexOf("140") >= 0,
-                   "and the coverage line rides beside it")
-            compare(one(body, "sdCoverageLine").visible, false,
-                    "so the panel does not state it twice")
-
-            // The CTA asks; it does not run a screen. Brief §9 — that flow is not designed.
-            // PRESSED ONLY ONCE THE LAYOUT HAS SETTLED. The card area is a Flickable now, so
-            // the composition takes one more polish than it used to and the footer is still
-            // zero-wide two wait(0)s in — a press then lands on nothing. laidOut() is what this
-            // file already says to use before pressing anything, and this is the case that
-            // proves the rule rather than an exception to it.
-            laidOut()
-            mouseClick(one(body, "sdDriverFooter"))
-            compare(probe.lastScreenRef, "screen.pelvic_disassociation")
-            compare(probe.lastScreenCondition, "pelvic_disassociation")
-        }
-
-        function test_18_anUnstablePatternSetSaysSoRatherThanShowingADriver() {
-            setSource(establishedSource(false))
-
-            verify(shown(one(body, "sdDriverFooter")), "the footer keeps its place")
-            verify(shown(one(body, "sdDriverWaiting")), "and says what it is waiting for")
-            verify(one(body, "sdDriverWaiting").text.indexOf("held still") >= 0)
-            verify(!shown(one(body, "sdDriverName")), "with no driver named")
-            // The right-hand column is gone with the driver, so the coverage line goes back
-            // to the bottom rather than disappearing with it.
-            compare(one(body, "sdCoverageLine").visible, true)
-
-            verify(shown(one(body, "sdUnchainedRow")),
-                   "a pattern with no authored edge still gets its own line on the rail")
-        }
 
         // ── 12c: the spine ───────────────────────────────────────────────────
 
@@ -1674,20 +1722,20 @@ Item {
             setReview(reviewSource(), reviewReadout())
 
             verify(shown(one(body, "sdReviewBadge")), "the REVIEWING badge is up")
+            verify(!shown(one(body, "sdShotLabel")),
+                   "the badge names the shot, so the shot label does not repeat it")
+            // The review note foots the shot it qualifies...
+            verify(shown(one(body, "sdReviewNote")), "the review note is under the shot")
             compare(one(body, "sdReviewNote").text,
                     "final session state · this shot read inside the finished ledger")
-            // The count line moves to the right-hand end and says what it counts over — it
-            // is a SESSION total, not this shot's, and the panel does not rewind.
-            compare(one(body, "sdCadenceNote").text, "4 patterns · counted over all 14 shots")
-            verify(!shown(one(body, "sdStageNote")),
-                   "so it is not also stated beside the stage chip")
 
-            // ...and the footer says the same thing in words, exactly once.
-            const foot = one(body, "sdTenseFooter")
-            verify(shown(foot), "the tense footer is up")
-            verify(foot.text.indexOf("wide tick") >= 0,
-                   "and it names the device the panel is using to point at the shot")
-            verify(foot.text.indexOf("not a rate at this n") >= 0)
+            // ...and the count leads the SESSION tab, saying what it counts over — it is a
+            // SESSION total, not this shot's, and the panel does not rewind.
+            body.tab = "session"
+            wait(0)
+            verify(shown(one(body, "sdStageNote")), "the count heads the session tab")
+            compare(one(body, "sdStageNote").text, "4 patterns · counted over all 14 shots")
+
         }
 
         function test_22_reviewWithNoShotSelectedIsStillTheFinishedSession() {
@@ -1788,17 +1836,17 @@ Item {
             verify(marks.indexOf("—") > marks.lastIndexOf("IN"),
                    "and every unread cell is below every read one")
 
-            // ── it is bounded ────────────────────────────────────────────────
-            // Two rows at k = 1, plus the head and the tail line. The number that matters is
-            // not the constant, it is the share: the strip is a band and the panel below it
-            // is the panel.
-            verify(strip.height < probe.height * 0.30,
-                   "the strip is a band, not the panel: " + strip.height + " of " + probe.height)
+            // ── it is bounded by its tab ─────────────────────────────────────
+            // The strip used to be a two-row band over the card grid. It has THIS SHOT to
+            // itself now, so the thirteen read cells are all on screen at k = 1 and nothing has
+            // to be flicked to — and it still ends inside the panel.
             const grid = one(body, "sdReviewGrid")
-            verify(grid.height <= 2 * strip._cellH + strip._gap + 1,
-                   "the grid is two rows tall")
-            // ...and what does not fit that is one flick away rather than gone.
-            verify(grid.contentHeight > grid.height, "the rest scrolls")
+            verify(grid.contentHeight <= grid.height + 1,
+                   "every unfolded cell is on screen without scrolling: " + grid.contentHeight
+                   + " in " + grid.height + " (strip " + strip.height + ", max " + strip.maxHeight
+                   + ", body " + body.height + ")")
+            verify(strip.mapToItem(body, 0, strip.height).y <= body.height + 1,
+                   "and the strip ends inside the panel")
 
             // ── the tail is folded, and it says what it folded ───────────────
             const tail = one(body, "sdReviewTailSummary")
@@ -1826,8 +1874,11 @@ Item {
             // It OPENS: a press that only lengthened a scroll region would look like nothing
             // happened at all.
             verify(one(body, "sdReviewStrip").height > before, "and it opens in place")
-            // ...and it is still a band. Expanded is not "the strip takes the panel".
-            verify(one(body, "sdReviewStrip").height < probe.height * 0.45)
+            // ...and it is bounded by the tab: the strip has the THIS SHOT tab to itself now,
+            // so the limit is the panel, not the old two-row band.
+            const st = one(body, "sdReviewStrip")
+            verify(st.mapToItem(body, 0, st.height).y <= body.height + 1,
+                   "the opened strip still ends inside the panel")
 
             // Closing it puts them back behind the one line.
             mouseClick(one(body, "sdReviewTailRow"))
@@ -1847,6 +1898,7 @@ Item {
         // ledger. Design 12a: Forming is "flat cards, no chain".
         function test_36_aFormingSessionKeepsItsCardsWhenItClosesAndIsReviewed() {
             setReview(formingReviewSource(), wideReadout())
+            body.tab = "session"
             laidOut()
 
             compare(body.header.reachedEstablished, false,
@@ -1881,30 +1933,14 @@ Item {
             // as the model failing to find a chain. No composition draws a rail now, so the
             // sentence would be describing the layout in the voice reserved for the model —
             // and the claim it was making is still made, per pattern, on the UNCHAINED row.
-            compare(one(body, "sdFormingNote").text,
-                    "tap a card to trace what the model says causes it")
-            verify(shown(one(body, "sdUnchainedRow")),
-                   "and the no-authored-edge claim is made where it belongs")
         }
 
         // ── defect 3: a finished session is not waiting for anything ─────────
-        function test_37_theDriverIsDefinitiveAtTheClose() {
-            setReview(formingReviewSource(), wideReadout())
-            laidOut()
-
-            verify(shown(one(body, "sdDriverFooter")), "the footer keeps its place")
-            verify(!shown(one(body, "sdDriverWaiting")),
-                   "and never says it is waiting for a shot that will not come")
-            const fin = one(body, "sdDriverFinal")
-            verify(shown(fin), "it states the outcome instead")
-            compare(fin.text, "No driver: this session's patterns share no authored cause.")
-            // No recommendation, so no screen column — an empty CTA box would be an offer the
-            // model did not make.
-            verify(!shown(one(body, "sdScreenCta")))
-        }
 
         function test_24_theSelectedShotIsTheWideOutlinedTick() {
             setReview(reviewSource(), reviewReadout())
+            body.tab = "session"      // the run is on the cards, behind the SESSION tab
+            wait(0)
 
             // The run is on the card, which is what a reviewed session draws — the same
             // ticksFor() payload the rail used to carry, and the same rule about it.
@@ -1929,6 +1965,8 @@ Item {
 
         function test_25_cardsSayWhatHappenedHereAndAfter() {
             setReview(reviewSource(), reviewReadout())
+            body.tab = "session"      // the run is on the cards, behind the SESSION tab
+            wait(0)
 
             const cards = visibleAll(body, "sdPatternCard")
             compare(one(cards[0], "sdStatePill").children[0].text, "FIRED HERE",
@@ -2294,7 +2332,7 @@ Item {
 
             // A watched condition has a ledger like any other, so it opens too.
             setSource(spied(formingSource(false)))
-            body.watchingExpanded = true
+            body.tab = "watching"
             laidOut()
             const watched = shownAll(body, "sdWatchingItem")
             compare(watched.length, 2)
@@ -2306,6 +2344,7 @@ Item {
             // pressed. It matters more than it looks: the closing row names conditions that
             // ranked below the card row's fold, so it is often the only place one is met at all.
             setSource(spied(closingSource()))
+            body.tab = "session"
             laidOut()
             const ends = shownAll(body, "sdBookend")
             verify(ends.length >= 2, "the closing row is up")
@@ -2324,7 +2363,6 @@ Item {
 
             verify(shown(one(body, "sdDetailBody")), "the detail is the body")
             verify(!shown(one(body, "sdCardsBody")), "and the panel's own composition stood down")
-            verify(!shown(one(body, "sdDriverFooter")), "so did the session's footer")
             verify(!shown(one(body, "sdCoverageLine")), "and its coverage line")
 
             // The chrome is the panel's, and the header says which condition this is.
@@ -2488,8 +2526,11 @@ Item {
 
             for (let s = 0; s < sources.length; ++s) {
                 setReview(sources[s], readouts[s])
-                for (let i = 0; i < sizes.length; ++i) {
-                    probe.width = sizes[i][0]; probe.height = sizes[i][1]
+                for (let i = 0; i < 2 * sizes.length; ++i) {
+                    // Both tabs, at every size: each draws a different body into the same frame.
+                    body.tab = (i % 2 === 0) ? "shot" : "session"
+                    const sz = sizes[Math.floor(i / 2)]
+                    probe.width = sz[0]; probe.height = sz[1]
                     // ⛔ `wait(0)` is ONE event-loop pass, and a resize settles on the
                     // POLISH phase — Layouts and anchors have not necessarily re-measured
                     // by then.  Measuring in that gap reads a card at its pre-resize width
@@ -2504,10 +2545,11 @@ Item {
                     // scroll now, so a card below the fold is one flick away rather than one
                     // drawn outside the panel. What still has to hold of them is checked against
                     // their own Flickable, below.
-                    const names = ["sdExpectationCard", "sdThisShotStrip",
+                    const names = ["sdExpectationCard", "sdThisShotStrip", "sdTabBar",
+                                   "sdShotCardsFlick",
                                    "sdBookends", "sdColdBody", "sdCardsBody",
-                                   "sdCardsFlick", "sdDriverFooter",
-                                   "sdReviewStrip", "sdReviewGrid", "sdTenseFooter"]
+                                   "sdCardsFlick",
+                                   "sdReviewStrip", "sdReviewGrid"]
                         .concat(body.compact ? []
                                              : ["sdChainRail", "sdChainNode", "sdChainLink"])
                     for (let n = 0; n < names.length; ++n) {
@@ -2517,7 +2559,7 @@ Item {
                                 continue
                             const tl = items[j].mapToItem(body, 0, 0)
                             const br = items[j].mapToItem(body, items[j].width, items[j].height)
-                            const label = "source " + s + " at " + sizes[i][0] + "x" + sizes[i][1]
+                            const label = "source " + s + " (" + body._tab + ") at " + sz[0] + "x" + sz[1]
                                         + ": " + names[n] + "[" + j + "]"
                             verify(tl.x >= -1 && tl.y >= -1, label + " starts inside the panel")
                             verify(br.x <= body.width + 1, label + " ends inside the panel")
@@ -2535,7 +2577,7 @@ Item {
                             if (!shown(cards[j]) || cards[j].width <= 0) continue
                             const tl = cards[j].mapToItem(flick, 0, 0)
                             const br = cards[j].mapToItem(flick, cards[j].width, cards[j].height)
-                            const label = "source " + s + " at " + sizes[i][0] + "x" + sizes[i][1]
+                            const label = "source " + s + " (" + body._tab + ") at " + sz[0] + "x" + sz[1]
                                         + ": sdPatternCard[" + j + "]"
                             verify(tl.x >= -1, label + " starts inside its scroller")
                             verify(br.x <= flick.width + 1, label + " ends inside its scroller")

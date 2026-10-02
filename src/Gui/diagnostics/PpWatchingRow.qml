@@ -35,6 +35,9 @@ Item {
     // SessionDiagnosticsModel::watching() — [{ id, name, recurrence }]
     property var items: []
     property bool expanded: false
+    // Off on the session panel's WATCHING tab, where the rows are the whole tab: no fold, no
+    // caret, and the label says what the list is rather than counting it (the tab counts).
+    property bool foldable: true
     // The panel's fit scale. See PpSessionDiagnosticsBody._fitFor().
     property real fit: 1.0
 
@@ -77,6 +80,7 @@ Item {
     // fold the region it is in. Collapsed there are no rows, so this is the whole surface.
     MouseArea {
         anchors.fill: parent
+        enabled: root.foldable
         onClicked: root.toggled()
     }
 
@@ -98,7 +102,9 @@ Item {
                 objectName: "sdWatchingLabel"
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                text: (root.expanded ? "▴ " : "▾ ") + qsTr("WATCHING (%1)").arg(root.count)
+                text: root.foldable
+                      ? (root.expanded ? "▴ " : "▾ ") + qsTr("WATCHING (%1)").arg(root.count)
+                      : qsTr("SEEN, NOT YET A PATTERN · TAP ONE TO TRACE IT")
                 font.family: Theme.fontData
                 font.pixelSize: root.tzCaption
                 font.letterSpacing: Theme.trackingMicro
@@ -126,7 +132,7 @@ Item {
                 required property var modelData
                 objectName: "sdWatchingItem"
                 width: body.width
-                height: root.px(16)
+                height: root.foldable ? root.px(16) : root.px(24)
 
                 Text {
                     anchors.left: parent.left

@@ -170,7 +170,11 @@ Rectangle {
         radius: parent.radius
         border.width: 1
         border.color: Theme.colorAccent
-        opacity: root.focused ? 0.45 + 0.55 * root._pulseT : root._pulseT
+        // Hover lights it too: the whole card is the way into the condition, and the frame
+        // answering the pointer is the affordance the TRACE ▸ label used to spell out on every
+        // card at once.
+        opacity: root.focused ? 0.45 + 0.55 * root._pulseT
+                              : Math.max(root._pulseT, cardTap.containsMouse ? 0.5 : 0.0)
         visible: opacity > 0
     }
 
@@ -481,7 +485,9 @@ Rectangle {
                 anchors.right: focusTag.visible ? focusTag.left : parent.right
                 anchors.rightMargin: focusTag.visible ? root.px(8) : 0
                 anchors.verticalCenter: parent.verticalCenter
-                visible: root.interactive && !!root.card
+                // QUIET: gone from the resting card. Twelve cards each saying TRACE ▸ was twelve
+                // labels for one fact; the pointer and the lit frame say it on the card in hand.
+                visible: false
                 text: qsTr("TRACE ▸")
                 font.family: Theme.fontData
                 font.pixelSize: root.tzCaption
@@ -495,6 +501,11 @@ Rectangle {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.interactive && !!root.card
+                // QUIET: shown on the card under the pointer, and always once it IS the focus —
+                // a declared focus is state worth seeing at rest; the offer to make one is not.
+                // Opacity rather than visibility so it keeps its place and its tap target.
+                opacity: (root.focused || cardTap.containsMouse || focusTap.containsMouse) ? 1.0 : 0.0
+                Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
                 text: root.focused ? qsTr("FOCUSED ·") : qsTr("FOCUS ▸")
                 font.family: Theme.fontData
                 font.pixelSize: root.tzCaption

@@ -67,7 +67,7 @@ Item {
         visible: !root.quiet
         color: Theme.colorSurface
         radius: Theme.radius
-        border.width: 1
+        border.width: 0      // quiet: the panel is the frame; the fill marks the region
         border.color: Theme.colorBorderMid
         clip: true
 
@@ -99,8 +99,9 @@ Item {
                     objectName: "sdDeltaHeadline"
                     anchors.left: stripLabel.right
                     anchors.leftMargin: root.px(9)
-                    anchors.right: chipHint.visible ? chipHint.left : parent.right
-                    anchors.rightMargin: chipHint.visible ? root.px(9) : 0
+                    // The whole line is the headline's: the meter's legend heads the fired
+                    // cards under the strip now (PpSessionDiagnosticsBody, sdChipHint).
+                    anchors.right: parent.right
                     anchors.top: parent.top
                     text: root.delta ? (root.delta.headline || "") : ""
                     elide: Text.ElideRight
@@ -108,19 +109,6 @@ Item {
                     font.pixelSize: root.tzBody
                     font.weight: Theme.fontBodyWeight
                     color: Theme.colorText
-                }
-                Text {
-                    id: chipHint
-                    anchors.right: parent.right
-                    anchors.baseline: headline.baseline
-                    visible: !root.compact
-                    // THE METER'S ONLY LEGEND, and it is here rather than in a tooltip
-                    // because nothing else on this panel is discoverable by hovering and a
-                    // scale nobody can read is a scale that is not being read.
-                    text: qsTr("bars = how far outside the corridor · dashed chip = one of your patterns")
-                    font.family: Theme.fontData
-                    font.pixelSize: root.tzCaption
-                    color: Theme.colorText3
                 }
             }
 

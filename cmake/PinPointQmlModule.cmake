@@ -160,7 +160,6 @@ set(PP_QML_FILES
     src/Gui/diagnostics/PpChainNodeCard.qml
     src/Gui/diagnostics/PpChainLink.qml
     src/Gui/diagnostics/PpConditionDetail.qml
-    src/Gui/diagnostics/PpDriverFooter.qml
     src/Gui/diagnostics/PpTickRun.qml
     src/Gui/diagnostics/PpStrengthMeter.qml
     src/Gui/diagnostics/PpWatchingRow.qml
