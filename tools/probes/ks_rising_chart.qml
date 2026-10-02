@@ -16,9 +16,9 @@ import PinPointStudio
 //   RISING — arm and club placed before impact, pelvis and chest unplaced with
 //            peakNoEarlierThanMs 0 and no peakNoLaterThanMs. Expect: an open chevron
 //            (`sequenceRising:<segment>`) on each trunk curve at the impact edge, labelled
-//            "rising"; NO `sequencePeak:pelvis` / `sequencePeak:thorax` ring anywhere; the strip's
-//            one line reading the chain then "arms and club peak before the body — hips and chest
-//            still speeding up at impact".
+//            "rising"; NO `sequencePeak:pelvis` / `sequencePeak:thorax` ring anywhere; the tile
+//            showing the arm ACTUAL 1 and "✗  Out of sequence" (2026-10-02: the one-line strip
+//            became the sequence tile).
 //   PLACED — the same route with both trunk nodes placed (a golfer whose body peaks before the
 //            ball). Expect: four ordinary rings, no chevron, the proximal-to-distal verdict.
 //
@@ -117,7 +117,8 @@ Item {
 
     // Walk the live item tree for the sequence markers and report what is drawn.
     function scan() {
-        var out = { rings: [], rising: [], risingText: [], verdict: "", header: "", chips: [] }
+        var out = { rings: [], rising: [], risingText: [], verdict: "", header: "", chips: [],
+                    actual: {}, pct: {} }
         var seen = 0
         function walk(it, depth) {
             if (!it || depth > 40 || seen > 20000) return
@@ -129,6 +130,8 @@ Item {
                 else if (on === "sequenceRisingText")         out.risingText.push(it.text)
                 else if (on === "sequenceVerdict")            out.verdict = it.text
                 else if (on === "sequenceStripHeader")        out.header = it.text
+                else if (on.indexOf("sequenceActual:") === 0) out.actual[on.substring(15)] = it.text
+                else if (on.indexOf("sequencePct:") === 0)    out.pct[on.substring(12)] = it.text
                 else if (on.indexOf("sequenceChip:") === 0)   out.chips.push(on)
             } catch (e) {}
             var kids = null
@@ -154,10 +157,11 @@ Item {
         probe.expect("…labelled",                      s.risingText.join(","), "rising,rising")
         probe.expect("no dimmed ring for the trunk",   s.rings.join(","), "club,leadArm")
         probe.expect("no chips",                       s.chips.length, 0)
-        probe.expect("the strip's one line",           s.verdict,
-                     "Lead arm −115 ms → Club −55 ms (+60 ms) · arms and club peak before the body"
-                     + " — hips and chest still speeding up at impact")
-        probe.expect("the strip header names the route", s.header, "SEQUENCE · estimated from the camera")
+        probe.expect("the tile's verdict",             s.verdict, "✗  Out of sequence (? = uncertain)")
+        probe.expect("the arm peaked first",           s.actual.leadArm, "1")
+        probe.expect("the arm's % of pro",             s.pct.leadArm, "70% ±4")
+        probe.expect("the pelvis peak is reported",    s.pct.pelvis, "134% ±15")
+        probe.expect("the tile header",                s.header, "SEQUENCE")
         probe.expect("the pelvis row's sentence",
                      cm.sequenceRows(probe.risingKs)[2].unplacedText, "still accelerating at impact")
         probe.expect("…and its method glyph",
@@ -169,9 +173,9 @@ Item {
         var s = probe.scan()
         probe.expect("placed pair: four ordinary rings", s.rings.join(","), "club,leadArm,pelvis,thorax")
         probe.expect("placed pair: no chevron",          s.rising.length, 0)
-        probe.expect("placed pair: the strip's one line", s.verdict,
-                     "Pelvis −87 ms → Chest −68 ms (+19 ms) → Lead arm −65 ms (+3 ms) → Club 0 ms (+65 ms)"
-                     + " · pelvis → chest → arm → club")
+        probe.expect("placed pair: the tile's verdict", s.verdict, "✓  In sequence")
+        probe.expect("placed pair: pelvis first",       s.actual.pelvis, "1")
+        probe.expect("placed pair: the club at 100%",   s.pct.club, "100% ±3")
     }
 
     property int step: 0

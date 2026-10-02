@@ -385,11 +385,15 @@ Item {
             chart._applyPreset("Kinematic sequence", true)
             verify(strip.visible)
 
-            // The strip's strings are ChartMetrics' and there is ONE line: the placed chain with
-            // its leads, then the verdict. The chips it used to draw are gone for good.
+            // The strip's strings are ChartMetrics'. Since 2026-10-02 it is the sequence TILE: a
+            // row per segment in the order it SHOULD peak, with where it actually peaked. The
+            // chips it drew before 2026-09-18 are gone for good.
             var verdict = findChild(chart, "sequenceVerdict")
             verify(verdict !== null)
-            compare(verdict.text, "Pelvis −87 ms → Club 0 ms (+87 ms) · placed nodes in order (2 of 4)")
+            compare(verdict.text, "In order so far")
+            compare(findChild(chart, "sequenceActual:pelvis").text, "1")
+            compare(findChild(chart, "sequenceActual:club").text, "2")
+            compare(findChild(chart, "sequenceActual:thorax").text, "—")
             compare(findChild(chart, "sequenceChip:thorax"), null)
             compare(findChild(chart, "sequenceChip:pelvis"), null)
             // …and the peaks are rings on the curves instead.
@@ -418,9 +422,9 @@ Item {
             compare(findChild(chart, "sequenceRising:club"), null)
 
             // …and the line says the pattern rather than counting what it could place.
-            compare(verdict.text,
-                    "Lead arm −115 ms → Club −55 ms (+60 ms) · arms and club peak before the body"
-                    + " — hips and chest still speeding up at impact")
+            compare(verdict.text, "✗  Out of sequence (? = uncertain)")
+            compare(findChild(chart, "sequenceActual:leadArm").text, "1")
+            compare(findChild(chart, "sequencePeaked:pelvis").text, "0 ms")
 
             chart.startUs = 0; chart.endUs = 70000; chart.impactUs = 40000
 

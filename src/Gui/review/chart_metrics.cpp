@@ -22,6 +22,7 @@
 #include "../Analysis/dashboard_reductions.h"   // barDomain
 #include "timeline_labels.h"                    // the one phase-tag vocabulary (hasPositionTag)
 #include "../../Analysis/swing_analysis.h"      // SigmaKind (sigmaInfo)
+#include "../../Analysis/kinematic_sequence.h" // seqSegmentFromKey (the tile's tie-break)
 #include "../../Core/pp_tuned_constants.h"     // tuned::uncertainty::kGrossWarn
 
 #include <QHash>
@@ -999,6 +1000,14 @@ bool sequenceRisingAtImpact(const QVariantMap &n)
     return std::isfinite(b) && b <= 0.0;
 }
 
+// Where a rising node's domain ENDED: "impact" for the old Transition → Impact domain, "P8" once
+// it runs through P8 (sequence.throughP8, 2026-10-02) — the bound is then negative, after the ball.
+QString sequenceRisingWhere(const QVariantMap &n)
+{
+    return n.value(QStringLiteral("peakNoEarlierThanMs")).toDouble() < 0.0 ? QStringLiteral("P8")
+                                                                          : QStringLiteral("impact");
+}
+
 QString sequenceGlyphOf(const QString &method)
 {
     if (method == QLatin1String("inertial"))     return QStringLiteral("I");
@@ -1045,14 +1054,14 @@ QVariantList ChartMetrics::sequenceRows(const QVariantMap &ks) const
         QString unplaced = QStringLiteral("not placed from this view");
         const bool rising = !placed && sequenceRisingAtImpact(n);
         if (rising)
-            unplaced = QStringLiteral("still accelerating at impact");
+            unplaced = QStringLiteral("still accelerating at ") + sequenceRisingWhere(n);
         else if (!placed && n.contains(QStringLiteral("peakNoEarlierThanMs")))
             unplaced = QStringLiteral("peaked after %1, out of this camera's sight")
                            .arg(sequenceOffsetText(n.value(QStringLiteral("peakNoEarlierThanMs")).toDouble()));
         else if (!placed && n.contains(QStringLiteral("peakNoLaterThanMs")))
             unplaced = QStringLiteral("peaked before %1, out of this camera's sight")
                            .arg(sequenceOffsetText(n.value(QStringLiteral("peakNoLaterThanMs")).toDouble()));
-        return QVariantMap{
+        QVariantMap out{
             { QStringLiteral("segment"),        segment },
             { QStringLiteral("label"),          sequenceSegmentLabel(segment) },
             { QStringLiteral("placed"),         placed },
@@ -1079,6 +1088,9 @@ QVariantList ChartMetrics::sequenceRows(const QVariantMap &ks) const
             { QStringLiteral("gapText"),        gapMs >= 0.0 ? QStringLiteral("+") + QString::number(std::lround(gapMs))
                                                                    + QStringLiteral(" ms")
                                                              : QString() } };
+        // The rising bound itself, where the domain ended (ms before impact; negative = after).
+        if (rising) out.insert(QStringLiteral("risingEndMs"), n.value(QStringLiteral("peakNoEarlierThanMs")).toDouble());
+        return out;
     };
 
     // The placed nodes, in the sequence's own order, with the gap to the next chip.
@@ -1127,6 +1139,7 @@ QString ChartMetrics::sequenceVerdictText(const QVariantMap &ks) const
         for (const QVariant &v : order) placedSegs.insert(v.toString());
 
         bool pelvisRising = false, thoraxRising = false, armEarly = false, clubEarly = false;
+        QString risingWhere = QStringLiteral("impact");
         for (const QVariant &v : nodes) {
             const QVariantMap n   = v.toMap();
             const QString seg     = n.value(QStringLiteral("segment")).toString();
@@ -1136,6 +1149,8 @@ QString ChartMetrics::sequenceVerdictText(const QVariantMap &ks) const
             const bool early      = placed && n.value(QStringLiteral("beforeImpactMs")).toDouble() > 0.0;
             if (seg == QLatin1String("pelvis"))  pelvisRising = !placed && sequenceRisingAtImpact(n);
             if (seg == QLatin1String("thorax"))  thoraxRising = !placed && sequenceRisingAtImpact(n);
+            if (!placed && sequenceRisingAtImpact(n) && sequenceRisingWhere(n) == QLatin1String("P8"))
+                risingWhere = QStringLiteral("P8");
             if (seg == QLatin1String("leadArm")) armEarly     = early;
             if (seg == QLatin1String("club"))    clubEarly    = early;
         }
@@ -1143,9 +1158,10 @@ QString ChartMetrics::sequenceVerdictText(const QVariantMap &ks) const
             const QString lead = (armEarly && clubEarly) ? QStringLiteral("arms and club peak before the body")
                                : armEarly                ? QStringLiteral("the arms peak before the body")
                                                          : QStringLiteral("the club peaks before the body");
-            const QString body = (pelvisRising && thoraxRising) ? QStringLiteral("hips and chest still speeding up at impact")
-                               : pelvisRising                   ? QStringLiteral("hips still speeding up at impact")
-                                                                : QStringLiteral("chest still speeding up at impact");
+            const QString body = ((pelvisRising && thoraxRising) ? QStringLiteral("hips and chest still speeding up at ")
+                               : pelvisRising                    ? QStringLiteral("hips still speeding up at ")
+                                                                 : QStringLiteral("chest still speeding up at "))
+                               + risingWhere;
             return lead + QStringLiteral(" — ") + body;
         }
     }
@@ -1253,6 +1269,135 @@ QVariantMap ChartMetrics::sequenceOverlay(const QVariantMap &ks) const
     out.insert(QStringLiteral("peaks"),  peaks);
     out.insert(QStringLiteral("gaps"),   gaps);
     out.insert(QStringLiteral("chainText"), chain.join(QStringLiteral(" → ")));
+    return out;
+}
+
+namespace {
+
+// Cheetham et al. (2008), 19 PGA Tour professionals and 19 amateurs, one swing each —
+// golf_swing_normative_reference.md §2.2. Time of peak in ms BEFORE impact; the club has no
+// published timing because the professionals peak it at the ball (§2.3), so 0 with no SD.
+struct SequenceNorm { const char *segment; double proBeforeMs, proBeforeSdMs, proDps, amateurDps; };
+constexpr SequenceNorm kSequenceNorms[] = {
+    { "pelvis",   87.0, 19.0,  477.0,  395.0 },
+    { "thorax",   68.0, 14.0,  727.0,  583.0 },
+    { "leadArm",  65.0,  8.0,  980.0,  763.0 },
+    { "club",      0.0,  0.0, 2254.0, 1790.0 },
+};
+
+const SequenceNorm *sequenceNormOf(const QString &segment)
+{
+    for (const SequenceNorm &n : kSequenceNorms)
+        if (segment == QLatin1String(n.segment)) return &n;
+    return nullptr;
+}
+
+
+} // namespace
+
+QVariantMap ChartMetrics::sequenceTable(const QVariantMap &ks) const
+{
+    QVariantMap out{ { QStringLiteral("rows"),         QVariantList{} },
+                     { QStringLiteral("verdictText"),  QString() },
+                     { QStringLiteral("verdictState"), QString() } };
+    const QVariantList nodes = ks.value(QStringLiteral("nodes")).toList();
+    if (nodes.isEmpty())
+        return out;
+
+    // THE TILE REPORTS THE PEAK: each segment's highest value before the domain's end (P8), and
+    // when — "−107 ±22 ms" before impact, "+40 ±16 ms" after. Every node with a peak is a row with
+    // numbers; a placed flag only decides whether its rank carries a "?".
+    struct Peak { QVariantMap n; QString seg; bool placed; double before; };
+    QHash<QString, Peak> peaks;
+    QSet<QString> placedSegs;
+    for (const QVariant &v : ks.value(QStringLiteral("order")).toList()) placedSegs.insert(v.toString());
+    for (const QVariant &v : nodes) {
+        const QVariantMap n = v.toMap();
+        const QString seg   = n.value(QStringLiteral("segment")).toString();
+        if (n.value(QStringLiteral("tPeakUs")).toLongLong() == 0) continue;
+        peaks.insert(seg, Peak{ n, seg, placedSegs.contains(seg) || n.value(QStringLiteral("placed")).toBool(),
+                                n.value(QStringLiteral("beforeImpactMs")).toDouble() });
+    }
+    // Actual order: earliest peak first (largest ms-before-impact).
+    QList<Peak> byTime = peaks.values();
+    std::stable_sort(byTime.begin(), byTime.end(), [](const Peak &x, const Peak &y) {
+        if (x.before != y.before) return x.before > y.before;
+        using pinpoint::analysis::SeqSegment;
+        SeqSegment sx{}, sy{};
+        pinpoint::analysis::seqSegmentFromKey(x.seg, sx);
+        pinpoint::analysis::seqSegmentFromKey(y.seg, sy);
+        return int(sx) < int(sy);
+    });
+    QHash<QString, int> actual;
+    for (int i = 0; i < byTime.size(); ++i) actual.insert(byTime.at(i).seg, i + 1);
+
+    const int nNorms = int(std::size(kSequenceNorms));
+    // OUT OF TURN: either end of an inverted pair — it peaked before one meant to lead it, or
+    // after one meant to follow it.
+    const auto outOfTurn = [&](int i) {
+        const QString seg = QString::fromLatin1(kSequenceNorms[i].segment);
+        if (!actual.contains(seg)) return false;
+        for (int j = 0; j < nNorms; ++j) {
+            const QString other = QString::fromLatin1(kSequenceNorms[j].segment);
+            if (j == i || !actual.contains(other)) continue;
+            if ((j < i) != (actual.value(other) < actual.value(seg))) return true;
+        }
+        return false;
+    };
+    const auto pm = [](double sigma) {
+        return sigma > 0.0 ? QStringLiteral(" ±") + QString::number(std::lround(sigma)) : QString();
+    };
+
+    QVariantList rows;
+    bool anyOut = false, anyUnsure = false;
+    for (int i = 0; i < nNorms; ++i) {
+        const SequenceNorm &norm = kSequenceNorms[i];
+        const QString seg = QString::fromLatin1(norm.segment);
+        QVariantMap row{ { QStringLiteral("segment"),    seg },
+                         { QStringLiteral("label"),      sequenceSegmentLabel(seg) },
+                         { QStringLiteral("shouldRank"), QString::number(i + 1) },
+                         { QStringLiteral("actualRank"), QStringLiteral("—") },
+                         { QStringLiteral("placed"),     false },
+                         { QStringLiteral("outOfTurn"),  false },
+                         { QStringLiteral("peakText"),   QStringLiteral("—") },
+                         { QStringLiteral("speedText"),  QStringLiteral("—") },
+                         { QStringLiteral("pctText"),    QStringLiteral("—") } };
+        if (peaks.contains(seg)) {
+            const Peak &pk     = peaks[seg];
+            const double peak  = std::abs(pk.n.value(QStringLiteral("peakDps")).toDouble());
+            const double pSig  = pk.n.value(QStringLiteral("peakSigmaDps")).toDouble();
+            const double tSig  = pk.n.value(QStringLiteral("tSigmaMs")).toDouble();
+            const double pct   = 100.0 * peak / norm.proDps;
+            const double pctS  = 100.0 * pSig / norm.proDps;
+            const bool late    = outOfTurn(i);
+            anyOut    = anyOut || late;
+            anyUnsure = anyUnsure || !pk.placed;
+            row.insert(QStringLiteral("actualRank"), QString::number(actual.value(seg))
+                                                     + (pk.placed ? QString() : QStringLiteral("?")));
+            row.insert(QStringLiteral("placed"),     pk.placed);
+            row.insert(QStringLiteral("outOfTurn"),  late);
+            row.insert(QStringLiteral("peakText"),   sequenceOffsetText(pk.before).chopped(3) + pm(tSig)
+                                                         + QStringLiteral(" ms"));
+            row.insert(QStringLiteral("speedText"),  QString::number(std::lround(peak)) + pm(pSig));
+            row.insert(QStringLiteral("pctText"),    QString::number(std::lround(pct)) + QStringLiteral("%") + pm(pctS));
+        }
+        rows.append(row);
+    }
+
+    QString state, text;
+    if (actual.size() < 2) {
+        state = QStringLiteral("unresolved"); text = QStringLiteral("Order unclear");
+    } else if (anyOut) {
+        state = QStringLiteral("mismatch");   text = QStringLiteral("Out of sequence");
+    } else if (actual.size() == nNorms) {
+        state = QStringLiteral("match");      text = QStringLiteral("In sequence");
+    } else {
+        state = QStringLiteral("incomplete"); text = QStringLiteral("In order so far");
+    }
+    if (anyUnsure && state != QLatin1String("unresolved")) text += QStringLiteral(" (? = uncertain)");
+    out.insert(QStringLiteral("rows"),         rows);
+    out.insert(QStringLiteral("verdictText"),  text);
+    out.insert(QStringLiteral("verdictState"), state);
     return out;
 }
 

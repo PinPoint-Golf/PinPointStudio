@@ -21,27 +21,15 @@ import QtQuick
 import QtQuick.Layouts
 import PinPointStudio
 
-// PpSequenceStrip — the kinematic sequence's SENTENCE under the chart. Since 2026-09-18 the peaks,
-// the leads between them and the out-of-sight bounds are drawn on the plot itself
-// (PpChartPlot.sequence, from ChartMetrics.sequenceOverlay); what remains here is the header with
-// the route, and the verdict. Was: the chips — restating the
-// positions of the four curves in a row of boxes at a different scale, which read oddly beside them.
-// Originally: the kinematic sequence, laid out as the one thing the golfer is told
-// (docs/design/kinematic_sequence_design.md §8): the four segment chips in the order they PEAKED,
-// the gap between neighbours, and the verdict — or the honest refusal of one.
+// PpSequenceStrip — the kinematic sequence TILE under the chart (2026-10-02), deliberately plain:
+// four rows in the order the segments SHOULD peak, each with the place it ACTUALLY peaked, when,
+// how fast, and that speed as a % of the tour-pro peak, each with its ±σ. It mirrors the plot:
+// every peak marked on a curve has a row with numbers; an unplaced one is dimmed with a "?". A wrong order shows as a red number in
+// the ACTUAL column; nothing else needs reading. A first cut carried σ, timing windows, two order
+// sentences and a cohort paragraph — Mark: "way too wordy and almost unreadable".
 //
-// It is shown under the chart only while the METRICS preset is "Kinematic sequence", because the
-// chips are the peaks of exactly the four curves that preset draws; a strip with no curves above
-// it would be a number with nothing to check it against.
-//
-// EVERY STRING ON THIS STRIP IS C++'s. ChartMetrics.sequenceRows / sequenceVerdictText /
-// sequenceRouteText carry the ordering walk and the string rules, so chart_metrics_test can assert
-// them; nothing here derives — it binds. A chip's greyed state is the row's `placed` flag, which the
-// producer decided from its own σ (a node less certain than the placement threshold is emitted
-// unplaced, never dropped), so the reader sees the segment was attempted and from which view.
-//
-// The method glyph (I / T / P: inertial, triangulated, projected) is the directory's vocabulary
-// for HOW a rung got its number. It is what tells a reader with one IMU which chip to trust.
+// Shown only under the "Kinematic sequence" preset. Every string is ChartMetrics.sequenceTable's
+// (chart_metrics_test asserts them); this file binds and picks colours.
 ColumnLayout {
     id: root
     objectName: "sequenceStrip"
@@ -53,40 +41,119 @@ ColumnLayout {
 
     ChartMetrics { id: cm }
 
-    readonly property var    _ks:      root.kinematicSequence ? root.kinematicSequence : ({})
-    readonly property var    _rows:    cm.sequenceRows(root._ks)
-    readonly property string _verdict: cm.sequenceVerdictText(root._ks)
-    readonly property string _route:   cm.sequenceRouteText(root._ks)
-    // The nodes neither placed nor bounded, named — the peaks and bounds themselves are drawn on
-    // the plot (PpChartPlot.sequence), so the strip is the sentence under them and nothing more.
-    readonly property var    _overlay:  cm.sequenceOverlay(root._ks)
-    readonly property string _chain:    root._overlay.chainText || ""
-
-    // ── header — the same shape as the summary section's ──────────────────────────────────────
-    RowLayout {
-        Layout.fillWidth: true
-        spacing: Theme.sp(9)
-        Text {
-            objectName: "sequenceStripHeader"
-            text: qsTr("SEQUENCE") + (root._route ? " · " + root._route : "")
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingLabel
-            color: Theme.colorText3
-        }
-        Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.colorBorder }
+    component HeadText: Text {
+        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+        font.letterSpacing: Theme.trackingLabel
+        color: Theme.colorText3
+    }
+    component CellText: Text {
+        font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody
+        color: Theme.colorText
     }
 
-    // ── the verdict — one sentence, or the honest refusal of one ──────────────────────────────
-    Text {
-        objectName: "sequenceVerdict"
+    readonly property var _ks:    root.kinematicSequence ? root.kinematicSequence : ({})
+    readonly property var _table: cm.sequenceTable(root._ks)
+
+    readonly property real _wLabel: Theme.sp(80)
+    readonly property real _wRank:  Theme.sp(60)
+    readonly property real _wPeak:  Theme.sp(120)
+    readonly property real _wSpeed: Theme.sp(100)
+
+    Rectangle {
+        objectName: "sequenceTile"
         Layout.fillWidth: true
-        visible: root._verdict.length > 0
-        // "Lead arm −87 ms → Club −4 ms (+83 ms) · placed nodes in order (2 of 4)": the order
-        // with its leads first (a split view cannot bracket a lead between two facets, so the
-        // line carries it), then the verdict.
-        text: (root._chain.length > 0 ? root._chain + " · " : "") + root._verdict
-        wrapMode: Text.WordWrap
-        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-        color: Theme.colorText2
+        implicitHeight: tileCol.implicitHeight + Theme.sp(20)
+        color: Theme.colorSurface
+        border.color: Theme.colorBorder; border.width: 1
+        radius: Theme.sp(8)
+
+        ColumnLayout {
+            id: tileCol
+            x: Theme.sp(14); y: Theme.sp(10)
+            width: parent.width - Theme.sp(28)
+            spacing: Theme.sp(6)
+
+            // ── title + the verdict ────────────────────────────────────────────────────────────
+            RowLayout {
+                Layout.fillWidth: true
+                HeadText { objectName: "sequenceStripHeader"; text: qsTr("SEQUENCE") }
+                Item { Layout.fillWidth: true }
+                Text {
+                    objectName: "sequenceVerdict"
+                    text: (root._table.verdictState === "match"    ? "✓  "
+                         : root._table.verdictState === "mismatch" ? "✗  " : "")
+                          + root._table.verdictText
+                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
+                    font.weight: Font.DemiBold
+                    color: root._table.verdictState === "match"    ? Theme.colorGood
+                         : root._table.verdictState === "mismatch" ? Theme.colorError
+                                                                   : Theme.colorText2
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.sp(12)
+                HeadText { text: "";                 Layout.preferredWidth: root._wLabel }
+                HeadText { text: qsTr("SHOULD");     Layout.preferredWidth: root._wRank }
+                HeadText { text: qsTr("ACTUAL");     Layout.preferredWidth: root._wRank }
+                HeadText { text: qsTr("PEAK");       Layout.preferredWidth: root._wPeak }
+                HeadText { text: qsTr("°/S");        Layout.preferredWidth: root._wSpeed }
+                HeadText { text: qsTr("% OF PRO");   Layout.fillWidth: true }
+            }
+
+            Repeater {
+                model: root._table.rows
+                delegate: RowLayout {
+                    id: seg
+                    required property var modelData
+                    objectName: "sequenceRow:" + seg.modelData.segment
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(12)
+                    // A peak the producer could not pin down is shown — it is on the curve — but
+                    // dimmed, and its rank carries a "?".
+                    opacity: seg.modelData.placed || seg.modelData.actualRank === "—" ? 1.0 : 0.6
+                    CellText {
+                        text: seg.modelData.label
+                        Layout.preferredWidth: root._wLabel
+                        font.family: Theme.fontBody; font.weight: Font.Medium
+                    }
+                    CellText {
+                        text: seg.modelData.shouldRank
+                        Layout.preferredWidth: root._wRank
+                        color: Theme.colorText3
+                    }
+                    CellText {
+                        objectName: "sequenceActual:" + seg.modelData.segment
+                        text: seg.modelData.actualRank
+                        Layout.preferredWidth: root._wRank
+                        font.weight: Font.Bold
+                        color: seg.modelData.outOfTurn          ? Theme.colorError
+                             : seg.modelData.actualRank !== "—"  ? Theme.colorGood : Theme.colorText3
+                    }
+                    CellText {
+                        objectName: "sequencePeaked:" + seg.modelData.segment
+                        text: seg.modelData.peakText
+                        Layout.preferredWidth: root._wPeak
+                        color: seg.modelData.placed ? Theme.colorText : Theme.colorText3
+                    }
+                    CellText {
+                        text: seg.modelData.speedText
+                        Layout.preferredWidth: root._wSpeed
+                    }
+                    CellText {
+                        objectName: "sequencePct:" + seg.modelData.segment
+                        text: seg.modelData.pctText
+                        Layout.fillWidth: true
+                        font.weight: Font.DemiBold
+                    }
+                }
+            }
+
+            HeadText {
+                text: qsTr("Pro = tour average, Cheetham 2008")
+                font.letterSpacing: 0
+            }
+        }
     }
 }

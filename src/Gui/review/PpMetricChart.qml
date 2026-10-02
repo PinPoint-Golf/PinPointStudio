@@ -1358,12 +1358,12 @@ Item {
             }
         }
 
-        // ── SEQUENCE strip — only under its own preset ───────────────────────────────────────
-        // The chips are the peaks of exactly the four curves the "Kinematic sequence" preset
-        // draws, so the strip is tied to that preset and to nothing else: under any other
+        // ── SEQUENCE tile — only under its own preset ────────────────────────────────────────
+        // The rows are the peaks of exactly the four curves the "Kinematic sequence" preset
+        // draws, so the tile is tied to that preset and to nothing else: under any other
         // vocabulary it is not shown, and on a swing that produced no node it is not there at
-        // all. Everything it prints is ChartMetrics' (sequenceRows / sequenceVerdictText /
-        // sequenceRouteText); the component binds.
+        // all. Everything it prints is ChartMetrics' (sequenceTable / sequenceRouteText); the
+        // component binds.
         PpSequenceStrip {
             visible: !root.compact && !root.chartCollapsed
                      && root.preset === "Kinematic sequence"

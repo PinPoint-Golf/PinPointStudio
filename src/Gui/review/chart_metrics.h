@@ -608,6 +608,21 @@ public:
     // how the plot finds the curve and its colour. Empty / invalid map ⇒ empty lists and "".
     Q_INVOKABLE QVariantMap sequenceOverlay(const QVariantMap &ks) const;
 
+    // sequenceTable — the SEQUENCE TILE under the chart (2026-10-02). It MIRRORS THE PLOT: one
+    // row per segment in the order they SHOULD peak (pelvis, chest, arm, club), and every node
+    // the plot marks (a ring, dimmed when unplaced, or a "rising" chevron) carries its numbers
+    // with their σ. Unplaced peaks are shown, not hidden — the reader can see them on the curve —
+    // and their rank carries a "?". Returns
+    //   { rows: [{ segment, label, shouldRank, actualRank ("2" | "2?" | "—"), placed, outOfTurn,
+    //              peakText ("−107 ±22 ms" | "rising" | "—"), speedText ("890 ±116" | "≥ 640"),
+    //              pctText ("91% ±12" | "≥ 134%") }],
+    //     verdictText ("In sequence" | "Out of sequence" | "In order so far" | "Order unclear",
+    //                  + " (? = uncertain)" when an unplaced peak is in the ranking),
+    //     verdictState ("match" | "mismatch" | "incomplete" | "unresolved") }
+    // Rising nodes rank after every ring. outOfTurn marks both ends of an inverted pair. % is of
+    // the Cheetham 2008 professional peak (NR-03/05 amended at Mark's call).
+    Q_INVOKABLE QVariantMap sequenceTable(const QVariantMap &ks) const;
+
 private:
     pinpoint::analysis::MetricCatalogue m_catalogue;   // built once in the ctor; never mutated
 };

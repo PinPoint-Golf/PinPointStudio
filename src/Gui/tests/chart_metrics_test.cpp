@@ -2065,6 +2065,23 @@ int main()
                 { QStringLiteral("verdict"), QStringLiteral("proximalToDistal") },
                 { QStringLiteral("routeSummary"), QStringLiteral("estimated") } };
 
+            // The tile on the professional shape: every segment where it should be, 100 % of pro,
+            // every number with its σ.
+            {
+                const QVariantMap tb = cm.sequenceTable(placed);
+                const QVariantList tr = tb.value(QStringLiteral("rows")).toList();
+                checkEqI("tile, pro shape: four rows", tr.size(), 4);
+                const QVariantMap p0 = tr.at(0).toMap();
+                checkStr("tile, pro shape: pelvis first",   p0.value(QStringLiteral("segment")).toString(), "pelvis");
+                checkStr("tile, pro shape: actual 1",       p0.value(QStringLiteral("actualRank")).toString(), "1");
+                checkStr("tile, pro shape: time ±σ",        p0.value(QStringLiteral("peakText")).toString(), "−87 ±14 ms");
+                checkStr("tile, pro shape: speed ±σ",       p0.value(QStringLiteral("speedText")).toString(), "477 ±50");
+                checkStr("tile, pro shape: 100% ±σ",        p0.value(QStringLiteral("pctText")).toString(), "100% ±10");
+                checkStr("tile, pro shape: the club at the ball",
+                         tr.at(3).toMap().value(QStringLiteral("peakText")).toString(), "0 ±10 ms");
+                checkStr("tile, pro shape: in sequence", tb.value(QStringLiteral("verdictText")).toString(), "In sequence");
+            }
+
             const QVariantList pr = cm.sequenceRows(placed);
             checkEqI("pair placed: four rows, no tail", pr.size(), 4);
             checkStr("pair placed: the pelvis leads", pr.at(0).toMap().value(QStringLiteral("segment")).toString(), "pelvis");
@@ -2110,6 +2127,65 @@ int main()
             sk.insert(QStringLiteral("nodes"), nn);
             checkStr("the skeleton rung faceOn+dtl3d reads triangulated",
                      cm.sequenceRows(sk).at(2).toMap().value(QStringLiteral("method")).toString(), "triangulated");
+        }
+
+        // ── sequenceTable: the tile on the measured shape ─────────────────────────────────────
+        // The tile reports each node's peak as recorded — the trunk nodes here sit at the end of
+        // the domain — ranked by time, unplaced ones with a "?".
+        {
+            const QVariantMap tb = cm.sequenceTable(ks);
+            const QVariantList tr = tb.value(QStringLiteral("rows")).toList();
+            checkEqI("tile: four rows", tr.size(), 4);
+            const QVariantMap pel = tr.at(0).toMap(), arm = tr.at(2).toMap(), club = tr.at(3).toMap();
+            checkStr("tile: pelvis is row 1",        pel.value(QStringLiteral("segment")).toString(), "pelvis");
+            checkStr("tile: pelvis 3rd, uncertain",  pel.value(QStringLiteral("actualRank")).toString(), "3?");
+            checkStr("tile: pelvis peak time",       pel.value(QStringLiteral("peakText")).toString(), "0 ms");
+            checkStr("tile: pelvis speed ±σ",        pel.value(QStringLiteral("speedText")).toString(), "640 ±70");
+            checkStr("tile: pelvis % ±σ",            pel.value(QStringLiteral("pctText")).toString(), "134% ±15");
+            checkStr("tile: chest 4th, uncertain",   tr.at(1).toMap().value(QStringLiteral("actualRank")).toString(), "4?");
+            checkStr("tile: arm actually 1st",       arm.value(QStringLiteral("actualRank")).toString(), "1");
+            checkTrue("tile: arm out of turn",       arm.value(QStringLiteral("outOfTurn")).toBool());
+            checkTrue("tile: pelvis out of turn too", pel.value(QStringLiteral("outOfTurn")).toBool());
+            checkStr("tile: arm time ±σ",            arm.value(QStringLiteral("peakText")).toString(), "−115 ±18 ms");
+            checkStr("tile: arm speed ±σ",           arm.value(QStringLiteral("speedText")).toString(), "684 ±40");
+            checkStr("tile: arm % of pro ±σ",        arm.value(QStringLiteral("pctText")).toString(), "70% ±4");
+            checkStr("tile: club actually 2nd",      club.value(QStringLiteral("actualRank")).toString(), "2");
+            checkStr("tile: club % of pro",          club.value(QStringLiteral("pctText")).toString(), "81% ±3");
+            checkStr("tile: out of sequence, flagged uncertain", tb.value(QStringLiteral("verdictText")).toString(),
+                     "Out of sequence (? = uncertain)");
+
+            // THROUGH P8: the pelvis still rising at P8, 90 ms after the ball. The words say P8,
+            // and the "≥" holds because the recorded peak sits at the domain's end.
+            QVariantMap p8 = ks;
+            QVariantList pn = p8.value(QStringLiteral("nodes")).toList();
+            { QVariantMap t = pn.at(0).toMap();
+              t.insert(QStringLiteral("beforeImpactMs"), -90.0);
+              t.insert(QStringLiteral("peakNoEarlierThanMs"), -90.0); pn[0] = t; }
+            p8.insert(QStringLiteral("nodes"), pn);
+            checkStr("P8: the row says P8", cm.sequenceRows(p8).at(2).toMap().value(QStringLiteral("unplacedText")).toString(),
+                     "still accelerating at P8");
+            checkStr("P8: the peak is reported AFTER impact",
+                     cm.sequenceTable(p8).value(QStringLiteral("rows")).toList().at(0).toMap()
+                         .value(QStringLiteral("peakText")).toString(), "+90 ms");
+            checkTrue("P8: the verdict sentence says P8", cm.sequenceVerdictText(p8).endsWith(QStringLiteral("at P8")));
+
+            // 07-04 s1 through P8: the pelvis places 40 ms AFTER the ball, after the arm and club.
+            QVariantMap last = ks;
+            QVariantList ln = last.value(QStringLiteral("nodes")).toList();
+            { QVariantMap t = ln.at(0).toMap();
+              t.insert(QStringLiteral("placed"), true); t.insert(QStringLiteral("beforeImpactMs"), -40.0);
+              t.insert(QStringLiteral("tSigmaMs"), 16.0); t.remove(QStringLiteral("peakNoEarlierThanMs")); ln[0] = t; }
+            last.insert(QStringLiteral("nodes"), ln);
+            last.insert(QStringLiteral("order"), QVariantList{ QStringLiteral("leadArm"), QStringLiteral("club"),
+                                                               QStringLiteral("pelvis") });
+            last.insert(QStringLiteral("verdict"), QStringLiteral("other"));
+            const QVariantMap lp = cm.sequenceTable(last).value(QStringLiteral("rows")).toList().at(0).toMap();
+            checkStr("pelvis last: actual 4 (the chest peaks at 0 ms)", lp.value(QStringLiteral("actualRank")).toString(), "4");
+            checkStr("pelvis last: after the ball",  lp.value(QStringLiteral("peakText")).toString(), "+40 ±16 ms");
+            checkTrue("pelvis last: out of turn",    lp.value(QStringLiteral("outOfTurn")).toBool());
+
+            checkEqI("tile: an empty map has no rows",
+                     cm.sequenceTable(QVariantMap{}).value(QStringLiteral("rows")).toList().size(), 0);
         }
     }
 
