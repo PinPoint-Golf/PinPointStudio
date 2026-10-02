@@ -141,6 +141,14 @@ struct FitConfig {
     // ~20 rad/s²). ⚠ Tried first as "stay near the swing's mean tilt": that let the fit tilt the
     // whole world to fake a constant tilt while the golfer turned (synthetic: 1 → 8.6 cm).
     double pelvisTiltAccRad    = 25.0;
+    // The pelvis's YAW acceleration σ (rad/s²), like its tilt: its own, never loosened through the
+    // downswing. ON at 200 (≈ 11 500 °/s², well above what a pelvis does) since the lower-body
+    // follow-up (2026-10-02): with the general σ (smoothAccRad × fastFactor ≈ 1800 rad/s² in the
+    // fast window) the pelvis stopped and restarted at the ball on 15/15 07-04 swings, because the
+    // face-on view is blind to yaw at square and the down-the-line hips turn end-on — nothing in the
+    // data pins it there. On s8: total cost +0.08 %, reprojection unchanged, the stall gone; 100
+    // reads the same, 400 keeps a shallow dip (skeleton_rate_k0_20261002.md §10). 0 = the general σ.
+    double pelvisYawAccRad     = 200.0;
     double wristSigmaDeg       = 30.0;
     double pronationSigmaDeg   = 45.0;
     double clavicleSigmaDeg    = 10.0;   // the shoulder girdle vs the upper spine: both move the shoulder point

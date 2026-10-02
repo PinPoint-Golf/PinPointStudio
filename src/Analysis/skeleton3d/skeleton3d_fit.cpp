@@ -47,6 +47,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <functional>
 #include <numeric>
@@ -750,6 +751,13 @@ double smoothSigma(const Problem &P, int t, int k)
     // Pelvis tilt (root pitch, root roll): its own, tight σ, never loosened (see FitConfig).
     if (d.joint == ybot::Hips && d.kind == DofKind::RootRot && kr != P.rig.firstDof[ybot::Hips] + 3)
         return P.cfg.pelvisTiltAccRad;
+    // Pelvis YAW (root yaw): its own σ when set, never loosened either. In the impact window the
+    // down-the-line hips turn end-on and the face-on view is blind to yaw at square, so almost
+    // nothing pins it and the loosened σ let the pelvis stop and restart (~20 000 °/s²) at the ball
+    // (skeleton_rate_k0_20261002.md §8–9). A pelvis is a heavy segment; its acceleration is bounded.
+    if (d.joint == ybot::Hips && d.kind == DofKind::RootRot && kr == P.rig.firstDof[ybot::Hips] + 3
+        && P.cfg.pelvisYawAccRad > 0)
+        return P.cfg.pelvisYawAccRad;
     double s = d.kind == DofKind::RootTrans ? P.cfg.smoothAccRootM : P.cfg.smoothAccRad;
     const int64_t tus = P.in.t_us[size_t(t)];
     if (tus >= P.fastFrom && tus <= P.fastTo) s *= P.cfg.fastFactor;
@@ -1205,6 +1213,78 @@ std::vector<double> addressPosture(const Rig &R)
     for (const char *n : { "lArm.abd", "rArm.abd" }) set(n, -12);
     for (const char *n : { "lElbow.flex", "rElbow.flex" }) set(n, 10);
     return th;
+}
+
+// DEBUG ONLY — the term ledger (ks_skeleton3d_route_design.md, the lower-body follow-up). With the
+// environment variable PINPOINT_SKEL_TERMS set to a path, the converged fit writes one CSV row per
+// frame per term: each marker's reprojection in each view, each planted marker's anchor, each
+// limit that is exceeded, each unknown's smoothness second difference and each posture prior. The
+// keypoint terms are scored with the robust knee at 3 σ WHATEVER the fit used, so two fits of one
+// swing can be compared term by term under one loss. Nothing reads it; unset, nothing is written.
+void dumpTermLedger(const Problem &P, const State &S, const char *path)
+{
+    std::FILE *f = std::fopen(path, "w");
+    if (!f) return;
+    std::fprintf(f, "t_us,term,name,cost\n");
+    const Rig &R = P.rig;
+    const double c2 = 9.0;
+    std::array<double, GroupCount> sc {};
+    for (int g = 0; g < GroupCount; ++g) sc[size_t(g)] = scaleOf(S.sv, P.L, g);
+    const Cameras cam = camFromSv(S.sv, P.L);
+    std::vector<VectorXd> th(size_t(P.T));
+    for (int t = 0; t < P.T; ++t) th[size_t(t)] = P.theta(S.th[size_t(t)]);
+    for (int t = 0; t < P.T; ++t) {
+        const long long tu = (long long)P.in.t_us[size_t(t)];
+        Pose pose;
+        forwardKinematics(R, th[size_t(t)].data(), sc.data(), pose);
+        for (int view = 0; view < (P.hasDtl ? 2 : 1); ++view) {
+            const ViewObs &ob = view == 0 ? P.fo[size_t(t)] : P.dtl[size_t(t)];
+            const int W = view == 0 ? P.in.foW : P.in.dtlW, H = view == 0 ? P.in.foH : P.in.dtlH;
+            const CamFrame cf = camFrame(cam, view, W, H);
+            for (int m = 0; m < kMarkerCount; ++m) {
+                const KpObs &o = ob.kp[size_t(m)];
+                if (o.sigma <= 0) continue;
+                const V3 pw = markerWorld(pose, R.markers[size_t(m)].joint, markerOffset(P, S.sv, m));
+                double u, v;
+                if (!project(cf, pw, u, v, nullptr)) continue;
+                const double ru = (u - o.u) / o.sigma, rv = (v - o.v) / o.sigma;
+                std::fprintf(f, "%lld,%s,%d,%.4f\n", tu, view == 0 ? "fo" : "dtl", m, c2 * std::log1p((ru * ru + rv * rv) / c2));
+            }
+        }
+        if (P.cfg.useContact && t < int(P.in.footContact.size()))
+            for (int fi = 0; fi < 6; ++fi) {
+                if (!P.in.footContact[size_t(t)][size_t(fi)]) continue;
+                const int m = 17 + fi;
+                const V3 pw = markerWorld(pose, R.markers[size_t(m)].joint, markerOffset(P, S.sv, m));
+                const double sgm = P.cfg.contactSigmaM;
+                const double dx = (pw.x - S.sv[P.L.iAnchor + 3 * fi]) / sgm, dy = (pw.y - S.sv[P.L.iAnchor + 3 * fi + 1]) / sgm,
+                             dz = (pw.z - S.sv[P.L.iAnchor + 3 * fi + 2]) / sgm;
+                std::fprintf(f, "%lld,contact,%d,%.4f\n", tu, m, dx * dx + dy * dy + dz * dz);
+            }
+        if (P.cfg.useLimits)
+            for (int k = 0; k < P.nth; ++k) {
+                const double lo = R.dofs[size_t(k)].lo, hi = R.dofs[size_t(k)].hi;
+                if (lo >= hi) continue;
+                const double v = th[size_t(t)][k];
+                const double e = (v < lo ? v - lo : v > hi ? v - hi : 0.0) / (P.cfg.limitSigmaDeg * kDeg);
+                if (e != 0.0) std::fprintf(f, "%lld,limit,%s,%.4f\n", tu, R.dofs[size_t(k)].name, e * e);
+            }
+        if (t >= 1 && t + 1 < P.T) {
+            const double d0 = std::max(1e-4, (P.in.t_us[size_t(t)] - P.in.t_us[size_t(t - 1)]) * 1e-6);
+            const double d1 = std::max(1e-4, (P.in.t_us[size_t(t + 1)] - P.in.t_us[size_t(t)]) * 1e-6);
+            const double cm = 2.0 / (d0 * (d0 + d1)), c0 = -2.0 / (d0 * d1), cp = 2.0 / (d1 * (d0 + d1));
+            for (int k = 0; k < P.nd; ++k) {
+                const double r = (cm * S.th[size_t(t - 1)][k] + c0 * S.th[size_t(t)][k] + cp * S.th[size_t(t + 1)][k]) / smoothSigma(P, t, k);
+                std::fprintf(f, "%lld,smooth,%s,%.4f\n", tu, R.dofs[size_t(P.qRep[size_t(k)])].name, r * r);
+            }
+        }
+        for (const Problem::DofPrior &dp : P.dofPriors) {
+            const double va = S.th[size_t(t)][dp.a], vb = dp.b >= 0 ? S.th[size_t(t)][dp.b] : 0.0;
+            const double r = (va - vb - dp.mean) / priorSigma(P, dp, t);
+            std::fprintf(f, "%lld,prior,%s,%.4f\n", tu, R.dofs[size_t(P.qRep[size_t(dp.a)])].name, r * r);
+        }
+    }
+    std::fclose(f);
 }
 
 } // namespace
@@ -2151,6 +2231,8 @@ FitResult fitSkeleton(const FitInput &in)
     res.nUnknowns = P.nd * (P.spline ? P.K : P.T);
     for (int i = 0; i < L.n; ++i) res.nUnknowns += P.svFree[size_t(i)] ? 1 : 0;
     poseAll();
+
+    if (const char *ledger = std::getenv("PINPOINT_SKEL_TERMS")) dumpTermLedger(P, S, ledger);
 
     // ── outputs ──
     // The floor: the planted markers' anchors, less their flat-foot heights (median).

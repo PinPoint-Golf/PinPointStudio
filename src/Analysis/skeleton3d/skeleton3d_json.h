@@ -81,6 +81,7 @@ inline FitConfig fitConfigFromOverrides(const QVariantMap &ov)
     apply(ov, "skeleton3d.stage2Iters",    c.stage2Iters);
     apply(ov, "skeleton3d.hmFlexSign",     c.hmFlexSign);
     apply(ov, "skeleton3d.pelvisTiltAccRad",   c.pelvisTiltAccRad);
+    apply(ov, "skeleton3d.pelvisYawAccRad",    c.pelvisYawAccRad);
     apply(ov, "skeleton3d.spineFlexSigmaDeg",  c.spineFlexSigmaDeg);
     apply(ov, "skeleton3d.hmRadSign",      c.hmRadSign);
     // The prior widths, for the knob audit (swing_3d_viz_design.md §13.2 (D)).
