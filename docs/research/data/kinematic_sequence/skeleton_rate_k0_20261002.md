@@ -261,3 +261,73 @@ time-boxed look at what holds the pelvis back; C, an honesty guard on the rotati
   3-D view shows the hips pausing at the ball. Whether to mark that in the view is Mark's call.
 - **Caveat.** The alternative fits exist for s8 only. The 15-swing statements above are about the
   dip, not about the σ coverage.
+
+## 10. The lower-body follow-up, and K0 re-run (2 October, later)
+
+Mark asked for the lower body to be fixed and K0 re-run. On s8 first, then all 15.
+
+**The term ledger.** A debug-only dump, `PINPOINT_SKEL_TERMS=<path>`, scores every keypoint,
+anchor, limit, smoothness and prior term per frame under one loss (C = 3). It compared the
+production fit with the least-squares fit that follows the down-the-line hips:
+
+- **Before impact,** following the hips makes the DTL trail knee and trail heel cheaper. The real
+  trail heel lifts and the knee kicks in.
+- **After impact,** following the hips makes the face-on lead toes cheaper and the lead-toe anchors
+  much dearer (+441, +343). The real lead foot rolls after the ball.
+
+**The feet were not the fix.** Contact released per marker, from the keypoints in either view
+(debounced; heel lift and foot roll), released the trail small toe at −134 ms and the trail heel at
+−93 ms. But the pelvis still stalled (138 / 69 / 95 °/s at 0 / +7 / +13 ms), and the lead foot was
+released on keypoint noise. **Reverted.**
+
+**The pelvis yaw had no physical bound.** In the impact window the fit loosened every joint's
+acceleration σ by 12×, to about 1800 rad/s² (~100 000 °/s²). With the face-on view blind to yaw at
+square and the DTL hips end-on, nothing in the data pins the pelvis yaw there, so it stopped and
+restarted for free. The fit already gives pelvis **tilt** its own tight σ for the same kind of
+reason. **Pelvis yaw now gets one too**: `skeleton3d.pelvisYawAccRad`, 200 rad/s² (~11 500 °/s²),
+never loosened. `kSkeleton3DStageVersion` 3 → 4.
+
+| s8, the library path (GOLFSIMPC) | Pelvis rate, −70 … +40 ms (°/s) | Cost |
+|---|---|---|
+| yaw σ off (as before) | −23, 45, 198, 236, 324, 276, 165, **70, 47**, 255, 357, 383 | 88 413 |
+| 50 rad/s² | 155, 170, 194, 167, 211, 188, 233, 256, 234, 281, 263, 308 | 88 527 |
+| 100 rad/s² | 173, 148, 171, 166, 208, 232, 186, 186, 236, 257, 263, 282 | 88 451 |
+| **200 rad/s²** | 153, 143, 171, 167, 234, 209, 210, 209, 190, 277, 284, 314 | 88 415 |
+
+**All 15 swings (a scratch copy of 07-04 re-analysed on GOLFSIMPC; the library untouched):**
+
+| | before | after (200 rad/s²) |
+|---|---|---|
+| stop-restart: implied pelvis acceleration, median [range] | 11 700 [4 900–19 200] °/s² | **3 700 [1 900–5 900]** |
+| dip depth, median | 80 % | 39 % |
+| reprojection FO / DTL, foot slip p90, limits held | 5.6 / 5.0 px, 21.0 mm, 25 | 5.6 / 5.0 px, 20.9 mm, 23 (no swing moves more than 0.1 px / 0.3 mm) |
+| pelvis at P7 · at finish · thorax at top · at finish · X-factor at top | 3.3 · 84.7 · 107.2 · 132.3 · 67.4° | 4.2 · 84.8 · 107.0 · 132.5 · 67.4° |
+| **pelvis rate P6 → P7** (`hip_stall`'s measure) | **160 °/s** | **225 °/s** (+7 … +160 per swing) |
+
+So §9's "the stated σ covers it" held for s8's Mac fits but **not** for the library's own fits: the
+coast took about 30% off `hip_stall`'s rate. The bound fixes that at the source.
+
+**K0 re-run** (`skeleton_rate_k0_yaw_20261002.csv`; the rules of design §11):
+
+| Rule | Before | After | |
+|---|---|---|---|
+| pelvis usable fraction ≥ 0.9 on ≥ 12/15 | 15/15 | 15/15 | GO |
+| arm vs face-on arm, median \|Δt\| | 6.7 ms | (the document's arm is now the skeleton's own) | GO |
+| spline prior | 0 ms | — (unchanged) | GO |
+| pelvis vs pair, Spearman (reported) | 0.36 | **0.55** | |
+| pelvis rising at impact | 12/15 | 13/15 | |
+| pelvis peak inside the downswing (not at the late edge) | 13/15 | **11/15**, median 60 ms before impact | |
+| thorax | peak 121 ms, trough, rising at impact 15/15 | unchanged | |
+
+**What K0 now says about a skeleton trunk rung:**
+
+- **Pelvis.** The stop-restart is gone. The curve rises through the downswing at 150–310 °/s, but
+  with ±40 °/s wiggles, and the highest wiggle sits about 60 ms before impact on 11/15 swings. The
+  pair, reading clean pre-impact data, says "still rising" on the same swings. Whether the rung would
+  PLACE those wiggle peaks depends on its in-app σ_t (K0's σ is nominal). A flat curve gives a wide
+  σ_t, which means unplaced. That is the measurement to make before the rung is built.
+- **Thorax.** Not addressed. Its trough (about 780 → 360 → 900 °/s) is in the spine twist, not the
+  pelvis yaw, and its ring stays off.
+- **Run-to-run variation on the library path is real.** The same swing re-analysed twice gave
+  visibly different pelvis curves (s8: 162 vs 209 °/s at impact), because the DTL shaft is re-run.
+  Per-swing K0 numbers carry that noise.
