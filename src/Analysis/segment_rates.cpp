@@ -123,6 +123,12 @@ RateTrack smoothRate(const std::vector<int64_t> &t, const std::vector<double> &d
 
 struct Domain {
     int64_t fromUs = -1, toUs = -1;
+    // The ball. Bounds and node times are quoted in ms before it, wherever the domain ends.
+    int64_t impactUs = -1;
+    // Where the drawn curve STARTS (P4, the top) when it is cut to P4 → P8; −1 = not cut. The peak search
+    // still runs from `fromUs` — this trims the picture, not the domain.
+    int64_t drawFromUs = -1;
+    int64_t refUs() const { return impactUs >= 0 ? impactUs : toUs; }
     bool ok() const { return fromUs >= 0 && toUs > fromUs; }
 };
 
@@ -166,6 +172,23 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
 {
     if (r.t.size() < 2 || !dom.ok()) return;
 
+    // Through P8 the curve STOPS at the domain end rather than running on dashed (Mark): the
+    // follow-through after P8 is not part of the sequence and only cluttered the chart. And it
+    // STARTS at P4, mirrored (Mark, same day): the backswing before the top is not part of it either.
+    if (cfg.throughP8 && dom.drawFromUs >= 0 && dom.drawFromUs <= dom.fromUs) {
+        size_t skip = 0;
+        while (skip < r.t.size() && r.t[skip] < dom.drawFromUs) ++skip;
+        const auto drop = [skip](auto &v) { v.erase(v.begin(), v.begin() + std::min(skip, v.size())); };
+        drop(r.t); drop(r.dps); drop(r.valid); drop(r.sigmaDps);
+        if (r.t.size() < 2) return;
+    }
+    if (cfg.throughP8 && dom.toUs > dom.refUs()) {
+        size_t keep = r.t.size();
+        while (keep > 0 && r.t[keep - 1] > dom.toUs) --keep;
+        r.t.resize(keep); r.dps.resize(std::min(keep, r.dps.size()));
+        r.valid.resize(std::min(keep, r.valid.size())); r.sigmaDps.resize(std::min(keep, r.sigmaDps.size()));
+        if (r.t.size() < 2) return;
+    }
     MetricSeries m;
     m.key   = QString::fromLatin1(seqSegmentSeriesKey(seg));
     m.label = label;
@@ -177,7 +200,7 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
         if (m.t_us[i] < dom.fromUs || m.t_us[i] > dom.toUs) m.valid[i] = 0u;
 
     // Phase samples where the ladder has the phase and the domain holds it.
-    for (Phase p : { Phase::Transition, Phase::Delivery, Phase::Impact }) {
+    for (Phase p : { Phase::Transition, Phase::Delivery, Phase::Impact, Phase::ShaftParallelThrough }) {
         const std::optional<int64_t> tp = phaseTimeOpt(phases, p);
         if (!tp || *tp < dom.fromUs || *tp > dom.toUs) continue;
         const int idx = nearestIndex(m.t_us, *tp);
@@ -219,6 +242,12 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
     sv.n = ns;
     const int64_t windowUs = int64_t(cfg.derivWindowMs * 1000.0);
     const PeakPlacement p = placePeak(sv, ch.sampleSigma, dom.fromUs, dom.toUs, windowUs);
+
+    // THROUGH P8 THE PEAK IS THE HIGHEST VALUE BEFORE P8 (Mark, 2026-10-02), wherever it falls —
+    // including the domain's end. The "still rising at the end" refusal below exists for the old
+    // Transition → Impact domain, where a maximum at the edge meant the segment peaked AFTER the
+    // ball, outside the metric; P8 is the end of the sequence by definition.
+    const bool throughP8Domain = cfg.throughP8 && dom.toUs > dom.refUs();
 
     KsNode n;
     n.segment = seg;
@@ -279,8 +308,8 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
         // at impact. The node stays unplaced with no bound: "not in sight".
         const bool entryVacuous = gate.blindFromUs <= dom.fromUs + windowUs;
         const bool exitVacuous  = gate.blindToUs   >= dom.toUs   - windowUs;
-        if (atEntry && !entryVacuous) n.peakNoEarlierThanMs = double(dom.toUs - gate.blindFromUs) * 1e-3;
-        if (atExit  && !exitVacuous)  n.peakNoLaterThanMs   = double(dom.toUs - gate.blindToUs) * 1e-3;
+        if (atEntry && !entryVacuous) n.peakNoEarlierThanMs = double(dom.refUs() - gate.blindFromUs) * 1e-3;
+        if (atExit  && !exitVacuous)  n.peakNoLaterThanMs   = double(dom.refUs() - gate.blindToUs) * 1e-3;
         // STILL RISING AT THE END OF THE DOMAIN (a route with no blind band). The highest rate in
         // [transition, impact] sits at impact and the curve is still climbing into it: the peak is
         // after the ball, where this metric is not defined. "No earlier than 0 ms before impact"
@@ -290,7 +319,7 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
         // (pair_span_turn_20260920.md G5), and the down-the-line hip confidence falls by 0.12 in
         // exactly that window.
         bool risingAtEnd = false;
-        if (gate.endEdgeBound) {
+        if (gate.endEdgeBound && !throughP8Domain) {
             // The windowed mean of the valid samples ending at `tEnd`.
             const auto windowMean = [&](int64_t tEnd, double &out) {
                 double sum = 0.0; int cnt = 0;
@@ -320,7 +349,9 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
                 risingAtEnd = isMax;
             }
         }
-        if (risingAtEnd) n.peakNoEarlierThanMs = 0.0;
+        // Since 2026-10-02 the domain runs to P8 (sequence.throughP8), so "the end" is P8 and the
+        // bound is NEGATIVE — still rising N ms after the ball. Without P8 it is 0, as before.
+        if (risingAtEnd) n.peakNoEarlierThanMs = double(dom.refUs() - dom.toUs) * 1e-3;
         // Placed only when the σ is inside the threshold, the route is allowed to place this
         // segment at all (§9 / §12), and the peak was in sight. The attempt is kept for the trace.
         // ⚠ `gate.may` GATES THE RING, NEVER THE BOUND. Every bound above is computed before this
@@ -1187,13 +1218,29 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
     Domain dom;
     if (const std::optional<int64_t> tr = phaseTimeOpt(phases, Phase::Transition)) dom.fromUs = *tr;
     else if (const std::optional<int64_t> tp = phaseTimeOpt(phases, Phase::Top))   dom.fromUs = *tp;
-    dom.toUs = impactUs;
+    dom.toUs     = impactUs;
+    dom.impactUs = impactUs;
+    // THROUGH P8 (Mark, 2026-10-02): the sequence runs on to P8, shaft parallel in the
+    // follow-through, so a segment can peak either side of the ball — on the two-camera swings the
+    // pelvis and chest were still speeding up AT impact on every one (§13), and a domain that
+    // ends there can only say "rising". P8 from the ladder, else the track's own P8 knot; with
+    // neither the domain ends at impact as it always did.
+    int64_t p8Us = -1;
+    if (cfg.throughP8) {
+        if (const std::optional<int64_t> p8 = phaseTimeOpt(phases, Phase::ShaftParallelThrough)) p8Us = *p8;
+        else if (in.shaft && in.shaft->valid)
+            for (const ShaftPosition &p : in.shaft->positions)
+                if (p.p == 8) { p8Us = p.t_us; break; }
+        if (p8Us > impactUs) dom.toUs = p8Us;
+        if (const std::optional<int64_t> p4 = phaseTimeOpt(phases, Phase::Top)) dom.drawFromUs = *p4;
+    }
     if (!dom.ok()) return res;
 
     // The club's domain ends at the P7 KNOT of the track where there is one (the synth rate steps
-    // there — kinematic_series.cpp's maskAfter), else at impact.
+    // there — kinematic_series.cpp's maskAfter), else at impact — unless it runs through P8 with
+    // the others.
     Domain clubDom = dom;
-    if (in.shaft && in.shaft->valid)
+    if (dom.toUs == impactUs && in.shaft && in.shaft->valid)
         for (const ShaftPosition &p : in.shaft->positions)
             if (p.p == 7) { clubDom.toUs = p.t_us; break; }
     if (!clubDom.ok()) clubDom = dom;
@@ -1571,8 +1618,8 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             // A track whose own clubhead speed at impact is not credible is a broken track, and
             // the synth tier's shaft angle on one is a straight line between anchors. The curve is
             // still produced (it is what the track says); the node is not claimed.
-            const bool credible = in.clubheadSpeedImpactMph < 0.0
-                               || in.clubheadSpeedImpactMph >= cfg.minCredibleClubMph;
+            const bool credible = in.clubheadSpeedPeakMph < 0.0
+                               || in.clubheadSpeedPeakMph >= cfg.minCredibleClubMph;
             PlacementGate gate;
             gate.may = credible;
             finishChannel(res.club, differentiate(a, windowUs, 1.0, /*magnitude*/ true),

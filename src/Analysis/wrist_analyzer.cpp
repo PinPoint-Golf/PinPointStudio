@@ -2341,12 +2341,23 @@ struct KinematicSequenceStage : AnalysisStage {
             skelTrunk.camerasCalibrated = lines.trunk.camerasCalibrated;
             if (!skelTrunk.t_us.empty()) in.skelTrunk = &skelTrunk;
         }
-        // The same track's headline linear speed at impact, from the Kinematics stage that ran
-        // before this one — the club node's credibility gate (segment_rates.h).
+        // The same track's PEAK linear speed over the downswing (Top → Impact, or the last 300 ms
+        // without a Top), from the Kinematics stage that ran before this one — the club node's
+        // credibility gate (segment_rates.h). Not the AT-IMPACT sample: on a swing that peaks the
+        // club early that sample has already fallen (07-04 s1: 29 mph at impact, 90 mph peak) and
+        // read as a broken track on 27 of 55 library swings whose club node sat 25–90 ms early.
         for (const MetricSeries &m : ctx.detail->series) {
             if (m.key != QLatin1String("clubheadSpeed")) continue;
+            int64_t fromUs = in.impactUs - 300000;
             for (const PhaseSample &ps : m.phaseSamples)
-                if (ps.phase == Phase::Impact) in.clubheadSpeedImpactMph = ps.value;
+                if (ps.phase == Phase::Top) fromUs = ps.t_us;
+            double peak = -1.0;
+            for (size_t i = 0; i < m.t_us.size() && i < m.value.size(); ++i) {
+                if (!m.valid.empty() && !m.valid[i]) continue;
+                if (m.t_us[i] < fromUs || m.t_us[i] > in.impactUs) continue;
+                if (std::isfinite(m.value[i])) peak = std::max(peak, m.value[i]);
+            }
+            in.clubheadSpeedPeakMph = peak;
         }
 
         const SegmentRatesResult r =

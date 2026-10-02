@@ -803,13 +803,19 @@ inline constexpr double       kGyroNoiseDps      = 2.0;      // sequence.gyroNoi
 //     the derivative reads ±1000 °/s inside 30 ms of the transition. A segment that has just
 //     reversed is not at its peak rate two windows later (Cheetham's thorax peaks ~200 ms after
 //     it turns). Such a node is neither placed nor bounded.
-//   kMinCredibleClubMph — the club node is placed only when the same track's clubhead speed at
-//     impact is credible; a 23 mph "impact" is a broken track, and its shaft-angle rate is the
-//     synth tier's straight line between anchors, not a swing.
+//   kMinCredibleClubMph — the club node is placed only when the same track's PEAK clubhead
+//     speed over the downswing is credible; a track that never reaches 40 mph is broken, and its
+//     shaft-angle rate is the synth tier's straight line between anchors, not a swing. (Until
+//     2026-10-02 this read the AT-IMPACT sample, which a club peaking early had already let fall
+//     below the floor: 27 of 55 library swings lost a sound club node to it.)
 inline constexpr bool         kFaceOnTrunkPlacement = true;   // sequence.faceOnTrunkPlacement
 inline constexpr double       kSightedTurnDeg       = 20.0;   // sequence.sightedTurnDeg
 inline constexpr double       kMinAfterReversalMs   = 60.0;   // sequence.minAfterReversalMs
 inline constexpr double       kMinCredibleClubMph   = 40.0;   // sequence.minCredibleClubMph
+//   kThroughP8 — the sequence domain runs Transition → P8 (shaft parallel, follow-through), so a
+//     peak may fall either side of impact and the curves stop at P8. Mark, 2026-10-02. false =
+//     the old Transition → Impact domain (and the club's P7-knot end).
+inline constexpr bool         kThroughP8            = true;   // sequence.throughP8
 
 // --- The PAIRED face-on + down-the-line trunk route (kinematic_sequence_design.md §5.2, and
 //     docs/research/data/kinematic_sequence/pair_span_turn_20260920.md, which measured it

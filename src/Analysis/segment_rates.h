@@ -112,6 +112,7 @@ struct SegmentRatesConfig {
     double  sightedTurnDeg   = tuned::sequence::kSightedTurnDeg;    // sequence.sightedTurnDeg — |turn| below ⇒ blind band
     double  minAfterReversalMs = tuned::sequence::kMinAfterReversalMs; // sequence.minAfterReversalMs — a sighted trunk peak closer to a sign change is a spike
     double  minCredibleClubMph = tuned::sequence::kMinCredibleClubMph; // sequence.minCredibleClubMph
+    bool    throughP8          = tuned::sequence::kThroughP8;          // sequence.throughP8 — domain Transition→P8, not →Impact
     // The paired face-on + down-the-line trunk route. `pairTrunkPlacement` is the pair's OWN §9
     // gate — `faceOnTrunkPlacement` governs the span rung and nothing else.
     bool    pairTrunkEnabled   = tuned::sequence::kPairTrunkEnabled;   // sequence.pairTrunk.enabled
@@ -162,6 +163,7 @@ struct SegmentRatesConfig {
         apply(ov, "sequence.sightedTurnDeg",    c.sightedTurnDeg);
         apply(ov, "sequence.minAfterReversalMs", c.minAfterReversalMs);
         apply(ov, "sequence.minCredibleClubMph", c.minCredibleClubMph);
+        apply(ov, "sequence.throughP8",          c.throughP8);
         apply(ov, "sequence.pairTrunk.enabled",   c.pairTrunkEnabled);
         apply(ov, "sequence.pairTrunk.placement", c.pairTrunkPlacement);
         apply(ov, "sequence.pairMinCorr",         c.pairMinCorr);
@@ -258,9 +260,11 @@ struct SegmentRatesInputs {
     const ShaftTrack2D            *shaft   = nullptr;   // face-on club track (check ->valid)
     const std::vector<PhaseEvent> *phases  = nullptr;
     int64_t                        impactUs = -1;
-    // The same track's clubhead speed at impact (mph), when the kinematics stage produced one;
-    // −1 = unknown. Below `minCredibleClubMph` the club node is left unplaced (design §12).
-    double                         clubheadSpeedImpactMph = -1.0;
+    // The same track's PEAK clubhead speed over the downswing (mph), when the kinematics stage
+    // produced one; −1 = unknown. Below `minCredibleClubMph` the club node is left unplaced
+    // (design §12). Was the at-impact sample until 2026-10-02, which an early-peaking club had
+    // already let fall below the floor.
+    double                         clubheadSpeedPeakMph = -1.0;
     // The DOWNSWING plane as the two-camera shaft fusion MEASURED it (shaft_fusion.h PlaneFit,
     // only when it was `offered`), in the face-on de-projection's own terms: minor/major ratio and
     // node bearing (rad, image atan2). When present the CLUB's face-on angle is de-projected

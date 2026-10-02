@@ -637,10 +637,10 @@ int main()
             SegmentRatesInputs bad;
             bad.pose = &pose; bad.frameW = kW; bad.frameH = kH; bad.leadIsLeft = true;
             bad.shaft = &shaft; bad.phases = &ph; bad.impactUs = kImpactUs;
-            bad.clubheadSpeedImpactMph = 20.0;
+            bad.clubheadSpeedPeakMph = 20.0;
             const SegmentRatesResult r = buildSegmentRates(bad, cfg);
             const KsNode *c = nodeOf(r, SeqSegment::Club);
-            CHECK("§7 a track whose clubhead speed at impact is not credible produces the curve but no club node",
+            CHECK("§7 a track whose downswing peak clubhead speed is not credible produces the curve but no club node",
                   r.club.produced() && c && !c->placed);
         }
         CHECK("§7 segmentRateSeries lists the produced channels only",
@@ -844,6 +844,33 @@ int main()
               rp && rp->peakNoEarlierThanMs == 0.0);
         CHECK("§9c still rising at impact: no LATER bound is claimed",
               rp && !std::isfinite(rp->peakNoLaterThanMs));
+
+        // (c′) THROUGH P8 (2026-10-02). The same late pelvis with a P8 on the ladder 90 ms after
+        //      impact: the domain runs to P8, so the peak 30 ms AFTER the ball is a node, and the
+        //      curve stops at P8. With the switch off the domain still ends at impact.
+        {
+            std::vector<PhaseEvent> ph8 = ph;
+            ph8.push_back({ Phase::ShaftParallelThrough, kImpactUs + 90000, 1.f });
+            SegmentRatesInputs in;
+            in.pose = &rising.fo; in.frameW = kW; in.frameH = kH; in.leadIsLeft = true;
+            in.poseDtl = &rising.dtl; in.dtlFrameW = kWD; in.dtlFrameH = kHD;
+            in.shaft = &shaft; in.phases = &ph8; in.impactUs = kImpactUs;
+            const SegmentRatesResult r8 = buildSegmentRates(in, cfgT);
+            show("§9c′", r8);
+            const KsNode *p8 = nodeOf(r8, SeqSegment::Pelvis);
+            CHECK("§9c′ through P8: the late pelvis is PLACED after impact, within 8 ms of the truth",
+                  p8 && p8->placed && p8->beforeImpactMs < 0.0 && msFromTruth(p8, late) <= 8.0);
+            CHECK("§9c′ through P8: the pelvis curve stops at P8",
+                  !r8.pelvis.series.t_us.empty() && r8.pelvis.series.t_us.back() <= kImpactUs + 90000);
+            CHECK("§9c′ through P8: …and starts at P4, the top",
+                  !r8.pelvis.series.t_us.empty() && r8.pelvis.series.t_us.front() >= kTopUs);
+            SegmentRatesConfig off = cfgT;
+            off.throughP8 = false;
+            const SegmentRatesResult r0 = buildSegmentRates(in, off);
+            const KsNode *p0 = nodeOf(r0, SeqSegment::Pelvis);
+            CHECK("§9c′ throughP8 off: still 'not before impact', as before",
+                  p0 && !p0->placed && p0->peakNoEarlierThanMs == 0.0);
+        }
 
         // (d) GATE G1 — THE OBSERVABLE MUST BE SIGNED. A fixture whose pelvis squares up well
         //     before impact: from 10° closed, the line crosses square ~48 ms before its rate
