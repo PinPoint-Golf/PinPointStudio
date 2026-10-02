@@ -1588,6 +1588,27 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
     return res;
 }
 
+std::vector<MetricSeries> sequencePeakTimeSeries(const KinematicSequence &ks)
+{
+    std::vector<MetricSeries> out;
+    for (const KsNode &n : ks.nodes) {
+        if (!n.placed || (n.segment != SeqSegment::Pelvis && n.segment != SeqSegment::Thorax)) continue;
+        const bool pel = n.segment == SeqSegment::Pelvis;
+        MetricSeries m;
+        m.key   = pel ? QStringLiteral("pelvisPeakTime") : QStringLiteral("thoraxPeakTime");
+        m.label = pel ? QStringLiteral("Pelvis speed peak") : QStringLiteral("Chest speed peak");
+        m.unit  = QStringLiteral("ms");
+        PhaseSample ps { Phase::Impact, ks.impactUs, double(n.tPeakUs - ks.impactUs) / 1000.0, QString() };
+        ps.sigma     = n.tSigmaMs;
+        ps.sigmaKind = uint8_t(SigmaKind::Propagated);
+        m.phaseSamples.push_back(ps);
+        m.sigma     = n.tSigmaMs;
+        m.sigmaKind = uint8_t(SigmaKind::Propagated);
+        out.push_back(std::move(m));
+    }
+    return out;
+}
+
 std::vector<MetricSeries> segmentRateSeries(const SegmentRatesResult &res)
 {
     std::vector<MetricSeries> out;

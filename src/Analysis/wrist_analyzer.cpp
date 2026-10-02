@@ -2357,6 +2357,9 @@ struct KinematicSequenceStage : AnalysisStage {
         }
         for (MetricSeries &m : segmentRateSeries(r))
             ctx.detail->series.push_back(std::move(m));
+        if (SegmentRatesConfig::fromOverrides(ctx.job.tuningOverrides).peakTimes)
+            for (MetricSeries &m : sequencePeakTimeSeries(r.sequence))
+                ctx.detail->series.push_back(std::move(m));
         ctx.detail->kinematicSequence = r.sequence;
 
         QString placed;

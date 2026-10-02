@@ -898,6 +898,11 @@ inline constexpr double       kSkel3dMinUsableFrac  = 0.8;    // sequence.skel3d
 inline constexpr bool         kSkel3dTrunk          = true;   // sequence.skel3d.trunk
 inline constexpr bool         kSkel3dPlacement      = true;   // sequence.skel3d.placement
 inline constexpr bool         kSkel3dThoraxPlacement = false; // sequence.skel3d.thoraxPlacement
+// The PLACED trunk nodes' instants as point-in-time metrics (pelvisPeakTime / thoraxPeakTime, ms
+// relative to impact, σ = the node's σ_t) — what the diagnostics' `sequence_order` Order test reads
+// (it compares event TIMES; it was fed peak ANGLES until 2026-10-02). An unplaced node emits nothing,
+// so the characteristic is honestly not assessable where the sequence could not place both.
+inline constexpr bool         kPeakTimes            = true;   // sequence.peakTimes
 } // namespace sequence
 
 // --- Club delivery from a face-on camera (src/Analysis/club_delivery.h) -------

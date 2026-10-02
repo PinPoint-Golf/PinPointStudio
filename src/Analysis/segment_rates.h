@@ -132,6 +132,7 @@ struct SegmentRatesConfig {
     bool    skel3dTrunk            = tuned::sequence::kSkel3dTrunk;            // sequence.skel3d.trunk
     bool    skel3dPlacement        = tuned::sequence::kSkel3dPlacement;        // sequence.skel3d.placement
     bool    skel3dThoraxPlacement  = tuned::sequence::kSkel3dThoraxPlacement;  // sequence.skel3d.thoraxPlacement
+    bool    peakTimes              = tuned::sequence::kPeakTimes;              // sequence.peakTimes
     // The club angle's per-sample σ from the shaft uncertainty pass (sigmaThetaDeg) in place of
     // shaftThetaSigmaRad / conf. A VALUE change, not a σ-only one: the wider σ un-places the club
     // node on some swings (the 1 Oct sigma sweep), so it has its own switch, off until Mark rules.
@@ -175,6 +176,7 @@ struct SegmentRatesConfig {
         apply(ov, "sequence.skel3d.trunk",           c.skel3dTrunk);
         apply(ov, "sequence.skel3d.placement",       c.skel3dPlacement);
         apply(ov, "sequence.skel3d.thoraxPlacement", c.skel3dThoraxPlacement);
+        apply(ov, "sequence.peakTimes",              c.peakTimes);
         return c;
     }
 };
@@ -297,6 +299,12 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
 
 // The MetricSeries to append to the swing's series (produced channels only).
 std::vector<MetricSeries> segmentRateSeries(const SegmentRatesResult &res);
+
+// The PLACED pelvis and thorax nodes as point-in-time metrics — `pelvisPeakTime`, `thoraxPeakTime`:
+// one Impact phase sample whose value is the peak instant relative to impact in ms (NEGATIVE =
+// before the ball), σ = the node's σ_t (propagated). The diagnostics' Order test compares event
+// times, so this is the quantity `sequence_order` must read. Unplaced (or bounded) ⇒ nothing.
+std::vector<MetricSeries> sequencePeakTimeSeries(const KinematicSequence &ks);
 
 // ── Pieces exposed for the unit test and for the pair route's future producer ───────────────────
 

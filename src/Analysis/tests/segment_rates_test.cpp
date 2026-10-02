@@ -60,6 +60,8 @@
 //   §12 THE SKELETON'S TRUNK (faceOn+dtl3d, below the pair). Off, the trunk is §2's; on, the pelvis places
 //       within one skeleton frame of the truth through square, opening-positive for either hand, the thorax ring obeys its own
 //       switch, the camera term rides the peak only, and the pair and an IMU both outrank it.
+//   §13 THE PEAK TIMES `sequence_order` reads: placed pelvis/thorax nodes only, ms relative to
+//       impact (negative before), σ = σ_t.
 
 #include "../segment_rates.h"
 #include "../kinematic_sequence_json.h"
@@ -1316,6 +1318,28 @@ int main()
         if (p)
             std::printf("    skel3d pelvis %s t=%.1f ms before impact ±%.1f  peak %.0f ±%.0f\n",
                         p->placed ? "placed  " : "UNPLACED", p->beforeImpactMs, p->tSigmaMs, p->peakDps, p->peakSigmaDps);
+    }
+
+    // ── §13 the placed trunk nodes' instants (pelvisPeakTime / thoraxPeakTime) ─────────────────
+    {
+        const std::vector<MetricSeries> imuT = sequencePeakTimeSeries(imu.sequence);
+        const auto find = [](const std::vector<MetricSeries> &v, const char *k) -> const MetricSeries * {
+            for (const MetricSeries &m : v) if (m.key == QLatin1String(k)) return &m;
+            return nullptr;
+        };
+        const MetricSeries *pp = find(imuT, "pelvisPeakTime"), *tp = find(imuT, "thoraxPeakTime");
+        const KsNode *pn = nodeOf(imu, SeqSegment::Pelvis);
+        CHECK("§13 IMU (both placed): both peak times, one Impact sample each",
+              pp && tp && pp->phaseSamples.size() == 1 && tp->phaseSamples.size() == 1
+              && pp->phaseSamples[0].phase == Phase::Impact);
+        CHECK("§13 the value is the instant relative to impact, NEGATIVE before the ball (≈ −87 ms)",
+              pp && near(pp->phaseSamples[0].value, -87.0, 5.0) && tp && tp->phaseSamples[0].value > pp->phaseSamples[0].value);
+        CHECK("§13 its σ is the node's σ_t, propagated",
+              pp && pn && pp->phaseSamples[0].sigma && *pp->phaseSamples[0].sigma == pn->tSigmaMs
+              && pp->phaseSamples[0].sigmaKind == uint8_t(SigmaKind::Propagated));
+        CHECK("§13 no arm or club peak time — the order test reads the trunk only", imuT.size() == 2);
+        const std::vector<MetricSeries> foT = sequencePeakTimeSeries(faceOn.sequence);
+        CHECK("§13 face-on: the bounded (unplaced) pelvis emits nothing", !find(foT, "pelvisPeakTime"));
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
