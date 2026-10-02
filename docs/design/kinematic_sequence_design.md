@@ -178,7 +178,7 @@ may be measured while the thorax is estimated, and one ladder per metric could n
 |---|---|---|---|
 | `pelvisAngularSpeed` | `pelvisImu` — Inertial | `faceOn+dtl` — Triangulated, **LIVE 2026-09-20, Estimated, uncalibrated** | `faceOn` — Projected, **gated by §9** |
 | `thoraxAngularSpeed` | `thoraxImu` — Inertial | `faceOn+dtl` — Triangulated, **LIVE 2026-09-20, Estimated, uncalibrated**; ring OFF, bound only | `faceOn` — Projected, **gated by §9** |
-| `leadArmAngularSpeed` | `leadArmImus` — Inertial (LeadForearm; LeadUpperArm when bound) | `faceOn+dtl` — Triangulated, PLANNED | `faceOn` — Projected |
+| `leadArmAngularSpeed` | `leadArmImus` — Inertial (LeadForearm; LeadUpperArm when bound) | `faceOn+dtl3d` — the two-camera skeleton's shoulder→wrist line in the arm's own plane, **LIVE 2026-10-02, Estimated** (§15) | `faceOn` — Projected |
 | `clubAngularSpeed` | `clubSensorFused` — Fused (Club role + track) | `faceOn+dtl` — the face-on angle de-projected through the FUSED two-camera downswing plane, BUILT 2026-09-21 (§14) | `faceOnClub` — Projected |
 
 > **Amended 2026-09-20.** The two trunk rungs are live. They are **Estimated, not Direct**, because
@@ -1121,10 +1121,23 @@ The chart no longer dashes the curve outside transition → impact (`shaft_fusio
 
 ---
 
-## 15. A skeleton rung, designed (2026-10-02)
+## 15. The skeleton's lead arm (2026-10-02)
 
-`ks_skeleton3d_route_design.md` adds a two-camera **skeleton** rung, `faceOn+dtl3d`, to the pelvis,
-thorax and lead-arm series. It sits below the IMU and above the pair, and it reads the same skeleton3d
-lines as the rotation route (`body_rotation_estimation.md` §7). The §4 table changes when it is built.
-Not built yet; it starts with an offline measurement (K0) on 07-04.
+`ks_skeleton3d_route_design.md` designed a two-camera **skeleton** rung, `faceOn+dtl3d`, for the
+pelvis, thorax and lead arm. Its offline measurement (K0,
+`docs/research/data/kinematic_sequence/skeleton_rate_k0_20261002.md`) split that design.
 
+- **The lead arm is built.** It reads the shoulder → wrist direction from skeleton3d's fit and
+  measures its angle in the arm's own downswing plane, the least-variance axis of the directions,
+  so nothing about the shaft's plane or the face-on ellipse is assumed. On 07-04 its node sat a
+  median 6.7 ms from the face-on arm's. It ranks below a lead-arm IMU and above the face-on arm, and
+  it steps aside when switched off (`sequence.skel3d.leadArm`), when less than 80% of the domain is
+  usable, or when it can neither place nor bound. The assumed camera widens the peak's σ by 10%
+  of the peak (3% once calibrated), and never its instant.
+- **The trunk is not built.** The fit coasts through impact: the down-the-line hips overlap just
+  after the ball, the fit discounts them, and the coast reaches about 13 ms back before impact.
+  A ring on it would have placed a pelvis node a median 67 ms before impact on 13 of 15 swings.
+  The pair's pre-impact data is clean (its |ψ| reaches 10° of square only after impact, on 15 of
+  15), so the trunk stays IMU → pair → face-on.
+- `KinematicSequenceStage` now runs after `Skeleton3DStage` and `BodyRotationTriangulatedStage`, so
+  the four rate series sit later in a document's series array.

@@ -1,6 +1,15 @@
 # The kinematic sequence from the two-camera skeleton
 
-**Status:** design, 2 October 2026. Not started. This document is meant to be built from.
+**Status:** 2 October 2026. **K0 ran and changed the plan.** The skeleton's pelvis and thorax rates
+coast through impact, because the down-the-line hips overlap just after the ball
+(`docs/research/data/kinematic_sequence/skeleton_rate_k0_20261002.md` §8). The trunk rung is
+therefore **not built**: the pelvis and thorax stay IMU → pair → face-on.
+
+**What is built is the lead-arm rung** (§5.3, `faceOn+dtl3d`), plus the shared extractor (§5.1),
+the stage reorder (§8) and the catalogue (§9). Sections 4, 5.2, 7 and 10 describe the trunk rung as
+designed and are kept for the record. Two follow-ons were agreed with Mark on 2 October: a
+time-boxed look at what holds the fitted pelvis back, and an honesty guard on the rotation route's
+pelvis near impact.
 **Parent documents:** `kinematic_sequence_design.md` (the sequence, its routes and its gates) and
 `body_rotation_estimation.md` §7 (the two-camera rotation route this copies).
 
@@ -56,7 +65,10 @@ reasons:
   face-on + DTL **separation pair**, then the face-on span.
 - **It runs too early.** `KinematicSequenceStage` runs *before* `Skeleton3DStage` in both profiles.
 - **The weak link is the pair.** On 07-04 s8 the pair's pelvis rate was valid on only 43 of 271
-  samples, and invalid from impact on. Across 21 two-camera swings it placed **no** trunk node. The
+  samples, and invalid from impact on. *(Corrected by K0, 2 October: those 43 samples ARE the
+  sequence's domain. The pair only computes Transition/Top → Impact, and within it the pair is valid
+  on 100% of samples on all 15 swings. Continuity inside the domain is not what the skeleton adds;
+  `skeleton_rate_k0_20261002.md` §1.)* Across 21 two-camera swings it placed **no** trunk node. The
   shoulder leg relabels near the top, so the thorax ring is off (`kinematic_sequence_design.md`
   §13.6).
 
@@ -425,7 +437,11 @@ This is stated now, so the result is not read as a failure later.
   offline extension past impact confirmed, that Mark's pelvis peaks about +39 ms and his thorax
   about +29 ms **after** impact (parent §13.4). A better instrument will not move a real peak. What
   the skeleton route adds is a **continuous** curve through impact, with a σ, from the same line as
-  the rotation cards and `hip_stall`, instead of 43 usable samples out of 271.
+  the rotation cards and `hip_stall`, instead of 43 usable samples out of 271. *(K0, 2 October: the skeleton's trunk rates dip at impact, and a pelvis ring would
+  place a node 67 ms before impact on 13/15 swings. Just after impact the DTL hips overlap; the fit
+  discounts them and coasts, and the coast reaches back before impact. The pair's pre-impact data
+  is clean, so its "still rising" stands. The skeleton trunk rung is not built;
+  `skeleton_rate_k0_20261002.md` §8.)*
 - **The thorax magnitude will look high.** It inherits the 103° top turn, which is either real or
   the assumed DTL geometry. Calibration decides which (`body_rotation_estimation.md` §7.1). That is
   why its ring stays off.
