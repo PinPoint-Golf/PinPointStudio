@@ -425,6 +425,57 @@ Club at analysis time, for §9 and for any future capture that predates a placem
 > data issue". On some swings the arm curve climbs again into P8 and becomes the max before P8
 > (07-04 s8: +80 ms). Suspect the arm keypoints / skeleton through the follow-through, not the
 > rule.
+>
+> **2 Oct, later — what the rise is (investigated on 07-04, hypotheses tested on s8 alone).**
+> Two things, and only the first is a defect.
+>
+> 1. **The pose smoother coasts off the wrist (defect, cause confirmed).** A detection the 3σ gate
+>    rejects makes the filter coast on its own velocity AND acceleration, so the smoothed point
+>    runs away from the joint and later detections fall further outside the gate. On s8 the
+>    face-on lead wrist leaves its detections at +60 ms (raw confidence 0.9) and is 55 px off by
+>    +100 ms. The skeleton follows it (wrist 7.5 m/s, hands 14–20 cm apart on one club), its arm
+>    node then fails to place, the rung steps aside, and the face-on arm — the same coasted
+>    wrist — reports the "peak" at +80 ms. Replaying the studio's stored keypoints reproduces the
+>    library node exactly (face-on, +80 ms, 794 °/s, unplaced). With the smoother made to accept a
+>    detection after three consecutive rejections (`poseSmooth.reacquireRun = 3`) the arm is back on `faceOn+dtl3d`, placed at −107 ms ±11, 848 °/s; the
+>    wrist is within 13 px of its detections and the hands 11–12 cm apart. The same coast is in the
+>    down-the-line wrists through the downswing on most swings (up to 100 px). Ten of the 15
+>    swings carry some face-on lead-wrist coast after +60 ms (9–28 px); s8 is the worst by 2×.
+> 2. **The lead elbow folds after impact (real, on this golfer).** The face-on video shows the
+>    lead arm bent by +80…+100 ms, and the fit flexes the elbow 13° → 40–60° over the same span on
+>    15 of 15 swings. The rung measures the shoulder → wrist line, which keeps turning with the
+>    forearm as the elbow folds. With the coast removed, s8 reads ~580 °/s at impact, ~700 at
+>    +40…+60 ms and ~660 at P8, against the 850 peak at −107 ms: a bump, below the peak. The
+>    face-on image rate alone is flat at 450–550 °/s from impact to +70 ms on the swings checked.
+>    An upper-arm sensor (Cheetham's segment, and the IMU route's preferred one) would not carry
+>    the forearm's share.
+>
+> **The re-acquisition needs its own confidence bar (`poseSmooth.reacquireConfMin`, 0.7).**
+> Accepting ANY detection after three rejections fixed the wrist and broke the trail shoulder: at
+> the top its detection flips between two places 70 px apart at confidence ~0.55, re-acquiring on
+> those moved the smoothed shoulder 100 px and `thoraxRotation` at the top 91.6° → 108.7°. With
+> the bar, only confident detections count towards the run and only one can end it: the arm
+> result is unchanged (−107 ms ±12, 853 °/s) and the trunk readings at the top do not move.
+> Against a fix-off control on s8, what still changes besides the arm: `handPathLoop` 33.7 → 23.2,
+> `transitionPlaneDelta` −7.2° → −3.6°, the down-swing plane tilt 17.5° → 15.3°, `lowPointAhead`
+> −1.4 → −0.8 in, and the shaft angle's incidental sample at impact (84° → 56°, where the control's
+> series reads 56, 84, 77, 57 and the fix's 56, 60, 62, 57). Unjudged: one swing, no truth.
+>
+> Rejected on s8: the plane projection (the 3-D rate matches the in-plane one); skeleton3d's fast
+> window and grip term ending at impact + 60 ms (extending both to +200 ms changed nothing); an
+> elbow acceleration prior (the fold is steady, ~550 °/s, not a spike).
+>
+> **Turned ON the same day** (`tuned::pose::smoother::kReacquireRun` 3, `kReacquireConfMin` 0.7),
+> on the s8 review in the app. The shaft tracker reads the smoothed hands, so `kShaftStageVersion`
+> went 6 → 7 and a re-analysis re-runs the shaft. `poseSmooth.reacquireRun = 0` is the parity
+> switch. Still owed: the before/after on the corpus with a control. Not decided: whether the
+> camera rung should read the upper arm once the elbow starts to fold.
+>
+> **2 Oct, later — the tile folds, and the chart opens on its curves.** The tile's title line
+> (caret, SEQUENCE, verdict) toggles it; folded, only that line shows and the plot takes the
+> height. The state persists with the CONTROLS / CHART / SUMMARY folds (`…:sequence`). A family
+> whose curves cover only part of the swing opens on the P-positions around them — P4 → P8 here —
+> and that span is a chip beside the swing's (`ChartMetrics::dataWindow`).
 
 
 **The preset is free.** `ChartMetrics::seriesGroups()` already builds cross-cutting presets from

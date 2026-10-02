@@ -931,6 +931,27 @@ persisted `value[]`. The measured ΔP4 (median 0.12 σ, max 0.34 σ) is what kee
 old smoothing, and a systematic shift there would have put it in scope rather than being absorbed
 silently. Re-check that if the full-corpus confirmation moves P4 further.
 
+### 2.19a `poseSmooth.reacquireRun` / `poseSmooth.reacquireConfMin` — re-acquisition (**ON** 2026-10-02)
+
+| key | default | meaning |
+|---|---|---|
+| `poseSmooth.reacquireRun` | `3` | consecutive gate-rejected CONFIDENT detections after which the next confident one is accepted regardless of the 3σ gate. **`0` is the parity switch** (the smoother before this). |
+| `poseSmooth.reacquireConfMin` | `0.7` | the confidence a detection needs to count towards the run, and to end it. A rejected detection below it breaks the run. |
+
+Why it exists: a gate-rejected step coasts on the filter's own velocity and acceleration, so the
+smoothed joint runs away and every later detection lands further outside the gate, for up to the
+250 ms coast budget. On 07-04 s8 the face-on lead wrist was 55 px off confident detections 100 ms
+after impact, and the kinematic sequence put the lead arm's peak after the ball.
+
+Why the confidence bar: at the top the trail shoulder's detection flips between two places 70 px
+apart at confidence ~0.55; re-acquiring on those moved `thoraxRotation` at the top 17° on the same
+swing. The wrists the rule exists for are detected at 0.85–0.95 when the filter loses them.
+
+**Evidence is one swing** (07-04 s8, against a fix-off control on the same keypoints); the record
+and the list of readings that moved are in `docs/design/kinematic_sequence_design.md` §8. The shaft
+tracker reads the smoothed hands, so `kShaftStageVersion` went 6 → 7 with it and a re-analysis
+re-runs the shaft. Not yet measured on the corpus.
+
 ### 2.20 Constants tuned on ARRIVAL-STAMPED camera frames (2026-09-16) — measure before trusting
 
 ⚠ **Not a parameter group: a list of parameters whose evidence moved under them.** Until 2026-09-16

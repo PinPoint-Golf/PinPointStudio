@@ -139,6 +139,7 @@ The strengths policy dates from 56d9eab7 (2026-06-15) and moved into the header 
 | `smoother::kLegsSigmaScale` / `kLegsJerkScale` (PTC:343) | `poseSmooth.legs*Scale` | **mode** 1.0 (inert) | Static σ scales on keypoints 11–16. |
 | `smoother::adapt::kMode` (PTC:378) | `poseSmooth.adapt.mode` | **"accel"** | Motion-adaptive RTS window: `off` \| `accel` \| `innov`. `off` is the exact parity switch. |
 | `smoother::adapt::kGroup` (PTC:379) | `poseSmooth.adapt.group` | "legs" | Which keypoints adapt (the WholeBody tail never does). |
+| `smoother::kReacquireRun` / `kReacquireConfMin` | `poseSmooth.reacquireRun` / `.reacquireConfMin` | **LIVE** 3 / 0.7 (2026-10-02) | Re-acquisition: after 3 consecutive gate-rejected detections at confidence ≥ 0.7 the next such detection is accepted, so a joint the filter coasted off is taken back. `reacquireRun` 0 is the parity switch. `kShaftStageVersion` 7. Record: `kinematic_sequence_design.md` §8. |
 | `PoseRunOptions::twoPass` (`pose_runner.h:85`) | — | false, **set true at runtime** | Two-pass pose. `wrist_analyzer.cpp:438` sets it on camera-only jobs unless `fullWindow` (bbbe8340). |
 
 History:
