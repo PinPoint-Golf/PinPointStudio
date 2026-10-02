@@ -426,6 +426,17 @@ int main(int argc, char **argv)
         // never noted their session type. Everything else stays production-default.
         if (cli.isSet(optSession))
             ropts.sessionTypeOverride = cli.value(optSession).toInt();
+        // --params with --write-back: a REVIEW write-back, the one way a swing's document can be
+        // made by something other than the production defaults. For putting a candidate change in
+        // front of the app on one swing (back the document up first); never for a library pass.
+        if (cli.isSet(optParams)) {
+            QFile pf(cli.value(optParams));
+            if (!pf.open(QIODevice::ReadOnly))
+                return fail("cannot open params file");
+            ropts.tuningOverrides = flattenParams(QJsonDocument::fromJson(pf.readAll()).object());
+            std::fprintf(stderr, "[swinglab] write-back with %d tuning override(s) — NOT the production defaults\n",
+                         int(ropts.tuningOverrides.size()));
+        }
         const ReanalyzeResult r = reanalyzeSwingDir(swingDir, ropts);
         if (!r.ok || !r.analysis.detail)
             return fail(QStringLiteral("re-analysis failed: ")
