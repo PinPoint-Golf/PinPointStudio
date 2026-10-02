@@ -318,7 +318,9 @@ int main(int argc, char **argv)
     // 135 -> 136 on 2026-09-14: m_pelvisSinkTop, noProducer on a belt-line series (the hip keypoints
     // cannot read a sink; see its gapReason).
     // 136 -> 137 on 2026-09-23: m_handPathLoop, the down-the-line hand loop over_the_top now reads.
-    check(pack.measures.size() == 138, "…and 138 measures");   // +m_shaftLieDelta
+    // 138 -> 140 on 2026-10-02: m_pelvisPeakTime, m_thoraxPeakTime — sequence_order's Order test reads
+    // event TIMES, and was fed rotation peak ANGLES until then.
+    check(pack.measures.size() == 140, "…and 140 measures");   // +m_shaftLieDelta
     check(!norms->norms().norms.empty(), "the shipped norm set loaded");
 
     QTemporaryDir tmp;
@@ -586,7 +588,10 @@ int main(int argc, char **argv)
     // 56 -> 55 on 2026-09-23: over_the_top. This fixture is face-on only and the condition now
     // reads the down-the-line hand loop, so it is Unavailable here rather than assessed off a
     // face-on plane delta whose placeholder corridor could never fire in any case.
-    check(cRich.assessable == 55, "rich_7iron: 55 of 160 conditions assessable (observed)");
+    // 55 -> 54 on 2026-10-02: sequence_order. It now reads the PLACED trunk nodes' instants, and this
+    // face-on fixture places neither, so it is Unavailable — where it used to be "assessed" by
+    // comparing two rotation angles, which its Order test cannot read.
+    check(cRich.assessable == 54, "rich_7iron: 54 of 160 conditions assessable (observed)");
     // HOW MANY OF THOSE ANSWERS RESTED ON EVIDENCE THE CAPTURE DID NOT HAVE. A conjunction
     // settled by one known-false term is a real negative, but it is a different kind of "no"
     // from one where every term was read, and it can only ever be a no. Pinned because the

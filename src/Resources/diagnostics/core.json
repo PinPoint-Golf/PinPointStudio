@@ -371,6 +371,32 @@
       "highMeans": "a larger peak turn away from address between the top and impact"
     },
     {
+      "id": "m_pelvisPeakTime",
+      "kind": "provided",
+      "metricKey": "pelvisPeakTime",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "label": "Pelvis speed peak, ms relative to impact",
+      "unit": "ms",
+      "highMeans": "the pelvis reached its top turning speed later, closer to the ball"
+    },
+    {
+      "id": "m_thoraxPeakTime",
+      "kind": "provided",
+      "metricKey": "thoraxPeakTime",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "label": "Chest speed peak, ms relative to impact",
+      "unit": "ms",
+      "highMeans": "the chest reached its top turning speed later, closer to the ball"
+    },
+    {
       "id": "m_thoracicCurve",
       "kind": "composed",
       "series": {
@@ -2436,8 +2462,8 @@
       "id": "sig_sequenceOrder",
       "test": "order",
       "measures": [
-        "m_pelvisRotPeak",
-        "m_thoraxRotPeak"
+        "m_pelvisPeakTime",
+        "m_thoraxPeakTime"
       ]
     },
     {
