@@ -183,6 +183,8 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
     // The two columns the ladder's new gates are decided on, kept per frame so the
     // trace carries the verdict AND the number behind it.
     std::vector<DtlEvSrc>     evSrcOut(size_t(nf), DtlEvSrc::Ev);
+    // Frames the late-escape rule refused — the HELD tier must not re-publish them.
+    std::vector<char>         lateRefused(size_t(nf), 0);
     std::vector<DtlRevWaiver> revWaived(size_t(nf), DtlRevWaiver::None);
     // The run the LADDER was asked about — after the max() rule, not before it —
     // on every solved frame, published or not. A refused frame's length is the
@@ -589,7 +591,7 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
             s.tier     = DtlTier::Unseen;
             s.thetaRad = dtl::kNan;
             s.gripPx   = QPointF(gx[size_t(i)], gy[size_t(i)]);   // unpublished ⇒ the pose anchor, unmoved
-            if (lateEscape) ++out.lateEscapesRefused;
+            if (lateEscape) { ++out.lateEscapesRefused; lateRefused[size_t(i)] = 1; }
             s.reason   = lateEscape    ? QStringLiteral("corridor escape after P8 — not published")
                        : vetoed        ? QStringLiteral("solved direction runs into a %1")
                                              .arg(QLatin1String(
@@ -659,7 +661,11 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
                                  && dtlMeasured(out.samples[size_t(i - 1)].tier);
             const bool rightOk = j + 1 < n && out.samples[size_t(j + 1)].band == a.band
                                  && dtlMeasured(out.samples[size_t(j + 1)].tier);
-            if (leftOk && rightOk && (j - i + 1) <= cfg.held.maxFrames) {
+            // A refused late escape is a verdict on the frame, not a hole in the
+            // evidence: holding it would publish the escaped θ the refusal kept off.
+            bool anyLate = false;
+            for (int k = i; k <= j; ++k) anyLate = anyLate || lateRefused[size_t(k)];
+            if (leftOk && rightOk && !anyLate && (j - i + 1) <= cfg.held.maxFrames) {
                 const DtlSample& L = out.samples[size_t(i - 1)];
                 const DtlSample& R = out.samples[size_t(j + 1)];
                 for (int k = i; k <= j; ++k) {
