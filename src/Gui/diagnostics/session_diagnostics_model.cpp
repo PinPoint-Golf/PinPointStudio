@@ -1801,12 +1801,19 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
                                                                ? QStringLiteral("↓")
                                                                : QStringLiteral("↑"))
                                                         : QString();
+        // ⚠ SAY WHAT THE TREND IS OF. The test is Kendall on |z| — whether the MISS grows or
+        // shrinks across the session — and it is silent on whether the condition recurs, which
+        // the recurrence line above it already states. "no clear trend" under "15 of 15
+        // measurable shots" read as the panel doubting the pattern; it meant the size held.
         c[QStringLiteral("trendText")] =
-            l.trendKnown ? (l.trend == Trend::Improving ? QStringLiteral("improving")
-                                                          : QStringLiteral("worsening"))
+            l.trendKnown ? (l.trend == Trend::Improving
+                                ? QStringLiteral("improving — the misses are shrinking")
+                                : QStringLiteral("worsening — the misses are growing"))
                           : (l.trendPoints < m_opt.minPointsForTrend
                                  ? QStringLiteral("trend after %1 measurable shots").arg(m_opt.minPointsForTrend)
-                                 : QStringLiteral("no clear trend"));
+                                 : (l.rangeRestricted
+                                        ? QStringLiteral("every firing, holding steady")
+                                        : QStringLiteral("steady — the miss isn't growing or shrinking")));
         c[QStringLiteral("recencyText")] =
             l.resolving
                 ? QStringLiteral("resolving · none in the last %1").arg(l.sinceLastFiring)
