@@ -134,6 +134,12 @@ pp_add_test(lm_session_reductions_test
 # seeded corpus generator (synthetic_session_corpus.h) is test-side and ships in nothing.
 pp_add_test(diagnostic_ledger_test SOURCES diagnostic_ledger_test.cpp)
 
+# Work-ons (work_ons.h) — the per-session selection on top of the ledger (patterns only,
+# movements only, roots before symptoms, the cap of five) and the per-golfer aggregate that
+# backs the home screen's WORK ONS list: the quiet gate, "absence is not improvement", recency
+# weights, easing/cleared, and work_ons.json round-trip. Header-only.
+pp_add_test(work_ons_test SOURCES work_ons_test.cpp)
+
 # Launch monitor ball flight (lm_flight_path.h) — the drag + Magnus integration against
 # the design brief's reference shot, the launch/descent asymmetry that is the only reason
 # the curve is drawn rather than sketched, and the normalisation that pins the drawn
@@ -1166,6 +1172,34 @@ pp_add_test(session_diagnostics_model_test
     AUTOMOC
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
 set_tests_properties(session_diagnostics_model_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+
+# WORK ONS, the join: WorkOnsController over ledgers staged on disk — the catch-up that records
+# sessions which were never "ended", the fingerprint that leaves a current record alone and
+# re-derives a changed one, the pause while a session is live, and the home list's wording off
+# the shipped pack. work_ons_test (above, header-only) proves the two reductions. Same link line
+# as the model test, because the controller derives through the model.
+pp_add_test(work_ons_controller_test
+    SOURCES ${DIAG}/tests/work_ons_controller_test.cpp
+            ${SRC}/Gui/diagnostics/work_ons_controller.cpp
+            ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
+            ${DIAG}/live_measure_source.cpp ${DIAG}/measure_sample.cpp
+            ${DIAG}/characteristic_engine.cpp ${DIAG}/relation_resolver.cpp
+            ${DIAG}/screen_pack.cpp ${DIAG}/drill_pack.cpp
+            ${DIAG_NORM}
+            ${DIAG}/resource_norm_provider.cpp ${DIAG}/file_norm_provider.cpp
+            ${DIAG}/merged_norm_provider.cpp
+            ${DIAG}/resource_pack_provider.cpp ${DIAG}/file_pack_provider.cpp
+            ${DIAG}/merged_pack_provider.cpp
+            ${SRC}/Export/swing_doc.cpp
+            ${SRC}/Export/swing_paths.cpp
+            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
+    LINK    Qt6::Qml
+    AUTOMOC)
+set_tests_properties(work_ons_controller_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
 # regrade_ledger — re-reduce a session's diagnostics.json under the CURRENT pack, headlessly. The

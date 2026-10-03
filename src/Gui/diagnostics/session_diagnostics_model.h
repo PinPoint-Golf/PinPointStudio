@@ -19,6 +19,7 @@
 #pragma once
 
 #include "../../Analysis/diagnostic_ledger.h"
+#include "../../Analysis/work_ons.h"
 #include "../../Diagnostics/characteristic_engine.h"
 #include "../../Diagnostics/relation_resolver.h"
 
@@ -388,6 +389,17 @@ public:
     const std::vector<pinpoint::analysis::ConditionLedger> &ledgerRows()  const { return m_ledgers; }
     const pinpoint::analysis::Explanation                  &explanation() const { return m_explanation; }
     Q_INVOKABLE bool synchronous() const { return m_synchronous; }
+
+    // ── Work-ons (docs/design/work_ons_design.md) ───────────────────────────────────
+    //
+    // This session's 3–5 faults to work on and what it could say about every other condition,
+    // reduced from the SAME ledger the panel draws (work_ons.h) with the pack's kinds and causal
+    // edges marshalled in. A pure read, like conditionDetail(): no ratchet moves and nothing is
+    // written — WorkOnsController decides when to ask and where the answer is kept.
+    pinpoint::analysis::SessionWorkOns sessionWorkOns() const;
+    // What the rows are graded against, so a holder of this model can tell when a record it
+    // derived earlier has gone stale. The same stamp gradedFrom carries.
+    QString contentStamp() const { return computeContentStamp(); }
     // Spin the caller's event loop until every in-flight ingest has landed. Returns false on
     // timeout. A no-op in synchronous mode.
     Q_INVOKABLE bool waitForIdle(int msTimeout = 60000);

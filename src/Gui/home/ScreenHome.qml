@@ -30,6 +30,8 @@ Item {
     // Coming-soon types skip the session wizard and jump straight to their
     // (placeholder) rail screen.
     signal openSessionScreenRequested(int sessionTypeIndex)
+    // A work-on's "review the session" link: load that saved session and show it.
+    signal reviewSessionRequested(string sessionDir)
 
     property int    selectedType: 1   // default to Wrist — the only startable type today
     // Session types not yet implemented: badged "coming soon" tiles that open
@@ -93,6 +95,8 @@ Item {
     // sends a failed guided attempt to the code — which is an offer of a
     // DIFFERENT path and never a retry (11.9c).
     Component.onCompleted: resourceMonitor.refresh()
+
+    onVisibleChanged: if (visible && typeof workOns !== "undefined") workOns.refresh()
 
     Timer {
         interval: 2000
@@ -547,7 +551,21 @@ Item {
                 }
             }
 
-            // ── Section 3: Device readiness ──────────────────────────────────
+            // ── Section 3: Work-ons ──────────────────────────────────────────
+            //
+            // About the athlete, so it sits under the athlete's launcher and above the
+            // hardware; drawn in the DEVICES list's own quiet language. Re-read whenever the
+            // home screen comes back into view — a session may have ended since.
+            Item { width: 1; height: Theme.sp(44); visible: workOnsList.visible }
+
+            HmWorkOns {
+                id: workOnsList
+                visible: athleteController.hasCurrentAthlete
+                height:  visible ? implicitHeight : 0
+                onReviewSessionRequested: (sessionDir) => root.reviewSessionRequested(sessionDir)
+            }
+
+            // ── Section 4: Device readiness ──────────────────────────────────
             Item { width: 1; height: Theme.sp(44) }
 
             Item {

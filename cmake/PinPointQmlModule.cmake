@@ -108,6 +108,7 @@ set(PP_QML_FILES
     # of the home screen.  This is where H3's deleted "File -> Import Session…"
     # menu item went: no menus, no dialogs, and the user never picks a file.
     src/Gui/home/PpcpOfferList.qml
+    src/Gui/home/HmWorkOns.qml
     # H6 — "Pair to my phone": the PPCP-RV pairing code as a QR, in a modal
     # opened by the one button in the DEVICES heading.  It replaced
     # PpcpPairPanel.qml, which was an always-visible inline section; the
@@ -313,6 +314,9 @@ set(PP_QML_SOURCES
     src/Gui/diagnostics/wrist_diagnostics_model.cpp
     src/Gui/diagnostics/session_diagnostics_model.h
     src/Gui/diagnostics/session_diagnostics_model.cpp
+    src/Analysis/work_ons.h
+    src/Gui/diagnostics/work_ons_controller.h
+    src/Gui/diagnostics/work_ons_controller.cpp
     src/Analysis/reference_bands.h
     src/Analysis/reference_bands.cpp
     src/Analysis/wrist_assessment_engine.h

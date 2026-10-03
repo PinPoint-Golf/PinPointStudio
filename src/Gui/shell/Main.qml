@@ -683,6 +683,12 @@ ApplicationWindow {
                     onOpenSessionScreenRequested: function(sessionTypeIndex) {
                         navController.navigate(sessionTypeIndex + 1)
                     }
+                    // A work-on's way into the session that last showed it: the review
+                    // picker's own load, then the screen that draws a loaded session.
+                    onReviewSessionRequested: function(sessionDir) {
+                        sessionReviewController.loadSession(sessionDir)
+                        navController.navigate(root.screenWrist)
+                    }
                 }
                 ScreenPlaceholder { iconText: "◑"; titleText: qsTr("Swing"); ambientBackground: true }      // screenSwing — coming soon
                 ScreenWrist {}                                             // screenWrist — Wrist Motion (sessionType 1)

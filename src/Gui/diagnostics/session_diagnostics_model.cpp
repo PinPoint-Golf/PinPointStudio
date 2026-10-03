@@ -1331,6 +1331,37 @@ void SessionDiagnosticsModel::updateProfile()
     atomicWrite(path, QJsonDocument(root).toJson(QJsonDocument::Compact));
 }
 
+// ── Work-ons ────────────────────────────────────────────────────────────────────────────
+
+// The pack's facts, marshalled into work_ons.h's pack-agnostic inputs: which conditions are
+// movements a golfer can work on, and the authored causal edges. The selection itself is the
+// header's, so the list and the cards beside it are two readings of one ledger.
+SessionWorkOns SessionDiagnosticsModel::sessionWorkOns() const
+{
+    QHash<QString, WorkOnClass> classOf;
+    WorkOnCauses causes;
+    if (m_packProv) {
+        const CharacteristicPack &pack = m_packProv->pack();
+        for (const Condition &c : pack.conditions) {
+            WorkOnClass cls = WorkOnClass::Excluded;
+            switch (c.kind) {
+            case ConditionKind::Fault:
+            case ConditionKind::Setup:    cls = WorkOnClass::Movement; break;
+            case ConditionKind::Delivery: cls = WorkOnClass::Delivery; break;
+            default: break;
+            }
+            classOf.insert(c.id, cls);
+        }
+        for (const Edge &e : pack.edges)
+            if (e.type == EdgeType::Causes) causes.emplace_back(e.from, e.to);
+    }
+
+    SessionWorkOns out = reduceSessionWorkOns(m_shots, m_ledgers, classOf, causes);
+    out.sessionId = QFileInfo(m_sessionDir).fileName();
+    for (WorkOnEntry &e : out.entries) e.name = conditionName(e.id);
+    return out;
+}
+
 // ── Lookups and formatters ──────────────────────────────────────────────────────────────
 
 const ConditionLedger *SessionDiagnosticsModel::ledger(const QString &id) const

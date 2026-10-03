@@ -72,9 +72,11 @@
 #include "llm_controller.h"
 #include "session_controller.h"
 #include "session_review_controller.h"
+#include "work_ons_controller.h"
 #include "shot_controller.h"
 #include "shot_list_model.h"
 #include "../Export/swing_doc.h"
+#include "../Export/swing_paths.h"
 #include "../Export/swing_zip_exporter.h"
 #include "launch_monitor_controller.h"
 #include "shot_processor.h"
@@ -321,6 +323,37 @@ int main(int argc, char *argv[])
                              && sessionReviewController.activeSessionId() == dir)
                              sessionReviewController.loadSession(dir);
                      });
+    // WORK ONS — the faults the current athlete keeps producing, on the home screen
+    // (docs/design/work_ons_design.md). It is handed the athlete's folder, the grade policy and
+    // whether a session is live; it finds stale session records itself, so "end of session" is
+    // nothing more than the pause lifting. The first pass is deferred so it never competes with
+    // the launch.
+    WorkOnsController workOns;
+    {
+        const auto athleteDir = [&appSettings, &athleteController]() -> QString {
+            // Dev seam, like PINPOINT_CORE_PACK: point the list at a folder of sessions that is
+            // not the library, so a probe can exercise the catch-up without writing into it.
+            const QString forced = qEnvironmentVariable("PINPOINT_WORKONS_DIR");
+            if (!forced.isEmpty()) return forced;
+            const QString root = appSettings.athleteLibraryPath();
+            const QString name = athleteController.currentName();
+            if (root.isEmpty() || name.isEmpty()) return {};
+            return root + QStringLiteral("/") + pinpoint::SwingPaths::sanitise(name);
+        };
+        const auto repoint = [&workOns, athleteDir] { workOns.setAthleteDir(athleteDir()); };
+        workOns.setGradePolicy(appSettings.diagnosticsGradePolicy());
+        QObject::connect(&appSettings, &AppSettings::diagnosticsGradePolicyChanged, &workOns,
+                         [&workOns, &appSettings] { workOns.setGradePolicy(appSettings.diagnosticsGradePolicy()); });
+        QObject::connect(&athleteController, &AthleteController::currentAthleteChanged, &workOns, repoint);
+        QObject::connect(&appSettings, &AppSettings::athleteLibraryPathChanged, &workOns, repoint);
+        // Queued: both end-session paths call sessionController.endSession() and THEN
+        // shotProcessor.endSessionFolder(), which may trash a folder that captured nothing.
+        QObject::connect(&sessionController, &SessionController::activeSessionTypeChanged, &workOns,
+                         [&workOns, &sessionController] { workOns.setPaused(sessionController.activeSessionType() >= 0); },
+                         Qt::QueuedConnection);
+        QTimer::singleShot(3'000, &workOns, repoint);
+    }
+
     // The startup housekeeping pass (trash retention, archive by age / below a floor), every part
     // of it off until set. Deferred so it never competes with the launch itself.
     QTimer::singleShot(60'000, &archiveController, &ArchiveController::runHousekeeping);
@@ -1074,6 +1107,7 @@ int main(int argc, char *argv[])
 #endif
     engine.rootContext()->setContextProperty(QStringLiteral("motionCaptureProbe"), &motionCaptureProbe);
     engine.rootContext()->setContextProperty(QStringLiteral("sessionReviewController"), &sessionReviewController);
+    engine.rootContext()->setContextProperty(QStringLiteral("workOns"),           &workOns);
     engine.rootContext()->setContextProperty(QStringLiteral("shotController"),    &shotController);
     engine.rootContext()->setContextProperty(QStringLiteral("shotProcessor"),     &shotProcessor);
     engine.rootContext()->setContextProperty(QStringLiteral("shotReplay"),        &shotReplay);
