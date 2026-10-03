@@ -34,6 +34,11 @@ ReanalyzeResult reanalyzeSwingDir(const QString & /*swingDir*/, const ReanalyzeO
     return {};   // ok == false; never observed by the seam test
 }
 
+bool poolSkeletonSession(const QString & /*sessionDir*/, QString * /*error*/, int * /*nSwings*/)
+{
+    return false;   // unreached: the pool step runs on a worker the seam test never starts
+}
+
 } // namespace pinpoint::analysis
 
 namespace pinpoint {

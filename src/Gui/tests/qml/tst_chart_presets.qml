@@ -145,12 +145,14 @@ Item {
         }
 
         function test_002_scalars_are_not_offered() {
-            // tempoRatio has no curve: not plottable, not in the legend, not in any group.
+            // tempoRatio has no curve: not plottable and not in the legend — but its phase sample
+            // is a card, so its group is still offered (38b753dc: a card without a curve is still
+            // a member).
             compare(probe.keysOf(chart._plottable),
                     "clubheadSpeed,handSpeed,leadWristFlexExt,leadWristRadUln")
             var names = []
             for (var i = 0; i < chart._groups.length; ++i) names.push(chart._groups[i].group)
-            compare(names.join(","), "Wrist & forearm,Club & speed")
+            compare(names.join(","), "Wrist & forearm,Club & speed,Tempo & sequence")
         }
 
         function test_003_the_legend_carries_the_preset_not_the_swing() {
@@ -214,7 +216,8 @@ Item {
             // empty legend. A selection of nothing is not worth preserving.
             chart.seriesList = probe.rotationOnly
             compare(chart.preset, "Body rotation")
-            compare(probe.keysOf(chart._visible), "pelvisRotation,thoraxRotation,xFactor")
+            // xFactor is read at the top only — a card, no curve, no chip (MetricCardSpec::drawsCurve).
+            compare(probe.keysOf(chart._visible), "pelvisRotation,thoraxRotation")
         }
 
         function test_009_a_preset_the_new_swing_lacks_falls_back() {
@@ -224,7 +227,8 @@ Item {
             chart._applyPreset("Wrist & forearm", true)
             chart.seriesList = probe.rotationOnly
             compare(chart.preset, "Body rotation")
-            compare(probe.keysOf(chart._visible), "pelvisRotation,thoraxRotation,xFactor")
+            // xFactor is read at the top only — a card, no curve, no chip (MetricCardSpec::drawsCurve).
+            compare(probe.keysOf(chart._visible), "pelvisRotation,thoraxRotation")
         }
 
         function test_010_a_preset_the_new_swing_still_has_is_kept() {
