@@ -683,7 +683,7 @@ Item {
                         }
 
                         Text {
-                            width:             parent.width - 20 - 80
+                            width:             parent.width - Theme.sp(20) - Theme.sp(80)
                             height:            parent.height
                             text:              parent.parent.d.name
                             font.family:       Theme.fontBody
