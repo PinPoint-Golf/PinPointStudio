@@ -1382,7 +1382,9 @@ struct KinematicsStage : AnalysisStage {
         in.handedness  = ctx.job.handedness;
         in.clubLengthM = ctx.job.clubLengthM;
         in.phases      = ctx.seg.events;
-        in.composed    = KinematicSeriesConfig::fromOverrides(ctx.job.tuningOverrides).composed;
+        const KinematicSeriesConfig kcfg = KinematicSeriesConfig::fromOverrides(ctx.job.tuningOverrides);
+        in.composed      = kcfg.composed;
+        in.wristVelocity = kcfg.wristVelocity;
         in.gripDownM   = ShaftV3Config::fromOverrides(ctx.job.tuningOverrides).lenGripDownM;
         const UncertaintyConfig unc = UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides);
         in.unc             = &unc;

@@ -162,6 +162,15 @@ struct SynthConfig {
     // P4–P7 barely moves at any setting (it was already within ~3°). Clubhead speed moves
     // |0.5| mph, lag |0.2|°; lowPointAhead is produced on the same 27 swings.
     bool    fitEvidence              = true;      // synth.fitEvidence
+    // THE RATE STAYS THE CURVE'S (2026-10-03). The fit moves θ; with fitRate off it leaves each
+    // tick's θ̇ at the anchor curve's analytic rate (curveRate) instead of the fitted nodes' central
+    // difference. The fit is right about WHERE the shaft is and wrong about how fast it turns:
+    // into impact the blurred frames read alternately ahead and behind, the fitted curve stalls
+    // into P7, and clubhead speed — the one consumer of θ̇ — read 50 mph against a launch
+    // monitor's 76.6 on 2026-08-18 W02 s2 (66 with the curve's rate; the anchor rate is the
+    // smear-immune one the 6 Sept LM validation, 0.959 ± 0.022, was made on). 07-04 s13: 23 → 60.
+    // Lean, lag, the P-positions and the drawn shaft read θ and do not move.
+    bool    fitRate                  = false;     // synth.fitRate
     double  evidenceAccelSigmaDps2   = 5000.0;    // synth.evidenceAccelSigmaDps2 (°/s²)
     double  evidenceSigmaMeasuredDeg = 3.0;       // synth.evidenceSigmaMeasuredDeg
     // THE BALL AS EVIDENCE (impact_anchor.h). When the address ball was found, the line from the
@@ -613,7 +622,7 @@ inline int fitSynthToEvidence(std::vector<ShaftSample2D>&        synth,
                     s.thetaRad = nd[q].th;
                     const size_t a = q > 0 ? q - 1 : q, b = q + 1 < N ? q + 1 : q;
                     const double dt = double(nd[b].t - nd[a].t) * 1e-6;
-                    if (dt > 0.0) s.thetaDotRadS = (nd[b].th - nd[a].th) / dt;
+                    if (cfg.fitRate && dt > 0.0) s.thetaDotRadS = (nd[b].th - nd[a].th) / dt;
                     s.headPx = QPointF{ s.gripPx.x() + s.visibleLenPx * std::cos(s.thetaRad),
                                         s.gripPx.y() + s.visibleLenPx * std::sin(s.thetaRad) };
                 }
@@ -700,8 +709,10 @@ inline void synthPosteriorSigma(std::vector<ShaftSample2D>& synth, const std::ve
 
 // N alternative synthetic tracks drawn from the posterior (design §4.5): each tick's θ moved by
 // L⁻ᵀz/√κ of its stretch, plus every anchor moved by its own σ and the move spread over its brackets
-// by the linear weights. θ̇ is rebuilt by central difference over the draw and the head re-derived,
-// exactly as the fit rebuilds them. Deterministic for a given rng state.
+// by the linear weights. θ̇ moves by the central difference of the draw's perturbation — the
+// synth's own rate plus the rate of the move, so a draw's spread is the posterior's whichever rate
+// the synth carries (SynthConfig::fitRate) — and the head is re-derived. Deterministic for a given
+// rng state.
 template <class Rng>
 inline std::vector<std::vector<ShaftSample2D>> synthDraws(const std::vector<ShaftSample2D>& synth,
                                                           const std::vector<ShaftPosition>& anchors,
@@ -737,7 +748,7 @@ inline std::vector<std::vector<ShaftSample2D>> synthDraws(const std::vector<Shaf
         for (size_t j = 0; j < s.size(); ++j) {
             const size_t a = j > 0 ? j - 1 : j, b = j + 1 < s.size() ? j + 1 : j;
             const double dt = double(s[b].t_us - s[a].t_us) * 1e-6;
-            if (dt > 0.0) s[j].thetaDotRadS = std::remainder(s[b].thetaRad - s[a].thetaRad, 2.0 * kSynthPi) / dt;
+            if (dt > 0.0) s[j].thetaDotRadS += (delta[b] - delta[a]) * post.scale / dt;
             s[j].headPx = QPointF{ s[j].gripPx.x() + s[j].visibleLenPx * std::cos(s[j].thetaRad),
                                    s[j].gripPx.y() + s[j].visibleLenPx * std::sin(s[j].thetaRad) };
         }

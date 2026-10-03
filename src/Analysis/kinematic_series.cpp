@@ -157,13 +157,107 @@ std::vector<double> speedMph(const std::vector<int64_t> &t, const std::vector<do
     return movAvg(sp, 1);   // light 3-tap smooth of the speed itself
 }
 
+// The grip's velocity from the pose wrists (KinematicSeriesInputs::wristVelocity). The grip anchor
+// sits on the club below the hands, so it is carried rigidly from the wrists' midpoint W: grip =
+// W + d·û + p·n̂ with û = (cos θ, sin θ) along the shaft and n̂ = (−sin θ, cos θ) across it, d and p
+// the medians of the anchor's offset from W over the track. Then v_grip = v_W + θ̇·(d·n̂ − p·û):
+// the wrists carry the translation, the shaft's own rate the rest. v_W is the central difference
+// of the smoothed wrists over ±one pose frame; vx is NaN on a tick the wrists do not bracket, which
+// keeps the anchor difference there.
+struct WristGrip {
+    std::vector<double> vx, vy;   // v_W per track tick (px/s); NaN = unavailable
+    double d = 0.0, p = 0.0;      // anchor offset from W along / across the shaft (px)
+    bool   ok = false;
+};
+
+WristGrip wristGrip(const PoseTrack2D &pose, const std::vector<ShaftSample2D> &track, int frameW, int frameH)
+{
+    WristGrip g;
+    const std::vector<PoseFrame2D> &F = pose.smoothed.empty() ? pose.frames : pose.smoothed;
+    if (F.size() < 3 || track.empty() || frameW <= 0 || frameH <= 0) return g;
+    constexpr float kConf = 0.15f;
+    std::vector<int64_t> t;
+    std::vector<double>  x, y;
+    for (const PoseFrame2D &f : F) {
+        if (f.conf[size_t(kLeftWrist)] < kConf || f.conf[size_t(kRightWrist)] < kConf) continue;
+        t.push_back(f.t_us);
+        x.push_back(0.5 * (f.kp[size_t(kLeftWrist)].x() + f.kp[size_t(kRightWrist)].x()) * frameW);
+        y.push_back(0.5 * (f.kp[size_t(kLeftWrist)].y() + f.kp[size_t(kRightWrist)].y()) * frameH);
+    }
+    if (t.size() < 3) return g;
+    std::vector<int64_t> dt;
+    for (size_t i = 1; i < t.size(); ++i) if (t[i] > t[i - 1]) dt.push_back(t[i] - t[i - 1]);
+    if (dt.empty()) return g;
+    std::nth_element(dt.begin(), dt.begin() + dt.size() / 2, dt.end());
+    const int64_t h = dt[dt.size() / 2], maxGap = 3 * h;
+    // W at time `at`, linear between the bracketing frames; false outside them or across a gap.
+    const auto at = [&](int64_t tt, double &ox, double &oy) {
+        const auto it = std::lower_bound(t.begin(), t.end(), tt);
+        if (it == t.end()) return false;
+        const size_t b = size_t(it - t.begin());
+        if (t[b] == tt) { ox = x[b]; oy = y[b]; return true; }
+        if (b == 0 || t[b] - t[b - 1] > maxGap) return false;
+        const double u = double(tt - t[b - 1]) / double(t[b] - t[b - 1]);
+        ox = x[b - 1] + u * (x[b] - x[b - 1]);
+        oy = y[b - 1] + u * (y[b] - y[b - 1]);
+        return true;
+    };
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    g.vx.assign(track.size(), nan);
+    g.vy.assign(track.size(), nan);
+    std::vector<double> ds, ps;
+    int have = 0;
+    for (size_t i = 0; i < track.size(); ++i) {
+        const ShaftSample2D &s = track[i];
+        double ax, ay, bx, by, wx, wy;
+        if (at(s.t_us - h, ax, ay) && at(s.t_us + h, bx, by)) {
+            g.vx[i] = (bx - ax) / (2.0 * double(h) * 1e-6);
+            g.vy[i] = (by - ay) / (2.0 * double(h) * 1e-6);
+            ++have;
+        }
+        if (at(s.t_us, wx, wy)) {
+            const double rx = s.gripPx.x() - wx, ry = s.gripPx.y() - wy;
+            const double c = std::cos(s.thetaRad), sn = std::sin(s.thetaRad);
+            ds.push_back(rx * c + ry * sn);
+            ps.push_back(-rx * sn + ry * c);
+        }
+    }
+    if (have == 0 || ds.empty()) return g;
+    std::nth_element(ds.begin(), ds.begin() + ds.size() / 2, ds.end());
+    std::nth_element(ps.begin(), ps.begin() + ps.size() / 2, ps.end());
+    g.d  = ds[ds.size() / 2];
+    g.p  = ps[ps.size() / 2];
+    g.ok = true;
+    return g;
+}
+
+// The grip velocity (px/s) of tick i: off the wrists where they bracket it, else the ±1-sample
+// central difference of the grip anchor.
+QPointF gripVelocity(const std::vector<ShaftSample2D> &track, int i, const WristGrip *wg)
+{
+    const ShaftSample2D &s = track[size_t(i)];
+    if (wg && wg->ok && size_t(i) < wg->vx.size() && std::isfinite(wg->vx[size_t(i)])) {
+        const double c = std::cos(s.thetaRad), sn = std::sin(s.thetaRad), w = s.thetaDotRadS;
+        // v_W + θ̇·(d·n̂ − p·û)
+        return QPointF(wg->vx[size_t(i)] + w * (-wg->d * sn - wg->p * c),
+                       wg->vy[size_t(i)] + w * ( wg->d * c  - wg->p * sn));
+    }
+    const int n = int(track.size());
+    const int a = std::max(i - 1, 0), b = std::min(i + 1, n - 1);
+    const double dt = double(track[size_t(b)].t_us - track[size_t(a)].t_us) / 1e6;
+    if (!(dt > 0.0)) return QPointF(0.0, 0.0);
+    return QPointF((track[size_t(b)].gripPx.x() - track[size_t(a)].gripPx.x()) / dt,
+                   (track[size_t(b)].gripPx.y() - track[size_t(a)].gripPx.y()) / dt);
+}
+
 // Composed head speed (mph) on a track: |v_grip + L·θ̇·n̂|, n̂ = (−sin θ, cos θ) the
 // image-plane direction of rotation, L the fused club length in px (falls back to the
 // measured club length, then the sample's own visible extent). v_grip is the ±1-sample
 // central difference of the grip path — the grip is smooth through impact, the head is
 // not, and nothing here smooths across the step.
 std::vector<double> composedHeadSpeedMph(const std::vector<ShaftSample2D> &track,
-                                         const ShaftTrack2D &shaft, double mPerPx)
+                                         const ShaftTrack2D &shaft, double mPerPx,
+                                         const WristGrip *wg = nullptr)
 {
     const int n = int(track.size());
     std::vector<double> sp(size_t(std::max(n, 0)), 0.0);
@@ -172,13 +266,8 @@ std::vector<double> composedHeadSpeedMph(const std::vector<ShaftSample2D> &track
     if (shaft.lengths.fusedPx > 0.0)        lenFixed = shaft.lengths.fusedPx;
     else if (shaft.measuredClubLenPx > 0.0) lenFixed = shaft.measuredClubLenPx;
     for (int i = 0; i < n; ++i) {
-        const int a = std::max(i - 1, 0), b = std::min(i + 1, n - 1);
-        const double dt = double(track[size_t(b)].t_us - track[size_t(a)].t_us) / 1e6;
-        double gvx = 0.0, gvy = 0.0;
-        if (dt > 0.0) {
-            gvx = (track[size_t(b)].gripPx.x() - track[size_t(a)].gripPx.x()) / dt;
-            gvy = (track[size_t(b)].gripPx.y() - track[size_t(a)].gripPx.y()) / dt;
-        }
+        const QPointF gv = gripVelocity(track, i, wg);
+        const double gvx = gv.x(), gvy = gv.y();
         const ShaftSample2D &s = track[size_t(i)];
         const double L  = lenFixed > 0.0 ? lenFixed : std::max(s.visibleLenPx, 0.0);
         const double vx = gvx - L * s.thetaDotRadS * std::sin(s.thetaRad);
@@ -424,7 +513,7 @@ double cameraPeriodS(const ShaftTrack2D &shaft)
 // Hand speed: the grip velocity. Lag: the shaft angle ⊕ the forearm angle.
 void addKinematicSigma(std::vector<MetricSeries> &out, const KinematicSeriesInputs &in,
                        const std::vector<ShaftSample2D> &track, double mPerPx, double lengthM,
-                       int64_t boundaryUs)
+                       int64_t boundaryUs, const WristGrip *wg)
 {
     const ShaftTrack2D &shaft = *in.shaft;
     const UncertaintyConfig &unc = *in.unc;
@@ -447,7 +536,7 @@ void addKinematicSigma(std::vector<MetricSeries> &out, const KinematicSeriesInpu
             const bool head = m.key == QStringLiteral("clubheadSpeed");
             std::vector<std::vector<double>> drawSp;
             if (head && in.composed)
-                for (const auto &d : draws) drawSp.push_back(composedHeadSpeedMph(d, shaft, mPerPx));
+                for (const auto &d : draws) drawSp.push_back(composedHeadSpeedMph(d, shaft, mPerPx, wg));
             for (PhaseSample &ps : m.phaseSamples) {
                 const int i = nearestIndex(m.t_us, ps.t_us);
                 if (i < 0) continue;
@@ -483,7 +572,7 @@ void addKinematicSigma(std::vector<MetricSeries> &out, const KinematicSeriesInpu
             std::vector<double> v;
             for (const auto &d : draws) {
                 const MetricSeries sp = makeSpeedSeries(QStringLiteral("clubheadSpeed"), QString(), t,
-                                                        composedHeadSpeedMph(d, shaft, mPerPx),
+                                                        composedHeadSpeedMph(d, shaft, mPerPx, wg),
                                                         in.phases, in.impactUs, boundaryUs);
                 if (const std::optional<MetricSeries> lead =
                         peakLeadSeries(sp, in.phases, boundaryUs >= 0 ? boundaryUs : in.impactUs))
@@ -571,15 +660,27 @@ std::vector<MetricSeries> buildKinematicSeries(const KinematicSeriesInputs &in)
             for (const PhaseEvent &e : in.phases)
                 if (e.phase == Phase::Impact) { boundaryUs = e.t_us; break; }
     }
+    // The grip's velocity off the pose wrists (wristVelocity), when the pose carries them.
+    WristGrip wristG;
+    if (in.wristVelocity && in.pose)
+        wristG = wristGrip(*in.pose, track, shaft.frameWidth, shaft.frameHeight);
+    const WristGrip *wg = wristG.ok ? &wristG : nullptr;
     out.push_back(makeSpeedSeries(QStringLiteral("clubheadSpeed"), QStringLiteral("Clubhead speed"),
-                                  t, in.composed ? composedHeadSpeedMph(track, shaft, mPerPx)
+                                  t, in.composed ? composedHeadSpeedMph(track, shaft, mPerPx, wg)
                                                  : speedMph(t, hx, hy, mPerPx),
                                   in.phases, in.impactUs, boundaryUs));
     if (std::optional<MetricSeries> lead =
             peakLeadSeries(out.back(), in.phases, boundaryUs >= 0 ? boundaryUs : in.impactUs))
         out.push_back(std::move(*lead));
+    std::vector<double> hand = speedMph(t, gx, gy, mPerPx);
+    if (wg)
+        for (int i = 0; i < int(track.size()); ++i)
+            if (std::isfinite(wg->vx[size_t(i)])) {
+                const QPointF v = gripVelocity(track, i, wg);
+                hand[size_t(i)] = std::hypot(v.x(), v.y()) * mPerPx * kMps2Mph;
+            }
     out.push_back(makeSpeedSeries(QStringLiteral("handSpeed"), QStringLiteral("Hand speed"),
-                                  t, speedMph(t, gx, gy, mPerPx), in.phases, in.impactUs));
+                                  t, std::move(hand), in.phases, in.impactUs));
 
     // Lag additionally needs the pose track; omit it (not fabricate) when absent.
     if (in.pose && in.pose->frames.size() >= 2) {
@@ -590,7 +691,7 @@ std::vector<MetricSeries> buildKinematicSeries(const KinematicSeriesInputs &in)
     }
 
     if (in.unc && in.unc->enabled)
-        addKinematicSigma(out, in, track, mPerPx, lengthM, boundaryUs);
+        addKinematicSigma(out, in, track, mPerPx, lengthM, boundaryUs, wg);
     return out;
 }
 

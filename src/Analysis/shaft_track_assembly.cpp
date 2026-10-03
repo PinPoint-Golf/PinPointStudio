@@ -655,6 +655,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     // Layer C synthesis between anchors: "synth.*" keys.
     apply(ov, "synth.enabled", c.synth.enabled);
     apply(ov, "synth.fitEvidence", c.synth.fitEvidence);
+    apply(ov, "synth.fitRate", c.synth.fitRate);
     apply(ov, "synth.evidenceAccelSigmaDps2", c.synth.evidenceAccelSigmaDps2);
     apply(ov, "synth.evidenceSigmaMeasuredDeg", c.synth.evidenceSigmaMeasuredDeg);
     apply(ov, "synth.ballAnchorSigmaDeg", c.synth.ballAnchorSigmaDeg);

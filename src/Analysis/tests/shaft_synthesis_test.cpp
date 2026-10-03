@@ -352,12 +352,19 @@ int main()
         check(anchored, "P6's angle still lies on the curve");
 
         // Contact is a break: the rate just before P7 is the approach, just after it the departure.
+        // That is the FITTED rate (synth.fitRate); by default the ticks keep the anchor curve's.
+        SynthConfig rateCfg = cfg; rateCfg.fitRate = true;
+        std::vector<ShaftSample2D> fitR = start;
+        fitSynthToEvidence(fitR, an, ev, rateCfg);
         double before = 0, after = 0;
-        for (const ShaftSample2D& s : fit) {
+        for (const ShaftSample2D& s : fitR) {
             if (s.t_us < c.t_us && s.t_us > c.t_us - 5'000) before = s.thetaDotRadS;
             if (s.t_us > c.t_us && s.t_us < c.t_us + 5'000 && after == 0) after = s.thetaDotRadS;
         }
         check(before > 24.0 && after < 18.0, "the club loses speed AT impact — not smoothed across contact");
+        bool keptRate = true;
+        for (size_t j = 0; j < fit.size(); ++j) keptRate = keptRate && fit[j].thetaDotRadS == start[j].thetaDotRadS;
+        check(keptRate, "synth.fitRate off (default) ⇒ θ moves, every tick keeps the anchor curve's rate");
 
         // Plausibility vs fit: a much stiffer curve trusts the evidence less.
         SynthConfig stiff = cfg; stiff.evidenceAccelSigmaDps2 = 200.0;

@@ -270,6 +270,36 @@ int main()
         const MetricSeries *ch3 = find(out3, "clubheadSpeed");
         CHECK("composed: grip velocity adds vectorially (|1000 − 5000| px/s ⇒ 4 m/s)",
               ch3 && near(ch3->value[25], 4.0 * kMps2Mph, 1e-6));
+
+        // The grip anchor slides 120 px along the shaft on two frames and back (the hand-axis
+        // glitch, 07-04 s13) while the wrists move on at 1000 px/s. Differenced, the slide is a
+        // spike; off the wrists (wristVelocity) the speed stays 4 m/s and hand speed 1 m/s.
+        ShaftTrack2D shaft3 = shaft2;
+        shaft3.samples[12].gripPx += QPointF(0.0, 120.0);
+        shaft3.samples[13].gripPx += QPointF(0.0, 120.0);
+        PoseTrack2D wrists;
+        for (int i = 0; i < N; ++i) {
+            PoseFrame2D f;
+            f.t_us  = int64_t(i) * 10'000;
+            f.kp[9] = f.kp[10] = QPointF((100.0 + 1000.0 * 0.010 * i) / 1000.0, 300.0 / 1000.0);
+            f.conf[9] = f.conf[10] = 1.0f;
+            wrists.frames.push_back(f);
+        }
+        in.shaft = &shaft3; in.pose = &wrists;
+        in.wristVelocity = false;
+        const std::vector<MetricSeries> outJ = buildKinematicSeries(in);
+        const MetricSeries *chJ = find(outJ, "clubheadSpeed");
+        CHECK("composed: a grip-anchor slide differences into a spike",
+              chJ && std::abs(chJ->value[12] - 4.0 * kMps2Mph) > 5.0);
+        in.wristVelocity = true;
+        const std::vector<MetricSeries> outW = buildKinematicSeries(in);
+        const MetricSeries *chW = find(outW, "clubheadSpeed");
+        const MetricSeries *hW  = find(outW, "handSpeed");
+        bool smooth = chW && hW;
+        for (int i = 2; smooth && i < 24; ++i)
+            smooth = near(chW->value[size_t(i)], 4.0 * kMps2Mph, 1e-6) && near(hW->value[size_t(i)], 1.0 * kMps2Mph, 1e-6);
+        CHECK("wristVelocity: the slide is gone — clubhead 4 m/s and hands 1 m/s throughout", smooth);
+        in.pose = nullptr; in.wristVelocity = false;
     }
 
     // 10. clubheadPeakLead: the TIME of the clubhead speed's peak, in ms before the anchor.

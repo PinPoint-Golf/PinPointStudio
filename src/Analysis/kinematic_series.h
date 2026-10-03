@@ -57,6 +57,7 @@ namespace pinpoint::analysis {
 struct KinematicSeriesConfig {
     bool enabled  = tuned::kinematics::kEnabled;    // kinematics.enabled — master gate (ON since 2026-07-18)
     bool composed = tuned::kinematics::kComposed;   // kinematics.composed — see KinematicSeriesInputs (ON 2026-09-06)
+    bool wristVelocity = tuned::kinematics::kWristVelocity;   // kinematics.wristVelocity — see KinematicSeriesInputs (ON 2026-10-03)
 
     static KinematicSeriesConfig fromOverrides(const QVariantMap &ov)
     {
@@ -64,6 +65,7 @@ struct KinematicSeriesConfig {
         KinematicSeriesConfig c;
         apply(ov, "kinematics.enabled",  c.enabled);
         apply(ov, "kinematics.composed", c.composed);
+        apply(ov, "kinematics.wristVelocity", c.wristVelocity);
         return c;
     }
 };
@@ -92,6 +94,11 @@ struct KinematicSeriesInputs {
     // length (the differentiated path's convention) over-scales every speed by ~14 %.
     // Only the composed producer applies it, so the legacy path stays byte-identical.
     double  gripDownM   = 0.13;
+
+    // The grip's velocity from the pose wrists (needs `pose`), not the grip anchor's frame-to-frame
+    // difference — tuned::kinematics::kWristVelocity. Clubhead and hand speed both; composed only
+    // for the clubhead (the differentiated head path has no grip term to replace).
+    bool    wristVelocity = false;
 
     // Phase timeline (ctx.seg.events) so the curves carry Address/Top/Impact phase dots
     // matching the other detail series. Empty ⇒ only an Impact dot (from impactUs).

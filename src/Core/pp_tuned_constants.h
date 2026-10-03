@@ -1225,6 +1225,14 @@ inline constexpr bool kEnabled = true;   // kinematics.enabled — master gate (
 // instant, i.e. two errors cancelling). The −4 % is the rate floor reading a lower bound
 // of the instantaneous rate; it closes when the θ smear at impact does.
 inline constexpr bool kComposed = true;
+// The grip's velocity in the composed speeds comes from the smoothed pose WRISTS, carried rigidly to
+// the grip anchor (its median along-shaft and across-shaft offset from the wrists' midpoint), not from
+// differencing the per-frame grip anchor. That anchor is the hand-axis point from the 133-point hand
+// keypoints, and on a fifth of the library's frames it slides 100–150 px along the shaft and back
+// for two or three frames: each slide differenced into a 40–100 mph clubhead spike (07-04 s13: 15
+// jumps > 15 mph top→impact, peak 104 — 1 jump, peak 87 off the wrists). The wrists on the same
+// frames move ~6 px. A tick with no bracketing wrists keeps the anchor difference. (2026-10-03)
+inline constexpr bool kWristVelocity = true;
 // clubheadPeakLead searches a RUNNING MEDIAN of the composed speed over ±kPeakLeadMedianHalfUs —
 // in TIME, so it means the same on any sample grid (±4 samples at the 240 Hz synth cadence). A jump in the synthesized arc — a mislocated anchor, the
 // defect behind attackAngle's +82° — differentiates into a 1–3-sample speed SPIKE: 76 and 90 mph
