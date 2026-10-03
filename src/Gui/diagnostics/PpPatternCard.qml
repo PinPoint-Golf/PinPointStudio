@@ -359,6 +359,7 @@ Rectangle {
         // ── recurrence: a count over assessable shots, and the largest thing on the card
         //    because it is the thing being asserted (12b's note, which holds at every size).
         Text {
+            id: recurrenceTxt
             objectName: "sdCardRecurrence"
             width: col.width
             text: root.card ? (root.card.recurrence || "") : ""
@@ -379,9 +380,16 @@ Rectangle {
         // is what goes when the card is short, never the number this swing produced.
         Text {
             id: readingTxt
+            // ⚠ EVERY OPTIONAL LINE PLACES ITSELF FROM THE VISIBLE LINES ABOVE IT, NEVER FROM
+            // ITS OWN `y`. A Column does not reposition a hidden child, so a line that hid once
+            // kept a stale y and measured its room from there: the trend line sat at y=120 on a
+            // card where it belonged at ~97, judged it had no room, and never came back — the
+            // trend was missing on every card at the panel's design height. `_top` is where the
+            // line WOULD go, from its predecessors' heights and visibility only.
+            readonly property real _top: recurrenceTxt.y + recurrenceTxt.height + col.spacing
             objectName: "sdCardReading"
             width: col.width
-            visible: text !== "" && col.height - y - height >= run.height + trendRow.height + col.spacing
+            visible: text !== "" && col.height - _top - height >= run.height + trendRow.height + col.spacing
             text: {
                 if (!root.card) return ""
                 const v = root.card.valueText || ""
@@ -405,11 +413,14 @@ Rectangle {
         // ticks, which is a claim about the session that the ledger never made.
         Text {
             id: directionTxt
+            readonly property real _top: readingTxt.visible
+                                         ? readingTxt._top + readingTxt.height + col.spacing
+                                         : readingTxt._top
             objectName: "sdCardDirection"
             width: col.width
             text: root.card ? (root.card.directionText || "") : ""
             visible: text !== ""
-                     && col.height - y - height
+                     && col.height - _top - height
                         >= run.height + trendRow.height + 2 * col.spacing
             wrapMode: Text.WordWrap
             maximumLineCount: 2
@@ -424,9 +435,12 @@ Rectangle {
         // Last to go, and only when the card cannot hold it whole.
         PpTickRun {
             id: run
+            readonly property real _top: directionTxt.visible
+                                         ? directionTxt._top + directionTxt.height + col.spacing
+                                         : directionTxt._top
             objectName: "sdTickRun"
             width: col.width
-            visible: col.height - y >= height
+            visible: col.height - _top >= height
             ticks: root.card ? root.card.ticks : []
             fit: root.fit
         }
@@ -434,10 +448,11 @@ Rectangle {
         // ── trend + recency, and the focus affordance ────────────────────────
         Item {
             id: trendRow
+            readonly property real _top: run._top + run.height + col.spacing
             width: col.width
             // Never above the run it annotates: a trend arrow with no run under it is a claim
             // with its evidence removed.
-            visible: run.visible && col.height - y >= height
+            visible: run.visible && col.height - _top >= height
             height: Math.max(trendTxt.implicitHeight, focusTag.implicitHeight)
 
             Text {
@@ -537,7 +552,8 @@ Rectangle {
             id: evidence
             objectName: "sdCardEvidence"
             width: col.width
-            height: Math.max(0, col.height - y)
+            readonly property real _top: trendRow._top + trendRow.height + col.spacing
+            height: Math.max(0, col.height - _top)
             visible: trendRow.visible && height >= root.tzMicro * lineHeight
             text: root.card ? (root.card.evidence || "") : ""
             wrapMode: Text.WordWrap
