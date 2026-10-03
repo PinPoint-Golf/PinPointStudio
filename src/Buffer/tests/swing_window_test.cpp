@@ -521,19 +521,23 @@ TEST(SwingWindow, InterpolateImuCostOnDeferredShapedWindow) {
     //
     //     RelWithDebInfo, M4        scan  14,385 us   indexed    210 us   — 68x
     //     Debug, Intel i7-9750H     scan 286,976 us   indexed  4,923 us   — 58x
+    //     Debug, MSVC, Windows box  scan  29,505 us   indexed  5,090 us   —  5.8x
     //
     // Both are the same index doing the same work; the 23x between their indexed
     // columns is build type and machine, which is exactly what an absolute gate
     // cannot tell apart from a regression. An earlier version of this check hard-
     // coded 3 ms from the first row and failed the second for no other reason.
     //
-    // 10x sits ~6x below the observed speedup, so an ordinarily loaded machine
-    // will not trip it, and far above the ~1x a genuine scan would produce, so a
-    // regression cannot slip through. Phrased as a multiply rather than a divide
+    // The third row is why the floor is 3x and not the 10x it once was: there the
+    // indexed column matches the i7's, but the scan ran 10x faster, so the ratio
+    // collapsed to 5.8x with nothing regressed — in an MSVC Debug build the fixed
+    // per-call cost of interpolateImu, not the bracket search, is what the indexed
+    // column measures. 3x still sits well above the ~1x a genuine scan would
+    // produce, so a regression cannot slip through. Phrased as a multiply rather than a divide
     // so an indexed run fast enough to round to 0 us cannot divide by zero.
     ASSERT_GT(refUs, 1'000)
         << "reference scan too fast to be a baseline — the window is degenerate";
-    constexpr int64_t kMinSpeedup = 10;
+    constexpr int64_t kMinSpeedup = 3;
     EXPECT_GT(refUs, us * kMinSpeedup)
         << "interpolateImu looks like a linear scan over " << entries << " entries: "
         << "indexed " << us << " us vs scan " << refUs << " us is only "

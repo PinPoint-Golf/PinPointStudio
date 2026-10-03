@@ -724,16 +724,22 @@ pp_add_test(dtl_shaft_synth3d_test SOURCES dtl_shaft_synth3d_test.cpp NO_QT)
 pp_find_eigen(EIGEN_DIR)
 pp_add_test(skeleton3d_test
     SOURCES skeleton3d_test.cpp ${SRC}/Analysis/skeleton3d/skeleton3d_fit.cpp
-    INCLUDE ${EIGEN_DIR} NO_QT)
+    INCLUDE ${EIGEN_DIR} NO_QT
+    COMPILE_OPTIONS -O2)
+# -O2 alone is not enough on MSVC. The Debug configuration's /Ob0 survives it, so Eigen runs with no
+# inlining, and under the Debug CRT (-MDd) every Eigen temporary goes through the debug heap: the
+# ~40 solves ran for over an hour on one core. /Ob2 and the release CRT give an optimised build like
+# every other platform's. The test is Qt-free and gtest-free, so nothing it links needs the Debug CRT.
+if(MSVC)
+    target_compile_options(skeleton3d_test PRIVATE /Ob2)
+    set_target_properties(skeleton3d_test PROPERTIES MSVC_RUNTIME_LIBRARY MultiThreadedDLL)
+endif()
 
 # The skeleton3d session pool (skeleton3d_pool.h, swing_3d_viz_design.md §13.2 (C)): medians, camera
 # epochs, per-swing lookup, the JSON round trip — on blocks the production writer wrote.
 pp_add_test(skeleton3d_pool_test
     SOURCES skeleton3d_pool_test.cpp
     INCLUDE ${EIGEN_DIR})
-if(NOT MSVC)
-    target_compile_options(skeleton3d_test PRIVATE -O2)
-endif()
 
 # Down-the-line posture (dtl_posture.h, dtl_posture_design.md): one synthetic golfer seen from
 # down the line — a hip TURN is not a thrust (the midpoint holds), a thrust is, the same golfer

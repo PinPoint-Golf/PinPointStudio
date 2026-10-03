@@ -673,6 +673,10 @@ static void diagnose(const Truth &T, const FitResult &r)
 
 int main()
 {
+    // SK3D_REPORT=1 also runs the fits that only PRINT — stage 2 from the truth, the full ablation
+    // table, the lean model-mismatch rows, timing at 240 Hz. They assert nothing and were most of
+    // this test's runtime, so the default run fits only what a check() reads.
+    const bool report = std::getenv("SK3D_REPORT") != nullptr;
     std::printf("=== skeleton3d ===\n");
     testRig();
 
@@ -761,8 +765,8 @@ int main()
 
     // Diagnosis: the same observations, stage 2 started from the TRUTH. If this scores well
     // and (b) does not, (b)'s errors are local minima of the start, not bias in the objective.
-    std::printf("(b′) stage 2 started from the truth\n");
-    {
+    if (report) {
+        std::printf("(b′) stage 2 started from the truth\n");
         FitInput in = inB;
         in.debugInitTheta = &T.th;
         const FitResult r = fitSkeleton(in);
@@ -807,22 +811,25 @@ int main()
         std::printf("      %-16s %8s %8s %10s %12s\n", "config", "dir p90", "roll p90", "pos p90cm", "lFore roll");
         double fullRollLF = 0, noShaftRollLF = 0;
         for (const Ab &a : ab) {
+            const bool full = std::string(a.name) == "full", noShaft = std::string(a.name) == "no shaft";
+            if (!report && !full && !noShaft) continue;        // the rest of the table only prints
             FitInput in = inB;
             a.f(in.cfg);
-            const FitResult r = fitSkeleton(in);
+            const FitResult r = full ? rB : fitSkeleton(in);   // "full" IS (b): same input, same config
             const Score s = score(T, r, false);
             std::printf("      %-16s %8.2f %8.2f %10.2f %12.2f\n", a.name, s.dirP90, s.rollP90, s.posP90Cm, s.leadForearmRollP90);
-            if (std::string(a.name) == "full") fullRollLF = s.leadForearmRollP90;
-            if (std::string(a.name) == "no shaft") noShaftRollLF = s.leadForearmRollP90;
+            if (full) fullRollLF = s.leadForearmRollP90;
+            if (noShaft) noShaftRollLF = s.leadForearmRollP90;
         }
         check(noShaftRollLF > fullRollLF, "(d) the shaft term is what holds the lead-forearm roll");
     }
 
     // (e) face-on only.
     std::printf("(e) face-on only\n");
+    const FitInput inFo = observe(T, 2.0, 0.02, false, 11, false);
+    const FitResult rFo = fitSkeleton(inFo);      // (p-f) below is the same fit
     {
-        FitInput in = observe(T, 2.0, 0.02, false, 11, false);
-        const FitResult r = fitSkeleton(in);
+        const FitResult &r = rFo;
         check(r.valid, "(e) the face-on-only fit converged");
         const Score s = score(T, r, true);
         check(s.dirBodyP90 <= 20.0, "(e) face-on only: body bone direction ≤ 20° p90 (depth from the anatomy alone)");
@@ -944,9 +951,9 @@ int main()
 
         // (p-f) face-on only: the catalogue plane.
         {
-            FitInput fo = observe(T, 2.0, 0.02, false, 11, false);
-            FitInput foOff = fo; foOff.cfg.usePlane = false; foOff.cfg.branchPass = false;
-            const FitResult ron = fitSkeleton(fo), roff = fitSkeleton(foOff);
+            FitInput foOff = inFo; foOff.cfg.usePlane = false; foOff.cfg.branchPass = false;
+            const FitResult &ron = rFo;
+            const FitResult roff = fitSkeleton(foOff);
             auto every = [](size_t) { return true; };
             const std::vector<double> eOn = shaftErr(ron, every), eOff = shaftErr(roff, every);
             std::printf("      (p-f) face-on only: catalogue %.1f° (%s), shaft p90 %.1f° → %.1f° (median %.1f° → %.1f°), kept %d\n",
@@ -1026,21 +1033,23 @@ int main()
         check(sL.rollP90 <= sF.rollP90 + 2.0, "(L) roll no worse than the 48-angle fit (+2°; forearm/hand roll is unseen by either)");
         check(sL.leadForearmRollP90 <= 30.0, "(L) lead-forearm roll ≤ 30° p90");
         check(sL.posP90Cm <= 2.0, "(L) root-relative joint position ≤ 2 cm p90");
-        // The model mismatch: the lean fit on the ORIGINAL truth (uneven spine, free clavicle).
-        FitInput inM = inB; inM.cfg.leanRig = true;
-        std::printf("      lean fit on the ORIGINAL truth (the model-mismatch cost):\n");
-        const Score sM = score(T, fitSkeleton(inM), true);
-        std::printf("      summary — body dir p90: lean/lean %.2f°, 48/lean %.2f°, lean/original %.2f° (48/original %.2f°)\n",
-                    sL.dirBodyP90, sF.dirBodyP90, sM.dirBodyP90, sB.dirBodyP90);
-        // Face-on only, lean vs 48, on the lean truth.
-        FitInput foL = observe(TL, 2.0, 0.02, false, 11, false);
-        FitInput fo48 = foL;
-        foL.cfg.leanRig = true;
-        std::printf("      face-on only — lean:\n");
-        const Score fL = score(TL, fitSkeleton(foL), true);
-        std::printf("      face-on only — 48:\n");
-        const Score f48 = score(TL, fitSkeleton(fo48), true);
-        std::printf("      face-on only body dir p90: lean %.2f° vs 48 %.2f°\n", fL.dirBodyP90, f48.dirBodyP90);
+        if (report) {
+            // The model mismatch: the lean fit on the ORIGINAL truth (uneven spine, free clavicle).
+            FitInput inM = inB; inM.cfg.leanRig = true;
+            std::printf("      lean fit on the ORIGINAL truth (the model-mismatch cost):\n");
+            const Score sM = score(T, fitSkeleton(inM), true);
+            std::printf("      summary — body dir p90: lean/lean %.2f°, 48/lean %.2f°, lean/original %.2f° (48/original %.2f°)\n",
+                        sL.dirBodyP90, sF.dirBodyP90, sM.dirBodyP90, sB.dirBodyP90);
+            // Face-on only, lean vs 48, on the lean truth.
+            FitInput foL = observe(TL, 2.0, 0.02, false, 11, false);
+            FitInput fo48 = foL;
+            foL.cfg.leanRig = true;
+            std::printf("      face-on only — lean:\n");
+            const Score fL = score(TL, fitSkeleton(foL), true);
+            std::printf("      face-on only — 48:\n");
+            const Score f48 = score(TL, fitSkeleton(fo48), true);
+            std::printf("      face-on only body dir p90: lean %.2f° vs 48 %.2f°\n", fL.dirBodyP90, f48.dirBodyP90);
+        }
     }
 
     // ── (S) spline trajectories on the lean rig (design §13.2 (B)) ──
@@ -1155,8 +1164,8 @@ int main()
     }
 
     // Timing at a real cadence.
-    std::printf("timing\n");
-    {
+    if (report) {
+        std::printf("timing\n");
         const Truth T2 = makeSwing(240.0, unit, 10.0);
         FitInput in = observe(T2, 2.0, 0.02, true, 17, false);
         const FitResult r = fitSkeleton(in);
