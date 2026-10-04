@@ -260,11 +260,11 @@ already exist.
 
 What σ then buys, in the chart layer:
 
-- **Display step.** `ChartMetrics::formatBare(v, unit, sigma)` rounds to the nicest step
-  (1, 2, 5, 10 ×10ⁿ) that is not smaller than σ, floored at the current one-unit rounding. A
-  hip tilt with σ = 2.5° prints as a multiple of 5°; a plumb bob with σ = 0.1 in keeps whole
-  inches. The tooltip, the summary card and the legend chip all go through this one function
-  (they already do).
+- ~~**Display step.**~~ **Removed 3 Oct 2026.** Readings were rounded to the nicest step
+  (1, 2, 5, 10 ×10ⁿ) not smaller than σ. On real swings that printed 81.6 mph at σ 7.1 as
+  "80" and two thorax speeds of 398 and 345 °/s at σ 208 as "500" each. With the ± already
+  beside the reading, the step said the same thing twice and made every estimate look rough.
+  Readings print in whole units; σ reaches the display only as the ± chips below.
 - **σ beside the tiles.** The existing chip stays by the unit; PEAK and PK RATE additionally
   carry "± σ" and "± σ_rate" (the fitted slope's standard error), because those two are where
   a reader's trust is decided.
@@ -356,10 +356,9 @@ Taken in this document:
 
 Open, to be settled during the plan:
 
-- The display-step rule in 5.3 could feel coarse on the degrees scale (σ = 2.5° → 5° steps).
-  The alternative is to keep whole units and lean on the ± chip. **Recommendation: try the
-  step rule on the Plumb Bob preset first and look at it; fall back to the chip alone if it
-  reads as evasive.**
+- ~~The display-step rule in 5.3 could feel coarse on the degrees scale (σ = 2.5° → 5° steps).~~
+  **Settled 3 Oct 2026: whole units plus the ± chip.** The step read as coarse on every scale,
+  not just degrees (clubhead speed in round tens).
 - Whether `comOverLeadFoot` genuinely survives the turn, or whether the finish reading is
   itself a projection artefact. It is unscored and read at one instant; leave it whole-swing
   until someone looks.

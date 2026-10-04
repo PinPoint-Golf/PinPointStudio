@@ -522,20 +522,6 @@ Item {
     // BARE: PpChartPlot's split gutter prints unitLabel directly above this, so spelling it again
     // put the unit twice in one 40px column. Unclamped and unmasked it printed the FINISH value of
     // a metric that stops meaning anything at impact, in the gutter, as the facet's headline.
-    // ── THE SERIES' σ, FOR FORMATTING ONLY (design §5.3) ───────────────────────────
-    //
-    // There is no `_sigma()` helper here any more: the absent→0 substitution is ChartMetrics
-    // .seriesSigma, one implementation in C++ where it can be tested, replacing the three copies of
-    // a four-clause guard that had grown here, in PpChartSummary and inside PpChartPlot._sigmaRuns.
-    //
-    // ⚠ BUT IT IS NEVER CALLED FROM A PER-FRAME BINDING, and that is why the two functions below
-    // TAKE the σ instead of deriving it. seriesSigma's argument is a QVariantMap, so every call
-    // marshals the whole series (t_us, value, valid, phaseSamples) across the QML boundary — the
-    // same cost measuredAt() carries its own warning about. The hover tooltip re-evaluates on every
-    // cursor move and the facet gutter on every frame of a brush drag; both would pay it per frame
-    // per series. So each σ is resolved ONCE on a binding that changes with the DATA (the tooltip
-    // row's `sig`, the legend chip's `sig`, the plot delegate's `facetSigma`) and passed down.
-
     // ── THE SPLIT-MODE GUTTER'S "@end" — THE DRAWN LINE, AT THE WINDOW'S LAST SAMPLE ──────
     //
     // ⚠ IT WAS A ±15 ms MEDIAN AND IT IS NOW THE MEAN (F6b), and the choice is deliberate rather
@@ -559,7 +545,7 @@ Item {
     // ⚠ AND IT NO LONGER MARSHALS ANYTHING (F6b). This binding re-evaluates on every frame of a brush
     // drag, per facet, and it used to run a complete four-reducer summary — the whole series across
     // the boundary and back — to read one number off the end of it. It is now one JS scan.
-    function _facetEndText(s, sigma) {
+    function _facetEndText(s) {
         if (root._domWinEmpty(s, root.viewStartUs, root.viewEndUs)) return "@end —"
         var t = s.t_us
         if (!t || t.length === 0) return "@end —"
@@ -574,7 +560,7 @@ Item {
         // "—" where that sample was bridged, out of domain or non-finite: the same rule the hover
         // readout and the summary card apply. A number printed there would be the value the producer
         // DREW across a gap, offered as the facet's headline reading.
-        return root._measuredIdx(s, i) ? "@end " + cm.formatBare(root._meanOf(s)[i], s.unit, sigma)
+        return root._measuredIdx(s, i) ? "@end " + cm.formatBare(root._meanOf(s)[i], s.unit)
                                        : "@end —"
     }
 
@@ -627,25 +613,21 @@ Item {
     // and so both make the same claim. Printing the bridged number is the confident absurdity
     // this whole design exists to stop; a blank or a "0" would each read as a measurement
     // instead of as its absence.
-    // The σ step goes on this one too, so the hover row and the legend chip say the same digits the
-    // card does for the same reading — a tooltip that reads 11.4 beside a card reading 10 is the
-    // "one curve, one number" rule broken at the last inch. `sigma` is PASSED, not derived: this
-    // runs per cursor move per visible series (see the note above _facetEndText).
     // ⚠ AND THESE TAKE AN INDEX (F3). The hover row used to call _measuredAt AND
     // labels.valueAtNearest, twice over for the mean and the raw value — four whole-series marshals
     // per row per cursor move, times every visible series, on a binding that fires with the mouse.
     // The row resolves its nearest index once (`trow.idx`) and these read the arrays in JS: no
     // marshalling at all, and the four numbers are guaranteed to be about the SAME sample, which two
     // independent nearest-sample searches only happened to be.
-    function _valueTextAtIdx(s, i, sigma) {
-        return root._measuredIdx(s, i) ? cm.formatValue(root._meanOf(s)[i], s.unit, sigma) : "—"
+    function _valueTextAtIdx(s, i) {
+        return root._measuredIdx(s, i) ? cm.formatValue(root._meanOf(s)[i], s.unit) : "—"
     }
-    function _rawTextAtIdx(s, i, sigma) {
+    function _rawTextAtIdx(s, i) {
         if (!root._measuredIdx(s, i) || !root._hasMean(s)) return ""
-        return qsTr("raw %1").arg(cm.formatBare(s.value[i], s.unit, sigma))
+        return qsTr("raw %1").arg(cm.formatBare(s.value[i], s.unit))
     }
-    function _valueTextAt(s, t, sigma) {
-        return root._valueTextAtIdx(s, root._nearestIndex(s, t), sigma)
+    function _valueTextAt(s, t) {
+        return root._valueTextAtIdx(s, root._nearestIndex(s, t))
     }
     // ── WHICH ARRAY IS THE CURVE (Phase 6) ────────────────────────────────────────
     //
@@ -676,8 +658,8 @@ Item {
     // a reading like any other, so §5.3's step governs its digits too. Where the step is coarse
     // enough that the two print the same, that is worth seeing: it says the reduction moved nothing a
     // reader could have read off the panel anyway.
-    function _rawTextAt(s, t, sigma) {
-        return root._rawTextAtIdx(s, root._nearestIndex(s, t), sigma)
+    function _rawTextAt(s, t) {
+        return root._rawTextAtIdx(s, root._nearestIndex(s, t))
     }
 
     // What the LEGEND lists — the preset's metrics, not the swing's. Listing every plottable
@@ -1250,10 +1232,6 @@ Item {
                         readonly property var  plotSeries: modelData ? modelData.series : []
                         readonly property bool facet: modelData ? modelData.facet : false
                         readonly property var  facetSeries: (facet && plotSeries.length > 0) ? plotSeries[0] : null
-                        // The facet's σ, resolved once here rather than inside facetEndText: that
-                        // binding re-evaluates on every frame of a brush drag (it depends on the view
-                        // window) and seriesSigma marshals the whole series.
-                        readonly property real facetSigma: facetSeries ? cm.seriesSigma(facetSeries) : 0
                         readonly property var  rng: root._rangeFor(plotSeries)
 
                         Layout.fillWidth: true
@@ -1298,7 +1276,7 @@ Item {
                         facetName:     facetSeries ? root._name(facetSeries) : ""
                         // Domain-clamped, mask-aware, and "—" on an emptied window — see
                         // root._facetEndText, which states why for all three.
-                        facetEndText:  facetSeries ? root._facetEndText(facetSeries, plot.facetSigma) : ""
+                        facetEndText:  facetSeries ? root._facetEndText(facetSeries) : ""
 
                         onHoverMoved: (t) => root._cursorUs =
                             Math.max(root.viewStartUs, Math.min(root.viewEndUs, t))
@@ -1344,10 +1322,6 @@ Item {
                         delegate: Row {
                             id: trow
                             required property var modelData
-                            // Resolved per ROW, not inside the readout binding below: that one
-                            // re-evaluates on every cursor move, and seriesSigma marshals the whole
-                            // series. This changes only when the data does.
-                            readonly property real sig: cm.seriesSigma(trow.modelData)
                             // THE SAMPLE THIS ROW IS ABOUT, resolved ONCE (F3). Both readouts below
                             // and the measured test they share read it, so the row cannot end up
                             // describing two different samples, and a cursor move costs one JS scan
@@ -1372,7 +1346,7 @@ Item {
                                 // drawn at and the tiles reduce), or "—" where that sample was
                                 // bridged or lies outside the metric's domain: see
                                 // root._valueTextAt.
-                                text: root._valueTextAtIdx(trow.modelData, trow.idx, trow.sig)
+                                text: root._valueTextAtIdx(trow.modelData, trow.idx)
                                 font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
                                 font.weight: Font.Medium
                                 color: Theme.colorText
@@ -1384,7 +1358,7 @@ Item {
                                 // one would be the quiet half of display-only smoothing. Empty (and
                                 // so zero-width) where there is no mean or no measurement — see
                                 // root._rawTextAt.
-                                text: root._rawTextAtIdx(trow.modelData, trow.idx, trow.sig)
+                                text: root._rawTextAtIdx(trow.modelData, trow.idx)
                                 visible: text.length > 0
                                 // Row lays out x only, so the smaller type is centred against the
                                 // reading rather than sitting on its cap line.
@@ -1442,10 +1416,6 @@ Item {
                     readonly property int  idx: root._nearestIndex(chip.modelData, root._readoutUs)
                     readonly property real val: chip.idx >= 0
                                                 ? root._meanOf(chip.modelData)[chip.idx] : 0
-                    // Resolved once per chip — it governs the digits of both readouts below, and a
-                    // whole-series marshal per replay frame is exactly what ChartMetrics.seriesSigma
-                    // must not be asked to do.
-                    readonly property real sig: cm.seriesSigma(chip.modelData)
                     // The Δ baseline, resolved ONCE per chip: it depends on the data alone, and the
                     // Δ readout below re-evaluates on every replay frame.
                     readonly property real addr: root._addrValue(chip.modelData)
@@ -1471,15 +1441,9 @@ Item {
                         // against an unmeasured reading is not a smaller claim, it is the same
                         // one arithmetically disguised.
                         readonly property bool measured: root._measuredIdx(chip.modelData, chip.idx)
-                        // Both halves take the SERIES' step, the Δ included. A difference of two
-                        // readings each ±σ is strictly noisier than either (σ√2), so a finer step on
-                        // the Δ would be the least defensible digit on the panel; and a Δ printed at
-                        // a different coarseness from the value it is a difference of cannot be
-                        // checked against it by eye. One step per series, everywhere.
                         text: chipVal.measured
-                              ? cm.formatValue(chip.val, chip.modelData.unit, chip.sig)
-                                + "  Δ" + cm.formatValue(chip.val - chip.addr,
-                                                         chip.modelData.unit, chip.sig)
+                              ? cm.formatValue(chip.val, chip.modelData.unit)
+                                + "  Δ" + cm.formatValue(chip.val - chip.addr, chip.modelData.unit)
                               : "—"
                         anchors.verticalCenter: parent.verticalCenter
                         font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro

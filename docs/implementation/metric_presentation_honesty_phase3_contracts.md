@@ -34,6 +34,7 @@ median); serialisation unchanged when unset (byte-identical swing.json promise f
 
 ## C12. σ-governed display (owner W3) — chart_metrics.{h,cpp}, chart_metrics_test.cpp, PpChartSummary.qml,
 PpMetricChart.qml, PpChartPlot.qml (ribbon), tools/probes/plumb_bob_chart.qml
+**The display step below was removed on 3 Oct 2026. Readings print in whole units and σ shows only as the ± (design §5.3).**
 Display step: `ChartMetrics::displayStep(double sigma, const QString &unit)` = the nicest of
 {1, 2, 5}×10ⁿ that is NOT below σ, floored at 1 unit (today's rounding), 1 when σ ≤ 0 or absent.
 `formatBare(v, unit, sigma = 0.0)` and `formatValue(v, unit, sigma = 0.0)` round to that step (a

@@ -23,7 +23,7 @@
 //   4. Feeds that analysisDetail into a PRIVATE PpMetricChart instance and calls its own
 //      _applyPreset("Plumb Bob") — see the note on that below.
 //   5. Reports, per series, everything the chart layer decorates and derives — including the
-//      Phase 3 display step and the exact strings the summary card prints.
+//      the exact strings the summary card prints.
 //   6. Reports whether the ±σ ribbon drew, by asking the plots, not by asserting the switch.
 //   7. Reports what the traces DRAW (Phase 6: the windowed mean) and whether the raw samples are
 //      still on screen behind them — again by asking the plots, not the switch.
@@ -361,47 +361,18 @@ Item {
                 ? probe.num(raw.sigma) + "  (§5.3 / DoD 4)"
                 : "ABSENT — producer did not propagate an error budget"))
 
-        // ── §5.3: WHAT σ DOES TO THE DIGITS ───────────────────────────────────────────────
+        // ── THE SERIES' σ ─────────────────────────────────────────────────────────────────
         //
-        // The display quantum every printed reading of this series is rounded to. `sg` is the
-        // FORMATTING substitution the QML makes (PpChartSummary._sigma): absent → 0, which asks for
-        // no coarsening and gives back exactly the pre-σ whole-unit rounding. Absent is NOT zero in
-        // the data and nothing here pretends otherwise; this line reports both faces of it.
-        //
-        // A step of 1 on a series that HAS a σ is the answer to design §8 open question 1 being
-        // moot for that metric; a step of 5 or more is the case the question is about, and the
-        // formatted strings a few lines down are what Mark is being asked to look at.
+        // `sg` is the FORMATTING substitution the app makes (ChartMetrics.seriesSigma): absent → 0.
+        // σ only reaches the ± chips now; readings print in whole units whatever it says (the σ step
+        // was removed 3 Oct).
         // ⚠ THE PROBE KEEPS ITS OWN COPY OF THE absent→0 RULE, on purpose and against the general
         // "one implementation" grain. The app's copies were collapsed into ChartMetrics.seriesSigma;
         // a probe that then asked seriesSigma what σ is could never catch seriesSigma being wrong.
         // So this reads the document directly and the next line CROSS-CHECKS the C++ against it.
         var sg = (raw.sigma !== undefined && raw.sigma !== null && isFinite(raw.sigma))
                  ? Number(raw.sigma) : 0
-        var stepv = 1
-        try { stepv = cm.displayStep(sg, raw.unit) } catch (e) { probe.miss("cm.displayStep (" + e + ")") }
-        probe.w("displayStep         = " + probe.num(stepv, 2) + " " + cm.shortUnit(raw.unit)
-                + "   (σ used for display = " + (raw.sigma === undefined ? "0 [ABSENT]" : probe.num(sg))
-                + (stepv > 1 ? "  ⇒ readings COARSENED to multiples of " + probe.num(stepv, 0)
-                             : "  ⇒ whole units, i.e. unchanged from before §5.3") + ")")
-        // ── BOTH ARITIES REACH C++ FROM QML, CHECKED ON EVERY SERIES ──────────────────────
-        //
-        // formatBare/formatValue are ONE method each with a defaulted third argument, so QML calls
-        // the moc CLONE at two arguments and the real method at three (chart_metrics.h explains why a
-        // clone is the safe mechanism and an overload set is not). Both are exercised here rather
-        // than assumed, and the 3-argument line is an ASSERTION, not a print: only a correct
-        // resolution turns (12.6, 2.5) into "+15" — a call that silently dropped the σ would say
-        // "+13", and one that failed to resolve would throw into the catch below. It runs
-        // UNCONDITIONALLY, on every series, including the ones whose own σ is absent, because the
-        // question is about the call path and not about this swing.
         try {
-            var got3 = cm.formatBare(12.6, raw.unit, 2.5)
-            var deg3 = cm.shortUnit(raw.unit) === "°"
-            probe.w("   arity check         = formatBare(12.6, unit, 2.5) ⇒ '" + got3 + "'  "
-                    + (got3 === (deg3 ? "+15" : "15") ? "PASS (3-arg resolves, step 5 applied)"
-                       : "⛔ FAIL — expected '" + (deg3 ? "+15" : "15") + "'; the σ argument is "
-                         + "not reaching C++")
-                    + "   2-arg: formatBare(12.6, unit) ⇒ '" + cm.formatBare(12.6, raw.unit)
-                    + "'   formatValue(12.6, unit) ⇒ '" + cm.formatValue(12.6, raw.unit) + "'")
             // And the one helper the app now shares — read against the probe's own copy above, so a
             // disagreement about what absence means shows up as a mismatch rather than as agreement
             // by construction.
@@ -409,7 +380,7 @@ Item {
             probe.w("   cm.seriesSigma      = " + probe.num(cppSg)
                     + (Math.abs(cppSg - sg) < 1e-12 ? "   (agrees with the document)"
                        : "   ⛔ DISAGREES with the document's σ = " + probe.num(sg)))
-        } catch (e) { probe.miss("formatBare arity / seriesSigma from QML (" + e + ")") }
+        } catch (e) { probe.miss("seriesSigma from QML (" + e + ")") }
 
         // ── valid[] ───────────────────────────────────────────────────────────────────────
         // ABSENT is the C4 contract: "every sample valid", which is what every series written
@@ -590,18 +561,15 @@ Item {
         var csum = sm(cs, ce)
         line("summary CLAMPED    ", csum, cs, ce, true)
 
-        // ── §5.3 / §8 OPEN QUESTION 1: THE CARD'S OWN STRINGS ─────────────────────────────
+        // ── THE CARD'S OWN STRINGS ────────────────────────────────────────────────────────
         //
         // Exactly what PpChartSummary renders for this series on the clamped window, produced by
-        // the same C++ the card calls, so the step rule can be JUDGED on real numbers instead of
-        // described. Design §8 leaves one decision open — "the step rule could feel coarse on the
-        // degrees scale (σ = 2.5° → 5° steps); the alternative is whole units plus the ± chip" — and
-        // these three strings are the evidence for it. Read them next to the raw `peak=` / `rate=`
-        // on the CLAMPED line above: that is the difference the rule makes.
+        // the same C++ the card calls. Design §8 open question 1 ("the step rule could feel coarse;
+        // the alternative is whole units plus the ± chip") was settled 3 Oct for whole units plus
+        // the ± chip.
         //
         // The ± come from peakSigma / rateSigma (the NOISE of each reduction), not from the series σ,
-        // which has its own chip beside the unit — and PK RATE is deliberately NOT step-quantised,
-        // because its unit is per 100 ms and the series σ is not.
+        // which has its own chip beside the unit.
         if (csum) {
             var impMeasured = false
             try { impMeasured = chart._measuredAt(p, probe.impactUs) } catch (e) {}
@@ -612,24 +580,18 @@ Item {
             try {
                 probe.w("§5.3 CARD TEXT      "
                     + "@IMPACT '" + (impMeasured
-                            ? cm.formatBare(impV, raw.unit, sg) : "—") + "'"
+                            ? cm.formatBare(impV, raw.unit) : "—") + "'"
                     + "   PEAK '" + (csum.edgeOk === false ? "—"
-                            : cm.formatBare(csum.peak, raw.unit, sg) + "  "
+                            : cm.formatBare(csum.peak, raw.unit) + "  "
                               + cm.formatUncertainty(csum.peakSigma)) + "'"
                     + "   PK RATE '" + (csum.rateOk === true
                             ? Math.round(Math.abs(csum.rate)) + " " + cm.shortUnit(raw.unit) + "/100ms  "
                               + cm.formatUncertainty(csum.rateSigma)
                             : "—") + "'"
                     + "   Δ SEGMENT '" + (csum.edgeOk === false ? "—"
-                            : cm.formatBare(csum.delta, raw.unit, sg)) + "'"
+                            : cm.formatBare(csum.delta, raw.unit)) + "'"
                     + "   σ CHIP '" + (sg > 0 ? cm.formatUncertainty(sg, cm.shortUnit(raw.unit))
                                               : "(hidden — no σ)") + "'")
-                // The same reading with and without the rule, side by side — the one line that
-                // answers "how much did the step actually change?" without arithmetic in the
-                // reader's head. The "before" column is the genuine TWO-ARGUMENT call, so this line
-                // also exercises the moc-cloned 2-arg entry from QML (see chart_metrics.h): if that
-                // assumption were wrong, this throws and says so instead of failing silently in the
-                // app's own bindings.
                 // ── §7 ITEM 3: IS THE PEAK TILE A VALUE ON THE DRAWN CURVE? ───────────────
                 //
                 // PEAK is the extremum of a 40 ms windowed MEAN (§5.2), so it is NOT a sample — and
@@ -637,7 +599,7 @@ Item {
                 // prints the persisted value[] at the sample nearest tPeakUs beside the reduced peak
                 // and the string the tile shows, which is the only way to see the three drift apart:
                 // a reduced peak far from the drawn value means the window is averaging across a
-                // feature, and a tile far from the reduced peak means the step is doing too much.
+                // feature, and a tile far from the reduced peak means the tile is not reading the reduction.
                 var pi = -1, pbd = Infinity
                 for (var q2 = 0; q2 < t.length; ++q2) {
                     var d2 = Math.abs(t[q2] - csum.tPeakUs)
@@ -652,7 +614,7 @@ Item {
                                         + (Math.abs(v[pi] - csum.peak) <= sg
                                            ? "WITHIN σ, §7 item 3 holds" : "OUTSIDE σ") + ")"
                                       : "  (no σ — §7 item 3 not judgeable on this series)")
-                            + "   tile = '" + cm.formatBare(csum.peak, raw.unit, sg) + "'"
+                            + "   tile = '" + cm.formatBare(csum.peak, raw.unit) + "'"
                             + "   nearest sample " + probe.ms(pbd) + " from tPeak")
 
                 // ── PHASE 6 / C17: IS THE TILE A POINT ON THE LINE THE CHART DRAWS? ───────
@@ -715,13 +677,6 @@ Item {
                                    + "back to drawing the raw curve")
                     }
                 }
-                if (stepv > 1)
-                    probe.w("   step rule cost      = PEAK "
-                            + cm.formatBare(csum.peak, raw.unit) + " → "
-                            + cm.formatBare(csum.peak, raw.unit, sg)
-                            + "   @IMPACT " + cm.formatBare(impV, raw.unit) + " → "
-                            + cm.formatBare(impV, raw.unit, sg)
-                            + "   (whole units → multiples of " + probe.num(stepv, 0) + ")")
             } catch (e) { probe.miss("§5.3 card text (" + e + ")") }
         }
 
@@ -757,11 +712,7 @@ Item {
         probe.w("clamp emptied win?  = " + (function () {
             try { return chart._domWinEmpty(p, ws, we) } catch (e) { return "?" }
         })() + "   facet @end text = '" + (function () {
-            // sg, not omitted: the σ is an argument now (the chart hoists it per plot so a per-frame
-            // binding never marshals the series), and leaving it off would hand formatBare an
-            // undefined → NaN → step 1 and quietly print an UNSTEPPED number on the one surface
-            // this decision is being judged from.
-            try { return chart._facetEndText(p, sg) } catch (e) { return "?" }
+            try { return chart._facetEndText(p) } catch (e) { return "?" }
         })() + "'")
 
         // ── @impact ──────────────────────────────────────────────────────────────────────
@@ -775,7 +726,7 @@ Item {
         probe.w("@impact " + probe.ms(iu) + "     measured = " + measured
                 + " (C++ measuredAt " + refMeasured + ")"
                 + "   value text = '" + (function () {
-                    try { return chart._valueTextAt(p, iu, sg) } catch (e) { return "?" }
+                    try { return chart._valueTextAt(p, iu) } catch (e) { return "?" }
                 })() + "'"
                 + "   band = '" + (function () {
                     try { return cm.bandAtNearest(raw.phaseSamples || [], Math.round(iu)) }

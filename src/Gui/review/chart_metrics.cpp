@@ -175,19 +175,6 @@ pa::ReduceConfig chartCfg()
     return pa::ReduceConfig{};
 }
 
-// The finest step any reading in this unit may be printed in, whatever σ says — the FLOOR of
-// ChartMetrics::displayStep. One unit for every unit today, which is exactly the rounding this class
-// did before σ existed, and the reason the σ rule can only ever COARSEN a number: a σ of 0.1 in must
-// not buy the plumb bob a decimal place, because the step rule is about honesty at the coarse end,
-// not about promoting a small σ into extra precision. Keyed on the DISPLAY token so the four
-// "% of something" units cannot disagree. Named and separate so a unit that one day wants a
-// different floor (a millimetre reading, say) has one place to say so rather than a special case
-// buried in the formatter.
-double unitStepFloor(const QString &)
-{
-    return 1.0;
-}
-
 // The two Phase enum members segments() names directly (swing_analysis.h Phase: 0 Address,
 // 7 Finish) — the ends of the swing itself, as opposed to the ends of the recording. Written as
 // named constants for the same reason PpChartPlot names Phase::Impact beside its 5: a bare 7 in a
@@ -812,45 +799,12 @@ QVariantMap ChartMetrics::sigmaInfo(const QVariantMap &series) const
     return out;
 }
 
-double ChartMetrics::displayStep(double sigma, const QString &unit) const
-{
-    const double floorStep = unitStepFloor(shortUnit(unit));
-    // ABSENT and 0 arrive here as the same value on purpose — see the header. So do the three broken
-    // ones: NaN, +INFINITY (a producer that divided by a zero span, not a demand for infinitely
-    // coarse digits) and a negative σ. An unusable error budget is indistinguishable from an
-    // unstated one, and the honest display of either is the floor, which claims nothing extra.
-    if (!(sigma > 0.0) || !std::isfinite(sigma)) return floorStep;
-    // ⚠ RETURNS ≥ floorStep (≥ 1) ON EVERY PATH. The formatters llround to an integer, so a sub-unit
-    // step would collapse back to 1 unnoticed; the floor makes that explicit instead of accidental.
-    if (sigma <= floorStep) return floorStep;
-
-    // The smallest {1,2,5}×10ⁿ that is NOT BELOW σ. The epsilon is for the exact powers of ten,
-    // where log10/pow round-trip a hair either side of 1.0 and would otherwise promote σ = 100 to a
-    // step of 200.
-    const double mag  = std::pow(10.0, std::floor(std::log10(sigma)));
-    const double norm = sigma / mag;                       // in [1, 10)
-    const double eps  = 1e-9;
-    const double nice = norm <= 1.0 + eps ? 1.0
-                      : norm <= 2.0 + eps ? 2.0
-                      : norm <= 5.0 + eps ? 5.0
-                      :                     10.0;
-    return std::max(floorStep, nice * mag);
-}
-
-QString ChartMetrics::formatBare(double v, const QString &unit, double sigma) const
+QString ChartMetrics::formatBare(double v, const QString &unit) const
 {
     const QString u = shortUnit(unit.isEmpty() ? QStringLiteral("°") : unit);
-    const double step = displayStep(sigma, unit);
-    // ROUND TO THE NEAREST MULTIPLE OF THE STEP, TIES AWAY FROM ZERO. That is llround's own rule,
-    // and at step 1 (σ absent or ≤ 1 unit) `llround(v/1)*1` is bit-for-bit the `llround(v)` this
-    // function did before σ existed — which is what keeps every uncharacterised series' display
-    // unchanged. At step 5: 12.4 → 10, 12.6 → 15, −7.4 → −5, 2.5 → 5 (away from zero, not to even).
-    //
-    // ⚠ displayStep FLOORS AT ≥ 1 AND THAT IS LOAD-BEARING HERE, not just a display opinion: the
-    // result is llround'ed to an integer, so a sub-unit step (0.5, 0.1) would be collapsed straight
-    // back to whole units with the caller none the wiser. The step is therefore always an integer
-    // ({1,2,5}×10ⁿ, n ≥ 0) and the multiplication is exact.
-    const long long r = std::llround(std::llround(v / step) * step);
+    // Whole units, ties away from zero. σ does not coarsen this (chart_metrics.h): the ± beside the
+    // reading says how far to trust it.
+    const long long r = std::llround(v);
     // The leading "+" is a DEGREES-ONLY convention and is deliberately not generalised: these are
     // signed deviations from a reference posture, where the sign is the reading. A "+75 mph" or a
     // "+2 in" would be decoration on a quantity whose sign nobody is asking about.
@@ -858,12 +812,12 @@ QString ChartMetrics::formatBare(double v, const QString &unit, double sigma) co
            + QString::number(r);
 }
 
-QString ChartMetrics::formatValue(double v, const QString &unit, double sigma) const
+QString ChartMetrics::formatValue(double v, const QString &unit) const
 {
     const QString u = shortUnit(unit.isEmpty() ? QStringLiteral("°") : unit);
     // Degrees close up against the number, everything else takes a space. "12°" is one token to a
     // reader and "12mph" is a typo.
-    return formatBare(v, unit, sigma)
+    return formatBare(v, unit)
            + (u == QStringLiteral("°") ? QString() : QStringLiteral(" ")) + u;
 }
 
@@ -873,8 +827,8 @@ QString ChartMetrics::formatUncertainty(double err, const QString &unit) const
     if (!std::isfinite(err)) return QString();
 
     const double e = std::fabs(err);          // an uncertainty has no direction
-    // QUOTED, NOT QUANTISED, and there is no displayStep call in this function on purpose — the
-    // header states the rule and the three defects that came of coupling the two.
+    // QUOTED, NOT QUANTISED — the header states the rule and the three defects that came of
+    // rounding a ± to a step.
     //
     // The 0.05 cut is where one decimal stops being able to say anything: below it the honest
     // statement is a BOUND, and "± <0.1" is a bound that is always true — including for an err of
@@ -1119,9 +1073,7 @@ QVariantList ChartMetrics::sequenceRows(const QVariantMap &ks) const
             { QStringLiteral("sigmaText"),      placed ? QStringLiteral("±") + QString::number(std::lround(tSigma))
                                                              + QStringLiteral(" ms")
                                                        : QString() },
-            // The peak is a READING, so σ governs its digits (displayStep via formatValue); the
-            // ± beside it is quoted, not quantised — the same split the summary cards make.
-            { QStringLiteral("peakText"),       placed ? formatValue(peak, QStringLiteral("°/s"), pSigma) : QString() },
+            { QStringLiteral("peakText"),       placed ? formatValue(peak, QStringLiteral("°/s")) : QString() },
             { QStringLiteral("unplacedText"),   unplaced },
             { QStringLiteral("gapText"),        gapMs >= 0.0 ? QStringLiteral("+") + QString::number(std::lround(gapMs))
                                                                    + QStringLiteral(" ms")

@@ -343,9 +343,7 @@ ColumnLayout {
                 // phaseSample, rather than defaulting to "good" off nothing at all.
                 readonly property string nm:  cm.shortLabel(card.modelData.key)
                                               || card.modelData.label || card.modelData.key
-                // This series' measurement noise, resolved ONCE: it governs the digits of every
-                // READING (ChartMetrics.displayStep) and is what the header chip quotes. It governs
-                // the readings and nothing else — every ± on the card is QUOTED, not quantised.
+                // This series' measurement noise, resolved ONCE: it is what the header chip quotes.
                 readonly property real   sig: cm.seriesSigma(card.modelData)
                 // The σ chip's provenance and the gross-error caveat (chart_metrics.h sigmaInfo) —
                 // resolved once per card, like `sig`, because the map marshals the whole series.
@@ -374,7 +372,7 @@ ColumnLayout {
                     var raw = root._hasMean(card.modelData)
                               ? cm.formatBare(labels.valueAtNearest(card.modelData.t_us,
                                                                     card.modelData.value, us),
-                                              card.modelData.unit, card.sig)
+                                              card.modelData.unit)
                               : ""
                     return { ok: ok, val: v, us: us, raw: raw }
                 }
@@ -390,7 +388,7 @@ ColumnLayout {
                     var name = labels.phaseFullName(r.phase)
                     return "@ " + (name.length <= 7 ? name.toUpperCase() : card.tag(r.phase))
                 }
-                function fmt(v) { return cm.formatBare(v, card.modelData.unit, card.sig) }
+                function fmt(v) { return cm.formatBare(v, card.modelData.unit) }
 
                 // ── THE TILES, IN SPEC ORDER: readings, PEAK, Δ, PK RATE ────────────────────
                 // Each: { label, text, ok, color, sub, unit, tip, window }. `sub` is the ± line and
@@ -495,13 +493,12 @@ ColumnLayout {
                 function companionTiles(s) {
                     var out = [], sp = cm.cardSpecFor(s.key), i
                     var nm  = (cm.shortLabel(s.key) || s.label || s.key).toUpperCase()
-                    var sig = cm.seriesSigma(s)
                     var unit = root._unit(s.unit) === root._unit(card.modelData.unit) ? "" : root._unit(s.unit)
                     var rs = sp.readAt || []
                     for (i = 0; i < rs.length; ++i) {
                         var r = card.companionReading(s, rs[i].phase)
                         out.push({ label: rs[i].label ? rs[i].label : nm + " " + card.readLabel(rs[i]),
-                                   text: r.ok ? cm.formatBare(r.val, s.unit, sig) : "—", ok: r.ok,
+                                   text: r.ok ? cm.formatBare(r.val, s.unit) : "—", ok: r.ok,
                                    color: r.ok ? root._bandColor(cm.bandAtNearest(s.phaseSamples, r.us))
                                                : Theme.colorText3,
                                    sub: "", unit: r.ok ? unit : "", tip: "", window: false })
@@ -511,7 +508,7 @@ ColumnLayout {
                         var dOk = a.ok && b.ok
                         out.push({ label: sp.deltaLabel
                                           || ("Δ " + nm + " " + card.tag(sp.deltaFrom) + "→" + card.tag(sp.deltaTo)),
-                                   text: dOk ? cm.formatBare(b.val - a.val, s.unit, sig) : "—", ok: dOk,
+                                   text: dOk ? cm.formatBare(b.val - a.val, s.unit) : "—", ok: dOk,
                                    color: dOk ? Theme.colorText : Theme.colorText3,
                                    sub: "", unit: dOk ? unit : "", tip: "", window: false })
                     }
