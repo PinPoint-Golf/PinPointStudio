@@ -122,6 +122,16 @@ struct FitConfig {
     double shaftSigmaDegFo = 3.0;
     double shaftSigmaDegDtl = 4.0;
     double gripSigmaM      = 0.02;
+    // THE CLUB IS IN THE HANDS (σ m × body scale, per axis): the grip point against the palm's
+    // centre. The images hold the shaft's DIRECTION, not where along it the hands are, so this
+    // prior is all that keeps the club in the hands — and at 0.03 it did not. The face-on pitch
+    // and the floor's height trade against each other at almost no cost, the club's length is
+    // held at the tape and its head on the floor, so whatever the cameras got wrong came out as
+    // the club sliding out of the hands: 14–26 cm from the lead wrist on every swing of 5 Oct 2026
+    // (a gap wedge at 47° to the ground at address), 8–10 cm on 07-04. At 0.01 on 5 Oct s13:
+    // 20 → 12 cm, the address shaft 47° → 52°, reprojection unchanged and the total cost DOWN
+    // (74826 → 74719); 07-04 s8 9 → 7 cm, cost +0.03 %.
+    double gripOffsetSigmaM = 0.01;
     double contactSigmaM   = 0.01;
     double imuSigmaDeg     = 4.0;
     double hmSigmaDeg      = 4.0;

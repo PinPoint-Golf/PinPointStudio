@@ -93,6 +93,7 @@ inline FitConfig fitConfigFromOverrides(const QVariantMap &ov)
     // The prior widths, for the knob audit (swing_3d_viz_design.md §13.2 (D)).
     apply(ov, "skeleton3d.limitSigmaDeg",      c.limitSigmaDeg);
     apply(ov, "skeleton3d.gripSigmaM",         c.gripSigmaM);
+    apply(ov, "skeleton3d.gripOffsetSigmaM",   c.gripOffsetSigmaM);
     apply(ov, "skeleton3d.contactSigmaM",      c.contactSigmaM);
     apply(ov, "skeleton3d.wristSigmaDeg",      c.wristSigmaDeg);
     apply(ov, "skeleton3d.pronationSigmaDeg",  c.pronationSigmaDeg);

@@ -1787,7 +1787,7 @@ FitResult fitSkeleton(const FitInput &in)
         const double pri[9] = { lead.x, lead.y, lead.z, gOff.x, gOff.y, gOff.z, tOff.x, tOff.y, tOff.z };
         for (int c = 0; c < 9; ++c) {
             S.sv[L.iGrip + c] = P.svPrior[L.iGrip + c] = pri[c];
-            P.svSigma[L.iGrip + c] = c < 3 ? 0.35 : 0.03 * s0;
+            P.svSigma[L.iGrip + c] = c < 3 ? 0.35 : in.cfg.gripOffsetSigmaM * s0;
             P.svFree[size_t(L.iGrip + c)] = in.cfg.useShaft || in.cfg.useGrip;
         }
     }
