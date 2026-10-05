@@ -106,11 +106,20 @@ Item {
     // session — by reconciling diagnostics.json against the swing_* directories beside it and
     // back-filling the difference. Entering and leaving review is a fourth, and it is the
     // same call for the same reason.
+    //
+    // LIVE IS TODAY'S SESSION WHETHER OR NOT IT IS RUNNING. shotProcessor.activeSessionDir is
+    // set only between a session's start and its end, and this used to read nothing else: end
+    // the session, or relaunch the app, and the panel was pointed at "" and cleared — all three
+    // tabs blank over a carousel still showing the day's swings. So when no session is running
+    // it reads the folder the carousel is showing (sessionReviewController.liveSessionDir).
+    // The running session's own folder comes first: it exists before its first swing does.
     readonly property string sessionDir:
         (sessionReviewController.reviewActive
          && sessionReviewController.activeSessionId !== "")
             ? sessionReviewController.activeSessionId
-            : shotProcessor.activeSessionDir
+            : shotProcessor.activeSessionDir !== ""
+                ? shotProcessor.activeSessionDir
+                : sessionReviewController.liveSessionDir
 
     // GUARDED ON THE MODEL'S OWN ANSWER, not on a remembered one. activateSession() is a disk
     // scan and a back-fill, so it must not run again for a session already loaded — and
@@ -119,8 +128,14 @@ Item {
     // reviewed one the model is holding now, so the live ledger is rebuilt rather than the
     // reviewed one being left on screen in the live tense. Empty is a real value here (a live
     // session before its first export) and clears the model, for the same reason.
+    //
+    // COMPARED AS FOLDERS, NOT AS STRINGS: the two live sources spell the same folder
+    // differently when the library path ends in a slash ("…/lib//athlete/…" from the
+    // processor, "…/lib/athlete/…" from the carousel), and a session ending must not cost a
+    // second scan of the folder the panel is already on.
+    function _folder(p) { return p.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "") }
     function _pointAtSession() {
-        if (sessionDir !== diagModel.sessionDir)
+        if (_folder(sessionDir) !== _folder(diagModel.sessionDir))
             diagModel.activateSession(sessionDir)
     }
 

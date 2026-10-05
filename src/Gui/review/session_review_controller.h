@@ -64,6 +64,13 @@ class SessionReviewController : public QObject
     // (the diagnostics ledger reads its swing_* dirs and diagnostics.json off disk) has one
     // place to read it from instead of re-deriving it from a shot's swingDir.
     Q_PROPERTY(QString  activeSessionId READ activeSessionId NOTIFY reviewActiveChanged)
+    // TODAY'S SESSION AS THE CAROUSEL HOLDS IT: the folder the live model's swings sit in, empty
+    // when it holds none. This is the live session whether or not capture is running — the
+    // carousel is re-pointed at today's folder on entry, at session start and at session end —
+    // where ShotProcessor::activeSessionDir is only set between a session's start and its end.
+    // The diagnostics panel reads this when no session is running, so a session that was ended,
+    // or the app relaunched on, still shows its ledger.
+    Q_PROPERTY(QString  liveSessionDir READ liveSessionDir NOTIFY liveSessionDirChanged)
     // Loaded-session header bits for the toolbar review strip + carousel chip.
     Q_PROPERTY(QString  activeDayLabel  READ activeDayLabel  NOTIFY reviewActiveChanged)
     Q_PROPERTY(QString  activeTimeLabel READ activeTimeLabel NOTIFY reviewActiveChanged)
@@ -81,6 +88,9 @@ public:
     QObject *shots()                { return &m_reviewModel; }
     ShotListModel *activeShots()    { return m_reviewActive ? &m_reviewModel : m_liveModel; }
     QString  activeSessionId() const { return m_loadedSessionDir; }
+    // Absolute path of the session the live model holds (parent of any live shot's
+    // swingDir), or empty when no live shot has a folder.
+    QString  liveSessionDir() const;
     QString  activeDayLabel()  const { return m_activeDayLabel; }
     QString  activeTimeLabel() const { return m_activeTimeLabel; }
     QString  activeClubMix()   const { return m_activeClubMix; }
@@ -119,6 +129,7 @@ public slots:
 signals:
     void reviewActiveChanged();
     void activeShotCountChanged();
+    void liveSessionDirChanged();
     // An ARCHIVED session was opened (SessionArchiver): its stubs are on screen — rows, scores,
     // chips — but no replay. main.cpp routes this to ArchiveController::restoreSession, whose
     // sessionRestored() re-opens it complete.
@@ -127,9 +138,8 @@ signals:
 private:
     SessionListModel::Row buildLiveRow(qint64 nowMs) const;
     SessionListModel::Row buildDiskRow(const QString &sessionDir, qint64 nowMs) const;
-    // Absolute path of the session the live model is writing into (parent of any
-    // live shot's swingDir), or empty if no shot has been exported yet.
-    QString liveSessionDir() const;
+    void updateLiveSessionDir();
+    QString m_liveSessionDir;      // last value announced; see liveSessionDir()
 
     ShotListModel     *m_liveModel = nullptr;
     AppSettings       *m_settings  = nullptr;

@@ -60,7 +60,24 @@ SessionReviewController::SessionReviewController(ShotListModel     *liveModel,
     // The loaded session's shot count tracks trashing in the review model.
     connect(&m_reviewModel, &ShotListModel::activeCountChanged,
             this, &SessionReviewController::activeShotCountChanged);
+    // liveSessionDir follows the live model: rows arriving, leaving, the carousel being
+    // re-pointed (a reset), and a row gaining its folder late (attachSwingDir → dataChanged).
+    if (m_liveModel) {
+        connect(m_liveModel, &QAbstractItemModel::rowsInserted, this, &SessionReviewController::updateLiveSessionDir);
+        connect(m_liveModel, &QAbstractItemModel::rowsRemoved,  this, &SessionReviewController::updateLiveSessionDir);
+        connect(m_liveModel, &QAbstractItemModel::modelReset,   this, &SessionReviewController::updateLiveSessionDir);
+        connect(m_liveModel, &QAbstractItemModel::dataChanged,  this, &SessionReviewController::updateLiveSessionDir);
+    }
+    m_liveSessionDir = liveSessionDir();
     refresh();
+}
+
+void SessionReviewController::updateLiveSessionDir()
+{
+    const QString now = liveSessionDir();
+    if (now == m_liveSessionDir) return;
+    m_liveSessionDir = now;
+    emit liveSessionDirChanged();
 }
 
 QString SessionReviewController::liveSessionDir() const

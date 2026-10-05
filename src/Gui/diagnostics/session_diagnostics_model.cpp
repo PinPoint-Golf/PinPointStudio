@@ -251,6 +251,23 @@ bool railBefore(const QVariantMap &x, const QVariantMap &y)
 constexpr int kDetailMaxPaths = 8;
 constexpr int kDetailMaxDepth = 7;
 
+// THE LEDGER'S SHOT ID IS THE SWING FOLDER'S NUMBER (swing_0007 -> 7), on every path in. The
+// back-fill has always read it from there; the live path used to take ShotProcessor's id, which
+// is the carousel's own counter and agrees with the folder only in a session whose carousel was
+// never reloaded. Extend today's session and the next shot arrived as "91" beside folders 1–30:
+// filed under a number no reload would give it, so the next activation graded swing_0031 a
+// second time as 31, and in other orders the counter landed ON a number already held and the
+// shot was dropped as a repeat. −1 when the folder carries no number.
+int folderShotId(const QString &swingDir)
+{
+    const QString name = QFileInfo(QDir::cleanPath(swingDir)).fileName();
+    const int us = name.lastIndexOf(QLatin1Char('_'));
+    if (us < 0) return -1;
+    bool ok = false;
+    const int id = name.mid(us + 1).toInt(&ok);
+    return (ok && id >= 0) ? id : -1;
+}
+
 } // namespace
 
 // ── Construction ────────────────────────────────────────────────────────────────────────
@@ -381,7 +398,11 @@ void SessionDiagnosticsModel::ingestShot(int shotId, const QString &swingDir)
     // Doing it in applyIngested() would still produce one row per shot, but it would parse
     // the same 30 MB document twice when a back-fill scan raced a live shotProcessed — which
     // is exactly the moment the app can least afford it.
-    if (shotId < 0 || swingDir.isEmpty()) return;
+    if (swingDir.isEmpty()) return;
+    // The folder's number, whatever the caller numbered it (folderShotId above). The caller's id
+    // stands only for a folder that carries none.
+    if (const int fromFolder = folderShotId(swingDir); fromFolder >= 0) shotId = fromFolder;
+    if (shotId < 0) return;
     // A CLOSED SESSION IS FROZEN. Closing is the one lifecycle transition that is an event
     // rather than a threshold, and the panel it produces is the session's summary — a shot
     // arriving afterwards belongs to the next session, not to the one whose bookends and
@@ -693,6 +714,23 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
             from.docMtimeMs = qint64(g.value(QStringLiteral("mtimeMs")).toDouble());
             from.content    = g.value(QStringLiteral("content")).toString();
             m_gradedFrom.insert(it.key().toInt(), from);
+        }
+
+        // A row filed under a number that is not its folder's was written by the live path
+        // before it took the folder's number (folderShotId). It is dropped here and the
+        // reconcile below grades the swing again under the right one — kept, the same swing
+        // would stand in the ledger twice.
+        for (auto it = m_swingDirs.begin(); it != m_swingDirs.end(); ) {
+            const int id = it.key();
+            const int fromFolder = folderShotId(it.value());
+            if (fromFolder < 0 || fromFolder == id) { ++it; continue; }
+            m_shots.erase(std::remove_if(m_shots.begin(), m_shots.end(),
+                                         [id](const ShotRecord &s) { return s.shotId == id; }),
+                          m_shots.end());
+            m_ingested.remove(id);
+            m_lmShots.remove(id);
+            m_gradedFrom.remove(id);
+            it = m_swingDirs.erase(it);
         }
 
         const QJsonObject intent = root.value(QStringLiteral("intent")).toObject();

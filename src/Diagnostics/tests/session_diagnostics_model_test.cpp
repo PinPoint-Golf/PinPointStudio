@@ -674,7 +674,8 @@ int main(int argc, char **argv)
         m->setSelectedSwingDir(QString());
         check(m->selectedShotId() == -1, "and empty clears the selection");
 
-        // Live: the processor's id is NOT the folder number, and the pick can come first.
+        // Live: the processor's id is NOT the folder number — the ledger files the shot under
+        // the folder's — and the pick can come first.
         const QString live = makeSession(tmp, "athlete_sel", "session_sel_live");
         check(stageShot(live, 1, "rich_7iron"), "a live session's first swing on disk");
         auto l = freshModel();
@@ -682,7 +683,43 @@ int main(int argc, char **argv)
         l->setSelectedSwingDir(swingDirFor(live, 1));
         check(l->selectedShotId() == -1, "picked before it is in the ledger: nothing yet");
         l->ingestShot(57, swingDirFor(live, 1));
-        check(l->selectedShotId() == 57, "the pick resolves when the swing arrives, to the live id");
+        check(l->selectedShotId() == 1,
+              "the pick resolves when the swing arrives, to the swing folder's number");
+        l->ingestShot(1, swingDirFor(live, 1));
+        check(l->shotCount() == 1, "…and the same swing under the folder's own number is a repeat");
+
+        // A ledger written while the live path still filed shots under the processor's id: the
+        // row is re-filed under the folder's number on load, not kept beside a second grading.
+        auto w = freshModel();
+        w->activateSession(live);
+        const QString ledgerPath = QDir(live).filePath(QStringLiteral("diagnostics.json"));
+        QFile lf(ledgerPath);
+        check(lf.open(QIODevice::ReadOnly), "the live session's ledger is on disk");
+        QJsonObject root = QJsonDocument::fromJson(lf.readAll()).object();
+        lf.close();
+        {
+            QJsonObject ledger = root.value(QStringLiteral("ledger")).toObject();
+            QJsonArray shots = ledger.value(QStringLiteral("shots")).toArray();
+            QJsonObject s0 = shots.at(0).toObject();
+            s0[QStringLiteral("shotId")] = 57;
+            shots[0] = s0;
+            ledger[QStringLiteral("shots")] = shots;
+            root[QStringLiteral("ledger")] = ledger;
+            QJsonObject session = root.value(QStringLiteral("session")).toObject();
+            for (const char *k : { "swingDirs", "gradedFrom" }) {
+                QJsonObject o = session.value(QLatin1String(k)).toObject();
+                o.insert(QStringLiteral("57"), o.take(QStringLiteral("1")));
+                session[QLatin1String(k)] = o;
+            }
+            root[QStringLiteral("session")] = session;
+        }
+        check(lf.open(QIODevice::WriteOnly | QIODevice::Truncate), "…and can be rewritten the old way");
+        lf.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+        lf.close();
+        auto w2 = freshModel();
+        w2->activateSession(live);
+        check(w2->shotCount() == 1, "a row filed under the processor's id does not double the swing");
+        check(w2->shotIdForSwingDir(swingDirFor(live, 1)) == 1, "…it is re-filed under the folder's number");
     }
 
     // ── 4c. A re-analysed shot is graded again ───────────────────────────────────────
