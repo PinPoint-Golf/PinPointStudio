@@ -366,6 +366,22 @@ pp_add_test(metric_catalogue_test
     INCLUDE ${DIAG} ${SRC}/Metrics ${SRC}/LaunchMonitor ${ANALYSIS})
 pp_norm_env(metric_catalogue_test)
 
+# Setup capability (setup_capability.{h,cpp}): the closing page of session setup — a ShotContext
+# built from a PLANNED setup and summarised per metric group over the same resolver. Asserts
+# invariants (one bucket per metric, adding kit never worsens a metric, launch-monitor and arm
+# gaps) rather than totals, and prints each setup's table. Same link set as metric_catalogue_test.
+pp_add_test(setup_capability_test
+    SOURCES ${SRC}/Metrics/tests/setup_capability_test.cpp
+            ${SRC}/Metrics/setup_capability.cpp
+            ${SRC}/Metrics/metric_catalogue.cpp
+            ${SRC}/Metrics/metric_resolver.cpp
+            ${SRC}/Metrics/metric_catalogue_manifest.cpp
+            ${SRC}/Metrics/metric_providers.cpp
+            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+            ${ANALYSIS}/reference_bands.cpp ${NORM_SRC}
+    INCLUDE ${DIAG} ${SRC}/Metrics ${SRC}/LaunchMonitor ${ANALYSIS})
+pp_norm_env(setup_capability_test)
+
 # The `hackMotion` requirement axis, exercised rather than declared. Same link set
 # as metric_catalogue_test above and deliberately a separate binary: that test
 # covers the three hm.* DESCRIPTORS (they exist, right type, right group, right

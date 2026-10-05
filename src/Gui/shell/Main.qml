@@ -622,31 +622,27 @@ ApplicationWindow {
                 // Version pill → About PinPoint Studio.
                 onAboutRequested: aboutDialog.open()
 
-                // When on the wizard, ‹/› navigate steps; otherwise delegate to
-                // navController. Step skipping (Triangulate/Calibrate/Confirm)
-                // lives in the wizard's goBack()/goNext() — single source of truth.
+                // When on session setup, ‹/› are the flow's (design §4.5): ‹ is Back, and on
+                // the first step the exit (the flow releases the devices and asks Main to go
+                // back — onExitRequested below); › is Continue only, never Connect, and is
+                // disabled exactly when Continue would not advance (F5, D2). Otherwise
+                // delegate to navController.
                 backEnabled: navController.currentIndex === root.screenWizard
-                                 ? (sessionWizard.currentStep > 0 || navController.canGoBack)
+                                 ? sessionSetup.canHeaderBack
                                  : navController.canGoBack
                 forwardEnabled: navController.currentIndex === root.screenWizard
-                                    ? sessionWizard.currentStep < sessionWizard.lastStep
+                                    ? sessionSetup.canHeaderForward
                                     : navController.canGoForward
 
                 onBackRequested: {
-                    if (navController.currentIndex === root.screenWizard && sessionWizard.currentStep > 0) {
-                        sessionWizard.goBack()
-                    } else {
-                        // ‹ on the wizard's first step exits the wizard — that
-                        // abandons setup just like Cancel, so release any
-                        // devices the wizard connected before leaving.
-                        if (navController.currentIndex === root.screenWizard)
-                            sessionWizard.releaseDevices()
+                    if (navController.currentIndex === root.screenWizard)
+                        sessionSetup.headerBack()
+                    else
                         navController.back()
-                    }
                 }
                 onForwardRequested: {
-                    if (navController.currentIndex === root.screenWizard && sessionWizard.currentStep < sessionWizard.lastStep)
-                        sessionWizard.goNext("done")
+                    if (navController.currentIndex === root.screenWizard)
+                        sessionSetup.headerForward()
                     else
                         navController.forward()
                 }
@@ -675,7 +671,7 @@ ApplicationWindow {
                         // Carry the Home club pick into the session; start() (fired
                         // at wizard completion) preserves an already-set activeClub.
                         sessionController.activeClub = screenHome.selectedClub
-                        sessionWizard.reset(sessionTypeIndex)
+                        sessionSetup.open(sessionTypeIndex)
                         navController.navigate(root.screenWizard)
                     }
                     // Coming-soon types jump straight to their placeholder rail
@@ -741,16 +737,18 @@ ApplicationWindow {
                         settingsScreen.showMetricDetail(key)
                     }
                 }
-                ScreenSessionWizard {                                      // screenWizard — session setup wizard
-                    id: sessionWizard
+                ScreenSessionSetup {                                       // screenWizard — session setup
+                    id: sessionSetup
                     onCancelled: {
-                        // Abandoning setup releases any devices the wizard
-                        // connected (cameras, IMUs, microphone via capture
-                        // intent) — same teardown as End Session.
-                        sessionWizard.releaseDevices()
+                        // The flow has already released every device setup connected
+                        // (cameras, sensors, the microphone via capture intent) before
+                        // it emitted cancelled() — the same teardown as End Session.
                         sessionController.activeClub = ""   // drop the un-started club pick
                         navController.navigate(root.screenHome)
                     }
+                    // ‹ on the first step: the flow released the devices; go back to
+                    // where setup was opened from.
+                    onExitRequested: navController.back()
                     onSessionStartRequested: function(type, goals) {
                         var map = appSettings.sessionGoalsByType
                         map[type.toString()] = goals
@@ -758,7 +756,7 @@ ApplicationWindow {
                         appSettings.lastSessionType    = type
                         // Navigate first: once start(type) runs, navigation is
                         // locked to this very screen (plus System/Settings).
-                        navController.navigateRail(sessionWizard.sessionTypes[type].railIndex)
+                        navController.navigateRail(sessionSetup.presets[type].railIndex)
                         // The wizard always starts a NEW session folder (a deliberate
                         // fresh session); the carousel begins empty. The toolbar
                         // Capture button is the path that offers extend-vs-new.
@@ -774,7 +772,7 @@ ApplicationWindow {
                     onCameraRecalibrateRequested: {
                         // TODO: navigate to the stereo calibration screen when the
                         // pipeline lands. When calibration completes, call
-                        // sessionWizard.reopenAtTriangulate() and
+                        // sessionSetup.flow.goTo("triangulate") and
                         // navController.navigate(root.screenWizard).
                     }
                 }

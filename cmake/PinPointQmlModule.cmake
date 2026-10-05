@@ -35,6 +35,7 @@ set(PP_QML_SINGLETONS
     src/Gui/session/SessionMode.qml
     src/Gui/cameras/AnnotationTool.qml
     src/Gui/review/MetricRoute.qml
+    src/Gui/imu/ImuMounts.qml
 )
 
 set(PP_QML_FILES
@@ -135,15 +136,51 @@ set(PP_QML_FILES
     src/Gui/settings/LaunchMonitorPanel.qml
     src/Gui/settings/SettingsIndex.qml
     src/Gui/home/HmTypeCard.qml
-    src/Gui/session/ScreenSessionWizard.qml
     src/Gui/media/CoachPage.qml
     src/Gui/session/PpSessionToolbar.qml
     src/Gui/cameras/PpCameraPanel.qml
     src/Gui/imu/PpImuPanel.qml
+    # The mounts by name, and which of them the pickers offer (design §4.12–4.13).
+    src/Gui/imu/ImuMounts.qml
     src/Gui/session/ScreenWrist.qml
     src/Gui/session/ScreenSessionMode.qml
     src/Gui/calibration/ImuCalibrationFlow.qml
+    src/Gui/calibration/CalibrationGuide.qml
+    src/Gui/calibration/WitmotionArmRoutine.qml
+    src/Gui/calibration/HackMotionArmRoutine.qml
+    src/Gui/calibration/ArmCalibrationStatus.qml
     src/Gui/calibration/CameraCalibrationFlow.qml
+    # Session setup's engine (design §4.2–4.8): registry, flow, hardware context, draft, the page
+    # contract, and the flow's pure decisions (.pragma library, imported relatively by SetupFlow).
+    src/Gui/setup/setup_flow.js
+    # The closing page's "What this session will record" wording (.pragma library, imported
+    # relatively by SetupContext; the ONE place that wording lives).
+    src/Gui/setup/setup_capability_rows.js
+    src/Gui/setup/StepDescriptor.qml
+    src/Gui/setup/WizardPage.qml
+    src/Gui/setup/SetupSteps.qml
+    src/Gui/setup/SetupContext.qml
+    src/Gui/setup/SetupDraft.qml
+    src/Gui/setup/SetupFlow.qml
+    # Session setup's shell, pages and the parts they share (design §4.2–4.3, §4.9; the shell
+    # replaced ScreenSessionWizard.qml, deleted at Stage 5c). Page type names are unique in the
+    # module; the parts are Setup…-prefixed because other files still declare inline CheckRow /
+    # StepIntro / TogglePill components of their own.
+    src/Gui/setup/ScreenSessionSetup.qml
+    src/Gui/setup/pages/GoalsPage.qml
+    src/Gui/setup/pages/CamerasPage.qml
+    src/Gui/setup/pages/TriangulatePage.qml
+    src/Gui/setup/pages/BallPage.qml
+    src/Gui/setup/pages/ImusPage.qml
+    src/Gui/setup/pages/CalibrateArmPage.qml
+    src/Gui/setup/pages/CheckArmPage.qml
+    src/Gui/setup/pages/ReadyPage.qml
+    src/Gui/setup/parts/SetupStepIntro.qml
+    src/Gui/setup/parts/SetupCheckRow.qml
+    src/Gui/setup/parts/SetupStatusCircle.qml
+    src/Gui/setup/parts/SetupTogglePill.qml
+    src/Gui/setup/parts/SetupSummaryRow.qml
+    src/Gui/components/PpFlowIndicator.qml
     src/Gui/shot/PpShotCarousel.qml
     src/Gui/shot/PpShotActionBar.qml
     src/Gui/shot/PpExportOptionsSheet.qml
@@ -258,6 +295,10 @@ set(PP_QML_SOURCES
     src/Gui/review/chart_metrics.cpp
     src/Gui/review/metric_catalog.h
     src/Gui/review/metric_catalog.cpp
+    # metric_catalog.cpp's setupSummary() — listed here, not beside the other Metrics sources, so
+    # every consumer of this module (the app and both QML suites) gets it with one line.
+    src/Metrics/setup_capability.h
+    src/Metrics/setup_capability.cpp
     src/Gui/launchmonitor/lm_session_model.h
     src/Gui/launchmonitor/lm_session_model.cpp
     src/Gui/diagnosticmodel/model_browser.h

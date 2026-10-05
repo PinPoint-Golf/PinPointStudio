@@ -34,8 +34,8 @@ LiveWristAngles::LiveWristAngles(ImuManager *imu, AppSettings *settings,
                                  AthleteController *athlete, QObject *parent)
     : QObject(parent), m_imu(imu), m_athlete(athlete)
 {
-    // `settings` is no longer read here: slot→sensor resolution moved to
-    // ImuManager::instanceForSlot(), which owns the unit-keyed placement rule for
+    // `settings` is no longer read here: role→sensor resolution is
+    // ImuManager::instanceForRole()'s, which owns the unit-keyed placement rule for
     // both device kinds (a bare device id for a Witmotion, HmUnit::unitId() for a
     // HackMotion). The parameter stays so main.cpp's construction is untouched.
     Q_UNUSED(settings)
@@ -55,12 +55,12 @@ void LiveWristAngles::setActive(bool on)
 }
 
 // ---------------------------------------------------------------------------
-// Slot → sensor, across two unrelated concrete types
+// Role → sensor, across two unrelated concrete types
 // ---------------------------------------------------------------------------
 //
-// ImuManager::instanceForSlot() owns the placement rule — a bare device id keys a
+// ImuManager::instanceForRole() owns the placement rule — a bare device id keys a
 // Witmotion, HmUnit::unitId() ("<deviceId>#lowerArm" / "#palm") keys a HackMotion,
-// and one wG3 fills slots A and B — and hands back the object the viz layer binds
+// and one wG3 fills leadForearm and leadHand — and hands back the object the viz layer binds
 // to. That object is an ImuInstance for a Witmotion and an HmUnit for a
 // HackMotion.
 //
@@ -113,11 +113,11 @@ struct SlotSensor {
     // name; nothing in this readout needs it, so it is not wrapped here.)
 };
 
-SlotSensor slotSensor(ImuManager *imu, const QString &slot)
+SlotSensor slotSensor(ImuManager *imu, const QString &role)
 {
     SlotSensor s;
     if (!imu) return s;
-    QObject *o = imu->instanceForSlot(slot);
+    QObject *o = imu->instanceForRole(role);
     if (!o) return s;
     s.wt = qobject_cast<ImuInstance *>(o);
     s.hm = qobject_cast<HmUnit *>(o);
@@ -128,9 +128,10 @@ SlotSensor slotSensor(ImuManager *imu, const QString &slot)
 
 void LiveWristAngles::tick()
 {
-    const SlotSensor fore  = slotSensor(m_imu, QStringLiteral("A"));   // forearm (at wrist)
-    const SlotSensor hand  = slotSensor(m_imu, QStringLiteral("B"));   // back of hand
-    const SlotSensor upper = slotSensor(m_imu, QStringLiteral("C"));   // upper arm (optional)
+    // By ROLE (design §4.13). The three are the arm roles the A/B/C letters always meant.
+    const SlotSensor fore  = slotSensor(m_imu, pinpoint::imu_roles::leadForearm());    // forearm (at wrist)
+    const SlotSensor hand  = slotSensor(m_imu, pinpoint::imu_roles::leadHand());       // back of hand
+    const SlotSensor upper = slotSensor(m_imu, pinpoint::imu_roles::leadUpperArm());   // upper arm (optional)
 
     // Lead arm is the LEFT for a right-handed golfer (matches ArmVizView). anatQuat is
     // identity at the calibration neutral, so the relative quaternion IS the posture

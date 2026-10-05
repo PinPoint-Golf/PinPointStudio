@@ -34,6 +34,7 @@
 #include <vector>
 
 #include "types.h"   // pinpoint::SourceId, kInvalidSourceId
+#include "segment_role.h"            // SegmentRole, segmentRoleName, placement role names
 #include "wrist_assessment_result.h"   // PpWristFinding (Tier-2 offline assessment)
 #include "kinematic_sequence.h"        // KinematicSequence (segment_rates.h fills it)
 #include "dtl_shaft_track.h"          // DtlShaftTrack2D (DtlShaftStage fills it; OpenCV-free)
@@ -49,19 +50,17 @@ namespace pinpoint::analysis {
 // Degradation tier, chosen at job-build time from camera-calib + IMU availability.
 enum class ReconstructionTier { Angles2D, Mono3DPlusImu, Stereo3D, ClubInstrumented };
 
-// Anatomical segment an IMU is mounted on. Unknown = unmapped placement slot.
-enum class SegmentRole {
-    Unknown = 0,
-    Pelvis, Thorax, T12,
-    LeadUpperArm, LeadForearm, LeadHand,
-    TrailThigh, LeadThigh,
-    Club,
-};
+// SegmentRole (APPEND-ONLY), segmentRoleName() and the placement role names live in
+// segment_role.h, included above.
 
-// Canonical placement-slot → anatomical role mapping — the single source of truth,
-// shared by the swing exporter (analysis.bindings[].role + stream device.role) and
-// the data viewer's settings fallback. Only Wrist Motion (sessionType 1) is mapped
-// today; other session types resolve to Unknown until their placement UX lands.
+// Legacy placement-slot → anatomical role mapping, for READING OLD SWINGS ONLY.
+//
+// ⚠ NOTHING THAT WRITES A SWING MAY CALL THIS. Live placement is role-keyed
+// (`imu/roles`, ImuManager::roleForDevice) and session-agnostic: a pelvis sensor is a
+// pelvis sensor in every session type. This survives, gate and all, for exactly one
+// reader — swing_data_source.cpp's fallback for a swing whose stream carries no
+// device.role, which can only have been recorded when slot letters meant the Wrist map
+// and nothing else. Changing the gate would relabel those old swings.
 inline SegmentRole segmentRoleForSlot(int sessionType, const QString &slot)
 {
     if (sessionType == 1) {            // Wrist Motion
@@ -72,27 +71,7 @@ inline SegmentRole segmentRoleForSlot(int sessionType, const QString &slot)
     return SegmentRole::Unknown;
 }
 
-// Stable string name for a role — written to swing.json (stream device.roleName,
-// analysis.bindings[].roleName) and consumed by SwingLab / future post-hoc tools.
-// Stable across enum renumbering; pair it with the int role value.
-inline QString segmentRoleName(SegmentRole r)
-{
-    switch (r) {
-    case SegmentRole::Pelvis:       return QStringLiteral("Pelvis");
-    case SegmentRole::Thorax:       return QStringLiteral("Thorax");
-    case SegmentRole::T12:          return QStringLiteral("T12");
-    case SegmentRole::LeadUpperArm: return QStringLiteral("LeadUpperArm");
-    case SegmentRole::LeadForearm:  return QStringLiteral("LeadForearm");
-    case SegmentRole::LeadHand:     return QStringLiteral("LeadHand");
-    case SegmentRole::TrailThigh:   return QStringLiteral("TrailThigh");
-    case SegmentRole::LeadThigh:    return QStringLiteral("LeadThigh");
-    case SegmentRole::Club:         return QStringLiteral("Club");
-    case SegmentRole::Unknown:      break;
-    }
-    return QStringLiteral("Unknown");
-}
-
-// Resolved on the UI thread from AppSettings::imuPlacement + the live ImuInstance
+// Resolved on the UI thread from the role-keyed placement (ImuManager) + the live ImuInstance
 // calibration snapshot (alignA/mountM are session-lifetime on the QObject — the
 // worker can never read them, so they are copied into the job here).
 struct ImuSegmentBinding {

@@ -86,9 +86,7 @@ Item {
     // Disconnects are immediate — the 2 s BlueZ gap only matters between
     // *connection* attempts.
     function disconnectAll() {
-        imuConnectTimer.stop()
-        _connecting   = false
-        _connectQueue = []
+        imuManager.cancelPacedConnect()
         var list = imuManager.imuDeviceList
         for (var i = 0; i < list.length; ++i)
             if (imuManager.instanceFor(list[i].id) !== null)
@@ -96,44 +94,20 @@ Item {
     }
 
     // Paced connect of every enabled, not-yet-connected device. Sequential with a
-    // 2 s gap so BlueZ can reset its GATT state between connections (wizard pattern).
-    property var  _connectQueue: []
-    property int  _connectIdx:   0
-    property bool _connecting:   false
+    // 2 s gap so BlueZ can reset its GATT state between connections. The queue is the
+    // manager's (imuManager.connectPaced), so closing this panel cannot strand a
+    // half-run queue.
     function startConnect() {
-        var queue = []
+        var ids = []
         var list = imuManager.imuDeviceList
         for (var j = 0; j < list.length; ++j) {
             if (list[j].sessionEnabled) {
                 var inst = imuManager.instanceFor(list[j].id)
-                if (!inst || !inst.imuConnected) queue.push(list[j].index)
+                if (!inst || !inst.imuConnected) ids.push(list[j].id)
             }
         }
-        if (queue.length === 0) return
-        _connectQueue = queue
-        _connectIdx   = 0
-        _connecting   = true
-        imuManager.setSelected(queue[0], true)
-        _connectIdx   = 1
-        if (_connectIdx < queue.length) imuConnectTimer.start()
-        else                            _connecting = false
-    }
-    Timer {
-        id: imuConnectTimer
-        interval: 2000
-        repeat:   false
-        onTriggered: {
-            var queue = root._connectQueue
-            var idx   = root._connectIdx
-            if (idx < queue.length) {
-                imuManager.setSelected(queue[idx], true)
-                root._connectIdx = idx + 1
-                if (root._connectIdx < queue.length) imuConnectTimer.restart()
-                else                                 root._connecting = false
-            } else {
-                root._connecting = false
-            }
-        }
+        if (ids.length === 0) return
+        imuManager.connectPaced(ids)
     }
 
     // ── Header — count in list mode; back affordance in calibrate mode ─────────
@@ -193,10 +167,10 @@ Item {
             ScopedAction {
                 glyph: "⇄"
                 label: root.allConnected ? qsTr("Disconnect") : qsTr("Connect")
-                connecting: !root.allConnected && (root._connecting || imuManager.anyConnecting)
+                connecting: !root.allConnected && (imuManager.pacedConnectActive || imuManager.anyConnecting)
                 onTriggered: {
                     if (root.allConnected)          root.disconnectAll()
-                    else if (!root._connecting)     root.startConnect()
+                    else if (!imuManager.pacedConnectActive) root.startConnect()
                 }
             }
             ScopedAction {
@@ -223,18 +197,15 @@ Item {
                 opacity: modelData.present ? 1.0 : 0.45
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
                 placement: {
-                    // Phase C unit-keyed placement: a HackMotion holds no entry
-                    // under its own bare device id (its keys are
-                    // "<id>#lowerArm"/"<id>#palm") — it is always pinned to BOTH
-                    // A and B at once (ImusPanel's placement selector), so that
-                    // fixed pair is shown directly instead of read from the map.
-                    // `var _dep = appSettings.imuPlacement` is read either way so
-                    // this binding still re-evaluates on a placement change —
-                    // deviceIdForSlot() is a Q_INVOKABLE and not reactive on its own.
-                    var _dep = appSettings.imuPlacement
-                    if (modelData.vendor === "hackmotion")
-                        return imuManager.deviceIdForSlot("A") === modelData.id ? "A + B" : ""
-                    return _dep[modelData.id] ? _dep[modelData.id] : ""
+                    // The device's mount BY NAME (ImuMounts), from the role it was
+                    // assigned — a wG3 answers "leadForearm" for its pair and reads
+                    // "Lead forearm + hand". roleForDevice() is a Q_INVOKABLE and not
+                    // reactive on its own, so the roles map is READ here, in the
+                    // expression (an unused read is dropped by the compiler).
+                    var roles = appSettings.imuRoles
+                    return roles ? ImuMounts.deviceMountLabel(modelData.vendor === "hackmotion",
+                                                              imuManager.roleForDevice(modelData.id))
+                                 : ""
                 }
             }
         }
@@ -247,9 +218,14 @@ Item {
         anchors { left: parent.left; right: parent.right; top: hairline.bottom; bottom: parent.bottom }
         layoutMode: "compact"
         showHeader: false
+        // R3: the flow (and its routine) is live only in calibrate mode AND while the panel
+        // is shown. Leaving calibrate mode, or closing the toolbar popup (which hides the
+        // panel — its contentItem), stops the routine (a HackMotion's device routine is
+        // aborted once); reopening in calibrate mode starts a fresh run.
+        active: root.mode === "calibrate" && root.visible
         onCompleted: root.mode = "list"
         onCancelled: root.mode = "list"
-        onVisibleChanged: if (visible) calibFlow.begin()   // auto-start on entering calibrate mode
+        onActiveChanged: if (active) calibFlow.begin()   // auto-start on entering calibrate mode
     }
 
     // Attention frame around the WHOLE panel while calibrating — drawn on top,
@@ -307,7 +283,7 @@ Item {
         property string devId:     ""
         property int    devIndex:  -1
         property string devName:   ""
-        property string placement: ""
+        property string placement: ""   // the mount by name; "" when unassigned
 
         // Live instance (reactive on imuManager.instances).
         property QtObject inst: {
@@ -427,9 +403,10 @@ Item {
                 }
             }
 
-            // Configured location chip — read from appSettings.imuPlacement, shown
-            // as a non-interactive placeholder (styled like a chip but no handler).
-            // TODO: per-session IMU location override (defaults to appSettings.imuPlacement)
+            // Configured mount chip — the mount by name (`placement`, from the roles
+            // map), shown as a non-interactive placeholder (styled like a chip but no
+            // handler).
+            // TODO: per-session IMU location override (defaults to appSettings.imuRoles)
             Rectangle {
                 visible: placement !== ""
                 opacity: deviceEnabled ? 1.0 : 0.45
@@ -439,7 +416,7 @@ Item {
                 border.width: 1; border.color: Theme.colorBorderStrong
                 Text {
                     id: placementLbl; anchors.centerIn: parent
-                    text: qsTr("IMU %1").arg(placement)
+                    text: placement
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingData; color: Theme.colorText2
                 }

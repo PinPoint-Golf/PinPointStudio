@@ -157,4 +157,141 @@ else()
     set_tests_properties(qml_ui PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         RUN_SERIAL TRUE)
+
+    # ── The session-setup UI suite (H1, docs/design/session_wizard_refactor_design.md §7.1) ──
+    #
+    # Loads session setup (ScreenSessionSetup), ImuCalibrationFlow and PpImuPanel, unmodified,
+    # over fake context objects (src/Gui/tests/setup/fakes/). A separate binary from qml_ui_test
+    # because the fakes are injected under the context-property names the setup QML reads and the app-only
+    # enum carriers (CameraInstance, SessionController) are supplied by test stand-ins —
+    # neither may leak into the other suites. It declares the app's module the same way
+    # qml_ui_test does (same lists, same aliases, same policy set), plus the stand-ins.
+    #
+    # ⚠ THE SOURCE LIST BELOW DUPLICATES qml_ui_test's LINK CLOSURE. Both compile the module's
+    # C++ (PP_QML_SOURCES) and so need the same closure behind it; add to both together.
+    qt_add_executable(session_setup_ui_test
+        tests/setup/session_setup_ui_test.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/app/app_settings.cpp
+        ${PP_ROOT}/src/Metrics/metric_catalogue.cpp
+        ${PP_ROOT}/src/Metrics/metric_resolver.cpp
+        ${PP_ROOT}/src/Metrics/metric_catalogue_manifest.cpp
+        ${PP_ROOT}/src/Metrics/metric_providers.cpp
+        ${PP_ROOT}/src/LaunchMonitor/launch_monitor_reading.cpp
+        ${PP_ROOT}/src/LaunchMonitor/launch_monitor_base.cpp
+        ${PP_ROOT}/src/LaunchMonitor/launch_monitor_factory.cpp
+        ${PP_ROOT}/src/LaunchMonitor/gcquad_monitor.cpp
+        ${PP_ROOT}/src/LaunchMonitor/gcquad_csv_parser.cpp
+        ${PP_ROOT}/src/LaunchMonitor/gspro_monitor.cpp
+        ${PP_ROOT}/src/LaunchMonitor/gspro_reading.cpp
+        ${PP_ROOT}/src/Export/swing_doc.cpp
+        ${PP_ROOT}/src/Export/swing_paths.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
+        ${PP_ROOT}/src/Core/pp_log_stream.cpp
+        ${PP_ROOT}/src/Core/PpMessageLog.cpp)
+
+    # _pp_qml_abs and the singleton/alias source properties were set above for qml_ui_test and
+    # apply to these same files; PP_QML_SOURCES is already PP_ROOT-prefixed.
+    #
+    # ⚠ NO AUDIO IN THIS BINARY. The real TingPlayer is filtered out and a silent stand-in takes
+    # its QML name (tests/setup/silent_ting_player.h says why). The check below fails the
+    # configure if the filter ever stops matching, so the sound cannot come back unnoticed.
+    set(_pp_setup_qml_sources ${PP_QML_SOURCES})
+    list(FILTER _pp_setup_qml_sources EXCLUDE REGEX "ting_player\\.(h|cpp)$")
+    list(LENGTH PP_QML_SOURCES _pp_all_n)
+    list(LENGTH _pp_setup_qml_sources _pp_setup_n)
+    math(EXPR _pp_dropped "${_pp_all_n} - ${_pp_setup_n}")
+    if(NOT _pp_dropped EQUAL 2)
+        message(FATAL_ERROR "session_setup_ui_test: expected to drop ting_player.h/.cpp from "
+                            "the module sources, dropped ${_pp_dropped}. The suite must stay silent.")
+    endif()
+
+    # ⚠ OUTPUT_DIRECTORY IS EXPLICIT because two targets in one directory declare URI
+    # PinPointStudio; left to the default they would write the same qmldir/qmltypes.
+    qt_add_qml_module(session_setup_ui_test
+        URI PinPointStudio
+        VERSION 1.0
+        OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/session_setup_qml/PinPointStudio
+        QML_FILES ${_pp_qml_abs}
+        SOURCES   ${_pp_setup_qml_sources}
+                  ${CMAKE_CURRENT_SOURCE_DIR}/tests/setup/silent_ting_player.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/tests/setup/setup_enum_standins.h)
+
+    qt_add_resources(session_setup_ui_test "setup_test_fonts"
+        PREFIX "/fonts"
+        BASE "${PP_ROOT}/src/Resources/fonts"
+        FILES ${PP_FONT_FILES})
+
+    # The avatar meshes BodyVizView (Calibrate) and ArmVizView (Check) load from
+    # qrc:/assets/body — the same list as the app's "app_body" resource (root CMakeLists).
+    # Without them no RuntimeLoader succeeds and BodyVizView.fullyLoaded, the start gate of
+    # both calibration routines, never turns true.
+    qt_add_resources(session_setup_ui_test "setup_test_body"
+        PREFIX "/assets/body"
+        BASE "${PP_ROOT}/src/Resources/body"
+        FILES
+            ${PP_ROOT}/src/Resources/body/ybot.glb
+            ${PP_ROOT}/src/Resources/body/arm_LeftArm.glb
+            ${PP_ROOT}/src/Resources/body/arm_LeftForeArm.glb
+            ${PP_ROOT}/src/Resources/body/arm_LeftHand.glb
+            ${PP_ROOT}/src/Resources/body/arm_RightArm.glb
+            ${PP_ROOT}/src/Resources/body/arm_RightForeArm.glb
+            ${PP_ROOT}/src/Resources/body/arm_RightHand.glb
+            ${PP_ROOT}/src/Resources/body/body_Hips.glb
+            ${PP_ROOT}/src/Resources/body/body_Spine.glb
+            ${PP_ROOT}/src/Resources/body/body_Spine1.glb
+            ${PP_ROOT}/src/Resources/body/body_Spine2.glb
+            ${PP_ROOT}/src/Resources/body/body_Head.glb
+            ${PP_ROOT}/src/Resources/body/body_LeftShoulder.glb
+            ${PP_ROOT}/src/Resources/body/body_RightShoulder.glb
+            ${PP_ROOT}/src/Resources/body/body_LeftUpLeg.glb
+            ${PP_ROOT}/src/Resources/body/body_LeftLeg.glb
+            ${PP_ROOT}/src/Resources/body/body_LeftFoot.glb
+            ${PP_ROOT}/src/Resources/body/body_RightUpLeg.glb
+            ${PP_ROOT}/src/Resources/body/body_RightLeg.glb
+            ${PP_ROOT}/src/Resources/body/body_RightFoot.glb)
+
+    set_target_properties(session_setup_ui_test PROPERTIES AUTOMOC ON MACOSX_BUNDLE OFF)
+    target_include_directories(session_setup_ui_test PRIVATE
+        ${SRC} ${PP_ROOT}/src/Core ${PP_ROOT}/src/Buffer ${PP_ROOT}/src/Metrics ${PP_ROOT}/src/Analysis ${PP_ROOT}/src/Diagnostics
+        ${PP_ROOT}/src/Export ${PP_ROOT}/src/LaunchMonitor ${PP_ROOT}/src/Audio ${PP_ROOT}/src/Video
+        ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/app ${CMAKE_CURRENT_SOURCE_DIR}/review ${CMAKE_CURRENT_SOURCE_DIR}/viz ${CMAKE_CURRENT_SOURCE_DIR}/swing3d ${CMAKE_CURRENT_SOURCE_DIR}/shot ${CMAKE_CURRENT_SOURCE_DIR}/launchmonitor
+        ${CMAKE_CURRENT_SOURCE_DIR}/diagnosticmodel ${CMAKE_CURRENT_SOURCE_DIR}/diagnostics
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/setup)
+    # Its own QUICK_TEST_SOURCE_DIR: the tst_*.qml and fakes/ are read live from the source
+    # tree, so editing them needs no rebuild.
+    target_compile_definitions(session_setup_ui_test PRIVATE
+        QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/setup")
+    target_link_libraries(session_setup_ui_test PRIVATE
+        Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickTest Qt6::Multimedia Qt6::GuiPrivate
+        Qt6::Network Qt6::Quick3D gspro pinpoint_swingstore)
+
+    add_test(NAME session_setup_ui COMMAND session_setup_ui_test)
+    # Offscreen and serial for the same reasons as qml_ui above; this suite renders two View3Ds.
+    #
+    # ⚠ QT_QUICK_BACKEND=rhi IS WHAT MAKES THE 3-D GUIDE REAL OFFSCREEN. Left to itself the
+    # offscreen platform loads Qt Quick's SOFTWARE adaptation (QSG_INFO: "Loading backend
+    # software"), under which Quick 3D is not functional: every View3D warns "The Qt Quick
+    # scene is using a rendering method that is not based on QRhi … The View3D item is not
+    # going to display anything", once per View3D (the wizard has two). Forcing the RHI
+    # backend creates a real QRhi (Metal on macOS) for the offscreen window, the warnings go,
+    # and the guide's FrameAnimation is ticked by the same render loop the app uses.
+    # The camera frame's gain shader, at the path the app serves it from. Without it every
+    # test that gives the wizard a camera instance trips three ShaderEffect warnings.
+    find_package(Qt6 QUIET COMPONENTS ShaderTools)
+    if(Qt6ShaderTools_FOUND)
+        qt6_add_shaders(session_setup_ui_test "setup_test_viewgain_shaders"
+            BATCHABLE PRECOMPILE OPTIMIZED
+            PREFIX "/shaders"
+            BASE "${PP_ROOT}"
+            FILES
+                "${PP_ROOT}/src/Shaders/viewgain.vert"
+                "${PP_ROOT}/src/Shaders/viewgain.frag")
+    endif()
+
+    # QSG_USE_SIMPLE_ANIMATION_DRIVER: under the offscreen platform QML Timers otherwise run
+    # about a third fast (a 2000 ms Timer fires near 1500 ms), and this suite asserts pacing.
+    set_tests_properties(session_setup_ui PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=rhi;QSG_USE_SIMPLE_ANIMATION_DRIVER=1"
+        TIMEOUT 3600
+        RUN_SERIAL TRUE)
 endif()

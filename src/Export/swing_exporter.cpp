@@ -625,10 +625,14 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                     {QStringLiteral("outputRateHz"),      dev.outputRateHz},
                     {QStringLiteral("fusionMode"),        dev.fusionMode},
                     {QStringLiteral("orientationFilter"), dev.orientationFilter},
-                    {QStringLiteral("placementSlot"),     dev.placementSlot},
                     {QStringLiteral("role"),              dev.role},
                     {QStringLiteral("roleName"),          dev.roleName},
                 };
+                // ⚠ Legacy: placement is role-keyed now and the capture path no longer
+                // fills placementSlot, so new swings omit the key rather than carry "".
+                // Readers (swing_data_source's Slot row) already treat it as optional.
+                if (!dev.placementSlot.isEmpty())
+                    deviceObj[QStringLiteral("placementSlot")] = dev.placementSlot;
                 // A/M calibration snapshot — present for every capture so an
                 // analysis-skipped corpus swing remains re-analysable. Same
                 // [scalar,x,y,z] quaternion order as analysis.bindings.

@@ -33,9 +33,11 @@
 #include <gtest/gtest.h>
 
 #include <QCoreApplication>
+#include <QSettings>
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QStringList>
+#include <QTemporaryDir>
 
 using State = pp::update::State;
 
@@ -313,7 +315,16 @@ int main(int argc, char **argv)
 {
     // Isolate QSettings (AppSettings uses a fixed org/app) to a throwaway test path
     // so the suite never reads or writes the developer's real settings file.
+    //
+    // ⚠ TEST MODE ALONE DOES NOT DO THAT. AppSettings reads through ppSettings(), which is
+    // IniFormat/UserScope, and QStandardPaths' test mode does not move that path: until
+    // 5 Oct 2026 this suite constructed AppSettings over the developer's own ini. It only
+    // read, so nobody noticed — until the constructor gained a one-time migration
+    // (imu/placement → imu/roles) and this test ran it against the real file. setPath has to
+    // come BEFORE the first AppSettings; it only affects QSettings made after it.
     QStandardPaths::setTestModeEnabled(true);
+    QTemporaryDir scratch;
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, scratch.path());
     QCoreApplication app(argc, argv);
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

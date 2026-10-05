@@ -48,8 +48,8 @@ class SessionController : public QObject
     Q_PROPERTY(QString activeClub        READ activeClub        WRITE setActiveClub NOTIFY activeClubChanged)
 
 public:
-    // Matches the QML session-type indices (ScreenSessionWizard.sessionTypes
-    // order; rail/stack index = type + 1). Registered with QML
+    // Matches the QML session-type indices (SetupContext.presets order — the
+    // session-setup presets; rail/stack index = type + 1). Registered with QML
     // (SessionController.Wrist etc.) — use the enum names in QML, never the
     // raw integers.
     enum class Type { None = -1, Swing = 0, Wrist = 1, Grf = 2, Coach = 3 };

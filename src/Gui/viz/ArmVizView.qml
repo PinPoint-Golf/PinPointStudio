@@ -41,13 +41,13 @@ import PinPointStudio
 //   elbowNode.rotation   = imuUpperArm.inv * imuForearm
 //   wristNode.rotation   = imuForearm.inv  * imuHand
 //
-// IMU slot assignment (Wrist Motion session):
-//   Slot A → Wrist  (forearm near wrist) — the calibrated IMU
-//   Slot B → Hand   (back of hand)
-//   Slot C → Upper arm (optional)
+// IMU mounts (placement roles, AppSettings::imuRoles — design §4.13):
+//   leadForearm  → forearm near the wrist — the calibrated IMU
+//   leadHand     → back of the hand
+//   leadUpperArm → upper arm (optional)
 //
-// Instances are resolved by slot assignment, not by position in
-// imuManager.instances, because instances() iterates a QMap in device-ID order.
+// Instances are resolved by ROLE, not by position in imuManager.instances,
+// because instances() iterates a QMap in device-ID order.
 //
 // Handedness — derived from athleteController.currentHandedness:
 //   "Right" (default) → Left arm driven  (lead arm for right-handed golfer)
@@ -84,20 +84,16 @@ Item {
         camera.eulerRotation = Qt.vector3d(0, 0, 0)
     }
 
-    // ── Per-slot IMU bindings ─────────────────────────────────────────────────
-    // Resolved by SLOT, not by walking imuDeviceList against a scalar placement
-    // map — imuManager.instanceForSlot() is the one canonical resolver (Phase C
-    // unit-keyed placement: a Witmotion's key is still its bare device id, but a
-    // HackMotion's key is "<deviceId>#lowerArm" / "<deviceId>#palm", so a single
-    // wG3 can answer to BOTH slot A and slot B). instanceForSlot() returns the
-    // per-UNIT object a viz binding wants — an HmUnit for a HackMotion slot, an
-    // ImuInstance for a Witmotion one — never the owning peripheral, which is
-    // what quatApplyCalib() below actually reads (quatW/X/Y/Z, anatCalibrated,
-    // anatQuat, calibrated, calibTransform all live on the unit, not the device).
-    // `var _dep = imuManager.instances` AND `var _dep2 = appSettings.imuPlacement`
-    // force re-evaluation when either changes: instanceForSlot() is a
-    // Q_INVOKABLE, not a reactive property, so neither dependency is picked up
-    // automatically.
+    // ── Per-role IMU bindings ─────────────────────────────────────────────────
+    // Resolved by ROLE, not by walking imuDeviceList against the roles map —
+    // imuManager.instanceForRole() is the one canonical resolver (unit-keyed
+    // placement: a Witmotion's key is its bare device id, but a HackMotion's key is
+    // "<deviceId>#lowerArm" / "<deviceId>#palm", so a single wG3 answers to BOTH
+    // leadForearm and leadHand). instanceForRole() returns the per-UNIT object a
+    // viz binding wants — an HmUnit for a HackMotion role, an ImuInstance for a
+    // Witmotion one — never the owning peripheral, which is what quatApplyCalib()
+    // below actually reads (quatW/X/Y/Z, anatCalibrated, anatQuat, calibrated,
+    // calibTransform all live on the unit, not the device).
     //
     // A HackMotion unit IS anatomically framed, and this view needs nothing added to drive one.
     // HmInstance's display tick sets anatQuat from hm_frame::toAnatomical() with the selected
@@ -112,21 +108,22 @@ Item {
     // false, anatQuat stays identity and quatApplyCalib() parks the segment at rest rather than
     // driving it with a frame nobody reconciled. That parking is deliberate: do not "fix" it here
     // by inventing a transform.
-    readonly property QtObject imuSlotA: {   // Wrist (forearm) — calibrated
-        var _dep  = imuManager.instances
-        var _dep2 = appSettings.imuPlacement
-        return imuManager.instanceForSlot("A")
-    }
-    readonly property QtObject imuSlotB: {   // Hand
-        var _dep  = imuManager.instances
-        var _dep2 = appSettings.imuPlacement
-        return imuManager.instanceForSlot("B")
-    }
-    readonly property QtObject imuSlotC: {   // Upper arm (optional)
-        var _dep  = imuManager.instances
-        var _dep2 = appSettings.imuPlacement
-        return imuManager.instanceForSlot("C")
-    }
+    //
+    // ⚠ THE REACTIVE DEPENDENCIES ARE WRITTEN ONCE, HERE. Every resolver below is a
+    // Q_INVOKABLE, which QML cannot track, so each binding has to READ something that
+    // changes when the answer can: the roles map (an assignment), the live instances (a
+    // connect or disconnect), the device list (a sensor appearing, vanishing or being
+    // renamed) and the session exclusions (the owner ladder prefers an enabled claimant).
+    // They are gathered into one value that every resolver binding uses in an
+    // expression. ⚠ A bare `imuManager.instances` statement, or an unused local, is not a
+    // read: the QML compiler drops it and the dependency with it, and the binding then
+    // resolves once and never again (memory note qml-dead-statement-bindings).
+    readonly property var _roleDeps: [appSettings.imuRoles, imuManager.instances,
+                                      imuManager.imuDeviceList, imuManager.sessionImuExcluded]
+
+    readonly property QtObject imuLeadForearm: root._roleDeps ? imuManager.instanceForRole("leadForearm")  : null   // calibrated
+    readonly property QtObject imuLeadHand:    root._roleDeps ? imuManager.instanceForRole("leadHand")     : null
+    readonly property QtObject imuLeadUpperArm: root._roleDeps ? imuManager.instanceForRole("leadUpperArm") : null  // optional
 
     // ⚠ A SEGMENT WITH NO SENSOR IS NOT DRAWN, because drawing it makes a CLAIM. An unsensored
     // upper arm parks at rest (quatApplyCalib returns identity for an absent or uncalibrated
@@ -137,17 +134,16 @@ Item {
     //
     // ⚠ AND IT IS NOT ONLY THE BONE THAT IS WRONG — IT IS WHERE EVERYTHING BELOW IT SITS. The
     // forearm's world orientation is independent of the upper arm by construction (the elbow's
-    // rotation conjugates it out, so W_fore = R0·fa·rollFix whatever slot C reports — measured by
-    // driving slot C alone and watching the forearm hold its orientation while the whole assembly
-    // translated). What slot C actually controls is the ELBOW'S POSITION, because elbowNode hangs
+    // rotation conjugates it out, so W_fore = R0·fa·rollFix whatever leadUpperArm reports — measured
+    // by driving that sensor alone and watching the forearm hold its orientation while the whole
+    // assembly translated). What leadUpperArm actually controls is the ELBOW'S POSITION, because elbowNode hangs
     // off armNode. So a parked upper arm pins the elbow directly below the shoulder and draws a
     // correctly-oriented forearm in the wrong PLACE.
     //
     // Hiding it leaves the forearm and hand hanging from the rest elbow, which is honest: we do
     // not know where the elbow is, and we no longer imply that we do.
     readonly property bool upperArmKnown: {
-        var _dep = imuManager.instances
-        var c = root.imuSlotC
+        var c = root.imuLeadUpperArm
         return c !== null && c.anatCalibrated === true
     }
 
@@ -196,24 +192,24 @@ Item {
     // where the uncorrected error was ~90°. Referencing the athlete's own measured pose would need
     // the anchor HmInstance already keeps (m_anchor); that is the better answer and a bigger one.
     //
-    // ⚠ AND IT IS APPLIED PER SLOT, ONLY FOR A HackMotion. A Witmotion is calibrated by a
+    // ⚠ AND IT IS APPLIED PER ROLE, ONLY FOR A HackMotion. A Witmotion is calibrated by a
     // different routine against a different reference, so applying this to one would break a lane
     // that works today. The joint angles are untouched either way: this is a left-multiply common
-    // to a slot's units, and the relative rotations conjugate it out exactly.
+    // to a device's units, and the relative rotations conjugate it out exactly.
     readonly property quaternion hmReferenceQuat: root.rightHanded
         ? Qt.quaternion(-0.4914512, -0.3190392,  0.5582916, -0.5873671)   // left arm  (lead when right-handed)
         : Qt.quaternion(-0.7049270, -0.0554790, -0.0554789,  0.7049270)   // right arm (lead when left-handed)
 
-    function slotIsHackMotion(slot) {
-        var _dep  = imuManager.instances
-        var _dep2 = appSettings.imuPlacement
-        var id = imuManager.deviceIdForSlot(slot)
+    // Reads root._roleDeps, so every binding that calls it re-evaluates when the holder can change.
+    function roleIsHackMotion(role) {
+        if (!root._roleDeps) return false
+        var id = imuManager.deviceIdForRole(role)
         return id !== "" && imuManager.isHackMotionDevice(id)
     }
 
-    readonly property bool slotAIsHm: root.slotIsHackMotion("A")
-    readonly property bool slotBIsHm: root.slotIsHackMotion("B")
-    readonly property bool slotCIsHm: root.slotIsHackMotion("C")
+    readonly property bool leadForearmIsHm:  root.roleIsHackMotion("leadForearm")
+    readonly property bool leadHandIsHm:     root.roleIsHackMotion("leadHand")
+    readonly property bool leadUpperArmIsHm: root.roleIsHackMotion("leadUpperArm")
 
     // Map a raw IMU quaternion to the segment's anatomical orientation.
     // Prefers the functional calibration (q_anat = A·q_raw·M, computed in C++ and
@@ -365,25 +361,25 @@ Item {
 
         // ── Active (lead) arm — driven by IMUs ────────────────────────────────
         //
-        // Each rotation binding accesses imuSlot*.quatW/X/Y/Z directly so QML's
+        // Each rotation binding accesses imuLead*.quatW/X/Y/Z directly so QML's
         // binding engine registers them as live dependencies.  Intermediate
         // `property quaternion` values are not used — see comment above.
         Node {
             id: armNode
             position: root.rightHanded ? Qt.vector3d( 0.1876, 1.4357, -0.0617)
                                        : Qt.vector3d(-0.1876, 1.4356, -0.0617)
-            // rotation = armRestQuat * slotC(upperArm)
+            // rotation = armRestQuat * leadUpperArm
             rotation: {
-                var raw = root.imuSlotC
-                    ? Qt.quaternion(root.imuSlotC.quatW, root.imuSlotC.quatX, root.imuSlotC.quatY, root.imuSlotC.quatZ)
+                var raw = root.imuLeadUpperArm
+                    ? Qt.quaternion(root.imuLeadUpperArm.quatW, root.imuLeadUpperArm.quatX, root.imuLeadUpperArm.quatY, root.imuLeadUpperArm.quatZ)
                     : Qt.quaternion(1, 0, 0, 0)
-                var ua = root.quatApplyCalib(root.imuSlotC, raw, root.slotCIsHm)
+                var ua = root.quatApplyCalib(root.imuLeadUpperArm, raw, root.leadUpperArmIsHm)
                 // W_upper = R0 · ua · rollFix
                 var w = root.quatMul(root.rightHanded ? root.leftRestQuat : root.rightRestQuat, ua)
                 return root.quatMul(w, root.rollFix)
             }
 
-            // ⚠ Drawn ONLY when slot C can say where the upper arm is — see upperArmKnown. The
+            // ⚠ Drawn ONLY when leadUpperArm can say where the upper arm is — see upperArmKnown. The
             // node itself stays in the chain either way, because the elbow it carries is where
             // the forearm has to hang from.
             RuntimeLoader {
@@ -392,22 +388,22 @@ Item {
                                          : "qrc:/assets/body/arm_RightArm.glb"
             }
             OrientationTab {
-                along: 0.22; tabColor: Theme.colorImuC       // upper arm = slot C — green
+                along: 0.22; tabColor: Theme.colorImuC       // upper arm (leadUpperArm) — green
                 visible: root.showOrientationTabs && root.upperArmKnown
             }
 
             Node {
                 position: Qt.vector3d(0, 0.274, 0)
-                // rotation = slotC(upperArm).inv * slotA(wrist/forearm, calibrated)
+                // rotation = leadUpperArm.inv * leadForearm (calibrated)
                 rotation: {
-                    var rawUa = root.imuSlotC
-                        ? Qt.quaternion(root.imuSlotC.quatW, root.imuSlotC.quatX, root.imuSlotC.quatY, root.imuSlotC.quatZ)
+                    var rawUa = root.imuLeadUpperArm
+                        ? Qt.quaternion(root.imuLeadUpperArm.quatW, root.imuLeadUpperArm.quatX, root.imuLeadUpperArm.quatY, root.imuLeadUpperArm.quatZ)
                         : Qt.quaternion(1, 0, 0, 0)
-                    var rawFa = root.imuSlotA
-                        ? Qt.quaternion(root.imuSlotA.quatW, root.imuSlotA.quatX, root.imuSlotA.quatY, root.imuSlotA.quatZ)
+                    var rawFa = root.imuLeadForearm
+                        ? Qt.quaternion(root.imuLeadForearm.quatW, root.imuLeadForearm.quatX, root.imuLeadForearm.quatY, root.imuLeadForearm.quatZ)
                         : Qt.quaternion(1, 0, 0, 0)
-                    var ua = root.quatApplyCalib(root.imuSlotC, rawUa, root.slotCIsHm)
-                    var fa = root.quatApplyCalib(root.imuSlotA, rawFa, root.slotAIsHm)
+                    var ua = root.quatApplyCalib(root.imuLeadUpperArm, rawUa, root.leadUpperArmIsHm)
+                    var fa = root.quatApplyCalib(root.imuLeadForearm, rawFa, root.leadForearmIsHm)
                     // rollFix⁻¹ · (ua⁻¹·fa) · rollFix  — keeps W_fore = R0·fa·rollFix
                     var rel = root.quatMul(root.quatInv(ua), fa)
                     return root.quatMul(root.rollFixInv, root.quatMul(rel, root.rollFix))
@@ -417,20 +413,20 @@ Item {
                     source: root.rightHanded ? "qrc:/assets/body/arm_LeftForeArm.glb"
                                              : "qrc:/assets/body/arm_RightForeArm.glb"
                 }
-                OrientationTab { along: 0.22; tabColor: Theme.colorImuA }   // forearm = slot A — red
+                OrientationTab { along: 0.22; tabColor: Theme.colorImuA }   // forearm (leadForearm) — red
 
                 Node {
                     position: Qt.vector3d(0, 0.2761, 0)
-                    // rotation = slotA(wrist/forearm).inv * slotB(hand)
+                    // rotation = leadForearm.inv * leadHand
                     rotation: {
-                        var rawFa = root.imuSlotA
-                            ? Qt.quaternion(root.imuSlotA.quatW, root.imuSlotA.quatX, root.imuSlotA.quatY, root.imuSlotA.quatZ)
+                        var rawFa = root.imuLeadForearm
+                            ? Qt.quaternion(root.imuLeadForearm.quatW, root.imuLeadForearm.quatX, root.imuLeadForearm.quatY, root.imuLeadForearm.quatZ)
                             : Qt.quaternion(1, 0, 0, 0)
-                        var rawHa = root.imuSlotB
-                            ? Qt.quaternion(root.imuSlotB.quatW, root.imuSlotB.quatX, root.imuSlotB.quatY, root.imuSlotB.quatZ)
+                        var rawHa = root.imuLeadHand
+                            ? Qt.quaternion(root.imuLeadHand.quatW, root.imuLeadHand.quatX, root.imuLeadHand.quatY, root.imuLeadHand.quatZ)
                             : Qt.quaternion(1, 0, 0, 0)
-                        var fa = root.quatApplyCalib(root.imuSlotA, rawFa, root.slotAIsHm)
-                        var ha = root.quatApplyCalib(root.imuSlotB, rawHa, root.slotBIsHm)
+                        var fa = root.quatApplyCalib(root.imuLeadForearm, rawFa, root.leadForearmIsHm)
+                        var ha = root.quatApplyCalib(root.imuLeadHand, rawHa, root.leadHandIsHm)
                         // rollFix⁻¹ · (fa⁻¹·ha) · rollFix  — keeps W_hand = R0·ha·rollFix
                         var rel = root.quatMul(root.quatInv(fa), ha)
                         return root.quatMul(root.rollFixInv, root.quatMul(rel, root.rollFix))
@@ -440,7 +436,7 @@ Item {
                         source: root.rightHanded ? "qrc:/assets/body/arm_LeftHand.glb"
                                                  : "qrc:/assets/body/arm_RightHand.glb"
                     }
-                    OrientationTab { along: 0.10; tabColor: Theme.colorImuB }   // hand = slot B — yellow
+                    OrientationTab { along: 0.10; tabColor: Theme.colorImuB }   // hand (leadHand) — yellow
                 }
             }
         }
@@ -453,27 +449,21 @@ Item {
         spacing: Theme.sp(4)
 
         Repeater {
-            model: [
-                qsTr("Slot A · Wrist"),
-                qsTr("Slot B · Hand"),
-                qsTr("Slot C · Upper arm")
-            ]
+            model: ImuMounts.armRoles   // leadForearm, leadHand, leadUpperArm — named by ImuMounts
             delegate: Row {
                 spacing: Theme.sp(6)
                 // ⚠ CONNECTEDNESS IS A DEVICE PROPERTY, SO THIS ASKS THE DEVICE.
-                // The imuSlotA/B/C bindings above hold the per-UNIT object, which for
+                // The imuLead* bindings above hold the per-UNIT object, which for
                 // a HackMotion is an HmUnit — and an HmUnit has no imuConnected at
                 // all. Reading it there yields `undefined`, and `inst !== null &&
                 // undefined` is `undefined` rather than false, which Qt reports as
                 // "Unable to assign [undefined] to bool" once per evaluation and
-                // leaves the dot stuck at its default. deviceForSlot() returns the
-                // peripheral, which is what "is there a sensor live on this slot"
+                // leaves the dot stuck at its default. deviceForRole() returns the
+                // peripheral, which is what "is there a sensor live on this mount"
                 // actually means for either device kind.
                 property bool live: {
-                    var _dep  = imuManager.instances
-                    var _dep2 = appSettings.imuPlacement
-                    var slot  = index === 0 ? "A" : index === 1 ? "B" : "C"
-                    var dev   = imuManager.deviceForSlot(slot)
+                    if (!root._roleDeps) return false
+                    var dev = imuManager.deviceForRole(modelData)
                     return dev !== null && dev.imuConnected === true
                 }
                 Rectangle {
@@ -483,7 +473,7 @@ Item {
                     Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                 }
                 Text {
-                    text:           modelData
+                    text:           ImuMounts.label(modelData)
                     color:          parent.live ? Theme.colorText2 : Theme.colorText3
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzLabel

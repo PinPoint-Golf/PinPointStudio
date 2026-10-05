@@ -29,10 +29,12 @@
 #include "app_settings.h"
 #include "device_enumerator.h"
 #include "imu_device.h"
+#include "imu_role_map.h"
 #include "types.h"
 
 namespace pinpoint { class EventBuffer; }
 
+class PacedConnectQueue;
 class ShotProcessor;
 
 // Manages N ImuDeviceBase instances (Witmotion ImuInstance or HackMotion
@@ -84,6 +86,12 @@ class ImuManager : public QObject
     // early re-offers a Scan tap that scanImu()'s re-entry guard silently
     // swallows. One authoritative flag, cleared when the scan actually finishes.
     Q_PROPERTY(bool imuScanActive READ imuScanActive NOTIFY imuScanActiveChanged)
+    // Placement roles with a PRESENT, SESSION-ENABLED holder (connection not required),
+    // always in the order pelvis, thorax, leadUpperArm, leadForearm, leadHand. The setup
+    // flow's "which instrument groups are in this session" (design §4.12) reads this.
+    Q_PROPERTY(QStringList rolesInSession READ rolesInSession NOTIFY rolesInSessionChanged)
+    // True while connectPaced() still has devices waiting for their turn.
+    Q_PROPERTY(bool pacedConnectActive READ pacedConnectActive NOTIFY pacedConnectActiveChanged)
 
 public:
     explicit ImuManager(pinpoint::EventBuffer *buffer = nullptr,
@@ -114,8 +122,20 @@ public:
     Q_INVOKABLE void setSelected(int index, bool selected);
 
     // End-of-session device release: disconnects every connected IMU through
-    // the normal setSelected teardown.
+    // the normal setSelected teardown. Cancels a paced connect first, or the queue
+    // would reconnect the next sensor two seconds after everything was released.
     Q_INVOKABLE void disconnectAll();
+
+    // ── Paced connect (design §4.11, F10) ────────────────────────────────────
+    // Connects the given devices one at a time: the first immediately, each next one
+    // gapMs after the previous connect actually issued. Ids that are not enumerated,
+    // are disabled this session, or are already selected (connected or connecting) are
+    // skipped without costing a gap. A second call while active REPLACES the remaining
+    // queue. Owned here, not by a page, so leaving the page cannot strand a half-run
+    // queue — the QML copies in the start wizard and PpImuPanel move onto this.
+    Q_INVOKABLE void connectPaced(const QStringList &deviceIds, int gapMs = 2000);
+    Q_INVOKABLE void cancelPacedConnect();
+    bool pacedConnectActive() const;
 
     QStringList sessionImuExcluded() const;
     QString     imuScanError() const { return m_imuScanError; }
@@ -140,40 +160,22 @@ public:
     // HackMotion — see ImuEntry), or nullptr if not selected.
     Q_INVOKABLE QObject *instanceFor(const QString &deviceId) const;
 
-    // ── Placement (slot) resolution — the one canonical implementation ────────
+    // ── Placement resolution — WHY IT LIVES HERE AND NOWHERE ELSE ────────────────
     //
-    // Unit-keyed placement. AppSettings::imuPlacement maps a PLACEMENT KEY to a
-    // slot letter: the bare device id for a Witmotion, HmUnit::unitId()
-    // ("<deviceId>#lowerArm" / "<deviceId>#palm") for a HackMotion.
-    //
-    // WHY THIS LIVES HERE AND NOWHERE ELSE. Before Phase C the rule was "the key
-    // IS the device id", so every consumer (ArmVizView.qml, ImuCalibrationFlow,
-    // ScreenSessionWizard, live_wrist_angles.cpp, shot_processor) walked
-    // imuDeviceList() itself and compared placement[dev.id] to a letter — the
-    // same six-line loop copied six times. A device that fills TWO slots breaks
-    // every one of those copies in a way that reads as "no sensor" rather than as
-    // an error, so the loop is written once, here, and the copies call it.
-    //
-    // ⚠ instanceForSlot() returns the object the VIZ views bind to, which for a
-    // HackMotion is the per-unit HmUnit — that is the whole reason HmUnit exists
-    // (hm_instance.h:46-53). deviceForSlot() returns the PERIPHERAL, which is
-    // what device-level operations (calibration, connect, battery) need. Two
-    // functions because they are two different objects for one slot, and
-    // returning the wrong one is a mistake nothing catches: HmUnit and HmInstance
-    // both answer to QML by name, so an ImuVizView bound to the peripheral simply
-    // shows a cube that never moves, and a calibration flow handed a unit finds
-    // none of the methods it wanted at runtime rather than at build time.
-    Q_INVOKABLE QObject *instanceForSlot(const QString &slot) const;  // HmUnit* or ImuInstance*, or nullptr
-    Q_INVOKABLE QObject *deviceForSlot(const QString &slot) const;    // the owning ImuDeviceBase*, or nullptr
-    // The raw persisted key holding this slot, "" when the slot is unassigned.
-    // Resolves without a live instance — the start wizard reads placement before
-    // anything has connected, which is exactly why these are not derived from
-    // instances().
-    Q_INVOKABLE QString  placementKeyForSlot(const QString &slot) const;
-    Q_INVOKABLE QString  deviceIdForSlot(const QString &slot) const;
+    // Unit-keyed placement. AppSettings::imuRoles maps a PLACEMENT KEY to a role name:
+    // the bare device id for a Witmotion, HmUnit::unitId() ("<deviceId>#lowerArm" /
+    // "<deviceId>#palm") for a HackMotion. Before Phase C the rule was "the key IS the
+    // device id", so every consumer (ArmVizView.qml, ImuCalibrationFlow, the old setup
+    // wizard, live_wrist_angles.cpp, shot_processor) walked imuDeviceList() itself and
+    // compared the map to a slot letter — the same six-line loop copied six times. A
+    // device that fills TWO roles breaks every one of those copies in a way that reads as
+    // "no sensor" rather than as an error, so the rule is written once, here (the role API
+    // below), and the consumers call it. (The slot-letter shims over it — instanceForSlot,
+    // deviceForSlot, placementKeyForSlot, deviceIdForSlot, unitLabelForSlot,
+    // setPlacementForDevice — were deleted at Stage 5c, when the last consumer moved.)
 
     // ⚠ PUBLIC AND Q_INVOKABLE, AND BOTH HALVES ARE LOAD-BEARING. ArmVizView calls this to decide
-    // whether a slot gets the HackMotion reference pose — a wG3's anatQuat is zeroed at the
+    // whether a role gets the HackMotion reference pose — a wG3's anatQuat is zeroed at the
     // DEVICE'S OWN calibration pose (forearm across the chest), a Witmotion's is not, and applying
     // the wrong one crosses the two vendors' frames.
     //
@@ -187,14 +189,49 @@ public:
     // enumerator answers false (i.e. "key it like a Witmotion"), which is the historical meaning
     // of every persisted entry that predates the wG3.
     Q_INVOKABLE bool isHackMotionDevice(const QString &deviceId) const;
-    // "Lower arm" / "Palm" for a HackMotion unit key; "" for a Witmotion, whose
-    // device IS the segment and has no sub-unit to name.
-    Q_INVOKABLE QString  unitLabelForSlot(const QString &slot) const;
 
-    // Writes placement for a whole device, so no caller has to know the keying
-    // rule. Empty slot = unassign. See the implementation for why a HackMotion
-    // accepts only "A" or "".
-    Q_INVOKABLE void     setPlacementForDevice(const QString &deviceId, const QString &slot);
+    // The sensor's name as the golfer may read it — never a raw device id, and found even for a
+    // sensor that is switched off and so not in imuDeviceList (its alias and description are
+    // remembered under the alias key). Rules: imu_roles::sensorDisplayName. Stage 5d: setup's
+    // absent-mount row and issue, "held by …", and Settings ▸ IMUs' holder text all read this.
+    Q_INVOKABLE QString displayNameForDevice(const QString &deviceId) const;
+
+    // ── Role-keyed placement — the one canonical resolver (design §4.13) ──────────
+    //
+    // `role` is a placement role name: "pelvis", "thorax", "leadUpperArm", "leadForearm",
+    // "leadHand" (segment_role.h). Resolution runs the owner ladder unchanged from the
+    // slot days — present+enabled > present+disabled > any claimant — and warns once
+    // about two enabled, present claimants.
+    //
+    // ⚠ instanceForRole() returns the object the VIZ views bind to, which for a HackMotion
+    // is the per-unit HmUnit — that is the whole reason HmUnit exists (hm_instance.h:46-53).
+    // deviceForRole() returns the PERIPHERAL, which is what device-level operations
+    // (calibration, connect, battery) need. Two functions because they are two different
+    // objects for one role, and returning the wrong one is a mistake nothing catches: HmUnit
+    // and HmInstance both answer to QML by name, so an ImuVizView bound to the peripheral
+    // shows a cube that never moves, and a calibration flow handed a unit finds none of the
+    // methods it wanted at runtime rather than at build time. deviceIdForRole() resolves
+    // without a live instance — setup reads placement before anything has connected.
+    //
+    // ⚠ ALL PUBLIC: a Q_INVOKABLE in a non-public section is registered by moc and then
+    // refused by QML at run time (see isHackMotionDevice); session_setup_lint_test W5.
+    Q_INVOKABLE QObject *instanceForRole(const QString &role) const;
+    Q_INVOKABLE QObject *deviceForRole(const QString &role) const;
+    Q_INVOKABLE QString  deviceIdForRole(const QString &role) const;
+    Q_INVOKABLE QString  unitLabelForRole(const QString &role) const;
+    // The role the device was assigned; a wG3 answers "leadForearm" (its palm unit holds
+    // leadHand by the cable). "" when unassigned. No ladder — this is what a swing
+    // binding records for the device.
+    Q_INVOKABLE QString  roleForDevice(const QString &deviceId) const;
+    // Device id of the present, session-enabled holder of `role`, else "".
+    Q_INVOKABLE QString  roleHolder(const QString &role) const;
+    // One claim per role. "" unassigns. A HackMotion accepts only "" or "leadForearm" and
+    // then holds leadForearm AND leadHand. A role held by another PRESENT, session-ENABLED
+    // device is REFUSED: returns false, emits roleRefused naming the holder, one ppWarn.
+    // Claims by absent devices are displaced; a present but disabled holder's claim stays
+    // (a parked setup). Returns true when the map now says what was asked.
+    Q_INVOKABLE bool     setRoleForDevice(const QString &deviceId, const QString &role);
+    QStringList rolesInSession() const { return m_rolesInSession; }
 
     // Snapshot of live per-device stats for monitoring purposes.
     // Avoids exposing ImuDeviceBase to callers that only need metrics.
@@ -258,6 +295,13 @@ signals:
     // behind the autoDetectSwing setting.
     void impactDetected(qint64 estImpactUs, float confidence);
 
+    void rolesInSessionChanged();
+    void pacedConnectActiveChanged();
+    // setRoleForDevice refused `role` for `deviceId` because `holderId` — present and
+    // enabled this session — holds it. For a wG3 the role named may be "leadHand": the
+    // palm half of its claim is the one that collided.
+    void roleRefused(const QString &deviceId, const QString &role, const QString &holderId);
+
 private:
     struct ImuEntry {
         bool           selected = false;
@@ -283,6 +327,19 @@ private:
     // slot B unfilled" — which is precisely the wrong picture Phase C exists to
     // correct. See the call sites in the constructor.
     void migrateHackMotionPlacement(const Device &device);
+
+    // The resolver's view of a device id: enumerated, enabled this session, HackMotion.
+    // Handed to every imu_roles function so the pure logic never touches the enumerator.
+    pinpoint::imu_roles::DeviceFacts deviceFacts(const QString &deviceId) const;
+    pinpoint::imu_roles::DeviceFactsFn factsFn() const;
+    // The current roles map (the fallback AppSettings only outside main.cpp), and the
+    // winning key for a role, with the once-only
+    // double-claim warning.
+    QVariantMap currentRoles() const;
+    QString     placementKeyForRole(const QString &role) const;
+    void        writeRoles(const QVariantMap &roles);
+    // Recomputes rolesInSession and notifies only on a real change.
+    void        refreshRolesInSession();
 
     // True if the device appeared in the most recently completed BLE scan, OR is
     // currently selected (a connected device stops advertising, so it would
@@ -316,7 +373,7 @@ private:
     QStringList m_lastGlobalExcluded;
 
     // Placement keys already reported as "bare device id on a HackMotion" by
-    // instanceForSlot(). Mutable because that resolver is const and is called from
+    // instanceForRole(). Mutable because that resolver is const and is called from
     // a ~30 Hz readout timer: without the memo the warning would be a log flood
     // rather than a message. One line per offending key is enough to act on.
     // UI-facing scan state. Set only when scanImu() reports it actually armed,
@@ -327,9 +384,12 @@ private:
 
     mutable QSet<QString> m_warnedBarePlacementKeys;
     // Same once-only discipline for two enabled, present sensors claiming one
-    // slot letter — a real conflict placementKeyForSlot() arbitrates
-    // deterministically but must not arbitrate silently.
+    // role — a real conflict placementKeyForRole() arbitrates deterministically
+    // but must not arbitrate silently.
     mutable QSet<QString> m_warnedSlotConflicts;
+
+    QStringList        m_rolesInSession;
+    PacedConnectQueue *m_pacedConnect = nullptr;   // child QObject
 
     // Last BLE discovery error surfaced to QML (empty = healthy). Helper keeps the
     // set-and-notify in one place.

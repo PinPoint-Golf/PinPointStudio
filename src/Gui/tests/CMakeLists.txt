@@ -136,6 +136,30 @@ pp_add_test(session_clock_test
     INCLUDE ${GUI} ${GUI}/athlete ${GUI}/session ${SRC} ${SRC}/Core
     LINK    Qt6::Qml Qt6::Test  AUTOMOC)
 
+# Role-keyed IMU placement (session_wizard_refactor_design.md §4.13) — the pure half
+# ImuManager and AppSettings delegate to (imu_role_map): the imu/placement → imu/roles
+# migration and its marker, the derived legacy view, the owner ladder, one claim per role,
+# rolesInSession. ImuManager itself is not linked (BLE/device stack); its device facts are
+# a table here. The REAL AppSettings is, against a scratch QSettings path, because the
+# marker and "imu/placement is never written" are properties of what lands on disk.
+pp_add_test(imu_role_map_test
+    SOURCES imu_role_map_test.cpp
+            ${GUI}/imu/imu_role_map.cpp
+            ${GUI}/app/app_settings.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${GUI} ${GUI}/app ${SRC} ${SRC}/Core ${SRC}/IMU
+    LINK    Qt6::Qml Qt6::Concurrent Qt6::Test  AUTOMOC)
+
+# PacedConnectQueue — ImuManager's paced BLE connect (design §4.11, F10): first device at
+# once, each next a gap later, cancel, replace, skip-without-gap. Runs on an 80 ms gap and
+# a real event loop for about a second.
+pp_add_test(paced_connect_queue_test
+    SOURCES paced_connect_queue_test.cpp
+            ${GUI}/imu/paced_connect_queue.cpp
+    INCLUDE ${GUI} ${SRC}
+    LINK    Qt6::Test  AUTOMOC)
+
 # ShotListModel's ledger — the carousel's ordinals, its reload from disk, and the
 # write-through of the user's review.  Distinct from shot_list_model_test above,
 # which covers shotSummary() only: this one puts real swing.json documents on disk
@@ -192,6 +216,18 @@ pp_add_test(test_markup_truth
 # because the interpreter keeps what the compiler removes. So this reads the source.
 pp_add_test(qml_reactivity_test
     SOURCES qml_reactivity_test.cpp
+    INCLUDE ${GUI} ${SRC}
+    LINK    Qt6::Core
+    COMPILE_OPTIONS -DPP_QML_ROOT="${GUI}")
+
+# Session-setup lint (session_wizard_refactor_design.md §7.5). Reads the wizard, calibration and
+# setup QML against the C++ headers they reach: W5 — every member QML uses on imuManager,
+# cameraManager, liveWrist, launchMonitor (and appLog, once it exists) is a PUBLIC Q_INVOKABLE,
+# slot, signal or Q_PROPERTY, and no Q_INVOKABLE sits in a non-public section (moc registers it,
+# QML silently gets undefined); W6 — the test enum stand-ins match Perspective / Session Type;
+# W1 — Timer/Connections gating, report-only until kEnforceW1.
+pp_add_test(session_setup_lint_test
+    SOURCES session_setup_lint_test.cpp
     INCLUDE ${GUI} ${SRC}
     LINK    Qt6::Core
     COMPILE_OPTIONS -DPP_QML_ROOT="${GUI}")

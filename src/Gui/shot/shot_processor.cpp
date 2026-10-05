@@ -633,10 +633,9 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
     return detail;
 }
 
-// Placement-slot → SegmentRole mapping lives in swing_analysis.h
-// (pinpoint::analysis::segmentRoleForSlot) — one source of truth shared with the
-// stream device.role export and the data viewer's settings fallback.
-using pinpoint::analysis::segmentRoleForSlot;
+// IMU roles come from ImuManager's role resolver (roleForDevice / instanceForRole) and
+// are converted with segmentRoleForPlacementRole (segment_role.h). segmentRoleForSlot
+// is deliberately NOT used here any more — it survives only for reading old swings.
 
 // Human label for a SessionController::Type, used in session-folder naming.
 QString sessionTypeLabel(int sessionType)
@@ -1294,7 +1293,10 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
     }
 
     if (m_imuManager) {
-        const QVariantMap placement = m_appSettings ? m_appSettings->imuPlacement() : QVariantMap{};
+        // ⚠ ROLES COME FROM THE RESOLVER, WITH NO sessionType GATE (design §4.13; memory
+        // note analysis-is-session-agnostic): a pelvis sensor is a pelvis sensor in every
+        // session type. For a classic Wrist setup this yields exactly what the old
+        // segmentRoleForSlot(1, letter) did — A/B/C were migrated to these three roles.
         const QVariantList insts = m_imuManager->instances();
         for (const QVariant &v : insts) {
             auto *imu = qobject_cast<ImuInstance *>(v.value<QObject *>());
@@ -1304,7 +1306,8 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
                 continue;   // this IMU is not a source in the captured window
             pinpoint::analysis::ImuSegmentBinding b;
             b.source = sid;
-            b.role   = segmentRoleForSlot(m_sessionType, placement.value(imu->deviceId()).toString());
+            b.role   = pinpoint::analysis::segmentRoleForPlacementRole(
+                           m_imuManager->roleForDevice(imu->deviceId()));
             b.alignA = imu->alignA();
             b.mountM = imu->mountM();
             // Calibration status snapshot — persisted into swing.json's
@@ -1359,29 +1362,28 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
                     == job.imuSources.end())
                     continue;   // this unit is not a source in the captured window
 
-                // ⚠ PLACEMENT IS UNIT-KEYED FOR A HACKMOTION, so the bare
-                // placement.value(deviceId) lookup the Witmotion path uses cannot work
-                // here: a wG3's keys are "<deviceId>#lowerArm" / "<deviceId>#palm"
-                // (Phase C). Rather than respell that format — the parser for it is
-                // file-static inside imu_manager.cpp, and a second copy of the spelling
-                // is precisely the drift that would silently orphan a device's
-                // placement — ask the canonical resolver which object holds each slot
-                // and match on identity. instanceForSlot() returns the HmUnit for a
-                // HackMotion, which is the whole reason HmUnit exists.
-                QString slot;
-                for (const QString &s : { QStringLiteral("A"), QStringLiteral("B"),
-                                          QStringLiteral("C") }) {
-                    if (m_imuManager->instanceForSlot(s) == static_cast<QObject *>(unit)) {
-                        slot = s;
+                // ⚠ PLACEMENT IS UNIT-KEYED FOR A HACKMOTION, so the device-level
+                // roleForDevice() the Witmotion path uses answers for the pair, not for
+                // this unit. Rather than respell the "<deviceId>#lowerArm" / "#palm"
+                // format here — a second copy of the spelling is precisely the drift
+                // that would silently orphan a device's placement — ask the canonical
+                // resolver which object holds each role and match on identity.
+                // instanceForRole() returns the HmUnit for a HackMotion, which is the
+                // whole reason HmUnit exists. Every placement role is asked, not only
+                // the arm's, so nothing here assumes where a wG3 may be worn.
+                QString role;
+                for (const QString &r : pinpoint::imu_roles::placementRoleOrder()) {
+                    if (m_imuManager->instanceForRole(r) == static_cast<QObject *>(unit)) {
+                        role = r;
                         break;
                     }
                 }
-                if (slot.isEmpty())
+                if (role.isEmpty())
                     continue;   // unassigned unit — recorded, but bound to no segment
 
                 pinpoint::analysis::ImuSegmentBinding b;
                 b.source     = sid;
-                b.role       = segmentRoleForSlot(m_sessionType, slot);
+                b.role       = pinpoint::analysis::segmentRoleForPlacementRole(role);
                 b.hackMotion = true;
                 // A is IDENTITY for this lane by design, not as a placeholder: the
                 // device referenced the pair at its own calibration pose, so there is
@@ -1737,7 +1739,6 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
     // IMU aliases keyed by the same identifier the sources registered with
     // (serial when present, else device id — mirrors ImuInstance).
     const QVariantMap imuAliases   = s->imuAlias();
-    const QVariantMap imuPlacement = s->imuPlacement();
     const QVariantMap imuFusion    = s->imuFusionMode();
     const QVariantMap imuRates     = s->imuOutputRateHz();
     const QList<Device> imus = DeviceEnumerator::instance()->devices(DeviceType::Imu);
@@ -1757,12 +1758,19 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         info.outputRateHz      = imuRates.value(dev.id, 200).toInt();
         info.fusionMode        = imuFusion.value(dev.id, s->imuDefaultFusionMode()).toString();
         info.orientationFilter = s->imuOrientationFilter();
-        info.placementSlot     = imuPlacement.value(dev.id).toString();
-        // Resolve the anatomical body role from slot+sessionType (same canonical
-        // mapping as analysis.bindings) so it is baked into the stream itself —
-        // needed by the data viewer, SwingLab and future post-hoc analysis.
+        // ⚠ placementSlot IS NO LONGER WRITTEN (design §4.13): placement is role-keyed,
+        // and the letter carried nothing the role does not. The field and every reader
+        // stay — old swings have it — and the exporter omits the key when it is empty.
+        //
+        // The anatomical role comes from the same resolver as analysis.bindings, with no
+        // sessionType gate, so it is baked into the stream itself — needed by the data
+        // viewer, SwingLab and future post-hoc analysis. ⚠ Witmotion only, as before: a
+        // wG3's `info` is keyed by the bare device id, which no lane carries (see below),
+        // and its unit lanes deliberately get no role here.
         const pinpoint::analysis::SegmentRole role =
-            segmentRoleForSlot(m_sessionType, info.placementSlot);
+            (m_imuManager && dev.imuVendor != ImuVendor::HackMotion)
+                ? pinpoint::analysis::segmentRoleForPlacementRole(m_imuManager->roleForDevice(dev.id))
+                : pinpoint::analysis::SegmentRole::Unknown;
         info.role     = int(role);
         info.roleName = pinpoint::analysis::segmentRoleName(role);
         if (m_imuManager) {
@@ -1828,9 +1836,9 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
                     // inheriting the app's Witmotion defaults: this device
                     // fuses on-device, and a persisted "madgwick" against a
                     // HackMotion lane would be a fabricated provenance record.
-                    // placementSlot/role/roleName stay unset — unit-keyed
-                    // placement is Phase C; an empty slot correctly resolves to
-                    // no role rather than a guessed one.
+                    // role/roleName stay unset (and placementSlot is no longer
+                    // written for any device) — unchanged by role-keyed placement;
+                    // the binding in buildAnalysisJob carries the unit's role.
                     pinpoint::SwingImuDeviceInfo hmInfo;
                     // Measured average of an ADAPTIVE rate (25 Hz at rest, 100 Hz
                     // in motion, dense bursts to ~799 Hz) — not a configured

@@ -85,6 +85,11 @@ class ImuInstance : public ImuDeviceBase
     // (which the long-axis-rotation deviation above is blind to). Set by
     // setNominalCalibration. 0 until calibrated.
     Q_PROPERTY(double      mountGravityErrorDeg READ mountGravityErrorDeg NOTIFY anatCalibratedChanged)
+    // The composite validity gate (fullyCalibrated() below): anatomical transform valid AND
+    // both mount checks within threshold — what saved shots record as `calibrated`, and the
+    // check a setup page must use rather than re-deriving it from the three properties above
+    // (design §4.11, finding F1). Same NOTIFY as its inputs, which all change together.
+    Q_PROPERTY(bool        fullyCalibrated READ fullyCalibrated NOTIFY anatCalibratedChanged)
 
 public:
     // ioThread is the ImuManager-owned shared IMU I/O thread: the BLE driver
@@ -221,7 +226,8 @@ public:
 
     // Precise refinement (δM fine-tune): apply a small rotation about the segment
     // long axis to the nominal mounting, correcting strap-slop. phiDeg is computed
-    // by the caller from a second pose (arm abducted) — see ScreenSessionWizard.
+    // by the caller from a second pose (arm abducted) — see WitmotionArmRoutine.qml
+    // (_phiFromAbduction).
     // Keeps the validated nominal; bounded → cannot flip the frame.
     Q_INVOKABLE void    refineMountAboutLongAxis(const QQuaternion &refRaw,
                                                  double phiDeg, bool handMount = false);

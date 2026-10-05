@@ -719,6 +719,9 @@ qt_add_executable(PinPointStudio
     src/Gui/app/notification_center.h        src/Gui/app/notification_center.cpp
     src/Gui/shot/ppcp_clip_filer.h           src/Gui/shot/ppcp_clip_filer.cpp
     src/Gui/imu/imu_manager.h                src/Gui/imu/imu_manager.cpp
+    src/Gui/imu/imu_role_map.h               src/Gui/imu/imu_role_map.cpp
+    src/Gui/imu/paced_connect_queue.h        src/Gui/imu/paced_connect_queue.cpp
+    src/Analysis/segment_role.h
     src/Gui/imu/imu_instance.h               src/Gui/imu/imu_instance.cpp
     # imu_device.h carries Q_OBJECT and has no .cpp of its own, so AUTOMOC only
     # sees it if it is listed here — without the line, HmInstance links against
@@ -733,6 +736,7 @@ qt_add_executable(PinPointStudio
     src/Gui/monitor/resource_monitor_controller.h src/Gui/monitor/resource_monitor_controller.cpp
     src/Gui/monitor/profiler_controller.h         src/Gui/monitor/profiler_controller.cpp
     src/Gui/app/clipboard_helper.h
+    src/Gui/app/app_log.h                    src/Gui/app/app_log.cpp
     src/Gui/session/session_controller.h       src/Gui/session/session_controller.cpp
     src/Gui/review/session_review_controller.h src/Gui/review/session_review_controller.cpp
     src/Gui/review/session_list_model.h        src/Gui/review/session_list_model.cpp

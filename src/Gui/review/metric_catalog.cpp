@@ -19,6 +19,7 @@
 #include "metric_catalog.h"
 
 #include "../../Diagnostics/metric_corridor.h"
+#include "../../Metrics/setup_capability.h"
 
 using namespace pinpoint::analysis;
 
@@ -80,6 +81,15 @@ ShotContext contextFromMap(const QVariantMap &m)
     c.band.club      = m.value(QStringLiteral("club"), 0).toInt();
     c.band.shape     = m.value(QStringLiteral("shape"), 0).toInt();
     return c;
+}
+
+QVariantList toVariantList(const QStringList &l)
+{
+    QVariantList out;
+    out.reserve(l.size());
+    for (const QString &s : l)
+        out.append(s);
+    return out;
 }
 
 QVariantMap availabilityMap(const MetricAvailability &a)
@@ -421,4 +431,43 @@ QVariantMap MetricCatalog::descriptor(const QString &key, const QVariantMap &sho
 QVariantMap MetricCatalog::availability(const QString &key, const QVariantMap &shotCtx) const
 {
     return availabilityMap(m_catalogue.resolve(key, contextFromMap(shotCtx)));
+}
+
+QVariantList MetricCatalog::setupSummary(const QVariantMap &setup) const
+{
+    SetupFacts f;
+    f.faceOnCamera  = setup.value(QStringLiteral("faceOn")).toBool();
+    f.dtlCamera     = setup.value(QStringLiteral("dtl")).toBool();
+    f.hackMotion    = setup.value(QStringLiteral("hackMotion")).toBool();
+    f.launchMonitor = setup.value(QStringLiteral("launchMonitor")).toBool();
+    for (const QVariant &v : setup.value(QStringLiteral("imuRoles")).toList()) {
+        // The persisted spelling ("leadHand"), not segmentRoleName()'s ("LeadHand") — the shared
+        // inverse in segment_role.h, so an unknown name is Unknown and dropped, never a guess.
+        const SegmentRole r = segmentRoleForPlacementRole(v.toString());
+        if (r != SegmentRole::Unknown)
+            f.imuRoles.push_back(r);
+    }
+
+    QVariantList out;
+    for (const CapabilityGroup &g : summariseSetup(m_catalogue, f)) {
+        QVariantMap m;
+        m.insert(QStringLiteral("group"),              g.group);
+        m.insert(QStringLiteral("measured"),           g.measured);
+        m.insert(QStringLiteral("estimated"),          g.estimated);
+        m.insert(QStringLiteral("unavailable"),        g.unavailable);
+        m.insert(QStringLiteral("planned"),            g.planned);
+        m.insert(QStringLiteral("derived"),            g.derived);
+        m.insert(QStringLiteral("measuredKeys"),       toVariantList(g.measuredKeys));
+        m.insert(QStringLiteral("estimatedKeys"),      toVariantList(g.estimatedKeys));
+        m.insert(QStringLiteral("unavailableKeys"),    toVariantList(g.unavailableKeys));
+        m.insert(QStringLiteral("plannedKeys"),        toVariantList(g.plannedKeys));
+        m.insert(QStringLiteral("derivedKeys"),        toVariantList(g.derivedKeys));
+        m.insert(QStringLiteral("estimatedBecause"),   g.estimatedBecause);
+        m.insert(QStringLiteral("unavailableBecause"), g.unavailableBecause);
+        m.insert(QStringLiteral("upgrade"),            g.upgrade);
+        m.insert(QStringLiteral("deviceGaps"),         toVariantList(g.deviceGaps));
+        m.insert(QStringLiteral("deviceGapIds"),       toVariantList(g.deviceGapIds));
+        out.append(m);
+    }
+    return out;
 }

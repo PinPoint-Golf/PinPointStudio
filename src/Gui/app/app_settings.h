@@ -232,7 +232,20 @@ class AppSettings : public QObject
     Q_PROPERTY(QStringList imuExcluded            READ imuExcluded            WRITE setImuExcluded            NOTIFY imuExcludedChanged)
     Q_PROPERTY(QVariantMap imuAlias               READ imuAlias               WRITE setImuAlias               NOTIFY imuAliasChanged)
     Q_PROPERTY(QVariantMap imuCalibration         READ imuCalibration         WRITE setImuCalibration         NOTIFY imuCalibrationChanged)
-    Q_PROPERTY(QVariantMap imuPlacement           READ imuPlacement           WRITE setImuPlacement           NOTIFY imuPlacementChanged)
+    // Role-keyed placement (session_wizard_refactor_design.md §4.13): placement key →
+    // role name ("pelvis", "thorax", "leadUpperArm", "leadForearm", "leadHand"). Keys are
+    // a Witmotion's bare device id and a wG3's "<id>#lowerArm" / "<id>#palm" unit keys.
+    // ImuManager::setRoleForDevice is the writer that enforces one claim per role; a raw
+    // write here bypasses that rule and exists for tests and the migration.
+    Q_PROPERTY(QVariantMap imuRoles               READ imuRoles               WRITE setImuRoles               NOTIFY imuRolesChanged)
+    // ⚠ A DERIVED, READ-ONLY VIEW OF imuRoles, NOT STORAGE. The three arm roles as the old
+    // slot letters (leadForearm "A", leadHand "B", leadUpperArm "C"; trunk roles absent);
+    // imuPlacementChanged fires with every imuRolesChanged. It stays for ONE reader: the
+    // review screen (PpDataViewer.qml → SwingDataSource) labels OLD swings, which carry no
+    // role, with it (segmentRoleForSlot). The stored `imu/placement` key is never written
+    // again (reverting the build must find it as it was). Read-only since Stage 5c: the
+    // test fakes that wrote it write imuRoles.
+    Q_PROPERTY(QVariantMap imuPlacement           READ imuPlacement                                       NOTIFY imuPlacementChanged)
     Q_PROPERTY(QVariantMap imuOutputRateHz        READ imuOutputRateHz        WRITE setImuOutputRateHz        NOTIFY imuOutputRateHzChanged)
     Q_PROPERTY(QVariantMap imuFusionMode          READ imuFusionMode          WRITE setImuFusionMode          NOTIFY imuFusionModeChanged)
     Q_PROPERTY(QVariantMap imuMountOrientation    READ imuMountOrientation    WRITE setImuMountOrientation    NOTIFY imuMountOrientationChanged)
@@ -483,7 +496,7 @@ public:
         m_impactPipRect      = ppSettings().value(QStringLiteral("camera/impactPip"),    QVariantMap{}).toMap();
 
         m_imuExcluded             = ppSettings().value(QStringLiteral("imu/excluded"),             QStringList{}).toStringList();
-        m_imuPlacement            = ppSettings().value(QStringLiteral("imu/placement"),            QVariantMap{}).toMap();
+        loadImuRoles();   // imu/roles, migrating imu/placement once; derives m_imuPlacement
         m_imuOutputRateHz         = ppSettings().value(QStringLiteral("imu/outputRateHz"),         QVariantMap{}).toMap();
         m_imuFusionMode           = ppSettings().value(QStringLiteral("imu/fusionMode"),           QVariantMap{}).toMap();
         m_imuMountOrientation     = ppSettings().value(QStringLiteral("imu/mountOrientation"),     QVariantMap{}).toMap();
@@ -683,7 +696,8 @@ public:
     QVariantMap clubLenPrior() const { return m_clubLenPrior; }
 
     QStringList imuExcluded()             const { return m_imuExcluded; }
-    QVariantMap imuPlacement()            const { return m_imuPlacement; }
+    QVariantMap imuPlacement()            const { return m_imuPlacement; }   // derived — see the property
+    QVariantMap imuRoles()                const { return m_imuRoles; }
     QVariantMap imuOutputRateHz()         const { return m_imuOutputRateHz; }
     QVariantMap imuFusionMode()           const { return m_imuFusionMode; }
     QVariantMap imuMountOrientation()     const { return m_imuMountOrientation; }
@@ -1269,13 +1283,8 @@ public:
         emit imuExcludedChanged();
     }
 
-    void setImuPlacement(const QVariantMap &v)
-    {
-        if (m_imuPlacement == v) return;
-        m_imuPlacement = v;
-        ppSettings().setValue(QStringLiteral("imu/placement"), v);
-        emit imuPlacementChanged();
-    }
+    // In app_settings.cpp. Also refreshes the derived imuPlacement view.
+    void setImuRoles(const QVariantMap &v);
 
     void setImuOutputRateHz(const QVariantMap &v)
     {
@@ -1688,6 +1697,7 @@ signals:
     void impactPipRectChanged();
     void imuExcludedChanged();
     void imuPlacementChanged();
+    void imuRolesChanged();
     void imuOutputRateHzChanged();
     void imuFusionModeChanged();
     void imuMountOrientationChanged();
@@ -1728,6 +1738,10 @@ signals:
     void clubLenPriorChanged();
 
 private:
+    // Reads imu/roles, or — once, behind the imu/rolesMigrated marker — builds it from
+    // imu/placement through the Wrist map. Then derives m_imuPlacement. app_settings.cpp.
+    void loadImuRoles();
+
     int     m_themeIndex      = 0;
     int     m_windowWidth     = 1120;
     int     m_windowHeight    = 700;
@@ -1802,7 +1816,8 @@ private:
     QVariantMap m_impactPipRect;
 
     QStringList m_imuExcluded;
-    QVariantMap m_imuPlacement;
+    QVariantMap m_imuRoles;
+    QVariantMap m_imuPlacement;   // derived from m_imuRoles (the read-only legacy view, for old swings)
     QVariantMap m_imuOutputRateHz;
     QVariantMap m_imuFusionMode;
     QVariantMap m_imuMountOrientation;

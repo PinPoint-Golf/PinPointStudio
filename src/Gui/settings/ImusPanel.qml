@@ -87,6 +87,21 @@ Item {
         // Every branch below on this flag exists because one of those is true.
         readonly property bool isHackMotion: imuData.vendor === "hackmotion"
 
+        // The mount this device holds, by name ("" when unassigned) — shown truthfully even
+        // for a role the picker does not offer (ImuMounts.trunkMountsOffered).
+        readonly property string mountLabel: {
+            var roles = appSettings.imuRoles
+            return roles ? ImuMounts.deviceMountLabel(isHackMotion, imuManager.roleForDevice(imuData.id)) : ""
+        }
+
+        // Why the last mount pick was refused ("" = it was not). Cleared by the next pick
+        // and by any change to the roles map (the holder may just have let go).
+        property string refusal: ""
+        Connections {
+            target: appSettings
+            function onImuRolesChanged() { imuRow.refusal = "" }
+        }
+
         // Capabilities strip cell model — reactive to live battery data.
         readonly property var capsCells: {
             var sensors = []
@@ -289,108 +304,155 @@ Item {
                             id: placementCombo
                             implicitWidth: Theme.sp(200)
 
+                            // Mounts BY NAME (ImuMounts), keyed by role (design §4.13).
+                            //
                             // A HackMotion's SEGMENTS are not the coach's to
                             // choose — the wG3 is one peripheral carrying two
                             // units on a cable (wire block 0 the lower arm,
                             // block 1 the palm), fixed by the wiring — but
                             // whether it is assigned at all IS. So its combo
                             // offers exactly two states: Unassigned, and
-                            // "A + B" as one choice (value "A", the only
-                            // non-empty assignment setPlacementForDevice()
-                            // accepts for it; the manager writes BOTH unit keys
-                            // — "<deviceId>#lowerArm" → "A", "<deviceId>#palm"
-                            // → "B" — in one call). A Witmotion keeps the full
-                            // per-letter list, exactly as before Phase C.
+                            // "Lead forearm + hand" as one choice (value
+                            // "leadForearm", the only non-empty role
+                            // setRoleForDevice() accepts for it; the manager
+                            // writes BOTH unit keys — "<deviceId>#lowerArm" →
+                            // leadForearm, "<deviceId>#palm" → leadHand — in one
+                            // call). A Witmotion is offered every OFFERED mount
+                            // (ImuMounts.offeredRoles — the trunk waits for its
+                            // calibration; see the switch there).
 
-                            readonly property var placementOptions: imuRow.isHackMotion
-                                ? [
-                                    { label: qsTr("— Unassigned —"),               value: ""  },
-                                    { label: qsTr("A + B — Lead forearm + hand"),  value: "A" }
-                                  ]
-                                : [
-                                    { label: qsTr("— Unassigned —"),                  value: ""      },
-                                    { label: qsTr("A — Thorax / Lead Wrist"),         value: "A"     },
-                                    { label: qsTr("B — Lumbar Spine / Lead Hand"),    value: "B"     },
-                                    { label: qsTr("C — T12 Junction / Shoulder"),     value: "C"     },
-                                    { label: qsTr("D — Other"),                       value: "D"     }
-                                  ]
+                            // The role this row's device holds now, in the settings
+                            // spelling; "" when unassigned. Read through the manager,
+                            // which owns the keying rule (bare id vs. unit keys).
+                            readonly property string currentRole: {
+                                var roles = appSettings.imuRoles
+                                return roles ? imuManager.roleForDevice(imuData.id) : ""
+                            }
+
+                            readonly property var placementOptions: {
+                                var opts = [ { label: ImuMounts.unassignedLabel, value: "" } ]
+                                var offered = imuRow.isHackMotion ? ["leadForearm"] : ImuMounts.offeredRoles
+                                for (var i = 0; i < offered.length; ++i)
+                                    opts.push(placementCombo._option(offered[i]))
+                                // ⚠ A HELD MOUNT THAT IS NOT OFFERED IS STILL SHOWN. A
+                                // trunk role is not offered until the trunk can be
+                                // calibrated, but a sensor can hold one already (a
+                                // hand-edited settings file); reading it as "Unassigned"
+                                // would be a lie, and choosing Unassigned would then
+                                // silently look like a no-op.
+                                var cur = placementCombo.currentRole
+                                if (cur !== "" && offered.indexOf(cur) < 0)
+                                    opts.push(placementCombo._option(cur))
+                                return opts
+                            }
+
+                            // One entry. A mount another sensor holds is greyed (see
+                            // itemEnabledFn) AND says who holds it, so the coach knows
+                            // which row to change instead of guessing.
+                            function _option(role) {
+                                var name = imuRow.isHackMotion && role === "leadForearm"
+                                         ? ImuMounts.hackMotionLabel
+                                         : (ImuMounts.label(role) || role)
+                                var holder = imuRow.isHackMotion && role === "leadForearm"
+                                           ? (placementCombo.holderOf("leadForearm") || placementCombo.holderOf("leadHand"))
+                                           : placementCombo.holderOf(role)
+                                return { label: holder === "" ? name
+                                                              : qsTr("%1 — held by %2").arg(name).arg(placementCombo.nameOf(holder)),
+                                         value: role, holder: holder }
+                            }
 
                             model: placementOptions.map(function(o) { return o.label })
 
-                            // Placement KEYS, not device ids — Phase C's unit-keyed
-                            // placement means a slot letter can be held by a key that
-                            // is not this row's device id at all (a HackMotion's keys
-                            // are "<deviceId>#lowerArm"/"#palm"). Walking devList and
-                            // comparing map[d.id] === value — the old, device-keyed
-                            // check — would never see those keys, so a wG3's slots
-                            // would silently stop registering as taken and a coach
-                            // could assign a Witmotion straight on top of one. Walk
-                            // the map's own keys instead, and skip any key that
-                            // belongs to THIS row's own device (its bare id for a
-                            // Witmotion, "<id>#lowerArm"/"<id>#palm" for a HackMotion).
+                            // Device id of ANOTHER sensor whose claim on `role` would make
+                            // ImuManager refuse this row's (setRoleForDevice → claimRole,
+                            // imu_role_map.cpp), else "". Placement KEYS, not device ids:
+                            // a wG3 holds its roles under "<id>#lowerArm"/"<id>#palm", so
+                            // a device-keyed check would never see them and a Witmotion
+                            // could be put straight on top of one.
                             //
-                            // ⚠ ONLY A PRESENT OWNER BLOCKS. A claim whose device the
-                            // enumerator cannot see is stale — a dead or replaced
-                            // sensor — and it has no row here to unassign it from, so
-                            // letting it grey the slot is a lockout with no UI path
-                            // out. Assignment displaces such claims instead
-                            // (setPlacementForDevice), and the resolver prefers a
-                            // present claimant meanwhile (placementKeyForSlot).
-                            function placementTakenBy(value) {
-                                if (!value || value === "" || value === "other") return false
-                                var map  = appSettings.imuPlacement
-                                var list = imuManager.imuDeviceList
-                                for (var key in map) {
-                                    if (map[key] !== value) continue
+                            // ⚠ ONLY AN ENUMERATED, SESSION-ENABLED OWNER BLOCKS — the
+                            // manager's own rule, so a greyed entry is exactly one the
+                            // manager would refuse. A claim whose device the enumerator
+                            // cannot see is stale (a dead or replaced sensor) with no row
+                            // here to unassign it from; greying on it would be a lockout
+                            // with no UI path out. Assignment displaces such claims.
+                            function holderOf(role) {
+                                if (!role) return ""
+                                var roles = appSettings.imuRoles
+                                var list  = imuManager.imuDeviceList
+                                for (var key in roles) {
+                                    if (roles[key] !== role) continue
                                     var ownerId = key.indexOf("#") >= 0 ? key.substring(0, key.indexOf("#")) : key
                                     if (ownerId === imuData.id) continue
-                                    if (appSettings.imuExcluded.indexOf(ownerId) >= 0) continue
-                                    var present = false
                                     for (var i = 0; i < list.length; ++i)
-                                        if (list[i].id === ownerId) { present = true; break }
-                                    if (present) return true
+                                        if (list[i].id === ownerId && list[i].sessionEnabled !== false)
+                                            return ownerId
                                 }
-                                return false
+                                return ""
                             }
+                            // The holder as the golfer may read it — the manager's remembered-name
+                            // rule (alias, else description, never a raw "{…}" id; Stage 5d).
+                            function nameOf(deviceId) { return imuManager.displayNameForDevice(deviceId) }
 
-                            // Disable placements already assigned to another PRESENT
-                            // IMU. A HackMotion's "A + B" choice needs both letters.
+                            // Disable mounts another present, enabled sensor holds. A
+                            // HackMotion's one choice needs BOTH roles (_option folds
+                            // the palm's holder in), which is also what keeps two
+                            // instruments off one arm.
                             itemEnabledFn: function(index) {
-                                var v = placementCombo.placementOptions[index].value
-                                if (imuRow.isHackMotion && v === "A")
-                                    return !placementCombo.placementTakenBy("A")
-                                        && !placementCombo.placementTakenBy("B")
-                                return !placementCombo.placementTakenBy(v)
+                                var o = placementCombo.placementOptions[index]
+                                return !o || o.holder === undefined || o.holder === ""
                             }
 
-                            // What the map currently says for THIS row, in the
-                            // combo's value vocabulary. A HackMotion's assignment
-                            // lives under its unit keys, so it is read back through
-                            // the canonical resolver, not the bare device id.
+                            // What the roles map says for THIS row, as an index into
+                            // the options. Imperative, because a ComboBox drops a
+                            // currentIndex binding the first time the user picks.
                             function _syncFromMap() {
-                                var saved
-                                if (imuRow.isHackMotion)
-                                    saved = imuManager.deviceIdForSlot("A") === imuData.id ? "A" : ""
-                                else
-                                    saved = appSettings.imuPlacement[imuData.id] || ""
+                                var saved = placementCombo.currentRole
                                 for (var i = 0; i < placementOptions.length; i++) {
-                                    if (placementOptions[i].value === saved) { currentIndex = i; break }
+                                    if (placementOptions[i].value === saved) { currentIndex = i; return }
                                 }
+                                currentIndex = 0
                             }
 
                             Component.onCompleted: _syncFromMap()
-
-                            Connections {
-                                target: appSettings
-                                function onImuPlacementChanged() { placementCombo._syncFromMap() }
-                            }
+                            // The options are rebuilt whenever a holder, an alias or the
+                            // offered set changes; the selection is re-derived each time.
+                            onModelChanged:        _syncFromMap()
+                            onCurrentRoleChanged:  _syncFromMap()
 
                             onActivated: (idx) => {
-                                // Routed through the canonical resolver rather than a raw
-                                // map write — the keying rule (bare id vs. unit keys) now
-                                // lives in ImuManager alone, not spelled out again here.
-                                imuManager.setPlacementForDevice(imuData.id, placementOptions[idx].value)
+                                var role = placementOptions[idx].value
+                                imuRow.refusal = ""
+                                // ⚠ THE MANAGER CAN SAY NO, and the combo has already moved.
+                                // A refusal (one claim per role; the holder is named by
+                                // roleRefused, handled below) leaves the roles map — and so
+                                // currentRole — unchanged, so nothing would move it back:
+                                // snap it to the real state here.
+                                if (!imuManager.setRoleForDevice(imuData.id, role))
+                                    placementCombo._syncFromMap()
                             }
+
+                            Connections {
+                                target: imuManager
+                                function onRoleRefused(deviceId, role, holderId) {
+                                    if (deviceId !== imuData.id) return
+                                    imuRow.refusal = qsTr("%1 is held by %2. Unassign or disable it first.")
+                                                         .arg(ImuMounts.label(role) || role)
+                                                         .arg(placementCombo.nameOf(holderId))
+                                    placementCombo._syncFromMap()
+                                }
+                            }
+                        }
+
+                        // Why the last pick did not stick — in the panel, never a dialog.
+                        Text {
+                            visible:          imuRow.refusal !== ""
+                            text:             imuRow.refusal
+                            font.family:      Theme.fontData
+                            font.pixelSize:   Theme.fontSzMicro
+                            color:            Theme.colorWarn
+                            wrapMode:         Text.WordWrap
+                            Layout.maximumWidth: placementCombo.implicitWidth
                         }
                     }
 
@@ -659,22 +721,12 @@ Item {
                     spacing: Theme.sp(8)
 
                     Text {
-                        text: {
-                            // A HackMotion holds no entry under its own bare device id
-                            // (Phase C unit-keyed placement: its keys are
-                            // "<id>#lowerArm"/"<id>#palm") — it is always pinned to
-                            // BOTH A and B by ImusPanel's placement selector above, so
-                            // that pair is shown directly rather than read from the map.
-                            var label
-                            if (imuRow.isHackMotion) {
-                                label = qsTr("A + B — %1").arg(imuData.description)
-                            } else {
-                                var p = appSettings.imuPlacement[imuData.id]
-                                label = (p && p !== "") ? (p + " — " + imuData.description)
-                                                        : imuData.description
-                            }
-                            return qsTr("Live test — ") + label
-                        }
+                        // The mount by name (imuRow.mountLabel — a wG3's pair reads
+                        // "Lead forearm + hand"), then the device; just the device
+                        // while it has no mount.
+                        text: qsTr("Live test — ") + (imuRow.mountLabel !== ""
+                                                          ? imuRow.mountLabel + " — " + imuData.description
+                                                          : imuData.description)
                         font.family:         Theme.fontData
                         font.pixelSize:      Theme.fontSzMicro
                         font.letterSpacing:  Theme.trackingMicro
@@ -1490,20 +1542,19 @@ Item {
                 }
                 readonly property int connectedCount: imuManager.imuCount
 
-                // Deliberately UNCHANGED by Phase C's unit-keyed placement: this reads
-                // only the map's VALUES (slot letters), never its keys, so it does not
-                // care whether a slot is held by a bare device id or a HackMotion unit
-                // key — and it gets MORE correct for free, because a wG3's two unit
-                // keys now contribute both "A" and "B" as separate values, exactly
-                // reflecting that both slots are genuinely filled.
-                readonly property var assignedPlacements: {
-                    var map = appSettings.imuPlacement
-                    return Object.values(map).filter(function(v) { return v && v !== "" && v !== "other" })
+                // Mounts BY NAME, in picker order. Reads only the roles map's VALUES,
+                // never its keys, so a wG3's two unit keys count as the two mounts they
+                // fill. "Assigned" is every role claimed, offered or not (a hand-edited
+                // trunk role is still shown); "Missing" is the OFFERED mounts nobody
+                // claims (ImuMounts.offeredRoles — the trunk is not asked for yet).
+                readonly property var assignedRoles: {
+                    var held = Object.values(appSettings.imuRoles)
+                    return ImuMounts.allRoles.filter(function(r) { return held.indexOf(r) >= 0 })
                 }
-                readonly property var missingPlacements: {
-                    var all = ["A", "B", "C", "D"]
-                    return all.filter(function(p) { return summaryRect.assignedPlacements.indexOf(p) < 0 })
-                }
+                readonly property var assignedPlacements: assignedRoles.map(function(r) { return ImuMounts.label(r) })
+                readonly property var missingPlacements: ImuMounts.offeredRoles
+                    .filter(function(r) { return summaryRect.assignedRoles.indexOf(r) < 0 })
+                    .map(function(r) { return ImuMounts.label(r) })
 
                 RowLayout {
                     anchors.fill:    parent

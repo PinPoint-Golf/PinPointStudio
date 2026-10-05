@@ -28,12 +28,12 @@ class AthleteController;
 
 // LiveWristAngles — real-time lead-wrist metrics measured against the calibration
 // NEUTRAL, for the session-wizard "Check your sensor" overlay (QML context property
-// `liveWrist`). It resolves the same A/B/C IMU slots ArmVizView uses — through
-// ImuManager::instanceForSlot(), which resolves either device kind — reads each
+// `liveWrist`). It resolves the same arm roles ArmVizView uses — through
+// ImuManager::instanceForRole(), which resolves either device kind — reads each
 // sensor's anatQuat (identity at the neutral reference) on a timer, and runs the
 // tested wrist_angles.h math:
-//   bow/cup + hinge = wristFlexExtDeviation(forearmAnat⁻¹ · handAnat)   [slots A + B]
-//   roll            = forearmPronElbowFlex(upperAnat⁻¹ · forearmAnat)   [slots C + A]
+//   bow/cup + hinge = wristFlexExtDeviation(forearmAnat⁻¹ · handAnat)   [leadForearm + leadHand]
+//   roll            = forearmPronElbowFlex(upperAnat⁻¹ · forearmAnat)   [leadUpperArm + leadForearm]
 //
 // Display/verification ONLY — it does NOT feed shot analysis (the post-shot analyzer
 // computes its own values, and also relative to address). It never modifies ArmVizView.
@@ -79,10 +79,10 @@ private:
     void tick();
 
     ImuManager        *m_imu;
-    // ⚠ No AppSettings member. Slot→sensor resolution is ImuManager::
-    // instanceForSlot()'s job as of Phase C — it is the single place that knows
+    // ⚠ No AppSettings member. Role→sensor resolution is ImuManager::
+    // instanceForRole()'s job — it is the single place that knows
     // placement is keyed by device id for a Witmotion and by UNIT for a HackMotion
-    // ("<deviceId>#lowerArm" / "#palm", one wG3 filling A and B). Reading
+    // ("<deviceId>#lowerArm" / "#palm", one wG3 filling leadForearm and leadHand). Reading
     // imuPlacement here again would be a seventh copy of that rule, and the copies
     // are what a two-unit device breaks silently. The constructor still takes the
     // settings pointer so main.cpp is unchanged.

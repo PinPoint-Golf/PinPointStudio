@@ -37,7 +37,8 @@
 //
 // A `shotCtx` QVariantMap parameterises per-shot availability + normative resolution. Shape (all
 // optional): { tier:int, sessionType:int, imuRoles:[roleName…], hasFaceOn, hasDtl, hasClubTrack,
-// hasBallTrack, archetype, club, shape }. Omit it (or pass {}) for the context-free directory view;
+// hasBallTrack, hasLaunchMonitor, hasHackMotion, archetype, club, shape }. roleName here is
+// segmentRoleName() ("LeadForearm") — NOT the persisted setup spelling setupSummary() takes. Omit it (or pass {}) for the context-free directory view;
 // pass a shot's capability (or the studio's configured capability) to drive availability chips.
 // Phases are emitted as Phase ints (the vocabulary QML already compares and TimelineLabels renders).
 
@@ -79,6 +80,17 @@ public:
     // Availability alone: { state, reason, tier } — e.g. a zone deciding whether to render a metric.
     Q_INVOKABLE QVariantMap availability(const QString &key,
                                          const QVariantMap &shotCtx) const;
+
+    // What a session set up like this WILL record, per metric group, before any swing — the closing
+    // page of session setup (session_wizard_refactor_design.md §4.14; summariseSetup in
+    // Metrics/setup_capability.h). setup: { faceOn:bool, dtl:bool, imuRoles:[name…],
+    // hackMotion:bool, launchMonitor:bool }, where a role name is the PERSISTED spelling
+    // ("pelvis", "thorax", "leadForearm", "leadHand", "leadUpperArm") and the caller passes only
+    // roles that are assigned, enabled and calibrated. One map per group, manifest order:
+    // { group, measured, estimated, unavailable, planned, derived, measuredKeys, estimatedKeys,
+    //   unavailableKeys, plannedKeys, derivedKeys, estimatedBecause, unavailableBecause, upgrade,
+    //   deviceGaps, deviceGapIds }.
+    Q_INVOKABLE QVariantList setupSummary(const QVariantMap &setup) const;
 
 signals:
     void gradePolicyChanged();

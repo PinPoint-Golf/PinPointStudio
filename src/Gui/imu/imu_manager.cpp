@@ -23,7 +23,10 @@
 #include "event_buffer.h"
 #include "hm_instance.h"
 #include "imu_instance.h"
+#include "imu_role_map.h"
+#include "paced_connect_queue.h"
 #include "pp_debug.h"
+#include "../../IMU/hm_unit_id.h"
 #include "pp_os_metrics.h"
 
 ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, QObject *parent)
@@ -45,6 +48,25 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
         pinpoint::osmetrics::registerThread("IMU.IO");
     });
     m_ioThread.start();
+
+    // The one paced connect queue (design §4.11). The callback decides SKIP vs CONNECT at
+    // the moment the id's turn comes, not when the list was built — two seconds is long
+    // enough for a device to have connected on its own, been disabled, or vanished.
+    m_pacedConnect = new PacedConnectQueue([this](const QString &id) -> bool {
+        if (m_sessionExcluded.contains(id)) return false;   // disabled this session
+        if (m_selected.value(id).selected)  return false;   // connected or connecting already
+        const QList<Device> devs = DeviceEnumerator::instance()->devices(DeviceType::Imu);
+        for (int i = 0; i < devs.size(); ++i) {
+            if (devs[i].id != id) continue;
+            setSelected(i, true);
+            // setSelected refuses a re-select while the previous instance is still being
+            // torn down; that is a skip, not a connect, and must not cost a gap.
+            return m_selected.value(id).selected;
+        }
+        return false;                                       // not enumerated
+    }, this);
+    connect(m_pacedConnect, &PacedConnectQueue::activeChanged,
+            this, &ImuManager::pacedConnectActiveChanged);
 
     // Seed the per-session exclusion list from the persisted global enablement
     // (mirrors CameraManager). Track the global list so mid-session Settings
@@ -82,7 +104,14 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
                 if (!now.contains(id)) setSessionImuEnabled(id, true);
             m_lastGlobalExcluded = now;
         }, Qt::QueuedConnection);
+
+        // rolesInSession depends on the roles, the session exclusion list and the
+        // enumerator; each change re-derives it and only a real change notifies.
+        connect(m_appSettings, &AppSettings::imuRolesChanged,
+                this, &ImuManager::refreshRolesInSession);
     }
+    connect(this, &ImuManager::sessionImuExcludedChanged,
+            this, &ImuManager::refreshRolesInSession);
 
     // Surface BLE discovery errors (Bluetooth off / no adapter) so the IMU UI can
     // show an actionable message rather than an empty list.
@@ -111,6 +140,8 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
     // emit deviceAdded again and would be missed by the hook below on its own.
     for (const Device &dev : DeviceEnumerator::instance()->devices(DeviceType::Imu))
         migrateHackMotionPlacement(dev);
+    // Recorded, not emitted — QML has not loaded yet (same as m_imuScanActive below).
+    m_rolesInSession = pinpoint::imu_roles::rolesInSession(currentRoles(), factsFn());
 
     // Start the async BLE scan.  Results arrive via deviceAdded and are
     // automatically reflected by imuList() / imuDeviceList() reading directly
@@ -137,7 +168,7 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
         if (dev.type != DeviceType::Imu) return;
         setImuScanError(QString());   // a device appeared — discovery is healthy
         // Seed alias for newly-seen device so it always has a value.
-        const QString imuKey = dev.description + QStringLiteral("|") + dev.id;
+        const QString imuKey = pinpoint::imu_roles::aliasKey(dev.description, dev.id);
         AppSettings  fallback;
         AppSettings *s = m_appSettings ? m_appSettings : &fallback;
         QVariantMap aliasMap = s->imuAlias();
@@ -153,6 +184,8 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
         // slot A filled and slot B empty — the exact misreading Phase C removes.
         // Alias seeding above is here for the same reason and has the same shape.
         migrateHackMotionPlacement(dev);
+        // A newly enumerated device is newly PRESENT, which can put its role in session.
+        refreshRolesInSession();
         emit imuListChanged();
         emit imuDeviceListChanged();
         emit imuEnumeratedCountChanged();
@@ -161,6 +194,9 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
 
 ImuManager::~ImuManager()
 {
+    // Nothing may be selected from here on; the queue's callback reaches m_selected.
+    if (m_pacedConnect) m_pacedConnect->cancel();
+
     // Join the shot workers and destroy any live SwingWindow before freeing
     // ring memory under them (main.cpp declares the processor after the
     // managers, so normally ~ShotProcessor already ran and cleared this).
@@ -229,7 +265,7 @@ QVariantList ImuManager::imuList() const
         const ImuEntry &entry = m_selected.value(dev.id);
         const bool connected  = entry.instance && entry.instance->imuConnected();
         const bool connecting = entry.instance && entry.instance->busy() && !connected;
-        const QString imuKey  = dev.description + QStringLiteral("|") + dev.id;
+        const QString imuKey  = pinpoint::imu_roles::aliasKey(dev.description, dev.id);
         QVariantMap m;
         m[QStringLiteral("index")]       = i;
         m[QStringLiteral("id")]          = dev.id;
@@ -257,7 +293,7 @@ QVariantList ImuManager::imuDeviceList() const
     for (int i = 0; i < devs.size(); ++i) {
         const Device &dev = devs[i];
         const ImuCapabilities &cap = dev.imuCapabilities;
-        const QString imuKey = dev.description + QStringLiteral("|") + dev.id;
+        const QString imuKey = pinpoint::imu_roles::aliasKey(dev.description, dev.id);
         QVariantMap entry;
         entry[QStringLiteral("index")]       = i;
         entry[QStringLiteral("id")]          = dev.id;
@@ -465,6 +501,9 @@ void ImuManager::setSelected(int index, bool selected)
 
 void ImuManager::disconnectAll()
 {
+    // A queue left running would select the next sensor up to a gap after everything was
+    // released — the end-of-session teardown would undo itself.
+    cancelPacedConnect();
     // setSelected owns the full per-device teardown (stop barrier, BLE
     // disconnect, deregister, buffer-intent notify) — reuse it per device.
     // The enumerator list is stable across the loop (no scan runs here).
@@ -474,6 +513,21 @@ void ImuManager::disconnectAll()
         if (it != m_selected.cend() && it->selected)
             setSelected(i, false);
     }
+}
+
+void ImuManager::connectPaced(const QStringList &deviceIds, int gapMs)
+{
+    m_pacedConnect->start(deviceIds, gapMs);
+}
+
+void ImuManager::cancelPacedConnect()
+{
+    m_pacedConnect->cancel();
+}
+
+bool ImuManager::pacedConnectActive() const
+{
+    return m_pacedConnect && m_pacedConnect->active();
 }
 
 void ImuManager::rescanImu()
@@ -513,236 +567,151 @@ QObject *ImuManager::instanceFor(const QString &deviceId) const
 }
 
 // ---------------------------------------------------------------------------
-// Unit-keyed placement — the single canonical resolver
+// Role-keyed placement — the single canonical resolver (design §4.13)
 // ---------------------------------------------------------------------------
+//
+// The ladder, the one-claim-per-role rule and both migrations are pure functions in
+// imu_role_map.cpp, tested by imu_role_map_test without a BLE stack. What lives here is
+// only what needs the live process: the device facts (enumerator + session exclusion),
+// the live instances, the once-only warnings, and the write.
 
 namespace {
 
-// "<deviceId>#lowerArm" / "<deviceId>#palm".
-//
-// ⚠ NOT RESPELLED HERE. HmUnit owns the spelling (HmUnit::unitIdFor) because the
-// string is persisted twice over — as the EventBuffer SourceDescriptor::identifier
-// and as the placement key below — and a second copy of the literal is exactly the
-// drift nothing would catch: the two spellings would not fail, they would silently
-// orphan one device's entire placement. These are thin wrappers rather than direct
-// calls only so the resolver below reads in terms of keys.
-QString hmUnitKey(const QString &deviceId, wr_unit unit)
+// Display only, so translated — HmUnit owns it.
+QString hmUnitLabel(int unit)
 {
-    return HmUnit::unitIdFor(deviceId, unit);
-}
-
-QString hmUnitLabel(wr_unit unit)
-{
-    return HmUnit::unitLabelFor(unit);
-}
-
-// Splits a placement key into device id + unit. False for a bare device id —
-// a Witmotion, or a wG3 whose interim Phase A entry has not been migrated.
-bool parseUnitKey(const QString &key, QString *deviceId, wr_unit *unit)
-{
-    const int sep = key.lastIndexOf(QLatin1Char('#'));
-    if (sep <= 0) return false;
-    const QString id = key.left(sep);
-    // Regenerate and compare rather than matching the suffix text: the spelling
-    // stays owned by HmUnit, and a suffix this build does not recognise stays
-    // UNRESOLVED instead of being guessed at.
-    for (int u = 0; u < WR_UNIT_COUNT; ++u) {
-        const wr_unit candidate = static_cast<wr_unit>(u);
-        if (key == hmUnitKey(id, candidate)) {
-            *deviceId = id;
-            *unit     = candidate;
-            return true;
-        }
-    }
-    return false;
-}
-
-// True when the enumerator can currently see this peripheral. The placement map
-// accretes keys over months — dead sensors, replaced ones — and only the
-// enumerator knows which owners still exist.
-bool isEnumeratedImu(const QString &deviceId)
-{
-    const QList<Device> devs = DeviceEnumerator::instance()->devices();
-    for (const Device &d : devs)
-        if (d.type == DeviceType::Imu && d.id == deviceId) return true;
-    return false;
-}
-
-// Removes every claim on `slot` owned by a device the enumerator CANNOT SEE,
-// returning what was removed. An explicit assignment is AUTHORITATIVE over
-// stale claims — a discarded sensor's key still naming the slot has no row in
-// the settings panel and nothing else ever prunes it, so if assignment cannot
-// displace it the slot is locked with no UI path out.
-//
-// ⚠ A PRESENT OWNER'S CLAIM IS SPARED, EVEN A DISABLED ONE. Present-and-enabled
-// conflicts are blocked upstream (the panel greys those choices), and a
-// present-but-disabled claim is a PARKED setup, not a stale one: keeping both
-// claims is how a coach flips between a HackMotion and a Witmotion on the same
-// letters with the enable toggles alone, and placementKeyForSlot()'s ladder
-// hands the slot to whichever is enabled. Deleting the parked claim here would
-// make every flip cost a re-assignment.
-//
-// ⚠ Displacing one of a wG3's unit keys strips BOTH: a half-assigned pair reads
-// as a unit that was never strapped, not as a conflict, and no consumer is
-// written for that state.
-QStringList stealSlotClaims(QVariantMap &map, const QString &slot, const QString &newOwner)
-{
-    QStringList doomed;
-    for (auto it = map.cbegin(); it != map.cend(); ++it) {
-        if (it.value().toString() != slot) continue;
-        QString devId;
-        wr_unit unit = WR_UNIT_LOWER_ARM;
-        const bool unitKey = parseUnitKey(it.key(), &devId, &unit);
-        const QString owner = unitKey ? devId : it.key();
-        if (owner == newOwner) continue;
-        if (isEnumeratedImu(owner)) continue;
-        doomed.append(it.key());
-        if (unitKey)
-            for (int u = 0; u < WR_UNIT_COUNT; ++u) {
-                const QString partner = hmUnitKey(devId, static_cast<wr_unit>(u));
-                if (map.contains(partner)) doomed.append(partner);
-            }
-    }
-    doomed.removeDuplicates();
-    for (const QString &k : doomed) map.remove(k);
-    return doomed;
+    return HmUnit::unitLabelFor(static_cast<wr_unit>(unit));
 }
 
 }   // namespace
 
-QString ImuManager::placementKeyForSlot(const QString &slot) const
+pinpoint::imu_roles::DeviceFacts ImuManager::deviceFacts(const QString &deviceId) const
 {
-    if (slot.isEmpty()) return {};   // "" means unassigned; it is never a slot to look up
+    // `present` is "the enumerator can see it", exactly the test the slot resolver always
+    // used: the map accretes keys over months — dead sensors, replaced ones — and only the
+    // enumerator knows which owners still exist. It does not require a connection.
+    pinpoint::imu_roles::DeviceFacts f;
+    for (const Device &dev : DeviceEnumerator::instance()->devices(DeviceType::Imu)) {
+        if (dev.id != deviceId) continue;
+        f.present    = true;
+        f.hackMotion = dev.imuVendor == ImuVendor::HackMotion;
+        break;
+    }
+    f.sessionEnabled = !m_sessionExcluded.contains(deviceId);
+    return f;
+}
 
+pinpoint::imu_roles::DeviceFactsFn ImuManager::factsFn() const
+{
+    return [this](const QString &id) { return deviceFacts(id); };
+}
+
+QVariantMap ImuManager::currentRoles() const
+{
     // ⚠ THE FALLBACK IS CONSTRUCTED ONLY WHEN IT IS ACTUALLY NEEDED, unlike the
     // `AppSettings fallback; ... ? : &fallback` idiom used elsewhere in this file.
-    // This is the hottest placement accessor in the tree — every instanceForSlot()
-    // / deviceIdForSlot() / unitLabelForSlot() call funnels through it, and
-    // LiveWristAngles resolves three slots at 30 Hz — while the AppSettings
-    // constructor reads several hundred QSettings values. Constructing one
-    // unconditionally would pay a full settings load ninety times a second for a
-    // branch that is never taken outside tests (main.cpp always passes one).
-    const QVariantMap placement = m_appSettings ? m_appSettings->imuPlacement()
-                                                : AppSettings().imuPlacement();
+    // This is the hottest placement accessor in the tree — every
+    // instanceForRole() funnels through it, and LiveWristAngles resolves three roles at
+    // 30 Hz — while the AppSettings constructor reads several hundred QSettings values.
+    // Constructing one unconditionally would pay a full settings load ninety times a
+    // second for a branch that is never taken outside tests (main.cpp always passes one).
+    return m_appSettings ? m_appSettings->imuRoles() : AppSettings().imuRoles();
+}
 
-    // ⚠ A LIVE, ENABLED DEVICE BEATS EVERYTHING ELSE. The map accretes claims
-    // from sensors that no longer exist, and it deliberately KEEPS claims from
-    // sensors that exist but are switched off this session — that pair of claims
-    // is how a coach flips between a HackMotion and a Witmotion on the same
-    // letters without re-assigning anything. So resolution is a ladder, not a
-    // lookup:
-    //
-    //   1. enumerated AND session-enabled — the sensor actually in play;
-    //   2. enumerated but disabled — a parked setup, still a better answer
-    //      than a ghost (its device row exists, its state is inspectable);
-    //   3. any claimant at all — the wizard reads placement before the first
-    //      scan completes, and "assigned but not discovered yet" must keep
-    //      reading as assigned.
-    //
-    // Without the ladder, a dead sensor's key that happens to sort first takes
-    // the slot from a connected one — and the only symptom is a wrist readout
-    // that silently never appears. Within each rung, QVariantMap KEY order
-    // keeps the answer deterministic; two ENABLED, PRESENT claimants on one
-    // letter is a real conflict the coach has to resolve, so that one is warned
-    // about (once) rather than silently arbitrated.
-    QString     firstKey;      // rung 3 — any claimant
-    QString     presentKey;    // rung 2 — enumerated but disabled this session
-    QStringList enabledKeys;   // rung 1 — enumerated and enabled
-    for (auto it = placement.cbegin(); it != placement.cend(); ++it) {
-        if (it.value().toString() != slot) continue;
-        if (firstKey.isEmpty()) firstKey = it.key();
-        QString devId;
-        wr_unit unit = WR_UNIT_LOWER_ARM;
-        const QString owner = parseUnitKey(it.key(), &devId, &unit) ? devId : it.key();
-        if (!isEnumeratedImu(owner)) continue;
-        if (m_sessionExcluded.contains(owner)) {
-            if (presentKey.isEmpty()) presentKey = it.key();
-        } else {
-            enabledKeys.append(it.key());
-        }
-    }
-    if (enabledKeys.size() > 1) {
-        // Once per distinct conflict: this funnels a ~30 Hz readout timer.
-        const QString sig = slot + QLatin1Char('|') + enabledKeys.join(QLatin1Char(','));
+void ImuManager::writeRoles(const QVariantMap &roles)
+{
+    // ONE write, after the whole map is built. AppSettings::setImuRoles guards on
+    // equality, so an unchanged map emits nothing; writing key-by-key would let a QML
+    // consumer observe a wG3 half-assigned — forearm held and hand not yet — which is the
+    // exact state unit-keyed placement exists to stop showing.
+    AppSettings  fallback;
+    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+    s->setImuRoles(roles);
+    // Without m_appSettings there is no imuRolesChanged connection to do this.
+    if (!m_appSettings) refreshRolesInSession();
+}
+
+QString ImuManager::placementKeyForRole(const QString &role) const
+{
+    const pinpoint::imu_roles::RoleResolution r =
+        pinpoint::imu_roles::resolveRole(currentRoles(), role, factsFn());
+    if (r.enabledKeys.size() > 1) {
+        // Two ENABLED, PRESENT claimants on one role is a real conflict the coach has to
+        // resolve — setRoleForDevice refuses to create one, but a map written before that
+        // rule, or by hand, can still hold it. Arbitrated deterministically (key order) but
+        // never silently. Once per distinct conflict: this funnels a ~30 Hz readout timer.
+        const QString sig = role + QLatin1Char('|') + r.enabledKeys.join(QLatin1Char(','));
         if (!m_warnedSlotConflicts.contains(sig)) {
             m_warnedSlotConflicts.insert(sig);
-            ppWarn() << "[ImuManager] slot" << slot << "is claimed by more than one enabled,"
-                        " present sensor (" << enabledKeys.join(QStringLiteral(", "))
-                     << ") — using" << enabledKeys.first()
+            ppWarn() << "[ImuManager] role" << role << "is claimed by more than one enabled,"
+                        " present sensor (" << r.enabledKeys.join(QStringLiteral(", "))
+                     << ") — using" << r.enabledKeys.first()
                      << ". Disable or unassign one in Settings → IMUs.";
         }
     }
-    if (!enabledKeys.isEmpty()) return enabledKeys.first();
-    if (!presentKey.isEmpty())  return presentKey;
-    return firstKey;
+    return r.key;
 }
 
-QString ImuManager::deviceIdForSlot(const QString &slot) const
+QString ImuManager::deviceIdForRole(const QString &role) const
 {
-    const QString key = placementKeyForSlot(slot);
-    if (key.isEmpty()) return {};
-    QString devId;
-    wr_unit unit = WR_UNIT_LOWER_ARM;
-    // Both key shapes name the peripheral unambiguously — it is only the UNIT that
-    // a bare key fails to name.
-    return parseUnitKey(key, &devId, &unit) ? devId : key;
+    const QString key = placementKeyForRole(role);
+    // Both key shapes name the peripheral unambiguously — it is only the UNIT that a bare
+    // key fails to name.
+    return key.isEmpty() ? QString() : pinpoint::imu_roles::ownerOfKey(key);
 }
 
-QString ImuManager::unitLabelForSlot(const QString &slot) const
+QString ImuManager::unitLabelForRole(const QString &role) const
 {
-    const QString key = placementKeyForSlot(slot);
-    QString devId;
-    wr_unit unit = WR_UNIT_LOWER_ARM;
-    if (key.isEmpty() || !parseUnitKey(key, &devId, &unit)) return {};
+    const QString key = placementKeyForRole(role);
+    int unit = 0;
+    if (key.isEmpty() || !pinpoint::imu_roles::parseUnitKey(key, nullptr, &unit)) return {};
     return hmUnitLabel(unit);
 }
 
-QObject *ImuManager::instanceForSlot(const QString &slot) const
+QObject *ImuManager::instanceForRole(const QString &role) const
 {
-    const QString key = placementKeyForSlot(slot);
+    const QString key = placementKeyForRole(role);
     if (key.isEmpty()) return nullptr;
 
     QString devId;
-    wr_unit unit = WR_UNIT_LOWER_ARM;
-    const bool unitKey = parseUnitKey(key, &devId, &unit);
+    int unit = 0;
+    const bool unitKey = pinpoint::imu_roles::parseUnitKey(key, &devId, &unit);
     if (!unitKey) devId = key;
 
     const ImuEntry &entry = m_selected.value(devId);
-    // Assigned but not live (enumerated, never selected, or torn down). The
-    // placement accessors above still answer for this case — they are what the
-    // start wizard reads before anything has connected.
+    // Assigned but not live (enumerated, never selected, or torn down). The placement
+    // accessors above still answer for this case — they are what the start wizard reads
+    // before anything has connected.
     if (!entry.selected || !entry.instance) return nullptr;
 
     auto *hm = qobject_cast<HmInstance *>(entry.instance);
 
     if (unitKey) {
-        // A unit key naming a device that is not a HackMotion is a stale or
-        // hand-edited entry. There is no unit to hand back, so nothing is.
+        // A unit key naming a device that is not a HackMotion is a stale or hand-edited
+        // entry. There is no unit to hand back, so nothing is.
         if (!hm) return nullptr;
-        // ⚠ WHICH UNIT IS ON WHICH SEGMENT IS FIXED BY THE CABLE — wire block 0 is
-        // the lower arm, block 1 is the palm — so it is read out of the KEY and
-        // never inferred from the slot letter or from the order the two views were
-        // created in. A consumer that swaps the two produces a plausible-looking
-        // wrist angle that is simply MIRRORED, which every plausibility check
-        // passes.
-        return unit == WR_UNIT_PALM ? hm->unitPalmObject() : hm->unitLowerArmObject();
+        // ⚠ WHICH UNIT IS ON WHICH SEGMENT IS FIXED BY THE CABLE — wire block 0 is the
+        // lower arm, block 1 is the palm — so it is read out of the KEY and never inferred
+        // from the role or from the order the two views were created in. A consumer that
+        // swaps the two produces a plausible-looking wrist angle that is simply MIRRORED,
+        // which every plausibility check passes.
+        return unit == pinpoint::hm_unit_id::kPalm ? hm->unitPalmObject() : hm->unitLowerArmObject();
     }
 
     if (hm) {
-        // ⚠ A BARE DEVICE-ID KEY ON A HACKMOTION IS *NOT* "THE LOWER ARM". It is
-        // Phase A's interim pin, which under-describes the device, and reading it
-        // as one unit rather than as an unmigrated entry is precisely how a
-        // mirrored wrist angle ships. migrateHackMotionPlacement() rewrites these
-        // on the device-list path, so reaching here means something re-wrote a bare
-        // key afterwards — the peripheral is resolvable (see deviceForSlot()) but
-        // the UNIT is not, so this returns nothing and says why. Once per key: this
-        // is called from a ~30 Hz readout timer.
+        // ⚠ A BARE DEVICE-ID KEY ON A HACKMOTION IS *NOT* "THE LOWER ARM". It is Phase A's
+        // interim pin, which under-describes the device, and reading it as one unit rather
+        // than as an unmigrated entry is precisely how a mirrored wrist angle ships.
+        // migrateHackMotionPlacement() rewrites these on the device-list path, so reaching
+        // here means the migration was blocked or something re-wrote a bare key afterwards
+        // — the peripheral is resolvable (see deviceForRole()) but the UNIT is not, so this
+        // returns nothing and says why. Once per key: this is called from a ~30 Hz timer.
         if (!m_warnedBarePlacementKeys.contains(key)) {
             m_warnedBarePlacementKeys.insert(key);
-            ppWarn() << "[ImuManager] placement slot" << slot << "holds bare device id" << key
+            ppWarn() << "[ImuManager] role" << role << "is held by bare device id" << key
                      << "for a HackMotion — that key names the peripheral, not one of its two"
                         " units, so no unit can be resolved. Reassign the device in"
-                        " Settings → IMUs (one wG3 fills A and B).";
+                        " Settings → IMUs (one wG3 fills the lead forearm and hand).";
         }
         return nullptr;
     }
@@ -750,106 +719,66 @@ QObject *ImuManager::instanceForSlot(const QString &slot) const
     return static_cast<QObject *>(entry.instance);
 }
 
-QObject *ImuManager::deviceForSlot(const QString &slot) const
+QObject *ImuManager::deviceForRole(const QString &role) const
 {
-    // ⚠ DELIBERATELY MORE PERMISSIVE THAN instanceForSlot(). An unmigrated bare
-    // key still identifies the PERIPHERAL unambiguously, and device-level
-    // operations — calibrate, connect, battery, firmware — do not address a unit,
-    // so refusing them here would break the very flow a coach would use to fix the
-    // placement. It is only the anatomical reading that must not guess.
-    const QString devId = deviceIdForSlot(slot);
+    // ⚠ DELIBERATELY MORE PERMISSIVE THAN instanceForRole(). An unmigrated bare key still
+    // identifies the PERIPHERAL unambiguously, and device-level operations — calibrate,
+    // connect, battery, firmware — do not address a unit, so refusing them here would
+    // break the very flow a coach would use to fix the placement. It is only the
+    // anatomical reading that must not guess.
+    const QString devId = deviceIdForRole(role);
     if (devId.isEmpty()) return nullptr;
     const ImuEntry &entry = m_selected.value(devId);
     if (!entry.selected || !entry.instance) return nullptr;
     return static_cast<QObject *>(entry.instance);
 }
 
-void ImuManager::setPlacementForDevice(const QString &deviceId, const QString &slot)
+QString ImuManager::roleForDevice(const QString &deviceId) const
 {
-    if (deviceId.isEmpty()) return;
+    return pinpoint::imu_roles::roleForDevice(currentRoles(), deviceId);
+}
 
-    AppSettings  fallback;
-    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
-    QVariantMap map = s->imuPlacement();
+QString ImuManager::roleHolder(const QString &role) const
+{
+    return pinpoint::imu_roles::roleHolder(currentRoles(), role, factsFn());
+}
 
-    if (isHackMotionDevice(deviceId)) {
-        const QString lowerKey = hmUnitKey(deviceId, WR_UNIT_LOWER_ARM);
-        const QString palmKey  = hmUnitKey(deviceId, WR_UNIT_PALM);
+bool ImuManager::setRoleForDevice(const QString &deviceId, const QString &role)
+{
+    if (deviceId.isEmpty()) return false;
 
-        // ⚠ A HACKMOTION'S ASSIGNMENT IS NOT A CHOICE OF ONE LETTER, AND THE COACH
-        // DOES NOT GET TO PICK WHICH SEGMENTS IT COVERS. One wG3 is a single BLE
-        // peripheral carrying TWO sensor units on a cable, and the cable fixes
-        // which unit sits on which segment: block 0 on the lower arm, block 1 on
-        // the palm. So assigning it fills slot A (lead forearm) with the lower-arm
-        // unit and slot B (lead hand) with the palm unit, TOGETHER — which
-        // anatomical segments the device covers is a property of the HARDWARE, not
-        // a setting. There is no strap arrangement that makes any other pairing
-        // true, and a settings map that allowed one would yield a wrist angle that
-        // is exactly MIRRORED and passes every plausibility check.
-        //
-        // Hence "A" is the only non-empty slot accepted here, and any other letter
-        // is a CALLER ERROR: refused and logged, never coerced into something
-        // plausible.
-        if (slot.isEmpty()) {
-            map.remove(lowerKey);
-            map.remove(palmKey);
-            map.remove(deviceId);   // Phase A's interim pin, if still present
-        } else if (slot == QLatin1String("A")) {
-            // ⚠ AND IT TAKES TWO LETTERS, SO IT CAN COLLIDE TWICE. Filling A and B
-            // together displaces whatever held either letter — the assignment is
-            // an explicit choice in the settings panel (there is no auto-pin), so
-            // it is authoritative, and leaving a double claim would hand the
-            // answer to placementKeyForSlot()'s key ordering: deterministic,
-            // deliberately, but arbitrary as an ANSWER, with the dropped sensor
-            // never mentioned. Displacement only ever touches ABSENT owners
-            // (stealSlotClaims spares present ones): an enabled present holder
-            // greys this choice out in the panel, and a disabled present
-            // holder's claim is a parked setup that stays — the resolver's
-            // enabled-first ladder decides who drives the slot, so a coach
-            // flips between this wG3 and parked Witmotions with the enable
-            // toggles alone.
-            const QStringList displaced =
-                stealSlotClaims(map, QStringLiteral("A"), deviceId)
-                + stealSlotClaims(map, QStringLiteral("B"), deviceId);
-            if (!displaced.isEmpty())
-                ppWarn() << "[ImuManager] placing HackMotion" << deviceId
-                         << "on slots A+B displaced placement claim(s) from absent device(s):"
-                         << displaced.join(QStringLiteral(", "));
-            map[lowerKey] = QStringLiteral("A");
-            map[palmKey]  = QStringLiteral("B");
-            map.remove(deviceId);
-        } else {
-            ppWarn() << "[ImuManager] refusing to place HackMotion" << deviceId << "at slot"
-                     << slot << "— one wG3 fills slots A (lower arm) and B (palm) together,"
-                        " fixed by its cable, so \"A\" and \"\" are the only assignments"
-                        " that exist for it. Placement unchanged.";
-            return;
-        }
-    } else {
-        // Witmotion: the bare device id, exactly as before Phase C — one device,
-        // one segment, one letter. Existing entries keep working untouched.
-        // Assignment displaces ABSENT owners' claims on the letter only (see
-        // stealSlotClaims — an enabled present holder greys the choice in the
-        // panel, and a disabled present holder's claim is a parked setup the
-        // resolver's enabled-first ladder arbitrates).
-        if (slot.isEmpty()) {
-            map.remove(deviceId);
-        } else {
-            const QStringList displaced = stealSlotClaims(map, slot, deviceId);
-            if (!displaced.isEmpty())
-                ppWarn() << "[ImuManager] placing" << deviceId << "on slot" << slot
-                         << "displaced placement claim(s) from absent device(s):"
-                         << displaced.join(QStringLiteral(", "));
-            map[deviceId] = slot;
-        }
+    const pinpoint::imu_roles::ClaimResult c =
+        pinpoint::imu_roles::claimRole(currentRoles(), deviceId, role, factsFn());
+
+    if (!c.error.isEmpty()) {
+        // A CALLER error — an unknown role name, or a wG3 asked for a role its cable does
+        // not allow. Refused and logged, never coerced into something plausible.
+        ppWarn() << "[ImuManager] refusing role" << role << "for" << deviceId << "—"
+                 << c.error << ". Placement unchanged.";
+        return false;
     }
+    if (!c.ok) {
+        ppWarn() << "[ImuManager] refusing role" << c.refusedRole << "for" << deviceId
+                 << "— it is held by" << c.holderId << ", which is present and enabled this"
+                    " session. One claim per role: disable or unassign that sensor first."
+                    " Placement unchanged.";
+        emit roleRefused(deviceId, c.refusedRole, c.holderId);
+        return false;
+    }
+    if (!c.displaced.isEmpty())
+        ppWarn() << "[ImuManager] assigning" << deviceId << "to" << role
+                 << "displaced claim(s) from absent device(s):"
+                 << c.displaced.join(QStringLiteral(", "));
+    writeRoles(c.roles);
+    return true;
+}
 
-    // ONE write, after the whole map is built. AppSettings::setImuPlacement guards
-    // on equality, so an unchanged map emits nothing and this function is
-    // idempotent; writing key-by-key would emit imuPlacementChanged up to three
-    // times and let a QML consumer observe the device half-assigned — slot A filled
-    // and slot B not yet, which is the exact state Phase C exists to stop showing.
-    s->setImuPlacement(map);
+void ImuManager::refreshRolesInSession()
+{
+    const QStringList now = pinpoint::imu_roles::rolesInSession(currentRoles(), factsFn());
+    if (now == m_rolesInSession) return;
+    m_rolesInSession = now;
+    emit rolesInSessionChanged();
 }
 
 ImuManager::ImuDeviceStats ImuManager::liveDeviceStats(const QString &deviceId) const
@@ -1001,86 +930,55 @@ bool ImuManager::isHackMotionDevice(const QString &deviceId) const
     return false;
 }
 
+QString ImuManager::displayNameForDevice(const QString &deviceId) const
+{
+    QString description;
+    for (const Device &dev : DeviceEnumerator::instance()->devices(DeviceType::Imu))
+        if (dev.id == deviceId) { description = dev.description; break; }
+    AppSettings  fallback;
+    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+    return pinpoint::imu_roles::sensorDisplayName(deviceId, description, s->imuAlias(), currentRoles());
+}
+
 void ImuManager::migrateHackMotionPlacement(const Device &device)
 {
     if (device.type != DeviceType::Imu || device.imuVendor != ImuVendor::HackMotion)
         return;
 
-    AppSettings  fallback;
-    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
-    QVariantMap map = s->imuPlacement();
+    // Now over imu/roles. The imu/placement → imu/roles migration (AppSettings) carries a
+    // Phase A bare-id pin across verbatim as "<id>" → "leadForearm", because only the
+    // enumerator — here — knows that id is a wG3. This splits it into the two unit keys.
+    // Rules and their reasons: imu_roles::migrateBareHackMotion. Idempotent.
+    using pinpoint::imu_roles::HmMigration;
+    const HmMigration m =
+        pinpoint::imu_roles::migrateBareHackMotion(currentRoles(), device.id, factsFn());
 
-    const QString lowerKey = hmUnitKey(device.id, WR_UNIT_LOWER_ARM);
-    const QString palmKey  = hmUnitKey(device.id, WR_UNIT_PALM);
-    const bool alreadyUnitKeyed = map.contains(lowerKey) || map.contains(palmKey);
-
-    if (!map.contains(device.id)) {
-        // Nothing is keyed by bare device id, so there is nothing to migrate:
-        // either this device is already unit-keyed, or it was never assigned.
-        //
-        // ⚠ THOSE TWO ARE INDISTINGUISHABLE FROM AN ASSIGNMENT A COACH
-        // DELIBERATELY CLEARED, and both are left exactly as they are. This
-        // function migrates; it never assigns. An unassigned wG3 reads as
-        // unassigned until someone assigns it — a migration that helpfully filled
-        // A and B would silently undo a clearing every time the app restarted.
+    switch (m.outcome) {
+    case HmMigration::NoChange:
         return;
-    }
-
-    const QString bare = map.value(device.id).toString();
-
-    if (alreadyUnitKeyed || bare.isEmpty()) {
-        // The unit keys are the authority the moment they exist, and an empty bare
-        // value means unassigned. Either way the bare entry now carries no
-        // information worth preserving, so it is dropped — that is all this branch
-        // does, and it is what makes a second run of this function a no-op.
-        map.remove(device.id);
-        s->setImuPlacement(map);
+    case HmMigration::DroppedBare:
+        writeRoles(m.roles);
         return;
-    }
-
-    if (bare != QLatin1String("A")) {
-        // ⚠ NOT REINTERPRETED. Phase A pinned a wG3 to slot A and locked the
-        // control, so "A" is the only value it could have written; anything else
-        // came from an older build or a hand-edited file, and there is no defined
-        // pair of slots for it — B+C is not an arrangement this hardware can be in.
-        // Silently mapping it onto lowerArm/palm anyway is exactly how a mirrored
-        // wrist angle gets shipped, so the entry is left unresolved and said out
-        // loud instead.
-        ppWarn() << "[ImuManager]" << device.id << "— persisted HackMotion placement" << bare
-                 << "cannot be migrated: one wG3 fills slots A (lower arm) and B (palm), and no"
-                    " other pair is defined. Left unresolved — reassign it in Settings → IMUs.";
+    case HmMigration::Unmappable:
+        ppWarn() << "[ImuManager]" << device.id << "— persisted HackMotion role" << m.bareRole
+                 << "cannot be migrated: one wG3 fills the lead forearm (lower arm) and lead"
+                    " hand (palm), and no other pair is defined. Left unresolved — reassign it"
+                    " in Settings → IMUs.";
         return;
-    }
-
-    // ⚠ THE INTERIM PIN CLAIMED ONE LETTER; THE MIGRATION CLAIMS TWO, so it can
-    // collide on the second one even though the first is already this device's.
-    // Phase A's own comment named this: the bare pin "will collide if a Witmotion
-    // already holds A" — and B is the half nobody was holding a letter for yet.
-    // Writing the palm key on top of a Witmotion's B would leave that letter
-    // claimed twice, and placementKeyForSlot() would answer with whichever key
-    // sorted first: deterministic, but an arbitrary ANSWER, and the dropped sensor
-    // is never mentioned. Refusing instead leaves the bare entry in place, which
-    // instanceForSlot() already reports once per key as unresolvable — a dead end
-    // the coach can see and fix, rather than a wrist angle from the wrong sensor.
-    const QString holderB = deviceIdForSlot(QStringLiteral("B"));
-    if (!holderB.isEmpty() && holderB != device.id) {
+    case HmMigration::Blocked:
         ppWarn() << "[ImuManager]" << device.id
-                 << "— cannot migrate HackMotion placement: the palm unit needs slot B, which is"
-                    " already held by" << holderB
+                 << "— cannot migrate HackMotion placement: the palm unit needs leadHand, which"
+                    " is already held by" << m.holderId
                  << ". Left on the old bare-device-id key and therefore unresolved — unassign"
                     " that sensor in Settings → IMUs, then reassign the wG3.";
         return;
+    case HmMigration::Migrated:
+        writeRoles(m.roles);
+        ppInfo() << "[ImuManager]" << device.id
+                 << "— migrated HackMotion placement to unit keys: lower arm → leadForearm,"
+                    " palm → leadHand";
+        return;
     }
-
-    // Fully determined otherwise: the lower-arm unit keeps the letter that was
-    // stored and the palm unit takes B, in the cable's fixed order.
-    map[lowerKey] = QStringLiteral("A");
-    map[palmKey]  = QStringLiteral("B");
-    map.remove(device.id);
-    s->setImuPlacement(map);
-
-    ppInfo() << "[ImuManager]" << device.id
-             << "— migrated HackMotion placement to unit keys: lower arm → A, palm → B";
 }
 
 float ImuManager::impactScaleFor(const QString &sensitivity)

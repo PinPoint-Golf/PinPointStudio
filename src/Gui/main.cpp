@@ -69,6 +69,7 @@
 #include "motion_capture_probe.h"
 #include "pp_os_metrics.h"
 #include "clipboard_helper.h"
+#include "app_log.h"
 #include "llm_controller.h"
 #include "session_controller.h"
 #include "session_review_controller.h"
@@ -421,6 +422,8 @@ int main(int argc, char *argv[])
     QObject::connect(&sessionReviewController, &SessionReviewController::reviewActiveChanged,
                      &shotReplay, &ShotReplayController::stop);
     ClipboardHelper           clipboardHelper;
+    // QML → ppInfo/ppWarn (app_log.h). console.* is the Qt handler, not the app log.
+    AppLog                    appLog;
 
     // Re-analyse funnel for the carousel action bar: reloads each exported swing
     // (streaming SwingDiskLoader), re-runs the analyzer on a worker, writes the
@@ -619,8 +622,8 @@ int main(int argc, char *argv[])
     //
     // Hung off SessionController::sessionStarted because BOTH start paths — the
     // wizard and the toolbar's Capture button — run beginSessionFolder() and
-    // then start(), so this needs no QML change and never goes near
-    // ScreenSessionWizard.qml.
+    // then start(), so this needs no QML change and never goes near the
+    // session-setup QML.
     QObject::connect(&sessionController, &SessionController::sessionStarted,
                      &notificationCenter, [&]( int) {
         using N = NotificationCenter;
@@ -884,6 +887,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("notifications"),     &notificationCenter);
     engine.rootContext()->setContextProperty(QStringLiteral("updateController"),   &updateController);
     engine.rootContext()->setContextProperty(QStringLiteral("cudaRuntime"),        &cudaRuntime);
+    engine.rootContext()->setContextProperty(QStringLiteral("appLog"),             &appLog);
 
     // H3 — the PPCP session import engine. A context property and not a QML
     // type because libppcp is an OPTIONAL dependency (H0): a build without it

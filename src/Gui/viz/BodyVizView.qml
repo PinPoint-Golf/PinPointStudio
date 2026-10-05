@@ -566,7 +566,7 @@ Item {
                                 }
 
                                 JointMarker {}
-                                OrientationTab { along: 0.22; tabColor: Theme.colorImuC }   // upper arm = slot C — green
+                                OrientationTab { along: 0.22; tabColor: Theme.colorImuC }   // upper arm (leadUpperArm) — green
                                 RuntimeLoader {
                                     source: "qrc:/assets/body/arm_LeftArm.glb"
                                     onStatusChanged: root.onSegmentLoaded(status)
@@ -603,7 +603,7 @@ Item {
                                     }
 
                                     JointMarker {}
-                                    OrientationTab { along: 0.22; tabColor: Theme.colorImuA }   // forearm = slot A — red
+                                    OrientationTab { along: 0.22; tabColor: Theme.colorImuA }   // forearm (leadForearm) — red
                                     RuntimeLoader {
                                         source: "qrc:/assets/body/arm_LeftForeArm.glb"
                                         onStatusChanged: root.onSegmentLoaded(status)
@@ -629,7 +629,7 @@ Item {
                                         visible:  adapter.leftForeArmVisible
 
                                         JointMarker {}
-                                        OrientationTab { along: 0.10; tabColor: Theme.colorImuB }   // hand = slot B — yellow
+                                        OrientationTab { along: 0.10; tabColor: Theme.colorImuB }   // hand (leadHand) — yellow
                                         RuntimeLoader {
                                             source: "qrc:/assets/body/arm_LeftHand.glb"
                                             onStatusChanged: root.onSegmentLoaded(status)

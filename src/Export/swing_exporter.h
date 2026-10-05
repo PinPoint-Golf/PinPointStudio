@@ -130,7 +130,8 @@ struct SwingImuDeviceInfo {
     int     outputRateHz = 0;
     QString fusionMode;          // device 6/9-axis algorithm
     QString orientationFilter;   // host fusion algo (Madgwick / ESKF)
-    QString placementSlot;       // "A"/"B"/"C" (AppSettings imuPlacement)
+    QString placementSlot;       // LEGACY "A"/"B"/"C" — no longer filled by capture (role-keyed
+                                 // placement); written only when non-empty, kept for readers
     int     role = 0;            // pinpoint::analysis::SegmentRole (0 = Unknown)
     QString roleName;            // stable role name, e.g. "LeadHand" (segmentRoleName)
 
