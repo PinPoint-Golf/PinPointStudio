@@ -208,7 +208,7 @@ From an IMU swing (`2026-06-11_…_Wrist_01/swing_0009`):
 | `units` | obj | `accel` g · `gyro` deg/s · `quat` wxyz. |
 | `samples.t_us` | int[] µs | Window-relative sample times. |
 | `samples.data` | float[][10] | Per sample: `[ax,ay,az, gx,gy,gz, qw,qx,qy,qz]` — accel (g), gyro (deg/s), host-fused orientation quaternion (wxyz). |
-| `device` | obj | **Optional** (newer exports): `role` (SegmentRole int), `outputRateHz`, `fusionMode`, `orientationFilter`, `placementSlot`. Absent on older files → role falls back to the placement map. |
+| `device` | obj | **Optional** (newer exports): `role` (SegmentRole int), `outputRateHz`, `fusionMode`, `orientationFilter`. Exports up to 5 Oct 2026 also carried `placementSlot` (the slot letter "A"/"B"/"C"); placement is role-keyed since then and the key is no longer written (readers still accept it). Absent `device` on older files → role falls back to the placement map. |
 
 The quaternion is the **host-fused** world orientation PinPoint owns (Madgwick/ESKF over raw accel+gyro), not the device's on-board Euler output — see `docs/design/imu_frame_contract.md`.
 

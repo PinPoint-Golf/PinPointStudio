@@ -466,6 +466,20 @@ declaring a QML module from a test directory will hit the same wall.
 
 ---
 
+### The session-setup UI suite — `session_setup_ui`
+
+`session_setup_ui_test` (declared beside `qml_ui_test` in `src/Gui/CMakeLists.txt`; tests, fakes and drivers in `src/Gui/tests/setup/`) loads the real session-setup and calibration QML over fake cameras, sensors and a fake HackMotion device. `session_setup_lint_test` reads the same sources statically. Design and results: `docs/design/session_wizard_refactor_design.md` §7 and §11.
+
+- **Run:** `ctest --test-dir build/tests -R '^session_setup'` (about nine minutes). One file by hand:
+  `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=rhi QSG_USE_SIMPLE_ANIMATION_DRIVER=1 build/tests/Gui/qmlui/session_setup_ui_test -input src/Gui/tests/setup/<file>.qml`. Test QML is read from the source tree at run time; production QML is compiled in.
+- **It cannot make a sound.** The real `TingPlayer` is filtered out of the target and `tests/setup/silent_ting_player.h` takes its QML name. Keep it that way: the suite completes dozens of calibrations.
+- **Offscreen draws nothing.** Behaviour cases run headless; the render cases in `tst_setup_guide_render.qml` skip there and need `QT_QPA_PLATFORM=cocoa` (or `windows`) on a visible desktop. `SETUP_GUIDE_GRABS=<dir>` saves the frames.
+- **Every case fails on an unexpected QML warning** (`testLog`). A binding that breaks at run time has no build error; this is what catches it.
+- **Never construct `AppSettings` in a test before `QSettings::setPath(IniFormat, UserScope, <scratch>)`.** `QStandardPaths::setTestModeEnabled` does not move the app's ini, and the constructor now writes (the one-time `imu/placement` → `imu/roles` migration).
+- **Not yet run on Windows.** Whether `QT_QUICK_BACKEND=rhi` gives a working offscreen QRhi there is unknown.
+
+---
+
 ## 10. File map
 
 | Path | Role |
