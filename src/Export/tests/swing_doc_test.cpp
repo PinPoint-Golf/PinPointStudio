@@ -169,6 +169,60 @@ int main()
     bind.calibAgeSec          = 412.5;
     a.bindings.push_back(bind);
 
+    // Analyzer timings with the step-0 pose split (pose_inference_performance_plan.md):
+    // face-on posed this run, DTL a reused track (poseDtlMs measured, no split).
+    a.timings.poseMs    = 1707;
+    a.timings.ballMs    = 120;
+    a.timings.shaftMs   = 900;
+    a.timings.impactMs  = 40;
+    a.timings.poseDtlMs = 3512;
+    a.timings.totalMs   = 13020;
+    a.timings.poseFaceOn.sessionBuildMs  = 812.345;
+    a.timings.poseFaceOn.decodeMs        = 401.0;
+    a.timings.poseFaceOn.preprocessMs    = 210.5;
+    a.timings.poseFaceOn.runMs           = 1290.04;
+    a.timings.poseFaceOn.heatmapDecodeMs = 88.8;
+    a.timings.poseFaceOn.totalMs         = 1690.0;
+    a.timings.poseFaceOn.frames          = 215;
+
+    std::printf("=== PoseTiming arithmetic + JSON ===\n");
+    {
+        using pinpoint::pose::PoseTiming;
+        PoseTiming x;
+        check(!x.measured() && x.runMsPerFrame() == 0.0, "default PoseTiming unmeasured, 0 ms/frame");
+        PoseTiming y = a.timings.poseFaceOn;
+        x += y;
+        x += y;
+        check(near(x.runMs, 2580.08, 1e-9) && x.frames == 430 && near(x.sessionBuildMs, 1624.69, 1e-9),
+              "PoseTiming += sums every field");
+        check(near((y + y).totalMs, 3380.0, 1e-9), "PoseTiming + is +=");
+        check(near(y.runMsPerFrame(), 1290.04 / 215, 1e-12), "runMsPerFrame = runMs / frames");
+        const QJsonObject j = y.toJson();
+        check(j.size() == 7, "toJson writes the seven keys");
+        check(near(j[QStringLiteral("sessionBuildMs")].toDouble(), 812.3, 1e-9)
+                  && near(j[QStringLiteral("runMs")].toDouble(), 1290.0, 1e-9),
+              "toJson rounds to 0.1 ms");
+        const PoseTiming z = PoseTiming::fromJson(j);
+        check(z.frames == 215 && near(z.decodeMs, 401.0, 1e-9) && near(z.heatmapDecodeMs, 88.8, 1e-9),
+              "fromJson(toJson) round-trips");
+        pinpoint::pose::PoseTimingSink sink;
+        sink.add(&PoseTiming::runMs, 2.5);
+        sink.add(&PoseTiming::runMs, 1.5);
+        sink.addFrame();
+        { pinpoint::pose::PoseScopedTimer st(&sink, &PoseTiming::decodeMs); }
+        { pinpoint::pose::PoseScopedTimer st(nullptr, &PoseTiming::decodeMs); }   // no-op, no crash
+        const PoseTiming s1 = sink.snapshot();
+        check(near(s1.runMs, 4.0, 1e-12) && s1.frames == 1 && s1.decodeMs >= 0.0 && s1.decodeMs < 1000.0,
+              "sink accumulates; scoped timer adds its elapsed ms");
+        pinpoint::pose::PoseScopedTimer st2(&sink, &PoseTiming::preprocessMs);
+        st2.stop();
+        const double afterStop = sink.snapshot().preprocessMs;
+        st2.stop();   // disarmed: a second stop (and the destructor) add nothing
+        check(sink.snapshot().preprocessMs == afterStop, "stop() bills once");
+        sink.reset();
+        check(!sink.snapshot().measured(), "sink reset");
+    }
+
     std::printf("=== unified write (raw + analysis) ===\n");
     QString err;
     if (!SwingDocWriter::writeSwingJson(dir, manifest, &a, &err)) {
@@ -449,6 +503,21 @@ int main()
               "analysisDetail.segmentation bounds reload");
         const QVariantMap p2 = ps.analysisDetail.value(QStringLiteral("pose2d")).toMap();
         check(p2.value(QStringLiteral("frames")).toList().size() == 1, "reloaded pose2d frames");
+        // analysis.timings: poseDtlMs (measured, long unwritten) and the step-0 split.
+        const QVariantMap tm = ps.analysisDetail.value(QStringLiteral("timings")).toMap();
+        check(tm.value(QStringLiteral("poseMs")).toInt() == 1707
+                  && tm.value(QStringLiteral("totalMs")).toInt() == 13020, "reloaded timings.poseMs/totalMs");
+        check(tm.value(QStringLiteral("poseDtlMs")).toInt() == 3512, "reloaded timings.poseDtlMs");
+        const QVariantMap tp = tm.value(QStringLiteral("pose")).toMap();
+        const QVariantMap tfo = tp.value(QStringLiteral("faceOn")).toMap();
+        check(tfo.value(QStringLiteral("frames")).toInt() == 215
+                  && near(tfo.value(QStringLiteral("runMs")).toDouble(), 1290.0, 1e-9)
+                  && near(tfo.value(QStringLiteral("sessionBuildMs")).toDouble(), 812.3, 1e-9),
+              "reloaded timings.pose.faceOn split");
+        const pinpoint::pose::PoseTiming rt = pinpoint::pose::PoseTiming::fromJson(
+            QJsonObject::fromVariantMap(tfo));
+        check(rt.frames == 215 && near(rt.preprocessMs, 210.5, 1e-9), "faceOn split reads back as PoseTiming");
+        check(!tp.contains(QStringLiteral("dtl")), "no dtl split for a camera not posed this run");
         const QVariantMap cb = ps.analysisDetail.value(QStringLiteral("club")).toMap();
         check(cb.value(QStringLiteral("valid")).toBool(), "reloaded club.valid");
         check(cb.value(QStringLiteral("samples")).toList().size() == 2, "reloaded club samples");

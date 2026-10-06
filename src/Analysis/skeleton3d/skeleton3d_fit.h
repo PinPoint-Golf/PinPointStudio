@@ -234,6 +234,12 @@ struct FitConfig {
     // kept the club on its wrong mirror at P8 (design §10). The fit itself keeps them (× 1): loosened
     // for the whole fit they left roll unheld after impact (synthetic roll p90 8 → 13°).
     double branchReleasePriorFactor = 4.0;
+    // The CALLER's DTL pose bracket (Skeleton3DStage::observePose, pose_schedule.h bracketAt): a DTL
+    // frame pair this close interpolates to the face-on instant, else the nearest frame within
+    // dtlNearestUs. Today's constants; with pose.dtlLocalGap they are the floors under 1.5× / 0.75×
+    // the DTL track's local spacing (pose_inference_performance_plan.md step 4).
+    int64_t dtlBracketUs = 12000;
+    int64_t dtlNearestUs = 6000;
     // Test hooks: force the mirror branch in before the branch pass (the pass must return it);
     // hide the DTL shaft angle and clubhead from impact + this (µs, negative = before impact, 0 = off)
     // — the grade's dropout.
@@ -304,6 +310,9 @@ struct FitResult {
     bool valid = false;
     std::string reason;
     bool   dtlUsed = false;
+    // Why a DTL view that was supplied did not make it into the fit ("" when it did, or none was
+    // supplied) — the caller logs it; the fit used to drop the camera without a word.
+    std::string dtlDropReason;
     bool   foMirrored = false;
     std::string scaleSource;                 // "height" | "default"
     double scaleGlobal = 1.0;

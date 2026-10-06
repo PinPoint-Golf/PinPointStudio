@@ -365,13 +365,29 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
     // Additive per-stage analyzer wall times (plan §2 telemetry): how long each
     // heavy stage took, so every live shot self-reports the < 20 s budget. Only
     // when measured (totalMs >= 0); a stage that did not run stays -1.
-    if (a.timings.totalMs >= 0)
-        o[QStringLiteral("timings")] = QJsonObject{
+    if (a.timings.totalMs >= 0) {
+        QJsonObject timings{
             { QStringLiteral("poseMs"),  a.timings.poseMs },
             { QStringLiteral("ballMs"),  a.timings.ballMs },
             { QStringLiteral("shaftMs"), a.timings.shaftMs },
             { QStringLiteral("impactMs"), a.timings.impactMs },
             { QStringLiteral("totalMs"), a.timings.totalMs } };
+        // The DTL pose pass (DtlPoseStage, smoothing included) — measured since the
+        // stage existed and never written; -1 = it did not run.
+        timings.insert(QStringLiteral("poseDtlMs"), a.timings.poseDtlMs);
+        // Where each camera's pose pass went (pose_inference_performance_plan.md
+        // step 0): session build / decode / preprocess / Run() / heatmap decode /
+        // wall total / frames. Only for a camera actually posed this run — a reused
+        // or loaded track has no split, and a zero split would read as "free".
+        QJsonObject pose;
+        if (a.timings.poseFaceOn.measured())
+            pose.insert(QStringLiteral("faceOn"), a.timings.poseFaceOn.toJson());
+        if (a.timings.poseDtl.measured())
+            pose.insert(QStringLiteral("dtl"), a.timings.poseDtl.toJson());
+        if (!pose.isEmpty())
+            timings.insert(QStringLiteral("pose"), pose);
+        o[QStringLiteral("timings")] = timings;
+    }
 
     // Additive segmentation block (v3 G2, design A.7): the swing bounds +
     // ladder meta. Missing block on reload = full-window bounds.

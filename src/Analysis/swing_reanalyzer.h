@@ -49,6 +49,10 @@ namespace pinpoint::analysis {
 struct SwingLoadOptions {
     QString faceOnSubstring = QStringLiteral("Face");
     bool    faceOnExplicit  = false;
+    // Only the decode.* keys are read here (the MP4 readers' threads / hwAccel /
+    // seek — pose_inference_performance_plan.md step 5); the job's own copy is
+    // what the analysis stages apply.
+    QVariantMap tuningOverrides;
 };
 
 // A swing reconstructed into a streaming, disk-backed SwingWindow, plus the

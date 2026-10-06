@@ -475,6 +475,7 @@ int main(int argc, char **argv)
     SwingLoadOptions lopts;
     lopts.faceOnExplicit  = cli.isSet(optFaceOn);
     lopts.faceOnSubstring = cli.value(optFaceOn);
+    lopts.tuningOverrides = tuning;   // decode.* (the MP4 readers)
     LoadedSwing ls = SwingDiskLoader::load(swingDir, lopts);
     if (!ls.ok)
         return fail(ls.error);
@@ -706,6 +707,16 @@ int main(int argc, char **argv)
         meta["ballMs"]  = result.detail->timings.ballMs;
         meta["shaftMs"] = result.detail->timings.shaftMs;
         meta["totalMs"] = result.detail->timings.totalMs;
+        meta["poseDtlMs"] = result.detail->timings.poseDtlMs;
+        // The step-0 pose split, same shape as swing.json analysis.timings.pose
+        // (pose_inference_performance_plan.md) — only for cameras posed this run.
+        QJsonObject pose;
+        if (result.detail->timings.poseFaceOn.measured())
+            pose["faceOn"] = result.detail->timings.poseFaceOn.toJson();
+        if (result.detail->timings.poseDtl.measured())
+            pose["dtl"] = result.detail->timings.poseDtl.toJson();
+        if (!pose.isEmpty())
+            meta["pose"] = pose;
     }
     meta["params"]      = QJsonObject::fromVariantMap(tuning);
     meta["impactUs"]    = job.impactUs;
@@ -1424,9 +1435,17 @@ int main(int argc, char **argv)
                     }
                 }
 
+                // poseMs used to be dwall here — which, once DtlPoseStage existed, timed a
+                // copy of ITS track (a few ms) and read as a near-free DTL pose. Now it is
+                // the stage's own poseDtlMs when the track came from the analysis, and
+                // the local wall only when this block posed (or loaded) it itself;
+                // poseSource says which.
                 meta["dtl"] = QJsonObject{
                     { "poseFrames", int(dtlPose.frames.size()) },
-                    { "poseMs",     dtlPoseMs },
+                    { "poseMs",     poseFromAnalysis ? qint64(result.detail->timings.poseDtlMs)
+                                                     : dtlPoseMs },
+                    { "poseSource", poseFromAnalysis ? "analysis"
+                                    : poseInjected   ? "injected" : "swinglab" },
                     { "source",     int(job.dtlSource) },
                     { "posePath",   posePath } };
                 writeRunmeta();

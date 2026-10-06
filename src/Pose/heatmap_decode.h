@@ -36,6 +36,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 
 namespace pinpoint::pose {
 
@@ -146,6 +147,52 @@ inline void decodeDark(const float *hm, int W, int H, float *blur,
     nx    = float((double(px) + offx) / W);
     ny    = float((double(py) + offy) / H);
     score = maxVal;
+}
+
+// ── Which of the 133 COCO-WholeBody channels the offline pass decodes ─────────
+// (pose_inference_performance_plan.md step 3, pose.decodeChannels.) DARK over all
+// 133 channels was 1.7–2.6 ms a frame on the studio's consumer thread (0.36 s
+// face-on + 1.15 s DTL on 5 Oct swing_0013) — a third of Run() itself. Nothing
+// reads the 68 face channels 23–90 by default: the hand anchors are knuckle
+// centroids (91–132), the feet are 17–22, and the only face reader, the head
+// track's chin (kp 31), is weighted 0 (head.chinConfWeight; "all" is needed if
+// that is ever switched on). BodyHands skips them; the kp array keeps its 133
+// slots and a skipped channel decodes to (0, 0) at score 0 — below every gate.
+enum class ChannelSet { All = 0, BodyHands = 1 };
+
+inline constexpr int kWholeBodyFaceFirst = 23;   // face 23–90 (68-pt contour)
+inline constexpr int kWholeBodyFaceLast  = 90;
+
+inline bool channelDecoded(ChannelSet set, int ch)
+{
+    return set == ChannelSet::All || ch < kWholeBodyFaceFirst || ch > kWholeBodyFaceLast;
+}
+
+// One channel per mode — the single dispatch the estimator and the tests share.
+inline void decodeOne(DecodeMode mode, const float *hm, int W, int H, float *blur,
+                      float &nx, float &ny, float &score)
+{
+    if (mode == DecodeMode::Dark)
+        decodeDark(hm, W, H, blur, nx, ny, score);
+    else
+        decodeArgmax(hm, W, H, nx, ny, score);
+}
+
+// Decode channels [0, nCh) of ONE frame's CHW heatmaps (each W×H) into nx/ny/score
+// (each nCh long). A channel `set` excludes is written (0, 0, 0). `blur` is W×H
+// scratch, private to the caller's thread. Per channel the arithmetic is
+// decodeOne()'s, so a decoded channel is bit-identical whatever the set.
+inline void decodeFrame(const float *heatmaps, int nCh, int W, int H, DecodeMode mode,
+                        ChannelSet set, float *blur, float *nx, float *ny, float *score)
+{
+    const int plane = W * H;
+    for (int c = 0; c < nCh; ++c) {
+        if (!channelDecoded(set, c)) {
+            nx[c] = 0.f; ny[c] = 0.f; score[c] = 0.f;
+            continue;
+        }
+        decodeOne(mode, heatmaps + size_t(c) * plane, W, H, blur, nx[c], ny[c], score[c]);
+    }
 }
 
 } // namespace pinpoint::pose

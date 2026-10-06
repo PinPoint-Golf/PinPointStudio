@@ -1621,6 +1621,10 @@ FitResult fitSkeleton(const FitInput &in)
             }
         }
         if (!(sD0 > 0) || du.empty()) {
+            res.dtlDropReason = du.empty()
+                ? "no DTL hip observation at any of the " + std::to_string(ref.size())
+                      + " address reference frames (no DTL frame paired with them, or no confident hips)"
+                : "no DTL leg or height scale at the " + std::to_string(ref.size()) + " address reference frames";
             P.hasDtl = false;
         } else {
             sD = sD0;

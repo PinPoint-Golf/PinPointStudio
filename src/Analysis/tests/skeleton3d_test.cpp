@@ -32,6 +32,7 @@
 #include "../skeleton3d/skeleton3d_fit.h"
 #include "../skeleton3d/club_plane_catalogue.h"
 #include "../skeleton3d/skeleton3d_rig.h"
+#include "../pose_schedule.h"   // bracketAt — the DTL pose bracket (step 4)
 
 #include <algorithm>
 #include <cmath>
@@ -1161,6 +1162,72 @@ int main()
         check(eOff > 1.5, "(G) without it the world tilts with the camera's pitch");
         check(eOn < 1.0, "(G) with it the face-on pitch is recovered within 1°");
         check(std::fabs(rOn.cam.zG - Tg.cam.zG) < 0.02, "(G) …and the floor within 2 cm");
+    }
+
+    // (DS) A thinned DTL pass (pose_inference_performance_plan.md step 4, schedule A at 150 fps):
+    // stride 4 through the address hold (26.7 ms gaps), stride 2 in the backswing (13.3 ms), every
+    // frame from the downswing. The face-on poses stride 4 before the downswing too, on the other
+    // phase. With the fixed 12 ms bracket / 6 ms nearest rule no DTL frame pairs with ANY face-on
+    // instant inside address ± 150 ms — the fit's DTL initialiser finds no hips there and drops the
+    // camera (4 of 21 corpus swings on 6 Oct). With the bracket following the DTL's local spacing
+    // every reference instant interpolates and the camera stays.
+    std::printf("(DS) a schedule-thinned DTL track: 27 ms address gaps, 13 ms backswing gaps\n");
+    {
+        using pinpoint::analysis::BracketRule;
+        using pinpoint::analysis::bracketAt;
+        const Truth Ts = makeSwing(150.0, unit, 10.0);
+        const FitInput full = observe(Ts, 2.0, 0.0, true, 11, false);
+        std::vector<size_t> foIdx, dtIdx;
+        for (size_t i = 0; i < Ts.t.size(); ++i) {
+            const int64_t t = Ts.t[i];
+            if (t >= 900000 || i % 4 == 0) foIdx.push_back(i);
+            if (t >= 900000 || (t >= 460000 ? i % 2 == 1 : i % 4 == 2)) dtIdx.push_back(i);
+        }
+        auto build = [&](const BracketRule &rule, int &refInstants, int &refWithHips) {
+            FitInput in = full;
+            in.t_us.clear(); in.fo.clear(); in.dtl.clear(); in.footContact.clear();
+            refInstants = refWithHips = 0;
+            for (size_t i : foIdx) {
+                const int64_t t = Ts.t[i];
+                in.t_us.push_back(t);
+                in.fo.push_back(full.fo[i]);
+                in.footContact.push_back(full.footContact[i]);
+                ViewObs vd;
+                const pinpoint::analysis::Bracket br =
+                    bracketAt(dtIdx.size(), [&](size_t k) { return Ts.t[dtIdx[k]]; }, t, rule);
+                if (br.ok) {
+                    const ViewObs &A = full.dtl[dtIdx[br.a]], &B = full.dtl[dtIdx[br.b]];
+                    for (int m = 0; m < kMarkerCount; ++m) {
+                        const KpObs &a = A.kp[size_t(m)], &b = B.kp[size_t(m)];
+                        if (a.sigma <= 0 || b.sigma <= 0) continue;
+                        vd.kp[size_t(m)] = { a.u + br.w * (b.u - a.u), a.v + br.w * (b.v - a.v), std::max(a.sigma, b.sigma) };
+                    }
+                    const ViewObs &nb = br.w < 0.5 ? A : B;
+                    vd.shaftTheta = nb.shaftTheta; vd.shaftSigma = nb.shaftSigma;
+                }
+                if (std::llabs(t - Ts.addressUs) <= 150000) {
+                    ++refInstants;
+                    if (vd.kp[11].sigma > 0 && vd.kp[12].sigma > 0) ++refWithHips;
+                }
+                in.dtl.push_back(vd);
+            }
+            return in;
+        };
+        BracketRule fixedRule, localRule;
+        localRule.localGap = true;
+        int nRefF = 0, hipsF = 0, nRefL = 0, hipsL = 0;
+        const FitInput inF = build(fixedRule, nRefF, hipsF);
+        const FitInput inL = build(localRule, nRefL, hipsL);
+        std::printf("      %zu face-on instants, %zu DTL frames; address ± 150 ms: %d instants, DTL hips at %d (12 ms rule) / %d (local gap)\n",
+                    foIdx.size(), dtIdx.size(), nRefF, hipsF, hipsL);
+        check(nRefF >= 3 && hipsF == 0, "(DS) the fixed 12 / 6 ms rule pairs no DTL frame at the address instants");
+        check(nRefL >= 3 && hipsL == nRefL, "(DS) the local-gap bracket gives DTL hips at every address instant");
+        const FitResult rF = fitSkeleton(inF), rL = fitSkeleton(inL);
+        std::printf("      fixed rule: valid %d, DTL used %d (\"%s\"); local gap: valid %d, DTL used %d, reprojection %.2f / %.2f px\n",
+                    int(rF.valid), int(rF.dtlUsed), rF.dtlDropReason.c_str(), int(rL.valid), int(rL.dtlUsed),
+                    rL.reprojMedPxFo, rL.reprojMedPxDtl);
+        check(!rF.dtlUsed && !rF.dtlDropReason.empty(), "(DS) fixed rule: the fit drops the DTL camera and says why");
+        check(rL.valid && rL.dtlUsed && rL.dtlDropReason.empty(), "(DS) local gap: the fit keeps the DTL camera");
     }
 
     // Timing at a real cadence.

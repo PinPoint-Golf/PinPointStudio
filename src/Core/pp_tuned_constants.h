@@ -232,6 +232,102 @@ namespace pose {
 // The live 60 Hz MoveNet path is untouched (pinned at 1 in its own estimator).
 inline constexpr int kIntraOpThreads = 0;   // pose.intraOpThreads (0 = legacy auto)
 
+// Offline pose throughput (docs/design/pose_inference_performance_plan.md steps 1–2).
+// None of the three changes a keypoint: the graph, the inputs and the order are the
+// same — OFF (sessionCache false, producerThreads 1, queueDepth 3) is the pre-plan
+// pipeline exactly, kept so the gate can prove the ON output bit-identical.
+//
+// pose.sessionCache: keep ONE loaded ViTPose session per (model file, EP cascade,
+// intra-op request) for the life of the process. Before, every PoseRunner::run()
+// rebuilt it — a 360 MB (B) / 1.2 GB (L) model load + EP init, twice a shot (face-on
+// then DTL); the app and swinglab_run now pay it once.
+inline constexpr bool kSessionCache = true;   // pose.sessionCache
+// pose.producerThreads: threads doing decode/demosaic + resize/normalise ahead of
+// inference. 0 = auto: min(4, physical cores / 2), at least 1 — half the cores so
+// the ORT intra-op pool keeps the rest; 4 because one 688×1024 BayerRG8 frame is
+// ~5–8 ms of CPU, so four producers outrun any Run() under ~2 ms. 1 = the old single
+// producer. The MP4 re-analysis reader stays single-threaded (it decodes forward);
+// only the per-frame demosaic/resize/normalise after it fans out.
+inline constexpr int kProducerThreads = 0;    // pose.producerThreads (0 = auto)
+// pose.queueDepth: frames allowed between fetch and inference (the reorder window).
+// 8 ≥ 2 × producers keeps every producer busy while one frame is in Run(); 3 was
+// the single-producer FIFO's depth.
+inline constexpr int kQueueDepth = 8;         // pose.queueDepth
+
+// Offline pose inference proper (pose_inference_performance_plan.md step 3). All OFF:
+// each is a --params switch until the keypoint gate (body median ≤ 1 px, p95 ≤ 3 px)
+// and Mark have passed it. Measured 6 Oct on 5 Oct swing_0013 (two cameras, MP4
+// re-analysis): studio CUDA Run() 5.2–6.6 ms a frame at batch 1; DARK over all 133
+// channels 1.7–2.6 ms a frame; the Mac's CoreML NeuralNetwork Run() 43–64 ms a frame.
+//
+// pose.batchSize: frames per Run(). The ONNX batch dim is dynamic ("batch_size"); 1 is
+// today's one-frame Run(). A final partial batch is run as it is (or padded, below).
+// DEFAULTS FLIPPED 6 Oct 2026 after the gates (pose_performance_20261006.md §7), per platform:
+// the Mac's CoreML takes the graph only as an MLProgram with a STATIC batch, and needs fp16 to
+// run it on the GPU/ANE at all (43 → 10 ms a frame); CUDA batches at 16 in fp32 — fp16 there
+// bought 7 % for 15–51 px single-joint flips. Batching alone moves two knife-edge corpus swings
+// (06-11 s1's finish, 07-04 s5's back plane); 0 truth frames worse, no metric lost, on both.
+#if defined(__APPLE__)
+inline constexpr int  kBatchSize      = 8;      // pose.batchSize
+inline constexpr bool kStaticBatch    = true;   // pose.staticBatch
+inline constexpr bool kModelFp16      = true;   // pose.modelPrecision == "fp16"
+inline constexpr bool kCoreMLProgram  = true;   // pose.coreml == "mlprogram"
+#else
+inline constexpr int  kBatchSize      = 16;     // pose.batchSize
+inline constexpr bool kStaticBatch    = false;  // pose.staticBatch
+inline constexpr bool kModelFp16      = false;  // pose.modelPrecision == "fp16"
+inline constexpr bool kCoreMLProgram  = false;  // pose.coreml == "mlprogram"
+#endif
+// pose.staticBatch: fix the graph's batch dim at pose.batchSize (a free-dimension
+// override) and zero-pad partial batches. Lets ORT fold the 28 Shape→Gather→Concat
+// chains into constants — the dynamic reshapes are what keep CoreML off the graph.
+// pose.ioBinding: bind the batch input/output to the session (pinned host memory on
+// CUDA): one H→D and one D→H copy per batch instead of per Run() allocations.
+inline constexpr bool kIoBinding      = true;   // pose.ioBinding
+// pose.decodeChannels: "all" (today) | "bodyHands" — skip the 68 face channels
+// (23–90) nothing reads by default (heatmap_decode.h ChannelSet). The chin (kp 31)
+// is read only when head.chinConfWeight > 0; keep "all" for that.
+inline constexpr bool kDecodeBodyHands = true;  // pose.decodeChannels == "bodyHands"
+// pose.decodeThreads: heatmap decode threads per Run() (frames × channels split
+// evenly; bit-identical to 1 thread). 0 = auto: min(4, physical cores / 2).
+inline constexpr int  kDecodeThreads  = 0;      // pose.decodeThreads
+// pose.modelPrecision: "fp32" | "fp16" — <model>.fp16.onnx beside the fp32 file
+// (tools/pose/convert_fp16.py; I/O stays float32), fp32 with a logged fallback when it is
+// absent. pose.coreml: "nn" (COREML_FLAG_USE_NONE, the NeuralNetwork format) | "mlprogram"
+// (MLProgram, MLComputeUnits ALL, compiled model cached under app data). Both set above.
+// pose.tensorrt: append the TensorRT EP (fp16, engine cache under app data) ahead of
+// CUDA when its provider library loads; fails soft to CUDA. UNTESTED: the studio has
+// no nvinfer*.dll.
+inline constexpr bool kTensorRT       = false;  // pose.tensorrt
+// pose.logPartition: the session's ORT log at INFO, so the EP's own "number of nodes
+// supported" summary reaches the app log. Diagnostic only.
+inline constexpr bool kLogPartition   = false;  // pose.logPartition
+
+// The DTL frame budget (pose_inference_performance_plan.md step 4; pose_schedule.h). OFF until
+// Mark has judged the gate. The 6 Oct experiment (pose_performance_20261006.md §2, pinned poses
+// thinned and injected, 21 two-camera corpus swings): DTL frames 465 → 221 with the DTL track
+// unchanged against 425 truth pairs (0 worse) — but skeleton3d dropped the DTL camera on 4 of 21
+// swings, its 12 ms bracket finding no DTL frame at the address instants (stride 4 = 26 ms gaps).
+//
+// pose.dtlSchedule: the DTL pass poses stride 1 in [P2 − 50 ms, P8 + 150 ms], dtlBackStride in
+// [P1 − 100 ms, P2 − 50 ms), dtlRestStride elsewhere, every zone's edges posed (off the
+// inherited ladder; no P2 ⇒ P1 + 250 ms, no P8 ⇒ impact + 150 ms, no P1 ⇒ stride 1 throughout).
+// ON 6 Oct 2026 (schedule B, pose_performance_20261006.md §4: 54 % of the frames, 0 truth
+// frames worse, planes ≤ 0.06°) with kDtlPoseStageVersion 2. false = every frame, as since
+// 2026-09-21.
+inline constexpr bool kDtlSchedule    = true;   // pose.dtlSchedule
+inline constexpr int  kDtlBackStride  = 2;      // pose.dtlBackStride
+inline constexpr int  kDtlRestStride  = 4;      // pose.dtlRestStride
+// pose.dtlLocalGap: the consumers that pair a DTL frame with a face-on instant judge a bracket
+// against the DTL track's LOCAL spacing (median of the 7 gaps around it), not a constant or the
+// track's global median: skeleton3d's pose bracket (max(skeleton3d.dtlBracketUs, 1.5 × local),
+// nearest max(skeleton3d.dtlNearestUs, 0.75 × local)) and the paired trunk route's DTL swap carry
+// (3 × local) and pair bracket (sequence.pairMaxGapFrames × local), each never tighter than
+// today's. On a stride-1 track it changes nothing a single dropped frame decides. false = today.
+inline constexpr bool   kDtlLocalGap        = true;   // pose.dtlLocalGap
+inline constexpr double kDtlBracketGapScale = 1.5;
+inline constexpr double kDtlNearestGapScale = 0.75;
+
 namespace crop {
 inline constexpr bool   kEnabled       = true;
 inline constexpr double kMarginFrac    = 0.15;   // bbox expansion each side (arms/club headroom)
@@ -487,6 +583,44 @@ inline constexpr int    kInnovRun = 3;
 } // namespace adapt
 } // namespace smoother
 } // namespace pose
+
+// --- MP4 decode for re-analysis (pose_inference_performance_plan.md step 5) ---------
+// The recorded-MP4 reader (src/Analysis/mp4_frame_reader.h), used when a swing has
+// no raw sidecar. Measured 6 Oct on 5 Oct swing_0013 (studio, after step 3): the
+// serial decode is the pose pass's floor, 1.15 s face-on (596 frames, decoded twice
+// up to the span on the two-pass path) and 1.16 s DTL (617 frames). All OFF = the
+// reader as it was. The live ring path (BayerRG8) never reads these.
+//
+// ⚠ WHAT "AS IT WAS" IS DEPENDS ON THE HOST. OpenCV opens with its priority list: on
+// macOS (Homebrew OpenCV, FFmpeg built in) that is FFmpeg in software, 0.11–0.16 ms a
+// frame; on the studio, whose build dir has no opencv_videoio_ffmpeg4130_64.dll (the
+// root CMakeLists bundles only opencv_world), it is Media Foundation on D3D11 at
+// 1.0–1.3 ms a frame. No two of the decoders give the same pixels (frame 300 of
+// swing_0013: 0.2–2 grey levels mean, up to 47 at edges), and the analysis is not
+// indifferent: the same swing through FFmpeg software on the studio moved the face-on
+// shaft coverage 0.974 → 0.807 and the DTL schedule 441 → 492 frames. So
+// backend / hwAccel are keypoint-gated; threads and seek are bit-identical.
+namespace decode {
+// decode.backend: "auto" (OpenCV's priority list) | "ffmpeg" (cv::CAP_FFMPEG; where
+// the plugin cannot load, a warning and the auto open). On the studio with the plugin
+// on PATH: pose decode face-on 1006 → 373–453 ms, DTL 1081 → 498–501 ms.
+inline constexpr bool kBackendFfmpeg = false;
+// decode.threads: FFmpeg decoder threads (CAP_PROP_N_THREADS at open; implies the
+// FFmpeg backend). 0 = OpenCV's own choice, which reads back as 16 on the studio and
+// 10 on an M4 — and is the fastest measured: 4 threads cost the studio 1246–1358 →
+// 1627 ms per face-on clip, 1 thread 2466 ms.
+inline constexpr int  kThreads = 0;
+// decode.hwAccel: "off" | "any" — VIDEO_ACCELERATION_ANY (implies the FFmpeg
+// backend). D3D11VA on the studio: 1.3–1.4 ms a frame, three times FFmpeg software,
+// the GPU readback + NV12 → BGR costing more than the decode saves. Nothing on the
+// Mac (Homebrew's OpenCV offers no VideoToolbox here: reads back "none").
+inline constexpr bool kHwAccel = false;
+// decode.seek: a back-seek (or a long forward jump) goes to the keyframe before the
+// target (probed once from the packets; FFmpeg backend only) instead of rewinding to 0,
+// verified by the landed frame's timestamp. swing_0013 on the studio: face-on decoded
+// 3024 → 2384 frames, DTL 1856 → 1190, pose decode face-on 373–453 → 374 ms.
+inline constexpr bool kSeek    = false;
+} // namespace decode
 
 // --- Head tracking (WB2 — src/Analysis/head_track.h) --------------------------
 // Head position/tilt from the COCO-WholeBody head keypoints (nose/eyes/ears +

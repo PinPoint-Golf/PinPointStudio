@@ -122,6 +122,10 @@ struct SegmentRatesConfig {
     double  pairMaxGapFrames   = tuned::sequence::kPairMaxGapFrames;   // sequence.pairMaxGapFrames
     double  pairSwapMinFrac    = tuned::sequence::kPairSwapMinFrac;    // sequence.pairSwapMinFrac
     double  pairMaxTurnDps     = tuned::sequence::kPairMaxTurnDps;     // sequence.pairMaxTurnDps
+    // The DTL leg's two gap rules (the swap carry, the pair bracket) judged against the DTL track's
+    // LOCAL spacing rather than its global median, never tighter than today — so a thinned DTL pass
+    // (pose.dtlSchedule: 13 ms backswing, 26 ms address/finish) is not read as holes. pose_schedule.h.
+    bool    pairDtlLocalGap    = tuned::pose::kDtlLocalGap;            // pose.dtlLocalGap
     bool    pairTrunkThoraxPlacement = tuned::sequence::kPairTrunkThoraxPlacement; // sequence.pairTrunk.thoraxPlacement
     // The two-camera skeleton's lead-arm rung, and the camera-scale fraction its peak σ carries
     // (the rotation route's constant: one assumed camera, one assumed error).
@@ -171,6 +175,7 @@ struct SegmentRatesConfig {
         apply(ov, "sequence.pairMaxGapFrames",    c.pairMaxGapFrames);
         apply(ov, "sequence.pairSwapMinFrac",     c.pairSwapMinFrac);
         apply(ov, "sequence.pairMaxTurnDps",      c.pairMaxTurnDps);
+        apply(ov, "pose.dtlLocalGap",             c.pairDtlLocalGap);
         apply(ov, "sequence.pairTrunk.thoraxPlacement", c.pairTrunkThoraxPlacement);
         apply(ov, "sequence.skel3d.leadArm",       c.skel3dLeadArm);
         apply(ov, "sequence.skel3d.minUsableFrac", c.skel3dMinUsableFrac);

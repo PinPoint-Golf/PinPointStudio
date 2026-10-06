@@ -2209,21 +2209,30 @@ if(WITH_VITPOSE)
             HAVE_VITPOSE
             VITPOSE_MODEL_FILE="${_vitpose_model_file}"
         )
+        # The fp16 twin (tools/pose/convert_fp16.py writes it beside the fp32 file) rides along
+        # when it exists: the Mac's CoreML MLProgram path runs fp16 by default
+        # (pp_tuned_constants.h pose::kModelFp16) and falls back to fp32 with a log line without it.
+        set(_vitpose_models "${_vitpose_model_path}")
+        string(REGEX REPLACE "\\.onnx$" ".fp16.onnx" _vitpose_fp16_path "${_vitpose_model_path}")
+        if(EXISTS "${_vitpose_fp16_path}")
+            list(APPEND _vitpose_models "${_vitpose_fp16_path}")
+            message(STATUS "ViTPose: fp16 model found, bundling it too")
+        endif()
         if(APPLE)
             add_custom_command(TARGET PinPointStudio POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${_vitpose_model_path}"
-                    "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Resources/models/${_vitpose_model_file}"
-                COMMENT "Bundling ViTPose model into app"
+                    ${_vitpose_models}
+                    "$<TARGET_BUNDLE_CONTENT_DIR:PinPointStudio>/Resources/models/"
+                COMMENT "Bundling ViTPose model(s) into app"
             )
         else()
             add_custom_command(TARGET PinPointStudio POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${_vitpose_model_path}"
-                    "$<TARGET_FILE_DIR:PinPointStudio>/models/${_vitpose_model_file}"
-                COMMENT "Copying ViTPose model to output directory"
+                    ${_vitpose_models}
+                    "$<TARGET_FILE_DIR:PinPointStudio>/models/"
+                COMMENT "Copying ViTPose model(s) to output directory"
             )
-            install(FILES "${_vitpose_model_path}"
+            install(FILES ${_vitpose_models}
                     DESTINATION "${CMAKE_INSTALL_BINDIR}/models" COMPONENT core)
         endif()
     else()
@@ -2917,6 +2926,8 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/shot_analyzer.cpp
     src/Analysis/swing_reanalyzer.h
     src/Analysis/swing_reanalyzer.cpp
+    src/Analysis/mp4_frame_reader.h
+    src/Analysis/mp4_frame_reader.cpp
     src/Metrics/metric_type.h
     src/Metrics/metric_descriptor.h
     src/Metrics/metric_provider.h
@@ -3209,6 +3220,7 @@ if(PINPOINT_BUILD_TOOLS)
     # parity test additionally compiles the exporter to build its fixture.
     set(_pinpoint_offline_sources
         src/Analysis/swing_reanalyzer.cpp
+        src/Analysis/mp4_frame_reader.cpp   # the MP4 reader it builds (decode.*)
         src/Analysis/shot_analyzer.cpp
         src/Analysis/wrist_analyzer.cpp
         src/Analysis/skeleton3d/skeleton3d_fit.cpp

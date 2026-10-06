@@ -26,6 +26,9 @@
 #include <QSaveFile>
 #include "ball_runner.h"
 #include "pose_runner.h"
+#include "mp4_frame_reader.h"
+#include "analysis_tuning.h"
+#include "../Core/pp_tuned_constants.h"
 
 #include <QFile>
 #include <QFileInfo>
@@ -159,43 +162,84 @@ private:
     mutable bool                   opened_ = false;
 };
 
-// MP4 fallback (no raw sidecar): decode to BGR24. Decode-forward to the target
-// frame (rewind on a back-seek) so the result is frame-accurate regardless of the
-// container's keyframe layout — lossy, slower, used only when raw is absent.
+// The decode.* keys (pose_inference_performance_plan.md step 5), resolved once per
+// load. OFF (the defaults) is the reader as it was: OpenCV's backend choice, its own
+// thread count, software decode, rewind to frame 0 on a back-seek.
+Mp4FrameDecoder::Config mp4DecodeConfig(const QVariantMap& ov)
+{
+    namespace td = pinpoint::tuned::decode;
+    Mp4FrameDecoder::Config c;
+    c.threads = td::kThreads;
+    c.seek    = td::kSeek;
+    c.hwAccel = td::kHwAccel;
+    tuning::apply(ov, "decode.threads", c.threads);
+    tuning::apply(ov, "decode.seek",    c.seek);
+    c.ffmpeg = td::kBackendFfmpeg;
+    if (const auto it = ov.constFind(QStringLiteral("decode.backend")); it != ov.cend()) {
+        const QString v = it->toString().trimmed().toLower();
+        if (v == QLatin1String("ffmpeg"))
+            c.ffmpeg = true;
+        else if (v == QLatin1String("auto"))
+            c.ffmpeg = false;
+        else
+            ppWarn() << "[Mp4Reader] decode.backend" << v << "is not auto|ffmpeg — left"
+                     << (c.ffmpeg ? "ffmpeg" : "auto");
+    }
+    if (const auto it = ov.constFind(QStringLiteral("decode.hwAccel")); it != ov.cend()) {
+        const QString v = it->toString().trimmed().toLower();
+        if (v == QLatin1String("any") || v == QLatin1String("true") || v == QLatin1String("1"))
+            c.hwAccel = true;
+        else if (v == QLatin1String("off") || v == QLatin1String("false") || v == QLatin1String("0"))
+            c.hwAccel = false;
+        else
+            ppWarn() << "[Mp4Reader] decode.hwAccel" << v << "is not off|any — left"
+                     << (c.hwAccel ? "any" : "off");
+    }
+    return c;
+}
+
+// MP4 fallback (no raw sidecar): decode to BGR24, frame-accurate whatever the
+// container's keyframe layout — lossy, slower, used only when raw is absent. The
+// decoding itself is Mp4FrameDecoder (mp4_frame_reader.h); this adapts it to the
+// payload contract and logs its numbers once, when the swing is let go.
 class Mp4FrameReader final : public CameraReader {
 public:
-    QString path;
+    Mp4FrameReader(const QString& path, Mp4FrameDecoder::Config cfg)
+        : name_(QFileInfo(path).fileName()), dec_(path.toStdString(), cfg)
+    {
+    }
+    ~Mp4FrameReader() override
+    {
+        // One line per camera per swing: frames decoded, rewinds/seeks, ms, and what
+        // FFmpeg reports (codec, pixel format, threads, hw) — the decode column of the
+        // [PoseRunner] split, and the other stages' reads, explained.
+        if (dec_.stats().reads > 0 || dec_.info().opened || dec_.config().any())
+            ppInfo() << "[Mp4Reader]" << name_.toStdString().c_str() << dec_.summary().c_str();
+    }
 
     SourceRing::ReadHandle read(uint64_t seq) const noexcept override
     {
         try {
-            if (!opened_) {
-                opened_   = cap_.open(path.toStdString());
-                nextFrame_ = 0;
-            }
-            if (!opened_ || !cap_.isOpened())
-                return {};
-            if (int64_t(seq) < nextFrame_) {
-                cap_.set(cv::CAP_PROP_POS_FRAMES, 0);
-                nextFrame_ = 0;
-            }
-            while (nextFrame_ < int64_t(seq)) {
-                if (!cap_.grab())
-                    return {};
-                ++nextFrame_;
-            }
+            const bool wasOpen = dec_.info().opened;
             cv::Mat bgr;
-            if (!cap_.read(bgr) || bgr.empty())
+            const bool ok = dec_.read(int64_t(seq), bgr);
+            if (!wasOpen && dec_.info().opened && dec_.info().ffmpegUnavailable)
+                ppWarn() << "[Mp4Reader]" << name_.toStdString().c_str()
+                         << "decode.* asked for the FFmpeg backend, which this OpenCV cannot load"
+                            " (no opencv_videoio_ffmpeg plugin beside the exe or on PATH) — opened with"
+                         << dec_.info().backend.c_str() << "instead";
+            else if (!wasOpen && dec_.info().opened && dec_.config().hwAccel
+                     && (dec_.info().hwFellBack || dec_.info().hwAccel == cv::VIDEO_ACCELERATION_NONE))
+                ppWarn() << "[Mp4Reader]" << name_.toStdString().c_str()
+                         << "decode.hwAccel any: no hardware decoder — decoding in software";
+            if (!ok || bgr.empty())
                 return {};
-            ++nextFrame_;
-            if (!bgr.isContinuous())
-                bgr = bgr.clone();
-            const auto* p = reinterpret_cast<const std::byte*>(bgr.data);
-            const size_t bytes = size_t(bgr.total() * bgr.elemSize());
-            buf_.assign(p, p + bytes);
+            // The handle points into the decoder's own frame buffer, valid until the
+            // next read() — the SwingPayloadSource contract, without the 2 MB copy a
+            // frame the old reader made into a second buffer.
             SourceRing::ReadHandle h;
-            h.data  = buf_.data();
-            h.bytes = buf_.size();
+            h.data  = reinterpret_cast<const std::byte*>(bgr.data);
+            h.bytes = size_t(bgr.total() * bgr.elemSize());
             return h;
         } catch (...) {
             return {};
@@ -203,10 +247,8 @@ public:
     }
 
 private:
-    mutable cv::VideoCapture       cap_;
-    mutable int64_t                nextFrame_ = 0;
-    mutable std::vector<std::byte> buf_;
-    mutable bool                   opened_ = false;
+    QString                 name_;
+    mutable Mp4FrameDecoder dec_;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -291,6 +333,9 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
     // recorded an empty filter" — only the second is a refusal to be preserved.
     bool     sawHostFusedLane = false;
 
+    // One decode configuration for every MP4 camera of this swing (decode.* keys).
+    const Mp4FrameDecoder::Config mp4Cfg = mp4DecodeConfig(opts.tuningOverrides);
+
     struct VidTmp { SourceId id; bool faceOn; bool impact = false; bool dtl = false; };
     std::vector<VidTmp> vids;
 
@@ -367,9 +412,8 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
                 cf.height            = uint32_t(encH);
                 cf.max_payload_bytes = uint32_t(encW * encH * 3);
                 cf.plane_strides[0]  = uint32_t(encW * 3);
-                auto mr  = std::make_unique<Mp4FrameReader>();
-                mr->path = swingDir + QLatin1Char('/') + s[QStringLiteral("file")].toString();
-                reader   = std::move(mr);
+                reader = std::make_unique<Mp4FrameReader>(
+                    swingDir + QLatin1Char('/') + s[QStringLiteral("file")].toString(), mp4Cfg);
             }
             fd.format  = cf;
             reader->fd = fd;
@@ -796,7 +840,11 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
 {
     ReanalyzeResult out;
 
-    LoadedSwing ls = SwingDiskLoader::load(swingDir);
+    // The overrides reach the loader too: the MP4 readers it builds take the decode.*
+    // keys (everything else in the map is applied by the stages, below).
+    SwingLoadOptions lopts;
+    lopts.tuningOverrides = opts.tuningOverrides;
+    LoadedSwing ls = SwingDiskLoader::load(swingDir, lopts);
     if (!ls.ok) {
         out.error = ls.error;
         return out;

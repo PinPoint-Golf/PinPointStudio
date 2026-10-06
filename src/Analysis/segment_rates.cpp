@@ -20,6 +20,7 @@
 
 #include "angular_rate.h"        // localRates, placePeak
 #include "metric_channel.h"      // phaseTimeOpt, interpChannel, nearestIndex
+#include "pose_schedule.h"        // localGapUs (pose.dtlLocalGap)
 #include "../Diagnostics/anatomy_vocabulary.h"   // kp:: COCO indices
 
 #include <QVector3D>
@@ -700,7 +701,7 @@ int rateLimitInPlace(SepTrack &s, double wView, const SegmentRatesConfig &cfg)
 struct SwapReport { int flips = 0; int dropped = 0; };
 
 SwapReport deswapInPlace(SepTrack &s, int64_t addrFromUs, int64_t addrToUs, double wView,
-                         const SegmentRatesConfig &cfg)
+                         const SegmentRatesConfig &cfg, bool localGap = false)
 {
     SwapReport rep;
     const size_t n = s.t.size();
@@ -715,6 +716,15 @@ SwapReport deswapInPlace(SepTrack &s, int64_t addrFromUs, int64_t addrToUs, doub
     // sparse stretch uncorrected rather than inventing one.
     const int64_t maxGapUs = int64_t(3.0 * stepUs);
     const double  floorPx  = cfg.pairSwapMinFrac * wView;
+    // localGap (pose.dtlLocalGap, the DTL leg only): "three frame intervals" counted in the track's
+    // OWN local spacing (pose_schedule.h localGapUs), never fewer than today's three median ones. A
+    // DTL pass thinned to stride 4 in the address hold has 26 ms gaps against a 6.5 ms median —
+    // every one a "hole" to the global rule, which would freeze the parity across the whole hold.
+    // The interval ending at sample i is (i − 1, i).
+    const auto gapLimitUs = [&](size_t iEnd) -> int64_t {
+        if (!localGap || iEnd == 0) return maxGapUs;
+        return std::max(maxGapUs, int64_t(3.0 * double(localGapUs(s.t, iEnd - 1))));
+    };
 
     size_t a0 = n, a1 = 0;
     for (size_t i = 0; i < n; ++i)
@@ -722,15 +732,15 @@ SwapReport deswapInPlace(SepTrack &s, int64_t addrFromUs, int64_t addrToUs, doub
     if (a0 > a1) { a0 = a1 = 0; }
 
     std::vector<int64_t> flipT;
-    const auto step = [&](double raw, double prev, int64_t dtUs) {
+    const auto step = [&](double raw, double prev, int64_t dtUs, size_t iEnd) {
         return raw * prev < 0.0 && std::min(std::fabs(raw), std::fabs(prev)) >= floorPx
-            && dtUs <= maxGapUs;
+            && dtUs <= gapLimitUs(iEnd);
     };
     {   // forward from the last address-window sample
         double p = 1.0, prev = s.d[a1];
         int64_t prevT = s.t[a1];
         for (size_t i = a1 + 1; i < n; ++i) {
-            if (step(s.d[i] * p, prev, s.t[i] - prevT)) { p = -p; ++rep.flips; flipT.push_back(s.t[i]); }
+            if (step(s.d[i] * p, prev, s.t[i] - prevT, i)) { p = -p; ++rep.flips; flipT.push_back(s.t[i]); }
             s.d[i] *= p;
             prev = s.d[i]; prevT = s.t[i];
         }
@@ -739,7 +749,7 @@ SwapReport deswapInPlace(SepTrack &s, int64_t addrFromUs, int64_t addrToUs, doub
         double p = 1.0, prev = s.d[a0];
         int64_t prevT = s.t[a0];
         for (size_t k = a0; k-- > 0; ) {
-            if (step(s.d[k] * p, prev, prevT - s.t[k])) { p = -p; ++rep.flips; flipT.push_back(s.t[k]); }
+            if (step(s.d[k] * p, prev, prevT - s.t[k], k + 1)) { p = -p; ++rep.flips; flipT.push_back(s.t[k]); }
             s.d[k] *= p;
             prev = s.d[k]; prevT = s.t[k];
         }
@@ -820,7 +830,8 @@ AngleTrack pairTurnTrack(const PairViews &vw, int lead, int trail,
     };
     const double wFo = p95Of(sfRaw), wDtl = p95Of(sdRaw);
     const SwapReport rf = deswapInPlace(sfRaw, pin.addressUs, pin.addressUs + cfg.addrWindowUs, wFo, cfg);
-    const SwapReport rd = deswapInPlace(sdRaw, pin.addressUs, pin.addressUs + cfg.addrWindowUs, wDtl, cfg);
+    const SwapReport rd = deswapInPlace(sdRaw, pin.addressUs, pin.addressUs + cfg.addrWindowUs, wDtl, cfg,
+                                        cfg.pairDtlLocalGap);
     diag.nSwapsFo = rf.flips;
     diag.nSwapsDtl = rd.flips;
     diag.nSwapFramesDropped = rf.dropped + rd.dropped;
@@ -899,7 +910,12 @@ AngleTrack pairTurnTrack(const PairViews &vw, int lead, int trail,
         double dD = 0.0, sD = 0.0;
         if (tD[k] == t) { dD = vD[k]; sD = gD[k]; }
         else if (k + 1 < tD.size()) {
-            if (double(tD[k + 1] - tD[k]) > maxBracketUs) continue;
+            // pose.dtlLocalGap: pairMaxGapFrames LOCAL DTL intervals, never fewer than the global
+            // median's — a stride-4 address hold (26 ms) against a 6.5 ms median otherwise pairs nothing.
+            const double lim = cfg.pairDtlLocalGap
+                ? std::max(maxBracketUs, cfg.pairMaxGapFrames * double(localGapUs(tD, k)))
+                : maxBracketUs;
+            if (double(tD[k + 1] - tD[k]) > lim) continue;
             const double f = double(t - tD[k]) / double(tD[k + 1] - tD[k]);
             dD = vD[k] + f * (vD[k + 1] - vD[k]);
             sD = gD[k] + f * (gD[k + 1] - gD[k]);

@@ -49,7 +49,19 @@ using pinpoint::analysis::PoseTrack2D;
 #include "hand_axis.h"             // handCentroid / HandCentroid (shared with the smoothed-grip recompute)
 #include "shaft_track_assembly.h"   // estimateSwingSpanUs / ShaftV3Config (Stage B span estimate)
 #include "analysis_tuning.h"        // tuning::apply — pose.intraOpThreads resolution
+#include "pose_pipeline.h"          // InstanceCache (session cache) + runOrderedPipeline (producer pool)
+#include "../Core/pp_tuned_constants.h"   // pose::kSessionCache / kProducerThreads / kQueueDepth
+#include "../Core/cpu_topology.h"   // physicalCoreCount() — pose.producerThreads auto
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <tuple>
 #endif
+
+// lastTiming()'s store: one per thread (see pose_runner.h), overwritten by every run().
+static thread_local pinpoint::pose::PoseTiming tl_lastPoseTiming;
+
+pinpoint::pose::PoseTiming PoseRunner::lastTiming() { return tl_lastPoseTiming; }
 
 #if defined(HAVE_OPENCV) && defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)
 
@@ -88,12 +100,86 @@ struct BodyBboxAccum {
     }
 };
 
+// ── Step 1: one ViTPose session per process per model ───────────────────────
+// Key: (model file, the build's EP cascade, the pose.intraOpThreads REQUEST).
+// The provider load() ends up on is a function of the build flags and the host,
+// so within one process the cascade tag stands for it; step 3's EP options (fp16,
+// TensorRT) belong in that slot. The intra-op request (0 / -1 / n) resolves the
+// same way every time, so it keys as well as the resolved count.
+using EstimatorKey = std::tuple<std::string, std::string, int>;
+using EstimatorCache = pinpoint::analysis::InstanceCache<EstimatorKey, PoseEstimatorViTPose>;
+
+const char *epCascadeTag()
+{
+    return ""
+#ifdef WITH_COREML
+        "coreml>"
+#endif
+#ifdef WITH_CUDA
+        "cuda>"
+#endif
+#ifdef WITH_DIRECTML
+        "dml>"
+#endif
+        "cpu";
+}
+
+// Never destroyed, deliberately: the cached sessions live until the process
+// exits, and tearing ORT sessions (CoreML/CUDA EPs) and QObjects down during
+// static destruction — after QCoreApplication and possibly ORT's own statics are
+// gone — buys nothing but an exit-time crash risk. The OS reclaims it.
+EstimatorCache &estimatorCache()
+{
+    static EstimatorCache *cache = new EstimatorCache;
+    return *cache;
+}
+
+PoseEstimatorViTPose::LoadOptions loadOptionsFor(bool fp16, bool coremlProgram, bool tensorrt,
+                                                 bool staticBatch, int batchSize, bool logPartition)
+{
+    PoseEstimatorViTPose::LoadOptions o;
+    o.fp16          = fp16;
+    o.coremlProgram = coremlProgram;
+    o.tensorrt      = tensorrt;
+    o.staticBatch   = staticBatch ? batchSize : 0;
+    o.maxBatch      = batchSize;
+    o.logPartition  = logPartition;
+    return o;
+}
+
+// The step-3 load options (precision, CoreML format, TensorRT, static batch) make a
+// different session: they key it alongside the cascade.
+EstimatorKey estimatorKey(PoseEstimatorViTPose::ModelVariant variant,
+                          const PoseEstimatorViTPose::LoadOptions &loadOpts, int intraOpThreads)
+{
+    return EstimatorKey{ PoseEstimatorViTPose::modelPath(variant).toStdString(),
+                         std::string(epCascadeTag()) + "|"
+                             + PoseEstimatorViTPose::loadOptionsTag(loadOpts).toStdString(),
+                         intraOpThreads };
+}
+
 } // namespace
 
 PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
                             pinpoint::SourceId faceOnSource,
                             const ShotAnalysisRunnerOptions &opt)
 {
+    // Timing split (perf plan step 0): the estimator and the decode sites below
+    // write into timingSink; on EVERY exit from run() the snapshot plus the wall
+    // total becomes lastTiming() — an early-out publishes zeros, never the
+    // previous camera's numbers.
+    pinpoint::pose::PoseTimingSink timingSink;
+    struct TimingPublisher {
+        pinpoint::pose::PoseTimingSink &sink;
+        QElapsedTimer                   wall;
+        ~TimingPublisher() {
+            pinpoint::pose::PoseTiming t = sink.snapshot();
+            t.totalMs = double(wall.nsecsElapsed()) / 1e6;
+            tl_lastPoseTiming = t;
+        }
+    } timingPublisher{ timingSink, {} };
+    timingPublisher.wall.start();
+
     PoseTrack2D track;
     track.camera = faceOnSource;
 
@@ -120,11 +206,10 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
 
     PP_PROFILE_SCOPE("Analysis.PoseRunner.run");
 
-    // Estimator built on this (worker) thread. ViTPose is offline-only; load()
-    // sizes its ORT intra-op pool to the physical-core count, and the post-shot
-    // pipeline sequences the x264 export AFTER this pose pass
-    // (ShotProcessor::onAnalysisFinished), so the inference is no longer starved
-    // by the encoder's threads (which inflated per-frame inference ~5×).
+    // ViTPose is offline-only; load() sizes its ORT intra-op pool to the core
+    // count, and the post-shot pipeline sequences the x264 export AFTER this pose
+    // pass (ShotProcessor::onAnalysisFinished), so the inference is no longer
+    // starved by the encoder's threads (which inflated per-frame inference ~5×).
     //
     // Tier -> model: "High" runs ViTPose++-L when the user has downloaded it,
     // otherwise ViTPose-B (Medium always B). The choice degrades safely to B
@@ -133,8 +218,7 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     const bool useLarge = pinpoint::pose::useVitPoseLarge(
         opt.motionCaptureQuality,
         PoseEstimatorViTPose::isVariantAvailable(ViTVariant::WholeBodyLarge));
-    PoseEstimatorViTPose estimator(useLarge ? ViTVariant::WholeBodyLarge
-                                            : ViTVariant::WholeBodyB);
+    const ViTVariant variant = useLarge ? ViTVariant::WholeBodyLarge : ViTVariant::WholeBodyB;
     // A High swing on B is a different pose from the one it was captured for — say so (once per
     // process). Silent, it cost a day on 2026-09-29: the studio's tools ran High swings on B unseen.
     if (!useLarge && opt.motionCaptureQuality.compare(QLatin1String("High"), Qt::CaseInsensitive) == 0) {
@@ -153,21 +237,127 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     // topology auto; > 0 pins. Empty overrides ⇒ thread-count-identical to history.
     int intraOpThreads = opt.intraOpThreads;
     pinpoint::analysis::tuning::apply(opt.tuningOverrides, "pose.intraOpThreads", intraOpThreads);
-    estimator.setIntraOpThreads(intraOpThreads);
-    estimator.load();
+
+    // Throughput knobs (perf plan steps 1–2; pp_tuned_constants.h pose::). None
+    // changes a keypoint — OFF = sessionCache false, producerThreads 1, queueDepth 3.
+    bool sessionCache   = pinpoint::tuned::pose::kSessionCache;
+    int  producerThreads = pinpoint::tuned::pose::kProducerThreads;
+    int  queueDepth      = pinpoint::tuned::pose::kQueueDepth;
+    pinpoint::analysis::tuning::apply(opt.tuningOverrides, "pose.sessionCache",    sessionCache);
+    pinpoint::analysis::tuning::apply(opt.tuningOverrides, "pose.producerThreads", producerThreads);
+    pinpoint::analysis::tuning::apply(opt.tuningOverrides, "pose.queueDepth",      queueDepth);
+    if (producerThreads <= 0)
+        producerThreads = std::min(4, std::max(1, pinpoint::physicalCoreCount() / 2));
+    queueDepth = std::max(1, queueDepth);
+
+    // Inference proper (perf plan step 3; pp_tuned_constants.h pose::). All OFF by
+    // default; OFF = one frame per Run() through inferPrepared(), all 133 channels on
+    // this thread, the fp32 model, CoreML NeuralNetwork / CUDA — today's path.
+    namespace tp = pinpoint::tuned::pose;
+    int  batchSize     = tp::kBatchSize;
+    bool staticBatch   = tp::kStaticBatch;
+    bool ioBinding     = tp::kIoBinding;
+    int  decodeThreads = tp::kDecodeThreads;
+    bool tensorrt      = tp::kTensorRT;
+    bool logPartition  = tp::kLogPartition;
+    pinpoint::analysis::tuning::apply(opt.tuningOverrides, "pose.batchSize",     batchSize);
+    pinpoint::analysis::tuning::apply(opt.tuningOverrides, "pose.staticBatch",   staticBatch);
+    pinpoint::analysis::tuning::apply(opt.tuningOverrides, "pose.ioBinding",     ioBinding);
+    pinpoint::analysis::tuning::apply(opt.tuningOverrides, "pose.decodeThreads", decodeThreads);
+    pinpoint::analysis::tuning::apply(opt.tuningOverrides, "pose.tensorrt",      tensorrt);
+    pinpoint::analysis::tuning::apply(opt.tuningOverrides, "pose.logPartition",  logPartition);
+    // The three string-valued keys: an unrecognised value keeps the default (said once).
+    auto strKey = [&](const char *key, bool dflt, const char *offVal, const char *onVal) {
+        const auto it = opt.tuningOverrides.constFind(QLatin1String(key));
+        if (it == opt.tuningOverrides.cend())
+            return dflt;
+        const QString v = it->toString();
+        if (v.compare(QLatin1String(onVal), Qt::CaseInsensitive) == 0)  return true;
+        if (v.compare(QLatin1String(offVal), Qt::CaseInsensitive) == 0) return false;
+        ppWarn() << "[PoseRunner]" << key << "=" << v << "is not" << offVal << "or" << onVal
+                 << "— keeping" << (dflt ? onVal : offVal);
+        return dflt;
+    };
+    const bool bodyHandsOnly = strKey("pose.decodeChannels", tp::kDecodeBodyHands, "all", "bodyHands");
+    const bool modelFp16     = strKey("pose.modelPrecision", tp::kModelFp16, "fp32", "fp16");
+    const bool coremlProgram = strKey("pose.coreml", tp::kCoreMLProgram, "nn", "mlprogram");
+    batchSize = std::clamp(batchSize, 1, 64);
+    if (decodeThreads <= 0)
+        decodeThreads = std::min(4, std::max(1, pinpoint::physicalCoreCount() / 2));
+    const pinpoint::pose::ChannelSet decodeSet =
+        bodyHandsOnly ? pinpoint::pose::ChannelSet::BodyHands : pinpoint::pose::ChannelSet::All;
+    // The batched path carries every step-3 runtime option; with all of them off the
+    // legacy inferPrepared() runs, untouched. (A static batch dim forces it even at
+    // batch 1: inferPrepared() feeds [1,…], which a fixed batch of B would refuse.)
+    const bool batchedPath = batchSize > 1 || staticBatch || ioBinding || bodyHandsOnly
+                          || decodeThreads > 1;
+    // B frames gathered while B more are prepared: the window must hold two batches
+    // or the producers stall behind the consumer's Run().
+    if (batchSize > 1)
+        queueDepth = std::max(queueDepth, 2 * batchSize);
+
+    const PoseEstimatorViTPose::LoadOptions loadOpts =
+        loadOptionsFor(modelFp16, coremlProgram, tensorrt, staticBatch, batchSize, logPartition);
+
+    // Step 1 — the estimator (and its ORT session) comes from the process-wide
+    // cache: built on the first run() for this model, reused by every run() after
+    // it — both cameras, every shot, every swinglab stage. Before, each run()
+    // built its own: a 360 MB model load + EP init/compile, twice a shot. The
+    // lease holds the entry for this whole run (InstanceCache's one-thread rule),
+    // so a concurrent run() on the same model waits rather than sharing the
+    // session and this run's per-run state (decode mode, whole-body flag, result
+    // slot, timing sink, the poseEstimated hook below). sessionCache = false
+    // builds a private estimator exactly as before.
+    auto makeEstimator = [&]() {
+        auto e = std::make_unique<PoseEstimatorViTPose>(variant);
+        e->setIntraOpThreads(intraOpThreads);
+        e->setLoadOptions(loadOpts);
+        e->setTimingSink(&timingSink);   // the build lands in THIS run's sessionBuildMs
+        e->load();
+        return e;
+    };
+    EstimatorCache::Lease                 lease;
+    std::unique_ptr<PoseEstimatorViTPose> privateEstimator;
+    if (sessionCache) {
+        // The step-3 load options (precision, CoreML format, TensorRT, static batch)
+        // make a different session: they key it alongside the cascade.
+        const EstimatorKey key = estimatorKey(variant, loadOpts, intraOpThreads);
+        lease = estimatorCache().acquire(key, makeEstimator,
+                                         [](const PoseEstimatorViTPose &e) { return e.isReady(); });
+    } else {
+        privateEstimator = makeEstimator();
+    }
+    PoseEstimatorViTPose &estimator = sessionCache ? *lease : *privateEstimator;
+    estimator.setTimingSink(&timingSink);   // session build, preprocess, Run(), heatmaps, frames
+    // The sink is this run's stack object — a cached estimator must not keep
+    // pointing at it. Declared after the lease, so it runs before the lease
+    // releases the entry.
+    struct SinkDetach {
+        PoseEstimatorViTPose &e;
+        ~SinkDetach() { e.setTimingSink(nullptr); }
+    } sinkDetach{ estimator };
     if (!estimator.isReady()) {
         ppWarn() << "[PoseRunner] ViTPose unavailable (model missing or load failed) "
                     "— empty track";
         return track;
     }
     estimator.setDecodeWholeBody(true);
+    // The step-3 settings this run actually got, for the summary lines below.
+    const QString step3 = QStringLiteral("%1 %2, batch %3%4, decode %5 × %6 thread(s)%7")
+        .arg(estimator.executionProvider(),
+             QFileInfo(estimator.resolvedModelFile()).fileName())
+        .arg(batchedPath ? batchSize : 1)
+        .arg(QLatin1String(staticBatch ? " static" : ""),
+             QLatin1String(bodyHandsOnly ? "bodyHands" : "all"))
+        .arg(batchedPath ? decodeThreads : 1)
+        .arg(QLatin1String(ioBinding ? ", IO binding" : ""));
 
     // WB1 accuracy pass (wholebody_pose_design.md §3): DARK sub-pixel decode + a
     // swing-level person crop, both from the tuning map (frozen defaults ON). The
     // decode mode is set once and applies to every pass; the crop rect is computed
     // after a bbox scan and passed per-pass. pose.crop.enabled=false AND
     // pose.decode.dark=false reproduce the pre-WB1 full-frame + argmax pipeline
-    // byte-for-byte.
+    // byte-for-byte. Set on EVERY run — a cached estimator carries the last run's.
     const pinpoint::analysis::PoseAccuracyConfig acc =
         pinpoint::analysis::PoseAccuracyConfig::fromOverrides(opt.tuningOverrides);
     estimator.setDecodeMode(acc.decodeDark ? PoseEstimatorViTPose::DecodeMode::Dark
@@ -176,15 +366,21 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
 
     // inferPrepared() is synchronous and emits poseEstimated() inline on this
     // (consumer) thread — a direct connection captures the result before it
-    // returns.
+    // returns. The hook captures this run's locals, so it is cut on every exit:
+    // a cached estimator outlives the run.
     PoseResult res;
     bool gotPose = false;
-    QObject::connect(&estimator, &PoseEstimatorBase::poseEstimated, &estimator,
-                     [&res, &gotPose](const PoseResult &r) {
-                         res     = r;
-                         gotPose = true;
-                     },
-                     Qt::DirectConnection);
+    const QMetaObject::Connection poseHook =
+        QObject::connect(&estimator, &PoseEstimatorBase::poseEstimated, &estimator,
+                         [&res, &gotPose](const PoseResult &r) {
+                             res     = r;
+                             gotPose = true;
+                         },
+                         Qt::DirectConnection);
+    struct HookCut {
+        const QMetaObject::Connection &c;
+        ~HookCut() { QObject::disconnect(c); }
+    } hookCut{ poseHook };
 
     // Lead = left hand for right-handed (and unknown) golfers, right for left-handed.
     const bool leftLeads = (opt.handedness != 2);
@@ -194,32 +390,51 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
 
     size_t  wristOk = 0;
 
-    // ── Pipelined pose ──────────────────────────────────────────────────────────
-    // decode + preprocess run on a producer thread while ORT inference runs on
-    // this (consumer) thread — the ~25 ms decode/preprocess of frame N+1 hides
-    // behind the ~82 ms inference of frame N. Output is byte-identical to the
-    // old serial poseOne(): same frames, same order (a FIFO preserves it), same
-    // math — only the execution overlaps.
+    // ── Pipelined pose (perf plan step 2: a producer pool) ──────────────────────
+    // decode + preprocess run on producer threads while ORT inference runs on
+    // this (consumer) thread. One producer was the bottleneck once inference got
+    // fast: a 688×1024 BayerRG8 frame is ~5–8 ms of edge-aware demosaic + resize
+    // + normalise, against a Run() of a few ms on CoreML/CUDA. pose.producerThreads
+    // producers (auto min(4, physical cores / 2)) now each prepare their own
+    // frames; runOrderedPipeline hands them to inference strictly in job order
+    // through a pose.queueDepth (8) window. Output is byte-identical to the old
+    // single producer: same frames, same order, same math — only who does the CPU
+    // work and how many at once. producerThreads 1 + queueDepth 3 IS the old
+    // pipeline, schedule included.
     //
     // Frozen-window read contract: SwingPayloadSource keeps ONE frame resident
-    // per source, so the producer is the SOLE payloadOf() caller and must fully
-    // consume each frame BEFORE the next fetch. preprocess() reads the whole
-    // decoded frame into an owned NCHW float buffer, so even the zero-copy BGR24
-    // passthrough alias (decodeToBgr may hand back a Mat aliasing the payload
-    // bytes) is safe — the alias never outlives the fetch.
+    // per source, and the MP4 re-analysis reader decodes forward (rewinding to
+    // frame 0 on any back-seek), so payloadOf() is called by ONE producer at a
+    // time, in job order (the pipeline's serialised fetch stage), and each frame
+    // is fully consumed before the next fetch:
+    //   1 producer  — the fetch stage does everything, as before: decode (the
+    //                 BGR24 passthrough may alias the payload) + preprocess into
+    //                 an owned NCHW buffer before the next fetch.
+    //   N producers — the fetch stage copies the payload bytes out (a ~0.7 MB
+    //                 Bayer frame, ~2 MB BGR24 from the MP4 reader: tens of µs),
+    //                 and demosaic + preprocess run on the copy in parallel. On
+    //                 re-analysis the H.264 decode itself stays in the serial
+    //                 fetch; only what follows it fans out.
     struct PipeItem {
         int64_t            t_us     = 0;
         float              progress = 0.f;
         bool               decodeOk = false;
         std::vector<float> input;   // NCHW tensor buffer (empty when decode failed)
     };
+    struct Fetched {
+        PipeItem               item;
+        bool                   prepared = false;   // 1 producer: item is final
+        bool                   rawNull  = true;    // payloadOf() returned no bytes
+        std::vector<std::byte> raw;                // N producers: owned payload copy
+    };
+    const bool serialFetch = producerThreads <= 1;
 
     // Run one materialized (entryIndex, progress) sequence through the pipeline,
     // appending posed frames to `out` in sequence order. Decode/inference
     // failures skip exactly as the old poseOne() did (decode fail → no
     // inference; a frame ViTPose can't estimate is dropped). progress() is
     // invoked on THIS worker thread for every sequence entry, matching the old
-    // serial loops (it is never called on the producer thread).
+    // serial loops (it is never called on a producer thread).
     // cropRoi (nullptr = full frame) is the swing-level person crop applied to
     // every frame in this pass; the consumer back-projects the estimator's
     // crop-normalized peaks to full-frame normalized through the (constant) affine.
@@ -230,104 +445,74 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
 
         const double fw = double(cfmt->width), fh = double(cfmt->height);
 
-        std::mutex              mtx;
-        std::condition_variable cvNotFull, cvNotEmpty;
-        std::deque<PipeItem>    queue;
-        bool                    producerDone = false;
-        bool                    stop         = false;   // consumer → producer abort
-        constexpr size_t        kMaxDepth    = 3;
-
-        std::thread producer([&] {
-            for (const auto &job : jobs) {
-                {
-                    std::unique_lock<std::mutex> lk(mtx);
-                    cvNotFull.wait(lk, [&] { return queue.size() < kMaxDepth || stop; });
-                    if (stop)
-                        return;
-                }
-                PipeItem item;
-                item.t_us     = entries[job.first].timestamp_us;
-                item.progress = job.second;
-                cv::Mat frameBgr;   // fresh per frame — decodeToBgr may alias the payload
-                const pinpoint::SourceRing::ReadHandle handle =
-                    window.payloadOf(entries[job.first]);
-                if (pinpoint::decodeToBgr(*cfmt, handle.data, handle.bytes, frameBgr)) {
-                    // Fully consumes frameBgr into an owned buffer before the next
-                    // payloadOf() invalidates the resident frame. The crop is a
-                    // plain ROI view (no copy) — mathematically equivalent to a
-                    // warpAffine given the aspect-locked rect (design §3.2).
-                    if (cropRoi)
-                        estimator.preprocess(frameBgr(*cropRoi), item.input);
-                    else
-                        estimator.preprocess(frameBgr, item.input);
-                    item.decodeOk = true;
-                }
-                {
-                    std::lock_guard<std::mutex> lk(mtx);
-                    queue.push_back(std::move(item));
-                }
-                cvNotEmpty.notify_one();
-            }
+        // payload bytes → BGR → owned NCHW tensor. preprocess() is const and
+        // touches no estimator state (the timing sink is mutex-guarded), so N
+        // producers may run it at once alongside inferPrepared().
+        auto prepare = [&](const std::byte *data, size_t bytes, PipeItem &item) {
+            cv::Mat frameBgr;   // fresh per frame — decodeToBgr may alias the payload
+            bool decoded;
             {
-                std::lock_guard<std::mutex> lk(mtx);
-                producerDone = true;
+                // Demosaic → BGR (perf plan F3). With N producers this is summed
+                // across threads, so decodeMs can exceed the run's wall time.
+                pinpoint::pose::PoseScopedTimer decodeTimer(
+                    &timingSink, &pinpoint::pose::PoseTiming::decodeMs);
+                decoded = pinpoint::decodeToBgr(*cfmt, data, bytes, frameBgr);
             }
-            cvNotEmpty.notify_one();
-        });
-
-        // Join the producer on EVERY exit from this scope (normal drain or an
-        // exception from the consumer body) — no detached thread, no deadlock
-        // with a producer parked on a full queue.
-        struct Joiner {
-            std::thread             &t;
-            std::mutex              &m;
-            std::condition_variable &cond;
-            bool                    &stop;
-            ~Joiner() {
-                {
-                    std::lock_guard<std::mutex> lk(m);
-                    stop = true;
-                }
-                cond.notify_all();
-                if (t.joinable())
-                    t.join();
+            if (decoded) {
+                // The crop is a plain ROI view (no copy) — mathematically
+                // equivalent to a warpAffine given the aspect-locked rect (design §3.2).
+                if (cropRoi)
+                    estimator.preprocess(frameBgr(*cropRoi), item.input);
+                else
+                    estimator.preprocess(frameBgr, item.input);
+                item.decodeOk = true;
             }
-        } joiner{producer, mtx, cvNotFull, stop};
+        };
 
-        for (;;) {
-            PipeItem item;
+        const std::function<Fetched(size_t)> fetch = [&](size_t k) {
+            Fetched f;
+            f.item.t_us     = entries[jobs[k].first].timestamp_us;
+            f.item.progress = jobs[k].second;
+            pinpoint::SourceRing::ReadHandle handle;
             {
-                std::unique_lock<std::mutex> lk(mtx);
-                cvNotEmpty.wait(lk, [&] { return !queue.empty() || producerDone; });
-                if (queue.empty())          // predicate guarantees producerDone here
-                    break;
-                item = std::move(queue.front());
-                queue.pop_front();
+                // The payload fetch is decode time too: on re-analysis without a
+                // raw sidecar it IS the H.264 decode (Mp4FrameReader, incl. its
+                // rewind on a back-seek).
+                pinpoint::pose::PoseScopedTimer fetchTimer(
+                    &timingSink, &pinpoint::pose::PoseTiming::decodeMs);
+                handle = window.payloadOf(entries[jobs[k].first]);
+                if (!serialFetch && handle.data) {
+                    f.rawNull = false;
+                    f.raw.assign(handle.data, handle.data + handle.bytes);
+                }
             }
-            cvNotFull.notify_one();
+            if (serialFetch) {   // consume the resident frame before the next fetch
+                prepare(handle.data, handle.bytes, f.item);
+                f.prepared = true;
+            }
+            return f;
+        };
+        const std::function<PipeItem(size_t, Fetched &&)> process = [&](size_t, Fetched &&f) {
+            if (!f.prepared)
+                prepare(f.rawNull ? nullptr : f.raw.data(), f.raw.size(), f.item);
+            return std::move(f.item);
+        };
 
-            if (opt.progress)
-                opt.progress(item.progress);
-            if (!item.decodeOk)
-                continue;
-
-            gotPose = false;
-            estimator.inferPrepared(item.input);
-            if (!gotPose)
-                continue;
-
+        // One inferred frame → the track: body from the PoseResult, the tail from
+        // the whole-body decode, the crop back-projection, the hand anchors. Shared
+        // by the one-frame path and the batched one (perf plan step 3).
+        auto appendPosed = [&](int64_t t_us, const PoseResult &pr, const WholeBodyResult &wb) {
             PoseFrame2D f;
-            f.t_us = item.t_us;
+            f.t_us = t_us;
             // Body 0–16 from the emitted PoseResult — the pre-wholebody source,
             // kept verbatim so the first-17 outputs are byte-identical by
             // construction (WholeBodyResult.kp[0..16] are copies of the same
             // decode, but `res` is the contract the old code read).
             for (int j = 0; j < PoseResult::kNumKeypoints; ++j) {
-                f.kp[j]   = QPointF(res.keypoints[j].x, res.keypoints[j].y);
-                f.conf[j] = res.keypoints[j].score;
+                f.kp[j]   = QPointF(pr.keypoints[j].x, pr.keypoints[j].y);
+                f.conf[j] = pr.keypoints[j].score;
             }
             // Feet/face/hand tail (17–132) from the whole-body decode.
-            const WholeBodyResult &wb = estimator.lastWholeBody();
             if (wb.valid) {
                 for (int j = PoseResult::kNumKeypoints;
                      j < pinpoint::analysis::kWholeBodyJoints; ++j) {
@@ -381,7 +566,45 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
             if (f.conf[kLeftWrist] > 0.3f && f.conf[kRightWrist] > 0.3f)
                 ++wristOk;
             out.frames.push_back(std::move(f));
-        }
+        };
+
+        // Batched path (perf plan step 3): frames gathered in job order, B per
+        // Run(), results appended in the same order — so the track's frame order is
+        // the one-frame path's. Progress is reported as each frame is gathered.
+        pinpoint::analysis::BatchGatherer<PipeItem> gatherer(
+            size_t(batchSize), [&](std::vector<PipeItem> &&batch) {
+                std::vector<const std::vector<float> *> inputs;
+                inputs.reserve(batch.size());
+                for (const PipeItem &it : batch)
+                    inputs.push_back(&it.input);
+                std::vector<PoseEstimatorViTPose::FrameResult> results;
+                if (!estimator.inferBatch(inputs, results, decodeSet, decodeThreads, ioBinding))
+                    return;   // logged; the batch's frames drop as a failed frame does
+                for (size_t i = 0; i < batch.size(); ++i)
+                    appendPosed(batch[i].t_us, results[i].pose, results[i].wholeBody);
+            });
+
+        const std::function<void(size_t, PipeItem &&)> consume = [&](size_t, PipeItem &&item) {
+            if (opt.progress)
+                opt.progress(item.progress);
+            if (!item.decodeOk)
+                return;
+
+            if (batchedPath) {
+                gatherer.push(std::move(item));
+                return;
+            }
+
+            gotPose = false;
+            estimator.inferPrepared(item.input);
+            if (!gotPose)
+                return;
+            appendPosed(item.t_us, res, estimator.lastWholeBody());
+        };
+
+        pinpoint::analysis::runOrderedPipeline<Fetched, PipeItem>(
+            jobs.size(), producerThreads, size_t(queueDepth), fetch, process, consume);
+        gatherer.finish();
     };
 
     // Turn an accumulated body bbox into the swing-level crop for the dense pass
@@ -408,6 +631,12 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     // denseStride-th frame here, every sparseStride-th elsewhere in span.
     const int64_t denseLo = opt.impactUs - static_cast<int64_t>(opt.densePreMs)  * 1000;
     const int64_t denseHi = opt.impactUs + static_cast<int64_t>(opt.densePostMs) * 1000;
+    // Entry timestamps for the pure selectors (pose_schedule.h), which pin the face-on
+    // schedules to their pre-step-4 inline loops (pose_pipeline_test.cpp).
+    std::vector<int64_t> entryTs;
+    entryTs.reserve(entries.size());
+    for (const pinpoint::IndexEntry &e : entries)
+        entryTs.push_back(e.timestamp_us);
 
     // ── Two-pass pose (swing_span_bounding_plan.md §5) ──────────────────────────
     // Engaged only with no externally-supplied span (an IMU/G3 bound always
@@ -422,7 +651,7 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         // track as address-hold coverage and its body keypoints seed the crop).
         std::vector<std::pair<size_t, float>> jobs1;
         jobs1.reserve(entries.size() / coarse + 1);
-        for (size_t i = 0; i < entries.size(); i += coarse)
+        for (size_t i : pinpoint::analysis::selectTwoPassCoarse(entries.size(), opt.coarseStride))
             jobs1.emplace_back(i, 0.2f * float(i + 1) / float(entries.size()));
         runPipeline(jobs1, track, nullptr);
         const size_t pass1Posed = track.frames.size();
@@ -483,21 +712,14 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
                         "— falling back to a full-window single pass";
         }
 
-        const size_t denseStep  = static_cast<size_t>(std::max(1, opt.denseStride));
-        const size_t sparseStep = static_cast<size_t>(std::max(1, opt.sparseStride));
+        // i % coarse == 0 was posed in pass 1 — never re-pose a timestamp.
         const size_t span = pHi > pLo ? pHi - pLo : 1;
         std::vector<std::pair<size_t, float>> jobs2;
         jobs2.reserve(span);
-        for (size_t i = pLo; i < pHi; ++i) {
-            if ((i % coarse) == 0)   // posed in pass 1 — never re-pose a timestamp
-                continue;
-            const pinpoint::IndexEntry &e = entries[i];
-            const bool dense = opt.impactUs >= 0
-                            && e.timestamp_us >= denseLo && e.timestamp_us <= denseHi;
-            if ((i % (dense ? denseStep : sparseStep)) != 0)
-                continue;
+        for (size_t i : pinpoint::analysis::selectTwoPassFill(entryTs, pLo, pHi, opt.coarseStride,
+                                                              opt.denseStride, opt.sparseStride,
+                                                              opt.impactUs, denseLo, denseHi))
             jobs2.emplace_back(i, 0.2f + 0.8f * float(i + 1 - pLo) / float(span));
-        }
         runPipeline(jobs2, track, cropPtr);
         const size_t pass2Posed = track.frames.size() - pass1Posed;
 
@@ -509,7 +731,9 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
                  << track.frames.size() << "posed (" << pass1Posed << "coarse pass-1 +"
                  << pass2Posed << (est.ok ? "span-bounded pass-2)," : "full-window pass-2 fallback),")
                  << entries.size() << "in window," << wristOk
-                 << "with both wrists conf > 0.3," << wall.elapsed() << "ms";
+                 << "with both wrists conf > 0.3," << wall.elapsed() << "ms (session"
+                 << (sessionCache ? "cached," : "private,") << producerThreads << "producers, depth"
+                 << queueDepth << "," << step3.toUtf8().constData() << ")";
         return track;
     }
 
@@ -549,24 +773,25 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
             --iAddr0;
     }
 
-    const int addrStride = std::max(1, opt.addressStride);
-
     track.frames.reserve(i1 - iAddr0);
     std::vector<std::pair<size_t, float>> jobs;
     jobs.reserve(i1 - iAddr0);
-    for (size_t i = iAddr0; i < i1; ++i) {
-        const pinpoint::IndexEntry &e = entries[i];
-        const bool inAddressZone = i < i0;   // before G3's own bound: coarse address-hold sampling
-        const bool dense = !inAddressZone && opt.impactUs >= 0
-                        && e.timestamp_us >= denseLo && e.timestamp_us <= denseHi;
-        if (inAddressZone) {
-            if ((i % static_cast<size_t>(addrStride)) != 0)
-                continue;
-        } else if (!dense && (i % static_cast<size_t>(stride)) != 0) {
-            continue;
-        }
-        jobs.emplace_back(i, float(i + 1 - iAddr0) / float(i1 - iAddr0));
+    // Frames before G3's own bound [iAddr0, i0) keep the coarse address-hold sampling either way.
+    // An explicit zone schedule (the DTL's, step 4) replaces only the dense/sparse choice inside
+    // [i0, i1); without one this is the pre-step-4 selection exactly (pose_pipeline_test.cpp).
+    std::vector<size_t> picked;
+    if (!opt.zoneSchedule.empty()) {
+        picked = pinpoint::analysis::selectSinglePass(entryTs, iAddr0, i0, i0, opt.addressStride,
+                                                      stride, opt.impactUs, denseLo, denseHi);
+        const std::vector<size_t> zoned = pinpoint::analysis::selectZoneSchedule(
+            entryTs, i0, i1, opt.zoneSchedule, opt.restStride);
+        picked.insert(picked.end(), zoned.begin(), zoned.end());
+    } else {
+        picked = pinpoint::analysis::selectSinglePass(entryTs, iAddr0, i0, i1, opt.addressStride,
+                                                      stride, opt.impactUs, denseLo, denseHi);
     }
+    for (size_t i : picked)
+        jobs.emplace_back(i, float(i + 1 - iAddr0) / float(i1 - iAddr0));
     // WB1 person crop (design §3.2). No pass-1 bbox exists on this path, so run a
     // cheap mini-scan — 8 evenly-spaced full-frame inferences across the scan
     // range — purely to accumulate the body bbox. Those frames are DISCARDED (not
@@ -588,11 +813,24 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
                 continue;
             prev = idx;
             cv::Mat frameBgr;
-            const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(entries[idx]);
-            if (!pinpoint::decodeToBgr(*cfmt, handle.data, handle.bytes, frameBgr))
+            bool decoded;
+            {
+                pinpoint::pose::PoseScopedTimer decodeTimer(
+                    &timingSink, &pinpoint::pose::PoseTiming::decodeMs);
+                const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(entries[idx]);
+                decoded = pinpoint::decodeToBgr(*cfmt, handle.data, handle.bytes, frameBgr);
+            }
+            if (!decoded)
                 continue;
             std::vector<float> buf;
             estimator.preprocess(frameBgr, buf);
+            if (batchedPath) {   // same session options as the dense pass (static batch)
+                std::vector<PoseEstimatorViTPose::FrameResult> one;
+                if (estimator.inferBatch({ &buf }, one, decodeSet, decodeThreads, ioBinding)
+                    && !one.empty())
+                    bb.addResult(one.front().pose, 0.30f);
+                continue;
+            }
             gotPose = false;
             estimator.inferPrepared(buf);
             if (gotPose)
@@ -605,9 +843,15 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     runPipeline(jobs, track, cropPtr);
 
     ppInfo() << "[PoseRunner] source" << faceOnSource << ":" << track.frames.size()
-             << "posed of" << sampled << "sampled (" << (i1 - i0) << "in span +"
+             << "posed of" << sampled
+             << (opt.zoneSchedule.empty() ? QStringLiteral("sampled (")
+                                          : QStringLiteral("sampled by a %1-zone schedule, rest stride %2 (")
+                                                .arg(opt.zoneSchedule.size()).arg(opt.restStride)).toUtf8().constData()
+             << (i1 - i0) << "in span +"
              << (i0 - iAddr0) << "address-hold," << entries.size() << "in window)," << wristOk
-             << "with both wrists conf > 0.3," << wall.elapsed() << "ms";
+             << "with both wrists conf > 0.3," << wall.elapsed() << "ms (session"
+                 << (sessionCache ? "cached," : "private,") << producerThreads << "producers, depth"
+                 << queueDepth << "," << step3.toUtf8().constData() << ")";
     return track;
 }
 
@@ -619,6 +863,7 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
 {
     Q_UNUSED(window)
     Q_UNUSED(opt)
+    tl_lastPoseTiming = pinpoint::pose::PoseTiming{};
     ppWarn() << "[PoseRunner] built without ViTPose/ONNX Runtime — empty track";
     PoseTrack2D track;
     track.camera = faceOnSource;
@@ -700,4 +945,44 @@ pinpoint::analysis::PoseTrack2D PoseRunner::fromJsonObject(const QJsonObject &ro
         track.frames.push_back(std::move(pf));
     }
     return track;
+}
+
+double PoseRunner::warmUp(const QString &motionCaptureQuality)
+{
+    namespace tp = pinpoint::tuned::pose;
+    if (!tp::kSessionCache) return 0.0;
+    using ViTVariant = PoseEstimatorViTPose::ModelVariant;
+    const bool useLarge = pinpoint::pose::useVitPoseLarge(
+        motionCaptureQuality, PoseEstimatorViTPose::isVariantAvailable(ViTVariant::WholeBodyLarge));
+    const ViTVariant variant = useLarge ? ViTVariant::WholeBodyLarge : ViTVariant::WholeBodyB;
+    if (!PoseEstimatorViTPose::isVariantAvailable(variant)) return 0.0;
+    // The defaults run() resolves with no overrides — the same key, or the warm-up warms the
+    // wrong session.
+    const int batchSize = std::clamp(tp::kBatchSize, 1, 64);
+    const PoseEstimatorViTPose::LoadOptions loadOpts =
+        loadOptionsFor(tp::kModelFp16, tp::kCoreMLProgram, tp::kTensorRT, tp::kStaticBatch, batchSize,
+                       tp::kLogPartition);
+    const int intraOpThreads = 0;
+    QElapsedTimer t;
+    t.start();
+    auto make = [&]() {
+        auto e = std::make_unique<PoseEstimatorViTPose>(variant);
+        e->setIntraOpThreads(intraOpThreads);
+        e->setLoadOptions(loadOpts);
+        e->load();
+        return e;
+    };
+    {
+        EstimatorCache::Lease lease = estimatorCache().acquire(
+            estimatorKey(variant, loadOpts, intraOpThreads), make,
+            [](const PoseEstimatorViTPose &e) { return e.isReady(); });
+        if (!lease->isReady()) {
+            ppWarn() << "[PoseRunner] warm-up: ViTPose did not load";
+            return 0.0;
+        }
+    }
+    const double ms = double(t.elapsed());
+    ppInfo() << "[PoseRunner] warm-up:" << PoseEstimatorViTPose::modelPath(variant) << "session ready in"
+             << ms << "ms";
+    return ms;
 }

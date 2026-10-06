@@ -237,6 +237,11 @@ pp_add_test(tuned_constants_parity_test SOURCES tuned_constants_parity_test.cpp)
 # WB1 person-crop geometry (pose_crop.h): union bbox → margin → 3:4 aspect → clamp
 # → integer pixels, the full-frame fallback guards, and fromOverrides plumbing.
 pp_add_test(pose_crop_test SOURCES pose_crop_test.cpp)
+# Pose throughput plumbing (pose_pipeline.h, perf plan steps 1–2): the keyed
+# session cache (one object per key, failed builds not cached, one user at a time)
+# and the ordered producer pool (N = 4 bitwise-identical to N = 1, fetch serial and
+# in order, bounded window, exceptions joined). Fakes only — no ORT, no OpenCV.
+pp_add_test(pose_pipeline_test SOURCES pose_pipeline_test.cpp NO_QT)
 pp_add_test(tuning_overrides_test SOURCES tuning_overrides_test.cpp ${ANALYSIS}/swing_scorer.cpp
                                           ${ANALYSIS}/reference_bands.cpp ${NORM_SRC}
                                   INCLUDE ${NORM_INC})
@@ -553,6 +558,16 @@ find_package(OpenCV REQUIRED COMPONENTS core imgproc videoio)
 # Shared frame decode (src/Export/frame_decode, ShaftTracker S0).
 pp_add_test(frame_decode_test
     SOURCES frame_decode_test.cpp ${SRC}/Export/frame_decode.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    NO_QT)
+
+# The re-analysis MP4 reader's random access (pose_inference_performance_plan.md
+# step 5): a synthetic 60-frame clip with each frame's index painted in, read
+# forward, back and in the two-pass pose pattern, OFF and with decode.seek; counts
+# the frames decoded. Qt-free.
+pp_add_test(mp4_frame_reader_test
+    SOURCES mp4_frame_reader_test.cpp ${ANALYSIS}/mp4_frame_reader.cpp
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     NO_QT)

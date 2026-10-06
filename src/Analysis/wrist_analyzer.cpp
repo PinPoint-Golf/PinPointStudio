@@ -436,6 +436,22 @@ struct WristMetricsStage : AnalysisStage {
     }
 };
 
+// One app-log line per posed camera with the step-0 split
+// (pose_inference_performance_plan.md): the numbers every later step is judged by.
+static void logPoseTiming(const char *camera, const pinpoint::pose::PoseTiming &t)
+{
+    // const char* — QDebug quotes a QString, and this line is grepped.
+    const QString line = QStringLiteral("[PoseRunner] %1 %2 frames: session %3 ms, decode %4, "
+                                        "preprocess %5, run %6, heatmap %7, total %8 "
+                                        "(per frame %9 ms)")
+                             .arg(QLatin1String(camera)).arg(t.frames)
+                             .arg(t.sessionBuildMs, 0, 'f', 0).arg(t.decodeMs, 0, 'f', 0)
+                             .arg(t.preprocessMs, 0, 'f', 0).arg(t.runMs, 0, 'f', 0)
+                             .arg(t.heatmapDecodeMs, 0, 'f', 0).arg(t.totalMs, 0, 'f', 0)
+                             .arg(t.runMsPerFrame(), 0, 'f', 2);
+    ppInfo() << line.toUtf8().constData();
+}
+
 // 4. Offline pose pass. Heavy (ViTPose per frame) — runs after
 //    the cheap IMU stages; failures degrade to an empty track, never a failed
 //    analysis. The pose pass owns 10-70% of the progress budget. Publishes the
@@ -495,10 +511,14 @@ struct PoseStage : AnalysisStage {
             ctx.detail->pose2d = ctx.job.posePreloaded;            // version-gated reuse (analysis_versions.h)
             ctx.detail->pose2d.camera = ctx.job.cameraSources.front();
         } else {
-            ctx.detail->pose2d = ctx.job.poseTrackPath.isEmpty()
-                                     ? PoseRunner::run(*ctx.window, ctx.job.cameraSources.front(), opt)
-                                     : PoseRunner::loadFromJson(ctx.job.poseTrackPath,
-                                                                ctx.job.cameraSources.front());
+            if (ctx.job.poseTrackPath.isEmpty()) {
+                ctx.detail->pose2d = PoseRunner::run(*ctx.window, ctx.job.cameraSources.front(), opt);
+                ctx.detail->timings.poseFaceOn = PoseRunner::lastTiming();
+                logPoseTiming("faceOn", ctx.detail->timings.poseFaceOn);
+            } else {
+                ctx.detail->pose2d = PoseRunner::loadFromJson(ctx.job.poseTrackPath,
+                                                              ctx.job.cameraSources.front());
+            }
         }
         ctx.detail->timings.poseMs = int(poseWall.elapsed());
         ctx.detail->versions.pose      = kPoseStageVersion;
@@ -1823,16 +1843,64 @@ struct DtlPoseStage : AnalysisStage {
         dopt.denseStride          = 1;
         dopt.sparseStride         = 1;
 
+        // SCHEDULE A (pose.dtlSchedule; pose_inference_performance_plan.md step 4). Every frame is
+        // still posed where the DTL track's bands and the fused plane live — [P3 − 50, P8 + 50 ms]
+        // — and the address hold and the finish are thinned: 465 → 221 DTL frames on 21 corpus
+        // swings with the track unchanged against 425 truth pairs (6 Oct). The P-instants are the
+        // INHERITED ladder's, like the span above: the DTL never forms its own opinion of when the
+        // swing was. The bands' edges stay posed because every zone's first and last frame is.
+        QString schedNote;
+        {
+            bool on = pinpoint::tuned::pose::kDtlSchedule;
+            tuning::apply(ctx.job.tuningOverrides, "pose.dtlSchedule", on);
+            if (on) {
+                pinpoint::analysis::DtlScheduleConfig sc;
+                sc.backStride = pinpoint::tuned::pose::kDtlBackStride;
+                sc.restStride = pinpoint::tuned::pose::kDtlRestStride;
+                tuning::apply(ctx.job.tuningOverrides, "pose.dtlBackStride", sc.backStride);
+                tuning::apply(ctx.job.tuningOverrides, "pose.dtlRestStride", sc.restStride);
+                auto at = [&](Phase p) -> int64_t {
+                    const PhaseEvent *e = seg.eventFor(p);
+                    return e ? e->t_us : -1;
+                };
+                const int64_t impact = at(Phase::Impact) >= 0 ? at(Phase::Impact)
+                                     : ctx.job.impactUs > 0   ? ctx.job.impactUs : -1;
+                const pinpoint::analysis::DtlSchedule s = pinpoint::analysis::dtlZoneSchedule(
+                    at(Phase::Address), at(Phase::ShaftParallelBack), at(Phase::ShaftParallelThrough), impact, sc);
+                if (s.ok) {
+                    dopt.zoneSchedule = s.zones;
+                    dopt.restStride   = s.restStride;
+                    schedNote = QStringLiteral(", schedule B: stride %1 in [%2, %3] ms%4%5, rest %6")
+                                    .arg(s.zones[0].stride)
+                                    .arg((s.zones[0].fromUs - scanLo) / 1000).arg((s.zones[0].toUs - scanLo) / 1000)
+                                    .arg(s.zones.size() > 1
+                                             ? QStringLiteral(", stride %1 from %2 ms").arg(s.zones[1].stride)
+                                                   .arg((s.zones[1].fromUs - scanLo) / 1000)
+                                             : QString())
+                                    .arg(QString(s.p2Fallback ? " (no P2: P1 + 250 ms)" : "")
+                                         + (s.p8Fallback ? " (no P8: impact + 150 ms)" : ""))
+                                    .arg(s.restStride);
+                } else {
+                    schedNote = QStringLiteral(", schedule B refused (%1) — every frame")
+                                    .arg(QString::fromStdString(s.why));
+                }
+            }
+        }
+
         QElapsedTimer dtlWall;
         dtlWall.start();
         if (!ctx.job.poseDtlPreloaded.frames.empty()) {
             ctx.detail->poseDtl = ctx.job.poseDtlPreloaded;  // version-gated reuse (analysis_versions.h)
             ctx.detail->poseDtl.camera = ctx.job.dtlSource;
         } else {
-            ctx.detail->poseDtl = ctx.job.poseDtlTrackPath.isEmpty()
-                                      ? PoseRunner::run(*ctx.window, ctx.job.dtlSource, dopt)
-                                      : PoseRunner::loadFromJson(ctx.job.poseDtlTrackPath,
-                                                                 ctx.job.dtlSource);
+            if (ctx.job.poseDtlTrackPath.isEmpty()) {
+                ctx.detail->poseDtl = PoseRunner::run(*ctx.window, ctx.job.dtlSource, dopt);
+                ctx.detail->timings.poseDtl = PoseRunner::lastTiming();
+                logPoseTiming("dtl", ctx.detail->timings.poseDtl);
+            } else {
+                ctx.detail->poseDtl = PoseRunner::loadFromJson(ctx.job.poseDtlTrackPath,
+                                                               ctx.job.dtlSource);
+            }
         }
         // Smoothed HERE rather than through PoseSmoothStage: that stage also rewrites the grip
         // anchors from the smoothed hands, a face-on product the face-on shaft tracker reads —
@@ -1857,9 +1925,14 @@ struct DtlPoseStage : AnalysisStage {
             ctx.detail->versions.poseDtl      = kDtlPoseStageVersion;
             ctx.detail->versions.poseDtlModel = PoseRunner::modelIdentity(ctx.job.motionCaptureQuality);
         }
-        ppInfo() << "[WristAnalysis] dtl pose:" << qlonglong(ctx.detail->poseDtl.frames.size())
-                 << "frames over" << qlonglong((scanHi - scanLo) / 1000) << "ms in"
-                 << ctx.detail->timings.poseDtlMs << "ms";
+        if (schedNote.isEmpty())
+            ppInfo() << "[WristAnalysis] dtl pose:" << qlonglong(ctx.detail->poseDtl.frames.size())
+                     << "frames over" << qlonglong((scanHi - scanLo) / 1000) << "ms in"
+                     << ctx.detail->timings.poseDtlMs << "ms";
+        else
+            ppInfo() << "[WristAnalysis] dtl pose:" << qlonglong(ctx.detail->poseDtl.frames.size())
+                     << "frames over" << qlonglong((scanHi - scanLo) / 1000) << "ms in"
+                     << ctx.detail->timings.poseDtlMs << "ms" << schedNote.mid(2).toUtf8().constData();
     }
 };
 
@@ -2446,14 +2519,18 @@ struct Skeleton3DStage : AnalysisStage {
     }
 
     // One view's keypoints at instant t: the smoothed track where it exists (σ from its honesty
-    // aux), the raw detections otherwise. DTL frames are interpolated to the face-on instant;
-    // a bracket wider than 12 ms is not a bracket.
-    static void observePose(const PoseTrack2D &trk, int W, int H, int64_t t, pinpoint::skeleton3d::ViewObs &out)
+    // aux), the raw detections otherwise. DTL frames are interpolated to the face-on instant
+    // across a bracket no wider than `rule` allows (pose_schedule.h bracketAt): 12 ms, else the
+    // nearest frame within 6 ms — or, with pose.dtlLocalGap, 1.5× / 0.75× the DTL track's own
+    // local spacing, so a thinned DTL pass (schedule B: 13 ms backswing, 26 ms address at 155 fps)
+    // still pairs. The fixed rule paired NOTHING at the address reference instants on 4 of 21
+    // corpus swings under schedule A (the first cut), and the fit dropped the DTL camera (6 Oct).
+    static void observePose(const PoseTrack2D &trk, int W, int H, int64_t t, pinpoint::skeleton3d::ViewObs &out,
+                            const pinpoint::analysis::BracketRule &rule = {})
     {
         const bool sm = !trk.smoothed.empty() && trk.smoothedAux.size() == trk.smoothed.size();
         const std::vector<PoseFrame2D> &F = sm ? trk.smoothed : trk.frames;
         if (F.empty()) return;
-        auto hi = std::lower_bound(F.begin(), F.end(), t, [](const PoseFrame2D &f, int64_t tt) { return f.t_us < tt; });
         auto kpObs = [&](size_t i, int m, double &u, double &v, double &sig) {
             const PoseFrame2D &f = F[i];
             u = f.kp[size_t(m)].x() * W;
@@ -2469,24 +2546,11 @@ struct Skeleton3DStage : AnalysisStage {
                 sig = f.conf[size_t(m)] >= 0.3f ? 3.0 / double(f.conf[size_t(m)]) : 0.0;
             }
         };
-        size_t a = 0, b = 0;
-        double w = 0;
-        if (hi == F.end()) { a = b = F.size() - 1; }
-        else if (hi == F.begin()) { a = b = 0; }
-        else {
-            b = size_t(hi - F.begin());
-            a = b - 1;
-            const double span = double(F[b].t_us - F[a].t_us);
-            if (span > 12000.0 || span <= 0) {
-                // Nearest, if it is within 6 ms.
-                const size_t n = (t - F[a].t_us) <= (F[b].t_us - t) ? a : b;
-                if (std::llabs(F[n].t_us - t) > 6000) return;
-                a = b = n;
-            } else {
-                w = double(t - F[a].t_us) / span;
-            }
-        }
-        if (a == b && std::llabs(F[a].t_us - t) > 6000) return;
+        const pinpoint::analysis::Bracket br =
+            pinpoint::analysis::bracketAt(F.size(), [&](size_t i) { return F[i].t_us; }, t, rule);
+        if (!br.ok) return;
+        const size_t a = br.a, b = br.b;
+        const double w = br.w;
         for (int m = 0; m < pinpoint::skeleton3d::kMarkerCount; ++m) {
             double ua, va, sa, ub, vb, sb;
             kpObs(a, m, ua, va, sa);
@@ -2623,6 +2687,13 @@ struct Skeleton3DStage : AnalysisStage {
             return m->value[a] + w * (m->value[b] - m->value[a]);
         };
 
+        pinpoint::analysis::BracketRule dtlRule;
+        dtlRule.bracketUs = cfg.dtlBracketUs;
+        dtlRule.nearestUs = cfg.dtlNearestUs;
+        dtlRule.localGap  = pinpoint::tuned::pose::kDtlLocalGap;
+        tuning::apply(ctx.job.tuningOverrides, "pose.dtlLocalGap", dtlRule.localGap);
+        dtlRule.bracketGapScale = pinpoint::tuned::pose::kDtlBracketGapScale;
+        dtlRule.nearestGapScale = pinpoint::tuned::pose::kDtlNearestGapScale;
         for (int64_t t : in.t_us) {
             pinpoint::skeleton3d::ViewObs vf, vd;
             observePose(fo, in.foW, in.foH, t, vf);
@@ -2634,7 +2705,7 @@ struct Skeleton3DStage : AnalysisStage {
             }
             in.fo.push_back(vf);
             if (haveDtl) {
-                observePose(dt, in.dtlW, in.dtlH, t, vd);
+                observePose(dt, in.dtlW, in.dtlH, t, vd, dtlRule);
                 if (const DtlSample *s = nearestDtl(t)) {
                     vd.shaftTheta = s->thetaRad;
                     vd.shaftSigma = 3.5 * pinpoint::skeleton3d::kDeg;
@@ -2677,6 +2748,13 @@ struct Skeleton3DStage : AnalysisStage {
         pinpoint::skeleton3d::trimResultBefore(ctx.detail->skeleton3d, in.addressUs - 150000);
         ctx.detail->versions.skeleton3d = kSkeleton3DStageVersion;
         const pinpoint::skeleton3d::FitResult &r = ctx.detail->skeleton3d;
+        // A DTL camera the fit was handed but could not use takes the two-camera rotation route
+        // (pelvisRotation, thoraxRotation, xFactor…) with it — say so; it used to be silent.
+        if (haveDtl && !r.dtlDropReason.empty())
+            ppWarn() << "[WristAnalysis] skeleton3d: the down-the-line camera was DROPPED —"
+                     << QString::fromStdString(r.dtlDropReason).toUtf8().constData()
+                     << (dtlRule.localGap ? "(DTL bracket follows the local gap)"
+                                          : "(DTL bracket 12 ms / nearest 6 ms)");
         if (!r.valid) {
             ppInfo() << "[WristAnalysis] skeleton3d: refused —" << QString::fromStdString(r.reason);
             return;

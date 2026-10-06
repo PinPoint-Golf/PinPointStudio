@@ -29,6 +29,7 @@
 #include "../Ppcp/ppcp_host_service.h"
 #endif
 #include <QDir>
+#include <QThreadPool>
 #include <QTimer>
 #include <QLocale>
 #include <QQmlContext>
@@ -84,6 +85,7 @@
 #include "current_swing.h"
 #include "shot_replay_controller.h"
 #include "reanalysis_controller.h"
+#include "../Analysis/pose_runner.h"
 #include "live_wrist_angles.h"
 #include "markup_controller.h"
 #include "markup_image_provider.h"
@@ -1167,6 +1169,19 @@ int main(int argc, char *argv[])
         Qt::QueuedConnection);
 
     engine.loadFromModule("PinPointStudio", "Main");
+
+    // Warm the pose session off the main thread once the UI is up, so the first shot does not
+    // pay the model load: on the Mac the CoreML MLProgram costs 20 s from its compiled cache and
+    // 97 s the first time; on CUDA 0.3 s. The cached session is the one PoseRunner::run() keys for
+    // the current quality tier (pose_inference_performance_plan.md step 1). The thread is the
+    // global pool's: nothing joins it, and the cache is never torn down (pose_runner.cpp).
+    QTimer::singleShot(1500, &app, [&appSettings]() {
+        const QString quality = appSettings.motionCaptureQuality();
+        QThreadPool::globalInstance()->start([quality]() {
+            pinpoint::osmetrics::ThreadScope _tscope("Pose.WarmUp");
+            PoseRunner::warmUp(quality);
+        });
+    });
 
     return QCoreApplication::exec();
 }

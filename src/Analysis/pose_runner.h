@@ -31,6 +31,10 @@
 
 #include "types.h"
 #include "swing_analysis.h"   // PoseFrame2D / PoseTrack2D (canonical output shapes)
+#include "../Pose/pose_timing.h"   // PoseTiming (lastTiming — perf plan step 0)
+#include "pose_schedule.h"         // PoseZone (zoneSchedule — perf plan step 4)
+
+#include <vector>
 
 namespace pinpoint { class SwingWindow; }
 
@@ -85,6 +89,16 @@ struct ShotAnalysisRunnerOptions {
     bool    twoPass      = false;
     int     coarseStride = 12;   // pass-1 stride (≈ 80 ms grid at 150 fps)
 
+    // An explicit zone schedule (pose_inference_performance_plan.md step 4; pose_schedule.h
+    // selectZoneSchedule). Non-empty ⇒ on the SINGLE-PASS path the frames in [scanStartUs,
+    // scanEndUs] are chosen by these zones (first zone containing the frame decides, the stride
+    // counted from the zone's first frame, both edges posed) and restStride outside them,
+    // instead of the dense/sparse pair above. Empty (default) ⇒ today's selection exactly. The
+    // DTL pass sets it from the inherited ladder when pose.dtlSchedule is on; the face-on never
+    // does (its dense zone is the phase model's). Ignored on the two-pass path.
+    std::vector<pinpoint::analysis::PoseZone> zoneSchedule;
+    int     restStride   = 4;
+
     // Optional progress sink, 0..1 over this pose pass (span-relative scan
     // position, not posed-frame count — the sparse zone advances it in
     // stride jumps). Called from the worker thread; may be null.
@@ -132,4 +146,18 @@ public:
     static pinpoint::analysis::PoseTrack2D run(const pinpoint::SwingWindow &window,
                                                pinpoint::SourceId faceOnSource,
                                                const ShotAnalysisRunnerOptions &opt);
+
+    // Where the most recent run() ON THIS THREAD spent its time — session build,
+    // decode, preprocess, Run(), heatmap decode, wall total, inferred frames
+    // (pose_inference_performance_plan.md step 0). Per thread because run() is
+    // static and the analysis worker poses face-on then DTL in sequence: read it
+    // straight after the run() it describes. All zero after an early-out.
+    static pinpoint::pose::PoseTiming lastTiming();
+
+    // Build the session the next run() would use for this quality, into the process-wide
+    // cache, and let it go — call from a worker at app launch so the first shot does not
+    // pay it. The Mac's CoreML MLProgram costs 20 s to load from its compiled cache and 97 s
+    // cold (pose_performance_20261006.md §3); CUDA 0.3 s. A no-op when the cache is off or
+    // the model is missing. Returns the load's wall time in ms (0 when nothing was built).
+    static double warmUp(const QString &motionCaptureQuality);
 };

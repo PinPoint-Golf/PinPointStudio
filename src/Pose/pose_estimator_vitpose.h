@@ -22,6 +22,7 @@
 
 #include "pose_estimator_base.h"
 #include "heatmap_decode.h"   // pinpoint::pose::DecodeMode + decode functions
+#include "pose_timing.h"      // PoseTimingSink (offline timing split, perf plan step 0)
 #include <QPointF>
 #include <array>
 #include <memory>
@@ -119,6 +120,46 @@ public:
     void preprocess(const cv::Mat &frame, std::vector<float> &inputBuf) const;
     void inferPrepared(std::vector<float> &inputBuf);
 
+    // Offline timing split (pose_inference_performance_plan.md step 0). When set,
+    // load() adds the ORT session build, preprocess() its resize/normalise, and
+    // inferPrepared() Run(), the heatmap decode and one frame per success. The
+    // sink is mutex-guarded, so preprocess() stays safe on producer threads.
+    // nullptr (default) = untimed — the live path never sets it. Not owned.
+    void setTimingSink(pinpoint::pose::PoseTimingSink *sink) { m_timing = sink; }
+
+    // ── Perf plan step 3: load-time session options (set BEFORE load()) ───────
+    // Each defaults to today's session; PoseRunner sets them from pose.* keys and
+    // folds them into its session-cache key (loadOptionsTag()).
+    struct LoadOptions {
+        bool fp16          = false;   // pose.modelPrecision "fp16": <model>.fp16.onnx when present
+        bool coremlProgram = false;   // pose.coreml "mlprogram": MLProgram + ALL compute units
+        bool tensorrt      = false;   // pose.tensorrt: TRT EP (fp16, engine cache) before CUDA
+        int  staticBatch   = 0;       // pose.staticBatch: > 0 fixes the batch dim (padded batches)
+        int  maxBatch      = 1;       // pose.batchSize: the TensorRT profile's upper bound
+        bool logPartition  = false;   // pose.logPartition: session log at INFO (EP node counts)
+    };
+    void setLoadOptions(const LoadOptions &o) { m_loadOpts = o; }
+    const LoadOptions &loadOptions() const   { return m_loadOpts; }
+    static QString loadOptionsTag(const LoadOptions &o);   // a cache-key fragment for o
+    QString resolvedModelFile() const { return m_resolvedModel; }   // after load()
+    QString executionProvider() const { return m_epLabel; }        // after load()
+
+    // ── Perf plan step 3: batched inference (offline only) ────────────────────
+    // One Run() over N preprocessed frames ([N,3,256,192], or the static batch with
+    // zero padding), the heatmaps decoded per frame — optionally only the channels
+    // `channels` keeps, and across `decodeThreads` threads — into `out` (N entries,
+    // input order). Emits NO signals: the offline caller reads `out`. Per frame the
+    // decode is decodeChannel()'s arithmetic, so a channel decoded here is
+    // bit-identical to inferPrepared()'s given the same heatmap. false = Run() failed
+    // (logged); `out` is then empty.
+    struct FrameResult {
+        PoseResult      pose;
+        WholeBodyResult wholeBody;   // valid only with setDecodeWholeBody(true)
+    };
+    bool inferBatch(const std::vector<const std::vector<float> *> &inputs,
+                    std::vector<FrameResult> &out,
+                    pinpoint::pose::ChannelSet channels, int decodeThreads, bool ioBinding);
+
 public slots:
     void load();
     void estimatePose(const cv::Mat &frame) override;
@@ -135,6 +176,13 @@ private:
     std::vector<float> m_decodeBlur;   // DARK blur scratch (heatmap-sized); reused per channel
 
     int m_intraOpThreads = 0;          // pose.intraOpThreads (0 = legacy heuristic; see load())
+
+    pinpoint::pose::PoseTimingSink *m_timing = nullptr;   // offline split; see setTimingSink()
+
+    LoadOptions m_loadOpts;
+    QString     m_resolvedModel;
+    QString     m_epLabel;
+    std::vector<float> m_batchInput;   // contiguous [B,3,H,W] for inferBatch()
 
     // Decode one heatmap channel per the active mode (Argmax | Dark).
     void decodeChannel(const float *hm, float &nx, float &ny, float &score);

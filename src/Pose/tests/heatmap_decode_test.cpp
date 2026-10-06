@@ -25,7 +25,9 @@
 
 #include "../heatmap_decode.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <vector>
 
@@ -127,6 +129,54 @@ int main()
         // x: left neighbour higher (peak at 10.6 < 11) ⇒ -0.25; y: bottom higher ⇒ +0.25
         CHECK("argmax x == cell - 0.25", std::fabs(double(ax) * W - (px - 0.25)) < 1e-5);
         CHECK("argmax y == cell + 0.25", std::fabs(double(ay) * H - (py + 0.25)) < 1e-5);
+    }
+
+    // 5) Channel subset (pose.decodeChannels "bodyHands", perf plan step 3): on a
+    //    synthetic 133-channel frame, every body / feet / hand channel decodes to
+    //    EXACTLY the full decode's value (both modes), the 68 face channels come out
+    //    (0, 0) at score 0, and the full set equals per-channel decodeOne().
+    {
+        using namespace pinpoint::pose;
+        constexpr int kCh = 133;
+        std::vector<float> frame(size_t(kCh) * W * H);
+        for (int c = 0; c < kCh; ++c) {
+            // A distinct fractional peak per channel, interior and on the border.
+            const double cx = (c % 7 == 0) ? 0.0 : 3.3 + (c * 0.37);
+            const double cy = 4.6 + std::fmod(c * 0.91, double(H - 9));
+            const auto hm = gaussianMap(std::fmod(cx, double(W - 1)), cy, 1.2 + 0.01 * c);
+            std::copy(hm.begin(), hm.end(), frame.begin() + ptrdiff_t(size_t(c) * W * H));
+        }
+        for (DecodeMode mode : { DecodeMode::Argmax, DecodeMode::Dark }) {
+            std::vector<float> ax(kCh), ay(kCh), as(kCh), bx(kCh), by(kCh), bs(kCh);
+            std::vector<float> s1(size_t(W) * H), s2(size_t(W) * H);
+            decodeFrame(frame.data(), kCh, W, H, mode, ChannelSet::All, s1.data(),
+                        ax.data(), ay.data(), as.data());
+            decodeFrame(frame.data(), kCh, W, H, mode, ChannelSet::BodyHands, s2.data(),
+                        bx.data(), by.data(), bs.data());
+            bool keptSame = true, faceZero = true, allMatchesOne = true;
+            int kept = 0;
+            for (int c = 0; c < kCh; ++c) {
+                const bool face = c >= kWholeBodyFaceFirst && c <= kWholeBodyFaceLast;
+                if (face) {
+                    faceZero = faceZero && bx[c] == 0.f && by[c] == 0.f && bs[c] == 0.f;
+                } else {
+                    ++kept;
+                    keptSame = keptSame && bx[c] == ax[c] && by[c] == ay[c] && bs[c] == as[c];
+                }
+                float ox = 0, oy = 0, os = 0;
+                decodeOne(mode, frame.data() + size_t(c) * W * H, W, H, s1.data(), ox, oy, os);
+                allMatchesOne = allMatchesOne && ox == ax[c] && oy == ay[c] && os == as[c];
+            }
+            const char *m = mode == DecodeMode::Dark ? "dark" : "argmax";
+            std::printf("  (%s)\n", m);
+            CHECK("bodyHands keeps 65 channels (0–22, 91–132)", kept == 65);
+            CHECK("bodyHands body/feet/hand values bit-identical to the full decode", keptSame);
+            CHECK("bodyHands face channels 23–90 are (0,0) at score 0", faceZero);
+            CHECK("All == per-channel decodeOne()", allMatchesOne);
+            CHECK("hand anchors' source channels decoded (91, 132)",
+                  channelDecoded(ChannelSet::BodyHands, 91) && channelDecoded(ChannelSet::BodyHands, 132)
+                  && !channelDecoded(ChannelSet::BodyHands, 31));
+        }
     }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);

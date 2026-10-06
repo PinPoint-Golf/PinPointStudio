@@ -40,6 +40,7 @@
 #include "dtl_shaft_track.h"          // DtlShaftTrack2D (DtlShaftStage fills it; OpenCV-free)
 #include "shaft_fusion.h"             // fusion::Track3D (ShaftFusionStage fills it; pure std)
 #include "skeleton3d/skeleton3d_fit.h" // skeleton3d::FitResult (Skeleton3DStage fills it; pure std)
+#include "../Pose/pose_timing.h"    // PoseTiming (AnalysisTimings pose split; header-only, Qt Core)
 
 // Canonical intermediate + output data structures for the shot analyzer
 // (design: docs/design/shot_analyzer_design.md). All rotation is QQuaternion — Euler
@@ -946,6 +947,11 @@ struct AnalysisTimings {
     int impactMs = -1;
     int poseDtlMs = -1;   // the down-the-line pose pass (DtlPoseStage); -1 = it did not run
     int totalMs = -1;
+    // Where each camera's pose pass spent its time (pose_inference_performance_plan.md
+    // step 0): PoseRunner::lastTiming() straight after the run. All zero (measured()
+    // false) when the camera was not posed — no camera, a reused/loaded track.
+    pinpoint::pose::PoseTiming poseFaceOn;
+    pinpoint::pose::PoseTiming poseDtl;
 };
 
 // The rich detail behind ShotAnalysisResult::detail — the full analyzed swing.

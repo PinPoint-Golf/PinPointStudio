@@ -113,6 +113,8 @@ inline FitConfig fitConfigFromOverrides(const QVariantMap &ov)
     apply(ov, "skeleton3d.branchReleasePriorFactor", c.branchReleasePriorFactor);
     apply(ov, "skeleton3d.debugForceMirror",   c.debugForceMirror);
     apply(ov, "skeleton3d.debugDropDtlShaftAfterUs", c.debugDropDtlShaftAfterUs);
+    apply(ov, "skeleton3d.dtlBracketUs",       c.dtlBracketUs);
+    apply(ov, "skeleton3d.dtlNearestUs",       c.dtlNearestUs);
     return c;
 }
 
