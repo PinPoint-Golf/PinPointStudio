@@ -2237,6 +2237,13 @@ void ShotProcessor::maybeJoin()
                 out.dataWarningDetail.insert(QStringLiteral("clubRefused"),
                     QString::fromLatin1(pinpoint::analysis::shaftRefusedReasonName(
                         m_analysisResult.detail->shaft.refusedReason)));
+            // … and the down-the-line top-out-of-view fact, for the same reason
+            // (on disk it is analysis.clubDtl.summary.topOutOfView). No capture/imu
+            // key: it carries the ⚠ without excluding the shot.
+            if (m_analysisResult.detail && m_analysisResult.detail->shaftDtl.topOutOfView)
+                pinpoint::insertDtlTopOutOfView(out.dataWarningDetail,
+                    m_analysisResult.detail->shaftDtl.handsFromTopPx,
+                    m_analysisResult.detail->shaftDtl.topClubPx);
 
             // The ONE unified swing.json (raw manifest + inline "analysis"). No parallel-write race:
             // the export worker wrote only media and returned, and the analyzer returned a value.

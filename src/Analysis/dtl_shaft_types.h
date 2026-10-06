@@ -182,6 +182,7 @@ struct DtlAnchors {
     // are caught without trusting hand confidence.
     std::vector<char> quarantined;
     std::vector<std::vector<cv::Point2d>> joints;     // the 8-joint body skeleton, as face-on
+    int leadShoulderSlot = 0;                         // which of joints[0..1] is the LEAD shoulder (0 = left, a right-hander's)
 };
 
 // ── the reverse ray's ARM excuse (D1, and only in this view) ─────────────────

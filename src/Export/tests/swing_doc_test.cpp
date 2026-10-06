@@ -609,6 +609,37 @@ int main()
         check(sum[QStringLiteral("ball")].toObject()[QStringLiteral("source")].toString() == QStringLiteral("bright"),
               "clubDtl ball source");
         check(cd[QStringLiteral("bands")].toArray().size() == 1, "clubDtl bands");
+        check(!sum.contains(QStringLiteral("topOutOfView"))
+                  && !pinpoint::dataWarningDetailFrom(readManifest(dirD)).contains(QStringLiteral("dtlTopOutOfView")),
+              "clubDtl: no ladder P4 ⇒ no summary.topOutOfView, no ⚠ fact");
+
+        // 2026-10-06: the top of the swing out of the DTL view (5 Oct 2026: hands 44–113 px
+        // from the top edge). Persisted under summary.topOutOfView and read back as a ⚠
+        // fact that does NOT carry the capture/imu exclusion keys.
+        {
+            SwingAnalysis aT = aD;
+            aT.shaftDtl.topChecked = true; aT.shaftDtl.topOutOfView = true;
+            aT.shaftDtl.handsFromTopPx = 71.4; aT.shaftDtl.topClubPx = 411.6;
+            aT.shaftDtl.topMeasuredFrames = 0;
+            check(SwingDocWriter::writeSwingJson(dirD, mD, &aT, &derr), "top-out-of-view write ok");
+            const QJsonObject rootT = readManifest(dirD);
+            const QJsonObject top = rootT[QStringLiteral("analysis")].toObject()[QStringLiteral("clubDtl")].toObject()
+                                        [QStringLiteral("summary")].toObject()[QStringLiteral("topOutOfView")].toObject();
+            check(top[QStringLiteral("flag")].toBool() && near(top[QStringLiteral("handsFromTopPx")].toDouble(), 71.4, 1e-9)
+                      && near(top[QStringLiteral("clubPx")].toDouble(), 411.6, 1e-9)
+                      && top[QStringLiteral("measuredFrames")].toInt(-1) == 0 && top.size() == 4,
+                  "summary.topOutOfView { flag, handsFromTopPx, clubPx, measuredFrames }");
+            const QVariantMap w = pinpoint::dataWarningDetailFrom(rootT);
+            check(w.value(QStringLiteral("dtlTopOutOfView")).toBool()
+                      && w.value(QStringLiteral("dtlHandsFromTopPx")).toInt() == 71
+                      && w.value(QStringLiteral("dtlClubPx")).toInt() == 412
+                      && !w.contains(QStringLiteral("capture")) && !w.contains(QStringLiteral("imu")),
+                  "dataWarningDetailFrom: top out of view is a ⚠ fact WITHOUT the capture/imu exclusion facts");
+            aT.shaftDtl.topOutOfView = false;   // checked, and the view was fine
+            check(SwingDocWriter::writeSwingJson(dirD, mD, &aT, &derr), "top-in-view write ok");
+            check(pinpoint::dataWarningDetailFrom(readManifest(dirD)).isEmpty(),
+                  "dataWarningDetailFrom: flag false ⇒ no ⚠");
+        }
 
         // A single-camera analysis carries none of it: no blocks, no version keys.
         SwingAnalysis aS = aD;

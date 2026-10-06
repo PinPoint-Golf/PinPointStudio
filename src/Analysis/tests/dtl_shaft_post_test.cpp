@@ -22,6 +22,7 @@
 
 #include "../dtl_shaft_post.h"
 #include "../shaft_track_shared.h"   // snapSearch, for the raw-channel control
+#include "../dtl_shaft_json.h"       // dtlShaftTrackToJson — C8 asks the summary of the JSON
 
 #include <opencv2/imgproc.hpp>
 
@@ -943,6 +944,235 @@ int main()
             st.corridorOn = { 1, 1, 1, 1 }; st.corridorEscape = { 1, 1, 1, 0 };
             const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, &wit, st, W, H, geom, off, nullptr);
             check(tr.samples[2].tier == DtlTier::Ray && tr.lateEscapesRefused == 0, "C4: OFF ⇒ it publishes as before");
+        }
+    }
+
+    std::printf("\n=== C7: a corridor escape along the lead arm is not published ===\n");
+    {
+        const int n = 3;
+        std::vector<cv::Mat> frames(static_cast<size_t>(n));
+        for (int i = 0; i < n; ++i) { cv::Mat m = baseScene(); drawStripedShaft(m, kClub, 15.0, kLen); frames[size_t(i)] = m; }
+        const FrameSource frameAt = [&frames](int i) -> cv::Mat {
+            return (i >= 0 && i < int(frames.size())) ? frames[size_t(i)] : cv::Mat();
+        };
+        const std::vector<int64_t> tUs = { 0, 6640, 13280 };
+        const double ux = std::cos(kClub * kPi / 180.0), uy = std::sin(kClub * kPi / 180.0);
+        // The lead arm laid along the ray: elbow 80 px out, shoulder 150 px out, each 30 px
+        // to one side — outside D2's 25 px, the lit-edge case. Frame 2's elbow is BEHIND the
+        // hands, which is where it is when the true shaft is seen.
+        const auto at = [&](double along, double lat) {
+            return cv::Point2d(GX + along * ux - lat * uy, GY + along * uy + lat * ux);
+        };
+        DtlAnchors an;
+        an.gx.assign(size_t(n), GX); an.gy.assign(size_t(n), GY); an.quarantined.assign(size_t(n), 0);
+        an.leadElbow  = { at(80, 30), at(80, 30), at(-40, 30) };
+        an.trailElbow.assign(size_t(n), cv::Point2d(kNan, kNan));
+        an.joints.assign(size_t(n), std::vector<cv::Point2d>(8, cv::Point2d(kNan, kNan)));
+        for (int i = 0; i < n; ++i) an.joints[size_t(i)][0] = at(150, 30);
+        const SegmentGeom geom;
+        DtlShaftConfig c = cfg; c.snap.enabled = false; c.held.enabled = false;
+        {
+            DtlShaftConfig on = c; on.armChain = true;
+            DtlSolveState st = makeState(n, kClub, kLen, 0.93, on);
+            st.corridorOn = { 1, 1, 1 }; st.corridorEscape = { 1, 0, 1 };
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, nullptr, st, W, H, geom, on, nullptr);
+            check(tr.samples[0].tier == DtlTier::Unseen && tr.samples[0].reason.contains(QLatin1String("lead arm")),
+                  "C7: an escape through the lead elbow and shoulder is refused with its reason");
+            check(tr.samples[1].tier == DtlTier::Ray,
+                  "C7: the same line INSIDE the corridor publishes — the arm alone is not a verdict");
+            check(tr.samples[2].tier == DtlTier::Ray,
+                  "C7: an escape with the elbow behind the hands publishes — the escape alone is not one either");
+        }
+        {
+            DtlShaftConfig off = c; off.armChain = false;
+            DtlSolveState st = makeState(n, kClub, kLen, 0.93, off);
+            st.corridorOn = { 1, 1, 1 }; st.corridorEscape = { 1, 0, 1 };
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, nullptr, st, W, H, geom, off, nullptr);
+            check(tr.samples[0].tier == DtlTier::Ray, "C7: OFF ⇒ it publishes as before");
+        }
+    }
+
+    std::printf("\n=== C5: after impact the club keeps its direction ===\n");
+    {
+        // Six frames, impact after the first. The fourth steps 20° — the trouser edge the
+        // tracker took on 5 Oct 2026 — and the last two come back to the club's direction.
+        const int n = 6;
+        const double kStep = kClub + 20.0;
+        std::vector<cv::Mat> frames(static_cast<size_t>(n));
+        for (int i = 0; i < n; ++i) {
+            cv::Mat m = baseScene();
+            drawStripedShaft(m, i == 3 ? kStep : kClub, 15.0, kLen);
+            frames[size_t(i)] = m;
+        }
+        const FrameSource frameAt = [&frames](int i) -> cv::Mat {
+            return (i >= 0 && i < int(frames.size())) ? frames[size_t(i)] : cv::Mat();
+        };
+        const std::vector<int64_t> tUs = { 0, 6640, 13280, 19920, 26560, 33200 };
+        DtlAnchors an;
+        an.gx.assign(size_t(n), GX); an.gy.assign(size_t(n), GY); an.quarantined.assign(size_t(n), 0);
+        const SegmentGeom geom;
+        FaceOnWitness wit;
+        wit.ladder = { { 7, 5000 } };
+        wit.impactUs = 5000;
+        DtlShaftConfig c = cfg; c.snap.enabled = false; c.held.enabled = false;
+        const auto stateFor = [&](const DtlShaftConfig &k) {
+            DtlSolveState st = makeState(n, kClub, kLen, 0.93, k);
+            int bi = int(std::lround(kStep / k.grid)) % st.NS;
+            st.EV[3][size_t(bi)] = 0.90f; st.SUP[3][size_t(bi)] = 0.80f; st.REND[3][size_t(bi)] = float(kLen);
+            st.thetaDeg[3] = kStep;
+            return st;
+        };
+        {
+            DtlShaftConfig on = c; on.postImpactContinuity = true;
+            DtlSolveState st = stateFor(on);
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, &wit, st, W, H, geom, on, nullptr);
+            check(tr.samples[0].tier == DtlTier::Ray && tr.samples[1].tier == DtlTier::Ray
+                  && tr.samples[2].tier == DtlTier::Ray,
+                  "C5: frames that hold the direction publish, before and after impact");
+            check(tr.samples[3].tier == DtlTier::Unseen && !std::isfinite(tr.samples[3].thetaRad)
+                  && tr.samples[3].reason.contains(QLatin1String("after impact")),
+                  "C5: the frame that steps 20° is refused with its reason");
+            check(tr.samples[4].tier == DtlTier::Unseen && tr.samples[5].tier == DtlTier::Unseen,
+                  "C5: nothing after the cut is published inside the window — no re-acquisition");
+        }
+        {
+            DtlShaftConfig on = c; on.postImpactContinuity = true; on.postImpactWindowUs = 10000;
+            DtlSolveState st = stateFor(on);
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, &wit, st, W, H, geom, on, nullptr);
+            check(tr.samples[3].tier == DtlTier::Ray && tr.samples[5].tier == DtlTier::Ray,
+                  "C5: beyond the window the rule says nothing");
+        }
+        {
+            DtlShaftConfig off = c; off.postImpactContinuity = false;
+            DtlSolveState st = stateFor(off);
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, &wit, st, W, H, geom, off, nullptr);
+            check(tr.samples[3].tier == DtlTier::Ray && tr.samples[4].tier == DtlTier::Ray,
+                  "C5: OFF ⇒ it publishes as before");
+        }
+    }
+
+    std::printf("\n=== C6: after impact the drawn length is the measured run ===\n");
+    {
+        const int n = 4;
+        std::vector<cv::Mat> frames(static_cast<size_t>(n));
+        for (int i = 0; i < n; ++i) { cv::Mat m = baseScene(); drawStripedShaft(m, kClub, 15.0, kLen); frames[size_t(i)] = m; }
+        const FrameSource frameAt = [&frames](int i) -> cv::Mat {
+            return (i >= 0 && i < int(frames.size())) ? frames[size_t(i)] : cv::Mat();
+        };
+        const std::vector<int64_t> tUs = { 0, 6640, 13280, 19920 };
+        DtlAnchors an;
+        an.gx.assign(size_t(n), GX); an.gy.assign(size_t(n), GY); an.quarantined.assign(size_t(n), 0);
+        const SegmentGeom geom;
+        FaceOnWitness wit;
+        wit.ladder = { { 7, 5000 } };
+        wit.impactUs = 5000;
+        DtlShaftConfig c = cfg; c.snap.enabled = false; c.lenSchedule = true;
+        {
+            DtlShaftConfig on = c; on.postImpactRunLength = true;
+            DtlSolveState st = makeState(n, kClub, kLen, 0.80, on);
+            st.lFullPx = 200.0; st.lFullSource = QStringLiteral("ball");
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, &wit, st, W, H, geom, on, nullptr);
+            check(tr.samples[0].lenSrc == DtlLenSrc::Schedule && near(tr.samples[0].lenPx, 160.0, 1e-9),
+                  "C6: before impact the schedule's length is drawn");
+            const DtlSample &s = tr.samples[2];
+            check(s.tier == DtlTier::Ray && s.lenSrc != DtlLenSrc::Schedule && s.lenPx < 160.0
+                  && near(s.lenPx, s.runPx, 1e-9),
+                  "C6: after impact the shorter measured run is drawn, under its own source");
+            check(near(std::hypot(s.headPx.x() - s.gripPx.x(), s.headPx.y() - s.gripPx.y()), s.lenPx, 1e-6),
+                  "C6: the head is drawn at that length");
+        }
+        {
+            DtlShaftConfig on = c; on.postImpactRunLength = true;
+            DtlSolveState st = makeState(n, kClub, kLen, 0.50, on);     // the schedule is the shorter: 100 px
+            st.lFullPx = 200.0; st.lFullSource = QStringLiteral("ball");
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, &wit, st, W, H, geom, on, nullptr);
+            check(tr.samples[2].tier != DtlTier::Ray || tr.samples[2].lenSrc == DtlLenSrc::Schedule,
+                  "C6: a run LONGER than the schedule does not replace it");
+        }
+        {
+            DtlShaftConfig off = c; off.postImpactRunLength = false;
+            DtlSolveState st = makeState(n, kClub, kLen, 0.80, off);
+            st.lFullPx = 200.0; st.lFullSource = QStringLiteral("ball");
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, &wit, st, W, H, geom, off, nullptr);
+            check(tr.samples[2].lenSrc == DtlLenSrc::Schedule && near(tr.samples[2].lenPx, 160.0, 1e-9),
+                  "C6: OFF ⇒ the schedule's length, as before");
+        }
+    }
+
+    std::printf("\n=== C8: the top of the swing out of view is said, not hidden ===\n");
+    {
+        // 5 Oct 2026: hands at P4 44–113 px from the top edge, the club out of the picture
+        // P3 → P5, every frame there UNSEEN / END_ON. Eleven frames 20 ms apart, P4 at the
+        // sixth: the window P4 ± 80 ms is frames 1–9. The anchor sits 160 px from the top.
+        const int n = 11;
+        std::vector<cv::Mat> frames(static_cast<size_t>(n));
+        for (int i = 0; i < n; ++i) { cv::Mat m = baseScene(); drawStripedShaft(m, kClub, 15.0, kLen); frames[size_t(i)] = m; }
+        const FrameSource frameAt = [&frames](int i) -> cv::Mat {
+            return (i >= 0 && i < int(frames.size())) ? frames[size_t(i)] : cv::Mat();
+        };
+        std::vector<int64_t> tUs(size_t(n), 0);
+        for (int i = 0; i < n; ++i) tUs[size_t(i)] = int64_t(i) * 20000;
+        DtlAnchors an;
+        an.gx.assign(size_t(n), GX); an.gy.assign(size_t(n), GY); an.quarantined.assign(size_t(n), 0);
+        const SegmentGeom geom;
+        FaceOnWitness wit;
+        wit.ladder = { { 3, 40000 }, { 4, 100000 }, { 5, 160000 } };
+        DtlShaftConfig c = cfg; c.snap.enabled = false; c.held.enabled = false;
+        // Nothing solved except `keep` (−1: nothing at all).
+        const auto blind = [&](double lFull, int keep) {
+            DtlSolveState st = makeState(n, kClub, kLen, 0.93, c);
+            for (int i = 0; i < n; ++i) {
+                if (i == keep) continue;
+                st.solved[size_t(i)] = 0; st.sighted[size_t(i)] = 0; st.thetaDeg[size_t(i)] = kNan;
+            }
+            st.lFullPx = lFull; st.lFullSource = QStringLiteral("ball");
+            return st;
+        };
+        {
+            DtlSolveState st = blind(200.0, -1);
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, &wit, st, W, H, geom, c, nullptr);
+            check(tr.topChecked && tr.topOutOfView && tr.topMeasuredFrames == 0
+                      && near(tr.handsFromTopPx, GY, 1e-9) && near(tr.topClubPx, 200.0, 1e-9),
+                  "C8: nothing measured, hands 160 px from the top, a club 200 px ⇒ out of view");
+            bool unchanged = true;
+            for (const DtlSample &s : tr.samples) unchanged = unchanged && !dtlMeasured(s.tier);
+            check(unchanged, "C8: the summary changes no tier");
+        }
+        {
+            DtlSolveState st = blind(100.0, -1);
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, &wit, st, W, H, geom, c, nullptr);
+            check(tr.topChecked && !tr.topOutOfView,
+                  "C8: hands more than a club length (100 px) below the edge ⇒ not the view's fault");
+        }
+        {
+            DtlSolveState st = blind(200.0, 5);
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, &wit, st, W, H, geom, c, nullptr);
+            check(dtlMeasured(tr.samples[5].tier) && tr.topMeasuredFrames == 1 && !tr.topOutOfView,
+                  "C8: one measured frame in the window ⇒ the club was seen, no flag");
+        }
+        {
+            DtlSolveState st = blind(kNan, -1);
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, &wit, st, W, H, geom, c, nullptr);
+            check(tr.topChecked && !tr.topOutOfView, "C8: no club length ⇒ no claim");
+        }
+        {
+            FaceOnWitness noP4;
+            noP4.ladder = { { 3, 40000 }, { 5, 160000 } };
+            DtlSolveState st = blind(200.0, -1);
+            const DtlShaftTrack2D tr = dtlPostSolve(frameAt, tUs, an, &noP4, st, W, H, geom, c, nullptr);
+            const QJsonObject sum = dtlShaftTrackToJson(tr, 0, QJsonObject{}, QString(), QString(), QString())
+                                        .value(QStringLiteral("summary")).toObject();
+            check(!tr.topChecked && !tr.topOutOfView && !sum.contains(QStringLiteral("topOutOfView")),
+                  "C8: no P4 on the ladder ⇒ no summary, and no topOutOfView in the JSON");
+            DtlSolveState st2 = blind(200.0, -1);
+            const DtlShaftTrack2D tr2 = dtlPostSolve(frameAt, tUs, an, &wit, st2, W, H, geom, c, nullptr);
+            const QJsonObject top = dtlShaftTrackToJson(tr2, 0, QJsonObject{}, QString(), QString(), QString())
+                                        .value(QStringLiteral("summary")).toObject()
+                                        .value(QStringLiteral("topOutOfView")).toObject();
+            check(top.value(QStringLiteral("flag")).toBool() && top.value(QStringLiteral("measuredFrames")).toInt(-1) == 0
+                      && near(top.value(QStringLiteral("handsFromTopPx")).toDouble(), GY, 1e-9)
+                      && near(top.value(QStringLiteral("clubPx")).toDouble(), 200.0, 1e-9),
+                  "C8: with P4 the JSON carries summary.topOutOfView");
         }
     }
 

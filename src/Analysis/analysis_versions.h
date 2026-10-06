@@ -77,10 +77,12 @@ constexpr int kImpactStageVersion = 1;
 //           Stamped; never reused — it is recomputed from the reused poses and face-on
 //           shaft on every re-analysis. Bump when dtl_shaft_* changes its output.
 constexpr int kDtlPoseStageVersion  = 1;
-constexpr int kDtlShaftStageVersion = 4;   // 2: HELD / OCCLUDED_WRIST / OCCLUDED_ROW tiers, END_ON before quarantine,
+constexpr int kDtlShaftStageVersion = 5;   // 2: HELD / OCCLUDED_WRIST / OCCLUDED_ROW tiers, END_ON before quarantine,
                                            //    band-edge runs, one drawn length, late escapes refused (2026-10-02)
                                            // 3: per-frame σθ and gross risk (shaft uncertainty design, 2026-10-01)
                                            // 4: a refused late escape is never HELD (2026-10-03)
+                                           // 5: a corridor escape along the lead arm is refused; after impact the track
+                                           //    keeps its direction or ends, and is drawn at the measured run (2026-10-05)
 // shaftFusion — kShaftFusionStageVersion: the fused 3-D shaft (ShaftFusionStage,
 //           shaft_fusion.h). Stamped; never reused — it is a few microseconds of
 //           arithmetic on two tracks that are already in hand. Bump when

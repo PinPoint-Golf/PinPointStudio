@@ -378,6 +378,22 @@ struct DtlShaftTrack2D {
     int    endOnBeforeQuarantine = 0;
     int    occludedWrist = 0, occludedRow = 0;
     int    edgeBands = 0;
+    // ── the top of the backswing out of view (2026-10-06) ───────────────────
+    // On the 5 Oct 2026 cabin session the hands at P4 sat 44–113 px below the top
+    // edge of a 988 px frame and the club was out of the picture from just after
+    // P3 to about P5 on every swing. The tracker said UNSEEN / END_ON there, which
+    // was right, but nothing told the user the view was the cause. Summarised over
+    // P4 ± 80 ms when the face-on ladder has a P4 (`topChecked`), and only then
+    // written to JSON, so a document without a P4 is byte-identical to before:
+    // handsFromTopPx = median grip-anchor y over the window (its distance from the
+    // top edge), topMeasuredFrames = frames there that published a measurement,
+    // topClubPx = L̂_D, the club's length in this view. topOutOfView = nothing
+    // measured AND the hands less than one club length below the edge.
+    bool   topChecked = false;
+    bool   topOutOfView = false;
+    double handsFromTopPx = dtl::kNan;
+    double topClubPx = dtl::kNan;
+    int    topMeasuredFrames = 0;
     // The DTL ball and the DTL full club length L̂_D that D3/D6 were built on —
     // carried on the product because the report has to say which SOURCE the
     // length came from (§5.6 D3: address grip→ball / ρ̂_D, else the cross-view

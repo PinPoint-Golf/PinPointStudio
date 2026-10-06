@@ -144,6 +144,7 @@ DtlShaftTrack2D DtlShaftTracker::track(const pinpoint::SwingWindow& window,
     an.trailWrist.assign(size_t(nf), {nan_(), nan_()});
     an.quarantined.assign(size_t(nf), 0);
     an.joints.assign(size_t(nf), std::vector<cv::Point2d>(8));
+    an.leadShoulderSlot = (job.handedness == 2) ? 1 : 0;      // kBodyJoints starts left shoulder, right shoulder
     size_t poseIdx = 0;
     for (int i = 0; i < nf; ++i) {
         tUs[size_t(i)] = cov[size_t(i)].timestamp_us;

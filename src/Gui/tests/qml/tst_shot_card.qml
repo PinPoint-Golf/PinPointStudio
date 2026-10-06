@@ -209,6 +209,23 @@ Item {
             verify(u.indexOf("takeaway could not be found") >= 0)
         }
 
+        // 2026-10-06: the down-the-line camera could not see the top of the swing
+        // (5 Oct 2026: hands 44–113 px from the top edge). A framing fact — it names
+        // the numbers and the fix, and does not exclude the shot.
+        function test_a_dtl_top_out_of_view_is_described_and_does_not_exclude_the_shot() {
+            const b = badge()
+            card.dataWarning = true
+            card.dataWarningDetail = ({ dtlTopOutOfView: true, dtlHandsFromTopPx: 71, dtlClubPx: 412 })
+            verify(b.visible)
+            const t = card.dataWarningText
+            verify(t.indexOf("could not see the top of this swing") >= 0)
+            verify(t.indexOf("hands 71 px from the top edge") >= 0)
+            verify(t.indexOf("a club is 412 px here") >= 0)
+            verify(t.indexOf("headroom check") >= 0)
+            verify(t.indexOf("not included in the session assessment") < 0)
+            verify(t.indexOf("undefined") < 0 && t.indexOf("NaN") < 0)
+        }
+
         function test_several_holes_are_described_in_the_plural() {
             card.dataWarning       = true
             card.dataWarningDetail = ({ capture: true, imu: false, holes: 3,

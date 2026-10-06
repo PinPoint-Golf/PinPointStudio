@@ -86,7 +86,13 @@ QJsonObject dtlShaftConfigJson(const DtlShaftConfig& cfg)
         { "edgeMaxGapFrames",     cfg.edge.maxGapFrames },
         { "edgeMinRho",           cfg.edge.minRho },
         { "lenSchedule",          cfg.lenSchedule },
-        { "refuseLateEscape",     cfg.refuseLateEscape } };
+        { "refuseLateEscape",     cfg.refuseLateEscape },
+        { "armChain",             cfg.armChain },
+        { "armChainLatPx",        cfg.armChainLatPx },
+        { "postImpactContinuity", cfg.postImpactContinuity },
+        { "postImpactStepDeg",    cfg.postImpactStepDeg },
+        { "postImpactWindowUs",   double(cfg.postImpactWindowUs) },
+        { "postImpactRunLength",  cfg.postImpactRunLength } };
 }
 
 QJsonObject dtlShaftTrackToJson(const DtlShaftTrack2D& track, int64_t t0Us,

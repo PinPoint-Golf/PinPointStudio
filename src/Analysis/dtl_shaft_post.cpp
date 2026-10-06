@@ -185,6 +185,7 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
     std::vector<DtlEvSrc>     evSrcOut(size_t(nf), DtlEvSrc::Ev);
     // Frames the late-escape rule refused — the HELD tier must not re-publish them.
     std::vector<char>         lateRefused(size_t(nf), 0);
+    std::vector<DtlLenSrc>    measLenSrc(size_t(nf), DtlLenSrc::Rend);   // the run's own source, where the schedule replaced it
     std::vector<DtlRevWaiver> revWaived(size_t(nf), DtlRevWaiver::None);
     // The run the LADDER was asked about — after the max() rule, not before it —
     // on every solved frame, published or not. A refused frame's length is the
@@ -567,8 +568,26 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
         // corridor is face-on's, the time is P8's, the pixels never earned it.
         const bool lateEscape = cfg.refuseLateEscape && s.corridorEscape && tP8 >= 0
                                 && tUs[size_t(i)] > tP8;
+        // ── a corridor escape along the lead arm is the arm (cfg.armChain) ────
+        // The published direction, from the published grip: the lead elbow and then the
+        // lead shoulder, both ahead along it and both within armChainLatPx of it.
+        bool armEscape = false;
+        if (cfg.armChain && s.corridorEscape && i < int(anchors.leadElbow.size())
+            && i < int(anchors.joints.size()) && anchors.joints[size_t(i)].size() >= 2) {
+            const cv::Point2d E = anchors.leadElbow[size_t(i)];
+            const cv::Point2d S = anchors.joints[size_t(i)][size_t(anchors.leadShoulderSlot == 1 ? 1 : 0)];
+            if (fin(E.x) && fin(E.y) && fin(S.x) && fin(S.y)) {
+                const double ux = std::cos(s.thetaRad), uy = std::sin(s.thetaRad);
+                const double ex = E.x - s.gripPx.x(), ey = E.y - s.gripPx.y();
+                const double sx = S.x - s.gripPx.x(), sy = S.y - s.gripPx.y();
+                const double alongE = ex * ux + ey * uy, alongS = sx * ux + sy * uy;
+                armEscape = alongE > cfg.arm.minJointPx && alongS > alongE
+                            && std::abs(ex * uy - ey * ux) <= cfg.armChainLatPx
+                            && std::abs(sx * uy - sy * ux) <= cfg.armChainLatPx;
+            }
+        }
         const bool rayOk = (evOk || lcOk) && sup >= cfg.supRay && beatsReverse && !vetoed
-                           && longEnough && !lenIsFloor && !lateEscape;
+                           && longEnough && !lenIsFloor && !lateEscape && !armEscape;
         // Ev unless the LINE is what let this frame through: an absence satisfied
         // neither gate and must not read as though it satisfied the second.
         s.evSrc = (rayOk && !evOk && lcOk) ? DtlEvSrc::LineConf : DtlEvSrc::Ev;
@@ -592,7 +611,9 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
             s.thetaRad = dtl::kNan;
             s.gripPx   = QPointF(gx[size_t(i)], gy[size_t(i)]);   // unpublished ⇒ the pose anchor, unmoved
             if (lateEscape) { ++out.lateEscapesRefused; lateRefused[size_t(i)] = 1; }
+            if (armEscape) lateRefused[size_t(i)] = 1;        // a verdict, not a hole: never held
             s.reason   = lateEscape    ? QStringLiteral("corridor escape after P8 — not published")
+                       : armEscape     ? QStringLiteral("corridor escape along the lead arm — not published")
                        : vetoed        ? QStringLiteral("solved direction runs into a %1")
                                              .arg(QLatin1String(
                                                  dtlLimbName(int(state.ARMJOINT[size_t(i)][size_t(bi)]))))
@@ -632,6 +653,7 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
             const double schedLen = (cfg.lenSchedule && fin(state.lFullPx) && fin(s.rhoPred))
                                         ? s.rhoPred * state.lFullPx : nan;
             if (fin(schedLen) && schedLen > 0.0) {
+                measLenSrc[size_t(i)] = s.lenSrc;
                 s.runPx  = runPx;
                 s.lenPx  = schedLen;
                 s.lenSrc = DtlLenSrc::Schedule;
@@ -640,6 +662,89 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
                                s.gripPx.y() + s.lenPx * std::sin(s.thetaRad));
         }
         out.samples.push_back(s);
+    }
+
+    // ── after impact the club keeps its direction (cfg.postImpactContinuity) ─────
+    // The first measured frame after impact whose θ steps away from the last accepted one
+    // ends the track until the window closes: it and every later frame in the window are
+    // unpublished, and the hold below does not bridge them. The reference starts from the
+    // last measured frame within 60 ms before impact (with none, the first post-impact frame
+    // is taken as it stands) and the step allowed grows with the hole it is taken across —
+    // postImpactStepDeg per 20 ms — so a track that drifts through a short gap survives and
+    // one that comes back 65 ms later pointing 150° away (5 Oct s24) does not.
+    std::vector<char> postCut(size_t(nf), 0);
+    if (cfg.postImpactContinuity && witness && witness->impactUs >= 0) {
+        const int64_t t0 = witness->impactUs, t1 = t0 + cfg.postImpactWindowUs;
+        double  lastDeg = nan;
+        int64_t lastUs  = -1;
+        bool    cut     = false;
+        for (int i = 0; i < int(out.samples.size()); ++i) {
+            DtlSample& s = out.samples[size_t(i)];
+            if (s.t_us > t1) break;
+            if (!dtlMeasured(s.tier) || !fin(s.thetaRad)) continue;
+            const double thDeg = s.thetaRad * 180.0 / kPi;
+            if (s.t_us <= t0) {
+                if (t0 - s.t_us <= 60000) { lastDeg = thDeg; lastUs = s.t_us; }
+                continue;
+            }
+            if (!cut && fin(lastDeg)
+                && std::abs(shaftshared::circWrap(thDeg - lastDeg))
+                       > cfg.postImpactStepDeg * std::max(1.0, double(s.t_us - lastUs) / 20000.0))
+                cut = true;
+            if (!cut) { lastDeg = thDeg; lastUs = s.t_us; continue; }
+            postCut[size_t(i)] = 1;
+            s.reason   = QStringLiteral("direction left the club's after impact (θ %1°, was %2°) — not published")
+                             .arg(thDeg, 0, 'f', 0).arg(lastDeg, 0, 'f', 0);
+            s.tier     = DtlTier::Unseen;
+            s.thetaRad = dtl::kNan;
+            s.gripPx   = QPointF(gx[size_t(i)], gy[size_t(i)]);
+            s.headPx   = QPointF(nan, nan);
+            s.lenPx    = nan;
+            s.runPx    = nan;
+            s.conf     = 0.f;
+        }
+        // …and nothing later in the window is held across the cut.
+        if (cut)
+            for (int i = 0; i < int(out.samples.size()); ++i) {
+                const DtlSample& s = out.samples[size_t(i)];
+                if (s.t_us > t0 && s.t_us <= t1 && !dtlMeasured(s.tier)) {
+                    bool after = false;
+                    for (int k = 0; k < i && !after; ++k) after = postCut[size_t(k)] != 0;
+                    if (after) postCut[size_t(i)] = 1;
+                }
+            }
+    }
+
+    // ── after impact the drawn length is the measured one (cfg.postImpactRunLength) ──
+    // Inside the same window, where the schedule drew the frame: the median of the frame's
+    // run and its measured neighbours' (one short read at the strike must not draw a club
+    // half its length for a frame), taken where it is SHORTER than the schedule. After the
+    // continuity cut, so a refused frame's run is in no median.
+    if (cfg.postImpactRunLength && witness && witness->impactUs >= 0) {
+        const int64_t t0 = witness->impactUs, t1 = t0 + cfg.postImpactWindowUs;
+        std::vector<int> idx;
+        for (int i = 0; i < int(out.samples.size()); ++i) {
+            const DtlSample& s = out.samples[size_t(i)];
+            if (s.t_us > t0 && s.t_us <= t1 && dtlMeasured(s.tier) && fin(s.runPx)
+                && s.lenSrc == DtlLenSrc::Schedule)
+                idx.push_back(i);
+        }
+        std::vector<double> med(idx.size(), nan);
+        for (size_t j = 0; j < idx.size(); ++j) {
+            std::vector<double> v { out.samples[size_t(idx[j])].runPx };
+            if (j > 0)              v.push_back(out.samples[size_t(idx[j - 1])].runPx);
+            if (j + 1 < idx.size()) v.push_back(out.samples[size_t(idx[j + 1])].runPx);
+            std::sort(v.begin(), v.end());
+            med[j] = v.size() == 2 ? 0.5 * (v[0] + v[1]) : v[v.size() / 2];
+        }
+        for (size_t j = 0; j < idx.size(); ++j) {
+            DtlSample& s = out.samples[size_t(idx[j])];
+            if (!(med[j] > 0.0) || med[j] >= s.lenPx) continue;
+            s.lenPx  = med[j];
+            s.lenSrc = measLenSrc[size_t(idx[j])];
+            s.headPx = QPointF(s.gripPx.x() + s.lenPx * std::cos(s.thetaRad),
+                               s.gripPx.y() + s.lenPx * std::sin(s.thetaRad));
+        }
     }
 
     // ── the HELD tier (continuous-track §3.1) ───────────────────────────────
@@ -664,7 +769,7 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
             // A refused late escape is a verdict on the frame, not a hole in the
             // evidence: holding it would publish the escaped θ the refusal kept off.
             bool anyLate = false;
-            for (int k = i; k <= j; ++k) anyLate = anyLate || lateRefused[size_t(k)];
+            for (int k = i; k <= j; ++k) anyLate = anyLate || lateRefused[size_t(k)] || postCut[size_t(k)];
             if (leftOk && rightOk && !anyLate && (j - i + 1) <= cfg.held.maxFrames) {
                 const DtlSample& L = out.samples[size_t(i - 1)];
                 const DtlSample& R = out.samples[size_t(j + 1)];
@@ -681,6 +786,12 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
                     if (cfg.lenSchedule && fin(state.lFullPx) && fin(h.rhoPred))
                         len = h.rhoPred * state.lFullPx;
                     else if (fin(L.lenPx) && fin(R.lenPx))
+                        len = 0.5 * (L.lenPx + R.lenPx);
+                    // After impact a held frame follows its neighbours' drawn length
+                    // where that is the shorter (cfg.postImpactRunLength).
+                    if (cfg.postImpactRunLength && witness && witness->impactUs >= 0
+                        && h.t_us > witness->impactUs && fin(L.lenPx) && fin(R.lenPx)
+                        && fin(len) && 0.5 * (L.lenPx + R.lenPx) < len)
                         len = 0.5 * (L.lenPx + R.lenPx);
                     if (fin(len) && len > 0.0) {
                         h.lenPx  = len;
@@ -731,6 +842,47 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
     out.sightedFrac = double(inBandFrames) / double(denom);
     out.valid = !out.bands.empty() && published > 0;
 
+    // ── the top of the backswing out of view (dtl_track_fragility_20261005 §1, §5) ──
+    // On 5 Oct 2026 the hands at P4 were 44–113 px from the top edge of a 988 px
+    // frame and the club, longer than that in this view, was out of the picture
+    // from just after P3 to about P5; P4 → P5 was unseen on 81–96 % of frames on
+    // every swing. The tiers there were right — this only SAYS why, so the user can
+    // reframe the camera rather than read a blank stretch as a tracker fault.
+    // Inherited TIMING again (the P4 instant), never a tier: nothing here changes a
+    // sample. Summarised only when the ladder has a P4; with no P4 there is no
+    // window to ask about, and the JSON stays as it was.
+    int64_t tP4 = -1;
+    if (witness)
+        for (const auto& e : witness->ladder)
+            if (e.first == 4 && (tP4 < 0 || e.second < tP4)) tP4 = e.second;
+    if (tP4 >= 0) {
+        constexpr int64_t kTopHalfWindowUs = 80000;   // P4 ± 80 ms: wider than the ± 60 ms the frames were read over
+        std::vector<double> ys;
+        int measured = 0;
+        for (const DtlSample& s : out.samples) {
+            if (s.t_us < tP4 - kTopHalfWindowUs || s.t_us > tP4 + kTopHalfWindowUs) continue;
+            if (dtlMeasured(s.tier)) ++measured;
+            if (fin(s.gripPx.y())) ys.push_back(s.gripPx.y());
+        }
+        double med = nan;
+        if (!ys.empty()) {
+            const size_t m = ys.size() / 2;
+            std::nth_element(ys.begin(), ys.begin() + std::ptrdiff_t(m), ys.end());
+            med = ys[m];
+            if (ys.size() % 2 == 0) {
+                const double lo = *std::max_element(ys.begin(), ys.begin() + std::ptrdiff_t(m));
+                med = 0.5 * (med + lo);
+            }
+        }
+        out.topChecked        = true;
+        out.handsFromTopPx    = med;
+        out.topMeasuredFrames = measured;
+        out.topClubPx         = state.lFullPx;
+        // A NaN on either side is no claim: with no anchor or no club length we
+        // cannot say the club would have left the frame.
+        out.topOutOfView = measured == 0 && fin(state.lFullPx) && fin(med) && med < state.lFullPx;
+    }
+
     if (trace) {
         trace->thetaOutDeg = thetaOutDeg;
         trace->snapOffsetPx  = snapOff;
@@ -758,8 +910,8 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
         }
     }
 
-    // The witness is read here for ONE thing: the P8 instant of the late-escape
-    // rule (above). Every other inheritance it carries was consumed by the solve,
+    // The witness is read here for TWO instants: P8 for the late-escape rule and
+    // P4 for the top-out-of-view summary (above). Every other inheritance it carries was consumed by the solve,
     // and re-reading it after the fact is how a tier ends up decided on face-on's
     // word (§5.9). `geom` is the segment probe's club geometry and waits with the
     // SEG tier above.

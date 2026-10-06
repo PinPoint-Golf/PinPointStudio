@@ -91,6 +91,16 @@ Rectangle {
                             + "club measurements show \"-\" on this shot. Body and wrist "
                             + "measurements are unaffected.").arg(why))
         }
+        // The down-the-line camera did not have the top of the swing in frame
+        // (analysis.clubDtl.summary.topOutOfView): a framing fact, so it says how to
+        // reframe and does not exclude the shot.
+        if (d.dtlTopOutOfView)
+            parts.push(qsTr("The down-the-line camera could not see the top of this swing "
+                            + "(hands %1 px from the top edge, a club is %2 px here), so the "
+                            + "club is unmeasured from mid-backswing to delivery in that view. "
+                            + "Frame that camera with the headroom check: at the top, the hands "
+                            + "at least a club length below the top edge.")
+                       .arg(d.dtlHandsFromTopPx).arg(d.dtlClubPx))
         return parts.join(" ")
     }
 

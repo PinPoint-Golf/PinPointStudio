@@ -91,6 +91,13 @@ void applyCaptureIntegrity(QJsonObject &manifest, const CaptureIntegrityVerdict 
 // both call it.
 QVariantMap dataWarningDetailFrom(const QJsonObject &manifest);
 
+// The down-the-line top-out-of-view fact (analysis.clubDtl.summary.topOutOfView)
+// as the three dataWarningDetail keys — dtlTopOutOfView, dtlHandsFromTopPx,
+// dtlClubPx (px, rounded) — spelled once so the on-disk read above and the live
+// join (shot_processor.cpp, which has the track in memory, not the JSON) agree.
+// Never sets `capture`/`imu`: it does not exclude the shot from the assessment.
+void insertDtlTopOutOfView(QVariantMap &detail, double handsFromTopPx, double clubPx);
+
 // The single, unified per-shot document. Raw capture manifest and derived analysis
 // live in ONE swing.json — no separate analysis.json. Written once, on the GUI thread,
 // at the analyzer∥exporter join (ShotProcessor::maybeJoin), so the two concurrent

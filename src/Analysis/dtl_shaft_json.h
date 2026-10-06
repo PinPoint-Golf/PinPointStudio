@@ -254,6 +254,16 @@ inline QJsonObject dtlShaftTrackToJson(const DtlShaftTrack2D& track, int64_t t0U
             // shell history cannot tell them apart.
             { "configHash",  configHash } };
           if (track.continuous) sm.insert("continuous", continuous);
+          // The top of the backswing out of view (dtl_shaft_track.h): only when the
+          // face-on ladder had a P4 to centre the window on, so a document without
+          // one writes the bytes it wrote before. The shot card's ⚠ reads `flag`
+          // through swing_doc.cpp dataWarningDetailFrom.
+          if (track.topChecked)
+              sm.insert("topOutOfView", QJsonObject{
+                  { "flag",           track.topOutOfView },
+                  { "handsFromTopPx", jnum(track.handsFromTopPx) },
+                  { "clubPx",         jnum(track.topClubPx) },
+                  { "measuredFrames", track.topMeasuredFrames } });
           if (!track.synth3d.empty())
               sm.insert("synth3d", QJsonObject{
                   { "n",        int(track.synth3d.size()) },

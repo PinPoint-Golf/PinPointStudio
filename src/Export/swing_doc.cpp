@@ -96,6 +96,13 @@ void applyCaptureIntegrity(QJsonObject &manifest, const CaptureIntegrityVerdict 
         manifest.remove(QStringLiteral("captureIntegrity"));
 }
 
+void insertDtlTopOutOfView(QVariantMap &detail, double handsFromTopPx, double clubPx)
+{
+    detail.insert(QStringLiteral("dtlTopOutOfView"),   true);
+    detail.insert(QStringLiteral("dtlHandsFromTopPx"), int(std::lround(handsFromTopPx)));
+    detail.insert(QStringLiteral("dtlClubPx"),         int(std::lround(clubPx)));
+}
+
 QVariantMap dataWarningDetailFrom(const QJsonObject &manifest)
 {
     QVariantMap d;
@@ -126,18 +133,35 @@ QVariantMap dataWarningDetailFrom(const QJsonObject &manifest)
     // shot's body/wrist rows from the session assessment — the club rows are
     // simply absent (valid=false ⇒ every club-derived stage skipped) — so the
     // consumers that key the all-rows exclusion on `capture`/`imu` keep doing so.
+    // The down-the-line camera could not see the top of the swing (2026-10-06,
+    // analysis.clubDtl.summary.topOutOfView): the hands at P4 sat less than a club
+    // length below the frame's top edge and nothing was measured there — 44–113 px
+    // on a 988 px frame on 5 Oct 2026, every swing. A framing fact, not a broken
+    // recording: like clubRefused it carries the ⚠ and never sets `capture`/`imu`,
+    // so the shot stays in the session assessment.
     QString clubRefused;
+    bool dtlTop = false;
+    double dtlHandsFromTop = 0.0, dtlClub = 0.0;
     if (manifest.contains(QStringLiteral("analysis"))) {
-        const QJsonObject club = manifest[QStringLiteral("analysis")].toObject()
-                                     .value(QStringLiteral("club")).toObject();
+        const QJsonObject an = manifest[QStringLiteral("analysis")].toObject();
+        const QJsonObject club = an.value(QStringLiteral("club")).toObject();
         clubRefused = club.value(QStringLiteral("refused")).toString();
+        const QJsonObject top = an.value(QStringLiteral("clubDtl")).toObject()
+                                    .value(QStringLiteral("summary")).toObject()
+                                    .value(QStringLiteral("topOutOfView")).toObject();
+        if (top.value(QStringLiteral("flag")).toBool(false)) {
+            dtlTop          = true;
+            dtlHandsFromTop = top.value(QStringLiteral("handsFromTopPx")).toDouble();
+            dtlClub         = top.value(QStringLiteral("clubPx")).toDouble();
+        }
     }
-    if (!capture && !imu && clubRefused.isEmpty()) return {};
+    if (!capture && !imu && clubRefused.isEmpty() && !dtlTop) return {};
     if (capture || imu) {
         d.insert(QStringLiteral("capture"), capture);
         d.insert(QStringLiteral("imu"),     imu);
     }
     if (!clubRefused.isEmpty()) d.insert(QStringLiteral("clubRefused"), clubRefused);
+    if (dtlTop) insertDtlTopOutOfView(d, dtlHandsFromTop, dtlClub);
     return d;
 }
 

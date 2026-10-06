@@ -141,6 +141,38 @@ struct DtlShaftConfig {
     // corridor is not published: measured on the corpus these are θ ≈ 2π with the
     // head at the frame edge (07-04 s4, three frames), noise the tile drew.
     bool refuseLateEscape = true;
+    // armChain — a corridor escape that runs from the hands through the LEAD elbow and on
+    // through the LEAD shoulder is that arm, not the club. Two witnesses, and it takes both:
+    // face-on says the club is not in that direction (the escape), and the line is the arm's
+    // (both joints ahead along the ray, in order, within armChainLatPx of it). At the top the
+    // club is end-on or out of the light, and a straight lead arm read along its lit edge is
+    // the only line there is: 33–51 px off the elbow and 17–51 px off the shoulder, so D2's
+    // per-joint test (arm.latPx 25, shoulders deliberately absent) never fires. Measured on
+    // 5 Oct 2026: 3 of 28 swings as captured (5 on a re-run) published 4–24 frames of it, θ 20–48°, drawn at the club's
+    // full length; and on the 21-swing corpus 34 frames on four 07-04 swings (the "P4.0→P4.3"
+    // bands), every one an escape and every one on the bare forearm when looked at.
+    // Refused at publication, not charged in the solve: as a D2 cost the solve stepped to
+    // the arm's other edge and published that, and widened to reach it the rule moved 16–21
+    // true P2–P3 frames a swing (the true shaft passes the TRAIL arm there) — and at P5 the
+    // true shaft runs within 100 px of the lead arm without being an escape.
+    bool   armChain      = true;
+    double armChainLatPx = 100.0;
+    // postImpactContinuity — after impact the club swings away down the line: in this view it
+    // keeps its direction (56–74° over the 150 published post-impact frames of 5 Oct, drifting
+    // about 1° a frame) and SHORTENS until it is end-on. A measured frame inside
+    // impact + postImpactWindowUs whose θ steps more than postImpactStepDeg from the last
+    // accepted one (the step scales with the hole it is taken across, per 20 ms) has left the club — measured, it is the trail leg's trouser edge at 78–89°
+    // with the anchor no longer on the hands (8 of 28 swings, 3–12 frames each) — and neither
+    // it nor anything after it in the window is published or held.
+    bool    postImpactContinuity = true;
+    double  postImpactStepDeg    = 10.0;
+    int64_t postImpactWindowUs   = 150000;
+    // postImpactRunLength — after impact the schedule's length is wrong: face-on coasts there,
+    // so ρ̂_D comes from the ρ_F := 1 bound on a θ_F that has stopped moving, and stays near 1
+    // while the club foreshortens. Drawn 1.6× the measured run on 5 Oct (317 px against 150 px
+    // 24 ms after impact). After impact the drawn length is the measured run where that is
+    // the shorter.
+    bool postImpactRunLength = true;
 
     // ── D5 the face-on corridor (§5.7) ───────────────────────────────────────
     struct Corridor {
@@ -420,6 +452,12 @@ struct DtlShaftConfig {
         tn::apply(ov, "shaft.dtl.edge.minRho",         c.edge.minRho);
         tn::apply(ov, "shaft.dtl.lenSchedule",         c.lenSchedule);
         tn::apply(ov, "shaft.dtl.refuseLateEscape",    c.refuseLateEscape);
+        tn::apply(ov, "shaft.dtl.armChain",            c.armChain);
+        tn::apply(ov, "shaft.dtl.armChainLatPx",       c.armChainLatPx);
+        tn::apply(ov, "shaft.dtl.postImpactContinuity", c.postImpactContinuity);
+        tn::apply(ov, "shaft.dtl.postImpactStepDeg",   c.postImpactStepDeg);
+        tn::apply(ov, "shaft.dtl.postImpactWindowUs",  c.postImpactWindowUs);
+        tn::apply(ov, "shaft.dtl.postImpactRunLength", c.postImpactRunLength);
         tn::apply(ov, "shaft.dtl.corridor.enabled",    c.corridor.enabled);
         tn::apply(ov, "shaft.dtl.corridor.w0Deg",      c.corridor.w0Deg);
         tn::apply(ov, "shaft.dtl.corridor.wCorr",      c.corridor.wCorr);
@@ -514,6 +552,8 @@ inline QString dtlConfigHash(const DtlShaftConfig& c)
     i(c.held.enabled); i(c.held.maxFrames); i(c.endOnFirst); i(c.quarantineCause);
     i(c.edge.enabled); i(c.edge.minFrames); i(c.edge.maxGapFrames); n(c.edge.minRho);
     i(c.lenSchedule); i(c.refuseLateEscape);
+    i(c.armChain); n(c.armChainLatPx); i(c.postImpactContinuity); n(c.postImpactStepDeg);
+    i(c.postImpactWindowUs); i(c.postImpactRunLength);
     // The shared engines belong in the fingerprint too: "shaft.ridge.*" and
     // "shaft.snap.*" reach this view (fromOverrides above), so a sweep that moved
     // one of them produced a different DTL run and the hash has to say so.
