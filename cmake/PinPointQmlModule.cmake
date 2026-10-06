@@ -169,6 +169,7 @@ set(PP_QML_FILES
     src/Gui/setup/ScreenSessionSetup.qml
     src/Gui/setup/pages/GoalsPage.qml
     src/Gui/setup/pages/CamerasPage.qml
+    src/Gui/setup/pages/FramingPage.qml
     src/Gui/setup/pages/TriangulatePage.qml
     src/Gui/setup/pages/BallPage.qml
     src/Gui/setup/pages/ImusPage.qml

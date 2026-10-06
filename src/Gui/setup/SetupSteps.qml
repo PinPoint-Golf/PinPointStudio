@@ -98,6 +98,15 @@ QtObject {
             }
         },
         StepDescriptor {
+            // Straight after Cameras, before anything that depends on where a camera points:
+            // moving one to fix its framing would undo a triangulation or a learnt hitting area.
+            key: "framing"; title: qsTr("Framing"); eyebrow: qsTr("FRAMING"); group: "cameras"
+            page: "pages/FramingPage.qml"
+            // applies: a connected camera that sees the golfer (not the impact camera). gate: none
+            // — the verdict is advice; a camera that cannot be moved still records.
+            applies: function(ctx, draft) { return ctx.framingCameras.length > 0 }
+        },
+        StepDescriptor {
             key: "triangulate"; title: qsTr("Triangulate"); eyebrow: qsTr("TRIANGULATION"); group: "cameras"
             page: "pages/TriangulatePage.qml"
             applies: function(ctx, draft) { return ctx.hasFaceOnAndDtlSelected }

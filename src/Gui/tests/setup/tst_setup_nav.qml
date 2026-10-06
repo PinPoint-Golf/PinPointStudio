@@ -76,19 +76,19 @@ Item {
             d.open(wrist)
             d.next()
             compare(d.current(), "cameras")
-            compare(d.plan(), ["goals", "cameras", "ball", "imus", "calibrateArm", "checkArm", "ready"])
+            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "calibrateArm", "checkArm", "ready"])
 
             d.cams.setCameraSelected("DTL1", true)          // selected from the toolbar, or Connect
-            compare(d.plan(), ["goals", "cameras", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"])
-            compare(d.stepLabel(), "STEP 2 OF 8 · CAMERAS")
-            // Every page's eyebrow and every pip agree on 1..8.
-            var want = { "GOALS": 1, "CAMERAS": 2, "TRIANGULATION": 3, "BALL DETECTION": 4,
-                         "MOTION SENSORS": 5, "CALIBRATE": 6, "CONFIRM TRACKING": 7, "READY": 8 }
+            compare(d.plan(), ["goals", "cameras", "framing", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"])
+            compare(d.stepLabel(), "STEP 2 OF 9 · CAMERAS")
+            // Every page's eyebrow and every pip agree on 1..9.
+            var want = { "GOALS": 1, "CAMERAS": 2, "FRAMING": 3, "TRIANGULATION": 4, "BALL DETECTION": 5,
+                         "MOTION SENSORS": 6, "CALIBRATE": 7, "CONFIRM TRACKING": 8, "READY": 9 }
             var labels = d.allStepLabels()
-            compare(labels.length, 8, JSON.stringify(labels))
+            compare(labels.length, 9, JSON.stringify(labels))
             for (var i = 0; i < labels.length; ++i) {
                 var name = labels[i].split(" · ")[1]
-                compare(eyebrowNumber(labels[i]), [want[name], 8], labels[i])
+                compare(eyebrowNumber(labels[i]), [want[name], 9], labels[i])
             }
             var plan = d.plan()
             for (var j = 0; j < plan.length; ++j) {
@@ -98,10 +98,10 @@ Item {
             }
 
             d.cams.setCameraSelected("DTL1", false)
-            compare(d.plan(), ["goals", "cameras", "ball", "imus", "calibrateArm", "checkArm", "ready"])
-            compare(d.stepLabel(), "STEP 2 OF 7 · CAMERAS")
+            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "calibrateArm", "checkArm", "ready"])
+            compare(d.stepLabel(), "STEP 2 OF 8 · CAMERAS")
             verify(!d.pip("triangulate").shown, "Triangulate pip still shown")
-            compare(d.pip("ball").glyph, "3")
+            compare(d.pip("ball").glyph, "4")
         }
 
         // ── N3 ───────────────────────────────────────────────────────────────
@@ -111,7 +111,8 @@ Item {
             d.addWitmotion("WT-A", "A", true)
             d.addWitmotion("WT-B", "B", true)
             d.open(wrist)
-            var route = [["goals", "next", "cameras"], ["cameras", "next", "ball"], ["ball", "next", "imus"],
+            var route = [["goals", "next", "cameras"], ["cameras", "next", "framing"], ["framing", "next", "ball"],
+                         ["ball", "next", "imus"],
                          ["imus", "next", "calibrateArm"], ["calibrateArm", "skip", "checkArm"],
                          ["checkArm", "next", "ready"]]
             for (var i = 0; i < route.length; ++i) {
@@ -162,6 +163,8 @@ Item {
             d.next()
             var skips = ["cameras", "triangulate", "ball", "imus", "calibrateArm"]
             for (var i = 0; i < skips.length; ++i) {
+                // Framing offers no Skip (it never gates Continue): passed with Continue.
+                if (d.current() === "framing") { verify(!d.canSkip(), "Skip on Framing"); d.next() }
                 compare(d.current(), skips[i])
                 verify(d.canSkip(), "no Skip on " + skips[i])
                 d.skip()
@@ -384,7 +387,7 @@ Item {
             residue.queueConnectedAfterOpen = d.imu.countCalls("setSelected") - sel0
             var want = {
                 current: "goals",
-                states: { goals: "pending", cameras: "pending", ball: "pending", imus: "pending",
+                states: { goals: "pending", cameras: "pending", framing: "pending", ball: "pending", imus: "pending",
                           calibrateArm: "pending", checkArm: "pending", ready: "pending" },
                 goals: ["wristAngleTop"],
                 queueActive: false,
@@ -408,23 +411,24 @@ Item {
             d.open(wrist)
             d.next()
             d.next()
+            d.next()
             compare(d.current(), "triangulate")
             d.cams.setCameraSelected("DTL1", false)
             compare(d.current(), "triangulate", "Triangulate no longer current")
             // The new flow PINS the current step in the plan until it is left (§4.5), so the step
             // keeps its number (the retired wizard dropped it at once: "STEP  OF 7").
-            compare(d.plan(), ["goals", "cameras", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"])
+            compare(d.plan(), ["goals", "cameras", "framing", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"])
             var hint = d.hint()
             var label = d.stepLabel()
             console.info("[N14] after deselecting DTL on Triangulate: eyebrow '" + label + "', hint '" + hint
                          + "', primary '" + d.primaryLabel() + "'")
-            compare(label, "STEP 3 OF 8 · TRIANGULATION")
+            compare(label, "STEP 4 OF 9 · TRIANGULATION")
             compare(d.primaryLabel(), "Continue →")
             d.next()
             compare(d.current(), "ball")
-            compare(d.plan(), ["goals", "cameras", "ball", "imus", "calibrateArm", "checkArm", "ready"],
+            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "calibrateArm", "checkArm", "ready"],
                     "Triangulate gone from the plan once left")
-            compare(d.stepLabel(), "STEP 3 OF 7 · BALL DETECTION")
+            compare(d.stepLabel(), "STEP 4 OF 8 · BALL DETECTION")
             verify(/no longer needed/i.test(hint), hint)
         }
 
@@ -453,7 +457,8 @@ Item {
             d.addCameraInstance("FO1", { ballPresent: true })
             d.open(wrist)
             d.next()                                     // Goals → Cameras
-            d.next()                                     // Cameras → Ball
+            d.next()                                     // Cameras → Framing
+            d.next()                                     // Framing → Ball
             d.next()                                     // Ball → IMUs
             compare(d.current(), "imus")
             // A future pip is inert.
@@ -470,7 +475,7 @@ Item {
             var n0 = d.appLogFake.matching("op=goTo", "Setup").length
             d.clickPip("cameras")
             compare(d.current(), "cameras")
-            compare(d.stepLabel(), "STEP 2 OF 5 · CAMERAS")
+            compare(d.stepLabel(), "STEP 2 OF 6 · CAMERAS")
             compare(d.state("cameras"), "done")
             compare(d.state("ball"), "done", "a step in between lost its state")
             var lines = d.appLogFake.matching("op=goTo", "Setup").slice(n0)
@@ -493,17 +498,17 @@ Item {
                 summary: function(c, dr) { return { label: "Dummy", value: "ok", good: true } }
             })
             d.wizard.steps.extensions = [desc]
-            compare(d.plan(), ["goals", "cameras", "ball", "dummyStep", "imus", "ready"])
+            compare(d.plan(), ["goals", "cameras", "framing", "ball", "dummyStep", "imus", "ready"])
             // The indicator and the numbering.
             var pp = d.pip("dummyStep")
             verify(pp.shown, "no pip for the registered step")
-            compare(pp.glyph, "4")
-            compare(d.pip("imus").glyph, "5")
-            compare(d.allStepLabels()[3], "STEP 4 OF 6 · DUMMY")
+            compare(pp.glyph, "5")
+            compare(d.pip("imus").glyph, "6")
+            compare(d.allStepLabels()[4], "STEP 5 OF 7 · DUMMY")
             // Navigation in and out, through the real footer.
             d.walkTo("dummyStep")
             compare(d.flow.page.objectName, "extraPage")
-            compare(d.flow.page.stepLabel, "STEP 4 OF 6 · DUMMY")
+            compare(d.flow.page.stepLabel, "STEP 5 OF 7 · DUMMY")
             compare(d.pip("dummyStep").state, "current")
             d.next()
             compare(d.current(), "imus")
@@ -520,7 +525,7 @@ Item {
             verify(d.summaryRows().some(function(r) { return r.label === "Dummy" }))
             // Unregistered again: gone from the plan and the indicator, nothing else touched.
             d.wizard.steps.extensions = []
-            compare(d.plan(), ["goals", "cameras", "ball", "imus", "ready"])
+            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "ready"])
             verify(!d.pip("dummyStep").shown, "the pip outlived its step")
         }
         function test_N18_trunkOnlyRolesDropArmSteps() {

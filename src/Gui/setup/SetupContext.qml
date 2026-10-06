@@ -251,6 +251,31 @@ QtObject {
         return null
     }
 
+    // The cameras the Framing step checks: every ENABLED, CONNECTED camera that sees the golfer —
+    // not the impact camera, which films a 240-row strip of club and ball with no body in it and
+    // never runs pose (camera_manager.cpp createController). Each entry is the cameraList entry's
+    // fields plus `instance`, the live CameraInstance (null until the pipeline has made one).
+    readonly property var framingCameras: {
+        var cams = ctx.cameraList, insts = cameraMgr.instances, out = []
+        for (var i = 0; i < cams.length; ++i) {
+            var c = cams[i]
+            if (!c.sessionEnabled || !c.selected || c.perspective === CameraInstance.Impact) continue
+            var inst = null
+            for (var j = 0; j < insts.length; ++j)
+                if (insts[j].cameraKey === c.cameraKey) { inst = insts[j]; break }
+            out.push({ cameraKey: c.cameraKey, alias: c.alias || "", description: c.description || "",
+                       perspective: c.perspective, instance: inst })
+        }
+        return out
+    }
+
+    // Live pose on one camera's pipeline, for the Framing step. The app's own switch is the
+    // Capture view's Motion overlay (Main.qml binds cameraManager.livePoseEnabled to it, and a
+    // new instance takes that value); the page turns pose on per instance for its visit and puts
+    // back what it found, so the Capture switch is never written.
+    function cameraPoseEnabled(inst)     { return inst !== null && inst !== undefined && inst.poseEnabled === true }
+    function setCameraPoseEnabled(inst, on) { if (inst) inst.poseEnabled = on }
+
     // ── Camera actions ───────────────────────────────────────────────────────────────────────────
     // Connect every enabled, unselected camera, then start the pipelines (camsCol.startConnect,
     // l.944–951). Cameras connect synchronously; no pacing.

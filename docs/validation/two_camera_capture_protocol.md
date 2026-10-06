@@ -73,12 +73,33 @@ Lay the geometry on the floor **before** placing cameras; the sticks are what yo
 - Frame: your whole body **and the clubhead at the top and at the finish**, plus the ball, with a
   hand's width of margin. 07-03 lost ten swings to a crop centred on the screen. Swing a club
   slowly through the top while watching the preview before you lock anything.
+- **The headroom check — do it with a number, not by eye.** On 5 Oct 2026 the DTL frame
+  (576 × 988) put the hands at the top 44–113 px below the top edge, 5–11 % of the frame, and the
+  club was out of the picture from just after P3 to about P5 on every one of 31 swings: the
+  tracker had nothing to see there and on five swings it drew the lead arm instead. The July
+  framing had the same fault. The rule: **with the club held at the top, the wrists must sit at
+  least one club length — as the club appears in the picture at address — below the top edge,
+  and the clubhead must be visible at the top and at the finish in BOTH previews.** At today's
+  distances a club is about a third of the frame height, so the wrists at the top belong in the
+  lower two-thirds. If they do not fit, the camera is too close or aimed too low; moving it is
+  cheaper now than losing the top of every swing later.
+- **Quick check with the live pose.** Session setup now has a **Framing** step after Cameras: it
+  turns the pose on for every connected camera, shows each live frame, and reads where the wrist
+  dots sit while you hold the top — "Headroom OK" once the highest wrist is at least a third of
+  the way down the frame, "Too tight — tilt the camera up or move it back" otherwise. It cannot
+  see the clubhead (the pose model has no club point), so look for that yourself in the frame.
+  Outside setup the same skeleton is the Capture view's MOTION pill → "Motion overlay" (Lightning
+  is enough for this, Thunder if the dots jitter). A dot pinned against the frame edge is the
+  failure. After the fact, a swing whose top the DTL camera could not see carries a ⚠ on its
+  card saying so, with the hands' distance from the top edge against the club's length.
 
 **Face-on camera**
 - On the **cross stick's extension**, facing you, 1.5–2 m or whatever the wall allows. Lens at
   **hand height** as well, level, no roll.
 - Pan until the **cross stick images vertical on the centre column**. Same check, other camera.
-- Frame: feet to a club-length above your head, and both ends of the swing arc.
+- Frame: feet to a club-length above your head, and both ends of the swing arc. The same
+  headroom check as the DTL camera: hold the top and the finish, wrist dots below the top third,
+  clubhead in view.
 
 **Launch monitor**: where it normally sits. Check in both previews that it does not hide the ball,
 the clubhead at address, or your feet.
@@ -149,6 +170,11 @@ are non-coplanar points both cameras see at once.
 it land. The bounce frame in each view checks the inter-camera clock offset to a frame.
 
 **F. At the END of the session, repeat B and C.** If the two B's disagree, something moved.
+
+**G. The top and the finish — the frame.** 2 clips, static. Hold the club at the top; trigger.
+Hold the finish; trigger. Both clips must show the clubhead in both views. This is the §2
+headroom check kept on record: when a session's top-of-backswing track is blind, the clip says
+whether the camera could ever have seen it.
 
 ---
 

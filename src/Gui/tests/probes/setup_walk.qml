@@ -74,6 +74,7 @@ Item {
     property string lastKey: ""
     property int    visits: 0
     property double waitSince: 0
+    property bool   framingLogged: false
 
     Timer {
         id: tick
@@ -151,6 +152,7 @@ Item {
                 check(livePages() === 1, key + ": exactly one page alive (" + livePages() + ")")
                 check(view3Ds() <= 1, key + ": at most one View3D under the shell (" + view3Ds() + ")")
             }
+            if (key === "framing" && !framingLogged) framingReport()
             if (key === "ready") { readyReport(); return }
             if (visits > 20) { check(false, "the walk did not reach Ready in 20 steps"); finish(); return }
             // A page that is still connecting something it was asked to before the probe (it never
@@ -171,8 +173,32 @@ Item {
         }
     }
 
+    // The Framing step (pages/FramingPage.qml): one verdict row per connected camera that sees the
+    // golfer. Headless, nobody holds the top, so a live camera reads "Hold the top…".
+    function framingReport() {
+        framingLogged = true
+        const rows = findAll(shell.flow.page, function(o) { return o.objectName.indexOf("framingCamera_") === 0 })
+        log("framing cameras " + rows.length + " | hint '" + footer().hint + "'")
+        for (let i = 0; i < rows.length; ++i)
+            log("  framing '" + rows[i].cameraKey + "' verdict " + rows[i].verdict + " '" + rows[i].verdictText
+                + "' pose " + (rows[i].instance ? rows[i].instance.poseEnabled : "no instance"))
+        check(rows.length === shell.ctx.framingCameras.length,
+              "one framing row per connected camera (" + rows.length + " of " + shell.ctx.framingCameras.length + ")")
+    }
+    // Whether Framing was in the walk, and why: it applies only with a connected camera that sees
+    // the golfer (SetupSteps.qml).
+    function framingPresence() {
+        const n = shell.ctx.framingCameras.length
+        const inPlan = shell.flow.plan.indexOf("framing") >= 0
+        log("framing step " + (inPlan ? "applies" : "does not apply") + " — " + n
+            + " connected camera(s) that see the golfer" + (framingLogged ? ", visited" : ""))
+        check(inPlan === (n > 0), "framing applies iff a camera is connected (plan " + inPlan + ", cameras " + n + ")")
+        check(inPlan === framingLogged, "framing visited iff it applies")
+    }
+
     function readyReport() {
         stage = 3
+        framingPresence()
         const page = shell.flow.page
         const f = footer()
         const heading = find(page, function(o) { return o.objectName === "readyHeading" })

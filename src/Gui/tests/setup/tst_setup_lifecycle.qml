@@ -52,7 +52,7 @@ Item {
             d.open(wrist)
             var out = {}
             var plan = d.plan()
-            compare(plan, ["goals", "cameras", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"])
+            compare(plan, ["goals", "cameras", "framing", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"])
             for (var i = 0; i < plan.length; ++i) {
                 d.walkTo(plan[i])
                 compare(d.current(), plan[i])
@@ -65,7 +65,7 @@ Item {
         function test_L01_onePageAliveAtATime() {
             var got = walkSampling(function() { return d.pageObjects() })
             console.info("[L1] live page objects per step: " + JSON.stringify(got))
-            var want = { goals: 1, cameras: 1, triangulate: 1, ball: 1, imus: 1, calibrateArm: 1, checkArm: 1, ready: 1 }
+            var want = { goals: 1, cameras: 1, framing: 1, triangulate: 1, ball: 1, imus: 1, calibrateArm: 1, checkArm: 1, ready: 1 }
             compare(got, want)
         }
 
@@ -119,6 +119,8 @@ Item {
             d.clickPrimary()                         // Connect cameras
             d.next()
             gate("cameras")
+            d.next()                                 // Framing (live frame, pose on)
+            gate("framing")
             d.next()                                 // Triangulate
             d.next()                                 // Ball (present)
             gate("triangulate+ball")

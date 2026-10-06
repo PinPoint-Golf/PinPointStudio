@@ -237,15 +237,15 @@ Item {
             d.addCamera("DTL1", CameraInstance.DownTheLine, true)
             d.addCameraInstance("FO1", { ballPresent: true })
             d.open(wrist)
-            d.next(); d.next(); d.next()                 // Goals, Cameras, Triangulate done → Ball
+            d.next(); d.next(); d.next(); d.next()       // Goals, Cameras, Framing, Triangulate done → Ball
             compare(d.current(), "ball")
             // The pips' numbers are the eyebrows' (one source, flow.plan).
-            compare(d.stepLabel(), "STEP " + d.pip("ball").glyph + " OF 6 · BALL DETECTION")
+            compare(d.stepLabel(), "STEP " + d.pip("ball").glyph + " OF 7 · BALL DETECTION")
             d.clickPip("imus")
             compare(d.current(), "ball", "a future pip navigated")
             d.clickPip("triangulate")
             compare(d.current(), "triangulate")
-            compare(d.stepLabel(), "STEP 3 OF 6 · TRIANGULATION")
+            compare(d.stepLabel(), "STEP 4 OF 7 · TRIANGULATION")
             compare(d.state("triangulate"), "done")
             compare(d.pip("triangulate").state, "current")
             compare(d.pip("goals").glyph, "✓")
@@ -256,7 +256,7 @@ Item {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addCameraInstance("FO1", { ballPresent: true })
             d.open(wrist)
-            d.next(); d.next()                           // Goals, Cameras done → Ball
+            d.next(); d.next(); d.next()                 // Goals, Cameras, Framing done → Ball
             compare(d.current(), "ball")
             verify(!d.pip("cameras").attention, "attention before anything went wrong")
             d.cams.setCameraSelected("FO1", false)       // the face-on camera drops

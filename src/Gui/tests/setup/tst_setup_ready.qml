@@ -386,6 +386,8 @@ Item {
                 if (c.camAct === "connect") { compare(d.primaryLabel(), "Connect"); d.clickPrimary() }
                 d.next()
             }
+            // Framing follows a connected camera, whatever Cameras was left with; never gated.
+            if (d.current() === "framing") d.next()
             if (d.current() === "triangulate") d.next()
             compare(d.current(), "ball")
             if (c.ball === "present") d.next(); else d.skip()

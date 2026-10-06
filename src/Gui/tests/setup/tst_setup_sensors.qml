@@ -99,7 +99,7 @@ Item {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addWitmotion("WT-N", "", true)                 // found, connected, no mount
             d.open(wrist)
-            compare(d.plan(), ["goals", "cameras", "ball", "imus", "ready"], "found is not wanted (§4.12)")
+            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "ready"], "found is not wanted (§4.12)")
             d.walkTo("imus")
             verify(d.mountQuestionShown("WT-N"), "no mount question for a found sensor with none")
             var opts = d.mountOptions("WT-N")
@@ -127,9 +127,9 @@ Item {
             compare(appSettings.imuRoles["WT-N"], "leadForearm", "the mount is a setting: it sticks")
             verify(!d.mountQuestionShown("WT-N"), "the question is still open after a pick")
             compare(d.imuRows()[0].label, "Lead forearm — WT901BLE WT-N")
-            compare(d.plan(), ["goals", "cameras", "ball", "imus", "calibrateArm", "checkArm", "ready"])
+            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "calibrateArm", "checkArm", "ready"])
             verify(d.pip("calibrateArm").shown && d.pip("checkArm").shown, "the arm steps' pips did not appear")
-            compare(d.stepLabel(), "STEP 4 OF 7 · MOTION SENSORS")
+            compare(d.stepLabel(), "STEP 5 OF 8 · MOTION SENSORS")
             // Not the minimum set (leadForearm + leadHand): the closing page will say so.
             verify(d.readinessIssues().some(function(x) { return x.text === "Lead hand not assigned" }),
                    JSON.stringify(d.readinessIssues()))
@@ -337,7 +337,7 @@ Item {
             d.addCamera("FO1", CameraInstance.FaceOn, true)
             d.addCameraInstance("FO1", { ballPresent: true })
             d.open(wrist)
-            compare(d.plan(), ["goals", "cameras", "ball", "imus", "ready"])
+            compare(d.plan(), ["goals", "cameras", "framing", "ball", "imus", "ready"])
             d.walkTo("imus")
             compare(d.hint(), "No sensors in this session — wrist angles will not be measured")
             compare(d.primaryLabel(), "Continue →")

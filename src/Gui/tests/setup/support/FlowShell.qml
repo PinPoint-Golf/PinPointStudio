@@ -17,7 +17,7 @@ Item {
 
     readonly property url dummyPage: Qt.resolvedUrl("pages/DummyPage.qml")
     readonly property var _overrides: {
-        var keys = ["goals", "cameras", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"]
+        var keys = ["goals", "cameras", "framing", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"]
         var out = {}
         for (var i = 0; i < keys.length; ++i) out[keys[i]] = shell.dummyPage
         for (var k in shell.pageOverride) out[k] = shell.pageOverride[k]

@@ -17,7 +17,7 @@
 // A function that looks for something the current page does not show throws, so a case cannot
 // pass on nothing.
 //
-// Step keys: "goals","cameras","triangulate","ball","imus","calibrateArm","checkArm","ready".
+// Step keys: "goals","cameras","framing","triangulate","ball","imus","calibrateArm","checkArm","ready".
 import QtQuick
 import PinPointStudio
 import "../fakes"
@@ -55,7 +55,7 @@ Item {
     readonly property int screenSettings: 9
     readonly property int screenWizard:   10
 
-    readonly property var stepKeys: ["goals", "cameras", "triangulate", "ball", "imus",
+    readonly property var stepKeys: ["goals", "cameras", "framing", "triangulate", "ball", "imus",
                                      "calibrateArm", "checkArm", "ready"]
 
     Component { id: imuMgrComp;    FakeImuManager {} }

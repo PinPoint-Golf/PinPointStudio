@@ -211,15 +211,15 @@ Item {
             open()
             go()
             compare(flow().current, "cameras")
-            compare(flow().plan, ["goals", "cameras", "ball", "imus", "ready"])
+            compare(flow().plan, ["goals", "cameras", "framing", "ball", "imus", "ready"])
             cams.setCameraSelected("DTL", true)
-            compare(flow().plan, ["goals", "cameras", "triangulate", "ball", "imus", "ready"])
-            compare(flow().page.stepLabel, "STEP 2 OF 6 · CAMERAS")
-            compare(flow().stepLabelFor("triangulate"), "STEP 3 OF 6 · TRIANGULATION")
-            compare(flow().stepLabelFor("ready"), "STEP 6 OF 6 · READY")
+            compare(flow().plan, ["goals", "cameras", "framing", "triangulate", "ball", "imus", "ready"])
+            compare(flow().page.stepLabel, "STEP 2 OF 7 · CAMERAS")
+            compare(flow().stepLabelFor("triangulate"), "STEP 4 OF 7 · TRIANGULATION")
+            compare(flow().stepLabelFor("ready"), "STEP 7 OF 7 · READY")
             cams.setCameraSelected("DTL", false)
-            compare(flow().plan, ["goals", "cameras", "ball", "imus", "ready"])
-            compare(flow().page.stepLabel, "STEP 2 OF 5 · CAMERAS")
+            compare(flow().plan, ["goals", "cameras", "framing", "ball", "imus", "ready"])
+            compare(flow().page.stepLabel, "STEP 2 OF 6 · CAMERAS")
         }
 
         function test_N03F_continueThroughUngatedSteps() {
@@ -227,7 +227,7 @@ Item {
             makeShell()
             open()
             var p = flow().plan
-            compare(p, ["goals", "cameras", "ball", "imus", "ready"])
+            compare(p, ["goals", "cameras", "framing", "ball", "imus", "ready"])
             for (var i = 0; i < p.length - 1; ++i) {
                 compare(flow().current, p[i])
                 go("done")
@@ -239,7 +239,7 @@ Item {
             go("done")                                       // nothing after Ready: refused
             compare(flow().current, "ready")
             compare(draft().state("ready"), "pending")
-            compare(flow().progress.passed, 4)
+            compare(flow().progress.passed, 5)
         }
 
         function test_N04F_backFromEachStepAndExitFromFirst() {
@@ -282,7 +282,7 @@ Item {
             makeShell()
             open()
             go("done")
-            var skipped = ["cameras", "triangulate", "ball", "imus", "calibrateArm"]
+            var skipped = ["cameras", "framing", "triangulate", "ball", "imus", "calibrateArm"]
             for (var i = 0; i < skipped.length; ++i) {
                 compare(flow().current, skipped[i])
                 go("skipped")
@@ -313,7 +313,7 @@ Item {
             var inst = faceOnWithBall(false)
             makeShell()
             open()
-            go("done"); go("done")
+            go("done"); go("done"); go("done")
             compare(flow().current, "ball")
             verify(!flow().canContinue)
             go("done")
@@ -382,7 +382,7 @@ Item {
             makeShell()
             var cancelled = spy(flow(), "cancelled")
             var started = spy(flow(), "startRequested")
-            var plan = ["goals", "cameras", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"]
+            var plan = ["goals", "cameras", "framing", "triangulate", "ball", "imus", "calibrateArm", "checkArm", "ready"]
             for (var i = 0; i < plan.length; ++i) {
                 cams.setCameraSelected("FO", true)           // the last cancel disconnected them
                 cams.setCameraSelected("DTL", true)
@@ -481,7 +481,7 @@ Item {
             makeShell()
             open()
             draft().toggleGoal("impactConditions")
-            go("done"); go("done"); go("done")
+            go("done"); go("done"); go("done"); go("done")
             compare(flow().current, "imus")
             ctx().connectSensors()                           // paced: WT-A now, WT-B in 2 s
             verify(imu.pacedConnectActive)
@@ -506,26 +506,26 @@ Item {
             makeShell()
             journal.setConfig("triangulate", "canContinue", false)
             open()
-            go("done"); go("done")
+            go("done"); go("done"); go("done")
             compare(flow().current, "triangulate")
             cams.setCameraSelected("DTL", false)
             compare(flow().current, "triangulate", "the current step is pinned")
             verify(flow().noLongerNeeded)
-            compare(flow().plan, ["goals", "cameras", "triangulate", "ball", "imus", "ready"])
-            compare(flow().stepLabel, "STEP 3 OF 6 · TRIANGULATION", "numbering never blank")
-            compare(flow().page.stepLabel, "STEP 3 OF 6 · TRIANGULATION")
+            compare(flow().plan, ["goals", "cameras", "framing", "triangulate", "ball", "imus", "ready"])
+            compare(flow().stepLabel, "STEP 4 OF 7 · TRIANGULATION", "numbering never blank")
+            compare(flow().page.stepLabel, "STEP 4 OF 7 · TRIANGULATION")
             verify(flow().canContinue, "nothing left to require of a step that no longer applies")
             go("done")
             compare(flow().current, "ball")
-            compare(flow().plan, ["goals", "cameras", "ball", "imus", "ready"])
-            compare(flow().page.stepLabel, "STEP 3 OF 5 · BALL DETECTION")
+            compare(flow().plan, ["goals", "cameras", "framing", "ball", "imus", "ready"])
+            compare(flow().page.stepLabel, "STEP 4 OF 6 · BALL DETECTION")
         }
 
         function test_N16F_goToVisitedStepsOnly() {
             faceOnWithBall(true)
             makeShell()
             open()
-            go("done"); go("skipped"); go("done")
+            go("done"); go("skipped"); go("done"); go("done")
             compare(flow().current, "imus")
             verify(flow().canGoTo("goals"))
             verify(flow().canGoTo("cameras"))
@@ -543,7 +543,7 @@ Item {
             compare(draft().state("cameras"), "skipped")
             compare(draft().state("imus"), "pending")
             // N15's form: back to a visited step with the states from it on reset.
-            go("done"); go("done"); go("done")
+            go("done"); go("done"); go("done"); go("done")
             compare(flow().current, "ready")
             flow().goTo("ball", true)
             settle()
@@ -565,14 +565,14 @@ Item {
             })
             shell.steps.extensions = [d]
             open()
-            compare(flow().plan, ["goals", "cameras", "ball", "dummyStep", "imus", "ready"])
-            compare(flow().stepLabelFor("dummyStep"), "STEP 4 OF 6 · DUMMY")
+            compare(flow().plan, ["goals", "cameras", "framing", "ball", "dummyStep", "imus", "ready"])
+            compare(flow().stepLabelFor("dummyStep"), "STEP 5 OF 7 · DUMMY")
             var entry = flow().steps.filter(function(s) { return s.key === "dummyStep" })[0]
-            compare(entry.label, "Dummy"); compare(entry.group, "cameras"); compare(entry.number, 4)
+            compare(entry.label, "Dummy"); compare(entry.group, "cameras"); compare(entry.number, 5)
             compare(flow().summaryRows.map(function(r) { return r.label }).indexOf("Dummy") >= 0, true)
             while (flow().current !== "dummyStep") go("done")
             compare(flow().page.objectName, "extraPage")
-            compare(flow().page.stepLabel, "STEP 4 OF 6 · DUMMY")
+            compare(flow().page.stepLabel, "STEP 5 OF 7 · DUMMY")
             go("done")
             compare(flow().current, "imus")
             compare(draft().state("dummyStep"), "done")
@@ -650,7 +650,7 @@ Item {
             settle()
             compare(journal.alive, 1)
             compare(journal.maxAlive, 1, "two pages were alive at once")
-            compare(journal.created, 11)
+            compare(journal.created, 12)
             flow().exit("cancel")
             settle()
             tryCompare(journal, "alive", 0)
@@ -735,6 +735,7 @@ Item {
                 function() { flow().open(wrist) },
                 function() { flow().next("done") },
                 function() { flow().next("done") },
+                function() { flow().next("done") },
                 function() { flow().next("done") },      // refused: no ball
                 function() { flow().back() },
                 function() { flow().goTo("goals") },
@@ -742,8 +743,9 @@ Item {
                 function() { flow().resume() },
                 function() { flow().exit("cancel") }
             ]
-            var want = ["op=open", "op=next from=goals to=cameras", "op=next from=cameras to=ball",
-                        "refused=gate", "op=back from=ball to=cameras", "op=goTo from=cameras to=goals",
+            var want = ["op=open", "op=next from=goals to=cameras", "op=next from=cameras to=framing",
+                        "op=next from=framing to=ball",
+                        "refused=gate", "op=back from=ball to=framing", "op=goTo from=framing to=goals",
                         "op=suspend", "op=resume", "op=exit from=goals to=- reason=cancel"]
             for (var i = 0; i < ops.length; ++i) {
                 var n0 = setLines().length
