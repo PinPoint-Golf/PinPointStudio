@@ -715,6 +715,32 @@ int main()
     check(sB.posP90Cm <= 2.0, "(b) root-relative joint position ≤ 2 cm p90");
     check(rB.nSwapFo >= 1, "(b) the label swap at the top is found");
 
+    // (b-thr) evaluate() on a thread team (analysis_dag_design.md step D): the frames' residuals run
+    // on the team and the shared block is still summed in frame order, so the fit is the serial
+    // fit's BITS — every angle, the cameras, the cost, the iteration count. One fit at whichever
+    // setting (b) did not use: (b) runs the default (0 = auto, min(8, physical cores)), this one the
+    // serial loop; with the default at 1 this one runs 4 threads. On the M4 (6 Oct 2026): 0 rad
+    // apart, 1023 → 601 ms.
+    {
+        FitInput in = inB;
+        in.cfg.evalThreads = inB.cfg.evalThreads == 1 ? 4 : 1;
+        const FitResult r = fitSkeleton(in);
+        double dTh = 0;
+        bool same = r.theta.size() == rB.theta.size() && r.iterations == rB.iterations
+                    && r.costFinal == rB.costFinal && r.cam.fF == rB.cam.fF && r.cam.pD == rB.cam.pD
+                    && r.cam.cD.x == rB.cam.cD.x && r.cam.cD.y == rB.cam.cD.y && r.cam.cD.z == rB.cam.cD.z
+                    && r.gripOffsetLocal == rB.gripOffsetLocal && r.nSwapFo == rB.nSwapFo;
+        for (size_t i = 0; same && i < r.theta.size(); ++i)
+            for (size_t k = 0; k < r.theta[i].size(); ++k) {
+                dTh = std::max(dTh, std::fabs(r.theta[i][k] - rB.theta[i][k]));
+                same = same && r.theta[i][k] == rB.theta[i][k];
+            }
+        std::printf("      evalThreads %d vs %d: cost %.17g vs %.17g, %d vs %d iterations, max |Δθ| %.3g rad, "
+                    "%.0f vs %.0f ms\n", in.cfg.evalThreads, inB.cfg.evalThreads, r.costFinal, rB.costFinal,
+                    r.iterations, rB.iterations, dTh, r.ms, rB.ms);
+        check(same, "(b-thr) the serial and the threaded evaluate() give the identical fit, bit for bit");
+    }
+
     // (b-HM) the same, with a HackMotion on the lead wrist (its two angles, σ 1.5°).
     std::printf("(b-HM) with a HackMotion on the lead wrist\n");
     {

@@ -30,6 +30,14 @@ pp_add_test(ball_temporal_test
     LINK    ${OpenCV_LIBS}
     NO_QT)
 
+# ball.roiDecode parity (analysis_dag_design.md step C): BallRunner's row-band decode +
+# crop-only grey/float gives the full-frame path's R and W3 crop byte for byte.
+pp_add_test(ball_roi_decode_test
+    SOURCES ball_roi_decode_test.cpp ${POSE}/../Export/frame_decode.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS} ${POSE}/../Buffer ${POSE}/../Export
+    LINK    ${OpenCV_LIBS}
+    NO_QT)
+
 # Ball v2 NUMERIC PARITY vs the python exemplar (ball_state_machine.py): run
 # TemporalBallTracker over python's OWN dumped DoG response stack + baseline (NOT a
 # C++ decode — independent OpenCV versions decode the H.264 to different pixels), a

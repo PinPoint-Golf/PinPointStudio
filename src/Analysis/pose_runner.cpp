@@ -52,6 +52,7 @@ using pinpoint::analysis::PoseTrack2D;
 #include "pose_pipeline.h"          // InstanceCache (session cache) + runOrderedPipeline (producer pool)
 #include "../Core/pp_tuned_constants.h"   // pose::kSessionCache / kProducerThreads / kQueueDepth
 #include "../Core/cpu_topology.h"   // physicalCoreCount() — pose.producerThreads auto
+#include "frame_store.h"            // decode.frameStore — the analysis' one decode of this camera
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -390,6 +391,14 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
 
     size_t  wristOk = 0;
 
+    // decode.frameStore (frame_store.h): when the analysis holds this camera's frames as BGR,
+    // every pass below reads them from there instead of fetching — the decodeToBgr output for
+    // the same payload, so preprocess sees the same pixels. Without BGR in the store the lease
+    // holds the camera's reader lock for the whole run and the passes fetch as before.
+    const pinpoint::analysis::FrameLease frameLease(window, faceOnSource, opt.tuningOverrides,
+                                                    /*needBgr*/ true);
+    const pinpoint::analysis::FrameStore *const store = frameLease.store();
+
     // ── Pipelined pose (perf plan step 2: a producer pool) ──────────────────────
     // decode + preprocess run on producer threads while ORT inference runs on
     // this (consumer) thread. One producer was the bottleneck once inference got
@@ -426,6 +435,7 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         bool                   prepared = false;   // 1 producer: item is final
         bool                   rawNull  = true;    // payloadOf() returned no bytes
         std::vector<std::byte> raw;                // N producers: owned payload copy
+        const cv::Mat         *storeBgr = nullptr;  // decode.frameStore: the frame's BGR (or empty)
     };
     const bool serialFetch = producerThreads <= 1;
 
@@ -448,6 +458,15 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         // payload bytes → BGR → owned NCHW tensor. preprocess() is const and
         // touches no estimator state (the timing sink is mutex-guarded), so N
         // producers may run it at once alongside inferPrepared().
+        auto prepareBgr = [&](const cv::Mat &frameBgr, PipeItem &item) {
+            // The crop is a plain ROI view (no copy) — mathematically
+            // equivalent to a warpAffine given the aspect-locked rect (design §3.2).
+            if (cropRoi)
+                estimator.preprocess(frameBgr(*cropRoi), item.input);
+            else
+                estimator.preprocess(frameBgr, item.input);
+            item.decodeOk = true;
+        };
         auto prepare = [&](const std::byte *data, size_t bytes, PipeItem &item) {
             cv::Mat frameBgr;   // fresh per frame — decodeToBgr may alias the payload
             bool decoded;
@@ -458,21 +477,27 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
                     &timingSink, &pinpoint::pose::PoseTiming::decodeMs);
                 decoded = pinpoint::decodeToBgr(*cfmt, data, bytes, frameBgr);
             }
-            if (decoded) {
-                // The crop is a plain ROI view (no copy) — mathematically
-                // equivalent to a warpAffine given the aspect-locked rect (design §3.2).
-                if (cropRoi)
-                    estimator.preprocess(frameBgr(*cropRoi), item.input);
-                else
-                    estimator.preprocess(frameBgr, item.input);
-                item.decodeOk = true;
-            }
+            if (decoded)
+                prepareBgr(frameBgr, item);
         };
 
         const std::function<Fetched(size_t)> fetch = [&](size_t k) {
             Fetched f;
             f.item.t_us     = entries[jobs[k].first].timestamp_us;
             f.item.progress = jobs[k].second;
+            if (store) {
+                // No fetch: the store's BGR (read-only, shared by every producer). An entry the
+                // store could not decode is the decode failure the fetch path would have hit.
+                const pinpoint::IndexEntry &e = entries[jobs[k].first];
+                if (store->bgrOk(e))
+                    f.storeBgr = store->bgr(e);
+                f.rawNull = f.storeBgr == nullptr;
+                if (serialFetch) {
+                    if (f.storeBgr) prepareBgr(*f.storeBgr, f.item);
+                    f.prepared = true;
+                }
+                return f;
+            }
             pinpoint::SourceRing::ReadHandle handle;
             {
                 // The payload fetch is decode time too: on re-analysis without a
@@ -493,8 +518,13 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
             return f;
         };
         const std::function<PipeItem(size_t, Fetched &&)> process = [&](size_t, Fetched &&f) {
-            if (!f.prepared)
-                prepare(f.rawNull ? nullptr : f.raw.data(), f.raw.size(), f.item);
+            if (!f.prepared) {
+                if (store) {
+                    if (f.storeBgr) prepareBgr(*f.storeBgr, f.item);
+                } else {
+                    prepare(f.rawNull ? nullptr : f.raw.data(), f.raw.size(), f.item);
+                }
+            }
             return std::move(f.item);
         };
 
@@ -814,7 +844,10 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
             prev = idx;
             cv::Mat frameBgr;
             bool decoded;
-            {
+            if (store) {   // decode.frameStore: the same pixels, no fetch
+                decoded = store->bgrOk(entries[idx]) && store->bgr(entries[idx]);
+                if (decoded) frameBgr = *store->bgr(entries[idx]);
+            } else {
                 pinpoint::pose::PoseScopedTimer decodeTimer(
                     &timingSink, &pinpoint::pose::PoseTiming::decodeMs);
                 const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(entries[idx]);

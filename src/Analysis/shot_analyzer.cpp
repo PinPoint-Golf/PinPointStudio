@@ -94,7 +94,7 @@ public:
         AnalysisContext ctx{ CaptureCapabilities::fromJob(job, window), job, &window };
         ctx.detail = std::make_shared<SwingAnalysis>();
         ctx.wall.start();
-        runStages(cameraKinematicsProfile(), ctx);
+        runProfile(cameraKinematicsProfile(), ctx);   // the loop, or the DAG (analysis.parallel)
 
         ShotAnalysisResult r;
         r.ok          = true;

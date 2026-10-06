@@ -361,7 +361,8 @@ DPResult viterbiBanded(const std::vector<std::vector<float>>& emis,
 std::vector<std::vector<float>> forwardBackwardBanded(const std::vector<std::vector<float>>& emis,
                                                       const std::vector<int>& wmaxBins,
                                                       const std::vector<int>& sgn,
-                                                      double kSmooth, double gridDeg, double T)
+                                                      double kSmooth, double gridDeg, double T,
+                                                      bool parallel)
 {
     const int nf = int(emis.size());
     std::vector<std::vector<float>> out;
@@ -370,51 +371,73 @@ std::vector<std::vector<float>> forwardBackwardBanded(const std::vector<std::vec
     // α_f(k): cost-to-arrive, soft-min over predecessors; β_f(k): cost-to-go.
     std::vector<std::vector<double>> alpha(static_cast<size_t>(nf), std::vector<double>(static_cast<size_t>(NS)));
     std::vector<std::vector<double>> beta(static_cast<size_t>(nf), std::vector<double>(size_t(NS), 0.0));
-    for (int k = 0; k < NS; ++k) alpha[0][size_t(k)] = emis[0][size_t(k)];
-    std::vector<double> acc(static_cast<size_t>(NS));
-    for (int f = 1; f < nf; ++f) {
-        const int wmax = wmaxBins[size_t(f)], s = sgn[size_t(f)];
-        const int dLo = (s > 0) ? 0 : -wmax, dHi = (s < 0) ? 0 : wmax;
-        for (int k = 0; k < NS; ++k) {
-            double m = std::numeric_limits<double>::infinity();
-            for (int d = dLo; d <= dHi; ++d) {
-                const int src = ((k - d) % NS + NS) % NS;
-                m = std::min(m, alpha[size_t(f - 1)][size_t(src)] + kSmooth * (d * gridDeg) * (d * gridDeg));
+    const auto forward = [&]() {
+        for (int k = 0; k < NS; ++k) alpha[0][size_t(k)] = emis[0][size_t(k)];
+        for (int f = 1; f < nf; ++f) {
+            const int wmax = wmaxBins[size_t(f)], s = sgn[size_t(f)];
+            const int dLo = (s > 0) ? 0 : -wmax, dHi = (s < 0) ? 0 : wmax;
+            for (int k = 0; k < NS; ++k) {
+                double m = std::numeric_limits<double>::infinity();
+                for (int d = dLo; d <= dHi; ++d) {
+                    const int src = ((k - d) % NS + NS) % NS;
+                    m = std::min(m, alpha[size_t(f - 1)][size_t(src)] + kSmooth * (d * gridDeg) * (d * gridDeg));
+                }
+                double sum = 0.0;
+                for (int d = dLo; d <= dHi; ++d) {
+                    const int src = ((k - d) % NS + NS) % NS;
+                    sum += std::exp(-(alpha[size_t(f - 1)][size_t(src)] + kSmooth * (d * gridDeg) * (d * gridDeg) - m) / T);
+                }
+                alpha[size_t(f)][size_t(k)] = emis[size_t(f)][size_t(k)] + m - T * std::log(sum);
             }
-            double sum = 0.0;
-            for (int d = dLo; d <= dHi; ++d) {
-                const int src = ((k - d) % NS + NS) % NS;
-                sum += std::exp(-(alpha[size_t(f - 1)][size_t(src)] + kSmooth * (d * gridDeg) * (d * gridDeg) - m) / T);
-            }
-            alpha[size_t(f)][size_t(k)] = emis[size_t(f)][size_t(k)] + m - T * std::log(sum);
         }
-    }
-    for (int f = nf - 2; f >= 0; --f) {
-        const int wmax = wmaxBins[size_t(f + 1)], s = sgn[size_t(f + 1)];
-        const int dLo = (s > 0) ? 0 : -wmax, dHi = (s < 0) ? 0 : wmax;
-        for (int j = 0; j < NS; ++j) {
-            double m = std::numeric_limits<double>::infinity();
-            for (int d = dLo; d <= dHi; ++d) {
-                const int dst = ((j + d) % NS + NS) % NS;
-                m = std::min(m, kSmooth * (d * gridDeg) * (d * gridDeg) + emis[size_t(f + 1)][size_t(dst)]
-                                + beta[size_t(f + 1)][size_t(dst)]);
+    };
+    const auto backward = [&]() {
+        for (int f = nf - 2; f >= 0; --f) {
+            const int wmax = wmaxBins[size_t(f + 1)], s = sgn[size_t(f + 1)];
+            const int dLo = (s > 0) ? 0 : -wmax, dHi = (s < 0) ? 0 : wmax;
+            for (int j = 0; j < NS; ++j) {
+                double m = std::numeric_limits<double>::infinity();
+                for (int d = dLo; d <= dHi; ++d) {
+                    const int dst = ((j + d) % NS + NS) % NS;
+                    m = std::min(m, kSmooth * (d * gridDeg) * (d * gridDeg) + emis[size_t(f + 1)][size_t(dst)]
+                                    + beta[size_t(f + 1)][size_t(dst)]);
+                }
+                double sum = 0.0;
+                for (int d = dLo; d <= dHi; ++d) {
+                    const int dst = ((j + d) % NS + NS) % NS;
+                    sum += std::exp(-(kSmooth * (d * gridDeg) * (d * gridDeg) + emis[size_t(f + 1)][size_t(dst)]
+                                      + beta[size_t(f + 1)][size_t(dst)] - m) / T);
+                }
+                beta[size_t(f)][size_t(j)] = m - T * std::log(sum);
             }
-            double sum = 0.0;
-            for (int d = dLo; d <= dHi; ++d) {
-                const int dst = ((j + d) % NS + NS) % NS;
-                sum += std::exp(-(kSmooth * (d * gridDeg) * (d * gridDeg) + emis[size_t(f + 1)][size_t(dst)]
-                                  + beta[size_t(f + 1)][size_t(dst)] - m) / T);
-            }
-            beta[size_t(f)][size_t(j)] = m - T * std::log(sum);
         }
-    }
+    };
+    const auto marginals = [&](int f0, int f1) {
+        std::vector<double> acc(static_cast<size_t>(NS));   // per stripe (was one shared scratch row)
+        for (int f = f0; f < f1; ++f) {
+            double m = std::numeric_limits<double>::infinity();
+            for (int k = 0; k < NS; ++k) { acc[size_t(k)] = alpha[size_t(f)][size_t(k)] + beta[size_t(f)][size_t(k)]; m = std::min(m, acc[size_t(k)]); }
+            double z = 0.0;
+            for (int k = 0; k < NS; ++k) { acc[size_t(k)] = std::exp(-(acc[size_t(k)] - m) / T); z += acc[size_t(k)]; }
+            for (int k = 0; k < NS; ++k) out[size_t(f)][size_t(k)] = float(acc[size_t(k)] / z);
+        }
+    };
     out.assign(size_t(nf), std::vector<float>(size_t(NS), 0.f));
-    for (int f = 0; f < nf; ++f) {
-        double m = std::numeric_limits<double>::infinity();
-        for (int k = 0; k < NS; ++k) { acc[size_t(k)] = alpha[size_t(f)][size_t(k)] + beta[size_t(f)][size_t(k)]; m = std::min(m, acc[size_t(k)]); }
-        double z = 0.0;
-        for (int k = 0; k < NS; ++k) { acc[size_t(k)] = std::exp(-(acc[size_t(k)] - m) / T); z += acc[size_t(k)]; }
-        for (int k = 0; k < NS; ++k) out[size_t(f)][size_t(k)] = float(acc[size_t(k)] / z);
+    if (parallel) {
+        // The two recurrences never read each other — α runs forward on its own
+        // rows, β backward on its own — so they run side by side, and the
+        // marginal rows are per frame. Each value is the same expression in the
+        // same order: byte-identical. (Splitting the θ states of each frame
+        // instead bought nothing — 1490 dispatches of ~0.07 ms each; 84–102 ms
+        // against 103–110 serial on the Mac, step G.)
+        cv::parallel_for_(cv::Range(0, 2), [&](const cv::Range& r) {
+            for (int t = r.start; t < r.end; ++t) { if (t == 0) forward(); else backward(); }
+        }, 2.0);
+        cv::parallel_for_(cv::Range(0, nf), [&](const cv::Range& r) { marginals(r.start, r.end); });
+    } else {
+        forward();
+        backward();
+        marginals(0, nf);
     }
     return out;
 }
@@ -613,6 +636,10 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.impactGeom.overrideUs", c.impactGeom.overrideUs);
     apply(ov, "shaft.impactGeom.overrideLater", c.impactGeom.overrideLater);
     apply(ov, "shaft.impactGeom.windowUs", c.impactGeom.windowUs);
+    // Serial sections in parallel (step G) — reorder only, byte-identical.
+    apply(ov, "shaft.parallel.snap", c.par.snap);
+    apply(ov, "shaft.parallel.head", c.par.head);
+    apply(ov, "shaft.parallel.fb",   c.par.fb);
     // Layer A line re-registration («snap»): "shaft.snap.*" keys.
     apply(ov, "shaft.snap.enabled", c.snap.enabled);
     apply(ov, "shaft.snap.maxOffsetPx", c.snap.maxOffsetPx);
@@ -2096,6 +2123,10 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     // Must match the ShaftTracker cap so both layers make the same decision — so
     // it is the SAME constant, shaftshared::kFrameCacheCapBytes, not a second copy
     // of the number that has to be kept equal by hand.
+    // The time split (shaftshared::ShaftProf, step G): laps through the serial
+    // body, Σ spans inside the parallel evidence loop. Null sink ⇒ no-ops.
+    shaftshared::ShaftProf* const prof = shaftshared::shaftProf();
+    shaftshared::ShaftProfLap lap(prof);
     const size_t cacheBytes = size_t(nf) * size_t(std::max(0, frameW)) * size_t(std::max(0, frameH));
     // Freshly constructed per call, so — unlike buildFrameCache's caller-owned
     // cacheOut — it needs no clear before the cap test.
@@ -2109,6 +2140,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         if (parFrames && i >= 0 && i < nf) return frameCache[size_t(i)];
         return frameAt(i);
     };
+    lap.lap("d.cacheCopy");
 
     std::vector<double> phiRaw = phiRawIn;
     interpFillNan(phiRaw);
@@ -2128,7 +2160,9 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     }
     if (trace) trace->phiTrailSmoothed = phiTrailS;
 
+    lap.lap("d.phi");
     const PhaseModel pm = segmentPhasesChecked(gx, gy, nf, fps, impactFrame, cfg, &phiS, &tUs);
+    lap.lap("d.phaseModel");
 
     // chirality from unwrapped φ over [bs0, top]
     int chir = 1;
@@ -2153,6 +2187,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     std::vector<float> gridRad(NS), gridDeg(NS);
     for (int k = 0; k < NS; ++k) { gridDeg[k] = float(k * cfg.grid); gridRad[k] = float(k * cfg.grid * kPi / 180.0); }
 
+    lap.lap("d.joints");
     // scene background: median of every-8th frame (float32)
     cv::Mat sceneMed;
     {
@@ -2180,6 +2215,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         }
     }
 
+    lap.lap("d.sceneMed");
     const int addressCollar = int(std::lround(double(cfg.addressCollarUs) * 1e-6 * fps));
     const int finishCollar  = int(std::lround(double(cfg.spanCollarUs) * 1e-6 * fps));
     const int spanLo = cfg.spanBound ? std::max(0, pm.bs0 - addressCollar) : 0;
@@ -2217,6 +2253,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         if (trace) trace->lPxRejected = lpxReject;
     }
 
+    lap.lap("d.ballLen");
     std::vector<std::vector<float>> emis(nf, std::vector<float>(NS, float(cfg.wE2)));
     std::vector<std::vector<float>> EV(nf, std::vector<float>(NS, 0.f));
     // Per-θ ridge support (max over the surviving evidence channels), the
@@ -2258,6 +2295,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 v->assign(size_t(nf), std::numeric_limits<double>::quiet_NaN());
         }
     }
+    lap.lap("d.wedgePre");
     // ── R8 wedge pre-pass (S2): R6 predictor → per-frame trigger + envelope ──
     // ω̂ and the envelope come from the MEASURED arm + the stereotyped
     // wrist-cock table only, never from the DP: the trigger must not chase the
@@ -2348,8 +2386,10 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         cv::Mat g8 = frameSrc(i);
         if (g8.empty()) return;
         heavyMark[size_t(i)] = 1;
+        shaftshared::ShaftProfScope tRaw(prof, "Σev.raw");
         cv::Mat g32; g8.convertTo(g32, CV_32F);
         const RidgeResult sRaw = ridgeSweep(g32, gx[i], gy[i], gridRad, cfg.ridge, false);
+        tRaw.stop();
         // Raw (pre-normalisation) p97 of the channel: the ONLY absolute
         // statement available about whether this frame contains a line at all —
         // normScores() below rescales any row, noise included, to a full-strength
@@ -2363,6 +2403,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         std::vector<float> supMax  = rawDrown ? std::vector<float>(NS, 0.f) : sRaw.support;
         std::vector<float> evMax = normRaw;
         cv::Mat diff;   // scene-median residual, shared with the wedge sweep below
+        shaftshared::ShaftProfScope tDif(prof, "Σev.dif");
         if (!sceneMed.empty() && sceneMed.size() == g32.size()) {
             cv::absdiff(g32, sceneMed, diff);
             const RidgeResult sDif = ridgeSweep(diff, gx[i], gy[i], gridRad, cfg.ridge, true);
@@ -2378,8 +2419,10 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
             if (!difDrown)
                 for (int k = 0; k < NS; ++k) supMax[k] = std::max(supMax[k], sDif.support[k]);
         }
+        tDif.stop();
         EV[i] = evMax;
         SUP[i] = std::move(supMax);
+        shaftshared::ShaftProfScope tWedge(prof, "Σev.wedge");
         // R8 wedge: a second, PROXIMAL ridge sweep (raw + dif) restricted to
         // the R6 envelope's θ bins. Image velocity ∝ ρ, so the innermost shaft
         // barely blurs — the R5 relaxation (short rHi, short minLenPx) lives in
@@ -2429,8 +2472,12 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 wRowDif[size_t(i)] = pDif;
             }
         }
+        tWedge.stop();
+        shaftshared::ShaftProfScope tBand(prof, "Σev.band");
         BandMatch bm = frameBandMatch(g8, gx[i], gy[i], rmax, bandsMm, cfg.band);
         if (bm.ok && bm.r0 > 0.0f && bm.r0 <= 260.0f) { band[i] = bm; bandOk[i] = 1; }
+        tBand.stop();
+        shaftshared::ShaftProfScope tEm(prof, "Σev.emission");
         std::vector<float> em, inside;
         const double haDeg  = (i < int(handAxisDeg.size()))  ? handAxisDeg[size_t(i)]
                                                              : std::numeric_limits<double>::quiet_NaN();
@@ -2457,6 +2504,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     int heavy = 0;
     for (int i = 0; i < nf; ++i) heavy += heavyMark[size_t(i)];
 
+    lap.lap("d.evidence");
     // ── R8 wedge injection (serial, pre-DP): t_exp calibration + centroid well
     //    + kinCone. The frozen frameEmission/viterbiDP/normScores bodies are
     //    untouched — the wedge only EDITS the already-built emission rows of
@@ -2534,6 +2582,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         }
     }
 
+    lap.lap("d.wedgeInject");
     // ── θ_ball well (serial, pre-DP; cfg.addr.ballWell) ─────────────────────
     // The one witness that knows the shaft direction at address is the ball the
     // club is resting behind. Where A1 accepted it, every address-like frame
@@ -2622,7 +2671,9 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         if (haveAddrBall) { trace->addrBallX = addrBallPx.x(); trace->addrBallY = addrBallPx.y(); }
     }
 
+    lap.lap("d.ballWell");
     const DPResult dp = viterbiDP(emis, pm.phase, cfg);
+    lap.lap("d.viterbi");
     if (segRun) {
         // At address the DP's direction is a clamp (90°, the down-cone default) while
         // the club is really 8–14° off it, and a probe along that clamp locks the
@@ -2695,6 +2746,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 }
             }
     }
+    lap.lap("d.segProbe");
     // ── P3b lock union: a band lock or a segment lock is "a lock" downstream ──
     // (design §4.3). Band wins where both exist; the rail weight and the tier
     // confidence say which kind it was. Everything here is a no-op when !segRun.
@@ -2789,6 +2841,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         poseBoundPx = (poseExtentPx / (kShoulderAnkleFrac * cfg.lenStatureM))
                       * std::max(0.0, clubLenMm * 1e-3 - cfg.lenGripDownM);
 
+    lap.lap("d.recon");
     // ── A2b PRE-PASS length fusion (club_length_fusion): fuse ball+band+prior at
     // the ladder. conf ≥ ladderConfMin ⇒ rung 0 with the fused px, which then
     // feeds headBounds' fallback ceiling AND hin.lPx below. ABSTAIN / fusion
@@ -2818,6 +2871,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
 
     enum Tier { PRED = 0, RAY = 1, BAND = 2, RECON = 3, WEDGE = 4, SEG = 5 };
 
+    lap.lap("d.lenPre");
     // ── PASS 1: tier decision, HOISTED out of the placement loop ─────────────
     // Precompute the per-frame tier + confidence (Phase B needs s1IsMeas[i] = the
     // stage-1 tier is a real vision measurement, before it can bless a head as
@@ -2889,6 +2943,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         confOf[size_t(i)] = conf;
     }
 
+    lap.lap("d.tier");
     // ── Stage-2 measured clubhead (Phase B, dark behind cfg.head.enabled) ─────
     // Runs AFTER reconcilePsi + the length ladder, BEFORE placement — everything
     // it needs (decided θ/grip/tier, sceneMed, pm.top/impact, stat[], smoothed
@@ -2928,15 +2983,14 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         // is not viable). prev32 = previous decoded frame; bg32 = running EMA
         // background (deviation from the Python's fixed sample set — corpus-
         // validate). Warm-start bg at spanLo so the first frame's change==0.
-        cv::Mat prev32, bg32;
-        for (int i = spanLo; i <= spanHi; ++i) {
-            cv::Mat g8 = frameSrc(i);
-            if (g8.empty()) continue;                 // undecodable — prev/bg unchanged
-            cv::Mat g32; g8.convertTo(g32, CV_32F);
-            if (bg32.empty()) g32.copyTo(bg32);
-            else cv::addWeighted(g32, cfg.head.bgAlpha, bg32, 1.0 - cfg.head.bgAlpha, 0.0, bg32);
-            const cv::Mat prevUse = prev32.empty() ? g32 : prev32;
-
+        // The measurement of frame i reads the frame, the previous decodable frame and
+        // the EMA background AFTER frame i, and writes only frame i's slots — so with
+        // the recurrence (convert + addWeighted, in frame order, exactly as before)
+        // run serially, the measurements themselves can run in parallel over a
+        // chunk of frames (shaft.parallel.head; 157–209 ms serial on the Mac, step G).
+        // The diagnostic dump (dumpFrame) arms a thread_local, so it stays serial.
+        const auto headMeasure = [&](int i, const cv::Mat& g32, const cv::Mat& prevUse, const cv::Mat& bg32) {
+            shaftshared::ShaftProfScope tHm(prof, "Σhead.measure");
             const double th = rec.thetaOut[i];
             if (!std::isnan(gx[i]) && !std::isnan(th)) {
                 hin.thetaDeg[size_t(i)]  = th;
@@ -3020,7 +3074,52 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                 hin.z[size_t(i)]     = fwd.rPx;
                 hin.zconf[size_t(i)] = fwd.conf;
             }
-            g32.copyTo(prev32);
+        };
+        cv::Mat prev32, bg32;
+        const bool parHead = cfg.par.head && parFrames && cfg.head.dumpFrame < 0;
+        if (!parHead) {
+            for (int i = spanLo; i <= spanHi; ++i) {
+                cv::Mat g8 = frameSrc(i);
+                if (g8.empty()) continue;                 // undecodable — prev/bg unchanged
+                cv::Mat g32; g8.convertTo(g32, CV_32F);
+                if (bg32.empty()) g32.copyTo(bg32);
+                else cv::addWeighted(g32, cfg.head.bgAlpha, bg32, 1.0 - cfg.head.bgAlpha, 0.0, bg32);
+                const cv::Mat prevUse = prev32.empty() ? g32 : prev32;
+                headMeasure(i, g32, prevUse, bg32);
+                g32.copyTo(prev32);
+            }
+        } else {
+            // 16 frames a chunk: each holds its grey float frame and its own
+            // background (2 × 2.8 MB at 1024×688), ~90 MB in flight. The background
+            // of frame i is addWeighted(g32_i, α, bg_{i−1}, 1−α) written to a fresh
+            // Mat instead of in place — the same per-element arithmetic.
+            constexpr int kChunk = 16;
+            std::vector<int> idx; std::vector<cv::Mat> g32s, bgs, prevs;
+            idx.reserve(kChunk); g32s.reserve(kChunk); bgs.reserve(kChunk); prevs.reserve(kChunk);
+            cv::Mat lastG32;                               // the previous decodable frame (prev32's content)
+            for (int c0 = spanLo; c0 <= spanHi; c0 += kChunk) {
+                idx.clear(); g32s.clear(); bgs.clear(); prevs.clear();
+                for (int i = c0; i <= std::min(spanHi, c0 + kChunk - 1); ++i)
+                    if (!frameSrc(i).empty()) idx.push_back(i);   // undecodable — prev/bg unchanged
+                g32s.resize(idx.size());
+                cv::parallel_for_(cv::Range(0, int(idx.size())), [&](const cv::Range& r) {
+                    for (int j = r.start; j < r.end; ++j) frameSrc(idx[size_t(j)]).convertTo(g32s[size_t(j)], CV_32F);
+                });
+                for (size_t j = 0; j < idx.size(); ++j) {  // the recurrence: serial, in frame order
+                    const cv::Mat& g32 = g32s[j];
+                    cv::Mat bg;
+                    if (bg32.empty()) g32.copyTo(bg);
+                    else cv::addWeighted(g32, cfg.head.bgAlpha, bg32, 1.0 - cfg.head.bgAlpha, 0.0, bg);
+                    bg32 = bg;
+                    bgs.push_back(bg);
+                    prevs.push_back(lastG32.empty() ? g32 : lastG32);
+                    lastG32 = g32;
+                }
+                cv::parallel_for_(cv::Range(0, int(idx.size())), [&](const cv::Range& r) {
+                    for (int j = r.start; j < r.end; ++j)
+                        headMeasure(idx[size_t(j)], g32s[size_t(j)], prevs[size_t(j)], bgs[size_t(j)]);
+                });
+            }
         }
 
         headResults = runHeadTemporal(hin);
@@ -3037,6 +3136,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         }
     }
 
+    lap.lap("d.head");
     // ── A2b POST-PASS length fusion: add the measured-head estimator ──────────
     // Re-fuse ball+band+prior+head into the RECORDED length + confidence
     // (out.lengths.fused*) AND the PRIOR-FREE instant variant (fusedInstant*,
@@ -3110,6 +3210,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         }
     }
 
+    lap.lap("d.lenPost");
     // ── PASS 2: placement — build the samples from tierOf/confOf + headResults ─
     int spanFrames = 0, spanMeas = 0;
     std::vector<int> sampleFrame;   // frame index per emitted sample (Layer A snap map)
@@ -3252,6 +3353,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         out.samples[i].thetaDotRadS = (dt > 0) ? dth / dt : 0.0;
     }
 
+    lap.lap("d.place");
     // ── Follow-through plausibility (demoteImplausibleFollowThrough) ───────────
     // Before the snap and before the anchors: a sample this pass demotes is a coast
     // from here on — the snap skips it, the anchors read it as Proxy, the synth will
@@ -3266,6 +3368,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         demoteImplausibleFollowThrough(out, forearm, tUs[size_t(impactFrame)], cfg);
     }
 
+    lap.lap("d.followThru");
     // ── Layer A: line re-registration («snap»), shaft_position_first §2A ───────
     // Dark by default. For each vision-tier sample (Measured|Wedge — never a
     // coasted/predicted frame), search (⊥ offset, Δθ) for the line that maximises
@@ -3281,29 +3384,55 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         std::vector<double> appliedOffsets;   // |⊥ offset| over accepted snaps
         std::vector<double> measuredConfs;    // lineConf over every measured sample
         int snapN = 0;
-        for (size_t k = 0; k < out.samples.size(); ++k) {
-            ShaftSample2D& s = out.samples[k];
+        // The search is a pure function of the sample's own frame and geometry, so
+        // it runs first, per sample, in parallel (shaft.parallel.snap; 128–161 ms
+        // serial on the Mac, step G); the accept/apply below stays one serial pass
+        // in sample order, so the published samples and the medians are unchanged.
+        const auto snapCandidate = [&](size_t k) -> bool {
+            const ShaftSample2D& s = out.samples[k];
             const bool visionTier = (s.flags & ShaftMeasured) || (s.flags & ShaftWedge);
-            if (!visionTier) continue;                          // coasted/pred keep lineConf = -1
+            if (!visionTier) return false;                      // coasted/pred keep lineConf = -1
             const int i = sampleFrame[k];
             // Never re-register a BAND frame: the band lock is a direct measurement
             // of the line at 0.3° (corpus-validated), and the snap's ridge search can
             // only move it — on the 61-swing pinned-pose corpus it took θ vs the band
             // lock from 0.26/0.49° to 0.61/3.18° p50/p90 (2026-09-10 §5.3 pass). The
             // snap is for frames WITHOUT a lock.
-            if (tierOf[size_t(i)] == BAND) continue;
+            if (tierOf[size_t(i)] == BAND) return false;
             if (cfg.snap.skipAddr && (pm.phase[i] == SwingPhase::Addr
                                       || (pm.bs0 >= 0 && pm.bs0 < nf && i >= pm.bs0
-                                          && tUs[i] - tUs[pm.bs0] < cfg.snap.skipTakeawayUs))) continue;
-            if (cfg.snap.skipBlur && (pm.phase[i] == SwingPhase::Impact || pm.phase[i] == SwingPhase::Thru)) continue;
-            cv::Mat g8 = frameSrc(i);
-            if (g8.empty()) continue;                           // undecodable — no measurement
+                                          && tUs[i] - tUs[pm.bs0] < cfg.snap.skipTakeawayUs))) return false;
+            if (cfg.snap.skipBlur && (pm.phase[i] == SwingPhase::Impact || pm.phase[i] == SwingPhase::Thru)) return false;
+            return true;
+        };
+        // srOf[k] valid where haveSr[k]: a candidate whose frame decoded.
+        std::vector<SnapResult> srOf(out.samples.size());
+        std::vector<char> haveSr(out.samples.size(), 0);
+        const auto snapMeasure = [&](size_t k) {
+            if (!snapCandidate(k)) return;
+            cv::Mat g8 = frameSrc(sampleFrame[k]);
+            if (g8.empty()) return;                             // undecodable — no measurement
             cv::Mat g32; g8.convertTo(g32, CV_32F);
-
+            const ShaftSample2D& s = out.samples[k];
+            const double gx0 = s.gripPx.x(), gy0 = s.gripPx.y();
+            const double drawnLen = std::hypot(s.headPx.x() - gx0, s.headPx.y() - gy0);
+            srOf[k] = snapSearch(g32, gx0, gy0, s.thetaRad, drawnLen, cfg.snap, cfg.ridge);
+            haveSr[k] = 1;
+        };
+        if (cfg.par.snap && parFrames)
+            cv::parallel_for_(cv::Range(0, int(out.samples.size())), [&](const cv::Range& r) {
+                for (int k = r.start; k < r.end; ++k) snapMeasure(size_t(k));
+            });
+        else
+            for (size_t k = 0; k < out.samples.size(); ++k) snapMeasure(k);
+        for (size_t k = 0; k < out.samples.size(); ++k) {
+            if (!haveSr[k]) continue;
+            ShaftSample2D& s = out.samples[k];
+            const int i = sampleFrame[k];
             const double gx0 = s.gripPx.x(), gy0 = s.gripPx.y();
             const double theta0 = s.thetaRad;
             const double drawnLen = std::hypot(s.headPx.x() - gx0, s.headPx.y() - gy0);
-            const SnapResult sr = snapSearch(g32, gx0, gy0, theta0, drawnLen, cfg.snap, cfg.ridge);
+            const SnapResult& sr = srOf[k];
 
             // Arm-plausibility sector: mirror frameEmission's C4 arm-veto — the
             // snapped shaft must not point within armVetoDeg of the lead forearm
@@ -3352,6 +3481,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         }
     }
 
+    lap.lap("d.snap");
     // ── P7 impact from club-at-ball geometry (dark: shaft.impactGeom.enabled) ──
     // The reconciled θ(t) crossing the grip→ball direction of the FIXED A1
     // address-ball cluster (the ball is stationary until launch, so this works
@@ -3398,6 +3528,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         }
     }
 
+    lap.lap("d.impactGeom");
     // ── Layer B: P-position extraction (shaft_position_first §2 Layer B) ────────
     // Dark by default. Locate P1–P8 from the reconciled θ(t) (deg) + smoothed
     // lead-arm φ(t) (deg) and the tracker's own address/top/impact landmarks
@@ -3654,6 +3785,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         }
     }
 
+    lap.lap("d.positions");
     // ── Shaft uncertainty U1 (shaft_uncertainty_propagation_design.md §4.1) ──────
     // Every sample gets its calibrated σθ and gross-error probability from the tier ×
     // phase-group table, read with its own rotation rate. Runs after the positions so the
@@ -3723,6 +3855,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         }
     }
 
+    lap.lap("d.unc");
     // ── U5: the forward–backward posterior over the DP's own lattice (design §4.6) ────────
     // σ and the probability that another structure was the club, per frame, read off the same
     // emission and transitions the Viterbi solved. Replaces the table's σ on in-span measured
@@ -3742,7 +3875,8 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         }
         for (size_t ti = 0; ti < temps.size(); ++ti) {
             const std::vector<std::vector<float>> marg =
-                forwardBackwardBanded(emis, wmaxBins, sgnV, cfg.kSmooth, cfg.grid, temps[ti]);
+                forwardBackwardBanded(emis, wmaxBins, sgnV, cfg.kSmooth, cfg.grid, temps[ti],
+                                      cfg.par.fb);
             if (marg.empty()) continue;
             const bool apply = cfg.unc.fbPosterior && temps[ti] == cfg.unc.fbTemperature;
             for (size_t k = 0; k < out.samples.size() && k < sampleFrame.size(); ++k) {
@@ -3762,6 +3896,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         }
     }
 
+    lap.lap("d.fb");
     // ── Layer C: synthesis between anchors (shaft_position_first §2 Layer C) ────
     // Factored into synthesizeLayerC() above, which is also the re-synthesis path a
     // reused track takes; the tier vector collapses to "was this frame PRED".
@@ -3787,6 +3922,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
     // ShaftTrack2D::onsetFloorFrame). -1 when the veto is dark / never fired.
     out.onsetFloorFrame = pm.onsetFloor;
 
+    lap.lap("d.layerC");
     // ── Self-checks and refusal (2026-10-01, cfg.addr) ──────────────────────
     // Two independent witnesses the track must agree with: the ball at address
     // (P1 points at it) and the address-hold club length (the same grip→ball
@@ -3918,6 +4054,7 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
                              [](const PhaseEvent& a, const PhaseEvent& b) { return a.t_us < b.t_us; });
         }
     }
+    lap.lap("d.selfCheck");
     return out;
 }
 

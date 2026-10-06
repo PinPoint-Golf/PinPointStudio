@@ -226,6 +226,57 @@ int main()
               "P1: the accepted snap really moved the line, it did not merely decline to");
     }
 
+    // ── P1p the per-frame loop in parallel is the serial loop (step G) ──────
+    // framesOwned + cfg.par.post run the snap + run per frame under
+    // cv::parallel_for_. Every write is frame i's own slot, so the track and the
+    // trace must come out byte-identical: 24 frames, each with its own anchor
+    // error and direction, so a slot written from the wrong frame would show.
+    std::printf("\n=== P1p: the snap + run loop in parallel is byte-identical to serial ===\n");
+    {
+        const int n = 24;
+        std::vector<cv::Mat> frames(static_cast<size_t>(n));
+        DtlAnchors an;
+        an.gx.assign(size_t(n), 0.0); an.gy.assign(size_t(n), 0.0); an.quarantined.assign(size_t(n), 0);
+        std::vector<int64_t> tUs(size_t(n), 0);
+        for (int i = 0; i < n; ++i) {
+            const double th = kClub + double(i % 5) - 2.0;
+            cv::Mat m = baseScene();
+            drawStripedShaft(m, th, 15.0, kLen);
+            frames[size_t(i)] = m;
+            const double u = th * kPi / 180.0, off = double((i * 7) % 31) - 15.0;
+            an.gx[size_t(i)] = GX - off * std::sin(u);
+            an.gy[size_t(i)] = GY + off * std::cos(u);
+            tUs[size_t(i)] = int64_t(i) * 6640;
+        }
+        const FrameSource frameAt = [&frames](int i) -> cv::Mat {
+            return (i >= 0 && i < int(frames.size())) ? frames[size_t(i)] : cv::Mat();
+        };
+        const SegmentGeom geom;
+        DtlSolveState s1 = makeState(n, kClub, kLen, 0.93, cfg), s2 = makeState(n, kClub, kLen, 0.93, cfg);
+        DtlDecideTrace t1, t2;
+        const DtlShaftTrack2D a = dtlPostSolve(frameAt, tUs, an, nullptr, s1, W, H, geom, cfg, &t1, false);
+        const DtlShaftTrack2D b = dtlPostSolve(frameAt, tUs, an, nullptr, s2, W, H, geom, cfg, &t2, true);
+        // exact, NaN equal to NaN (QPointF's == is fuzzy, so its coordinates are compared)
+        const auto eq = [](double p, double q) { return p == q || (std::isnan(p) && std::isnan(q)); };
+        bool same = a.samples.size() == b.samples.size() && a.valid == b.valid;
+        int snapped = 0;
+        for (size_t k = 0; same && k < a.samples.size(); ++k) {
+            const DtlSample &x = a.samples[k], &y = b.samples[k];
+            same = eq(x.thetaRad, y.thetaRad) && eq(x.gripPx.x(), y.gripPx.x()) && eq(x.gripPx.y(), y.gripPx.y())
+                   && eq(x.headPx.x(), y.headPx.x()) && eq(x.headPx.y(), y.headPx.y())
+                   && x.tier == y.tier && eq(x.lenPx, y.lenPx) && eq(x.runPx, y.runPx) && x.reason == y.reason;
+        }
+        same = same && t1.snapOffsetPx.size() == t2.snapOffsetPx.size();
+        for (size_t k = 0; same && k < t1.snapOffsetPx.size(); ++k) {
+            same = eq(t1.snapOffsetPx[k], t2.snapOffsetPx[k]) && eq(t1.snapDThetaDeg[k], t2.snapDThetaDeg[k])
+                   && t1.snapAccepted[k] == t2.snapAccepted[k];
+            snapped += t1.snapAccepted[k] ? 1 : 0;
+        }
+        std::printf("       %d of %d frames snapped\n", snapped, n);
+        check(snapped > 0, "P1p control: the snap ran and moved lines, so the comparison has teeth");
+        check(same, "P1p: framesOwned (parallel) gives the serial track and trace exactly");
+    }
+
     // ── P2 a BAND frame is left alone ───────────────────────────────────────
     std::printf("\n=== P2: the snap never re-registers a BAND frame ===\n");
     {

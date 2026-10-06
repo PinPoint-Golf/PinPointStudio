@@ -46,14 +46,31 @@
 #include "club_plane_catalogue.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
+#include <memory>
+#include <mutex>
 #include <numeric>
+#include <thread>
 
 #include <Eigen/Cholesky>
 #include <Eigen/Dense>
+
+#if defined(__APPLE__)
+#include <sys/sysctl.h>
+#elif defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 
 namespace pinpoint::skeleton3d {
 
@@ -62,6 +79,131 @@ namespace {
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using Mat3X = Eigen::Matrix<double, 3, Eigen::Dynamic>;
+
+// ── the thread team for evaluate() (analysis_dag_design.md step D) ────────────
+// Physical cores, not hardware threads: the per-frame work is dense double arithmetic, and two
+// hyperthreads on one core share its FMA units. macOS and Windows ask the OS; elsewhere the
+// logical count stands in (the studio's 285K has no SMT, so the two agree there).
+int physicalCores()
+{
+#if defined(__APPLE__)
+    int n = 0;
+    size_t len = sizeof(n);
+    if (sysctlbyname("hw.physicalcpu", &n, &len, nullptr, 0) == 0 && n > 0) return n;
+#elif defined(_WIN32)
+    DWORD len = 0;
+    GetLogicalProcessorInformation(nullptr, &len);
+    if (len > 0) {
+        std::vector<SYSTEM_LOGICAL_PROCESSOR_INFORMATION> buf(len / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION));
+        if (GetLogicalProcessorInformation(buf.data(), &len)) {
+            int n = 0;
+            for (const auto &e : buf) n += e.Relationship == RelationProcessorCore ? 1 : 0;
+            if (n > 0) return n;
+        }
+    }
+#endif
+    return std::max(1, int(std::thread::hardware_concurrency()));
+}
+
+// evalThreads → the team size: 1 = serial, 0 = min(8, physical cores), N = N (capped at 64).
+// Eight: a corpus fit has ~150 frames, and past eight the hand-off and the in-order reduction of
+// the shared block are a growing share of each evaluate().
+int resolveEvalThreads(int cfg)
+{
+    if (cfg == 1) return 1;
+    if (cfg <= 0) return std::clamp(physicalCores(), 1, 8);
+    return std::min(cfg, 64);
+}
+
+// Row accumulator for one frame.
+struct Rows {
+    MatrixXd Jf, Js;
+    VectorXd r;
+    int n = 0;
+    void reset(int maxRows, int nd, int ns)
+    {
+        if (Jf.rows() < maxRows || Jf.cols() != nd) Jf.resize(maxRows, nd);
+        if (Js.rows() < maxRows || Js.cols() != ns) Js.resize(maxRows, ns);
+        if (r.size() < maxRows) r.resize(maxRows);
+        Jf.setZero(); Js.setZero(); r.setZero();
+        n = 0;
+    }
+    int add()
+    {
+        if (n >= r.size()) {
+            const int m = int(r.size()) * 2 + 16;
+            Jf.conservativeResize(m, Eigen::NoChange); Jf.bottomRows(m - n).setZero();
+            Js.conservativeResize(m, Eigen::NoChange); Js.bottomRows(m - n).setZero();
+            r.conservativeResize(m); r.tail(m - n).setZero();
+        }
+        return n++;
+    }
+};
+
+// A fixed team made once per fit: the caller is member 0, members 1..K−1 are threads parked on a
+// condition variable between jobs. run(fn) calls fn(k) for every k and returns when all are done.
+// One job at a time: evaluate() is never re-entered (the LM loop and the branch pass are serial).
+class EvalPool {
+public:
+    explicit EvalPool(int k) : k_(std::max(1, k))
+    {
+        for (int i = 1; i < k_; ++i) th_.emplace_back([this, i] { loop(i); });
+    }
+    ~EvalPool()
+    {
+        { std::lock_guard<std::mutex> g(m_); stop_ = true; }
+        go_.notify_all();
+        for (std::thread &t : th_) t.join();
+    }
+    EvalPool(const EvalPool &) = delete;
+    EvalPool &operator=(const EvalPool &) = delete;
+    int size() const { return k_; }
+    void run(const std::function<void(int)> &fn)
+    {
+        if (k_ == 1) { fn(0); return; }
+        { std::lock_guard<std::mutex> g(m_); job_ = &fn; pending_ = k_ - 1; ++gen_; }
+        go_.notify_all();
+        fn(0);
+        std::unique_lock<std::mutex> lk(m_);
+        done_.wait(lk, [&] { return pending_ == 0; });
+        job_ = nullptr;
+    }
+
+    // Scratch, owned here so it is allocated once per fit, not once per evaluate: one row buffer per
+    // member; per frame its cost, whether it produced rows, and its shared-block products.
+    std::vector<std::unique_ptr<Rows>> rows;
+    std::vector<double> frameCost;
+    std::vector<uint8_t> frameRows;
+    std::vector<MatrixXd> frameC;
+    std::vector<VectorXd> frameGs;
+
+private:
+    void loop(int id)
+    {
+        uint64_t seen = 0;
+        for (;;) {
+            const std::function<void(int)> *job = nullptr;
+            {
+                std::unique_lock<std::mutex> lk(m_);
+                go_.wait(lk, [&] { return stop_ || gen_ != seen; });
+                if (stop_) return;
+                seen = gen_;
+                job = job_;
+            }
+            (*job)(id);
+            std::lock_guard<std::mutex> g(m_);
+            if (--pending_ == 0) done_.notify_one();
+        }
+    }
+    int k_;
+    std::vector<std::thread> th_;
+    std::mutex m_;
+    std::condition_variable go_, done_;
+    const std::function<void(int)> *job_ = nullptr;
+    uint64_t gen_ = 0;
+    int pending_ = 0;
+    bool stop_ = false;
+};
 
 inline Eigen::Vector3d E(const V3 &v) { return { v.x, v.y, v.z }; }
 inline V3 F(const Eigen::Vector3d &v) { return { v.x(), v.y(), v.z() }; }
@@ -236,6 +378,9 @@ struct Problem {
     std::vector<V3> planeN, seedDir;
     bool planeOn = false;
     double releaseFactor = 1.0;             // the release priors' σ factor — ≠ 1 inside the branch pass only
+    // evaluate()'s thread team (FitConfig::evalThreads); null = the serial loop. Its scratch is
+    // written through this pointer, which is why a const Problem can still use it.
+    EvalPool *pool = nullptr;
 
     explicit Problem(const FitInput &i) : in(i), rig(skeleton3d::rig()), cfg(i.cfg) {}
 };
@@ -253,31 +398,6 @@ struct Lin {
     MatrixXd C;
     VectorXd gs;
     double cost = 0;
-};
-
-// Row accumulator for one frame.
-struct Rows {
-    MatrixXd Jf, Js;
-    VectorXd r;
-    int n = 0;
-    void reset(int maxRows, int nd, int ns)
-    {
-        if (Jf.rows() < maxRows || Jf.cols() != nd) Jf.resize(maxRows, nd);
-        if (Js.rows() < maxRows || Js.cols() != ns) Js.resize(maxRows, ns);
-        if (r.size() < maxRows) r.resize(maxRows);
-        Jf.setZero(); Js.setZero(); r.setZero();
-        n = 0;
-    }
-    int add()
-    {
-        if (n >= r.size()) {
-            const int m = int(r.size()) * 2 + 16;
-            Jf.conservativeResize(m, Eigen::NoChange); Jf.bottomRows(m - n).setZero();
-            Js.conservativeResize(m, Eigen::NoChange); Js.bottomRows(m - n).setZero();
-            r.conservativeResize(m); r.tail(m - n).setZero();
-        }
-        return n++;
-    }
 };
 
 // ── point Jacobians ──────────────────────────────────────────────────────────
@@ -1077,6 +1197,79 @@ void projectToCoefficients(const Problem &P, const Lin &fl, Lin &lin)
     lin.Dframe = fl.D;
 }
 
+// The frame loop of evaluate() on the thread team (analysis_dag_design.md step D). Each member
+// takes frames from a shared counter and does for each exactly what the serial loop does — the
+// frame-owned D[t], gf[t], B[t] directly, the frame's cost into its own slot — except that the
+// frame's share of the SHARED block, JsᵀJs and Jsᵀr, goes into the frame's own slot instead of onto
+// C and gs. Then the slots are summed in frame order: the costs on the caller, C and gs by column
+// ranges across the team (an element's sum is still frame 0, 1, 2 … whichever member adds it).
+//
+// That is the serial loop's floating-point order exactly. Eigen's product kernel forms a frame's
+// whole JsᵀJs in registers (the depth — ≤ ~160 rows — fits one depth panel) and adds it to the
+// destination once, so `C += JsᵀJs` and `tmp = JsᵀJs; C += tmp` are the same two roundings. The
+// result is bit-identical to evalThreads = 1 at every team size and every hand-out order, which is
+// what the corpus runs and the test check. Memory: one ns × ns matrix per frame, ~40 kB × T.
+//
+// Frames are handed out two at a time, not as fixed ranges: both machines mix fast and slow cores
+// (the M4's 4 + 6, the 285K's 8 + 16), and with fixed ranges the member that landed on a slow core
+// set the pace (07-04 s8 on the M4, fixed ranges: 1471 → 825 ms on one run, → 1040 on the next;
+// handed out, two runs: 1529 → 857 and 1592 → 840).
+//
+// frameResiduals is pure (audited 2026-10-06): it reads P and S through const references, builds
+// its pose, cameras and Jacobian pieces in locals, writes only its Rows, and its two statics are
+// const tables (thread-safe initialisation). The rig is a magic static const.
+double evaluateFramesParallel(const Problem &P, const State &S, Lin *lin)
+{
+    EvalPool &pool = *P.pool;
+    const int T = P.T, ns = P.L.n, K = pool.size();
+    const bool shared = lin && !P.stage1;
+    pool.frameCost.assign(size_t(T), 0.0);
+    pool.frameRows.assign(size_t(T), 0);
+    if (shared && int(pool.frameC.size()) != T) {
+        pool.frameC.assign(size_t(T), MatrixXd(ns, ns));
+        pool.frameGs.assign(size_t(T), VectorXd(ns));
+    }
+    while (int(pool.rows.size()) < K) pool.rows.push_back(std::make_unique<Rows>());
+    std::atomic<int> next { 0 };
+    constexpr int kChunk = 2;
+    pool.run([&](int k) {
+        Rows &rows = *pool.rows[size_t(k)];
+        for (int t0 = next.fetch_add(kChunk, std::memory_order_relaxed); t0 < T;
+             t0 = next.fetch_add(kChunk, std::memory_order_relaxed)) {
+            for (int t = t0; t < std::min(T, t0 + kChunk); ++t) {
+                if (lin) rows.reset(160, P.nth, ns);
+                pool.frameCost[size_t(t)] = frameResiduals(P, S, t, lin ? &rows : nullptr);
+                if (!lin || rows.n == 0) continue;
+                pool.frameRows[size_t(t)] = 1;
+                const MatrixXd Jf = P.lean ? MatrixXd(rows.Jf.topRows(rows.n) * P.M) : MatrixXd(rows.Jf.topRows(rows.n));
+                const auto Js = rows.Js.topRows(rows.n);
+                const auto r = rows.r.head(rows.n);
+                lin->D[size_t(t)].noalias() += Jf.transpose() * Jf;
+                lin->gf[size_t(t)].noalias() += Jf.transpose() * r;
+                if (shared) {
+                    lin->B[size_t(t)].noalias() += Jf.transpose() * Js;
+                    pool.frameC[size_t(t)].noalias() = Js.transpose() * Js;
+                    pool.frameGs[size_t(t)].noalias() = Js.transpose() * r;
+                }
+            }
+        }
+    });
+    double cost = 0;
+    for (int t = 0; t < T; ++t) cost += pool.frameCost[size_t(t)];
+    if (shared) {
+        // Column range j of C per member; member 0 also takes gs. Each element in frame order.
+        pool.run([&](int k) {
+            const int c0 = int(int64_t(ns) * k / K), c1 = int(int64_t(ns) * (k + 1) / K);
+            for (int t = 0; t < T; ++t) {
+                if (!pool.frameRows[size_t(t)]) continue;
+                if (c1 > c0) lin->C.middleCols(c0, c1 - c0) += pool.frameC[size_t(t)].middleCols(c0, c1 - c0);
+                if (k == 0) lin->gs += pool.frameGs[size_t(t)];
+            }
+        });
+    }
+    return cost;
+}
+
 double evaluate(const Problem &P, const State &S, Lin *linOut)
 {
     // With splines the frame-level system is built in a temporary and carried onto the coefficients.
@@ -1093,21 +1286,25 @@ double evaluate(const Problem &P, const State &S, Lin *linOut)
         lin->gs = VectorXd::Zero(ns);
     }
     double cost = 0;
-    Rows rows;
-    for (int t = 0; t < T; ++t) {
-        if (lin) rows.reset(160, P.nth, ns);
-        cost += frameResiduals(P, S, t, lin ? &rows : nullptr);
-        if (!lin || rows.n == 0) continue;
-        // The residuals are filled against the rig's angles; the unknowns are q (θ = M·q).
-        const MatrixXd Jf = P.lean ? MatrixXd(rows.Jf.topRows(rows.n) * P.M) : MatrixXd(rows.Jf.topRows(rows.n));
-        const auto Js = rows.Js.topRows(rows.n);
-        const auto r = rows.r.head(rows.n);
-        lin->D[size_t(t)].noalias() += Jf.transpose() * Jf;
-        lin->gf[size_t(t)].noalias() += Jf.transpose() * r;
-        if (!P.stage1) {
-            lin->B[size_t(t)].noalias() += Jf.transpose() * Js;
-            lin->C.noalias() += Js.transpose() * Js;
-            lin->gs.noalias() += Js.transpose() * r;
+    if (P.pool && P.pool->size() > 1) {
+        cost = evaluateFramesParallel(P, S, lin);
+    } else {
+        Rows rows;
+        for (int t = 0; t < T; ++t) {
+            if (lin) rows.reset(160, P.nth, ns);
+            cost += frameResiduals(P, S, t, lin ? &rows : nullptr);
+            if (!lin || rows.n == 0) continue;
+            // The residuals are filled against the rig's angles; the unknowns are q (θ = M·q).
+            const MatrixXd Jf = P.lean ? MatrixXd(rows.Jf.topRows(rows.n) * P.M) : MatrixXd(rows.Jf.topRows(rows.n));
+            const auto Js = rows.Js.topRows(rows.n);
+            const auto r = rows.r.head(rows.n);
+            lin->D[size_t(t)].noalias() += Jf.transpose() * Jf;
+            lin->gf[size_t(t)].noalias() += Jf.transpose() * r;
+            if (!P.stage1) {
+                lin->B[size_t(t)].noalias() += Jf.transpose() * Js;
+                lin->C.noalias() += Js.transpose() * Js;
+                lin->gs.noalias() += Js.transpose() * r;
+            }
         }
     }
     cost += globalTerms(P, S, lin);
@@ -1361,6 +1558,15 @@ FitResult fitSkeleton(const FitInput &in)
     Problem P(in);
     const Rig &R = P.rig;
     P.T = int(in.t_us.size());
+    // The thread team for evaluate(): made once here, joined when the fit returns.
+    std::unique_ptr<EvalPool> evalPool;
+    {
+        const int k = std::min(resolveEvalThreads(in.cfg.evalThreads), std::max(1, P.T));
+        if (k > 1) {
+            evalPool = std::make_unique<EvalPool>(k);
+            P.pool = evalPool.get();
+        }
+    }
     P.nth = R.dofCount();
     P.lean = in.cfg.leanRig;
     {

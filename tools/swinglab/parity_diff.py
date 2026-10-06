@@ -2,10 +2,22 @@
 """parity_diff.py -- byte-identical soak gate for analyzer refactors.
 
 Pairs every `result.json` found (recursively, any depth) under two swinglab
-run roots by their path relative to the root, and diffs each pair. The only
-excluded field is analysis.timings: per-stage wall-clock milliseconds, which
-legitimately differ between two runs of the SAME deterministic pipeline and
-are excluded from comparison BY DESIGN, not because they're expected to match.
+run roots by their path relative to the root, and diffs each pair. Excluded --
+BY DESIGN, because they are wall-clock readings that legitimately differ
+between two runs of the SAME deterministic pipeline, not because they are
+expected to match:
+
+  * analysis.timings, wherever an "analysis" object holds one (the top-level
+    document's, and any nested analysis block): per-stage milliseconds, and
+    since 6 Oct 2026 analysis.timings.stages -- the per-stage start/end/thread
+    timeline (analysis_dag_design.md step A), which a parallel run
+    (analysis.parallel) changes by construction;
+  * analysis.skeleton3d.diagnostics.ms and
+    analysis.skeleton3d.diagnostics.plane.branchMs: the solver's own wall time
+    and its plane-branch wall time (skeleton3d_json.h). They are the only other
+    timer-sourced fields in the document (every other "...Ms" is a swing-clock
+    duration and stays compared).
+
 Everything else -- the whole result.json document, not just "analysis" -- must
 compare byte-identical.
 
@@ -27,12 +39,38 @@ def find_files(root, name):
     return {p.relative_to(root) for p in root.rglob(name)}
 
 
+# Wall-clock fields inside analysis.skeleton3d, as key paths below it.
+SKELETON3D_WALLCLOCK = (("diagnostics", "ms"), ("diagnostics", "plane", "branchMs"))
+
+
+def _strip_path(obj, path):
+    for k in path[:-1]:
+        obj = obj.get(k) if isinstance(obj, dict) else None
+        if obj is None:
+            return
+    if isinstance(obj, dict):
+        obj.pop(path[-1], None)
+
+
 def strip_timings(doc):
-    """Delete doc["analysis"]["timings"] in place -- nothing else -- and
-    return doc. Wall-clock telemetry, not part of the analysis result."""
-    analysis = doc.get("analysis")
-    if isinstance(analysis, dict) and "timings" in analysis:
-        del analysis["timings"]
+    """Delete, in place, every wall-clock field (see the module docstring) --
+    nothing else -- and return doc: `timings` under any "analysis" object at
+    any depth, and skeleton3d's solver ms / branchMs under it."""
+    def walk(node):
+        if isinstance(node, dict):
+            analysis = node.get("analysis")
+            if isinstance(analysis, dict):
+                analysis.pop("timings", None)
+                sk = analysis.get("skeleton3d")
+                if isinstance(sk, dict):
+                    for path in SKELETON3D_WALLCLOCK:
+                        _strip_path(sk, path)
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+    walk(doc)
     return doc
 
 

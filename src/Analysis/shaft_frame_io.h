@@ -44,6 +44,7 @@
 #include "shaft_track_assembly.h"   // FrameSource
 #include "shaft_track_shared.h"     // kFrameCacheCapBytes (shared with the assembly's own cache)
 #include "swing_analysis.h"         // PoseTrack2D / PoseFrame2D / kWholeBodyJoints
+#include "frame_store.h"            // decode.frameStore: the analysis' one decode of this camera
 #include "swing_window.h"
 #include "types.h"
 #include "../Export/frame_decode.h"
@@ -118,25 +119,59 @@ inline cv::Mat decodeGray(const pinpoint::SwingWindow& window, const pinpoint::I
 // did. `cacheOut` is CLEARED first: a caller that reuses one vector across spans
 // would otherwise keep the previous span's Mats when this span is over the cap,
 // and every frame would come back from the wrong swing.
+//
+// `store` (decode.frameStore, frame_store.h): the analysis already decoded this camera once.
+// Its grey Mats ARE decodeGrayFromBytes's bytes, so the cache takes them by reference — the
+// same buffers, not a copy (the face-on 525 MB is held once) — and the cap decision is made
+// exactly as without it, so `!cacheOut.empty()` (which callers read as "frames are parallel-
+// safe") does not move. Over the cap the callable reads the store per frame instead of the
+// window. A store that does not hold every entry of `cov` is not used.
 inline FrameSource buildFrameCache(const pinpoint::SwingWindow& window,
                                    const std::vector<pinpoint::IndexEntry>& cov,
                                    const pinpoint::CameraFormat& cfmt, int w, int h,
-                                   std::vector<cv::Mat>& cacheOut)
+                                   std::vector<cv::Mat>& cacheOut,
+                                   const FrameStore* store = nullptr)
 {
     cacheOut.clear();
     const int nf = int(cov.size());
     const size_t cacheBytes = size_t(nf) * size_t(w) * size_t(h);   // CV_8UC1: 1 byte/px
+    std::vector<const cv::Mat*> held;
+    if (store) {
+        held.reserve(size_t(nf));
+        for (const pinpoint::IndexEntry& e : cov) {
+            const cv::Mat* g = store->grey(e);
+            if (!g) { held.clear(); break; }
+            held.push_back(g);
+        }
+    }
+    if (!held.empty() && int(held.size()) == nf) {
+        shaftshared::ShaftProfScope tStore(shaftshared::shaftProf(), "cache.store");
+        if (cacheBytes > 0 && cacheBytes <= shaftshared::kFrameCacheCapBytes) {
+            cacheOut.reserve(size_t(nf));
+            for (const cv::Mat* g : held) cacheOut.push_back(*g);   // shares the store's buffer
+            return [&cacheOut, nf](int i) -> cv::Mat {
+                return (i >= 0 && i < nf) ? cacheOut[size_t(i)] : cv::Mat();
+            };
+        }
+        return [held = std::move(held), nf](int i) -> cv::Mat {
+            return (i >= 0 && i < nf) ? *held[size_t(i)] : cv::Mat();
+        };
+    }
     if (cacheBytes > 0 && cacheBytes <= shaftshared::kFrameCacheCapBytes) {
         cacheOut.assign(size_t(nf), cv::Mat());
+        shaftshared::ShaftProf* const prof = shaftshared::shaftProf();
         constexpr int kChunk = 16;
         std::vector<std::vector<std::byte>> chunkBuf(kChunk);
         for (int base = 0; base < nf; base += kChunk) {
             const int cnt = std::min(kChunk, nf - base);
+            shaftshared::ShaftProfScope tFetch(prof, "cache.fetch");
             for (int j = 0; j < cnt; ++j) {                 // serial fetch (payload contract)
                 const pinpoint::SourceRing::ReadHandle hnd = window.payloadOf(cov[size_t(base + j)]);
                 if (hnd.data && hnd.bytes) chunkBuf[size_t(j)].assign(hnd.data, hnd.data + hnd.bytes);
                 else                       chunkBuf[size_t(j)].clear();
             }
+            tFetch.stop();
+            shaftshared::ShaftProfScope tDecode(prof, "cache.decode");
             cv::parallel_for_(cv::Range(0, cnt), [&](const cv::Range& rng) {   // parallel decode
                 for (int j = rng.start; j < rng.end; ++j)
                     cacheOut[size_t(base + j)] =

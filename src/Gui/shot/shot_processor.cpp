@@ -62,6 +62,7 @@
 #include <QUrl>
 #include <QtConcurrent/QtConcurrentRun>
 #include <algorithm>
+#include <atomic>
 #include <memory>
 #include <cmath>
 #include <variant>
@@ -1410,12 +1411,18 @@ ShotAnalysisJob ShotProcessor::buildAnalysisJob()
     // Worker → UI progress marshalling: queued invoke with `this` as context
     // (auto-cancelled if the processor dies first), throttled to whole-percent
     // steps so per-frame reporting stays a handful of events per second.
-    auto lastPct = std::make_shared<int>(-1);
+    // ATOMIC since the analysis can run as a graph (analysis.parallel; analysis_dag.h): the
+    // pose, shaft and DTL stages report from whichever pool thread runs them, so two may
+    // call this at once. A compare-exchange keeps the bar monotonic — only the caller that
+    // raises the high-water mark posts — and the post itself is already thread-safe.
+    auto lastPct = std::make_shared<std::atomic<int>>(-1);
     job.progress = [this, lastPct](float p) {
         const int pct = static_cast<int>(p * 100.0f);
-        if (pct <= *lastPct)
-            return;            // single worker thread — no synchronisation needed
-        *lastPct = pct;
+        int seen = lastPct->load(std::memory_order_relaxed);
+        do {
+            if (pct <= seen)
+                return;
+        } while (!lastPct->compare_exchange_weak(seen, pct, std::memory_order_relaxed));
         QMetaObject::invokeMethod(this, [this, p] { setAnalysisProgress(p); },
                                   Qt::QueuedConnection);
     };

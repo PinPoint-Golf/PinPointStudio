@@ -936,6 +936,20 @@ struct BindingRecord {
     bool        hackMotion = false;
 };
 
+// One stage of the run as it happened (analysis_dag_design.md step A): every stage of the
+// profile in authored order, ran or skipped, with its wall time, its start/end offset from
+// the start of the analysis and the pool thread that ran it (0 under the sequential loop).
+// analysis.timings.stages; what tools/analysis/analysis_dag.py draws the Gantt from.
+struct StageTiming {
+    QString name;
+    bool    ran = false;
+    QString skipReason;
+    double  ms = 0.0;
+    double  startMs = 0.0;
+    double  endMs = 0.0;
+    int     thread = 0;
+};
+
 // Per-stage analyzer wall times (plan §2 telemetry — swing_span_bounding_plan.md):
 // self-reported by every shot so the live < 20 s budget is measured, not
 // anecdotal. -1 = stage not measured (ball/shaft stay -1 when the pose pass
@@ -952,6 +966,9 @@ struct AnalysisTimings {
     // false) when the camera was not posed — no camera, a reused/loaded track.
     pinpoint::pose::PoseTiming poseFaceOn;
     pinpoint::pose::PoseTiming poseDtl;
+    // Every stage of the profile, in authored order (StageTiming). Empty when the analyzer
+    // never ran its profile (the dark CameraKinematics stub).
+    std::vector<StageTiming> stages;
 };
 
 // The rich detail behind ShotAnalysisResult::detail — the full analyzed swing.

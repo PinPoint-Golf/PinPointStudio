@@ -98,6 +98,14 @@ size_t SwingWindow::imuSampleCount(SourceId imu_id) const noexcept {
 
 SourceRing::ReadHandle SwingWindow::payloadOf(const IndexEntry& e) const noexcept {
     if (!source_) return {};
+    // Serialise the fetch per source (see the header). A source with no lane contributed
+    // nothing to this window and is passed through as before.
+    for (const Lane& l : lanes_) {
+        if (l.id == e.source_id) {
+            std::lock_guard<std::mutex> lk(*l.fetch);
+            return source_->payloadOf(e.source_id, e.source_sequence);
+        }
+    }
     return source_->payloadOf(e.source_id, e.source_sequence);
 }
 

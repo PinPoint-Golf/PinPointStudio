@@ -36,6 +36,7 @@
 #include <vector>
 
 #include "skeleton3d_rig.h"
+#include "../../Core/pp_tuned_constants.h"   // tuned::skeleton3d::
 
 namespace pinpoint::skeleton3d {
 
@@ -245,6 +246,14 @@ struct FitConfig {
     // — the grade's dropout.
     bool    debugForceMirror        = false;
     int64_t debugDropDtlShaftAfterUs = 0;
+
+    // THREADS FOR THE PER-FRAME RESIDUALS (analysis_dag_design.md step D). The LM's evaluate() is a
+    // loop over frames whose residuals and Jacobian blocks are independent; N > 1 runs it on a team
+    // of N threads made once per fit. The shared block (C = Σ JsᵀJs, gs) is
+    // still summed frame by frame in frame order — each frame's product is formed on its thread and
+    // added on the caller's order — so the fit is BIT-IDENTICAL to the serial loop for every N, not
+    // just reproducible. 1 = the serial loop as it was; 0 = min(8, physical cores); N = N threads.
+    int     evalThreads = pinpoint::tuned::skeleton3d::kEvalThreads;
 };
 
 // What a session pool fixes in one swing's fit (design §13.2 (C)): the golfer's shared values —

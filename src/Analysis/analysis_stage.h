@@ -30,6 +30,13 @@
 //
 // Anti-goals (§10.6): no stage registration, no dependency sorting, no
 // parallelism. Stages run in authored order; the orchestrator is a loop.
+//
+// That loop is still the default (analysis.parallel off). Since 6 Oct 2026 each stage
+// also DECLARES what it reads and writes on the context (StageDecl below) and
+// analysis_dag.h can run a profile as the dependency graph those declarations imply —
+// docs/design/analysis_dag_design.md: 39 stages, one 18.6 s chain on the studio. The
+// authored order stays the contract the graph is derived from: every edge points from
+// an earlier stage to a later one, so the sequential loop is always one valid schedule.
 
 #include <QElapsedTimer>
 #include <QSet>
@@ -49,6 +56,7 @@ namespace pinpoint { class SwingWindow; }
 namespace pinpoint::analysis {
 
 struct FaceOnWitness;   // dtl_shaft_types.h — held by pointer so this header stays OpenCV-free
+struct FrameStoreSlot;  // frame_store.h — likewise
 
 // Where a camera sits relative to the golfer. FaceOn is the placement most of the
 // analysis runs off (pose/shaft/head/foot all do). DownTheLine is populated from
@@ -171,15 +179,132 @@ struct CaptureCapabilities {
     }
 };
 
-// Per-stage orchestration record — timing + skip provenance for the log/telemetry
-// only. NEVER serialized (AnalysisTimings keeps its four fields; this is a
-// separate, richer per-stage trace that stays in memory).
+// Per-stage orchestration record — timing + skip provenance. The source of
+// analysis.timings.stages (bindStageTimings below copies it onto the detail, which
+// persists it); the trace itself stays in memory.
 struct StageTraceEntry {
     QString name;
     bool    ran        = false;   // false ⇒ the stage was skipped
     QString skipReason;           // "halted", or the canRun skip reason; empty when ran
     qint64  elapsedNs  = 0;       // run() wall time; 0 when skipped
+    // WHEN, not just how long (analysis_dag_design.md step A): offsets from the start of
+    // the analysis (ctx.wall when it runs, else the orchestrator's own clock) and the pool
+    // thread that ran it — 0 for the sequential loop. A skipped stage carries the instant
+    // it was decided. Without these a parallel run's per-stage ms add up to more than the
+    // wall and say nothing about what overlapped.
+    qint64  startNs    = 0;
+    qint64  endNs      = 0;
+    int     thread     = 0;
 };
+
+// ── Declared data flow (analysis_dag_design.md §2) ──────────────────────────────
+// The names a stage may declare. A FIXED table, not free strings, so a typo is caught by
+// isKnownResource() (the DAG test checks every profile) rather than silently becoming a
+// resource nobody else names — which would drop an edge and race.
+//
+//   window.*      a camera's frames FETCHED through SwingWindow::payloadOf (formatOf /
+//                 entriesFor are not fetches). Each camera has ONE sequential reader
+//                 (swing_payload_source.h), so the executor never runs two stages holding
+//                 the same camera at once; window.imu is RAM-backed and not held.
+//   ctx.* slots   streams, doRefuse, segImu, segVision, seg, ctx.series, runnerOpt, ball,
+//                 foWitness, halted (every stage reads halted implicitly).
+//   detail.*      the SwingAnalysis members the stages fill. detail.phases covers phases +
+//                 segmentation (BindDetail writes both); detail.score covers tier, score,
+//                 findings, assessmentScore and filterImpactStepDeg. versions/timings are
+//                 written field-disjoint by their own stages and are not resources.
+namespace res {
+inline constexpr const char *kWindowFaceOn  = "window.faceOn";
+inline constexpr const char *kWindowDtl     = "window.dtl";
+inline constexpr const char *kWindowImpact  = "window.impact";
+inline constexpr const char *kWindowImu     = "window.imu";
+// A camera's decoded frames, held once for the analysis (frame_store.h, decode.frameStore):
+// written by FrameDecodeStage from window.<cam>, read-only after. Reading it holds no camera,
+// so two of its readers run at once. A stage that still reads window.<cam> reads it too
+// (buildStageGraph adds the read), so it is ordered after the store whether or not it uses it.
+inline constexpr const char *kFramesFaceOn  = "frames.faceOn";
+inline constexpr const char *kFramesDtl     = "frames.dtl";
+inline constexpr const char *kStreams       = "streams";
+inline constexpr const char *kDoRefuse      = "doRefuse";
+inline constexpr const char *kSegImu        = "segImu";
+inline constexpr const char *kSegVision     = "segVision";
+inline constexpr const char *kSeg           = "seg";
+inline constexpr const char *kCtxSeries     = "ctx.series";
+inline constexpr const char *kRunnerOpt     = "runnerOpt";
+inline constexpr const char *kBall          = "ball";
+inline constexpr const char *kFoWitness     = "foWitness";
+inline constexpr const char *kHalted        = "halted";
+inline constexpr const char *kPose2d        = "detail.pose2d";
+inline constexpr const char *kPoseDtl       = "detail.poseDtl";
+inline constexpr const char *kShaft         = "detail.shaft";
+inline constexpr const char *kShaftDtl      = "detail.shaftDtl";
+inline constexpr const char *kShaft3d       = "detail.shaft3d";
+inline constexpr const char *kSkeleton3d    = "detail.skeleton3d";
+inline constexpr const char *kSeries        = "detail.series";
+inline constexpr const char *kPhases        = "detail.phases";
+inline constexpr const char *kImpact        = "detail.impact";
+inline constexpr const char *kAddressMarks  = "detail.addressMarks";
+inline constexpr const char *kDetailBall    = "detail.ball";
+inline constexpr const char *kKinSeq        = "detail.kinematicSequence";
+inline constexpr const char *kScore         = "detail.score";
+inline constexpr const char *kBindings      = "detail.bindings";
+
+inline const std::vector<QString> &all()
+{
+    static const std::vector<QString> k = {
+        kWindowFaceOn, kWindowDtl, kWindowImpact, kWindowImu, kFramesFaceOn, kFramesDtl,
+        kStreams, kDoRefuse, kSegImu,
+        kSegVision, kSeg, kCtxSeries, kRunnerOpt, kBall, kFoWitness, kHalted, kPose2d, kPoseDtl,
+        kShaft, kShaftDtl, kShaft3d, kSkeleton3d, kSeries, kPhases, kImpact, kAddressMarks,
+        kDetailBall, kKinSeq, kScore, kBindings };
+    return k;
+}
+inline bool isKnownResource(const QString &r)
+{
+    for (const QString &k : all())
+        if (k == r) return true;
+    return false;
+}
+inline bool isCameraResource(const QString &r)
+{
+    return r.startsWith(QLatin1String("window.")) && r != QLatin1String(kWindowImu);
+}
+// The store a camera's window feeds (empty for window.impact / window.imu: no store).
+inline QString framesFor(const QString &window)
+{
+    if (window == QLatin1String(kWindowFaceOn)) return QString::fromLatin1(kFramesFaceOn);
+    if (window == QLatin1String(kWindowDtl))    return QString::fromLatin1(kFramesDtl);
+    return QString();
+}
+} // namespace res
+
+// What one stage touches. `reads` includes what canRun() reads. `writes` is an
+// assignment OR an in-place mutation — for ordering the two are the same (ImpactAnchor
+// and ShaftPlane mutate detail.shaft; PoseSmooth mutates detail.pose2d; DtlSynth3D
+// mutates detail.shaftDtl). `appends` is only ever detail.series: an append commutes with
+// every other append, provided the results are spliced back in authored order, which the
+// executor does. A stage that READS detail.series (or overwrites it — BindDetail) sees
+// exactly the prefix the sequential loop would have shown it.
+//
+// `barrier` is the default: a stage that has not declared anything is ordered after
+// every earlier stage and before every later one — slow, never wrong.
+struct StageDecl {
+    std::vector<QString> reads;
+    std::vector<QString> writes;
+    std::vector<QString> appends;
+    bool                 barrier = false;
+    // The stage cannot run in a context that RequireProducts halts (its own canRun needs what
+    // the halt is the absence of), so it need not wait for the halt decision: the implicit
+    // `halted` read is not added. A halted analysis returns no detail, so nothing it wrote is
+    // seen either way. DtlPose under pose.dtlEarly (canRun needs a face-on pose; the halt
+    // needs none) — without it the halt's read of ctx.series chains it behind Shaft(FO).
+    bool                 haltSafe = false;
+};
+
+// Where a stage's detail.series appends go. The sequential loop leaves it null and every
+// append lands in detail->series directly, exactly as before. The executor points it at
+// the running stage's own buffer on that stage's thread (thread_local — the stage runs on
+// one thread) and splices the buffers in authored order. See AnalysisContext::seriesOut().
+inline thread_local std::vector<MetricSeries> *tl_seriesSink = nullptr;
 
 // The shared typed context the stages read and write — a constrained blackboard.
 // Typed slots (not a bag of variants) so a stage's inputs/outputs are the compiler's
@@ -204,6 +329,10 @@ struct AnalysisContext {
     // touches the track — the object SwingLab's --dtl block builds. Null unless the job has
     // a DTL camera and the DTL tracker is enabled; DtlShaftStage reads it.
     std::shared_ptr<const FaceOnWitness> foWitness;
+    // The decoded-frame stores (frame_store.h, decode.frameStore), one per camera, owned here so
+    // they die with the analysis; consumers find them through the (window, source) registry.
+    // Written only by the camera's FrameDecodeStage.
+    std::shared_ptr<FrameStoreSlot> framesFaceOn, framesDtl;
     std::shared_ptr<SwingAnalysis> detail;      // the rich SwingAnalysis, written in place
     bool                         halted = false;
     QString                      haltError;
@@ -213,6 +342,14 @@ struct AnalysisContext {
     // Fusable IMU orientation present — the monolith's `hasImu` gate verbatim.
     bool hasImuStreams() const {
         return !streams.timeGrid.empty() && !streams.segments.empty();
+    }
+
+    // The vector a stage that only APPENDS detail.series pushes to: detail->series under
+    // the sequential loop, the stage's own buffer under the executor (tl_seriesSink).
+    // A stage that also reads detail.series writes detail->series directly — the executor
+    // runs it when the series holds exactly its authored prefix and nothing else touches it.
+    std::vector<MetricSeries> &seriesOut() {
+        return tl_seriesSink ? *tl_seriesSink : detail->series;
     }
 };
 
@@ -226,6 +363,11 @@ public:
     virtual bool    canRun(const AnalysisContext &) const { return true; }
     virtual QString skipReason(const AnalysisContext &) const { return QString(); }
     virtual void    run(AnalysisContext &) = 0;
+    // What run() and canRun() read and write (StageDecl). Undeclared ⇒ a barrier.
+    virtual StageDecl decl() const { StageDecl d; d.barrier = true; return d; }
+    // The same for one job, where a tuning key changes what the stage reads (DtlPose under
+    // pose.dtlEarly). The executor builds its graph from this; decl() is the defaults' answer.
+    virtual StageDecl declFor(const ShotAnalysisJob &) const { return decl(); }
 };
 
 // An ordered, named stage list for one session type.
@@ -239,9 +381,15 @@ struct SessionProfile {
 // clock into ctx.trace only. No registration, no sorting, no parallelism.
 inline void runStages(const SessionProfile &profile, AnalysisContext &ctx)
 {
+    // Offsets are from ctx.wall (started by the analyzer at the top of analyze()); a
+    // context without one — the unit tests — gets the loop's own clock.
+    QElapsedTimer own;
+    own.start();
+    const QElapsedTimer &clock = ctx.wall.isValid() ? ctx.wall : own;
     for (const std::unique_ptr<AnalysisStage> &stage : profile.stages) {
         StageTraceEntry e;
         e.name = stage->name();
+        e.startNs = clock.nsecsElapsed();
         if (ctx.halted) {
             e.skipReason = QStringLiteral("halted");
         } else if (!stage->canRun(ctx)) {
@@ -253,7 +401,29 @@ inline void runStages(const SessionProfile &profile, AnalysisContext &ctx)
             e.ran       = true;
             e.elapsedNs = t.nsecsElapsed();
         }
+        e.endNs = clock.nsecsElapsed();
         ctx.trace.push_back(std::move(e));
+    }
+}
+
+// ctx.trace → detail->timings.stages (analysis.timings.stages in the document; swinglab's
+// runmeta.json). Wall-clock telemetry, nothing reads it back.
+inline void bindStageTimings(AnalysisContext &ctx)
+{
+    if (!ctx.detail) return;
+    std::vector<StageTiming> &out = ctx.detail->timings.stages;
+    out.clear();
+    out.reserve(ctx.trace.size());
+    for (const StageTraceEntry &e : ctx.trace) {
+        StageTiming s;
+        s.name       = e.name;
+        s.ran        = e.ran;
+        s.skipReason = e.skipReason;
+        s.ms         = double(e.elapsedNs) / 1e6;
+        s.startMs    = double(e.startNs) / 1e6;
+        s.endMs      = double(e.endNs) / 1e6;
+        s.thread     = e.thread;
+        out.push_back(std::move(s));
     }
 }
 

@@ -338,6 +338,64 @@ static void testFrameSchedules()
               denseIn > 0 && densePicked == denseIn && pick.size() * 5 < ts.size() * 3);
     }
 
+    // (c2) pose.dtlEarly: the ladder before the resolve (dtlEarlyLadder) — the IMU's span and
+    // instants, else the pose span with P1 = onset − 100 ms and no P2 / P8, else nothing — and
+    // schedule B over it: the camera-only dense zone starts at onset + 100 ms (P1 + 250 − 50)
+    // and ends at impact + 300 ms (impact + 150 + 150).
+    {
+        DtlEarlyInputs imu;
+        imu.imu = true;
+        imu.imuStartUs = 1000000; imu.imuEndUs = 3000000;
+        imu.imuP1Us = 1050000; imu.imuP2Us = 1350000; imu.imuP8Us = -1; imu.imuImpactUs = 2200000;
+        imu.spanOk = true; imu.spanStartUs = 900000; imu.spanEndUs = 3100000;   // ignored: IMU wins
+        imu.jobImpactUs = 2210000;
+        const DtlEarlyLadder li = dtlEarlyLadder(imu);
+        CHECK("early ladder, IMU: its span and instants; missing P8 left to schedule B",
+              std::string(li.source) == "imu" && li.swingStartUs == 1000000 && li.swingEndUs == 3000000
+                  && li.p1Us == 1050000 && li.p2Us == 1350000 && li.p8Us == -1 && li.impactUs == 2200000);
+        imu.imuImpactUs = -1;
+        CHECK("early ladder, IMU without impact: the job's", dtlEarlyLadder(imu).impactUs == 2210000);
+
+        DtlEarlyInputs cam;
+        cam.spanOk = true; cam.spanStartUs = 1100000; cam.spanEndUs = 3200000;
+        cam.jobImpactUs = 2250000;
+        const DtlEarlyLadder lc = dtlEarlyLadder(cam);
+        CHECK("early ladder, camera: the pose span, P1 = onset − 100 ms, no P2 / P8, the job's impact",
+              std::string(lc.source) == "poseSpan" && lc.swingStartUs == 1100000 && lc.swingEndUs == 3200000
+                  && lc.p1Us == 1000000 && lc.p2Us == -1 && lc.p8Us == -1 && lc.impactUs == 2250000);
+        const DtlSchedule sc = dtlZoneSchedule(lc.p1Us, lc.p2Us, lc.p8Us, lc.impactUs);
+        CHECK("early schedule, camera: dense [onset + 100, impact + 300] at 1, back [onset − 200, onset + 100] at 2",
+              sc.ok && sc.p2Fallback && sc.p8Fallback && sc.zones.size() == 2
+                  && sc.zones[0].fromUs == 1200000 && sc.zones[0].toUs == 2550000 && sc.zones[0].stride == 1
+                  && sc.zones[1].fromUs == 900000 && sc.zones[1].toUs == 1200000 && sc.zones[1].stride == 2);
+        DtlEarlyInputs wide = cam;                                       // finish0 1.4 s past impact + 1 s
+        wide.spanStartUs = 500000; wide.spanEndUs = 4650000;
+        const DtlEarlyLadder lw = dtlEarlyLadder(wide);
+        CHECK("early ladder, camera: the span bounded to [impact − 1.5 s, impact + 1 s], P1 on the raw onset",
+              lw.swingStartUs == 750000 && lw.swingEndUs == 3250000 && lw.p1Us == 400000);
+        DtlEarlyInputs miss = cam;                                       // a span wholly before impact
+        miss.spanStartUs = 100000; miss.spanEndUs = 600000;
+        const DtlEarlyLadder lm = dtlEarlyLadder(miss);
+        CHECK("early ladder, camera: a span that misses impact becomes impact − 1.5 s / + 1 s",
+              lm.swingStartUs == 750000 && lm.swingEndUs == 3250000);
+        cam.jobImpactUs = 0;
+        CHECK("early schedule, camera, no impact: refused (every frame)",
+              !dtlZoneSchedule(dtlEarlyLadder(cam).p1Us, -1, -1, dtlEarlyLadder(cam).impactUs).ok);
+
+        DtlEarlyInputs none;
+        none.jobImpactUs = 2250000;
+        none.spanOk = false; none.spanStartUs = 1; none.spanEndUs = 2;   // not ok ⇒ not used
+        const DtlEarlyLadder ln = dtlEarlyLadder(none);
+        CHECK("early ladder, neither: no span (caller's impact fallback), no P1 ⇒ schedule refused",
+              std::string(ln.source) == "none" && ln.swingEndUs <= ln.swingStartUs && ln.p1Us < 0
+                  && ln.impactUs == 2250000 && !dtlZoneSchedule(ln.p1Us, ln.p2Us, ln.p8Us, ln.impactUs).ok);
+        DtlEarlyInputs flat;
+        flat.imu = true; flat.imuStartUs = 5; flat.imuEndUs = 5;          // an empty IMU span falls through
+        flat.spanOk = true; flat.spanStartUs = 1100000; flat.spanEndUs = 3200000;
+        CHECK("early ladder: an empty IMU span falls through to the pose span",
+              std::string(dtlEarlyLadder(flat).source) == "poseSpan");
+    }
+
     // (d) The consumer bracket (bracketAt): OFF is the old 12 / 6 ms rule; with localGap a thinned
     // track pairs at its own spacing and still refuses a dropout.
     {

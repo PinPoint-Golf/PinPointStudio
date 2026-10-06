@@ -31,9 +31,14 @@
 // `unwrap`, `normScores` — and callers (shaft_evidence_test.cpp among them) have
 // their own. Qualify them, or open the directive in a .cpp; never in a header.
 
+#include <chrono>
 #include <cstdint>
 #include <cmath>
+#include <cstdio>
+#include <cstring>
 #include <limits>
+#include <mutex>
+#include <string>
 #include <vector>
 
 #include <opencv2/core.hpp>
@@ -41,6 +46,107 @@
 #include "shaft_track_assembly.h"   // DPResult / SnapConfig / RidgeConfig
 
 namespace pinpoint::analysis::shaftshared {
+
+// ── where a shaft tracker spends its time (analysis_dag_design.md step G) ─────
+// The two trackers were 5.1 s (face-on, 745 frames) and 3.0 s (DTL) of a 16 s
+// critical chain on the studio, and the only number either logged was its wall.
+// This is the split: named spans, summed, ONE log line per tracker. Nothing is
+// persisted — the document's timings stay the stage ms step A already writes.
+//
+// A span inside a cv::parallel_for_ body is summed over every frame on every
+// thread, so it is CPU time, not wall; the tracker prints those keys with a `Σ`
+// so the line cannot be read as if they added up to the wall.
+//
+// The sink travels as a thread_local on the CALLING thread (the tracker installs
+// it with ShaftProfInstall); code that runs spans on worker threads reads
+// shaftProf() once on the calling thread and captures the pointer. A null sink
+// (the live path, tests, shaftlab) makes every scope a no-op.
+class ShaftProf {
+public:
+    void add(const char* key, double ms)
+    {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        for (Entry& e : m_e)
+            if (std::strcmp(e.key, key) == 0) { e.ms += ms; ++e.n; return; }
+        m_e.push_back({ key, ms, 1 });
+    }
+    // "key ms[/n] key ms …" in first-seen order; n printed only when a span ran
+    // more than once (attempts, per-frame spans).
+    std::string line() const
+    {
+        std::lock_guard<std::mutex> lk(m_mutex);
+        std::string s;
+        char buf[160];
+        for (const Entry& e : m_e) {
+            if (e.n > 1) std::snprintf(buf, sizeof buf, "%s%s %.0f/%d", s.empty() ? "" : " ", e.key, e.ms, e.n);
+            else         std::snprintf(buf, sizeof buf, "%s%s %.0f", s.empty() ? "" : " ", e.key, e.ms);
+            s += buf;
+        }
+        return s;
+    }
+private:
+    struct Entry { const char* key; double ms; int n; };
+    mutable std::mutex m_mutex;
+    std::vector<Entry> m_e;
+};
+
+inline ShaftProf*& shaftProfSlot() { static thread_local ShaftProf* p = nullptr; return p; }
+inline ShaftProf*  shaftProf()     { return shaftProfSlot(); }
+
+// Installs `p` as this thread's sink for the scope (restoring the previous one).
+class ShaftProfInstall {
+public:
+    explicit ShaftProfInstall(ShaftProf* p) : m_prev(shaftProfSlot()) { shaftProfSlot() = p; }
+    ~ShaftProfInstall() { shaftProfSlot() = m_prev; }
+    ShaftProfInstall(const ShaftProfInstall&) = delete;
+    ShaftProfInstall& operator=(const ShaftProfInstall&) = delete;
+private:
+    ShaftProf* m_prev;
+};
+
+// Laps through a long serial function: lap(key) bills the time since the
+// previous lap (or construction) to `key`. For decideTrack's 1800-line body,
+// where a scope per section would mean re-indenting the function.
+class ShaftProfLap {
+public:
+    explicit ShaftProfLap(ShaftProf* p) : m_p(p)
+    {
+        if (m_p) m_t0 = std::chrono::steady_clock::now();
+    }
+    void lap(const char* key)
+    {
+        if (!m_p) return;
+        const auto now = std::chrono::steady_clock::now();
+        m_p->add(key, std::chrono::duration<double, std::milli>(now - m_t0).count());
+        m_t0 = now;
+    }
+private:
+    ShaftProf* m_p;
+    std::chrono::steady_clock::time_point m_t0;
+};
+
+// Adds the scope's wall ms to `key` (a string literal — stored by pointer).
+class ShaftProfScope {
+public:
+    ShaftProfScope(ShaftProf* p, const char* key) : m_p(p), m_key(key)
+    {
+        if (m_p) m_t0 = std::chrono::steady_clock::now();
+    }
+    ~ShaftProfScope() { stop(); }
+    void stop()
+    {
+        if (!m_p) return;
+        const auto dt = std::chrono::steady_clock::now() - m_t0;
+        m_p->add(m_key, std::chrono::duration<double, std::milli>(dt).count());
+        m_p = nullptr;
+    }
+    ShaftProfScope(const ShaftProfScope&) = delete;
+    ShaftProfScope& operator=(const ShaftProfScope&) = delete;
+private:
+    ShaftProf* m_p;
+    const char* m_key;
+    std::chrono::steady_clock::time_point m_t0;
+};
 
 // ── the decode-once frame-cache byte cap ─────────────────────────────────────
 // Sized for a full 5 s / 150 fps / 1.3 MP coverage range (~1 GB gray); offline
@@ -118,11 +224,14 @@ DPResult viterbiBanded(const std::vector<std::vector<float>>& emis,
 // probability of every θ state (rows sum to 1), on exactly the transitions viterbiBanded allows
 // (same band, same direction rule, same kSmooth·Δ² cost). As T → 0 the marginal collapses onto the
 // Viterbi path. Log-sum-exp throughout, so no state underflows to a false zero. Empty input ⇒
-// empty result (the viterbiBanded contract).
+// empty result (the viterbiBanded contract). `parallel` runs the forward and backward recurrences
+// side by side and the marginal rows per frame over cv::parallel_for_ — every value is computed by
+// the same expression in the same order, so the result is byte-identical (shaft.parallel.fb).
 std::vector<std::vector<float>> forwardBackwardBanded(const std::vector<std::vector<float>>& emis,
                                                       const std::vector<int>& wmaxBins,
                                                       const std::vector<int>& sgn,
-                                                      double kSmooth, double gridDeg, double T);
+                                                      double kSmooth, double gridDeg, double T,
+                                                      bool parallel = false);
 
 // From one frame's marginal: the circular standard deviation (deg) of the mass within ±30° of
 // `thetaDeg` (the published angle), and pAlt — the mass more than 15° from it, the lattice's own

@@ -49,6 +49,10 @@
 
 namespace pinpoint::analysis {
 
+// `framesOwned`: frameAt returns owned Mats and may be called from any thread
+// (the tracker's decode-once cache is live). Only then may the per-frame snap +
+// run loop run in parallel (cfg.par.post); a test's or the over-cap serial
+// frameAt keeps it serial.
 // `state` is taken by non-const reference because the segment probe refines the
 // solved θ in place before tiering reads it back.
 DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
@@ -59,6 +63,7 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
                              int frameW, int frameH,
                              const SegmentGeom& geom,
                              const DtlShaftConfig& cfg,
-                             DtlDecideTrace* trace = nullptr);
+                             DtlDecideTrace* trace = nullptr,
+                             bool framesOwned = false);
 
 } // namespace pinpoint::analysis

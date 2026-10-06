@@ -61,9 +61,15 @@ std::vector<int> thinTo(const std::vector<int>& src, int cap)
 
 // Per-pixel median of a set of CV_8UC1 frames, as CV_32F. Per-row nth_element
 // exactly as decideTrack's scene median: the k-th order statistic is unique, so
-// the parallel result is byte-identical to the serial scan.
-cv::Mat medianImage(const FrameSource& frameAt, const std::vector<int>& idx, bool parallel)
+// the parallel result is byte-identical to the serial scan. The frames are
+// FETCHED serially here whatever `parallel` says, and every Mat in `bg` is owned
+// (a cache entry, or decodeGray's clone) — so the row split is safe even on the
+// over-cap serial-decode path, which is why the ball's three medians may take it
+// (shaft.dtl.parallel.medians) without the frame cache being live.
+cv::Mat medianImage(const FrameSource& frameAt, const std::vector<int>& idx, bool parallel,
+                    const char* profKey = "median")
 {
+    shaftshared::ShaftProfScope tMed(shaftshared::shaftProf(), profKey);
     std::vector<cv::Mat> bg;
     bg.reserve(idx.size());
     for (const int i : idx) { const cv::Mat g = frameAt(i); if (!g.empty()) bg.push_back(g); }
@@ -394,8 +400,8 @@ ShadowCue shadowBallCue(const FrameSource& frameAt,
         out.reason = QStringLiteral("shadow cue: only %1 post-launch frames (need 5)").arg(int(aft.size()));
         return out;
     }
-    const cv::Mat away32 = medianImage(frameAt, away, false);
-    const cv::Mat after32 = medianImage(frameAt, aft, false);
+    const cv::Mat away32 = medianImage(frameAt, away, cfg.par.medians, "med.shadowAway");
+    const cv::Mat after32 = medianImage(frameAt, aft, cfg.par.medians, "med.shadowAfter");
     if (away32.empty() || after32.empty()
         || away32.rows != after32.rows || away32.cols != after32.cols) {
         out.reason = QStringLiteral("shadow cue: club-away / post-launch medians unavailable");
@@ -501,7 +507,7 @@ DtlBall dtlFindBall(const FrameSource& frameAt,
     const std::vector<int> addr = thinTo(addrFramesIn, 25);
     if (addr.size() < 3) { out.reason = QStringLiteral("no address hold to search"); return out; }
 
-    const cv::Mat med32 = medianImage(frameAt, addr, false);
+    const cv::Mat med32 = medianImage(frameAt, addr, cfg.par.medians, "med.ballAddr");
     if (med32.empty()) { out.reason = QStringLiteral("address-hold median unavailable"); return out; }
     cv::Mat med8; med32.convertTo(med8, CV_8U);
 
@@ -610,6 +616,8 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
     // Same cap and the same rule as decideTrack / buildFrameCache: over it, every
     // pass falls back to the serial frameAt. Owned Mats are what make the evidence
     // loop below safe to run under cv::parallel_for_.
+    shaftshared::ShaftProf* const prof = shaftshared::shaftProf();
+    shaftshared::ShaftProfLap lap(prof);
     const size_t cacheBytes = size_t(nf) * size_t(std::max(0, frameW)) * size_t(std::max(0, frameH));
     std::vector<cv::Mat> frameCache;
     if (cacheBytes > 0 && cacheBytes <= shaftshared::kFrameCacheCapBytes) {
@@ -784,6 +792,7 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
         afterFrames.assign(allFrames.end() - 5, allFrames.end());
     }
 
+    lap.lap("s.witness+quarantine");
     // ── (c1) the DTL ball, then L̂_D ────────────────────────────────────────
     // The cross-view row scale is resolved FIRST, because the ball detector needs
     // a scene scale to size a 42.7 mm ball in pixels and this one owes the ball
@@ -828,6 +837,7 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
         st.lFullSource = QStringLiteral("faceOnRowScale");
     }
 
+    lap.lap("s.ball");
     // ── (c2) the still-club frames (§4.3, and face-on's as-built address rule)
     // The club is AT THE BALL in the address hold and at impact, and in this view
     // grip→ball is a direct DTL measurement — the one prior that owes face-on
@@ -967,6 +977,7 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
         for (DtlBand& b : st.bands) b.name = pName(b.loUs) + QStringLiteral("→") + pName(b.hiUs);
     }
 
+    lap.lap("s.bands");
     // ── (d) the phase-aware clean plate (§5.4) ──────────────────────────────
     // The one place the face-on coupling touches EVIDENCE rather than the
     // decision, and the place the research record's permanence-snapshot error
@@ -980,13 +991,13 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
         // the clip, and the club returns to within 3° of that line at impact), so
         // the motion channel is blind exactly where it would matter. Said out loud
         // rather than hidden, because this is the truth-only mode's known cost.
-        plate = medianImage(frameSrc, thinTo(allFrames, cfg.plateMaxFrames), parFrames);
+        plate = medianImage(frameSrc, thinTo(allFrames, cfg.plateMaxFrames), parFrames, "med.plateAll");
     } else {
         std::vector<double> gyA;
         for (const int i : addrFrames) if (fin(gy[size_t(i)])) gyA.push_back(gy[size_t(i)]);
         rowSplit = gyA.empty() ? 0.5 * frameH : pctOf(gyA, 50.0) - 40.0;
-        const cv::Mat hi = medianImage(frameSrc, thinTo(addrFrames, cfg.plateMaxFrames), parFrames);
-        const cv::Mat lo = medianImage(frameSrc, thinTo(lowFrames, cfg.plateMaxFrames), parFrames);
+        const cv::Mat hi = medianImage(frameSrc, thinTo(addrFrames, cfg.plateMaxFrames), parFrames, "med.plateHi");
+        const cv::Mat lo = medianImage(frameSrc, thinTo(lowFrames, cfg.plateMaxFrames), parFrames, "med.plateLo");
         if (hi.empty() && lo.empty()) {
             // no plate: neither phase window had frames — the motion channel is
             // simply absent and the other two speak for every frame
@@ -1007,6 +1018,7 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
                                                     : std::numeric_limits<int64_t>::max();
     st.platesNote = plate;
 
+    lap.lap("s.plate");
     // ── (e)(f) evidence + emission, per sighted frame ───────────────────────
     std::vector<std::vector<float>> emis(size_t(nf), std::vector<float>(size_t(NS), float(cfg.wE2)));
     const double rmax = 0.62 * frameH;
@@ -1018,6 +1030,7 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
         if (!st.sighted[size_t(i)]) return;
         const cv::Mat g8 = frameSrc(i);
         if (g8.empty()) return;
+        shaftshared::ShaftProfScope tMo(prof, "Σev.motion");
         cv::Mat g32; g8.convertTo(g32, CV_32F);
         const double GX = gx[size_t(i)], GY = gy[size_t(i)];
 
@@ -1036,6 +1049,8 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
         // the wide bright forearm wins on a frame where the shaft is plainly
         // visible. Measured: 37–48 grey levels along the true shaft over the
         // screen and the mat, 1–8 on a control line.
+        tMo.stop();
+        shaftshared::ShaftProfScope tCo(prof, "Σev.contrast");
         Channel co;
         {
             const int ksz = std::max(3, cfg.contrastKsz | 1);
@@ -1045,7 +1060,11 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
             co = sweepChannel(d, GX, GY, gridRad, cfg.ridge, true, difFloor, NS);
         }
         // Channel 3 — RAW, signed, exactly as face-on runs it.
+        tCo.stop();
+        shaftshared::ShaftProfScope tRw(prof, "Σev.raw");
         const Channel rw = sweepChannel(g32, GX, GY, gridRad, cfg.ridge, false, cfg.evAbsFloor, NS);
+        tRw.stop();
+        shaftshared::ShaftProfScope tRest(prof, "Σev.band+emission");
 
         std::vector<float>& EV = st.EV[size_t(i)];
         std::vector<float>& SUP = st.SUP[size_t(i)];
@@ -1241,6 +1260,7 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
     else
         for (int i = 0; i < nf; ++i) body(i);
 
+    lap.lap("s.evidence");
     // ── (h) one Viterbi per band, independently ─────────────────────────────
     // Nothing connects the bands and no sample is emitted in a gap: in an end-on
     // gap θ_D is UNDEFINED, so there is nothing to bridge, and a global path
@@ -1269,6 +1289,7 @@ DtlSolveState dtlSolve(const FrameSource& frameAt,
         }
     }
 
+    lap.lap("s.viterbi");
     // Which centre the evidence took, and whether it escaped the corridor. §4.2
     // does not claim the mid-band sign; this column is how it gets settled, or
     // does not, over a dev set.

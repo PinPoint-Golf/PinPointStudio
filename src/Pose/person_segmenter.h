@@ -21,8 +21,11 @@
 #if defined(HAVE_OPENCV) && defined(HAVE_SEGMENTER) && defined(HAVE_ONNXRUNTIME)
 
 #include <memory>
+#include <string>
 #include <QString>
 #include <opencv2/core.hpp>
+
+#include "../Analysis/pose_pipeline.h"   // InstanceCache — the pose session's process-wide cache
 
 // Lightweight person segmentation using a dedicated ONNX model.
 //
@@ -36,6 +39,10 @@
 //       // blur background using mask, then run MoveNet on clean frame
 //   }
 
+class PersonSegmenter;
+// Key: model path + the session options load() builds with (intra-op 2, ORT_ENABLE_ALL).
+using SegmenterCache = pinpoint::analysis::InstanceCache<std::string, PersonSegmenter>;
+
 class PersonSegmenter
 {
 public:
@@ -47,6 +54,12 @@ public:
 
     bool load();
     bool isReady() const { return m_ready; }
+
+    // The process-wide loaded segmenter (segmenter.sessionCache, analysis_dag_design.md
+    // step C): AddressMarks built a new ORT Env + u2netp Session on EVERY shot. Built
+    // on the first call, reused after; the lease holds it for one user at a time. A
+    // failed load is handed back uncached (isReady() false) so the next call retries.
+    static SegmenterCache::Lease acquireShared();
 
     // Returns a CV_32F single-channel mask the same size as `bgr`.
     // Values close to 1.0 = person, close to 0.0 = background.

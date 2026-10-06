@@ -64,6 +64,10 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
 {
     QElapsedTimer wall;
     wall.start();
+    // The time split (shaftshared::ShaftProf): one [ShaftTracker] split line at
+    // the end, nothing persisted.
+    shaftshared::ShaftProf prof;
+    const shaftshared::ShaftProfInstall profInstall(&prof);
     ShaftTrack2D out;
     out.camera = pose.camera;
     if (pose.frames.size() < 2) { ppWarn() << "[ShaftTracker] no usable pose track — invalid"; return out; }
@@ -201,8 +205,14 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
     // ── decode-once span cache with parallel decode (shaft_frame_io.h) ───────
     // The cache vector stays OURS: buildFrameCache's callable closes over it by
     // reference, so it must outlive every frameAt() call below.
+    // decode.frameStore: the analysis' one grey decode of this camera, shared (frame_store.h);
+    // without a store the lease holds the camera's reader lock until this function returns,
+    // since the executor no longer serialises this stage on the camera.
+    const FrameLease frameLease(window, pose.camera, job.tuningOverrides, /*needBgr*/ false);
     std::vector<cv::Mat> frameCache;
-    const FrameSource frameAt = buildFrameCache(window, cov, *cfmt, w, h, frameCache);
+    shaftshared::ShaftProfScope tCache(&prof, "cache");
+    const FrameSource frameAt = buildFrameCache(window, cov, *cfmt, w, h, frameCache, frameLease.store());
+    tCache.stop();
     // Persistent club-length prior (club_length_fusion.h) from the job — filled by
     // ShotProcessor from AppSettings (live) or SwingDiskLoader from swing.json
     // (re-analysis). Joined into the fusion only when matured (n ≥ 2); pass null
@@ -234,6 +244,7 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
     // One tracking attempt on a pose track: decideTrack, the post-hoc ball anchor,
     // and the P1 re-sample from the anchored samples.
     const auto attempt = [&](const PoseTrack2D& P) -> ShaftTrack2D {
+        shaftshared::ShaftProfScope tAttempt(&prof, "attempt");
         derive(P);
         ShaftTrack2D t = decideTrack(frameAt, tUs, gx, gy, phiRaw, rawJoints, w, h, fps,
                                      job.bandCentersMm, job.clubLengthM * 1000.0, impf, cfg, trace,
@@ -242,7 +253,9 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
         t.camera = pose.camera;
         // v3.4 (design §9): additive post-hoc ball anchor — reads the frozen DP
         // output above, never re-solves it. No-op when `ball` is empty.
+        shaftshared::ShaftProfScope tAnchor(&prof, "ballAnchor");
         applyBallAnchor(t, ball, gx, gy, tUs, w, h, impf, job, trace);
+        tAnchor.stop();
         // The anchor rewrites the address-hold SAMPLES after the P-positions were
         // sampled from them, so P1 could carry a θ its own samples no longer show
         // (16 Sept W02 s2 on B: samples 100°, P1 132°). A track-sampled P1 whose
@@ -302,6 +315,11 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
         out.valid = false;
     }
 
+    // Why each attempt ran is part of the split: a 2nd is the cleaned-hands
+    // retry of an invalid/refused raw track, a 3rd the trace-only re-run.
+    ppInfo() << "[ShaftTracker] split ms:" << prof.line().c_str() << "| phase retries" << out.phaseRetries
+             << (handsRetried ? "| attempt 2: raw hands invalid/refused, cleaned hands tried" : "")
+             << (handsRetried && trace ? "(a 3rd is the trace re-run when they were rejected)" : "");
     ppInfo() << "[ShaftTracker] v3 frames" << nf << "coverage" << out.coverage
              << (out.valid ? "VALID" : "invalid") << "," << wall.elapsed() << "ms";
     if (out.refusedReason)

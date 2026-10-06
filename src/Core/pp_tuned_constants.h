@@ -318,6 +318,21 @@ inline constexpr bool kLogPartition   = false;  // pose.logPartition
 inline constexpr bool kDtlSchedule    = true;   // pose.dtlSchedule
 inline constexpr int  kDtlBackStride  = 2;      // pose.dtlBackStride
 inline constexpr int  kDtlRestStride  = 4;      // pose.dtlRestStride
+// pose.dtlEarly (analysis_dag_design.md step F): the DTL pass takes its window and schedule-B
+// instants from what exists right after the face-on pose — the IMU ladder, else the two-pass
+// pose's coarse span estimate (pose_schedule.h dtlEarlyLadder) — instead of the resolved ladder,
+// so under analysis.parallel it runs beside Ball and Shaft(FO) rather than after them. An output
+// change (the window and the dense zone move); false = the resolved ladder, as before.
+// NOT promoted (studio, 21 corpus swings, 6 Oct; off vs a repeat of off byte-identical both
+// times). Raw: the coarse finish0 sits ~1.1–1.4 s past the resolved swing end — DTL window 2.75
+// → 4.1 s, frames 229 → 368 (median), 6 swings under 95 % within σ, one metric lost, one truth
+// frame worse, back planes up to 11°. Bounded to [impact − 1.5 s, impact + 1 s] (as now): window
+// 3.8 s, frames 229 → 356 (+55 %: the raw onset still anchors P1, so the dense zone starts far
+// earlier than the measured P2), 3 swings under 95 %, no metric lost, 2 truth frames worse, back
+// planes still up to 11° (07-04 s6 +11.0, s9 +10.5, s13 −7.8, 06-11 s5 −7.2); the DTL person crop
+// moves with the window. Wall unchanged (11478 → 11619 ms median): DtlPose overlaps Ball + Shaft
+// on every swing, but AddressMarks then takes the DTL reader before DtlShaft (see its decl).
+inline constexpr bool kDtlEarly       = false;  // pose.dtlEarly
 // pose.dtlLocalGap: the consumers that pair a DTL frame with a face-on instant judge a bracket
 // against the DTL track's LOCAL spacing (median of the 7 gaps around it), not a constant or the
 // track's global median: skeleton3d's pose bracket (max(skeleton3d.dtlBracketUs, 1.5 × local),
@@ -620,6 +635,26 @@ inline constexpr bool kHwAccel = false;
 // verified by the landed frame's timestamp. swing_0013 on the studio: face-on decoded
 // 3024 → 2384 frames, DTL 1856 → 1190, pose decode face-on 373–453 → 374 ms.
 inline constexpr bool kSeek    = false;
+// decode.frameStore (analysis_dag_design.md step E; src/Analysis/frame_store.h): ONE fetch
+// + decode of each camera's window per analysis, held in memory and read by every stage —
+// the face-on clip was fetched+decoded by the pose (twice), Ball, Shaft, ImpactAnchor and
+// AddressMarks, the DTL clip by DtlPose, DtlShaft and AddressMarks (≈5 s of a 12.6 s chain
+// on the studio). OFF = every consumer reads the window itself, as before.
+// ON since 6 Oct 2026: studio, 21 corpus swings, analysis.parallel on both arms — result.json
+// 21/21 identical to a repeat of OFF (the first OFF run carried the known CUDA DTL-pose 1e-9
+// flip on 06-11 s7, which ON, the repeat and the 4096 MiB arm all agree on); wall median
+// 11.5 → 8.4 s; Ball 2338 → 650 ms, Shaft 2903 → 1380, ImpactAnchor 459 → 142, DtlPose
+// 875 → 556, DtlShaft 1097 → 353, AddressMarks 1311 → 906. Mac (16 GB: grey only) identical
+// on 2026-10-05 s13 and 07-04 s8. The live (raw Bayer ring) path is not measured yet.
+inline constexpr bool kFrameStore = true;
+// decode.frameStoreMaxMiB: per camera. Grey + BGR over it ⇒ grey only; grey alone over it
+// ⇒ no store (today's path). 745 face-on frames at 688×1024 are 2002 MiB grey + BGR,
+// 501 MiB grey; 617 DTL frames at 576×988 are 1340 / 335 MiB.
+inline constexpr int    kFrameStoreMaxMiB     = 4096;
+// decode.frameStoreBgrMinRamGiB: BGR is kept (so the pose passes read it too) only on a
+// machine with at least this much physical memory — the studio has 31 GB, the Mac 16 GB,
+// and the two cameras' BGR is ≈ 2.6 GB on top of the grey. 0 = always when under the cap.
+inline constexpr int  kFrameStoreBgrMinRamGiB = 24;
 } // namespace decode
 
 // --- Head tracking (WB2 — src/Analysis/head_track.h) --------------------------
@@ -687,7 +722,35 @@ inline constexpr double kActivityOuterR    = 5.0;   // ball.activityOuterR — o
 // the Takeaway instant, not the Address hold end — see the ball_anchor.cpp
 // TODO. "ball.tk0AddressOverride" dotted key.
 inline constexpr bool kTk0AddressOverride = false;
+
+// --- Offline replay cost (analysis_dag_design.md step C — src/Analysis/ball_runner.cpp) ---
+// ball.boundAfterLaunch (ms; 0 = off): stop the offline replay once a launch has been
+// seen and the frame is past max(launch, impact) + this many ms, ending on a not-found
+// sample (≤ 250 ms more) so the replay overlay, which holds the LAST sample past the
+// track's end, never freezes a ball circle on screen. Every reader of the track was
+// audited (ball_position, ball_anchor, event_refine, shaft_track_assembly): each reads
+// only the address hold, pre-Top frames or pre-launch samples. The bound is from the
+// LATER of launch and impact because launch fires on flicker (median ~965 ms before
+// impact on the corpus, impact_geom.h), i.e. inside the backswing, where the address-
+// hold readers still need samples. Changes analysis.ball.samples (shorter) only.
+// ON since 6 Oct 2026 (kBallStageVersion 2): corpus gate 0 truth frames worse, ladder and
+// positions identical on 21 swings; Ball 2.5 → 1.6 s on the studio. 0 = the unbounded replay.
+inline constexpr int  kBoundAfterLaunchMs = 150;     // ball.boundAfterLaunch
+// ball.roiDecode: decode only the padded ROI's rows (a 2-row margin for the Bayer
+// edge-aware demosaic, even-aligned to keep the CFA phase) and convert only the padded
+// crop to grey/float. Byte-identical R. On an MP4-backed window the decoder already hands
+// back the whole BGR frame, so there it saves only the serial full-frame payload copy and
+// the colour/float conversion — the H.264 decode itself is untouched.
+inline constexpr bool kRoiDecode          = true;    // ball.roiDecode (ON 6 Oct 2026, byte-identical)
 } // namespace ball
+
+// --- Person segmenter (u2netp) session (src/Pose/person_segmenter.cpp) ---------
+// segmenter.sessionCache: keep ONE loaded u2netp session for the life of the process,
+// as pose.sessionCache does for ViTPose. AddressMarks built a new ORT Env + Session on
+// EVERY shot. false = a private session per shot (the old path). Output is identical.
+namespace segmenter {
+inline constexpr bool kSessionCache = true;          // segmenter.sessionCache
+} // namespace segmenter
 
 // --- Layer B P-position extraction (src/Analysis/shaft_positions.h) ------------
 // "positions.*" tuning. Most PositionsConfig defaults are struct literals; the
@@ -1493,5 +1556,41 @@ inline constexpr double   kBorderLo      = 0.20;    // a shot is borderline when
 inline constexpr double   kBorderHi      = 0.80;
 inline constexpr double   kBorderGross   = 0.20;    // … or its gross risk exceeds this
 } // namespace diagUncertainty
+
+// The analysis as a dependency graph (analysis_dag_design.md step B; analysis_dag.h).
+// analysis.parallel: run the profile's stages on a bounded pool, ordered by what each
+// declares it reads and writes, instead of one after another. OFF is runStages, the loop
+// every result so far came from; ON must give a byte-identical result.json (parity_diff.py)
+// and is the switch the corpus gate flips. analysis.parallelThreads: pool size; 0 = min(8,
+// physical cores) — the graph is at most ~6 stages wide (Impact, the body block, the DTL
+// branch), so more threads only add idle ones.
+namespace dag {
+// ON since 6 Oct 2026: byte-identical result.json against the sequential run on 90/90 corpus
+// swings (the one diff was the CUDA DTL-pose run-to-run flip, shown by an OFF repeat).
+inline constexpr bool kParallel        = true;    // analysis.parallel
+inline constexpr int  kParallelThreads = 0;       // analysis.parallelThreads (0 = auto)
+} // namespace dag
+
+// skeleton3d's per-frame residuals on a thread team (analysis_dag_design.md step D;
+// skeleton3d_fit.h FitConfig::evalThreads). 1 = the serial loop; 0 = min(8, physical cores);
+// N = N threads. The shared block is still summed in frame order, so every setting gives the same
+// bits. 0 since 6 Oct 2026: on the M4, 07-04 s8 / s13 and 06-11 s3 with pinned poses, result.json
+// identical to the serial run and the synthetic fit identical bit for bit (skeleton3d_test
+// (b-thr)); the fit 1.5–2.1 s → 0.8–1.2 s (studio not yet measured).
+namespace skeleton3d {
+inline constexpr int kEvalThreads = 0;   // skeleton3d.evalThreads
+} // namespace skeleton3d
+
+// --- Shaft trackers: serial sections run in parallel (analysis_dag_design.md G) --
+// Every switch here only REORDERS work — per-frame results written to per-frame
+// slots, reductions kept in frame order — so ON is byte-identical to OFF (the
+// corpus parity gate, 21 swings, result.json). OFF is the serial code as it was.
+namespace shaftParallel {
+inline constexpr bool kSnap      = true;   // shaft.parallel.snap — face-on Layer A snap searches per sample
+inline constexpr bool kHead      = true;   // shaft.parallel.head — face-on Stage-2 head measurement per frame
+inline constexpr bool kFb        = true;   // shaft.parallel.fb   — face-on U5 forward–backward per θ state
+inline constexpr bool kDtlMedian = true;   // shaft.dtl.parallel.medians — the ball/shadow medians by row
+inline constexpr bool kDtlPost   = true;   // shaft.dtl.parallel.post — the snap + run loop per frame
+} // namespace shaftParallel
 
 } // namespace pinpoint::tuned

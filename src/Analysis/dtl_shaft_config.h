@@ -418,6 +418,15 @@ struct DtlShaftConfig {
     SnapConfig      snap  = ShaftV3Config{}.snap;
     // Shaft uncertainty — the same "uncertainty.*" keys as face-on. Off ⇒ no σ written.
     UncertaintyConfig unc;
+    // Serial sections run in parallel (analysis_dag_design.md step G), reorder
+    // only ⇒ byte-identical. medians: the ball/shadow medians (168–176 ms serial
+    // on the Mac where the parallel plate medians took 10 ms each); post: the
+    // snap + run loop per solved frame (432–494 ms serial). Keys
+    // shaft.dtl.parallel.*, defaults tuned::shaftParallel.
+    struct Parallel {
+        bool medians = tuned::shaftParallel::kDtlMedian;
+        bool post    = tuned::shaftParallel::kDtlPost;
+    } par;
 
     static DtlShaftConfig fromOverrides(const QVariantMap& ov)
     {
@@ -438,6 +447,8 @@ struct DtlShaftConfig {
         c.evAbsFloorDif = fo.evAbsFloorDif;
         c.unc           = fo.unc;
         tn::apply(ov, "shaft.dtl.enabled",             c.enabled);
+        tn::apply(ov, "shaft.dtl.parallel.medians",    c.par.medians);
+        tn::apply(ov, "shaft.dtl.parallel.post",       c.par.post);
         tn::apply(ov, "shaft.dtl.truthOnly",           c.truthOnly);
         tn::apply(ov, "shaft.dtl.rhoSolveMin",         c.rhoSolveMin);
         tn::apply(ov, "shaft.dtl.schedule.enabled",    c.schedule.enabled);

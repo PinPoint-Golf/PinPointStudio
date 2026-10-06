@@ -29,6 +29,7 @@
 //   selectZoneSchedule                 — the general one: a list of {from, to, stride} zones
 //                                        and a rest stride; the DTL's schedule B uses it.
 //   dtlZoneSchedule                    — schedule B off the inherited ladder (P1, P2, P8).
+//   dtlEarlyLadder                     — that ladder before the resolve (pose.dtlEarly).
 //   localGapUs / bracketAt             — a consumer's "is this a bracket or a hole" test that
 //                                        follows the track's own local spacing.
 
@@ -183,6 +184,84 @@ inline DtlSchedule dtlZoneSchedule(int64_t p1Us, int64_t p2Us, int64_t p8Us, int
     s.restStride = c.restStride;
     s.ok = true;
     return s;
+}
+
+// ── The DTL pass's ladder, from what exists right after the face-on pose ─────
+//
+// pose.dtlEarly (analysis_dag_design.md step F). The DTL pass needs a swing span (its scan
+// window: span − 1 s … span + 0.3 s) and three instants (schedule B's P1, P2, P8, plus impact).
+// Today it reads them off the RESOLVED ladder, which puts it behind Ball and Shaft(FO) on the
+// critical path. Early, it reads them off what the face-on pose stage already left:
+//
+//   IMU ladder (segImu conf > 0)   its span, its Address / P2 / P8 / Impact where it carries
+//                                  them (absent ⇒ schedule B's own fallbacks); impact else the job's.
+//   camera only                    the two-pass pose's coarse span estimate (estimateSwingSpanUs:
+//                                  true takeaway → finish0, bounded to [impact − 1.5 s, impact + 1 s]),
+//                                  P1 := onset − 100 ms (the address hold
+//                                  is before the onset, so the backswing zone starts 200 ms before
+//                                  takeaway), no P2 (⇒ P1 + 250 ms), no P8 (⇒ impact + 150 ms),
+//                                  impact the job's.
+//   neither                        no span (the caller's impact − 2.5 s / + 0.8 s fallback), no P1
+//                                  (schedule refused ⇒ every frame).
+//
+// Both are OUTPUT changes against the resolved ladder: the window is the same formula fed by an
+// earlier opinion of the span (the coarse onset sits within a coarse step of the vision ladder's
+// swing start, and finish0 at or after its swing end, so the window is a superset or a near-one),
+// and the dense zone starts at the fallback P2 − 50 ms (onset + 100 ms) rather than the measured P2 − 50 ms
+// — usually earlier (address → P2 is 0.2–0.35 s on the corpus), so more frames at stride 1. Gated.
+struct DtlEarlyLadder {
+    int64_t     swingStartUs = 0, swingEndUs = 0;   // end ≤ start ⇒ no span
+    int64_t     p1Us = -1, p2Us = -1, p8Us = -1, impactUs = -1;
+    const char *source = "none";                     // "imu" | "poseSpan" | "none"
+};
+
+struct DtlEarlyInputs {
+    bool    imu = false;                             // an IMU ladder with conf > 0
+    int64_t imuStartUs = 0, imuEndUs = 0;
+    int64_t imuP1Us = -1, imuP2Us = -1, imuP8Us = -1, imuImpactUs = -1;
+    bool    spanOk = false;                          // the coarse pose span estimate
+    int64_t spanStartUs = 0, spanEndUs = 0;
+    int64_t jobImpactUs = -1;                        // ≤ 0 ⇒ none
+};
+
+inline DtlEarlyLadder dtlEarlyLadder(const DtlEarlyInputs &in, int64_t p1BeforeOnsetUs = 100000,
+                                     int64_t spanBeforeImpactUs = 1500000,
+                                     int64_t spanAfterImpactUs = 1000000)
+{
+    DtlEarlyLadder l;
+    const int64_t jobImpact = in.jobImpactUs > 0 ? in.jobImpactUs : -1;
+    if (in.imu && in.imuEndUs > in.imuStartUs) {
+        l.swingStartUs = in.imuStartUs;
+        l.swingEndUs   = in.imuEndUs;
+        l.p1Us = in.imuP1Us;
+        l.p2Us = in.imuP2Us;
+        l.p8Us = in.imuP8Us;
+        l.impactUs = in.imuImpactUs >= 0 ? in.imuImpactUs : jobImpact;
+        l.source = "imu";
+    } else if (in.spanOk && in.spanEndUs > in.spanStartUs) {
+        // Bounded by impact: the coarse finish0 sat 1.1–1.4 s past the resolved swing end on
+        // the corpus (6 Oct; the resolved end is ≈ impact + 0.7 s), which grew the DTL window
+        // 2.75 → 4.1 s and moved the person crop. So the end is min(finish0, impact + 1 s) and
+        // the start max(onset, impact − 1.5 s) — the window [start − 1 s, end + 0.3 s] is then
+        // never wider than today's no-span fallback (impact − 2.5 s / + 1.3 s here). P1 stays
+        // on the raw onset.
+        l.swingStartUs = in.spanStartUs;
+        l.swingEndUs   = in.spanEndUs;
+        if (jobImpact > 0) {
+            l.swingStartUs = std::max(l.swingStartUs, jobImpact - spanBeforeImpactUs);
+            l.swingEndUs   = std::min(l.swingEndUs, jobImpact + spanAfterImpactUs);
+            if (l.swingEndUs <= l.swingStartUs) {   // a span that misses impact: trust impact
+                l.swingStartUs = jobImpact - spanBeforeImpactUs;
+                l.swingEndUs   = jobImpact + spanAfterImpactUs;
+            }
+        }
+        l.p1Us = in.spanStartUs - p1BeforeOnsetUs;
+        l.impactUs = jobImpact;
+        l.source = "poseSpan";
+    } else {
+        l.impactUs = jobImpact;
+    }
+    return l;
 }
 
 // ── Reading a track that was not posed at one rate ──────────────────────────

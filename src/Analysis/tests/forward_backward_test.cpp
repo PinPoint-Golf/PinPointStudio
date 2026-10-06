@@ -61,6 +61,20 @@ int main()
         check(std::abs(s.pAlt - 0.5) < 0.05, "pAlt ≈ ½ when another structure is exactly as cheap");
         check(s.sigmaDeg < grid, "σ about the published state stays inside a grid step");
     }
+    // parallel (forward ‖ backward, marginal rows per frame — shaft.parallel.fb) is
+    // the serial computation exactly: the same expression for every value
+    {
+        std::vector<std::vector<float>> e3(64, std::vector<float>(NS, 10.f));
+        std::vector<int> w3(64, 3), s3(64, 0);
+        for (int f = 0; f < 64; ++f) {
+            e3[size_t(f)][size_t((f * 3) % NS)] = 0.f;
+            e3[size_t(f)][size_t((f * 3 + 30) % NS)] = 1.5f;
+            w3[size_t(f)] = 1 + f % 4; s3[size_t(f)] = (f % 7 == 0) ? 1 : 0;
+        }
+        const auto a = shaftshared::forwardBackwardBanded(e3, w3, s3, 0.03, grid, 2.0, false);
+        const auto b = shaftshared::forwardBackwardBanded(e3, w3, s3, 0.03, grid, 2.0, true);
+        check(!a.empty() && a == b, "parallel forward–backward is byte-identical to serial");
+    }
     std::printf("%s (%d failure%s)\n", g_fail ? "FAILED" : "OK", g_fail, g_fail == 1 ? "" : "s");
     return g_fail ? 1 : 0;
 }

@@ -43,7 +43,7 @@
 namespace pinpoint::analysis {
 
 constexpr int kPoseStageVersion  = 1;
-constexpr int kBallStageVersion  = 1;
+constexpr int kBallStageVersion  = 2;   // 2: replay bounded at max(launch, impact) + 150 ms, ROI-only decode (2026-10-06)
 constexpr int kShaftStageVersion = 7;
                                               // 1: first stamped version (2026-09-09)
                                               // 2: markerless stack ON — seg lock, snap, projPrior (2026-09-10)

@@ -115,6 +115,7 @@ inline FitConfig fitConfigFromOverrides(const QVariantMap &ov)
     apply(ov, "skeleton3d.debugDropDtlShaftAfterUs", c.debugDropDtlShaftAfterUs);
     apply(ov, "skeleton3d.dtlBracketUs",       c.dtlBracketUs);
     apply(ov, "skeleton3d.dtlNearestUs",       c.dtlNearestUs);
+    apply(ov, "skeleton3d.evalThreads",        c.evalThreads);
     return c;
 }
 

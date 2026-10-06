@@ -18,6 +18,7 @@
 
 #include <gtest/gtest.h>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -841,4 +842,65 @@ TEST(SwingWindow, IndexHelpsAnOrdinaryCaptureToo) {
     // The point of the test: the win is not confined to high-rate windows.
     EXPECT_LT(idxUs, refUs)
         << "the index does nothing for a capture without a deferred source";
+}
+
+// ── payloadOf's per-source fetch lock (analysis_dag_design.md §2, step B) ──────────
+// A source whose fetch counts how many callers are INSIDE it, per source id, and holds each
+// caller there for a moment so overlaps cannot hide. Two threads hammering the same camera
+// must never be inside together (its reader has one buffer and one decode position); two
+// threads on two cameras must be allowed to overlap — the lock is per source, not global.
+namespace {
+class OverlapProbeSource final : public SwingPayloadSource {
+public:
+    mutable std::atomic<int> inside[2]{ {0}, {0} };
+    mutable std::atomic<int> maxInside[2]{ {0}, {0} };
+    mutable std::atomic<int> maxBoth{ 0 };
+    SourceRing::ReadHandle payloadOf(SourceId id, uint64_t) const noexcept override {
+        const int k = int(id) - 1;
+        const int now = ++inside[k];
+        int m = maxInside[k].load();
+        while (now > m && !maxInside[k].compare_exchange_weak(m, now)) {}
+        const int both = inside[0].load() + inside[1].load();
+        int mb = maxBoth.load();
+        while (both > mb && !maxBoth.compare_exchange_weak(mb, both)) {}
+        std::this_thread::sleep_for(std::chrono::microseconds(200));
+        --inside[k];
+        SourceRing::ReadHandle h;
+        h.data  = reinterpret_cast<const std::byte*>(&byte_);
+        h.bytes = 1;
+        return h;
+    }
+    const FormatDescriptor& formatOf(SourceId) const noexcept override {
+        static const FormatDescriptor kEmpty{};
+        return kEmpty;
+    }
+    bool validate(SourceId, const SourceRing::ReadHandle&) const noexcept override { return true; }
+private:
+    std::byte byte_{};
+};
+} // namespace
+
+TEST(SwingWindow, PayloadOfSerialisesFetchesPerSource) {
+    auto src = std::make_unique<OverlapProbeSource>();
+    OverlapProbeSource* probe = src.get();
+    std::vector<IndexEntry> entries;
+    for (uint64_t i = 0; i < 64; ++i) {
+        entries.push_back(IndexEntry{ int64_t(i) * 1000, SourceId(1), i, 2 * i, 0 });
+        entries.push_back(IndexEntry{ int64_t(i) * 1000, SourceId(2), i, 2 * i + 1, 0 });
+    }
+    SwingWindow w(std::move(src), entries, 0, 64000);
+    const auto e1 = w.entriesFor(SourceId(1));
+    const auto e2 = w.entriesFor(SourceId(2));
+
+    // Four threads on camera 1, two on camera 2.
+    std::vector<std::thread> ts;
+    for (int t = 0; t < 4; ++t)
+        ts.emplace_back([&] { for (const IndexEntry& e : e1) (void)w.payloadOf(e); });
+    for (int t = 0; t < 2; ++t)
+        ts.emplace_back([&] { for (const IndexEntry& e : e2) (void)w.payloadOf(e); });
+    for (std::thread& t : ts) t.join();
+
+    EXPECT_EQ(probe->maxInside[0].load(), 1) << "two threads were inside camera 1's reader at once";
+    EXPECT_EQ(probe->maxInside[1].load(), 1) << "two threads were inside camera 2's reader at once";
+    EXPECT_EQ(probe->maxBoth.load(), 2) << "the two cameras never fetched concurrently — the lock is global";
 }

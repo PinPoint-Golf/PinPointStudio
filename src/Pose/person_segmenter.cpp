@@ -73,6 +73,22 @@ bool PersonSegmenter::isAvailable()
     return QFile::exists(modelPath());
 }
 
+SegmenterCache::Lease PersonSegmenter::acquireShared()
+{
+    // Never destroyed, as the pose cache (pose_runner.cpp estimatorCache()): tearing an
+    // ORT session down during static destruction buys only an exit-time crash risk.
+    static SegmenterCache *cache = new SegmenterCache;
+    const std::string key = modelPath().toStdString() + "|intra2|all";
+    return cache->acquire(
+        key,
+        [] {
+            auto s = std::make_unique<PersonSegmenter>();
+            s->load();
+            return s;
+        },
+        [](const PersonSegmenter &s) { return s.isReady(); });
+}
+
 bool PersonSegmenter::load()
 {
     const QString path = modelPath();

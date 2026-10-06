@@ -282,27 +282,54 @@ inline bool isBlob(const cv::Mat &D, int cx, int cy, double r,
 // shaft where it enters the ROI top) never reaches the search region. The
 // padding is NOT optional. `roi` is in full-frame pixels; the returned R is
 // roi.height × roi.width, CV_32F.
-inline cv::Mat paddedResponse(const cv::Mat &grayFull32, const cv::Rect &roi, double rHat)
+//
+// Split in two (2026-10-06, analysis_dag_design.md step C) so a caller can decode
+// ONLY the padded crop's pixels and get the same R: paddedCropRect() is the
+// geometry, responseFromPaddedCrop() the DoG on a crop the caller already holds.
+// paddedResponse() is exactly the two composed — byte-identical to before.
+struct PaddedCrop {
+    cv::Rect padded;   // full-frame px: the ROI ∩ frame grown by kPadMult·r_hat, clamped
+    cv::Rect inner;    // the ROI ∩ frame, in padded-crop coordinates
+    bool valid() const { return inner.width > 0 && inner.height > 0; }
+};
+
+inline PaddedCrop paddedCropRect(int W, int H, const cv::Rect &roi, double rHat)
 {
-    const int W = grayFull32.cols, H = grayFull32.rows;
+    PaddedCrop pc;
     const int x0 = std::max(0, roi.x), y0 = std::max(0, roi.y);
     const int x1 = std::min(W, roi.x + roi.width), y1 = std::min(H, roi.y + roi.height);
     const int bw = x1 - x0, bh = y1 - y0;
-    if (bw <= 0 || bh <= 0) return cv::Mat();
+    if (bw <= 0 || bh <= 0) return pc;
 
     const int pad = int(std::ceil(tuning::kPadMult * rHat));
     const int px0 = std::max(0, x0 - pad), py0 = std::max(0, y0 - pad);
     const int px1 = std::min(W, x1 + pad), py1 = std::min(H, y1 + pad);
-    const int ox = x0 - px0, oy = y0 - py0;
+    pc.padded = cv::Rect(px0, py0, px1 - px0, py1 - py0);
+    pc.inner  = cv::Rect(x0 - px0, y0 - py0, bw, bh);
+    return pc;
+}
+
+// `crop32` must be an ISOLATED CV_32F Mat holding exactly the padded rect's pixels
+// (its own allocation, not a view into a larger image — see the .clone() note below).
+inline cv::Mat responseFromPaddedCrop(const cv::Mat &crop32, const PaddedCrop &pc, double rHat)
+{
+    if (!pc.valid() || crop32.empty()) return cv::Mat();
+    const cv::Mat Rpad = dog(crop32, rHat);
+    return Rpad(pc.inner).clone();
+}
+
+inline cv::Mat paddedResponse(const cv::Mat &grayFull32, const cv::Rect &roi, double rHat)
+{
+    const PaddedCrop pc = paddedCropRect(grayFull32.cols, grayFull32.rows, roi, rHat);
+    if (!pc.valid()) return cv::Mat();
 
     // .clone() ISOLATES the padded crop: cv::GaussianBlur on a bare submatrix
     // reads the parent's pixels beyond the ROI border (not isolated), which would
     // both defeat the padding and diverge from the python exemplar — whose crop
     // (cv2.cvtColor of a slice) is a fresh array that reflects at its own border.
     // Cloning makes the DoG reflect at the padded border exactly as python does.
-    const cv::Mat crop = grayFull32(cv::Rect(px0, py0, px1 - px0, py1 - py0)).clone();
-    const cv::Mat Rpad = dog(crop, rHat);
-    return Rpad(cv::Rect(ox, oy, bw, bh)).clone();
+    const cv::Mat crop = grayFull32(pc.padded).clone();
+    return responseFromPaddedCrop(crop, pc, rHat);
 }
 
 // ── State machine (design §4.2) ──────────────────────────────────────────────

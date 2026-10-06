@@ -406,6 +406,15 @@ struct ShaftV3Config {
         double stillPx        = 20.0;
         int    pairMinRun     = 4;
     } hands;
+    // Serial sections run in parallel (analysis_dag_design.md step G). Each only
+    // reorders work into per-frame slots, so ON is byte-identical to OFF; keys
+    // shaft.parallel.*, defaults tuned::shaftParallel. Parallel only where the
+    // owned frame cache is live (decideTrack's parFrames), as for the evidence.
+    struct ParallelConfig {
+        bool snap = tuned::shaftParallel::kSnap;   // Layer A: the snap search per sample
+        bool head = tuned::shaftParallel::kHead;   // Stage-2 head: the per-frame measurement
+        bool fb   = tuned::shaftParallel::kFb;     // U5: forward–backward per θ state
+    } par;
     // validity gate
     double  coverageMin = 0.60;      // meas fraction over the span ⇒ track.valid
     // length-ladder pose-scale rung (A2, clubhead_length plan). When neither the

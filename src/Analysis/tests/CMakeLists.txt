@@ -254,6 +254,11 @@ pp_norm_env(tuning_overrides_test)
 # includes are type-only on this path (fake stages, window = nullptr), so no extra .cpp.
 pp_add_test(analysis_stage_test SOURCES analysis_stage_test.cpp)
 
+# The analysis as a dependency graph (analysis_dag.h; analysis_dag_design.md step B): the
+# graph from fake stages' declarations, the pool run, the detail.series splice, the halt and
+# one-reader-per-camera. Header-only like the loop it sits beside.
+pp_add_test(analysis_dag_test SOURCES analysis_dag_test.cpp)
+
 # Analysis → profiler bridge (analysis_profiling.{h,cpp}): feeds ctx.trace into
 # the resource-profiler scopes (Analysis.Stage.*) + the per-run AnalysisProfileLog
 # ring. Links the profiler core (pp_profiler/pp_os_metrics/PpStatsLog +
@@ -561,6 +566,16 @@ pp_add_test(frame_decode_test
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     NO_QT)
+
+# The analysis' one decode per camera (frame_store.{h,cpp}; decode.frameStore, analysis_dag_design.md
+# step E): grey/BGR byte-equal to decodeToBgr/BGR2GRAY for BayerRG8, BGR24, Mono8 over a synthetic
+# SwingWindow; the memory caps; the lease's store-or-reader-lock. swing_window.cpp → C++20.
+pp_add_test(frame_store_test
+    SOURCES frame_store_test.cpp ${ANALYSIS}/frame_store.cpp ${SRC}/Export/frame_decode.cpp
+            ${SRC}/Buffer/swing_window.cpp
+    INCLUDE ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    STD 20)
 
 # The re-analysis MP4 reader's random access (pose_inference_performance_plan.md
 # step 5): a synthetic 60-frame clip with each frame's index painted in, read

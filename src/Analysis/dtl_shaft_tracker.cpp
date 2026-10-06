@@ -79,6 +79,9 @@ DtlShaftTrack2D DtlShaftTracker::track(const pinpoint::SwingWindow& window,
 {
     QElapsedTimer wall;
     wall.start();
+    // The time split (shaftshared::ShaftProf): one split line, nothing persisted.
+    shaftshared::ShaftProf prof;
+    const shaftshared::ShaftProfInstall profInstall(&prof);
     DtlShaftTrack2D out;
     out.camera = dtlPose.camera;
 
@@ -166,13 +169,21 @@ DtlShaftTrack2D DtlShaftTracker::track(const pinpoint::SwingWindow& window,
     // ── decode-once span cache (shaft_frame_io.h, shared) ───────────────────
     // The cache vector stays OURS: buildFrameCache's callable closes over it by
     // reference, so it must outlive every frameAt() call below.
+    // decode.frameStore: the analysis' one grey decode of this camera, shared (frame_store.h);
+    // without a store the lease holds the camera's reader lock until this function returns,
+    // since the executor no longer serialises this stage on the camera.
+    const FrameLease frameLease(window, dtlPose.camera, job.tuningOverrides, /*needBgr*/ false);
     std::vector<cv::Mat> frameCache;
-    const FrameSource frameAt = buildFrameCache(window, cov, *cfmt, w, h, frameCache);
+    shaftshared::ShaftProfScope tCache(&prof, "cache");
+    const FrameSource frameAt = buildFrameCache(window, cov, *cfmt, w, h, frameCache, frameLease.store());
+    tCache.stop();
 
     DtlDecideTrace local;
     DtlDecideTrace* trace = traceIn ? traceIn : &local;
+    shaftshared::ShaftProfScope tSolve(&prof, "solve");
     DtlSolveState st = dtlSolve(frameAt, tUs, an, witness, w, h, fps,
                                 job.bandCentersMm, job.clubLengthM * 1000.0, cfg, trace);
+    tSolve.stop();
 
     // ── the post-solve half owns the snap and the tier ladder (§5.9) ────────
     // It lives in dtl_shaft_post so it is testable over plain vectors: this class
@@ -185,7 +196,9 @@ DtlShaftTrack2D DtlShaftTracker::track(const pinpoint::SwingWindow& window,
     segGeom.bandsMm   = job.bandCentersMm;
 
     const pinpoint::SourceId cam = out.camera;
-    out = dtlPostSolve(frameAt, tUs, an, witness, st, w, h, segGeom, cfg, trace);
+    shaftshared::ShaftProfScope tPost(&prof, "post");
+    out = dtlPostSolve(frameAt, tUs, an, witness, st, w, h, segGeom, cfg, trace, !frameCache.empty());
+    tPost.stop();
     out.camera = cam;
     // §4.5 / Stage 0 again: shared host clock, no constant shift applied — the
     // witness interpolates across the ~3.2 ms phase difference.
@@ -262,6 +275,7 @@ DtlShaftTrack2D DtlShaftTracker::track(const pinpoint::SwingWindow& window,
                  << "frames" << nB << "published" << nPub << "held" << nHeld
                  << "corrSign +/-" << sPlus << sMinus << "escapes" << esc;
     }
+    ppInfo() << "[DtlShaftTracker] split ms:" << prof.line().c_str() << "| total" << wall.elapsed();
     if (!out.valid)
         ppWarn() << "[DtlShaftTracker] no published sample — track invalid";
     return out;

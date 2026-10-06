@@ -127,7 +127,8 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
                              int frameW, int frameH,
                              const SegmentGeom& geom,
                              const DtlShaftConfig& cfg,
-                             DtlDecideTrace* trace)
+                             DtlDecideTrace* trace,
+                             bool framesOwned)
 {
     DtlShaftTrack2D out;
     out.frameWidth  = frameW;
@@ -203,6 +204,8 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
             bandLock[size_t(i)] = 1;
     }
 
+    shaftshared::ShaftProf* const prof = shaftshared::shaftProf();
+    shaftshared::ShaftProfLap lap(prof);
     // ── (1) line re-registration (§5.9 "re-register the line") ──────────────
     // On the POLARITY-FREE contrast image |frame − boxblur(k)|, never the raw
     // frame. The taped shaft alternates black and white, so a SIGNED ridge
@@ -223,13 +226,21 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
     // along the snapped line from the snapped grip; where it did not run or was
     // refused we measure along the solved θ and try a few lateral origin offsets,
     // which is the same correction done cheaply for a frame the snap declined.
-    for (int i = 0; i < nf; ++i) {
-        if (!state.solved[size_t(i)]) continue;
-        if (!fin(gx[size_t(i)]) || !fin(gy[size_t(i)])) continue;
+    // Per solved frame: build its contrast image, snap, measure its run. Every
+    // write is to frame i's own slot and every read is the solve's state, so the
+    // frames run in parallel when the frames are owned Mats (shaft.dtl.parallel.post;
+    // 432–494 ms serial on the Mac for 243–264 frames, 1058 ms median on the
+    // studio, step G).
+    const auto postFrame = [&](int i) {
+        if (!state.solved[size_t(i)]) return;
+        if (!fin(gx[size_t(i)]) || !fin(gy[size_t(i)])) return;
         const double rho = (i < int(state.rhoPred.size())) ? state.rhoPred[size_t(i)] : nan;
         const cv::Mat g8 = frameAt(i);
-        if (g8.empty() || g8.type() != CV_8UC1) continue;
+        if (g8.empty() || g8.type() != CV_8UC1) return;
+        shaftshared::ShaftProfScope tCo(prof, "Σpost.contrast");
         const cv::Mat contrast = contrastOf(g8, cfg.contrastKsz);
+        tCo.stop();
+        shaftshared::ShaftProfScope tSnap(prof, "Σpost.snap");
 
         // ── the snap ────────────────────────────────────────────────────────
         // A band lock is a direct measurement of the line; the snap's ridge search
@@ -322,6 +333,8 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
         // which is also why D3 is one-sided. Below the threshold we did not measure
         // a length: fall back to the DP's own rEnd and SAY so in lenSrc, rather
         // than publish a channel's blindness as a club.
+        tSnap.stop();
+        shaftshared::ShaftProfScope tRun(prof, "Σpost.run");
         const double startWithin = 40.0;
         const double credible    = double(cfg.ridge.minLenPx);
         if (snapAcc[size_t(i)]) {
@@ -356,8 +369,23 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
                 lenLat[size_t(i)] = bestOff;
             }
         }
-    }
+    };
+    //
+    // The contrast image (cv::blur) is built inside the pool too. On the studio's
+    // OpenCV, blur can run through IPP, which may tile over OpenCV's pool when
+    // called from outside it — so it was checked rather than assumed: the 21-swing corpus
+    // with the contrast built on the workers and with it built on the calling
+    // thread (as the serial loop builds it) came out byte-identical, and both
+    // against the serial loop (6 Oct 2026; the one corpus diff, a quarantined DTL
+    // grip on 06-11 swing 7, is the DTL pose itself differing between two OFF runs).
+    if (cfg.par.post && framesOwned)
+        cv::parallel_for_(cv::Range(0, nf), [&](const cv::Range& r) {
+            for (int i = r.start; i < r.end; ++i) postFrame(i);
+        });
+    else
+        for (int i = 0; i < nf; ++i) postFrame(i);
 
+    lap.lap("p.snapRunLoop");
     // ── (2) tiering, final (§5.9) ───────────────────────────────────────────
     // The ladder's whole job is that its three ABSENCES stay different answers:
     // END_ON means the geometry says nothing could be seen, OCCLUDED that the
@@ -916,6 +944,7 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
     // word (§5.9). `geom` is the segment probe's club geometry and waits with the
     // SEG tier above.
     (void)geom;
+    lap.lap("p.tiers+rest");
     return out;
 }
 

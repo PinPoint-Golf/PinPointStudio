@@ -25,6 +25,7 @@ using pinpoint::analysis::PoseTrack2D;
 
 #include <algorithm>
 #include <cstddef>
+#include <limits>
 #include <variant>
 #include <vector>
 
@@ -42,6 +43,7 @@ using pinpoint::analysis::PoseTrack2D;
 #include <opencv2/imgproc.hpp>
 #include "../Export/frame_decode.h"
 #include "../Pose/ball_temporal.h"
+#include "frame_store.h"
 #include "ball_activity.h"
 #include "ball_baseline_io.h"
 #endif
@@ -316,8 +318,23 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
 
     const double fps = 1.0e6 / medianDeltaUs(entries, i0, i1);
 
+    // decode.frameStore (frame_store.h): the analysis' one decode of this camera. Its grey is
+    // decodeToBgr → BGR2GRAY, the bytes this runner computes itself, and a frame decodeToBgr
+    // refused is skipped exactly as here (bgrOk). The ROI path's crop of a row-band decode is
+    // the full frame's pixels (step C, ball_roi_decode_test), so it reads the crop of the
+    // store's full-frame grey. Without a store the lease holds the camera's reader lock.
+    const pinpoint::analysis::FrameLease frameLease(window, faceOnSource, opt.tuningOverrides, /*needBgr*/ false);
+    const pinpoint::analysis::FrameStore *const store = frameLease.store();
+
     cv::Mat bgr, gray8, gray32;   // reused decode scratch
     auto decodeGray32 = [&](const pinpoint::IndexEntry &e) -> bool {
+        if (store) {
+            const cv::Mat *g = store->grey(e);
+            if (!g || !store->bgrOk(e))
+                return false;
+            g->convertTo(gray32, CV_32F);
+            return true;
+        }
         const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(e);
         if (!pinpoint::decodeToBgr(*cfmt, handle.data, handle.bytes, bgr))
             return false;
@@ -370,32 +387,121 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
     std::vector<cv::Mat> actRing;   // the previous refFrames gray ROI crops (serial state)
     if (actCfg.enabled) actRing.reserve(size_t(std::max(1, actCfg.refFrames)));
 
+    // ── Step C knobs (analysis_dag_design.md; pp_tuned_constants.h ball::) ──
+    // The replay was ~4 ms × 723 frames ≈ 2.9 s a shot on the studio, the face-on
+    // chain's second link, and nothing reads the track after launch (audit in
+    // pp_tuned_constants.h) — yet it ran to the end of the pose span.
+    int  boundAfterLaunchMs = pinpoint::tuned::ball::kBoundAfterLaunchMs;
+    bool roiDecode          = pinpoint::tuned::ball::kRoiDecode;
+    pinpoint::analysis::tuning::apply(opt.tuningOverrides, "ball.boundAfterLaunch", boundAfterLaunchMs);
+    pinpoint::analysis::tuning::apply(opt.tuningOverrides, "ball.roiDecode", roiDecode);
+
+    // ROI decode geometry. paddedResponse reads only the ROI grown by kPadMult·r_hat
+    // (≈ 160 × 400 px of a 688 × 1024 frame), so with roiDecode the fetch copies only
+    // that band of rows and the decode/grey/float run on the band and the crop. The
+    // Bayer edge-aware demosaic reads ±1 row (measured: a 1-row margin reproduces the
+    // full-frame pixels exactly); 2 rows, with an EVEN first row so the RGGB phase is
+    // kept. Planar 4:2:0 (NV12/I420) keeps its chroma after the luma, so it decodes
+    // whole and saves only the conversion.
+    const PaddedCrop pc = paddedCropRect(fw, fh, roiRect, rHat);
+    int    bandY0 = 0, bandY1 = fh;
+    bool   rowBand = false;
+    size_t rowStride = 0, fullBytes = 0;
+    pinpoint::CameraFormat bandFmt = *cfmt;
+    if (roiDecode && pc.valid() && pinpoint::frameGeometry(*cfmt, rowStride, fullBytes)) {
+        int margin = -1;   // -1 = the format cannot be cut into rows
+        switch (cfmt->pixel_format) {
+        case pinpoint::PixelFormat::BayerRG8: case pinpoint::PixelFormat::BayerBG8:
+        case pinpoint::PixelFormat::BayerGR8: case pinpoint::PixelFormat::BayerGB8:
+            margin = 2; break;
+        case pinpoint::PixelFormat::Mono8:  case pinpoint::PixelFormat::BGR24:
+        case pinpoint::PixelFormat::BGRA32: case pinpoint::PixelFormat::YUV422:
+        case pinpoint::PixelFormat::YUYV:   case pinpoint::PixelFormat::UYVY:
+            margin = 0; break;
+        default: break;
+        }
+        if (margin >= 0) {
+            bandY0 = std::max(0, pc.padded.y - margin);
+            bandY0 -= bandY0 % 2;
+            bandY1 = std::min(fh, pc.padded.y + pc.padded.height + margin);
+            rowBand = true;
+            bandFmt.height           = uint32_t(bandY1 - bandY0);
+            bandFmt.plane_strides[0] = uint32_t(rowStride);
+        }
+    }
+    // The padded crop in the decoded image's rows (the band's, or the frame's).
+    const cv::Rect cropInDecoded = roiDecode && pc.valid()
+        ? cv::Rect(pc.padded.x, pc.padded.y - bandY0, pc.padded.width, pc.padded.height) : cv::Rect();
+    // W3's ROI crop (roiRect ∩ frame) in padded-crop coordinates.
+    const cv::Rect actInCrop = (roiRect & cv::Rect(0, 0, fw, fh)) - pc.padded.tl();
+
+    // Bound: armed when the launch is seen; stop on the first not-found sample at or
+    // after max(launch, impact) + N, or at that + 250 ms regardless.
+    const int64_t boundUs = int64_t(std::max(0, boundAfterLaunchMs)) * 1000;
+    constexpr int64_t kBoundTailCapUs = 250000;
+    int64_t stopUs  = std::numeric_limits<int64_t>::max();
+    bool    stopped = false;
+    auto pastBound = [&](const BallSample2D &s) {
+        return s.t_us >= stopUs && (!s.found || s.t_us >= stopUs + kBoundTailCapUs);
+    };
+
+    qint64 fetchNs = 0, decodeNs = 0, consumeNs = 0;
+    QElapsedTimer part;
+
     track.frames.reserve(i1 - i);
     constexpr size_t kChunk = 32;
     struct FrameSlot {
         std::vector<std::byte> payload;      // owned copy of the ring/disk bytes
         bool     hasPayload = false;
         int64_t  t_us       = 0;
+        const cv::Mat *storeGrey = nullptr;  // decode.frameStore: the frame's grey (no payload copy)
         cv::Mat  R;                          // padded DoG response (empty = skip)
         cv::Mat  grayCrop;                   // W3: 8-bit ROI gray crop (only when actCfg.enabled)
         float    cropNoise = 1.f;            // W3: robustNoise(crop) — σ for the activity ratio
     };
     std::vector<FrameSlot> frameSlots(kChunk);
-    for (size_t base = i; base < i1; base += kChunk) {
-        const size_t n = std::min(kChunk, i1 - base);
+    size_t n = 0;
+    for (size_t base = i; base < i1 && !stopped; base += n) {
+        n = std::min(kChunk, i1 - base);
+        if (stopUs != std::numeric_limits<int64_t>::max()) {
+            // Once armed, fetch nothing past the hard stop (the one frame after it
+            // ends the replay through pastBound).
+            size_t m = 0;
+            while (m < n && entries[base + m].timestamp_us <= stopUs + kBoundTailCapUs) ++m;
+            n = std::max<size_t>(1, m);
+        }
 
         // (1) Serial payload fetch. Payload contract (swing_payload_source.h): the
         //     bytes are valid only until the NEXT payloadOf() on this source (the
         //     disk source keeps ONE frame resident), so each frame is copied into
         //     its owned buffer before the next fetch clobbers the handle.
+        part.start();
         for (size_t j = 0; j < n; ++j) {
             const pinpoint::IndexEntry &e = entries[base + j];
             FrameSlot &slot = frameSlots[j];
             slot.t_us = e.timestamp_us;
             slot.R    = cv::Mat();
+            slot.storeGrey = nullptr;
             if (actCfg.enabled) slot.grayCrop = cv::Mat();   // W3: no stale crop from the prior chunk
+            if (store) {
+                const cv::Mat *g = store->grey(e);
+                slot.storeGrey  = (g && store->bgrOk(e)) ? g : nullptr;
+                slot.hasPayload = slot.storeGrey != nullptr;
+                continue;
+            }
             const pinpoint::SourceRing::ReadHandle handle = window.payloadOf(e);
-            if (handle.data != nullptr && handle.bytes > 0) {
+            if (rowBand) {
+                // Short payloads were undecodable whole (decodeToBgr's size check):
+                // the same empty slot here.
+                if (handle.data != nullptr && handle.bytes >= fullBytes) {
+                    const std::byte *b0 = handle.data + size_t(bandY0) * rowStride;
+                    slot.payload.assign(b0, b0 + size_t(bandY1 - bandY0) * rowStride);
+                    slot.hasPayload = true;
+                } else {
+                    slot.payload.clear();
+                    slot.hasPayload = false;
+                }
+            } else if (handle.data != nullptr && handle.bytes > 0) {
                 slot.payload.assign(handle.data, handle.data + handle.bytes);
                 slot.hasPayload = true;
             } else {
@@ -403,20 +509,63 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
                 slot.hasPayload = false;
             }
         }
+        fetchNs += part.nsecsElapsed();
 
         // (2) Parallel decode → gray → CV_32F → padded DoG response. Frames are
         //     independent; per-thread scratch Mats; paddedResponse .clone()s its
         //     output so each slot.R fully owns its data. An undecodable frame (or
         //     an empty ROI intersection) leaves slot.R empty — the same skip the
         //     serial path took, with identical effect on tracker state.
+        part.start();
         cv::parallel_for_(cv::Range(0, int(n)), [&](const cv::Range &rng) {
             cv::Mat bgr, gray8, gray32;
             for (int j = rng.start; j < rng.end; ++j) {
                 FrameSlot &slot = frameSlots[size_t(j)];
                 if (!slot.hasPayload)
                     continue;
-                if (!pinpoint::decodeToBgr(*cfmt, slot.payload.data(), slot.payload.size(), bgr))
+                if (slot.storeGrey) {
+                    // The same per-pixel grey → float → response as below, read from the store's
+                    // full frame (a view: nothing writes into it).
+                    const cv::Mat &g8 = *slot.storeGrey;
+                    if (roiDecode) {
+                        if (!pc.valid()) continue;
+                        const cv::Mat g8c = g8(pc.padded);
+                        g8c.convertTo(gray32, CV_32F);
+                        slot.R = responseFromPaddedCrop(gray32, pc, rHat);
+                        if (actCfg.enabled && !actInCrop.empty()) {
+                            slot.grayCrop  = g8c(actInCrop).clone();
+                            slot.cropNoise = float(robustNoise(gray32(actInCrop)));
+                        }
+                        continue;
+                    }
+                    g8.convertTo(gray32, CV_32F);
+                    slot.R = paddedResponse(gray32, roiRect, rHat);
+                    if (actCfg.enabled) {
+                        const cv::Rect cropRect = roiRect & cv::Rect(0, 0, g8.cols, g8.rows);
+                        if (!cropRect.empty()) {
+                            slot.grayCrop  = g8(cropRect).clone();
+                            slot.cropNoise = float(robustNoise(gray32(cropRect)));
+                        }
+                    }
                     continue;
+                }
+                if (!pinpoint::decodeToBgr(rowBand ? bandFmt : *cfmt,
+                                           slot.payload.data(), slot.payload.size(), bgr))
+                    continue;
+                if (roiDecode) {
+                    // Grey + float of the padded crop only: both are per-pixel, so the
+                    // crop's values are the full frame's (convertTo's output is its own
+                    // allocation — the isolation paddedResponse's .clone() gave).
+                    if (!pc.valid()) continue;
+                    cv::cvtColor(bgr(cropInDecoded), gray8, cv::COLOR_BGR2GRAY);
+                    gray8.convertTo(gray32, CV_32F);
+                    slot.R = responseFromPaddedCrop(gray32, pc, rHat);
+                    if (actCfg.enabled && !actInCrop.empty()) {
+                        slot.grayCrop  = gray8(actInCrop).clone();
+                        slot.cropNoise = float(robustNoise(gray32(actInCrop)));
+                    }
+                    continue;
+                }
                 cv::cvtColor(bgr, gray8, cv::COLOR_BGR2GRAY);
                 gray8.convertTo(gray32, CV_32F);
                 slot.R = paddedResponse(gray32, roiRect, rHat);
@@ -434,14 +583,17 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
                 }
             }
         });
+        decodeNs += part.nsecsElapsed();
 
         // (3) Serial consume — advance the causal tracker strictly in frame order.
-        for (size_t j = 0; j < n; ++j) {
+        part.start();
+        for (size_t j = 0; j < n && !stopped; ++j) {
             FrameSlot &slot = frameSlots[j];
             BallSample2D s;
             s.t_us = slot.t_us;
             if (slot.R.empty()) {
                 track.frames.push_back(s);   // decode gap / empty ROI — not a detector miss
+                if (pastBound(s)) stopped = true;
                 continue;
             }
             const cv::Mat &R = slot.R;
@@ -480,13 +632,21 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
                 track.launchTUs    = slot.t_us;
                 track.launchCenter = QPointF((roiRect.x + LA.x) / double(fw),
                                              (roiRect.y + LA.y) / double(fh));
+                if (boundUs > 0)
+                    stopUs = std::max(track.launchTUs, opt.impactUs) + boundUs;
             }
+            if (pastBound(s)) stopped = true;
         }
+        consumeNs += part.nsecsElapsed();
     }
 
-    ppInfo() << "[BallRunner] source" << faceOnSource << ":" << track.frames.size()
-             << "frames replayed, launch" << (track.launchTUs >= 0 ? "found" : "none")
-             << "," << wall.elapsed() << "ms";
+    ppInfo() << "[BallRunner] source" << faceOnSource << ":" << track.frames.size() << "of"
+             << (i1 - i0) << "frames replayed" << (stopped ? "(bounded after launch)" : "")
+             << ", launch" << (track.launchTUs >= 0 ? "found" : "none")
+             << ", decode" << (store ? (roiDecode ? "frame store, crop" : "frame store")
+                               : roiDecode ? (rowBand ? "rows" : "crop") : "full")
+             << ", fetch/decode+DoG/track" << fetchNs / 1000000 << "/" << decodeNs / 1000000
+             << "/" << consumeNs / 1000000 << "ms," << wall.elapsed() << "ms";
     return track;
 }
 

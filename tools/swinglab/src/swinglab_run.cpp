@@ -74,6 +74,7 @@
 
 #include "../../../src/Core/PpMessageLog.h"   // echo the pipeline's own log to stderr
 #include "../../../src/Analysis/shot_analyzer.h"
+#include "../../../src/Analysis/wrist_analyzer.h"   // analysisGraphJson (--dag)
 #include "../../../src/Analysis/swing_reanalyzer.h"
 #include "../../../src/Analysis/ball_runner.h"
 #include "../../../src/Analysis/imu_vision_fuser.h"
@@ -350,6 +351,12 @@ int main(int argc, char **argv)
     QCommandLineOption optHeight("height-m",
         "The athlete's standing height (m) — the skeleton3d fit's scale prior — for a swing whose "
         "athlete block records none.", "m");
+    QCommandLineOption optDag("dag",
+        "Write the analysis's declared stage graph (pinpoint.analysisDag/1: every stage's "
+        "reads/writes, the edges they imply, the serial groups) with THIS run's stage timeline "
+        "to <file> — the input tools/analysis/analysis_dag.py draws (analysis_dag_design.md "
+        "step A). Too big for every document, so only on request; result.json is untouched.",
+        "file");
     QCommandLineOption optWriteBack("write-back",
         "Re-analyse the swing exactly as the in-app ReanalysisController does "
         "(reanalyzeSwingDir, production defaults, no overrides) and write the fresh "
@@ -369,7 +376,7 @@ int main(int argc, char **argv)
     cli.addOptions({ optOut, optParams, optTrace, optSession, optFaceOn, optImpact, optPose, optForce, optFullWindow,
                      optBall, optRefuse, optRefuseBeta, optWriteBack, optBind, optDtl, optDtlPose, optDtlCalib,
                      optBands, optClubLen, optHosel, optShaftLen, optHandsEnd, optHeight,
-                     optCalib, optPool, optPoolPrefix, optPoolOut, optPoolSession });
+                     optCalib, optPool, optPoolPrefix, optPoolOut, optPoolSession, optDag });
     cli.process(app);
 
     if (cli.isSet(optPoolSession)) {
@@ -717,6 +724,28 @@ int main(int argc, char **argv)
             pose["dtl"] = result.detail->timings.poseDtl.toJson();
         if (!pose.isEmpty())
             meta["pose"] = pose;
+        // Every stage as it ran — the same list as result.json analysis.timings.stages
+        // (analysis_dag_design.md step A), here so a sweep can read the timeline without
+        // opening the result.
+        if (!result.detail->timings.stages.empty()) {
+            QJsonArray stages;
+            for (const auto &st : result.detail->timings.stages) {
+                QJsonObject so{ { "name", st.name }, { "ran", st.ran }, { "ms", st.ms },
+                                { "startMs", st.startMs }, { "endMs", st.endMs }, { "thread", st.thread } };
+                if (!st.skipReason.isEmpty()) so["skipReason"] = st.skipReason;
+                stages.append(so);
+            }
+            meta["stages"] = stages;
+        }
+    }
+    if (cli.isSet(optDag)) {
+        const QJsonObject dag = pinpoint::analysis::analysisGraphJson(
+            job.sessionType, result.detail ? &result.detail->timings.stages : nullptr, &job);
+        QSaveFile df(cli.value(optDag));
+        if (!df.open(QIODevice::WriteOnly) || df.write(QJsonDocument(dag).toJson()) < 0 || !df.commit())
+            std::fprintf(stderr, "[swinglab] cannot write --dag %s\n", cli.value(optDag).toUtf8().constData());
+        else
+            std::fprintf(stderr, "[swinglab] dag: %s\n", cli.value(optDag).toUtf8().constData());
     }
     meta["params"]      = QJsonObject::fromVariantMap(tuning);
     meta["impactUs"]    = job.impactUs;

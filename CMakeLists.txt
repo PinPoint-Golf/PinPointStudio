@@ -2919,6 +2919,8 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/pose_runner.cpp
     src/Analysis/ball_runner.h
     src/Analysis/ball_runner.cpp
+    src/Analysis/frame_store.h
+    src/Analysis/frame_store.cpp
     src/Analysis/impact_runner.h
     src/Analysis/impact_runner.cpp
     src/Analysis/ball_baseline_io.h
@@ -3265,6 +3267,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Diagnostics/reference_pack.cpp
         src/Analysis/pose_runner.cpp
         src/Analysis/ball_runner.cpp
+        src/Analysis/frame_store.cpp
         src/Analysis/impact_runner.cpp
         src/Analysis/shaft_tracker.cpp
         src/Analysis/ball_anchor.cpp

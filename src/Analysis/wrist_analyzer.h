@@ -21,6 +21,9 @@
 #include "shot_analyzer.h"
 #include "analysis_stage.h"
 
+#include <QJsonObject>
+#include <vector>
+
 // Real Wrist-session (SessionController::Type::Wrist == 1) analyzer. analyze() runs a
 // capability-gated stage pipeline over a shared, typed AnalysisContext — the constrained
 // blackboard of analysis_pipeline_fusion_architecture_proposal.md §10. The Wrist profile
@@ -49,5 +52,19 @@ namespace pinpoint::analysis {
 // dark. The stage structs stay file-local to wrist_analyzer.cpp; this builder is the
 // shared seam (developer guide §10.5 — share when the second session needs it).
 SessionProfile cameraKinematicsProfile();
+
+// Run a profile the way the analyzers do: the authored loop (runStages) by default, or —
+// with analysis.parallel on (pp_tuned_constants.h dag::) — as its dependency graph on
+// analysis.parallelThreads pool threads (analysis_dag.h). Then ctx.trace → the detail's
+// timings.stages. The parallel path must give the loop's result byte for byte.
+void runProfile(const SessionProfile &profile, AnalysisContext &ctx);
+
+// The declared graph of the profile a session type runs (Wrist for 1, CameraKinematics
+// otherwise), as pinpoint.analysisDag/1 JSON; `timeline` adds a run's timings.stages.
+// Too big for every document — swinglab_run --dag writes it; tools/analysis/analysis_dag.py
+// draws it. `job`, when given, is the run's — a stage whose reads follow a tuning key
+// (DtlPose under pose.dtlEarly) is drawn as that job ran it.
+QJsonObject analysisGraphJson(int sessionType, const std::vector<StageTiming> *timeline = nullptr,
+                              const ShotAnalysisJob *job = nullptr);
 
 } // namespace pinpoint::analysis

@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <span>
 #include <vector>
 
@@ -70,6 +71,14 @@ public:
 
     // Zero-copy payload access. Valid for the window's lifetime (buffer is frozen).
     // Returns a handle with data=nullptr if the entry is not in this window.
+    //
+    // ⚠ ONE FETCH AT A TIME PER SOURCE. A disk-backed source has one sequential reader per
+    // camera (one buffer; the MP4 decoder rewinds on a back-seek), so two threads fetching
+    // the same camera at once would corrupt its state. The fetch is serialised here, per
+    // source, so different cameras still fetch concurrently (analysis_dag_design.md §2).
+    // What the lock cannot do is keep the bytes alive: they stay valid only until the next
+    // payloadOf on that source by ANYONE — the analysis executor therefore never runs two
+    // stages that fetch the same camera at once, and each stage copies before it fans out.
     SourceRing::ReadHandle payloadOf(const IndexEntry& e) const noexcept;
 
     const FormatDescriptor& formatOf(SourceId id) const noexcept;
@@ -95,6 +104,9 @@ private:
     struct Lane {
         SourceId                id;
         std::vector<IndexEntry> entries;
+        // payloadOf's per-source fetch lock — heap-held so the lane (and the window) stay
+        // movable. Uncontended under the sequential analysis: ~20 ns a frame.
+        std::unique_ptr<std::mutex> fetch = std::make_unique<std::mutex>();
     };
 
     // The lane for a source, or nullptr if it contributed nothing to this window.

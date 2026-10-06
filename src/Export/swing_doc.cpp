@@ -386,6 +386,27 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
             pose.insert(QStringLiteral("dtl"), a.timings.poseDtl.toJson());
         if (!pose.isEmpty())
             timings.insert(QStringLiteral("pose"), pose);
+        // Every stage as it ran (analysis_dag_design.md step A): wall ms, start/end offset
+        // from the start of the analysis, the pool thread, and a skip's reason — the timeline
+        // tools/analysis/analysis_dag.py draws. 0.01 ms is below anything a stage measures
+        // and keeps a 39-stage list near 4 kB.
+        if (!a.timings.stages.empty()) {
+            const auto r2 = [](double v) { return double(qRound64(v * 100.0)) / 100.0; };
+            QJsonArray stages;
+            for (const analysis::StageTiming &s : a.timings.stages) {
+                QJsonObject so{
+                    { QStringLiteral("name"),    s.name },
+                    { QStringLiteral("ran"),     s.ran },
+                    { QStringLiteral("ms"),      r2(s.ms) },
+                    { QStringLiteral("startMs"), r2(s.startMs) },
+                    { QStringLiteral("endMs"),   r2(s.endMs) },
+                    { QStringLiteral("thread"),  s.thread } };
+                if (!s.skipReason.isEmpty())
+                    so.insert(QStringLiteral("skipReason"), s.skipReason);
+                stages.append(so);
+            }
+            timings.insert(QStringLiteral("stages"), stages);
+        }
         o[QStringLiteral("timings")] = timings;
     }
 

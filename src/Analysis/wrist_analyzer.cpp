@@ -27,6 +27,7 @@
 #include <variant>
 
 #include "analysis_stage.h"
+#include "analysis_dag.h"           // runStagesParallel / buildStageGraph (analysis.parallel)
 #include "analysis_profiling.h"
 #include "analysis_tuning.h"
 #include "ball_position.h"
@@ -41,6 +42,7 @@
 #include "dtl_shaft_synth3d.h"   // the 3-D synthetic shaft into the DTL tile (DtlSynth3DStage)
 #include "address_marks.h"       // the body's edges at hip height at address (AddressMarksStage)
 #include <opencv2/imgcodecs.hpp>  // the address-marks debug dump
+#include <opencv2/core/utility.hpp>  // cv::setNumThreads (runProfile, analysis.parallel)
 #ifdef HAVE_SEGMENTER
 #include "../Pose/person_segmenter.h"
 #endif
@@ -71,6 +73,9 @@
 #include "skeleton3d/skeleton3d_json.h"
 #include "shaft_tracker.h"
 #include "shaft_frame_io.h"
+#include "frame_store.h"           // decode.frameStore — FrameDecodeStage and the leases
+#include "shaft_track_assembly.h"   // estimateSwingSpanUs (DtlPose under pose.dtlEarly)
+#include "pose_schedule.h"         // dtlEarlyLadder / selectTwoPassCoarse
 #include "dtl_shaft_lie.h"
 #include "impact_anchor.h"
 #include "tempo_metrics.h"
@@ -83,6 +88,7 @@
 #include "wrist_assessment_tuning.h"
 #include "swing_window.h"
 #include "../Core/pp_debug.h"
+#include "../Core/cpu_topology.h"     // physicalCoreCount (the DAG pool, OpenCV threads)
 
 using namespace pinpoint::analysis;
 
@@ -382,11 +388,104 @@ double impactContinuityDeg(const FusedStreams &streams, int64_t impactUs, int64_
 // rescale lambdas capture ctx.job (a stack-local of analyze()); the per-stage timers
 // wrap the individual heavy calls.
 
+// Each stage's decl() — what it reads (canRun included), writes or mutates, and appends
+// (analysis_stage.h StageDecl; analysis_dag_design.md §2). Mapped from the stage bodies on
+// 6 Oct 2026; a stage whose body changes what it touches must change its line here, or the
+// parallel executor (analysis.parallel) orders it on stale facts. analysis_dag_test checks
+// every name against the res:: table; the corpus parity gate checks the rest.
+using namespace pinpoint::analysis::res;
+StageDecl D(std::initializer_list<const char *> r, std::initializer_list<const char *> w,
+            std::initializer_list<const char *> a)
+{
+    StageDecl d;
+    for (const char *x : r) d.reads.push_back(QString::fromLatin1(x));
+    for (const char *x : w) d.writes.push_back(QString::fromLatin1(x));
+    for (const char *x : a) d.appends.push_back(QString::fromLatin1(x));
+    return d;
+}
+
+// decode.frameStore (frame_store.h; analysis_dag_design.md step E): a stage that takes a camera's
+// frames from the store reads frames.<cam> INSTEAD of window.<cam>, so it holds no camera reader
+// and the executor may run it beside another reader of the same store. Off ⇒ its decl() as is.
+static bool frameStoreOn(const ShotAnalysisJob &job)
+{
+    return FrameStoreConfig::fromOverrides(job.tuningOverrides).enabled;
+}
+static StageDecl viaFrameStore(StageDecl d, const ShotAnalysisJob &job)
+{
+    if (!frameStoreOn(job)) return d;
+    for (QString &r : d.reads) {
+        const QString f = framesFor(r);
+        if (!f.isEmpty()) r = f;
+    }
+    return d;
+}
+
+// 0. ONE decode of each camera's window (frame_store.h), first in every profile. Reads only the
+//    camera, so the DTL store builds at t = 0 beside the face-on pose. On by default since
+//    6 Oct 2026; off ⇒ it declares nothing and skips, and every consumer reads the window itself.
+struct FrameDecodeStage : AnalysisStage {
+    explicit FrameDecodeStage(bool dtl) : m_dtl(dtl) {}
+    QString name() const override { return m_dtl ? QStringLiteral("FrameDecodeDtl") : QStringLiteral("FrameDecodeFaceOn"); }
+    StageDecl decl() const override { StageDecl d; d.haltSafe = true; return d; }
+    StageDecl declFor(const ShotAnalysisJob &job) const override
+    {
+        if (!frameStoreOn(job)) return decl();
+        StageDecl d = m_dtl ? D({ kWindowDtl }, { kFramesDtl }, {}) : D({ kWindowFaceOn }, { kFramesFaceOn }, {});
+        d.haltSafe = true;   // authored first: nothing before it can halt
+        return d;
+    }
+    pinpoint::SourceId source(const AnalysisContext &ctx) const
+    {
+        if (m_dtl) return ctx.job.dtlSource;
+        return (ctx.job.faceOnCameraCount > 0 && !ctx.job.cameraSources.empty())
+            ? ctx.job.cameraSources.front() : pinpoint::kInvalidSourceId;
+    }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        return frameStoreOn(ctx.job) && ctx.window && source(ctx) != pinpoint::kInvalidSourceId
+            && !ctx.window->entriesFor(source(ctx)).empty();
+    }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        if (!frameStoreOn(ctx.job)) return QStringLiteral("decode.frameStore off");
+        return m_dtl ? QStringLiteral("no down-the-line frames") : QStringLiteral("no face-on frames");
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        const pinpoint::SourceId src = source(ctx);
+        // BGR only where a pose pass will read it: a pose reused from the document
+        // (version-gated) or pinned from a file reads no frames, and BGR is 3× the grey.
+        const bool wantBgr = m_dtl
+            ? (ctx.job.poseDtlPreloaded.frames.empty() && ctx.job.poseDtlTrackPath.isEmpty())
+            : (ctx.job.posePreloaded.frames.empty() && ctx.job.poseTrackPath.isEmpty());
+        auto slot = std::make_shared<FrameStoreSlot>();
+        QString why;
+        FrameStore::Stats st;
+        slot->store = FrameStore::build(*ctx.window, src, FrameStoreConfig::fromOverrides(ctx.job.tuningOverrides),
+                                        wantBgr, why, st);
+        (m_dtl ? ctx.framesDtl : ctx.framesFaceOn) = slot;
+        publishFrameStoreSlot(ctx.window, src, slot);
+        const QString line = slot->store
+            ? QStringLiteral("[FrameStore] %1 %2 frames, grey %3 MiB, bgr %4 MiB, fetch %5 ms, decode %6 ms%7")
+                  .arg(QLatin1String(m_dtl ? "dtl" : "faceOn")).arg(st.frames)
+                  .arg(st.greyMiB, 0, 'f', 0).arg(st.bgrMiB, 0, 'f', 0)
+                  .arg(st.fetchMs, 0, 'f', 0).arg(st.decodeMs, 0, 'f', 0)
+                  .arg(why.isEmpty() ? QString() : QStringLiteral(" (%1)").arg(why))
+            : QStringLiteral("[FrameStore] %1 not built (%2) — every stage reads the window")
+                  .arg(QLatin1String(m_dtl ? "dtl" : "faceOn"), why);
+        ppInfo() << line.toUtf8().constData();
+    }
+private:
+    bool m_dtl;
+};
+
 // 1. IMU resample/fusion. Runs iff the job bound at least one IMU; when the bindings
 //    are unfusable the fused streams come back empty and hasImuStreams() is false, so
 //    the analysis degrades to the camera-only (pose) path.
 struct ImuResampleStage : AnalysisStage {
     QString name() const override { return QStringLiteral("ImuResample"); }
+    StageDecl decl() const override { return D({ kWindowImu }, { kStreams, kDoRefuse }, {}); }
     bool canRun(const AnalysisContext &ctx) const override { return !ctx.caps.imus.empty(); }
     void run(AnalysisContext &ctx) override
     {
@@ -411,6 +510,7 @@ struct ImuResampleStage : AnalysisStage {
 // 2. Phase segmentation — IMU-derived, so it needs fused streams.
 struct ImuSegmentationStage : AnalysisStage {
     QString name() const override { return QStringLiteral("ImuSegmentation"); }
+    StageDecl decl() const override { return D({ kStreams }, { kSegImu }, {}); }
     bool canRun(const AnalysisContext &ctx) const override { return ctx.hasImuStreams(); }
     void run(AnalysisContext &ctx) override
     {
@@ -424,6 +524,7 @@ struct ImuSegmentationStage : AnalysisStage {
 //    shaft qHand sampling keeps the full streams.
 struct WristMetricsStage : AnalysisStage {
     QString name() const override { return QStringLiteral("WristMetrics"); }
+    StageDecl decl() const override { return D({ kSegImu, kStreams }, { kCtxSeries }, {}); }
     bool canRun(const AnalysisContext &ctx) const override { return ctx.segImu.has_value(); }
     void run(AnalysisContext &ctx) override
     {
@@ -458,6 +559,7 @@ static void logPoseTiming(const char *camera, const pinpoint::pose::PoseTiming &
 //    resolved runner options for the ball/shaft stages.
 struct PoseStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Pose"); }
+    StageDecl decl() const override { return D({ kWindowFaceOn, kSegImu }, { kPose2d, kRunnerOpt }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return ctx.caps.hasCamera(CameraPlacement::FaceOn);
@@ -532,6 +634,7 @@ struct PoseStage : AnalysisStage {
 //    `!frames.empty()` check under hasCamera.
 struct PoseSmoothStage : AnalysisStage {
     QString name() const override { return QStringLiteral("PoseSmooth"); }
+    StageDecl decl() const override { return D({ kRunnerOpt, kPose2d }, { kPose2d }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return ctx.runnerOpt.has_value() && !ctx.detail->pose2d.frames.empty();
@@ -601,6 +704,8 @@ struct PoseSmoothStage : AnalysisStage {
 //    production ball detector offline over this frozen window. Empty is a valid no-op.
 struct BallStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Ball"); }
+    StageDecl decl() const override { return D({ kWindowFaceOn, kRunnerOpt, kPose2d }, { kBall }, {}); }
+    StageDecl declFor(const ShotAnalysisJob &job) const override { return viaFrameStore(decl(), job); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return ctx.runnerOpt.has_value() && !ctx.detail->pose2d.frames.empty();
@@ -629,6 +734,7 @@ struct BallStage : AnalysisStage {
 //     valid no-op: the overlay draws nothing and the doc carries no block.
 struct ImpactStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Impact"); }
+    StageDecl decl() const override { return D({ kWindowImpact }, { kImpact }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return ctx.window && ctx.job.impactSource != pinpoint::kInvalidSourceId
@@ -650,6 +756,8 @@ struct ImpactStage : AnalysisStage {
 //    segmentation to fall back on.
 struct ShaftStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Shaft"); }
+    StageDecl decl() const override { return D({ kWindowFaceOn, kBall, kPose2d, kStreams, kSegImu, kSeg }, { kShaft, kSegVision, kFoWitness, kDetailBall }, {}); }
+    StageDecl declFor(const ShotAnalysisJob &job) const override { return viaFrameStore(decl(), job); }
     bool canRun(const AnalysisContext &ctx) const override { return ctx.ball.has_value(); }
     void run(AnalysisContext &ctx) override
     {
@@ -746,6 +854,7 @@ struct ShaftStage : AnalysisStage {
 //    else the default (conf 0 ⇒ "bounds are just the window").
 struct SegResolveStage : AnalysisStage {
     QString name() const override { return QStringLiteral("SegResolve"); }
+    StageDecl decl() const override { return D({ kSegImu, kSegVision }, { kSeg }, {}); }
     void run(AnalysisContext &ctx) override
     {
         ctx.seg = ctx.segImu
@@ -767,6 +876,8 @@ struct SegResolveStage : AnalysisStage {
 //     anchored and every metric as before.
 struct ImpactAnchorStage : AnalysisStage {
     QString name() const override { return QStringLiteral("ImpactAnchor"); }
+    StageDecl decl() const override { return D({ kWindowFaceOn, kShaft, kPose2d }, { kShaft }, {}); }
+    StageDecl declFor(const ShotAnalysisJob &job) const override { return viaFrameStore(decl(), job); }
     static ImpactAnchorConfig config(const QVariantMap &ov)
     {
         ImpactAnchorConfig c;
@@ -812,19 +923,43 @@ struct ImpactAnchorStage : AnalysisStage {
         if (b0 >= b1) b0 = b1 - 150000;
         const int64_t a0 = impactUs + cfg.afterDelayUs, a1 = a0 + cfg.afterSpanUs;
         const std::vector<pinpoint::IndexEntry> all = ctx.window->entriesFor(cam);
+        // decode.frameStore: the frames from the analysis' one decode (decodeGray's bytes, no
+        // back-seek); without a store the lease holds the camera's reader lock.
+        const FrameLease frameLease(*ctx.window, cam, ctx.job.tuningOverrides, /*needBgr*/ false);
+        const FrameStore *const store = frameLease.store();
         const auto pick = [&](int64_t t0, int64_t t1) {
             std::vector<cv::Mat> out;
             for (int k = 0; k < cfg.framesPerMedian; ++k) {
                 const int64_t t = t0 + (t1 - t0) * k / std::max(1, cfg.framesPerMedian - 1);
                 const auto it = std::min_element(all.begin(), all.end(), [t](const auto &x, const auto &y) {
                     return std::llabs(x.timestamp_us - t) < std::llabs(y.timestamp_us - t); });
-                if (it != all.end() && std::llabs(it->timestamp_us - t) <= 20000)
-                    out.push_back(decodeGray(*ctx.window, *it, *cfmt));
+                if (it != all.end() && std::llabs(it->timestamp_us - t) <= 20000) {
+                    if (store) {
+                        const cv::Mat *g = store->grey(*it);
+                        out.push_back(g ? *g : cv::Mat());
+                    } else {
+                        out.push_back(decodeGray(*ctx.window, *it, *cfmt));
+                    }
+                }
             }
             return out;
         };
+        // The fetches are already in ascending time — P3 → P4, then impact + delay onward — so the
+        // camera's one sequential reader only ever moves forward INSIDE this stage. What it pays
+        // is the first fetch: the reader sits wherever the previous face-on pass (Shaft) left it,
+        // past P7, and on the MP4 path a back-seek to P3 rewinds the decoder to frame 0
+        // (decode.seek, off, jumps to the keyframe instead). Timed apart from the arithmetic.
+        QElapsedTimer anchorWall;
+        anchorWall.start();
         const std::vector<cv::Mat> bf = pick(b0, b1), af = pick(a0, a1);
+        const qint64 decodeMs = anchorWall.elapsed();
+        const auto logSplit = [&]() {
+            ppInfo() << "[WristAnalysis] impact anchor: decode" << decodeMs << "ms ("
+                     << qlonglong(bf.size() + af.size()) << "frames), arithmetic"
+                     << (anchorWall.elapsed() - decodeMs) << "ms";
+        };
         if (int(bf.size()) < 3 || int(af.size()) < 3) {
+            logSplit();
             ppInfo() << "[WristAnalysis] impact anchor: too few frames (" << bf.size() << "/" << af.size() << ")";
             return;
         }
@@ -838,6 +973,7 @@ struct ImpactAnchorStage : AnalysisStage {
                 if (nearest->conf[size_t(j)] > 0.3f) toeY = std::max(toeY, nearest->kp[size_t(j)].y() * H);
         }
         const AddressBall ball = findAddressBallByDeparture(medianFrame(bf), medianFrame(af), p1->headPx, toeY, cfg);
+        logSplit();
         if (!ball.ok) {
             ppInfo() << "[WristAnalysis] impact anchor: no address ball found";
             return;
@@ -863,6 +999,7 @@ struct ImpactAnchorStage : AnalysisStage {
 
 struct ShaftLeanStage : AnalysisStage {
     QString name() const override { return QStringLiteral("ShaftLean"); }
+    StageDecl decl() const override { return D({ kShaft, kSeg, kPose2d, kCtxSeries }, { kCtxSeries }, {}); }
     bool canRun(const AnalysisContext &ctx) const override { return ctx.detail->shaft.valid; }
     void run(AnalysisContext &ctx) override
     {
@@ -886,6 +1023,7 @@ struct ShaftLeanStage : AnalysisStage {
 //     shot to video-only (the prior no-IMU contract).
 struct RequireProductsStage : AnalysisStage {
     QString name() const override { return QStringLiteral("RequireProducts"); }
+    StageDecl decl() const override { return D({ kCtxSeries, kPose2d, kStreams }, { kHalted }, {}); }
     void run(AnalysisContext &ctx) override
     {
         if (ctx.series.empty() && ctx.detail->pose2d.frames.empty()) {
@@ -910,6 +1048,7 @@ struct RequireProductsStage : AnalysisStage {
 //     a no-op run, so ctx.seg is code-path-identical when off.
 struct EventRefineStage : AnalysisStage {
     QString name() const override { return QStringLiteral("EventRefine"); }
+    StageDecl decl() const override { return D({ kSegImu, kShaft, kDetailBall, kSeg }, { kSeg }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return EventRefineConfig::fromOverrides(ctx.job.tuningOverrides).enabled
@@ -957,6 +1096,7 @@ struct EventRefineStage : AnalysisStage {
 //     strict subset of fusion's). This stage retires when that flag freezes ON.
 struct PositionsLadderStage : AnalysisStage {
     QString name() const override { return QStringLiteral("PositionsLadder"); }
+    StageDecl decl() const override { return D({ kShaft, kSeg }, { kSeg }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return PositionsLadderConfig::fromOverrides(ctx.job.tuningOverrides).enabled
@@ -983,6 +1123,7 @@ struct PositionsLadderStage : AnalysisStage {
 //     parity baseline the corpus gate measures against.
 struct TimelineFusionStage : AnalysisStage {
     QString name() const override { return QStringLiteral("TimelineFusion"); }
+    StageDecl decl() const override { return D({ kShaft, kSeg }, { kSeg }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return TimelineFusionConfig::fromOverrides(ctx.job.tuningOverrides).enabled
@@ -1016,6 +1157,7 @@ struct TimelineFusionStage : AnalysisStage {
 //     bound AFTER the vision-segmentation fallback may have reassigned it (ctx.seg).
 struct BindDetailStage : AnalysisStage {
     QString name() const override { return QStringLiteral("BindDetail"); }
+    StageDecl decl() const override { return D({ kCtxSeries, kSeg }, { kSeries, kPhases }, {}); }
     void run(AnalysisContext &ctx) override
     {
         ctx.detail->series       = ctx.series;
@@ -1029,6 +1171,7 @@ struct BindDetailStage : AnalysisStage {
 //     Reads the post-adoption segmentation. UNSCORED.
 struct HeadTrackStage : AnalysisStage {
     QString name() const override { return QStringLiteral("HeadTrack"); }
+    StageDecl decl() const override { return D({ kPose2d, kSeg }, {}, { kSeries }); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return ctx.caps.hasCamera(CameraPlacement::FaceOn) && !ctx.detail->pose2d.frames.empty();
@@ -1050,7 +1193,7 @@ struct HeadTrackStage : AnalysisStage {
             const double pxPerMm = (head.addrScalePx > 0.0 && hcfg.earWidthMm > 0.0)
                                        ? head.addrScalePx / hcfg.earWidthMm : -1.0;
             for (const MetricSeries &m : buildHeadSeries(head, phases, pxPerMm))
-                ctx.detail->series.push_back(m);
+                ctx.seriesOut().push_back(m);
         }
     }
 };
@@ -1067,6 +1210,7 @@ struct HeadTrackStage : AnalysisStage {
 //     before this stage runs, so no reordering is involved.
 struct FootMetricsStage : AnalysisStage {
     QString name() const override { return QStringLiteral("FootMetrics"); }
+    StageDecl decl() const override { return D({ kPose2d, kSeg, kDetailBall }, {}, { kSeries }); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return ctx.caps.hasCamera(CameraPlacement::FaceOn) && !ctx.detail->pose2d.frames.empty();
@@ -1097,7 +1241,7 @@ struct FootMetricsStage : AnalysisStage {
                                     BallPositionConfig::fromOverrides(ctx.job.tuningOverrides));
 
             for (const MetricSeries &m : buildFootSeries(feet, phases, bp.mmPerPx))
-                ctx.detail->series.push_back(m);
+                ctx.seriesOut().push_back(m);
 
             if (bp.valid && feet.setup.heelsValid) {
                 // Anchor instant: the Address event when we have one, else the
@@ -1126,7 +1270,7 @@ struct FootMetricsStage : AnalysisStage {
                 // Unclamped: forward of the lead heel is a real driver setup and reads BELOW 0 %.
                 m.phaseSamples.push_back({ Phase::Address, addrT,
                                            bp.fracOfStance * 100.0, QString() });
-                ctx.detail->series.push_back(std::move(m));
+                ctx.seriesOut().push_back(std::move(m));
             }
         }
     }
@@ -1147,6 +1291,7 @@ struct FootMetricsStage : AnalysisStage {
 //      before it is overwritten.
 struct LowerBodyMetricsStage : AnalysisStage {
     QString name() const override { return QStringLiteral("LowerBodyMetrics"); }
+    StageDecl decl() const override { return D({ kPose2d, kSeg, kDetailBall }, {}, { kSeries }); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return ctx.caps.hasCamera(CameraPlacement::FaceOn) && !ctx.detail->pose2d.frames.empty();
@@ -1186,7 +1331,7 @@ struct LowerBodyMetricsStage : AnalysisStage {
                            addressUs, LowerBodyConfig::fromOverrides(ctx.job.tuningOverrides),
                            bp.mmPerPx);
         for (const MetricSeries &m : buildLowerBodySeries(lb, phases))
-            ctx.detail->series.push_back(m);
+            ctx.seriesOut().push_back(m);
     }
 };
 
@@ -1202,6 +1347,7 @@ struct LowerBodyMetricsStage : AnalysisStage {
 //      a legacy 17-keypoint track.
 struct UpperBodyMetricsStage : AnalysisStage {
     QString name() const override { return QStringLiteral("UpperBodyMetrics"); }
+    StageDecl decl() const override { return D({ kPose2d, kSeg }, {}, { kSeries }); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return ctx.caps.hasCamera(CameraPlacement::FaceOn) && !ctx.detail->pose2d.frames.empty();
@@ -1222,7 +1368,7 @@ struct UpperBodyMetricsStage : AnalysisStage {
                            ctx.job.handedness != 2, addressUs,
                            UpperBodyConfig::fromOverrides(ctx.job.tuningOverrides));
         for (const MetricSeries &m : buildUpperBodySeries(ub, ctx.seg.events))
-            ctx.detail->series.push_back(m);
+            ctx.seriesOut().push_back(m);
 
         // The trail wrist's apparent bow / cup, from the same pose track. It lives with the
         // upper body rather than in its own stage because it shares this stage's inputs exactly
@@ -1232,7 +1378,7 @@ struct UpperBodyMetricsStage : AnalysisStage {
              buildTrailWristSeries(ctx.detail->pose2d, ctx.seg.events, ctx.job.handedness,
                                    int(cfmt->width), int(cfmt->height),
                                    PoseWristAngleConfig::fromOverrides(ctx.job.tuningOverrides)))
-            ctx.detail->series.push_back(m);
+            ctx.seriesOut().push_back(m);
     }
 };
 
@@ -1247,6 +1393,7 @@ struct UpperBodyMetricsStage : AnalysisStage {
 //      actually records.
 struct BodyRotationStage : AnalysisStage {
     QString name() const override { return QStringLiteral("BodyRotation"); }
+    StageDecl decl() const override { return D({ kPose2d, kStreams, kSeg }, {}, { kSeries }); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         const bool hasPose = ctx.caps.hasCamera(CameraPlacement::FaceOn)
@@ -1271,7 +1418,7 @@ struct BodyRotationStage : AnalysisStage {
                               ctx.seg.events,
                               BodyRotationConfig::fromOverrides(ctx.job.tuningOverrides));
         for (const MetricSeries &m : buildBodyRotationSeries(br, ctx.seg.events))
-            ctx.detail->series.push_back(m);
+            ctx.seriesOut().push_back(m);
     }
 };
 
@@ -1285,6 +1432,7 @@ struct BodyRotationStage : AnalysisStage {
 //      that per sample; canRun only checks that a valid track exists at all.
 struct ClubDeliveryStage : AnalysisStage {
     QString name() const override { return QStringLiteral("ClubDelivery"); }
+    StageDecl decl() const override { return D({ kShaft, kSeg, kDetailBall, kPose2d }, {}, { kSeries }); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return ctx.detail->shaft.valid && !ctx.detail->shaft.samples.empty();
@@ -1336,7 +1484,7 @@ struct ClubDeliveryStage : AnalysisStage {
                                  ctx.detail->pose2d.frames.empty() ? nullptr : &ctx.detail->pose2d, unc, cdCfg);
         }
         for (const MetricSeries &m : cds)
-            ctx.detail->series.push_back(m);
+            ctx.seriesOut().push_back(m);
     }
 };
 
@@ -1356,6 +1504,7 @@ struct ClubDeliveryStage : AnalysisStage {
 //      plausible-looking wrong number.
 struct TempoStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Tempo"); }
+    StageDecl decl() const override { return D({ kSeg }, {}, { kSeries }); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         const TempoConfig cfg = TempoConfig::fromOverrides(ctx.job.tuningOverrides);
@@ -1371,7 +1520,7 @@ struct TempoStage : AnalysisStage {
     {
         for (const MetricSeries &m :
              buildTempoSeries(ctx.seg, TempoConfig::fromOverrides(ctx.job.tuningOverrides)))
-            ctx.detail->series.push_back(m);
+            ctx.seriesOut().push_back(m);
     }
 };
 
@@ -1385,6 +1534,7 @@ struct TempoStage : AnalysisStage {
 //      Runs after RequireProducts, so a halted shot skips it free.
 struct KinematicsStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Kinematics"); }
+    StageDecl decl() const override { return D({ kShaft, kPose2d, kSeg }, {}, { kSeries }); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return KinematicSeriesConfig::fromOverrides(ctx.job.tuningOverrides).enabled;
@@ -1410,7 +1560,7 @@ struct KinematicsStage : AnalysisStage {
         in.unc             = &unc;
         in.clubLengthKnown = ctx.job.clubLengthKnown;
         for (MetricSeries &m : buildKinematicSeries(in))
-            ctx.detail->series.push_back(std::move(m));
+            ctx.seriesOut().push_back(std::move(m));
     }
 };
 
@@ -1447,6 +1597,7 @@ struct ShaftPlaneConfig {
 //      any of those it emits nothing and skipReason names WHICH input was missing.
 struct ShaftPlaneStage : AnalysisStage {
     QString name() const override { return QStringLiteral("ShaftPlane"); }
+    StageDecl decl() const override { return D({ kShaft, kSeg }, { kShaft }, { kSeries }); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         if (!ShaftPlaneConfig::fromOverrides(ctx.job.tuningOverrides).enabled) return false;
@@ -1582,7 +1733,7 @@ struct ShaftPlaneStage : AnalysisStage {
             }
             if (grossRisk >= 0.0) ps.grossRisk = float(grossRisk);
             m.phaseSamples.push_back(ps);
-            ctx.detail->series.push_back(std::move(m));
+            ctx.seriesOut().push_back(std::move(m));
         };
         push(QStringLiteral("transitionPlaneDelta"),
              QStringLiteral("Transition plane delta"), Phase::Transition, tp->t_us, r.deltaDeg,
@@ -1610,6 +1761,7 @@ struct ShaftPlaneStage : AnalysisStage {
 //     device, keyed by the stable device serial.
 struct BindingsStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Bindings"); }
+    StageDecl decl() const override { return D({}, { kBindings }, {}); }
     void run(AnalysisContext &ctx) override
     {
         for (const ImuSegmentBinding &b : ctx.job.imuBindings) {
@@ -1637,6 +1789,7 @@ struct BindingsStage : AnalysisStage {
 //     is populated only when offline re-fusion drove the orientation.
 struct ResemblanceStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Resemblance"); }
+    StageDecl decl() const override { return D({ kCtxSeries, kSeg, kStreams, kDoRefuse }, { kScore }, {}); }
     void run(AnalysisContext &ctx) override
     {
         const std::vector<PhaseEvent> &phases = ctx.seg.events;
@@ -1657,6 +1810,7 @@ struct ResemblanceStage : AnalysisStage {
 //     Overrides the headline score, clears the interval.
 struct AssessmentStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Assessment"); }
+    StageDecl decl() const override { return D({ kCtxSeries, kStreams, kSeries, kPhases }, { kScore }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return ctx.job.runAssessment && ctx.hasImuStreams() && !ctx.series.empty();
@@ -1687,6 +1841,7 @@ struct AssessmentStage : AnalysisStage {
 //     re-derives .enabled and run() rebuilds the full config.
 struct PoseAssessmentStage : AnalysisStage {
     QString name() const override { return QStringLiteral("PoseAssessment"); }
+    StageDecl decl() const override { return D({ kStreams, kPose2d, kPhases }, { kScore }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return PoseWristAngleConfig::fromOverrides(ctx.job.tuningOverrides).enabled
@@ -1753,6 +1908,13 @@ struct PoseAssessmentStage : AnalysisStage {
 //      different window depending on which stage had run. It is also strictly after the face-on
 //      pose, ball and shaft stages, so nothing it does can move them.
 //
+//      pose.dtlEarly (default off; analysis_dag_design.md step F) reads the window and schedule B
+//      off the IMU ladder, else the face-on pose's coarse span estimate, instead — declFor()
+//      then drops seg from its reads and the executor starts it beside Ball and Shaft(FO). The
+//      time base is still inherited (an IMU ladder, or the face-on track's own estimate), never
+//      the DTL's. Its authored place is unchanged, so the sequential run poses the same frames
+//      as the parallel one.
+//
 //      THE SPAN IS swinglab_run --dtl's, the one the DTL tracker was validated on (2026-09-21;
 //      until then this stage posed Address → Impact + 150 ms at stride 6/1 for the trunk route
 //      alone, which starves the tracker's address band and every band after impact): the
@@ -1768,6 +1930,88 @@ struct PoseAssessmentStage : AnalysisStage {
 //      dtl_shaft_tracker_design.md §5.3 forbids. Hence explicit bounds and twoPass = false.
 struct DtlPoseStage : AnalysisStage {
     QString name() const override { return QStringLiteral("DtlPose"); }
+    StageDecl decl() const override { return D({ kWindowDtl, kPose2d, kSeg }, { kPoseDtl }, {}); }
+    // pose.dtlEarly: the ladder comes from the IMU segmentation or the face-on pose's own span
+    // estimate (early()), so the stage no longer waits on seg — under analysis.parallel it
+    // starts once Pose / PoseSmooth are done and runs beside Ball and Shaft(FO). window.faceOn
+    // is NOT read: entriesFor is an index lookup, not a fetch.
+    StageDecl declFor(const ShotAnalysisJob &job) const override
+    {
+        if (!early(job)) return decl();
+        StageDecl d = D({ kWindowDtl, kPose2d, kSegImu, kRunnerOpt }, { kPoseDtl }, {});
+        // canRun needs a face-on pose; RequireProducts halts only with none (and no series), so
+        // the two never meet — and without this the halt's ctx.series read (ShaftLean, after
+        // Shaft and ImpactAnchor) holds DtlPose behind the face-on chain anyway (Mac, 6 Oct).
+        d.haltSafe = true;
+        return d;
+    }
+    static bool early(const ShotAnalysisJob &job)
+    {
+        bool on = pinpoint::tuned::pose::kDtlEarly;
+        tuning::apply(job.tuningOverrides, "pose.dtlEarly", on);
+        return on;
+    }
+    // The early ladder (pose_schedule.h dtlEarlyLadder). The camera-only span is the two-pass
+    // pose's pass-1 estimate recomputed from the track it left: the coarse frames are exactly
+    // the face-on entries at i % coarseStride == 0 (selectTwoPassCoarse), kept in pose2d with
+    // their raw grip anchors (PoseSmooth rewrites them only under pose.gripFromSmoothedHands,
+    // off), so estimateSwingSpanUs over them is PoseRunner's own call — and it works the same
+    // on a version-gated reload, where PoseRunner never ran.
+    static DtlEarlyLadder earlyLadder(const AnalysisContext &ctx)
+    {
+        DtlEarlyInputs in;
+        in.jobImpactUs = ctx.job.impactUs;
+        if (ctx.segImu && ctx.segImu->conf > 0.f) {
+            const Segmentation &si = *ctx.segImu;
+            const auto at = [&si](Phase p) -> int64_t {
+                const PhaseEvent *e = si.eventFor(p);
+                return e ? e->t_us : -1;
+            };
+            in.imu = true;
+            in.imuStartUs = si.swingStartUs;
+            in.imuEndUs   = si.swingEndUs;
+            in.imuP1Us = at(Phase::Address);
+            in.imuP2Us = at(Phase::ShaftParallelBack);
+            in.imuP8Us = at(Phase::ShaftParallelThrough);
+            in.imuImpactUs = at(Phase::Impact);
+        }
+        if (!(in.imu && in.imuEndUs > in.imuStartUs) && !ctx.detail->pose2d.frames.empty()) {
+            int coarseStride = ShotAnalysisRunnerOptions{}.coarseStride;
+            tuning::apply(ctx.job.tuningOverrides, "pose.coarseStride", coarseStride);
+            const std::vector<pinpoint::IndexEntry> fo = ctx.window->entriesFor(ctx.job.cameraSources.front());
+            const pinpoint::FormatDescriptor &fd = ctx.window->formatOf(ctx.job.cameraSources.front());
+            const auto *cfmt = std::get_if<pinpoint::CameraFormat>(&fd.format);
+            const std::vector<PoseFrame2D> &pf = ctx.detail->pose2d.frames;
+            if (cfmt && cfmt->width > 0 && cfmt->height > 0) {
+                std::vector<double> gx, gy;
+                std::vector<int64_t> tUs;
+                size_t k = 0;
+                for (size_t i : selectTwoPassCoarse(fo.size(), coarseStride)) {
+                    const int64_t t = fo[i].timestamp_us;
+                    while (k < pf.size() && pf[k].t_us < t) ++k;
+                    if (k >= pf.size()) break;
+                    if (pf[k].t_us != t) continue;
+                    gx.push_back(0.5 * (pf[k].leadHand.x() + pf[k].trailHand.x()) * double(cfmt->width));
+                    gy.push_back(0.5 * (pf[k].leadHand.y() + pf[k].trailHand.y()) * double(cfmt->height));
+                    tUs.push_back(t);
+                }
+                double fps = 0.0;
+                if (tUs.size() >= 2) {
+                    std::vector<int64_t> dts;
+                    for (size_t j = 1; j < tUs.size(); ++j) dts.push_back(tUs[j] - tUs[j - 1]);
+                    std::nth_element(dts.begin(), dts.begin() + dts.size() / 2, dts.end());
+                    if (dts[dts.size() / 2] > 0) fps = 1e6 / double(dts[dts.size() / 2]);
+                }
+                if (fps > 0.0) {
+                    const SwingSpanEstimate est = estimateSwingSpanUs(gx, gy, tUs, fps, ctx.job.impactUs, ShaftV3Config{});
+                    in.spanOk = est.ok;
+                    in.spanStartUs = est.startUs;
+                    in.spanEndUs   = est.endUs;
+                }
+            }
+        }
+        return dtlEarlyLadder(in);
+    }
     static bool pairWanted(const AnalysisContext &ctx)
     {
         const SegmentRatesConfig c = SegmentRatesConfig::fromOverrides(ctx.job.tuningOverrides);
@@ -1797,11 +2041,37 @@ struct DtlPoseStage : AnalysisStage {
     void run(AnalysisContext &ctx) override
     {
         const std::vector<pinpoint::IndexEntry> entries = ctx.window->entriesFor(ctx.job.dtlSource);
-        const Segmentation &seg = ctx.seg;       // resolved; == detail->segmentation (BindDetail)
+        // The ladder the window and schedule B are read off: the RESOLVED one (seg ==
+        // detail->segmentation after BindDetail), or under pose.dtlEarly the one that exists
+        // right after the face-on pose (earlyLadder; the differences are in pose_schedule.h).
+        DtlEarlyLadder lad;
+        const bool isEarly = early(ctx.job);
+        if (isEarly) {
+            lad = earlyLadder(ctx);
+        } else {
+            const Segmentation &seg = ctx.seg;
+            const auto at = [&seg](Phase p) -> int64_t {
+                const PhaseEvent *e = seg.eventFor(p);
+                return e ? e->t_us : -1;
+            };
+            lad.swingStartUs = seg.swingStartUs;
+            lad.swingEndUs   = seg.swingEndUs;
+            lad.p1Us = at(Phase::Address);
+            lad.p2Us = at(Phase::ShaftParallelBack);
+            lad.p8Us = at(Phase::ShaftParallelThrough);
+            lad.impactUs = at(Phase::Impact) >= 0 ? at(Phase::Impact)
+                         : ctx.job.impactUs > 0   ? ctx.job.impactUs : -1;
+            lad.source = "seg";
+        }
+        if (isEarly)
+            ppInfo() << "[WristAnalysis] dtl pose: early ladder" << lad.source << "span"
+                     << qlonglong(lad.swingStartUs) << ".." << qlonglong(lad.swingEndUs) << "us, P1"
+                     << qlonglong(lad.p1Us) << "P2" << qlonglong(lad.p2Us) << "P8" << qlonglong(lad.p8Us)
+                     << "impact" << qlonglong(lad.impactUs);
         int64_t scanLo, scanHi;
-        if (seg.swingEndUs > seg.swingStartUs) {
-            scanLo = seg.swingStartUs - 1000000;
-            scanHi = seg.swingEndUs   +  300000;
+        if (lad.swingEndUs > lad.swingStartUs) {
+            scanLo = lad.swingStartUs - 1000000;
+            scanHi = lad.swingEndUs   +  300000;
         } else {
             if (ctx.job.impactUs <= 0) {
                 ppWarn() << "[WristAnalysis] dtl pose: no swing span and no impact instant — skipping";
@@ -1859,14 +2129,8 @@ struct DtlPoseStage : AnalysisStage {
                 sc.restStride = pinpoint::tuned::pose::kDtlRestStride;
                 tuning::apply(ctx.job.tuningOverrides, "pose.dtlBackStride", sc.backStride);
                 tuning::apply(ctx.job.tuningOverrides, "pose.dtlRestStride", sc.restStride);
-                auto at = [&](Phase p) -> int64_t {
-                    const PhaseEvent *e = seg.eventFor(p);
-                    return e ? e->t_us : -1;
-                };
-                const int64_t impact = at(Phase::Impact) >= 0 ? at(Phase::Impact)
-                                     : ctx.job.impactUs > 0   ? ctx.job.impactUs : -1;
                 const pinpoint::analysis::DtlSchedule s = pinpoint::analysis::dtlZoneSchedule(
-                    at(Phase::Address), at(Phase::ShaftParallelBack), at(Phase::ShaftParallelThrough), impact, sc);
+                    lad.p1Us, lad.p2Us, lad.p8Us, lad.impactUs, sc);
                 if (s.ok) {
                     dopt.zoneSchedule = s.zones;
                     dopt.restStride   = s.restStride;
@@ -1946,6 +2210,8 @@ struct DtlPoseStage : AnalysisStage {
 //      an angle the tile shows no shaft, and that is the honest picture.
 struct DtlShaftStage : AnalysisStage {
     QString name() const override { return QStringLiteral("DtlShaft"); }
+    StageDecl decl() const override { return D({ kWindowDtl, kPoseDtl, kShaft, kFoWitness }, { kShaftDtl }, {}); }
+    StageDecl declFor(const ShotAnalysisJob &job) const override { return viaFrameStore(decl(), job); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return DtlShaftConfig::fromOverrides(ctx.job.tuningOverrides).enabled
@@ -2001,6 +2267,7 @@ struct DtlShaftStage : AnalysisStage {
 //      through impact gets a second opinion from the view that sees impact sharply.
 struct ShaftFusionStage : AnalysisStage {
     QString name() const override { return QStringLiteral("ShaftFusion"); }
+    StageDecl decl() const override { return D({ kShaft, kShaftDtl, kSeg }, { kShaft3d }, { kSeries }); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return shaftFusionConfigFromOverrides(ctx.job.tuningOverrides).enabled
@@ -2147,7 +2414,7 @@ struct ShaftFusionStage : AnalysisStage {
                 const double ds = planeSig(std::isfinite(downVs) ? t.down : t.back);
                 if (std::isfinite(ds)) { m.sigma = ds; m.sigmaKind = uint8_t(SigmaKind::Propagated); }
             }
-            if (m.t_us.size() >= 2) ctx.detail->series.push_back(std::move(m));
+            if (m.t_us.size() >= 2) ctx.seriesOut().push_back(std::move(m));
         }
         ppInfo() << "[WristAnalysis] shaft fusion:" << qlonglong(t.samples.size()) << "/" << t.nDtlPublished
                  << "DTL frames fused (" << t.nBridged << "against the face-on bridge," << t.nNoFaceOn
@@ -2180,6 +2447,7 @@ struct ShaftFusionStage : AnalysisStage {
 //      ball and (for shoulder width and the fallback ruler) the face-on pose. DETAIL series only.
 struct DtlPostureStage : AnalysisStage {
     QString name() const override { return QStringLiteral("DtlPosture"); }
+    StageDecl decl() const override { return D({ kPoseDtl, kPose2d, kSeg, kDetailBall, kShaftDtl }, {}, { kSeries }); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return DtlPostureConfig::fromOverrides(ctx.job.tuningOverrides).enabled
@@ -2232,12 +2500,13 @@ struct DtlPostureStage : AnalysisStage {
                  << r.cmPerPx << "cm/px, scale ratio" << r.scaleRatio << ", shoulders" << r.shoulderWidthCm
                  << "cm, foot" << r.footLenCm << "cm"
                  << (r.rulerRefused.isEmpty() ? QString() : QStringLiteral("; RULER REFUSED: ") + r.rulerRefused);
-        for (MetricSeries &m : r.series) ctx.detail->series.push_back(std::move(m));
+        for (MetricSeries &m : r.series) ctx.seriesOut().push_back(std::move(m));
     }
 };
 
 struct DtlShaftLieStage : AnalysisStage {
     QString name() const override { return QStringLiteral("DtlShaftLie"); }
+    StageDecl decl() const override { return D({ kShaftDtl, kShaft, kSeg }, {}, { kSeries }); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return ctx.detail->shaftDtl.valid && !ctx.detail->shaftDtl.samples.empty()
@@ -2274,7 +2543,7 @@ struct DtlShaftLieStage : AnalysisStage {
                  << (std::isfinite(r.addressDeg) && std::isfinite(r.impactDeg)
                          ? QStringLiteral(", delta %1° (+ = steeper)").arg(r.impactDeg - r.addressDeg, 0, 'f', 1)
                          : QString());
-        ctx.detail->series.push_back(std::move(r.series));
+        ctx.seriesOut().push_back(std::move(r.series));
     }
 };
 
@@ -2341,6 +2610,7 @@ SkeletonLines skeletonLines(const pinpoint::skeleton3d::FitResult &fr, bool lead
 
 struct KinematicSequenceStage : AnalysisStage {
     QString name() const override { return QStringLiteral("KinematicSequence"); }
+    StageDecl decl() const override { return D({ kPose2d, kPoseDtl, kStreams, kShaft, kShaft3d, kSkeleton3d, kSeg, kSeries }, { kKinSeq }, { kSeries }); }
     static bool anyInput(const AnalysisContext &ctx)
     {
         const bool pose  = ctx.caps.hasCamera(CameraPlacement::FaceOn)
@@ -2442,10 +2712,10 @@ struct KinematicSequenceStage : AnalysisStage {
             return;
         }
         for (MetricSeries &m : segmentRateSeries(r))
-            ctx.detail->series.push_back(std::move(m));
+            ctx.seriesOut().push_back(std::move(m));
         if (SegmentRatesConfig::fromOverrides(ctx.job.tuningOverrides).peakTimes)
             for (MetricSeries &m : sequencePeakTimeSeries(r.sequence))
-                ctx.detail->series.push_back(std::move(m));
+                ctx.seriesOut().push_back(std::move(m));
         ctx.detail->kinematicSequence = r.sequence;
 
         QString placed;
@@ -2504,6 +2774,7 @@ struct KinematicSequenceStage : AnalysisStage {
 //      it is the 3-D swing panel's input until the design §8.2 grade promotes it.
 struct Skeleton3DStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Skeleton3D"); }
+    StageDecl decl() const override { return D({ kPose2d, kPoseDtl, kShaft, kShaftDtl, kSeg, kDetailBall, kStreams, kSeries, kCtxSeries }, { kSkeleton3d }, {}); }
     bool canRun(const AnalysisContext &ctx) const override
     {
         return pinpoint::skeleton3d::fitConfigFromOverrides(ctx.job.tuningOverrides).enabled
@@ -2778,6 +3049,7 @@ struct Skeleton3DStage : AnalysisStage {
 //      the σ's camera-scale term says so, and shrinks when one does.
 struct BodyRotationTriangulatedStage : AnalysisStage {
     QString name() const override { return QStringLiteral("BodyRotationTriangulated"); }
+    StageDecl decl() const override { return D({ kSkeleton3d, kSeg, kSeries }, {}, { kSeries }); }
     static bool has(const AnalysisContext &ctx, const char *key)
     {
         for (const MetricSeries &m : ctx.detail->series)
@@ -2811,7 +3083,7 @@ struct BodyRotationTriangulatedStage : AnalysisStage {
         int n = 0;
         for (MetricSeries &m : buildBodyRotationSeries(br, ctx.seg.events)) {
             if (has(ctx, m.key.toLatin1().constData())) continue;   // an IMU reading always wins
-            ctx.detail->series.push_back(std::move(m));
+            ctx.seriesOut().push_back(std::move(m));
             ++n;
         }
         ppInfo() << "[WristAnalysis] body rotation (two cameras):" << n << "series; pelvis"
@@ -2831,6 +3103,7 @@ struct BodyRotationTriangulatedStage : AnalysisStage {
 //      (shaft.dtl.synth3d.enabled) until the protocol session's camera exists.
 struct DtlSynth3DStage : AnalysisStage {
     QString name() const override { return QStringLiteral("DtlSynth3D"); }
+    StageDecl decl() const override { return D({ kShaft, kShaft3d, kSkeleton3d, kSeg, kShaftDtl }, { kShaftDtl }, {}); }
     static synth3d::Config configFor(const ShotAnalysisJob &job)
     {
         using namespace tuning;
@@ -2949,6 +3222,13 @@ struct DtlSynth3DStage : AnalysisStage {
 //      Without the segmenter in the build the stage records that it did not run.
 struct AddressMarksStage : AnalysisStage {
     QString name() const override { return QStringLiteral("AddressMarks"); }
+    StageDecl decl() const override { return D({ kWindowFaceOn, kWindowDtl, kSeg, kPose2d, kPoseDtl }, { kAddressMarks }, {}); }
+    // pose.dtlEarly leaves this leaf ready ~25 ms before DtlShaft (which waits on ShaftPlane),
+    // and it takes the one DTL reader for ~0.9 s on the studio (6 Oct). A read of
+    // detail.shaftDtl here does NOT fix that: the graph only orders a stage after EARLIER-
+    // authored ones, and this one is authored before DtlShaft, so the read became a
+    // write-after-read edge the other way. The fix is the profile order (AddressMarks after
+    // DtlShaft — output-neutral: neither reads the other), not a declaration.
     bool canRun(const AnalysisContext &ctx) const override
     {
 #ifdef HAVE_SEGMENTER
@@ -2981,9 +3261,12 @@ struct AddressMarksStage : AnalysisStage {
             if (!best || std::llabs(f.t_us - t) < std::llabs(best->t_us - t)) best = &f;
         return best && std::llabs(best->t_us - t) <= 60000 ? best : nullptr;
     }
+    // fetchMs / segMs: the stage-local split for the log line (the frame fetch + decode
+    // — on an MP4-backed window a back-seek re-decodes from the start — vs u2netp).
     static addressmarks::ViewMarks measure(const AnalysisContext &ctx, PersonSegmenter &seg,
                                            pinpoint::SourceId src, const PoseTrack2D &trk,
-                                           int64_t addressUs, bool dtl, QString &why)
+                                           int64_t addressUs, bool dtl, QString &why,
+                                           qint64 &fetchMs, qint64 &segMs)
     {
         addressmarks::ViewMarks none;
         if (src == pinpoint::kInvalidSourceId || trk.frames.empty()) { why = QStringLiteral("no camera / no pose"); return none; }
@@ -3001,16 +3284,30 @@ struct AddressMarksStage : AnalysisStage {
             if (!e || std::llabs(it.timestamp_us - pf->t_us) < std::llabs(e->timestamp_us - pf->t_us)) e = &it;
         if (!e || std::llabs(e->timestamp_us - pf->t_us) > 60000) { why = QStringLiteral("no frame at address"); return none; }
         cv::Mat bgr;
+        QElapsedTimer part; part.start();
         {
-            const pinpoint::SourceRing::ReadHandle handle = ctx.window->payloadOf(*e);
+            // decode.frameStore: the store's BGR when it kept BGR (the decodeToBgr output for
+            // this payload); else the fetch below, under the camera's reader lock.
+            const FrameLease frameLease(*ctx.window, src, ctx.job.tuningOverrides, /*needBgr*/ true);
             cv::Mat view;
-            if (!pinpoint::decodeToBgr(*cfmt, handle.data, handle.bytes, view) || view.empty()) {
-                why = QStringLiteral("frame not decodable to BGR"); return none;
+            if (const FrameStore *store = frameLease.store()) {
+                const cv::Mat *b = store->bgr(*e);
+                if (!store->bgrOk(*e) || !b || b->empty()) {
+                    why = QStringLiteral("frame not decodable to BGR"); return none;
+                }
+                view = *b;
+            } else {
+                const pinpoint::SourceRing::ReadHandle handle = ctx.window->payloadOf(*e);
+                if (!pinpoint::decodeToBgr(*cfmt, handle.data, handle.bytes, view) || view.empty()) {
+                    why = QStringLiteral("frame not decodable to BGR"); return none;
+                }
             }
-            bgr = view.channels() == 3 ? view.clone() : cv::Mat();
+            bgr = view.channels() == 3 ? view.clone() : cv::Mat();   // owned before the lease goes
             if (bgr.empty()) cv::cvtColor(view, bgr, cv::COLOR_GRAY2BGR);
         }
+        fetchMs += part.restart();
         const cv::Mat mask = seg.segment(bgr);
+        segMs += part.elapsed();
         if (mask.empty()) { why = QStringLiteral("segmenter returned nothing"); return none; }
         // PINPOINT_ADDRESS_MARKS_DUMP=<dir>: the frame and the mask it read, for looking at.
         if (const QByteArray dump = qgetenv("PINPOINT_ADDRESS_MARKS_DUMP"); !dump.isEmpty()) {
@@ -3038,17 +3335,33 @@ struct AddressMarksStage : AnalysisStage {
     {
 #ifdef HAVE_SEGMENTER
         QElapsedTimer wall; wall.start();
-        PersonSegmenter seg;
-        if (!seg.load()) {
+        // segmenter.sessionCache (analysis_dag_design.md step C): the u2netp session
+        // from the process-wide cache, built on the first shot only — this stage built
+        // a new ORT Env + Session on every shot. false = a private one, as before.
+        bool sessionCache = pinpoint::tuned::segmenter::kSessionCache;
+        pinpoint::analysis::tuning::apply(ctx.job.tuningOverrides, "segmenter.sessionCache", sessionCache);
+        SegmenterCache::Lease lease;
+        std::unique_ptr<PersonSegmenter> privateSeg;
+        if (sessionCache) {
+            lease = PersonSegmenter::acquireShared();
+        } else {
+            privateSeg = std::make_unique<PersonSegmenter>();
+            privateSeg->load();
+        }
+        PersonSegmenter &seg = sessionCache ? *lease : *privateSeg;
+        const qint64 loadMs = wall.elapsed();
+        if (!seg.isReady()) {
             ppWarn() << "[WristAnalysis] address marks: segmenter model not available —" << PersonSegmenter::modelPath();
             return;
         }
         const int64_t addressUs = ctx.seg.eventFor(Phase::Address)->t_us;
         QString whyF, whyD;
+        qint64 fetchF = 0, segF = 0, fetchD = 0, segD = 0;
         addressmarks::AddressMarks &m = ctx.detail->addressMarks;
         if (!ctx.job.cameraSources.empty())
-            m.faceOn = measure(ctx, seg, ctx.job.cameraSources.front(), ctx.detail->pose2d, addressUs, false, whyF);
-        m.dtl = measure(ctx, seg, ctx.job.dtlSource, ctx.detail->poseDtl, addressUs, true, whyD);
+            m.faceOn = measure(ctx, seg, ctx.job.cameraSources.front(), ctx.detail->pose2d, addressUs, false, whyF,
+                               fetchF, segF);
+        m.dtl = measure(ctx, seg, ctx.job.dtlSource, ctx.detail->poseDtl, addressUs, true, whyD, fetchD, segD);
         ctx.detail->versions.addressMarks = kAddressMarksStageVersion;
         ppInfo() << "[WristAnalysis] address marks: face-on"
                  << (m.faceOn.found ? QStringLiteral("hips %1..%2 → edges %3..%4 (%5 rows at the %6)")
@@ -3062,7 +3375,9 @@ struct AddressMarksStage : AnalysisStage {
                                        .arg(m.dtl.leftX, 0, 'f', 3).arg(m.dtl.rightX, 0, 'f', 3)
                                        .arg(m.dtl.buttX, 0, 'f', 3).arg(m.dtl.side).arg(m.dtl.rows)
                                  : QStringLiteral("none (%1)").arg(whyD))
-                 << "," << qlonglong(wall.elapsed()) << "ms";
+                 << "," << qlonglong(wall.elapsed()) << "ms (session" << (sessionCache ? "cached" : "private")
+                 << loadMs << "ms; face-on frame" << fetchF << "ms, u2netp" << segF << "ms; DTL frame" << fetchD
+                 << "ms, u2netp" << segD << "ms)";
 #else
         (void)ctx;
 #endif
@@ -3085,6 +3400,8 @@ SessionProfile wristProfile()
 {
     SessionProfile p;
     p.name = QStringLiteral("Wrist");
+    p.stages.push_back(std::make_unique<FrameDecodeStage>(false));   // decode.frameStore (off: skips)
+    p.stages.push_back(std::make_unique<FrameDecodeStage>(true));
     p.stages.push_back(std::make_unique<ImuResampleStage>());
     p.stages.push_back(std::make_unique<ImuSegmentationStage>());
     p.stages.push_back(std::make_unique<WristMetricsStage>());
@@ -3107,8 +3424,10 @@ SessionProfile wristProfile()
     p.stages.push_back(std::make_unique<KinematicsStage>());
     p.stages.push_back(std::make_unique<ShaftPlaneStage>());
     p.stages.push_back(std::make_unique<DtlPoseStage>());
-    p.stages.push_back(std::make_unique<AddressMarksStage>());
     p.stages.push_back(std::make_unique<DtlShaftStage>());
+    // After DtlShaft (neither reads the other; AddressMarks appends no series): under the
+    // executor the leaf otherwise took the DTL reader just before DtlShaft was ready (~0.9 s).
+    p.stages.push_back(std::make_unique<AddressMarksStage>());
     p.stages.push_back(std::make_unique<ShaftFusionStage>());
     p.stages.push_back(std::make_unique<DtlPostureStage>());
     p.stages.push_back(std::make_unique<DtlShaftLieStage>());
@@ -3160,7 +3479,7 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     ctx.detail = std::make_shared<SwingAnalysis>();
     ctx.wall.start();
 
-    runStages(wristProfile(), ctx);
+    runProfile(wristProfile(), ctx);
 
     if (!ctx.hasImuStreams())
         ppInfo() << "[WristAnalysis] no fusable IMU streams — camera-only (pose) analysis";
@@ -3177,10 +3496,62 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
 // SegResolve adopts the vision segmentation the Shaft stage emits, BindDetail binds the
 // (empty) local products, and KinematicsStage appends the display series to the detail.
 namespace pinpoint::analysis {
+
+// OpenCV's global parallel_for_ pool, sized once to the physical cores when the first
+// parallel analysis starts (analysis_dag_design.md §2). Its default is the LOGICAL CPU
+// count; with several stages issuing parallel_for_ at once that is the oversubscription
+// knob. (OpenCV runs a parallel_for_ issued while another is in flight serially on the
+// caller — the stages' bodies are per-index, so their output does not depend on it.)
+// Never touched with analysis.parallel off, so the loop runs exactly as it always did.
+static void sizeOpenCvPoolOnce()
+{
+    static std::once_flag once;
+    std::call_once(once, [] {
+        const int before = cv::getNumThreads();
+        const int cores  = std::max(1, pinpoint::physicalCoreCount());
+        cv::setNumThreads(cores);
+        ppInfo() << "[AnalysisDag] OpenCV threads" << before << "(default) ->" << cv::getNumThreads()
+                 << "(physical cores)";
+    });
+}
+
+void runProfile(const SessionProfile &profile, AnalysisContext &ctx)
+{
+    bool parallel = pinpoint::tuned::dag::kParallel;
+    int  threads  = pinpoint::tuned::dag::kParallelThreads;
+    tuning::apply(ctx.job.tuningOverrides, "analysis.parallel",        parallel);
+    tuning::apply(ctx.job.tuningOverrides, "analysis.parallelThreads", threads);
+    if (!parallel) {
+        runStages(profile, ctx);
+    } else {
+        sizeOpenCvPoolOnce();
+        if (threads <= 0) threads = std::clamp(pinpoint::physicalCoreCount(), 1, 8);
+        runStagesParallel(profile, ctx, threads);
+        // The critical path as it ran, for the log: the stage that ended last and the
+        // busiest thread — the full timeline is in analysis.timings.stages.
+        qint64 lastEnd = 0;
+        QString lastName;
+        for (const StageTraceEntry &e : ctx.trace)
+            if (e.ran && e.endNs > lastEnd) { lastEnd = e.endNs; lastName = e.name; }
+        ppInfo() << "[AnalysisDag]" << profile.name << "on" << threads << "threads: last stage"
+                 << lastName.toUtf8().constData() << "ended at" << qlonglong(lastEnd / 1000000) << "ms";
+    }
+    bindStageTimings(ctx);
+}
+
+QJsonObject analysisGraphJson(int sessionType, const std::vector<StageTiming> *timeline,
+                              const ShotAnalysisJob *job)
+{
+    const SessionProfile p = sessionType == 1 ? wristProfile() : cameraKinematicsProfile();
+    return stageGraphToJson(p.name, buildStageGraph(p, job), timeline);
+}
+
 SessionProfile cameraKinematicsProfile()
 {
     SessionProfile p;
     p.name = QStringLiteral("CameraKinematics");
+    p.stages.push_back(std::make_unique<FrameDecodeStage>(false));   // decode.frameStore (off: skips)
+    p.stages.push_back(std::make_unique<FrameDecodeStage>(true));
     p.stages.push_back(std::make_unique<PoseStage>());
     p.stages.push_back(std::make_unique<PoseSmoothStage>());
     p.stages.push_back(std::make_unique<BallStage>());
@@ -3206,8 +3577,10 @@ SessionProfile cameraKinematicsProfile()
     p.stages.push_back(std::make_unique<KinematicsStage>());
     p.stages.push_back(std::make_unique<ShaftPlaneStage>());
     p.stages.push_back(std::make_unique<DtlPoseStage>());
-    p.stages.push_back(std::make_unique<AddressMarksStage>());
     p.stages.push_back(std::make_unique<DtlShaftStage>());
+    // After DtlShaft (neither reads the other; AddressMarks appends no series): under the
+    // executor the leaf otherwise took the DTL reader just before DtlShaft was ready (~0.9 s).
+    p.stages.push_back(std::make_unique<AddressMarksStage>());
     p.stages.push_back(std::make_unique<ShaftFusionStage>());
     p.stages.push_back(std::make_unique<DtlPostureStage>());
     p.stages.push_back(std::make_unique<DtlShaftLieStage>());
