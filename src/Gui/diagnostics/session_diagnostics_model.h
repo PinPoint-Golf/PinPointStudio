@@ -22,6 +22,7 @@
 #include "../../Analysis/work_ons.h"
 #include "../../Diagnostics/characteristic_engine.h"
 #include "../../Diagnostics/relation_resolver.h"
+#include "session_spread.h"
 
 #include <QHash>
 #include <QJsonObject>
@@ -368,6 +369,44 @@ public:
     Q_INVOKABLE void openDetail(const QString &conditionId);
     Q_INVOKABLE void closeDetail();
 
+    // ── How far, not only whether (session_spread.h) ────────────────────────────────
+    //
+    // The corridor strip and the value-by-shot run for one condition — the same map every
+    // pattern card carries as `spread` (cardMap), published by id as well so a surface that is
+    // not a card (a probe, a test, a future export) reads exactly what the card draws rather
+    // than re-deriving it. Empty for a condition this session holds no ledger for.
+    //
+    //   axisLo/axisHi, decimals   the axis in the measure's own units, and how it is quoted
+    //   corridorKnown, shape      whether there is anything to grade against, and which sides
+    //   bands[]                   { grade: ideal|good|watch|action|open, lo, hi, f0, f1 }
+    //   faultLines[]              { value, f, text, shortText } — where Action begins, per graded side
+    //   curve[]                   { f, d } the NORM's split normal, graded side only; never fitted
+    //   normTag/normTagLong/normCitation/normSource   what that curve is: judgement or data
+    //   dots[]                    one per ASSESSABLE shot: { index, shotId, swingDir, value, f,
+    //                             clipped, stack, state, current, recent, valueText }
+    //   stackMax                  the deepest beeswarm column, so the QML can choose a pitch
+    //   clipLo/HiCount, clipLo/HiText   the dots pinned to each edge, and the one label for them
+    //   run[]                     one per SHOT, not-assessable included: { index, shotId,
+    //                             swingDir, state, assessable, value, fx, fy, clipped, current,
+    //                             selected, valueText }
+    //   median[]                  { index, fx, fy, value } the trailing rolling median
+    //   medianWindow, notAssessable, pastFault, caption, captionShort, muF, muText
+    //   run[].readout, currentReadout   the hover line: "shot 12 · 14 % hand rise · 1 % hand rise
+    //                             past the fault line · fired"; "shot 7 · - · not measured"
+    //   dirLeft/dirCentre/dirRight, highMeans   which way is better, off the corridor's shape
+    //   yTicks[]                  { value, f, text } round Y labels for the run (and history)
+    //   medianNumber, currentNumber, currentState   the card's two figures, unit-less; "-" for none
+    Q_INVOKABLE QVariantMap spreadOf(const QString &conditionId) const;
+
+    // ACROSS SESSIONS (review only on the panel; this read answers whenever asked). The same
+    // golfer's other sessions — the session folder's siblings, read off their diagnostics.json
+    // off the GUI thread and NEVER written — plus this one from memory, oldest first, each as its
+    // dots, median and interquartile range against this condition's bands as they stand today.
+    //   columns[]  { label, sessionDir, current, n, values[{f, clipped, stack, value}], median,
+    //                q1, q3, fMedian, fQ1, fQ3, medianText }
+    //   axisLo/axisHi, bands[], faultLines[], caption, loading, missing, hiddenEarlier, hiddenLater
+    Q_INVOKABLE QVariantMap historyOf(const QString &conditionId) const;
+
     // ── Test seam ───────────────────────────────────────────────────────────────────
     //
     // Detection off the GUI thread is the right production shape and the wrong test shape:
@@ -543,11 +582,28 @@ private:
     QString measureUnitOf(const QString &measureId) const;
     QString measurePhaseOf(const QString &measureId) const;
     QVariantList ticksFor(const pinpoint::analysis::ConditionLedger &l, int selectedIndex) const;
+
+    // ── How far (session_spread.h) ──────────────────────────────────────────────────
+    // The corridor a condition's readings are drawn against: the norm resolved for the focus
+    // shot's context (else the session's commonest), from the pack's measure shape and the
+    // session's grade policy — and only when no norm resolves, the Ideal band the row stored.
+    // `normInfo` gets what the curve is (source, n, citation) for the tag.
+    pinpoint::analysis::SpreadCorridor corridorForRow(const pinpoint::analysis::ConditionRow &r) const;
+    pinpoint::analysis::SpreadCorridor spreadCorridorOf(const pinpoint::analysis::ConditionLedger &l,
+                                                        int focusIdx, QVariantMap *normInfo) const;
+    QVariantMap spreadFor(const pinpoint::analysis::ConditionLedger &l, int focusIdx,
+                          int selectedTick) const;
+    QVariantMap historyFor(const pinpoint::analysis::ConditionLedger &l, int focusIdx) const;
     const pinpoint::analysis::ConditionLedger *ledger(const QString &id) const;
     int  indexOfShot(int shotId) const;
     // Which shot the panel is talking about: the selected one while reviewing, the newest
     // one live. One answer, in one place.
     int  focusIndex() const;
+    // Which shot the CONDITION DETAIL is about: the carousel's pick whenever the ledger holds it —
+    // live as well as in review — and focusIndex() otherwise. The panel's own zones keep
+    // focusIndex(): live, their tense is "the swing just struck". The detail is a page the golfer
+    // opened to read a swing they chose, and it must follow that choice.
+    int  detailFocusIndex() const;
     // The stage the panel DRAWS. `m_stage` is the session's own ratcheted stage; reviewing a
     // session shows it frozen at Closing without being able to close it — see rebuild().
     pinpoint::analysis::Stage effectiveStage() const;
@@ -634,8 +690,33 @@ private:
     QString      m_detailConditionId;
     QVariantMap  m_detail;
 
+    // ── The same golfer's other sessions (historyOf) ────────────────────────────────
+    //
+    // READ-ONLY, OFF THE GUI THREAD, AND NOT PART OF THE EVIDENCE. Each sibling session's ledger
+    // is reduced to the readings it holds, per condition and per driving measure — the values,
+    // never the verdicts: those were graded against whatever the norms were on that day, and the
+    // columns are drawn against the bands as they stand today so that every column is measured
+    // with one ruler. Nothing here reaches a tier, a count or this session's diagnostics.json.
+    struct HistoryReading { QString measureId; double value = 0.0; };
+    struct HistorySession {
+        QString sessionDir;
+        QString label;
+        qint64  firstMs = 0;
+        QHash<QString, std::vector<HistoryReading>> byCondition;
+    };
+    static std::vector<HistorySession> readHistory(const QString &sessionDir, int *missing);
+    void scanHistory();
+    void applyHistory(int generation, const std::vector<HistorySession> &sessions, int missing);
+    std::vector<HistorySession> m_history;
+    int  m_historyMissing = 0;      // sibling sessions with swings and no ledger yet
+    bool m_historyLoading = false;
+    int  m_historyGen     = 0;      // a scan for a session no longer loaded is discarded on arrival
+
     // ── Threading ───────────────────────────────────────────────────────────────────
     QThreadPool m_pool;         // maxThreadCount 1: shots reduce in the order they were struck
+    // A second pool of one for the history scan, so reading other sessions never queues a
+    // shot's detection behind a few megabytes of somebody else's JSON.
+    QThreadPool m_historyPool;
     int         m_pending = 0;
     bool        m_synchronous = false;
 };

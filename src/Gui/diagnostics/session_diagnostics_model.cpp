@@ -132,6 +132,82 @@ QString withUnit(const QString &s, const QString &unit)
     return unit.isEmpty() ? s : s + unit;
 }
 
+// A reading on the HOW-FAR surfaces (spreadFor, historyFor): `decimals` from the axis it is drawn
+// on (spreadDecimals — never from σ), a "-" where there is no number, the true minus, and a space
+// before a worded unit ("13 % hand rise", "92 mph") but not before a degree sign ("13°"). A value
+// that rounds to zero is printed as 0 rather than as a signed zero: "−0 %" reads as a direction
+// the reading does not have.
+QString fmtSpread(double v, int decimals, const QString &unit = QString())
+{
+    if (!std::isfinite(v)) return QStringLiteral("-");
+    const double scale = std::pow(10.0, decimals);
+    double r = std::round(v * scale) / scale;
+    if (r == 0.0) r = 0.0;
+    const QString n = fmtNumber(r, decimals);
+    if (unit.isEmpty()) return n;
+    if (unit.startsWith(QChar(0x00B0))) return n + unit;
+    return n + QLatin1Char(' ') + unit;
+}
+
+// The same, for a list of numbers sharing one unit: "22 → 19 → 13 % hand rise".
+QString fmtSpreadRun(const QStringList &numbers, const QString &unit)
+{
+    const QString joined = numbers.join(QStringLiteral(" → "));
+    if (unit.isEmpty() || numbers.isEmpty()) return joined;
+    if (unit.startsWith(QChar(0x00B0))) return joined + unit;
+    return joined + QLatin1Char(' ') + unit;
+}
+
+// What the curve under the dots IS, in words — the one thing that stops it being read as the
+// golfer's own distribution. A heuristic norm is somebody's coaching judgement, and saying so in
+// the tag is the difference between "your swings sit far out on this curve" and "your swings sit
+// far out on a curve somebody measured".
+QString normTagOf(bool fromNorm, NormSource src, int n)
+{
+    if (!fromNorm) return QStringLiteral("norm · from the stored corridor");
+    switch (src) {
+    case NormSource::Heuristic:  return QStringLiteral("norm · coaching judgement");
+    case NormSource::Seated:     return n > 0 ? QStringLiteral("norm · data, %1 swings").arg(n)
+                                              : QStringLiteral("norm · data");
+    case NormSource::Literature: return QStringLiteral("norm · published data");
+    case NormSource::Imported:   return QStringLiteral("norm · imported");
+    }
+    return QStringLiteral("norm");
+}
+
+QString normTagLongOf(bool fromNorm, NormSource src, int n)
+{
+    if (!fromNorm)
+        return QStringLiteral("The curve is the corridor this session stored — no norm resolved for "
+                              "it today. It is not fitted to your shots.");
+    switch (src) {
+    case NormSource::Heuristic:
+        return QStringLiteral("The curve is the norm's claim, and the norm is coaching judgement "
+                              "(heuristic), not measured data. It is not fitted to your shots.");
+    case NormSource::Seated:
+        return QStringLiteral("The curve is the norm's claim, fitted to %1 well-positioned swings. "
+                              "It is not fitted to your shots.").arg(n);
+    case NormSource::Literature:
+        return QStringLiteral("The curve is the norm's claim, from published data. It is not "
+                              "fitted to your shots.");
+    case NormSource::Imported:
+        return QStringLiteral("The curve is the norm's claim, imported from another norm pack. It "
+                              "is not fitted to your shots.");
+    }
+    return QString();
+}
+
+// The last few shots on the strip are drawn a little louder — where the golfer is NOW, beside
+// where the session has been. Five, which is the resolving window's default: the same stretch
+// of swings the panel already treats as "recent" when it says a pattern is resolving.
+constexpr int kSpreadRecent = 5;
+// Beeswarm columns across the strip. ~8 px each at the 396 split, so a dot (≈5 px) only stacks
+// on a genuine neighbour.
+constexpr int kSpreadBins = 40;
+// Across-sessions columns. More than this at the 396 split and each column is narrower than its
+// own date label; the rest are counted, never silently dropped.
+constexpr int kHistoryMaxColumns = 8;
+
 QString stageName(Stage s)
 {
     switch (s) {
@@ -283,6 +359,7 @@ SessionDiagnosticsModel::SessionDiagnosticsModel(QObject *parent)
     // what happened when. A pool of one is also the honest expression of the load: one swing
     // arrives every twenty seconds and takes well under a second to reduce.
     m_pool.setMaxThreadCount(1);
+    m_historyPool.setMaxThreadCount(1);
     rebuild();
 }
 
@@ -292,6 +369,10 @@ SessionDiagnosticsModel::~SessionDiagnosticsModel()
     // optional, and there is no cancellation to offer — a detection in flight is a second of
     // work, so waiting is cheaper than a cancellation flag every worker would have to check.
     m_pool.waitForDone();
+    // The history scan captures `this` too. Its result is delivered by a queued call whose
+    // context is this object, so a scan that lands after destruction is simply dropped — but the
+    // worker itself must not outlive the members it was started from.
+    m_historyPool.waitForDone();
 }
 
 // ── Simple inputs ───────────────────────────────────────────────────────────────────────
@@ -679,6 +760,7 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     emit detailChanged();
 
     if (sessionDir.isEmpty()) {
+        scanHistory();
         rebuild();
         emit intentChanged();
         return;
@@ -788,6 +870,11 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
             queueDetect(id, swingDir, true);
         }
     }
+
+    // ── 5. The same golfer's other sessions, for the across-sessions columns ─────────
+    // Off the GUI thread and read-only; see readHistory(). Started after the reconcile so the
+    // scan's own disk reads queue behind nothing this session needs first.
+    scanHistory();
 
     emit intentChanged();
     resolveSelectedSwingDir();
@@ -1465,6 +1552,15 @@ int SessionDiagnosticsModel::focusIndex() const
     return int(m_shots.size()) - 1;
 }
 
+int SessionDiagnosticsModel::detailFocusIndex() const
+{
+    if (m_selectedShotId >= 0) {
+        const int i = indexOfShot(m_selectedShotId);
+        if (i >= 0) return i;
+    }
+    return focusIndex();
+}
+
 QVariantList SessionDiagnosticsModel::ticksFor(const ConditionLedger &l, int selectedIndex) const
 {
     QVariantList out;
@@ -1478,6 +1574,649 @@ QVariantList SessionDiagnosticsModel::ticksFor(const ConditionLedger &l, int sel
         });
     }
     return out;
+}
+
+// ── How far, not only whether (session_spread.h) ────────────────────────────────────────
+//
+// The tick run beside these says WHETHER each shot was outside its corridor; everything from here
+// to historyFor() says HOW FAR, in the measure's own units, against the bands that grade. It is
+// arithmetic over the rows already in the ledger and the norm already resolved for them — no new
+// analysis, no new verdict, nothing that could move a tier.
+
+SpreadCorridor SessionDiagnosticsModel::corridorForRow(const ConditionRow &r) const
+{
+    // The norm for the row's own measure and context, as it grades today; the row's stored Ideal
+    // band only when none resolves (spreadCorridorFromRow). A row graded against an authored
+    // number has neither, and says so.
+    const GradePolicy policy = gradePolicyByName(m_policyName);
+    if (m_norms && !r.drivingMeasureId.isEmpty()) {
+        Shape shape = Shape::Target;
+        if (m_packProv)
+            if (const Measure *m = m_packProv->pack().measure(r.drivingMeasureId)) shape = m->shape;
+        const NormResolution res = m_norms->resolve(r.drivingMeasureId, r.contextId);
+        if (res.found()) return spreadCorridorFromNorm(*res.norm, shape, policy);
+    }
+    return spreadCorridorFromRow(r, policy);
+}
+
+SpreadCorridor SessionDiagnosticsModel::spreadCorridorOf(const ConditionLedger &l, int fi,
+                                                         QVariantMap *normInfo) const
+{
+    const QString measureId = l.drivingMeasureId;
+    auto usable = [&](const ConditionRow *r) {
+        return r && r->state != ShotState::NotAssessable && std::isfinite(r->value)
+            && (measureId.isEmpty() || r->drivingMeasureId == measureId);
+    };
+
+    // WHICH CONTEXT'S NORM. The focus shot's, when it read this condition — that is the swing the
+    // ringed dot is, and its corridor is the one it was graded against. Otherwise the session's
+    // commonest, so a strip over a one-club session does not change its bands because the newest
+    // swing happened to be unmeasurable.
+    const ConditionRow *rep = nullptr;
+    if (fi >= 0 && fi < int(m_shots.size())) {
+        const ConditionRow *r = rowFor(m_shots[size_t(fi)], l.id);
+        if (usable(r)) rep = r;
+    }
+    if (!rep) {
+        QHash<QString, int> seen;
+        int best = 0;
+        for (const ShotRecord &s : m_shots) {
+            const ConditionRow *r = rowFor(s, l.id);
+            if (!usable(r)) continue;
+            const int k = ++seen[r->contextId];
+            if (k > best) { best = k; rep = r; }
+        }
+    }
+
+    const GradePolicy policy = gradePolicyByName(m_policyName);
+    SpreadCorridor c;
+    if (m_norms && !measureId.isEmpty()) {
+        Shape shape = Shape::Target;
+        if (m_packProv)
+            if (const Measure *m = m_packProv->pack().measure(measureId)) shape = m->shape;
+        const NormResolution res = m_norms->resolve(measureId, rep ? rep->contextId : QString());
+        if (res.found()) {
+            c = spreadCorridorFromNorm(*res.norm, shape, policy);
+            if (normInfo) {
+                (*normInfo)[QStringLiteral("source")]   = normSourceName(res.norm->source);
+                (*normInfo)[QStringLiteral("tag")]      = normTagOf(true, res.norm->source, res.norm->n);
+                (*normInfo)[QStringLiteral("tagLong")]  = normTagLongOf(true, res.norm->source, res.norm->n);
+                (*normInfo)[QStringLiteral("citation")] = res.norm->citation;
+            }
+        }
+    }
+    if (!c.known && rep) {
+        c = spreadCorridorFromRow(*rep, policy);
+        if (c.known && normInfo) {
+            (*normInfo)[QStringLiteral("source")]   = QStringLiteral("stored");
+            (*normInfo)[QStringLiteral("tag")]      = normTagOf(false, NormSource::Heuristic, 0);
+            (*normInfo)[QStringLiteral("tagLong")]  = normTagLongOf(false, NormSource::Heuristic, 0);
+            (*normInfo)[QStringLiteral("citation")] = QString();
+        }
+    }
+    return c;
+}
+
+namespace {
+
+// The bands, the fault lines and the curve as the QML takes them: every position a fraction of
+// the axis, every edge in units beside it for whoever wants to quote it. Shared by the strip and
+// the across-sessions columns so the two cannot disagree about where a band is.
+void publishCorridor(QVariantMap &out, const SpreadCorridor &c, const SpreadAxis &a,
+                     const QString &unit)
+{
+    out[QStringLiteral("axisLo")]        = a.lo;
+    out[QStringLiteral("axisHi")]        = a.hi;
+    out[QStringLiteral("decimals")]      = a.decimals;
+    out[QStringLiteral("corridorKnown")] = c.known;
+    out[QStringLiteral("shape")]         = c.known ? corridorShapeToString(c.shape) : QStringLiteral("none");
+
+    QVariantList bands;
+    for (const SpreadBand &b : spreadBands(c, a))
+        bands.append(QVariantMap{
+            { QStringLiteral("grade"), b.grade },
+            { QStringLiteral("lo"),    b.lo },
+            { QStringLiteral("hi"),    b.hi },
+            { QStringLiteral("f0"),    a.fraction(b.lo) },
+            { QStringLiteral("f1"),    a.fraction(b.hi) },
+        });
+    out[QStringLiteral("bands")] = bands;
+
+    // THE FAULT LINE IS WHERE ACTION BEGINS — the line an author states when they say "more than
+    // 13 % of the hand rise is the fault" (norms.json). Not the signal edge, where Watch begins and
+    // the condition starts to fire: that one is a band boundary and is drawn as one.
+    QVariantList faults;
+    auto fault = [&](double v) {
+        if (v < a.lo || v > a.hi) return;
+        faults.append(QVariantMap{
+            { QStringLiteral("value"), v },
+            { QStringLiteral("f"),     a.fraction(v) },
+            { QStringLiteral("text"),  QStringLiteral("fault at %1").arg(fmtSpread(v, a.decimals, unit)) },
+            // The number alone, for a strip too narrow for the sentence — two fault lines on a
+            // two-sided corridor at the 396 split leave each label a hundred pixels at most.
+            { QStringLiteral("shortText"), fmtSpread(v, a.decimals, unit) },
+        });
+    };
+    if (c.known && !c.lowOpen)  fault(c.faultLo);
+    if (c.known && !c.highOpen) fault(c.faultHi);
+    out[QStringLiteral("faultLines")] = faults;
+
+    // THE Y LABELS for the value run and the across-sessions columns: round values on the axis's
+    // own decimals (trailing zeros dropped), the unit printed once by the chart, not on every tick.
+    QVariantList ticks;
+    for (double v : spreadTickValues(a))
+        ticks.append(QVariantMap{
+            { QStringLiteral("value"), v },
+            { QStringLiteral("f"),     a.fraction(v) },
+            { QStringLiteral("text"),  spreadNumber(v, a.decimals, /*trimZeros*/ true) },
+        });
+    out[QStringLiteral("yTicks")] = ticks;
+
+    out[QStringLiteral("muF")]    = c.known ? a.fraction(c.mu) : -1.0;
+    out[QStringLiteral("muText")] = c.known ? fmtSpread(c.mu, a.decimals, unit) : QString();
+}
+
+} // namespace
+
+QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi, int selectedTick) const
+{
+    QVariantMap out;
+    const QString measureId = l.drivingMeasureId;
+    const QString unit      = measureUnitOf(measureId);
+    const int n             = int(m_shots.size());
+
+    // Every shot's reading, in shot order — NaN where there is none to place. A shot read on a
+    // DIFFERENT measure (a condition with several signals) is not placeable on this measure's
+    // axis and is treated as not assessable here, which is the honest reading of "not on this
+    // ruler"; the ledger's own counts are untouched.
+    std::vector<double> values(size_t(n), std::numeric_limits<double>::quiet_NaN());
+    std::vector<QString> states(size_t(n), QStringLiteral("notAssessable"));
+    for (int i = 0; i < n; ++i) {
+        const ConditionRow *r = rowFor(m_shots[size_t(i)], l.id);
+        if (!r) continue;
+        states[size_t(i)] = shotStateKind(r->state);
+        if (r->state == ShotState::NotAssessable || !std::isfinite(r->value)) continue;
+        if (!measureId.isEmpty() && r->drivingMeasureId != measureId) {
+            states[size_t(i)] = QStringLiteral("notAssessable");
+            continue;
+        }
+        values[size_t(i)] = r->value;
+    }
+
+    std::vector<double> placed;
+    std::vector<int>    placedIdx;
+    for (int i = 0; i < n; ++i)
+        if (std::isfinite(values[size_t(i)])) { placed.push_back(values[size_t(i)]); placedIdx.push_back(i); }
+
+    QVariantMap normInfo;
+    const SpreadCorridor c = spreadCorridorOf(l, fi, &normInfo);
+    const SpreadAxis     a = spreadAxisFor(c, placed);
+
+    out[QStringLiteral("measure")] = measureLabelOf(measureId);
+    out[QStringLiteral("unit")]    = unit;
+    publishCorridor(out, c, a, unit);
+
+    QVariantList curve;
+    for (const auto &pt : spreadCurve(c, a))
+        curve.append(QVariantMap{ { QStringLiteral("f"), a.fraction(pt.first) },
+                                  { QStringLiteral("d"), pt.second } });
+    out[QStringLiteral("curve")]        = curve;
+    out[QStringLiteral("normSource")]   = normInfo.value(QStringLiteral("source"));
+    out[QStringLiteral("normTag")]      = normInfo.value(QStringLiteral("tag"));
+    out[QStringLiteral("normTagLong")]  = normInfo.value(QStringLiteral("tagLong"));
+    out[QStringLiteral("normCitation")] = normInfo.value(QStringLiteral("citation"));
+
+    // ── the dots: assessable shots only, in shot order ───────────────────────────────
+    std::vector<double> fractions;
+    std::vector<int>    clips;
+    fractions.reserve(placed.size());
+    for (double v : placed) { int cl = 0; fractions.push_back(a.fraction(v, &cl)); clips.push_back(cl); }
+    const std::vector<int> stacks = spreadStacks(fractions, kSpreadBins);
+
+    int stackMax = 0, pastFault = 0;
+    QVariantList dots;
+    for (size_t k = 0; k < placed.size(); ++k) {
+        const int i = placedIdx[k];
+        const int shotId = m_shots[size_t(i)].shotId;
+        stackMax = std::max(stackMax, stacks[k]);
+        if (c.known && ((!c.highOpen && placed[k] > c.faultHi) || (!c.lowOpen && placed[k] < c.faultLo)))
+            ++pastFault;
+        dots.append(QVariantMap{
+            { QStringLiteral("index"),     i },
+            { QStringLiteral("shotId"),    shotId },
+            { QStringLiteral("swingDir"),  m_swingDirs.value(shotId) },
+            { QStringLiteral("value"),     placed[k] },
+            { QStringLiteral("f"),         fractions[k] },
+            { QStringLiteral("clipped"),   clips[k] },
+            { QStringLiteral("stack"),     stacks[k] },
+            { QStringLiteral("state"),     states[size_t(i)] },
+            // THE CURRENT SHOT is the one the panel is talking about — the newest live, the
+            // carousel's pick in review (focusIndex()) — and it is drawn ringed and large.
+            { QStringLiteral("current"),   i == fi },
+            { QStringLiteral("recent"),    k + size_t(kSpreadRecent) >= placed.size() },
+            { QStringLiteral("valueText"), fmtSpread(placed[k], a.decimals, unit) },
+        });
+    }
+    out[QStringLiteral("dots")]     = dots;
+    out[QStringLiteral("stackMax")] = stackMax;
+
+    // THE EDGE MARKERS' WORDS. A pinned dot says "further than this", and the marker beside it
+    // says how much further: the most extreme reading on that side, and how many share the edge.
+    // One label per side, decided here — two dots pinned at one pixel would otherwise draw two
+    // labels on top of each other.
+    for (int side : { -1, +1 }) {
+        int count = 0;
+        double extreme = side > 0 ? -std::numeric_limits<double>::infinity()
+                                  :  std::numeric_limits<double>::infinity();
+        for (size_t k = 0; k < placed.size(); ++k) {
+            if (clips[k] != side) continue;
+            ++count;
+            extreme = side > 0 ? std::max(extreme, placed[k]) : std::min(extreme, placed[k]);
+        }
+        const QString key = side > 0 ? QStringLiteral("clipHi") : QStringLiteral("clipLo");
+        out[key + QStringLiteral("Count")] = count;
+        out[key + QStringLiteral("Far")]   = count ? fmtSpread(extreme, a.decimals, unit) : QString();
+        out[key + QStringLiteral("Text")] =
+            count == 0 ? QString()
+          : count == 1 ? fmtSpread(extreme, a.decimals, unit)
+                       : QStringLiteral("%1 off scale, to %2").arg(count)
+                             .arg(fmtSpread(extreme, a.decimals, unit));
+    }
+
+    // ── the readout: one line per shot, for the line between the strip and the run ────────
+    //
+    // WHAT THE HOVERED SHOT IS, in words, on one ruler: its number in the session, its reading
+    // at the axis's own precision, where that sits against the bands drawn above it, and the
+    // verdict the ledger recorded. A shot nobody measured reads "-" in every slot that would hold
+    // a number — the panel's NA marker — and says so, rather than a zero or a blank.
+    auto readoutOf = [&](int i) -> QString {
+        const double v = values[size_t(i)];
+        if (!std::isfinite(v))
+            return QStringLiteral("shot %1 · - · not measured").arg(i + 1);
+        const QString verdict = states[size_t(i)] == QLatin1String("fired") ? QStringLiteral("fired")
+                              : states[size_t(i)] == QLatin1String("clean") ? QStringLiteral("clean")
+                                                                            : QStringLiteral("-");
+        return QStringLiteral("shot %1 · %2 · %3 · %4")
+            .arg(i + 1)
+            .arg(fmtSpread(v, a.decimals, unit), spreadPositionWords(c, v, a.decimals), verdict);
+    };
+    out[QStringLiteral("currentReadout")] = (fi >= 0 && fi < n) ? readoutOf(fi) : QString();
+
+    // ── the card's two figures ────────────────────────────────────────────────────────
+    //
+    // THE SESSION MEDIAN AND THIS SHOT, as bare numbers for the card to print large with the unit
+    // once beside them. The MEDIAN, not the mean, and for the reason the strip's caption gives:
+    // one wild swing drags a mean (27.9 % in 2026-10-07's 50 took it from 12 to 13), and a card
+    // saying 13 over a detail page saying "median 12" would be the panel contradicting itself.
+    // This shot is the focus shot — the newest live, the carousel's pick in review — with "-"
+    // when it was not measured, never 0, and its fired/clean state for the colour.
+    {
+        const double cur = (fi >= 0 && fi < n) ? values[size_t(fi)] : std::numeric_limits<double>::quiet_NaN();
+        out[QStringLiteral("medianNumber")]  = fmtSpread(spreadQuantile(placed, 0.5), a.decimals);
+        out[QStringLiteral("currentNumber")] = fmtSpread(cur, a.decimals);
+        out[QStringLiteral("currentState")]  = (fi >= 0 && fi < n && std::isfinite(cur))
+                                               ? states[size_t(fi)] : QStringLiteral("notAssessable");
+    }
+
+    // ── which way is better, off the corridor's SHAPE ─────────────────────────────────
+    //
+    // Never "high is bad": a floor is the mirror of a ceiling, and a two-sided corridor is worse
+    // both ways. The shape is the norm's own statement of which tail grades, so it is the only
+    // honest source for the arrows; the measure's authored highMeans travels with them for the
+    // hover, so "worse →" can say what worse IS on this measure.
+    QString dirL, dirC, dirR;
+    if (c.known) {
+        if (c.lowOpen)       { dirL = QStringLiteral("← better"); dirR = QStringLiteral("worse →"); }
+        else if (c.highOpen) { dirL = QStringLiteral("← worse");  dirR = QStringLiteral("better →"); }
+        else { dirL = QStringLiteral("← worse"); dirC = QStringLiteral("better"); dirR = QStringLiteral("worse →"); }
+    }
+    out[QStringLiteral("dirLeft")]   = dirL;
+    out[QStringLiteral("dirCentre")] = dirC;
+    out[QStringLiteral("dirRight")]  = dirR;
+    {
+        const Measure *mm = (m_packProv && !measureId.isEmpty()) ? m_packProv->pack().measure(measureId) : nullptr;
+        out[QStringLiteral("highMeans")] = mm ? mm->highMeans : QString();
+    }
+
+    // ── the run: EVERY shot, a not-assessable one included (PpTickRun's rule: never a gap) ─
+    const int window = m_opt.resolvingWindow > 0 ? m_opt.resolvingWindow : 5;
+    const std::vector<double> medians = trailingMedians(values, window);
+    QVariantList run, median;
+    int notAssessable = 0;
+    for (int i = 0; i < n; ++i) {
+        const double v = values[size_t(i)];
+        const bool   ok = std::isfinite(v);
+        if (!ok) ++notAssessable;
+        int cl = 0;
+        const double fy = ok ? a.fraction(v, &cl) : 0.0;
+        const double fx = n > 0 ? (double(i) + 0.5) / double(n) : 0.5;
+        const int shotId = m_shots[size_t(i)].shotId;
+        run.append(QVariantMap{
+            { QStringLiteral("index"),      i },
+            { QStringLiteral("shotId"),     shotId },
+            { QStringLiteral("swingDir"),   m_swingDirs.value(shotId) },
+            { QStringLiteral("state"),      states[size_t(i)] },
+            { QStringLiteral("assessable"), ok },
+            { QStringLiteral("value"),      ok ? QVariant(v) : QVariant() },
+            { QStringLiteral("fx"),         fx },
+            { QStringLiteral("fy"),         fy },
+            { QStringLiteral("clipped"),    cl },
+            { QStringLiteral("current"),    i == fi },
+            // The tick run's own selection, on the same terms (ticksFor): the wide outlined mark
+            // means "the shot being reviewed", and only while reviewing or closed.
+            { QStringLiteral("selected"),   i == selectedTick },
+            { QStringLiteral("valueText"),  ok ? fmtSpread(v, a.decimals, unit) : QStringLiteral("-") },
+            { QStringLiteral("readout"),    readoutOf(i) },
+        });
+        if (std::isfinite(medians[size_t(i)]))
+            median.append(QVariantMap{
+                { QStringLiteral("index"), i },
+                { QStringLiteral("fx"),    fx },
+                { QStringLiteral("fy"),    a.fraction(medians[size_t(i)]) },
+                { QStringLiteral("value"), medians[size_t(i)] },
+            });
+    }
+    out[QStringLiteral("run")]           = run;
+    out[QStringLiteral("median")]        = median;
+    out[QStringLiteral("medianWindow")]  = window;
+    out[QStringLiteral("notAssessable")] = notAssessable;
+    out[QStringLiteral("pastFault")]     = pastFault;
+    out[QStringLiteral("placed")]        = int(placed.size());
+
+    // ── the caption, in words ────────────────────────────────────────────────────────
+    //
+    // The median FIRST, because it is the number that moved: 46 of 50 outside is the same on a
+    // session that improved by nine points as on one that did not. "Outside" is the ledger's own
+    // fired count over its own assessable count — the recurrence line's numbers, so the card
+    // cannot say 46 in one place and 45 in another. Not-assessable shots are not on the axis and
+    // are COUNTED here instead, which is the strip's version of the short outlined tick.
+    const double med = spreadQuantile(placed, 0.5);
+    QStringList parts, shortParts;
+    if (!placed.empty()) {
+        parts << QStringLiteral("median %1").arg(fmtSpread(med, a.decimals, unit));
+        shortParts << parts.last();
+    } else {
+        parts << QStringLiteral("no measurable shot yet");
+        shortParts << parts.last();
+    }
+    if (c.known && !placed.empty()) {
+        parts << QStringLiteral("%1 past the fault line").arg(pastFault);
+        shortParts << parts.last();
+    }
+    parts << QStringLiteral("%1 of %2 outside").arg(l.fired).arg(l.assessable);
+    if (notAssessable > 0) {
+        parts << QStringLiteral("%1 not measured").arg(notAssessable);
+        shortParts << parts.last();
+    }
+    // THE OFF-SCALE READINGS ARE NAMED HERE, not beside their chevrons. A label inside the plot
+    // sat on top of the dots it was describing; the caption has nothing under it.
+    for (int side : { +1, -1 }) {
+        const QString key = side > 0 ? QStringLiteral("clipHi") : QStringLiteral("clipLo");
+        const int k = out.value(key + QStringLiteral("Count")).toInt();
+        if (k <= 0) continue;
+        const QString far = out.value(key + QStringLiteral("Far")).toString();
+        parts << (k == 1 ? QStringLiteral("1 off scale, at %1").arg(far)
+                         : QStringLiteral("%1 off scale, to %2").arg(k).arg(far));
+        shortParts << parts.last();
+    }
+    out[QStringLiteral("medianValue")]  = std::isfinite(med) ? QVariant(med) : QVariant();
+    out[QStringLiteral("medianText")]   = fmtSpread(med, a.decimals, unit);
+    out[QStringLiteral("caption")]      = parts.join(QStringLiteral(" · "));
+    // The card's recurrence line already says "46 of 50", so the card quotes the rest.
+    out[QStringLiteral("captionShort")] = shortParts.join(QStringLiteral(" · "));
+    return out;
+}
+
+QVariantMap SessionDiagnosticsModel::spreadOf(const QString &conditionId) const
+{
+    const ConditionLedger *l = ledger(conditionId);
+    if (!l) return QVariantMap();
+    const int fi = focusIndex();
+    return spreadFor(*l, fi, (m_reviewing || m_closed) ? fi : -1);
+}
+
+// ── Across sessions ─────────────────────────────────────────────────────────────────────
+
+std::vector<SessionDiagnosticsModel::HistorySession>
+SessionDiagnosticsModel::readHistory(const QString &sessionDir, int *missing)
+{
+    std::vector<HistorySession> out;
+    if (missing) *missing = 0;
+    if (sessionDir.isEmpty()) return out;
+
+    // THE SAME GOLFER is the session folder's PARENT — the athlete folder, the one place the fault
+    // profile already treats as "this golfer's history" (faultProfilePath()). Siblings only: a
+    // session in another athlete's folder is another golfer, whatever its condition ids say.
+    const QFileInfo self(QDir::cleanPath(sessionDir));
+    const QString selfCanon = self.canonicalFilePath().isEmpty() ? self.absoluteFilePath()
+                                                                 : self.canonicalFilePath();
+    const QDir athlete = self.absoluteDir();
+    const QStringList dirs = athlete.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QString &name : dirs) {
+        const QString dir = athlete.filePath(name);
+        const QFileInfo fi(dir);
+        const QString canon = fi.canonicalFilePath().isEmpty() ? fi.absoluteFilePath()
+                                                               : fi.canonicalFilePath();
+        if (canon == selfCanon) continue;           // this session comes from memory, not disk
+
+        QFile f(QDir(dir).filePath(kDiagnosticsFile));
+        if (!f.open(QIODevice::ReadOnly)) {
+            // A session with swings and no ledger yet — never opened with the panel. Counted, so
+            // the caption can say so; reducing it here would be running detection on somebody
+            // else's behalf from a read-only view.
+            if (missing && !QDir(dir).entryList(QStringList{ QStringLiteral("swing_*") },
+                                                QDir::Dirs | QDir::NoDotAndDotDot).isEmpty())
+                ++*missing;
+            continue;
+        }
+        const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+        // READ THROUGH THE LEDGER'S OWN READER, so a schema the panel can load is a schema this
+        // can load, and nothing here re-implements the row format.
+        const std::vector<ShotRecord> shots = fromJson(root.value(QStringLiteral("ledger")).toObject());
+        if (shots.empty()) continue;
+
+        HistorySession hs;
+        hs.sessionDir = dir;
+        hs.firstMs = std::numeric_limits<qint64>::max();
+        for (const ShotRecord &s : shots) {
+            if (s.timestampMs > 0) hs.firstMs = std::min(hs.firstMs, s.timestampMs);
+            for (const ConditionRow &r : s.rows) {
+                if (r.state == ShotState::NotAssessable || !std::isfinite(r.value)) continue;
+                hs.byCondition[r.conditionId].push_back(HistoryReading{ r.drivingMeasureId, r.value });
+            }
+        }
+        if (hs.firstMs == std::numeric_limits<qint64>::max()) hs.firstMs = 0;
+        out.push_back(std::move(hs));
+    }
+    return out;
+}
+
+void SessionDiagnosticsModel::scanHistory()
+{
+    const int gen = ++m_historyGen;
+    m_history.clear();
+    m_historyMissing = 0;
+    m_historyLoading = !m_sessionDir.isEmpty();
+    if (m_sessionDir.isEmpty()) return;
+
+    const QString dir = m_sessionDir;
+    if (m_synchronous) {
+        int missing = 0;
+        const std::vector<HistorySession> got = readHistory(dir, &missing);
+        applyHistory(gen, got, missing);
+        return;
+    }
+    m_historyPool.start([this, gen, dir]() {
+        int missing = 0;
+        const std::vector<HistorySession> got = readHistory(dir, &missing);
+        QMetaObject::invokeMethod(this, [this, gen, got, missing]() { applyHistory(gen, got, missing); },
+                                  Qt::QueuedConnection);
+    });
+}
+
+void SessionDiagnosticsModel::applyHistory(int generation, const std::vector<HistorySession> &sessions,
+                                           int missing)
+{
+    if (generation != m_historyGen) return;     // a scan for a session no longer loaded
+    m_history        = sessions;
+    m_historyMissing = missing;
+    m_historyLoading = false;
+    // Only the detail draws history, so only the detail is republished — the zones did not
+    // change and a surfaceChanged here would re-run every card for nothing.
+    if (!m_detailConditionId.isEmpty()) {
+        buildDetail();
+        emit detailChanged();
+    }
+}
+
+QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi) const
+{
+    QVariantMap out;
+    const QString measureId = l.drivingMeasureId;
+    const QString unit      = measureUnitOf(measureId);
+
+    struct Col { QString dir, label; qint64 firstMs = 0; bool current = false; std::vector<double> v; };
+    std::vector<Col> cols;
+    auto onRuler = [&](const QString &m) { return measureId.isEmpty() || m == measureId; };
+
+    for (const HistorySession &hs : m_history) {
+        Col c;
+        c.dir = hs.sessionDir;
+        c.firstMs = hs.firstMs;
+        const auto it = hs.byCondition.constFind(l.id);
+        if (it != hs.byCondition.constEnd())
+            for (const HistoryReading &r : *it)
+                if (onRuler(r.measureId)) c.v.push_back(r.value);
+        cols.push_back(std::move(c));
+    }
+    {
+        Col c;
+        c.dir = m_sessionDir;
+        c.current = true;
+        c.firstMs = std::numeric_limits<qint64>::max();
+        for (const ShotRecord &s : m_shots) {
+            if (s.timestampMs > 0) c.firstMs = std::min(c.firstMs, s.timestampMs);
+            const ConditionRow *r = rowFor(s, l.id);
+            if (r && r->state != ShotState::NotAssessable && std::isfinite(r->value) && onRuler(r->drivingMeasureId))
+                c.v.push_back(r->value);
+        }
+        if (c.firstMs == std::numeric_limits<qint64>::max()) c.firstMs = QDateTime::currentMSecsSinceEpoch();
+        cols.push_back(std::move(c));
+    }
+
+    // OLDEST FIRST, by when the session's first swing was struck; the folder name breaks a tie
+    // (and orders sessions whose ledgers carry no timestamps at all).
+    std::sort(cols.begin(), cols.end(), [](const Col &a, const Col &b) {
+        if (a.firstMs != b.firstMs) return a.firstMs < b.firstMs;
+        return a.dir < b.dir;
+    });
+
+    // The label is the session's date: off the folder name the library writes (yyyy-MM-dd_…), and
+    // off the first swing only when the folder does not carry one. Two sessions on one day are
+    // told apart by the folder's trailing number.
+    for (Col &c : cols) {
+        const QString name = QFileInfo(QDir::cleanPath(c.dir)).fileName();
+        QDate d = QDate::fromString(name.left(10), QStringLiteral("yyyy-MM-dd"));
+        if (!d.isValid() && c.firstMs > 0) d = QDateTime::fromMSecsSinceEpoch(c.firstMs).date();
+        c.label = d.isValid() ? d.toString(QStringLiteral("d MMM")) : name;
+    }
+    for (size_t i = 0; i < cols.size(); ++i) {
+        int same = 0;
+        for (const Col &o : cols) same += (o.label == cols[i].label);
+        if (same > 1) {
+            const QString name = QFileInfo(QDir::cleanPath(cols[i].dir)).fileName();
+            cols[i].label += QStringLiteral(" #") + name.section(QLatin1Char('_'), -1);
+        }
+    }
+
+    // At most kHistoryMaxColumns, the newest — but never a window that leaves THIS session out,
+    // which is the one column the reader came for. What is cut is counted on each side.
+    const int total = int(cols.size());
+    int curIdx = 0;
+    for (int i = 0; i < total; ++i) if (cols[size_t(i)].current) curIdx = i;
+    int start = std::max(0, total - kHistoryMaxColumns);
+    if (curIdx < start) start = curIdx;
+    const int end = std::min(total, start + kHistoryMaxColumns);
+
+    std::vector<double> pooled;
+    for (int i = start; i < end; ++i)
+        pooled.insert(pooled.end(), cols[size_t(i)].v.begin(), cols[size_t(i)].v.end());
+
+    const SpreadCorridor c = spreadCorridorOf(l, fi, nullptr);
+    const SpreadAxis     a = spreadAxisFor(c, pooled);
+    publishCorridor(out, c, a, unit);
+    out[QStringLiteral("measure")] = measureLabelOf(measureId);
+    out[QStringLiteral("unit")]    = unit;
+
+    QVariantList columns;
+    QStringList medians;
+    for (int i = start; i < end; ++i) {
+        const Col &col = cols[size_t(i)];
+        std::vector<double> fr;
+        std::vector<int> cl;
+        for (double v : col.v) { int k = 0; fr.push_back(a.fraction(v, &k)); cl.push_back(k); }
+        const std::vector<int> st = spreadStacks(fr, kSpreadBins);
+        QVariantList vs;
+        int stackMax = 0;
+        for (size_t k = 0; k < fr.size(); ++k) {
+            stackMax = std::max(stackMax, st[k]);
+            vs.append(QVariantMap{ { QStringLiteral("f"),       fr[k] },
+                                   { QStringLiteral("clipped"), cl[k] },
+                                   { QStringLiteral("stack"),   st[k] },
+                                   { QStringLiteral("value"),   col.v[k] } });
+        }
+        const double q1 = spreadQuantile(col.v, 0.25);
+        const double md = spreadQuantile(col.v, 0.5);
+        const double q3 = spreadQuantile(col.v, 0.75);
+        const bool any = !col.v.empty();
+        if (any) medians << fmtSpread(md, a.decimals);
+        columns.append(QVariantMap{
+            { QStringLiteral("label"),      col.label },
+            { QStringLiteral("sessionDir"), col.dir },
+            { QStringLiteral("current"),    col.current },
+            { QStringLiteral("n"),          int(col.v.size()) },
+            { QStringLiteral("values"),     vs },
+            { QStringLiteral("stackMax"),   stackMax },
+            { QStringLiteral("median"),     any ? QVariant(md) : QVariant() },
+            { QStringLiteral("q1"),         any ? QVariant(q1) : QVariant() },
+            { QStringLiteral("q3"),         any ? QVariant(q3) : QVariant() },
+            { QStringLiteral("fMedian"),    any ? a.fraction(md) : -1.0 },
+            { QStringLiteral("fQ1"),        any ? a.fraction(q1) : -1.0 },
+            { QStringLiteral("fQ3"),        any ? a.fraction(q3) : -1.0 },
+            { QStringLiteral("medianText"), fmtSpread(any ? md : std::numeric_limits<double>::quiet_NaN(),
+                                                      a.decimals, unit) },
+        });
+    }
+    out[QStringLiteral("columns")]       = columns;
+    out[QStringLiteral("hiddenEarlier")] = start;
+    out[QStringLiteral("hiddenLater")]   = total - end;
+    out[QStringLiteral("loading")]       = m_historyLoading;
+    out[QStringLiteral("missing")]       = m_historyMissing;
+
+    QStringList cap;
+    if (m_historyLoading)
+        cap << QStringLiteral("reading this golfer's other sessions…");
+    else if (total <= 1)
+        cap << QStringLiteral("no other session of this golfer has a ledger yet");
+    else if (!medians.isEmpty())
+        cap << QStringLiteral("median %1").arg(fmtSpreadRun(medians, unit));
+    if (start > 0)
+        cap << QStringLiteral("%1 earlier %2 not shown").arg(start)
+                   .arg(start == 1 ? QStringLiteral("session") : QStringLiteral("sessions"));
+    if (total - end > 0)
+        cap << QStringLiteral("%1 later not shown").arg(total - end);
+    if (m_historyMissing > 0)
+        cap << QStringLiteral("%1 %2 not yet read by the panel").arg(m_historyMissing)
+                   .arg(m_historyMissing == 1 ? QStringLiteral("session") : QStringLiteral("sessions"));
+    out[QStringLiteral("caption")] = cap.join(QStringLiteral(" · "));
+    return out;
+}
+
+QVariantMap SessionDiagnosticsModel::historyOf(const QString &conditionId) const
+{
+    const ConditionLedger *l = ledger(conditionId);
+    return l ? historyFor(*l, focusIndex()) : QVariantMap();
 }
 
 // ── Zone 1: the header ──────────────────────────────────────────────────────────────────
@@ -1835,6 +2574,9 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
         c[QStringLiteral("resolving")]   = l.resolving;
         c[QStringLiteral("focused")]     = id == m_focusConditionId;
         c[QStringLiteral("ticks")]       = ticksFor(l, selectedTick);
+        // HOW FAR, beside whether: the corridor strip and the value-by-shot run, drawn under the
+        // card's recurrence line in place of the bare tick run. See spreadFor().
+        c[QStringLiteral("spread")]      = spreadFor(l, fi, selectedTick);
 
         // DIRECTION OR DISPERSION. Below the agreement gate the condition is still a pattern —
         // inconsistency is a finding — but the direction claim is suppressed, and the sentence
@@ -1896,8 +2638,13 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
         const ConditionRow *here = (fi >= 0) ? rowFor(m_shots[size_t(fi)], id) : nullptr;
         const QString hereState = here ? shotStateKind(here->state) : QStringLiteral("notAssessable");
         c[QStringLiteral("thisShot")] = hereState;
+        // THE PICKED TENSE — "FIRED HERE", "3 more firings after this shot" — whenever the card is
+        // about a picked swing rather than simply the newest: in review, on a closed session, and
+        // on the condition detail of a live session with a swing picked (selectedTick >= 0; see
+        // detailFocusIndex()). The live panel's own cards pass -1 and keep the present tense.
+        const bool pickedTense = m_reviewing || m_closed || selectedTick >= 0;
         c[QStringLiteral("statePill")] =
-            (m_reviewing || m_closed)
+            pickedTense
                 ? (hereState == QLatin1String("fired") ? QStringLiteral("FIRED HERE")
                  : hereState == QLatin1String("clean") ? QStringLiteral("CLEAN HERE")
                                                        : QStringLiteral("NOT MEASURED"))
@@ -1906,10 +2653,10 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
                                                        : QStringLiteral("NOT MEASURED"));
         if (here && here->state != ShotState::NotAssessable) {
             c[QStringLiteral("valueText")]    = withUnit(fmtNumber(here->value), unit);
-            c[QStringLiteral("corridorText")] = here->corridorHi > here->corridorLo
-                ? QStringLiteral("pass %1 to %2")
-                      .arg(fmtNumber(here->corridorLo), withUnit(fmtNumber(here->corridorHi), unit))
-                : QStringLiteral("no corridor authored");
+            // THE PASS BAND AND THE FAULT LINE — the two edges the strip under it draws — and not
+            // the stored Ideal band, which quoted "pass 0.0 to 4.3" over a strip whose fault line
+            // sat at 13. One sentence, from session_spread.h, for every surface that states it.
+            c[QStringLiteral("corridorText")] = spreadCorridorWords(corridorForRow(*here), unit);
         } else {
             c[QStringLiteral("valueText")]    = QStringLiteral("not measurable");
             c[QStringLiteral("corridorText")] = here ? here->notAssessableReason : QString();
@@ -1932,7 +2679,7 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
         // reads as false — a condition with no place in the row cannot be filtered into it.
         c[QStringLiteral("reachesBall")] = m_reachesBall.value(id, false);
         c[QStringLiteral("rootHere")]    = m_rootHere.value(id, false);
-        if (m_reviewing || m_closed) {
+        if (pickedTense) {
             int after = 0;
             for (int i = fi + 1; i < int(l.run.size()); ++i)
                 if (l.run[size_t(i)] == ShotState::Fired) ++after;
@@ -2535,11 +3282,8 @@ QVariantMap SessionDiagnosticsModel::shotReadout(int shotId) const
                                                             : QStringLiteral("—");
         if (st != ShotState::NotAssessable && r) {
             c[QStringLiteral("valueText")] = withUnit(fmtNumber(r->value), unit);
-            c[QStringLiteral("corridorText")] =
-                r->corridorHi > r->corridorLo
-                    ? QStringLiteral("pass %1 to %2")
-                          .arg(fmtNumber(r->corridorLo), withUnit(fmtNumber(r->corridorHi), unit))
-                    : QStringLiteral("no corridor authored");
+            // The same sentence the card prints (spreadCorridorWords) — pass band and fault line.
+            c[QStringLiteral("corridorText")] = spreadCorridorWords(corridorForRow(*r), unit);
             c[QStringLiteral("reason")] = QString();
         } else {
             // Never a blank in either slot: the value reads "not measurable" and the corridor
@@ -2682,11 +3426,19 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
     const Condition *self = pack.condition(conditionId);
     if (!self) return out;                       // a condition the pack does not author
 
-    const int fi           = focusIndex();
-    // The reviewed shot is the wide tick, here exactly as on the cards and the rail. Same rule,
-    // same helper — a detail with its own idea of which tick is selected would point at a
-    // different swing from the panel behind it.
-    const int selectedTick = (m_reviewing || m_closed) ? fi : -1;
+    // ⚠ THE DETAIL FOLLOWS THE PICKED SWING, LIVE AS WELL AS IN REVIEW. It used to take
+    // focusIndex(), which on a LIVE session is always the newest shot whatever the carousel has
+    // picked — so with the panel open on the replay view, picking another swing rebuilt and
+    // republished the detail, faithfully, about the wrong shot: header figure, chip, reading, the
+    // ringed dot and the wide mark all stayed on the newest swing. detailFocusIndex() is the pick
+    // when there is one the ledger holds and the newest otherwise, so a live session with nothing
+    // picked (or the newest picked, which the post-shot replay does) still follows each new shot.
+    //
+    // The wide tick marks that swing whenever it is a PICK — in review, closed, or live with a
+    // swing selected — and not when the detail is simply following the newest, live.
+    const int fi           = detailFocusIndex();
+    const bool picked      = m_selectedShotId >= 0 && indexOfShot(m_selectedShotId) >= 0;
+    const int selectedTick = (m_reviewing || m_closed || picked) ? fi : -1;
 
     // ── the neighbourhood, marshalled and graded exactly as the rail's is ───────────
     const QSet<QString> up   = causalClosure(pack, conditionId, /*downstream*/ false);
@@ -2968,6 +3720,11 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
     out[QStringLiteral("causesCapped")]    = upCapped;
     out[QStringLiteral("effectsCapped")]   = downCapped;
     out[QStringLiteral("rivals")]          = rivals;
+    // ACROSS SESSIONS, in review only. A live session is the one being made; the reader between
+    // balls wants this session's strip, and a column of last month's swings beside it is a
+    // different conversation. A finished session is exactly where "and compared to before?"
+    // is the next question.
+    out[QStringLiteral("history")] = (m_reviewing && l) ? historyFor(*l, fi) : QVariantMap();
     // The two absences, in words, so the panel never has to invent a sentence for an empty list.
     out[QStringLiteral("noCausesLine")] =
         causes.isEmpty() ? QStringLiteral("The model authors no cause above this condition.")

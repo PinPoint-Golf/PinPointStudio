@@ -203,6 +203,9 @@ set(PP_QML_FILES
     src/Gui/diagnostics/PpChainLink.qml
     src/Gui/diagnostics/PpConditionDetail.qml
     src/Gui/diagnostics/PpTickRun.qml
+    src/Gui/diagnostics/PpCorridorStrip.qml
+    src/Gui/diagnostics/PpValueRun.qml
+    src/Gui/diagnostics/PpSessionHistory.qml
     src/Gui/diagnostics/PpStrengthMeter.qml
     src/Gui/diagnostics/PpWatchingRow.qml
     src/Gui/diagnostics/PpCoverageLine.qml
@@ -358,6 +361,7 @@ set(PP_QML_SOURCES
     src/Gui/diagnostics/wrist_diagnostics_model.h
     src/Gui/diagnostics/wrist_diagnostics_model.cpp
     src/Gui/diagnostics/session_diagnostics_model.h
+    src/Gui/diagnostics/session_spread.h
     src/Gui/diagnostics/session_diagnostics_model.cpp
     src/Analysis/work_ons.h
     src/Gui/diagnostics/work_ons_controller.h

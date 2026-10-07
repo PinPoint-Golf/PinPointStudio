@@ -282,6 +282,12 @@ Rectangle {
     // (brief §9) and inventing one here would be inventing a design.
     signal screenRequested(string screenRef, string conditionId)
 
+    // A shot was picked on the condition detail's strip or value run. THIS BODY SELECTS
+    // NOTHING: the carousel owns the selection (brief §8), so the request goes up to the panel,
+    // which hands it to the carousel's own click path and lets every surface read the pick back.
+    // By swing folder, the one identity the carousel and the ledger share.
+    signal shotRequested(string swingDir, int shotId)
+
     objectName: "sdBody"
 
     radius: Theme.radius
@@ -795,6 +801,7 @@ Rectangle {
             // Re-targets the page in place; BACK still returns to the panel in one step.
             onConditionActivated: (id) => root._openDetail(id)
             onCloseRequested: root._closeDetail()
+            onShotRequested: (dir, id) => root.shotRequested(dir, id)
         }
 
         // ══ THIS SHOT ═══════════════════════════════════════════════════════

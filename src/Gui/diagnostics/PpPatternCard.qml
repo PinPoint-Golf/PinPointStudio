@@ -74,6 +74,20 @@ Rectangle {
     // reach one, so a request the model declines leaves the panel exactly as it was.
     signal detailRequested(string conditionId)
 
+    // ── how far, in two figures (SessionDiagnosticsModel::spreadFor) ─────────
+    //
+    // THE CARD CARRIES NUMBERS, NOT CHARTS. The corridor strip and the value run were on every
+    // card for one round and made a twelve-card row far too busy; they live in the condition
+    // detail now (tap the card), where there is room to read them. What the card keeps of them is
+    // the two figures a golfer actually compares between balls: where the session sits (its
+    // MEDIAN — the same figure the detail's caption and the across-sessions columns quote, and
+    // one outlier cannot drag it) and where THIS shot landed, coloured by its verdict.
+    //
+    // Every string is the model's (spread.medianNumber / currentNumber / currentState / unit);
+    // "-" for a shot that was not measured, never 0. A card with no reading behind it — a
+    // fixture, a condition measured on no shot — shows no figures at all.
+    readonly property var _spread: (card && card.spread && (card.spread.placed || 0) > 0) ? card.spread : null
+
     // ── the after-shot pulse (§B3, §B8) ──────────────────────────────────────
     //
     // A CUE, not a channel: { token, ids, focusId }, republished by the body on every
@@ -95,6 +109,8 @@ Rectangle {
     readonly property int tzLabel:   Math.max(1, Math.round(Theme.fontSzLabel  * fit))
     readonly property int tzBody:    Math.max(1, Math.round(Theme.fontSzBody2  * fit))
     readonly property int tzData:    Math.max(1, Math.round(Theme.fontSzDataSm * fit))
+    // The two figures' size: the heading token, a step above everything else on the card.
+    readonly property int tzFigure:  Math.max(1, Math.round(Theme.fontSzHeading * 1.25 * fit))
 
     readonly property string _pillState: card ? (card.thisShot || "") : ""
     readonly property color _pillColor: _pillState === "fired" ? Theme.colorError
@@ -361,7 +377,7 @@ Rectangle {
         Text {
             id: recurrenceTxt
             objectName: "sdCardRecurrence"
-            width: col.width
+            width: col.width - figures.reserve
             text: root.card ? (root.card.recurrence || "") : ""
             elide: Text.ElideRight
             font.family: Theme.fontData
@@ -388,7 +404,7 @@ Rectangle {
             // line WOULD go, from its predecessors' heights and visibility only.
             readonly property real _top: recurrenceTxt.y + recurrenceTxt.height + col.spacing
             objectName: "sdCardReading"
-            width: col.width
+            width: col.width - figures.reserve
             visible: text !== "" && col.height - _top - height >= run.height + trendRow.height + col.spacing
             text: {
                 if (!root.card) return ""
@@ -417,7 +433,7 @@ Rectangle {
                                          ? readingTxt._top + readingTxt.height + col.spacing
                                          : readingTxt._top
             objectName: "sdCardDirection"
-            width: col.width
+            width: col.width - figures.reserve
             text: root.card ? (root.card.directionText || "") : ""
             visible: text !== ""
                      && col.height - _top - height
@@ -566,4 +582,108 @@ Rectangle {
         }
     }
 
+    // ── the two figures ──────────────────────────────────────────────────────
+    //
+    // Top-right, beside the recurrence line, in the large data type. The width it RESERVES from
+    // the lines beside it is its widest form, always — so dropping a caption for height never
+    // changes how those lines wrap, and the two decisions cannot chase each other round a loop.
+    //
+    // WHEN THE CARD IS SHORT the captions go and the unit moves up beside the numbers, small, on
+    // their baseline — the unit is never dropped and the numbers never shrink (the brief: "drop
+    // the captions before shrinking the numbers"). The room is what lies between the recurrence
+    // line's top and the run under it; at the real panel's 142 px cards that is one number high.
+    //
+    // THE RESERVE IS THE WIDER OF THE TWO FORMS, whichever is showing, so the form (a height
+    // decision) can never feed back into how the lines beside it wrap (a width decision).
+    Item {
+        id: figures
+        objectName: "sdCardFigures"
+        visible: root._spread !== null
+        readonly property real gap: root.px(10)
+        readonly property real _stackedW: Math.max(medianNum.implicitWidth, medianCap.implicitWidth) + gap
+                                          + Math.max(currentNum.implicitWidth, currentCap.implicitWidth)
+        readonly property real _inlineW: medianNum.implicitWidth + gap + currentNum.implicitWidth
+                                         + root.px(4) + unitTxt.implicitWidth
+        readonly property real reserve: visible ? Math.max(_stackedW, _inlineW) + root.px(8) : 0
+        readonly property real _numH: medianNum.implicitHeight
+        readonly property real _capH: medianCap.implicitHeight
+        readonly property real _room: (run.visible ? run._top - col.spacing : col.height) - recurrenceTxt.y
+        readonly property bool showCaptions: _room >= _numH + 2 * _capH
+        x: col.x + col.width - width
+        y: col.y + recurrenceTxt.y
+        width: showCaptions ? medianCol.width + gap + currentCol.width
+                            : medianCol.width + gap + currentCol.width + root.px(4) + unitTxt.implicitWidth
+        height: _numH + (showCaptions ? 2 * _capH : 0)
+
+        Column {
+            id: medianCol
+            width: figures.showCaptions ? Math.max(medianNum.implicitWidth, medianCap.implicitWidth)
+                                        : medianNum.implicitWidth
+            Text {
+                id: medianNum
+                objectName: "sdCardMedian"
+                anchors.right: parent.right
+                text: root._spread ? (root._spread.medianNumber || "-") : ""
+                font.family: Theme.fontData
+                font.pixelSize: root.tzFigure
+                color: Theme.colorText
+            }
+            Text {
+                id: medianCap
+                objectName: "sdCardMedianCaption"
+                anchors.right: parent.right
+                visible: figures.showCaptions
+                text: qsTr("session median")
+                font.family: Theme.fontData
+                font.pixelSize: root.tzCaption
+                color: Theme.colorText3
+            }
+        }
+        Column {
+            id: currentCol
+            x: medianCol.width + figures.gap
+            width: figures.showCaptions ? Math.max(currentNum.implicitWidth, currentCap.implicitWidth)
+                                        : currentNum.implicitWidth
+            Text {
+                id: currentNum
+                objectName: "sdCardCurrent"
+                readonly property string state: root._spread ? (root._spread.currentState || "") : ""
+                anchors.right: parent.right
+                text: root._spread ? (root._spread.currentNumber || "-") : ""
+                font.family: Theme.fontData
+                font.pixelSize: root.tzFigure
+                // The verdict's colour, as everywhere on the panel; the quiet grey for "-".
+                color: state === "fired" ? Theme.colorError
+                     : state === "clean" ? Theme.colorGood
+                                         : Theme.colorText3
+            }
+            Text {
+                id: currentCap
+                objectName: "sdCardCurrentCaption"
+                anchors.right: parent.right
+                visible: figures.showCaptions
+                text: qsTr("this shot")
+                font.family: Theme.fontData
+                font.pixelSize: root.tzCaption
+                color: Theme.colorText3
+            }
+        }
+        // The unit, once, for both figures: its own line under the captions, or — with no room
+        // for that — small beside the second number, sitting on the numbers' baseline.
+        Text {
+            id: unitTxt
+            objectName: "sdCardFiguresUnit"
+            visible: text !== ""
+            x: figures.showCaptions ? figures.width - width : currentCol.x + currentCol.width + root.px(4)
+            y: figures.showCaptions ? figures._numH + figures._capH
+                                    : currentNum.baselineOffset - baselineOffset
+            width: figures.showCaptions ? Math.min(implicitWidth, figures.width) : implicitWidth
+            horizontalAlignment: Text.AlignRight
+            elide: Text.ElideLeft
+            text: root._spread ? (root._spread.unit || "") : ""
+            font.family: Theme.fontData
+            font.pixelSize: root.tzCaption
+            color: Theme.colorText3
+        }
+    }
 }

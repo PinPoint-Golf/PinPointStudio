@@ -209,10 +209,57 @@ Item {
         }
     }
 
+    // ── a shot picked on a value run ─────────────────────────────────────────
+    //
+    // HANDED TO THE CAROUSEL'S OWN CLICK PATH, not set on the model. The carousel owns the
+    // selection (brief §8) and the panel only reads it back through selectedSwingDir above, so a
+    // dot tapped on a card does exactly what tapping that swing's card in the carousel does: the
+    // swing is promoted onto the stage, the carousel lights it, and THIS SHOT, the ringed dot and
+    // the wide mark all follow from that one change. A second, panel-local selection would be a
+    // second answer to "which shot", and the two would disagree the moment either moved.
+    //
+    // The carousel numbers its shots with its own counter, so the request (by swing folder, the
+    // identity both sides share) is resolved against the shots the app is SHOWING — the loaded
+    // session's in review, the live carousel's otherwise.
+    Instantiator {
+        id: carouselShots
+        model: sessionReviewController.activeShots
+        delegate: QtObject {
+            required property int shotId
+            required property string swingDir
+        }
+    }
+    function _pickShot(swingDir) {
+        if (!swingDir) return false
+        const want = _folder(swingDir)
+        const name = want.substring(want.lastIndexOf("/") + 1)
+        for (let i = 0; i < carouselShots.count; ++i) {
+            const s = carouselShots.objectAt(i)
+            if (!s || !s.swingDir) continue
+            const have = _folder(s.swingDir)
+            // The folder first; its name when the ledger was written on another host and records
+            // the same swing under a different mount (shotIdForSwingDir's rule, the same reason).
+            if (have === want || have.substring(have.lastIndexOf("/") + 1) === name) {
+                if (SessionMode.mode === SessionMode.analyse) {
+                    // Analyse keeps Analyse: promote the swing and reload, without the detour
+                    // through Replay that enterReplay() would take.
+                    SessionMode.focusedShotId   = s.shotId
+                    SessionMode.focusedSwingDir = s.swingDir
+                    SessionMode.enterAnalyse()
+                } else {
+                    SessionMode.enterReplay(s.shotId, s.swingDir)
+                }
+                return true
+            }
+        }
+        return false
+    }
+
     PpSessionDiagnosticsBody {
         id: body
         anchors.fill: parent
         source: diagModel
         onScreenRequested: (ref, cond) => root.screenRequested(ref, cond)
+        onShotRequested: (dir, id) => root._pickShot(dir)
     }
 }

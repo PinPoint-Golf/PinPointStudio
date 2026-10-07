@@ -63,6 +63,8 @@ Item {
     signal screenRequested(string screenRef, string conditionId)
     // Esc, and the header's BACK chip next door.
     signal closeRequested()
+    // A shot was picked on the value run below the header. Up to the panel, like the card's.
+    signal shotRequested(string swingDir, int shotId)
 
     objectName: "sdDetail"
 
@@ -88,8 +90,19 @@ Item {
     focus: visible
     Keys.onEscapePressed: root.closeRequested()
     onVisibleChanged: if (visible) forceActiveFocus()
-    // A page that re-targets must not keep the previous condition's expansions.
-    onDetailChanged: { root.expandedCause = -1; root.expandedEffect = -1 }
+    // A page that RE-TARGETS must not keep the previous condition's expansions or hover.
+    //
+    // ⚠ ONLY ON A RE-TARGET, NOT ON EVERY REPUBLISH. The model republishes `detail` whenever the
+    // ledger or the picked swing moves (rebuild() → buildDetail() → detailChanged), and that is how
+    // this page follows the shot. Resetting on every one of those closed the golfer's open path and
+    // dropped a hover in progress each time a ball landed or a swing was picked.
+    property string _shownId: ""
+    onDetailChanged: {
+        const id = root.detail ? (root.detail.id || "") : ""
+        if (id === root._shownId) return
+        root._shownId = id
+        root.expandedCause = -1; root.expandedEffect = -1; col.hoveredShot = -1
+    }
 
     // The rail heights: the design's own node row wide, and whatever the vertical form asks for
     // in the 396 arrangement.
@@ -140,6 +153,115 @@ Item {
                 fit: root.fit
                 interactive: root.interactive
                 onFocusToggled: (id, on) => root.focusToggled(id, on)
+            }
+
+            // ── how far, shot by shot ────────────────────────────────────────
+            //
+            // The card's two pictures at a size where every dot can be told apart: the corridor
+            // strip (every assessable shot on the measure's axis, against the bands that grade it,
+            // under the norm's own curve) and the value run (each shot's reading in the order it
+            // was struck, with the rolling median through it). Same maps, same model — this page
+            // draws the header card's `spread` bigger, it does not ask a second question.
+            readonly property var _spread: (root.header && root.header.spread
+                                            && ((root.header.spread.placed || 0) > 0
+                                                || (root.header.spread.notAssessable || 0) > 0))
+                                           ? root.header.spread : null
+            Text {
+                objectName: "sdDetailHowFarLabel"
+                width: col.width
+                visible: col._spread !== null
+                text: qsTr("HOW FAR, SHOT BY SHOT") + (col._spread && col._spread.measure
+                                                        ? "  ·  " + col._spread.measure : "")
+                elide: Text.ElideRight
+                font.family: Theme.fontData
+                font.pixelSize: root.tzMicro
+                font.letterSpacing: Theme.trackingMicro
+                color: Theme.colorText2
+            }
+            // THE LINKED HOVER'S ONE HOME on this page (the card keeps its own): both charts report
+            // into it and draw from it, and the readout between them reads it. Cleared when the
+            // page re-targets, so a hover cannot carry over to a different condition.
+            property int hoveredShot: -1
+            PpCorridorStrip {
+                objectName: "sdDetailStrip"
+                width: col.width
+                height: visible ? implicitHeight : 0
+                visible: col._spread !== null
+                spread: col._spread
+                fit: root.fit
+                large: true
+                interactive: root.interactive
+                hoverIndex: col.hoveredShot
+                onHovered: (i) => col.hoveredShot = i
+                onShotPicked: (i, shotId, swingDir) => root.shotRequested(swingDir, shotId)
+            }
+            // The hovered shot in words, between the two charts; the reviewed/current shot when
+            // nothing is hovered. The model's sentence (spreadFor: run[].readout, currentReadout).
+            Text {
+                objectName: "sdDetailHoverReadout"
+                width: col.width
+                visible: col._spread !== null
+                text: col._spread
+                      ? ((col.hoveredShot >= 0 && col._spread.run && col.hoveredShot < col._spread.run.length)
+                         ? (col._spread.run[col.hoveredShot].readout || "")
+                         : (col._spread.currentReadout || ""))
+                      : ""
+                wrapMode: Text.WordWrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+                font.family: Theme.fontData
+                font.pixelSize: root.tzMicro
+                color: col.hoveredShot >= 0 ? Theme.colorAccent : Theme.colorText
+            }
+            PpValueRun {
+                objectName: "sdDetailValueRun"
+                width: col.width
+                height: visible ? implicitHeight : 0
+                visible: col._spread !== null
+                spread: col._spread
+                fit: root.fit
+                large: true
+                interactive: root.interactive
+                hoverIndex: col.hoveredShot
+                onHovered: (i) => col.hoveredShot = i
+                onShotPicked: (i, shotId, swingDir) => root.shotRequested(swingDir, shotId)
+            }
+            Text {
+                objectName: "sdDetailRunLegend"
+                width: col.width
+                visible: col._spread !== null
+                text: col._spread
+                      ? ((col._spread.unit ? qsTr("values in %1 · ").arg(col._spread.unit) : "")
+                         + qsTr("each mark is a shot, in the order struck · line = median of the last %1 measured · grey stub on the baseline = not measured")
+                            .arg(col._spread.medianWindow || 5))
+                      : ""
+                wrapMode: Text.WordWrap
+                font.family: Theme.fontData
+                font.pixelSize: root.tzCaption
+                color: Theme.colorText3
+            }
+
+            // ── across sessions (review only) ────────────────────────────────
+            readonly property var _history: (root.detail && root.detail.history
+                                             && root.detail.history.columns)
+                                            ? root.detail.history : null
+            Text {
+                objectName: "sdDetailHistoryLabel"
+                width: col.width
+                visible: col._history !== null
+                text: qsTr("ACROSS SESSIONS")
+                font.family: Theme.fontData
+                font.pixelSize: root.tzMicro
+                font.letterSpacing: Theme.trackingMicro
+                color: Theme.colorText2
+            }
+            PpSessionHistory {
+                objectName: "sdDetailHistory"
+                width: col.width
+                height: visible ? root.px(220) : 0
+                visible: col._history !== null
+                history: col._history
+                fit: root.fit
             }
 
             // The honesty mark, when this condition is not a live card — a ghost, a screened root

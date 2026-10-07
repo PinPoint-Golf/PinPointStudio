@@ -418,16 +418,15 @@ void WorkOnsController::publish()
             if (e.hasTypical) {
                 const Measure *mm = pack.measure(e.measureId);
                 const QString unit = mm ? mm->unit : QString();
-                QString corridor;
-                switch (e.corridorShape) {
-                case CorridorShape::TwoSided:
-                    corridor = fmtNumber(e.corridorLo) + QStringLiteral(" to ") + withUnit(fmtNumber(e.corridorHi), unit); break;
-                case CorridorShape::Floor:
-                    corridor = QStringLiteral("at least ") + withUnit(fmtNumber(e.corridorLo), unit); break;
-                case CorridorShape::Ceiling:
-                    corridor = QStringLiteral("at most ") + withUnit(fmtNumber(e.corridorHi), unit); break;
-                default: break;
-                }
+                // THE SAME SENTENCE THE PANEL PRINTS (session_spread.h spreadCorridorWords): the pass
+                // band and the fault line. This used to quote the stored Ideal band as "at most
+                // 4.3", which is neither edge the session panel draws nor where anything fires.
+                ConditionRow band;
+                band.corridorLo    = e.corridorLo;
+                band.corridorHi    = e.corridorHi;
+                band.corridorShape = e.corridorShape;
+                const SpreadCorridor sc = spreadCorridorFromRow(band, gradePolicyByName(m_gradePolicy));
+                const QString corridor = sc.known ? spreadCorridorWords(sc, unit) : QString();
                 if (!corridor.isEmpty())
                     latestText += QStringLiteral(" · typically %1 against %2")
                                       .arg(withUnit(fmtNumber(e.typicalValue), unit), corridor);

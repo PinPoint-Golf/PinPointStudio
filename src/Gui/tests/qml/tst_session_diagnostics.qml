@@ -60,6 +60,82 @@ Item {
             probe.lastScreenRef = ref
             probe.lastScreenCondition = cond
         }
+        onShotRequested: (dir, id) => { probe.lastShotDir = dir; probe.lastShotId = id }
+    }
+    // The shot a value run asked for. The body selects nothing; the panel hands this to the
+    // carousel, so the request IS the contract under test here.
+    property string lastShotDir: ""
+    property int lastShotId: -1
+
+    // ── how far: a spread in the shape SessionDiagnosticsModel::spreadFor publishes ──────
+    //
+    // A ceiling (over the top on m_handPathLoop, σ 13/3): the open low side, then ideal, good,
+    // watch and action, the fault line at 13 %. Five shots, the second not measured, the fourth
+    // the one being read, the fifth off the scale.
+    function spreadFixture() {
+        const run = []
+        const states = ["fired", "notAssessable", "clean", "fired", "fired"]
+        const fy = [0.45, 0, 0.2, 0.5, 1.0]
+        for (let i = 0; i < 5; ++i)
+            run.push({ index: i, shotId: i + 1, swingDir: "/lib/a/s/swing_000" + (i + 1),
+                       state: states[i], assessable: i !== 1, fx: (i + 0.5) / 5, fy: fy[i],
+                       clipped: i === 4 ? 1 : 0, current: i === 3, selected: i === 3,
+                       valueText: i === 1 ? "-" : "13 % hand rise",
+                       readout: i === 1 ? "shot 2 · - · not measured"
+                                        : "shot " + (i + 1) + " · 13 % hand rise · inside the pass band · " + states[i] })
+        return {
+            measure: "Hand path loop, through the transition", unit: "% hand rise",
+            axisLo: -2, axisHi: 30, decimals: 0, corridorKnown: true, shape: "ceiling",
+            bands: [
+                { grade: "open",   lo: -2,    hi: 0,     f0: 0,      f1: 0.0625 },
+                { grade: "ideal",  lo: 0,     hi: 4.33,  f0: 0.0625, f1: 0.198 },
+                { grade: "good",   lo: 4.33,  hi: 8.67,  f0: 0.198,  f1: 0.333 },
+                { grade: "watch",  lo: 8.67,  hi: 13,    f0: 0.333,  f1: 0.469 },
+                { grade: "action", lo: 13,    hi: 30,    f0: 0.469,  f1: 1 }
+            ],
+            faultLines: [{ value: 13, f: 0.469, text: "fault at 13 % hand rise", shortText: "13 % hand rise" }],
+            muF: 0.0625, muText: "0 % hand rise",
+            curve: [{ f: 0.0625, d: 1 }, { f: 0.2, d: 0.6 }, { f: 0.33, d: 0.13 }, { f: 0.47, d: 0.01 }],
+            normSource: "heuristic", normTag: "norm · coaching judgement",
+            normTagLong: "The curve is the norm's claim, and the norm is coaching judgement (heuristic), not measured data. It is not fitted to your shots.",
+            normCitation: "",
+            dots: [
+                { index: 0, shotId: 1, swingDir: "/lib/a/s/swing_0001", f: 0.45, clipped: 0, stack: 0, state: "fired", current: false, recent: true, valueText: "14 % hand rise" },
+                { index: 2, shotId: 3, swingDir: "/lib/a/s/swing_0003", f: 0.2,  clipped: 0, stack: 0, state: "clean", current: false, recent: true, valueText: "4 % hand rise" },
+                { index: 3, shotId: 4, swingDir: "/lib/a/s/swing_0004", f: 0.5,  clipped: 0, stack: 0, state: "fired", current: true,  recent: true, valueText: "15 % hand rise" },
+                { index: 4, shotId: 5, swingDir: "/lib/a/s/swing_0005", f: 1.0,  clipped: 1, stack: 0, state: "fired", current: false, recent: true, valueText: "200 % hand rise" }
+            ],
+            stackMax: 0, clipHiCount: 1, clipHiText: "200 % hand rise", clipLoCount: 0, clipLoText: "",
+            run: run,
+            median: [{ index: 2, fx: 0.5, fy: 0.42, value: 13 }, { index: 3, fx: 0.7, fy: 0.45, value: 14 },
+                     { index: 4, fx: 0.9, fy: 0.47, value: 14 }],
+            medianWindow: 5, notAssessable: 1, pastFault: 3, placed: 4,
+            medianText: "14 % hand rise",
+            caption: "median 14 % hand rise · 3 past the fault line · 3 of 4 outside · 1 not measured · 1 off scale, at 200 % hand rise",
+            captionShort: "median 14 % hand rise · 3 past the fault line · 1 not measured · 1 off scale, at 200 % hand rise",
+            currentReadout: "shot 4 · 13 % hand rise · inside the pass band · fired",
+            yTicks: [{ value: 0, f: 0.0625, text: "0" }, { value: 10, f: 0.375, text: "10" },
+                     { value: 20, f: 0.6875, text: "20" }],
+            medianNumber: "14", currentNumber: "15", currentState: "fired",
+            dirLeft: "← better", dirCentre: "", dirRight: "worse →",
+            highMeans: "the hands came down further outside the path they went up on"
+        }
+    }
+    function historyFixture() {
+        const sp = spreadFixture()
+        function col(label, cur, fs, med) {
+            return { label: label, current: cur, n: fs.length, sessionDir: "/lib/a/" + label,
+                     values: fs.map(function (f, i) { return { f: f, clipped: 0, stack: i % 3, value: 0 } }),
+                     stackMax: 2, fQ1: med - 0.05, fQ3: med + 0.05, fMedian: med, median: 0,
+                     medianText: label === "4 Jul" ? "22" : (cur ? "13" : "19") }
+        }
+        return { axisLo: sp.axisLo, axisHi: sp.axisHi, bands: sp.bands, faultLines: sp.faultLines,
+                 columns: [col("4 Jul", false, [0.7, 0.75, 0.8], 0.75),
+                           col("5 Oct", false, [0.6, 0.66, 0.7], 0.66),
+                           col("7 Oct", true,  [0.4, 0.45, 0.5], 0.45)],
+                 yTicks: sp.yTicks,
+                 caption: "median 22 → 19 → 13 % hand rise", loading: false, missing: 0,
+                 hiddenEarlier: 0, hiddenLater: 0 }
     }
 
     // shotReadout() is an invokable, so the panel fetches it and hands it down — which means
@@ -844,6 +920,8 @@ Item {
             probe.pipFired = 0
             probe.lastScreenRef = ""
             probe.lastScreenCondition = ""
+            probe.lastShotDir = ""
+            probe.lastShotId = -1
             probe.focusCalls = 0
             probe.lastFocusId = ""
             probe.clearFocusCalls = 0
@@ -2514,6 +2592,301 @@ Item {
         // ── nothing escapes the panel ────────────────────────────────────────
         // The chrome is 1 px of border and a radius; a card or a strip that overhung it
         // would be clipped away rather than drawn, which is a finding gone missing.
+        // ── how far, not only whether ──────────────────────────────────────────────────
+        //
+        // THE CARD CARRIES TWO FIGURES, THE DETAIL CARRIES THE CHARTS. A card is back to its
+        // tick run with the session median and this shot's reading overlaid in large type; the
+        // corridor strip, the value run and the across-sessions columns live in the condition
+        // detail, drawn tall with Y labels, with the linked hover between strip and run.
+        function spreadSource() {
+            const s = spied(formingSource(false))
+            s.cards[0].spread = probe.spreadFixture()
+            return s
+        }
+        function spreadDetailSource() {
+            const s = detailSource()
+            s.detail.header.spread = probe.spreadFixture()
+            s.detail.history = probe.historyFixture()
+            return s
+        }
+
+        function test_43_aCardShowsTwoFiguresAndItsTickRunNotCharts() {
+            setSource(spreadSource())
+            laidOut()
+            const cards = visibleAll(body, "sdPatternCard")
+            compare(findAll(cards[0], "sdCorridorStrip").length, 0, "no corridor strip on a card")
+            compare(findAll(cards[0], "sdValueRun").length, 0, "…and no value run")
+            verify(shown(one(cards[0], "sdTickRun")), "the card keeps its tick run, as it was")
+            compare(findAll(one(cards[0], "sdTickRun"), "sdTick").length, 5, "…one tick per shot")
+
+            const figs = one(cards[0], "sdCardFigures")
+            verify(shown(figs), "a card with readings carries the two figures")
+            compare(one(cards[0], "sdCardMedian").text, "14", "the session MEDIAN, unit-less")
+            compare(one(cards[0], "sdCardCurrent").text, "15", "…and this shot's reading")
+            compare(one(cards[0], "sdCardCurrent").color, Theme.colorError, "…coloured by its verdict (fired)")
+            compare(one(cards[0], "sdCardFiguresUnit").text, "% hand rise", "the unit, once")
+            verify(one(cards[0], "sdCardMedianCaption").visible
+                   && one(cards[0], "sdCardMedianCaption").text === "session median",
+                   "captioned \"session median\" at the design size")
+            verify(one(cards[0], "sdCardCurrent").font.pixelSize > one(cards[0], "sdCardRecurrence").font.pixelSize,
+                   "the figures are larger than anything else on the card")
+            const rec = one(cards[0], "sdCardRecurrence")
+            verify(rec.mapToItem(cards[0], rec.width, 0).x <= figs.x + 0.5,
+                   "the recurrence line gives way to the figures rather than running under them")
+            verify(!shown(one(cards[1], "sdCardFigures")), "a card with no readings shows no figures")
+
+            // An unmeasured current shot: "-", in the quiet grey — never 0.
+            const s2 = spreadSource()
+            s2.cards[0].spread.currentNumber = "-"
+            s2.cards[0].spread.currentState = "notAssessable"
+            setSource(s2)
+            laidOut()
+            const c2 = visibleAll(body, "sdPatternCard")[0]
+            compare(one(c2, "sdCardCurrent").text, "-", "an unmeasured shot reads \"-\"")
+            compare(one(c2, "sdCardCurrent").color, Theme.colorText3, "…in the quiet grey")
+        }
+
+        function test_44_theDetailRunIsTallLabelledAndKeepsTheTickRunsPromises() {
+            setSource(spreadDetailSource())
+            laidOut()
+            const d = one(body, "sdDetailBody")
+            const vr = one(d, "sdDetailValueRun")
+            verify(shown(vr), "the value run is drawn in the detail")
+            verify(vr.height >= 2 * Math.round(120 * Theme.fontScale * d.fit) - 1,
+                   "…at twice its first height (" + vr.height + ")")
+            const strip = one(d, "sdDetailStrip")
+            verify(one(strip, "sdStripPlot").height >= 2 * Math.round(58 * Theme.fontScale * d.fit) - 1,
+                   "the strip's plot is twice its first height too")
+            const ticks = findAll(vr, "sdRunYTick")
+            compare(ticks.map(function (t) { return t.text }).join(" "), "0 10 20", "the run has round Y labels")
+            const marks = findAll(vr, "sdRunMark")
+            compare(marks.length, 5, "one mark per shot, the unmeasured one included — never a gap")
+            verify(marks.every(function (m) { return m.x >= vr._gutter - 1 }), "…all clear of the label gutter")
+            const na = marks[1], fired = marks[0]
+            verify(na.height > 0 && na.height < vr.height / 4, "the unmeasured shot is a SHORT stub")
+            compare(na.y + na.height, vr.height - 1, "…standing on the baseline")
+            compare(na.children[0].border.width, 0, "…a bare stub, not an outlined box that reads as 0")
+            compare(fired.children[0].color, Theme.colorError, "fired keeps its colour")
+            compare(marks[2].children[0].color, Theme.colorGood, "clean keeps its colour")
+            verify(marks[0].y > marks[3].y, "a higher reading is drawn higher")
+            compare(findAll(vr, "sdRunSelected").filter(function (r) { return r.visible }).length, 1,
+                    "the shot being read is the one wide outlined mark")
+            vr.pick(2)
+            compare(probe.lastShotDir, "/lib/a/s/swing_0003", "pick() asks for that swing by folder")
+            probe.lastShotDir = ""
+            mouseClick(vr, marks[0].x + marks[0].width / 2, marks[0].y + marks[0].height / 2)
+            compare(probe.lastShotDir, "/lib/a/s/swing_0001", "a click on shot 1's mark asks for shot 1")
+        }
+
+        function test_45_theDetailStripSaysWhichWayIsBetterAndHistoryHasAScale() {
+            setSource(spreadDetailSource())
+            laidOut()
+            const d = one(body, "sdDetailBody")
+            const strip = one(d, "sdDetailStrip")
+            verify(shown(strip) && strip.large, "the strip is drawn large in the detail")
+            verify(shown(one(strip, "sdStripDirRow")), "the direction has its own row above the strip")
+            const bl = one(strip, "sdStripDirBigLeft"), br = one(strip, "sdStripDirBigRight")
+            compare(bl.text, "← better"); compare(br.text, "worse →")
+            verify(bl.font.pixelSize > one(strip, "sdStripFaultLabel").font.pixelSize,
+                   "…in larger type than the labels under it")
+            const mu = 0.0625 * strip.width
+            verify(bl.x + bl.implicitWidth <= mu + 0.5 && br.x >= mu - 0.5,
+                   "…split at the aspiration point: better to its left, worse to its right")
+            verify(!shown(one(strip, "sdStripDirLeft")), "the faint corner words are gone at this size")
+            compare(one(strip, "sdStripCaption").text,
+                    "median 14 % hand rise · 3 past the fault line · 3 of 4 outside · 1 not measured · 1 off scale, at 200 % hand rise",
+                    "the full caption")
+            compare(one(d, "sdDetailHoverReadout").text, "shot 4 · 13 % hand rise · inside the pass band · fired",
+                    "the readout line reads the current shot")
+            verify(shown(one(d, "sdDetailRunLegend")) && one(d, "sdDetailRunLegend").text.indexOf("values in % hand rise") === 0,
+                   "the run's unit is named once, in its legend")
+
+            const hist = one(d, "sdDetailHistory")
+            verify(shown(hist), "review: the across-sessions columns are drawn")
+            compare(findAll(hist, "sdHistoryYTick").map(function (t) { return t.text }).join(" "), "0 10 20",
+                    "…on the same round Y labels")
+            const cols = findAll(hist, "sdHistoryColumn")
+            compare(cols.length, 3, "one column per session")
+            verify(cols[2].current && !cols[0].current, "the last column is this session")
+            verify(cols[0].x >= 0 && cols[0].mapToItem(hist, 0, 0).x >= hist._gutter - 1, "…clear of the label gutter")
+            const meds = findAll(hist, "sdHistoryMedian")
+            verify(meds[0].y < meds[2].y, "an older, higher median is drawn higher")
+            compare(one(hist, "sdHistoryCaption").text, "median 22 → 19 → 13 % hand rise")
+
+            const s = spreadDetailSource()
+            s.detail.history = ({})
+            setSource(s)
+            laidOut()
+            verify(!shown(one(body, "sdDetailHistory")), "no history published, no columns drawn")
+        }
+
+        function test_46_theFiguresFitTheCardsAtEverySize() {
+            // The real panel's cards (142 px at a large type), the design size, and the 396 split,
+            // in both studio themes: the figures stay inside the card and never shrink; when the
+            // card is short the captions go first.
+            const sizes = [[1168, 560, 1.0], [935, 491, 1.35], [396, 700, 1.0], [396, 700, 1.35]]
+            for (const theme of [5, 4]) {
+                for (const sz of sizes) {
+                    Theme.themeIndex = theme
+                    Theme.fontScale = sz[2]
+                    probe.width = sz[0]; probe.height = sz[1]
+                    setSource(spreadSource())
+                    laidOut()
+                    const card = visibleAll(body, "sdPatternCard")[0]
+                    const tag = "theme " + theme + " " + sz.join("×") + ": "
+                    const figs = one(card, "sdCardFigures")
+                    verify(shown(figs), tag + "the figures are drawn")
+                    verify(figs.x >= 0 && figs.x + figs.width <= card.width + 0.5, tag + "…inside the card's width")
+                    verify(figs.y + figs.height <= card.height + 0.5, tag + "…and height")
+                    compare(one(card, "sdCardCurrent").font.pixelSize, card.tzFigure, tag + "…at full size")
+                    const unit = one(card, "sdCardFiguresUnit")
+                    verify(unit.visible && unit.mapToItem(card, unit.width, 0).x <= card.width + 0.5,
+                           tag + "…the unit always shown, once, inside the card ("
+                           + (one(card, "sdCardMedianCaption").visible ? "under the captions" : "beside the numbers") + ")")
+                    const run = one(card, "sdTickRun")
+                    if (shown(run) && one(card, "sdCardMedianCaption").visible)
+                        verify(figs.y + figs.height <= run.mapToItem(card, 0, 0).y + 0.5,
+                               tag + "…and with captions they never run into the tick run")
+                }
+            }
+            Theme.themeIndex = 5
+            Theme.fontScale = 1.0
+        }
+
+        // ── the linked hover in the detail, the readout, nearest-dot picking ──────────────
+        function test_47_aHoverLightsTheSameShotInBothDetailChartsAndReadsIt() {
+            // Tall enough that the whole run is inside the window: a pointer event below the
+            // window's edge is never delivered, and the run now sits well down the detail.
+            probe.height = 1200
+            setSource(spreadDetailSource())
+            laidOut()
+            const d = one(body, "sdDetailBody")
+            const strip = one(d, "sdDetailStrip"), vr = one(d, "sdDetailValueRun")
+            const line = one(d, "sdDetailHoverReadout")
+            const dots = findAll(strip, "sdStripDot"), marks = findAll(vr, "sdRunMark")
+
+            const dt = dots[1]                               // run index 2
+            const dp = dt.mapToItem(strip, dt.width / 2, dt.height / 2)
+            mouseMove(strip, dp.x, dp.y)
+            verify(dt.hot && marks[2].hot, "a strip hover lights the same shot in both charts")
+            compare(line.text, "shot 3 · 13 % hand rise · inside the pass band · clean", "…and the line reads it")
+
+            const m1 = marks[1]
+            mouseMove(vr, m1.x + m1.width / 2, m1.y + m1.height / 2)
+            verify(marks[1].hot && dots.every(function (x) { return !x.hot }),
+                   "a run hover on the unmeasured shot lights it there, and nothing on the strip")
+            compare(line.text, "shot 2 · - · not measured", "…and the line reads \"-\"")
+
+            mouseMove(d, 2, 2)
+            compare(line.text, "shot 4 · 13 % hand rise · inside the pass band · fired",
+                    "leaving the charts returns the line to the current shot")
+            compare(probe.lastShotDir, "", "hovering selects nothing")
+
+            const chev = dots[3]
+            const cp = chev.mapToItem(strip, chev.width / 2, chev.height / 2)
+            compare(strip.nearestDot(cp.x - 2, cp.y + 1), 3, "the pinned outlier is pickable by its nearest centre")
+            strip.pickDot(3)
+            compare(probe.lastShotDir, "/lib/a/s/swing_0005", "…and picking it asks for that swing")
+            compare(strip.nearestDot(cp.x - 400, -50), -1, "nothing within reach picks nothing")
+        }
+
+        // ── the open detail follows the current shot ──────────────────────────────────
+        //
+        // The model republishes `detail` when the picked swing moves or a shot lands (rebuild()),
+        // and the page must redraw every shot-dependent field off it — without closing, without
+        // re-targeting, and without dropping a hover in progress. The source object is REPLACED,
+        // never nulled in between, exactly as a republish arrives.
+        function detailAt(idx, extraShot) {
+            const s = spreadDetailSource()
+            const sp = s.detail.header.spread
+            const states = ["fired", "notAssessable", "clean", "fired", "fired", "clean"]
+            if (extraShot) {                                  // a sixth shot, live
+                sp.run.push({ index: 5, shotId: 6, swingDir: "/lib/a/s/swing_0006", state: "clean",
+                              assessable: true, fx: 0.95, fy: 0.15, clipped: 0, current: false, selected: false,
+                              valueText: "3 % hand rise", readout: "shot 6 · 3 % hand rise · inside the pass band · clean" })
+                for (let i = 0; i < 5; ++i) sp.run[i].fx = (i + 0.5) / 6
+                sp.dots.push({ index: 5, shotId: 6, swingDir: "/lib/a/s/swing_0006", f: 0.15, clipped: 0, stack: 1,
+                               state: "clean", current: false, recent: true, valueText: "3 % hand rise" })
+                s.detail.header.ticks = s.detail.header.ticks.concat([tick("clean")])
+            }
+            for (let i = 0; i < sp.run.length; ++i) { sp.run[i].current = i === idx; sp.run[i].selected = i === idx }
+            for (let i = 0; i < sp.dots.length; ++i) sp.dots[i].current = sp.dots[i].index === idx
+            const st = states[idx]
+            sp.currentState = st === "notAssessable" ? "notAssessable" : st
+            sp.currentNumber = st === "notAssessable" ? "-" : ("" + (10 + idx))
+            sp.currentReadout = sp.run[idx].readout
+            s.detail.header.thisShot = st
+            s.detail.header.statePill = st === "fired" ? "FIRED HERE" : st === "clean" ? "CLEAN HERE" : "NOT MEASURED"
+            s.detail.header.ticks = s.detail.header.ticks.map(function (t, i) {
+                return { state: t.state, shotId: i + 1, selected: i === idx } })
+            return s
+        }
+        function republish(s) { probe.src = s; wait(0); laidOut() }
+
+        function test_48_theOpenDetailFollowsTheCurrentShot() {
+            probe.height = 1200
+            setSource(detailAt(3, false))
+            laidOut()
+            const d = one(body, "sdDetailBody")
+            const head = one(d, "sdDetailHeaderCard")
+            const strip = one(d, "sdDetailStrip"), vr = one(d, "sdDetailValueRun")
+            const line = one(d, "sdDetailHoverReadout")
+            function selectedTick() {
+                const ts = findAll(one(head, "sdTickRun"), "sdTick")
+                for (let i = 0; i < ts.length; ++i) if (ts[i].selected) return i
+                return -1
+            }
+            function ringed() {
+                const ds = findAll(strip, "sdStripDot").filter(function (x) { return x.current })
+                return ds.length === 1 ? ds[0].modelData.index : -1
+            }
+            function wideMark() {
+                const ms = findAll(vr, "sdRunSelected")
+                for (let i = 0; i < ms.length; ++i) if (ms[i].visible) return i
+                return -1
+            }
+            function check(idx, number, colour, pill, tag) {
+                verify(shown(d), tag + ": the detail is still open")
+                compare(one(head, "sdCardName").text, "Casting", tag + ": …on the same condition")
+                compare(one(head, "sdCardCurrent").text, number, tag + ": the header's this-shot figure")
+                compare(one(head, "sdCardCurrent").color, colour, tag + ": …in its state's colour")
+                compare(one(head, "sdStatePill").children[0].text, pill, tag + ": the chip")
+                compare(selectedTick(), idx, tag + ": the tick run's selected tick")
+                compare(ringed(), one(head, "sdCardCurrent").text === "-" ? -1 : idx, tag + ": the strip's ringed dot")
+                compare(wideMark(), idx, tag + ": the run's wide mark")
+            }
+
+            check(3, "13", Theme.colorError, "FIRED HERE", "shot 4 picked")
+            compare(line.text, "shot 4 · 13 % hand rise · inside the pass band · fired", "the readout falls back to shot 4")
+
+            // A swing is picked in the carousel (or on the run): the model republishes the detail.
+            republish(detailAt(2, false))
+            check(2, "12", Theme.colorGood, "CLEAN HERE", "shot 3 picked")
+            compare(line.text, "shot 3 · 13 % hand rise · inside the pass band · clean", "…and the readout follows")
+
+            // The unmeasured swing: "-", grey, and no ringed dot on the axis.
+            republish(detailAt(1, false))
+            check(1, "-", Theme.colorText3, "NOT MEASURED", "the unmeasured shot picked")
+
+            // A HOVER IN PROGRESS survives a republish.
+            republish(detailAt(3, false))
+            const dt = findAll(strip, "sdStripDot")[1]                 // run index 2
+            const dp = dt.mapToItem(strip, dt.width / 2, dt.height / 2)
+            mouseMove(strip, dp.x, dp.y)
+            verify(dt.hot, "hovering shot 3")
+            republish(detailAt(0, false))
+            verify(findAll(strip, "sdStripDot")[1].hot, "…the hover survives the shot changing under it")
+            compare(line.text, "shot 3 · 13 % hand rise · inside the pass band · clean", "…and the line still reads it")
+            mouseMove(d, 2, 2)
+
+            // LIVE: a sixth shot lands and the detail, following the newest, moves onto it.
+            republish(detailAt(5, true))
+            check(5, "15", Theme.colorGood, "CLEAN HERE", "a new shot arrived")
+            compare(findAll(vr, "sdRunMark").length, 6, "…the run grows by one")
+            compare(findAll(strip, "sdStripDot").length, 5, "…and the strip by its dot")
+            compare(line.text, "shot 6 · 3 % hand rise · inside the pass band · clean", "…and the readout reads it")
+        }
+
         function test_20_nothingOverhangsTheChrome() {
             const sizes = [[1168, 560], [396, 560], [820, 420]]
             const sources = [coldSource(probe.expectationRows), formingSource(false),

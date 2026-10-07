@@ -41,7 +41,9 @@
 #include <QTimeZone>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
+#include <limits>
 #include <memory>
 
 using namespace pinpoint::analysis;
@@ -1406,6 +1408,363 @@ int main(int argc, char **argv)
             if (cv.toMap().value(QStringLiteral("stateKind")).toString() != QLatin1String("notAssessable"))
                 stillWithheld = false;
         check(stillWithheld, "…and the exclusion survives a reload from the persisted ledger");
+    }
+
+    // ── How far, not only whether (session_spread.h, spreadOf, historyOf) ────────────
+    //
+    // The tick run says WHETHER; the strip and the value run say HOW FAR. What is asserted is the
+    // arithmetic the QML is handed and must not redo: the band edges for each corridor shape, the
+    // open side painted as not-graded rather than good, the dots being exactly the assessable
+    // shots, the trailing median, the clipping rule, and the across-sessions read being
+    // read-only. The ledger here is WRITTEN rather than detected, so every number is known.
+    std::printf("\nhow far: the corridor strip, the value run, across sessions\n");
+    {
+        const GradePolicy std3{};   // standard: 1 / 2 / 3
+
+        // The three shapes, reconstructed from a stored row (no norm) — the fallback path.
+        ConditionRow two;
+        two.corridorLo = 10.0; two.corridorHi = 20.0; two.corridorShape = CorridorShape::TwoSided;
+        const SpreadCorridor c2 = spreadCorridorFromRow(two, std3);
+        check(c2.known && std::fabs(c2.mu - 15.0) < 1e-9 && std::fabs(c2.sigmaLo - 5.0) < 1e-9,
+              "two-sided: mu is the middle of the stored Ideal band, σ its half-width");
+        check(std::fabs(c2.signalLo - 5.0) < 1e-9 && std::fabs(c2.signalHi - 25.0) < 1e-9
+                  && std::fabs(c2.faultLo - 0.0) < 1e-9 && std::fabs(c2.faultHi - 30.0) < 1e-9,
+              "…the signal fires at 2σ and the fault line sits at 3σ, on both sides");
+        {
+            const SpreadAxis a = spreadAxisFor(c2, { 15.0 });
+            const std::vector<SpreadBand> b = spreadBands(c2, a);
+            QStringList g;
+            for (const SpreadBand &x : b) g << x.grade;
+            check(g.join(QLatin1Char(',')) == QLatin1String("action,watch,good,ideal,good,watch,action"),
+                  "…bands left to right: action watch good IDEAL good watch action (one Ideal, not two)");
+            check(a.lo < 0.0 && a.hi > 30.0, "…and the axis reaches past both fault lines");
+        }
+
+        ConditionRow floorRow;
+        floorRow.corridorLo = 1.4; floorRow.corridorHi = 1.5; floorRow.corridorShape = CorridorShape::Floor;
+        const SpreadCorridor cf = spreadCorridorFromRow(floorRow, std3);
+        check(cf.known && cf.highOpen && std::fabs(cf.mu - 1.5) < 1e-9
+                  && std::fabs(cf.faultLo - 1.2) < 1e-9 && std::fabs(cf.faultHi - 1.5) < 1e-9,
+              "floor: mu is the stored HIGH edge, the fault line is below it, the high side is open");
+        {
+            const SpreadAxis a = spreadAxisFor(cf, { 1.45 });
+            QStringList g;
+            for (const SpreadBand &x : spreadBands(cf, a)) g << x.grade;
+            check(g.join(QLatin1Char(',')) == QLatin1String("action,watch,good,ideal,open"),
+                  "…the open side is drawn as not graded, never as good");
+            check(spreadCurve(cf, a).back().first <= cf.mu + 1e-12,
+                  "…and the norm's curve is a HALF curve, on the graded side only");
+        }
+
+        // A norm with an explicit monitor band inside the Good edge: Watch is capped, the bands
+        // still nest and nothing is drawn over anything else.
+        Norm n;
+        n.mu = 0.0; n.sigmaLo = n.sigmaHi = 10.0; n.monitorHi = 15.0;
+        const SpreadCorridor cm = spreadCorridorFromNorm(n, Shape::Ceiling, std3);
+        check(cm.known && cm.lowOpen && std::fabs(cm.faultHi - 15.0) < 1e-9
+                  && std::fabs(cm.signalHi - 15.0) < 1e-9 && std::fabs(cm.idealHi - 10.0) < 1e-9,
+              "a monitor bound at 1.5σ is the fault line, and the signal edge never passes it");
+
+        // The trailing median: half the window before the first point, NaN shots skipped.
+        const double NaN = std::numeric_limits<double>::quiet_NaN();
+        const std::vector<double> run{ 12, 14, 3, 2, NaN, 9, 30, 11, 13, 200 };
+        const std::vector<double> med = trailingMedians(run, 5);
+        check(!std::isfinite(med[0]) && !std::isfinite(med[1]) && std::fabs(med[2] - 12.0) < 1e-9
+                  && std::fabs(med[3] - 7.5) < 1e-9 && !std::isfinite(med[4])
+                  && std::fabs(med[9] - 13.0) < 1e-9,
+              "the rolling median is trailing over the last 5 assessable shots, from the 3rd one");
+
+        // The clipping rule: three spreads past the quartiles.
+        ConditionRow ceilRow;
+        ceilRow.corridorLo = 0.0; ceilRow.corridorHi = 7.0 / 3.0; ceilRow.corridorShape = CorridorShape::Ceiling;
+        const SpreadCorridor cc = spreadCorridorFromRow(ceilRow, std3);
+        const SpreadAxis ax = spreadAxisFor(cc, { 12, 14, 3, 2, 9, 30, 11, 13, 200 });
+        int clipped = 0;
+        ax.fraction(200.0, &clipped);
+        check(clipped == 1 && ax.hi < 30.0 && ax.hi > 14.0,
+              "an outlier past the fence is pinned to the edge, not allowed to set the scale");
+        ax.fraction(13.0, &clipped);
+        check(clipped == 0, "…while an ordinary bad shot stays on the axis");
+
+        // The corridor in words: the PASS band and the FAULT line the strip draws — never the
+        // stored Ideal band ("pass 0.0 to 4.3" was mu to mu + σ, an edge nothing fires at).
+        const QString hr = QStringLiteral("% hand rise");
+        std::printf("      words: \"%s\" | \"%s\" | \"%s\"\n",
+                    qPrintable(spreadCorridorWords(cc, hr)),
+                    qPrintable(spreadCorridorWords(c2, QStringLiteral("mm"))),
+                    qPrintable(spreadCorridorWords(cf, QString())));
+        check(spreadCorridorWords(cc, hr) == QStringLiteral("pass up to 4.7 · fault at 7 % hand rise"),
+              "ceiling: \"pass up to <signal> · fault at <fault>\", trailing zeros dropped");
+        check(spreadCorridorWords(c2, QStringLiteral("mm")) == QStringLiteral("pass 5 to 25 · fault outside 0 to 30 mm"),
+              "two-sided: both pass edges and both fault lines");
+        check(spreadCorridorWords(cf, QString()) == QStringLiteral("pass from 1.3 up · fault at 1.2"),
+              "floor: the mirror, never assuming high is bad");
+        check(spreadPositionWords(cc, 10.0, 0) == QStringLiteral("3 past the fault line")
+                  && spreadPositionWords(cc, 5.0, 0) == QStringLiteral("past the pass band, 2 short of the fault line")
+                  && spreadPositionWords(cc, -3.0, 0) == QStringLiteral("inside the pass band")
+                  && spreadPositionWords(cc, NaN, 0) == QStringLiteral("-")
+                  && spreadPositionWords(cc, 7.04, 0) == QStringLiteral("at the fault line")
+                  && spreadPositionWords(cc, 6.97, 0) == QStringLiteral("at the fault line")
+                  && spreadPositionWords(cc, 7.04, 1) == QStringLiteral("at the fault line")
+                  && spreadPositionWords(cc, 7.4, 1) == QStringLiteral("0.4 past the fault line"),
+              "a reading placed in words: past the fault line by how much, at it (when the distance rounds to 0), past the pass band, inside, or -");
+
+        // ── The model's published surface, over a WRITTEN ledger ──────────────────────
+        //
+        // An athlete with three sessions that have ledgers and one that does not. The current one
+        // carries ten shots of over_the_top on the shipped m_handPathLoop norm (a ceiling, σ 13/3,
+        // so the fault line is 13 % of the hand rise and the signal fires past 2σ ≈ 8.7 %).
+        auto writeLedger = [](const QString &dir, const std::vector<double> &vals, qint64 t0) {
+            std::vector<ShotRecord> shots;
+            for (size_t i = 0; i < vals.size(); ++i) {
+                ShotRecord s;
+                s.shotId = int(i) + 1;
+                s.timestampMs = t0 + qint64(i) * 60000;
+                s.contextId = QStringLiteral("iron_7");
+                ConditionRow r;
+                r.conditionId = QStringLiteral("over_the_top");
+                r.drivingMeasureId = QStringLiteral("m_handPathLoop");
+                r.contextId = QStringLiteral("iron_7");
+                if (std::isfinite(vals[i])) {
+                    r.value = vals[i];
+                    r.corridorLo = 0.0; r.corridorHi = 13.0 / 3.0;
+                    r.corridorShape = CorridorShape::Ceiling;
+                    r.z = vals[i] / (13.0 / 3.0);
+                    r.state = vals[i] > 26.0 / 3.0 ? ShotState::Fired : ShotState::Clean;
+                    r.direction = r.state == ShotState::Fired ? 1 : 0;
+                } else {
+                    r.state = ShotState::NotAssessable;
+                    r.notAssessableReason = QStringLiteral("hands not tracked");
+                }
+                s.rows.push_back(r);
+                shots.push_back(s);
+            }
+            QJsonObject root;
+            root[QStringLiteral("schemaVersion")] = 1;
+            root[QStringLiteral("ledger")] = toJson(shots);
+            return writeDiagnosticsJson(dir, root);
+        };
+        const qint64 day = 86400000LL;
+        const QString cur  = makeSession(tmp, "athlete_spread", "2026-10-07_A_Wrist_01");
+        const QString old1 = makeSession(tmp, "athlete_spread", "2026-07-04_A_Wrist_01");
+        const QString old2 = makeSession(tmp, "athlete_spread", "2026-09-09_A_Wrist_01");
+        const QString bare = makeSession(tmp, "athlete_spread", "2026-08-01_A_Wrist_01");
+        QDir().mkpath(QDir(bare).filePath(QStringLiteral("swing_0001")));
+        check(writeLedger(cur, run, kStageEpochMs + 280 * day)
+                  && writeLedger(old1, { 20, 22, 24 }, kStageEpochMs + 184 * day)
+                  && writeLedger(old2, { 18, 19, 20, NaN }, kStageEpochMs + 250 * day),
+              "three written ledgers in one athlete folder");
+        const QByteArray old1Before = diagnosticsJsonOf(old1).isEmpty() ? QByteArray()
+            : QJsonDocument(diagnosticsJsonOf(old1)).toJson(QJsonDocument::Compact);
+
+        auto ms = freshModel();
+        ms->activateSession(cur);
+        const QVariantMap sp = ms->spreadOf(QStringLiteral("over_the_top"));
+        check(!sp.isEmpty(), "spreadOf answers for a condition with a ledger");
+        check(sp.value(QStringLiteral("shape")).toString() == QLatin1String("ceiling")
+                  && sp.value(QStringLiteral("corridorKnown")).toBool(),
+              "…graded against the shipped ceiling norm");
+        const QVariantList faults = sp.value(QStringLiteral("faultLines")).toList();
+        check(faults.size() == 1
+                  && std::fabs(faults.first().toMap().value(QStringLiteral("value")).toDouble() - 13.0) < 1e-6,
+              "…with ONE fault line, at the norm's Action edge of 13 % of the hand rise");
+        check(!faults.isEmpty()
+                  && faults.first().toMap().value(QStringLiteral("text")).toString() == QLatin1String("fault at 13 % hand rise")
+                  && faults.first().toMap().value(QStringLiteral("shortText")).toString() == QLatin1String("13 % hand rise"),
+              "…worded in whole units, with the bare number for a narrow strip");
+        std::printf("      fault line: \"%s\"  caption: \"%s\"  tag: \"%s\"\n",
+                    qPrintable(faults.isEmpty() ? QString() : faults.first().toMap().value(QStringLiteral("text")).toString()),
+                    qPrintable(sp.value(QStringLiteral("caption")).toString()),
+                    qPrintable(sp.value(QStringLiteral("normTag")).toString()));
+        check(sp.value(QStringLiteral("normSource")).toString() == QLatin1String("heuristic")
+                  && sp.value(QStringLiteral("normTag")).toString().contains(QLatin1String("judgement")),
+              "…and its curve is tagged as coaching judgement, not data");
+        QStringList bandGrades;
+        for (const QVariant &b : sp.value(QStringLiteral("bands")).toList())
+            bandGrades << b.toMap().value(QStringLiteral("grade")).toString();
+        check(bandGrades.join(QLatin1Char(',')) == QLatin1String("open,ideal,good,watch,action"),
+              "…bands: the open low side, then ideal good watch action on the graded high side");
+
+        const QVariantList dots = sp.value(QStringLiteral("dots")).toList();
+        check(dots.size() == 9, "a dot for each of the 9 assessable shots — the unmeasured one is not placed");
+        check(sp.value(QStringLiteral("notAssessable")).toInt() == 1,
+              "…and is counted for the caption instead");
+        int clippedDots = 0, current = 0, recent = 0;
+        for (const QVariant &d : dots) {
+            const QVariantMap m = d.toMap();
+            if (m.value(QStringLiteral("clipped")).toInt() == 1) ++clippedDots;
+            if (m.value(QStringLiteral("current")).toBool()) ++current;
+            if (m.value(QStringLiteral("recent")).toBool()) ++recent;
+        }
+        check(clippedDots == 2, "the two outliers (30, 200) are pinned to the edge with their values");
+        check(sp.value(QStringLiteral("clipHiCount")).toInt() == 2
+                  && sp.value(QStringLiteral("clipHiText")).toString().contains(QLatin1String("200"))
+                  && sp.value(QStringLiteral("clipLoCount")).toInt() == 0,
+              "…and the edge marker names the furthest one and how many share the edge");
+        check(current == 1 && dots.last().toMap().value(QStringLiteral("current")).toBool(),
+              "live, the current shot is the newest");
+        check(recent == 5, "the last five are the emphasised ones");
+        check(sp.value(QStringLiteral("pastFault")).toInt() == 3, "3 readings past the fault line (14, 30, 200)");
+        check(sp.value(QStringLiteral("caption")).toString().contains(QLatin1String("3 past the fault line"))
+                  && sp.value(QStringLiteral("caption")).toString().contains(QLatin1String("7 of 9 outside"))
+                  && sp.value(QStringLiteral("caption")).toString().contains(QLatin1String("1 not measured")),
+              "the caption says it in words: median · past the fault line · outside · not measured");
+
+        const QVariantList runPts = sp.value(QStringLiteral("run")).toList();
+        check(runPts.size() == 10, "the value run has a point for EVERY shot");
+        check(!runPts.at(4).toMap().value(QStringLiteral("assessable")).toBool()
+                  && runPts.at(4).toMap().value(QStringLiteral("state")).toString() == QLatin1String("notAssessable"),
+              "…the unmeasured one included, as not assessable (never a gap)");
+        const QVariantList medPts = sp.value(QStringLiteral("median")).toList();
+        check(medPts.size() == 7
+                  && std::fabs(medPts.last().toMap().value(QStringLiteral("value")).toDouble() - 13.0) < 1e-9
+                  && sp.value(QStringLiteral("medianWindow")).toInt() == 5,
+              "…with the rolling median over the ledger's resolving window (5)");
+
+        // The hover readout, a line per shot, and the arrows off the corridor's shape.
+        check(runPts.at(4).toMap().value(QStringLiteral("readout")).toString()
+                  == QStringLiteral("shot 5 · - · not measured"),
+              "the readout of an unmeasured shot is \"-\", never a zero");
+        std::printf("      readout shot 1: \"%s\"\n",
+                    qPrintable(runPts.at(0).toMap().value(QStringLiteral("readout")).toString()));
+        check(runPts.at(0).toMap().value(QStringLiteral("readout")).toString()
+                  == QStringLiteral("shot 1 · 12 % hand rise · past the pass band, 1 short of the fault line · fired"),
+              "a measured shot's readout: number, reading, place against the corridor, verdict");
+        check(sp.value(QStringLiteral("currentReadout")).toString()
+                  == runPts.last().toMap().value(QStringLiteral("readout")).toString(),
+              "with nothing hovered the line reads the current shot");
+        {
+            SpreadAxis ta; ta.lo = -7.9; ta.hi = 29.3; ta.decimals = 0;
+            const std::vector<double> tv = spreadTickValues(ta);
+            QStringList tt; for (double v : tv) tt << spreadNumber(v, 0, true);
+            std::printf("      ticks over −7.9…29.3: %s\n", qPrintable(tt.join(QLatin1Char(' '))));
+            check(tt.join(QLatin1Char(' ')) == QString(QChar(0x2212)) + QStringLiteral("5 0 5 10 15 20 25"),
+                  "the Y labels are round 1-2-5 steps inside the axis, on its decimals");
+        }
+        check(!sp.value(QStringLiteral("yTicks")).toList().isEmpty(), "the spread publishes its Y labels");
+        check(sp.value(QStringLiteral("medianNumber")).toString() == QLatin1String("12")
+                  && sp.value(QStringLiteral("currentNumber")).toString() == QLatin1String("200")
+                  && sp.value(QStringLiteral("currentState")).toString() == QLatin1String("fired"),
+              "the card's two figures: the session MEDIAN and this shot, unit-less, with its state");
+        check(sp.value(QStringLiteral("dirLeft")).toString() == QStringLiteral("← better")
+                  && sp.value(QStringLiteral("dirRight")).toString() == QStringLiteral("worse →")
+                  && sp.value(QStringLiteral("dirCentre")).toString().isEmpty(),
+              "a ceiling reads \"← better   worse →\"");
+        check(sp.value(QStringLiteral("caption")).toString().contains(QStringLiteral("2 off scale, to 200 % hand rise")),
+              "the off-scale readings are named in the caption, not over the dots");
+        bool corridorWordsOk = false;
+        for (const QVariant &cv : ms->cards())
+            if (cv.toMap().value(QStringLiteral("id")).toString() == QLatin1String("over_the_top"))
+                corridorWordsOk = cv.toMap().value(QStringLiteral("corridorText")).toString()
+                                  == QStringLiteral("pass up to 8.7 · fault at 13 % hand rise");
+        check(corridorWordsOk, "the card's corridor line states the pass band and the fault line the strip draws");
+
+        // The card carries the same map.
+        bool cardHasIt = false;
+        for (const QVariant &cv : ms->cards())
+            if (cv.toMap().value(QStringLiteral("id")).toString() == QLatin1String("over_the_top"))
+                cardHasIt = canon(cv.toMap().value(QStringLiteral("spread"))) == canon(sp);
+        check(cardHasIt, "the pattern card publishes exactly what spreadOf says");
+
+        // Across sessions: oldest first, this one flagged, the ledgerless one counted.
+        ms->setReviewing(true);
+        ms->openDetail(QStringLiteral("over_the_top"));
+        const QVariantMap hist = ms->detail().value(QStringLiteral("history")).toMap();
+        const QVariantList cols = hist.value(QStringLiteral("columns")).toList();
+        check(cols.size() == 3, "review: one column per session with a ledger (3)");
+        if (cols.size() == 3) {
+            check(cols[0].toMap().value(QStringLiteral("label")).toString() == QLatin1String("4 Jul")
+                      && cols[1].toMap().value(QStringLiteral("label")).toString() == QLatin1String("9 Sep")
+                      && cols[2].toMap().value(QStringLiteral("current")).toBool(),
+                  "…oldest first, this session last and flagged");
+            check(std::fabs(cols[0].toMap().value(QStringLiteral("median")).toDouble() - 22.0) < 1e-9
+                      && std::fabs(cols[1].toMap().value(QStringLiteral("median")).toDouble() - 19.0) < 1e-9
+                      && std::fabs(cols[2].toMap().value(QStringLiteral("median")).toDouble() - 12.0) < 1e-9
+                      && cols[1].toMap().value(QStringLiteral("n")).toInt() == 3,
+                  "…each column's median over its own assessable readings (22, 19, 12)");
+        }
+        std::printf("      history caption: \"%s\"\n", qPrintable(hist.value(QStringLiteral("caption")).toString()));
+        check(hist.value(QStringLiteral("missing")).toInt() == 1,
+              "…and the session with swings but no ledger is counted, not reduced");
+        const QByteArray old1After =
+            QJsonDocument(diagnosticsJsonOf(old1)).toJson(QJsonDocument::Compact);
+        check(!old1Before.isEmpty() && old1Before == old1After, "the other sessions' ledgers are read, never written");
+        check(!QFileInfo::exists(QDir(bare).filePath(QStringLiteral("diagnostics.json"))),
+              "…and none is created for the session that had none");
+
+        // Reviewing the unmeasured shot: its figure is "-", never 0.
+        ms->setSelectedShotId(5);
+        {
+            const QVariantMap sp5 = ms->spreadOf(QStringLiteral("over_the_top"));
+            check(sp5.value(QStringLiteral("currentNumber")).toString() == QLatin1String("-")
+                      && sp5.value(QStringLiteral("currentState")).toString() == QLatin1String("notAssessable"),
+                  "an unmeasured current shot's figure is \"-\", never 0");
+            check(!hist.value(QStringLiteral("yTicks")).toList().isEmpty(), "the across-sessions chart has Y labels too");
+        }
+        ms->setSelectedShotId(-1);
+        ms->setReviewing(false);
+        check(ms->detail().value(QStringLiteral("history")).toMap().isEmpty(),
+              "live, the detail carries no across-sessions columns");
+
+        // ── THE OPEN DETAIL FOLLOWS THE CURRENT SHOT, live ───────────────────────────
+        //
+        // The bug: live, the detail took focusIndex(), which is always the newest shot, so picking
+        // another swing in the carousel republished a detail still about the newest one. Every
+        // shot-dependent field is read here off the PUBLISHED detail, as the page reads it.
+        auto headerOf = [&]() { return ms->detail().value(QStringLiteral("header")).toMap(); };
+        auto selectedIn = [](const QVariantList &xs, const char *key) {
+            int at = -1;
+            for (int i = 0; i < xs.size(); ++i) if (xs[i].toMap().value(QLatin1String(key)).toBool()) at = i;
+            return at;
+        };
+        auto currentDotIndex = [](const QVariantMap &sp) {
+            for (const QVariant &d : sp.value(QStringLiteral("dots")).toList())
+                if (d.toMap().value(QStringLiteral("current")).toBool()) return d.toMap().value(QStringLiteral("index")).toInt();
+            return -1;
+        };
+        ms->setSelectedShotId(3);                                   // live: pick shot 3 (value 3, clean)
+        {
+            const QVariantMap h = headerOf(), sp = h.value(QStringLiteral("spread")).toMap();
+            check(ms->detailConditionId() == QLatin1String("over_the_top"), "live pick: the detail stays open on the same condition");
+            check(sp.value(QStringLiteral("currentNumber")).toString() == QLatin1String("3")
+                      && sp.value(QStringLiteral("currentState")).toString() == QLatin1String("clean"),
+                  "…its figure is the picked shot's, in the picked shot's state");
+            check(h.value(QStringLiteral("statePill")).toString() == QLatin1String("CLEAN HERE"),
+                  "…the chip says CLEAN HERE");
+            check(selectedIn(h.value(QStringLiteral("ticks")).toList(), "selected") == 2,
+                  "…the tick run's wide tick is shot 3");
+            check(selectedIn(sp.value(QStringLiteral("run")).toList(), "selected") == 2
+                      && currentDotIndex(sp) == 2,
+                  "…and so are the run's wide mark and the strip's ringed dot");
+            check(sp.value(QStringLiteral("currentReadout")).toString().startsWith(QStringLiteral("shot 3 · ")),
+                  "…and the readout's fallback reads shot 3");
+            check(!ms->cards().isEmpty() && ms->cards().first().toMap().value(QStringLiteral("statePill")).toString()
+                                                 .endsWith(QLatin1String("HERE")) == false,
+                  "the live panel's own cards keep the present tense (the newest swing)");
+        }
+        ms->setSelectedShotId(-1);                                  // nothing picked: follow the newest
+        {
+            const QVariantMap h = headerOf(), sp = h.value(QStringLiteral("spread")).toMap();
+            check(sp.value(QStringLiteral("currentNumber")).toString() == QLatin1String("200")
+                      && h.value(QStringLiteral("statePill")).toString() == QLatin1String("FIRED")
+                      && selectedIn(h.value(QStringLiteral("ticks")).toList(), "selected") == -1,
+                  "nothing picked, live: the detail is about the newest shot, in the present tense");
+        }
+        // A NEW SHOT ARRIVES while the detail is open and following the newest.
+        check(stageShot(cur, 11, "rich_7iron"), "an eleventh swing staged");
+        ms->ingestShot(11, swingDirFor(cur, 11));
+        {
+            const QVariantMap h = headerOf(), sp = h.value(QStringLiteral("spread")).toMap();
+            const QVariantList run = sp.value(QStringLiteral("run")).toList();
+            check(ms->detailConditionId() == QLatin1String("over_the_top") && run.size() == 11,
+                  "a new shot: the detail stays open and its run grows to 11");
+            check(run.last().toMap().value(QStringLiteral("current")).toBool()
+                      && sp.value(QStringLiteral("currentReadout")).toString().startsWith(QStringLiteral("shot 11 · ")),
+                  "…and it now reads the new shot");
+            std::printf("      after the new shot: \"%s\" · %s\n",
+                        qPrintable(sp.value(QStringLiteral("currentReadout")).toString()),
+                        qPrintable(h.value(QStringLiteral("recurrence")).toString()));
+        }
     }
 
     std::printf("\npatterns at close: %d\n", patternsAtClose);
