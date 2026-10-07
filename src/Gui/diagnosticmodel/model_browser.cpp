@@ -301,6 +301,50 @@ QString statusTone(MeasureStatus s)
     return QStringLiteral("none");
 }
 
+// What the row dot means in each view, said as a one-line legend in the context bar above the
+// table.
+// The rules that colour the dots are spread through the row builders below (statusTone and each
+// type's own `dot`), so this is written against them and must change WITH them: one entry per tone
+// a type's rows can carry, in the order a reader ranks them. A type whose rows carry no dot
+// (references) has no legend.
+QVariantList dotLegendFor(const QString &type)
+{
+    const auto entry = [](const char *tone, const QString &label) {
+        return QVariantMap{ { QStringLiteral("tone"), QString::fromLatin1(tone) },
+                            { QStringLiteral("label"), label } };
+    };
+    // A characteristic or cause takes the WEAKEST of its measures' statuses; a measure its own.
+    if (type == kCharacteristics || type == kCauses || type == kMeasures)
+        return { entry("good",  QObject::tr("Live")),
+                 entry("watch", QObject::tr("Not yet live")),
+                 entry("fault", QObject::tr("No producer")),
+                 entry("none",  QObject::tr("Not measurable")) };
+    if (type == kSignals)
+        return { entry("good",  QObject::tr("Read by a condition")),
+                 entry("watch", QObject::tr("Read by nothing")) };
+    // Only a causes link has a strength; every other link type is dotted `none`.
+    if (type == kLinks)
+        return { entry("good",  QObject::tr("Usually or always")),
+                 entry("watch", QObject::tr("Often")),
+                 entry("none",  QObject::tr("Weaker, or not causal")) };
+    if (type == kMetrics)
+        return { entry("good",  QObject::tr("Produced")),
+                 entry("watch", QObject::tr("Planned")) };
+    if (type == kScreens)
+        return { entry("good",  QObject::tr("Settles a condition")),
+                 entry("watch", QObject::tr("Settles nothing")) };
+    if (type == kDrills)
+        return { entry("good",  QObject::tr("Answers a condition")),
+                 entry("watch", QObject::tr("Answers nothing")) };
+    if (type == kCorridors)
+        return { entry("good",  QObject::tr("Earned")),
+                 entry("watch", QObject::tr("Heuristic")) };
+    if (type == kHealth)
+        return { entry("fault", QObject::tr("Error")),
+                 entry("watch", QObject::tr("Warning")) };
+    return {};
+}
+
 // The weakest status across a condition's measures: a characteristic is only as resolvable as its
 // least resolvable input.
 MeasureStatus weakest(MeasureStatus a, MeasureStatus b)
@@ -2884,6 +2928,11 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
                           QStringLiteral("prose"), d->note));
     }
     return f;
+}
+
+QVariantList ModelBrowser::dotLegend(const QString &type) const
+{
+    return dotLegendFor(type);
 }
 
 QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const

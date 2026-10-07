@@ -273,6 +273,10 @@ public:
     // so every related object is one click away and QML never decides what relates to what.
     Q_INVOKABLE QVariantMap inspect(const QString &type, const QString &id) const;
 
+    // What the row dot means in a type's table, as [{ tone, label }] in the order a reader ranks
+    // them, for the legend in the context bar above it. Empty for a type whose rows carry no dot.
+    Q_INVOKABLE QVariantList dotLegend(const QString &type) const;
+
     // The graph around ANY object, not only a condition.
     //
     // A condition gets the causal DAG (dag_layout.h) because it has ranks — causes to the left,

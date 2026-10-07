@@ -957,6 +957,76 @@ Item {
                 onStepPicked: (type, id) => root.navigateTo(type, id)
             }
 
+            // What the row dots mean in THIS table (model_browser.cpp dotLegendFor) — each type
+            // colours them by its own rule, and a dot nobody can decode is decoration. One line,
+            // right of the trail and so right-aligned with the details beside it. None on a type
+            // without dots, and none on search results, where rows of every type share one list
+            // and no single legend is true of all of them.
+            //
+            // ALL OR NOTHING. A legend missing half its entries is wrong, not merely short, so on a
+            // bar too narrow for it the whole line steps aside instead of riding over the trail
+            // (which it did: a RowLayout under pressure overlaps an item with nothing to give).
+            // The room is what the bar has left after every OTHER item's natural width — none of
+            // which depends on the legend, so the measure cannot feed back on itself.
+            Row {
+                id: dotLegend
+                objectName: "dotLegend"
+                Layout.fillWidth: false
+                Layout.alignment: Qt.AlignVCenter
+                Layout.leftMargin:  Theme.sp(10)
+                Layout.rightMargin: Theme.sp(14)   // clear of the count beside it
+                spacing: Theme.sp(12)
+                visible: !root._searching && legendRepeater.count > 0 && _fits
+
+                readonly property bool _fits: {
+                    var used = 0, shown = 0
+                    var kids = contextBar.children
+                    for (var i = 0; i < kids.length; i++) {
+                        var c = kids[i]
+                        if (c === dotLegend || !c.visible) continue
+                        var w = c.Layout.preferredWidth > 0 ? c.Layout.preferredWidth : c.implicitWidth
+                        if (c.Layout.maximumWidth > 0) w = Math.min(w, c.Layout.maximumWidth)
+                        used += w
+                        if (w > 0) shown++
+                    }
+                    used += shown * contextBar.spacing
+                    return contextBar.width - used >= implicitWidth + Theme.sp(24)
+                }
+
+                Repeater {
+                    id: legendRepeater
+                    model: root._revision < 0 ? [] : browser.dotLegend(root._type)
+                    delegate: Row {
+                        id: legendEntry
+                        required property var modelData
+                        spacing: Theme.sp(5)
+
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width:  Theme.sp(7)
+                            height: Theme.sp(7)
+                            radius: width / 2
+                            color: {
+                                switch (legendEntry.modelData.tone) {
+                                case "good":  return Theme.colorRagGood
+                                case "watch": return Theme.colorRagWatch
+                                case "fault": return Theme.colorRagFault
+                                case "none":  return Theme.colorRagNone
+                                }
+                                return Theme.colorText3
+                            }
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text:           legendEntry.modelData.label
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          Theme.colorText3
+                        }
+                    }
+                }
+            }
+
             Text {
                 Layout.fillWidth: false
                 Layout.maximumWidth: Theme.sp(260)

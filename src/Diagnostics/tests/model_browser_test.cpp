@@ -880,6 +880,39 @@ int main(int argc, char **argv)
         check(shaped, "search rows are rebuilt to the flat shape, not carried over per-type");
     }
 
+    std::printf("=== the context bar's dot legend covers every dot its table draws ===\n");
+    {
+        // dotLegendFor() is written beside the row builders' dot rules, not derived from them, so
+        // this is what keeps the two in step: a tone a row can carry that the legend does not
+        // explain is a dot nobody can decode.
+        for (const QString &type : { QStringLiteral("characteristics"), QStringLiteral("causes"),
+                                     QStringLiteral("measures"), QStringLiteral("signals"),
+                                     QStringLiteral("links"), QStringLiteral("screens"),
+                                     QStringLiteral("drills"), QStringLiteral("references"),
+                                     QStringLiteral("corridors"), QStringLiteral("metrics"),
+                                     QStringLiteral("health") }) {
+            QSet<QString> explained;
+            for (const QVariant &e : m.dotLegend(type)) {
+                const QVariantMap em = e.toMap();
+                check(!em.value(QStringLiteral("label")).toString().isEmpty(),
+                      qPrintable(QStringLiteral("%1: every legend entry has words").arg(type)));
+                explained.insert(em.value(QStringLiteral("tone")).toString());
+            }
+            QStringList unexplained;
+            for (const QVariant &v : m.rows(type)) {
+                const QString tone = v.toMap().value(QStringLiteral("dot")).toString();
+                if (!tone.isEmpty() && !explained.contains(tone) && !unexplained.contains(tone))
+                    unexplained.append(tone);
+            }
+            check(unexplained.isEmpty(),
+                  qPrintable(QStringLiteral("%1: the legend explains every dot tone its rows carry%2")
+                                 .arg(type, unexplained.isEmpty() ? QString()
+                                            : QStringLiteral(" (missing %1)").arg(unexplained.join(QLatin1Char(','))))));
+        }
+        check(m.dotLegend(QStringLiteral("references")).isEmpty(),
+              "references draw no dot and carry no legend");
+    }
+
     std::printf("=== the inspector is a relationship hub ===\n");
     {
         const QString id = m.rows(QStringLiteral("characteristics")).value(0).toMap()
