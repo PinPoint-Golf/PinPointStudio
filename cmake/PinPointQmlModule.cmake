@@ -84,6 +84,7 @@ set(PP_QML_FILES
     src/Gui/components/PpTextField.qml
     src/Gui/components/PpComboBox.qml
     src/Gui/components/PpChipGroup.qml
+    src/Gui/components/PpMetricSwatches.qml
     src/Gui/components/PpUnitToggle.qml
     src/Gui/components/PpButton.qml
     src/Gui/components/PpConnectingFrame.qml

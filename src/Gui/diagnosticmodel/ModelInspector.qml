@@ -271,6 +271,120 @@ Item {
             onScanRequested:   root.corridorScanRequested()
         }
 
+        // ── Plot colour ───────────────────────────────────────────────────────
+        //
+        // The colour a metric is drawn in on every chart. A measure has none of its own — it is its
+        // metric, reduced — so it shows the metric's, and picking here re-points the METRIC (every
+        // measure that reads it follows). The choice is the user's, stored apart from the content
+        // pack (appSettings.metricColors), so it is live with no save and no "edited" mark.
+        ColumnLayout {
+            id: plotColour
+            objectName: "inspectorPlotColour"
+            Layout.fillWidth:   true
+            Layout.leftMargin:  Theme.sp(18)
+            Layout.rightMargin: Theme.sp(18)
+            Layout.topMargin:    Theme.sp(12)
+            Layout.bottomMargin: Theme.sp(12)
+            spacing: Theme.sp(8)
+
+            readonly property string metricKey: !root._found ? ""
+                                              : root.detail.type === "metrics"  ? (root.detail.id || "")
+                                              : root.detail.type === "measures" ? (root.detail.metricKey || "")
+                                              : ""
+            readonly property string current: metricKey !== "" ? Theme.metricColorName(metricKey) : ""
+            readonly property bool   overridden: {
+                if (metricKey === "") return false
+                const o = appSettings.metricColors[metricKey]
+                return o !== undefined && o !== ""
+            }
+            visible: metricKey !== ""
+
+            function pick(name) {
+                var m = {}
+                for (var k in appSettings.metricColors) m[k] = appSettings.metricColors[k]
+                // Picking the catalogue's own name clears the override rather than pinning a copy
+                // of it — so a later change to the manifest still reaches this metric.
+                if (name === Theme.metricDefaultColorName(metricKey)) delete m[metricKey]
+                else m[metricKey] = name
+                appSettings.metricColors = m
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.sp(8)
+
+                Text {
+                    Layout.fillWidth:    true
+                    text:                qsTr("Plot colour")
+                    font.family:         Theme.fontBody
+                    font.pixelSize:      Theme.fontSzMicro
+                    font.letterSpacing:  Theme.trackingMicro
+                    font.capitalization: Font.AllUppercase
+                    color:               Theme.colorText3
+                }
+
+                Rectangle {
+                    width:  Theme.sp(10)
+                    height: Theme.sp(10)
+                    radius: width / 2
+                    color:  plotColour.metricKey !== "" ? Theme.metricColor(plotColour.metricKey)
+                                                        : "transparent"
+                }
+
+                Text {
+                    objectName: "inspectorPlotColourName"
+                    text: {
+                        const c = plotColour.current
+                        const n = c.length ? c.charAt(0).toUpperCase() + c.slice(1) : ""
+                        return plotColour.overridden ? qsTr("%1 · yours").arg(n) : n
+                    }
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    color:          plotColour.overridden ? Theme.colorAccent : Theme.colorText3
+                }
+
+                Text {
+                    visible: plotColour.overridden
+                    text:    qsTr("Reset")
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzMicro
+                    color: resetMa.containsMouse ? Theme.colorText : Theme.colorText2
+                    font.underline: resetMa.containsMouse
+                    PpPressable {
+                        id: resetMa
+                        hoverScale: 1.0
+                        onClicked: plotColour.pick(Theme.metricDefaultColorName(plotColour.metricKey))
+                    }
+                }
+            }
+
+            PpMetricSwatches {
+                Layout.fillWidth: true
+                selected: plotColour.current
+                onPicked: (name) => plotColour.pick(name)
+            }
+
+            Text {
+                Layout.fillWidth: true
+                visible: root.detail.type === "measures"
+                text:    qsTr("Drawn in the colour of the metric it reads, %1 — a change here changes that metric.")
+                             .arg(plotColour.metricKey)
+                wrapMode:       Text.WordWrap
+                font.family:    Theme.fontBody
+                font.pixelSize: Theme.fontSzMicro
+                color:          Theme.colorText3
+            }
+        }
+
+        // Closes the plot-colour block the way every section below closes — a hairline under it.
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 1
+            visible: plotColour.visible
+            color:   Theme.colorBorder
+            opacity: Theme.borderOpacityNormal
+        }
+
         // ── Sections ──────────────────────────────────────────────────────────
         ScrollView {
             Layout.fillWidth:  true

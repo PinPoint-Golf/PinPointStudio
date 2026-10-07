@@ -354,8 +354,8 @@ QtObject {
     readonly property color poseSpineBottom: "#4aa6c4"   // spine pelvis end
     readonly property color poseSpineTick2:  "#6cc3dc"   // pelvis-end spine tick
 
-    // Generic metric-series palette — categorical hues for charts that plot several
-    // unrelated metrics together (PpMetricChart and future charts). Distinct from the
+    // Generic series palette — categorical hues for charts whose series are NOT catalogue
+    // metrics (a metric is drawn in its own colour: metricColor() below). Distinct from the
     // colorImu* identity hues, which mean "this specific sensor"; these carry no fixed
     // meaning, they just need to read apart on each background. ~6 hues per aesthetic,
     // tuned light/dark; index with chartSeriesColor(i) to wrap safely.
@@ -383,6 +383,100 @@ QtObject {
         var p = chartSeries
         return p[((i % p.length) + p.length) % p.length]
     }
+
+    // ── Metric palette ───────────────────────────────────────────────────────
+    // Every metric is drawn in ONE named colour wherever it is plotted — clubheadSpeed is
+    // cornflower, pelvis is crimson, chest is mint — so a curve is recognisable before its legend is
+    // read. The NAME is the metric's (MetricDescriptor::color in the manifest); what each name looks
+    // like is the theme's, tuned for that theme's background in light and dark. Unlike chartSeries,
+    // which is indexed by position and carries no meaning, these are identities.
+    //
+    // The twelve names alternate a deeper and a lighter tier around the hue wheel, so two names that
+    // neighbour in hue never also share a lightness — that is what keeps neighbours apart for a
+    // colour-blind reader. Each theme's values keep the family (cornflower is blue in every theme;
+    // only how saturated, how warm and how light changes) and clear 3:1 against colorSurface.
+    // Generated in OKLCH and checked (contrast, normal and colour-blind separation of the names a
+    // group plots together) by tools/theme/metric_palette.py, which also authors the manifest's
+    // names; a user retunes per theme in Settings → Appearance (appSettings.metricPalette).
+    //
+    // Resolution, all of it in metricColor(key):
+    //   appSettings.metricColors[key]  → the user re-pointed this metric at another name
+    //   ChartMetrics.colorName(key)    → the catalogue's name
+    //   a stable hash of the key       → a key the catalogue does not know still keeps ONE colour
+    // and then the name through paletteColor(): the user's retune for this theme and mode, else the
+    // value below.
+    readonly property var _metricPalettes: ({
+        "studio": {
+            dark: { crimson: "#D86165", coral: "#FEAA7E", ochre: "#BB7E05", gold: "#D8C23A", moss: "#6D9D2D", mint: "#4FDEA3",
+                   teal: "#09A0A0", sky: "#50D2FF", cornflower: "#5889E6", lavender: "#BDB7FE", violet: "#A570D1", orchid: "#FF99E2" },
+            light: { crimson: "#972430", coral: "#C96222", ochre: "#734C02", gold: "#958403", moss: "#3E6102", mint: "#099B6A",
+                    teal: "#036262", sky: "#0991B6", cornflower: "#224FA7", lavender: "#8071D7", violet: "#6C3794", orchid: "#BB5BA2" }
+        },
+        "instrument": {
+            dark: { crimson: "#D06E69", coral: "#FFAE83", ochre: "#BC8225", gold: "#DCC45E", moss: "#7F9C3F", mint: "#7BDCA2",
+                   teal: "#07A49F", sky: "#59D5FE", cornflower: "#688DDB", lavender: "#C5B9FE", violet: "#AA77C5", orchid: "#FDA3D8" },
+            light: { crimson: "#8A2F2F", coral: "#BB6735", ochre: "#714901", gold: "#967F02", moss: "#465C01", mint: "#2F9660",
+                    teal: "#035F5C", sky: "#078EB1", cornflower: "#2E4E97", lavender: "#8370C4", violet: "#6B3982", orchid: "#B35F93" }
+        },
+        "editorial": {
+            dark: { crimson: "#D17273", coral: "#FEB38D", ochre: "#BD8630", gold: "#D9C968", moss: "#7AA14E", mint: "#78E0AF",
+                   teal: "#05A7A7", sky: "#6BD7FF", cornflower: "#6991DC", lavender: "#C4BFFE", violet: "#A77DCB", orchid: "#FAA9E2" },
+            light: { crimson: "#86262E", coral: "#BA622F", ochre: "#694501", gold: "#8F7E03", moss: "#385802", mint: "#079465",
+                    teal: "#055959", sky: "#0A8AAE", cornflower: "#234993", lavender: "#7A6FC5", violet: "#613482", orchid: "#AE5C98" }
+        },
+        "vector": {
+            dark: { crimson: "#ED4857", coral: "#FEAA7E", ochre: "#BB7E05", gold: "#DBC203", moss: "#689F01", mint: "#0FE39D",
+                   teal: "#09A0A0", sky: "#50D2FF", cornflower: "#4785FF", lavender: "#BDB7FE", violet: "#AE62E7", orchid: "#FF99E2" },
+            light: { crimson: "#A60129", coral: "#D35F03", ochre: "#774F02", gold: "#998704", moss: "#406503", mint: "#009F6C",
+                    teal: "#026565", sky: "#0994BA", cornflower: "#114CBF", lavender: "#846CF0", violet: "#762AA7", orchid: "#CA4EAD" }
+        },
+        "terrain": {
+            dark: { crimson: "#CE7069", coral: "#FEAF83", ochre: "#BB822E", gold: "#DDC363", moss: "#829B41", mint: "#82DBA1",
+                   teal: "#04A59D", sky: "#5DD5FD", cornflower: "#6B8DD8", lavender: "#C7B8FE", violet: "#AB77C1", orchid: "#FCA4D5" },
+            light: { crimson: "#852E2C", coral: "#B86839", ochre: "#6D4703", gold: "#977E0D", moss: "#465802", mint: "#3A955F",
+                    teal: "#015C58", sky: "#0A8EB0", cornflower: "#2F4B91", lavender: "#8571C0", violet: "#68377C", orchid: "#B2618F" }
+        },
+        "links": {
+            dark: { crimson: "#C56B68", coral: "#FAA77A", ochre: "#B27D2C", gold: "#D2BE62", moss: "#779544", mint: "#79D4A1",
+                   teal: "#089D9A", sky: "#5ECEF4", cornflower: "#6488CF", lavender: "#BEB1FF", violet: "#A074BC", orchid: "#F1A0D3" },
+            light: { crimson: "#802D2F", coral: "#B06337", ochre: "#694400", gold: "#8D7A11", moss: "#3E5700", mint: "#2F8E60",
+                    teal: "#035957", sky: "#0A87A9", cornflower: "#2B498B", lavender: "#7B6DB9", violet: "#62377A", orchid: "#A85D8D" }
+        }
+    })
+
+    readonly property var metricColorNames: _metricCatalogue.colorNames()
+    readonly property var _metricCatalogue: ChartMetrics {}
+    readonly property string _metricMode: dark ? "dark" : "light"
+
+    // The theme's own value for a name in the current theme and mode, before any user retune.
+    function paletteDefault(name) {
+        var t = _metricPalettes[aesthetic] || _metricPalettes["studio"]
+        var v = t[_metricMode][name]
+        return v !== undefined ? v : colorText3
+    }
+    // The key a retune of `name` in the current theme and mode is stored under.
+    function paletteKey(name) { return aesthetic + "/" + _metricMode + "/" + name }
+    // What `name` draws as right now: the user's retune if there is one, else the theme's value.
+    function paletteColor(name) {
+        var o = appSettings.metricPalette[paletteKey(name)]
+        return (o !== undefined && o !== "") ? o : paletteDefault(name)
+    }
+    // The catalogue's name for a metric — or, for a key it does not know, a stable pick from the
+    // palette, so an uncatalogued curve keeps one colour too.
+    function metricDefaultColorName(key) {
+        var n = _metricCatalogue.colorName(key)
+        if (n !== "") return n
+        var h = 0
+        for (var i = 0; i < key.length; ++i) h = (h * 31 + key.charCodeAt(i)) % 104729
+        return metricColorNames.length ? metricColorNames[h % metricColorNames.length] : ""
+    }
+    // The name a metric is drawn in: the user's choice, else the catalogue's.
+    function metricColorName(key) {
+        var o = appSettings.metricColors[key]
+        return (o !== undefined && o !== "") ? o : metricDefaultColorName(key)
+    }
+    // THE call: the colour a metric (or a measure, through the metric it reads) is drawn in.
+    function metricColor(key) { return paletteColor(metricColorName(key)) }
 
     // ── Font family tokens ───────────────────────────────────────────────────
     // Falls back to the system default if the font file is not installed.

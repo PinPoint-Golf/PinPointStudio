@@ -305,6 +305,13 @@ public:
     // same metric, and a metric added to the manifest is short-named everywhere at once.
     Q_INVOKABLE QString shortLabel(const QString &key) const;
 
+    // The palette NAME a metric is drawn in (MetricDescriptor::color), or "" for a key the
+    // catalogue does not know. A name, not a colour: Theme.metricColor(key) turns it into the
+    // current theme's hex, after the user's own re-pointing (appSettings.metricColors).
+    Q_INVOKABLE QString colorName(const QString &key) const;
+    // Every name in the metric palette, in hue order — what a colour picker offers.
+    Q_INVOKABLE QStringList colorNames() const;
+
     // The DISPLAY form of a unit — what goes beside a number on the chart panel.
     //
     // The catalogue's unit is a full phrase where the denominator matters: "% stance width" and

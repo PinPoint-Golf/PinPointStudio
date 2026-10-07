@@ -17,6 +17,7 @@
 #include <QSet>
 
 #include <algorithm>   // std::find — the "is this key claimed" sweep
+#include <map>
 #include <cstdio>
 
 using namespace pinpoint::analysis;
@@ -1186,6 +1187,51 @@ int main()
     // gated by manifest_migration_test — including that every metric which HAD a corridor still
     // resolves one. There is nothing to assert here beyond what the descriptor still owns, which
     // sections 1–5 cover.
+
+    // 8. Every metric has a plot colour, and the curves a reader plots together read apart.
+    //
+    // The colour is a NAME from the metric palette (Theme.qml defines each for every theme). The
+    // chart's preset combo plots one group, or one cross-group preset, at a time — so two time
+    // series sharing a name inside either would be two curves the reader cannot tell apart. Point-
+    // in-time readings are not curves and may share (an lm.* reading shares its twin's name).
+    {
+        std::printf("--- 8. plot colours ---\n");
+        const QStringList &names = metricColorNames();
+        checkEqI(int(names.size()), 12, "the metric palette has twelve names");
+        bool allNamed = true;
+        std::map<QString, std::map<QString, QString>> byGroup;    // group|preset → name → key
+        bool unique = true;
+        auto claim = [&](const QString &set, const MetricDescriptor *d) {
+            auto &m = byGroup[set];
+            auto it = m.find(d->color);
+            if (it != m.end()) {
+                unique = false;
+                std::printf("      %s and %s are both %s in \"%s\"\n", qPrintable(it->second),
+                            qPrintable(d->key), qPrintable(d->color), qPrintable(set));
+            } else {
+                m[d->color] = d->key;
+            }
+        };
+        for (const MetricDescriptor *d : cat.query(MetricQuery{})) {
+            if (!names.contains(d->color)) {
+                allNamed = false;
+                std::printf("      %s has colour \"%s\", not a palette name\n", qPrintable(d->key),
+                            qPrintable(d->color));
+            }
+            if (d->type != MetricType::TimeSeries) continue;
+            claim(d->group, d);
+            for (const QString &p : d->presets) claim(QStringLiteral("preset:") + p, d);
+        }
+        check(allNamed, "every metric's colour is a metric-palette name");
+        check(unique, "no two time series share a colour within a group or a preset");
+
+        const MetricDescriptor *cs = cat.descriptor(QStringLiteral("clubheadSpeed"));
+        check(cs && cs->color == QStringLiteral("cornflower"), "clubheadSpeed is cornflower");
+        const MetricDescriptor *pv = cat.descriptor(QStringLiteral("pelvisAngularSpeed"));
+        const MetricDescriptor *th = cat.descriptor(QStringLiteral("thoraxAngularSpeed"));
+        check(pv && th && pv->color == QStringLiteral("crimson") && th->color == QStringLiteral("mint"),
+              "pelvis is crimson and chest mint in the kinematic sequence");
+    }
 
     std::printf("=== %s ===\n", g_fail == 0 ? "ALL PASS" : "FAILURES");
     return g_fail ? 1 : 0;

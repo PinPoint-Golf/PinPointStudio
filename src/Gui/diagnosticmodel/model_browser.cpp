@@ -3041,6 +3041,10 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         out.insert(QStringLiteral("eyebrow"), typeLabelFor(type));
         out.insert(QStringLiteral("subtitle"),
                    m->unit.isEmpty() ? m->id : QStringLiteral("%1 · %2").arg(m->id, m->unit));
+        // The metric this measure reads — the inspector draws the measure in that metric's colour
+        // (a measure has no colour of its own; it is the metric, reduced). Empty for a Composed
+        // measure, which reads no single metric.
+        out.insert(QStringLiteral("metricKey"), m->metricKey);
 
         QVariantList badges;
         badges.append(hubRow(QString(), QString(), measureStatusLabel(m->status), QString(),

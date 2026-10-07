@@ -304,6 +304,234 @@ Item {
 
             PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
+            // ── Group 1b — Metric colours ─────────────────────────────────────
+            //
+            // The twelve named colours every metric is drawn in (Theme.metricColor), as THIS theme
+            // and mode paint them. Retuning one here changes it for this theme and mode only — the
+            // name is what a metric is assigned, the colour is the theme's, and a retune is the
+            // user's version of the theme's. Which metric uses which name is set per metric in
+            // Diagnostic Model → Metrics.
+            Text {
+                text: qsTr("METRIC COLOURS")
+                font.family:        Theme.fontBody
+                font.pixelSize:     Theme.fontSzMicro
+                font.letterSpacing: Theme.trackingMicro
+                font.capitalization: Font.AllUppercase
+                color: Theme.colorText3
+            }
+
+            ColumnLayout {
+                id: metricPalette
+                objectName: "setting_metricPalette"
+                Layout.fillWidth: true
+                spacing: Theme.sp(12)
+                property bool searchHighlight: false
+                Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
+
+                // The name open in the editor below the grid. "" = none open.
+                property string editing: ""
+
+                function _isRetuned(name) {
+                    const o = appSettings.metricPalette[Theme.paletteKey(name)]
+                    return o !== undefined && o !== ""
+                }
+                readonly property int retunedCount: {
+                    var n = 0
+                    for (var i = 0; i < Theme.metricColorNames.length; ++i)
+                        if (_isRetuned(Theme.metricColorNames[i])) ++n
+                    return n
+                }
+                function setColour(name, hex) {
+                    var m = {}
+                    for (var k in appSettings.metricPalette) m[k] = appSettings.metricPalette[k]
+                    if (hex === "" || hex.toUpperCase() === String(Theme.paletteDefault(name)).toUpperCase())
+                        delete m[Theme.paletteKey(name)]
+                    else
+                        m[Theme.paletteKey(name)] = hex
+                    appSettings.metricPalette = m
+                }
+                function resetAll() {
+                    var m = {}
+                    const prefix = Theme.aesthetic + "/" + (Theme.dark ? "dark" : "light") + "/"
+                    for (var k in appSettings.metricPalette)
+                        if (k.indexOf(prefix) !== 0) m[k] = appSettings.metricPalette[k]
+                    appSettings.metricPalette = m
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(16)
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.sp(3)
+                        Text {
+                            Layout.fillWidth: true
+                            text:           qsTr("Colours for %1 · %2")
+                                                .arg(Theme.aesthetic.charAt(0).toUpperCase() + Theme.aesthetic.slice(1))
+                                                .arg(Theme.dark ? qsTr("dark") : qsTr("light"))
+                            font.family:    Theme.fontBody
+                            font.pixelSize: Theme.fontSzBody
+                            color:          Theme.colorText
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text:           qsTr("Each metric is always drawn in one of these. Retune one for this theme here; choose a metric's colour in Diagnostic Model → Metrics.")
+                            wrapMode:       Text.WordWrap
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          Theme.colorText3
+                        }
+                    }
+
+                    PpButton {
+                        Layout.alignment: Qt.AlignVCenter
+                        visible: metricPalette.retunedCount > 0
+                        label:   qsTr("Reset %1").arg(metricPalette.retunedCount)
+                        onClicked: { metricPalette.resetAll(); metricPalette.editing = "" }
+                    }
+                }
+
+                // Twelve tiles on the theme's own surface, so a colour is judged where it is drawn.
+                Flow {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Theme.sp(16)
+                    spacing: Theme.sp(8)
+
+                    Repeater {
+                        model: Theme.metricColorNames
+                        delegate: Rectangle {
+                            id: tile
+                            required property string modelData
+                            objectName: "paletteTile_" + modelData
+                            readonly property bool retuned: metricPalette._isRetuned(modelData)
+                            readonly property bool open:    metricPalette.editing === modelData
+
+                            width:  Theme.sp(132)
+                            height: Theme.sp(44)
+                            radius: Theme.radius
+                            color:  Theme.colorSurface
+                            border.width: 1
+                            border.color: open ? Theme.colorAccent : Theme.colorBorderStrong
+
+                            Row {
+                                anchors.verticalCenter: parent.verticalCenter
+                                x: Theme.sp(10)
+                                spacing: Theme.sp(10)
+
+                                // A short trace, not a blob — a metric is a line on a chart, and a
+                                // colour that works as a fill can still be too faint as a 2 px stroke.
+                                Item {
+                                    width:  Theme.sp(26)
+                                    height: Theme.sp(20)
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: parent.width; height: Theme.sp(2); radius: 1
+                                        color: Theme.paletteColor(tile.modelData)
+                                        rotation: -24
+                                    }
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: Theme.sp(8); height: width; radius: width / 2
+                                        color: Theme.paletteColor(tile.modelData)
+                                    }
+                                }
+
+                                Column {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: Theme.sp(1)
+                                    Text {
+                                        text: tile.modelData.charAt(0).toUpperCase() + tile.modelData.slice(1)
+                                        font.family:    Theme.fontBody
+                                        font.pixelSize: Theme.fontSzBody2
+                                        color:          Theme.colorText
+                                    }
+                                    Text {
+                                        text: String(Theme.paletteColor(tile.modelData)).toUpperCase()
+                                              + (tile.retuned ? "  ·  " + qsTr("yours") : "")
+                                        font.family:    Theme.fontData
+                                        font.pixelSize: Theme.fontSzMicro
+                                        color: tile.retuned ? Theme.colorAccent : Theme.colorText3
+                                    }
+                                }
+                            }
+
+                            PpPressable {
+                                hoverScale: 1.03
+                                onClicked: metricPalette.editing = tile.open ? "" : tile.modelData
+                            }
+                        }
+                    }
+                }
+
+                // The editor for the open name: a hex, the theme's value beside the user's, and a
+                // reset. Typed rather than picked from a wheel — the app has no native dialogs, and a
+                // hex is exact where a drag is not.
+                RowLayout {
+                    objectName: "paletteEditor"
+                    visible: metricPalette.editing !== ""
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Theme.sp(16)
+                    spacing: Theme.sp(10)
+
+                    Text {
+                        text: metricPalette.editing.length
+                              ? metricPalette.editing.charAt(0).toUpperCase() + metricPalette.editing.slice(1)
+                              : ""
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        color:          Theme.colorText
+                    }
+
+                    PpTextField {
+                        id: hexField
+                        objectName: "paletteHexField"
+                        implicitWidth: Theme.sp(110)
+                        font.family: Theme.fontData
+                        text: metricPalette.editing.length
+                              ? String(Theme.paletteColor(metricPalette.editing)).toUpperCase() : ""
+                        readonly property bool valid: /^#?[0-9A-Fa-f]{6}$/.test(text.trim())
+                        hasError: !valid
+                        onEditingFinished: {
+                            if (!valid || metricPalette.editing === "") return
+                            var t = text.trim()
+                            if (t.charAt(0) !== "#") t = "#" + t
+                            metricPalette.setColour(metricPalette.editing, t.toUpperCase())
+                        }
+                    }
+
+                    Rectangle {
+                        width: Theme.sp(22); height: width; radius: width / 2
+                        color: hexField.valid
+                               ? (hexField.text.trim().charAt(0) === "#" ? hexField.text.trim() : "#" + hexField.text.trim())
+                               : "transparent"
+                        border.width: 1
+                        border.color: Theme.colorBorderStrong
+                    }
+
+                    Text {
+                        text: qsTr("Theme: %1").arg(metricPalette.editing.length
+                              ? String(Theme.paletteDefault(metricPalette.editing)).toUpperCase() : "")
+                        font.family:    Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        color:          Theme.colorText3
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    PpButton {
+                        visible: metricPalette.editing !== "" && metricPalette._isRetuned(metricPalette.editing)
+                        label:   qsTr("Reset")
+                        onClicked: metricPalette.setColour(metricPalette.editing, "")
+                    }
+                }
+            }
+
+            // ── Divider ───────────────────────────────────────────────────────
+
+            PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
+
             // ── Group 2 — Type scale ──────────────────────────────────────────
 
             Text {

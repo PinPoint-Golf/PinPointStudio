@@ -290,6 +290,12 @@ class AppSettings : public QObject
     // split/dots/cursor or a { seriesKey: bool } visibility map for series. Read/
     // written by PpMetricChart, alongside sectionCollapse.
     Q_PROPERTY(QVariantMap chartPrefs           READ chartPrefs           WRITE setChartPrefs           NOTIFY chartPrefsChanged)
+    // The user's own metric colours (Theme.metricColor). metricColors re-points a metric at
+    // another palette NAME — { metricKey: "cornflower" } — and holds only the metrics the user
+    // changed, so a metric with no entry follows the catalogue. metricPalette retunes a name in one
+    // theme and mode — { "studio/dark/cornflower": "#5889E6" } — again only what was changed.
+    Q_PROPERTY(QVariantMap metricColors         READ metricColors         WRITE setMetricColors         NOTIFY metricColorsChanged)
+    Q_PROPERTY(QVariantMap metricPalette        READ metricPalette        WRITE setMetricPalette        NOTIFY metricPaletteChanged)
     Q_PROPERTY(int         lastSessionType   READ lastSessionType   WRITE setLastSessionType   NOTIFY lastSessionTypeChanged)
 
     Q_PROPERTY(QString sessionNamingPattern  READ sessionNamingPattern  WRITE setSessionNamingPattern  NOTIFY sessionNamingPatternChanged)
@@ -517,6 +523,8 @@ public:
         m_dataRegionByType      = ppSettings().value(QStringLiteral("view/dataRegionByType"),  QVariantMap{}).toMap();
         m_sectionCollapse       = ppSettings().value(QStringLiteral("view/sectionCollapse"),   QVariantMap{}).toMap();
         m_chartPrefs            = ppSettings().value(QStringLiteral("view/chartPrefs"),         QVariantMap{}).toMap();
+        m_metricColors          = ppSettings().value(QStringLiteral("view/metricColors"),       QVariantMap{}).toMap();
+        m_metricPalette         = ppSettings().value(QStringLiteral("view/metricPalette"),      QVariantMap{}).toMap();
         m_lastSessionType    = ppSettings().value(QStringLiteral("session/lastType"), 0).toInt();
 
         m_sessionNamingPattern  = ppSettings().value(QStringLiteral("storage/sessionNamingPattern"),  QStringLiteral("date-name-type")).toString();
@@ -671,6 +679,8 @@ public:
     QVariantMap dataRegionByType()      const { return m_dataRegionByType; }
     QVariantMap sectionCollapse()       const { return m_sectionCollapse; }
     QVariantMap chartPrefs()            const { return m_chartPrefs; }
+    QVariantMap metricColors()          const { return m_metricColors; }
+    QVariantMap metricPalette()         const { return m_metricPalette; }
     int         lastSessionType()    const { return m_lastSessionType; }
 
     QString sessionNamingPattern()  const { return m_sessionNamingPattern; }
@@ -1438,6 +1448,22 @@ public:
         emit chartPrefsChanged();
     }
 
+    void setMetricColors(const QVariantMap &v)
+    {
+        if (m_metricColors == v) return;
+        m_metricColors = v;
+        ppSettings().setValue(QStringLiteral("view/metricColors"), v);
+        emit metricColorsChanged();
+    }
+
+    void setMetricPalette(const QVariantMap &v)
+    {
+        if (m_metricPalette == v) return;
+        m_metricPalette = v;
+        ppSettings().setValue(QStringLiteral("view/metricPalette"), v);
+        emit metricPaletteChanged();
+    }
+
     void setLastSessionType(int v)
     {
         if (m_lastSessionType == v) return;
@@ -1717,6 +1743,8 @@ signals:
     void dataRegionByTypeChanged();
     void sectionCollapseChanged();
     void chartPrefsChanged();
+    void metricColorsChanged();
+    void metricPaletteChanged();
     void lastSessionTypeChanged();
     void sessionNamingPatternChanged();
     void videoResolutionModeChanged();
@@ -1838,6 +1866,8 @@ private:
     QVariantMap m_dataRegionByType;
     QVariantMap m_sectionCollapse;
     QVariantMap m_chartPrefs;
+    QVariantMap m_metricColors;
+    QVariantMap m_metricPalette;
     int         m_lastSessionType = 0;
 
     QString m_sessionNamingPattern  = QStringLiteral("date-name-type");

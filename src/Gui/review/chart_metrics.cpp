@@ -716,6 +716,17 @@ QString ChartMetrics::shortLabel(const QString &key) const
     return d ? d->shortLabel : QString();
 }
 
+QString ChartMetrics::colorName(const QString &key) const
+{
+    const pinpoint::analysis::MetricDescriptor *d = m_catalogue.descriptor(key);
+    return d ? d->color : QString();
+}
+
+QStringList ChartMetrics::colorNames() const
+{
+    return pinpoint::analysis::metricColorNames();
+}
+
 // ── Corridor-bar backing — marshalling only; the maths is dashboard_reductions.h ─
 
 QVariantMap ChartMetrics::barDomain(double greenLo, double greenHi,

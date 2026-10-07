@@ -124,6 +124,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Wrist score"),
         .unit = QString(),
         .group = QStringLiteral("Score"),
+        .color = QStringLiteral("crimson"),
         .description = QStringLiteral(
             "A single 0–100 summary of the lead-wrist motion for the shot. The assessment engine "
             "bands each lead-wrist checkpoint — bow/cup, hinge, roll and elbow, at the Top and at "
@@ -153,6 +154,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Pattern"),
         .unit = QString(),
         .group = QStringLiteral("Score"),
+        .color = QStringLiteral("sky"),
         .description = QStringLiteral(
             "A classification of the lead-wrist release pattern rather than a grade. For each of "
             "the three tour archetypes — bowed, neutral and cupped — it computes an independent "
@@ -182,6 +184,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Swing score"),
         .unit = QString(),
         .group = QStringLiteral("Score"),
+        .color = QStringLiteral("gold"),
         .description = QStringLiteral(
             "The planned whole-swing counterpart to the wrist score: a single 0–100 rating of how "
             "closely the full-body action reproduces an idealised, efficient swing for the session "
@@ -212,6 +215,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Bow/cup"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Wrist & forearm"),
+        .color = QStringLiteral("crimson"),
         .description = QStringLiteral(
             "The bow/cup axis of the lead wrist — how flexed (bowed, +) or cupped (extended, −) it "
             "is relative to address — from the fused forearm and hand IMUs (first Cardan component "
@@ -249,6 +253,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Hinge"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Wrist & forearm"),
+        .color = QStringLiteral("coral"),
         .description = QStringLiteral(
             "The hinge (or 'cock') of the lead wrist — radial (−, toward the thumb) versus ulnar "
             "(+, toward the little finger) — as the second Cardan component of q_forearm⁻¹·q_hand "
@@ -284,6 +289,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Roll"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Wrist & forearm"),
+        .color = QStringLiteral("ochre"),
         .description = QStringLiteral(
             "The roll of the lead forearm — pronation (+, palm rolling down) versus supination (−, "
             "palm rolling up) — as the axial twist of q_upperarm⁻¹·q_forearm about the elbow-to-"
@@ -323,6 +329,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Elbow"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Wrist & forearm"),
+        .color = QStringLiteral("mint"),
         .description = QStringLiteral(
             "How bent the lead arm is at the elbow, reported as a flexion magnitude from the angle "
             "between the upper-arm and forearm segments (acos of their dot product) along the "
@@ -372,6 +379,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Rotation"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Wrist & forearm"),
+        .color = QStringLiteral("teal"),
         .description = QStringLiteral(
             "How far the lead forearm has turned about its own long axis SINCE ADDRESS — the signed "
             "twist of q_address⁻¹·q_forearm about the elbow-to-wrist axis. It is a whole-segment "
@@ -431,6 +439,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Bow/cup (HM)"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Wrist & forearm"),
+        .color = QStringLiteral("cornflower"),
         .description = QStringLiteral(
             "The bow/cup axis of the lead wrist, measured by a HackMotion wG3 rather than by our "
             "own forearm-and-hand IMUs. The twin of `leadWristFlexExt`, computed by the identical "
@@ -466,6 +475,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Hinge (HM)"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Wrist & forearm"),
+        .color = QStringLiteral("lavender"),
         .description = QStringLiteral(
             "The hinge (or 'cock') of the lead wrist, measured by a HackMotion wG3 rather than by "
             "our own forearm-and-hand IMUs. The twin of `leadWristRadUln`, computed by the identical "
@@ -496,6 +506,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Rotation (HM)"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Wrist & forearm"),
+        .color = QStringLiteral("violet"),
         .description = QStringLiteral(
             "How far the lead forearm has turned about its own long axis since address, measured by "
             "a HackMotion wG3's lower-arm unit. The twin of `forearmRotation`, by the identical "
@@ -530,6 +541,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Trail bow/cup"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Wrist & forearm"),
+        .color = QStringLiteral("orchid"),
         .description = QStringLiteral(
             "How much the trail wrist is bent back (extension / cup) or forward (flexion / bow), "
             "the mirror of the lead-wrist face angle. The two wrists work as a pair: the trail "
@@ -579,6 +591,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Pelvis turn"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Body rotation"),
+        .color = QStringLiteral("crimson"),
         .description = QStringLiteral(
             "How far the pelvis has turned about the body's vertical axis relative to address — the "
             "engine of the swing's rotational power. It is taken from the pelvis IMU as the pelvis "
@@ -651,6 +664,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Pelvis turn ±"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Body rotation"),
+        .color = QStringLiteral("coral"),
         .description = QStringLiteral(
             "Pelvis turn about the body's vertical axis relative to address, SIGNED and LEAD-"
             "RELATIVE: positive is turned toward the lead side (open), negative toward the trail "
@@ -702,6 +716,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Chest turn"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Body rotation"),
+        .color = QStringLiteral("mint"),
         .description = QStringLiteral(
             "How far the chest (thorax) has turned about the vertical axis relative to address, "
             "from the thorax IMU. Together with pelvis rotation it defines the body's coil and how "
@@ -737,6 +752,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("X-factor"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Body rotation"),
+        .color = QStringLiteral("teal"),
         .description = QStringLiteral(
             "The separation between the chest and the pelvis — thorax turn minus pelvis turn — "
             "which stretches the trunk and stores elastic energy at the top of the backswing. It "
@@ -769,6 +785,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("X-stretch"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Body rotation"),
+        .color = QStringLiteral("cornflower"),
         .description = QStringLiteral(
             "The extra chest-over-pelvis separation gained at the very start of the downswing — the "
             "peak X-factor in early downswing minus the X-factor at the top. This stretch-shorten "
@@ -802,6 +819,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Hip rotation"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Body rotation"),
+        .color = QStringLiteral("lavender"),
         .description = QStringLiteral(
             "True rotation at the hip joints — each thigh turning axially relative to the pelvis — "
             "as opposed to how far the pelvis as a whole has turned. It is what lets a player load "
@@ -844,6 +862,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Fwd bend"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Spine & tilt"),
+        .color = QStringLiteral("moss"),
         .description = QStringLiteral(
             "The forward tilt of the trunk over the ball — the flexion/extension of the thorax "
             "relative to the pelvis — which sets the posture the whole swing rotates around. Losing "
@@ -881,6 +900,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Side bend"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Spine & tilt"),
+        .color = QStringLiteral("sky"),
         .description = QStringLiteral(
             "Lateral flexion of the trunk toward the trail side — the side-bend of the thorax "
             "relative to the pelvis — which naturally appears in the downswing as the trail "
@@ -916,6 +936,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Axis tilt"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Spine & tilt"),
+        .color = QStringLiteral("violet"),
         .description = QStringLiteral(
             "How much the spine leans away from the target at impact — the angle of the mid-hip-to-"
             "mid-shoulder line from vertical in the frontal (face-on) plane. It reflects the "
@@ -961,6 +982,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Sway"),
         .unit = QStringLiteral("% stance width"),
         .group = QStringLiteral("Pelvis & lateral"),
+        .color = QStringLiteral("crimson"),
         .presets = { QStringLiteral("Plumb Bob") },
         .description = QStringLiteral(
             "How far the pelvis slides laterally relative to address — the linear partner to "
@@ -1001,6 +1023,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Thrust"),
         .unit = QStringLiteral("cm"),
         .group = QStringLiteral("Pelvis & lateral"),
+        .color = QStringLiteral("teal"),
         .description = QStringLiteral(
             "How far the pelvis pushes toward the ball (along the line from the player to the ball) "
             "relative to address — the depth-axis partner to sway. A late, controlled move is "
@@ -1038,6 +1061,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Lift"),
         .unit = QStringLiteral("% stance width"),
         .group = QStringLiteral("Pelvis & lateral"),
+        .color = QStringLiteral("cornflower"),
         .description = QStringLiteral(
             "How much the pelvis rises or drops vertically relative to address, as a percentage of "
             "the golfer's own stance — the up/down component of pelvis motion. HIGHER MEANS THE "
@@ -1073,6 +1097,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Belt lift"),
         .unit = QStringLiteral("% stance width"),
         .group = QStringLiteral("Pelvis & lateral"),
+        .color = QStringLiteral("orchid"),
         .description = QStringLiteral(
             "How far the belt line has risen or dropped relative to address, as a percentage of "
             "stance width — the pelvis's height read off a line the golfer actually wears rather "
@@ -1099,6 +1124,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Hip tilt"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Pelvis & lateral"),
+        .color = QStringLiteral("gold"),
         .presets = { QStringLiteral("Plumb Bob") },
         .description = QStringLiteral(
             "The tilt of the line between the two hips, seen face-on. POSITIVE MEANS THE TRAIL HIP "
@@ -1147,6 +1173,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Plumb bob"),
         .unit = QStringLiteral("in"),
         .group = QStringLiteral("Pelvis & lateral"),
+        .color = QStringLiteral("lavender"),
         .presets = { QStringLiteral("Plumb Bob") },
         .description = QStringLiteral(
             "Where the centre of the hips sits relative to the centre of the stance, measured along "
@@ -1192,6 +1219,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Knee drift"),
         .unit = QStringLiteral("% stance width"),
         .group = QStringLiteral("Feet & stance"),
+        .color = QStringLiteral("ochre"),
         .description = QStringLiteral(
             "How far the lead knee has travelled sideways RELATIVE TO ITS OWN HIP, as a percentage "
             "of the golfer's stance. POSITIVE IS TOWARD THE LEAD SIDE, so a lead knee working "
@@ -1236,6 +1264,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Club speed"),
         .unit = QStringLiteral("mph"),
         .group = QStringLiteral("Club & speed"),
+        .color = QStringLiteral("cornflower"),
         .description = QStringLiteral(
             "How fast the clubhead is travelling as it arrives at the ball — the hands' velocity plus "
             "the shaft's rotation about them, composed from the tracked club and scaled to "
@@ -1281,6 +1310,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Hand speed"),
         .unit = QStringLiteral("mph"),
         .group = QStringLiteral("Club & speed"),
+        .color = QStringLiteral("gold"),
         .description = QStringLiteral(
             "How fast the hands (the grip end of the club) are moving, from the tracked grip point "
             "— a proxy for how much speed the body and arms are delivering to the handle before the "
@@ -1323,6 +1353,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Speed peak"),
         .unit = QStringLiteral("ms"),
         .group = QStringLiteral("Club & speed"),
+        .color = QStringLiteral("orchid"),
         .description = QStringLiteral(
             "How long before impact the clubhead reached its top speed, in milliseconds. An "
             "efficient swing delivers the club still accelerating, so the peak sits at the ball "
@@ -1356,6 +1387,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Lag"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club & speed"),
+        .color = QStringLiteral("moss"),
         .description = QStringLiteral(
             "The angle held between the lead forearm and the club shaft — the visible 'lag' that "
             "stores energy in the downswing. It is derived from the shaft track (grip to head) and "
@@ -1385,6 +1417,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Shaft lean"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club & speed"),
+        .color = QStringLiteral("mint"),
         .description = QStringLiteral(
             "How far the shaft leans forward (toward the target) from vertical at impact, from the "
             "tracked club and shaft. Forward shaft lean means the hands are ahead of the clubhead "
@@ -1422,6 +1455,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Lie"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club & speed"),
+        .color = QStringLiteral("sky"),
         .description = QStringLiteral(
             "How upright the shaft stands, seen from down the line: the angle between the shaft "
             "and the ground, read at address and again at impact. It is the shaft's inclination, "
@@ -1462,6 +1496,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Plane"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("moss"),
         .description = QStringLiteral(
             "The plane the shaft swings on through the downswing, measured against the plane the "
             "shaft sat on at address: a best-fit plane through the shaft's three-dimensional "
@@ -1506,6 +1541,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Plane Δ"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("coral"),
         .description = QStringLiteral(
             "How much the swing plane changes between the backswing and the downswing, in degrees. "
             "The shaft vector sweeps a circle on the swing plane, and a circle on a plane images as "
@@ -1546,6 +1582,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Hand loop"),
         .unit = QStringLiteral("% hand rise"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("crimson"),
         .description = QStringLiteral(
             "Where the hands come down against where they went up. Seen from down the line, the "
             "lead wrist traces one path to the top and another back to the ball; at the same height "
@@ -1578,6 +1615,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Path"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("orchid"),
         .description = QStringLiteral(
             "The horizontal direction the clubhead is travelling at impact relative to the target "
             "line — in-to-out (+) or out-to-in (−). Together with face angle it determines the "
@@ -1611,6 +1649,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Attack"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("mint"),
         .description = QStringLiteral(
             "Whether the clubhead is moving down or up at impact — the vertical angle of its "
             "velocity. It controls compression and low point: irons are struck with a descending "
@@ -1649,6 +1688,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Low pt"),
         .unit = QStringLiteral("in"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("teal"),
         .description = QStringLiteral(
             "Where the bottom of the swing arc is relative to the ball, as a signed distance along "
             "the target line — positive when the low point is ahead of (target-side of) the ball. "
@@ -1710,6 +1750,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Backswing"),
         .unit = QStringLiteral("s"),
         .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("moss"),
         .description = QStringLiteral(
             "How long the backswing takes, from address to the top of the swing. Backswing time is "
             "the foundation of tempo — it sets the rhythm the downswing has to match — and it is "
@@ -1738,6 +1779,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Tempo"),
         .unit = QStringLiteral(":1"),
         .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("coral"),
         .description = QStringLiteral(
             "The rhythm of the swing as a single number — backswing time divided by downswing time "
             "(top to impact). It captures the relationship between the two halves of the swing "
@@ -1774,6 +1816,7 @@ void installMetricManifest(MetricCatalogue &cat)
         // which is the unit every number on the strip carries.
         .unit = QStringLiteral("ms"),
         .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("sky"),
         .description = QStringLiteral(
             "The order, timing and size of the peak rotational speeds of the body segments — "
             "pelvis, then thorax, then lead arm, then club — as the swing fires from the ground up. "
@@ -1841,6 +1884,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Pelvis ω"),
         .unit = QStringLiteral("°/s"),
         .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("crimson"),
         .presets = { QStringLiteral("Kinematic sequence") },
         .description = QStringLiteral(
             "How fast the pelvis is turning about the body's vertical axis, in degrees per second, "
@@ -1900,6 +1944,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Chest ω"),
         .unit = QStringLiteral("°/s"),
         .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("mint"),
         .presets = { QStringLiteral("Kinematic sequence") },
         .description = QStringLiteral(
             "How fast the chest is turning about the body's vertical axis, in degrees per second, "
@@ -1944,6 +1989,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Arm ω"),
         .unit = QStringLiteral("°/s"),
         .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("cornflower"),
         .presets = { QStringLiteral("Kinematic sequence") },
         .description = QStringLiteral(
             "How fast the lead arm is swinging about the swing plane, in degrees per second — the "
@@ -1984,6 +2030,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Club ω"),
         .unit = QStringLiteral("°/s"),
         .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("lavender"),
         .presets = { QStringLiteral("Kinematic sequence") },
         .description = QStringLiteral(
             "How fast the shaft is swinging about the swing plane, in degrees per second — the "
@@ -2025,6 +2072,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Pelvis peak"),
         .unit = QStringLiteral("ms"),
         .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("crimson"),
         .description = QStringLiteral(
             "When the pelvis reached its top turning speed in the downswing, in milliseconds relative "
             "to impact — negative is before the ball. The first link of the kinematic sequence: an "
@@ -2056,6 +2104,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Chest peak"),
         .unit = QStringLiteral("ms"),
         .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("mint"),
         .description = QStringLiteral(
             "When the chest reached its top turning speed in the downswing, in milliseconds relative "
             "to impact — negative is before the ball. The second link of the kinematic sequence. "
@@ -2088,6 +2137,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Stance"),
         .unit = QStringLiteral("% shoulder width"),
         .group = QStringLiteral("Feet & stance"),
+        .color = QStringLiteral("orchid"),
         .description = QStringLiteral(
             "How wide the feet are set at address, measured heel-to-heel from the whole-body pose "
             "and expressed against the golfer's own shoulder width. Stance width is a foundation of "
@@ -2118,6 +2168,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Stance mm"),
         .unit = QStringLiteral("mm"),
         .group = QStringLiteral("Feet & stance"),
+        .color = QStringLiteral("violet"),
         .description = QStringLiteral(
             "The same heel-to-heel measurement in real-world millimetres, scaled by the golf ball's "
             "own diameter, which the rules fix. It answers a different question from the shoulder-"
@@ -2144,6 +2195,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Ball pos"),
         .unit = QStringLiteral("% stance width"),
         .group = QStringLiteral("Feet & stance"),
+        .color = QStringLiteral("lavender"),
         .description = QStringLiteral(
             "Where the ball sits along the stance at address, as a percentage of stance width: "
             "0 % IS LEVEL WITH THE LEAD HEEL and 100 % with the trail heel, so a HIGHER value means "
@@ -2180,6 +2232,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Lead flare"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Feet & stance"),
+        .color = QStringLiteral("crimson"),
         .description = QStringLiteral(
             "How much the lead foot is turned out (flared) at address, from the angle of that "
             "foot's heel-to-big-toe line in the image plane. Lead-foot flare is a setup choice that "
@@ -2204,6 +2257,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Trail flare"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Feet & stance"),
+        .color = QStringLiteral("coral"),
         .description = QStringLiteral(
             "How much the trail foot is turned out at address, from the angle of its heel-to-big-"
             "toe line in the image plane. Trail-foot flare regulates how much the trail hip can "
@@ -2229,6 +2283,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Toe line"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Feet & stance"),
+        .color = QStringLiteral("moss"),
         .description = QStringLiteral(
             "The alignment of the stance at address, taken as the angle of the line joining the two "
             "big toes relative to the image horizontal. It is a quick read on whether the feet are "
@@ -2255,6 +2310,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Heel lift"),
         .unit = QStringLiteral("cm"),
         .group = QStringLiteral("Feet & stance"),
+        .color = QStringLiteral("gold"),
         .description = QStringLiteral(
             "How far the lead heel rises off the ground through the swing, relative to address, in "
             "centimetres. HIGHER MEANS THE HEEL IS FURTHER OFF THE GROUND. Some players anchor both "
@@ -2313,6 +2369,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Shoulder aim"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Alignment"),
+        .color = QStringLiteral("mint"),
         .description = QStringLiteral(
             "Where the shoulder line points at address relative to the target line, in degrees: "
             "the bearing of the line through the two shoulder joints in the horizontal plane. This "
@@ -2344,6 +2401,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Elbows"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Alignment"),
+        .color = QStringLiteral("violet"),
         .description = QStringLiteral(
             "The angle of the line joining the two elbows in the image plane, read at address and "
             "at impact — a compact read on how the arms and elbows are structured relative to the "
@@ -2373,6 +2431,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Feet"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Alignment"),
+        .color = QStringLiteral("coral"),
         .description = QStringLiteral(
             "The alignment of the feet as a body line — the angle of the line joining the lead and "
             "trail ankles in the image plane — read at address and at impact. OPEN IS NEGATIVE AND "
@@ -2408,6 +2467,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Head sway"),
         .unit = QStringLiteral("cm"),
         .group = QStringLiteral("Head"),
+        .color = QStringLiteral("moss"),
         .description = QStringLiteral(
             "How far the head moves side-to-side relative to address, in centimetres. POSITIVE IS "
             "TOWARD THE LEAD SIDE, the same displacement convention pelvis sway follows. The head is "
@@ -2441,6 +2501,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Head lift"),
         .unit = QStringLiteral("cm"),
         .group = QStringLiteral("Head"),
+        .color = QStringLiteral("sky"),
         .description = QStringLiteral(
             "How far the head rises or drops relative to address, in centimetres. HIGHER MEANS THE "
             "HEAD HAS RISEN. Vertical head movement is an early, easy-to-see indicator of standing "
@@ -2472,6 +2533,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Head tilt"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Head"),
+        .color = QStringLiteral("violet"),
         .description = QStringLiteral(
             "How the eye-line tilts relative to its address angle, in degrees — the rotational "
             "(not translational) head measure. It picks up the head cocking or levelling through "
@@ -2510,6 +2572,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Upper-back round"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Spine & tilt"),
+        .color = QStringLiteral("coral"),
         .description = QStringLiteral(
             "How far the upper back is rounded forward at address, measured as the thoracic "
             "segment's angle from vertical. This is the C-posture axis: the thoracic spine rotates "
@@ -2542,6 +2605,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Low-back arch"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Spine & tilt"),
+        .color = QStringLiteral("crimson"),
         .description = QStringLiteral(
             "How far the low back is arched at address, measured as the lumbar segment's angle from "
             "neutral. This is the S-posture axis. An exaggerated arch pre-tensions the lower back "
@@ -2570,6 +2634,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Shoulder plane"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Body rotation"),
+        .color = QStringLiteral("violet"),
         .description = QStringLiteral(
             "The angle the shoulder line makes with the ground, sampled through the swing. At the "
             "top it describes how steeply or flatly the shoulders have turned. A flat plane sets "
@@ -2612,6 +2677,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Shoulder plane 3-D"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Body rotation"),
+        .color = QStringLiteral("orchid"),
         .description = QStringLiteral(
             "The angle the line through the two shoulder joints makes with the ground, in the "
             "vertical plane that contains the line — how steeply the shoulders are turning, "
@@ -2642,6 +2708,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Lead knee"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Feet & stance"),
+        .color = QStringLiteral("mint"),
         .description = QStringLiteral(
             "The angle at the lead knee — the lead shin against the lead thigh — through the swing. "
             "A knee that collapses through impact drops the whole body and makes the strike depend "
@@ -2675,6 +2742,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Arm/torso"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Arms"),
+        .color = QStringLiteral("crimson"),
         .description = QStringLiteral(
             "The angle between the lead upper arm and the torso, through the swing. It describes "
             "how connected the lead arm stays to the body's turn. The lead arm folding through "
@@ -2703,6 +2771,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Ball reach"),
         .unit = QStringLiteral("% shoulder width"),
         .group = QStringLiteral("Feet & stance"),
+        .color = QStringLiteral("ochre"),
         .description = QStringLiteral(
             "How far the ball sits from the golfer, measured across the stance line and expressed "
             "as a percentage of shoulder width so it is comparable between golfers. Standing too "
@@ -2733,6 +2802,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Chest drift"),
         .unit = QStringLiteral("% stance width"),
         .group = QStringLiteral("Pelvis & lateral"),
+        .color = QStringLiteral("mint"),
         .description = QStringLiteral(
             "How far the centre of the chest has moved sideways from its address position, as a "
             "percentage of stance width. The upper body moving toward the target ahead of the "
@@ -2766,6 +2836,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Trail elbow"),
         .unit = QStringLiteral("% shoulder width"),
         .group = QStringLiteral("Arms"),
+        .color = QStringLiteral("gold"),
         .description = QStringLiteral(
             "How high the trail elbow sits relative to the shoulder line, as a percentage of "
             "shoulder width. A trail elbow lifted away from the body at the top disconnects the "
@@ -2794,6 +2865,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Width"),
         .unit = QStringLiteral("% arm length"),
         .group = QStringLiteral("Arms"),
+        .color = QStringLiteral("cornflower"),
         .description = QStringLiteral(
             "How far the lead hand is from the centre of the chest, as a percentage of lead arm "
             "length — the swing's width. The hands collapsing toward the chest in the backswing "
@@ -2832,6 +2904,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Trail knee"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Feet & stance"),
+        .color = QStringLiteral("teal"),
         .description = QStringLiteral(
             "The angle between the trail shin and the trail thigh through the swing. The trail knee "
             "holds the flex it was given at address while the pelvis turns against it; losing that "
@@ -2863,6 +2936,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Balance"),
         .unit = QStringLiteral("% stance width"),
         .group = QStringLiteral("Feet & stance"),
+        .color = QStringLiteral("sky"),
         .description = QStringLiteral(
             "How far the pelvis centre sits from the lead ankle, along the stance line, as a "
             "percentage of stance width. At the finish a golfer who has used the ground is stacked "
@@ -2892,6 +2966,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Heel/toe"),
         .unit = QStringLiteral("% foot length"),
         .group = QStringLiteral("Feet & stance"),
+        .color = QStringLiteral("cornflower"),
         .description = QStringLiteral(
             "Where the balance point sits between the heels and the toes, as a percentage of foot "
             "length from the heel. THE DEPTH-AXIS PARTNER TO BALANCE OVER THE LEAD FOOT, which "
@@ -2927,6 +3002,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Connection"),
         .unit = QStringLiteral("% shoulder width"),
         .group = QStringLiteral("Arms"),
+        .color = QStringLiteral("orchid"),
         .description = QStringLiteral(
             "The gap between the lead upper arm and the chest, normalised by shoulder width. "
             "Coaches call the arm staying near the body 'connection'; the arm running away from it "
@@ -2958,6 +3034,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Shaft dir"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("sky"),
         .description = QStringLiteral(
             "Where the shaft points relative to the target line, seen down the line. Read in the "
             "takeaway it says whether the club was dragged inside or pushed outside; read at the "
@@ -2990,6 +3067,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Past parallel"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("violet"),
         .description = QStringLiteral(
             "How far past horizontal the shaft has travelled at the top of the backswing. "
             "'Parallel' is the reference every coach uses for backswing length, and length is a "
@@ -3029,6 +3107,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Start dir"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("ochre"),
         .description = QStringLiteral(
             "The horizontal direction the ball leaves on, relative to the target line. Start "
             "direction is dominated by where the face pointed at impact, which is what makes it the "
@@ -3066,6 +3145,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Launch"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("lavender"),
         .description = QStringLiteral(
             "The vertical angle the ball leaves on. Together with ball speed it is most of what "
             "decides carry, and it is the reading that separates a thin strike from a fat one when "
@@ -3101,6 +3181,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Ball spd"),
         .unit = QStringLiteral("mph"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("mint"),
         .description = QStringLiteral(
             "How fast the ball leaves the face. It is the single best summary of how much of the "
             "clubhead's energy reached the ball, so a collapse in it with an otherwise ordinary "
@@ -3163,6 +3244,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Club spd (LM)"),
         .unit = QStringLiteral("mph"),
         .group = QStringLiteral("Club & speed"),
+        .color = QStringLiteral("cornflower"),
         .description = QStringLiteral(
             "Clubhead speed at impact as a launch monitor measured it. Its whole value beside "
             "`clubheadSpeed` is that the two can be compared: ours is a projected head-path speed "
@@ -3188,6 +3270,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Ball spd (LM)"),
         .unit = QStringLiteral("mph"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("mint"),
         .description = QStringLiteral(
             "How fast the ball left the face, measured. It is the single best predictor of distance "
             "there is, and the numerator of smash factor."),
@@ -3213,6 +3296,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Smash"),
         .unit = QStringLiteral("ratio"),
         .group = QStringLiteral("Strike"),
+        .color = QStringLiteral("gold"),
         .description = QStringLiteral(
             "Ball speed divided by clubhead speed — how much of the club's energy reached the ball. "
             "It isolates strike quality from speed: two golfers swinging identically fast can be a "
@@ -3239,6 +3323,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("AoA (LM)"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("mint"),
         .description = QStringLiteral(
             "The vertical direction the clubhead was travelling at impact, measured. The twin of "
             "our camera-derived `attackAngle`, and the reference that says whether the low-point "
@@ -3269,6 +3354,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Path (LM)"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("orchid"),
         .description = QStringLiteral(
             "The horizontal direction the clubhead was travelling at impact. With face angle it "
             "settles both halves of ball flight: the path largely chooses the start line and the "
@@ -3292,6 +3378,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Launch (LM)"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("lavender"),
         .description = QStringLiteral(
             "The vertical angle the ball left on. Together with ball speed and spin it settles the "
             "whole flight, and it is mostly delivered loft plus a contribution from attack angle."),
@@ -3316,6 +3403,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Start (LM)"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("ochre"),
         .description = QStringLiteral(
             "The horizontal angle the ball started on, relative to the target line. It is dominated "
             "by face angle, which is what makes it the cleanest evidence of where the face actually "
@@ -3341,6 +3429,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Low pt (LM)"),
         .unit = QStringLiteral("in"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("teal"),
         .description = QStringLiteral(
             "Where the bottom of the swing arc was relative to the ball, measured. The twin of our "
             "camera-derived `lowPointAhead`, and the reference that says whether the arc vertex we "
@@ -3370,6 +3459,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Face"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("cornflower"),
         .description = QStringLiteral(
             "Where the clubface is pointing at impact relative to the target line — the primary "
             "control on where the ball starts, since start direction is dominated by face angle. "
@@ -3399,6 +3489,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Face/path"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("cornflower"),
         .description = QStringLiteral(
             "The face angle relative to the club path at impact. This is the number that decides "
             "which way the ball curves, and it is why a slice and a pull can come from the same "
@@ -3426,6 +3517,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Dyn loft"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("lavender"),
         .description = QStringLiteral(
             "The loft actually presented to the ball at impact, as opposed to the loft stamped on "
             "the club. Shaft lean removes it and flipping the hands adds it, which is why two "
@@ -3450,6 +3542,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Spin loft"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("gold"),
         .description = QStringLiteral(
             "The angle between the delivered loft and the direction the clubhead is travelling. It "
             "is what generates spin: a small spin loft gives a hot, low-spinning strike, a large one "
@@ -3473,6 +3566,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Lie"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("ochre"),
         .description = QStringLiteral(
             "How the sole sat relative to the ground at impact — toe up or toe down. A club whose "
             "lie does not match the golfer points the face off line at impact even when everything "
@@ -3497,6 +3591,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Closure"),
         .unit = QStringLiteral("°/s"),
         .group = QStringLiteral("Club delivery"),
+        .color = QStringLiteral("ochre"),
         .description = QStringLiteral(
             "How fast the face was rotating through impact. It is the reason two golfers with the "
             "same average face angle can differ enormously in consistency: the faster the face is "
@@ -3524,6 +3619,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Strike"),
         .unit = QStringLiteral("mm"),
         .group = QStringLiteral("Strike"),
+        .color = QStringLiteral("cornflower"),
         .description = QStringLiteral(
             "Where on the face the ball was struck, across the heel-toe axis. Off-centre contact "
             "bleeds speed and, through gear effect, curves the ball in the opposite direction to "
@@ -3550,6 +3646,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Strike ht"),
         .unit = QStringLiteral("mm"),
         .group = QStringLiteral("Strike"),
+        .color = QStringLiteral("crimson"),
         .description = QStringLiteral(
             "Where on the face the ball was struck up the crown-sole axis. It is the other half of "
             "strike location and the one that explains spin surprises: high on a driver face gives "
@@ -3582,6 +3679,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Spin"),
         .unit = QStringLiteral("rpm"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("coral"),
         .description = QStringLiteral(
             "How fast the ball is spinning as it leaves — the TOTAL spin, back and side combined. "
             "Too much costs distance and makes the flight balloon; too little costs the height and "
@@ -3608,6 +3706,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Backspin"),
         .unit = QStringLiteral("rpm"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("teal"),
         .description = QStringLiteral(
             "The component of spin about the horizontal axis — the part that generates lift and "
             "makes the ball hold its height and stop on landing."),
@@ -3629,6 +3728,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Sidespin"),
         .unit = QStringLiteral("rpm"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("sky"),
         .description = QStringLiteral(
             "The component of spin about the vertical axis — the part that curves the ball left or "
             "right."),
@@ -3651,6 +3751,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Spin axis"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("violet"),
         .description = QStringLiteral(
             "The tilt of the ball's axis of rotation, which is what curves the flight. It is the "
             "outcome the golfer actually sees, where face-to-path is the cause of it at impact."),
@@ -3676,6 +3777,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Carry"),
         .unit = QStringLiteral("yd"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("orchid"),
         .description = QStringLiteral(
             "How far the ball flies before it lands. It is the number a golfer plans a round with, "
             "and the one every other ball-flight metric is ultimately serving."),
@@ -3700,6 +3802,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Total"),
         .unit = QStringLiteral("yd"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("crimson"),
         .description = QStringLiteral(
             "Carry plus roll. It is the more variable of the two by a long way, because roll depends "
             "on ground the simulator is assuming rather than measuring."),
@@ -3722,6 +3825,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Offline"),
         .unit = QStringLiteral("yd"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("gold"),
         .description = QStringLiteral(
             "How far left or right of the target line the ball finished. It is the outcome that "
             "start direction and spin axis jointly produce, and so an INDEPENDENT WITNESS to both: "
@@ -3746,6 +3850,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Apex"),
         .unit = QStringLiteral("ft"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("moss"),
         .description = QStringLiteral(
             "The highest point of the flight. It is the readable symptom of the launch-and-spin "
             "pair: a ballooning flight shows up here long before the golfer notices the distance "
@@ -3769,6 +3874,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Descent"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("ochre"),
         .description = QStringLiteral(
             "How steeply the ball came down. It is what decides whether a shot holds the green it "
             "lands on, and it is the reason a long iron that carries far enough can still be the "
@@ -3791,6 +3897,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("To pin"),
         .unit = QStringLiteral("yd"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("ochre"),
         .description = QStringLiteral(
             "How far the ball finished from the pin the simulator was playing to. Unlike everything "
             "else here it is a property of the SHOT THE SOFTWARE SET UP as much as of the swing — "
@@ -3829,6 +3936,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Compound"),
         .unit = QStringLiteral("ratio"),
         .group = QStringLiteral("Ball flight"),
+        .color = QStringLiteral("ochre"),
         .description = QStringLiteral(
             "Whether the ball started off line and then curved FURTHER THE SAME WAY — the "
             "pull-hook and the push-slice, the two misses with nothing at impact aimed anywhere "

@@ -124,6 +124,11 @@ QtObject {
           label: qsTr("Aesthetic"),                        subtitle: qsTr("Visual theme applied across all screens"),
           itemId: "setting_aesthetic" },
 
+        { panelIndex: 1, panelLabel: qsTr("Appearance"),  groupLabel: qsTr("Metric colours"),
+          label: qsTr("Metric colours"),                   subtitle: qsTr("The colours every metric is drawn in, for this theme"),
+          actions: "metric colour color palette chart series line plot cornflower crimson mint",
+          itemId: "setting_metricPalette" },
+
         { panelIndex: 1, panelLabel: qsTr("Appearance"),  groupLabel: qsTr("Type scale"),
           label: qsTr("Text size"),                        subtitle: qsTr("Scales all fonts and spacing proportionally"),
           itemId: "setting_textSize" },

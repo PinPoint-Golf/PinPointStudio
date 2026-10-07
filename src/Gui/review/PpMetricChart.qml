@@ -197,7 +197,9 @@ Item {
             root._persistPref("preset", "Custom")
         }
     }
-    function _color(i) { return Theme.chartSeriesColor(i) }
+    // A metric's colour is its own (Theme.metricColor), never its position in the list — by index,
+    // one metric missing from a swing repainted every curve after it.
+    function _color(key) { return Theme.metricColor(key) }
 
     // ── Metric presets ────────────────────────────────────────────────────────────
     // A fully-instrumented swing produces well over thirty plottable curves in six different
@@ -309,7 +311,7 @@ Item {
     readonly property bool _hasAny: root._plottable.length > 0
 
     // Every series this swing can DRAW — a curve of at least two samples, with a matching value
-    // array — decorated with its (stable, full-list) palette colour. The list also carries the
+    // array — decorated with the metric's own colour (Theme.metricColor). The list also carries the
     // ones currently toggled off, because the legend has to keep offering them.
     //
     // The setup scalars (stance width, tempo, attack angle, low point …) are MetricSeries with an
@@ -325,7 +327,7 @@ Item {
             var s = root._list[i]
             if (s && s.t_us && s.t_us.length > 1 && s.value && s.value.length === s.t_us.length) {
                 var d = Object.assign({}, s)
-                d.color = root._color(i)
+                d.color = root._color(s.key)
                 // The metric's PHASE DOMAIN as instants — decorated on here rather than resolved
                 // in the plot and again in the summary, so both surfaces clip the same curve at
                 // the same two times. (`valid` rides along from the bridge via Object.assign.)
@@ -1399,7 +1401,7 @@ Item {
 
             Repeater {
                 // The preset's metrics — see _legendSeries. The colour rides on the model entry, so
-                // it stays the series' full-list palette colour and matches its trace whatever the
+                // it is the metric's own colour and matches its trace whatever the
                 // preset is showing.
                 model: root._legendSeries
                 delegate: Row {

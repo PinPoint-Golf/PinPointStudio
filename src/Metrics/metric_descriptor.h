@@ -459,6 +459,21 @@ struct MetricDescriptor {
     QString    unit;                       // "°", "mph", "×frame", …
     QString    group;                      // "Wrist & forearm" | "Club & speed" | "Setup" | …
 
+    // The colour this metric is DRAWN in, everywhere it is plotted — a NAME from the metric
+    // palette (metricColorNames() below), never a hex. Each theme defines every name for its own
+    // background, light and dark, so "clubheadSpeed is cornflower" holds across all twelve themes
+    // while the actual blue is tuned to each; the user can re-point a metric at another name, or
+    // retune a name in a theme, from Settings (Theme.metricColor resolves both).
+    //
+    // Colour follows the METRIC, never its position in a list. It used to be the series' index in
+    // the swing's list, so one missing metric repainted every curve after it.
+    //
+    // Authored so the curves a reader plots together read apart: every TimeSeries in a group, and
+    // in a preset, has its own name (metric_catalogue_test). The point-in-time readings of a launch
+    // monitor (lm.*) share their twin's name — the same quantity, read by another instrument.
+    // Pelvis is crimson and chest mint wherever they appear.
+    QString    color;                      // "cornflower"
+
     // CROSS-CUTTING reading lists, empty for almost every metric. A metric belongs to exactly one
     // `group`, and the chart's preset combo is derived from that group (ChartMetrics::seriesGroups)
     // — so a group is also the unit a reader plots together, and a metric cannot be in two of them
@@ -659,6 +674,21 @@ inline QString stereoGainId(MetricDescriptor::StereoGain g)
     case MetricDescriptor::StereoGain::Unlocks:  return QStringLiteral("unlocks");
     }
     return QString();
+}
+
+// The metric palette's names, in hue order. The order alternates a deeper and a lighter tier
+// around the wheel, so two names that neighbour in hue never also share a lightness — which is
+// what keeps them apart for a colour-blind reader. Theme.qml defines every one of these for every
+// theme and mode; a name added here without a colour there draws as the fallback grey.
+inline const QStringList &metricColorNames()
+{
+    static const QStringList names = {
+        QStringLiteral("crimson"), QStringLiteral("coral"),    QStringLiteral("ochre"),
+        QStringLiteral("gold"),    QStringLiteral("moss"),     QStringLiteral("mint"),
+        QStringLiteral("teal"),    QStringLiteral("sky"),      QStringLiteral("cornflower"),
+        QStringLiteral("lavender"), QStringLiteral("violet"),  QStringLiteral("orchid"),
+    };
+    return names;
 }
 
 } // namespace pinpoint::analysis
