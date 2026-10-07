@@ -54,7 +54,6 @@
 #include <QSysInfo>
 
 #include <QDateTime>
-#include <QDir>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QSet>
@@ -2008,10 +2007,8 @@ void ShotProcessor::beginSessionFolder(int sessionType, bool extend)
 
 void ShotProcessor::endSessionFolder()
 {
-    const QString ended = m_swingPaths.currentSessionDir();
     m_swingPaths.endSession(/*discardIfNoNewSwings=*/true);
     emit activeSessionDirChanged();
-    if (!ended.isEmpty() && QDir(ended).exists()) emit sessionFolderEnded(ended);
 }
 
 QJsonObject ShotProcessor::buildSynthManifest() const

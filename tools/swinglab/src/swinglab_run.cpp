@@ -376,22 +376,11 @@ int main(int argc, char **argv)
         "Pool mode: build a skeleton3d session pool from <dir>/*/result.json (see --pool-prefix, --pool-out).", "dir");
     QCommandLineOption optPoolPrefix("pool-prefix", "Pool mode: only the result directories whose name starts with this.", "str");
     QCommandLineOption optPoolOut("pool-out", "Pool mode: where to write the pool JSON.", "file");
-    QCommandLineOption optPoolSession("pool-session",
-        "The app's session pass (poolSkeletonSession): pass-1 fits of <sessionDir>/swing_*, pooled into "
-        "<sessionDir>/skeleton3d_session.json. Nothing else is written; --write-back each swing after it.", "dir");
     cli.addOptions({ optOut, optParams, optTrace, optSession, optFaceOn, optImpact, optPose, optForce, optFullWindow,
                      optBall, optRefuse, optRefuseBeta, optWriteBack, optBind, optDtl, optDtlPose, optDtlCalib,
                      optBands, optClubLen, optHosel, optShaftLen, optHandsEnd, optHeight,
-                     optCalib, optPool, optPoolPrefix, optPoolOut, optPoolSession, optDag });
+                     optCalib, optPool, optPoolPrefix, optPoolOut, optDag });
     cli.process(app);
-
-    if (cli.isSet(optPoolSession)) {
-        QString err;
-        int n = 0;
-        const bool ok = poolSkeletonSession(cli.value(optPoolSession), &err, &n);
-        std::fprintf(stderr, "[swinglab] pool-session: %d swings fitted, %s\n", n, ok ? "written" : qPrintable(err));
-        return ok ? 0 : 1;
-    }
 
     // ── Pool mode ────────────────────────────────────────────────────────────
     if (cli.isSet(optPool)) {

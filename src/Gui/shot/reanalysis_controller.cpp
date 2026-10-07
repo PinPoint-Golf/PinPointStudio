@@ -18,10 +18,7 @@
 
 #include "reanalysis_controller.h"
 
-#include <QDir>
 #include <QFile>
-#include <QFileInfo>
-#include <QHash>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QtConcurrent>
@@ -35,8 +32,6 @@ ReanalysisController::ReanalysisController(QObject *parent)
 {
     connect(&m_watcher, &QFutureWatcherBase::finished,
             this, &ReanalysisController::onWorkerFinished);
-    connect(&m_poolWatcher, &QFutureWatcherBase::finished,
-            this, &ReanalysisController::onPoolFinished);
 }
 
 void ReanalysisController::reanalyse(const QVariantList &swingDirs)
@@ -61,7 +56,6 @@ void ReanalysisController::reanalyse(const QVariantList &swingDirs)
     }
 
     m_queue += dirs;
-    m_batchDirs += dirs;
     ppInfo() << "[Reanalysis] queued" << dirs.size() << "swing(s);" << m_queue.size() << "pending";
     emit reanalyseQueued(dirs.size());
 
@@ -81,16 +75,6 @@ void ReanalysisController::startNext()
         setReanalysing(false);
         ppInfo() << "[Reanalysis] batch done —" << m_succeeded << "ok," << m_failed << "failed";
         emit reanalyseFinished(m_succeeded, m_failed, m_lastError);
-        // The skeleton3d session pool: a batch that covered two or more swings of a session pools
-        // that session (then re-analyses it once more with the pool). A pool's own follow-up does not.
-        if (!m_followUp) {
-            QHash<QString, int> perSession;
-            for (const QString &d : m_batchDirs) ++perSession[QFileInfo(d).absolutePath()];
-            for (auto it = perSession.cbegin(); it != perSession.cend(); ++it)
-                if (it.value() >= 2) poolSession(it.key());
-        }
-        m_batchDirs.clear();
-        m_followUp = false;
         return;
     }
 
@@ -191,44 +175,4 @@ void ReanalysisController::setReanalysing(bool on)
         return;
     m_reanalysing = on;
     emit reanalysingChanged();
-}
-
-void ReanalysisController::poolSession(const QString &sessionDir)
-{
-    if (sessionDir.isEmpty() || sessionDir == m_poolCurrent || m_poolQueue.contains(sessionDir)) return;
-    m_poolQueue << sessionDir;
-    if (m_poolCurrent.isEmpty()) startNextPool();
-}
-
-void ReanalysisController::startNextPool()
-{
-    if (m_poolQueue.isEmpty()) { m_poolCurrent.clear(); return; }
-    m_poolCurrent = m_poolQueue.takeFirst();
-    const QString dir = m_poolCurrent;
-    ppInfo() << "[Reanalysis] skeleton3d session pool — pass 1 over" << dir;
-    m_poolWatcher.setFuture(QtConcurrent::run([dir] {
-        pinpoint::osmetrics::ThreadScope _tscope("Analysis.Worker");
-        QString err;
-        int n = 0;
-        return pinpoint::analysis::poolSkeletonSession(dir, &err, &n) ? QString() : (err.isEmpty() ? QStringLiteral("not pooled") : err);
-    }));
-}
-
-void ReanalysisController::onPoolFinished()
-{
-    const QString err = m_poolWatcher.result();
-    const QString dir = m_poolCurrent;
-    if (err.isEmpty()) {
-        // Pass 2: the whole session re-analysed; each swing's fit now holds the pooled values.
-        QVariantList swings;
-        const QDir root(dir);
-        for (const QString &name : root.entryList({ QStringLiteral("swing_*") }, QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name))
-            swings << root.filePath(name);
-        ppInfo() << "[Reanalysis] skeleton3d session pool written for" << dir << "— re-analysing" << swings.size() << "swing(s)";
-        if (!m_reanalysing) m_followUp = true;
-        reanalyse(swings);
-    } else {
-        ppInfo() << "[Reanalysis] skeleton3d session pool not made for" << dir << ":" << err;
-    }
-    startNextPool();
 }

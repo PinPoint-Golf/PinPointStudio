@@ -295,7 +295,6 @@ All from b82de8a3 (2026-10-01); gate in `dtl_precalibration_20261003.md`.
 | `usePlane` / `useCataloguePlane` / `branchPass` | :166–171 | LIVE | Swing-plane prior on DTL-blind frames, the catalogue fallback, and the mirror-branch pass. |
 | `debugForceMirror` | :187 | DARK (test) | Test hook. |
 | `pool{Club,Scale,Sym,Grip}` | `skeleton3d_pool.h:59–62` | **DARK** | Hold the golfer's pooled values fixed. |
-| `ReanalyzeOptions::useSessionPool` | `swing_reanalyzer.h:103` | LIVE | Use the session's pooled cameras. Forced off in SwingLab pass 1. |
 | `pelvisYawAccRad` | `skeleton3d_fit.h` (FitConfig) | LIVE (200) | The pelvis yaw's own acceleration σ, rad/s², never loosened through the downswing (0 = the general σ). |
 | `footToeLiftM` / `footHeelLiftM` | `skeleton3d_fit.h` (FitConfig) | LIVE (0.06 / 0.03) | The shod foot: the toe and heel keypoint markers lifted along the foot's up axis (0 = bare-sole priors). |
 | `groundedClubSigmaM` / `groundedClubLiftM` | `skeleton3d_fit.h` (FitConfig) | LIVE (0.02 / 0), two cameras only | The club grounded at address: the fitted head rests on the feet's floor, which levels the world about the target line (σ 0 = off). |

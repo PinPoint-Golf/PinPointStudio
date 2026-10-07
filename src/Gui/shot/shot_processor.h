@@ -193,9 +193,6 @@ signals:
     void replaySpanChanged();
     void replayAnalysisDetailChanged();
     void activeSessionDirChanged();
-    // The session folder just ended (its path) — the skeleton3d session pool runs on it
-    // (swing_3d_viz_design.md §13.2 (C); wired to ReanalysisController::poolSession in main.cpp).
-    void sessionFolderEnded(const QString &sessionDir);
     // analysis+export join reached, all ok — carries the reviewable on-disk swing
     // (swingDir) and its carousel row id so the UI can promote it straight into Review.
     void shotProcessed(int shotId, const QString &swingDir);

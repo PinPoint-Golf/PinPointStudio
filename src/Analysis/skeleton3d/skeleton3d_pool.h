@@ -30,7 +30,8 @@
 //   differ from its epoch's median by more than the thresholds starts the next.
 //
 // Pure (Qt JSON only): the pooled file is `<sessionDir>/skeleton3d_session.json`, schema
-// `pinpoint.skeleton3dSession/1`. Pooled at re-analysis and session end only; live shots never use it.
+// `pinpoint.skeleton3dSession/1`. A research tool only (swinglab_run --pool / --skeleton-calib): the app
+// stopped pooling on 7 Oct 2026 — measured, it bought no metric anything (swing_3d_viz_design.md §13.9).
 
 #include <QJsonArray>
 #include <QJsonObject>

@@ -927,6 +927,40 @@ and the margin (face-on only +1.35°) is within one swing's noise on 24 swings. 
 is dead under the lean spine (it only acts with `leanRig` off). The tune-on-4-July / test-on-11-June
 step was not run: with 24 swings from one golfer, it would tune to noise.
 
+### 13.9 (C) removed from the app (7 October 2026)
+
+Mark, after a 50-swing cabin session re-analysed itself unasked at End Session: the session-end and
+batch-end pool are gone. Neither trigger exists, re-analysis no longer reads
+`skeleton3d_session.json`, and `poolSkeletonSession` / `swinglab_run --pool-session` are deleted.
+`skeleton3d_pool.h`, `swinglab_run --pool` and `--skeleton-calib` stay as research tools.
+
+**Why — measured at skeleton3d v8** (`tools/swinglab/pool_value_compare.py`,
+`docs/research/data/skeleton3d/pool_value_20261007.csv`): three two-camera sessions (07-04, 10-05,
+10-07; 95 swings) re-analysed twice on the studio, once with no pool and once through the app's
+session-end path.
+
+| | 07-04 (15) | 10-05 (30) | 10-07 (50) |
+|---|---|---|---|
+| Camera epochs found | 2 (the real move) | 4 | 13 (5 of one swing) on a fixed rig |
+| Reprojection face-on, median px, none → pooled | 4.35 → 4.46 | 4.28 → 4.59 | 4.34 → 4.52 |
+| Final cost, median | +1.8 % | +3.2 % | +1.3 % |
+| Shaft down-plane rms, median ° | 2.46 → 2.44 | 1.96 → 1.85 | 2.67 → 2.28 |
+| Phase samples moved > 1 σ | 64 of 2333 | 66 of 4833 | 104 of 7332 |
+| xFactorStretch at impact, swing-to-swing SD ° | 10.2 → 19.5 | 19.1 → 18.8 | 11.4 → 11.9 |
+| thoraxRotation at the top, swing-to-swing SD ° | 8.0 → 12.1 | 15.6 → 15.9 | 10.2 → 11.1 |
+
+Only the camera scatter shrinks, which is what a pool is by construction. Only the metrics that read
+the 3-D trunk and lead arm move (xFactorStretch, thoraxRotation, pelvisRotation, xFactor,
+leadArmAngularSpeed), single swings by up to 19° (thoraxRotation) and 40° (xFactorStretch), and they
+are no steadier from swing to swing. On 07-04, the one session where the epochs are right, they are
+less steady. The §13.7 gains were graded on v3, before §14's grounded club levelled the world: that
+fixed the face-on pitch that pooling had been holding. The epoch rule was also fragile: one outlier
+fit closes an epoch and stands alone, so a single bad swing reads as two tripod moves.
+
+What it cost: every swing of the session was re-analysed twice at End Session (pass 1 only re-made
+the unpooled fit the live shot had already saved), about 12 minutes on the studio for 50 swings,
+unannounced, and "End session & close" abandoned it half-done (5 Oct's pool covered 5 of 31 swings).
+
 ## 14. The club that did not reach the ground (2 October 2026) — skeleton3d v6
 
 **What was seen.** In the 3-D view the club stopped short of the floor at address.

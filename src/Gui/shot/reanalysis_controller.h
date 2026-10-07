@@ -66,12 +66,6 @@ public:
     // only the next is deferred.
     Q_INVOKABLE void setLiveBusy(bool busy);
 
-    // The skeleton3d SESSION POOL (swing_3d_viz_design.md §13.2 (C)): pass 1 over the session's
-    // swings (poolSkeletonSession, on a worker), then the session re-analysed so every swing's fit
-    // holds the pooled values. Called at session end, and after a re-analysis batch that covered two
-    // or more swings of one session. Queued; one session at a time.
-    Q_INVOKABLE void poolSession(const QString &sessionDir);
-
 signals:
     void reanalysingChanged();
     // Emitted once per accepted reanalyse() with the number of swings queued — the
@@ -87,7 +81,6 @@ signals:
 
 private slots:
     void onWorkerFinished();
-    void onPoolFinished();
 
 private:
     void startNext();
@@ -103,12 +96,4 @@ private:
     bool        m_startDeferred = false;  // a startNext() was held off for m_liveBusy
 
     QFutureWatcher<pinpoint::analysis::ReanalyzeResult> m_watcher;
-
-    // The session pool (§13.2 (C)).
-    void startNextPool();
-    QStringList m_batchDirs;      // the swings this batch covered (for the batch-end pool)
-    bool        m_followUp = false;   // this batch IS a pool's follow-up: it must not pool again
-    QStringList m_poolQueue;
-    QString     m_poolCurrent;
-    QFutureWatcher<QString> m_poolWatcher;   // "" = pooled, else the reason it was not
 };
