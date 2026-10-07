@@ -1176,10 +1176,10 @@
       "measure": "m_handPathLoop",
       "context": "any",
       "mu": 0.0,
-      "sigmaLo": 3.3333333333333335,
+      "sigmaLo": 2.3333333333333335,
       "unit": "% hand rise",
       "source": "heuristic",
-      "citation": "MORE THAN 10 % OF THE HAND RISE IS THE FAULT, AND SIGMA IS SET TO PUT IT THERE: 10/3, so Action begins at +10 % under the Standard policy (watchMaxZ = 3), the pelvis-thrust convention. On a one-metre rise that is the hands coming down about 10 cm outside the path they went up on, which a coach would call over the top on sight. Coaching judgement, not a fitted spread: the only data is one golfer (34 down-the-line corpus swings, 2026-06-11/07-03/07-04, +10 to +35 %), and a spread cut from one golfer who comes over the top on every swing would install his move as the standard. A CEILING, so only the outside tail grades: hands dropping inside the backswing path is the shallowing move good players make on purpose."
+      "citation": "EXPERIMENTAL, 2026-10-07: MORE THAN 7 % OF THE HAND RISE IS THE FAULT, AND SIGMA IS SET TO PUT IT THERE: 7/3, so Action begins at +7 % under the Standard policy (watchMaxZ = 3), the pelvis-thrust convention, and the signal surfaces a deviation from about +4.7 % (goodMaxZ = 2). Moved down from 10 % after the 2026-10-07 session, where the golfer judged the club-path numbers they saw to agree with a 7 % line (no launch-monitor capture that session, so the path was not recorded beside the swings); not yet accepted, and the 10 % line is the one to return to if it is not. On a one-metre rise 7 % is the hands coming down about 7 cm outside the path they went up on. THE MEASURE MAY READ HIGH: the down-the-line camera sits behind the ball rather than on the hand line, so hands that are further from it on the way down are drawn nearer the ball line than the same position on the way up — an estimated few points toward over the top, not yet measured against the 3-D skeleton. Coaching judgement, not a fitted spread: the only data is one golfer (34 down-the-line corpus swings, 2026-06-11/07-03/07-04, +10 to +35 %), and a spread cut from one golfer who comes over the top on every swing would install his move as the standard. A CEILING, so only the outside tail grades: hands dropping inside the backswing path is the shallowing move good players make on purpose."
     },
     {
       "measure": "m_pelvisThrustBack",
