@@ -1072,6 +1072,10 @@ QVariantList ModelBrowser::columns(const QString &type) const
         c.append(column(QStringLiteral("answersCount"), tr("N"), 48, false, QStringLiteral("right"), true));
     } else if (type == kReferences) {
         c.append(column(QStringLiteral("name"), tr("Citation"), 240, true));
+        // Author and year beside the title: "who wrote what" is what a reader scans this list for,
+        // and the title alone never answered it.
+        c.append(column(QStringLiteral("author"), tr("Author"), 150));
+        c.append(column(QStringLiteral("year"), tr("Year"), 56, false, QStringLiteral("right"), true));
         c.append(column(QStringLiteral("identifier"), tr("Identifier"), 150, false, QStringLiteral("left"), true));
         c.append(column(QStringLiteral("supports"), tr("Supports"), 260));
         c.append(column(QStringLiteral("tier"), tr("Tier"), 128));
@@ -1702,8 +1706,19 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
                 anyClaim = true;
             }
 
+            // The byline in its short form — "Cole & Grimshaw", "Vad et al." — since `authors`
+            // runs to twelve family names on some records and the full list is in the inspector.
+            const QStringList names = ref.authors.split(QLatin1Char(','), Qt::SkipEmptyParts);
+            const QString author = names.isEmpty() ? QString()
+                : names.size() == 1 ? names.at(0).trimmed()
+                : names.size() == 2 ? tr("%1 & %2").arg(names.at(0).trimmed(), names.at(1).trimmed())
+                                    : tr("%1 et al.").arg(names.at(0).trimmed());
+
             QVariantList cells;
             cells.append(cell(ref.title.isEmpty() ? ref.id : ref.title));
+            cells.append(cell(author));
+            cells.append(cell(ref.year > 0 ? QString::number(ref.year) : QString(),
+                              QStringLiteral("dim"), true));
             cells.append(cell(ref.identifierLabel(), QStringLiteral("dim"), true));
             cells.append(cell(supports.join(QStringLiteral(" · ")),
                               supports.isEmpty() ? QStringLiteral("dim") : QString()));
@@ -1717,6 +1732,8 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             r.insert(QStringLiteral("label"), ref.title.isEmpty() ? ref.id : ref.title);
             r.insert(QStringLiteral("cells"), cells);
             QVariantMap keys;
+            keys.insert(QStringLiteral("author"), ref.authors);
+            keys.insert(QStringLiteral("year"), ref.year);
             keys.insert(QStringLiteral("name"), ref.title);
             keys.insert(QStringLiteral("identifier"), ref.identifierLabel());
             // Ranked by how much of the library each one holds up. That ordering IS the argument:
