@@ -88,6 +88,20 @@ int main()
         checkInt ("rating (after setRating)", s.value(QStringLiteral("rating")).toInt(), 4);
         checkBool("hasVideo",             s.value(QStringLiteral("hasVideo")).toBool(), true);
         checkStr ("swingDir",             s.value(QStringLiteral("swingDir")).toString(), QStringLiteral("/swings/swing_0001"));
+        checkBool("dataWarning (clean)",  s.value(QStringLiteral("dataWarning")).toBool(), false);
+    }
+
+    std::printf("\n-- a warned shot carries its warning to the swing panel --\n");
+    {
+        const int idW = model.addShot(QStringLiteral("/swings/swing_0009"), QStringLiteral("13:50"),
+                                      QStringLiteral("7-iron"), /*hasVideo*/ true, QUrl(), {},
+                                      /*score*/ 70, {}, {}, /*dataWarning*/ true,
+                                      { { QStringLiteral("clubRefused"), QStringLiteral("phaseSuspect") } });
+        const QVariantMap s = model.shotSummary(idW);
+        checkBool("dataWarning",          s.value(QStringLiteral("dataWarning")).toBool(), true);
+        checkStr ("dataWarningDetail.clubRefused",
+                  s.value(QStringLiteral("dataWarningDetail")).toMap()
+                   .value(QStringLiteral("clubRefused")).toString(), QStringLiteral("phaseSuspect"));
     }
 
     std::printf("\n-- unknown / -1 id --\n");

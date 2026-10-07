@@ -55,54 +55,9 @@ Rectangle {
     required property bool   dataWarning   // an integrity block warns (frames lost in capture, or IMU re-fusion)
     required property var    dataWarningDetail   // { capture, imu, framesLost, worstHoleMs, preImpact, … }
 
-    // The ⚠ tooltip, worded from the facts. Capture holes first: they mean the swing
-    // itself (or its follow-through) is missing frames, which is the more serious of
-    // the two and the one the session assessment excludes the shot for.
-    readonly property string dataWarningText: {
-        const d = dataWarningDetail || {}
-        const parts = []
-        if (d.capture) {
-            const where = d.preImpact ? qsTr("during the swing")
-                                      : qsTr("after impact, so the follow-through positions are unreliable")
-            parts.push(qsTr("Frames were lost during capture (%1 frames in %2 hole%3, worst %4 ms) %5.")
-                       .arg(d.framesLost).arg(d.holes).arg(d.holes === 1 ? "" : "s")
-                       .arg(Math.round(d.worstHoleMs)).arg(where))
-        }
-        if (d.imu)
-            parts.push(qsTr("IMU data integrity check failed — the recorded motion data is "
-                            + "inconsistent (orientation re-fusion mismatch), so this shot "
-                            + "cannot be re-analysed."))
-        if (d.capture || d.imu)
-            parts.push(qsTr("This shot is not included in the session assessment."))
-        // A refused club track (analysis.club.refused): the tracker's own witnesses
-        // contradicted what it saw, so nothing from the face-on club is shown or
-        // measured on this shot; body and wrist measurements are unaffected.
-        if (d.clubRefused) {
-            const why = d.clubRefused === "p1BallConflict"
-                          ? qsTr("the shaft at address did not point at the ball")
-                          : d.clubRefused === "phaseSuspect"
-                          ? qsTr("the takeaway could not be found from the hands")
-                          : d.clubRefused === "lengthConflict"
-                          ? qsTr("the club length at address disagreed with the ball distance")
-                          : d.clubRefused === "handsUnusable"
-                          ? qsTr("the pose could not place the hands on most frames")
-                          : d.clubRefused
-            parts.push(qsTr("The club track was refused (%1), so the club is not drawn and "
-                            + "club measurements show \"-\" on this shot. Body and wrist "
-                            + "measurements are unaffected.").arg(why))
-        }
-        // The down-the-line camera did not have the top of the swing in frame
-        // (analysis.clubDtl.summary.topOutOfView): a framing fact, so it says how to
-        // reframe and does not exclude the shot.
-        if (d.dtlTopOutOfView)
-            parts.push(qsTr("The down-the-line camera could not see the top of this swing "
-                            + "(hands %1 px from the top edge, a club is %2 px here), so the "
-                            + "club is unmeasured from mid-backswing to delivery in that view. "
-                            + "Frame that camera with the headroom check: at the top, the hands "
-                            + "at least a club length below the top edge.")
-                       .arg(d.dtlHandsFromTopPx).arg(d.dtlClubPx))
-        return parts.join(" ")
-    }
+    // The ⚠ tooltip, worded from the facts — DataWarningFormat holds the one wording, which
+    // the swing panel's warning block reads too.
+    readonly property string dataWarningText: DataWarningFormat.text(dataWarningDetail)
 
     // A shot only a launch monitor saw: no video AND every metric it carries is an lm.
     // reading. Derived rather than carried as a role, because it is already implied by

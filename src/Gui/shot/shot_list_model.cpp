@@ -432,6 +432,8 @@ QVariantMap ShotListModel::shotSummary(int id) const
         { QStringLiteral("note"),           s.note },
         { QStringLiteral("hasVideo"),       s.hasVideo },
         { QStringLiteral("swingDir"),       s.swingDir },
+        { QStringLiteral("dataWarning"),       s.dataWarning },
+        { QStringLiteral("dataWarningDetail"), s.dataWarningDetail },
     };
 }
 

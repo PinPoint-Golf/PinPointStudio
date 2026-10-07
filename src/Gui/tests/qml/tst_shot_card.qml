@@ -65,6 +65,14 @@ Item {
         onRated: (newValue) => { probe.ratedCount++; probe.lastRating = newValue }
     }
 
+    // The swing panel the carousel opens on the focused shot (PpShotCarousel editPopup).
+    // It explains the card's ⚠ in words — the same words as the card's tooltip.
+    PpSwingEditPanel {
+        id: panel
+        x: 0; y: probe.height     // clear of the card, so it never takes the card's clicks
+        summary: ({ valid: true, ordinal: 7, timestampLabel: "14:31", rating: 3, note: "" })
+    }
+
     TestCase {
         name: "ShotCard"
         when: windowShown
@@ -283,6 +291,38 @@ Item {
             mouseClick(stars, stars.width * 0.9, stars.height / 2)
             compare(probe.ratedCount, 1)
             verify(probe.lastRating > 0)
+        }
+    }
+
+    TestCase {
+        name: "SwingPanelWarning"
+        when: windowShown
+
+        function warnBlock() { return findChild(panel, "swingWarning") }
+
+        function test_a_clean_shot_shows_no_warning_and_the_panel_does_not_grow() {
+            panel.summary = ({ valid: true, ordinal: 7, timestampLabel: "14:31", rating: 3,
+                               note: "", dataWarning: false, dataWarningDetail: ({}) })
+            verify(warnBlock() !== null)
+            verify(!warnBlock().visible)
+        }
+
+        function test_a_warned_shot_shows_the_cards_words_and_the_panel_grows() {
+            panel.summary = ({ valid: true, ordinal: 7, timestampLabel: "14:31", rating: 3,
+                               note: "", dataWarning: false, dataWarningDetail: ({}) })
+            const clean = panel.implicitHeight
+            const detail = ({ capture: true, imu: false, holes: 1, framesLost: 4,
+                              worstHoleMs: 31.4, preImpact: true })
+            panel.summary = ({ valid: true, ordinal: 7, timestampLabel: "14:31", rating: 3,
+                               note: "", dataWarning: true, dataWarningDetail: detail })
+            verify(warnBlock().visible)
+            const t = findChild(panel, "swingWarningText")
+            verify(t !== null)
+            card.dataWarningDetail = detail
+            compare(t.text, card.dataWarningText)       // one wording, card and panel
+            verify(t.text.indexOf("Frames were lost") === 0)
+            // the Column re-lays out on polish, not synchronously
+            tryVerify(() => panel.implicitHeight > clean + t.implicitHeight)
         }
     }
 }

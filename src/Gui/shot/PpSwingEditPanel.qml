@@ -101,6 +101,49 @@ Item {
             elide:          Text.ElideRight
         }
 
+        // The card's ⚠, explained: on the film strip it is a glyph with a hover tooltip,
+        // and this panel is where the swing is looked at in full, so the words are shown
+        // outright (DataWarningFormat — the same wording as that tooltip). The panel is
+        // sized by its content, so it grows by exactly this block when the shot warns.
+        Item {
+            visible: warnBlock.visible
+            width: 1; height: Theme.sp(10)
+        }
+        Rectangle {
+            id: warnBlock
+            objectName: "swingWarning"
+            visible: root.summary.dataWarning === true
+            width:  parent.width
+            height: warnRow.implicitHeight + Theme.sp(16)
+            radius: Theme.radius
+            color:  Theme.colorWarnLight
+
+            Row {
+                id: warnRow
+                anchors { left: parent.left; right: parent.right; top: parent.top
+                          leftMargin: Theme.sp(9); rightMargin: Theme.sp(9); topMargin: Theme.sp(8) }
+                spacing: Theme.sp(7)
+
+                Text {
+                    id: warnGlyph
+                    text:           "⚠"
+                    font.family:    Theme.fontSymbol
+                    font.pixelSize: Theme.sp(14)
+                    color:          Theme.colorWarn
+                }
+                Text {
+                    objectName: "swingWarningText"
+                    width:          warnRow.width - warnGlyph.width - warnRow.spacing
+                    text:           DataWarningFormat.text(root.summary.dataWarningDetail)
+                    wrapMode:       Text.WordWrap
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzMicro
+                    lineHeight:     1.15
+                    color:          Theme.colorText
+                }
+            }
+        }
+
         Item { width: 1; height: Theme.sp(15) }
 
         Text {

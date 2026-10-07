@@ -30,6 +30,7 @@
 set(PP_QML_SINGLETONS
     src/Gui/theme/Theme.qml
     src/Gui/components/ClubFormat.qml
+    src/Gui/shot/DataWarningFormat.qml
     src/Gui/settings/SettingsIndex.qml
     src/Gui/session/ViewLayout.qml
     src/Gui/session/SessionMode.qml
@@ -41,6 +42,7 @@ set(PP_QML_SINGLETONS
 set(PP_QML_FILES
     src/Gui/theme/Theme.qml
     src/Gui/components/ClubFormat.qml
+    src/Gui/shot/DataWarningFormat.qml
     src/Gui/session/ViewLayout.qml
     src/Gui/session/SessionMode.qml
     src/Gui/shell/Main.qml
