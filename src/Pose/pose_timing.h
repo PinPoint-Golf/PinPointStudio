@@ -44,6 +44,10 @@ namespace pinpoint::pose {
 
 struct PoseTiming {
     double sessionBuildMs  = 0.0;   // ORT session construction (model load + EP init/compile)
+    double sessionWaitMs   = 0.0;   // waited for the cached session — another run holding it,
+                                    // or the launch warm-up still compiling it (CoreML MLProgram:
+                                    // ≈20 s Release, 53 s Debug, 97 s cold); a first shot or
+                                    // re-analysis right after launch shows it here, not in run
     double decodeMs        = 0.0;   // payload → BGR (demosaic / MP4 frame), summed over frames
     double preprocessMs    = 0.0;   // resize → RGB → float → normalise → NCHW, summed
     double runMs           = 0.0;   // ORT Session::Run(), summed
@@ -55,6 +59,7 @@ struct PoseTiming {
     PoseTiming &operator+=(const PoseTiming &o)
     {
         sessionBuildMs  += o.sessionBuildMs;
+        sessionWaitMs   += o.sessionWaitMs;
         decodeMs        += o.decodeMs;
         preprocessMs    += o.preprocessMs;
         runMs           += o.runMs;
@@ -78,6 +83,7 @@ struct PoseTiming {
     {
         return QJsonObject{
             { QStringLiteral("sessionBuildMs"),  r1(sessionBuildMs) },
+            { QStringLiteral("sessionWaitMs"),   r1(sessionWaitMs) },
             { QStringLiteral("decodeMs"),        r1(decodeMs) },
             { QStringLiteral("preprocessMs"),    r1(preprocessMs) },
             { QStringLiteral("runMs"),           r1(runMs) },
@@ -89,6 +95,7 @@ struct PoseTiming {
     {
         PoseTiming t;
         t.sessionBuildMs  = o.value(QStringLiteral("sessionBuildMs")).toDouble();
+        t.sessionWaitMs   = o.value(QStringLiteral("sessionWaitMs")).toDouble();
         t.decodeMs        = o.value(QStringLiteral("decodeMs")).toDouble();
         t.preprocessMs    = o.value(QStringLiteral("preprocessMs")).toDouble();
         t.runMs           = o.value(QStringLiteral("runMs")).toDouble();

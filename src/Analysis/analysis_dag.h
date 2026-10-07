@@ -88,7 +88,14 @@ inline const std::vector<std::vector<QString>> &stageSerialGroups()
     return k;
 }
 
-struct DagEdge {
+// StageEdge, not DagEdge: src/Diagnostics/dag_layout.h already declares a
+// pinpoint::analysis::DagEdge (the diagnostics graph's drawn edge, larger, with a QString).
+// Two inline constructors of one mangled name is an ODR violation the linker resolves to
+// whichever it meets first — in the app that was the diagnostics one, whose constructor
+// wrote its QString past the end of this struct's `e` on the stack, zeroing the loop's
+// references, and every in-app re-analysis of 7 Oct 2026 died at buildStageGraph with
+// di == nullptr (swinglab never compiles dag_layout.h, so it never reproduced there).
+struct StageEdge {
     int         from = -1, to = -1;
     QStringList kinds;     // raw | war | waw | append | halted | serial | barrier
     QStringList via;       // the resources that made it
@@ -99,7 +106,7 @@ struct StageGraph {
     std::vector<QString>          names;
     std::vector<StageDecl>        decls;
     std::vector<std::vector<int>> preds, succs;       // every ordering constraint
-    std::vector<DagEdge>          edges;              // the same, with reasons
+    std::vector<StageEdge>          edges;              // the same, with reasons
     std::vector<int>              seriesOrder;        // stages touching detail.series, authored order
     std::vector<char>             seriesGated;        // reads/overwrites detail.series
     std::vector<char>             seriesBuffered;     // appends only
@@ -160,7 +167,7 @@ inline StageGraph buildStageGraph(const SessionProfile &profile, const ShotAnaly
         const StageDecl &dj = g.decls[size_t(j)];
         for (int i = 0; i < j; ++i) {
             const StageDecl &di = g.decls[size_t(i)];
-            DagEdge e;
+            StageEdge e;
             e.from = i; e.to = j;
             const auto add = [&e](const QString &kind, const QString &via) {
                 if (!e.kinds.contains(kind)) e.kinds << kind;
@@ -207,7 +214,7 @@ inline StageGraph buildStageGraph(const SessionProfile &profile, const ShotAnaly
             for (int k = 0; k < n; ++k)
                 if (reach[size_t(s)][size_t(k)]) reach[size_t(i)][size_t(k)] = 1;
         }
-    for (DagEdge &e : g.edges)
+    for (StageEdge &e : g.edges)
         for (int s : g.succs[size_t(e.from)])
             if (s != e.to && s < e.to && reach[size_t(s)][size_t(e.to)]) { e.reduced = true; break; }
 
@@ -413,7 +420,7 @@ inline QJsonObject stageGraphToJson(const QString &profileName, const StageGraph
             { QStringLiteral("height"),  g.height[i] } });
     }
     QJsonArray edges;
-    for (const DagEdge &e : g.edges)
+    for (const StageEdge &e : g.edges)
         edges.append(QJsonObject{
             { QStringLiteral("from"),    e.from },
             { QStringLiteral("to"),      e.to },

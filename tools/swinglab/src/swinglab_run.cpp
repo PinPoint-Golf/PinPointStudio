@@ -53,6 +53,10 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QThreadPool>
+#include <opencv2/imgproc.hpp>
+#include <thread>
+#include <atomic>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -286,6 +290,8 @@ int main(int argc, char **argv)
     QCommandLineParser cli;
     cli.addPositionalArgument("swing_dir", "Recorded swing directory");
     QCommandLineOption optOut({ "o", "out" }, "Output run directory", "dir");
+    QCommandLineOption optPooled(QStringLiteral("pooled"), QStringLiteral("write-back on a QThreadPool thread, as the app does"));
+    cli.addOption(optPooled);
     QCommandLineOption optParams("params", "Tuning-override JSON", "file");
     QCommandLineOption optTrace("trace", "Dump per-frame shaft internals");
     QCommandLineOption optSession("session-type", "SessionController::Type", "int", "1");
@@ -445,7 +451,27 @@ int main(int argc, char **argv)
             std::fprintf(stderr, "[swinglab] write-back with %d tuning override(s) — NOT the production defaults\n",
                          int(ropts.tuningOverrides.size()));
         }
-        const ReanalyzeResult r = reanalyzeSwingDir(swingDir, ropts);
+        // --pooled: run on a QThreadPool thread as the app's ReanalysisController does
+        // (QtConcurrent::run), not the main thread — the pool's threads have the platform
+        // default stack (512 KiB on macOS against the main thread's 8 MiB).
+        ReanalyzeResult r;
+        if (cli.isSet(optPooled)) {
+            // PINPOINT_SWINGLAB_CVBUSY=1: another thread keeps OpenCV's parallel_for_ busy
+            // (what the replay does in the app) while the analysis starts.
+            std::atomic<bool> busyStop{ false };
+            std::thread busy;
+            if (qEnvironmentVariableIsSet("PINPOINT_SWINGLAB_CVBUSY"))
+                busy = std::thread([&] {
+                    cv::Mat big(1024, 1024, CV_8UC3, cv::Scalar(10, 20, 30)), out;
+                    while (!busyStop.load()) cv::GaussianBlur(big, out, cv::Size(31, 31), 0);
+                });
+            QThreadPool::globalInstance()->start([&] { r = reanalyzeSwingDir(swingDir, ropts); });
+            QThreadPool::globalInstance()->waitForDone();
+            busyStop = true;
+            if (busy.joinable()) busy.join();
+        } else {
+            r = reanalyzeSwingDir(swingDir, ropts);
+        }
         if (!r.ok || !r.analysis.detail)
             return fail(QStringLiteral("re-analysis failed: ")
                         + (r.error.isEmpty() ? QStringLiteral("no analysis detail") : r.error));

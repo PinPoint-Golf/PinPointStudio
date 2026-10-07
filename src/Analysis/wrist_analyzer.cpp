@@ -42,7 +42,7 @@
 #include "dtl_shaft_synth3d.h"   // the 3-D synthetic shaft into the DTL tile (DtlSynth3DStage)
 #include "address_marks.h"       // the body's edges at hip height at address (AddressMarksStage)
 #include <opencv2/imgcodecs.hpp>  // the address-marks debug dump
-#include <opencv2/core/utility.hpp>  // cv::setNumThreads (runProfile, analysis.parallel)
+#include <opencv2/core/utility.hpp>  // cv::getNumThreads (runProfile, analysis.parallel)
 #ifdef HAVE_SEGMENTER
 #include "../Pose/person_segmenter.h"
 #endif
@@ -542,11 +542,12 @@ struct WristMetricsStage : AnalysisStage {
 static void logPoseTiming(const char *camera, const pinpoint::pose::PoseTiming &t)
 {
     // const char* — QDebug quotes a QString, and this line is grepped.
-    const QString line = QStringLiteral("[PoseRunner] %1 %2 frames: session %3 ms, decode %4, "
-                                        "preprocess %5, run %6, heatmap %7, total %8 "
-                                        "(per frame %9 ms)")
+    const QString line = QStringLiteral("[PoseRunner] %1 %2 frames: session %3 ms (waited %4), decode %5, "
+                                        "preprocess %6, run %7, heatmap %8, total %9 "
+                                        "(per frame %10 ms)")
                              .arg(QLatin1String(camera)).arg(t.frames)
-                             .arg(t.sessionBuildMs, 0, 'f', 0).arg(t.decodeMs, 0, 'f', 0)
+                             .arg(t.sessionBuildMs, 0, 'f', 0).arg(t.sessionWaitMs, 0, 'f', 0)
+                             .arg(t.decodeMs, 0, 'f', 0)
                              .arg(t.preprocessMs, 0, 'f', 0).arg(t.runMs, 0, 'f', 0)
                              .arg(t.heatmapDecodeMs, 0, 'f', 0).arg(t.totalMs, 0, 'f', 0)
                              .arg(t.runMsPerFrame(), 0, 'f', 2);
@@ -3503,15 +3504,19 @@ namespace pinpoint::analysis {
 // knob. (OpenCV runs a parallel_for_ issued while another is in flight serially on the
 // caller — the stages' bodies are per-index, so their output does not depend on it.)
 // Never touched with analysis.parallel off, so the loop runs exactly as it always did.
-static void sizeOpenCvPoolOnce()
+// OpenCV's pool is left as the process found it. The executor used to call
+// cv::setNumThreads(physical cores) here, once, on its first run — and that call rebuilds
+// OpenCV's global thread pool, which is not safe against a parallel_for_ in flight on another
+// thread: in the app the replay is drawing through OpenCV when a re-analysis starts, and
+// every in-app re-analysis of 7 Oct 2026 died with SIGSEGV on the replay's worker a few
+// microseconds into buildStageGraph (reproduced in swinglab_run --pooled with
+// PINPOINT_SWINGLAB_CVBUSY=1: exit 139 with the busy thread, clean without). The pool's
+// size is a process-start decision (main.cpp / swinglab_run main), never an analysis's.
+static void logOpenCvPoolOnce()
 {
     static std::once_flag once;
     std::call_once(once, [] {
-        const int before = cv::getNumThreads();
-        const int cores  = std::max(1, pinpoint::physicalCoreCount());
-        cv::setNumThreads(cores);
-        ppInfo() << "[AnalysisDag] OpenCV threads" << before << "(default) ->" << cv::getNumThreads()
-                 << "(physical cores)";
+        ppInfo() << "[AnalysisDag] OpenCV threads" << cv::getNumThreads() << "(process default, left as is)";
     });
 }
 
@@ -3524,7 +3529,7 @@ void runProfile(const SessionProfile &profile, AnalysisContext &ctx)
     if (!parallel) {
         runStages(profile, ctx);
     } else {
-        sizeOpenCvPoolOnce();
+        logOpenCvPoolOnce();
         if (threads <= 0) threads = std::clamp(pinpoint::physicalCoreCount(), 1, 8);
         runStagesParallel(profile, ctx, threads);
         // The critical path as it ran, for the log: the stage that ended last and the

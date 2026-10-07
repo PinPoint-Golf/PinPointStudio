@@ -1170,6 +1170,17 @@ int main(int argc, char *argv[])
 
     engine.loadFromModule("PinPointStudio", "Main");
 
+    // PINPOINT_PROBE_REANALYSE=<swing dir>: re-analyse that swing 3 s after launch through the
+    // carousel's funnel, exactly as the action bar does — the in-app crash of 7 Oct 2026
+    // reproduced under lldb without a click.
+    if (qEnvironmentVariableIsSet("PINPOINT_PROBE_REANALYSE")) {
+        const QString dir = qEnvironmentVariable("PINPOINT_PROBE_REANALYSE");
+        QTimer::singleShot(3000, &reanalysisController, [&reanalysisController, dir] {
+            ppInfo() << "[Probe] re-analysing" << dir;
+            reanalysisController.reanalyse(QVariantList{ dir });
+        });
+    }
+
     // Warm the pose session off the main thread once the UI is up, so the first shot does not
     // pay the model load: on the Mac the CoreML MLProgram costs 20 s from its compiled cache and
     // 97 s the first time; on CUDA 0.3 s. The cached session is the one PoseRunner::run() keys for

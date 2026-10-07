@@ -105,10 +105,10 @@ int main()
         check(hasEdge(g, 5, 6), "halted: the halting stage → every later stage");
         check(hasEdge(g, 6, 7) && hasEdge(g, 7, 8), "undeclared stage is a barrier both ways");
         bool forward = true;
-        for (const DagEdge &e : g.edges) if (e.from >= e.to) forward = false;
+        for (const StageEdge &e : g.edges) if (e.from >= e.to) forward = false;
         check(forward, "every edge points forward (authored order is a topological order)");
         bool someReduced = false;
-        for (const DagEdge &e : g.edges) someReduced = someReduced || e.reduced;
+        for (const StageEdge &e : g.edges) someReduced = someReduced || e.reduced;
         check(someReduced, "transitive reduction marks implied edges");
         const QJsonObject j = stageGraphToJson(QStringLiteral("T"), g);
         check(j.value("nodes").toArray().size() == 9 && j.value("edges").toArray().size() == int(g.edges.size()),
@@ -184,7 +184,7 @@ int main()
         check(namesOk && allRan, "trace: authored order, every stage ran");
         const StageGraph g = buildStageGraph(parP);
         bool depsOk = true;
-        for (const DagEdge &e : g.edges)
+        for (const StageEdge &e : g.edges)
             if (par.trace[size_t(e.to)].startNs < par.trace[size_t(e.from)].endNs) depsOk = false;
         check(depsOk, "every stage started after each of its predecessors ended");
         const StageTraceEntry &k = par.trace[4], &a1 = par.trace[1];

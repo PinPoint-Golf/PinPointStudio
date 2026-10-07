@@ -323,8 +323,14 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         // The step-3 load options (precision, CoreML format, TensorRT, static batch)
         // make a different session: they key it alongside the cascade.
         const EstimatorKey key = estimatorKey(variant, loadOpts, intraOpThreads);
+        // acquire() blocks while another run holds the entry or the launch warm-up is still
+        // building it; what it blocked for, less this run's own build, is the wait.
+        QElapsedTimer acquireClock;
+        acquireClock.start();
         lease = estimatorCache().acquire(key, makeEstimator,
                                          [](const PoseEstimatorViTPose &e) { return e.isReady(); });
+        timingSink.add(&pinpoint::pose::PoseTiming::sessionWaitMs,
+                       std::max(0.0, double(acquireClock.elapsed()) - timingSink.snapshot().sessionBuildMs));
     } else {
         privateEstimator = makeEstimator();
     }
@@ -996,6 +1002,12 @@ double PoseRunner::warmUp(const QString &motionCaptureQuality)
         loadOptionsFor(tp::kModelFp16, tp::kCoreMLProgram, tp::kTensorRT, tp::kStaticBatch, batchSize,
                        tp::kLogPartition);
     const int intraOpThreads = 0;
+    // Start and end rows in the app log, so a slow first shot reads against them: the end row
+    // is what a run that started earlier was waiting for (its "waited" figure).
+    ppInfo() << "[PoseRunner] warm-up: building the pose session for"
+             << PoseEstimatorViTPose::modelPath(variant)
+             << (loadOpts.coremlProgram ? "(CoreML MLProgram: ~20 s from the compiled cache, ~97 s cold)"
+                                        : "(CUDA ~1 s)");
     QElapsedTimer t;
     t.start();
     auto make = [&]() {
