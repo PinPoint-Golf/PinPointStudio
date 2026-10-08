@@ -198,7 +198,7 @@ int main()
         check(near((y + y).totalMs, 3380.0, 1e-9), "PoseTiming + is +=");
         check(near(y.runMsPerFrame(), 1290.04 / 215, 1e-12), "runMsPerFrame = runMs / frames");
         const QJsonObject j = y.toJson();
-        check(j.size() == 7, "toJson writes the seven keys");
+        check(j.size() == 8, "toJson writes the eight keys (sessionWaitMs since a327086a)");
         check(near(j[QStringLiteral("sessionBuildMs")].toDouble(), 812.3, 1e-9)
                   && near(j[QStringLiteral("runMs")].toDouble(), 1290.0, 1e-9),
               "toJson rounds to 0.1 ms");
