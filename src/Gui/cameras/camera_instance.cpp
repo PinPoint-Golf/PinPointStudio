@@ -1200,7 +1200,7 @@ void CameraInstance::onBallDetected(const BallDetection &result)
     // Fire ting and notify CameraManager when threshold-based presence flips.
     const bool nowPresent = (m_ballPresencePercent > kBallPresentThreshold);
     if (m_ballPresent != nowPresent) {
-        if (!m_ballPresent && nowPresent)
+        if (!m_ballPresent && nowPresent && m_ballCueEnabled)
             m_tingPlayer->play();
         m_ballPresent = nowPresent;
         emit ballPresentChanged(nowPresent);

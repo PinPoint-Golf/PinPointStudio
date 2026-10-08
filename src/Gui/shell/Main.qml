@@ -535,6 +535,18 @@ ApplicationWindow {
         value:    ViewLayout.overlaysOn(SessionMode.capture)
     }
 
+    // The ball-ready ting is for a golfer at the mat about to hit, so it sounds only there:
+    // never while a shot is being analysed, and never while a session screen's stage is on
+    // Replay or Analyse. Off the session screens (session setup, Settings) it stays on — the
+    // ball step relies on it. Only the sound is gated; the detector keeps tracking, so a ball
+    // put down during a replay is already "present" on returning to Capture and does not ting.
+    Binding {
+        target:   cameraManager
+        property: "ballCueEnabled"
+        value:    !shotProcessor.busy
+                  && !(root.sessionScreenActive && SessionMode.mode !== SessionMode.capture)
+    }
+
     // Named StackLayout/navController indices — keep in sync with screenNames
     // and the ScreenXxx order in contentStack below. Session screens sit at
     // sessionType + 1 (see SessionController::Type).

@@ -639,6 +639,18 @@ void CameraManager::setLivePoseEnabled(bool on)
     emit livePoseEnabledChanged();
 }
 
+void CameraManager::setBallCueEnabled(bool on)
+{
+    if (m_ballCueEnabled == on)
+        return;
+    m_ballCueEnabled = on;
+    for (auto &cam : m_cameras) {
+        if (cam.controller)
+            cam.controller->setBallCueEnabled(on);
+    }
+    emit ballCueEnabledChanged();
+}
+
 void CameraManager::setTargetFps(int index, double fps)
 {
     if (index < 0 || index >= m_cameras.size()) return;
@@ -928,6 +940,7 @@ CameraInstance *CameraManager::createController(const Device &device)
 
     // Apply the session-wide pipeline configuration to the new instance.
     ctrl->setPoseEnabled(m_livePoseEnabled);
+    ctrl->setBallCueEnabled(m_ballCueEnabled);
 
     // Restore persisted ROI and perspective for this device.
     const QString key = device.description + QStringLiteral("|")

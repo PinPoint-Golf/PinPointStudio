@@ -267,6 +267,10 @@ public:
     void setIsMirrored(bool mirrored);
     void deregisterFromBuffer();
     void setReplaying(bool replaying);
+    // The ball-ready ting only. Presence, the ball track and launch corroboration
+    // carry on regardless — capture is armed again while a shot replays, and a
+    // shot hit then still needs them. Driven by CameraManager::ballCueEnabled.
+    void setBallCueEnabled(bool on) { m_ballCueEnabled = on; }
     // srcStrides: the capture-time plane strides from the stored descriptor
     // (CameraFormat::plane_strides). Zero entries fall back to the replay
     // frame's own strides (legacy windows stamped before strides existed).
@@ -512,6 +516,7 @@ private:
     BallBaselineCache m_ballBaseline;
     TingPlayer      *m_tingPlayer           = nullptr;
     bool             m_replaying            = false;
+    bool             m_ballCueEnabled       = true;
     // Capture-rate FPS: counted on the capture thread, sampled on a timer.
     std::atomic<int>   m_frameCaptureCount{0};
     QTimer            *m_fpsSampleTimer    = nullptr;

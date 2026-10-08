@@ -56,6 +56,10 @@ class CameraManager : public QObject
     Q_PROPERTY(QStringList sessionCameraExcluded READ sessionCameraExcluded NOTIFY sessionCameraExcludedChanged)
     // All-cameras live pose-estimation toggle (session-wide, not persisted).
     Q_PROPERTY(bool livePoseEnabled READ livePoseEnabled WRITE setLivePoseEnabled NOTIFY livePoseEnabledChanged)
+    // Whether placing a ball plays the ball-ready ting (session-wide, not persisted). Main.qml
+    // turns it off while a shot is analysed and while the session stage is off Capture; the
+    // detector itself keeps running (see CameraInstance::setBallCueEnabled).
+    Q_PROPERTY(bool ballCueEnabled READ ballCueEnabled WRITE setBallCueEnabled NOTIFY ballCueEnabledChanged)
 
 public:
     explicit CameraManager(pinpoint::EventBuffer *buffer = nullptr,
@@ -77,6 +81,8 @@ public:
     QStringList sessionCameraExcluded() const;
     bool livePoseEnabled()    const;
     void setLivePoseEnabled(bool on);
+    bool ballCueEnabled()     const { return m_ballCueEnabled; }
+    void setBallCueEnabled(bool on);
 
     // Returns the live CameraInstance for a given device ID, or nullptr when
     // the device is enumerated but not selected.  Mirrors ImuManager::instanceFor().
@@ -181,6 +187,7 @@ signals:
     void captureIntentChanged();
     void sessionCameraExcludedChanged();
     void livePoseEnabledChanged();
+    void ballCueEnabledChanged();
 
 private:
     struct CameraEntry {
@@ -219,6 +226,7 @@ private:
     QList<CameraEntry>                   m_cameras;
     QStringList                          m_sessionExcluded;
     bool                                 m_livePoseEnabled  = true;
+    bool                                 m_ballCueEnabled   = true;
     bool                                 m_recording        = false;
     bool                                 m_captureUserEnabled = false;  // toolbar Capture/Stop
     pinpoint::EventBuffer               *m_eventBuffer      = nullptr;
