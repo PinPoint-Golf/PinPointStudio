@@ -2555,6 +2555,8 @@ if(WIN32)
             src/Video/VideoInputSpinnaker.cpp
             src/Video/spinnaker_runtime.h
             src/Video/spinnaker_runtime.cpp
+            src/Video/spinnaker_settings.h
+            src/Video/spinnaker_settings.cpp
         )
 
         # The Spinnaker SDK is proprietary and its EULA forbids redistributing it in

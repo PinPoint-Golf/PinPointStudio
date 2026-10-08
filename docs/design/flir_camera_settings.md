@@ -103,52 +103,80 @@ the camera's nodes when the next instance is constructed and connects
 
 ### 3.3 Connect — `VideoInputSpinnaker::start()`
 
-Order (all before `BeginAcquisition()`; the device nodes are read-only once
-streaming):
+All before `BeginAcquisition()` (the device nodes are read-only once
+streaming). Steps 3–9 are `src/Video/spinnaker_settings.cpp` — `applyRoi()`
+and `applyConnectSettings()` — which the app and the hardware probe (§7)
+share, so what the probe measures is what the app does.
 
-| # | Node(s) | When | Value |
+| # | Node(s) | Impact | Every other role |
 |---|---|---|---|
-| 1 | `AcquisitionMode` | always | Continuous |
-| 2 | `PixelFormat` | always | first available of BayerRG8, BayerBG8, BayerGR8, BayerGB8, BGR8, RGB8Packed, Mono8 |
-| 3 | `OffsetX/Y`, `Width/Height` (`applySpinnakerRoi`) | always | crop snapped down to the increments, or full sensor |
-| 4 | **camera-auto block** (§5) | per node, when not requested | `ExposureAuto`, `GainAuto`, gamma enable, Line1, frame-rate auto → neutral; then `InvalidateNodes()` and one `tuning:` log line |
-| 5 | `ExposureAuto`, `ExposureTime` | `m_exposureUs > 0` | Off, `InvalidateNodes()`, value clamped to the node range |
-| 6 | `GainAuto`, `Gain` (`writeTuningNodes`) | `m_gainDb >= 0` | Off, value; read back into `m_appliedGainDb` |
-| 7 | `GammaEnable(d)`, `Gamma` (`writeTuningNodes`) | `m_gamma > 0` | true, value; read back into `m_appliedGamma` |
-| 8 | `LineSelector`, `LineMode`, `LineSource` | `m_strobe` | Line1, Output, ExposureActive |
-| 9 | `AcquisitionFrameRateAuto`, `AcquisitionFrameRateEnable(d)`, `AcquisitionFrameRate` | `m_captureFps > 0` | Off, true, `InvalidateNodes()`, value clamped to the max **at this ROI** |
-| 10 | `StreamBufferCountMode/Manual` (**TL stream** node map) | always | Manual, 40 |
-| 11 | `ChunkModeActive`, `ChunkSelector=ExposureTime`, `ChunkEnable` | always | on: each frame carries the exposure actually applied |
-| 12 | `ExposureAuto` (read) | always | cached as `m_exposureAuto` (0 = locked, 1 = auto) and tagged on every frame |
-| 13 | `TimestampLatch` | always | best of `kClockLatchBrackets` host/camera clock brackets, seeds the frame-time mapping |
+| 1 | `AcquisitionMode` | Continuous | Continuous |
+| 2 | `PixelFormat` | first available of BayerRG8, BayerBG8, BayerGR8, BayerGB8, BGR8, RGB8Packed, Mono8 | same |
+| 3 | `OffsetX/Y`, `Width/Height` | the crop, snapped down to the increments | the saved crop, or full sensor |
+| 4 | `ExposureAuto`, `ExposureTime` | Off, the locked value (default 70 µs) | Continuous |
+| 5 | `GainAuto`, `Gain` / `AutoGainUpperLimit` | Off, the locked value (default 12 dB) | Continuous, upper limit = the sensor's max (18.06 dB on the Chameleon3) |
+| 6 | `GammaEnable(d)`, `Gamma` | on, the value | off (or `Gamma` 1.0 where there is no enable). **Absent on the Chameleon3 in raw Bayer** |
+| 7 | `LineSelector=Line1` → `LineMode`, `LineSource` | Output, ExposureActive if the strobe is on, else released | released: `LineMode=Input`, else `LineSource=Off`, else `LineSource=UserOutput1` with `UserOutputValue` false (the Chameleon3) |
+| 8 | `AcquisitionFrameRateEnable(d)` → `AcquisitionFrameRateAuto` → `AcquisitionFrameRate` | true, Off, the requested rate clamped to the max **at this ROI** (691 → 611.7 at 640×240) | true, Off, the max at this ROI (150.7 full frame) |
+| 9 | `AutoExposureTimeUpperLimit` | — | the frame period (6,574 µs at 150.7 fps) |
+| 10 | `StreamBufferCountMode/Manual` (**TL stream** node map) | Manual, 40 | same |
+| 11 | `ChunkModeActive`, `ChunkSelector=ExposureTime`, `ChunkEnable` | on: each frame carries the exposure actually applied | same |
+| 12 | `ExposureAuto` (read) | cached as `m_exposureAuto` (0 = locked, 1 = auto), tagged on every frame | same |
+| 13 | `TimestampLatch` | best of `kClockLatchBrackets` host/camera clock brackets | same |
 
-**⚠ ORDER: ROI → exposure → rate**, with `InvalidateNodes()` between
-(`impact_camera_design.md` §3.1). The rate's max depends on the ROI but a
-`Width/Height` write does not invalidate its cache; `ExposureTime` is
-read-only until `ExposureAuto` is Off and its access mode is cached the same
-way; and a rate the exposure cannot fit silently clamps the exposure down, so
-exposure goes first. The camera-auto block sits after the ROI and before step
-5; it only touches nodes whose locked value is absent, so it never fights
-steps 5–9.
+The role changes **values, not the procedure**: every node in steps 3–9 is
+written on every connect. One log line per connect names them all, e.g.
+
+```
+[VideoInputSpinnaker] settings: camera auto ExposureAuto=Continuous GainAuto=Continuous AutoGainUpperLimit=18.1dB Gamma=absent Line1=UserOutput1(low) FrameRate=150.7fps(max, max 150.7) AutoExposureTimeUpperLimit=6573.6us
+[VideoInputSpinnaker] settings: impact locked ExposureTime=70.2us Gain=12.0dB Gamma=absent Line1=UserOutput1(low) FrameRate=611.7fps(requested 691.0, max 611.7)
+```
+
+and about a second into streaming a `settled:` line reports what the camera
+actually chose (chunk exposure, `Gain`, `AcquisitionFrameRate`). A node the
+writer could not set is a `ppWarn`.
+
+**⚠ ORDER: ROI → exposure → gain → gamma → Line1 → rate → auto-exposure
+limit**, with `InvalidateNodes()` between (`impact_camera_design.md` §3.1):
+
+- the rate's max depends on the ROI, but a `Width/Height` write does not
+  invalidate its cache;
+- `ExposureTime` is read-only until `ExposureAuto` is Off, and its access mode
+  is cached the same way;
+- a rate a locked exposure cannot fit silently clamps the exposure down, so
+  the exposure goes before the rate;
+- the auto-exposure limit is the frame period, so it goes after the rate;
+- **on the Chameleon3 `AcquisitionFrameRateAuto` is read-only while
+  `AcquisitionFrameRateEnabled` is false**, so the enable goes first. Written
+  the other way round, a camera another application left on auto rate kept it
+  (found by the probe, §7).
+
+**⚠ The rate is never auto.** On the Chameleon3 an auto rate lets auto
+exposure stretch the frame period: 19 fps with a ~50 ms exposure in the
+cabin on 8 Oct, where the camera should run 150.7.
 
 ### 3.4 While streaming — `applyLiveTuning()`
 
 `CamerasPanel` calls `CameraInstance::applyLiveTuning(exposureUs, gainDb,
 gamma)` when an Impact knob turns on a streaming camera. The instance records
 the value first (the next connect primes what the operator last saw), then
-`VideoInputSpinnaker::applyLiveTuning` runs `writeTuningNodes()` — the same
-code as steps 5–7, so a connect and a knob turn agree by construction. A
-non-positive exposure, negative gain or non-positive gamma is skipped.
+`VideoInputSpinnaker::applyLiveTuning` runs `writeTuningNodes()`, which writes
+the same nodes as steps 4–6 for the members given. A non-positive exposure,
+negative gain or non-positive gamma is skipped (a live re-tune changes one
+knob; the full set is written on the next connect). The rate, crop and
+strobe are connect-only.
 
 ### 3.5 Read-backs and provenance
 
 - Per frame: the chunk `ExposureTime` (µs) and the `m_exposureAuto` flag ride
   on every `RawVideoFrame`, and the exposure midpoint corrects the frame
   timestamp.
+- Per connect: the `settings:` line, and ~1 s in the `settled:` line (§3.3).
 - Per clip: `ShotProcessor` records the Impact camera's gain and gamma as
   `appliedGainDb()` / `appliedGamma()` (what the camera held after the clamp),
   falling back to the requested value, plus the strobe flag, view gain and
-  note from `cameraTuning`.
+  note from `cameraTuning`. On a Chameleon3 the applied gamma is 0: the node
+  is absent in raw Bayer, so the GAMMA chips change nothing on that camera.
 - `queryCapabilities()` on a live camera reads nodes only, apart from the same
   brief `AcquisitionFrameRateEnable` toggle as the enumerate probe.
 
@@ -158,95 +186,90 @@ non-positive exposure, negative gain or non-positive gamma is skipped.
 streaming the device — restore the ROI to full frame and `DeInit()`. The ROI
 restore exists because a stale crop poisons the `Width/Height` `GetMax()`
 reads of the next capability query. **Nothing else is restored on
-disconnect**: the reset lives in `start()` (§5), which also covers a crash, a
-pulled cable, or another application.
+disconnect**: every connect writes every node (§5), which also covers a
+crash, a pulled cable, or another application.
 
 ### 3.7 Aravis — `VideoInputAravis::start()` (macOS)
 
-The same model through the Aravis API:
+The same procedure through the Aravis API, in the same order:
 
 1. Region: offsets to 0, then Width, Height, OffsetX, OffsetY (crop snapped
    down, or full sensor). `stop()` restores full frame.
-2. Camera-auto block (§5), with a `tuning:` log line.
-3. Exposure (`arv_camera_set_exposure_time_auto(OFF)` + value), then gain and
-   gamma (`writeTuning`), then the strobe, when requested.
-4. Frame rate: always written — the requested rate, or **60 fps**.
-5. Pixel format Mono8; 10 stream buffers.
+2. Exposure auto Off + value, or Continuous; gain auto Off + value, or
+   Continuous with `AutoGainUpperLimit` / `AutoExposureGainUpperLimit` at the
+   gain maximum; gamma enable + value, or off; Line1 strobe or released
+   (Input, Off, or `UserOutput1` low); the rate — requested, or the maximum
+   from `arv_camera_get_frame_rate_bounds` (it used to be a fixed 60 fps);
+   the auto-exposure limit at the frame period. One `settings:` log line.
+3. Pixel format Mono8; 10 stream buffers.
 
-`applyLiveTuning()` runs `writeTuning()`, as on Spinnaker. Not
-hardware-verified (source comment, 2026-09-15).
+`applyLiveTuning()` runs `writeTuning()`, as on Spinnaker. **Not
+hardware-verified**: no FLIR camera has been on the Mac since this was
+written (2026-10-08), and the probe (§7) is Spinnaker-only.
 
 ## 4. Node spellings by firmware
 
 Every write is guarded by `IsAvailable/IsWritable` (Aravis: a `GError`), so a
 node a camera lacks is skipped silently — and that is how a write to the wrong
-spelling hides. PPS writes both spellings wherever they differ.
+spelling hides. PPS writes both spellings wherever they differ. The
+Chameleon3 column is read back by the probe (§7) on both studio cameras.
 
 | Concern | Blackfly S (SFNC) | Chameleon3 (CM3-U3-13Y3C, fw 1.13.3.00) |
 |---|---|---|
-| Manual frame rate | `AcquisitionFrameRateEnable` | `AcquisitionFrameRateEnabled` + `AcquisitionFrameRateAuto` (no SFNC node at all) |
-| Gamma enable | `GammaEnable` | `GammaEnabled` |
+| Manual frame rate | `AcquisitionFrameRateEnable` | `AcquisitionFrameRateEnabled` + `AcquisitionFrameRateAuto` (no SFNC node). `…Auto` is read-only while `…Enabled` is false |
+| Auto-exposure limit | `AutoExposureExposureTimeUpperLimit` | `AutoExposureTimeUpperLimit` |
+| Auto-gain limit | `AutoExposureGainUpperLimit` | `AutoGainUpperLimit` (max 18.06 dB) |
+| Gamma | `GammaEnable`, `Gamma` | **absent** (`GammaEnable`, `GammaEnabled`, `Gamma`) in BayerRG8 |
 | `ExposureTime` | writable once `ExposureAuto` = Off | the same; the access mode is cached until `InvalidateNodes()` |
-| Line1 | opto-isolated output | dedicated output (no `Input` mode entry) |
+| Line1 | opto-isolated output | output only: `LineMode` reads Output with no Input entry; `LineSource` is one of ExposureActive, ExternalTriggerActive, UserOutput1 — no Off |
 | Stream buffer count | TL stream node map | TL stream node map |
 | Clock latch value | `TimestampLatchValue` | `Timestamp` |
 
-## 5. Neutral values on connect (the fix)
+## 5. The rule as implemented
 
-Implemented in both backends' `start()`, right after the ROI write and before
-the Impact writes:
+**Every connect writes every tuning node PPS owns, from the request alone.**
+There is no "leave alone" and no separate reset pass: the Impact camera and
+every other camera go through the same writer (§3.3), and the role decides
+only the values.
 
-| Node | Written when | Neutral value |
-|---|---|---|
-| `ExposureAuto` | exposure not requested (`<= 0`) | Continuous |
-| `GainAuto` | gain not requested (`< 0`) | Continuous |
-| `GammaEnable` / `GammaEnabled` | gamma not requested (`<= 0`) | false. If neither enable is writable, `Gamma = 1.0` (Spinnaker only) |
-| `LineSelector = Line1` → `LineMode` | strobe off | Input; where Line1 has no Input mode (Chameleon3), `LineSource = Off` instead |
-| `AcquisitionFrameRateEnable(d)`, `AcquisitionFrameRateAuto` | rate not requested (`<= 0`) | false, Continuous. Spinnaker only: Aravis always writes a rate |
+| Node | Impact | Every other role | Why that value |
+|---|---|---|---|
+| Exposure | locked (70 µs default) | auto, at most the frame period | the camera chooses within the rate PPS needs |
+| Gain | locked (12 dB default) | auto, up to the sensor max | a dim scene gets gain, never a dropped rate |
+| Gamma | on at the value | off | linear unless asked |
+| Line1 | strobe if enabled, else released | released | a strobe output never outlives the Impact role |
+| Rate | requested, clamped to the ROI max | the ROI max | capture needs the camera's full rate; never auto (§3.3) |
 
-Then one `InvalidateNodes()` (the `ExposureAuto` change flips `ExposureTime`'s
-cached access mode, and the rate nodes cache their range) and one log line per
-connect naming the state the camera was put in and what was reset, e.g.:
+Measured (probe, 8 Oct 2026, cabin lights on, nobody in the cabin):
 
-```
-[VideoInputSpinnaker] tuning: camera auto ExposureAuto=Continuous GainAuto=Continuous Gamma=off Line1=Off FrameRate=auto
-[VideoInputSpinnaker] tuning: impact locked Line1=Off
-```
-
-`impact locked` means an exposure was requested; the list names only the
-neutral writes that landed (an Impact camera without the strobe still has
-Line1 released). `(nothing reset)` means every node was either locked or
-absent.
+- A non-Impact Chameleon3 at full frame runs **149.3 fps delivered** (150.7
+  advertised), exposure **6,574 µs** (the whole frame period), gain **18.06
+  dB** (its max). Loading the camera's own `Default` user set gives exactly
+  the same three numbers and the same picture: the camera's factory behaviour
+  and PPS's agree.
+- Both auto loops are at their limits, so the full-frame picture is as bright
+  as 150 fps allows in that light — dark room, lit mat — and matches frames
+  from the 7 Oct session recordings. A brighter picture costs frame rate (the
+  bright 19 fps auto-rate picture of 8 Oct) or needs more light.
+- Impact at 640×240: 611.7 fps advertised, **591.1 fps delivered**, 70.2 µs,
+  11.99 dB.
 
 Design notes:
 
 - **In `start()`, not `stop()`**, so a crash, a pulled cable or another
   application leaving the camera in a bad state is also covered.
-- **Neutral first, Impact values after.** The ORDER rule of §3.3 is
-  untouched, and the two blocks never write the same node.
-- **The neutral is camera auto, not a measured value.** For a full-frame
-  Chameleon3 indoors this is the familiar ~150 fps with auto exposure up to
-  the frame period. A camera configured by hand in SpinView for a non-Impact
-  role is overridden on connect; PPS owns these nodes.
+- **A camera configured by hand in SpinView for a non-Impact role is
+  overridden on connect.** PPS owns these nodes.
 
-Rejected alternative: `UserSetSelector=Default` + `UserSetLoad` on every
-connect. It is a complete reset, but it slows every connect and resets nodes
-PPS sets itself (pixel format, buffers, chunk data). It also depends on
-`UserSetDefault` not pointing at a user set someone saved.
+Rejected alternatives:
 
-### Cabin test
-
-1. Put the Chameleon3 in Impact and stream it. The log shows
-   `tuning: impact locked`, `Exposure locked: ~70 us`, the gain, gamma and
-   the high frame rate; the picture is the dark impact strip.
-2. Without power-cycling, switch it to DTL and reselect it (§3.2). The
-   picture must be normally exposed. The log shows
-   `tuning: camera auto ExposureAuto=Continuous GainAuto=Continuous ...
-   FrameRate=auto` and no `Exposure locked` / `Frame rate` lines.
-3. Switch it back to Impact. The locked exposure, gain, gamma and rate must
-   all be re-applied, and the strobe must fire if it is enabled.
-4. Optional: leave the camera in Impact, open and close SpinView, then
-   reconnect in PPS. The settings must be the same as in step 3.
+- *A neutral pass for unrequested nodes, then the Impact writes* (the first
+  version of this fix, 8e4a53d3). Two procedures for one job, and its
+  "neutral" rate was auto: 19 fps.
+- *`UserSetSelector=Default` + `UserSetLoad` on every connect.* A complete
+  reset, but it slows every connect, resets nodes PPS sets itself (pixel
+  format, buffers, chunk data), and depends on `UserSetDefault` not pointing
+  at a user set someone saved. The probe uses it only as a reference.
 
 ## 6. The defect that prompted this (cabin, early October 2026)
 
@@ -259,7 +282,8 @@ connection every other Impact setting was "leave alone", so the camera kept:
 
 - `ExposureAuto = Off`, `ExposureTime ≈ 70 µs`. This is the darkness: a
   full-frame indoor exposure is in the milliseconds.
-- `GainAuto = Off`, `Gain = 12 dB`, `Gamma = 0.7`.
+- `GainAuto = Off`, `Gain = 12 dB`. (Gamma 0.7 was requested too, but the
+  Chameleon3 has no gamma node in raw Bayer, so it never reached the camera.)
 - `AcquisitionFrameRateAuto = Off` with the rate enabled. 691 fps is
   unattainable at full frame, so the camera ran at its own ceiling.
 - Line1 as the strobe output, if the strobe had been on.
@@ -267,3 +291,46 @@ connection every other Impact setting was "leave alone", so the camera kept:
 PPS shows no exposure control for a DTL camera, so the user had no way to
 recover from inside the app. Aravis had the same gap for exposure, gain, gamma
 and strobe; its rate was already safe because it always writes 60 fps.
+
+## 7. Hardware probe — `tools/camera/spinnaker_settings_probe`
+
+A console program built from the app's own `spinnaker_settings.cpp`. It drives
+each connected camera through the role changes **without a power cycle** and
+measures every connect: delivered fps from the camera's frame timestamps,
+chunk exposure (median, min, max), gain, raw-Bayer mean / saturated % / black
+%, and a read-back of every node in §4.
+
+| Step | What it is |
+|---|---|
+| factory | reference: `UserSetLoad Default`, nothing of PPS's |
+| dtl1 | a non-Impact connect at full frame |
+| impact1 | an Impact connect (640×240, 691 → 611.7 fps, 70 µs, 12 dB, gamma 0.7) |
+| dtl2 | non-Impact after Impact — the original defect |
+| dirty, dtl3 | another application leaves exposure Off at 70 µs, gain Off at min, the auto limits at min, auto rate, Line1 ExposureActive and a 640×240 ROI; then a non-Impact connect |
+| dirty, impact2 | the same, then Impact |
+
+It checks: non-Impact connects deliver at least 98 % of the full-frame max
+with auto exposure and gain, exposure never above the frame period, full
+frame, Line1 not a strobe, and the same brightness as dtl1 (±8 %) whatever
+came before; Impact connects lock 70 µs and 12 dB, deliver at least 95 % of
+their rate, crop to 640×240, and drive the strobe only when asked; every
+connect leaves the rate manual and logs no writer warning (bar the
+Chameleon3's absent gamma). `--snapshot DIR` saves each connect's last frame
+as a half-resolution colour PNG, to compare with a recording.
+
+```
+cmake -S tools/camera/spinnaker_settings_probe -B build/spinnaker_settings_probe ^
+      -G "NMake Makefiles JOM" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:/Qt/6.11.0/msvc2022_64
+cmake --build build/spinnaker_settings_probe
+set PATH=C:\Qt\6.11.0\msvc2022_64\bin;C:\Program Files\Teledyne\Spinnaker\bin64\vs2015;%PATH%
+build\spinnaker_settings_probe\spinnaker_settings_probe.exe [--serial N] [--seconds 3] [--strobe] [--snapshot DIR]
+```
+
+PPS must be closed (a camera has one owner). 8 Oct 2026, both studio
+Chameleon3s (17453937, 18277032): **all checks pass**. The first run found
+the rate-enable ordering bug of §3.3: after the dirty step the rate stayed
+auto (`AcquisitionFrameRate not writable`), and passed the fps check only
+because the exposure happened to fit.
+
+What the probe cannot see: the app's own path around the writer
+(`CameraInstance` priming, the role change of §3.2) and the strobe's light.

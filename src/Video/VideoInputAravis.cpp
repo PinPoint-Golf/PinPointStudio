@@ -118,85 +118,122 @@ bool VideoInputAravis::start(const QString &deviceId)
                      << "at" << rx << "," << ry;
         }
     }
-    // Camera auto for every tuning node this connect does NOT lock
-    // (flir_camera_settings.md §5): the camera keeps node values while it has
-    // power, so "not requested" is written as a neutral, never inherited. The
-    // rate needs nothing here — it is always written below.
+    // Every tuning node, every connect (flir_camera_settings.md §5): the
+    // camera keeps node values while it has power, so each one is written
+    // from the request alone — locked for the impact camera, auto for every
+    // other — never inherited. Same order and rules as the Spinnaker backend:
+    // exposure → gain → gamma → Line1 → rate → auto-exposure limit; the rate
+    // is never auto (an auto rate lets auto exposure stretch the frame
+    // period — 19 fps on a Chameleon3, 2026-10-08).
+    // ⚠ Untested on hardware as of 2026-10-08 — the Windows/Spinnaker path is
+    // the one that was measured; this mirrors it.
     {
-        QStringList reset;
+        QStringList log;
         GError *aerr = nullptr;
-        if (m_exposureUs <= 0.0 && arv_camera_is_exposure_auto_available(cam, nullptr)) {
-            arv_camera_set_exposure_time_auto(cam, ARV_AUTO_CONTINUOUS, &aerr);
-            if (aerr) g_clear_error(&aerr); else reset << QStringLiteral("ExposureAuto=Continuous");
+        auto ok = [&aerr]() { if (!aerr) return true; g_clear_error(&aerr); return false; };
+        const bool lockedExposure = m_exposureUs > 0.0;
+        const bool lockedGain     = m_gainDb >= 0.0;
+
+        if (arv_camera_is_exposure_auto_available(cam, nullptr)) {
+            arv_camera_set_exposure_time_auto(cam, lockedExposure ? ARV_AUTO_OFF : ARV_AUTO_CONTINUOUS, &aerr);
+            ok();
         }
-        if (m_gainDb < 0.0 && arv_camera_is_gain_auto_available(cam, nullptr)) {
-            arv_camera_set_gain_auto(cam, ARV_AUTO_CONTINUOUS, &aerr);
-            if (aerr) g_clear_error(&aerr); else reset << QStringLiteral("GainAuto=Continuous");
+        if (lockedExposure) {
+            arv_camera_set_exposure_time(cam, m_exposureUs, &aerr);
+            if (ok()) log << QStringLiteral("ExposureTime=%1us").arg(arv_camera_get_exposure_time(cam, nullptr), 0, 'f', 1);
+        } else {
+            log << QStringLiteral("ExposureAuto=Continuous");
         }
-        if (m_gamma <= 0.0) {
-            // The enable under either spelling; a camera without one ignores it.
-            bool off = false;
-            for (const char *name : { "GammaEnable", "GammaEnabled" }) {
-                arv_camera_set_boolean(cam, name, FALSE, &aerr);
-                if (aerr) g_clear_error(&aerr); else off = true;
+
+        if (arv_camera_is_gain_auto_available(cam, nullptr)) {
+            arv_camera_set_gain_auto(cam, lockedGain ? ARV_AUTO_OFF : ARV_AUTO_CONTINUOUS, &aerr);
+            ok();
+        }
+        if (lockedGain) {
+            arv_camera_set_gain(cam, m_gainDb, &aerr);
+            if (ok()) {
+                const double held = arv_camera_get_gain(cam, nullptr);
+                m_appliedGainDb.store(held, std::memory_order_relaxed);
+                log << QStringLiteral("Gain=%1dB").arg(held, 0, 'f', 1);
             }
-            if (off) reset << QStringLiteral("Gamma=off");
+        } else {
+            log << QStringLiteral("GainAuto=Continuous");
+            double gMin = 0.0, gMax = 0.0;
+            arv_camera_get_gain_bounds(cam, &gMin, &gMax, nullptr);
+            for (const char *name : { "AutoGainUpperLimit", "AutoExposureGainUpperLimit" }) {
+                arv_camera_set_float(cam, name, gMax, &aerr);
+                if (ok()) log << QStringLiteral("%1=%2dB").arg(QLatin1String(name)).arg(gMax, 0, 'f', 1);
+            }
         }
-        if (!m_strobe) {
-            // Line1 is output-only on the Chameleon3: there the neutral is a
-            // line that drives nothing.
-            arv_camera_set_string(cam, "LineSelector", "Line1", &aerr);
-            if (aerr) {
-                g_clear_error(&aerr);
+
+        // Gamma: the enable under either spelling; a camera without one ignores it.
+        for (const char *name : { "GammaEnable", "GammaEnabled" }) {
+            arv_camera_set_boolean(cam, name, m_gamma > 0.0, &aerr);
+            ok();
+        }
+        arv_camera_set_float(cam, "Gamma", m_gamma > 0.0 ? m_gamma : 1.0, &aerr);
+        if (ok() && m_gamma > 0.0) {
+            const double held = arv_camera_get_float(cam, "Gamma", nullptr);
+            m_appliedGamma.store(held, std::memory_order_relaxed);
+            log << QStringLiteral("Gamma=%1").arg(held, 0, 'f', 2);
+        } else {
+            log << (m_gamma > 0.0 ? QStringLiteral("Gamma=absent") : QStringLiteral("Gamma=off"));
+        }
+
+        // Line1: strobe (ExposureActive), or released — Input, else Off, else
+        // a user output held low (the Chameleon3 has no Off).
+        arv_camera_set_string(cam, "LineSelector", "Line1", &aerr);
+        if (ok()) {
+            if (m_strobe) {
+                arv_camera_set_string(cam, "LineMode", "Output", &aerr);
+                ok();
+                arv_camera_set_string(cam, "LineSource", "ExposureActive", &aerr);
+                if (ok()) log << QStringLiteral("Line1=strobe");
+                else ppWarn() << "[VideoInputAravis] Strobe requested but Line1 could not be set";
             } else {
                 arv_camera_set_string(cam, "LineMode", "Input", &aerr);
-                if (!aerr) {
-                    reset << QStringLiteral("Line1=Input");
+                if (ok()) {
+                    log << QStringLiteral("Line1=Input");
                 } else {
-                    g_clear_error(&aerr);
                     arv_camera_set_string(cam, "LineSource", "Off", &aerr);
-                    if (aerr) g_clear_error(&aerr); else reset << QStringLiteral("Line1=Off");
+                    if (ok()) {
+                        log << QStringLiteral("Line1=Off");
+                    } else {
+                        arv_camera_set_string(cam, "LineSource", "UserOutput1", &aerr);
+                        if (ok()) {
+                            arv_camera_set_string(cam, "UserOutputSelector", "UserOutput1", &aerr);
+                            if (ok()) { arv_camera_set_boolean(cam, "UserOutputValue", FALSE, &aerr); ok(); }
+                            log << QStringLiteral("Line1=UserOutput1(low)");
+                        }
+                    }
                 }
             }
+        } else if (m_strobe) {
+            ppWarn() << "[VideoInputAravis] Strobe requested but this camera has no Line1";
         }
-        const QByteArray resetList = reset.isEmpty() ? QByteArrayLiteral("(nothing reset)")
-                                                     : reset.join(QLatin1Char(' ')).toUtf8();
-        ppInfo() << "[VideoInputAravis] tuning:"
-                 << (m_exposureUs > 0.0 ? "impact locked" : "camera auto")
-                 << resetList.constData();
-    }
-    // The impact camera's locked exposure and rate (impact_camera_design.md
-    // §10.2); every other camera keeps the 60 fps default. Exposure before
-    // rate: a rate the exposure cannot fit clamps the exposure down.
-    // ⚠ Untested on hardware as of 2026-09-15 — the Windows/Spinnaker path is
-    // the one that was measured; this mirrors it.
-    if (m_exposureUs > 0.0) {
-        arv_camera_set_exposure_time_auto(cam, ARV_AUTO_OFF, nullptr);
-        arv_camera_set_exposure_time(cam, m_exposureUs, nullptr);
-        ppInfo() << "[VideoInputAravis] Exposure locked:" << m_exposureUs << "us";
-    }
-    // Gain, gamma (impact_camera_design.md §10.3) — the same writes the live
-    // re-tune makes. Strobe: Line1 output driven by ExposureActive.
-    writeTuning(cam, 0.0, m_gainDb, m_gamma);
-    if (m_strobe) {
-        GError *serr = nullptr;
-        arv_camera_set_string(cam, "LineSelector", "Line1", &serr);
-        if (!serr) arv_camera_set_string(cam, "LineMode", "Output", &serr);
-        if (!serr) arv_camera_set_string(cam, "LineSource", "ExposureActive", &serr);
-        if (serr) {
-            ppWarn() << "[VideoInputAravis] Strobe requested but Line1 could not be set:"
-                     << serr->message;
-            g_clear_error(&serr);
-        } else {
-            ppInfo() << "[VideoInputAravis] Strobe: Line1 = ExposureActive";
+
+        // Rate: manual at the request, or the maximum at this region.
+        double fMin = 0.0, fMax = 0.0;
+        arv_camera_get_frame_rate_bounds(cam, &fMin, &fMax, nullptr);
+        const double want = m_captureFps > 0.0 ? m_captureFps : fMax;
+        if (want > 0.0) {
+            arv_camera_set_frame_rate(cam, fMax > 0.0 ? qBound(fMin, want, fMax) : want, &aerr);
+            ok();
         }
-    }
-    if (m_captureFps > 0.0) {
-        arv_camera_set_frame_rate(cam, m_captureFps, nullptr);
-        ppInfo() << "[VideoInputAravis] Frame rate requested:" << m_captureFps
-                 << "fps, camera reports" << arv_camera_get_frame_rate(cam, nullptr);
-    } else {
-        arv_camera_set_frame_rate(cam, 60.0, nullptr);    // Target 60 FPS
+        const double fps = arv_camera_get_frame_rate(cam, nullptr);
+        log << QStringLiteral("FrameRate=%1fps(max %2)").arg(fps, 0, 'f', 1).arg(fMax, 0, 'f', 1);
+
+        // Auto exposure may use the whole frame period and no more.
+        if (!lockedExposure && fps > 0.0) {
+            for (const char *name : { "AutoExposureTimeUpperLimit", "AutoExposureExposureTimeUpperLimit" }) {
+                arv_camera_set_float(cam, name, 1e6 / fps, &aerr);
+                if (ok()) log << QStringLiteral("%1=%2us").arg(QLatin1String(name)).arg(1e6 / fps, 0, 'f', 0);
+            }
+        }
+
+        const QByteArray line = log.join(QLatin1Char(' ')).toUtf8();
+        ppInfo() << "[VideoInputAravis] settings:"
+                 << (lockedExposure ? "impact locked" : "camera auto") << line.constData();
     }
     arv_camera_set_pixel_format(cam, ARV_PIXEL_FORMAT_MONO_8, nullptr); // Raw Bayer or Mono
 

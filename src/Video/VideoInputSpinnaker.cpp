@@ -27,6 +27,7 @@
 
 #include "VideoInputSpinnaker.h"
 #include "spinnaker_runtime.h"
+#include "spinnaker_settings.h"
 #include "event_buffer.h"
 #include "frame_crop.h"
 #include "raw_video_frame.h"
@@ -69,108 +70,15 @@ public:
     }
 };
 
-// Apply the normalized crop region (or full sensor when inactive) via the
-// GenICam Width/Height/OffsetX/OffsetY nodes. Must run before
-// BeginAcquisition() — the nodes are read-only while streaming. Values are
-// snapped DOWN to the node increments so a delivered frame never exceeds the
-// ring slot sized from the same (ceil'd) crop fraction upstream; FLIR
-// increments are even on Bayer sensors, so the CFA phase is preserved.
-// On failure the full frame is restored best-effort and the software crop in
-// CameraInstance engages (frames arrive larger than the expected crop size).
-static void applySpinnakerRoi(INodeMap &nodeMap, const QRectF &crop)
+// The settings module returns its log; the app's log is where it belongs.
+static void logSettings(const pinpoint::spinnaker::SettingsLog &log)
 {
-    try {
-        CIntegerPtr w  = nodeMap.GetNode("Width");
-        CIntegerPtr h  = nodeMap.GetNode("Height");
-        CIntegerPtr ox = nodeMap.GetNode("OffsetX");
-        CIntegerPtr oy = nodeMap.GetNode("OffsetY");
-        if (!IsAvailable(w) || !IsWritable(w) || !IsAvailable(h) || !IsWritable(h)) {
-            if (pp_crop::cropIsActive(crop))
-                ppWarn() << "[VideoInputSpinnaker] Width/Height nodes not writable;"
-                         << "software crop will engage";
-            return;
-        }
-
-        auto snapDown = [](int64_t v, int64_t inc, int64_t lo, int64_t hi) {
-            inc = std::max<int64_t>(1, inc);
-            v   = std::clamp(v, lo, hi);
-            return lo + ((v - lo) / inc) * inc;
-        };
-
-        // Offsets to minimum first so a stale ROI never clamps Width/Height max.
-        if (IsAvailable(ox) && IsWritable(ox)) ox->SetValue(ox->GetMin());
-        if (IsAvailable(oy) && IsWritable(oy)) oy->SetValue(oy->GetMin());
-
-        // True sensor dims come from WidthMax/HeightMax — Width's own max is
-        // WidthMax - OffsetX, so it under-reports whenever a stale offset is
-        // still programmed (e.g. the offset nodes above were not writable).
-        CIntegerPtr wMaxNode = nodeMap.GetNode("WidthMax");
-        CIntegerPtr hMaxNode = nodeMap.GetNode("HeightMax");
-        const int64_t sensorW = (IsAvailable(wMaxNode) && IsReadable(wMaxNode))
-                                    ? wMaxNode->GetValue() : w->GetMax();
-        const int64_t sensorH = (IsAvailable(hMaxNode) && IsReadable(hMaxNode))
-                                    ? hMaxNode->GetValue() : h->GetMax();
-
-        int64_t rw = sensorW, rh = sensorH;
-        if (pp_crop::cropIsActive(crop)) {
-            rw = snapDown(int64_t(std::llround(crop.width()  * sensorW)),
-                          w->GetInc(), w->GetMin(), sensorW);
-            rh = snapDown(int64_t(std::llround(crop.height() * sensorH)),
-                          h->GetInc(), h->GetMin(), sensorH);
-        }
-        // GenICam ordering: shrink Width/Height FIRST, then move the offsets
-        // (their GetMax() grows to sensor - size once the size is reduced).
-        w->SetValue(rw);
-        h->SetValue(rh);
-        if (pp_crop::cropIsActive(crop)) {
-            if (IsAvailable(ox) && IsWritable(ox))
-                ox->SetValue(snapDown(int64_t(std::llround(crop.x() * sensorW)),
-                                      ox->GetInc(), ox->GetMin(), ox->GetMax()));
-            if (IsAvailable(oy) && IsWritable(oy))
-                oy->SetValue(snapDown(int64_t(std::llround(crop.y() * sensorH)),
-                                      oy->GetInc(), oy->GetMin(), oy->GetMax()));
-            ppInfo() << "[VideoInputSpinnaker] ROI applied:"
-                     << qlonglong(rw) << "x" << qlonglong(rh);
-        }
-    } catch (Spinnaker::Exception &e) {
-        ppWarn() << "[VideoInputSpinnaker] ROI set failed:" << e.what()
-                 << "- full frame; software crop will engage";
-        try { // restore full frame best-effort so capture still works
-            CIntegerPtr w  = nodeMap.GetNode("Width");
-            CIntegerPtr h  = nodeMap.GetNode("Height");
-            CIntegerPtr ox = nodeMap.GetNode("OffsetX");
-            CIntegerPtr oy = nodeMap.GetNode("OffsetY");
-            if (IsAvailable(ox) && IsWritable(ox)) ox->SetValue(ox->GetMin());
-            if (IsAvailable(oy) && IsWritable(oy)) oy->SetValue(oy->GetMin());
-            if (IsAvailable(w)  && IsWritable(w))  w->SetValue(w->GetMax());
-            if (IsAvailable(h)  && IsWritable(h))  h->SetValue(h->GetMax());
-        } catch (...) {}
-    }
+    for (const QString &line : log.info)
+        ppInfo() << "[VideoInputSpinnaker]" << line.toUtf8().constData();
+    for (const QString &line : log.warn)
+        ppWarn() << "[VideoInputSpinnaker]" << line.toUtf8().constData();
 }
 
-// Guarded single-node writes for the camera-auto block in start(). Each is a
-// silent no-op (returns false) when the node or entry is missing, as on a
-// firmware that spells it differently (flir_camera_settings.md §4).
-static bool setEnumEntry(INodeMap &nodeMap, const char *node, const char *entry)
-{
-    CEnumerationPtr ptr = nodeMap.GetNode(node);
-    if (!IsAvailable(ptr) || !IsWritable(ptr))
-        return false;
-    CEnumEntryPtr e = ptr->GetEntryByName(entry);
-    if (!IsAvailable(e) || !IsReadable(e))
-        return false;
-    ptr->SetIntValue(e->GetValue());
-    return true;
-}
-
-static bool setBoolNode(INodeMap &nodeMap, const char *node, bool value)
-{
-    CBooleanPtr ptr = nodeMap.GetNode(node);
-    if (!IsAvailable(ptr) || !IsWritable(ptr))
-        return false;
-    ptr->SetValue(value);
-    return true;
-}
 #endif
 
 VideoInputSpinnaker::VideoInputSpinnaker(QObject *parent)
@@ -280,153 +188,25 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
             }
         }
 
-        // Hardware ROI (or full sensor) — must precede BeginAcquisition().
-        applySpinnakerRoi(nodeMap, m_cropRegion);
-
-        // Camera auto for every tuning node this connect does NOT lock
-        // (flir_camera_settings.md §5). The camera keeps node values while it
-        // has power — across DeInit, a PPS restart, another application — so
-        // "not requested" must be written as a known neutral, never inherited:
-        // an ex-impact camera otherwise keeps its 70 µs exposure and goes dark.
-        // Only the nodes whose locked value is absent are touched, so this never
-        // fights the impact writes below, and their ORDER rule is unchanged.
+        // Hardware ROI (or full sensor), then every tuning node — every
+        // connect, from the request alone (spinnaker_settings.h,
+        // flir_camera_settings.md §5). Both before BeginAcquisition().
         {
-            QStringList reset;
-            if (m_exposureUs <= 0.0 && setEnumEntry(nodeMap, "ExposureAuto", "Continuous"))
-                reset << QStringLiteral("ExposureAuto=Continuous");
-            if (m_gainDb < 0.0 && setEnumEntry(nodeMap, "GainAuto", "Continuous"))
-                reset << QStringLiteral("GainAuto=Continuous");
-            if (m_gamma <= 0.0) {
-                bool off = false;
-                for (const char *name : { "GammaEnable", "GammaEnabled" })
-                    off |= setBoolNode(nodeMap, name, false);
-                if (off) {
-                    reset << QStringLiteral("Gamma=off");
-                } else {
-                    // No writable enable: a linear curve is the neutral value.
-                    CFloatPtr ptrGamma = nodeMap.GetNode("Gamma");
-                    if (IsAvailable(ptrGamma) && IsWritable(ptrGamma)) {
-                        ptrGamma->SetValue(qBound(ptrGamma->GetMin(), 1.0, ptrGamma->GetMax()));
-                        reset << QStringLiteral("Gamma=%1").arg(ptrGamma->GetValue());
-                    }
-                }
-            }
-            if (!m_strobe && setEnumEntry(nodeMap, "LineSelector", "Line1")) {
-                // Line1 is output-only on the Chameleon3 (no Input entry), so
-                // there the neutral is a line that drives nothing.
-                nodeMap.InvalidateNodes();
-                if (setEnumEntry(nodeMap, "LineMode", "Input"))
-                    reset << QStringLiteral("Line1=Input");
-                else if (setEnumEntry(nodeMap, "LineSource", "Off"))
-                    reset << QStringLiteral("Line1=Off");
-            }
-            if (m_captureFps <= 0.0) {
-                bool autoRate = false;
-                for (const char *name : { "AcquisitionFrameRateEnable", "AcquisitionFrameRateEnabled" })
-                    autoRate |= setBoolNode(nodeMap, name, false);
-                autoRate |= setEnumEntry(nodeMap, "AcquisitionFrameRateAuto", "Continuous");
-                if (autoRate)
-                    reset << QStringLiteral("FrameRate=auto");
-            }
-            // ExposureAuto flips ExposureTime's cached access mode, and the rate
-            // nodes cache their range; the impact writes below read both.
-            nodeMap.InvalidateNodes();
-            const QByteArray resetList = reset.isEmpty() ? QByteArrayLiteral("(nothing reset)")
-                                                         : reset.join(QLatin1Char(' ')).toUtf8();
-            ppInfo() << "[VideoInputSpinnaker] tuning:"
-                     << (m_exposureUs > 0.0 ? "impact locked" : "camera auto")
-                     << resetList.constData();
-        }
-
-        // The impact camera's rate and locked exposure (0 = camera auto, above).
-        // ⚠ ORDER: ROI, then exposure, then rate, with InvalidateNodes()
-        // between. The rate node's maximum depends on the ROI but a
-        // Width/Height write does not invalidate its cache, so the first read
-        // after it is one ROI stale; ExposureTime is read-only until
-        // ExposureAuto is Off and its access mode is cached the same way; and
-        // a rate the exposure cannot fit clamps the exposure down silently,
-        // so the exposure goes first on purpose. Measured on both studio
-        // Chameleon3s, 2026-09-15 (impact_camera_design.md §3.1).
-        if (m_exposureUs > 0.0) {
-            CEnumerationPtr ptrExpAuto = nodeMap.GetNode("ExposureAuto");
-            if (IsAvailable(ptrExpAuto) && IsWritable(ptrExpAuto)) {
-                CEnumEntryPtr off = ptrExpAuto->GetEntryByName("Off");
-                if (IsAvailable(off) && IsReadable(off))
-                    ptrExpAuto->SetIntValue(off->GetValue());
-            }
-            nodeMap.InvalidateNodes();
-            CFloatPtr ptrExp = nodeMap.GetNode("ExposureTime");
-            if (IsAvailable(ptrExp) && IsWritable(ptrExp)) {
-                ptrExp->SetValue(qBound(ptrExp->GetMin(), m_exposureUs, ptrExp->GetMax()));
-                ppInfo() << "[VideoInputSpinnaker] Exposure locked:" << ptrExp->GetValue() << "us";
-            } else {
-                ppWarn() << "[VideoInputSpinnaker] ExposureTime not writable; exposure stays"
-                         << (IsAvailable(ptrExp) && IsReadable(ptrExp) ? ptrExp->GetValue() : 0.0) << "us";
-            }
-        }
-        // Gain and gamma (impact_camera_design.md §10.3) — the same nodes the
-        // live re-tune writes, so start() and a knob turn agree by construction.
-        writeTuningNodes(&nodeMap, 0.0, m_gainDb, m_gamma);
-        // Strobe: Line1 is a dedicated output on the Chameleon3 (§3.1) and
-        // ExposureActive on it is what an LED strobe driver hangs off. When not
-        // asked for, the camera-auto block above has already released Line1.
-        if (m_strobe) {
-            bool ok = false;
-            CEnumerationPtr ptrLineSel = nodeMap.GetNode("LineSelector");
-            if (IsAvailable(ptrLineSel) && IsWritable(ptrLineSel)) {
-                CEnumEntryPtr line1 = ptrLineSel->GetEntryByName("Line1");
-                if (IsAvailable(line1) && IsReadable(line1)) {
-                    ptrLineSel->SetIntValue(line1->GetValue());
-                    nodeMap.InvalidateNodes();
-                    CEnumerationPtr ptrLineMode = nodeMap.GetNode("LineMode");
-                    if (IsAvailable(ptrLineMode) && IsWritable(ptrLineMode)) {
-                        CEnumEntryPtr out = ptrLineMode->GetEntryByName("Output");
-                        if (IsAvailable(out) && IsReadable(out))
-                            ptrLineMode->SetIntValue(out->GetValue());
-                    }
-                    nodeMap.InvalidateNodes();
-                    CEnumerationPtr ptrLineSrc = nodeMap.GetNode("LineSource");
-                    if (IsAvailable(ptrLineSrc) && IsWritable(ptrLineSrc)) {
-                        CEnumEntryPtr expActive = ptrLineSrc->GetEntryByName("ExposureActive");
-                        if (IsAvailable(expActive) && IsReadable(expActive)) {
-                            ptrLineSrc->SetIntValue(expActive->GetValue());
-                            ok = true;
-                        }
-                    }
-                }
-            }
-            if (ok)
-                ppInfo() << "[VideoInputSpinnaker] Strobe: Line1 = ExposureActive";
-            else
-                ppWarn() << "[VideoInputSpinnaker] Strobe requested but Line1/LineMode/LineSource"
-                         << "could not be set; no strobe output";
-        }
-        if (m_captureFps > 0.0) {
-            // Manual rate control, under either firmware's spelling: SFNC
-            // AcquisitionFrameRateEnable (Blackfly S), or the legacy
-            // AcquisitionFrameRateAuto=Off + AcquisitionFrameRateEnabled
-            // (Chameleon3 — which has no node of the SFNC name).
-            CEnumerationPtr ptrFpsAuto = nodeMap.GetNode("AcquisitionFrameRateAuto");
-            if (IsAvailable(ptrFpsAuto) && IsWritable(ptrFpsAuto)) {
-                CEnumEntryPtr off = ptrFpsAuto->GetEntryByName("Off");
-                if (IsAvailable(off) && IsReadable(off))
-                    ptrFpsAuto->SetIntValue(off->GetValue());
-            }
-            for (const char *name : { "AcquisitionFrameRateEnable", "AcquisitionFrameRateEnabled" }) {
-                CBooleanPtr ptrFpsEnable = nodeMap.GetNode(name);
-                if (IsAvailable(ptrFpsEnable) && IsWritable(ptrFpsEnable))
-                    ptrFpsEnable->SetValue(true);
-            }
-            nodeMap.InvalidateNodes();
-            CFloatPtr ptrFps = nodeMap.GetNode("AcquisitionFrameRate");
-            if (IsAvailable(ptrFps) && IsWritable(ptrFps)) {
-                const double maxFps = ptrFps->GetMax();
-                ptrFps->SetValue(qBound(ptrFps->GetMin(), m_captureFps, maxFps));
-                ppInfo() << "[VideoInputSpinnaker] Frame rate:" << ptrFps->GetValue()
-                         << "fps (requested" << m_captureFps << ", max at this ROI" << maxFps << ")";
-            } else {
-                ppWarn() << "[VideoInputSpinnaker] AcquisitionFrameRate not writable; rate stays at the camera's own";
-            }
+            namespace ps = pinpoint::spinnaker;
+            ps::SettingsLog roiLog;
+            ps::applyRoi(nodeMap, pp_crop::cropIsActive(m_cropRegion) ? m_cropRegion : QRectF(),
+                         roiLog);
+            ps::ConnectSettings req;
+            req.exposureUs = m_exposureUs;
+            req.gainDb     = m_gainDb;
+            req.gamma      = m_gamma;
+            req.strobe     = m_strobe;
+            req.fps        = m_captureFps;
+            const ps::ConnectApplied applied = ps::applyConnectSettings(nodeMap, req);
+            m_appliedGainDb.store(applied.gainDb, std::memory_order_relaxed);
+            m_appliedGamma.store(applied.gamma, std::memory_order_relaxed);
+            logSettings(roiLog);
+            logSettings(applied.log);
         }
 
         // Increase the image buffer pool. StreamBufferCount lives in the
@@ -583,7 +363,9 @@ void VideoInputSpinnaker::stop()
                 // under-report the sensor size, shrinking the next session's
                 // crop sizing.
                 try {
-                    applySpinnakerRoi((*camera)->GetNodeMap(), QRectF());
+                    pinpoint::spinnaker::SettingsLog roiLog;
+                    pinpoint::spinnaker::applyRoi((*camera)->GetNodeMap(), QRectF(), roiLog);
+                    logSettings(roiLog);
                 } catch (...) {}
                 (*camera)->DeInit();
             } else {
@@ -884,7 +666,7 @@ void VideoInputSpinnaker::writeTuningNodes(void *nodeMapPtr, double exposureUs,
 #ifdef HAVE_SPINNAKER
     INodeMap &nodeMap = *static_cast<INodeMap *>(nodeMapPtr);
     // Exposure: auto off first, or the node is read-only (the same rule
-    // start() applies, see its ORDER note).
+    // connect applies — see the ORDER note in spinnaker_settings.cpp).
     if (exposureUs > 0.0) {
         CEnumerationPtr ptrExpAuto = nodeMap.GetNode("ExposureAuto");
         if (IsAvailable(ptrExpAuto) && IsWritable(ptrExpAuto)) {
@@ -978,7 +760,23 @@ void VideoInputSpinnaker::captureLoop()
     // Snapshot the CameraPtr once: stop() joins this loop before deleting it,
     // so the pointer stays valid for the loop's whole lifetime.
     CameraPtr *camera = (CameraPtr*)m_camera;
+    // One read-back ~1 s in, once the auto loops have settled: what exposure
+    // and gain the camera actually chose (flir_camera_settings.md §5).
+    int settledReport = 150;
     while (!m_abort && camera) {
+        if (settledReport >= 0 && --settledReport == 0) {
+            try {
+                INodeMap &nm = (*camera)->GetNodeMap();
+                CFloatPtr g = nm.GetNode("Gain");
+                CFloatPtr r = nm.GetNode("AcquisitionFrameRate");
+                ppInfo() << "[VideoInputSpinnaker] settled: exposure"
+                         << m_lastExposureUs.load(std::memory_order_relaxed) << "us (auto"
+                         << m_exposureAuto << ") gain"
+                         << (IsAvailable(g) && IsReadable(g) ? g->GetValue() : -1.0) << "dB of max"
+                         << (IsAvailable(g) && IsReadable(g) ? g->GetMax() : -1.0) << ", rate"
+                         << (IsAvailable(r) && IsReadable(r) ? r->GetValue() : -1.0) << "fps";
+            } catch (Spinnaker::Exception &) {}
+        }
         try {
             ImagePtr pResultImage = (*camera)->GetNextImage(1000);
             // ⚠ ARRIVAL IS THE FIRST STATEMENT after the frame is in hand. Everything below — the chunk
