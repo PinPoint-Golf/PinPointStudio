@@ -52,11 +52,12 @@ public:
     bool supportsHardwareCrop() const override { return true; }
     void setCropRegion(const QRectF &norm) override { m_cropRegion = norm; }
     // AcquisitionFrameRate / ExposureTime written on the next start(), after
-    // the ROI (the rate's maximum depends on it). 0 = leave the camera alone.
+    // the ROI (the rate's maximum depends on it). 0 = camera auto.
     void setCaptureRate(double fps) override { m_captureFps = fps; }
     void setExposureUs(double us)   override { m_exposureUs = us; }
     // Gain / Gamma / Line1 strobe written on the next start() (impact camera
-    // tuning, impact_camera_design.md §10.3); -1 dB / 0 gamma = leave alone.
+    // tuning, impact_camera_design.md §10.3); -1 dB / 0 gamma / false = camera
+    // auto, written as such on start() (flir_camera_settings.md §5).
     void setGainDb(double db)       override { m_gainDb = db; }
     void setGamma(double g)         override { m_gamma = g; }
     void setStrobeOutput(bool on)   override { m_strobe = on; }

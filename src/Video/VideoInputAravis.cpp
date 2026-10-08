@@ -118,6 +118,53 @@ bool VideoInputAravis::start(const QString &deviceId)
                      << "at" << rx << "," << ry;
         }
     }
+    // Camera auto for every tuning node this connect does NOT lock
+    // (flir_camera_settings.md §5): the camera keeps node values while it has
+    // power, so "not requested" is written as a neutral, never inherited. The
+    // rate needs nothing here — it is always written below.
+    {
+        QStringList reset;
+        GError *aerr = nullptr;
+        if (m_exposureUs <= 0.0 && arv_camera_is_exposure_auto_available(cam, nullptr)) {
+            arv_camera_set_exposure_time_auto(cam, ARV_AUTO_CONTINUOUS, &aerr);
+            if (aerr) g_clear_error(&aerr); else reset << QStringLiteral("ExposureAuto=Continuous");
+        }
+        if (m_gainDb < 0.0 && arv_camera_is_gain_auto_available(cam, nullptr)) {
+            arv_camera_set_gain_auto(cam, ARV_AUTO_CONTINUOUS, &aerr);
+            if (aerr) g_clear_error(&aerr); else reset << QStringLiteral("GainAuto=Continuous");
+        }
+        if (m_gamma <= 0.0) {
+            // The enable under either spelling; a camera without one ignores it.
+            bool off = false;
+            for (const char *name : { "GammaEnable", "GammaEnabled" }) {
+                arv_camera_set_boolean(cam, name, FALSE, &aerr);
+                if (aerr) g_clear_error(&aerr); else off = true;
+            }
+            if (off) reset << QStringLiteral("Gamma=off");
+        }
+        if (!m_strobe) {
+            // Line1 is output-only on the Chameleon3: there the neutral is a
+            // line that drives nothing.
+            arv_camera_set_string(cam, "LineSelector", "Line1", &aerr);
+            if (aerr) {
+                g_clear_error(&aerr);
+            } else {
+                arv_camera_set_string(cam, "LineMode", "Input", &aerr);
+                if (!aerr) {
+                    reset << QStringLiteral("Line1=Input");
+                } else {
+                    g_clear_error(&aerr);
+                    arv_camera_set_string(cam, "LineSource", "Off", &aerr);
+                    if (aerr) g_clear_error(&aerr); else reset << QStringLiteral("Line1=Off");
+                }
+            }
+        }
+        const QByteArray resetList = reset.isEmpty() ? QByteArrayLiteral("(nothing reset)")
+                                                     : reset.join(QLatin1Char(' ')).toUtf8();
+        ppInfo() << "[VideoInputAravis] tuning:"
+                 << (m_exposureUs > 0.0 ? "impact locked" : "camera auto")
+                 << resetList.constData();
+    }
     // The impact camera's locked exposure and rate (impact_camera_design.md
     // §10.2); every other camera keeps the 60 fps default. Exposure before
     // rate: a rate the exposure cannot fit clamps the exposure down.

@@ -1054,8 +1054,9 @@ void CameraInstance::clearCropRoi()
 }
 
 // Backend thread. The crop, and the impact camera's rate, exposure, gain,
-// gamma and strobe — all "0 / -1 / false = leave the camera alone" for every
-// other camera (impact_camera_design.md §10.2, §10.3).
+// gamma and strobe — all "0 / -1 / false = camera auto" for every other camera
+// (impact_camera_design.md §10.2, §10.3; flir_camera_settings.md §5: the
+// backend writes a neutral, it never inherits what the last owner left).
 void CameraInstance::primeBackend()
 {
     m_videoInput->setCropRegion(m_activeCropRoi);
@@ -1433,7 +1434,7 @@ void CameraInstance::startRecording()
     QMetaObject::invokeMethod(m_videoInput, [this]() {
         // Prime the hardware ROI (no-op for software-cropped backends) with
         // the ctor-frozen crop before starting the device, and the impact
-        // camera's rate, exposure and tuning (0 = leave the camera alone).
+        // camera's rate, exposure and tuning (0 = camera auto).
         primeBackend();
         if (m_videoInput->start(m_deviceId))
             return;

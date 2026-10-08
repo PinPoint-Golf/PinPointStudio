@@ -53,7 +53,8 @@ public:
     void setCaptureRate(double fps) override { m_captureFps = fps; }
     void setExposureUs(double us)   override { m_exposureUs = us; }
     // Gain / Gamma / Line1 strobe applied on the next start() (impact camera
-    // tuning, impact_camera_design.md §10.3); -1 dB / 0 gamma = leave alone.
+    // tuning, impact_camera_design.md §10.3); -1 dB / 0 gamma / false = camera
+    // auto, written as such on start() (flir_camera_settings.md §5).
     void setGainDb(double db)       override { m_gainDb = db; }
     void setGamma(double g)         override { m_gamma = g; }
     void setStrobeOutput(bool on)   override { m_strobe = on; }

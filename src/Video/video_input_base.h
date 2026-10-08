@@ -118,19 +118,21 @@ public:
     virtual void setCropRegion(const QRectF &) {}
 
     // Frame rate (fps) and exposure (microseconds) to apply on the NEXT
-    // start(), for backends that can set them (GenICam). 0 means leave the
-    // camera as it is, which is what every camera gets except the impact
-    // camera (impact_camera_design.md §10.2: a crop, a rate AND a locked
-    // exposure make the mode). A non-zero exposure turns auto-exposure off.
+    // start(), for backends that can set them (GenICam). 0 means camera auto
+    // (the GenICam backends WRITE auto exposure / auto rate, they do not
+    // inherit what the camera last held — flir_camera_settings.md §5), which
+    // is what every camera gets except the impact camera
+    // (impact_camera_design.md §10.2: a crop, a rate AND a locked exposure
+    // make the mode). A non-zero exposure turns auto-exposure off.
     // Same threading rule as setCropRegion(). Default is a no-op.
     virtual void setCaptureRate(double) {}
     virtual void setExposureUs(double) {}
 
     // The impact camera's tuning beyond exposure (impact_camera_design.md
-    // §10.3). Sensor gain in dB, auto-gain off (< 0 = leave the camera alone):
+    // §10.3). Sensor gain in dB, auto-gain off (< 0 = auto gain):
     // applied before the ADC, so it lifts a dark club body above the 8-bit
     // floor rather than stretching a floor that is already there. In-camera
-    // gamma (0 = leave alone): applied to the sensor's full bit depth, so a
+    // gamma (0 = gamma off): applied to the sensor's full bit depth, so a
     // value below 1 lifts the shadows the club lives in while the ball stays
     // unclipped. The strobe output: Line1 driven by ExposureActive, for an
     // LED strobe driver. Primed before start() like the rate and exposure;

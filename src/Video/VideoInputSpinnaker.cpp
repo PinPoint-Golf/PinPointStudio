@@ -147,6 +147,30 @@ static void applySpinnakerRoi(INodeMap &nodeMap, const QRectF &crop)
         } catch (...) {}
     }
 }
+
+// Guarded single-node writes for the camera-auto block in start(). Each is a
+// silent no-op (returns false) when the node or entry is missing, as on a
+// firmware that spells it differently (flir_camera_settings.md §4).
+static bool setEnumEntry(INodeMap &nodeMap, const char *node, const char *entry)
+{
+    CEnumerationPtr ptr = nodeMap.GetNode(node);
+    if (!IsAvailable(ptr) || !IsWritable(ptr))
+        return false;
+    CEnumEntryPtr e = ptr->GetEntryByName(entry);
+    if (!IsAvailable(e) || !IsReadable(e))
+        return false;
+    ptr->SetIntValue(e->GetValue());
+    return true;
+}
+
+static bool setBoolNode(INodeMap &nodeMap, const char *node, bool value)
+{
+    CBooleanPtr ptr = nodeMap.GetNode(node);
+    if (!IsAvailable(ptr) || !IsWritable(ptr))
+        return false;
+    ptr->SetValue(value);
+    return true;
+}
 #endif
 
 VideoInputSpinnaker::VideoInputSpinnaker(QObject *parent)
@@ -259,7 +283,62 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
         // Hardware ROI (or full sensor) — must precede BeginAcquisition().
         applySpinnakerRoi(nodeMap, m_cropRegion);
 
-        // The impact camera's rate and locked exposure (0 = leave alone).
+        // Camera auto for every tuning node this connect does NOT lock
+        // (flir_camera_settings.md §5). The camera keeps node values while it
+        // has power — across DeInit, a PPS restart, another application — so
+        // "not requested" must be written as a known neutral, never inherited:
+        // an ex-impact camera otherwise keeps its 70 µs exposure and goes dark.
+        // Only the nodes whose locked value is absent are touched, so this never
+        // fights the impact writes below, and their ORDER rule is unchanged.
+        {
+            QStringList reset;
+            if (m_exposureUs <= 0.0 && setEnumEntry(nodeMap, "ExposureAuto", "Continuous"))
+                reset << QStringLiteral("ExposureAuto=Continuous");
+            if (m_gainDb < 0.0 && setEnumEntry(nodeMap, "GainAuto", "Continuous"))
+                reset << QStringLiteral("GainAuto=Continuous");
+            if (m_gamma <= 0.0) {
+                bool off = false;
+                for (const char *name : { "GammaEnable", "GammaEnabled" })
+                    off |= setBoolNode(nodeMap, name, false);
+                if (off) {
+                    reset << QStringLiteral("Gamma=off");
+                } else {
+                    // No writable enable: a linear curve is the neutral value.
+                    CFloatPtr ptrGamma = nodeMap.GetNode("Gamma");
+                    if (IsAvailable(ptrGamma) && IsWritable(ptrGamma)) {
+                        ptrGamma->SetValue(qBound(ptrGamma->GetMin(), 1.0, ptrGamma->GetMax()));
+                        reset << QStringLiteral("Gamma=%1").arg(ptrGamma->GetValue());
+                    }
+                }
+            }
+            if (!m_strobe && setEnumEntry(nodeMap, "LineSelector", "Line1")) {
+                // Line1 is output-only on the Chameleon3 (no Input entry), so
+                // there the neutral is a line that drives nothing.
+                nodeMap.InvalidateNodes();
+                if (setEnumEntry(nodeMap, "LineMode", "Input"))
+                    reset << QStringLiteral("Line1=Input");
+                else if (setEnumEntry(nodeMap, "LineSource", "Off"))
+                    reset << QStringLiteral("Line1=Off");
+            }
+            if (m_captureFps <= 0.0) {
+                bool autoRate = false;
+                for (const char *name : { "AcquisitionFrameRateEnable", "AcquisitionFrameRateEnabled" })
+                    autoRate |= setBoolNode(nodeMap, name, false);
+                autoRate |= setEnumEntry(nodeMap, "AcquisitionFrameRateAuto", "Continuous");
+                if (autoRate)
+                    reset << QStringLiteral("FrameRate=auto");
+            }
+            // ExposureAuto flips ExposureTime's cached access mode, and the rate
+            // nodes cache their range; the impact writes below read both.
+            nodeMap.InvalidateNodes();
+            const QByteArray resetList = reset.isEmpty() ? QByteArrayLiteral("(nothing reset)")
+                                                         : reset.join(QLatin1Char(' ')).toUtf8();
+            ppInfo() << "[VideoInputSpinnaker] tuning:"
+                     << (m_exposureUs > 0.0 ? "impact locked" : "camera auto")
+                     << resetList.constData();
+        }
+
+        // The impact camera's rate and locked exposure (0 = camera auto, above).
         // ⚠ ORDER: ROI, then exposure, then rate, with InvalidateNodes()
         // between. The rate node's maximum depends on the ROI but a
         // Width/Height write does not invalidate its cache, so the first read
@@ -289,8 +368,8 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
         // live re-tune writes, so start() and a knob turn agree by construction.
         writeTuningNodes(&nodeMap, 0.0, m_gainDb, m_gamma);
         // Strobe: Line1 is a dedicated output on the Chameleon3 (§3.1) and
-        // ExposureActive on it is what an LED strobe driver hangs off. Left
-        // alone unless asked, so a camera that was never strobed is untouched.
+        // ExposureActive on it is what an LED strobe driver hangs off. When not
+        // asked for, the camera-auto block above has already released Line1.
         if (m_strobe) {
             bool ok = false;
             CEnumerationPtr ptrLineSel = nodeMap.GetNode("LineSelector");

@@ -545,7 +545,7 @@ private:
     double             m_captureFps        = 0.0;
     double             m_captureExposureUs = 0.0;
     // Gain / gamma / strobe pushed with them (impact_camera_design.md §10.3);
-    // -1 / 0 / false = leave the camera alone. Exposure, gain and gamma are
+    // -1 / 0 / false = camera auto (flir_camera_settings.md §5). Exposure, gain and gamma are
     // also re-written live by applyLiveTuning(), which updates these so the
     // next connect primes what the operator last saw.
     double             m_captureGainDb     = -1.0;
