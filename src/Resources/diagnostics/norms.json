@@ -1148,6 +1148,15 @@
       "citation": "Provisional. PMID 30479527 reports trunk flexion at address in elite golfers on a C7 to mid-PSIS definition in the global sagittal plane; this measure is bend FROM VERTICAL. Reconcile datum and sign before adopting any published figure."
     },
     {
+      "measure": "m_spineBendLossDown",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 2.5,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "THE SIGNAL SURFACES BEYOND 5° OF FORWARD BEND LOST, AND SIGMA IS SET TO PUT IT THERE: 2.5°, so sig_spineAngleLoss fires from 2 sigma = 5° below the address bend (goodMaxZ = 2) and Action begins at 7.5°. Mark's line, 2026-10-08, and like the pelvis-thrust row the authored number is where the condition first fires. No coaching source gives a number (searched 2026-10-08: 'early extension spine angle loss degrees address to impact', and tour forward-bend data from 3-D sensor studies); the only coaching basis is a coaching-chain motion study's statement that tour players return to their setup forward bend, or close to it, in the downswing. A FLOOR, so only the loss tail grades; gaining bend is diving, read on m_spineBendDive over P5-P6. Read as the LEAST bend P5-P7 from address. CROSS-CHECKED against the 3-D skeleton on 2026-10-08 (32 swings): hips-to-shoulders inclination in the facing plane lost a median 15.7° P1-P7 against DTL's 11.2°, the 3-D reading 1.7-6.6° larger at p10-p90, so the loss is real and the down-the-line reading, if anything, under-reads it. One golfer's data (2026-10-05/07/08: median 9-11° lost, 110 of 111 swings over 5°)."
+    },
+    {
       "measure": "m_spineBendDive",
       "context": "any",
       "mu": 0.0,
@@ -1168,9 +1177,10 @@
       "measure": "m_pelvisThrustDown",
       "context": "any",
       "mu": 0.0,
-      "sigmaLo": 4.0,
+      "sigmaLo": 2.5,
       "unit": "cm",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "THE SIGNAL SURFACES BEYOND 5 cm, AND SIGMA IS SET TO PUT IT THERE: 2.5 cm, so sig_earlyExtension fires from 2 sigma = 5 cm toward the ball (goodMaxZ = 2) and Action begins at 7.5 cm under the Standard policy. Mark set 5 cm on 2026-10-08 as more realistic than the 8 cm sigma 4.0 put it at; like the flying-elbow and spine-loss rows, the authored number is where the condition first fires, not the Action line. It is measured FROM ADDRESS, so movement toward the ball made in the backswing and held is counted here too; pelvis_thrust_backswing (m_pelvisThrustBack, P1-P4) separates that part. Coaching judgement, not a fitted spread: one golfer's data (2026-10-05/07/08: 2-3.5 cm by the top, 5-10 cm by impact). THE SAME MEASURE'S LOW TAIL IS backing_off_the_ball, whose line therefore moved from -8 to -5 cm with it; give that condition its own measure if the two should differ."
     },
     {
       "measure": "m_handPathLoop",

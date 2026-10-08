@@ -138,7 +138,27 @@
       "unit": "°",
       "highMeans": "more forward bend than at address on the way down — dropping into the ball",
       "unwatchedTail": "low",
-      "unwatchedReason": "The low tail is a golfer who never reaches the address bend on the way down, which is standing up out of it — and that is `coming_out_of_it`, read on the head and the trunk's lean where a face-on camera can see it today. Watching this tail too would name one fault twice, and name it off an instrument nobody has built yet.\n\nREPLACES m_spineBendLoss, which was a MINIMUM over P4-P7 anchored at address and was read by `diving` on its HIGH tail. On a minimum, high means the bend never dropped below address at any point in the whole downswing — a sustained deep posture, not a dip. A golfer who drops into it before P6 and then stands up by impact has a minimum below address, so that swing scored as loss of posture and the dive was invisible: precisely the swing the characteristic exists to catch. The dip is a maximum, and it happens in the transition, so the window is P5-P6 and the sense is max."
+      "unwatchedReason": "The low tail is a golfer who never reaches the address bend on the way down, which is standing up out of it. Since 2026-10-08 that is read by `m_spineBendLossDown` (the LEAST bend P5-P7 from address, on the down-the-line camera), which `early_extension` takes beside the pelvis thrust; watching this tail too would name one fault twice, and off the wrong window.\n\nREPLACES m_spineBendLoss, which was a MINIMUM over P4-P7 anchored at address and was read by `diving` on its HIGH tail. On a minimum, high means the bend never dropped below address at any point in the whole downswing — a sustained deep posture, not a dip. A golfer who drops into it before P6 and then stands up by impact has a minimum below address, so that swing scored as loss of posture and the dive was invisible: precisely the swing the characteristic exists to catch. The dip is a maximum, and it happens in the transition, so the window is P5-P6 and the sense is max."
+    },
+    {
+      "id": "m_spineBendLossDown",
+      "kind": "provided",
+      "metricKey": "spineForwardBend",
+      "reducer": {
+        "kind": "extremum",
+        "window": [
+          "p5",
+          "p7"
+        ],
+        "sense": "min",
+        "anchor": "p1"
+      },
+      "shape": "floor",
+      "status": "live",
+      "label": "Spine forward bend, least P5 to P7 from P1",
+      "unit": "°",
+      "highMeans": "more forward bend than at address on the way down; the LOW side is standing up out of the address posture",
+      "viewNeeded": "downTheLine"
     },
     {
       "id": "m_axisTiltAtTop",
@@ -3057,6 +3077,14 @@
       "direction": "high"
     },
     {
+      "id": "sig_spineAngleLoss",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_spineBendLossDown"
+      ],
+      "direction": "low"
+    },
+    {
       "id": "sig_steepShoulderPlane",
       "test": "outsideCorridor",
       "measures": [
@@ -3597,10 +3625,11 @@
       "observability": "observable",
       "confirmedBy": "measured",
       "detectedBy": [
-        "sig_earlyExtension"
+        "sig_earlyExtension",
+        "sig_spineAngleLoss"
       ],
       "state": "active",
-      "consequence": "The pelvis moving toward the ball in the downswing takes away the room the arms need, leaving the hands to rescue the strike.",
+      "consequence": "The pelvis moving toward the ball in the downswing, or the trunk standing up out of its address forward bend, takes away the room the arms need, leaving the hands to rescue the strike. Either is early extension and they usually come together: the hips drive toward the ball and the spine goes more upright with them.",
       "provenance": {
         "tier": "indirect",
         "citation": "10.1177/0363546514555698",
@@ -6903,7 +6932,7 @@
       "detectedBy": [
         "sig_pelvisThrustBackswing"
       ],
-      "state": "draft",
+      "state": "active",
       "consequence": "Moving toward the ball on the way back spends the room the arms need before the downswing has started, so the club has to arrive from somewhere other than where it was set up to. The golfer then either backs out of the shot or stands up out of it, and standing up is the commoner answer. It is the depth-axis partner to the pelvis rising or sinking going back, and it is read the same way: what the pelvis did before the transition, not after it. IT IS ALSO WHY THE DOWNSWING READING NEEDS THIS ONE BESIDE IT. m_pelvisThrustDown is the peak between P5 and P7 measured from ADDRESS, so a golfer who moves toward the ball going back and simply holds it registers that displacement in the downswing window and scores as early extension without ever having extended. The two measures separate what happened before the top from what happened after it, and neither reads correctly alone.",
       "provenance": {
         "tier": "practice",

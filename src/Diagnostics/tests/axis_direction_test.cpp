@@ -292,6 +292,9 @@ static const Expect kExpected[] = {
       "m_lumbarCurve highMeans 'a more arched lower back'; a flat lumbar spine is less arch" },
     { "sig_flatThoracicSpine",      Direction::Low,
       "m_thoracicCurve highMeans 'a more rounded upper back'; a flat thoracic spine is less round" },
+    { "sig_spineAngleLoss",         Direction::Low,
+      "spineForwardBend: 'A loss of forward bend into impact is early extension'; the measure is "
+      "the LEAST bend P5-P7 from address, so losing it is the low end (2026-10-08)" },
     { "sig_diving",                 Direction::High,
       "m_spineBendDive highMeans 'more forward bend than at address on the way down — dropping "
       "into the ball'; diving IS that dip, so it is the high end. The measure takes the MAXIMUM "

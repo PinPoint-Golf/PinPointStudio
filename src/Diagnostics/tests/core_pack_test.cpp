@@ -681,12 +681,13 @@ int main()
                   "and moving AWAY from the ball going back is not graded at all");
 
             // The same quantity's DOWNSWING row, stated so the asymmetry is visible rather than
-            // buried in two sigmas eight lines apart in a JSON file. Early extension itself does
-            // not reach Action until 12 cm, three times the backswing figure. Some late thrust is
-            // normal, so the two are not meant to match — but only the backswing number has been
-            // sanctioned, and a reader should be able to see that here without computing it.
-            check(!isFault("m_pelvisThrustDown", 11.9),
-                  "early extension is not a fault at 11.9 cm of downswing thrust");
+            // buried in two sigmas eight lines apart in a JSON file. Since 2026-10-08 (Mark) early
+            // extension surfaces past 5 cm from address and reaches Action at 7.5 cm; it is read
+            // FROM ADDRESS, so it includes what the backswing row above already counted.
+            check(!isFault("m_pelvisThrustDown", 7.4),
+                  "early extension is not a fault at 7.4 cm of downswing thrust");
+            check(isFault("m_pelvisThrustDown", 7.6),
+                  "…and beyond 7.5 cm it is");
             check(isFault("m_pelvisThrustDown", 12.1), "…and is beyond 12 cm");
         }
 

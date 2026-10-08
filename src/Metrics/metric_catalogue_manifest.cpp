@@ -890,7 +890,8 @@ void installMetricManifest(MetricCatalogue &cat)
                                "sagittal, so the face-on camera cannot stand in"), PLANNED) },
         .usedBy = { QStringLiteral("characteristic:posture_too_upright"),
                     QStringLiteral("characteristic:posture_too_bent"),
-                    QStringLiteral("characteristic:diving") },
+                    QStringLiteral("characteristic:diving"),
+                    QStringLiteral("characteristic:early_extension") },
     });
 
     cat.addDescriptor({
