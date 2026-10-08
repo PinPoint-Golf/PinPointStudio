@@ -17,6 +17,9 @@ import "fakes"
 // calibration routines gate on `flow.visible`.
 Item {
     id: root
+
+    // Never lose the window's LAST View3D (View3DKeepAlive.qml).
+    View3DKeepAlive { }
     width: 1400
     height: 900
 

@@ -25,6 +25,9 @@ import "fakes"
 
 Item {
     id: root
+
+    // Never lose the window's LAST View3D (View3DKeepAlive.qml).
+    View3DKeepAlive { }
     width: 1200
     height: 900
 

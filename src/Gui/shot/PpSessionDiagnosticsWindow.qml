@@ -42,6 +42,9 @@ import PinPointStudio
 Window {
     id: win
 
+    // This window's View3Ds may all be unloaded; keep one so the last never goes (View3DKeepAlive.qml).
+    View3DKeepAlive { }
+
     property bool mirror: false
     property bool kiosk: false
     property var  targetScreen: null      // Qt.application.screens[i] (Screen info) or null

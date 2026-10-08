@@ -35,6 +35,10 @@ import "../fakes"
 Item {
     id: drv
 
+    // The tests load and unload 3-D views; the window must never lose its LAST View3D
+    // (View3DKeepAlive.qml — Qt 6.11.0 debug Quick 3D crashes the render thread when it does).
+    View3DKeepAlive { }
+
     property var tc: null
 
     // ── Fakes ────────────────────────────────────────────────────────────────
@@ -541,7 +545,10 @@ Item {
     }
 
     function teardown() {
-        if (panelInPopup) { imuPopup.close(); imuPopup.contentItem = null; panelInPopup = false }
+        // Not `imuPopup.contentItem = null`: on Qt 6.11.0 that warns "QObject::connect(QQuickItem,
+        // Popup): invalid nullptr parameter" from inside Popup (CH13's one unexpected warning,
+        // Windows 2026-10-08). Destroying the panel below clears the popup's contentItem anyway.
+        if (panelInPopup) { imuPopup.close(); panelInPopup = false }
         if (setup)      harness.destroyNow(setup)
         setup = null
         ghostFlow._lastMessage = ""; ghostFlow._lastMessageKind = ""

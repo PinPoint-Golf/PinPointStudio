@@ -844,6 +844,10 @@ ApplicationWindow {
         function onShotRefused(reason, id) { refusedTing.play() }
     }
 
+    // Never destroy the window's LAST View3D: Qt 6.11.0's debug Quick 3D frees the window's 3-D
+    // renderer state under the render thread when it goes (View3DKeepAlive.qml has the evidence).
+    View3DKeepAlive { }
+
     // ── The probe hook — the standing verify-by-probing tool, dark by default ────────────────
     //
     // `--probe-qml /abs/path/probe.qml` loads that file over the whole window with the FULL app

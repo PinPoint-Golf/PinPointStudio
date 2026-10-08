@@ -51,6 +51,7 @@ set(PP_QML_FILES
     src/Gui/viz/ImuVizView.qml
     src/Gui/viz/ArmVizView.qml
     src/Gui/viz/BodyVizView.qml
+    src/Gui/viz/View3DKeepAlive.qml
     src/Gui/swing3d/SwingViz3DView.qml
     src/Gui/swing3d/SwingViz3DHost.qml
     src/Gui/media/FilmPage.qml

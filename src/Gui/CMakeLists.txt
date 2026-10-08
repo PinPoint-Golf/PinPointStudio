@@ -275,8 +275,12 @@ else()
     # going to display anything", once per View3D (the wizard has two). Forcing the RHI
     # backend creates a real QRhi (Metal on macOS) for the offscreen window, the warnings go,
     # and the guide's FrameAnimation is ticked by the same render loop the app uses.
-    # The camera frame's gain shader, at the path the app serves it from. Without it every
-    # test that gives the wizard a camera instance trips three ShaderEffect warnings.
+    # The shaders the app's QML loads, at the paths the app serves them from: the camera frame's
+    # gain shader (without it every test that gives the wizard a camera instance trips three
+    # ShaderEffect warnings), the topographic background (PpTopoBackground) and the GPU Bayer
+    # demosaic (BayerVideoItem). Without the last two a real D3D11 window — the one this suite
+    # runs in on Windows — warns "Empty shader passed to graphics pipeline" on every page that
+    # draws them: 107 unexpected warnings across 29 cases, 2026-10-08.
     find_package(Qt6 QUIET COMPONENTS ShaderTools)
     if(Qt6ShaderTools_FOUND)
         qt6_add_shaders(session_setup_ui_test "setup_test_viewgain_shaders"
@@ -285,13 +289,29 @@ else()
             BASE "${PP_ROOT}"
             FILES
                 "${PP_ROOT}/src/Shaders/viewgain.vert"
-                "${PP_ROOT}/src/Shaders/viewgain.frag")
+                "${PP_ROOT}/src/Shaders/viewgain.frag"
+                "${PP_ROOT}/src/Shaders/topo.vert"
+                "${PP_ROOT}/src/Shaders/topo.frag"
+                "${PP_ROOT}/src/Shaders/bayer_demosaic.vert"
+                "${PP_ROOT}/src/Shaders/bayer_demosaic.frag")
     endif()
 
     # QSG_USE_SIMPLE_ANIMATION_DRIVER: under the offscreen platform QML Timers otherwise run
     # about a third fast (a 2000 ms Timer fires near 1500 ms), and this suite asserts pacing.
+    #
+    # ⚠ ON WINDOWS IT RUNS IN A REAL WINDOW. Offscreen + RHI has no working Quick 3D there
+    # (2026-10-08): D3D11 cannot create a swapchain for an offscreen window ("Access is denied",
+    # then a "Failed to present / Failed to end frame" warning every frame — 1000+ per case,
+    # failing them), and OpenGL aborts (0xC0000409). The windows platform renders the guide for
+    # real; the window shows on screen while the suite runs, so leave it unoccluded (an occluded
+    # window starves the render loop and its Timers — see Main.qml's probe hook note).
+    if(WIN32)
+        set(_ssui_qpa windows)
+    else()
+        set(_ssui_qpa offscreen)
+    endif()
     set_tests_properties(session_setup_ui PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=rhi;QSG_USE_SIMPLE_ANIMATION_DRIVER=1"
+        ENVIRONMENT "QT_QPA_PLATFORM=${_ssui_qpa};QT_QUICK_BACKEND=rhi;QSG_USE_SIMPLE_ANIMATION_DRIVER=1"
         TIMEOUT 3600
         RUN_SERIAL TRUE)
 endif()

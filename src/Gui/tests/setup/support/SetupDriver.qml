@@ -25,6 +25,10 @@ import "../fakes"
 Item {
     id: drv
 
+    // The tests load and unload 3-D views; the window must never lose its LAST View3D
+    // (View3DKeepAlive.qml — Qt 6.11.0 debug Quick 3D crashes the render thread when it does).
+    View3DKeepAlive { }
+
     // ── Wiring supplied by the test file ─────────────────────────────────────
     property Item host: null
     property var  testCase: null
