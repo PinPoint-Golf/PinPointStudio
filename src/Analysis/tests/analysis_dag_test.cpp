@@ -195,6 +195,19 @@ int main()
         for (const StageTraceEntry &e : seq.trace) seqWall = std::max(seqWall, e.endNs);
         std::printf("    wall: loop %.0f ms, DAG %.0f ms\n", seqWall / 1e6, parWall / 1e6);
         check(parWall < seqWall, "the DAG run is shorter than the loop");
+
+        attachStagePreds(par, g);
+        bool predsOk = true, anyPreds = false;
+        for (size_t i = 0; i < par.trace.size(); ++i) {
+            predsOk  = predsOk && par.trace[i].preds == g.preds[i];
+            anyPreds = anyPreds || !par.trace[i].preds.empty();
+        }
+        check(predsOk && anyPreds, "attachStagePreds: each trace entry carries its graph preds");
+        AnalysisContext shortCtx{ CaptureCapabilities{}, job, nullptr };
+        shortCtx.trace.push_back(par.trace[0]);
+        shortCtx.trace[0].preds.clear();
+        attachStagePreds(shortCtx, g);
+        check(shortCtx.trace[0].preds.empty(), "attachStagePreds: a trace of another shape is left without preds");
     }
 
     std::printf("4. halt\n");

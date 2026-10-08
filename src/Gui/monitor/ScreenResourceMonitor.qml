@@ -2127,7 +2127,7 @@ Item {
 
                     Text {
                         anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                        text: qsTr("tap a run to expand its per-stage breakdown")
+                        text: qsTr("tap a run to expand its timeline and critical path")
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.sp(10)
                         color: Theme.colorText3

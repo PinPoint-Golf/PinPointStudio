@@ -42,11 +42,20 @@ public:
     // One stage's contribution within a run.  Skipped stages carry ms == 0 and a
     // skipReason (e.g. "halted", or the stage's canRun reason) so a camera-only
     // or IMU-only run is legible from the breakdown alone.
+    // startMs/endMs are offsets from the start of the analysis and thread the pool
+    // thread that ran it (0 for the sequential loop), so the monitor can draw the run
+    // as a timeline. preds are the indices (into AnalysisRun::stages) of the stages
+    // this one depended on, and critical marks the chain that set the wall time.
     struct StageTiming {
-        QString name;
-        double  ms       = 0.0;
-        bool    ran      = false;
-        QString skipReason;
+        QString      name;
+        double       ms       = 0.0;
+        bool         ran      = false;
+        QString      skipReason;
+        double       startMs  = 0.0;
+        double       endMs    = 0.0;
+        int          thread   = 0;
+        QVector<int> preds;
+        bool         critical = false;
     };
 
     // One analyze() call.  score/frames are 0 on a halted (ok == false) run whose
@@ -60,6 +69,13 @@ public:
         int                  frames      = 0;
         double               score       = 0.0;
         QVector<StageTiming> stages;
+        // The timeline's shape: the last stage's end, the summed run time of every
+        // ran stage, the summed run time of the ran stages on the critical path, and
+        // how many pool threads ran a stage.
+        double               spanMs      = 0.0;
+        double               workMs      = 0.0;
+        double               criticalMs  = 0.0;
+        int                  threads     = 0;
         int                  seq         = 0; // monotonically increasing, for polling
     };
 

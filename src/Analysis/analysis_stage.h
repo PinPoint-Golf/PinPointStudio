@@ -195,6 +195,10 @@ struct StageTraceEntry {
     qint64  startNs    = 0;
     qint64  endNs      = 0;
     int     thread     = 0;
+    // The trace indices of the stages this one waited on (the profile's StageGraph preds;
+    // attachStagePreds in analysis_dag.h). Telemetry for the monitor's critical path only —
+    // never persisted; empty for a trace built without the graph (the unit tests).
+    std::vector<int> preds;
 };
 
 // ── Declared data flow (analysis_dag_design.md §2) ──────────────────────────────

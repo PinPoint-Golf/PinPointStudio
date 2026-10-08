@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "AnalysisProfileLog.h"
+
 #include <QString>
 
 // Bridge from an analysis run's in-memory stage trace to the resource profiler.
@@ -40,5 +42,14 @@ struct AnalysisContext;
 // profileName is the SessionProfile name ("Wrist" | "CameraKinematics").  ok is
 // derived internally from ctx.halted.
 void recordAnalysisRun(const QString &profileName, const AnalysisContext &ctx);
+
+// The chain of stages that set the run's wall time, walked back from the ran stage
+// that ended last. Each step follows the stage's latest-ending dependency (preds) when
+// it started as soon as that dependency ended; when it started later than that it was
+// held by something else — a free pool thread, its camera, the series cursor — and the
+// step follows the ran stage whose end released it. Marks StageTiming::critical and
+// fills spanMs / workMs / criticalMs / threads. In a sequential run every ran stage is
+// on the path. Called by recordAnalysisRun; public for the unit test.
+void markCriticalPath(AnalysisProfileLog::AnalysisRun &run);
 
 } // namespace pinpoint::analysis

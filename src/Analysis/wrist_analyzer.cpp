@@ -3526,12 +3526,15 @@ void runProfile(const SessionProfile &profile, AnalysisContext &ctx)
     int  threads  = pinpoint::tuned::dag::kParallelThreads;
     tuning::apply(ctx.job.tuningOverrides, "analysis.parallel",        parallel);
     tuning::apply(ctx.job.tuningOverrides, "analysis.parallelThreads", threads);
+    // The graph is built either way: the loop never reads it, but the monitor's critical
+    // path needs each stage's preds (attachStagePreds below).
+    const StageGraph graph = buildStageGraph(profile, &ctx.job);
     if (!parallel) {
         runStages(profile, ctx);
     } else {
         logOpenCvPoolOnce();
         if (threads <= 0) threads = std::clamp(pinpoint::physicalCoreCount(), 1, 8);
-        runStagesParallel(profile, ctx, threads);
+        runStagesParallel(profile, graph, ctx, threads);
         // The critical path as it ran, for the log: the stage that ended last and the
         // busiest thread — the full timeline is in analysis.timings.stages.
         qint64 lastEnd = 0;
@@ -3541,6 +3544,7 @@ void runProfile(const SessionProfile &profile, AnalysisContext &ctx)
         ppInfo() << "[AnalysisDag]" << profile.name << "on" << threads << "threads: last stage"
                  << lastName.toUtf8().constData() << "ended at" << qlonglong(lastEnd / 1000000) << "ms";
     }
+    attachStagePreds(ctx, graph);
     bindStageTimings(ctx);
 }
 

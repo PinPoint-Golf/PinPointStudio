@@ -242,9 +242,9 @@ inline pinpoint::SourceId cameraSourceFor(const QString &r, const ShotAnalysisJo
 // Run `profile` as its graph on `nThreads` pool threads. Same trace shape as runStages
 // (one entry per stage, authored order) plus thread + offsets. A stage that throws stops
 // new starts; the running ones finish; the first exception is rethrown here.
-inline void runStagesParallel(const SessionProfile &profile, AnalysisContext &ctx, int nThreads)
+inline void runStagesParallel(const SessionProfile &profile, const StageGraph &g,
+                              AnalysisContext &ctx, int nThreads)
 {
-    const StageGraph g = buildStageGraph(profile, &ctx.job);
     const int n = int(profile.stages.size());
     QElapsedTimer own;
     own.start();
@@ -386,6 +386,21 @@ inline void runStagesParallel(const SessionProfile &profile, AnalysisContext &ct
     ctx.trace.insert(ctx.trace.end(), std::make_move_iterator(trace.begin()),
                      std::make_move_iterator(trace.end()));
     if (err) std::rethrow_exception(err);
+}
+
+inline void runStagesParallel(const SessionProfile &profile, AnalysisContext &ctx, int nThreads)
+{
+    runStagesParallel(profile, buildStageGraph(profile, &ctx.job), ctx, nThreads);
+}
+
+// g.preds → ctx.trace[i].preds, so the monitor can walk the run's critical path
+// (analysis_profiling.cpp). Both are one entry per stage in authored order; a trace of any
+// other shape is left without preds rather than given the wrong ones.
+inline void attachStagePreds(AnalysisContext &ctx, const StageGraph &g)
+{
+    if (ctx.trace.size() != g.names.size()) return;
+    for (size_t i = 0; i < ctx.trace.size(); ++i)
+        if (ctx.trace[i].name == g.names[i]) ctx.trace[i].preds = g.preds[i];
 }
 
 // The declared graph as JSON (pinpoint.analysisDag/1) — nodes with their declarations,

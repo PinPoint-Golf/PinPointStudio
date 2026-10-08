@@ -218,15 +218,29 @@ shows:
   data never lands in the application log.
 - **Analysis runs** — a third bottom tab (beside Message Log / Stats History) backed by
   `AnalysisProfileLog`: one row per `analyze()` call (time · session · ok/halted ·
-  frames/total/score), tap to expand its full per-stage breakdown (each stage's ms, or the
-  skip reason for a stage that did not run — so a camera-only or IMU-only run is legible from
-  the breakdown alone). Each ran stage also draws a **horizontal time bar**, normalised
-  against the slowest stage in *that* run, so the dominant stage fills its track and the
-  rest scale against it; skipped stages get no bar. (Low-alpha accent behind the row text,
-  which stays on top and legible — pure QML in `RmAnalysisRunRow.qml`, reading the per-stage
-  ms the controller already exposes.) Its own **Clear** and **Export**
-  (`PinPointStudio_analysis_*.txt`, one block per run with the stage list) — the artifact to
-  attach when a user reports a slow analysis. Runtime only — never persisted to swing.json.
+  frames/total/score), tap to expand the run as a **timeline** on one time axis (0 … the last
+  stage's end):
+  - a **critical-path line** — `critical path 7.62 s of 8.10 s · 7 stages · 2.7× parallel on
+    4 threads`: the summed run time of the stages that set the wall time, the span, and the
+    summed run time of every stage over the span;
+  - **one lane per pool thread** (T0 … Tn), each stage a bar where it ran, critical-path
+    stages in solid accent, the rest faint — overlap, idle threads and gaps read at a glance;
+    hover a bar for its name, ms and offsets;
+  - a **waterfall**, one row per stage in the order they started: its bar at its place on the
+    same axis, a dot on the critical path, its ms or the skip reason for a stage that did not
+    run (so a camera-only or IMU-only run is legible from it alone).
+
+  The critical path is walked back from the stage that ended last
+  (`markCriticalPath`, `analysis_profiling.cpp`): each step follows the stage's
+  latest-ending dependency when it started as soon as that dependency ended (within 1 ms);
+  when it started later it was held by a thread, its camera or the series cursor, and the
+  step follows the stage whose end released it. The dependencies are the profile's
+  `StageGraph` preds, attached to the trace by `runProfile` (`attachStagePreds`); with
+  `analysis.parallel` off the run is one lane and every ran stage is on the path. Its own
+  **Clear** and **Export** (`PinPointStudio_analysis_*.txt`, one block per run: the
+  critical-path line, then the stages in start order with thread, offsets, ms and `*` on the
+  path) — the artifact to attach when a user reports a slow analysis. Runtime only — never
+  persisted to swing.json.
 - **Controls** — a **deep** toggle (greyed when `PINPOINT_PROFILE` is not compiled in),
   **Reset** (start a fresh measurement window), and **Dump to log** (append a summary to the
   stats ring now).
@@ -503,7 +517,7 @@ Three properties worth knowing:
 | `src/Gui/monitor/ScreenResourceMonitor.qml` | Hosts the PROFILER panel, STATS HISTORY, and the bottom tabs. |
 | `src/Gui/monitor/RmProfilerRow.qml` | Scope table row component. |
 | `src/Gui/monitor/RmStatRow.qml` | STATS HISTORY row component (time / category / message). |
-| `src/Gui/monitor/RmAnalysisRunRow.qml` | ANALYSIS RUNS row + the expandable per-stage breakdown with time bars (§5). |
+| `src/Gui/monitor/RmAnalysisRunRow.qml` | ANALYSIS RUNS row + the expandable timeline: critical-path line, thread lanes, waterfall (§5). |
 | `src/Gui/monitor/RmDeviceCard.qml`, `RmSourceRow.qml`, `RmTimelineChart.qml`, `RmWarningNotice.qml` | The buffer/device half of the screen. |
 | `src/Core/tests/` | 7 GoogleTest targets: `pp_profiler_test`, `pp_profiler_concurrency_test` (TSan), `pp_profiler_compileout_test`, `pp_os_metrics_test`, `pp_gpu_metrics_test`, `pp_stats_log_test`, `profiler_controller_test`. |
 

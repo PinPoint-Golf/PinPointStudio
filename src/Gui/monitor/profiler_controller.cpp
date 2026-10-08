@@ -97,14 +97,44 @@ QVariantMap analysisRunToMap(const AnalysisProfileLog::AnalysisRun &r)
     m[QStringLiteral("frames")]       = r.frames;
     m[QStringLiteral("score")]        = r.score;
     m[QStringLiteral("scoreStr")]     = QString::number(r.score, 'f', 0);
+
+    // The timeline: every stage at its offset on one axis (0 … spanMs), one lane per
+    // pool thread, the critical path marked. Rows are listed in the order they started
+    // (authored order breaks ties) so the breakdown reads as a waterfall.
+    m[QStringLiteral("spanMs")]  = r.spanMs;
+    m[QStringLiteral("threads")] = r.threads;
+    int onPath = 0;
+    for (const auto &st : r.stages)
+        if (st.ran && st.critical) ++onPath;
+    m[QStringLiteral("pathStr")] = r.spanMs > 0.0
+        ? QStringLiteral("critical path %1 of %2 · %3 stages · %4× parallel on %5 %6")
+              .arg(fmtMs(quint64(r.criticalMs * 1e6)), fmtMs(quint64(r.spanMs * 1e6)))
+              .arg(onPath)
+              .arg(QString::number(r.workMs / r.spanMs, 'f', 1))
+              .arg(r.threads)
+              .arg(r.threads == 1 ? QStringLiteral("thread") : QStringLiteral("threads"))
+        : QString();
+
+    std::vector<int> order(size_t(r.stages.size()));
+    for (size_t i = 0; i < order.size(); ++i) order[i] = int(i);
+    std::stable_sort(order.begin(), order.end(), [&r](int a, int b) {
+        return r.stages[a].startMs < r.stages[b].startMs;
+    });
     QVariantList stages;
-    for (const auto &st : r.stages) {
+    for (int i : order) {
+        const auto &st = r.stages[i];
         QVariantMap sm;
         sm[QStringLiteral("name")]       = st.name;
         sm[QStringLiteral("ran")]        = st.ran;
         sm[QStringLiteral("ms")]         = st.ms;
         sm[QStringLiteral("msStr")]      = st.ran ? fmtMs(quint64(st.ms * 1e6)) : QStringLiteral("—");
         sm[QStringLiteral("skipReason")] = st.skipReason;
+        sm[QStringLiteral("startMs")]    = st.startMs;
+        sm[QStringLiteral("endMs")]      = st.endMs;
+        sm[QStringLiteral("thread")]     = st.thread;
+        sm[QStringLiteral("critical")]   = st.critical;
+        sm[QStringLiteral("spanStr")]    = QStringLiteral("%1–%2 ms")
+            .arg(QString::number(st.startMs, 'f', 0), QString::number(st.endMs, 'f', 0));
         stages.append(sm);
     }
     m[QStringLiteral("stages")] = stages;
@@ -404,12 +434,20 @@ QString ProfilerController::exportAnalysisRuns()
             << "  total=" << r.value(QStringLiteral("totalMsStr")).toString()
             << "  frames="  << r.value(QStringLiteral("frames")).toInt()
             << "  score="   << r.value(QStringLiteral("scoreStr")).toString() << "\n";
+        const QString pathStr = r.value(QStringLiteral("pathStr")).toString();
+        if (!pathStr.isEmpty())
+            out << "    " << pathStr << "   (* = on the critical path)\n";
+        // Rows in start order: name, thread, start–end offsets, run time.
         const QVariantList stages = r.value(QStringLiteral("stages")).toList();
         for (const QVariant &sv : stages) {
             const QVariantMap s = sv.toMap();
-            out << "      " << s.value(QStringLiteral("name")).toString().leftJustified(18) << "  ";
-            if (s.value(QStringLiteral("ran")).toBool())
-                out << s.value(QStringLiteral("msStr")).toString() << "\n";
+            const bool ran = s.value(QStringLiteral("ran")).toBool();
+            out << "    " << ((ran && s.value(QStringLiteral("critical")).toBool()) ? "* " : "  ")
+                << s.value(QStringLiteral("name")).toString().leftJustified(18) << "  ";
+            if (ran)
+                out << "T" << s.value(QStringLiteral("thread")).toInt() << "  "
+                    << s.value(QStringLiteral("spanStr")).toString().leftJustified(16) << "  "
+                    << s.value(QStringLiteral("msStr")).toString() << "\n";
             else
                 out << "skipped (" << s.value(QStringLiteral("skipReason")).toString() << ")\n";
         }
