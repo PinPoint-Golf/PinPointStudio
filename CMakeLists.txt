@@ -802,6 +802,7 @@ qt_add_executable(PinPointStudio
     src/Video/VideoInputAravis.h           src/Video/VideoInputAravis.cpp
     src/Gui/cameras/camera_instance.h     src/Gui/cameras/camera_instance.cpp
     src/Gui/cameras/camera_manager.h      src/Gui/cameras/camera_manager.cpp
+    src/Gui/cameras/camera_role_probe.h   src/Gui/cameras/camera_role_probe.cpp
     src/Gui/cameras/buffer_controller.h   src/Gui/cameras/buffer_controller.cpp
     src/STT/stt_processor.h          src/STT/stt_processor.cpp
     src/TTS/TTSEngine.h              src/TTS/TTSEngine.cpp

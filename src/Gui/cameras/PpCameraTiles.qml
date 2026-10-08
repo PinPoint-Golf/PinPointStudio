@@ -129,7 +129,9 @@ Item {
                 // crop with no list refresh at all.  The row's own values remain
                 // the fallback for a camera with no crop stored.
                 placeholderAspect: {
-                    const roi = appSettings.cameraRoi[modelData.cameraKey]
+                    // The ROLE's crop: the impact strip lives under "<key>#impact" (camera_roi.h).
+                    const roi = appSettings.cameraRoi[modelData.cameraKey
+                                                      + (modelData.perspective === CameraInstance.Impact ? "#impact" : "")]
                     if (roi && roi.w > 0 && roi.h > 0
                         && modelData.maxWidth > 0 && modelData.maxHeight > 0)
                         return (modelData.maxWidth * roi.w) / (modelData.maxHeight * roi.h)
@@ -294,7 +296,8 @@ Item {
                 readonly property var camData: pip.liveData
                 placeholderAspect: {
                     if (!camData) return 8.0 / 3.0
-                    const roi = appSettings.cameraRoi[camData.cameraKey]
+                    const roi = appSettings.cameraRoi[camData.cameraKey
+                                                      + (camData.perspective === CameraInstance.Impact ? "#impact" : "")]
                     if (roi && roi.w > 0 && roi.h > 0 && camData.maxWidth > 0 && camData.maxHeight > 0)
                         return (camData.maxWidth * roi.w) / (camData.maxHeight * roi.h)
                     return (camData.initialWidth > 0 && camData.initialHeight > 0)

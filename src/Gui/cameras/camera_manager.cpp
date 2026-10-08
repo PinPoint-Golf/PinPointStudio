@@ -26,6 +26,7 @@
 #include "../Core/pp_settings.h"
 #include "../Video/camera_capabilities.h"
 #include "../Video/frame_crop.h"
+#include "camera_roi.h"
 #include <algorithm>
 
 namespace {
@@ -188,12 +189,9 @@ QVariantList CameraManager::cameraList() const
         // disconnected placeholder tile already opens at the aspect the
         // stream will actually have once connected.
         int initW = sensorW, initH = sensorH;
-        if (roiMap.contains(key) && sensorW > 0 && sensorH > 0) {
-            const QVariantMap r = roiMap.value(key).toMap();
-            const QRectF roi(r.value(QStringLiteral("x")).toDouble(),
-                             r.value(QStringLiteral("y")).toDouble(),
-                             r.value(QStringLiteral("w")).toDouble(),
-                             r.value(QStringLiteral("h")).toDouble());
+        if (sensorW > 0 && sensorH > 0) {
+            // The ROLE's crop (camera_roi.h), as the instance will apply it.
+            const QRectF roi = pp_camroi::cropFor(roiMap, key, perspMap.value(key, 0).toInt(), &cap);
             if (pp_crop::cropIsActive(roi)) {
                 const QRect c = pp_crop::snapCropRect(
                     roi.intersected(QRectF(0.0, 0.0, 1.0, 1.0)), sensorW, sensorH);
@@ -715,6 +713,7 @@ void CameraManager::assignPerspective(const QString &key, int perspective)
     AppSettings  fallback;
     AppSettings *s = m_appSettings ? m_appSettings : &fallback;
     QVariantMap map = s->cameraPerspective();
+    const QVariantMap before = map;
 
     // Impact is exclusive: strip it from every other camera, persisted and live.
     if (perspective == CameraInstance::Impact) {
@@ -740,6 +739,34 @@ void CameraManager::assignPerspective(const QString &key, int perspective)
     for (const auto &cam : m_cameras) {
         if (cam.controller && cameraKey(cam) == key)
             cam.controller->setPerspective(perspective);
+    }
+
+    // A move into or out of Impact changes what the camera must be set to —
+    // crop, rate, locked exposure and gain, black level, strobe — and the
+    // ring's slot size, all of which a CameraInstance freezes when it is
+    // built. So a CONNECTED camera whose Impact-ness changed is reconnected
+    // here: the new instance reads the new role's settings and the backend
+    // writes them from the factory set up (flir_camera_settings.md §3.2, §5).
+    // Without this the camera kept the old role's settings until the next
+    // Disconnect/Connect — the dark ex-impact DTL of October 2026. Moves
+    // between the other roles change nothing on the camera and reconnect
+    // nothing. Settings are saved above, before the rebuild reads them.
+    const auto isImpact = [](const QVariantMap &m, const QString &k) {
+        return m.value(k).toInt() == CameraInstance::Impact;
+    };
+    QList<int> reconnect;
+    for (int i = 0; i < m_cameras.size(); ++i) {
+        const QString k = cameraKey(m_cameras[i]);
+        if (m_cameras[i].selected && m_cameras[i].controller && !k.isEmpty()
+            && isImpact(before, k) != isImpact(map, k))
+            reconnect << i;
+    }
+    for (int i : reconnect) {
+        ppInfo() << "[CameraManager]" << m_cameras[i].device.description
+                 << (isImpact(map, cameraKey(m_cameras[i])) ? "becomes" : "leaves")
+                 << "the impact role: reconnecting so its settings follow";
+        setSelected(i, false);
+        setSelected(i, true);
     }
     emit cameraListChanged();
 }
@@ -845,15 +872,13 @@ QObject *CameraManager::createPreviewInstance(int index)
     AppSettings  rfallback;
     AppSettings *rs = m_appSettings ? m_appSettings : &rfallback;
 
-    const QVariantMap roiMap = rs->cameraRoi();
-    if (roiMap.contains(key)) {
-        const QVariantMap r = roiMap.value(key).toMap();
-        double x = r.value(QStringLiteral("x")).toDouble();
-        double y = r.value(QStringLiteral("y")).toDouble();
-        double w = r.value(QStringLiteral("w")).toDouble();
-        double h = r.value(QStringLiteral("h")).toDouble();
-        if (w > 0 && h > 0)
-            ctrl->setCropRoi(QRectF(x, y, w, h));
+    // The crop of the camera's role (camera_roi.h) — the crop editor edits
+    // the role the camera is in.
+    {
+        const QRectF roi = pp_camroi::cropFor(rs->cameraRoi(), key, rs->cameraPerspective().value(key).toInt(),
+                                              &m_cameras[index].device.capabilities);
+        if (roi.width() > 0 && roi.height() > 0)
+            ctrl->setCropRoi(roi);
     }
 
     return ctrl;
@@ -913,15 +938,12 @@ CameraInstance *CameraManager::createController(const Device &device)
     AppSettings  cfallback;
     AppSettings *cs = m_appSettings ? m_appSettings : &cfallback;
 
-    const QVariantMap roiMap = cs->cameraRoi();
-    if (roiMap.contains(key)) {
-        const QVariantMap r = roiMap.value(key).toMap();
-        double x = r.value(QStringLiteral("x")).toDouble();
-        double y = r.value(QStringLiteral("y")).toDouble();
-        double w = r.value(QStringLiteral("w")).toDouble();
-        double h = r.value(QStringLiteral("h")).toDouble();
-        if (w > 0 && h > 0)
-            ctrl->setCropRoi(QRectF(x, y, w, h));
+    // The crop of the camera's role (camera_roi.h).
+    {
+        const QRectF roi = pp_camroi::cropFor(cs->cameraRoi(), key, cs->cameraPerspective().value(key).toInt(),
+                                              &device.capabilities);
+        if (roi.width() > 0 && roi.height() > 0)
+            ctrl->setCropRoi(roi);
     }
 
     const QVariantMap perspMap = cs->cameraPerspective();

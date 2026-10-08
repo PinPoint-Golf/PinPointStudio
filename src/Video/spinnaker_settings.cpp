@@ -123,6 +123,32 @@ static bool setEnumEntry(INodeMap &nodeMap, const char *node, const char *entry)
     return true;
 }
 
+bool loadFactoryDefaults(INodeMap &nodeMap, SettingsLog &out)
+{
+    try {
+        if (!setEnumEntry(nodeMap, "UserSetSelector", "Default")) {
+            out.warn << QStringLiteral("no factory user set (UserSetSelector=Default); starting from "
+                                       "whatever the camera holds");
+            return false;
+        }
+        CCommandPtr load = nodeMap.GetNode("UserSetLoad");
+        if (!IsAvailable(load) || !IsWritable(load)) {
+            out.warn << QStringLiteral("UserSetLoad not available; starting from whatever the camera holds");
+            return false;
+        }
+        load->Execute();
+        // Measured 21–28 ms on a Chameleon3; give it a generous bound.
+        for (int i = 0; i < 2000 && !load->IsDone(); ++i) {}
+        nodeMap.InvalidateNodes();
+        out.info << QStringLiteral("factory set loaded");
+        return true;
+    } catch (Spinnaker::Exception &e) {
+        out.warn << QStringLiteral("factory set load failed: %1; starting from whatever the camera holds")
+                        .arg(QString::fromLocal8Bit(e.what()));
+        return false;
+    }
+}
+
 static bool setBoolNode(INodeMap &nodeMap, const char *node, bool value)
 {
     CBooleanPtr ptr = nodeMap.GetNode(node);
@@ -144,12 +170,13 @@ static bool setFloatNode(INodeMap &nodeMap, const char *node, double value, QStr
     return true;
 }
 
-// Writes EVERY tuning node PPS owns, on every connect, from the request alone:
-// a FLIR camera keeps node values while it has power — across DeInit, a PPS
-// restart, another application — so a node not written here is a node the
-// last owner chose (flir_camera_settings.md §1, §5).
+// Writes every tuning node PPS sets, on every connect, from the request alone,
+// on top of loadFactoryDefaults(): a FLIR camera keeps node values while it
+// has power — across DeInit, a PPS restart, another application — so the
+// factory set is the baseline and these are the only departures from it
+// (flir_camera_settings.md §1, §5).
 //
-// ⚠ ORDER: ROI (applyRoi) → exposure → gain → gamma → Line1 → rate → auto
+// ⚠ ORDER: factory set → ROI (applyRoi) → exposure → gain → black level → Line1 → rate → auto
 // exposure limit, with InvalidateNodes() between. The rate's maximum depends
 // on the ROI but a Width/Height write does not invalidate its cache;
 // ExposureTime is read-only until ExposureAuto is Off and its access mode is
@@ -200,27 +227,24 @@ ConnectApplied applyConnectSettings(INodeMap &nodeMap, const ConnectSettings &s)
         }
     }
 
-    // Gamma: on at the value, or off; under either enable spelling. Absent
-    // altogether on the studio Chameleon3s in raw Bayer (2026-10-08 log).
-    {
-        bool any = false;
-        for (const char *name : { "GammaEnable", "GammaEnabled" })
-            any |= setBoolNode(nodeMap, name, s.gamma > 0.0);
-        nodeMap.InvalidateNodes();
-        CFloatPtr ptrGamma = nodeMap.GetNode("Gamma");
-        if (IsAvailable(ptrGamma) && IsWritable(ptrGamma)) {
-            // With no writable enable, a linear curve is "off".
-            ptrGamma->SetValue(std::clamp(s.gamma > 0.0 ? s.gamma : 1.0,
-                                          ptrGamma->GetMin(), ptrGamma->GetMax()));
-            if (s.gamma > 0.0)
-                applied.gamma = ptrGamma->GetValue();
-            any = true;
+    // Black level: the camera's own calibrated pedestal (the factory set put
+    // it back), lifted on request. At 70 us the impact mat is unlit, so its
+    // pixels ARE the pedestal plus noise; a high gain scales the noise and the
+    // calibrated pedestal no longer holds it above 0 — 41 % and 70 % of the
+    // impact frame clipped to black at 18 dB on the two studio Chameleon3s
+    // (spinnaker_settings_probe --black-sweep, 2026-10-08). The lift keeps the
+    // shadows the club body lives in measurable.
+    if (s.blackLevelLift > 0.0) {
+        CFloatPtr bl = nodeMap.GetNode("BlackLevel");
+        if (IsAvailable(bl) && IsWritable(bl)) {
+            const double factory = bl->GetValue();
+            bl->SetValue(std::clamp(factory + s.blackLevelLift, bl->GetMin(), bl->GetMax()));
+            log << QStringLiteral("BlackLevel=%1%(factory %2 + %3)").arg(bl->GetValue(), 0, 'f', 2)
+                                                                    .arg(factory, 0, 'f', 2)
+                                                                    .arg(s.blackLevelLift, 0, 'f', 2);
+        } else {
+            out.warn << QStringLiteral("BlackLevel not writable; impact shadows may clip at this gain");
         }
-        log << (!any ? QStringLiteral("Gamma=absent")
-                     : s.gamma > 0.0 ? QStringLiteral("Gamma=%1").arg(applied.gamma, 0, 'f', 2)
-                                     : QStringLiteral("Gamma=off"));
-        if (!any && s.gamma > 0.0)
-            out.warn << QStringLiteral("Gamma requested but this camera has no gamma node in this pixel format");
     }
 
     // Line1: ExposureActive for an LED strobe driver, or released. Line1 is
@@ -229,6 +253,10 @@ ConnectApplied applyConnectSettings(INodeMap &nodeMap, const ConnectSettings &s)
     // there "released" is a user output held low.
     if (setEnumEntry(nodeMap, "LineSelector", "Line1")) {
         nodeMap.InvalidateNodes();
+        // Polarity is ours too: the factory's LineInverter is false, and with
+        // it LineStatus idles at 1 and drops for each exposure (probe,
+        // 2026-10-08). Left to another application it would invert the strobe.
+        setBoolNode(nodeMap, "LineInverter", false);
         if (s.strobe) {
             setEnumEntry(nodeMap, "LineMode", "Output");   // output-only lines have no mode to set
             nodeMap.InvalidateNodes();
@@ -293,6 +321,36 @@ ConnectApplied applyConnectSettings(INodeMap &nodeMap, const ConnectSettings &s)
                     .arg(lockedExposure ? QStringLiteral("impact locked") : QStringLiteral("camera auto"),
                          log.join(QLatin1Char(' ')));
     return applied;
+}
+
+QVariantMap readBack(INodeMap &nodeMap)
+{
+    QVariantMap out;
+    auto rd = [&](const char *name, const QString &key) {
+        CNodePtr n = nodeMap.GetNode(name);
+        if (!IsAvailable(n))     { out[key] = QStringLiteral("absent"); return; }
+        if (!IsReadable(n))      { out[key] = QStringLiteral("unreadable"); return; }
+        out[key] = QString::fromLatin1(CValuePtr(n)->ToString().c_str());
+    };
+    for (const char *n : { "Width", "Height", "OffsetX", "OffsetY", "PixelFormat",
+                           "ExposureAuto", "ExposureTime", "AutoExposureTimeUpperLimit",
+                           "AutoExposureExposureTimeUpperLimit",
+                           "GainAuto", "Gain", "AutoGainUpperLimit", "AutoExposureGainUpperLimit",
+                           "BlackLevel", "GammaEnable", "GammaEnabled", "Gamma",
+                           "AcquisitionFrameRateAuto", "AcquisitionFrameRateEnable",
+                           "AcquisitionFrameRateEnabled", "AcquisitionFrameRate" })
+        rd(n, QString::fromLatin1(n));
+    // Line1's mode, source and polarity are selector-dependent.
+    if (setEnumEntry(nodeMap, "LineSelector", "Line1")) {
+        nodeMap.InvalidateNodes();
+        for (const char *n : { "LineMode", "LineSource", "LineInverter" })
+            rd(n, QStringLiteral("Line1.") + QLatin1String(n));
+    }
+    if (setEnumEntry(nodeMap, "UserOutputSelector", "UserOutput1")) {
+        nodeMap.InvalidateNodes();
+        rd("UserOutputValue", QStringLiteral("UserOutput1.Value"));
+    }
+    return out;
 }
 
 } // namespace pinpoint::spinnaker

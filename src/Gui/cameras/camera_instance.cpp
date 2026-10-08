@@ -17,6 +17,10 @@
  */
 
 #include "camera_instance.h"
+#include "camera_roi.h"
+
+static_assert(pp_camroi::kImpactPerspective == CameraInstance::Impact,
+              "camera_roi.h keys the impact crop by this role");
 
 #include "app_settings.h"
 #include "event_buffer.h"
@@ -124,13 +128,13 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
         // below so the ring slots are sized for the cropped frame. Loaded for
         // preview instances too (the crop editor reads cropRoi), but only
         // buffer-backed instances ever apply it (m_cropEnabled below).
-        const QVariantMap roiMap = appSettings->cameraRoi();
-        if (roiMap.contains(key)) {
-            const QVariantMap r = roiMap.value(key).toMap();
-            const QRectF roi(r.value(QStringLiteral("x")).toDouble(),
-                             r.value(QStringLiteral("y")).toDouble(),
-                             r.value(QStringLiteral("w")).toDouble(),
-                             r.value(QStringLiteral("h")).toDouble());
+        // The crop is the ROLE's (camera_roi.h): the impact strip for Impact
+        // (the recommended mode when none is stored), the normal crop for
+        // every other role.
+        {
+            const int role = appSettings->cameraPerspective().value(key).toInt();
+            const QRectF roi = pp_camroi::cropFor(appSettings->cameraRoi(), key, role,
+                                                  &device.capabilities);
             if (pp_crop::cropIsActive(roi))
                 m_cropRoi = roi.intersected(QRectF(0.0, 0.0, 1.0, 1.0));
         }
@@ -144,11 +148,11 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
             m_captureFps = appSettings->cameraTargetFps().value(key).toDouble();
             m_captureExposureUs =
                 appSettings->cameraExposureUs().value(key, kImpactDefaultExposureUs).toDouble();
-            // Gain / gamma / strobe (impact_camera_design.md §10.3); a member
+            // Gain / strobe (impact_camera_design.md §10.3); a member
             // the operator never touched takes the default.
             const QVariantMap tuning = appSettings->cameraTuning().value(key).toMap();
             m_captureGainDb = tuning.value(QStringLiteral("gainDb"), kImpactDefaultGainDb).toDouble();
-            m_captureGamma  = tuning.value(QStringLiteral("gamma"),  kImpactDefaultGamma).toDouble();
+            m_captureBlackLift = kImpactBlackLevelLiftPct;   // not a knob: see the constant
             m_captureStrobe = tuning.value(QStringLiteral("strobe"), false).toBool();
         }
     }
@@ -1054,7 +1058,7 @@ void CameraInstance::clearCropRoi()
 }
 
 // Backend thread. The crop, and the impact camera's rate, exposure, gain,
-// gamma and strobe — all "0 / -1 / false = camera auto" for every other camera
+// black-level lift and strobe — all "0 / -1 / false = camera auto" for every other camera
 // (impact_camera_design.md §10.2, §10.3; flir_camera_settings.md §5: the
 // backend writes a neutral, it never inherits what the last owner left).
 void CameraInstance::primeBackend()
@@ -1063,23 +1067,22 @@ void CameraInstance::primeBackend()
     m_videoInput->setCaptureRate(m_captureFps);
     m_videoInput->setExposureUs(m_captureExposureUs);
     m_videoInput->setGainDb(m_captureGainDb);
-    m_videoInput->setGamma(m_captureGamma);
+    m_videoInput->setBlackLevelLift(m_captureBlackLift);
     m_videoInput->setStrobeOutput(m_captureStrobe);
 }
 
-void CameraInstance::applyLiveTuning(double exposureUs, double gainDb, double gamma)
+void CameraInstance::applyLiveTuning(double exposureUs, double gainDb)
 {
     // Remember for the next connect FIRST — the operator's last knob position
     // is what a reconnect must reproduce, whether or not the live write lands.
     if (exposureUs > 0.0) m_captureExposureUs = exposureUs;
     if (gainDb >= 0.0)    m_captureGainDb     = gainDb;
-    if (gamma > 0.0)      m_captureGamma      = gamma;
     if (!m_videoInput)
         return;
     QPointer<CameraInstance> self(this);
-    QMetaObject::invokeMethod(m_videoInput, [self, exposureUs, gainDb, gamma]() {
+    QMetaObject::invokeMethod(m_videoInput, [self, exposureUs, gainDb]() {
         if (!self) return;
-        const bool ok = self->m_videoInput->applyLiveTuning(exposureUs, gainDb, gamma);
+        const bool ok = self->m_videoInput->applyLiveTuning(exposureUs, gainDb);
         if (!ok)
             ppWarn() << "[CameraInstance]" << self->m_deviceDescription
                      << "live tuning not applied (camera not streaming, or the backend"
@@ -1091,7 +1094,19 @@ void CameraInstance::applyLiveTuning(double exposureUs, double gainDb, double ga
 }
 
 double CameraInstance::appliedGainDb() const { return m_videoInput ? m_videoInput->appliedGainDb() : -1.0; }
-double CameraInstance::appliedGamma()  const { return m_videoInput ? m_videoInput->appliedGamma()  : 0.0; }
+QVariantMap CameraInstance::readBackSettings()
+{
+    if (!m_videoInput)
+        return {};
+    // The backend owns the device on its capture thread; read there and wait.
+    // A PPCP backend stays on this thread, where a blocking hop would deadlock.
+    if (m_videoInput->thread() == QThread::currentThread())
+        return m_videoInput->readBackSettings();
+    QVariantMap out;
+    QMetaObject::invokeMethod(m_videoInput, [this, &out]() { out = m_videoInput->readBackSettings(); },
+                              Qt::BlockingQueuedConnection);
+    return out;
+}
 
 // Main thread, ≤ ~8 Hz. A 256-bin histogram over every other row and column
 // of the frame: cheap at 640×240, and the statistics are unaffected by the

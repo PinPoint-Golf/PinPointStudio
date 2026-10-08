@@ -1658,9 +1658,8 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
             // Tuning provenance (impact_camera_design.md §10.3): what the
             // camera held if it told us, else what it was asked for.
             const double heldGain  = track.ctrl->appliedGainDb();
-            const double heldGamma = track.ctrl->appliedGamma();
             cam.gainDb     = heldGain >= 0.0 ? heldGain : track.ctrl->requestedGainDb();
-            cam.gamma      = heldGamma > 0.0 ? heldGamma : track.ctrl->requestedGamma();
+            cam.blackLevelLift = CameraInstance::kImpactBlackLevelLiftPct;
             cam.gainSource = (heldGain >= 0.0) ? QStringLiteral("applied")
                                                : QStringLiteral("requested");
             const QVariantMap tuning = s->cameraTuning().value(track.ctrl->cameraKey()).toMap();

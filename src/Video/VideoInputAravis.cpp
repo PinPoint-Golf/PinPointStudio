@@ -65,8 +65,24 @@ bool VideoInputAravis::start(const QString &deviceId)
         return false;
     }
 
-    // Configure camera (typical high-speed defaults)
     ArvCamera *cam = (ArvCamera*)m_camera;
+
+    // The camera's factory set first, as on Spinnaker (flir_camera_settings.md
+    // §5): every node back to its factory value, the per-camera black-level
+    // calibration included, whatever the last owner left. Everything below is
+    // a departure from that baseline. ⚠ Untested on hardware (2026-10-08).
+    {
+        GError *ferr = nullptr;
+        arv_camera_set_string(cam, "UserSetSelector", "Default", &ferr);
+        if (!ferr) arv_camera_execute_command(cam, "UserSetLoad", &ferr);
+        if (ferr) {
+            ppWarn() << "[VideoInputAravis] factory set load failed:" << ferr->message
+                     << "- starting from whatever the camera holds";
+            g_clear_error(&ferr);
+        } else {
+            ppInfo() << "[VideoInputAravis] factory set loaded";
+        }
+    }
 
     // Hardware ROI: full sensor by default, or the primed crop region snapped
     // DOWN to the device increments so a delivered frame never exceeds the
@@ -122,7 +138,7 @@ bool VideoInputAravis::start(const QString &deviceId)
     // camera keeps node values while it has power, so each one is written
     // from the request alone — locked for the impact camera, auto for every
     // other — never inherited. Same order and rules as the Spinnaker backend:
-    // exposure → gain → gamma → Line1 → rate → auto-exposure limit; the rate
+    // factory set → exposure → gain → black level → Line1 → rate → auto-exposure limit; the rate
     // is never auto (an auto rate lets auto exposure stretch the frame
     // period — 19 fps on a Chameleon3, 2026-10-08).
     // ⚠ Untested on hardware as of 2026-10-08 — the Windows/Spinnaker path is
@@ -166,24 +182,25 @@ bool VideoInputAravis::start(const QString &deviceId)
             }
         }
 
-        // Gamma: the enable under either spelling; a camera without one ignores it.
-        for (const char *name : { "GammaEnable", "GammaEnabled" }) {
-            arv_camera_set_boolean(cam, name, m_gamma > 0.0, &aerr);
-            ok();
-        }
-        arv_camera_set_float(cam, "Gamma", m_gamma > 0.0 ? m_gamma : 1.0, &aerr);
-        if (ok() && m_gamma > 0.0) {
-            const double held = arv_camera_get_float(cam, "Gamma", nullptr);
-            m_appliedGamma.store(held, std::memory_order_relaxed);
-            log << QStringLiteral("Gamma=%1").arg(held, 0, 'f', 2);
-        } else {
-            log << (m_gamma > 0.0 ? QStringLiteral("Gamma=absent") : QStringLiteral("Gamma=off"));
+        // Black level: the factory calibration (the set loaded above), lifted
+        // on request so a high gain does not clip the unlit impact mat's noise
+        // to 0 (spinnaker_settings.cpp has the measurements).
+        if (m_blackLevelLift > 0.0) {
+            const double factory = arv_camera_get_float(cam, "BlackLevel", &aerr);
+            if (ok()) {
+                arv_camera_set_float(cam, "BlackLevel", factory + m_blackLevelLift, &aerr);
+                if (ok()) log << QStringLiteral("BlackLevel=%1%(factory %2 + %3)")
+                                     .arg(arv_camera_get_float(cam, "BlackLevel", nullptr), 0, 'f', 2)
+                                     .arg(factory, 0, 'f', 2).arg(m_blackLevelLift, 0, 'f', 2);
+            }
         }
 
         // Line1: strobe (ExposureActive), or released — Input, else Off, else
         // a user output held low (the Chameleon3 has no Off).
         arv_camera_set_string(cam, "LineSelector", "Line1", &aerr);
         if (ok()) {
+            arv_camera_set_boolean(cam, "LineInverter", FALSE, &aerr);   // polarity is ours too
+            ok();
             if (m_strobe) {
                 arv_camera_set_string(cam, "LineMode", "Output", &aerr);
                 ok();
@@ -519,7 +536,7 @@ CameraCapabilities VideoInputAravis::queryCapabilities() const
     return caps;
 }
 
-void VideoInputAravis::writeTuning(void *camera, double exposureUs, double gainDb, double gamma)
+void VideoInputAravis::writeTuning(void *camera, double exposureUs, double gainDb)
 {
 #ifdef HAVE_ARAVIS
     ArvCamera *cam = static_cast<ArvCamera *>(camera);
@@ -541,32 +558,20 @@ void VideoInputAravis::writeTuning(void *camera, double exposureUs, double gainD
             ppInfo() << "[VideoInputAravis] Gain:" << held << "dB (requested" << gainDb << ")";
         }
     }
-    if (gamma > 0.0) {
-        // The enable node under either spelling; a camera without one ignores it.
-        arv_camera_set_boolean(cam, "GammaEnable", TRUE, nullptr);
-        arv_camera_set_boolean(cam, "GammaEnabled", TRUE, nullptr);
-        arv_camera_set_float(cam, "Gamma", gamma, &err);
-        if (err) { ppWarn() << "[VideoInputAravis] gamma write failed:" << err->message; g_clear_error(&err); }
-        else {
-            const double held = arv_camera_get_float(cam, "Gamma", nullptr);
-            m_appliedGamma.store(held, std::memory_order_relaxed);
-            ppInfo() << "[VideoInputAravis] Gamma:" << held << "(requested" << gamma << ")";
-        }
-    }
 #else
-    Q_UNUSED(camera) Q_UNUSED(exposureUs) Q_UNUSED(gainDb) Q_UNUSED(gamma)
+    Q_UNUSED(camera) Q_UNUSED(exposureUs) Q_UNUSED(gainDb)
 #endif
 }
 
-bool VideoInputAravis::applyLiveTuning(double exposureUs, double gainDb, double gamma)
+bool VideoInputAravis::applyLiveTuning(double exposureUs, double gainDb)
 {
 #ifdef HAVE_ARAVIS
     if (!m_camera || !m_streaming)
         return false;
-    writeTuning(m_camera, exposureUs, gainDb, gamma);
+    writeTuning(m_camera, exposureUs, gainDb);
     return true;
 #else
-    Q_UNUSED(exposureUs) Q_UNUSED(gainDb) Q_UNUSED(gamma)
+    Q_UNUSED(exposureUs) Q_UNUSED(gainDb)
     return false;
 #endif
 }

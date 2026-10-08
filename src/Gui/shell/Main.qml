@@ -868,8 +868,12 @@ ApplicationWindow {
         z: 10000
         source: {
             var f = Qt.application.arguments.indexOf("--probe-qml")
-            if (f >= 0 && f + 1 < Qt.application.arguments.length)
-                return "file://" + Qt.application.arguments[f + 1]
+            if (f >= 0 && f + 1 < Qt.application.arguments.length) {
+                // "/abs/path" on macOS/Linux → file:///abs/path; "C:/path" on Windows needs
+                // the third slash too (file://C:/… names a host "C:" and loads nothing).
+                var p = Qt.application.arguments[f + 1].replace(/\\/g, "/")
+                return (p.charAt(0) === "/" ? "file://" : "file:///") + p
+            }
             return ""
         }
         active: appInfo.devBuild && source !== ""

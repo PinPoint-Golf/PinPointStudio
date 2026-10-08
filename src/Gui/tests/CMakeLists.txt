@@ -151,6 +151,19 @@ pp_add_test(imu_role_map_test
     INCLUDE ${GUI} ${GUI}/app ${SRC} ${SRC}/Core ${SRC}/IMU
     LINK    Qt6::Qml Qt6::Concurrent Qt6::Test  AUTOMOC)
 
+# The camera crop is per role (cameras/camera_roi.h, flir_camera_settings.md §2.1): the
+# impact strip's own key, the recommended-mode fallback, and AppSettings' one-time
+# migration of an existing impact camera's strip — the REAL AppSettings against a scratch
+# QSettings path, as imu_role_map_test does, because the migration is what lands on disk.
+pp_add_test(camera_roi_test
+    SOURCES camera_roi_test.cpp
+            ${GUI}/imu/imu_role_map.cpp
+            ${GUI}/app/app_settings.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${GUI} ${GUI}/app ${SRC} ${SRC}/Core ${SRC}/IMU ${SRC}/Video
+    LINK    Qt6::Qml Qt6::Concurrent Qt6::Test  AUTOMOC)
+
 # PacedConnectQueue — ImuManager's paced BLE connect (design §4.11, F10): first device at
 # once, each next a gap later, cancel, replace, skip-without-gap. Runs on an 80 ms gap and
 # a real event loop for about a second.

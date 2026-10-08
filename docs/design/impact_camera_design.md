@@ -607,6 +607,14 @@ primed again at the next connect:
 see it), strobe off. The ball clips at any gain that makes the club visible under a ring light;
 that is the ring light's geometry, not a reason to lower the gain — floods change the ratio.
 
+> **Superseded 2026-10-08** ([flir_camera_settings.md](flir_camera_settings.md) §5). Measured on
+> both studio Chameleon3s: the "mat 5–8" above is the sensor's black pedestal, not light (with
+> `BlackLevel` at 0 the unlit mat reads 0); the in-camera gamma never reached the camera (a
+> Chameleon3 has no gamma node in raw Bayer) and the control is gone; the default gain is now
+> **18 dB** (the camera's maximum — the bright end doubles every 6 dB) with the black level lifted
+> **4 %** over each camera's calibration so the shadows do not clip at that gain. The clip records
+> `blackLevelLift` instead of `gamma`.
+
 **Provenance.** The stream's `capture` object gains `gainDb` + `gainSource` (`applied` when
 read back from the camera, `requested` otherwise), `gamma`, `strobe`, `viewGain`, `note`, and
 `measuredFps` — the median inter-frame interval of `frames.t_us`, beside the nominal

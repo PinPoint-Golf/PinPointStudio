@@ -20,6 +20,7 @@
 
 #include <QObject>
 #include <QRectF>
+#include <QVariantMap>
 #include <QVideoFrameFormat>
 #include "raw_video_frame.h"
 #include "frame_timing.h"
@@ -119,42 +120,49 @@ public:
 
     // Frame rate (fps) and exposure (microseconds) to apply on the NEXT
     // start(), for backends that can set them (GenICam). 0 means camera auto
-    // (the GenICam backends WRITE auto exposure / auto rate, they do not
-    // inherit what the camera last held — flir_camera_settings.md §5), which
-    // is what every camera gets except the impact camera
-    // (impact_camera_design.md §10.2: a crop, a rate AND a locked exposure
-    // make the mode). A non-zero exposure turns auto-exposure off.
-    // Same threading rule as setCropRegion(). Default is a no-op.
+    // (the GenICam backends WRITE auto exposure, they do not inherit what the
+    // camera last held — flir_camera_settings.md §5; the rate is then the
+    // maximum at the ROI, never auto), which is what every camera gets except
+    // the impact camera (impact_camera_design.md §10.2: a crop, a rate AND a
+    // locked exposure make the mode). A non-zero exposure turns auto-exposure
+    // off. Same threading rule as setCropRegion(). Default is a no-op.
     virtual void setCaptureRate(double) {}
     virtual void setExposureUs(double) {}
 
     // The impact camera's tuning beyond exposure (impact_camera_design.md
-    // §10.3). Sensor gain in dB, auto-gain off (< 0 = auto gain):
-    // applied before the ADC, so it lifts a dark club body above the 8-bit
-    // floor rather than stretching a floor that is already there. In-camera
-    // gamma (0 = gamma off): applied to the sensor's full bit depth, so a
-    // value below 1 lifts the shadows the club lives in while the ball stays
-    // unclipped. The strobe output: Line1 driven by ExposureActive, for an
-    // LED strobe driver. Primed before start() like the rate and exposure;
-    // same threading rule as setCropRegion(). Defaults are no-ops.
+    // §10.3, flir_camera_settings.md §5). Sensor gain in dB, auto-gain off
+    // (< 0 = auto gain): applied before the ADC, so it lifts a dark club body
+    // above the 8-bit floor rather than stretching a floor that is already
+    // there. Black-level lift, percent over the camera's own calibrated
+    // BlackLevel (0 = the factory value): at a high gain the factory pedestal
+    // no longer holds the unlit mat's noise above 0, and the shadows clip. The
+    // strobe output: Line1 driven by ExposureActive, for an LED strobe driver.
+    // Primed before start() like the rate and exposure; same threading rule as
+    // setCropRegion(). Defaults are no-ops.
     virtual void setGainDb(double) {}
-    virtual void setGamma(double) {}
+    virtual void setBlackLevelLift(double) {}
     virtual void setStrobeOutput(bool) {}
 
-    // Re-tune a STREAMING camera. ExposureTime, Gain and Gamma are writable
-    // during acquisition on GenICam cameras, so the operator can turn a knob
-    // and watch the tile instead of reconnecting. exposureUs ≤ 0, gainDb < 0
-    // and gamma ≤ 0 are each skipped. Returns false when nothing could be
-    // written (not streaming, no such nodes). Must be called on the object's
-    // thread — CameraInstance invokes it there.
-    virtual bool applyLiveTuning(double /*exposureUs*/, double /*gainDb*/, double /*gamma*/) { return false; }
+    // Re-tune a STREAMING camera. ExposureTime and Gain are writable during
+    // acquisition on GenICam cameras, so the operator can turn a knob and
+    // watch the tile instead of reconnecting. exposureUs ≤ 0 and gainDb < 0
+    // are each skipped. Returns false when nothing could be written (not
+    // streaming, no such nodes). Must be called on the object's thread —
+    // CameraInstance invokes it there.
+    virtual bool applyLiveTuning(double /*exposureUs*/, double /*gainDb*/) { return false; }
 
     // What the camera actually holds after the last prime or live apply, read
     // back from the device (a write is clamped to the node's range, so the
-    // request is not the fact). -1 dB / 0 gamma = unknown or never written.
-    // Recorded per clip as provenance next to the measured exposure.
+    // request is not the fact). -1 dB = unknown or never written. Recorded
+    // per clip as provenance next to the measured exposure.
     virtual double appliedGainDb() const { return -1.0; }
-    virtual double appliedGamma()  const { return 0.0; }
+
+    // Every camera node PPS sets, read back from the device as text (node
+    // name → value; "absent" for a node this camera lacks). For checking a
+    // connect against what was asked of it (CameraRoleProbe,
+    // flir_camera_settings.md §7); empty where the backend has no node map.
+    // Must be called on the object's thread.
+    virtual QVariantMap readBackSettings() { return {}; }
 
     // Query what this camera can do. Returns a default-constructed
     // CameraCapabilities (all fields Unavailable / zero) if the camera has

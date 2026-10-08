@@ -25,7 +25,8 @@
 //
 //   spinnaker_settings_probe [--serial N] [--seconds S] [--impact-fps F]
 //                            [--impact-exposure US] [--impact-gain DB]
-//                            [--impact-gamma G] [--strobe] [--no-factory]
+//                            [--impact-lift PCT] [--strobe] [--no-factory]
+//                            [--gain-sweep | --lift-sweep | --factory-test]
 //
 // The PPS app must not be running: a camera has one owner.
 
@@ -38,6 +39,7 @@
 #include <QString>
 #include <QStringList>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <map>
@@ -55,57 +57,23 @@ struct Options {
     double  seconds        = 3.0;
     double  impactFps      = 691.0;   // the cabin's saved rate; clamps to the crop's max
     double  impactExposure = 70.0;
-    double  impactGain     = 12.0;
-    double  impactGamma    = 0.7;
+    double  impactGain     = 18.0;  // CameraInstance::kImpactDefaultGainDb
+    double  impactLift     = 4.0;   // CameraInstance::kImpactBlackLevelLiftPct
     bool    strobe         = false;
     bool    factory        = true;
+    bool    gainSweep      = false;   // Impact connects only, at a ladder of gains, same scene
+    bool    liftSweep      = false;   // Impact at 12 dB and max gain over a ladder of BlackLevel lifts
+    bool    factoryTest    = false;   // dirty (BlackLevel included), then UserSetLoad Default, timed
 };
 
-// Every node PPS owns, read back after a connect.
+// Every node PPS sets, read back after a connect — the module's own read-back
+// (the app's readBackSettings() uses the same), as std::string for the tables.
 std::map<std::string, std::string> readNodes(INodeMap &nm)
 {
     std::map<std::string, std::string> out;
-    auto rd = [&](const char *name) {
-        CNodePtr n = nm.GetNode(name);
-        if (!IsAvailable(n)) { out[name] = "absent"; return; }
-        if (!IsReadable(n))  { out[name] = "unreadable"; return; }
-        CValuePtr v(n);
-        out[name] = v->ToString().c_str();
-    };
-    for (const char *n : { "Width", "Height", "OffsetX", "OffsetY", "PixelFormat",
-                           "ExposureAuto", "ExposureTime", "AutoExposureTimeUpperLimit",
-                           "AutoExposureExposureTimeUpperLimit",
-                           "GainAuto", "Gain", "AutoGainUpperLimit", "AutoExposureGainUpperLimit",
-                           "GammaEnable", "GammaEnabled", "Gamma",
-                           "AcquisitionFrameRateAuto", "AcquisitionFrameRateEnable",
-                           "AcquisitionFrameRateEnabled", "AcquisitionFrameRate" })
-        rd(n);
-    // Line1's mode and source are selector-dependent.
-    CEnumerationPtr sel = nm.GetNode("LineSelector");
-    if (IsAvailable(sel) && IsWritable(sel)) {
-        CEnumEntryPtr l1 = sel->GetEntryByName("Line1");
-        if (IsAvailable(l1) && IsReadable(l1)) {
-            sel->SetIntValue(l1->GetValue());
-            nm.InvalidateNodes();
-            rd("LineMode");
-            rd("LineSource");
-            out["Line1.LineMode"]   = out["LineMode"];
-            out["Line1.LineSource"] = out["LineSource"];
-            out.erase("LineMode");
-            out.erase("LineSource");
-        }
-    }
-    CEnumerationPtr usel = nm.GetNode("UserOutputSelector");
-    if (IsAvailable(usel) && IsWritable(usel)) {
-        CEnumEntryPtr u1 = usel->GetEntryByName("UserOutput1");
-        if (IsAvailable(u1) && IsReadable(u1)) {
-            usel->SetIntValue(u1->GetValue());
-            nm.InvalidateNodes();
-            rd("UserOutputValue");
-            out["UserOutput1.Value"] = out["UserOutputValue"];
-            out.erase("UserOutputValue");
-        }
-    }
+    const QVariantMap m = ps::readBack(nm);
+    for (auto it = m.cbegin(); it != m.cend(); ++it)
+        out[it.key().toStdString()] = it.value().toString().toStdString();
     return out;
 }
 
@@ -146,8 +114,10 @@ struct Measure {
     int    frames = 0, incomplete = 0;
     double fps = 0, expMedUs = 0, expMinUs = 0, expMaxUs = 0;
     double mean = 0, satPct = 0, blackPct = 0;
-    double gainDb = -1;
+    double gainDb = -1, gainMaxDb = -1;
     int    width = 0, height = 0;
+    int    p1 = 0, p50 = 0, p999 = 0;  // raw levels: 1st percentile (the floor), median, 99.9th
+    int    lineHigh = -1, lineLow = -1; // Line1 LineStatus samples while streaming
 };
 
 // --snapshot: the last frame of each connect as a half-resolution colour PNG
@@ -190,6 +160,7 @@ Measure stream(CameraPtr cam, double seconds)
     std::vector<double> exps;
     std::vector<uint64_t> ts;
     double sum = 0; uint64_t n = 0, sat = 0, black = 0;
+    uint64_t hist[256] = {};
     const uint64_t settleNs = 1000000000ull;
     uint64_t t0 = 0, tEnd = uint64_t(seconds * 1e9);
     for (;;) {
@@ -210,7 +181,7 @@ Measure stream(CameraPtr cam, double seconds)
             for (size_t y = 0; y < img->GetHeight(); y += 4)
                 for (size_t x = 0; x < img->GetWidth(); ++x) {
                     const uint8_t v = p[y * stride + x];
-                    sum += v; ++n; sat += v >= 250; black += v <= 5;
+                    sum += v; ++n; sat += v >= 250; black += v <= 5; ++hist[v];
                 }
         }
         const bool last = el >= tEnd;
@@ -220,7 +191,18 @@ Measure stream(CameraPtr cam, double seconds)
         if (last) break;
     }
     CFloatPtr g = nm.GetNode("Gain");
-    if (IsAvailable(g) && IsReadable(g)) m.gainDb = g->GetValue();
+    if (IsAvailable(g) && IsReadable(g)) { m.gainDb = g->GetValue(); m.gainMaxDb = g->GetMax(); }
+    // Line1 as the camera drives it, sampled while still streaming (after the
+    // frames, so the reads cannot starve the buffer pool). An ExposureActive
+    // strobe is high for exposure / frame period of the time — ~4 % at 70 us
+    // and 591 fps — and a released line never.
+    if (setEnum(nm, "LineSelector", "Line1")) {
+        CBooleanPtr ls = nm.GetNode("LineStatus");
+        if (IsAvailable(ls) && IsReadable(ls)) {
+            m.lineHigh = m.lineLow = 0;
+            for (int i = 0; i < 3000; ++i) (ls->GetValue() ? m.lineHigh : m.lineLow)++;
+        }
+    }
     cam->EndAcquisition();
     if (ts.size() > 1)
         m.fps = double(ts.size() - 1) * 1e9 / double(ts.back() - ts.front());
@@ -229,6 +211,13 @@ Measure stream(CameraPtr cam, double seconds)
         m.expMedUs = exps[exps.size() / 2]; m.expMinUs = exps.front(); m.expMaxUs = exps.back();
     }
     if (n) { m.mean = sum / n; m.satPct = 100.0 * sat / n; m.blackPct = 100.0 * black / n; }
+    bool gotMedian = false, gotFloor = false;
+    for (uint64_t c = 0, i = 0; n && i < 256; ++i) {
+        c += hist[i];
+        if (!gotFloor && c * 100 >= n) { m.p1 = int(i); gotFloor = true; }
+        if (!gotMedian && c * 2 >= n) { m.p50 = int(i); gotMedian = true; }
+        if (c * 1000 >= n * 999) { m.p999 = int(i); break; }
+    }
     return m;
 }
 
@@ -242,33 +231,40 @@ struct StepResult {
     std::string name;
     Measure m;
     std::map<std::string, std::string> nodes;
-    QStringList warnings;   // from the settings writer; gamma's absence is expected on a Chameleon3
+    QStringList warnings;   // from the factory load, the ROI and the settings writer
 };
 
 void printStep(const StepResult &r)
 {
     const Measure &m = r.m;
     std::printf("  %-8s %4dx%-4d fps %7.1f  exp %8.1f us [%.1f..%.1f]  gain %5.2f dB  "
-                "mean %6.1f  sat %5.2f%%  black %5.2f%%  frames %d (+%d incomplete)\n",
+                "mean %6.1f  p1 %3d  p50 %3d  p99.9 %3d  sat %5.2f%%  black %5.2f%%  Line1 high %d/%d  "
+                "frames %d (+%d incomplete)\n",
                 r.name.c_str(), m.width, m.height, m.fps, m.expMedUs, m.expMinUs, m.expMaxUs,
-                m.gainDb, m.mean, m.satPct, m.blackPct, m.frames, m.incomplete);
+                m.gainDb, m.mean, m.p1, m.p50, m.p999, m.satPct, m.blackPct, m.lineHigh,
+                m.lineHigh + m.lineLow, m.frames, m.incomplete);
 }
 
-// One connect the way the app does it: prepare, ROI, every tuning node, stream.
+// One connect the way the app does it (VideoInputSpinnaker::start): factory
+// set, acquisition mode / pixel format / chunk / buffers, ROI, every tuning
+// node, stream.
 StepResult connectAs(CameraPtr cam, const char *name, const QRectF &crop,
                      const ps::ConnectSettings &req, double seconds)
 {
     StepResult r; r.name = name;
     cam->Init();
     INodeMap &nm = cam->GetNodeMap();
+    ps::SettingsLog factoryLog;
+    ps::loadFactoryDefaults(nm, factoryLog);
     prepareLikeTheApp(cam);
     ps::SettingsLog roiLog;
     ps::applyRoi(nm, crop, roiLog);
     const ps::ConnectApplied a = ps::applyConnectSettings(nm, req);
     std::printf("  [%s]\n", name);
+    printLog(factoryLog);
     printLog(roiLog);
     printLog(a.log);
-    r.warnings = roiLog.warn + a.log.warn;
+    r.warnings = factoryLog.warn + roiLog.warn + a.log.warn;
     snapshotFor(name);
     r.m = stream(cam, seconds);
     r.nodes = readNodes(nm);
@@ -286,13 +282,27 @@ StepResult factory(CameraPtr cam, double seconds)
     cam->Init();
     INodeMap &nm = cam->GetNodeMap();
     bool loaded = false;
+    // What a factory reset costs on every connect: the load itself, timed to
+    // completion, and what it puts back that PPS does not write.
+    auto readBl = [&nm]() {
+        CFloatPtr bl = nm.GetNode("BlackLevel");
+        return (IsAvailable(bl) && IsReadable(bl)) ? bl->GetValue() : -1.0;
+    };
+    const double blBefore = readBl();
+    const auto t0 = std::chrono::steady_clock::now();
     if (setEnum(nm, "UserSetSelector", "Default")) {
         CCommandPtr load = nm.GetNode("UserSetLoad");
-        if (IsAvailable(load) && IsWritable(load)) { load->Execute(); loaded = true; }
+        if (IsAvailable(load) && IsWritable(load)) {
+            load->Execute();
+            while (!load->IsDone()) {}
+            loaded = true;
+        }
     }
     nm.InvalidateNodes();
+    const double loadMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     prepareLikeTheApp(cam);
-    std::printf("  [factory] UserSetLoad Default: %s\n", loaded ? "done" : "NOT AVAILABLE");
+    std::printf("  [factory] UserSetLoad Default: %s in %.1f ms; BlackLevel %.3f -> %.3f\n",
+                loaded ? "done" : "NOT AVAILABLE", loadMs, blBefore, readBl());
     snapshotFor("factory");
     r.m = stream(cam, seconds);
     r.nodes = readNodes(nm);
@@ -327,7 +337,16 @@ void dirty(CameraPtr cam)
         CBooleanPtr b = nm.GetNode(nme);
         if (IsAvailable(b) && IsWritable(b)) b->SetValue(false);
     }
-    if (setEnum(nm, "LineSelector", "Line1")) { nm.InvalidateNodes(); setEnum(nm, "LineSource", "ExposureActive"); }
+    if (setEnum(nm, "LineSelector", "Line1")) {
+        nm.InvalidateNodes();
+        setEnum(nm, "LineSource", "ExposureActive");
+        CBooleanPtr inv = nm.GetNode("LineInverter");
+        if (IsAvailable(inv) && IsWritable(inv)) inv->SetValue(true);
+    }
+    {
+        CFloatPtr bl = nm.GetNode("BlackLevel");
+        if (IsAvailable(bl) && IsWritable(bl)) bl->SetValue(bl->GetMax());
+    }
     CIntegerPtr w = nm.GetNode("Width"), h = nm.GetNode("Height");
     if (IsAvailable(w) && IsWritable(w)) w->SetValue(std::max<int64_t>(w->GetMin(), 640));
     if (IsAvailable(h) && IsWritable(h)) h->SetValue(std::max<int64_t>(h->GetMin(), 240));
@@ -359,9 +378,12 @@ int main(int argc, char **argv)
         else if (a == "--impact-fps")      o.impactFps = next().toDouble();
         else if (a == "--impact-exposure") o.impactExposure = next().toDouble();
         else if (a == "--impact-gain")     o.impactGain = next().toDouble();
-        else if (a == "--impact-gamma")    o.impactGamma = next().toDouble();
+        else if (a == "--impact-lift")     o.impactLift = next().toDouble();
         else if (a == "--strobe")          o.strobe = true;
         else if (a == "--no-factory")      o.factory = false;
+        else if (a == "--gain-sweep")      o.gainSweep = true;
+        else if (a == "--lift-sweep")      o.liftSweep = true;
+        else if (a == "--factory-test")    o.factoryTest = true;
         else if (a == "--snapshot")        { g_snapshotDir = next(); QDir().mkpath(g_snapshotDir); }
         else { std::fprintf(stderr, "unknown argument %s\n", qPrintable(a)); return 2; }
     }
@@ -382,9 +404,45 @@ int main(int argc, char **argv)
             ps::ConnectSettings dtl;                   // every other role: camera auto
             ps::ConnectSettings imp;                   // impact: locked
             imp.exposureUs = o.impactExposure; imp.gainDb = o.impactGain;
-            imp.gamma = o.impactGamma; imp.strobe = o.strobe; imp.fps = o.impactFps;
+            imp.strobe = o.strobe; imp.fps = o.impactFps; imp.blackLevelLift = o.impactLift;
             const QRectF impactCrop(0.25, 0.3828125, 0.5, 0.234375);   // 640x240 centred on 1280x1024
 
+            if (o.factoryTest) {
+                dirty(cam);
+                factory(cam, 1.2);
+                factory(cam, 1.2);   // a second load from the factory state: the steady-state cost
+                continue;
+            }
+            if (o.liftSweep) {
+                // At 70 us the impact mat is unlit: its pixels are the black
+                // pedestal plus noise, and gain clips them to 0 (gain sweep,
+                // 2026-10-08). Which lift over the camera's own calibrated
+                // BlackLevel keeps the floor (p1) off 0 at each gain? The floor
+                // is the sensor's, not the room's, so this holds in any light.
+                for (double gdb : { 12.0, 99.0 }) {
+                    for (double lift : { 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0 }) {
+                        ps::ConnectSettings g = imp;
+                        g.gainDb = gdb;
+                        g.blackLevelLift = lift;
+                        const std::string nm = "g" + std::to_string(int(gdb > 50 ? 18 : gdb))
+                                             + "+" + std::to_string(int(lift));
+                        connectAs(cam, nm.c_str(), impactCrop, g, o.seconds);
+                    }
+                }
+                continue;
+            }
+            if (o.gainSweep) {
+                // Same scene, seconds apart, there and back: a level that does
+                // not follow the gain is the scene changing, not the camera.
+                std::printf("  -- impact gain sweep (%.0f us) --\n", o.impactExposure);
+                for (double gdb : { 0.0, 6.0, 12.0, 99.0, 12.0, 6.0, 0.0 }) {
+                    ps::ConnectSettings g = imp;
+                    g.gainDb = gdb;
+                    const std::string nm = "gain" + std::to_string(int(gdb > 50 ? -1 : gdb));
+                    connectAs(cam, nm.c_str(), impactCrop, g, o.seconds);
+                }
+                continue;
+            }
             std::vector<StepResult> steps;
             if (o.factory) steps.push_back(factory(cam, o.seconds));
             const StepResult dtl1 = connectAs(cam, "dtl1", QRectF(), dtl, o.seconds);
@@ -431,7 +489,7 @@ int main(int argc, char **argv)
                 const Measure &m = s->m;
                 check(within(m.expMedUs, o.impactExposure, 2.0), s->name + ": exposure locked at "
                       + std::to_string(o.impactExposure) + " us (" + std::to_string(m.expMedUs) + ")");
-                check(within(m.gainDb, o.impactGain, 0.1), s->name + ": gain locked ("
+                check(within(m.gainDb, std::min(o.impactGain, m.gainMaxDb), 0.1), s->name + ": gain locked at min(request, max) ("
                       + std::to_string(m.gainDb) + ")");
                 const double rateNode = std::stod(s->nodes.at("AcquisitionFrameRate"));
                 check(m.fps > 0.95 * rateNode, s->name + ": delivers its rate ("
@@ -442,15 +500,29 @@ int main(int argc, char **argv)
             }
             check(within(imp2.m.mean, imp1.m.mean, std::max(3.0, 0.1 * imp1.m.mean)),
                   "impact2 picture matches impact1");
-            // Every connect must have written every node it owns: no warning
-            // from the writer (bar gamma, absent in raw Bayer on a Chameleon3),
-            // and the rate manual whatever the camera held before.
+            // The strobe as the line actually behaves, not as the node reads.
             for (const StepResult *s : { &dtl1, &imp1, &dtl2, &dtl3, &imp2 }) {
-                QStringList unexpected;
-                for (const QString &w : s->warnings)
-                    if (!w.startsWith(QLatin1String("Gamma requested"))) unexpected << w;
-                check(unexpected.isEmpty(), s->name + ": every node written"
-                      + (unexpected.isEmpty() ? std::string() : " — " + unexpected.join("; ").toStdString()));
+                if (s->m.lineHigh < 0) { check(false, s->name + ": Line1 LineStatus readable"); continue; }
+                const bool strobing = (s == &imp1 || s == &imp2) && o.strobe;
+                if (strobing)
+                    check(s->m.lineHigh > 0 && s->m.lineLow > 0,
+                          s->name + ": Line1 pulses with the exposure (high "
+                          + std::to_string(s->m.lineHigh) + " of " + std::to_string(s->m.lineHigh + s->m.lineLow) + ")");
+                else   // released: one constant level (the idle level; polarity per LineInverter)
+                    check(s->m.lineHigh == 0 || s->m.lineLow == 0, s->name + ": Line1 holds one level (high "
+                          + std::to_string(s->m.lineHigh) + " of " + std::to_string(s->m.lineHigh + s->m.lineLow) + ")");
+            }
+            for (const StepResult *s : { &dtl1, &imp1, &dtl2, &dtl3, &imp2 }) {
+                const auto it = s->nodes.find("Line1.LineInverter");
+                check(it == s->nodes.end() || it->second == "0" || it->second == "absent",
+                      s->name + ": Line1 not inverted (" + (it == s->nodes.end() ? std::string("-") : it->second) + ")");
+            }
+            // Every connect must have loaded the factory set and written every
+            // node it sets: no warning at all, and the rate manual whatever
+            // the camera held before.
+            for (const StepResult *s : { &dtl1, &imp1, &dtl2, &dtl3, &imp2 }) {
+                check(s->warnings.isEmpty(), s->name + ": factory set loaded and every node written"
+                      + (s->warnings.isEmpty() ? std::string() : " — " + s->warnings.join("; ").toStdString()));
                 const auto fa = s->nodes.find("AcquisitionFrameRateAuto");
                 check(fa == s->nodes.end() || fa->second == "absent" || fa->second == "Off",
                       s->name + ": frame rate is manual (AcquisitionFrameRateAuto "

@@ -19,6 +19,7 @@
 #include "resource_monitor_controller.h"
 #include "app_settings.h"
 #include "camera_manager.h"
+#include "camera_roi.h"
 #include "imu_manager.h"
 #include "pp_debug.h"
 
@@ -282,8 +283,9 @@ void ResourceMonitorController::refresh()
                             + QString::number(fh);
                 } else {
                     const QVariantMap roiMap = appSettings.cameraRoi();
-                    if (roiMap.contains(camKey)) {
-                        const QVariantMap r = roiMap.value(camKey).toMap();
+                    const QString roiKey = pp_camroi::key(camKey, appSettings.cameraPerspective().value(camKey).toInt());
+                    if (roiMap.contains(roiKey)) {
+                        const QVariantMap r = roiMap.value(roiKey).toMap();
                         double w = r.value(QStringLiteral("w")).toDouble();
                         double h = r.value(QStringLiteral("h")).toDouble();
                         if (w > 0 && h > 0)

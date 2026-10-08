@@ -151,6 +151,17 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
 
         INodeMap& nodeMap = (*camera)->GetNodeMap();
 
+        // The camera's factory set first, ~25 ms: every node — the ones PPS
+        // writes below, the ones it does not know about, the per-camera
+        // black-level calibration — back to the factory value, whatever the
+        // last owner left (flir_camera_settings.md §5). Everything below is a
+        // departure from that baseline, written on every connect.
+        {
+            pinpoint::spinnaker::SettingsLog factoryLog;
+            pinpoint::spinnaker::loadFactoryDefaults(nodeMap, factoryLog);
+            logSettings(factoryLog);
+        }
+
         CEnumerationPtr ptrAcquisitionMode = nodeMap.GetNode("AcquisitionMode");
         if (IsAvailable(ptrAcquisitionMode) && IsWritable(ptrAcquisitionMode)) {
             CEnumEntryPtr ptrContinuous = ptrAcquisitionMode->GetEntryByName("Continuous");
@@ -197,14 +208,13 @@ bool VideoInputSpinnaker::start(const QString &deviceId)
             ps::applyRoi(nodeMap, pp_crop::cropIsActive(m_cropRegion) ? m_cropRegion : QRectF(),
                          roiLog);
             ps::ConnectSettings req;
-            req.exposureUs = m_exposureUs;
-            req.gainDb     = m_gainDb;
-            req.gamma      = m_gamma;
-            req.strobe     = m_strobe;
-            req.fps        = m_captureFps;
+            req.exposureUs     = m_exposureUs;
+            req.gainDb         = m_gainDb;
+            req.strobe         = m_strobe;
+            req.fps            = m_captureFps;
+            req.blackLevelLift = m_blackLevelLift;
             const ps::ConnectApplied applied = ps::applyConnectSettings(nodeMap, req);
             m_appliedGainDb.store(applied.gainDb, std::memory_order_relaxed);
-            m_appliedGamma.store(applied.gamma, std::memory_order_relaxed);
             logSettings(roiLog);
             logSettings(applied.log);
         }
@@ -661,7 +671,7 @@ CameraCapabilities VideoInputSpinnaker::queryCapabilities() const
 }
 
 void VideoInputSpinnaker::writeTuningNodes(void *nodeMapPtr, double exposureUs,
-                                           double gainDb, double gamma)
+                                           double gainDb)
 {
 #ifdef HAVE_SPINNAKER
     INodeMap &nodeMap = *static_cast<INodeMap *>(nodeMapPtr);
@@ -703,31 +713,12 @@ void VideoInputSpinnaker::writeTuningNodes(void *nodeMapPtr, double exposureUs,
             ppWarn() << "[VideoInputSpinnaker] Gain not writable; gain unchanged";
         }
     }
-    // Gamma: the enable node under either spelling (SFNC GammaEnable, legacy
-    // GammaEnabled on the Chameleon3), then the value.
-    if (gamma > 0.0) {
-        for (const char *name : { "GammaEnable", "GammaEnabled" }) {
-            CBooleanPtr ptrEnable = nodeMap.GetNode(name);
-            if (IsAvailable(ptrEnable) && IsWritable(ptrEnable))
-                ptrEnable->SetValue(true);
-        }
-        nodeMap.InvalidateNodes();
-        CFloatPtr ptrGamma = nodeMap.GetNode("Gamma");
-        if (IsAvailable(ptrGamma) && IsWritable(ptrGamma)) {
-            ptrGamma->SetValue(qBound(ptrGamma->GetMin(), gamma, ptrGamma->GetMax()));
-            const double held = ptrGamma->GetValue();
-            m_appliedGamma.store(held, std::memory_order_relaxed);
-            ppInfo() << "[VideoInputSpinnaker] Gamma:" << held << "(requested" << gamma << ")";
-        } else {
-            ppWarn() << "[VideoInputSpinnaker] Gamma not writable; gamma unchanged";
-        }
-    }
 #else
-    Q_UNUSED(nodeMapPtr) Q_UNUSED(exposureUs) Q_UNUSED(gainDb) Q_UNUSED(gamma)
+    Q_UNUSED(nodeMapPtr) Q_UNUSED(exposureUs) Q_UNUSED(gainDb)
 #endif
 }
 
-bool VideoInputSpinnaker::applyLiveTuning(double exposureUs, double gainDb, double gamma)
+bool VideoInputSpinnaker::applyLiveTuning(double exposureUs, double gainDb)
 {
 #ifdef HAVE_SPINNAKER
     CameraPtr *camera = static_cast<CameraPtr *>(m_camera);
@@ -735,17 +726,35 @@ bool VideoInputSpinnaker::applyLiveTuning(double exposureUs, double gainDb, doub
         return false;
     try {
         INodeMap &nodeMap = (*camera)->GetNodeMap();
-        writeTuningNodes(&nodeMap, exposureUs, gainDb, gamma);
+        writeTuningNodes(&nodeMap, exposureUs, gainDb);
         return true;
     } catch (Spinnaker::Exception &e) {
         ppWarn() << "[VideoInputSpinnaker] live tuning failed:" << e.what();
         return false;
     }
 #else
-    Q_UNUSED(exposureUs) Q_UNUSED(gainDb) Q_UNUSED(gamma)
+    Q_UNUSED(exposureUs) Q_UNUSED(gainDb)
     return false;
 #endif
 }
+
+QVariantMap VideoInputSpinnaker::readBackSettings()
+{
+#ifdef HAVE_SPINNAKER
+    CameraPtr *camera = static_cast<CameraPtr *>(m_camera);
+    if (!camera)
+        return {};
+    try {
+        return pinpoint::spinnaker::readBack((*camera)->GetNodeMap());
+    } catch (Spinnaker::Exception &e) {
+        ppWarn() << "[VideoInputSpinnaker] read-back failed:" << e.what();
+        return {};
+    }
+#else
+    return {};
+#endif
+}
+
 
 bool VideoInputSpinnaker::clockStats(pinpoint::DeviceClockStats *out) const
 {

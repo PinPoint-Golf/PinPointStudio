@@ -143,6 +143,8 @@ public slots:
     // instance, and — for Impact only — clears Impact from every other camera.
     // One impact camera is all the analysis can use and two would fight over
     // the same crop-and-rate mode; face-on/DTL/Other stay shareable as above.
+    // A connected camera that moves into or out of Impact (either way, the
+    // stripped one too) is reconnected so its camera settings follow the role.
     Q_INVOKABLE void assignPerspective(const QString &cameraKey, int perspective);
     Q_INVOKABLE void setIsMirrored(QObject *controller, bool mirrored);
 

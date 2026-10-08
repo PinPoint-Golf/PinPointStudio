@@ -49,29 +49,29 @@ public:
     // GenICam region (ROI) is applied in hardware on the next start().
     bool supportsHardwareCrop() const override { return true; }
     void setCropRegion(const QRectF &norm) override { m_cropRegion = norm; }
-    // Frame rate / exposure applied on the next start(); 0 = backend default.
+    // Frame rate / exposure applied on the next start(); 0 = auto exposure at
+    // the region's maximum rate (flir_camera_settings.md §5).
     void setCaptureRate(double fps) override { m_captureFps = fps; }
     void setExposureUs(double us)   override { m_exposureUs = us; }
-    // Gain / Gamma / Line1 strobe applied on the next start() (impact camera
-    // tuning, impact_camera_design.md §10.3); -1 dB / 0 gamma / false = camera
-    // auto, written as such on start() (flir_camera_settings.md §5).
+    // Gain / black-level lift / Line1 strobe applied on the next start() (impact
+    // camera tuning, impact_camera_design.md §10.3); -1 dB / 0 % / false = auto
+    // gain, the factory black level, Line1 released (flir_camera_settings.md §5).
     void setGainDb(double db)       override { m_gainDb = db; }
-    void setGamma(double g)         override { m_gamma = g; }
+    void setBlackLevelLift(double pct) override { m_blackLevelLift = pct; }
     void setStrobeOutput(bool on)   override { m_strobe = on; }
-    bool applyLiveTuning(double exposureUs, double gainDb, double gamma) override;
+    bool applyLiveTuning(double exposureUs, double gainDb) override;
 
     // Aravis delivers the camera's own buffer timestamp (ns), mapped onto our clock by the same fit the
     // Spinnaker path uses. ⚠ UNTESTED ON HARDWARE, as the rest of this backend is.
     bool providesDeviceTimestamps() const override { return true; }
     bool clockStats(pinpoint::DeviceClockStats *out) const override;
     double appliedGainDb() const override { return m_appliedGainDb.load(std::memory_order_relaxed); }
-    double appliedGamma()  const override { return m_appliedGamma.load(std::memory_order_relaxed); }
 
 private:
     void captureLoop();
-    // Writes whichever of exposure / gain / gamma is asked for to the open
-    // camera and reads the held values back. Used at start() and live.
-    void writeTuning(void *camera, double exposureUs, double gainDb, double gamma);
+    // Writes whichever of exposure / gain is asked for to the open
+    // camera and reads the held gain back. Used live.
+    void writeTuning(void *camera, double exposureUs, double gainDb);
 
     void *m_camera    = nullptr; // ArvCamera*
     void *m_stream    = nullptr; // ArvStream*
@@ -83,11 +83,10 @@ private:
     // The camera clock → host clock mapping; fed on the capture thread, reset at every start().
     pinpoint::DeviceClockMapper m_clock;
     QRectF m_cropRegion;         // normalized crop; empty = full sensor
-    double m_captureFps = 0.0;   // requested frame rate; 0 = the 60 fps default below
+    double m_captureFps = 0.0;   // requested frame rate; 0 = the region's maximum
     double m_exposureUs = 0.0;   // requested exposure (auto off); 0 = camera default
     double m_gainDb     = -1.0;  // requested gain in dB (auto off); < 0 = camera default
-    double m_gamma      = 0.0;   // requested gamma; 0 = camera default
+    double m_blackLevelLift = 0.0; // percent over the factory BlackLevel; 0 = factory
     bool   m_strobe     = false; // Line1 = ExposureActive output
     std::atomic<double> m_appliedGainDb{-1.0};
-    std::atomic<double> m_appliedGamma{0.0};
 };

@@ -119,7 +119,6 @@ class CameraInstance : public QObject
     // What the camera holds after the last prime / live re-tune, read back
     // from the device (-1 dB / 0 = unknown). Impact camera only in practice.
     Q_PROPERTY(double appliedGainDb     READ appliedGainDb       NOTIFY appliedTuningChanged)
-    Q_PROPERTY(double appliedGamma      READ appliedGamma        NOTIFY appliedTuningChanged)
     // Pixel levels of the live frame, 0..255, refreshed a few times a second
     // for the impact camera (impact_camera_design.md §10.3): the median
     // (the mat), the 99.9th percentile (the brightest thing that is not a
@@ -150,16 +149,22 @@ public:
     // under 2 px at ~1 mm/px (impact_camera_design.md §1). CamerasPanel.qml
     // carries the same default for its chips.
     static constexpr double kImpactDefaultExposureUs = 70.0;
-    // The impact camera's tuning defaults, set from the 2026-09-15 studio
-    // recordings (impact_camera_design.md §10.3): at 70 µs under a ring light
-    // the mat sat at 5–8 of 255, the club body at 10–30 and the ball at
-    // 100–250. 12 dB (4×) lifts the club body to ~100 before the ADC; gamma
-    // 0.7 lifts the shadows on the sensor's full bit depth while the ball
-    // stays where it is. The view gain is a display stretch only, 1× because
-    // the two above already put the club where the eye can see it.
-    static constexpr double kImpactDefaultGainDb   = 12.0;
-    static constexpr double kImpactDefaultGamma    = 0.7;
-    static constexpr double kImpactDefaultViewGain = 1.0;
+    // The impact camera's tuning defaults. At 70 µs the mat is unlit: under a
+    // ring light it sat at 5–8 of 255 (impact_camera_design.md §10.3), and the
+    // probe showed that 5–8 is the sensor's black pedestal, not light
+    // (flir_camera_settings.md §5). Gain is the one camera lever left, so the
+    // default is 18 dB — the Chameleon3's maximum (18.06), which doubles the
+    // ball and the club over the old 12 dB; a camera with less range clamps it.
+    // At that gain the factory pedestal no longer holds the mat's noise above
+    // 0 (41 % and 70 % of the frame clipped on the two studio cameras), so the
+    // black level is lifted 4 % over each camera's own calibration: the
+    // smallest lift that kept clipping under 0.02 % on both, at a cost of ~10
+    // of 255 levels (spinnaker_settings_probe --lift-sweep, 2026-10-08). The
+    // view gain is a display stretch only. There is no in-camera gamma: a
+    // Chameleon3 has none in raw Bayer, and the control was dropped.
+    static constexpr double kImpactDefaultGainDb       = 18.0;
+    static constexpr double kImpactBlackLevelLiftPct   = 4.0;
+    static constexpr double kImpactDefaultViewGain     = 1.0;
 
     explicit CameraInstance(QObject *parent = nullptr);
     explicit CameraInstance(const Device &device,
@@ -296,20 +301,23 @@ public:
 #endif
     Q_INVOKABLE void setCropRoi(QRectF roi); // frame crop for storage / ring-buffer sizing
     Q_INVOKABLE void clearCropRoi();
-    // Re-tune the STREAMING camera (exposure µs, gain dB, gamma; ≤ 0 / < 0
+    // Re-tune the STREAMING camera (exposure µs, gain dB; ≤ 0 / < 0
     // skips that one) so Settings can turn a knob and watch the tile. Also
     // becomes what the next connect primes, so the clip records what was on.
     // No-op for a backend without live tuning (the log says so).
-    Q_INVOKABLE void applyLiveTuning(double exposureUs, double gainDb, double gamma);
+    Q_INVOKABLE void applyLiveTuning(double exposureUs, double gainDb);
+    // Every camera node PPS sets, read back from the device (node → text;
+    // VideoInputBase::readBackSettings). Blocks on the backend thread for the
+    // read; empty when not connected or the backend has no node map. For
+    // CameraRoleProbe, which checks a role change against the camera itself.
+    Q_INVOKABLE QVariantMap readBackSettings();
     // How this camera's frames are being timestamped — the backend's camera clock → host clock mapping
     // and its health (event_buffer_design.md §9). False when the backend has no mapping, in which case
     // the frames carry arrival time as they always did. Recorded on every swing.
     bool clockStats(pinpoint::DeviceClockStats *out) const;
 
     double appliedGainDb()   const;
-    double appliedGamma()    const;
     double requestedGainDb() const { return m_captureGainDb; }
-    double requestedGamma()  const { return m_captureGamma; }
     double levelBackground() const { return m_levelBackground; }
     double levelPeak()       const { return m_levelPeak; }
     double levelClipped()    const { return m_levelClipped; }
@@ -537,21 +545,21 @@ private:
     int                m_expectedCropHeight = 0;
 
     // Capture rate and exposure pushed to the backend at connect, frozen at
-    // construction like the crop. 0 = leave the camera at its own settings
+    // construction like the crop. 0 = camera auto (flir_camera_settings.md §5)
     // (every camera today except the impact camera, whose mode is a crop AND
     // a rate AND a locked exposure — impact_camera_design.md §10.2). The
     // rate also sizes the ring: a 591 fps source on the 200 fps GenICam
     // default would hold 1.7 s, not 5.
     double             m_captureFps        = 0.0;
     double             m_captureExposureUs = 0.0;
-    // Gain / gamma / strobe pushed with them (impact_camera_design.md §10.3);
-    // -1 / 0 / false = camera auto (flir_camera_settings.md §5). Exposure, gain and gamma are
+    // Gain / black-level lift / strobe pushed with them (impact_camera_design.md §10.3);
+    // -1 / 0 / false = auto gain, factory black level, Line1 released. Exposure and gain are
     // also re-written live by applyLiveTuning(), which updates these so the
     // next connect primes what the operator last saw.
     double             m_captureGainDb     = -1.0;
-    double             m_captureGamma      = 0.0;
+    double             m_captureBlackLift  = 0.0;
     bool               m_captureStrobe     = false;
-    // Push crop, rate, exposure, gain, gamma and strobe to the backend —
+    // Push crop, rate, exposure, gain, black-level lift and strobe to the backend —
     // called on the backend's thread immediately before start().
     void primeBackend();
 

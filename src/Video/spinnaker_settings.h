@@ -35,6 +35,7 @@
 
 #include <QRectF>
 #include <QStringList>
+#include <QVariantMap>
 
 namespace pinpoint::spinnaker {
 
@@ -45,24 +46,41 @@ struct SettingsLog {
     QStringList warn;
 };
 
-// What one connect asks of the camera. Every member decides a node's value;
-// none means "leave it". exposureUs <= 0 is auto exposure (limited to the frame
-// period), gainDb < 0 is auto gain (over the sensor's range), gamma <= 0 is
-// gamma off, strobe false is Line1 released, fps <= 0 is the maximum at this
-// ROI. The impact camera differs from every other camera only in the values.
+// What one connect asks of the camera, on top of the camera's factory set
+// (loadFactoryDefaults). Every member decides a node's value; none means "leave
+// it". exposureUs <= 0 is auto exposure (limited to the frame period), gainDb
+// < 0 is auto gain (over the sensor's range; a request above the range is the
+// range's top), strobe false is Line1 released, fps <= 0 is the maximum at
+// this ROI, blackLevelLift is percent added to the camera's own calibrated
+// BlackLevel. The impact camera differs from every other camera only in the
+// values.
 struct ConnectSettings {
-    double exposureUs = 0.0;
-    double gainDb     = -1.0;
-    double gamma      = 0.0;
-    bool   strobe     = false;
-    double fps        = 0.0;
+    double exposureUs     = 0.0;
+    double gainDb         = -1.0;
+    bool   strobe         = false;
+    double fps            = 0.0;
+    double blackLevelLift = 0.0;
 };
 
 struct ConnectApplied {
     double      gainDb = -1.0;   // read back when locked, else -1
-    double      gamma  = 0.0;    // read back when on, else 0
     SettingsLog log;
 };
+
+// The camera's own factory user set (UserSetSelector=Default, UserSetLoad):
+// every node back to the value it left the factory with, including the ones
+// PPS does not know about and the per-camera calibration (BlackLevel differs
+// between the two studio Chameleon3s). ~25 ms. First thing on a connect,
+// before anything else is written. False (with a warning) if the camera has
+// no factory set or refuses the load.
+bool loadFactoryDefaults(Spinnaker::GenApi::INodeMap &nodeMap, SettingsLog &out);
+
+// Every node the writes above touch, read back as text: node name → value,
+// "absent" / "unreadable" where the camera says so; Line1's selector-dependent
+// nodes as "Line1.<node>", UserOutput1's value as "UserOutput1.Value". Safe
+// while streaming (reads only, bar the line/user-output selectors). Shared by
+// the app's readBackSettings() and the hardware probe.
+QVariantMap readBack(Spinnaker::GenApi::INodeMap &nodeMap);
 
 // Hardware ROI from a normalised crop; an empty rect (or the unit rect) is the
 // full sensor. Before BeginAcquisition() only.

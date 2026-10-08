@@ -64,15 +64,18 @@ struct SwingExportCamera {
     qint64   keepEndUs    = -1;
     // The impact camera's tuning (impact_camera_design.md §10.3), stamped into
     // the stream's "capture" object so a clip says what the camera and the
-    // room were doing. gainDb/gamma are what the camera HELD (read back after
-    // the write) when gainSource is "applied", else the requested values.
+    // room were doing. gainDb is what the camera HELD (read back after
+    // the write) when gainSource is "applied", else the requested value.
+    // blackLevelLift is the percent the black level was raised over the
+    // camera's factory calibration (flir_camera_settings.md §5), which moves
+    // every recorded level up by ~2.5 per percent.
     // -1 / 0 = not written. viewGain is the display stretch the operator had
     // on the tile (never in the pixels); note is their free text (lens,
     // aperture, light). crf ≥ 0 overrides the job's encoder quality for this
     // one stream: a dark 640×240 clip at the library's default quantises into
     // 16-px blocks, and it is six seconds long, so near-lossless is cheap.
     double   gainDb       = -1.0;
-    double   gamma        = 0.0;
+    double   blackLevelLift = 0.0;
     QString  gainSource;
     // How this stream's frames were timestamped (event_buffer_design.md §9): "device" when the camera's
     // own clock was mapped onto ours, "devicePts" for a platform instant already on it, "hostArrival"

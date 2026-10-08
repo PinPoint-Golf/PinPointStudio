@@ -59,6 +59,7 @@
 #include "transcription_controller.h"
 #include "tts_controller.h"
 #include "camera_manager.h"
+#include "camera_role_probe.h"
 #include "buffer_controller.h"
 #include "event_buffer.h"
 #include "athlete_controller.h"
@@ -1176,6 +1177,18 @@ int main(int argc, char *argv[])
             ppInfo() << "[Probe] re-analysing" << dir;
             reanalysisController.reanalyse(QVariantList{ dir });
         });
+    }
+
+    // PINPOINT_PROBE_CAMERA_ROLES=<report file>: move every impact-capable camera through
+    // Impact → DownTheLine → Impact and back, through the calls Settings → Cameras makes, read
+    // back what each camera holds after every move, write the report and quit
+    // (camera_role_probe.h, flir_camera_settings.md §7). PINPOINT_PROBE_CAMERA_SERIAL limits it
+    // to one camera. The operator's camera settings are restored.
+    if (qEnvironmentVariableIsSet("PINPOINT_PROBE_CAMERA_ROLES")) {
+        auto *roleProbe = new CameraRoleProbe(&cameraManager, &appSettings,
+                                              qEnvironmentVariable("PINPOINT_PROBE_CAMERA_ROLES"),
+                                              qEnvironmentVariable("PINPOINT_PROBE_CAMERA_SERIAL"), &app);
+        QTimer::singleShot(3000, roleProbe, [roleProbe] { roleProbe->start(); });
     }
 
     // Warm the pose session off the main thread once the UI is up, so the first shot does not

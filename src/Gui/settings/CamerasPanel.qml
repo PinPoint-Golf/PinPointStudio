@@ -68,8 +68,12 @@ Item {
         if (!mode || !(maxW > 0) || !(maxH > 0)) return
         var w = Math.min(1.0, mode.w / maxW)
         var h = Math.min(1.0, mode.h / maxH)
+        // The impact strip is the impact ROLE's crop, kept apart from the crop
+        // the camera uses in every other role (camera_roi.h): writing it over
+        // that one sent an ex-impact camera back to DTL as a 640x240 strip.
+        var roiKey = cameraKey + "#impact"
         var roiMap = appSettings.cameraRoi
-        var cur = roiMap[cameraKey]
+        var cur = roiMap[roiKey]
         // Keep the operator's placement when the new size still fits there;
         // otherwise centre it.
         var x = (cur && cur.x + w <= 1.0) ? cur.x : (1.0 - w) / 2.0
@@ -78,9 +82,12 @@ Item {
         fpsMap[cameraKey] = mode.fps
         appSettings.cameraTargetFps = fpsMap
         cameraManager.setTargetFps(camIndex, mode.fps)
-        if (liveInstance)
+        // Live only when the camera is ALREADY the impact camera (a mode chip):
+        // from the VIEW combo the instance still has its old role, and the
+        // role change reconnects it with this crop anyway.
+        if (liveInstance && liveInstance.perspective === CameraInstance.Impact)
             liveInstance.setCropRoi(Qt.rect(x, y, w, h))
-        roiMap[cameraKey] = { x: x, y: y, w: w, h: h }
+        roiMap[roiKey] = { x: x, y: y, w: w, h: h }
         appSettings.cameraRoi = roiMap
     }
 
@@ -91,16 +98,17 @@ Item {
         // A streaming camera takes it now (impact_camera_design.md §10.3);
         // otherwise the next connect primes it.
         if (liveInstance && liveInstance.isRecording)
-            liveInstance.applyLiveTuning(us, -1, 0)
+            liveInstance.applyLiveTuning(us, -1)
     }
 
     // ── Impact camera tuning (impact_camera_design.md §10.3) ─────────────────
-    // gainDb / gamma go to the camera (live when it streams, else at the next
+    // gainDb goes to the camera (live when it streams, else at the next
     // connect); viewGain is a display stretch on the tile and the replay;
     // strobe drives Line1 at the next connect; note is stamped into the clip.
-    // Defaults are CameraInstance's, set from the 2026-09-15 recordings.
-    readonly property double impactDefaultGainDb:   12
-    readonly property double impactDefaultGamma:    0.7
+    // Defaults are CameraInstance's (flir_camera_settings.md §5: 18 dB, the
+    // Chameleon3's maximum, measured 2026-10-08). No gamma: a Chameleon3 has
+    // none in raw Bayer, and the control was dropped.
+    readonly property double impactDefaultGainDb:   18
     readonly property double impactDefaultViewGain: 1
 
     function impactTuning(cameraKey, member, fallback) {
@@ -115,8 +123,7 @@ Item {
         map[cameraKey] = t
         appSettings.cameraTuning = map
         if (liveInstance && liveInstance.isRecording) {
-            if (member === "gainDb") liveInstance.applyLiveTuning(0, value, 0)
-            if (member === "gamma")  liveInstance.applyLiveTuning(0, -1, value)
+            if (member === "gainDb") liveInstance.applyLiveTuning(0, value)
         }
     }
 
@@ -533,13 +540,16 @@ Item {
                         var inst      = camRow.realInstance
                         var storedFps = appSettings.cameraTargetFps[key]
                         var expUnset  = appSettings.cameraExposureUs[key] === undefined
+                        // No impact strip of its own yet (camera_roi.h) — including a camera
+                        // whose strip used to live in the shared crop: seed the mode.
+                        var stripUnset = appSettings.cameraRoi[key + "#impact"] === undefined
                         if (p === CameraInstance.Impact) {
                             // First assignment seeds the recommended mode and
                             // exposure, so the camera is usable with no
                             // further click (impact_camera_design.md §10.2).
                             if (expUnset)
                                 panelRoot.setImpactExposure(key, panelRoot.impactDefaultExposureUs)
-                            if (!(storedFps >= 420) && modes.length > 0)
+                            if ((!(storedFps >= 420) || stripUnset) && modes.length > 0)
                                 panelRoot.applyImpactMode(key, camIndex, maxW, maxH, modes[0], inst)
                         }
                         mgr.assignPerspective(key, p)
@@ -999,7 +1009,8 @@ Item {
                     spacing: Theme.sp(4)
                     Layout.preferredWidth: Theme.sp(520)
 
-                    readonly property var    storedRoi: appSettings.cameraRoi[camData.cameraKey]
+                    // The impact strip, stored apart from the camera's other-role crop (camera_roi.h).
+                    readonly property var    storedRoi: appSettings.cameraRoi[camData.cameraKey + "#impact"]
                     readonly property double storedFps: {
                         var v = appSettings.cameraTargetFps[camData.cameraKey]
                         return (v !== undefined && v > 0) ? v : 0
@@ -1082,7 +1093,7 @@ Item {
             }
 
             // Everything else about the impact camera lives behind this
-            // disclosure: exposure, gain, gamma, view, strobe, levels and the
+            // disclosure: exposure, gain, view, strobe, levels and the
             // note are for the operator tuning a room, not for choosing a
             // camera, and they overwhelm the row when always shown. The crop,
             // rate and resolution (the mode chips above, and Set crop) stay.
@@ -1258,8 +1269,8 @@ Item {
             Item { Layout.fillWidth: true }
           }
 
-          // ── Row 2: gain, gamma, view gain, strobe — tuning to the room ────
-          // (impact_camera_design.md §10.3). Gain and gamma write to the
+          // ── Row 2: gain, view gain, strobe — tuning to the room ──────────
+          // (impact_camera_design.md §10.3). Gain writes to the
           // camera the moment they are clicked when it streams; the tile's
           // level readout (bg / peak / clip) is what to watch.
           RowLayout {
@@ -1292,41 +1303,11 @@ Item {
                     text: {
                         var inst = camRow.realInstance
                         var held = (inst && inst.appliedGainDb >= 0) ? qsTr("Camera holds %1 dB. ").arg(inst.appliedGainDb.toFixed(1)) : ""
-                        return held + qsTr("12 dB is 4×: the club body from ~25 to ~100 of 255 at 70 µs (2026-09-15). Auto-gain off.")
+                        return held + qsTr("Default 18 dB: at 70 µs the camera is short of light, and gain is the one lever it has. Every 6 dB doubles the ball and the club. Auto-gain off; the black level is lifted so the shadows do not clip.")
                     }
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
                     color: Theme.colorText3; wrapMode: Text.WordWrap
                     Layout.preferredWidth: Theme.sp(300)
-                }
-            }
-
-            // In-camera gamma — applied on the sensor's full bit depth, so
-            // below 1 lifts the shadows the club lives in without clipping
-            // the ball.
-            ColumnLayout {
-                spacing: Theme.sp(4)
-                Layout.alignment: Qt.AlignTop
-                TuneHeading { text: qsTr("GAMMA") }
-                Row {
-                    id: gammaRow
-                    spacing: Theme.sp(4)
-                    readonly property double selected:
-                        root.impactTuning(camData.cameraKey, "gamma", root.impactDefaultGamma)
-                    Repeater {
-                        model: [1.0, 0.8, 0.7, 0.6, 0.5]
-                        delegate: TuneChip {
-                            required property var modelData
-                            label:    modelData.toFixed(1)
-                            selected: Math.abs(gammaRow.selected - modelData) < 0.05
-                            onClicked: root.setImpactTuning(camData.cameraKey, "gamma", modelData, camRow.realInstance)
-                        }
-                    }
-                }
-                Text {
-                    text: qsTr("Lifts shadows before the 8-bit output; 1.0 is linear.")
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
-                    color: Theme.colorText3; wrapMode: Text.WordWrap
-                    Layout.preferredWidth: Theme.sp(200)
                 }
             }
 
@@ -1550,8 +1531,17 @@ Item {
                         // Preview area
                         Rectangle {
                             id: previewRect
-                            width:  Theme.sp(510)
-                            height: Theme.sp(288)
+                            // The full sensor's aspect, inside the old 510×288 box: the crop
+                            // box below is drawn as fractions of THIS rectangle, so the
+                            // picture has to fill it exactly — a 1280×1024 Chameleon3 in a
+                            // 16:9 box was pillarboxed and the box sat off the picture.
+                            readonly property real sensorAspect:
+                                (camData.maxWidth > 0 && camData.maxHeight > 0)
+                                    ? camData.maxWidth / camData.maxHeight : 16.0 / 9.0
+                            readonly property real boxW: Theme.sp(510)
+                            readonly property real boxH: Theme.sp(288)
+                            width:  sensorAspect >= boxW / boxH ? boxW : boxH * sensorAspect
+                            height: sensorAspect >= boxW / boxH ? boxW / sensorAspect : boxH
                             color:  "#080a0c"
                             border.width: 1
                             border.color: Theme.colorBorderMid
@@ -1579,6 +1569,16 @@ Item {
                             VideoOutput {
                                 id: settingsVideoOutput
                                 anchors.fill: parent
+                                visible: !(camRow.localPreviewInstance && camRow.localPreviewInstance.needsDebayer)
+                            }
+                            // A raw-Bayer camera (the Chameleon3s) is demosaiced on the GPU
+                            // here exactly as on the camera tiles. The settings sink above
+                            // only ever carried the mosaic as greyscale.
+                            BayerVideoItem {
+                                id: settingsBayerView
+                                anchors.fill: parent
+                                visible: camRow.localPreviewInstance !== null
+                                         && camRow.localPreviewInstance.needsDebayer
                             }
 
                             // A failed start is otherwise silent — the tile just stays
@@ -1640,10 +1640,13 @@ Item {
                                     if (!camData.cameraKey) return
                                     var roi = camRow.instance.cropRoi
                                     var map = appSettings.cameraRoi
+                                    // The crop of the role the camera is in (camera_roi.h).
+                                    var roiKey = camData.cameraKey
+                                               + (camData.perspective === CameraInstance.Impact ? "#impact" : "")
                                     if (roi.width > 0 && roi.height > 0)
-                                        map[camData.cameraKey] = { x: roi.x, y: roi.y, w: roi.width, h: roi.height }
+                                        map[roiKey] = { x: roi.x, y: roi.y, w: roi.width, h: roi.height }
                                     else
-                                        delete map[camData.cameraKey]
+                                        delete map[roiKey]
                                     appSettings.cameraRoi = map
                                 } catch (e) {
                                     // The context this handler needed is gone —
@@ -1721,11 +1724,14 @@ Item {
                                         if (r.width <= 0 || r.height <= 0)
                                             inst.setCropRoi(Qt.rect(0.3, 0.0, 0.4, 1.0))
                                         inst.setSettingsSink(settingsVideoOutput.videoSink)
+                                        inst.addBayerItem(settingsBayerView)
                                     } else {
+                                        inst.removeBayerItem(settingsBayerView)
                                         inst.setSettingsSink(rowVideoOutput.videoSink)
                                     }
                                     inst.startPreview()
                                 } else if (camRow.localPreviewInstance) {
+                                    camRow.localPreviewInstance.removeBayerItem(settingsBayerView)
                                     camRow.localPreviewInstance.setSettingsSink(null)
                                     camRow.localPreviewInstance.stopPreview()
                                     cameraManager.destroyPreviewInstance(camRow.localPreviewInstance)
@@ -1736,6 +1742,7 @@ Item {
                             Component.onCompleted: syncPreview()
                             Component.onDestruction: {
                                 if (camRow.localPreviewInstance) {
+                                    camRow.localPreviewInstance.removeBayerItem(settingsBayerView)
                                     camRow.localPreviewInstance.setSettingsSink(null)
                                     camRow.localPreviewInstance.stopPreview()
                                     cameraManager.destroyPreviewInstance(camRow.localPreviewInstance)

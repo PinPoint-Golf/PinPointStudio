@@ -218,12 +218,13 @@ class AppSettings : public QObject
     // (impact_camera_design.md §10.2); other cameras keep auto-exposure.
     Q_PROPERTY(QVariantMap cameraExposureUs    READ cameraExposureUs    WRITE setCameraExposureUs    NOTIFY cameraExposureUsChanged)
     // The impact camera's tuning beyond exposure, per cameraKey
-    // (impact_camera_design.md §10.3): { gainDb, gamma, viewGain, strobe,
-    // note }. gainDb/gamma are written to the camera; viewGain is a display
-    // stretch on the tile and the replay (never baked into the pixels);
-    // strobe enables the Line1 ExposureActive output; note is free text
-    // (lens, aperture, light) stamped into every clip. Missing members take
-    // CameraInstance::kImpactDefault* — set from the 2026-09-15 recordings.
+    // (impact_camera_design.md §10.3): { gainDb, viewGain, strobe, note }.
+    // gainDb is written to the camera; viewGain is a display stretch on the
+    // tile and the replay (never baked into the pixels); strobe enables the
+    // Line1 ExposureActive output; note is free text (lens, aperture, light)
+    // stamped into every clip. Missing members take CameraInstance::kImpact*
+    // (flir_camera_settings.md §5). A "gamma" member from before 2026-10-08
+    // is ignored: a Chameleon3 never applied it.
     Q_PROPERTY(QVariantMap cameraTuning        READ cameraTuning        WRITE setCameraTuning        NOTIFY cameraTuningChanged)
     // The impact camera's picture-in-picture box over the camera tiles
     // (PpCameraTiles.qml): { x, y, w } normalised — w as a fraction of the
@@ -500,6 +501,7 @@ public:
         m_cameraExposureUs   = ppSettings().value(QStringLiteral("camera/exposureUs"),   QVariantMap{}).toMap();
         m_cameraTuning       = ppSettings().value(QStringLiteral("camera/tuning"),       QVariantMap{}).toMap();
         m_impactPipRect      = ppSettings().value(QStringLiteral("camera/impactPip"),    QVariantMap{}).toMap();
+        migrateImpactRoi();   // the impact strip moves to its own "<key>#impact" entry, once
 
         m_imuExcluded             = ppSettings().value(QStringLiteral("imu/excluded"),             QStringList{}).toStringList();
         loadImuRoles();   // imu/roles, migrating imu/placement once; derives m_imuPlacement
@@ -1769,6 +1771,11 @@ private:
     // Reads imu/roles, or — once, behind the imu/rolesMigrated marker — builds it from
     // imu/placement through the Wrist map. Then derives m_imuPlacement. app_settings.cpp.
     void loadImuRoles();
+    // Once, behind camera/impactRoiMigrated: the camera whose role is Impact
+    // had its strip in the shared camera/roi entry; it moves to "<key>#impact"
+    // (camera_roi.h), and the plain entry — the strip, not a crop that camera
+    // ever had in another role — is dropped. app_settings.cpp.
+    void migrateImpactRoi();
 
     int     m_themeIndex      = 0;
     int     m_windowWidth     = 1120;

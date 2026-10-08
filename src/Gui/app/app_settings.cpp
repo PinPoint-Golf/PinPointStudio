@@ -26,6 +26,31 @@
 #include <QtConcurrent/QtConcurrentRun>
 
 // ---------------------------------------------------------------------------
+// The impact strip gets its own crop entry (camera_roi.h, 2026-10-08)
+// ---------------------------------------------------------------------------
+
+void AppSettings::migrateImpactRoi()
+{
+    QSettings s = ppSettings();
+    if (s.value(QStringLiteral("camera/impactRoiMigrated"), false).toBool())
+        return;
+    constexpr int kImpact = 4;   // CameraInstance::Impact (camera_roi.h asserts it)
+    bool changed = false;
+    for (auto it = m_cameraPerspective.cbegin(); it != m_cameraPerspective.cend(); ++it) {
+        const QString key = it.key();
+        const QString strip = key + QStringLiteral("#impact");
+        if (it.value().toInt() != kImpact || m_cameraRoi.contains(strip) || !m_cameraRoi.contains(key))
+            continue;
+        m_cameraRoi.insert(strip, m_cameraRoi.take(key));
+        ppInfo() << "[AppSettings] impact crop for" << key << "moved to its own entry";
+        changed = true;
+    }
+    if (changed)
+        s.setValue(QStringLiteral("camera/roi"), m_cameraRoi);
+    s.setValue(QStringLiteral("camera/impactRoiMigrated"), true);
+}
+
+// ---------------------------------------------------------------------------
 // Role-keyed IMU placement (session_wizard_refactor_design.md §4.13)
 // ---------------------------------------------------------------------------
 

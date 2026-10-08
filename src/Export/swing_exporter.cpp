@@ -432,8 +432,8 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             captureObj[QStringLiteral("gainDb")]     = rec.cam->gainDb;
             captureObj[QStringLiteral("gainSource")] = rec.cam->gainSource;
         }
-        if (rec.cam->gamma > 0.0)
-            captureObj[QStringLiteral("gamma")] = rec.cam->gamma;
+        if (rec.cam->blackLevelLift > 0.0)
+            captureObj[QStringLiteral("blackLevelLift")] = rec.cam->blackLevelLift;
         // How the frames were timestamped, and how well (event_buffer_design.md §9). Absent means the
         // stream was stamped on arrival, which is every swing before 2026-09-16.
         if (!rec.cam->timestampSource.isEmpty())
