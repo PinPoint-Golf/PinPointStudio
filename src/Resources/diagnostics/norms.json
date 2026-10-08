@@ -1306,6 +1306,15 @@
       "source": "heuristic"
     },
     {
+      "measure": "m_trailForearmTop",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 15.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "THE SIGNAL SURFACES BEYOND 30°, AND SIGMA IS SET TO PUT IT THERE: 15°, so sig_flyingElbowDtl fires from 2 sigma = 30° (goodMaxZ = 2) and Action begins at 45° under the Standard policy (watchMaxZ = 3). Mark chose 30 on 2026-10-08 as the stricter of two readings of the coaching standard. NOTE THIS IS NOT the pack's usual convention, where the authored number is the Action line: here the authored number is where the condition first fires, because that is the line Mark set. Convention, not a fitted spread and not a sourced number: no source gives an angle. Coaching practice (searched 2026-10-08, 'flying elbow top of backswing trail forearm angle') holds that from the target line most golfers' trail elbow points at the ground at the top, and a flying elbow points well behind the golfer; it is not necessarily a fault. Read geometrically, 0° is the elbow directly under the hands and 45° is the elbow as far behind the hands as under them, which is where Action begins. A CEILING, so only the behind-the-golfer tail grades: an elbow tucked toward the ball side of the hands is not this fault. One golfer's data (2026-10-05/07/08, 111 swings, median 13-19°, max 30°) — docs/research/data/dtl_posture/trail_elbow_dtl_20261008.md. The angle is in the down-the-line image, so camera height and offset bias it."
+    },
+    {
       "measure": "m_leadArmToTorso",
       "context": "any",
       "mu": 20.0,

@@ -151,7 +151,7 @@ struct DtlPostureResult {
 
 namespace dtl_posture_detail {
 
-constexpr int kNose = 0, kLSh = 5, kRSh = 6, kLWr = 9, kRWr = 10, kLHip = 11, kRHip = 12, kLKnee = 13, kRKnee = 14,
+constexpr int kNose = 0, kLSh = 5, kRSh = 6, kLEl = 7, kREl = 8, kLWr = 9, kRWr = 10, kLHip = 11, kRHip = 12, kLKnee = 13, kRKnee = 14,
               kLAnk = 15, kRAnk = 16, kLBigToe = 17, kLHeel = 19, kRBigToe = 20, kRHeel = 22;
 
 struct View {
@@ -274,11 +274,12 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
     // ── per-frame channels ─────────────────────────────────────────────────────────────────
     std::vector<int64_t> grid;
     grid.reserve(v.size());
-    MetricChannel thrust, bend, kneeLead, kneeTrail;
+    MetricChannel thrust, bend, kneeLead, kneeTrail, forearm;
     const int lHip = in.leadIsLeft ? kLHip : kRHip, lKnee = in.leadIsLeft ? kLKnee : kRKnee,
               lAnk = in.leadIsLeft ? kLAnk : kRAnk;
     const int tHip = in.leadIsLeft ? kRHip : kLHip, tKnee = in.leadIsLeft ? kRKnee : kLKnee,
               tAnk = in.leadIsLeft ? kRAnk : kLAnk;
+    const int tEl = in.leadIsLeft ? kREl : kLEl, tWr = in.leadIsLeft ? kRWr : kLWr;
     for (size_t i = 0; i < v.size(); ++i) {
         const int64_t t = v.t(i);
         grid.push_back(t);
@@ -293,6 +294,16 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
             kneeLead.push(t, kneeFlexDeg(v.px(i, lHip), v.px(i, lKnee), v.px(i, lAnk)));
         if (v.ok(i, tHip, cm) && v.ok(i, tKnee, cm) && v.ok(i, tAnk, cm))
             kneeTrail.push(t, kneeFlexDeg(v.px(i, tHip), v.px(i, tKnee), v.px(i, tAnk)));
+        // WHICH WAY THE TRAIL ELBOW POINTS: the wrist→elbow vector from straight down, + when the
+        // elbow is away from the ball (behind the golfer). 0° is the elbow under the hands, pointing
+        // at the ground — the TPI "normal" top; a flying elbow points well behind. Read here because
+        // the face-on trailElbowHeight is refused at the top on most swings (the shoulder line
+        // collapses with the turn), while this view sees the elbow at the top on 111 of 113 swings
+        // (docs/research/data/dtl_posture/trail_elbow_dtl_20261008.md).
+        if (v.ok(i, tEl, cm) && v.ok(i, tWr, cm)) {
+            const QPointF d = v.px(i, tEl) - v.px(i, tWr);
+            forearm.push(t, std::atan2(-tw * d.x(), d.y()) * 180.0 / M_PI);
+        }
     }
 
     const std::vector<PhaseEvent> &ph = *in.phases;
@@ -314,6 +325,8 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
          { Phase::Address, Phase::Top, Phase::Impact, Phase::ShaftParallelThrough }, false);
     pushSeries(kneeTrail, "trailKneeFlexion", "Trail knee flexion", "°",
          { Phase::Address, Phase::Top, Phase::Impact }, false);
+    pushSeries(forearm, "trailForearmAngle", "Trail elbow direction", "°",
+         { Phase::Top }, false);
 
     // ── address scalars ────────────────────────────────────────────────────────────────────
     auto scalar = [&](const char *key, const char *label, const char *unit, double value) {

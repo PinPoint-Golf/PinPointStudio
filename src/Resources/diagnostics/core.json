@@ -534,6 +534,21 @@
       "unit": "% shoulder width"
     },
     {
+      "id": "m_trailForearmTop",
+      "kind": "provided",
+      "metricKey": "trailForearmAngle",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p4"
+      },
+      "shape": "ceiling",
+      "status": "live",
+      "label": "Trail elbow direction at the top",
+      "unit": "°",
+      "highMeans": "the trail elbow pointing further behind the golfer at the top",
+      "viewNeeded": "downTheLine"
+    },
+    {
       "id": "m_leadArmToTorso",
       "kind": "composed",
       "series": {
@@ -2395,6 +2410,14 @@
       "direction": "high"
     },
     {
+      "id": "sig_flyingElbowDtl",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_trailForearmTop"
+      ],
+      "direction": "high"
+    },
+    {
       "id": "sig_chickenWing",
       "test": "outsideCorridor",
       "measures": [
@@ -3887,7 +3910,9 @@
       "prominence": "occasional",
       "observability": "observable",
       "confirmedBy": "measured",
+      "detection": "first",
       "detectedBy": [
+        "sig_flyingElbowDtl",
         "sig_flyingElbow"
       ],
       "state": "active",

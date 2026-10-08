@@ -75,6 +75,10 @@ static const Expect kExpected[] = {
     { "sig_flatShoulderPlane",Direction::Low,   "shoulderPlaneAngle3d: 'Lower means flatter'" },
     { "sig_flyingElbow",      Direction::High,
       "trailElbowHeight: 'higher means the elbow has risen further above the shoulder line'" },
+    // flying_elbow's PREFERRED signal since 2026-10-08 (detection 'first'): the down-the-line view,
+    // where the elbow is visible at the top and the face-on shoulder line has collapsed.
+    { "sig_flyingElbowDtl",   Direction::High,
+      "trailForearmAngle: 'HIGHER MEANS THE ELBOW POINTS FURTHER BEHIND THE GOLFER'" },
     // Moved off pelvisLift, which is the pelvis CENTRE rising, onto the hip LINE. One hip riding up
     // over the other and the whole pelvis lifting evenly are different observations, and the second
     // is what pelvisLift measures — so a hike and an even lift were being read off one number.

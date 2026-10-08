@@ -54,7 +54,8 @@ static double smooth(double t, double a, double b)
 { const double u = std::clamp((t - a) / (b - a), 0.0, 1.0); return u * u * (3 - 2 * u); }
 
 // mirror = the same golfer facing image-LEFT.
-static PoseTrack2D makePose(bool mirror, double thrustPx = 30.0, float toeConf = 0.9f, double loopPx = 60.0)
+static PoseTrack2D makePose(bool mirror, double thrustPx = 30.0, float toeConf = 0.9f, double loopPx = 60.0,
+                            double elbowBehindPx = 0.0, float elbowConf = 0.9f)
 {
     PoseTrack2D p;
     auto X = [mirror](double x) { return mirror ? kW - x : x; };
@@ -96,6 +97,11 @@ static PoseTrack2D makePose(bool mirror, double thrustPx = 30.0, float toeConf =
             wx = lineX(wy) + loopPx * std::min(1.0, 3.0 * (1.0 - v));
         }
         set(9, wx, wy);
+        // trail (right) wrist beside the lead one; trail elbow 100 px below it and `elbowBehindPx`
+        // AWAY from the ball (image-left here), so the forearm reads atan(behind / 100) throughout.
+        set(10, wx + 10, wy);
+        set(8, wx + 10 - elbowBehindPx, wy + 100);
+        f.conf[8] = elbowConf;
         p.frames.push_back(f);
     }
     return p;
@@ -168,6 +174,26 @@ int main()
         check(bal && atPhase(bal, Phase::Address) > 0 && atPhase(bal, Phase::Address) < 120, "§1 balance proxy emitted");
         check(near(atPhase(find(r, "handPathLoop"), Phase::Top), 15.0, 0.3),
               "§1 hands down 60 px outside a 400 px rise ⇒ loop +15 %");
+    }
+
+    // §1c which way the trail elbow points: 0° under the hands, + behind the golfer, the sign from
+    // the feet (so a mirrored golfer reads the same), and an unseen elbow is no reading.
+    {
+        const PoseTrack2D under = makePose(false);
+        check(near(atPhase(find(buildDtlPosture(inputs(under, false), cfg), "trailForearmAngle"), Phase::Top), 0.0, 0.01),
+              "§1c elbow under the hands ⇒ 0°");
+        const PoseTrack2D behind = makePose(false, 30.0, 0.9f, 60.0, 100.0);
+        check(near(atPhase(find(buildDtlPosture(inputs(behind, false), cfg), "trailForearmAngle"), Phase::Top), 45.0, 0.01),
+              "§1c elbow 100 px behind, 100 px below ⇒ +45°");
+        const PoseTrack2D tucked = makePose(false, 30.0, 0.9f, 60.0, -36.4);
+        check(near(atPhase(find(buildDtlPosture(inputs(tucked, false), cfg), "trailForearmAngle"), Phase::Top),
+                   -std::atan(0.364) * 180.0 / M_PI, 0.01), "§1c elbow toward the ball ⇒ negative");
+        const PoseTrack2D mirrored = makePose(true, 30.0, 0.9f, 60.0, 100.0);
+        check(near(atPhase(find(buildDtlPosture(inputs(mirrored, true), cfg), "trailForearmAngle"), Phase::Top), 45.0, 0.01),
+              "§1c mirrored golfer ⇒ the same +45°");
+        const PoseTrack2D unseen = makePose(false, 30.0, 0.9f, 60.0, 100.0, 0.05f);
+        const DtlPostureResult r = buildDtlPosture(inputs(unseen, false), cfg);
+        check(r.valid && find(r, "trailForearmAngle") == nullptr, "§1c elbow unseen ⇒ no reading, the rest still valid");
     }
 
     // §1b the loop's sign is the hands' side of the backswing path, and needs no ruler.

@@ -87,7 +87,7 @@ int main()
         // sequence is read from (pelvis / thorax / leadArm / club — segment_rates.h); the
         // Sequence itself went from planned to live the same day.
         // 104 -> 105 on 2026-09-23 with handPathLoop, the down-the-line hand loop over the top reads.
-        checkEqI(static_cast<int>(cat.all().size()), 108, "descriptor count == 108");   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
+        checkEqI(static_cast<int>(cat.all().size()), 109, "descriptor count == 109");   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
                                "clubheadPeakLead",
@@ -129,7 +129,7 @@ int main()
 
     // 2. Type / group / scored filtering.
     {
-        checkEqI(countType(cat, MetricType::TimeSeries),  52, "TimeSeries count");   // +shaftLie (2026-10-01)   // +4 segment angular speeds (2026-09-17)   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
+        checkEqI(countType(cat, MetricType::TimeSeries),  53, "TimeSeries count");   // +trailForearmAngle (2026-10-08)   // +shaftLie (2026-10-01)   // +4 segment angular speeds (2026-09-17)   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
         // 26, not 28: `shoulderAlignment` and `hipAlignment` were both PointInTime and both retired
         // as duplicates of a series the catalogue already carries.
         // 45 -> 47 on 2026-09-14, both PLANNED and both the honest replacement for a measure that
@@ -159,7 +159,7 @@ int main()
         // Arm geometry (trail elbow height, swing width, arm-to-torso) is its own group rather
         // than being filed under wrist and forearm, which would mislabel it in the directory.
         MetricQuery armq; armq.group = QStringLiteral("Arms");
-        checkEqI(static_cast<int>(cat.query(armq).size()), 4, "group 'Arms' == 4");
+        checkEqI(static_cast<int>(cat.query(armq).size()), 5, "group 'Arms' == 5");   // +trailForearmAngle
 
         // Two groups arrived with the content extension. Ball flight is what the golfer sees and
         // Strike is what the face did; keeping them apart matters because one of them is mostly
@@ -1119,7 +1119,7 @@ int main()
                 if (!d->card.drawsCurve()) { ++instantOnly; who << d->key; }
             }
             std::printf("    instant-only time series: %s\n", qPrintable(who.join(QStringLiteral(", "))));
-            checkEqI(instantOnly, 17, "17 time-series metrics are instant-only — a card, no curve (2026-10-01)");   // 19 → 17: the two forearm rotations keep their curve with a PEAK over P1→P2
+            checkEqI(instantOnly, 18, "18 time-series metrics are instant-only — a card, no curve (2026-10-08)");   // +trailForearmAngle   // 19 → 17: the two forearm rotations keep their curve with a PEAK over P1→P2
             for (const char *k : { "leadKneeFlexion", "leadUpperArmToChest", "plumbBobDistance", "lagAngle",
                                    "clubheadSpeed", "pelvisSway", "headSway", "leadWristFlexExt",
                                    "forearmRotation", "hm.forearmRotation" })

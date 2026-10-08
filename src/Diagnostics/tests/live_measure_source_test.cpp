@@ -320,7 +320,8 @@ int main(int argc, char **argv)
     // 136 -> 137 on 2026-09-23: m_handPathLoop, the down-the-line hand loop over_the_top now reads.
     // 138 -> 140 on 2026-10-02: m_pelvisPeakTime, m_thoraxPeakTime — sequence_order's Order test reads
     // event TIMES, and was fed rotation peak ANGLES until then.
-    check(pack.measures.size() == 140, "…and 140 measures");   // +m_shaftLieDelta
+    // 140 -> 141 on 2026-10-08: m_trailForearmTop, flying_elbow's down-the-line reading.
+    check(pack.measures.size() == 141, "…and 141 measures");   // +m_shaftLieDelta
     check(!norms->norms().norms.empty(), "the shipped norm set loaded");
 
     QTemporaryDir tmp;

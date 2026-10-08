@@ -2859,6 +2859,37 @@ void installMetricManifest(MetricCatalogue &cat)
     });
 
     cat.addDescriptor({
+        .key = QStringLiteral("trailForearmAngle"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Trail elbow direction"),
+        .shortLabel = QStringLiteral("Trail elbow dir."),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Arms"),
+        .color = QStringLiteral("coral"),
+        .description = QStringLiteral(
+            "Which way the trail elbow points at the top, read as the trail forearm's angle from "
+            "vertical seen from down the line. On most golfers the elbow points at the ground at "
+            "the top, under the hands, where it supports the club; a flying elbow points well "
+            "behind the golfer."),
+        .howToRead = QStringLiteral(
+            "A per-frame curve; the reading that matters is at the top. 0° is the elbow directly "
+            "under the hands. HIGHER MEANS THE ELBOW POINTS FURTHER BEHIND THE GOLFER, away from "
+            "the ball; negative is the elbow tucked in toward the ball side of the hands. An angle "
+            "in the down-the-line image, so the camera's height and offset bias it. Needs a "
+            "down-the-line camera."),
+        .signPositive = QStringLiteral("the trail elbow points further behind the golfer"),
+        .signNegative = QStringLiteral("tucked toward the ball side of the hands"),
+        .phases = { P::Top },
+        .card = { .readAt = { { P::Top, {} } }, .peak = false, .delta = false, .rate = false },
+        .routes = {
+            via("dtl", RM::Projected, Direct, { .dtlCamera = true },
+                QStringLiteral("the elbow against the hands from down the line, where the top of "
+                               "the backswing is in view; the face-on shoulder line it would "
+                               "otherwise be read against collapses with the turn")) },
+        .usedBy = { QStringLiteral("characteristic:flying_elbow") },
+    });
+
+    cat.addDescriptor({
         .key = QStringLiteral("leadHandWidth"),
         .type = MetricType::TimeSeries,
         .label = QStringLiteral("Swing width at the top"),
