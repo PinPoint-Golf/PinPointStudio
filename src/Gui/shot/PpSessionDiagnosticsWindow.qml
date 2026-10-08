@@ -130,6 +130,9 @@ Window {
                 id: diag
                 anchors.fill: parent
                 interactive: win.interactive
+                // The cast is not where the reader navigates; the stage panel's saved place is
+                // theirs (SessionMode.diagnosticsNav), and this must neither read nor overwrite it.
+                remembersNav: false
             }
         }
     }

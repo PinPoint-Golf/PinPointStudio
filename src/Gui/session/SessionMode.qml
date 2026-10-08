@@ -53,6 +53,14 @@ QtObject {
     // turns it on in View, and a card must cost nothing when it is (see PpShotCard).
     property var    sessionDiagnostics: null
 
+    // Where the reader was in the stage's session diagnostics panel — tab, card filter,
+    // Watching fold, open characteristic, and each list's scroll — kept HERE because the panel
+    // does not survive a mode switch: PpModeStage rebuilds its panels on every Capture↔Replay
+    // flip, i.e. twice per auto-replayed shot. The panel saves it on teardown and puts it back
+    // on build (PpSessionDiagnosticsPanel). Stamped with the session folder it was read in, so
+    // a different session starts from the defaults. Not persisted. null = nothing saved.
+    property var    diagnosticsNav: null
+
     // True only while the active Replay was auto-promoted from a just-captured shot
     // (post-shot instant playback). When that replay reaches its natural end the
     // host returns to Capture; EVERY other transition below clears it, so a

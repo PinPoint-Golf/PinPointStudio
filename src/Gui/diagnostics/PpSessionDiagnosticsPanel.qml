@@ -59,6 +59,12 @@ Item {
     // PpSessionDiagnosticsWindow.interactive; nothing about what the panel SAYS changes.
     property alias interactive: body.interactive
 
+    // Whether this panel keeps the reader's place across its own rebuilds (SessionMode
+    // .diagnosticsNav). On for the stage panel, which PpModeStage tears down and rebuilds on
+    // every mode switch; off for the secondary-display cast, which has its own lifetime and
+    // must not overwrite where the reader was on the stage.
+    property bool remembersNav: true
+
     // A screen was asked for — the driver footer's CTA, or a screened root on the rail.
     //
     // DELIBERATELY UNCONNECTED. Running a screen is a thirty-second physical test with a
@@ -161,6 +167,14 @@ Item {
         // ledger the cards draw. That is the right answer because it is the one the user is
         // looking at, and it is the only answer that does not need a registry.
         SessionMode.sessionDiagnostics = diagModel
+        if (remembersNav) {
+            _restoreNav()
+            for (let i = 0; i < flickWatch.count; ++i) {
+                const c = flickWatch.objectAt(i)
+                c.target = _flick(c.modelData)
+            }
+        }
+        _navReady = remembersNav
     }
     // ...and released only if it is still OURS. A panel being torn down while a second one
     // holds the seam must not null a pointer it no longer owns — which is exactly what
@@ -169,6 +183,135 @@ Item {
     Component.onDestruction:
         if (SessionMode.sessionDiagnostics === diagModel)
             SessionMode.sessionDiagnostics = null
+
+    // ── keeping the reader's place across a rebuild ──────────────────────────
+    //
+    // THE PANEL DOES NOT SURVIVE A MODE SWITCH. PpModeStage rebuilds its panels on every
+    // Capture↔Replay flip — twice per auto-replayed shot — and a new panel is a new model and
+    // a new body at their defaults, so the characteristic the reader had open, the tab and the
+    // filter were all lost on every shot. So the place is saved on SessionMode as it changes
+    // and put back on build.
+    //
+    // SAVED AS IT CHANGES, NOT ON TEARDOWN: the stage builds the incoming panel BEFORE it
+    // destroys the outgoing one, so a save in onDestruction lands after the restore it was for
+    // (verified with diag_nav_survives_mode_switch.qml). Saving starts only once the restore is
+    // done (_navReady), so the fresh model's activateSession() clearing the detail on build
+    // cannot overwrite the place it is about to be given back.
+    //
+    // A DIFFERENT SESSION STARTS AT THE DEFAULTS — the same rule activateSession() applies to
+    // the open detail — so the saved place is stamped with the folder it was read in.
+    property bool _navReady: false
+    readonly property var _navFlicks: ["sdShotCardsFlick", "sdCardsFlick", "sdWatchingFlick",
+                                       "sdDetailFlick"]
+    function _findNamed(item, name) {
+        if (!item) return null
+        if (item.objectName === name) return item
+        const kids = item.children || []
+        for (let i = 0; i < kids.length; ++i) {
+            const hit = _findNamed(kids[i], name)
+            if (hit) return hit
+        }
+        return null
+    }
+    // Looked up once and cached — and NEVER from a binding: a walk of `children` in a binding
+    // subscribes it to every child list in the body, and the body adds children by the hundred
+    // when a detail opens (the probe hung on exactly that).
+    property var _flickCache: ({})
+    function _flick(name) {
+        let f = _flickCache[name]
+        if (!f) { f = _findNamed(body, name); if (f) _flickCache[name] = f }
+        return f
+    }
+    function _saveNav() {
+        if (!_navReady) return
+        const scroll = {}
+        for (const name of _navFlicks) {
+            // A list still waiting for its restore keeps the place it is waiting for.
+            if (_pendingScroll[name] !== undefined) { scroll[name] = _pendingScroll[name]; continue }
+            const f = _flick(name)
+            if (f && f.contentY > 0) scroll[name] = f.contentY
+        }
+        SessionMode.diagnosticsNav = {
+            sessionDir:        _folder(diagModel.sessionDir),
+            tab:               body.tab,
+            cardFilter:        body.cardFilter,
+            watchingExpanded:  body.watchingExpanded,
+            detailConditionId: diagModel.detailConditionId || "",
+            scroll:            scroll
+        }
+    }
+    function _restoreNav() {
+        const nav = SessionMode.diagnosticsNav
+        if (!nav || nav.sessionDir !== _folder(diagModel.sessionDir)) return
+        body.tab              = nav.tab
+        body.cardFilter       = nav.cardFilter
+        body.watchingExpanded = nav.watchingExpanded
+        if (nav.detailConditionId !== "")
+            diagModel.openDetail(nav.detailConditionId)   // a no-op for an id the pack lacks
+        _pendingScroll = Object.assign({}, nav.scroll || {})
+        _scrollTries = {}
+        if (Object.keys(_pendingScroll).length > 0) scrollRestore.start()
+    }
+
+    // A list's content arrives over the next few frames (Repeaters, then layout), so the
+    // scroll is re-applied until each list is tall enough to take it — for half a second of
+    // the list being ON SCREEN, after which a list that has shrunk keeps the furthest it can
+    // scroll to. A list hidden behind an open detail is not laid out at all, so it waits,
+    // uncounted, until the detail closes.
+    property var _pendingScroll: ({})
+    property var _scrollTries: ({})
+    Timer {
+        id: scrollRestore
+        interval: 50; repeat: true
+        onTriggered: {
+            const left = {}
+            for (const name in root._pendingScroll) {
+                const want = root._pendingScroll[name]
+                const f = root._flick(name)
+                if (!f || !f.visible) { left[name] = want; continue }
+                const tries = (root._scrollTries[name] || 0) + 1
+                root._scrollTries[name] = tries
+                const most = Math.max(0, f.contentHeight - f.height)
+                f.contentY = Math.min(want, most)
+                if (most < want && tries < 10) left[name] = want
+            }
+            root._pendingScroll = left
+            // Nothing left that is on screen: stop, and start again when the body shows more.
+            if (Object.keys(left).every(function (n) {
+                    const f = root._flick(n); return !f || !f.visible }))
+                stop()
+        }
+    }
+    function _resumeScrollRestore() {
+        if (Object.keys(_pendingScroll).length > 0) scrollRestore.start()
+    }
+
+    // The saves, on change. A scroll is saved a moment after it settles; the restore's own
+    // writes do not count, because a list is only written while it is still pending.
+    Connections {
+        target: body
+        function onTabChanged()              { root._saveNav(); root._resumeScrollRestore() }
+        function onCardFilterChanged()       { root._saveNav() }
+        function onWatchingExpandedChanged() { root._saveNav(); root._resumeScrollRestore() }
+        function onDetailOpenChanged()       { root._resumeScrollRestore() }
+    }
+    Connections {
+        target: diagModel
+        function onDetailChanged() { root._saveNav() }
+    }
+    Timer { id: scrollSave; interval: 300; onTriggered: root._saveNav() }
+    Instantiator {
+        id: flickWatch
+        model: root.remembersNav ? root._navFlicks : []
+        delegate: Connections {
+            required property string modelData
+            target: null                                // set once, in Component.onCompleted
+            function onMovementStarted() { delete root._pendingScroll[modelData] }  // theirs now
+            function onContentYChanged() {
+                if (root._pendingScroll[modelData] === undefined) scrollSave.restart()
+            }
+        }
+    }
 
     Connections {
         target: shotProcessor

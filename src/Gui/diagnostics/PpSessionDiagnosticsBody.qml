@@ -1490,6 +1490,7 @@ Rectangle {
             }
 
             Flickable {
+                objectName: "sdWatchingFlick"
                 anchors.fill: parent
                 visible: root._watchingCount > 0
                 contentWidth: width
