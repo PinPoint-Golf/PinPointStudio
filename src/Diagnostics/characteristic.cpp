@@ -119,6 +119,7 @@ const Row<Observability> kObservabilities[] = {
 const Row<DetectionMode> kDetectionModes[] = {
     { DetectionMode::Any, "any", "any signal" },
     { DetectionMode::All, "all", "every signal" },
+    { DetectionMode::First, "first", "the first signal that can be read" },
 };
 
 const Row<ConfirmedBy> kConfirmedBys[] = {

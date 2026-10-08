@@ -56,7 +56,7 @@ inline constexpr int kPackSchemaVersion = 1;
 //                        and every issue it raises would be attributed to the empty string
 //   unknownKind          a MEASURE declares a kind that is not composed or provided
 //   unknownSignalTest    a signal declares a test that is not one of the four
-//   unknownDetection     a condition declares a signal-combining mode that is not any or all.
+//   unknownDetection     a condition declares a signal-combining mode that is not any, all or first.
 //                        An ERROR rather than a fall back to `any`, because "all" misread as "any"
 //                        turns one conjunction into N faults that each fire on their own
 //   unknownShape         a measure declares a shape that is not target/floor/ceiling. An error

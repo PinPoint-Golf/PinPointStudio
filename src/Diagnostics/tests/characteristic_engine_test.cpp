@@ -1044,6 +1044,56 @@ int main()
         check(stateOf(none) == FindingState::Unavailable, "nothing readable at all is Unavailable");
     }
 
+    // ── A preference: detection == First ────────────────────────────────────────
+    //
+    // Two instruments for one observation — flying_elbow reads the down-the-line camera and falls
+    // back to face-on. The first READABLE signal decides alone. What this must get right is the
+    // two cases ANY gets wrong: a clean preferred reading beside an unreadable fallback is a clean
+    // swing (ANY says "unavailable"), and a clean preferred reading beside a fallback that would
+    // fire is still a clean swing (ANY says "fired").
+    {
+        CharacteristicPack p = pack;
+        Condition          c;
+        c.id            = QStringLiteral("preference");
+        c.label         = c.id;
+        c.observability = Observability::Observable;
+        c.confirmedBy   = ConfirmedBy::Measured;
+        c.detectedBy    = { QStringLiteral("sigSway"), QStringLiteral("sigSlide") };
+        c.detection     = DetectionMode::First;
+        c.state         = ConditionState::Active;
+        p.conditions.push_back(c);
+
+        const auto stateOf = [&](const FakeSource &src) {
+            const DetectionResult d = detect(p, src);
+            const Finding        *f = d.find(QStringLiteral("preference"));
+            return f ? f->state : FindingState::Unavailable;
+        };
+
+        FakeSource cleanAndBlind;
+        cleanAndBlind.add(QStringLiteral("mSway"), 0.0, -1.0, 1.0);      // preferred: clean
+        check(stateOf(cleanAndBlind) == FindingState::NotFired,
+              "a clean preferred reading decides, with the fallback unreadable");
+
+        FakeSource cleanOverFiring;
+        cleanOverFiring.add(QStringLiteral("mSway"),  0.0, -1.0, 1.0);  // preferred: clean
+        cleanOverFiring.add(QStringLiteral("mSlide"), 9.0, -1.0, 1.0);  // fallback would fire
+        check(stateOf(cleanOverFiring) == FindingState::NotFired,
+              "the preferred reading decides even when the fallback would fire");
+
+        FakeSource firedPreferred;
+        firedPreferred.add(QStringLiteral("mSway"), 9.0, -1.0, 1.0);
+        check(stateOf(firedPreferred) == FindingState::Fired, "a preferred reading that fires fires");
+
+        FakeSource fallback;
+        fallback.add(QStringLiteral("mSlide"), 9.0, -1.0, 1.0);          // preferred absent
+        check(stateOf(fallback) == FindingState::Fired, "with the preferred unreadable, the fallback decides");
+        fallback.add(QStringLiteral("mSlide"), 0.0, -1.0, 1.0);
+        check(stateOf(fallback) == FindingState::NotFired, "…either way");
+
+        FakeSource none;
+        check(stateOf(none) == FindingState::Unavailable, "nothing readable at all is Unavailable");
+    }
+
     std::printf("%s (%d failure%s)\n", g_fail ? "FAILED" : "OK", g_fail, g_fail == 1 ? "" : "s");
     return g_fail ? 1 : 0;
 }

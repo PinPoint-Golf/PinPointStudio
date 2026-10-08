@@ -400,7 +400,9 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
 
             const SignalVerdict v = evaluate(*sig, source);
             if (!v.available) {
-                anyUnavailable = true;
+                // FIRST: an unreadable preferred signal is not a verdict, it is the cue to try the
+                // next one. Only when none can be read is the finding unavailable (below the loop).
+                if (c.detection != DetectionMode::First) anyUnavailable = true;
                 f.missingMeasures << v.missing;
                 continue;
             }
@@ -420,7 +422,13 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
 
             if (v.driving) candidates.push_back({ sid, v.drivingMeasureId, *v.driving,
                                                   v.confidence, v.fired });
+
+            // FIRST: the first signal that could be read decides alone; the rest are fallbacks
+            // for a capture that could not read it, never a second opinion.
+            if (c.detection == DetectionMode::First) break;
         }
+        // ...and with nothing readable, FIRST is exactly ANY's "could not be assessed".
+        if (c.detection == DetectionMode::First && !anyAvailable) anyUnavailable = true;
 
         // ── ALL: a conjunction, and the precedence INVERTS ───────────────────
         //

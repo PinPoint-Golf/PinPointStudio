@@ -1197,7 +1197,7 @@ QVariantMap ModelBrowser::conditionRow(const Condition &c, bool asCause) const
     // a mode. Editable even while blank, so the column is how you MAKE a conjunction as well as how
     // you spot one; the enum editor supplies both words when it opens.
     QVariantMap detectionCell = cell(detectionModeLabel(c.detection),
-                                     c.detection == DetectionMode::All ? QString()
+                                     c.detection != DetectionMode::Any ? QString()
                                                                        : QStringLiteral("dim"));
     editable(detectionCell, QStringLiteral("detection"), QStringLiteral("enum"),
              detectionModeName(c.detection), detectionOptions());
@@ -2786,6 +2786,8 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
                               ? tr("nothing detects this yet")
                               : (c->detection == DetectionMode::All
                                      ? tr("all %n signal(s) must fire", "", c->detectedBy.size())
+                                     : c->detection == DetectionMode::First
+                                     ? tr("the first of %n signal(s) that can be read decides", "", c->detectedBy.size())
                                      : tr("any of %n signal(s) fires it", "", c->detectedBy.size()))));
         f.append(fieldRow(QStringLiteral("state"), tr("State"), QStringLiteral("enum"),
                           conditionStateName(c->state), stateOptions()));
@@ -4520,6 +4522,8 @@ QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const
             // entry reading "Detection → all" would describe the keystroke rather than the change.
             what = (d == DetectionMode::All)
                        ? tr("Now needs ALL %n signal(s) together", "", c->detectedBy.size())
+                       : (d == DetectionMode::First)
+                       ? tr("Now decided by the FIRST readable of %n signal(s)", "", c->detectedBy.size())
                        : tr("Now fires on ANY of %n signal(s)", "", c->detectedBy.size());
         } else if (field == QStringLiteral("tier")) {
             ProvenanceTier t{};

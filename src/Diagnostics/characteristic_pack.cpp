@@ -720,6 +720,15 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
                      .arg(c.id, c.detectedBy.isEmpty() ? QStringLiteral("none")
                                                        : QStringLiteral("only one")));
 
+        // A FALLBACK NEEDS SOMETHING TO FALL BACK TO. With one signal `first` is `any` written
+        // differently — the same leftover-or-part-way case as a conjunction of one.
+        if (c.detection == DetectionMode::First && c.detectedBy.size() < 2)
+            warn(r, QStringLiteral("fallbackOfOne"), c.id,
+                 QStringLiteral("'%1' takes the first readable signal but has %2. A preference "
+                                "needs at least two signals to choose between.")
+                     .arg(c.id, c.detectedBy.isEmpty() ? QStringLiteral("none")
+                                                       : QStringLiteral("only one")));
+
         // A condition that is only reachable by a screen or by asking cannot also be measured.
         if (isOutsideCaptureReach(c.confirmedBy) && !c.detectedBy.isEmpty())
             warn(r, QStringLiteral("inconsistentReach"), c.id,
@@ -1193,7 +1202,7 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
         if (o.contains(QStringLiteral("detection"))
             && !detectionModeFromName(o.value(QStringLiteral("detection")).toString(), c.detection))
             err(r, QStringLiteral("unknownDetection"), c.id,
-                QStringLiteral("Condition '%1' declares detection '%2'; the modes are any and all.")
+                QStringLiteral("Condition '%1' declares detection '%2'; the modes are any, all and first.")
                     .arg(c.id, o.value(QStringLiteral("detection")).toString()));
         c.screenRef  = o.value(QStringLiteral("screenRef")).toString();
         c.drills     = readStringList(o.value(QStringLiteral("drills")));

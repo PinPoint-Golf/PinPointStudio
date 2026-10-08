@@ -80,6 +80,12 @@ enum class Observability {
 enum class DetectionMode {
     Any,   // the default: alternative routes to one observation, any of which is it
     All,   // a conjunction: every signal must fire, because no one of them is the condition
+    First, // a preference: the first signal in detectedBy order that can be READ decides alone, and
+           // the rest are fallbacks. For one observation two instruments make at different quality —
+           // flying_elbow reads the down-the-line camera and falls back to face-on, whose shoulder
+           // line collapses at the top. Under Any the two would disagree out loud (a clean DTL
+           // reading beside an unreadable face-on one comes out "unavailable"), and a measure ladder
+           // (Measure::preferKeys) cannot join them because their units differ.
 };
 
 // How a condition can be established. The UI must never blur these three.
