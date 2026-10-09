@@ -1078,10 +1078,11 @@ the root application `Rectangle` to animate the transition.
 
 The home screen's YOUR SWING section and the Swing diagnostics screen (October 2026) set a
 look that Mark approved for the whole app: "SO MUCH BETTER", then "it looks excellent". **It is
-the target for every panel.** The Wrist session screen is next, and the rest follow it. It is built
-only from Theme tokens, so it works in all six aesthetics. The reference renders below are
-Instrument.
+the target for every panel.** The Wrist session screen carries it (October 2026, 13.11), and the
+rest follow it. It is built only from Theme tokens, so it works in all six aesthetics. The reference
+renders below are Instrument.
 
+The pieces are shared components in `src/Gui/components/` (13.10). Use them; don't redraw them.
 The code is the reference implementation. Match it, don't reinvent it:
 
 | File | What it shows |
@@ -1251,23 +1252,62 @@ The card's foot holds "6 more" (a link) and "2 cleared" (Micro, `colorGood`).
 - The link row into the detail comes `sp(20)` below the cards: a link, then one line of `colorText3` saying what is behind it.
 - There are two layers: the golfer's words on the front and the technical detail one link away. The detail screen opens with "← Home", a Micro heading and an italic subtitle.
 
-### 13.10 Carrying it to other panels (the Wrist session next)
+### 13.10 Carrying it to other panels
 
-- **Lift the pieces first.** Card, Micro, the badges, FrequencyMeter, Pips, chips, Strength and
-  SwingTimeline are inline components today, copied in each `Hm*.qml` file. Move them into
-  `src/Gui/components/` (for example `PpCard`, `PpMicro`, `PpBadge`, `PpMeter`, `PpPips`, `PpChip`) and point
-  the home cards at them. Then one change restyles every panel, and the home screen proves the move has not
-  changed its look.
-- **Make each panel a Card** with one tone chosen by role (13.2), a Micro title in that tone, and an
-  aside where a column needs a heading.
-- **Keep the numbers on session screens.** They are the technical layer, so values stay in `fontData` as now. But
-  wherever a value is judged against an ideal, give it a mark as well (a badge, meter or pips) and words, so
-  colour is never the only signal.
-- **Keep video, camera tiles and the 3-D view as the dominant mass** (section 8). The card frames a panel
-  and does not compete with it. Stage panels may need only the shell and the heading, not the marks.
+- **Use the shared pieces.** They were lifted out of the `Hm*.qml` files (the home screen renders
+  pixel-identical on them), so one change restyles every panel:
+
+  | Component | What it is |
+  |---|---|
+  | `PpCardShell` | the shell alone: `tone`, `hero` (4 px rule + wash), `floating` (a Popup's, `colorBorderStrong`) |
+  | `PpCard` | shell + Micro `title` / `aside` + a body column (`pad`, `itemGap`, `bodyGap`) |
+  | `PpStageCard` | a stage panel's card: quiet by default, a `heading` Component replaces the title (tabs) |
+  | `PpPopoverCard` | every `Popup`'s `background` |
+  | `PpMicro`, `PpCardNote`, `PpLink`, `PpFact` | the text roles of 13.6 and the label/value row |
+  | `PpInset` | the inset panel, with an optional tone `bar` |
+  | `PpBadge` | `kind` check / target / easing / unconfirmed, `tone`, `size` |
+  | `PpMeter`, `PpPips` / `PpPip`, `PpChip` | the meter, pips (`marks` or `ticks`), chips (`trend`, `tinted`) |
+  | `PpStrengthMark`, `PpSwingTimeline` | the strength mark and the six-stop timeline |
+
+  `Theme.qualityMark(score)` gives the badge kind that goes with `Theme.qualityColor(score)`.
+- **Make each panel a card** with one tone chosen by role (13.2), a Micro title in that tone, and an
+  aside where a column needs a heading. A panel inside a frame it does not own draws no frame or
+  title of its own (13.11).
+- **Keep the numbers on session screens.** They are the technical layer, so values stay in `fontData`.
+  But wherever a value is judged against an ideal, give it a mark as well (a badge, meter, pips or a
+  glyph) and words, so colour is never the only signal.
+- **Keep video, camera tiles and the 3-D view as the dominant mass** (section 8). The card frames a
+  panel and does not compete with it. Canvas panels get the quiet card: shell and heading, no marks.
 - **Use at most one hero per screen,** and only when there is one thing to act on.
-- **Verify by rendering** both themes, dark and light, offscreen (`--probe-qml` with `grabToImage`). Check that chips never overlap pips, that
-  columns stack below `sp(640)`, and that empty and reading states keep the card's shape.
+- **Verify by rendering** both themes, dark and light, offscreen (`--probe-qml` with `grabToImage`).
+  Check that chips never overlap pips, that columns stack below `sp(640)`, and that empty and
+  reading states keep the card's shape. A Popup lives in the window's overlay, so grab the window's
+  root item, not its `contentItem`.
+
+### 13.11 The Wrist session screen
+
+| Wrist, Analyse, dark (the app) | Wrist, Analyse, light (the app) |
+|---|---|
+| ![Wrist, dark](aesthetic/coaching_wrist_dark.png) | ![Wrist, light](aesthetic/coaching_wrist_light.png) |
+
+- **The stage owns the frame.** `PpModeStage` puts each panel it shows in a `PpStageCard`, titled
+  and toned from its definitions: SESSION DIAGNOSTICS and WRIST MOTION in `colorWarn` (they name
+  faults); CAMERA, 3-D SWING, LAUNCH MONITOR, CHARTS, TABLE and MARKUP quiet (`colorText3`). In the
+  tabs arrangement the tab strip is the card's heading: Micro labels, the selected one in
+  `colorText` over a 2 px rule in that panel's tone. A panel may put one more thing on the heading
+  row through `readonly property string cardAside`; a panel also shown outside the stage carries
+  `property bool framed` and is told it is framed already.
+- **No card inside a card.** Inside a panel, sections are hairlines, Micro sub-headings and insets.
+- **Faults are `colorWarn` everywhere** (13.2): diagnostics tick runs and verdicts, the carousel's
+  pips, the launch monitor's Action readings. The Wrist position grid keeps its ● ▲ ■ glyphs.
+- **Provenance has a shape:** a measured or fitted P-position is a solid dot, a sampled one a ring,
+  an unavailable one the dashed badge, always with a key in words.
+- **Devices** (toolbar pills and panel rows): check = connected and fine; dashed ring = not
+  connected; target in `colorAttention` = needs calibration, low battery, partly connected; target
+  in `colorError` = failed. The state is always in words too.
+- **The toolbar and the carousel stay flat**; their drop-downs, sheets and menus sit on
+  `PpPopoverCard`. Marks drawn on footage (camera chips, the stats pill, the markup HUD) keep a dark
+  scrim for legibility.
 
 Exceptions to section 10: the top rule (3 px, or 4 px on the hero) and the inset's 3 px tone bar are
 filled shapes, not borders, and the tick is a `Shape` path. Borders themselves stay 1 px.

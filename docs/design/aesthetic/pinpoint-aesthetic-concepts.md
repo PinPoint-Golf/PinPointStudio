@@ -212,6 +212,14 @@ PRACTISE. Below it sit WHAT YOU DO WELL and NEXT ON YOUR LIST, then a link into 
 layer, where faults keep their names and counts. The full specification (tones, card shell, marks, text roles, states
 and how to carry it to other panels) is section 13 of `../pinpoint_qml_design_system.md`.
 
+The Wrist session screen wears the same look. Every stage panel is a card: the two that name faults in the fault tone,
+the canvases (camera, 3-D, charts, table, markup) in a quiet grey so the video stays the main thing. Session panels keep
+their numbers, and every judged value also has a mark and words.
+
+| Wrist session, dark | Wrist session, light |
+|---|---|
+| ![Coaching cards — Wrist, dark](coaching_wrist_dark.png) | ![Coaching cards — Wrist, light](coaching_wrist_light.png) |
+
 ---
 
 *Screenshots captured at 1400 × 840px viewport. Fonts loaded from Google Fonts. All screens interactive in the accompanying HTML prototypes.*
