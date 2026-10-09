@@ -422,6 +422,9 @@ Rectangle {
 
 ## 7. CORE COMPONENT PATTERNS
 
+> For cards, panels and anything a golfer reads, the coaching-card look in section 13 is the
+> current target and takes precedence over older patterns here.
+
 ### 7.1 Left navigation rail — `PpRail.qml`
 
 ```qml
@@ -1071,6 +1074,207 @@ the root application `Rectangle` to animate the transition.
 
 ---
 
+## 13. THE COACHING-CARD LOOK
+
+The home screen's YOUR SWING section and the Swing diagnostics screen (October 2026) set a
+look that Mark approved for the whole app: "SO MUCH BETTER", then "it looks excellent". **It is
+the target for every panel.** The Wrist session screen is next, and the rest follow it. It is built
+only from Theme tokens, so it works in all six aesthetics. The reference renders below are
+Instrument.
+
+The code is the reference implementation. Match it, don't reinvent it:
+
+| File | What it shows |
+|---|---|
+| `src/Gui/home/HmFocus.qml` | the hero card (YOUR FOCUS) |
+| `src/Gui/home/HmSwingSummary.qml` | the standard card, two side by side, the link row, reading and empty states |
+| `src/Gui/home/HmWorkOns.qml` | a technical card whose rows open in place (FAULTS) |
+| `src/Gui/home/HmGoesTogether.qml` | the strength mark, the connector and the swing timeline |
+| `src/Gui/home/ScreenSwingDiagnostics.qml` | a detail screen one link away, with "← Home" |
+
+| Home, dark (the app) | Home, light (the approved mock) |
+|---|---|
+| ![Home, dark](aesthetic/coaching_home_dark.png) | ![Home, light](aesthetic/coaching_home_light.png) |
+
+| Swing diagnostics, dark (the app) | A fault row opened (mock, then headed WORK ONS) |
+|---|---|
+| ![Swing diagnostics](aesthetic/coaching_diagnostics_dark.png) | ![Row opened](aesthetic/coaching_row_open_dark.png) |
+
+The light mock's last line still has the old wording "Chosen because…". The app says "Picked
+first: …", because the home screen never uses causal words.
+
+### 13.1 The principle: looked at before it is read
+
+- **Every item has a shape as well as words.** A badge leads the line, a meter says how often and pips say which
+  sessions. A glance at the shapes tells the story, and the words confirm it.
+- **Colour is never the only channel.** Each tone comes with a shape (tick, target, arrow, dashed
+  ring), with words ("almost every swing", "↑ growing"), or both.
+- **Weight carries the hierarchy, not size.** At most one hero card per screen, then supporting cards, then a
+  quiet link into the detail.
+- **It stays flat** (section 10 holds). Tints are alpha washes of the card's tone over `colorSurface`,
+  with no gradients, shadows or images.
+
+### 13.2 Tone roles
+
+A card has ONE tone. Its top rule, heading, badges, meter and pips all use it. Choose the tone by
+what the content *means*, never by which panel it is in.
+
+| Role | Token | Used for |
+|---|---|---|
+| Your focus, act on this | `colorAccent` | YOUR FOCUS, NEXT ON YOUR LIST, links, "NEXT" |
+| Good, in the ideal range, easing | `colorGood` | WHAT YOU DO WELL, AIM FOR ticks, "↓ easing", "2 cleared" |
+| A fault, named technically | `colorWarn` | FAULTS. Not `colorError`: nothing here is an alarm |
+| A relation, neither praise nor fault | `gradientCool` | WHAT GOES TOGETHER |
+| Quiet, unknown, headings' asides | `colorText3` | SESSIONS, captions, unconfirmed badges |
+| Empty marks | `colorBorderMid` / `colorBorderStrong` | unfilled meter segments / unfilled pip rings |
+
+There are two deliberate mixes. AIM FOR's green ticks sit inside the amber focus card, because the ideal is
+praise. A trend chip takes `colorWarn` going up and `colorGood` easing, whatever the card's tone.
+
+### 13.3 The card shell
+
+```qml
+component Card: Item {
+    property color  tone: Theme.colorAccent
+    property string title: ""                 // Micro, in the tone
+    property string aside: ""                 // Micro, colorText3, right-aligned (e.g. "SESSIONS")
+    readonly property int pad: Theme.sp(20)
+    default property alias content: body.data
+
+    Rectangle {                               // surface + hairline
+        anchors.fill: parent
+        radius: Theme.radiusLg
+        color: Theme.colorSurface
+        border.width: 1; border.color: Theme.colorBorderMid
+    }
+    // The top rule: a rounded tone shape with its lower part covered by the surface again,
+    // so the rule follows the corners. 3 px; 4 px on the hero.
+    Rectangle { width: parent.width; height: Theme.radiusLg * 2; radius: Theme.radiusLg; color: tone }
+    Rectangle { x: 1; y: 3; width: parent.width - 2; height: Theme.radiusLg * 2; color: Theme.colorSurface }
+    // heading row at (pad, pad + sp(2)); body Column sp(18) below it, item spacing sp(18)
+}
+```
+
+- Cards sit `sp(16)` apart, with two side by side down to `sp(640)`. Below that they stack.
+- The SESSIONS aside heads the pips. Every card in a row shares one pip count, so the pips line up on one right edge.
+
+### 13.4 The hero card
+
+There is one per screen at most. It is the card the golfer should act on (`HmFocus.qml`). It differs from the standard card in five ways:
+- **The rule** is 4 px.
+- **The surface** carries a wash of `Qt.alpha(tone, dark ? 0.045 : 0.05)`, and the hairline is
+  `Qt.alpha(tone, dark ? 0.32 : 0.36)` instead of `colorBorderMid`.
+- **A display headline** sits under the Micro label: `fontDisplay`, `fontSzDisplay`, `fontBodyWeight`, line height
+  1.15. This is the only place display type appears on the page.
+- **The body** is sections `sp(24)` apart with a 1 px `colorBorder` divider. Inner columns sit on the same split as the
+  cards below, so the page keeps one grid. A hairline runs down the split, and each line on the left faces the
+  line it answers on the right.
+- **An inset panel** (HOW TO PRACTISE):
+  - `radius`, with a fill of `Qt.alpha(colorText, dark ? 0.035 : 0.04)` and a 1 px `colorBorder`;
+  - a 3 px bar in the tone down its left edge, inset `sp(14)` top and bottom;
+  - a Micro label, then body text.
+- **It closes on one italic line** (`fontSzBody2`, `colorText3`) saying honestly why this card is the one.
+
+### 13.5 The marks
+
+**Micro heading.** `fontData`, `fontSzMicro`, `trackingMicro`, with upper-case text in the string itself. In `colorText3`, or in the card's tone for the card title.
+
+**Badges.** These are `sp(20)` circles filled with `Qt.alpha(tone, dark ? 0.16 : 0.12)`.
+- The text indents by the badge plus `sp(12)`.
+- The badge centres on the FIRST line of its text (`fontSzBody * 1.3 / 2`), not on the block.
+
+| Badge | Drawn as | Means |
+|---|---|---|
+| Check | a tick (`Shape`, round caps, stroke `max(1.5, sp(1.6))`) | in the ideal, done well |
+| Target | a ring (0.56 × size) and a centre dot (0.2 × size) | present, to work on |
+| Easing | a down arrow, `colorGood` | getting better |
+| Unconfirmed | a dashed ring, untinted grey | seen before, no recent evidence |
+
+**Frequency meter.** Ten capsules, each `sp(9)` × `sp(6)`, spaced `sp(3)`. `round(share × 10)` of them are filled in the tone; the rest are `colorBorderMid`. It is always followed by words: "almost every swing" on the golfer layer, "124 of 135 swings" on the technical one.
+
+**Session pips.** `sp(6)` dots spaced `sp(4)`, oldest first, showing the latest 8.
+- A filled dot in the tone means seen (or, in a "do well" card, in the ideal range).
+- An outlined `colorBorderStrong` ring means not seen.
+- The faults card uses `PpTickRun`'s vocabulary instead: a dot is a pattern, a green dash is a clean session, and a ring means the session could not tell. There is never a gap.
+
+**Chip.** A capsule `sp(18)` high, filled with `Qt.alpha(tone, dark ? 0.12 : 0.09)`, with a 1 px border of `Qt.alpha(tone, 0.45)` and Micro text in the tone.
+- Uses: "↑ growing", "↓ easing", "NEXT", "last seen 4 Jul".
+- It follows the frequency words. When the line has no room, it moves up to the right edge of the headline's line. It never overlaps the pips.
+
+**Strength mark.** Three rising bars, filled 3, 2 or 1, with CLEAR, LIKELY or POSSIBLE beneath in Micro. It shows how firmly something holds, without a number.
+
+**Swing timeline.** Six stops: ADDRESS, BACK, TOP, DOWN, IMPACT, FINISH.
+- A 1 px base track, with a 2 px tone track from the start stop on.
+- The start stop is `sp(9)` with a halo; the other stops are `sp(5)`.
+- The start label is in `colorText`, the others in `colorText3`.
+- The italic words to the right say where it starts ("starts at the top").
+
+**Connector.** One dot per half, and a line between them. It joins two statements that go together.
+
+### 13.6 Text
+
+| Role | Font, size | Colour | Notes |
+|---|---|---|---|
+| Item headline | `fontBody`, `fontSzBody` | `colorText` | line height 1.3, wraps |
+| Supporting words (frequency, caption) | `fontBody`, `fontSzBody2` | `colorText3` | |
+| Prose (why it matters) | `fontBody`, `fontSzBody` | `colorText2` | line height 1.45, at most `sp(720)` wide |
+| Subtitle, explanation, the closing reason | `fontBody`, `fontSzBody2`, italic | `colorText3` | "From 135 swings over 5 sessions" |
+| Hero headline | `fontDisplay`, `fontSzDisplay` | `colorText` | the hero only |
+| Link | `fontBody`, `fontSzBody2` | `colorAccent` | "Swing diagnostics →", "← Home", "Review the 8 Oct session →" |
+
+The words are second person, plain and in sentence case.
+- **The golfer layer (the home screen):** no figures, no jargon and no claims about cause.
+- **The technical layer (Swing diagnostics, and the session screens):** technical names and counts are allowed.
+
+### 13.7 Rows that open in place
+
+A FAULTS row, closed, reads: badge, name, meter, count, pips, then a chevron that turns 90° when open. Rows are separated by 1 px `colorBorder`, and only one is open at a time. It opens in place:
+- the prose;
+- a label and value grid (Micro labels LATEST, SWINGS, SESSIONS, LINKED; body values);
+- an inset TRY panel for the drill;
+- a link into the session.
+
+The card's foot holds "6 more" (a link) and "2 cleared" (Micro, `colorGood`).
+
+### 13.8 States
+
+- **Reading:** a Micro "reading your sessions…" sits on the right of the section's heading row. It appears the first time
+  only; a recompute leaves the content standing and it simply changes when it lands.
+- **Empty:** one quiet line (`fontSzBody2`, `colorText3`), for example "Nothing yet. …", so the card keeps its
+  shape.
+- **Nothing to say:** the hero is not drawn at all. It is never drawn empty.
+
+### 13.9 Page layout
+
+- The column is `Theme.contentWidth(parent.width)`.
+- A section opens with a Micro heading and an italic subtitle, then `sp(16)`, then the hero, then the cards.
+- The link row into the detail comes `sp(20)` below the cards: a link, then one line of `colorText3` saying what is behind it.
+- There are two layers: the golfer's words on the front and the technical detail one link away. The detail screen opens with "← Home", a Micro heading and an italic subtitle.
+
+### 13.10 Carrying it to other panels (the Wrist session next)
+
+- **Lift the pieces first.** Card, Micro, the badges, FrequencyMeter, Pips, chips, Strength and
+  SwingTimeline are inline components today, copied in each `Hm*.qml` file. Move them into
+  `src/Gui/components/` (for example `PpCard`, `PpMicro`, `PpBadge`, `PpMeter`, `PpPips`, `PpChip`) and point
+  the home cards at them. Then one change restyles every panel, and the home screen proves the move has not
+  changed its look.
+- **Make each panel a Card** with one tone chosen by role (13.2), a Micro title in that tone, and an
+  aside where a column needs a heading.
+- **Keep the numbers on session screens.** They are the technical layer, so values stay in `fontData` as now. But
+  wherever a value is judged against an ideal, give it a mark as well (a badge, meter or pips) and words, so
+  colour is never the only signal.
+- **Keep video, camera tiles and the 3-D view as the dominant mass** (section 8). The card frames a panel
+  and does not compete with it. Stage panels may need only the shell and the heading, not the marks.
+- **Use at most one hero per screen,** and only when there is one thing to act on.
+- **Verify by rendering** both themes, dark and light, offscreen (`--probe-qml` with `grabToImage`). Check that chips never overlap pips, that
+  columns stack below `sp(640)`, and that empty and reading states keep the card's shape.
+
+Exceptions to section 10: the top rule (3 px, or 4 px on the hero) and the inset's 3 px tone bar are
+filled shapes, not borders, and the tick is a `Shape` path. Borders themselves stay 1 px.
+
+---
+
 *This document is the single source of truth for Pinpoint visual implementation.
-When in doubt, match the HTML prototypes in `pinpoint-aesthetic-*.html`.
-All palette values in this document were extracted directly from those prototypes.*
+Section 13 matches the app's own code in `src/Gui/home/`; the rest matches the HTML prototypes.
+Outside section 13, when in doubt, match the HTML prototypes in `pinpoint-aesthetic-*.html`;
+the palette values in sections 3–12 were extracted directly from those prototypes.*

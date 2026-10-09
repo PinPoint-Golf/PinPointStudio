@@ -6,6 +6,12 @@
 
 Four distinct visual directions are presented. Each is a fully working HTML prototype with interactive screen and theme switching. The screenshots below document all states. No direction is recommended here — that judgement belongs in context, ideally with the personas from the assessment document alongside.
 
+> **Update, October 2026.** The app has since adopted a *coaching-card* look for golfer-facing
+> panels, built on the active aesthetic's tokens: toned cards, round badges, ten-step meters,
+> session pips. It started on the home screen and is the target for every panel. See
+> "The coaching-card look" at the end of this file, and section 13 of
+> `../pinpoint_qml_design_system.md` for the specification.
+
 ---
 
 ## How to read these
@@ -181,6 +187,30 @@ The zero-radius rule is absolute: cards, buttons, inputs, and the rail all use s
 Vector is not appropriate for the teaching pro or wealthy newcomer personas — the aesthetic is deliberately hostile to approachability. It best serves the enthusiastic amateur who self-identifies as technical and wants the tool to look like it belongs alongside their performance monitoring stack. It also has strong appeal as an optional "pro mode" that any user can select once they are comfortable with the product.
 
 None of these should be treated as exclusive. The direction chosen should work for all four personas; the considerations above are about which register each will find *most* natural on first encounter.
+
+---
+
+## The coaching-card look (October 2026)
+
+**Character:** a coaching page you *look at* before you read it. One hero card says what to work on. Supporting cards
+carry a single tone each: amber for your focus, green for what you do well, coral for faults by name, and cool blue
+for things that move together. Every item leads with a round badge (a tick, a target, an arrow), shows how often
+with a ten-step meter and which sessions with a row of pips, and says it again in plain words, so colour is never
+the only signal. It is flat, quiet and built only from the active aesthetic's tokens, so it works in all of them;
+the renders below are Instrument.
+
+| Home, dark (the app) | Home, light (the approved mock) |
+|---|---|
+| ![Coaching cards — home, dark](coaching_home_dark.png) | ![Coaching cards — home, light](coaching_home_light.png) |
+
+| Swing diagnostics, dark (the app) | A fault row opened in place |
+|---|---|
+| ![Coaching cards — diagnostics, dark](coaching_diagnostics_dark.png) | ![Coaching cards — row opened](coaching_row_open_dark.png) |
+
+The home screen leads with YOUR FOCUS: a display headline, AIM FOR set against RIGHT NOW, then WHY IT MATTERS and an inset HOW TO
+PRACTISE. Below it sit WHAT YOU DO WELL and NEXT ON YOUR LIST, then a link into Swing diagnostics, the technical
+layer, where faults keep their names and counts. The full specification (tones, card shell, marks, text roles, states
+and how to carry it to other panels) is section 13 of `../pinpoint_qml_design_system.md`.
 
 ---
 
