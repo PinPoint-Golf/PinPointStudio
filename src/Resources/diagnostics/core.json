@@ -484,7 +484,7 @@
         "anchor": "p1"
       },
       "status": "live",
-      "label": "",
+      "label": "Ball distance from the body, at P1",
       "metricKey": "ballBodyDistance",
       "highMeans": "further from the body, reaching more for the ball",
       "unit": "% shoulder width"
@@ -506,7 +506,7 @@
         ]
       },
       "status": "live",
-      "label": "",
+      "label": "Chest lateral drift, change P1 to P5",
       "metricKey": "thoraxLateralDrift",
       "highMeans": "the chest further toward the lead side by early downswing",
       "unit": "% stance width"
@@ -530,7 +530,7 @@
       "status": "held",
       "gapReason": "Produced from the down-the-line view, but the lead leg is occluded by the trail leg there, so it is not trusted to grade.",
       "shape": "ceiling",
-      "label": "",
+      "label": "Lead knee flexion, peak P7 to P8",
       "metricKey": "leadKneeFlexion",
       "highMeans": "more lead-knee bend through impact",
       "unit": "°"
@@ -548,7 +548,7 @@
         "anchor": "p4"
       },
       "status": "live",
-      "label": "",
+      "label": "Trail elbow height above the shoulder line, at the top",
       "metricKey": "trailElbowHeight",
       "highMeans": "the trail elbow higher above the shoulder line",
       "unit": "% shoulder width"
@@ -586,7 +586,7 @@
       },
       "status": "live",
       "shape": "ceiling",
-      "label": "",
+      "label": "Lead arm angle from the torso, change P7 to P8",
       "metricKey": "leadArmToTorso",
       "highMeans": "the lead arm further from the torso after impact",
       "unit": "°"
@@ -605,7 +605,7 @@
       },
       "status": "live",
       "shape": "floor",
-      "label": "",
+      "label": "Lead hand distance from the chest, at the top",
       "metricKey": "leadHandWidth",
       "highMeans": "the hands further from the body at the top, a wider arc",
       "unit": "% arm length"

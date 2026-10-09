@@ -254,15 +254,13 @@ int main(int argc, char **argv)
             if (v.toMap().value(QStringLiteral("label")).toString().isEmpty()) anyBlank = true;
         check(!anyBlank, "no measure row has a blank name");
 
-        // The nine measures that carry label:"" in core.json. The BRIEF says to derive their names
+        // The measures that carry label:"" in core.json (three; six more were named 9 Oct 2026). The BRIEF says to derive their names
         // in the façade; the LOADER already does it (characteristic_pack.cpp backfills an empty
         // Composed label with canonicalMeasureLabel), so by the time any surface sees them they are
         // named. Asserted here rather than assumed, because the fix living in the loader is the
         // reason the façade's own fallback looks like dead code.
         const auto core = makeResourcePackProvider();
-        for (const char *id : { "m_thoracicCurve", "m_lumbarCurve", "m_shoulderPlane",
-                                "m_ballBodyGap", "m_thoraxDrift", "m_leadKneeFlex",
-                                "m_trailElbowRise", "m_leadArmToTorso", "m_leadHandWidth" }) {
+        for (const char *id : { "m_thoracicCurve", "m_lumbarCurve", "m_shoulderPlane" }) {
             const Measure *meas = core->pack().measure(QLatin1String(id));
             check(meas != nullptr, qPrintable(QStringLiteral("%1 is in the shipped pack").arg(id)));
             if (!meas) continue;
