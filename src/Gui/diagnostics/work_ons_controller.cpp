@@ -100,6 +100,15 @@ SessionDiagnosticsModel *WorkOnsController::model()
     if (!m_model) {
         m_model = new SessionDiagnosticsModel(this);
         m_model->setSynchronous(m_synchronous);
+        // REVIEWING, because that is what this model does: it reads recorded sessions, never the
+        // live one (deriving pauses while a session runs). It is also the one switch that keeps
+        // the panel-only work off the catch-up: a reviewed session's driver footer is final, so
+        // rebuild() never runs the live debounce — a walk back through the session's prefixes,
+        // a full ledger reduction per step, and the walk behind the startup freeze before it was
+        // capped — for a footer nobody draws.
+        // Reviewing touches only the displayed surfaces: the rows, the ledgers, the persisted
+        // stage and sessionWorkOns() read the same with it on or off.
+        m_model->setReviewing(true);
         // QUEUED: the model emits busyChanged before it appends the row that made it idle, and
         // a record read in between would be one shot short.
         connect(m_model, &SessionDiagnosticsModel::busyChanged,

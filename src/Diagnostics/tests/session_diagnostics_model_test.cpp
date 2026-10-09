@@ -805,6 +805,142 @@ int main(int argc, char **argv)
         check(ledgerBytesOf(dir) == sparse, "regradeShot ignores a swing from another session");
     }
 
+    // ── 4d. A batch is reduced and written ONCE ──────────────────────────────────────
+    //
+    // The startup freeze: a pack edit stales every row of every session, the work-ons catch-up
+    // regrades them all, and each delivery used to run the full reduction and rewrite
+    // diagnostics.json on the GUI thread — n times back to back once Qt drained the queue. A
+    // batch now places its rows and reduces once, when the last of it lands. Run OFF the GUI
+    // thread here (not freshModel()): coalescing is a property of the queued path, and the
+    // synchronous path is kept per-shot on purpose — it is this block's reference.
+    std::printf("\nbatch coalescing\n");
+    {
+        // Every row graded against content that is not today's — what a pack edit does.
+        const auto staleAll = [](const QString &sessionDir) {
+            QJsonObject root = diagnosticsJsonOf(sessionDir);
+            QJsonObject session = root.value(QStringLiteral("session")).toObject();
+            QJsonObject gf = session.value(QStringLiteral("gradedFrom")).toObject();
+            if (gf.isEmpty()) return false;
+            for (auto it = gf.begin(); it != gf.end(); ++it) {
+                QJsonObject g = it.value().toObject();
+                g[QStringLiteral("content")] = QStringLiteral("older-content");
+                it.value() = g;
+            }
+            session[QStringLiteral("gradedFrom")] = gf;
+            root[QStringLiteral("session")] = session;
+            return writeDiagnosticsJson(sessionDir, root);
+        };
+        const auto contentStamps = [](const QString &sessionDir) {
+            QStringList out;
+            const QJsonObject gf = diagnosticsJsonOf(sessionDir).value(QStringLiteral("session")).toObject()
+                                       .value(QStringLiteral("gradedFrom")).toObject();
+            for (auto it = gf.constBegin(); it != gf.constEnd(); ++it)
+                out << it.value().toObject().value(QStringLiteral("content")).toString();
+            return out;
+        };
+        const auto asyncModel = [] {
+            auto m = std::make_unique<SessionDiagnosticsModel>();
+            m->setCadence(QStringLiteral("everyShot"));
+            return m;
+        };
+
+        const QString dir = makeSession(tmp, "athlete_q", "session_batch");
+        check(stageLayout(dir), "the six-swing session, staged");
+        { auto a = freshModel(); a->activateSession(dir); }
+        check(staleAll(dir), "…ledgered, then every row marked as graded against older content");
+        QFile sf(QDir(dir).filePath(QStringLiteral("diagnostics.json")));
+        const QByteArray staleFile = sf.open(QIODevice::ReadOnly) ? sf.readAll() : QByteArray();
+        sf.close();
+        check(!staleFile.isEmpty(), "…and the stale ledger kept, to run the batch over the same input");
+
+        // THE REFERENCE: the synchronous path, which reduces and writes per shot as it always did.
+        QByteArray refLedger, refSurface;
+        {
+            auto r = freshModel();
+            r->activateSession(dir);
+            check(r->persistCount() == kShots, "the per-shot path writes the file once per regraded shot");
+            refLedger  = ledgerBytesOf(dir);
+            refSurface = surfaceOf(*r);
+        }
+        check(writeDiagnosticsJson(dir, QJsonDocument::fromJson(staleFile).object()),
+              "the stale ledger is put back for the batched run");
+
+        // THE BATCH, wired the way WorkOnsController wires it: busyChanged QUEUED, and the record
+        // read when busy goes false. It must find the batch reduced and written by then.
+        auto m = asyncModel();
+        int surfaces = 0, ingested = 0, lastIngested = -1;
+        QObject::connect(m.get(), &SessionDiagnosticsModel::surfaceChanged, [&] { ++surfaces; });
+        QObject::connect(m.get(), &SessionDiagnosticsModel::shotIngested,
+                         [&](int id, bool) { ++ingested; lastIngested = id; });
+        auto listener = std::make_unique<QObject>();
+        int idleReads = 0, persistsAtIdle = -1;
+        QByteArray surfaceAtIdle, ledgerRowsAtIdle;
+        QObject::connect(m.get(), &SessionDiagnosticsModel::busyChanged, listener.get(), [&] {
+            if (m->busy() || idleReads++ > 0) return;
+            persistsAtIdle = m->persistCount();
+            surfaceAtIdle  = surfaceOf(*m);
+            ledgerRowsAtIdle = QJsonDocument(toJson(m->shotRecords())).toJson(QJsonDocument::Compact);
+        }, Qt::QueuedConnection);
+
+        m->activateSession(dir);
+        check(m->busy(), "activation queued every shot's regrade off the GUI thread");
+        const int surfacesAtActivation = surfaces;
+        check(m->waitForIdle(120000), "…and the batch drained");
+        QCoreApplication::processEvents();                       // the queued idle read
+        check(m->persistCount() == 1, "a regrade of every shot writes diagnostics.json ONCE");
+        check(surfaces - surfacesAtActivation == 1, "…after ONE reduction, not one per delivery");
+        check(ingested == 0, "…and a batch of regrades alone has no after-shot moment");
+        check(ledgerBytesOf(dir) == refLedger, "the batched ledger is byte-identical to the per-shot one");
+        check(surfaceOf(*m) == refSurface, "…and so is everything the panel draws");
+        check(!contentStamps(dir).isEmpty()
+                  && !contentStamps(dir).contains(QStringLiteral("older-content")),
+              "…and every row is stamped with today's content");
+        check(idleReads >= 1 && persistsAtIdle == 1 && surfaceAtIdle == refSurface
+                  && ledgerRowsAtIdle == QJsonDocument(toJson(m->shotRecords())).toJson(QJsonDocument::Compact),
+              "a QUEUED busyChanged listener finds the batch reduced and written when busy goes false");
+        listener.reset();
+
+        // A LIVE shot with nothing else in flight is the batch of one: reduced, written and
+        // announced on its own arrival, exactly as before.
+        check(stageShot(dir, 7, "lm_7iron"), "a seventh swing is struck");
+        const int persists0 = m->persistCount(), surfaces0 = surfaces;
+        ingested = 0;
+        m->ingestShot(7, swingDirFor(dir, 7));
+        check(m->waitForIdle(60000), "…and its detection lands");
+        check(m->shotCount() == kShots + 1 && m->persistCount() == persists0 + 1
+                  && surfaces - surfaces0 == 1,
+              "a live shot is reduced and written on arrival");
+        check(ingested == 1 && lastIngested == 7, "…and announced once, as itself");
+
+        // A CHANGED ACTIVATION while a batch is in flight. The workers are waited for, their
+        // deliveries are not: they land after the switch and must not be filed into the other
+        // session's rows (shot 7 exists only here — it would show up there as a seventh row).
+        const QString other = makeSession(tmp, "athlete_q", "session_other");
+        check(stageLayout(other), "a second six-swing session");
+        { auto a = freshModel(); a->activateSession(other); }
+        const QByteArray otherLedger = ledgerBytesOf(other);
+        check(staleAll(dir), "the first session goes stale again");
+        m->activateSession(dir);
+        check(m->busy(), "…its regrade is queued");
+        const int persists1 = m->persistCount();
+        m->activateSession(other);                               // before one delivery has landed
+        check(m->waitForIdle(120000), "the abandoned batch's deliveries drain");
+        check(m->sessionDir() == other && m->shotCount() == kShots,
+              "…without one of them reaching the session now loaded");
+        check(m->persistCount() == persists1 && ledgerBytesOf(other) == otherLedger,
+              "…or its file");
+        check(contentStamps(dir).contains(QStringLiteral("older-content")),
+              "the abandoned session is left stale on disk, not half-written");
+        {
+            auto again = asyncModel();
+            again->activateSession(dir);
+            check(again->waitForIdle(120000) && again->persistCount() == 1
+                      && again->shotCount() == kShots + 1
+                      && !contentStamps(dir).contains(QStringLiteral("older-content")),
+                  "…and its next activation finishes the regrade, in one write");
+        }
+    }
+
     // ── 5. Focus contract and declared miss: persisted, and inert on the evidence ────
     std::printf("\nfocus contract and declared miss\n");
     {

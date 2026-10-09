@@ -973,6 +973,63 @@ int main()
         check(driverFooterEligible(churn, eager), "the debounce is injected");
     }
 
+    // ── The capped debounce query agrees with the full count ────────────────────
+    //
+    // driverFooterEligible() asks patternSetStableAtLeast(k), which stops k − 1 prefixes back
+    // instead of walking the whole session (the full walk was the O(n²) behind the work-ons
+    // catch-up freeze). It must answer exactly `patternSetStableShots() >= k`. Swept over
+    // seeded sessions whose pattern set changes at every depth — a planted onset at shot j
+    // for each j, plus random three-condition sessions — read at every prefix, for k on both
+    // sides of the count, including the degenerate k ≤ 0 and k > n.
+    {
+        int compared = 0, mismatches = 0;
+        std::vector<bool> countSeen(16, false);
+        auto sweep = [&](const std::vector<ShotRecord> &session) {
+            for (size_t m = 0; m <= session.size(); ++m) {
+                const std::vector<ShotRecord> s(session.begin(), session.begin() + std::ptrdiff_t(m));
+                const int full = patternSetStableShots(s, O);
+                if (full >= 0 && full < int(countSeen.size())) countSeen[size_t(full)] = true;
+                for (int k : { -1, 0, 1, 2, 3, 4, 5, int(m), int(m) + 1, full, full + 1 }) {
+                    ++compared;
+                    if (patternSetStableAtLeast(s, k, O) != (full >= k)) ++mismatches;
+                }
+            }
+        };
+
+        // A steady pattern, joined by a second one whose onset moves through the session —
+        // so the set changes 1, 2, … shots before the end.
+        for (int onset = 0; onset < 12; ++onset) {
+            std::vector<int> b(12, cp::kClean);
+            for (int i = onset; i < 12; ++i) b[size_t(i)] = cp::kFired;
+            sweep(sessionOf({ plan("a", std::vector<int>(12, cp::kFired)), plan("b", b) }));
+        }
+        // Random sessions: three conditions at different firing rates, with gaps, so sets
+        // appear, vanish and come back at arbitrary points.
+        for (uint64_t seed = 1; seed <= 16; ++seed) {
+            cp::Lcg rng(seed);
+            const double rates[3] = { 0.85, 0.55, 0.3 };
+            std::vector<Plan> ps;
+            for (int c = 0; c < 3; ++c) {
+                std::vector<int> st(13);
+                for (int &v : st) {
+                    const double u = rng.unit();
+                    v = u < 0.08 ? cp::kNotAssessable : (rng.unit() < rates[c] ? cp::kFired : cp::kClean);
+                }
+                ps.push_back(plan(c == 0 ? "r0" : c == 1 ? "r1" : "r2", st));
+            }
+            sweep(sessionOf(ps));
+        }
+
+        int distinct = 0;
+        for (bool b : countSeen) distinct += b ? 1 : 0;
+        std::printf("  [info] capped debounce: %d comparisons, %d distinct full counts\n",
+                    compared, distinct);
+        check(mismatches == 0, "patternSetStableAtLeast(k) == (patternSetStableShots() >= k) everywhere");
+        check(distinct >= 5, "the sweep reached sets that changed at many depths, not only steady ones");
+        check(patternSetStableAtLeast({}, 0, O) && !patternSetStableAtLeast({}, 1, O),
+              "an empty session: held for zero shots, not for one");
+    }
+
     // ── Session bookends ────────────────────────────────────────────────────────
     {
         Plan p = plan("bk", { 0,1,1,0,1,-1 });

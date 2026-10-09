@@ -77,13 +77,23 @@ class INormProvider;
 //    this object. setSynchronous(true) collapses that to an inline call for tests, and is
 //    the only concession the design makes to being tested.
 //
+//    A BATCH IS REDUCED ONCE. A back-fill or a regrade queues every shot of the session at
+//    once, and the deliveries tend to land together (the pool runs ahead while the GUI thread
+//    is busy, and Qt then drains the lot in one go). Reducing and writing the file per delivery
+//    made that drain n full reductions back to back on the GUI thread — a 39 s freeze for a
+//    50-swing session after a pack edit staled every row. So a delivery that lands while more
+//    of the SAME activation are still in flight only places its row; the last one to land
+//    reduces, persists and announces once. A live shot with nothing else in flight is the
+//    batch of one, and behaves exactly as it always did. See applyIngested().
+//
 // 2. WHAT IS PERSISTED. diagnostics.json holds the ROWS and the intent, never the verdicts —
 //    diagnostic_ledger.h's serialisation contract, unchanged, wrapped in a thin envelope
 //    (schema tag, session meta, focus contract, declared miss, screen answers, which shots
 //    carried launch-monitor data). Review mode re-reduces and gets the identical panel by
 //    construction, and a gate that moves in a later build re-grades an old session honestly
-//    rather than quoting a stale verdict. Written atomically after every ingest, so a crash
-//    mid-session costs at most the shot in flight, and activateSession() reconciles what is
+//    rather than quoting a stale verdict. Written atomically after every ingest (after every
+//    BATCH while one is draining — see 1.), so a crash mid-session costs at most the shots in
+//    flight, which the swing folders still hold, and activateSession() reconciles what is
 //    on disk against the swing_* directories beside it and back-fills the difference —
 //    which is also what makes the panel safe to enable half way through a session.
 //
@@ -446,6 +456,10 @@ public:
     // Spin the caller's event loop until every in-flight ingest has landed. Returns false on
     // timeout. A no-op in synchronous mode.
     Q_INVOKABLE bool waitForIdle(int msTimeout = 60000);
+    // How many times diagnostics.json has been written by this object — the test's handle on
+    // "a batch is persisted once" (decision 1). Counts the writes attempted, not the ones that
+    // succeeded — what is being counted is how often the GUI thread paid for one.
+    int persistCount() const { return m_persistCount; }
 
 signals:
     void cadenceChanged();
@@ -485,6 +499,7 @@ private:
         bool ok = false;
         bool regrade = false;          // replace the shot's row rather than append one
         GradedFrom from;               // what this grading read — stamped BEFORE the read
+        int  generation = 0;           // the activation that queued it (m_activationGen)
     };
     Ingested detectShot(int shotId, const QString &swingDir) const;
 
@@ -495,8 +510,12 @@ private:
     // The grade policy is deliberately NOT in it: setGradePolicy() does not rewrite history.
     QString computeContentStamp() const;
 
-    // GUI-thread half: append, re-reduce, decide the after-shot moment, persist, emit.
+    // GUI-thread half: append, re-reduce, decide the after-shot moment, persist, emit — the
+    // last three once per batch (decision 1), in settleBatch().
     void applyIngested(const Ingested &in);
+    // Reduce, persist and announce what the batch placed, once nothing more of it is in flight.
+    // A no-op while deliveries are still pending or when nothing was placed.
+    void settleBatch();
 
     // Everything derived, from the rows and nothing else. Cheap enough to do wholesale —
     // tens of shots by ~150 conditions is arithmetic no profiler will find — so there are no
@@ -730,4 +749,14 @@ private:
     QThreadPool m_historyPool;
     int         m_pending = 0;
     bool        m_synchronous = false;
+    // WHICH ACTIVATION A DELIVERY BELONGS TO. activateSession() waits for the workers but not for
+    // their queued deliveries, so a result for the PREVIOUS session can land after the switch —
+    // and it used to be filed into the new session's rows. Bumped per activation; a delivery
+    // stamped with an older one is counted off m_pending and dropped.
+    int         m_activationGen = 0;
+    // The batch being coalesced (decision 1): rows placed whose reduction and write are owed,
+    // and the newest live/back-fill shot among them, which gets the batch's one shotIngested.
+    bool        m_owedRebuild = false;
+    int         m_owedAfterShot = -1;
+    int         m_persistCount = 0;
 };

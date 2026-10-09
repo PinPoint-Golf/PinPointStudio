@@ -1666,8 +1666,10 @@ inline std::vector<QString> patternSetAt(const std::vector<ShotRecord> &shots, i
 }
 
 // How many trailing shots the pattern set has been unchanged for — 1 means "since the
-// last shot only". The driver footer's debounce input (§B2 zone 3): better absent than
-// flickering, so the footer waits for the set to hold still.
+// last shot only". The driver footer's debounce (§B2 zone 3): better absent than
+// flickering, so the footer waits for the set to hold still. The FULL count, walking back
+// until the set differs; the footer itself asks the capped question below, which is all it
+// needs and costs k reductions instead of up to n.
 inline int patternSetStableShots(const std::vector<ShotRecord> &shots,
                                  const LedgerOptions &opt = LedgerOptions())
 {
@@ -1682,10 +1684,29 @@ inline int patternSetStableShots(const std::vector<ShotRecord> &shots,
     return stable;
 }
 
+// patternSetStableShots(shots, opt) >= k, without the full walk. Every step back costs a
+// whole conditionLedgers() over that prefix, so the uncapped count is O(n²) in the session —
+// and on a session whose pattern set has held since early on it walks the lot (~0.85 s at
+// n = 50, Debug, on every rebuild; a regrade of the session ran it once per shot). The
+// footer only needs to know the set has held for k shots: that is k − 1 prefixes back,
+// checked from the newest, stopping at the first that differs. Fewer than k shots cannot
+// have held for k, so that answer needs no ledger at all.
+inline bool patternSetStableAtLeast(const std::vector<ShotRecord> &shots, int k,
+                                    const LedgerOptions &opt = LedgerOptions())
+{
+    if (k <= 0) return true;                // the full count is never negative
+    const int n = int(shots.size());
+    if (n < k) return false;                // the count never exceeds n (and n = 0 counts 0)
+    const std::vector<QString> now = patternSetAt(shots, n, opt);
+    for (int back = n - 1; back > n - k; --back)
+        if (patternSetAt(shots, back, opt) != now) return false;
+    return true;
+}
+
 inline bool driverFooterEligible(const std::vector<ShotRecord> &shots,
                                  const LedgerOptions &opt = LedgerOptions())
 {
-    return patternSetStableShots(shots, opt) >= opt.driverDebounceShots;
+    return patternSetStableAtLeast(shots, opt.driverDebounceShots, opt);
 }
 
 // ── Session bookends (design §B7) ───────────────────────────────────────────────

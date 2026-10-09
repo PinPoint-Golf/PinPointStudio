@@ -373,6 +373,10 @@ SessionDiagnosticsModel::~SessionDiagnosticsModel()
     // context is this object, so a scan that lands after destruction is simply dropped — but the
     // worker itself must not outlive the members it was started from.
     m_historyPool.waitForDone();
+    // A batch still coalescing (decision 1) has rows placed and not yet written. Write them:
+    // they are graded and stamped, and on disk they will not be detected again. The deliveries
+    // still queued die with this object, as they always did, and the next activation re-does them.
+    if (m_owedRebuild) persist();
 }
 
 // ── Simple inputs ───────────────────────────────────────────────────────────────────────
@@ -515,6 +519,7 @@ void SessionDiagnosticsModel::queueDetect(int shotId, const QString &swingDir, b
     if (m_synchronous) {
         Ingested in = detectShot(shotId, swingDir);
         in.regrade = regrade;
+        in.generation = m_activationGen;
         applyIngested(in);
         return;
     }
@@ -524,9 +529,10 @@ void SessionDiagnosticsModel::queueDetect(int shotId, const QString &swingDir, b
     // QThreadPool::start() rather than QtConcurrent::run(): there is no QFuture to wait on
     // here — the result comes back through the queued invocation below — and run()'s future
     // is [[nodiscard]] precisely so that a caller who drops it says why.
-    m_pool.start([this, shotId, swingDir, regrade]() {
+    m_pool.start([this, shotId, swingDir, regrade, generation = m_activationGen]() {
         Ingested in = detectShot(shotId, swingDir);
         in.regrade = regrade;
+        in.generation = generation;
         // Queued, so the row vector and every signal below are only ever touched by the
         // thread that owns this object. The worker holds no reference to anything mutable.
         QMetaObject::invokeMethod(this, [this, in]() { applyIngested(in); }, Qt::QueuedConnection);
@@ -692,9 +698,18 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
 
 void SessionDiagnosticsModel::applyIngested(const Ingested &in)
 {
+    // busyChanged BEFORE the row is placed and reduced, as it always was. That is the order
+    // WorkOnsController relies on by connecting QUEUED: its handler runs after this call has
+    // returned, so when it sees busy go false the batch below has been reduced and written.
     if (!m_synchronous) {
         m_pending = std::max(0, m_pending - 1);
         emit busyChanged();
+    }
+    // A result for a session that is no longer loaded: counted off above, dropped here. It may
+    // still be the delivery the current batch was waiting on to drain, so settle regardless.
+    if (in.generation != m_activationGen) {
+        settleBatch();
+        return;
     }
     if (!in.ok) {
         // A swing that could not be read is not a shot with no findings — it is a shot we
@@ -703,6 +718,8 @@ void SessionDiagnosticsModel::applyIngested(const Ingested &in)
         // the reservation so a later re-activation can try again. A failed REGRADE keeps the
         // row it already had: the last good reading beats none.
         if (!in.regrade) m_ingested.remove(in.record.shotId);
+        // ...and a failure can be the last of a batch: what the others placed is owed.
+        settleBatch();
         return;
     }
 
@@ -713,7 +730,7 @@ void SessionDiagnosticsModel::applyIngested(const Ingested &in)
     auto pos = std::lower_bound(m_shots.begin(), m_shots.end(), id,
                                 [](const ShotRecord &s, int v) { return s.shotId < v; });
     const bool present = pos != m_shots.end() && pos->shotId == id;
-    if (present && !in.regrade) return;   // belt and braces
+    if (present && !in.regrade) { settleBatch(); return; }   // belt and braces — and it may be the batch's last
     if (present) *pos = in.record;
     else         m_shots.insert(pos, in.record);
     if (in.hasLaunchMonitor) m_lmShots.insert(id);
@@ -722,10 +739,45 @@ void SessionDiagnosticsModel::applyIngested(const Ingested &in)
     // The selected swing may be the one that just arrived (a back-fill landing after the pick).
     resolveSelectedSwingDir();
 
+    m_owedRebuild = true;
+    // A regrade is the same shot read again, not a shot arriving: no after-shot moment.
+    if (!in.regrade) m_owedAfterShot = id;
+    settleBatch();
+}
+
+// THE BATCH'S ONE REDUCTION (decision 1 in the header).
+//
+// m_pending counts every detection queued and not yet delivered — a back-fill or regrade
+// queues the whole session up front in activateSession() — so "nothing pending" is exactly
+// "this was the last of the batch". Until then a delivery only places its row: n reductions
+// in a row would each be thrown away by the next, and each one is the full rebuild() plus a
+// rewrite of diagnostics.json on the GUI thread. The batch of one — a live shot with nothing
+// else in flight — settles on its own delivery, so the live path is unchanged: rebuild,
+// persist, shotIngested, in that order.
+//
+// WHAT A BATCH DOES NOT REPRODUCE: the per-shot intermediate states. The stage ratchet and
+// the card order's hysteresis now step once, from the state before the batch to the state
+// after it, instead of once per row. For a regrade the intermediates were a mix of old and
+// new gradings and meant nothing; for a cold back-fill they were a replay of the session
+// shot by shot, and a session that established part way through and then thinned out is
+// the one case where the replay could latch a stage the final evidence does not reach. The
+// rows themselves — the evidence, and everything the ledger reduces from it — are identical.
+//
+// ONE shotIngested for the batch, carrying its newest arriving shot: the panel's after-shot
+// pulse reads afterShotDelta, which only ever describes the newest shot, so n pulses in one
+// drain were n repaints of the same cue. None when the batch was regrades alone.
+//
+// Synchronous mode delivers inline with nothing ever pending, so every delivery settles at
+// once — tests and the report tools see the per-shot behaviour they always did.
+void SessionDiagnosticsModel::settleBatch()
+{
+    if (!m_owedRebuild) return;
+    if (!m_synchronous && m_pending > 0) return;       // more of this batch still to land
+    m_owedRebuild = false;
+    const int afterShot = std::exchange(m_owedAfterShot, -1);
     rebuild();
     persist();
-    // A regrade is the same shot read again, not a shot arriving: no after-shot moment.
-    if (!in.regrade) emit shotIngested(id, !m_quiet);
+    if (afterShot >= 0) emit shotIngested(afterShot, !m_quiet);
 }
 
 bool SessionDiagnosticsModel::waitForIdle(int msTimeout)
@@ -747,6 +799,17 @@ bool SessionDiagnosticsModel::waitForIdle(int msTimeout)
 void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
 {
     m_pool.waitForDone();
+
+    // The previous activation's batch, if one was still coalescing: the rows it placed are
+    // graded and stamped, so they are written to THAT session's file before it is let go
+    // (persist() reads m_sessionDir, still the old one here). Not reduced — nobody is left to
+    // read the reduction, and the next load re-reduces from the rows anyway. Its deliveries
+    // still queued carry the old generation and are dropped on arrival; their swings remain
+    // stale on disk and are graded again the next time that session is activated.
+    if (m_owedRebuild) persist();
+    m_owedRebuild   = false;
+    m_owedAfterShot = -1;
+    ++m_activationGen;
 
     m_sessionDir = sessionDir;
     m_shots.clear();
@@ -858,7 +921,12 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     // each document: the id has to agree with the carousel's, the carousel takes it from the
     // same place, and reading 30 MB to learn a number that is in the filename is not a trade
     // worth making.
-    rebuild();          // publish what the file gave us before the back-fill starts
+    // Publish what the file gave us before the back-fill starts. NOT redundant with the rebuild
+    // at the end, though off-thread it looks it: until here the reduction is the PREVIOUS
+    // session's, and ingestShot() below emits busyChanged — a direct listener reading the model
+    // then would see this session's rows against that session's ledgers. Synchronously it is
+    // also the state the back-fill's per-shot reductions ratchet from (stage, card order).
+    rebuild();
 
     const QDir dir(sessionDir);
     QStringList swings = dir.entryList(QStringList{ QStringLiteral("swing_*") },
@@ -1365,6 +1433,7 @@ void SessionDiagnosticsModel::persist()
     // diagnostics.json would load, report what survived, and look exactly like a session in
     // which nothing happened after shot 6.
     atomicWrite(path, QJsonDocument(envelope()).toJson(QJsonDocument::Compact));
+    ++m_persistCount;
 }
 
 void SessionDiagnosticsModel::loadProfile()
