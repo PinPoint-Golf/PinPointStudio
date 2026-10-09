@@ -71,7 +71,9 @@ namespace pinpoint::analysis {
 // work_ons.json's shape, and the selection rule that filled it. Two numbers because they
 // change for different reasons: a new field is a new schema, a new ordering is a new rule.
 inline constexpr int kWorkOnSchemaVersion = 1;
-inline constexpr int kWorkOnRuleVersion   = 1;
+// 2: a symptom goes behind its cause only when the session's swings SUPPORT the link (see
+// linkSupported); an authored link they cannot test is named (mayFollow) but does not demote.
+inline constexpr int kWorkOnRuleVersion   = 2;
 
 // "The top 3–5". Five is a cap; three is how far Delivery conditions may fill a session that
 // measured fewer movement faults than that. Neither is a quota — a session with two patterns
@@ -175,10 +177,11 @@ struct WorkOnEntry {
     QString     name;            // the pack's label when written; a reader re-resolves it
     int         rank = 0;        // 1-based position in the session's list
     WorkOnClass cls  = WorkOnClass::Movement;
-    // Nothing among THIS session's patterns is authored as causing it. Roots are listed first:
-    // they are where work starts, and a symptom follows its cause off the list.
+    // Nothing among THIS session's patterns is shown to cause it. Roots are listed first: they
+    // are where work starts, and a symptom follows its cause off the list.
     bool        root = true;
-    QStringList causedBy;        // the session patterns authored as its causes
+    QStringList causedBy;        // session patterns authored as its causes, the link SUPPORTED here
+    QStringList mayFollow;       // ...authored as its causes, but this session cannot show the link
 
     int    fired = 0, assessable = 0;
     double wilsonLower = 0.0;
@@ -238,6 +241,32 @@ struct SessionWorkOns {
 // The authored causal edges among conditions, as (cause, effect).
 using WorkOnCauses = std::vector<std::pair<QString, QString>>;
 
+// DOES THIS SESSION SUPPORT AN AUTHORED LINK, enough to put the effect behind its cause? The
+// panel's own Conditionally-dependent grade (diagnostic_ledger.h gradeLinks): the cause must not
+// fire on every shot (range-restricted — nothing to compare), there must be enough shots on which
+// both were assessable, and the paired 2×2 must pass the one-sided Fisher test.
+//
+// AN AUTHORED EDGE IS A HYPOTHESIS, NOT A FINDING. Two faults that both fire on every swing say
+// nothing about which drives which, and demoting the louder one on the strength of the authoring
+// alone pushed early extension — the fault on all 31 swings of a session — off every list behind
+// over the top, which also fired on all 31. The "moved together" grade needs a declared focus,
+// which a session record does not carry, so it is not consulted here.
+inline bool linkSupported(const ConditionLedger &cause, const ConditionLedger &effect,
+                          const LedgerOptions &opt = LedgerOptions())
+{
+    if (cause.rangeRestricted) return false;
+    int a = 0, b = 0, c = 0, d = 0;
+    const size_t n = std::min(cause.run.size(), effect.run.size());
+    for (size_t i = 0; i < n; ++i) {
+        const ShotState u = cause.run[i], v = effect.run[i];
+        if (u == ShotState::NotAssessable || v == ShotState::NotAssessable) continue;
+        const bool uf = u == ShotState::Fired, vf = v == ShotState::Fired;
+        if (uf && vf) ++a; else if (uf) ++b; else if (vf) ++c; else ++d;
+    }
+    if (a + b + c + d < opt.minPairsForDependence) return false;
+    return fisherExactOneSided(a, b, c, d) <= opt.fisherAlpha;
+}
+
 // ── One session ─────────────────────────────────────────────────────────────────
 //
 // `ledgers` is conditionLedgers(shots) — passed rather than recomputed so the list and the
@@ -285,10 +314,15 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
         c.e.resolving   = l.resolving;
         c.e.direction   = l.directionClaimed ? l.modalDirection : 0;
         c.e.measureId   = l.drivingMeasureId;
-        for (const auto &edge : causes)
-            if (edge.second == l.id && edge.first != l.id && patternSet.contains(edge.first)
-                && !c.e.causedBy.contains(edge.first))
-                c.e.causedBy.append(edge.first);
+        for (const auto &edge : causes) {
+            if (edge.second != l.id || edge.first == l.id || !patternSet.contains(edge.first)
+                || c.e.causedBy.contains(edge.first) || c.e.mayFollow.contains(edge.first))
+                continue;
+            const ConditionLedger *from = nullptr;
+            for (const ConditionLedger &k : ledgers) if (k.id == edge.first) { from = &k; break; }
+            if (from && linkSupported(*from, l)) c.e.causedBy.append(edge.first);
+            else                                 c.e.mayFollow.append(edge.first);
+        }
         c.e.root = c.e.causedBy.isEmpty();
 
         // The typical reading, under the one-corridor rule above.
@@ -536,6 +570,7 @@ inline QJsonObject toJson(const SessionWorkOns &s)
         o[QStringLiteral("class")]       = workOnClassToString(e.cls);
         o[QStringLiteral("root")]        = e.root;
         o[QStringLiteral("causedBy")]    = QJsonArray::fromStringList(e.causedBy);
+        o[QStringLiteral("mayFollow")]   = QJsonArray::fromStringList(e.mayFollow);
         o[QStringLiteral("fired")]       = e.fired;
         o[QStringLiteral("assessable")]  = e.assessable;
         o[QStringLiteral("wilsonLower")] = e.wilsonLower;
@@ -601,6 +636,7 @@ inline SessionWorkOns sessionWorkOnsFromJson(const QJsonObject &root, bool *ok =
         e.cls         = workOnClassFromString(o.value(QStringLiteral("class")).toString());
         e.root        = o.value(QStringLiteral("root")).toBool(true);
         for (const QJsonValue &c : o.value(QStringLiteral("causedBy")).toArray()) e.causedBy.append(c.toString());
+        for (const QJsonValue &c : o.value(QStringLiteral("mayFollow")).toArray()) e.mayFollow.append(c.toString());
         e.fired       = o.value(QStringLiteral("fired")).toInt();
         e.assessable  = o.value(QStringLiteral("assessable")).toInt();
         e.wilsonLower = o.value(QStringLiteral("wilsonLower")).toDouble();

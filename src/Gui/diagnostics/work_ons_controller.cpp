@@ -431,10 +431,15 @@ void WorkOnsController::publish()
                     latestText += QStringLiteral(" · typically %1 against %2")
                                       .arg(withUnit(fmtNumber(e.typicalValue), unit), corridor);
             }
-            QStringList causes;
-            for (const QString &c : e.causedBy) causes << nameOf(c);
-            m[QStringLiteral("causedByText")] =
-                causes.isEmpty() ? QString() : QStringLiteral("Follows from ") + causes.join(QStringLiteral(", "));
+            QStringList causes, maybe;
+            for (const QString &c : e.causedBy)  causes << nameOf(c);
+            for (const QString &c : e.mayFollow) maybe  << nameOf(c);
+            QStringList lines;
+            if (!causes.isEmpty()) lines << QStringLiteral("Follows from ") + causes.join(QStringLiteral(", "));
+            if (!maybe.isEmpty())
+                lines << QStringLiteral("May follow from %1 — these swings cannot show it")
+                             .arg(maybe.join(QStringLiteral(", ")));
+            m[QStringLiteral("causedByText")] = lines.join(QStringLiteral(" · "));
         }
         m[QStringLiteral("latestText")] = latestText;
 

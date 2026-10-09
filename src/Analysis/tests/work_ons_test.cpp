@@ -175,12 +175,26 @@ int main()
         const WorkOnCauses causes{ { "cause", "symptom" }, { "absent", "cause" } };
         std::vector<int> fixed = rep(1, 8);     // 8 of 13 is a pattern; five clean shots since is resolving
         for (int i = 0; i < 5; ++i) fixed.push_back(0);
-        const SessionWorkOns s = reduce({ plan("symptom", rep(1, 12), 6.0), plan("cause", rep(1, 12), 2.5),
+        // The cause and its symptom fire on the SAME ten of thirteen shots: the session supports
+        // the link (Fisher), so the symptom goes behind its cause.
+        std::vector<int> together = rep(1, 10);
+        for (int i = 0; i < 3; ++i) together.push_back(0);
+        const SessionWorkOns s = reduce({ plan("symptom", together, 6.0), plan("cause", together, 2.5),
                                           plan("fixed", fixed, 9.0) }, cls, causes);
         check(idsOf(s) == (QStringList{ "cause", "symptom", "fixed" }),
               "the cause leads its louder symptom; a fault fixed inside the session goes last");
         check(!s.entry("symptom")->root && s.entry("symptom")->causedBy == QStringList{ "cause" },
               "the symptom names the session pattern authored as causing it");
+
+        // Both on EVERY shot: nothing to compare, so the authored link is named but does not
+        // demote — the louder fault leads on size. (Early extension behind over the top, 8 Oct.)
+        const SessionWorkOns u = reduce({ plan("symptom", rep(1, 12), 6.0), plan("cause", rep(1, 12), 2.5) },
+                                        cls, causes);
+        check(idsOf(u) == (QStringList{ "symptom", "cause" }),
+              "an untestable link does not put the louder fault behind its authored cause");
+        check(u.entry("symptom")->root && u.entry("symptom")->causedBy.isEmpty()
+                  && u.entry("symptom")->mayFollow == QStringList{ "cause" },
+              "…it is named as a link these swings cannot show");
         check(s.entry("cause")->root, "a cause whose own parent is not a pattern here is a root");
         check(s.entry("fixed")->resolving, "resolving is carried");
     }
@@ -204,13 +218,14 @@ int main()
         const QHash<QString, WorkOnClass> cls{ { "cause", M }, { "symptom", M } };
         SessionWorkOns s = reduce({ plan("symptom", rep(1, 8), 6.0), plan("cause", rep(1, 8)),
                                     plan("quiet", rep(0, 8)) }, cls, { { "cause", "symptom" } }, "2026-09-15_x_01");
-        s.entries[0].name = QStringLiteral("The cause");
+        s.entries[0].name = QStringLiteral("The leader");
         bool ok = false;
         const SessionWorkOns back = sessionWorkOnsFromJson(toJson(s), &ok);
         check(ok && back.sessionId == s.sessionId && back.startMs == s.startMs && back.shotCount == 8
               && back.clubs == s.clubs, "session meta round-trips");
-        check(idsOf(back) == idsOf(s) && back.entries[0].name == QStringLiteral("The cause")
-              && back.entries[1].causedBy == QStringList{ "cause" } && !back.entries[1].root
+        // Both fire on every shot, so the link is named (mayFollow) and the symptom stays a root.
+        check(idsOf(back) == idsOf(s) && back.entries[0].name == QStringLiteral("The leader")
+              && back.entry("symptom")->mayFollow == QStringList{ "cause" } && back.entry("symptom")->root
               && back.entries[0].hasTypical && near(back.entries[0].typicalValue, s.entries[0].typicalValue, 1e-9)
               && back.entries[0].corridorShape == CorridorShape::TwoSided, "entries round-trip");
         check(back.evidence.size() == 3 && back.evidenceFor("quiet")->state == SessionEvidence::Quiet,
