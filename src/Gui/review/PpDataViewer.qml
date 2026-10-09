@@ -17,7 +17,7 @@
  */
 
 // Read-only swing.json inspector: region presets, a coverage strip, and a gap-aware
-// detail table. Hosted as PpModeStage's tableDelegate. Backed by SwingDataSource.
+// detail table. Hosted as PpModeStage's tableDelegate, whose TABLE card frames it.
 
 import QtQuick
 import QtQuick.Controls.Basic
@@ -66,23 +66,23 @@ Item {
         appSettings.sectionCollapse = m
     }
 
-    // Reusable collapsible section header (caret + title, click to toggle).
-    component SectionHeader: Rectangle {
+    // Reusable collapsible section header (caret + Micro title, click to toggle). Flat on
+    // the card: under the pointer the words lift rather than a bar filling in, because the
+    // card's sections are divided by hairlines, not tinted bands. Controls a section owns
+    // (the table's fill mode and copy/export) sit on its header, above the toggle.
+    component SectionHeader: Item {
         id: sh
         property string title: ""
         property bool   collapsed: false
         signal toggled()
-        implicitHeight: Theme.sp(26)
-        color: shMa.containsMouse ? Theme.colorBg3 : "transparent"
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+        implicitHeight: Theme.sp(28)
         Row {
-            anchors { left: parent.left; leftMargin: Theme.sp(10); verticalCenter: parent.verticalCenter }
+            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
             spacing: Theme.sp(7)
-            Text { text: sh.collapsed ? "▸" : "▾"; color: Theme.colorText3
+            Text { text: sh.collapsed ? "▸" : "▾"; color: shMa.containsMouse ? Theme.colorText : Theme.colorText3
                    font.pixelSize: Theme.fontSzBody2; anchors.verticalCenter: parent.verticalCenter }
-            Text { text: sh.title; color: Theme.colorText3; font.family: Theme.fontData
-                   font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingMicro
-                   anchors.verticalCenter: parent.verticalCenter }
+            PpMicro { text: sh.title; color: shMa.containsMouse ? Theme.colorText : Theme.colorText3
+                      anchors.verticalCenter: parent.verticalCenter }
         }
         PpPressable { id: shMa; hoverScale: 1.0; onClicked: sh.toggled() }
     }
@@ -112,126 +112,105 @@ Item {
         appSettings.dataRegionByType = m
     }
 
-    // colorKey → instrument-palette hex (Theme lacks per-source hues)
+    // colorKey → a named colour of the theme's metric palette, so a source keeps one hue
+    // that is tuned for every theme and mode (and retunable in Settings → Appearance).
     function srcColor(key) {
         switch (key) {
-            case "teal":    return "#7EBFAA"
-            case "blue":    return "#6FA8D6"
-            case "purple":  return "#9F8AD6"
-            case "purple2": return "#B58AC9"
-            case "amber":   return Theme.colorAttention
-            case "coral":   return "#C98B6E"
-            case "green":   return "#8FBF7F"
+            case "teal":    return Theme.paletteColor("teal")
+            case "blue":    return Theme.paletteColor("cornflower")
+            case "purple":  return Theme.paletteColor("lavender")
+            case "purple2": return Theme.paletteColor("violet")
+            case "amber":   return Theme.paletteColor("gold")
+            case "coral":   return Theme.paletteColor("coral")
+            case "green":   return Theme.paletteColor("mint")
         }
         return Theme.colorText3
     }
 
-    Rectangle { anchors.fill: parent; color: Theme.colorBg2; radius: Theme.radius
-                border.width: 1; border.color: Theme.colorBorderMid }
+    // A cell's state as a mark beside its value, so a held or doubtful number reads as one
+    // without its colour. The table's legend says each in words.
+    function stateMark(st) {
+        return st === SwingSeriesModel.Held        ? "↦"
+             : st === SwingSeriesModel.Resync      ? "↻"
+             : st === SwingSeriesModel.LowConf     ? "◌"
+             : st === SwingSeriesModel.DerivedHeld ? "↦*"
+             :                                       ""
+    }
 
-    // ── empty state ──────────────────────────────────────────────────────────
-    Text {
-        anchors.centerIn: parent
+    // ── empty state: one quiet line, so the card keeps its shape ─────────────
+    PpCardNote {
+        width: parent.width
         visible: !root.hasSwing
         text: qsTr("Select a shot to inspect its data")
-        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-        color: Theme.colorText3
     }
 
     ColumnLayout {
-        anchors { fill: parent; margins: 1 }
+        anchors.fill: parent
         spacing: 0
         visible: root.hasSwing
-
-        // ── header ──────────────────────────────────────────────────────────
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.margins: Theme.sp(10)
-            Text {
-                text: qsTr("DATA TABLE"); font.family: Theme.fontData
-                font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingMicro
-                color: Theme.colorText3
-            }
-            Item { Layout.fillWidth: true }
-            // fill toggle
-            PpSegmentedControl {
-                Layout.preferredWidth: Theme.sp(170)
-                options: [qsTr("show gaps"), qsTr("nearest")]
-                selected: src.fillMode === "off" ? qsTr("show gaps") : qsTr("nearest")
-                solid: false
-                onActivated: (value) => src.fillMode = (value === qsTr("nearest")) ? "nearest" : "off"
-            }
-            Rectangle {
-                Layout.preferredHeight: Theme.sp(28)
-                implicitWidth: propsLbl.implicitWidth + Theme.sp(22)
-                radius: Theme.radius
-                color: propsMa.containsMouse ? Theme.colorBg3
-                                             : Qt.rgba(Theme.colorBg3.r, Theme.colorBg3.g, Theme.colorBg3.b, 0)
-                border.width: 1
-                border.color: propsMa.containsMouse ? Theme.colorAccentMid : Theme.colorBorderMid
-                Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-                Row {
-                    anchors.centerIn: parent; spacing: Theme.sp(5)
-                    Text { text: "ⓘ"; color: Theme.colorText2; font.pixelSize: Theme.fontSzBody2
-                           anchors.verticalCenter: parent.verticalCenter }
-                    Text { id: propsLbl; text: qsTr("Properties"); color: Theme.colorText2
-                           font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                           anchors.verticalCenter: parent.verticalCenter }
-                }
-                PpPressable { id: propsMa; onClicked: propsPopup.open() }
-            }
-        }
-
-        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colorBorderMid; opacity: Theme.borderOpacityNormal }
 
         // ── scope (region + segment + resolved tags) ────────────────────────
         SectionHeader {
             Layout.fillWidth: true; title: qsTr("SCOPE"); collapsed: root.scopeCollapsed
             onToggled: { root.scopeCollapsed = !root.scopeCollapsed
                          root._persistSection("scope", root.scopeCollapsed) }
+
+            // The swing's provenance, behind the card's one popover.
+            Item {
+                anchors { right: parent.right; rightMargin: Theme.sp(4); verticalCenter: parent.verticalCenter }
+                width: propsRow.implicitWidth; height: propsRow.implicitHeight
+                Row {
+                    id: propsRow
+                    spacing: Theme.sp(5)
+                    Text { text: "ⓘ"; font.pixelSize: Theme.fontSzBody2
+                           color: propsMa.containsMouse ? Theme.colorText : Theme.colorText3
+                           anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: qsTr("Properties")
+                           font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                           color: propsMa.containsMouse ? Theme.colorText : Theme.colorText2
+                           anchors.verticalCenter: parent.verticalCenter }
+                }
+                PpPressable { id: propsMa; anchors.margins: -Theme.sp(6); onClicked: propsPopup.open() }
+            }
         }
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: Theme.sp(10); Layout.rightMargin: Theme.sp(10)
-            Layout.bottomMargin: Theme.sp(8)
+            Layout.bottomMargin: Theme.sp(10)
             spacing: Theme.sp(8)
             visible: !root.scopeCollapsed
             RowLayout {
                 Layout.fillWidth: true; spacing: Theme.sp(8)
-                Text {
+                PpMicro {
                     text: qsTr("REGION"); Layout.preferredWidth: root.ctrlGutter
                     Layout.alignment: Qt.AlignTop
-                    height: Theme.sp(28); verticalAlignment: Text.AlignVCenter
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                    height: Theme.sp(26); verticalAlignment: Text.AlignVCenter
                 }
                 Flow {
-                    Layout.fillWidth: true; spacing: Theme.sp(7)
+                    Layout.fillWidth: true; spacing: Theme.sp(6)
                     Repeater {
                         model: src.regionOptions
-                        delegate: Rectangle {
+                        // A chip: the chosen region tinted in the accent, the rest untinted;
+                        // the press target is the full row height, not just the chip.
+                        delegate: Item {
+                            id: rcItem
                             required property string modelData
                             readonly property bool active: modelData === src.region
                             // Dim a region that resolves to nothing for this swing
                             // (Custom has no count → never dimmed).
                             readonly property bool empty: src.regionLaneCounts[modelData] === 0
-                            height: Theme.sp(28); radius: height / 2
-                            width: rcLbl.implicitWidth + Theme.sp(24)
+                            width: rcChip.width; height: Theme.sp(26)
                             opacity: (empty && !active) ? 0.45 : 1.0
-                            color: active ? Theme.colorAccentLight
-                                          : rcMa.containsMouse ? Theme.colorAccentMid : "transparent"
-                            border.width: 1
-                            border.color: active ? Theme.colorAccentMid
-                                                 : rcMa.containsMouse ? Theme.colorAccentMid : Theme.colorBorderMid
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-                            Text { id: rcLbl; anchors.centerIn: parent; text: modelData
-                                   font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                                   color: active ? Theme.colorAccent : Theme.colorText2 }
+                            PpChip {
+                                id: rcChip
+                                anchors.verticalCenter: parent.verticalCenter
+                                text:   rcItem.modelData.toUpperCase()
+                                tinted: rcItem.active
+                                tone:   rcItem.active ? Theme.colorAccent
+                                      : rcMa.containsMouse ? Theme.colorText : Theme.colorText2
+                            }
                             MouseArea { id: rcMa; anchors.fill: parent; hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: { src.region = modelData; root.persistRegion(modelData) } }
+                                        onClicked: { src.region = rcItem.modelData; root.persistRegion(rcItem.modelData) } }
                         }
                     }
                 }
@@ -241,37 +220,32 @@ Item {
             RowLayout {
                 Layout.fillWidth: true; spacing: Theme.sp(8)
                 visible: src.segments.length > 1
-                Text {
+                PpMicro {
                     text: qsTr("SEGMENT"); Layout.preferredWidth: root.ctrlGutter
                     Layout.alignment: Qt.AlignTop
-                    height: Theme.sp(24); verticalAlignment: Text.AlignVCenter
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                    height: Theme.sp(26); verticalAlignment: Text.AlignVCenter
                 }
                 Flow {
                     Layout.fillWidth: true; spacing: Theme.sp(6)
                     Repeater {
                         model: src.segments
-                        delegate: Rectangle {
+                        delegate: Item {
+                            id: segItem
                             required property var modelData
                             readonly property bool active: src.windowStartUs === modelData.startUs
                                                          && src.windowEndUs === modelData.endUs
-                            height: Theme.sp(24); radius: height / 2
-                            width: segLbl.implicitWidth + Theme.sp(18)
-                            color: active ? Theme.colorAccentLight
-                                          : segMa.containsMouse ? Theme.colorAccentMid : "transparent"
-                            border.width: 1
-                            border.color: active ? Theme.colorAccentMid
-                                                 : segMa.containsMouse ? Theme.colorAccentMid : Theme.colorBorderMid
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-                            Text { id: segLbl; anchors.centerIn: parent; text: modelData.label
-                                   font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                                   font.letterSpacing: Theme.trackingMicro
-                                   color: active ? Theme.colorAccent : Theme.colorText2 }
+                            width: segChip.width; height: Theme.sp(26)
+                            PpChip {
+                                id: segChip
+                                anchors.verticalCenter: parent.verticalCenter
+                                text:   segItem.modelData.label
+                                tinted: segItem.active
+                                tone:   segItem.active ? Theme.colorAccent
+                                      : segMa.containsMouse ? Theme.colorText : Theme.colorText2
+                            }
                             MouseArea { id: segMa; anchors.fill: parent; hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: src.setWindow(modelData.startUs, modelData.endUs) }
+                                        onClicked: src.setWindow(segItem.modelData.startUs, segItem.modelData.endUs) }
                         }
                     }
                 }
@@ -279,23 +253,23 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true; spacing: Theme.sp(8)
-                Text {
+                PpMicro {
                     text: qsTr("RESOLVES TO"); Layout.preferredWidth: root.ctrlGutter
                     Layout.alignment: Qt.AlignTop
-                    height: Theme.sp(24); verticalAlignment: Text.AlignVCenter
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
+                    height: Theme.sp(26); verticalAlignment: Text.AlignVCenter
                 }
                 Flow {
                     Layout.fillWidth: true; spacing: Theme.sp(6)
                     Repeater {
                         model: src.resolvedSources
+                        // An untinted chip: the source's colour as a dot, its name, and × to drop it.
                         delegate: Rectangle {
                             required property var modelData
                             required property int index
-                            height: Theme.sp(24); radius: Theme.radius
+                            height: Theme.sp(24); radius: height / 2
                             width: tagRow.implicitWidth + Theme.sp(16)
-                            color: Theme.colorBg
+                            color: "transparent"
+                            border.width: 1; border.color: Theme.colorBorderStrong
                             Row {
                                 id: tagRow; anchors.centerIn: parent; spacing: Theme.sp(6)
                                 Rectangle { width: Theme.sp(6); height: Theme.sp(6); radius: width / 2
@@ -314,18 +288,16 @@ Item {
                             }
                         }
                     }
-                    Text {
+                    PpCardNote {
                         visible: src.resolvedSources.length === 0
                         height: Theme.sp(24); verticalAlignment: Text.AlignVCenter
                         text: qsTr("no sources present for this region")
-                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                        color: Theme.colorText3
                     }
                 }
             }
         }
 
-        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colorBorderMid; opacity: Theme.borderOpacityNormal }
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.colorBorder }
 
         // ── coverage strip ──────────────────────────────────────────────────
         SectionHeader {
@@ -360,7 +332,7 @@ Item {
             }
         }
 
-        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colorBorderMid; opacity: Theme.borderOpacityNormal }
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.colorBorder }
 
         // ── detail table ────────────────────────────────────────────────────
         SectionHeader {
@@ -368,12 +340,21 @@ Item {
             onToggled: { root.tableCollapsed = !root.tableCollapsed
                          root._persistSection("table", root.tableCollapsed) }
 
-            // Copy the whole table to the clipboard, or export it to a CSV file.
-            // These sit on top of the header's toggle area, so a click here acts on
-            // the table rather than collapsing the section.
+            // Gaps shown or filled from the nearest sample, then copy the whole table to the
+            // clipboard or export it to a CSV file. These sit on top of the header's toggle
+            // area, so a click here acts on the table rather than collapsing the section.
             Row {
-                anchors { right: parent.right; rightMargin: Theme.sp(12); verticalCenter: parent.verticalCenter }
+                anchors { right: parent.right; rightMargin: Theme.sp(4); verticalCenter: parent.verticalCenter }
                 spacing: Theme.sp(14)
+
+                PpSegmentedControl {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Theme.sp(170); height: Theme.sp(24)
+                    options: [qsTr("show gaps"), qsTr("nearest")]
+                    selected: src.fillMode === "off" ? qsTr("show gaps") : qsTr("nearest")
+                    solid: false
+                    onActivated: (value) => src.fillMode = (value === qsTr("nearest")) ? "nearest" : "off"
+                }
 
                 Text {        // copy as tab-separated text → pastes straight into Excel/Sheets
                     anchors.verticalCenter: parent.verticalCenter
@@ -423,7 +404,7 @@ Item {
             id: tableArea
             Layout.fillWidth: true; Layout.fillHeight: !root.tableCollapsed
             visible: !root.tableCollapsed
-            Layout.margins: Theme.sp(8)
+            Layout.topMargin: Theme.sp(2)
 
             // Keyboard cursor row (highlighted; driven by arrows / Home·End / Page).
             property int currentRow: 0
@@ -454,9 +435,8 @@ Item {
                     color: "transparent"
                     Rectangle { anchors.top: parent.top; width: parent.width; height: 2
                                 color: root.srcColor(src.table.columnColorKey(index)) }
-                    Text { anchors.centerIn: parent; text: display
-                           font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                           color: Theme.colorText2 }
+                    PpMicro { anchors.centerIn: parent; text: display
+                              font.letterSpacing: Theme.trackingData; color: Theme.colorText2 }
                     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1
                                 color: Theme.colorBorderMid }
                 }
@@ -464,7 +444,9 @@ Item {
 
             TableView {
                 id: table
-                anchors { top: header.bottom; left: parent.left; right: parent.right; bottom: parent.bottom }
+                anchors { top: header.bottom; left: parent.left; right: parent.right
+                          bottom: cellKey.visible ? cellKey.top : parent.bottom
+                          bottomMargin: cellKey.visible ? Theme.sp(6) : 0 }
                 model: src.table
                 clip: true
                 columnSpacing: 0; rowSpacing: 0
@@ -504,13 +486,25 @@ Item {
                 delegate: Rectangle {
                     required property int row
                     readonly property bool cursor: row === tableArea.currentRow
+                    // The cell's state role, read through `model`: a bare `state` resolves to the
+                    // delegate's own Item.state string first, and never equals a model state.
+                    readonly property int cellState: model.state
                     implicitWidth: Theme.sp(90); implicitHeight: Theme.sp(22)
-                    // cursor row wins over the state tint (text colour still reads state)
-                    color: cursor ? Qt.rgba(0.49, 0.75, 0.67, 0.14)
-                         : state === SwingSeriesModel.Missing ? Qt.rgba(0.77, 0.41, 0.41, 0.08)
-                         : (state === SwingSeriesModel.Held || state === SwingSeriesModel.Resync
-                            || state === SwingSeriesModel.DerivedHeld)
-                           ? Qt.rgba(0.91, 0.71, 0.29, 0.08) : "transparent"
+                    // cursor row wins over the state tint (the mark and text colour still read state)
+                    color: cursor ? Qt.alpha(Theme.colorAccent, 0.14)
+                         : cellState === SwingSeriesModel.Missing ? Theme.colorErrorLight
+                         : (cellState === SwingSeriesModel.Held || cellState === SwingSeriesModel.Resync
+                            || cellState === SwingSeriesModel.DerivedHeld)
+                           ? Theme.colorAttentionLight : "transparent"
+                    // The state's mark, left of a right-aligned number. A left-aligned column
+                    // (the state column) already says it in words.
+                    Text {
+                        anchors { left: parent.left; leftMargin: Theme.sp(6); verticalCenter: parent.verticalCenter }
+                        visible: align !== Qt.AlignLeft
+                        text: root.stateMark(cellState)
+                        font.family: Theme.fontSymbol; font.pixelSize: Theme.fontSzMicro
+                        color: Theme.colorAttention
+                    }
                     Text {
                         anchors.fill: parent
                         anchors.rightMargin: Theme.sp(8); anchors.leftMargin: Theme.sp(8)
@@ -519,16 +513,43 @@ Item {
                         text: display
                         font.family: align === Qt.AlignLeft ? Theme.fontBody : Theme.fontData  // mono for numbers
                         font.pixelSize: Theme.fontSzBody2
-                        color: state === SwingSeriesModel.Missing ? Theme.colorText3
-                             : (state === SwingSeriesModel.Held || state === SwingSeriesModel.Resync
-                                || state === SwingSeriesModel.LowConf || state === SwingSeriesModel.DerivedHeld)
+                        color: cellState === SwingSeriesModel.Missing ? Theme.colorText3
+                             : (cellState === SwingSeriesModel.Held || cellState === SwingSeriesModel.Resync
+                                || cellState === SwingSeriesModel.LowConf || cellState === SwingSeriesModel.DerivedHeld)
                                ? Theme.colorAttention : Theme.colorText
-                        font.underline: state === SwingSeriesModel.DerivedHeld
+                        font.underline: cellState === SwingSeriesModel.DerivedHeld
                     }
                     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1
-                                color: Theme.colorBorder; opacity: 0.5 }
+                                color: Theme.colorBorder }
                     // click to move the cursor + take keyboard focus
                     TapHandler { onTapped: { tableArea.currentRow = row; table.forceActiveFocus() } }
+                }
+            }
+
+            // The cells' marks in words — while the table has room to show cells for it to explain.
+            Flow {
+                id: cellKey
+                visible: tableArea.height >= header.height + 3 * tableArea.rowH + Theme.sp(6)
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                spacing: Theme.sp(14)
+                Repeater {
+                    model: [ { g: "—",  t: qsTr("missing") },
+                             { g: "↦",  t: qsTr("held from the last sample") },
+                             { g: "↻",  t: qsTr("resync") },
+                             { g: "◌",  t: qsTr("low confidence") },
+                             { g: "↦*", t: qsTr("worked out from a held source") } ]
+                    delegate: Row {
+                        required property var modelData
+                        spacing: Theme.sp(4)
+                        Text { anchors.verticalCenter: parent.verticalCenter
+                               text: parent.modelData.g
+                               font.family: Theme.fontSymbol; font.pixelSize: Theme.fontSzMicro
+                               color: parent.modelData.g === "—" ? Theme.colorText3 : Theme.colorAttention }
+                        Text { anchors.verticalCenter: parent.verticalCenter
+                               text: parent.modelData.t
+                               font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
+                               color: Theme.colorText3 }
+                    }
                 }
             }
         }
@@ -547,8 +568,7 @@ Item {
         height: root.height - Theme.sp(24); x: root.width - width - Theme.sp(12); y: Theme.sp(12)
         padding: 0
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-        background: Rectangle { color: Theme.colorSurface; radius: Theme.radiusLg
-                                border.width: 1; border.color: Theme.colorBorderStrong }
+        background: PpPopoverCard {}
         contentItem: PpPropertiesPanel { metadata: src.metadata; swingDir: root.swingDir }
     }
 

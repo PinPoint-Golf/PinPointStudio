@@ -46,7 +46,7 @@ import QtQuick
 import QtQuick.Layouts
 import PinPointStudio
 
-Rectangle {
+Item {
     id: root
 
     // Anything with SessionDiagnosticsModel's read surface. Null draws the empty chrome.
@@ -293,12 +293,106 @@ Rectangle {
     signal shotRequested(string swingDir, int shotId)
 
     objectName: "sdBody"
-
-    radius: Theme.radius
-    color: Theme.colorBg2
-    border.width: 1
-    border.color: Theme.colorBorderMid
     clip: true
+
+    // ── the frame ────────────────────────────────────────────────────────────
+    //
+    // THE STAGE OWNS THE FRAME, the cast does not. On the stage PpModeStage puts this panel in
+    // its SESSION DIAGNOSTICS card and switches `framed` off, so the body draws no surface, no
+    // border and no title of its own — the card's heading carries the title, and `cardAside`
+    // carries what the old header chips said (the stage, the review tense). The wall cast has no
+    // stage around it, so there the body draws the same card itself: the coaching card's shell
+    // with its colorWarn rule, the Micro title and the aside on one heading row. Framed is the
+    // default because a body with nobody to frame it must still read as the panel.
+    property bool framed: true
+
+    // The tone the card takes (13.2): this panel names faults.
+    readonly property color tone: Theme.colorWarn
+
+    // What the header used to say in chips, as the card heading's aside: the newest swing's
+    // label live (never while an older one is being read), the stage the ledger has matured to,
+    // and the tense the panel is read in.
+    readonly property string _shotLabelText:
+        (!reviewing && !readingShot && !detailOpen && header) ? (header.shotLabel || "") : ""
+    readonly property string _stageWord:  header ? (header.stageLabel || "") : ""
+    readonly property string _reviewWord: header ? (header.reviewBadge || "") : ""
+    readonly property string cardAside:
+        [_shotLabelText, _stageWord, _reviewWord].filter(function (s) { return s !== "" })
+                                                  .join(" · ").toUpperCase()
+
+    readonly property int _framePad: px(14)
+
+    PpCardShell {
+        anchors.fill: parent
+        visible: root.framed
+        tone: root.tone
+    }
+
+    // The framed card's heading: the panel's name in the tone, the aside on the right.
+    Item {
+        id: frameHead
+        visible: root.framed
+        x: root._framePad; y: root._framePad
+        width: parent.width - 2 * root._framePad
+        height: visible ? frameTitle.implicitHeight : 0
+
+        PpMicro {
+            id: frameTitle
+            objectName: "sdTitle"
+            // 12c abbreviates rather than eliding: the panel's own name is the last thing that
+            // should be half a word.
+            text: root.compact ? qsTr("SESSION DIAG.") : qsTr("SESSION DIAGNOSTICS")
+            font.pixelSize: root.tzMicro
+            color: root.tone
+        }
+        // Top-aligned with the title, as PpStageCard sets its aside: a Row has no baseline.
+        Row {
+            anchors.right: parent.right
+            anchors.top: parent.top
+
+            PpMicro {
+                objectName: "sdShotLabel"
+                visible: text !== ""
+                text: root._shotLabelText.toUpperCase()
+                font.pixelSize: root.tzMicro
+                font.letterSpacing: Theme.trackingData
+            }
+            // The stage is a word, not a control.
+            PpMicro {
+                objectName: "sdStageChip"
+                visible: root._stageWord !== ""
+                text: (root._shotLabelText !== "" ? " · " : "") + root._stageWord.toUpperCase()
+                font.pixelSize: root.tzMicro
+                font.letterSpacing: Theme.trackingData
+            }
+            // ── the tense ────────────────────────────────────────────────────
+            // REVIEWING · shot 9 of 14, beside the stage rather than replacing it because they
+            // say different things — the stage is what the ledger matured to, the badge is which
+            // tense the panel is being read in.
+            PpMicro {
+                objectName: "sdReviewBadge"
+                visible: root._reviewWord !== ""
+                text: (root._shotLabelText !== "" || root._stageWord !== "" ? " · " : "")
+                      + root._reviewWord.toUpperCase()
+                font.pixelSize: root.tzMicro
+                font.letterSpacing: Theme.trackingData
+            }
+        }
+    }
+
+    // A chip at the panel's own scale. PpChip sets its type on the Theme scale; the cast lays
+    // this body out at k ≈ 2, so the chip is drawn at its own size and scaled with the rest.
+    component FitChip: Item {
+        property alias chip: fitChip
+        property real fit: 1.0
+        implicitWidth:  fitChip.width * fit
+        implicitHeight: fitChip.height * fit
+        PpChip {
+            id: fitChip
+            transformOrigin: Item.TopLeft
+            scale: parent.fit
+        }
+    }
 
     // ── the design's own proportions, at k = 1 ───────────────────────────────
     readonly property int baseW: 1168
@@ -394,10 +488,12 @@ Rectangle {
     // decision about space and never about importance. What does not fit is COUNTED rather
     // than dropped silently — a pattern that scrolled off the end still happened.
     readonly property int baseCardMinW: 300
-    readonly property int _cardGap: px(8)
+    // Rows are opened by hairlines, not boxed, so columns stand far enough apart for each row's
+    // rule to read as its own.
+    readonly property int _cardGap: px(16)
     readonly property int _cardCols: {
         if (width <= 0) return 1
-        const avail = width - 2 * px(10)
+        const avail = content.width
         return Math.max(1, Math.floor((avail + _cardGap) / (px(baseCardMinW) + _cardGap)))
     }
     // ⚠ THE CARD ROW IS A GRID NOW, and that follows from the rail leaving the front page.
@@ -461,7 +557,7 @@ Rectangle {
     readonly property int _bookendsShown: {
         const n = bookends ? bookends.length : 0
         if (n <= 0 || width <= 0) return 0
-        const avail = width - 2 * px(10) - px(90)      // the row's margins and its label
+        const avail = content.width - px(90)      // the row's label
         return Math.max(1, Math.min(n, Math.floor(avail / px(_bookendMinW))))
     }
     readonly property int _bookendsHidden: (bookends ? bookends.length : 0) - _bookendsShown
@@ -499,62 +595,50 @@ Rectangle {
     }
 
     ColumnLayout {
+        id: content
         anchors.fill: parent
-        anchors.leftMargin:   root.px(10)
-        anchors.rightMargin:  root.px(10)
-        anchors.bottomMargin: root.px(10)
-        anchors.topMargin:    0
+        anchors.leftMargin:   root.framed ? root._framePad : 0
+        anchors.rightMargin:  root.framed ? root._framePad : 0
+        anchors.bottomMargin: root.framed ? root._framePad : 0
+        anchors.topMargin:    root.framed ? frameHead.y + frameHead.height + root.px(10) : 0
         spacing: root.px(8)
 
         // ── header ───────────────────────────────────────────────────────────
-        // ONE LINE OF CHIPS AND THE TABS. The captions that used to trail along it — the count
-        // line, the review note, the cadence note — each said something already on the panel at
-        // a second weight, and now say it once, in the tab it is about: the count leads the
-        // SESSION tab, the review note foots THIS SHOT, quiet is the strip's own state and the
-        // THIS SHOT tab's note.
+        // THE TABS, AND WHAT THE GOLFER CAN SAY. The stage and the review tense are the card
+        // heading's aside now (cardAside), so this row is the panel's own heading under it: the
+        // three tabs in the card-heading idiom PpModeStage's tab strip uses, and the declared
+        // miss at the right. The captions that used to trail along it each say their one thing
+        // in the tab it is about: the count leads the SESSION tab, the review note foots THIS
+        // SHOT, quiet is the strip's own state and the THIS SHOT tab's note.
+        //
+        // On the condition detail the tabs stand down for ◂ BACK and the condition's name.
+        // Narrow, the tabs take a row of their own under the chips when there are chips.
         Item {
             id: headerItem
+            readonly property int rowH: root.px(26)
+            readonly property bool _chipLine: root.detailOpen || missWrap.visible
             Layout.fillWidth: true
-            Layout.preferredHeight: root.px(34)
-                                    + (root.compact && tabBar.visible ? tabBar.height + root.px(4) : 0)
+            Layout.preferredHeight: (root.compact && tabBar.visible && _chipLine)
+                                    ? root.px(34) + tabBar.height
+                                    : rowH
 
             Row {
                 anchors.left: parent.left
-                anchors.leftMargin: root.px(2)
-                anchors.right: (tabBar.visible && !root.compact) ? tabBar.left : parent.right
-                anchors.rightMargin: root.px(9)
-                y: Math.round((root.px(34) - height) / 2)
-                spacing: root.px(9)
+                y: Math.round((headerItem.rowH - height) / 2)
+                spacing: root.px(10)
+                visible: root.detailOpen
 
                 // ── back, out of the condition detail ────────────────────────
-                // LEFT OF THE PANEL'S OWN NAME, in the house mono micro-chip: the panel is still
-                // the panel, and this is the one control that says the body under it is a
-                // detour. Drawn in the accent because it is the only thing on the header a tap
-                // does something with.
-                Rectangle {
-                    id: backChip
-                    objectName: "sdDetailBack"
+                // The one control that says the body under it is a detour, in the accent
+                // because it is the only thing on the row a tap does something with.
+                FitChip {
+                    id: backWrap
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: root.detailOpen
-                    width:  backText.implicitWidth + root.px(12)
-                    height: backText.implicitHeight + root.px(4)
-                    radius: Math.max(1, root.px(3))
-                    color: "transparent"
-                    border.width: 1
-                    border.color: Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g,
-                                          Theme.colorAccent.b, backMouse.containsMouse ? 0.55 : 0.30)
-                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                    Text {
-                        id: backText
-                        anchors.centerIn: parent
-                        text: qsTr("◂ BACK")
-                        font.family: Theme.fontData
-                        font.pixelSize: root.tzCaption
-                        font.letterSpacing: Theme.trackingMicro
-                        color: Theme.colorAccent
-                    }
-
+                    fit: root.k
+                    chip.objectName: "sdDetailBack"
+                    chip.text: qsTr("◂ BACK")
+                    chip.tone: Theme.colorAccent
+                    chip.tinted: backMouse.containsMouse
                     MouseArea {
                         id: backMouse
                         anchors.fill: parent
@@ -563,160 +647,71 @@ Rectangle {
                         onClicked: root._closeDetail()
                     }
                 }
-
-                Text {
-                    objectName: "sdTitle"
-                    anchors.verticalCenter: parent.verticalCenter
-                    // 12c abbreviates rather than eliding: the panel's own name is the last
-                    // thing that should be half a word.
-                    text: root.compact ? qsTr("SESSION DIAG.") : qsTr("SESSION DIAGNOSTICS")
-                    font.family: Theme.fontData
-                    font.pixelSize: root.tzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                    color: Theme.colorText2
-                }
-                Text {
-                    objectName: "sdShotLabel"
-                    anchors.verticalCenter: parent.verticalCenter
-                    // In review the badge names the shot ("REVIEWING · shot 9 of 14"), so the
-                    // label would say it twice side by side.
-                    // Live, it names the newest swing — wrong while an older one is being read.
-                    visible: !root.reviewing && !root.readingShot && !root.detailOpen
-                    text: root.header ? (root.header.shotLabel || "") : ""
-                    font.family: Theme.fontData
-                    font.pixelSize: root.tzMicro
-                    color: Theme.colorText3
-                }
-                Rectangle {
-                    objectName: "sdStageChip"
-                    anchors.verticalCenter: parent.verticalCenter
-                    width:  stageText.implicitWidth + root.px(14)
-                    height: stageText.implicitHeight + root.px(4)
-                    radius: Math.max(1, root.px(3))
-                    color: "transparent"
-                    border.width: 0      // quiet: the stage is a word, not a control
-                    border.color: Theme.colorBorderMid
-                    visible: stageText.text !== ""
-
-                    Text {
-                        id: stageText
-                        anchors.centerIn: parent
-                        text: root.header ? (root.header.stageLabel || "") : ""
-                        font.family: Theme.fontData
-                        font.pixelSize: root.tzCaption
-                        font.letterSpacing: Theme.trackingMicro
-                        color: Theme.colorText
-                    }
-                }
-                // ── the tense ────────────────────────────────────────────────
-                // REVIEWING · shot 9 of 14, framed in the accent at ~35% and lettered in it.
-                // It sits beside the stage chip rather than replacing it because they say
-                // different things — the stage is what the ledger matured to, the badge is
-                // which tense the panel is being read in.
-                Rectangle {
-                    objectName: "sdReviewBadge"
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: reviewBadgeText.text !== ""
-                    width:  reviewBadgeText.implicitWidth + root.px(14)
-                    height: reviewBadgeText.implicitHeight + root.px(4)
-                    radius: Math.max(1, root.px(3))
-                    color: "transparent"
-                    border.width: 1
-                    border.color: Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g,
-                                          Theme.colorAccent.b, 0.35)
-
-                    Text {
-                        id: reviewBadgeText
-                        anchors.centerIn: parent
-                        text: root.header ? (root.header.reviewBadge || "") : ""
-                        font.family: Theme.fontData
-                        font.pixelSize: root.tzCaption
-                        font.letterSpacing: Theme.trackingMicro
-                        color: Theme.colorAccent
-                    }
-                }
-                // ── the declared miss ────────────────────────────────────────
-                // A chip, in the header, beside the stage — because it is a statement about
-                // the SESSION and not about a pattern, and because it is the one thing on
-                // this panel the golfer supplies rather than the model. It is deliberately
-                // NOT tinted like a finding: intent shapes attention and pre-arms chains, and
-                // it is never evidence (§A6). The accent is the app's "you can act here"
-                // colour, which is exactly what it is.
-                // The condition the detail is open on, named in the header — because the body
-                // below it is one condition's page and the panel's own title no longer says
-                // what is on screen.
+                // The condition the detail is open on, named in the header — the body below it
+                // is one condition's page.
                 Text {
                     objectName: "sdDetailTitle"
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: root.detailOpen
+                    width: Math.min(implicitWidth,
+                                    headerItem.width - backWrap.width - parent.spacing)
                     text: root.detail ? (root.detail.name || "") : ""
                     elide: Text.ElideRight
                     font.family: Theme.fontBody
-                    font.pixelSize: root.tzLabel
+                    font.pixelSize: root.tzBody
                     font.weight: Theme.fontBodyWeight
                     color: Theme.colorText
                 }
+            }
 
-                Rectangle {
-                    id: missChip
-                    objectName: "sdMissChip"
-                    anchors.verticalCenter: parent.verticalCenter
-                    // The declaration is about the SESSION, and the detail is about one
-                    // condition. Asking "what is the bad shot?" over a page that is not the
-                    // session picture is an invitation with nowhere to land.
-                    visible: !root.detailOpen && (root._missInvited || root.declaredMiss !== "")
-                    width:  missText.implicitWidth + root.px(14)
-                    height: missText.implicitHeight + root.px(4)
-                    radius: Math.max(1, root.px(3))
-                    color: "transparent"
-                    border.width: 1
-                    border.color: Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g,
-                                          Theme.colorAccent.b,
-                                          missHover.hovered ? 0.55 : 0.30)
-                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+            // ── the declared miss ────────────────────────────────────────────────
+            // A chip at the right of the row — a statement about the SESSION and not about a
+            // pattern, and the one thing on this panel the golfer supplies rather than the
+            // model. Deliberately NOT toned like a finding: intent shapes attention and pre-arms
+            // chains and is never evidence (§A6). The accent is the app's "you can act here".
+            // The declaration is about the session and the detail is about one condition, so
+            // it stands down on the detail.
+            FitChip {
+                id: missWrap
+                anchors.right: parent.right
+                y: Math.round((headerItem.rowH - height) / 2)
+                visible: !root.detailOpen && (root._missInvited || root.declaredMiss !== "")
+                fit: root.k
+                chip.objectName: "sdMissChip"
+                // The name once there is one, and the invitation until then. The caret says it
+                // opens something; the middot says it is settled and can still be changed.
+                chip.text: root.declaredMiss !== ""
+                           ? qsTr("MISS · %1").arg(root.declaredMissName || root.declaredMiss)
+                             + (root.interactive ? qsTr(" ▸") : "")
+                           : qsTr("DECLARE MISS ▸")
+                chip.tone: Theme.colorAccent
+                chip.tinted: root.declaredMiss !== "" || missHover.hovered
 
-                    Text {
-                        id: missText
-                        anchors.centerIn: parent
-                        // The name once there is one, and the invitation until then. The
-                        // caret says it opens something; the middot says it is settled and
-                        // can still be changed.
-                        text: root.declaredMiss !== ""
-                              ? qsTr("MISS · %1").arg(root.declaredMissName || root.declaredMiss)
-                                + (root.interactive ? qsTr(" ▸") : "")
-                              : qsTr("DECLARE MISS ▸")
-                        font.family: Theme.fontData
-                        font.pixelSize: root.tzCaption
-                        font.letterSpacing: Theme.trackingMicro
-                        color: Theme.colorAccent
-                    }
-
-                    HoverHandler { id: missHover; enabled: root.interactive
-                                   cursorShape: Qt.PointingHandCursor }
-                    TapHandler {
-                        enabled: root.interactive
-                        onTapped: missPicker.openBelow(missChip)
-                    }
+                HoverHandler { id: missHover; enabled: root.interactive
+                               cursorShape: Qt.PointingHandCursor }
+                TapHandler {
+                    enabled: root.interactive
+                    onTapped: missPicker.openBelow(missWrap)
                 }
-
             }
 
             // ── the tabs ─────────────────────────────────────────────────────
-            // Right-hand end of the header in the wide arrangement; a row of its own under it
-            // in the narrow one, where the chips already fill the line. Hidden on the detail,
-            // which is one condition's page and belongs to neither tab.
+            // The card-heading idiom: Micro labels, the selected one in colorText over a 2 px
+            // rule in the panel's tone, each tab's note beside it as an aside. Hidden on the
+            // detail, which is one condition's page and belongs to neither tab.
             Row {
                 id: tabBar
                 objectName: "sdTabBar"
                 visible: !root.detailOpen
-                x: root.compact ? root.px(2) : parent.width - width - root.px(2)
-                y: root.compact ? root.px(34) : Math.round((root.px(34) - height) / 2)
-                spacing: root.px(4)
+                x: 0
+                y: (root.compact && headerItem._chipLine) ? root.px(34)
+                                                          : Math.round((headerItem.rowH - height) / 2)
+                // Narrow, the three tabs and their notes must still fit one 396 line.
+                spacing: root.compact ? root.px(10) : root.px(20)
 
                 Repeater {
                     model: root._tabDefs
 
-                    Rectangle {
+                    Item {
                         id: tabChip
                         required property var modelData
                         objectName: "sdTab"
@@ -726,55 +721,45 @@ Rectangle {
                             key === "shot"     ? root._shotTabNote
                           : key === "watching" ? (root._watchingCount > 0 ? String(root._watchingCount) : "")
                                                : root._sessionTabNote
-                        width:  tabRow.implicitWidth + root.px(16)
-                        height: tabRow.implicitHeight + root.px(8)
-                        radius: Math.max(1, root.px(3))
-                        color: on ? Theme.colorSurface : "transparent"
-                        border.width: 1
-                        border.color: on ? Theme.colorBorderMid : "transparent"
-
-                        Rectangle {
-                            // The active tab's accent rule — the one mark that says which body
-                            // is on screen.
-                            visible: tabChip.on
-                            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                            anchors.leftMargin:  root.px(6)
-                            anchors.rightMargin: root.px(6)
-                            height: Math.max(1, root.px(2))
-                            color: Theme.colorAccent
-                        }
+                        implicitWidth:  tabRow.implicitWidth
+                        implicitHeight: tabRow.implicitHeight + root.px(6)
 
                         Row {
                             id: tabRow
-                            anchors.centerIn: parent
                             spacing: root.px(6)
 
-                            Text {
+                            PpMicro {
                                 id: tabLabel
                                 objectName: "sdTabLabel"
                                 text: tabChip.modelData.label
-                                font.family: Theme.fontData
                                 font.pixelSize: root.tzMicro
-                                font.letterSpacing: Theme.trackingMicro
                                 color: tabChip.on ? Theme.colorText
                                      : (tabTap.containsMouse ? Theme.colorText2 : Theme.colorText3)
                                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                             }
-                            Text {
+                            PpMicro {
                                 objectName: "sdTabNote"
                                 visible: text !== ""
                                 anchors.baseline: tabLabel.baseline
                                 text: tabChip.note
-                                font.family: Theme.fontData
-                                font.pixelSize: root.tzCaption
-                                color: tabChip.key === "shot" && root._shotFiredCount > 0
-                                       ? Theme.colorError : Theme.colorText3
+                                font.pixelSize: root.compact ? root.tzCaption : root.tzMicro
+                                font.letterSpacing: Theme.trackingData
                             }
                         }
+                        // The selected tab's rule, in the panel's tone — the one mark that says
+                        // which body is on screen.
+                        Rectangle {
+                            visible: tabChip.on
+                            anchors.bottom: parent.bottom
+                            width: tabLabel.width; height: 2; radius: 1
+                            color: root.tone
+                        }
 
+                        // A Micro label is a small target; the hit area reaches past it.
                         MouseArea {
                             id: tabTap
                             anchors.fill: parent
+                            anchors.margins: -root.px(6)
                             enabled: root.interactive
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
@@ -839,9 +824,11 @@ Rectangle {
             // two-row band: every condition is laid out and the grid scrolls only once the tab
             // itself is full.
             maxRows: 1000
+            // Less the header, the foot, and the column's three gaps around the strip and the
+            // (here empty) cards body under it.
             maxHeight: Math.max(root.px(80),
-                                root.height - headerItem.height - root.px(10) - root.px(8)
-                                - (shotFoot.visible ? shotFoot.implicitHeight + root.px(8) : 0))
+                                content.height - headerItem.height - 3 * root.px(8)
+                                - (shotFoot.visible ? shotFoot.implicitHeight : 0))
         }
 
         // The patterns that fired here, as the session tab draws them — the place the strip's
@@ -858,44 +845,34 @@ Rectangle {
             // and with no shot to read the tab says where one comes from.
             readonly property bool live: root._shotAvailable && !root.readingShot
 
-            Text {
+            PpCardNote {
                 objectName: "sdShotEmpty"
                 anchors { left: parent.left; right: parent.right; top: parent.top }
-                anchors.topMargin: root.px(14)
-                anchors.leftMargin: root.px(4)
+                anchors.topMargin: root.px(6)
                 visible: !root._shotAvailable
                 text: root.reviewing
                       ? qsTr("Pick a shot in the carousel to read it here.")
                       : qsTr("The session has closed — pick a shot in the carousel to read it here.")
-                wrapMode: Text.WordWrap
-                font.family: Theme.fontBody
                 font.pixelSize: root.tzBody
-                font.weight: Theme.fontBodyWeight
-                color: Theme.colorText3
             }
 
             Item {
                 id: shotCardsHeader
                 visible: shotRest.live
                 anchors { left: parent.left; right: parent.right; top: parent.top }
-                anchors.leftMargin:  root.px(2)
-                anchors.rightMargin: root.px(2)
                 height: firedLabel.implicitHeight
 
-                Text {
+                PpMicro {
                     id: firedLabel
                     objectName: "sdFiredLabel"
                     anchors.left: parent.left
                     text: qsTr("YOUR PATTERNS THAT FIRED HERE")
-                    font.family: Theme.fontData
                     font.pixelSize: root.tzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                    color: Theme.colorText2
                 }
                 // THE METER'S ONLY LEGEND. It sat on the strip's headline line, crowding the one
                 // sentence the golfer reads between balls; here it heads the cards whose meters
                 // and dashed chips it explains, and is still on screen, not behind a hover.
-                Text {
+                PpMicro {
                     objectName: "sdChipHint"
                     anchors.left: firedLabel.right
                     anchors.leftMargin: root.px(12)
@@ -905,26 +882,20 @@ Rectangle {
                     visible: !root.compact
                     text: qsTr("bars = how far outside the corridor · dashed chip = one of your patterns")
                     elide: Text.ElideLeft
-                    font.family: Theme.fontData
                     font.pixelSize: root.tzCaption
-                    color: Theme.colorText3
+                    font.letterSpacing: Theme.trackingData
                 }
             }
 
-            Text {
+            PpCardNote {
                 objectName: "sdFiredEmpty"
                 anchors { left: parent.left; right: parent.right; top: shotCardsHeader.bottom }
                 anchors.topMargin: root.px(10)
-                anchors.leftMargin: root.px(2)
                 visible: shotRest.live && root._firedCards.length === 0
                 text: (root.cards && root.cards.length > 0)
                       ? qsTr("None of this session's patterns fired on this swing.")
                       : qsTr("No patterns yet — the strip above is everything this swing said.")
-                wrapMode: Text.WordWrap
-                font.family: Theme.fontBody
-                font.pixelSize: root.tzLabel
-                font.weight: Theme.fontBodyWeight
-                color: Theme.colorText3
+                font.pixelSize: root.tzBody
             }
 
             Flickable {
@@ -937,6 +908,9 @@ Rectangle {
                 contentWidth: width
                 contentHeight: shotGrid.implicitHeight
                 clip: true
+                // Cut to the viewport as a layer: the rows' badges draw curve-rendered Shapes,
+                // which a scissor clip let spill past the fold.
+                layer.enabled: true
                 boundsBehavior: Flickable.StopAtBounds
 
                 Grid {
@@ -973,7 +947,6 @@ Rectangle {
         Flow {
             id: shotFoot
             Layout.fillWidth: true
-            Layout.leftMargin: root.px(4)
             Layout.preferredHeight: visible ? implicitHeight : 0
             visible: !root.detailOpen && root._tab === "shot" && root.readingShot
             spacing: root.px(6)
@@ -998,27 +971,29 @@ Rectangle {
         }
 
         // ══ SESSION ═════════════════════════════════════════════════════════
-        Rectangle {
+        // A band of its own inside the card, closed off from the patterns under it by a hairline
+        // rather than a fill: one frame per panel, and that frame is the card's.
+        Item {
             objectName: "sdBookends"
             Layout.fillWidth: true
             Layout.preferredHeight: root.px(56)
             visible: !root.detailOpen && root._tab === "session" && root.isClosing
-            color: Theme.colorSurface
-            radius: Theme.radius
-            border.width: 0      // quiet: one frame per panel, fills separate the regions
-            border.color: Theme.colorBorderMid
             clip: true
+
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width; height: 1
+                color: Theme.colorBorder
+            }
 
             Row {
                 id: bookendsRow
                 anchors.fill: parent
-                anchors.leftMargin:   root.px(10)
-                anchors.rightMargin:  root.px(10)
-                anchors.topMargin:    root.px(7)
-                anchors.bottomMargin: root.px(7)
+                anchors.topMargin:    root.px(4)
+                anchors.bottomMargin: root.px(8)
                 spacing: root.px(14)
 
-                Text {
+                PpMicro {
                     id: bookendsLabel
                     anchors.verticalCenter: parent.verticalCenter
                     // The tail is COUNTED in the label rather than dropped silently — the same
@@ -1027,10 +1002,7 @@ Rectangle {
                     text: root._bookendsHidden > 0
                           ? qsTr("SESSION\nBOOKENDS · +%1").arg(root._bookendsHidden)
                           : qsTr("SESSION\nBOOKENDS")
-                    font.family: Theme.fontData
-                    font.pixelSize: root.tzCaption
-                    font.letterSpacing: Theme.trackingMicro
-                    color: Theme.colorText2
+                    font.pixelSize: root.tzMicro
                 }
 
                 Repeater {
@@ -1075,7 +1047,7 @@ Rectangle {
                             anchors.left: parent.left
                             width: 1
                             height: parent.height
-                            color: Theme.colorBorderMid
+                            color: Theme.colorBorder
                         }
 
                         Column {
@@ -1132,23 +1104,17 @@ Rectangle {
             visible: !root.detailOpen && root._tab === "session"
 
             // ── Cold ─────────────────────────────────────────────────────────
-            Rectangle {
+            Item {
                 objectName: "sdColdBody"
                 anchors.fill: parent
                 visible: root.isCold
-                color: Theme.colorSurface
-                radius: Theme.radius
-                border.width: 0      // quiet: one frame per panel, fills separate the regions
-                border.color: Theme.colorBorderMid
                 clip: true
 
                 Column {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
-                    anchors.leftMargin:  root.px(18)
-                    anchors.rightMargin: root.px(18)
-                    anchors.topMargin:   root.px(16)
+                    anchors.topMargin: root.px(6)
                     spacing: root.px(14)
 
                     Column {
@@ -1185,12 +1151,11 @@ Rectangle {
                         spacing: root.px(7)
                         visible: root.expectations && root.expectations.length > 0
 
-                        Text {
+                        PpMicro {
+                            width: parent.width
                             text: qsTr("USUALLY YOURS · EXPECTATIONS TO TEST, NOT FINDINGS")
-                            font.family: Theme.fontData
-                            font.pixelSize: root.tzCaption
-                            font.letterSpacing: Theme.trackingMicro
-                            color: Theme.colorText3
+                            elide: Text.ElideRight
+                            font.pixelSize: root.tzMicro
                         }
 
                         Flow {
@@ -1215,16 +1180,26 @@ Rectangle {
                                     PpDashedFrame {
                                         anchors.fill: parent
                                         frameRadius: Theme.radius
-                                        strokeColor: Theme.colorBorderMid
+                                        strokeColor: Theme.colorBorderStrong
                                         dashOn:  Math.max(1, root.px(3))
                                         dashOff: Math.max(1, root.px(3))
+                                    }
+                                    // ...and its badge is the unconfirmed one for the same
+                                    // reason: placed on evidence this session has not renewed.
+                                    PpBadge {
+                                        id: expectBadge
+                                        x: root.px(11)
+                                        y: Math.round(expectCol.y + root.tzBody * 1.3 / 2 - height / 2)
+                                        size: root.px(16)
+                                        kind: "unconfirmed"
+                                        tone: Theme.colorText3
                                     }
 
                                     Column {
                                         id: expectCol
-                                        anchors.left: parent.left
+                                        anchors.left: expectBadge.right
                                         anchors.right: parent.right
-                                        anchors.leftMargin:  root.px(11)
+                                        anchors.leftMargin:  root.px(9)
                                         anchors.rightMargin: root.px(11)
                                         anchors.verticalCenter: parent.verticalCenter
                                         spacing: root.px(3)
@@ -1278,23 +1253,20 @@ Rectangle {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
-                    anchors.leftMargin:  root.px(2)
-                    anchors.rightMargin: root.px(2)
                     height: pictureLabel.implicitHeight
 
                     // THE SESSION'S COUNT LEADS ITS TAB. It was "SESSION PICTURE" here with the
                     // count trailing along the header; the tab already says SESSION, and the
                     // count is the one thing this label can add — "counted over all N shots" is
                     // the reminder that every number below is a session total.
-                    Text {
+                    PpMicro {
                         id: pictureLabel
                         objectName: "sdStageNote"
                         anchors.left: parent.left
                         anchors.top: parent.top
                         text: root.header ? (root.header.countLine || "") : ""
-                        font.family: Theme.fontData
                         font.pixelSize: root.tzMicro
-                        font.letterSpacing: Theme.trackingMicro
+                        font.letterSpacing: Theme.trackingData
                         color: Theme.colorText2
                     }
                     // ── the filter, on the row it filters ────────────────────
@@ -1334,8 +1306,8 @@ Rectangle {
                                 readonly property bool on: root.cardFilter === modelData.key
                                 text: modelData.label
                                 font.family: Theme.fontData
-                                font.pixelSize: root.tzCaption
-                                font.letterSpacing: Theme.trackingLabel
+                                font.pixelSize: root.tzMicro
+                                font.letterSpacing: Theme.trackingMicro
                                 color: on ? Theme.colorAccent
                                           : (chipTap.containsMouse ? Theme.colorText2
                                                                    : Theme.colorText3)
@@ -1353,7 +1325,7 @@ Rectangle {
                         }
                     }
 
-                    Text {
+                    PpMicro {
                         id: moreTail
                         objectName: "sdMoreTail"
                         anchors.right: parent.right
@@ -1364,9 +1336,8 @@ Rectangle {
                         // moves — the count of patterns is already in the header's own line.
                         visible: cardFlick.contentHeight > cardFlick.height + 1
                         text: qsTr("scroll for the rest")
-                        font.family: Theme.fontData
                         font.pixelSize: root.tzMicro
-                        color: Theme.colorText3
+                        font.letterSpacing: Theme.trackingData
                     }
                 }
 
@@ -1385,21 +1356,17 @@ Rectangle {
                 // doing it and, for the ball filter, why a pattern can fail it — an unwritten
                 // edge is not the same claim as a harmless fault, and the panel must not let the
                 // reader take it for one.
-                Text {
+                PpCardNote {
                     objectName: "sdCardFilterEmpty"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: pictureHeader.bottom
                     anchors.topMargin: root.px(12)
                     visible: root._cardsShown === 0 && !!root.cards && root.cards.length > 0
-                    wrapMode: Text.WordWrap
                     text: root.cardFilter === "ball"
                           ? qsTr("No pattern this session has an authored path to the ball. That is a statement about what the model has been written to claim, not about what these faults cost you.")
                           : qsTr("Every pattern this session has another pattern authored as causing it.")
-                    font.family: Theme.fontBody
-                    font.pixelSize: root.tzLabel
-                    font.weight: Theme.fontBodyWeight
-                    color: Theme.colorText2
+                    font.pixelSize: root.tzBody
                 }
 
                 Flickable {
@@ -1413,6 +1380,9 @@ Rectangle {
                     contentWidth: width
                     contentHeight: cardRow.implicitHeight
                     clip: true
+                    // Cut to the viewport as a layer: the rows' badges draw curve-rendered
+                    // Shapes, which a scissor clip let spill past the fold.
+                    layer.enabled: true
                     boundsBehavior: Flickable.StopAtBounds
 
                     Grid {
@@ -1480,18 +1450,13 @@ Rectangle {
             Layout.fillHeight: true
             visible: !root.detailOpen && root._tab === "watching"
 
-            Text {
+            PpCardNote {
                 objectName: "sdWatchingEmpty"
                 anchors { left: parent.left; right: parent.right; top: parent.top }
-                anchors.topMargin: root.px(14)
-                anchors.leftMargin: root.px(4)
+                anchors.topMargin: root.px(6)
                 visible: root._watchingCount === 0
                 text: qsTr("Nothing below the pattern gate yet — a condition that fires but has not recurred enough to be a pattern is listed here.")
-                wrapMode: Text.WordWrap
-                font.family: Theme.fontBody
                 font.pixelSize: root.tzBody
-                font.weight: Theme.fontBodyWeight
-                color: Theme.colorText3
             }
 
             Flickable {
@@ -1501,6 +1466,9 @@ Rectangle {
                 contentWidth: width
                 contentHeight: watchingRow.implicitHeight
                 clip: true
+                // Cut to the viewport as a layer, as the card rows are: the badges are
+                // curve-rendered Shapes.
+                layer.enabled: true
                 boundsBehavior: Flickable.StopAtBounds
 
                 PpWatchingRow {
@@ -1524,7 +1492,6 @@ Rectangle {
         PpCoverageLine {
             Layout.fillWidth: true
             Layout.preferredHeight: visible ? implicitHeight : 0
-            Layout.leftMargin: root.px(4)
             // Stated on the session picture. The detail is one condition's page and the
              // coverage line is a fact about the capture, which belongs to the panel behind it.
             line: (root.detailOpen || root._tab !== "session") ? ""
@@ -1581,7 +1548,7 @@ Rectangle {
         // sheet would also be a click outside it. MouseArea accepts the event and stops it.
         MouseArea { anchors.fill: parent; onClicked: missPicker.close() }
 
-        Rectangle {
+        Item {
             objectName: "sdMissPickerSheet"
             // Kept inside the panel on both axes — the header chip can sit near the right-hand
             // edge in the narrow arrangement, and a sheet half off the panel is clipped away
@@ -1601,29 +1568,24 @@ Rectangle {
                              + Math.max(1, missPicker._rows.length) * _rowH
                              + (clearRow.visible ? clearRow.height : 0)
                              + 2 * root.px(6))
-            color: Theme.colorSurface
-            radius: Theme.radius
-            border.width: 1
-            border.color: Theme.colorAccent
             clip: true
 
+            PpPopoverCard { anchors.fill: parent }
+
             // The sheet eats its own clicks, so a tap on its background is not also a tap on
-            // the scrim. FIRST child, so the rows above it get theirs first.
+            // the scrim. Before the rows, so the rows above it get theirs first.
             MouseArea { anchors.fill: parent }
 
-            Text {
+            PpMicro {
                 id: head
                 objectName: "sdMissPickerLabel"
                 anchors { left: parent.left; right: parent.right; top: parent.top }
-                anchors.margins: root.px(9)
+                anchors.margins: root.px(10)
                 height: implicitHeight + root.px(6)
                 // WHAT THE DECLARATION IS FOR, said where it is made. It pre-arms the chains
                 // upstream of the outcome; it is not a filter and it is not evidence (§A6).
                 text: qsTr("WHAT IS THE BAD SHOT?")
-                font.family: Theme.fontData
-                font.pixelSize: root.tzCaption
-                font.letterSpacing: Theme.trackingMicro
-                color: Theme.colorText3
+                font.pixelSize: root.tzMicro
             }
 
             ListView {
@@ -1686,16 +1648,14 @@ Rectangle {
                     anchors.leftMargin:  root.px(9)
                     anchors.rightMargin: root.px(9)
                     height: 1
-                    color: Theme.colorBorderMid
+                    color: Theme.colorBorder
                 }
-                Text {
+                PpMicro {
                     anchors.left: parent.left
                     anchors.leftMargin: root.px(11)
                     anchors.verticalCenter: parent.verticalCenter
                     text: qsTr("NO DECLARED MISS")
-                    font.family: Theme.fontData
-                    font.pixelSize: root.tzCaption
-                    font.letterSpacing: Theme.trackingLabel
+                    font.pixelSize: root.tzMicro
                     color: clearMouse.containsMouse ? Theme.colorText : Theme.colorText3
                 }
                 MouseArea {

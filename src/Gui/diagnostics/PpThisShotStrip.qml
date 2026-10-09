@@ -61,38 +61,31 @@ Item {
     implicitHeight: px(56)
 
     // ── surfaced ─────────────────────────────────────────────────────────────
-    Rectangle {
+    // No surface of its own: the card is the frame (one per panel), and the strip is the band at
+    // the top of the THIS SHOT tab.
+    Item {
         objectName: "sdChipState"
         anchors.fill: parent
         visible: !root.quiet
-        color: Theme.colorSurface
-        radius: Theme.radius
-        border.width: 0      // quiet: the panel is the frame; the fill marks the region
-        border.color: Theme.colorBorderMid
         clip: true
 
         Column {
             anchors.fill: parent
-            anchors.leftMargin:   root.px(10)
-            anchors.rightMargin:  root.px(10)
-            anchors.topMargin:    root.px(7)
+            anchors.topMargin:    root.px(2)
             anchors.bottomMargin: root.px(7)
-            spacing: root.px(5)
+            spacing: root.px(7)
 
             Item {
                 width: parent.width
                 height: headline.implicitHeight
 
-                Text {
+                PpMicro {
                     objectName: "sdStripLabel"
                     id: stripLabel
                     anchors.left: parent.left
                     anchors.baseline: headline.baseline
                     text: qsTr("THIS SHOT")
-                    font.family: Theme.fontData
                     font.pixelSize: root.tzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                    color: Theme.colorText2
                 }
                 Text {
                     id: headline
@@ -131,31 +124,29 @@ Item {
                         readonly property bool clean: modelData.kind === "clean"
                         // A pattern chip is ghosted: the card is where it is read.
                         readonly property bool ghosted: fired && modelData.tier === "pattern"
-                        readonly property color stateColor: fired ? Theme.colorError
+                        // A firing is a fault, colorWarn — not the alarm red (13.2).
+                        readonly property color stateColor: fired ? Theme.colorWarn
                                                           : clean ? Theme.colorGood
                                                                   : Theme.colorText3
 
-                        width:  chipRow.implicitWidth + root.px(14)
-                        height: chipRow.implicitHeight + root.px(4)
-                        radius: Math.max(1, root.px(3))
+                        width:  chipRow.implicitWidth + root.px(16)
+                        height: chipRow.implicitHeight + root.px(6)
+                        radius: height / 2
                         opacity: ghosted ? 0.62 : 1.0
 
-                        // Fired fills: the error token at its Light (~10%) alpha, framed at
-                        // ~35% of the same hue. Derived from the token, so both Studio
-                        // themes and every other aesthetic follow it.
-                        color: fired ? Theme.colorErrorLight : "transparent"
+                        // PpChip's look at the panel's scale: a fired chip tinted in the tone
+                        // and outlined in it, the rest a grey outline stated without weight.
+                        color: fired && !ghosted ? Qt.alpha(Theme.colorWarn, Theme.dark ? 0.12 : 0.09)
+                                                 : "transparent"
                         border.width: ghosted ? 0 : 1
-                        border.color: fired ? Qt.rgba(Theme.colorError.r, Theme.colorError.g,
-                                                      Theme.colorError.b, 0.35)
-                                            : Theme.colorBorder
+                        border.color: fired ? Qt.alpha(Theme.colorWarn, 0.45) : Theme.colorBorderStrong
 
                         PpDashedFrame {
                             objectName: "sdChipDash"
                             anchors.fill: parent
                             visible: chip.ghosted
                             frameRadius: chip.radius
-                            strokeColor: Qt.rgba(Theme.colorError.r, Theme.colorError.g,
-                                                 Theme.colorError.b, 0.35)
+                            strokeColor: Qt.alpha(Theme.colorWarn, 0.45)
                             dashOn:  Math.max(1, root.px(3))
                             dashOff: Math.max(1, root.px(3))
                         }
@@ -186,7 +177,7 @@ Item {
                                 caption: chip.modelData.strengthText || ""
                                 fit: root.fit
                             }
-                            Text {
+                            PpMicro {
                                 anchors.verticalCenter: parent.verticalCenter
                                 // The CLEAN and NOT-ASSESSABLE entries carry their whole
                                 // meaning in `name` ("clean on every measurable condition",
@@ -196,9 +187,7 @@ Item {
                                 text: chip.fired
                                       ? (qsTr("FIRED") + (chip.ghosted ? " ↓" : ""))
                                       : ""
-                                font.family: Theme.fontData
                                 font.pixelSize: root.tzCaption
-                                font.letterSpacing: Theme.trackingLabel
                                 color: chip.stateColor
                             }
                         }
@@ -234,15 +223,13 @@ Item {
                 width: parent.width
                 height: quietLine.implicitHeight
 
-                Text {
+                PpMicro {
                     id: quietLabel
                     objectName: "sdQuietLabel"
                     anchors.left: parent.left
                     anchors.baseline: quietLine.baseline
                     text: qsTr("BANDWIDTH · QUIET")
-                    font.family: Theme.fontData
                     font.pixelSize: root.tzMicro
-                    font.letterSpacing: Theme.trackingMicro
                     color: Theme.colorGood
                 }
                 Text {

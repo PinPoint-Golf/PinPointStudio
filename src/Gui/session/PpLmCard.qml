@@ -133,12 +133,11 @@ Item {
         ? Math.min((width - 2 * padX) / dw, hostDiagramH / dh) : 0
     readonly property bool hosted: hostScale >= hostFloor
 
-    Rectangle {
+    // SET INTO THE STAGE CARD, not a card on it. The LAUNCH MONITOR card is the frame; each
+    // schematic is an inset panel in it (a faint tint and a hairline), the way the coaching card
+    // sets in the part a reader works from.
+    PpInset {
         anchors.fill: parent
-        radius: Theme.radius
-        color: Theme.colorSurface
-        border.width: 1
-        border.color: Theme.colorBorderMid
     }
 
     Row {
@@ -151,27 +150,18 @@ Item {
         height: root.titleH
         spacing: Theme.sp(8)
 
-        // THE APP'S SECTION HEADING, exactly — the four properties ModelTrail.qml:61-64
-        // sets on the Diagnostic Model's "Characteristics", which is the heading every
-        // other content surface in PinPoint is titled with.
+        // A SUB-HEADING OF THE STAGE CARD, in the coaching card's Micro: the card's own title
+        // (LAUNCH MONITOR) is the heading, and a schematic inside it is a section of it, as
+        // TRAIL WRIST EXTENSION is a section of WRIST MOTION. colorText2 rather than the quiet
+        // grey, because on the inset's tint it is what names the drawing.
         //
-        // A HEADING, NOT AN EYEBROW, and that was the whole miss. These titles used to be
-        // fontSzMicro: ten pixels, uppercased and tracked, in the band's hue. Against a
-        // sixteen-pixel sentence-case heading on the next screen over it did not read as
-        // the same application — the launch monitor sat entirely on the two smallest tokens
-        // in the scale while everything else had a type hierarchy. Size was the difference
-        // a reader saw; the colour was the smaller half of it.
-        //
-        // colorText, and no band hue. The hue is not lost — it is on the readings in the
-        // strip below and on the lines in the drawing above, which is where it does work.
-        // A title is chrome, and chrome does not carry data.
-        Text {
+        // No band hue. The hue is not lost — it is on the readings in the strip below and on
+        // the lines in the drawing above, which is where it does work. A title is chrome, and
+        // chrome does not carry data.
+        PpMicro {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.title
-            font.family: Theme.fontBody
-            font.pixelSize: Theme.fontSzHeading
-            font.weight: Theme.fontBodyWeight
-            color: Theme.colorText
+            text: root.title.toUpperCase()
+            color: Theme.colorText2
         }
         Text {
             anchors.verticalCenter: parent.verticalCenter

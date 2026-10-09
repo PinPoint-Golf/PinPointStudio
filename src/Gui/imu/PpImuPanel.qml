@@ -18,11 +18,16 @@
 
 // IMU device panel for the session toolbar. Two modes:
 //   "list"      — scoped action row (Scan / Connect / Calibrate) + device rows.
-//                 Connected-but-uncalibrated rows + the Calibrate action are
-//                 drawn with the amber attention framing (colorAttention*).
+//                 Each row leads with the device vocabulary's badge (a check when
+//                 connected and calibrated, a colorAttention target when it needs
+//                 calibration, a colorError target when it failed, the dashed ring
+//                 when not connected) and says the same in words. The Calibrate
+//                 action is drawn in colorAttention while there is work to do.
 //   "calibrate" — hosts ImuCalibrationFlow compactly IN-PANEL; the panel grows to
 //                 fit it. Calibration NEVER leaves this panel / the Wrist screen.
-// The attention framing lives ONLY in this list — never inside the flow.
+//                 The heading turns colorAttention, and the toolbar turns the
+//                 popover card's rule the same tone.
+// The attention marks live ONLY around the flow — never inside it.
 
 import QtQuick
 import QtQuick.Layouts
@@ -43,9 +48,9 @@ Item {
     // anatCalibrated alone flips true at the phase-1 arm-down capture, before
     // phase-2 mount validation — so a failed calibration keeps Calibrate lit.
     function _imuCalibratedOk(inst) {
-        return inst && inst.anatCalibrated
-            && inst.mountDeviationDeg    <= 15.0
-            && inst.mountGravityErrorDeg <= 25.0
+        return !!(inst && inst.anatCalibrated
+                  && inst.mountDeviationDeg    <= 15.0
+                  && inst.mountGravityErrorDeg <= 25.0)
     }
     readonly property bool needsCalibration: {
         var _dep = imuManager.instances
@@ -110,44 +115,30 @@ Item {
         imuManager.connectPaced(ids)
     }
 
-    // ── Header — count in list mode; back affordance in calibrate mode ─────────
+    // ── Header — the card's Micro title, and the count as an aside ─────────────
+    // The same heading as the camera panel. Calibrate mode keeps the row with no
+    // top navigation (the flow's Cancel returns to the list), titled in the tone.
     Item {
         id: hdr
         anchors { left: parent.left; right: parent.right; top: parent.top }
         height: Theme.sp(46)
 
-        // List-mode title + count
-        RowLayout {
-            anchors { fill: parent; leftMargin: Theme.sp(15); rightMargin: Theme.sp(15) }
-            visible: root.mode === "list"
-            Text {
-                Layout.fillWidth: true
-                text: qsTr("IMUS")
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
-                font.letterSpacing: Theme.trackingLabel; color: Theme.colorText2
-            }
-            Text {
-                text: imuManager.imuCount + " " + qsTr("connected")
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                color: Theme.colorText3
-            }
+        PpMicro {
+            anchors { left: parent.left; leftMargin: Theme.sp(15); verticalCenter: parent.verticalCenter }
+            text: root.mode === "calibrate" ? qsTr("CALIBRATE SENSORS") : qsTr("IMUS")
+            color: root.mode === "calibrate" ? Theme.colorAttention : Theme.colorText3
         }
-
-        // Calibrate-mode title — no top navigation (the flow's Cancel returns to
-        // the list); just a non-interactive heading for context.
-        Text {
-            anchors { fill: parent; leftMargin: Theme.sp(15); rightMargin: Theme.sp(15) }
-            verticalAlignment: Text.AlignVCenter
-            visible: root.mode === "calibrate"
-            text: qsTr("Calibrate sensors")
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
-            font.letterSpacing: Theme.trackingLabel; color: Theme.colorText2
+        PpMicro {
+            anchors { right: parent.right; rightMargin: Theme.sp(15); verticalCenter: parent.verticalCenter }
+            visible: root.mode === "list"
+            font.letterSpacing: Theme.trackingData
+            text: qsTr("%1 of %2 connected").arg(imuManager.imuCount).arg(imuManager.imuDeviceList.length)
         }
     }
     Rectangle {
         id: hairline
         anchors { left: parent.left; right: parent.right; top: hdr.bottom }
-        height: 1; color: Theme.colorBorderMid
+        height: 1; color: Theme.colorBorder
     }
 
     // ── LIST view ──────────────────────────────────────────────────────────────
@@ -185,8 +176,10 @@ Item {
         Repeater {
             model: imuManager.imuDeviceList
             delegate: ImuRow {
+                id: imuRow
                 required property var modelData
                 width: listCol.width
+                calibratedOk: root._imuCalibratedOk(imuRow.inst)
                 devId:    modelData.id
                 devIndex: modelData.index
                 devName: modelData.alias && modelData.alias !== "" ? modelData.alias
@@ -209,6 +202,19 @@ Item {
                 }
             }
         }
+
+        // Nothing found: one quiet line, so the card keeps its shape.
+        Item {
+            visible: imuManager.imuDeviceList.length === 0
+            width: parent.width
+            height: noImus.implicitHeight + Theme.sp(28)
+            PpCardNote {
+                id: noImus
+                anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
+                          leftMargin: Theme.sp(15); rightMargin: Theme.sp(15) }
+                text: qsTr("No IMUs found — Scan to look again.")
+            }
+        }
     }
 
     // ── CALIBRATE view — the SAME component, compact, hosted in-panel ───────────
@@ -226,19 +232,6 @@ Item {
         onCompleted: root.mode = "list"
         onCancelled: root.mode = "list"
         onActiveChanged: if (active) calibFlow.begin()   // auto-start on entering calibrate mode
-    }
-
-    // Attention frame around the WHOLE panel while calibrating — drawn on top,
-    // inset slightly from the popup edge with a thin border.
-    Rectangle {
-        anchors.fill: parent
-        anchors.margins: Theme.sp(6)
-        visible: root.mode === "calibrate"
-        color: "transparent"
-        radius: Theme.radius
-        border.width: Theme.sp(1)
-        border.color: Theme.colorAttention
-        z: 10
     }
 
     // ── Scoped action button ────────────────────────────────────────────────
@@ -280,10 +273,14 @@ Item {
 
     // ── Per-IMU row ─────────────────────────────────────────────────────────
     component ImuRow: Item {
+        id: imuRowItem
         property string devId:     ""
         property int    devIndex:  -1
         property string devName:   ""
         property string placement: ""   // the mount by name; "" when unassigned
+        // Calibrated AND the mount check passed (root._imuCalibratedOk), set by
+        // the list so the row's state follows the same thresholds as Calibrate.
+        property bool   calibratedOk: false
 
         // Live instance (reactive on imuManager.instances).
         property QtObject inst: {
@@ -297,11 +294,14 @@ Item {
         readonly property bool failed:  inst !== null && !connected
                                         && (stateLabel === "Error" || stateLabel === "Not found")
         readonly property bool pending: inst !== null && !connected && !failed
+        readonly property bool needsCal: connected && !calibratedOk
+        // Only once a connected device reports a level.
+        readonly property bool hasBattery: connected && !!inst && inst.batteryPercent >= 0
         // Session enablement — set from the imuDeviceList entry (manager-owned;
         // the Repeater model rebinds on imuDeviceListChanged).
         property bool deviceEnabled: true
 
-        height: Theme.sp(56)
+        height: Theme.sp(56) + (hasBattery || placement !== "" ? Theme.sp(22) : 0)
 
         Rectangle {  // row hairline
             anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
@@ -312,22 +312,27 @@ Item {
             anchors { fill: parent; leftMargin: Theme.sp(15); rightMargin: Theme.sp(15) }
             spacing: Theme.sp(11)
 
-            // Status LED: grey (idle), flashing grey↔green (connecting/pending),
-            // green (connected), red (failed). Disabled rows stay grey + dimmed.
-            Rectangle {  // status led
-                id: statusLed
-                Layout.preferredWidth: Theme.sp(8); Layout.preferredHeight: Theme.sp(8)
-                radius: Theme.sp(4)
-                opacity: deviceEnabled ? 1.0 : 0.45
-                color: !deviceEnabled ? Theme.colorText3
-                     : failed    ? Theme.colorError
-                     : connected ? Theme.colorGood
-                     :             Theme.colorText3
-                // Flash grey↔green while a connection is pending. The value source
-                // drives the colour only while running; otherwise the binding above
-                // applies (idle/connected/failed).
-                SequentialAnimation on color {
-                    running: pending && deviceEnabled && !Theme.reduceMotion
+            // State badge: a check (connected, calibrated), a colorAttention
+            // target (connected, needs calibration), a colorError target
+            // (failed), or the dashed ring (not connected, or disabled and
+            // dimmed). The ring pulses grey↔green while a connection is pending:
+            // the value source drives the tone only while running; otherwise the
+            // binding applies.
+            PpBadge {
+                id: statusBadge
+                Layout.alignment: Qt.AlignVCenter
+                opacity: imuRowItem.deviceEnabled ? 1.0 : 0.45
+                kind: !imuRowItem.deviceEnabled ? "unconfirmed"
+                    : imuRowItem.failed || imuRowItem.needsCal ? "target"
+                    : imuRowItem.connected ? "check"
+                    :                        "unconfirmed"
+                tone: !imuRowItem.deviceEnabled ? Theme.colorText3
+                    : imuRowItem.failed    ? Theme.colorError
+                    : imuRowItem.needsCal  ? Theme.colorAttention
+                    : imuRowItem.connected ? Theme.colorGood
+                    :                        Theme.colorText3
+                SequentialAnimation on tone {
+                    running: imuRowItem.pending && imuRowItem.deviceEnabled && !Theme.reduceMotion
                     loops:   Animation.Infinite
                     ColorAnimation { from: Theme.colorText3; to: Theme.colorGood;  duration: Theme.durationSlow }
                     ColorAnimation { from: Theme.colorGood;  to: Theme.colorText3; duration: Theme.durationSlow }
@@ -359,66 +364,50 @@ Item {
                 Text {
                     width: parent.width
                     elide: Text.ElideRight
-                    // Battery moved to its own colour-coded chip (below); the
-                    // subtitle now carries connection state + data rate only.
+                    // Battery has its own chip (below); the subtitle carries the
+                    // state in words (what the badge shows) + data rate.
                     text: {
                         if (!deviceEnabled) return qsTr("disabled — won't connect")
                         if (!inst)          return qsTr("not connected")
                         if (failed)         return qsTr("connection failed")
                         if (!connected)     return inst.stateLabel   // Scanning… / Connecting… / Retrying…
-                        return inst.dataRateHz > 0 ? (Math.round(inst.dataRateHz) + " Hz")
-                                                   : qsTr("connected")
+                        var state = imuRowItem.needsCal ? qsTr("needs calibration") : qsTr("connected")
+                        return inst.dataRateHz > 0 ? state + " · " + Math.round(inst.dataRateHz) + " Hz"
+                                                   : state
                     }
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingData
-                    color: failed  ? Theme.colorError
-                         : pending ? Theme.colorWarn
-                         :           Theme.colorText3
+                    color: failed               ? Theme.colorError
+                         : imuRowItem.needsCal ? Theme.colorAttention
+                         : pending              ? Theme.colorText2
+                         :                        Theme.colorText3
                 }
-            }
-
-            // Battery level chip — colour-coded by charge (good >60%, warn >20%,
-            // critical ≤20%). The tinted border draws the eye as a sensor runs
-            // low; only shown once a connected device reports a level.
-            Rectangle {
-                id: batChip
-                visible: connected && inst && inst.batteryPercent >= 0
-                opacity: deviceEnabled ? 1.0 : 0.45
-                readonly property int pct: inst ? inst.batteryPercent : 0
-                readonly property color lvlColor: pct > 60 ? Theme.colorGood
-                                                 : pct > 20 ? Theme.colorWarn
-                                                 :            Theme.colorError
-                implicitWidth: batChipLbl.implicitWidth + Theme.sp(14)
-                implicitHeight: Theme.sp(20); radius: Theme.sp(4)
-                color: Qt.rgba(lvlColor.r, lvlColor.g, lvlColor.b, 0.12)
-                border.width: 1
-                border.color: Qt.rgba(lvlColor.r, lvlColor.g, lvlColor.b, 0.35)
-                Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-                Behavior on color        { ColorAnimation { duration: Theme.durationFast } }
-                Text {
-                    id: batChipLbl; anchors.centerIn: parent
-                    text: qsTr("BAT %1%").arg(batChip.pct)
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingData; color: batChip.lvlColor
-                }
-            }
-
-            // Configured mount chip — the mount by name (`placement`, from the roles
-            // map), shown as a non-interactive placeholder (styled like a chip but no
-            // handler).
-            // TODO: per-session IMU location override (defaults to appSettings.imuRoles)
-            Rectangle {
-                visible: placement !== ""
-                opacity: deviceEnabled ? 1.0 : 0.45
-                implicitWidth: placementLbl.implicitWidth + Theme.sp(14)
-                implicitHeight: Theme.sp(20); radius: Theme.sp(4)
-                color: "transparent"
-                border.width: 1; border.color: Theme.colorBorderStrong
-                Text {
-                    id: placementLbl; anchors.centerIn: parent
-                    text: placement
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingData; color: Theme.colorText2
+                // The chips, on their own line so the name keeps the row's width.
+                Row {
+                    id: chipRow
+                    visible: imuRowItem.hasBattery || imuRowItem.placement !== ""
+                    topPadding: Theme.sp(4)
+                    spacing: Theme.sp(6)
+                    // Battery, toned by charge (good >60%, attention >20%, error
+                    // ≤20%), with the level in words.
+                    PpChip {
+                        id: batChip
+                        visible: imuRowItem.hasBattery
+                        readonly property int pct: inst ? inst.batteryPercent : 0
+                        text: qsTr("BAT %1%").arg(batChip.pct)
+                        tone: pct > 60 ? Theme.colorGood
+                            : pct > 20 ? Theme.colorAttention
+                            :            Theme.colorError
+                    }
+                    // The mount by name (`placement`, from the roles map), an
+                    // untinted chip with no handler: stated, not judged.
+                    // TODO: per-session IMU location override (defaults to appSettings.imuRoles)
+                    PpChip {
+                        id: placementChip
+                        text: placement
+                        tone: Theme.colorText2
+                        tinted: false
+                    }
                 }
             }
 
@@ -439,7 +428,7 @@ Item {
                     width:  Theme.sp(12)
                     height: Theme.sp(12)
                     radius: Theme.sp(6)
-                    color:  "white"
+                    color:  Theme.dark ? Theme.colorText : Theme.colorSurface
                     anchors.verticalCenter: parent.verticalCenter
                     x: deviceEnabled ? parent.width - width - Theme.sp(3) : Theme.sp(3)
                     Behavior on x { NumberAnimation { duration: 120 } }

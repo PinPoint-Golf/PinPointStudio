@@ -73,10 +73,7 @@ Popup {
         return out
     }
 
-    background: Rectangle {
-        color: Theme.colorSurface; radius: Theme.radiusLg
-        border.width: 1; border.color: Theme.colorBorderStrong
-    }
+    background: PpPopoverCard {}
 
     // ── reusable square checkbox row ─────────────────────────────────────────
     component CheckRow: Item {
@@ -104,7 +101,7 @@ Popup {
                     text:           "✓"
                     font.family:    Theme.fontSymbol
                     font.pixelSize: Theme.fontSzLabel
-                    color:          Theme.dark ? Theme.colorBg : "#FFFFFF"
+                    color:          Theme.dark ? Theme.colorBg : Theme.colorSurface
                 }
             }
             Text {
@@ -129,30 +126,19 @@ Popup {
         ColumnLayout {
             Layout.fillWidth: true
             spacing: Theme.sp(3)
-            Text {
-                text:               qsTr("EXPORT SHOTS")
-                font.family:        Theme.fontData
-                font.pixelSize:     Theme.fontSzLabel
-                font.letterSpacing: Theme.trackingLabel
-                color:              Theme.colorText2
-            }
+            PpMicro { text: qsTr("EXPORT SHOTS") }
             Text {
                 visible: root.shotCount > 0
                 text:    qsTr("%n shot(s) · zipped to your home folder", "", root.shotCount)
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzBody2
+                font.italic:    true
                 color:          Theme.colorText3
             }
         }
 
         // ── cameras ───────────────────────────────────────────────────────────
-        Text {
-            text:               qsTr("CAMERAS")
-            font.family:        Theme.fontData
-            font.pixelSize:     Theme.fontSzLabel
-            font.letterSpacing: Theme.trackingLabel
-            color:              Theme.colorText3
-        }
+        PpMicro { text: qsTr("CAMERAS") }
         Column {
             Layout.fillWidth: true
             spacing: Theme.sp(4)
@@ -166,20 +152,16 @@ Popup {
                     onToggled: root._toggle(modelData.file)
                 }
             }
-            Text {   // no video tracks in the selected shots
-                visible:        root.cameras.length === 0
-                text:           qsTr("No camera video in these shots")
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                color:          Theme.colorText3
+            PpCardNote {   // no video tracks in the selected shots
+                visible: root.cameras.length === 0
+                text:    qsTr("No camera video in these shots")
             }
         }
 
         Rectangle {   // divider
             Layout.fillWidth: true
-            height: 1
-            color: Theme.colorBorderMid
-            opacity: Theme.borderOpacityNormal
+            implicitHeight: 1
+            color: Theme.colorBorder
         }
 
         // ── data ─────────────────────────────────────────────────────────────

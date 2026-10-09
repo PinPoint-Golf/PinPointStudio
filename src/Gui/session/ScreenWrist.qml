@@ -127,7 +127,7 @@ Item {
                 id: leftRail
                 readonly property bool transitVert: root._transitMode && root._vertical && root._timelineOn
                 Layout.fillHeight: true
-                Layout.preferredWidth: transitVert ? Theme.sp(184) : 0
+                Layout.preferredWidth: transitVert ? Theme.sp(206) : 0
                 Behavior on Layout.preferredWidth {
                     enabled: !Theme.reduceMotion
                     NumberAnimation { duration: Theme.durationNormal; easing.type: Easing.InOutQuad }

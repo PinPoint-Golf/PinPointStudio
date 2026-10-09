@@ -24,6 +24,15 @@
 // container's visible:), so only the selected layout instantiates its panels —
 // a hidden arrangement must not spin up a second PpCameraTiles (and its camera
 // frame subscriptions) behind the visible one.
+//
+// THE STAGE OWNS THE FRAME. Every panel it shows sits in a PpStageCard titled and toned from
+// _defs, so the panels draw no background, border or title of their own. A panel may say one
+// more thing on the card's heading row through `readonly property string cardAside`; a panel
+// also used outside the stage carries `property bool framed` and is told here that it is
+// framed already. In tabs the tab strip IS the card's heading, and the card takes the
+// selected panel's tone.
+
+pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
@@ -58,16 +67,32 @@ Item {
     // it on has said that is the question they came with. It only leads WHEN IT IS ON — `active`
     // filters on ViewLayout.isPanelOn and on the host screen having wired a delegate — so a
     // session without it is camera-first exactly as before, with nothing to notice.
+    //
+    // `title` is the card's Micro heading. `tone` is a ROLE, resolved by _toneFor: the two text
+    // panels that name faults read in colorWarn, and the canvases (video, 3-D, plots, the
+    // board, the table, markup) get the quiet card so the frame never competes with what is
+    // in it. A role rather than the colour itself, because a colour here would rebuild this
+    // list — and so every panel on the stage — on a theme change.
     readonly property var _defs: [
-        { key: "sessionDiagnostics", label: qsTr("Session diagnostics"), comp: sessionDiagnosticsDelegate },
-        { key: "camera",      label: qsTr("Camera"),                comp: cameraDelegate },
-        { key: "swing3d",     label: qsTr("3-D swing"),             comp: swing3dDelegate },
-        { key: "launchMonitor", label: qsTr("Launch monitor"),      comp: launchMonitorDelegate },
-        { key: "wristMotion", label: qsTr("Wrist motion analysis"), comp: wristMotionDelegate },
-        { key: "charts",      label: qsTr("Charts"),                comp: chartsDelegate },
-        { key: "table",       label: qsTr("Table"),                 comp: tableDelegate },
-        { key: "markup",      label: qsTr("Markup"),                comp: markupDelegate }
+        { key: "sessionDiagnostics", label: qsTr("Session diagnostics"), title: qsTr("SESSION DIAGNOSTICS"),
+          tone: "warn",  comp: sessionDiagnosticsDelegate },
+        { key: "camera",        label: qsTr("Camera"),                title: qsTr("CAMERA"),
+          tone: "quiet", comp: cameraDelegate },
+        { key: "swing3d",       label: qsTr("3-D swing"),             title: qsTr("3-D SWING"),
+          tone: "quiet", comp: swing3dDelegate },
+        { key: "launchMonitor", label: qsTr("Launch monitor"),        title: qsTr("LAUNCH MONITOR"),
+          tone: "quiet", comp: launchMonitorDelegate },
+        { key: "wristMotion",   label: qsTr("Wrist motion analysis"), title: qsTr("WRIST MOTION"),
+          tone: "warn",  comp: wristMotionDelegate },
+        { key: "charts",        label: qsTr("Charts"),                title: qsTr("CHARTS"),
+          tone: "quiet", comp: chartsDelegate },
+        { key: "table",         label: qsTr("Table"),                 title: qsTr("TABLE"),
+          tone: "quiet", comp: tableDelegate },
+        { key: "markup",        label: qsTr("Markup"),                title: qsTr("MARKUP"),
+          tone: "quiet", comp: markupDelegate }
     ]
+    function _toneFor(role) { return role === "warn" ? Theme.colorWarn : Theme.colorText3 }
+
     // ordered; enabled AND actually wired by the host screen. A panel a screen does not provide a
     // delegate for (e.g. "wristMotion" on screens that never wire it) is simply omitted rather
     // than shown as an empty placeholder.
@@ -77,28 +102,55 @@ Item {
 
     property int tabIndex: 0
     onActiveChanged: if (tabIndex >= active.length) tabIndex = 0
+    readonly property var _tabDef: (stage.arrangement === "tabs" && stage.active.length > 0)
+                                   ? stage.active[Math.min(stage.tabIndex, stage.active.length - 1)] : null
+
+    readonly property int _gap: Theme.sp(12)
+
+    // Both hooks are optional and only some panels declare them, so the panel is held untyped.
+    function _asideOf(panel) {
+        return (panel && panel.cardAside !== undefined) ? String(panel.cardAside) : ""
+    }
+    function _unframe(panel) {
+        if (panel && panel.framed !== undefined) panel.framed = false
+    }
+
+    // A panel in its card. The aside is whatever the panel offers (nothing, for most); `framed`
+    // is switched off on load so a panel that frames itself elsewhere does not frame itself twice.
+    component PanelCard: PpStageCard {
+        id: pc
+        property var def: null
+        property Component placeholder: null
+        tone:  stage._toneFor(pc.def ? pc.def.tone : "")
+        title: pc.def ? pc.def.title : ""
+        aside: stage._asideOf(panelLoader.item)
+        Loader {
+            id: panelLoader
+            anchors.fill: parent
+            sourceComponent: pc.def ? (pc.def.comp || pc.placeholder) : null
+            onLoaded: stage._unframe(panelLoader.item)
+        }
+    }
 
     // empty state
-    Text {
+    PpCardNote {
         anchors.centerIn: parent
         visible: stage.active.length === 0
         text: qsTr("No panels selected — pick some in View")
-        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-        color: Theme.colorText3
     }
 
     // ── SPLIT — even row ─────────────────────────────────────────────────────
     RowLayout {
         anchors.fill: parent; anchors.margins: Theme.sp(10)
-        spacing: Theme.sp(8)
+        spacing: stage._gap
         visible: stage.arrangement === "split" && stage.active.length > 0
         Repeater {
             model: stage.arrangement === "split" ? stage.active : []
-            delegate: Loader {
+            delegate: PanelCard {
                 required property var modelData
                 Layout.fillWidth: true; Layout.fillHeight: true
-                sourceComponent: modelData.comp || placeholderComp
-                onLoaded: if (item && !modelData.comp) item.title = modelData.label
+                def: modelData
+                placeholder: placeholderComp
             }
         }
     }
@@ -106,80 +158,80 @@ Item {
     // ── STAGE — first panel dominant, rest in a side column ──────────────────
     RowLayout {
         anchors.fill: parent; anchors.margins: Theme.sp(10)
-        spacing: Theme.sp(8)
+        spacing: stage._gap
         visible: stage.arrangement === "stage" && stage.active.length > 0
-        Loader {
+        PanelCard {
             Layout.fillWidth: true; Layout.fillHeight: true
             Layout.preferredWidth: stage.width * 0.62
-            sourceComponent: (stage.arrangement === "stage" && stage.active.length > 0)
-                             ? (stage.active[0].comp || placeholderComp) : null
-            onLoaded: if (item && stage.active.length > 0 && !stage.active[0].comp)
-                          item.title = stage.active[0].label
+            def: (stage.arrangement === "stage" && stage.active.length > 0) ? stage.active[0] : null
+            placeholder: placeholderComp
         }
         ColumnLayout {
             visible: stage.active.length > 1
             Layout.preferredWidth: stage.width * 0.30
             Layout.fillHeight: true
-            spacing: Theme.sp(8)
+            spacing: stage._gap
             Repeater {
                 model: (stage.arrangement === "stage" && stage.active.length > 1)
                        ? stage.active.slice(1) : []
-                delegate: Loader {
+                delegate: PanelCard {
                     required property var modelData
                     Layout.fillWidth: true; Layout.fillHeight: true
-                    sourceComponent: modelData.comp || placeholderComp
-                    onLoaded: if (item && !modelData.comp) item.title = modelData.label
+                    def: modelData
+                    placeholder: placeholderComp
                 }
             }
         }
     }
 
-    // ── TABS — tab strip + single loader ─────────────────────────────────────
-    ColumnLayout {
+    // ── TABS — one card, its heading the tab strip ───────────────────────────
+    PanelCard {
         anchors.fill: parent; anchors.margins: Theme.sp(10)
-        spacing: Theme.sp(6)
-        visible: stage.arrangement === "tabs" && stage.active.length > 0
+        visible: stage._tabDef !== null
+        def: stage._tabDef
+        placeholder: placeholderComp
+        heading: tabStrip
+    }
+
+    // The tab strip, as a card heading: Micro labels, the selected one in colorText over a 2 px
+    // rule in that panel's tone. The labels are the cards' own titles, so a panel reads the same
+    // whether it is a tab or a card of its own.
+    Component {
+        id: tabStrip
         Row {
-            spacing: Theme.sp(5)
+            spacing: Theme.sp(20)
             Repeater {
-                model: stage.arrangement === "tabs" ? stage.active : []
-                delegate: Rectangle {
+                model: stage.active
+                delegate: Item {
+                    id: tab
                     required property var modelData
                     required property int index
-                    readonly property bool sel: index === stage.tabIndex
-                    height: Theme.sp(30); width: tabTxt.implicitWidth + Theme.sp(26)
-                    radius: Theme.radius
-                    // Contiguous tab strip — brighten only (no scale would break the seam);
-                    // unselected tab fades its fill in on hover (alpha-ramped colorBg2 rest).
-                    color: sel || tabMa.containsMouse
-                               ? Theme.colorBg2
-                               : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    Rectangle {  // active underline
-                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                        height: 2; color: sel ? Theme.colorAccent : "transparent"
+                    // By key: a Repeater hands each delegate its own copy of the entry.
+                    readonly property bool sel: !!stage._tabDef && tab.modelData.key === stage._tabDef.key
+                    implicitWidth:  tabTxt.implicitWidth
+                    implicitHeight: tabTxt.implicitHeight + Theme.sp(6)
+                    PpMicro {
+                        id: tabTxt
+                        text: tab.modelData.title
+                        color: tab.sel ? Theme.colorText
+                             : tabMa.containsMouse ? Theme.colorText2 : Theme.colorText3
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                     }
-                    Text {
-                        id: tabTxt; anchors.centerIn: parent; text: modelData.label
-                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                        color: sel ? Theme.colorText : Theme.colorText3
+                    Rectangle {
+                        visible: tab.sel
+                        anchors.bottom: parent.bottom
+                        width: parent.width; height: 2; radius: 1
+                        color: stage._toneFor(tab.modelData.tone)
                     }
+                    // A Micro label is a small target; the hit area reaches past it.
                     MouseArea {
                         id: tabMa
-                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                        onClicked: stage.tabIndex = index
+                        anchors.fill: parent
+                        anchors.margins: -Theme.sp(6)
+                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: stage.tabIndex = tab.index
                     }
                 }
-            }
-        }
-        Loader {
-            Layout.fillWidth: true; Layout.fillHeight: true
-            sourceComponent: (stage.arrangement === "tabs" && stage.active.length > 0)
-                             ? (stage.active[Math.min(stage.tabIndex, stage.active.length - 1)].comp || placeholderComp)
-                             : null
-            onLoaded: {
-                var d = stage.active[Math.min(stage.tabIndex, stage.active.length - 1)]
-                if (item && d && !d.comp) item.title = d.label
             }
         }
     }

@@ -17,11 +17,14 @@
  */
 
 // Wrist Motion diagnostics — the read-only Tier-1 surface for a Wrist session's Analyse view
-// (design §8). It is fed the focused swing's real analysis (shotReplay.analysisDetail) and tracks
-// the replay playhead; the selected checkpoint comes from the transit timeline, so there is no
-// in-panel scrubber. Headline score pill, per-DOF trajectory strips (band corridor + player line +
-// RAG markers + consequence poles), the collapsible position×phase grid, and a legend. Findings +
-// "Working well" land in Phase 2. Pure binding.
+// (design §8), shown as the stage's WRIST MOTION panel: PpModeStage draws the card and its title,
+// so this lays out only the body. It is fed the focused swing's real analysis
+// (shotReplay.analysisDetail) and tracks the replay playhead; the selected checkpoint comes from the
+// transit timeline, so there is no in-panel scrubber. The position and its note beside the score
+// pill, the model and compare controls, the archetype similarity, per-DOF trajectory strips (band
+// corridor + player line + RAG markers + consequence poles), the collapsible position×phase grid,
+// then FINDINGS and WORKING WELL side by side as two hairline-separated sections, and a legend in
+// words. Pure binding.
 
 import QtQuick
 import QtQuick.Layouts
@@ -51,6 +54,10 @@ Item {
 
     readonly property var _pos: dx.positions[dx.selectedPosition]
 
+    // Right of the card's title: which position the panel is reading.
+    readonly property string cardAside: dx.hasData && root._pos && root._pos.tag
+                                        ? qsTr("AT %1").arg(root._pos.tag) : ""
+
     function _ragColor(r) {
         return r === "green" ? Theme.colorRagGood
              : r === "amber" ? Theme.colorRagWatch
@@ -58,72 +65,55 @@ Item {
              :                 Theme.colorRagNone
     }
 
-    // ── Empty state (no analysed wrist swing) — mirrors PpReplayCharts ─────────────────
-    Column {
-        anchors.centerIn: parent
-        spacing: Theme.sp(6)
+    // ── Empty state (no analysed wrist swing): one quiet line, so the card keeps its shape ──
+    PpCardNote {
+        width: parent.width
         visible: !dx.hasData
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: shotReplay.active ? qsTr("No wrist metrics for this swing")
-                                    : qsTr("Select a swing to review")
-            color: Theme.colorText2; font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
-        }
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: qsTr("Wrist diagnostics show the analysed joint angles vs the expected corridor")
-            color: Theme.colorText3; font.family: Theme.fontData
-            font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingData
-        }
+        text: (shotReplay.active ? qsTr("No wrist metrics for this swing.")
+                                 : qsTr("Select a swing to review."))
+              + " " + qsTr("Wrist diagnostics show the analysed joint angles against the expected corridor.")
     }
 
     Flickable {
         id: flick
         anchors.fill: parent
         visible: dx.hasData
-        contentHeight: body.height + Theme.sp(32)
+        contentHeight: body.height + Theme.sp(8)
         clip: true
         boundsBehavior: Flickable.StopAtBounds
 
         ColumnLayout {
             id: body
-            y: Theme.sp(16)
-            x: Theme.sp(16)
-            width: flick.width - Theme.sp(32)
+            width: flick.width
             // Fill the panel vertically: when the content is shorter than the viewport the body
-            // stretches to it (the GridLayout below absorbs the slack so the strips grow rather
-            // than the dashboard hugging the top); when it is taller, it grows past and scrolls.
-            height: Math.max(implicitHeight, flick.height - Theme.sp(32))
-            spacing: Theme.sp(16)
+            // stretches to it (the strips absorb the slack, so they grow rather than the panel
+            // hugging the top); when it is taller, it grows past and scrolls.
+            height: Math.max(implicitHeight, flick.height - Theme.sp(8))
+            spacing: Theme.sp(14)
 
-            // Side-by-side strips/dock when there's room; stacked on a narrow panel.
-            readonly property bool _wide: width > Theme.sp(680)
+            // FINDINGS and WORKING WELL side by side when there's room; stacked on a narrow panel.
+            readonly property bool _wide: width >= Theme.sp(640)
 
-            // ── Header: title + phase context · score pill ──────────────────────────
+            // ── Header: the position and its note · score pill ──────────────────────
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
-                ColumnLayout {
+                Flow {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(1)
+                    Layout.alignment: Qt.AlignTop
+                    spacing: Theme.sp(6)
                     Text {
-                        text: qsTr("Wrist Motion Dashboard")
-                        font.family: Theme.fontDisplay; font.pixelSize: Theme.fontSzHeading
+                        text: root._pos ? root._pos.name : ""
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
+                        font.weight: Theme.fontBodyWeight
                         color: Theme.colorText
                     }
-                    Row {
-                        spacing: Theme.sp(2)
-                        Text {
-                            text: root._pos ? root._pos.name : ""
-                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
-                            font.weight: Font.Medium
-                            color: Theme.colorText2
-                        }
-                        Text {
-                            text: root._pos ? ("· " + root._pos.note) : ""
-                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
-                            color: Theme.colorText3
-                        }
+                    Text {
+                        visible: !!root._pos && (root._pos.note || "") !== ""
+                        text: root._pos ? ("· " + root._pos.note) : ""
+                        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
+                        font.weight: Theme.fontBodyWeight
+                        color: Theme.colorText3
                     }
                 }
                 WristScorePill {
@@ -136,44 +126,40 @@ Item {
             }
 
             // ── Model (band archetype, Auto-detect) + Compare-to (ghost) controls ───
-            RowLayout {
+            Flow {
                 Layout.fillWidth: true
                 spacing: Theme.sp(16)
 
                 // Band model — Auto detects from the swing; the rest are manual overrides.
-                RowLayout {
-                    spacing: Theme.sp(6)
-                    Text {
-                        text: qsTr("Model")
-                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                        font.capitalization: Font.AllUppercase; font.letterSpacing: Theme.trackingMicro
-                        color: Theme.colorText3
+                Row {
+                    spacing: Theme.sp(8)
+                    PpMicro {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("MODEL")
                     }
                     PpSegmentedControl {
-                        Layout.preferredWidth: Theme.sp(230)
+                        width: Theme.sp(230)
                         options: dx.archetypes                       // [Auto, Neutral, Bowed, Cupped]
                         selected: dx.archetypes[dx.archetype + 1]    // mode −1..2 → option index 0..3
                         onActivated: (v) => { dx.archetype = dx.archetypes.indexOf(v) - 1 }
                     }
-                    Text {
+                    PpMicro {
+                        anchors.verticalCenter: parent.verticalCenter
                         visible: dx.archetype === -1
-                        text: "→ " + dx.effectiveArchetypeName
-                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                        color: Theme.colorText3
+                        text: "→ " + dx.effectiveArchetypeName.toUpperCase()
+                        font.letterSpacing: Theme.trackingData
                     }
                 }
 
                 // Compare-to ghost.
-                RowLayout {
-                    spacing: Theme.sp(6)
-                    Text {
-                        text: qsTr("Compare")
-                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                        font.capitalization: Font.AllUppercase; font.letterSpacing: Theme.trackingMicro
-                        color: Theme.colorText3
+                Row {
+                    spacing: Theme.sp(8)
+                    PpMicro {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("COMPARE")
                     }
                     PpSegmentedControl {
-                        Layout.preferredWidth: Theme.sp(210)
+                        width: Theme.sp(210)
                         options: [qsTr("Address"), qsTr("Previous"), qsTr("Reference")]
                         selected: dx.compareTo === "previous"  ? qsTr("Previous")
                                 : dx.compareTo === "reference" ? qsTr("Reference") : qsTr("Address")
@@ -188,8 +174,8 @@ Item {
                     readonly property bool isRef: shotReplay.swingDir !== ""
                                                   && shotReplay.swingDir === appSettings.wristReferenceSwingDir
                     readonly property bool canSet: shotReplay.swingDir !== ""
-                    implicitWidth: refRow.implicitWidth + Theme.sp(14)
-                    implicitHeight: Theme.sp(28)
+                    width: refRow.implicitWidth + Theme.sp(14)
+                    height: Theme.sp(30)
                     radius: Theme.radius
                     color: isRef ? Theme.colorAccentLight
                                  : refMa.containsMouse ? Theme.colorAccentMid : "transparent"
@@ -222,147 +208,139 @@ Item {
                         onClicked: appSettings.wristReferenceSwingDir = (refBtn.isRef ? "" : shotReplay.swingDir)
                     }
                 }
-
-                Item { Layout.fillWidth: true }
             }
 
-            // ── Resemblance readouts ─────────────────────────────────────────────────
-            RowLayout {
+            // ── Resemblance readouts: the archetype the bands are drawn from says so in words ──
+            Flow {
                 Layout.fillWidth: true
                 visible: dx.resemblance && dx.resemblance.neutral !== undefined
-                spacing: Theme.sp(8)
-                Text {
-                    text: qsTr("Archetype Similarity Index")
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                    font.capitalization: Font.AllUppercase; font.letterSpacing: Theme.trackingMicro
-                    color: Theme.colorText3
+                spacing: Theme.sp(14)
+                PpMicro {
+                    height: Theme.sp(18); verticalAlignment: Text.AlignVCenter
+                    text: qsTr("ARCHETYPE SIMILARITY INDEX")
                 }
-                Text {
-                    text: qsTr("Neutral %1%").arg(dx.resemblance.neutral !== undefined ? dx.resemblance.neutral : 0)
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
-                    font.weight: dx.effectiveArchetype === 0 ? Font.Bold : Font.Normal
-                    color: dx.effectiveArchetype === 0 ? Theme.colorAccent : Theme.colorText2
-                }
-                Text { text: "·"; color: Theme.colorText3 }
-                Text {
-                    text: qsTr("Bowed %1%").arg(dx.resemblance.bowed !== undefined ? dx.resemblance.bowed : 0)
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
-                    font.weight: dx.effectiveArchetype === 1 ? Font.Bold : Font.Normal
-                    color: dx.effectiveArchetype === 1 ? Theme.colorAccent : Theme.colorText2
-                }
-                Text { text: "·"; color: Theme.colorText3 }
-                Text {
-                    text: qsTr("Cupped %1%").arg(dx.resemblance.cupped !== undefined ? dx.resemblance.cupped : 0)
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
-                    font.weight: dx.effectiveArchetype === 2 ? Font.Bold : Font.Normal
-                    color: dx.effectiveArchetype === 2 ? Theme.colorAccent : Theme.colorText2
-                }
-                Item { Layout.fillWidth: true }
-            }
-
-            // ── Body: trajectory strips + grid (left) · Working-well + Findings dock (right) ──
-            GridLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                columns: body._wide ? 2 : 1
-                columnSpacing: Theme.sp(16)
-                rowSpacing: Theme.sp(16)
-
-                // Left — strips card + collapsible data grid.
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    spacing: Theme.sp(16)
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        Layout.minimumHeight: stripsCol.implicitHeight + Theme.sp(24)
-                        color: Theme.colorSurface
-                        border.width: Theme.borderWidth
-                        border.color: Theme.colorBorder
-                        radius: Theme.radiusLg
-
-                        ColumnLayout {
-                            id: stripsCol
-                            anchors { fill: parent; margins: Theme.sp(12) }
-                            spacing: Theme.sp(16)
-                            Repeater {
-                                model: dx.strips
-                                delegate: DofTrajectoryStrip {
-                                    required property var modelData
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
-                                    Layout.minimumHeight: implicitHeight
-                                    strip: modelData
-                                    positions: dx.positions
-                                    selected: dx.selectedPosition
-                                }
-                            }
+                Repeater {
+                    model: [ { name: qsTr("Neutral"), key: "neutral", mode: 0 },
+                             { name: qsTr("Bowed"),   key: "bowed",   mode: 1 },
+                             { name: qsTr("Cupped"),  key: "cupped",  mode: 2 } ]
+                    delegate: Row {
+                        id: simItem
+                        required property var modelData
+                        readonly property bool effective: dx.effectiveArchetype === modelData.mode
+                        height: Theme.sp(18)
+                        spacing: Theme.sp(6)
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("%1 %2%").arg(simItem.modelData.name)
+                                  .arg(dx.resemblance[simItem.modelData.key] !== undefined
+                                       ? dx.resemblance[simItem.modelData.key] : 0)
+                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
+                            color: simItem.effective ? Theme.colorText : Theme.colorText3
+                        }
+                        PpChip {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: simItem.effective ? qsTr("effective") : ""
+                            tone: Theme.colorAccent
                         }
                     }
+                }
+            }
 
-                    PositionAngleGrid {
+            // ── Trajectory strips, then the collapsible data grid ────────────────────
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: implicitHeight
+                spacing: Theme.sp(14)
+                Repeater {
+                    model: dx.strips
+                    delegate: DofTrajectoryStrip {
+                        required property var modelData
                         Layout.fillWidth: true
-                        gridRows: dx.gridRows
+                        Layout.fillHeight: true
+                        Layout.minimumHeight: implicitHeight
+                        strip: modelData
                         positions: dx.positions
                         selected: dx.selectedPosition
                     }
                 }
+            }
 
-                // Right — "Working well" leads the dock, then "Findings".
-                ColumnLayout {
-                    Layout.fillWidth: !body._wide
-                    Layout.preferredWidth: body._wide ? Theme.sp(330) : 0
+            PositionAngleGrid {
+                Layout.fillWidth: true
+                gridRows: dx.gridRows
+                positions: dx.positions
+                selected: dx.selectedPosition
+            }
+
+            Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.colorBorder }
+
+            // ── FINDINGS · WORKING WELL — two sections side by side, a hairline between ──
+            GridLayout {
+                Layout.fillWidth: true
+                columns: body._wide ? 3 : 1
+                columnSpacing: Theme.sp(16)
+                rowSpacing: Theme.sp(14)
+
+                FindingsList {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
                     Layout.alignment: Qt.AlignTop
-                    spacing: Theme.sp(16)
-
-                    StrengthsList {
-                        Layout.fillWidth: true
-                        visible: dx.strengths.length > 0
-                        strengths: dx.strengths
-                        onSeek: (u) => shotReplay.seekToUs(u)
-                    }
-                    FindingsList {
-                        Layout.fillWidth: true
-                        findings: dx.findings
-                        onSeek: (u) => shotReplay.seekToUs(u)
-                    }
+                    findings: dx.findings
+                    onSeek: (u) => shotReplay.seekToUs(u)
+                }
+                Rectangle {
+                    Layout.fillWidth: !body._wide
+                    Layout.fillHeight: body._wide
+                    implicitWidth: 1; implicitHeight: 1
+                    color: Theme.colorBorder
+                }
+                StrengthsList {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    Layout.alignment: Qt.AlignTop
+                    strengths: dx.strengths
+                    onSeek: (u) => shotReplay.seekToUs(u)
                 }
             }
 
-            // ── Legend ──────────────────────────────────────────────────────────────
+            Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.colorBorder }
+
+            // ── Legend: each RAG glyph with its word ─────────────────────────────────
             RowLayout {
                 Layout.fillWidth: true
-                Layout.topMargin: Theme.sp(4)
                 spacing: Theme.sp(16)
-                Repeater {
-                    model: [ { g: "●", t: qsTr("in range"), c: "green" },
-                             { g: "▲", t: qsTr("watch"),    c: "amber" },
-                             { g: "■", t: qsTr("fault"),    c: "red"   },
-                             { g: "◆", t: qsTr("no data"),  c: "none"  } ]
-                    delegate: Row {
-                        required property var modelData
-                        spacing: Theme.sp(2)
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: parent.modelData.g
-                            font.family: Theme.fontSymbol; font.pixelSize: Theme.fontSzMicro
-                            color: root._ragColor(parent.modelData.c)
-                        }
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: parent.modelData.t
-                            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
-                            color: Theme.colorText2
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp(16)
+                    Repeater {
+                        model: [ { g: "●", t: qsTr("in range"), c: "green" },
+                                 { g: "▲", t: qsTr("watch"),    c: "amber" },
+                                 { g: "■", t: qsTr("fault"),    c: "red"   },
+                                 { g: "◆", t: qsTr("no data"),  c: "none"  } ]
+                        delegate: Row {
+                            required property var modelData
+                            spacing: Theme.sp(4)
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: parent.modelData.g
+                                font.family: Theme.fontSymbol; font.pixelSize: Theme.fontSzMicro
+                                color: root._ragColor(parent.modelData.c)
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: parent.modelData.t
+                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                                font.weight: Theme.fontBodyWeight
+                                color: Theme.colorText3
+                            }
                         }
                     }
                 }
-                Item { Layout.fillWidth: true }
-                Text {
-                    text: qsTr("Δ from address · degrees")
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                    color: Theme.colorText3
+                PpMicro {
+                    Layout.alignment: Qt.AlignTop
+                    text: qsTr("Δ FROM ADDRESS · DEGREES")
+                    font.letterSpacing: Theme.trackingData
                 }
             }
         }

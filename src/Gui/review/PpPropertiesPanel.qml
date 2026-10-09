@@ -44,12 +44,10 @@ Item {
         return out.join("\n").trim()
     }
 
-    Text {
-        anchors { left: parent.left; top: parent.top; leftMargin: Theme.sp(14); topMargin: Theme.sp(12) }
-        text: qsTr("PROPERTIES"); font.family: Theme.fontData
-        font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingMicro
-        color: Theme.colorText3
+    PpMicro {
         id: title
+        anchors { left: parent.left; top: parent.top; leftMargin: Theme.sp(14); topMargin: Theme.sp(14) }
+        text: qsTr("PROPERTIES")
     }
 
     // Top-right action icons: copy all properties, reveal the swing folder.
@@ -105,6 +103,12 @@ Item {
             spacing: Theme.sp(12)
             leftPadding: Theme.sp(14); rightPadding: Theme.sp(14); bottomPadding: Theme.sp(14)
 
+            PpCardNote {
+                visible: panel.metadata.length === 0
+                width: col.width - Theme.sp(28)
+                text: qsTr("No properties recorded for this swing.")
+            }
+
             Repeater {
                 model: panel.metadata
                 delegate: Column {
@@ -112,10 +116,9 @@ Item {
                     width: col.width - Theme.sp(28)
                     spacing: Theme.sp(4)
 
-                    Text {
+                    PpMicro {
                         text: (modelData.group || "").toUpperCase()
-                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingMicro; color: Theme.colorText2
+                        color: Theme.colorText2
                     }
                     Repeater {
                         model: modelData.rows

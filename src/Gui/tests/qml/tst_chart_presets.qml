@@ -255,13 +255,12 @@ Item {
             verify(titleItem.visible)
             compare(titleItem.text, "Wrist & forearm")
 
-            // ⚠ AND IT IS SIZED TO ITS TEXT, WHICH IS A GRADIENT ASSERTION WEARING A LAYOUT
-            // DISGUISE. PpDisplayText paints the brand sweep across a Rectangle anchored to its
-            // glyphs, so a title stretched to the panel width spreads warm→cool over 900px and
-            // shows the words in the first fifth of it — near-flat warm, indistinguishable from
-            // the gradient being switched off. That is what Layout.fillWidth did here, and it is
-            // invisible to every other assertion in this file. The panel is 900 wide and these
-            // words are not, so width must still be the natural glyph width.
+            // ⚠ AND IT IS SIZED TO ITS TEXT. It began as a gradient assertion (the title was a
+            // PpDisplayText whose brand sweep, stretched to the panel, read as no gradient at
+            // all); since the coaching-card look it is plain body text under the card's CHARTS
+            // heading, and the claim still matters: the METRICS combo sits to its right, and a
+            // title that fills the row would push the combo off it. The panel is 900 wide and
+            // these words are not, so width must still be the natural glyph width.
             //
             // waitForRendering first: implicitWidth follows the new text immediately, but the
             // ColumnLayout re-polishes on the next frame, so without it this reads the width

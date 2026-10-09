@@ -63,29 +63,17 @@ Item {
 
         Item {   // header: EDIT SWING · Done
             width: parent.width; height: doneText.implicitHeight
-            Text {
+            PpMicro {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                text:           qsTr("EDIT SWING")
-                font.family:    Theme.fontData
-                font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro
-                color:          Theme.colorText3
+                text: qsTr("EDIT SWING")
             }
-            Text {
+            PpLink {
                 id: doneText
                 anchors.right: parent.right
-                text:           qsTr("Done")
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                color:          doneMa.containsMouse ? Qt.lighter(Theme.colorAccent, 1.08)
-                                                     : Theme.colorAccent
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                PpPressable {
-                    id: doneMa
-                    anchors.margins: -Theme.sp(4)
-                    onClicked:       root.closeRequested()
-                }
+                text:        qsTr("Done")
+                pressMargin: Theme.sp(4)
+                onClicked:   root.closeRequested()
             }
         }
 
@@ -101,58 +89,61 @@ Item {
             elide:          Text.ElideRight
         }
 
-        // The card's ⚠, explained: on the film strip it is a glyph with a hover tooltip,
-        // and this panel is where the swing is looked at in full, so the words are shown
-        // outright (DataWarningFormat — the same wording as that tooltip). The panel is
-        // sized by its content, so it grows by exactly this block when the shot warns.
+        // The card's ⚠, explained: on the film strip it is a glyph and a word with a hover
+        // tooltip, and this panel is where the swing is looked at in full, so the words are
+        // shown outright (DataWarningFormat — the same wording as that tooltip), set into
+        // the panel with a fault's target and bar. The panel is sized by its content, so it
+        // grows by exactly this block when the shot warns.
         Item {
             visible: warnBlock.visible
             width: 1; height: Theme.sp(10)
         }
-        Rectangle {
+        PpInset {
             id: warnBlock
             objectName: "swingWarning"
             visible: root.summary.dataWarning === true
-            width:  parent.width
-            height: warnRow.implicitHeight + Theme.sp(16)
-            radius: Theme.radius
-            color:  Theme.colorWarnLight
+            width:   parent.width
+            bar:     true
+            tone:    Theme.colorWarn
 
             Row {
                 id: warnRow
-                anchors { left: parent.left; right: parent.right; top: parent.top
-                          leftMargin: Theme.sp(9); rightMargin: Theme.sp(9); topMargin: Theme.sp(8) }
-                spacing: Theme.sp(7)
+                width:   parent.width
+                spacing: Theme.sp(10)
 
-                Text {
-                    id: warnGlyph
-                    text:           "⚠"
-                    font.family:    Theme.fontSymbol
-                    font.pixelSize: Theme.sp(14)
-                    color:          Theme.colorWarn
+                PpBadge {
+                    id: warnBadge
+                    kind: "target"
+                    tone: Theme.colorWarn
+                    size: Theme.sp(16)
                 }
-                Text {
-                    objectName: "swingWarningText"
-                    width:          warnRow.width - warnGlyph.width - warnRow.spacing
-                    text:           DataWarningFormat.text(root.summary.dataWarningDetail)
-                    wrapMode:       Text.WordWrap
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzMicro
-                    lineHeight:     1.15
-                    color:          Theme.colorText
+                Column {
+                    width:   warnRow.width - warnBadge.width - warnRow.spacing
+                    spacing: Theme.sp(4)
+                    PpMicro {
+                        // Centred on the badge, the way a coaching line's first line is.
+                        height: warnBadge.height
+                        verticalAlignment: Text.AlignVCenter
+                        text:  qsTr("DATA WARNING")
+                        color: Theme.colorWarn
+                    }
+                    Text {
+                        objectName: "swingWarningText"
+                        width:          parent.width
+                        text:           DataWarningFormat.text(root.summary.dataWarningDetail)
+                        wrapMode:       Text.WordWrap
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        lineHeight:     1.3
+                        color:          Theme.colorText2
+                    }
                 }
             }
         }
 
         Item { width: 1; height: Theme.sp(15) }
 
-        Text {
-            text:           qsTr("CLUB")
-            font.family:    Theme.fontData
-            font.pixelSize: Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingLabel
-            color:          Theme.colorText3
-        }
+        PpMicro { text: qsTr("CLUB") }
         Item { width: 1; height: Theme.sp(7) }
         PpComboBox {
             id: clubCombo
@@ -164,13 +155,7 @@ Item {
 
         Item { width: 1; height: Theme.sp(15) }
 
-        Text {
-            text:           qsTr("RATING")
-            font.family:    Theme.fontData
-            font.pixelSize: Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingLabel
-            color:          Theme.colorText3
-        }
+        PpMicro { text: qsTr("RATING") }
         Item { width: 1; height: Theme.sp(7) }
         PpStarRating {
             interactive: true
@@ -182,13 +167,7 @@ Item {
 
         Item { width: 1; height: Theme.sp(15) }
 
-        Text {
-            text:           qsTr("NOTE")
-            font.family:    Theme.fontData
-            font.pixelSize: Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingLabel
-            color:          Theme.colorText3
-        }
+        PpMicro { text: qsTr("NOTE") }
         Item { width: 1; height: Theme.sp(7) }
         PpTextField {
             id: noteField

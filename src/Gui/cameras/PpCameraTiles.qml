@@ -23,6 +23,10 @@
 // enumerated from the swing's own swing.json (shotReplay.streams), never the local
 // camera rig, so a swing recorded on a different setup still plays and the playback
 // follows the Review↔Analyse toggle. Hosted by PpModeStage as the "camera" panel.
+//
+// The stage's CAMERA card frames it and pads it, so the tiles run to the card body's edges and
+// draw no chrome of their own: the video is the mass, and what floats over it (the impact
+// picture-in-picture, the telestrator) is quiet card-family chrome.
 
 import QtQuick
 import QtQuick.Layouts
@@ -39,7 +43,7 @@ Item {
     // (regardless of open/closed) so the tiles never reflow as you toggle it.
     readonly property bool _annotate: SessionMode.mode === SessionMode.analyse
                                       && shotReplay.active && shotReplay.streams.length > 0
-    property real _leftGutter: _annotate ? Theme.sp(54) : Theme.sp(12)
+    property real _leftGutter: _annotate ? Theme.sp(46) : 0
     Behavior on _leftGutter {
         enabled: !Theme.reduceMotion
         NumberAnimation { duration: Theme.durationNormal; easing.type: Easing.InOutQuad }
@@ -99,12 +103,21 @@ Item {
         (shotProcessor.replayAnalysisDetail && shotProcessor.replayAnalysisDetail.series)
         ? shotProcessor.replayAnalysisDetail.series : []
 
+    // The legend for the P-position marks the replay tiles draw on the club (PpCameraFrame): on
+    // the card's heading row, and only while those marks can be on screen.
+    readonly property string cardAside:
+        (root._replayArmed && root._replayStreams.length > 0
+         && ViewLayout.elementMode(SessionMode.mode, "shaft") === "frame")
+        ? qsTr("P  ● FITTED  ○ SAMPLED") : ""
+
+    // Chrome that floats over the footage (the picture-in-picture's halo and transport): the
+    // overlay palette's dark ink, fixed across themes, under the palette's lightest words.
+    readonly property color _scrim:   Qt.alpha(Theme.poseInk, 0.6)
+    readonly property color _onScrim: Theme.dark ? Theme.colorText : Theme.colorBg
+
     RowLayout {
         id: tilesRow
         anchors.fill: parent
-        anchors.topMargin: Theme.sp(12)
-        anchors.bottomMargin: Theme.sp(12)
-        anchors.rightMargin: Theme.sp(12)
         anchors.leftMargin: root._leftGutter   // reserve the telestrator gutter
         spacing: Theme.sp(8)
 
@@ -210,7 +223,7 @@ Item {
             Layout.fillWidth: true; Layout.fillHeight: true
             visible: !root._replay
             PpMetricChart {
-                anchors.fill: parent; anchors.margins: Theme.sp(8)
+                anchors.fill: parent
                 compact:    true        // plot only — no toolbar / brush / summary chrome
                 visible:    shotProcessor.isReplaying && root._replaySeries.length > 0
                 seriesList: root._replaySeries
@@ -245,9 +258,9 @@ Item {
 
         // The stage area the box lives in — the tile row's own box.
         readonly property real areaX: root._leftGutter
-        readonly property real areaY: Theme.sp(12)
-        readonly property real areaW: Math.max(1, root.width  - root._leftGutter - Theme.sp(12))
-        readonly property real areaH: Math.max(1, root.height - Theme.sp(24))
+        readonly property real areaY: 0
+        readonly property real areaW: Math.max(1, root.width  - root._leftGutter)
+        readonly property real areaH: Math.max(1, root.height)
 
         // Remembered geometry, normalised so it survives any window size: w is
         // the width as a fraction of the area width; x and y are the position as
@@ -279,8 +292,7 @@ Item {
             anchors.fill: parent
             anchors.margins: -Theme.sp(3)
             radius: Theme.radius
-            color: "black"
-            opacity: 0.55
+            color: root._scrim
         }
 
         Loader {
@@ -358,7 +370,7 @@ Item {
             anchors.bottom: parent.bottom
             height: Theme.sp(22)
             z: 11   // over the move/resize MouseArea
-            color: Qt.rgba(0, 0, 0, 0.6)
+            color: root._scrim
 
             readonly property real  t0:   shotReplay.impactLoopStartUs
             readonly property real  t1:   shotReplay.impactLoopEndUs
@@ -369,13 +381,13 @@ Item {
                 property string glyph: ""
                 signal acted()
                 width: Theme.sp(20); height: Theme.sp(18); radius: Theme.radius - 1
-                color: pbma.containsMouse ? Theme.colorBg3 : "transparent"
+                color: pbma.containsMouse ? Qt.alpha(root._onScrim, 0.16) : "transparent"
                 Text {
                     anchors.centerIn: parent
                     text: parent.glyph
                     font.family: Theme.fontSymbol
                     font.pixelSize: Theme.sp(11)
-                    color: Theme.colorText
+                    color: root._onScrim
                 }
                 PpPressable { id: pbma; onClicked: parent.acted() }
             }
@@ -405,7 +417,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.left: parent.left; anchors.right: parent.right
                     height: 2
-                    color: Theme.colorBorderStrong
+                    color: Qt.alpha(root._onScrim, 0.3)
                 }
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
@@ -420,7 +432,7 @@ Item {
                     width: Theme.sp(10); height: Theme.sp(10); radius: width / 2
                     color: Theme.colorAccent
                     border.width: 1
-                    border.color: Theme.colorBg
+                    border.color: Theme.poseInk
                 }
                 MouseArea {
                     anchors.fill: parent
@@ -437,13 +449,14 @@ Item {
             }
         }
 
-        // Outline on top of the frame's own chrome.
+        // Outline on top of the frame's own chrome: a quiet hairline at rest, the accent while
+        // the pointer is on it, because then it can be moved and resized.
         Rectangle {
             anchors.fill: parent
             radius: Theme.radius
             color: "transparent"
             border.width: 1
-            border.color: pipMouse.containsMouse ? Theme.colorAccent : Theme.colorAccentMid
+            border.color: pipMouse.containsMouse ? Theme.colorAccent : Theme.colorBorderStrong
             Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
         }
 
@@ -543,40 +556,28 @@ Item {
         }
     }
 
-    // Capture empty-state: no cameras enabled.
+    // Empty states: one quiet line and its hint, at the top of the card's body like any card's
+    // empty line, so the CAMERA card keeps its shape. Capture: no cameras enabled. Review /
+    // Analyse: no swing focused, or the swing has no video.
     Column {
-        anchors.centerIn: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
         spacing: Theme.sp(6)
-        visible: !root._replay && root._liveCameras.length === 0 && root._liveImpact === null
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: qsTr("No cameras enabled")
-            color: Theme.colorText2; font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
+        visible: (!root._replay && root._liveCameras.length === 0 && root._liveImpact === null)
+                 || (root._replayHere && shotReplay.streams.length === 0)
+        PpCardNote {
+            width: parent.width
+            text: !root._replay                     ? qsTr("No cameras enabled")
+                : SessionMode.focusedShotId >= 0    ? qsTr("No video for this swing")
+                :                                     qsTr("Select a swing to review")
         }
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: qsTr("Enable cameras in the toolbar's Cameras panel")
-            color: Theme.colorText3; font.family: Theme.fontData
-            font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingData
-        }
-    }
-
-    // Review / Analyse empty-state: no swing focused, or the swing has no video.
-    Column {
-        anchors.centerIn: parent
-        spacing: Theme.sp(6)
-        visible: root._replayHere && shotReplay.streams.length === 0
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: SessionMode.focusedShotId >= 0 ? qsTr("No video for this swing")
-                                                 : qsTr("Select a swing to review")
-            color: Theme.colorText2; font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
-        }
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: qsTr("Pick a shot from the filmstrip below")
-            color: Theme.colorText3; font.family: Theme.fontData
-            font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingData
+        PpMicro {
+            width: parent.width
+            elide: Text.ElideRight
+            font.letterSpacing: Theme.trackingData
+            text: !root._replay ? qsTr("ENABLE CAMERAS IN THE TOOLBAR'S CAMERAS PANEL")
+                                : qsTr("PICK A SHOT FROM THE FILMSTRIP BELOW")
         }
     }
 
@@ -589,14 +590,12 @@ Item {
         visible: root._annotate && !AnnotationTool.paletteOpen
         anchors.left: parent.left
         anchors.top: parent.top
-        anchors.leftMargin: Math.max(Theme.sp(4), (root._leftGutter - width) / 2)
-        anchors.topMargin: Theme.sp(10)
         width: Theme.sp(32); height: Theme.sp(32)
         radius: Theme.radius
         z: 50
         color: annoOpenMa.containsMouse ? Theme.colorBg2 : "transparent"
         border.width: 1
-        border.color: Theme.colorBorderMid
+        border.color: Theme.colorBorderStrong
         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
         PpAnnotationIcon {
@@ -618,10 +617,16 @@ Item {
     PpAnnotationToolbar {
         id: annoBar
         // cluster spans root-x [_leftGutter, _leftGutter + tilesEnd.x - spacing];
-        // place this bar's centre at the cluster centre.
-        x: root._leftGutter + (tilesEnd.x - tilesRow.spacing - width) / 2
+        // place this bar's centre at the cluster centre, kept inside the card's body, which
+        // clips. A card narrower than the bar (a side column of the stage arrangement) gets
+        // the bar scaled down to fit rather than cut off: every control stays reachable.
+        readonly property real fit: Math.min(1, root.width / Math.max(1, width))
+        scale: fit
+        transformOrigin: Item.TopLeft
+        x: Math.max(0, Math.min(root.width - width * fit,
+                                root._leftGutter + (tilesEnd.x - tilesRow.spacing - width) / 2))
         anchors.top: parent.top
-        anchors.topMargin: Theme.sp(10)
+        anchors.topMargin: Theme.sp(8)
         z: 50
         visible: root._annotate && AnnotationTool.paletteOpen
         opacity: visible ? 1 : 0

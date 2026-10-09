@@ -19,7 +19,10 @@
 // Shot-quality score pill — fill graded by quartile via Theme.qualityColor.
 // Small variant sits on the shot card; large variant ("NN /100") heads the
 // review panel. Text colour flips with Theme.dark (the toolbar count-badge
-// idiom) so it stays legible across all themes.
+// idiom) so it stays legible across all themes. With `mark`, the band's shape
+// (Theme.qualityMark: a tick in the top band, a target below it) leads the
+// number, so the band reads without its colour where nothing beside the pill
+// says it in words.
 
 import QtQuick
 import PinPointStudio
@@ -29,6 +32,9 @@ Rectangle {
 
     property int  score: 0
     property bool large: false
+    property bool mark:  false
+
+    readonly property color _ink: Theme.dark ? Theme.colorBg : "#FFFFFF"
 
     implicitHeight: large ? Theme.sp(24) : Theme.sp(17)
     implicitWidth:  pillRow.implicitWidth + (large ? Theme.sp(22) : Theme.sp(14))
@@ -42,12 +48,19 @@ Rectangle {
         anchors.centerIn: parent
         spacing: Theme.sp(2)
 
+        PpBadge {
+            visible: root.mark
+            anchors.verticalCenter: parent.verticalCenter
+            kind: Theme.qualityMark(root.score)
+            tone: root._ink
+            size: root.large ? Theme.sp(18) : Theme.sp(13)
+        }
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text:           root.score
             font.family:    Theme.fontData
             font.pixelSize: root.large ? Theme.fontSzHeading : Theme.fontSzMicro
-            color:          Theme.dark ? Theme.colorBg : "#FFFFFF"
+            color:          root._ink
         }
         Text {
             visible:        root.large
@@ -57,7 +70,7 @@ Rectangle {
             font.family:    Theme.fontData
             font.pixelSize: Theme.fontSzMicro
             opacity:        0.8
-            color:          Theme.dark ? Theme.colorBg : "#FFFFFF"
+            color:          root._ink
         }
     }
 }

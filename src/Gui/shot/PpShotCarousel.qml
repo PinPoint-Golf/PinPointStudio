@@ -197,16 +197,25 @@ Item {
         }
     }
 
+    // Every notice goes through here. The toast is shared by export, trash and re-analysis,
+    // so each show sets ALL of its state — a failure's "error" left behind would tint the
+    // next "Shot moved to trash" as one, and a pinned re-analysis toast would never hide.
+    // severity is PpToast's "info" | "warn" | "error"; only the batch's progress is sticky.
+    function _notify(glyph, message, severity, copyText, sticky) {
+        toast.showUndo = false   // OS trash is the recovery path, not an in-app undo
+        toast.copyText = copyText || ""
+        toast.sticky   = sticky === true
+        toast.glyph    = glyph
+        toast.severity = severity
+        toast.show(message)
+    }
+
     // Opens the export options sheet for a set of swing dirs. The ⋯ "export all
     // selected" action routes through here, sharing one options panel, one
     // exporter call and one toast.
     function _openExportSheet(dirs, emptyMsg) {
         if (dirs.length === 0) {            // analysis-only shots have no on-disk files
-            toast.showUndo = false
-            toast.copyText = ""
-            toast.sticky   = false   // in case a re-analysis batch left the toast pinned
-            toast.glyph    = "ℹ"
-            toast.show(emptyMsg)
+            root._notify("ℹ", emptyMsg, "info")
             return
         }
         exportSheet.swingDirs   = dirs
@@ -263,23 +272,17 @@ Item {
 
             onTrashShot: {
                 const ok = root.activeModel.moveToTrash(SessionMode.focusedShotId)
-                toast.showUndo = false   // OS trash is the recovery path, not an in-app undo
-                toast.copyText = ""
-                toast.sticky   = false   // in case a re-analysis batch left the toast pinned
-                toast.glyph    = "🗑"
-                toast.show(ok ? qsTr("Shot moved to trash")
-                              : qsTr("Could not move shot to trash"))
+                root._notify("🗑", ok ? qsTr("Shot moved to trash")
+                                     : qsTr("Could not move shot to trash"),
+                             ok ? "info" : "error")
             }
             onTrashShown: {
                 const ids = filterProxy.visibleShotIds()
                 const n = root.activeModel.moveAllToTrash(ids)
-                toast.showUndo = false   // OS trash is the recovery path, not an in-app undo
-                toast.copyText = ""
-                toast.sticky   = false   // in case a re-analysis batch left the toast pinned
-                toast.glyph    = "🗑"
-                toast.show(ids.length === 0 ? qsTr("No shots to trash")
-                           : n === ids.length ? qsTr("%1 shots moved to trash").arg(n)
-                           : qsTr("Moved %1 of %2 shots to trash").arg(n).arg(ids.length))
+                root._notify("🗑", ids.length === 0 ? qsTr("No shots to trash")
+                                 : n === ids.length ? qsTr("%1 shots moved to trash").arg(n)
+                                 : qsTr("Moved %1 of %2 shots to trash").arg(n).arg(ids.length),
+                             n === ids.length ? "info" : n === 0 ? "error" : "warn")
             }
 
             // Re-analyse: focused shot, or every shot in the filtered set ("all
@@ -302,12 +305,17 @@ Item {
             Layout.minimumHeight: root._transportShown ? root._stripBandHeight : 0
             spacing: Theme.sp(4)
 
+            // The dock's two choosers are capsules (the chip's shape) that show their outline
+            // under the pointer and while their popover is up; the dock itself stays flat.
+            // The session's value names itself (and the toolbar says REVIEWING); the filter's
+            // count does not, so it carries a Micro name. Anything wider here would push the
+            // transport off the dock's centre at 1680.
             Rectangle {   // session chooser chip — live name or loaded-session label
                 id: sessChip
                 Layout.alignment: Qt.AlignVCenter
                 implicitWidth:  sessRow.implicitWidth + Theme.sp(20)
                 implicitHeight: Theme.sp(22)
-                radius: Theme.radius
+                radius: height / 2
                 color:  "transparent"
                 border.width: 1
                 border.color: sessionsPopup.opened || sessMa.containsMouse
@@ -319,11 +327,13 @@ Item {
                     anchors.centerIn: parent
                     spacing: Theme.sp(7)
 
-                    Rectangle {   // live dot — only in live mode
+                    // Live: the recording's red, as a word as well as a dot.
+                    PpChip {
                         visible: !root.reviewing
                         anchors.verticalCenter: parent.verticalCenter
-                        width: Theme.sp(7); height: Theme.sp(7); radius: Theme.sp(3.5)
-                        color: Theme.colorError
+                        text:     qsTr("● LIVE")
+                        tone:     Theme.colorError
+                        tracking: Theme.trackingMicro
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
@@ -332,7 +342,7 @@ Item {
                                      + (sessionReviewController.activeTimeLabel
                                             ? " · " + sessionReviewController.activeTimeLabel : "")
                                      + qsTr(" · %1 shots").arg(sessionReviewController.activeShotCount))
-                                  : qsTr("LIVE · %1 shots").arg(shotModel.activeCount)
+                                  : qsTr("%1 shots").arg(shotModel.activeCount)
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzBody2
                         color:          Theme.colorText
@@ -368,20 +378,27 @@ Item {
             Rectangle {   // "N shots" / "N of M shots" when filtered
                 id: filterPill
                 Layout.alignment: Qt.AlignVCenter
-                implicitWidth:  pillRow.implicitWidth + Theme.sp(12)
+                implicitWidth:  pillRow.implicitWidth + Theme.sp(20)
                 implicitHeight: Theme.sp(22)
-                radius: Theme.radius
+                radius: height / 2
                 color:  "transparent"
                 border.width: 1
-                border.color: filterProxy.filterActive || pillMa.containsMouse
+                border.color: filterProxy.filterActive || filterPopup.opened || pillMa.containsMouse
                                   ? Theme.colorBorderMid : "transparent"
                 Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
                 Row {
                     id: pillRow
                     anchors.centerIn: parent
-                    spacing: Theme.sp(6)
+                    spacing: Theme.sp(7)
 
+                    // In the accent while a filter is on: the strip is showing a subset, and
+                    // the count beside it says how much of the session that is.
+                    PpMicro {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text:  qsTr("FILTER")
+                        color: filterProxy.filterActive ? Theme.colorAccent : Theme.colorText3
+                    }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text:           filterProxy.countLabel
@@ -500,16 +517,14 @@ Item {
     // ── Filter popover — opens upward over the left cap ──────────────────────
     Popup {
         id: filterPopup
+        objectName: "filterPopup"
         parent: root
         x: Theme.sp(16)
         y: -height - Theme.sp(10)
         padding: 0
         margins: Theme.sp(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle {
-            color: Theme.colorSurface; radius: Theme.radiusLg
-            border.width: 1; border.color: Theme.colorBorderStrong
-        }
+        background: PpPopoverCard {}
         // The panel is the filter alone while the film strip is up — the cards are the
         // selector then. Folded, it also carries the shot picker: the strip is where a
         // swing is chosen, and folding it away must not cost the user that.
@@ -541,16 +556,14 @@ Item {
     //    bump _editTick so the action-bar identity chip refreshes in place.
     Popup {
         id: editPopup
+        objectName: "editPopup"
         parent: root
         x: Theme.sp(16)
         y: -height - Theme.sp(10)
         padding: 0
         margins: Theme.sp(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle {
-            color: Theme.colorSurface; radius: Theme.radiusLg
-            border.width: 1; border.color: Theme.colorBorderStrong
-        }
+        background: PpPopoverCard {}
         contentItem: PpSwingEditPanel {
             summary:     root._focusSummary
             clubOptions: root.activeModel.clubOptions
@@ -565,6 +578,7 @@ Item {
     // ── Sessions drawer — rises above the carousel, never reaches the toolbar ─
     Popup {
         id: sessionsPopup
+        objectName: "sessionsPopup"
         parent: root
         x: 0
         width: root.drawerWidth   // shared with the shot panel (siblings)
@@ -581,10 +595,7 @@ Item {
         padding: 0
         margins: Theme.sp(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle {
-            color: Theme.colorSurface; radius: Theme.radiusLg
-            border.width: 1; border.color: Theme.colorBorderStrong
-        }
+        background: PpPopoverCard {}
         contentItem: PpSessionDrawer {
             id: sessDrawer
             onCloseRequested: sessionsPopup.close()
@@ -603,12 +614,9 @@ Item {
             }
             onTrashRequested: (sessionId) => {
                 const ok = sessionReviewController.trashSession(sessionId)
-                toast.showUndo = false   // OS trash is the recovery path, not an in-app undo
-                toast.copyText = ""
-                toast.sticky   = false   // in case a re-analysis batch left the toast pinned
-                toast.glyph    = "🗑"
-                toast.show(ok ? qsTr("Session moved to trash")
-                              : qsTr("Could not move session to trash"))
+                root._notify("🗑", ok ? qsTr("Session moved to trash")
+                                     : qsTr("Could not move session to trash"),
+                             ok ? "info" : "error")
             }
         }
     }
@@ -616,6 +624,7 @@ Item {
     // ── Bulk export options — opens upward over the left cap ─────────────────
     PpExportOptionsSheet {
         id: exportSheet
+        objectName: "exportSheet"
         parent: root
         x: Theme.sp(16)
         y: -height - Theme.sp(10)
@@ -627,17 +636,10 @@ Item {
     Connections {
         target: swingExporter
         function onExportFinished(ok, zipPath, error) {
-            toast.showUndo = false
-            toast.sticky   = false   // in case a re-analysis batch left the toast pinned
-            if (ok) {
-                toast.glyph    = "✓"
-                toast.copyText = zipPath
-                toast.show(qsTr("Exported %1").arg(zipPath.split('/').pop()))
-            } else {
-                toast.glyph    = "⚠"
-                toast.copyText = ""
-                toast.show(qsTr("Export failed: %1").arg(error))
-            }
+            if (ok)
+                root._notify("✓", qsTr("Exported %1").arg(zipPath.split('/').pop()), "info", zipPath)
+            else
+                root._notify("⚠", qsTr("Export failed: %1").arg(error), "error")
         }
     }
 
@@ -653,13 +655,10 @@ Item {
             // a mid-batch top-up (user queues more while one is in flight) accumulates.
             root._reanalyseQueuedCount = reanalysisController.reanalysing
                 ? root._reanalyseQueuedCount + count : count
-            toast.showUndo = false
-            toast.copyText = ""
-            toast.glyph    = "↻"
-            toast.sticky   = true
-            toast.show(root._reanalyseQueuedCount === 1
-                ? qsTr("Re-analysing · 1 shot")
-                : qsTr("Re-analysing · %1 shots").arg(root._reanalyseQueuedCount))
+            root._notify("↻", root._reanalyseQueuedCount === 1
+                             ? qsTr("Re-analysing · 1 shot")
+                             : qsTr("Re-analysing · %1 shots").arg(root._reanalyseQueuedCount),
+                         "info", "", true)
         }
         function onReanalysed(swingDir) {
             root.activeModel.refreshShot(swingDir)
@@ -679,21 +678,20 @@ Item {
                 shotReplay.start(shotReplay.shotId, swingDir, shotReplay.speed)
         }
         function onReanalyseFinished(succeeded, failed, lastError) {
-            toast.sticky   = false
             root._reanalyseQueuedCount = 0
-            toast.showUndo = false
-            toast.copyText = ""
-            toast.glyph    = "↻"
+            const severity = failed === 0 ? "info" : succeeded === 0 ? "error" : "warn"
             const total = succeeded + failed
             if (total === 1) {
                 // Single shot: show the actual outcome/reason, not a "0 of 1" count.
-                toast.show(failed === 0
+                root._notify("↻", failed === 0
                     ? qsTr("Shot re-analysed")
                     : (lastError && lastError.length ? lastError
-                                                     : qsTr("Couldn't re-analyse this shot")))
+                                                     : qsTr("Couldn't re-analyse this shot")),
+                    severity)
             } else {
-                toast.show(failed === 0 ? qsTr("Re-analysed %1 shots").arg(succeeded)
-                                        : qsTr("Re-analysed %1, %2 failed").arg(succeeded).arg(failed))
+                root._notify("↻", failed === 0 ? qsTr("Re-analysed %1 shots").arg(succeeded)
+                                               : qsTr("Re-analysed %1, %2 failed").arg(succeeded).arg(failed),
+                             severity)
             }
         }
     }

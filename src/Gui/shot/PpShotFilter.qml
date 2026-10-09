@@ -33,6 +33,10 @@
 // absent from the strip: filtering is honoured by construction, not by a second rule.
 // Ordinals alone would not identify a swing, so the readout line under the grid names
 // whatever the cursor is over (falling back to the swing on the stage).
+//
+// The tint is never the band's only channel: each chip carries the band's mark (a tick in
+// the top band, a target below it) beside its ordinal, and the readout repeats the mark
+// with the score.
 
 import QtQuick
 import PinPointStudio
@@ -88,42 +92,24 @@ Item {
 
         Item {   // header: FILTER · Clear all
             width: parent.width; height: clearText.implicitHeight
-            Text {
+            PpMicro {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                text:           qsTr("FILTER")
-                font.family:    Theme.fontData
-                font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro
-                color:          Theme.colorText3
+                text: qsTr("FILTER")
             }
-            Text {
+            PpLink {
                 id: clearText
                 anchors.right: parent.right
-                text:           qsTr("Clear all")
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                color:          clearMa.containsMouse ? Qt.lighter(Theme.colorAccent, 1.08)
-                                                      : Theme.colorAccent
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                opacity:        root.proxy.filterActive ? 1.0 : 0.45
-                PpPressable {
-                    id: clearMa
-                    anchors.margins: -Theme.sp(4)
-                    onClicked:       root.proxy.clearAll()
-                }
+                text:        qsTr("Clear all")
+                opacity:     root.proxy.filterActive ? 1.0 : 0.45
+                pressMargin: Theme.sp(4)
+                onClicked:   root.proxy.clearAll()
             }
         }
 
         Item { width: 1; height: Theme.sp(13) }
 
-        Text {
-            text:           qsTr("QUALITY")
-            font.family:    Theme.fontData
-            font.pixelSize: Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingLabel
-            color:          Theme.colorText3
-        }
+        PpMicro { text: qsTr("QUALITY") }
 
         Item { width: 1; height: Theme.sp(7) }
 
@@ -163,7 +149,9 @@ Item {
                         text:           modelData.label
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
-                        color:          bandSelected ? (Theme.dark ? Theme.colorBg : "#FFFFFF")
+                        // On its own quality colour: the page's dark in a dark theme, its
+                        // surface in a light one.
+                        color:          bandSelected ? (Theme.dark ? Theme.colorBg : Theme.colorSurface)
                                                      : Theme.qualityColor(modelData.lo)
                     }
 
@@ -179,13 +167,7 @@ Item {
 
         Item { width: 1; height: Theme.sp(13) }
 
-        Text {
-            text:           qsTr("RATING")
-            font.family:    Theme.fontData
-            font.pixelSize: Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingLabel
-            color:          Theme.colorText3
-        }
+        PpMicro { text: qsTr("RATING") }
 
         Item { width: 1; height: Theme.sp(7) }
 
@@ -201,14 +183,12 @@ Item {
                 spacing:     Theme.sp(4)
                 onRated: (n) => root.proxy.ratingFilter = n
             }
-            Text {
+            PpMicro {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                text:           root.proxy.ratingFilter > 0 ? qsTr("Exactly %1★").arg(root.proxy.ratingFilter)
-                                                            : qsTr("Any")
-                font.family:    Theme.fontData
-                font.pixelSize: Theme.fontSzMicro
-                color:          Theme.colorText3
+                text: root.proxy.ratingFilter > 0 ? qsTr("Exactly %1★").arg(root.proxy.ratingFilter)
+                                                  : qsTr("Any")
+                font.letterSpacing: Theme.trackingData
             }
         }
 
@@ -275,13 +255,9 @@ Item {
 
         Item { width: 1; height: Theme.sp(13); visible: root.showShots }
 
-        Text {
-            visible:        root.showShots
-            text:           qsTr("SHOTS")
-            font.family:    Theme.fontData
-            font.pixelSize: Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingLabel
-            color:          Theme.colorText3
+        PpMicro {
+            visible: root.showShots
+            text:    qsTr("SHOTS")
         }
 
         Item { width: 1; height: Theme.sp(7); visible: root.showShots }
@@ -312,14 +288,12 @@ Item {
 
                 // Nothing survived the filter — say so, rather than showing a blank band
                 // that reads as a picker that failed to load.
-                Text {
+                PpCardNote {
                     anchors.centerIn: parent
                     visible: shotGrid.count === 0
                     text:    root.proxy && root.proxy.filterActive
                                  ? qsTr("No shots match the filter")
                                  : qsTr("No shots yet")
-                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                    color: Theme.colorText3
                 }
 
                 delegate: Item {
@@ -362,13 +336,24 @@ Item {
                             border.color: Theme.colorAccent
                         }
 
-                        Text {
+                        Row {   // the band's mark, then the ordinal, centred as one
                             anchors.centerIn: parent
-                            text:           cell.ordinal
-                            font.family:    Theme.fontData
-                            font.pixelSize: Theme.fontSzMicro
-                            color:          cell.picked ? (Theme.dark ? Theme.colorBg : "#FFFFFF")
-                                                        : Theme.qualityColor(cell.score)
+                            spacing: Theme.sp(3)
+                            PpBadge {
+                                anchors.verticalCenter: parent.verticalCenter
+                                kind: Theme.qualityMark(cell.score)
+                                tone: cell.picked ? (Theme.dark ? Theme.colorBg : Theme.colorSurface)
+                                                  : Theme.qualityColor(cell.score)
+                                size: Theme.sp(12)
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text:           cell.ordinal
+                                font.family:    Theme.fontData
+                                font.pixelSize: Theme.fontSzMicro
+                                color:          cell.picked ? (Theme.dark ? Theme.colorBg : Theme.colorSurface)
+                                                            : Theme.qualityColor(cell.score)
+                            }
                         }
 
                         // The card's data-integrity ⚠ at chip scale (top-right corner), so a
@@ -407,6 +392,7 @@ Item {
         // invitation. Fixed height, so the panel never jumps as the pointer crosses
         // the grid.
         Item {
+            id: readout
             visible: root.showShots
             width:   parent.width
             height:  Theme.sp(15)
@@ -439,14 +425,24 @@ Item {
                 color:          (root._hoverChip || parent._onStage) ? Theme.colorText2
                                                                      : Theme.colorText3
             }
-            Text {
+            Row {
                 id: scoreText
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                visible:        parent._score >= 0
-                text:           parent._score
-                font.family:    Theme.fontData
-                font.pixelSize: Theme.fontSzMicro
-                color:          Theme.qualityColor(parent._score)
+                visible: readout._score >= 0
+                spacing: Theme.sp(4)
+                PpBadge {
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind: Theme.qualityMark(readout._score)
+                    tone: Theme.qualityColor(readout._score)
+                    size: Theme.sp(13)
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text:           readout._score
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    color:          Theme.qualityColor(readout._score)
+                }
             }
         }
     }

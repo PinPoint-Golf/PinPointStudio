@@ -97,6 +97,12 @@ Item {
                           verticalCenter: parent.verticalCenter }
                 spacing: Theme.sp(7)
 
+                // What the bar is about, in the dock's Micro voice — the chips row under it
+                // names its SESSION and FILTER the same way.
+                PpMicro {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("SWING")
+                }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text:           "#" + (root.summary.ordinal !== undefined ? root.summary.ordinal : "")
@@ -147,6 +153,7 @@ Item {
                 PpQualityPill {
                     anchors.verticalCenter: parent.verticalCenter
                     score: root.summary.score !== undefined ? root.summary.score : 0
+                    mark:  true
                 }
                 Text {   // edit hint — space reserved (opacity, not visibility) so hover never reflows
                     anchors.verticalCenter: parent.verticalCenter
@@ -172,6 +179,10 @@ Item {
             visible: !root._hasFocus
             spacing: Theme.sp(7)
 
+            PpMicro {
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("FILTERED")
+            }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text:           qsTr("%1 of %2 shown").arg(root.visibleCount).arg(root.sourceCount)
@@ -275,6 +286,7 @@ Item {
             // Opens UPWARD over the stage (dock convention), right-aligned to the control.
             Popup {
                 id: allMenu
+                objectName: "allMenu"
                 parent: allCtl
                 y: -height - Theme.sp(4)
                 x: allCtl.width - width
@@ -282,10 +294,7 @@ Item {
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
                 contentWidth: Math.max(allExportRow.implicitWidth, allTrashRow.implicitWidth)
                               + Theme.sp(28)
-                background: Rectangle {
-                    color: Theme.colorSurface; radius: Theme.radiusLg
-                    border.width: 1; border.color: Theme.colorBorderStrong
-                }
+                background: PpPopoverCard {}
 
                 contentItem: Column {
 
@@ -315,13 +324,11 @@ Item {
                                 color: Theme.colorText
                             }
                         }
-                        Text {   // count tail
+                        PpMicro {   // count tail
                             anchors { right: parent.right; rightMargin: Theme.sp(10)
                                       verticalCenter: parent.verticalCenter }
-                            text:           qsTr("%1 shots").arg(root.visibleCount)
-                            font.family:    Theme.fontData
-                            font.pixelSize: Theme.fontSzMicro
-                            color:          Theme.colorText3
+                            text: qsTr("%1 shots").arg(root.visibleCount)
+                            font.letterSpacing: Theme.trackingData
                         }
                         PpPressable {
                             id: allExportMa
@@ -355,13 +362,11 @@ Item {
                                 color: Theme.colorText
                             }
                         }
-                        Text {   // count tail
+                        PpMicro {   // count tail
                             anchors { right: parent.right; rightMargin: Theme.sp(10)
                                       verticalCenter: parent.verticalCenter }
-                            text:           qsTr("%1 shots").arg(root.visibleCount)
-                            font.family:    Theme.fontData
-                            font.pixelSize: Theme.fontSzMicro
-                            color:          Theme.colorText3
+                            text: qsTr("%1 shots").arg(root.visibleCount)
+                            font.letterSpacing: Theme.trackingData
                         }
                         PpPressable {
                             id: allReanalyseMa
@@ -404,14 +409,13 @@ Item {
                                 color: Theme.colorWarn
                             }
                         }
-                        Text {   // count tail
+                        PpMicro {   // count tail
                             anchors { right: parent.right; rightMargin: Theme.sp(10)
                                       verticalCenter: parent.verticalCenter }
-                            text:           qsTr("%1 shots").arg(root.visibleCount)
-                            font.family:    Theme.fontData
-                            font.pixelSize: Theme.fontSzMicro
-                            color:          Theme.colorWarn
-                            opacity:        0.7
+                            text: qsTr("%1 shots").arg(root.visibleCount)
+                            font.letterSpacing: Theme.trackingData
+                            color:   Theme.colorWarn
+                            opacity: 0.7
                         }
                         PpPressable {
                             id: allTrashMa

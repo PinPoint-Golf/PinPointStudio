@@ -120,11 +120,27 @@ ColumnLayout {
     // colorGood, and combined with bandAtNearest's old "good" default that meant a series with no
     // phaseSample anywhere near impact showed its @impact reading in PASS GREEN — a grade invented
     // from an empty list. A missing verdict is not a good one.
-    function _bandColor(b) {
-        return b === "warn"      ? Theme.colorWarn
-             : b === "attention" ? Theme.colorAttention
-             : b === "good"      ? Theme.colorGood
+    //
+    // Either spelling of a band is read (the chart's good / attention / warn, the scorer's
+    // green / yellow / red); the map is PpChartPlot._verdict's, and the two must stay equal.
+    function _verdict(b) {
+        return (b === "good" || b === "green")                          ? "good"
+             : (b === "attention" || b === "yellow" || b === "amber")   ? "attention"
+             : (b === "warn" || b === "red")                            ? "warn"
+             :                                                            ""
+    }
+    function _bandColor(v) {
+        return v === "warn"      ? Theme.colorWarn
+             : v === "attention" ? Theme.colorAttention
+             : v === "good"      ? Theme.colorGood
              :                     Theme.colorText
+    }
+    // A judged reading says so in words as well as in its colour and its badge.
+    function _verdictWords(v) {
+        return v === "good"      ? qsTr("in range")
+             : v === "attention" ? qsTr("watch")
+             : v === "warn"      ? qsTr("outside")
+             :                     ""
     }
     // WHICH ARRAY IS THE CURVE (Phase 6): `mean` — the 40 ms centred windowed mean the chart strokes
     // and summaryMasked reduces — where the host decorated one (PpMetricChart._plottable), else the
@@ -208,12 +224,7 @@ ColumnLayout {
         visible: root.showHeader
         Layout.fillWidth: true
         spacing: Theme.sp(9)
-        Text {
-            text: qsTr("SUMMARY") + (root.segmentName ? " · " + root.segmentName : "")
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingLabel
-            color: Theme.colorText3
-        }
+        PpMicro { text: qsTr("SUMMARY") + (root.segmentName ? " · " + root.segmentName : "") }
         Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.colorBorder }
     }
 
@@ -285,7 +296,12 @@ ColumnLayout {
         Repeater {
             id: cards
             model: grid.cardSeries
-            delegate: Rectangle {
+            // ── NOT A CARD IN A CARD ─────────────────────────────────────────────────────
+            // This row sits inside the chart panel's own card, so each metric is an INSET — a
+            // faint panel and a hairline — with the series' colour as the inset's bar, where it
+            // used to be a bordered box with a colour edge: a box inside the card read as a card
+            // of its own, one level too many.
+            delegate: PpInset {
                 id: card
                 required property var modelData
 
@@ -391,18 +407,21 @@ ColumnLayout {
                 function fmt(v) { return cm.formatBare(v, card.modelData.unit) }
 
                 // ── THE TILES, IN SPEC ORDER: readings, PEAK, Δ, PK RATE ────────────────────
-                // Each: { label, text, ok, color, sub, unit, tip, window }. `sub` is the ± line and
-                // is "" where the tile has none; `window` marks the tiles the PARTIAL chip speaks for.
+                // Each: { label, text, ok, color, sub, unit, tip, window, verdict? }. `sub` is the ±
+                // line and is "" where the tile has none; `window` marks the tiles the PARTIAL chip
+                // speaks for; `verdict` is a reading's band, normalised, "" where none was passed.
                 readonly property var tiles: {
                     var out = [], sp = card.spec, i
                     if (!card.hasCurve) {
                         // No curve: one tile per phase sample, nothing window-scoped.
                         var pss = card.modelData.phaseSamples || []
-                        for (i = 0; i < pss.length; ++i)
+                        for (i = 0; i < pss.length; ++i) {
+                            var v0 = root._verdict(cm.bandAtNearest(pss, pss[i].t_us))
                             out.push({ label: card.readLabel({ phase: pss[i].phase }),
                                        text: card.fmt(pss[i].value), ok: true,
-                                       color: root._bandColor(cm.bandAtNearest(pss, pss[i].t_us)),
+                                       verdict: v0, color: root._bandColor(v0),
                                        sub: "", unit: "", tip: "", window: false })
+                        }
                         var cos0 = grid._companionsOf(card.modelData.key)
                         for (i = 0; i < cos0.length; ++i) {
                             var ct0 = card.companionTiles(cos0[i])
@@ -413,12 +432,11 @@ ColumnLayout {
                     var rs = sp.readAt || []
                     for (i = 0; i < rs.length; ++i) {
                         var r = card.reading(rs[i].phase)
+                        var v = r.ok ? root._verdict(cm.bandAtNearest(card.modelData.phaseSamples, r.us)) : ""
                         out.push({ label: card.readLabel(rs[i]),
                                    text: r.ok ? card.fmt(r.val) : "—",
-                                   ok: r.ok,
-                                   color: r.ok ? root._bandColor(cm.bandAtNearest(
-                                                     card.modelData.phaseSamples, r.us))
-                                               : Theme.colorText3,
+                                   ok: r.ok, verdict: v,
+                                   color: r.ok ? root._bandColor(v) : Theme.colorText3,
                                    sub: "", unit: "", window: false,
                                    tip: (r.ok && r.raw !== "")
                                         ? qsTr("Drawn value (40 ms windowed mean). "
@@ -497,10 +515,10 @@ ColumnLayout {
                     var rs = sp.readAt || []
                     for (i = 0; i < rs.length; ++i) {
                         var r = card.companionReading(s, rs[i].phase)
+                        var v = r.ok ? root._verdict(cm.bandAtNearest(s.phaseSamples, r.us)) : ""
                         out.push({ label: rs[i].label ? rs[i].label : nm + " " + card.readLabel(rs[i]),
                                    text: r.ok ? cm.formatBare(r.val, s.unit) : "—", ok: r.ok,
-                                   color: r.ok ? root._bandColor(cm.bandAtNearest(s.phaseSamples, r.us))
-                                               : Theme.colorText3,
+                                   verdict: v, color: r.ok ? root._bandColor(v) : Theme.colorText3,
                                    sub: "", unit: r.ok ? unit : "", tip: "", window: false })
                     }
                     if (sp.delta && sp.deltaSpan) {
@@ -529,22 +547,13 @@ ColumnLayout {
                 Layout.fillHeight: true             // every card as tall as its row
                 Layout.alignment: Qt.AlignTop
                 Layout.preferredWidth: 1            // equal columns
-                implicitHeight: cardCol.implicitHeight + Theme.sp(22)
-                radius: Theme.sp(10)
-                color: Theme.colorBg
-                border.width: 1; border.color: Theme.colorBorder
-                clip: true
-
-                Rectangle {                          // series colour edge
-                    width: Theme.sp(3); height: parent.height
-                    color: card.modelData.color
-                }
+                tone: card.modelData.color
+                bar: true
+                padX: Theme.sp(13); padY: Theme.sp(11)
 
                 ColumnLayout {
                     id: cardCol
-                    anchors { left: parent.left; right: parent.right; top: parent.top
-                              leftMargin: Theme.sp(13); rightMargin: Theme.sp(11)
-                              topMargin: Theme.sp(11) }
+                    width: parent.width
                     spacing: Theme.sp(10)
 
                     RowLayout {                       // name + unit + σ
@@ -657,6 +666,17 @@ ColumnLayout {
                                     // which cut "1164" to "11…" beside a unit with room to spare.
                                     // The number takes what it needs (capped at the cell), and the
                                     // unit — fillWidth — gets the rest.
+                                    // A judged reading leads with its mark — the tick for in range,
+                                    // the target for watch or outside — so the tint is never the
+                                    // only thing that says it was judged.
+                                    PpBadge {
+                                        readonly property string verdict: (cell.tile && cell.tile.verdict) ? cell.tile.verdict : ""
+                                        visible: verdict !== ""
+                                        Layout.alignment: Qt.AlignVCenter
+                                        size: Theme.sp(16)
+                                        kind: verdict === "good" ? "check" : "target"
+                                        tone: root._bandColor(verdict)
+                                    }
                                     Text { id: valText
                                            Layout.alignment: Qt.AlignBaseline
                                            Layout.maximumWidth: cell.width
@@ -679,14 +699,19 @@ ColumnLayout {
                                            color: Theme.colorText3 }
                                 }
                                 // The ± line — RESERVED when empty (opacity, not visible) so a
-                                // reading without one sits level with a PEAK that has one.
-                                Text { Layout.fillWidth: true; elide: Text.ElideRight
-                                       text: (cell.tile && cell.tile.sub) ? cell.tile.sub : "±"
-                                       opacity: (cell.tile && cell.tile.sub) ? 1 : 0
+                                // reading without one sits level with a PEAK that has one. A judged
+                                // reading has no ± and says its band here instead, in its tone.
+                                Text { readonly property string words: cell.tile && cell.tile.verdict
+                                                                       ? root._verdictWords(cell.tile.verdict) : ""
+                                       Layout.fillWidth: true; elide: Text.ElideRight
+                                       text: (cell.tile && cell.tile.sub) ? cell.tile.sub
+                                           : words !== "" ? words : "±"
+                                       opacity: (cell.tile && cell.tile.sub) || words !== "" ? 1 : 0
                                        font.family: Theme.fontData
                                        font.pixelSize: Theme.fontSzMicro
                                        font.letterSpacing: Theme.trackingData
-                                       color: Theme.colorText3 }
+                                       color: words !== "" && !(cell.tile && cell.tile.sub)
+                                              ? root._bandColor(cell.tile.verdict) : Theme.colorText3 }
                             }
                         }
                     }

@@ -74,20 +74,13 @@ Item {
         anchors { fill: parent; margins: Theme.sp(13) }
         spacing: Theme.sp(10)
 
-        Text {
-            text: qsTr("CLUB")
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-        }
+        PpMicro { text: qsTr("CLUB") }
 
-        // Empty state — no bag for this athlete.
-        Text {
+        // Empty state — no bag for this athlete: one quiet line, so the card keeps its shape.
+        PpCardNote {
             visible: root.clubModel.length === 0
             width: parent.width
-            text: qsTr("No clubs configured for this athlete.\nAdd clubs in the athlete profile.")
-            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-            color: Theme.colorText3
-            wrapMode: Text.WordWrap
+            text: qsTr("No clubs in this athlete's bag yet — add them in the athlete profile.")
         }
 
         // Club rows — one selectable row per bag club, taped ones marked.

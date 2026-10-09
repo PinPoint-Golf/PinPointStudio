@@ -537,7 +537,7 @@ Item {
                                         // and carry no norm, which is why the strip is
                                         // usually silent even when a card below it is not.
                                         color: (modelData.grade === "action")
-                                                   ? Theme.colorRagFault
+                                                   ? Theme.colorWarn
                                              : (modelData.grade === "watch")
                                                    ? Theme.colorRagWatch
                                              : Theme.colorText
@@ -548,6 +548,17 @@ Item {
                                         font.family: Theme.fontData
                                         font.pixelSize: Theme.fontSzMicro
                                         color: Theme.colorText2
+                                    }
+                                    // The verdict in words, beside the coloured figure.
+                                    Text {
+                                        anchors.baseline: headlineValue.baseline
+                                        visible: modelData.grade === "action"
+                                                 || modelData.grade === "watch"
+                                        text: modelData.grade === "action" ? qsTr("outside")
+                                                                            : qsTr("watch")
+                                        font.family: Theme.fontData
+                                        font.pixelSize: Theme.fontSzMicro
+                                        color: headlineValue.color
                                     }
                                 }
                             }
@@ -1399,7 +1410,7 @@ Item {
                     // the headline strip above would then be the one that went amber while
                     // this one did not.
                     color: (root.gradeOf("lm.carryDistance") === "action")
-                               ? Theme.colorRagFault
+                               ? Theme.colorWarn
                          : (root.gradeOf("lm.carryDistance") === "watch")
                                ? Theme.colorRagWatch
                          : Theme.colorText2

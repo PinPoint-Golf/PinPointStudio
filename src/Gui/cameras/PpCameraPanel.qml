@@ -27,7 +27,9 @@
 //                 not "fixed in place" (appSettings.cameraFixedInPlace) — i.e.
 //                 needs stereo cal.
 //   "calibrate" — hosts CameraCalibrationFlow (a STUB for now) compactly in-panel.
-// The attention frame wraps the WHOLE panel while calibrating.
+// The heading turns colorAttention while calibrating; the toolbar turns the
+// popover card's rule the same tone, so the whole card reads as work in hand.
+// Each row leads with the device vocabulary's badge and says its state in words.
 
 import QtQuick
 import QtQuick.Layouts
@@ -170,43 +172,31 @@ Item {
             if (list[i].selected) cameraManager.setSelected(list[i].index, false)
     }
 
-    // ── Header ──────────────────────────────────────────────────────────────
+    // ── Header — the card's Micro title, and the count as an aside ─────────
+    // The same heading as the IMU panel. Calibrate mode keeps the row with no top
+    // navigation (the flow's Cancel returns to the list), titled in the tone.
     Item {
         id: hdr
         anchors { left: parent.left; right: parent.right; top: parent.top }
         height: Theme.sp(46)
 
-        RowLayout {
-            anchors { fill: parent; leftMargin: Theme.sp(15); rightMargin: Theme.sp(15) }
-            visible: root.mode === "list"
-            Text {
-                Layout.fillWidth: true
-                text: qsTr("CAMERAS")
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
-                font.letterSpacing: Theme.trackingLabel; color: Theme.colorText2
-            }
-            Text {
-                text: cameraManager.instances.length + " / " + cameraManager.cameraList.length
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                color: Theme.colorText3
-            }
+        PpMicro {
+            anchors { left: parent.left; leftMargin: Theme.sp(15); verticalCenter: parent.verticalCenter }
+            text: root.mode === "calibrate" ? qsTr("CALIBRATE CAMERAS") : qsTr("CAMERAS")
+            color: root.mode === "calibrate" ? Theme.colorAttention : Theme.colorText3
         }
-
-        // Calibrate-mode title — no top navigation (the flow's Cancel returns to
-        // the list); just a non-interactive heading for context.
-        Text {
-            anchors { fill: parent; leftMargin: Theme.sp(15); rightMargin: Theme.sp(15) }
-            verticalAlignment: Text.AlignVCenter
-            visible: root.mode === "calibrate"
-            text: qsTr("Calibrate cameras")
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
-            font.letterSpacing: Theme.trackingLabel; color: Theme.colorText2
+        PpMicro {
+            anchors { right: parent.right; rightMargin: Theme.sp(15); verticalCenter: parent.verticalCenter }
+            visible: root.mode === "list"
+            font.letterSpacing: Theme.trackingData
+            text: qsTr("%1 of %2 connected").arg(cameraManager.instances.length)
+                                            .arg(cameraManager.cameraList.length)
         }
     }
     Rectangle {
         id: hairline
         anchors { left: parent.left; right: parent.right; top: hdr.bottom }
-        height: 1; color: Theme.colorBorderMid
+        height: 1; color: Theme.colorBorder
     }
 
     // ── LIST view ───────────────────────────────────────────────────────────
@@ -259,6 +249,19 @@ Item {
                 deviceEnabled: modelData.sessionEnabled
             }
         }
+
+        // Nothing found: one quiet line, so the card keeps its shape.
+        Item {
+            visible: cameraManager.cameraList.length === 0
+            width: parent.width
+            height: noCams.implicitHeight + Theme.sp(28)
+            PpCardNote {
+                id: noCams
+                anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
+                          leftMargin: Theme.sp(15); rightMargin: Theme.sp(15) }
+                text: qsTr("No cameras found — Scan to look again.")
+            }
+        }
     }
 
     // ── CALIBRATE view — compact in-panel stub ──────────────────────────────
@@ -270,19 +273,6 @@ Item {
         showHeader: false
         onCompleted: root.mode = "list"
         onCancelled: root.mode = "list"
-    }
-
-    // Attention frame around the WHOLE panel while calibrating — drawn on top,
-    // inset slightly from the popup edge with a thin border.
-    Rectangle {
-        anchors.fill: parent
-        anchors.margins: Theme.sp(6)
-        visible: root.mode === "calibrate"
-        color: "transparent"
-        radius: Theme.radius
-        border.width: Theme.sp(1)
-        border.color: Theme.colorAttention
-        z: 10
     }
 
     component ScopedAction: Rectangle {
@@ -327,7 +317,7 @@ Item {
             width:  Theme.sp(12)
             height: Theme.sp(12)
             radius: Theme.sp(6)
-            color:  "white"
+            color:  Theme.dark ? Theme.colorText : Theme.colorSurface
             anchors.verticalCenter: parent.verticalCenter
             x: parent.checked ? parent.width - width - Theme.sp(3) : Theme.sp(3)
             Behavior on x { NumberAnimation { duration: 120 } }
@@ -384,7 +374,7 @@ Item {
         // ⭐ THE SETTING, NOT THE LIGHT (Mark, 2 Sept 2026).  "Torch during
         // capture" is what the pill binds to: Studio lights the torch when the
         // phone is armed for a live capture and puts it out when capture stops.
-        // `torchOn` above remains the LIGHT, shown beside the label.
+        // `torchOn` above remains the LIGHT, shown as the chip under the name.
         readonly property bool torchWanted: hasTorch && torch.duringCapture === true
 
         // Live controller for this camera (reactive on cameraManager.instances).
@@ -400,7 +390,8 @@ Item {
                                             : perspective === CameraInstance.DownTheLine ? qsTr("Down-the-line")
                                             : perspective === CameraInstance.Impact ? qsTr("Club/Ball Impact")
                                             : qsTr("Unassigned")
-        height: Theme.sp(60) + (camRow.torchRefusal !== "" ? Theme.sp(16) : 0)
+        height: Theme.sp(60) + (camRow.hasTorch ? Theme.sp(24) : 0)
+                             + (camRow.torchRefusal !== "" ? Theme.sp(16) : 0)
 
         Rectangle {  // row hairline
             anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
@@ -412,12 +403,13 @@ Item {
                       bottomMargin: camRow.torchRefusal !== "" ? Theme.sp(16) : 0 }
             spacing: Theme.sp(11)
 
-            // Status dot — good when connected, muted otherwise.
-            Rectangle {
-                Layout.preferredWidth: Theme.sp(8); Layout.preferredHeight: Theme.sp(8)
-                radius: Theme.sp(4)
-                opacity: deviceEnabled ? 1.0 : 0.45
-                color: connected ? Theme.colorGood : Theme.colorText3
+            // State badge — a check when connected, the dashed ring when not (or
+            // disabled); the subtitle says which in words.
+            PpBadge {
+                Layout.alignment: Qt.AlignVCenter
+                opacity: camRow.deviceEnabled ? 1.0 : 0.45
+                kind: camRow.connected && camRow.deviceEnabled ? "check" : "unconfirmed"
+                tone: camRow.connected && camRow.deviceEnabled ? Theme.colorGood : Theme.colorText3
             }
 
             // ⛔ A `ColumnLayout`, NOT a `Column`.  A plain `Column` gives its
@@ -438,80 +430,101 @@ Item {
                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                     color: Theme.colorText; elide: Text.ElideRight
                 }
-                Text {
+                // The state in words (what the badge shows), never elided, then
+                // the identification, which gives way.
+                RowLayout {
                     Layout.fillWidth: true
-                    // A PPCP camera's "serial" is its owning peer's id, which is
-                    // far too long to read and is shown for identification only —
-                    // so it elides from the LEFT, keeping the distinctive tail
-                    // rather than the shared `peer:` prefix.
-                    text: !deviceEnabled ? qsTr("disabled — won't connect")
-                        : [serial !== "" ? "SN " + serial : "", iface]
-                              .filter(function(s){ return s !== "" }).join(" · ")
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingData; color: Theme.colorText3
-                    elide: camRow.isPpcp ? Text.ElideMiddle : Text.ElideRight
+                    Layout.minimumWidth: 0
+                    spacing: 0
+                    Text {
+                        text: !deviceEnabled ? qsTr("disabled — won't connect")
+                            : connected      ? qsTr("connected")
+                            :                  qsTr("not connected")
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingData; color: Theme.colorText3
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        visible: deviceEnabled && text !== ""
+                        // A PPCP camera's "serial" is its owning peer's id, which is
+                        // far too long to read and is shown for identification only —
+                        // so it elides from the LEFT, keeping the distinctive tail
+                        // rather than the shared `peer:` prefix.
+                        text: [serial !== "" ? "SN " + serial : "", iface]
+                                  .filter(function(s){ return s !== "" })
+                                  .map(function(s){ return " · " + s }).join("")
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingData; color: Theme.colorText3
+                        elide: camRow.isPpcp ? Text.ElideMiddle : Text.ElideRight
+                    }
                 }
-            }
+                // ── ⭐ THE TORCH ──────────────────────────────────────────
+                //
+                // Present only where this phone actually DECLARED one (5.19c makes
+                // an empty `Peer.actuators` a complete declaration), and lit only
+                // by the ack and by `actuator_state`. Its own line under the name,
+                // so the name keeps the row's width: the label, the capture
+                // setting's pill, then the LIGHT as a chip — tinted where it says
+                // something (refused, lit), a quiet outline otherwise, and always
+                // in words, "unknown" included, so no state is told by colour alone.
+                Row {
+                    visible: camRow.hasTorch
+                    Layout.topMargin: Theme.sp(4)
+                    spacing: Theme.sp(6)
 
-            // ── ⭐ THE TORCH ────────────────────────────────────────────
-            //
-            // Present only where this phone actually DECLARED one (5.19c makes
-            // an empty `Peer.actuators` a complete declaration), and lit only
-            // by the ack and by `actuator_state`.
-            Row {
-                Layout.alignment: Qt.AlignVCenter
-                visible: camRow.hasTorch
-                spacing: Theme.sp(6)
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        // The device's own label where it gave one (informational,
+                        // 5.19), otherwise the kind.
+                        text: camRow.hasTorch && camRow.torch.label && camRow.torch.label !== ""
+                              ? camRow.torch.label : qsTr("Torch")
+                        font.family: Theme.fontData
+                        font.pixelSize: Theme.fontSzMicro
+                        font.letterSpacing: Theme.trackingData
+                        color: Theme.colorText2
+                    }
 
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    // The device's own label where it gave one (informational,
-                    // 5.19), otherwise the kind.
-                    text: (camRow.hasTorch && camRow.torch.label && camRow.torch.label !== ""
-                           ? camRow.torch.label : qsTr("Torch"))
-                          + (camRow.torchOn ? qsTr(" · lit") : "")
-                    font.family: Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingData
-                    color: camRow.torchRefusal !== "" ? Theme.colorWarn
-                         : camRow.torchUnknown        ? Theme.colorText3
-                                                      : Theme.colorText2
-                }
+                    TogglePill {
+                        id: torchPill
+                        anchors.verticalCenter: parent.verticalCenter
+                        // ⭐ BOUND TO THE CAPTURE SETTING.  This pill used to be a
+                        // light switch bound to the ack (trap 3's lesson: the click
+                        // is not the light).  It is now "torch during capture", a
+                        // per-phone preference Studio persists and acts on when
+                        // capture starts and stops — so it reads back the setting,
+                        // and the LIGHT is the chip beside it ("lit") from
+                        // `torch.state`, which only the ack and `actuator_state`
+                        // write.
+                        checked: camRow.torchWanted
+                        // Half-lit while a command is outstanding, so an operator
+                        // can see that we asked without being told it worked.
+                        opacity: camRow.torchPending ? 0.55 : 1.0
+                        onToggled: (v) => {
+                            if (!root.havePpcp || !camRow.hasTorch) return
+                            ppcpHost.setPhoneTorchDuringCapture(camRow.torch.pairingId, v)
+                        }
+                    }
 
-                TogglePill {
-                    id: torchPill
-                    anchors.verticalCenter: parent.verticalCenter
-                    // ⭐ BOUND TO THE CAPTURE SETTING.  This pill used to be a
-                    // light switch bound to the ack (trap 3's lesson: the click
-                    // is not the light).  It is now "torch during capture", a
-                    // per-phone preference Studio persists and acts on when
-                    // capture starts and stops — so it reads back the setting,
-                    // and the LIGHT is shown beside the label (" · lit") from
-                    // `torch.state`, which only the ack and `actuator_state`
-                    // write.
-                    checked: camRow.torchWanted
-                    // Half-lit while a command is outstanding, so an operator
-                    // can see that we asked without being told it worked.
-                    opacity: camRow.torchPending ? 0.55 : 1.0
-                    onToggled: (v) => {
-                        if (!root.havePpcp || !camRow.hasTorch) return
-                        ppcpHost.setPhoneTorchDuringCapture(camRow.torch.pairingId, v)
+                    PpChip {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: camRow.torchRefusal !== "" ? qsTr("refused")
+                            : camRow.torchOn             ? qsTr("lit")
+                            : camRow.torchUnknown        ? qsTr("unknown")
+                            :                              qsTr("off")
+                        tone: camRow.torchRefusal !== "" ? Theme.colorWarn
+                            : camRow.torchOn             ? Theme.colorGood
+                            : camRow.torchUnknown        ? Theme.colorText3
+                                                         : Theme.colorText2
+                        tinted: camRow.torchRefusal !== "" || camRow.torchOn
                     }
                 }
             }
 
-            // A gap the eye can read, so the torch and the enable toggle are not
-            // one undifferentiated cluster of two identical pills.
-            Item {
-                visible: camRow.hasTorch
-                Layout.preferredWidth: Theme.sp(10)
-                Layout.preferredHeight: 1
-            }
-
             // Enable toggle — session-local; disabling also disconnects.
-            // Labelled only where a torch sits beside it: with two pills on one
-            // row an unlabelled pair is a guess, and this is the one that drops
-            // the camera from the session.
+            // Labelled only where the row also carries a torch pill: with two
+            // pills on one row an unlabelled pair is a guess, and this is the one
+            // that drops the camera from the session.
             Text {
                 visible: camRow.hasTorch
                 Layout.alignment: Qt.AlignVCenter

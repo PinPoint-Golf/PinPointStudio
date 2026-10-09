@@ -982,6 +982,22 @@ Item {
             return null
         }
 
+        // A click can only land on what is on screen: the condition detail scrolls, and a target
+        // below its fold is clipped out of the press. Scroll it into view first (the detail's frame
+        // heading, since the coaching-card look, moved the fold up by the height of that row —
+        // these clicks had been riding it two pixels inside).
+        function intoView(item) {
+            let flick = item ? item.parent : null
+            while (flick && flick !== body && flick.objectName !== "sdDetailFlick")
+                flick = flick.parent
+            if (!flick || flick === body) return        // not inside the detail: nothing scrolls
+            const y = item.mapToItem(flick.contentItem, 0, 0).y
+            if (y + item.height > flick.contentY + flick.height || y < flick.contentY)
+                flick.contentY = Math.max(0, Math.min(y - Theme.sp(20),
+                                                      flick.contentHeight - flick.height))
+            laidOut()
+        }
+
         function nodeById(id) {
             const all = findAll(body, "sdChainNode")
             for (let i = 0; i < all.length; ++i)
@@ -1077,7 +1093,7 @@ Item {
             verify(na.border.width >= 1, "outlined rather than filled")
             compare(na.color.a, 0, "with no fill")
             verify(fired.color !== clean.color, "fired and clean are different marks")
-            compare(fired.color, Theme.colorError)
+            compare(fired.color, Theme.colorWarn)
             compare(clean.color, Theme.colorGood)
 
             // Bottom-aligned: the short tick sits on the run's baseline, so the run reads as
@@ -1154,63 +1170,40 @@ Item {
                    "and a card with no reading behind it draws no meter at all")
         }
 
-        // THE FRAME IS THE WAY IN. Twelve cards in one neutral grey gave the eye nothing to
-        // land on: a condition a mile outside its corridor was framed exactly like one that
-        // came in clean, and a six-character pill was the only thing between them. The frame
-        // now carries the firing at the meter's own step — so what is asserted here is that the
-        // two agree (one ramp, one step, no second scale to learn) and, just as importantly,
-        // that a clean card is NOT coloured. If everything is emphasised, nothing is.
-        function test_05c_theFrameCarriesTheFiringAndOnlyAFiring() {
-            function sameHue(a, b) {
-                return Math.abs(a.r - b.r) < 0.01 && Math.abs(a.g - b.g) < 0.01
-                    && Math.abs(a.b - b.b) < 0.01
-            }
-
+        // THE VERDICT IS THE WAY IN. Twelve rows that looked alike gave the eye nothing to land on.
+        // Since the coaching-card look (design system §13) a condition is a row, not a framed
+        // card: it leads with a target badge in the fault tone and closes on its verdict in words,
+        // and the strength meter carries how hard. What is asserted here is that a firing says so
+        // in words AND in the fault tone, that a clean row says it is clean in the good tone, and —
+        // just as importantly — that nothing is drawn in the alarm red (§13.2: nothing here is an
+        // alarm). Absent evidence must not be able to look like the loudest thing here either.
+        function test_05c_theVerdictCarriesTheFiringAndOnlyAFiring() {
             setSource(formingSource(false))
             const cards = visibleAll(body, "sdPatternCard")
 
             // Card 0 fired at step 4; card 1 is clean.
             const fired = cards[0], clean = cards[1]
-            verify(sameHue(fired.border.color, Theme.strengthColor(4)),
-                   "the fired card is framed in its own strength colour, got " + fired.border.color)
-            verify(fired.border.color.a > 0.8, "and a loud step is a loud frame")
-            verify(sameHue(fired.border.color,
-                           findAll(one(fired, "sdCardStrength"), "sdStrengthBar")[0].color),
-                   "the frame and the meter cannot disagree — one ramp, one step")
+            const firedPill = one(fired, "sdStatePill").children[0]
+            compare(firedPill.color, Theme.colorWarn, "a firing reads in the fault tone")
+            verify(firedPill.text !== "", "…and says so in words")
+            compare(one(fired, "sdCardBadge").kind, "target", "it leads with a target")
+            compare(one(fired, "sdCardBadge").tone, Theme.colorWarn, "…in the fault tone")
+            verify(shown(one(fired, "sdCardStrength")), "and the meter says how hard")
 
-            const wash = one(fired, "sdCardFiredWash")
-            verify(wash.visible, "and the card is washed in the same hue")
-            verify(wash.color.a < 0.15, "faintly — the frame carries the claim, not the fill")
+            const cleanPill = one(clean, "sdStatePill").children[0]
+            compare(cleanPill.color, Theme.colorGood, "a clean row says it is clean, in the good tone")
+            verify(cleanPill.text !== firedPill.text, "…in different words from a firing")
 
-            // The alpha, not the item: a source swap destroys the delegate this came off, and a
-            // reference to a dead delegate reads as undefined rather than failing loudly.
-            const loudAlpha = fired.border.color.a
-
-            compare(clean.border.color, Theme.colorBorderMid,
-                    "a clean card keeps the neutral frame")
-            verify(!one(clean, "sdCardFiredWash").visible, "and is not washed")
-
-            // A quieter firing is a quieter frame, on the same ramp.
-            const s2 = formingSource(false)
-            s2.cards[0].strength = 1
-            setSource(s2)
-            laidOut()
-            const quiet = visibleAll(body, "sdPatternCard")[0]
-            verify(sameHue(quiet.border.color, Theme.strengthColor(1)),
-                   "step 1 is drawn in the good hue, not in red")
-            verify(quiet.border.color.a < loudAlpha,
-                   "and sits back from the card that fired hardest")
-
-            // No reading behind it, and it still fired: the fired colour, never a step it has
-            // not earned. Absent evidence must not be able to look like the loudest thing here.
+            // No reading behind it, and it still fired: the fired verdict, never a step it has not
+            // earned.
             const s3 = formingSource(false)
             s3.cards[0].strengthKnown = false
             s3.cards[0].strength = 0
             setSource(s3)
             laidOut()
             const blind = visibleAll(body, "sdPatternCard")[0]
-            verify(sameHue(blind.border.color, Theme.colorError),
-                   "a firing with no step is framed as a plain firing")
+            compare(one(blind, "sdStatePill").children[0].color, Theme.colorWarn,
+                    "a firing with no step is still a plain firing")
             verify(!shown(one(blind, "sdCardStrength")), "and draws no meter to go with it")
         }
 
@@ -2038,7 +2031,7 @@ Item {
                     "in colorText, so it survives being drawn over a fired fill")
             // ...and NOT recoloured: the tick's colour already means fired/clean, and a
             // selection that overwrote it would delete the fact it is pointing at.
-            compare(sel[0].color, Theme.colorError)
+            compare(sel[0].color, Theme.colorWarn)
         }
 
         function test_25_cardsSayWhatHappenedHereAndAfter() {
@@ -2078,7 +2071,7 @@ Item {
             const na    = pips.filter(p => p.notAssessable)
             compare(fired.length, 4)
             compare(na.length, 2)
-            compare(fired[0].color, Theme.colorError)
+            compare(fired[0].color, Theme.colorWarn)
             compare(pips[1].color, Theme.colorGood)
 
             // Same third state as the tick run: shorter and outlined, never left out — two
@@ -2089,7 +2082,7 @@ Item {
             // The count is the severity, in the app's three grading colours.
             const count = one(pipProbe, "sdPipCount")
             compare(count.text, "4 fired")
-            compare(count.color, Theme.colorError)
+            compare(count.color, Theme.colorWarn)
 
             probe.pipFired = 0
             wait(0)
@@ -2229,6 +2222,7 @@ Item {
             // The screened root's tap is still its OWN — the two never collide because a
             // screened root is not live.
             probe.focusCalls = 0
+            intoView(nodeById("pelvic_disassociation"))
             mouseClick(nodeById("pelvic_disassociation"))
             wait(0)
             compare(probe.focusCalls, 0, "a screened root does not declare focus")
@@ -2403,6 +2397,7 @@ Item {
 
             // The screened root keeps its one verb: the CTA is the point of it being on the rail
             // at all, and it is reached from a cause rail inside a detail anyway.
+            intoView(nodeById("pelvic_disassociation"))
             mouseClick(nodeById("pelvic_disassociation"))
             wait(0)
             compare(probe.detailCalls, 1, "a screened root asks for its screen, not for a page")
@@ -2623,7 +2618,7 @@ Item {
             verify(shown(figs), "a card with readings carries the two figures")
             compare(one(cards[0], "sdCardMedian").text, "14", "the session MEDIAN, unit-less")
             compare(one(cards[0], "sdCardCurrent").text, "15", "…and this shot's reading")
-            compare(one(cards[0], "sdCardCurrent").color, Theme.colorError, "…coloured by its verdict (fired)")
+            compare(one(cards[0], "sdCardCurrent").color, Theme.colorWarn, "…coloured by its verdict (fired)")
             compare(one(cards[0], "sdCardFiguresUnit").text, "% hand rise", "the unit, once")
             verify(one(cards[0], "sdCardMedianCaption").visible
                    && one(cards[0], "sdCardMedianCaption").text === "session median",
@@ -2666,7 +2661,7 @@ Item {
             verify(na.height > 0 && na.height < vr.height / 4, "the unmeasured shot is a SHORT stub")
             compare(na.y + na.height, vr.height - 1, "…standing on the baseline")
             compare(na.children[0].border.width, 0, "…a bare stub, not an outlined box that reads as 0")
-            compare(fired.children[0].color, Theme.colorError, "fired keeps its colour")
+            compare(fired.children[0].color, Theme.colorWarn, "fired keeps its colour")
             compare(marks[2].children[0].color, Theme.colorGood, "clean keeps its colour")
             verify(marks[0].y > marks[3].y, "a higher reading is drawn higher")
             compare(findAll(vr, "sdRunSelected").filter(function (r) { return r.visible }).length, 1,
@@ -2674,6 +2669,7 @@ Item {
             vr.pick(2)
             compare(probe.lastShotDir, "/lib/a/s/swing_0003", "pick() asks for that swing by folder")
             probe.lastShotDir = ""
+            intoView(marks[0])
             mouseClick(vr, marks[0].x + marks[0].width / 2, marks[0].y + marks[0].height / 2)
             compare(probe.lastShotDir, "/lib/a/s/swing_0001", "a click on shot 1's mark asks for shot 1")
         }
@@ -2856,7 +2852,7 @@ Item {
                 compare(wideMark(), idx, tag + ": the run's wide mark")
             }
 
-            check(3, "13", Theme.colorError, "FIRED HERE", "shot 4 picked")
+            check(3, "13", Theme.colorWarn, "FIRED HERE", "shot 4 picked")
             compare(line.text, "shot 4 · 13 % hand rise · inside the pass band · fired", "the readout falls back to shot 4")
 
             // A swing is picked in the carousel (or on the run): the model republishes the detail.

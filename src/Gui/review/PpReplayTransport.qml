@@ -54,13 +54,11 @@ Item {
             onSelected: (speed) => shotReplay.setSpeed(speed)
         }
 
-        Text {
+        PpMicro {
             Layout.leftMargin: Theme.sp(8)
             text: root._fmt(shotReplay.positionUs - shotReplay.startUs)
                   + " / " + root._fmt(shotReplay.endUs - shotReplay.startUs)
-            font.family: Theme.fontData
-            font.pixelSize: Theme.fontSzMicro
-            color: Theme.colorText3
+            font.letterSpacing: Theme.trackingData
         }
     }
 

@@ -49,6 +49,13 @@ Item {
     // Set by PpModeStage only on the muted placeholder path; the panel titles itself.
     property string title: qsTr("Session diagnostics")
 
+    // THE FRAME IS WHOEVER HOSTS IT. On the stage PpModeStage switches this off on load and
+    // frames the panel in its own SESSION DIAGNOSTICS card, with `cardAside` on the card's
+    // heading row; the wall cast (PpSessionDiagnosticsWindow) has no stage around it and leaves
+    // it on, so the body draws the same card itself. See PpSessionDiagnosticsBody.framed.
+    property alias framed: body.framed
+    readonly property string cardAside: body.cardAside
+
     // THE ONE INDIRECTION THE BODY READS THROUGH. Left at diagModel in the app; a test or a
     // second host can point the body at a different object of the same shape without this
     // file having to know.

@@ -56,11 +56,7 @@ Item {
         Column {
             width: parent.width
             spacing: Theme.sp(9)
-            Text {
-                text: qsTr("ARRANGEMENT")
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-            }
+            PpMicro { text: qsTr("ARRANGEMENT") }
             Row {
                 width: parent.width
                 spacing: Theme.sp(7)
@@ -79,11 +75,7 @@ Item {
         Column {
             width: parent.width
             spacing: Theme.sp(9)
-            Text {
-                text: qsTr("TIMELINE")
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-            }
+            PpMicro { text: qsTr("TIMELINE") }
             Row {
                 width: parent.width
                 spacing: Theme.sp(7)
@@ -118,11 +110,7 @@ Item {
         Column {
             width: parent.width
             spacing: Theme.sp(9)
-            Text {
-                text: qsTr("REPLAY")
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-            }
+            PpMicro { text: qsTr("REPLAY") }
             Item {
                 width: parent.width
                 height: Theme.sp(20)
@@ -180,11 +168,7 @@ Item {
         Column {
             width: parent.width
             spacing: Theme.sp(9)
-            Text {
-                text: qsTr("PANELS")
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-            }
+            PpMicro { text: qsTr("PANELS") }
             Grid {
                 width: parent.width
                 columns: 2
@@ -203,6 +187,10 @@ Item {
                         height: Theme.sp(20)
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
+                            // Stops short of the toggle and elides, so a long name
+                            // never runs under it.
+                            width: parent.width - Theme.sp(34) - Theme.sp(6)
+                            elide: Text.ElideRight
                             text: modelData.label
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
                             color: ViewLayout.isPanelOn(SessionMode.mode, modelData.key)
@@ -330,7 +318,7 @@ Item {
             width: Theme.sp(14); height: width; radius: width / 2
             y: Theme.sp(2)
             x: checked ? parent.width - width - Theme.sp(2) : Theme.sp(2)
-            color: checked ? (Theme.dark ? Theme.colorBg : "#FFFFFF") : Theme.colorText3
+            color: checked ? (Theme.dark ? Theme.colorBg : Theme.colorSurface) : Theme.colorText3
             Behavior on x { NumberAnimation { duration: Theme.durationFast } }
         }
         MouseArea {

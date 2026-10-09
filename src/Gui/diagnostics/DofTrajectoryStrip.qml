@@ -59,27 +59,24 @@ Item {
              :                 "◆"   // ◆ (ref / no data)
     }
 
-    // ── Header: name · sub + Δ read-out at the selected position ────────────────────
+    // ── Header: name · sub as a Micro sub-heading + Δ read-out at the selected position ──
     Item {
         id: head
         anchors { left: parent.left; right: parent.right; top: parent.top }
         implicitHeight: Theme.sp(18)
         height: implicitHeight
-        Text {
+        Row {
             anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-            text: (root.strip.name || "")
-            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; font.weight: Font.Medium
-            color: Theme.colorText
+            spacing: Theme.sp(8)
+            PpMicro {
+                text: (root.strip.name || "").toUpperCase()
+                color: Theme.colorText2
+            }
+            PpMicro {
+                text: (root.strip.sub || "").toUpperCase()
+                font.letterSpacing: Theme.trackingData
+            }
         }
-        Text {
-            anchors.left: parent.left; anchors.leftMargin: nameMetrics.width + Theme.sp(6)
-            anchors.verticalCenter: parent.verticalCenter
-            text: (root.strip.sub || "")
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-            color: Theme.colorText3
-        }
-        TextMetrics { id: nameMetrics; font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                      font.weight: Font.Medium; text: (root.strip.name || "") }
         Text {
             id: readOut
             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
@@ -260,26 +257,23 @@ Item {
     Row {
         id: foot
         anchors { left: parent.left; bottom: parent.bottom }
-        spacing: Theme.sp(2)
-        Text {
+        spacing: Theme.sp(8)
+        PpMicro {
             anchors.verticalCenter: parent.verticalCenter
-            text: (root.strip.source || "")
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+            text: (root.strip.source || "").toUpperCase()
             font.letterSpacing: Theme.trackingData
-            color: Theme.colorText3
         }
-        Row {
+        PpMicro {
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Theme.sp(0.5)
-            Repeater {
-                model: 4
-                delegate: Rectangle {
-                    required property int index
-                    width: Theme.sp(7); height: Theme.sp(2); radius: Theme.sp(0.5)
-                    color: index < Math.round((root.strip.confidence || 0) * 4)
-                           ? Theme.colorText2 : Theme.colorBorderStrong
-                }
-            }
+            text: qsTr("CONFIDENCE")
+            font.letterSpacing: Theme.trackingData
+        }
+        PpPips {
+            id: confPips
+            anchors.verticalCenter: parent.verticalCenter
+            readonly property int filled: Math.round((root.strip.confidence || 0) * 4)
+            marks: [0, 1, 2, 3].map(function (i) { return i < confPips.filled })
+            tone:  Theme.colorText2
         }
     }
 }

@@ -620,6 +620,11 @@ QtObject {
         if (score < 75) return colorAttention
         return colorGood
     }
+    // The shape that goes with qualityColor (PpBadge kind), so a score's band is never colour
+    // alone: the top band is a tick, everything below it a target to work on.
+    function qualityMark(score) {
+        return score >= 75 ? "check" : "target"
+    }
     function qualityColorLight(score) {   // unselected filter-chip tint
         if (score < 25) return colorErrorLight
         if (score < 50) return colorWarnLight

@@ -100,11 +100,13 @@ Item {
     implicitHeight: large ? px(240) : px(30)
     visible: count > 0
 
+    // The corridor strip's band colours: the faults' coral past the fault line, never the alarm
+    // red (13.2). The strip above the run names the bands in words.
     function bandColor(grade) {
-        if (grade === "ideal")  return Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.18)
-        if (grade === "good")   return Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.08)
-        if (grade === "watch")  return Qt.rgba(Theme.colorAttention.r, Theme.colorAttention.g, Theme.colorAttention.b, 0.18)
-        if (grade === "action") return Qt.rgba(Theme.colorError.r, Theme.colorError.g, Theme.colorError.b, 0.14)
+        if (grade === "ideal")  return Qt.alpha(Theme.colorGood, 0.18)
+        if (grade === "good")   return Qt.alpha(Theme.colorGood, 0.08)
+        if (grade === "watch")  return Qt.alpha(Theme.colorAttention, 0.18)
+        if (grade === "action") return Qt.alpha(Theme.colorWarn, 0.14)
         return "transparent"
     }
 
@@ -136,11 +138,11 @@ Item {
             y: root._y(modelData.f || 0)
             x: root._gutter; width: root._pw
             height: 1
-            color: Theme.colorError
+            color: Theme.colorWarn
             opacity: 0.7
             // ⚠ UNLABELLED, ON PURPOSE. A label here sat on the run's own dots wherever it went —
             // a session's readings lie all along this line — and the strip directly above names
-            // the same line in the same red, at the same value.
+            // the same line in the same colour, at the same value.
         }
     }
     Repeater {
@@ -255,7 +257,7 @@ Item {
                 anchors.fill: parent
                 radius: mark.assessable ? width / 2 : 0
                 color: !mark.assessable ? Theme.colorText3
-                     : (mark.fired ? Theme.colorError : Theme.colorGood)
+                     : (mark.fired ? Theme.colorWarn : Theme.colorGood)
                 opacity: mark.assessable ? 1.0 : 0.6
                 border.width: mark.assessable && (mark.ringed || mark.hot) ? Math.max(1, root.px(mark.hot ? 2 : 1)) : 0
                 border.color: mark.hot ? Theme.colorAccent : Theme.colorText

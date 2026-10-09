@@ -856,8 +856,8 @@ Item {
                    "the three graded states are all on screen")
 
             compare(action.grade, "action", "face to path is out to Action")
-            verify(Qt.colorEqual(valueTextOf(action).color, Theme.colorRagFault),
-                   "…and its figure is the app's Action red, saw "
+            verify(Qt.colorEqual(valueTextOf(action).color, Theme.colorWarn),
+                   "…and its figure is in the fault tone (design system §13.2), saw "
                    + valueTextOf(action).color)
 
             compare(watch.grade, "watch", "spin axis is out to Watch")

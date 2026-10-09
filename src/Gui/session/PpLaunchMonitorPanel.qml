@@ -27,8 +27,10 @@
 // no reassurance, no green, and the only standing colour is band identity.
 //
 // IT SPEAKS UP FOR EXACTLY ONE THING — a reading outside its corridor. The frame and the
-// figure take the app's Watch amber, or its Action red, and nothing else on the tile
-// changes. Three rules keep that from becoming grading by the back door:
+// figure take colorAttention for Watch, or the faults' colorWarn for Action (never the alarm
+// red, design §13.2), and a target badge and the word — "watch", "outside" — lead the tile's
+// label, so colour is never the only channel. Three rules keep that from becoming grading by
+// the back door:
 //
 //   · A reading INSIDE its corridor looks exactly like a reading with no corridor at all.
 //     There is no Ideal colour and no Good colour, so the board says "this one is out"
@@ -71,17 +73,17 @@ import QtQuick
 import QtQuick.Layouts
 import PinPointStudio
 
-Rectangle {
+// THE STAGE FRAMES IT. PpModeStage puts the board in its LAUNCH MONITOR card, so the panel
+// draws no surface, border or title of its own: the header row under the card's heading is the
+// scope, the legend and the Tiles / Graphics switch.
+
+Item {
     id: root
 
-    // Set by PpModeStage only for the muted placeholder path; the real panel titles
-    // itself. Present so the two are interchangeable in the arranger's Loaders.
+    // Set by PpModeStage only for the muted placeholder path. Present so the two are
+    // interchangeable in the arranger's Loaders.
     property string title: qsTr("Launch monitor")
 
-    radius: Theme.radius
-    color: Theme.colorBg2
-    border.width: 1
-    border.color: Theme.colorBorderMid
     clip: true
 
     // THE SESSION ON SCREEN, not the live one: sessionReviewController.activeShots is
@@ -195,22 +197,19 @@ Rectangle {
     }
 
     // THE HEADER DOES NOT SCALE WITH THE BOARD. It answers only to fontScale, like every
-    // other band of chrome in the session. It is sp(44) rather than the carousel band's
-    // sp(36) because it carries a real title now (fontSzHeading over a micro meta line,
-    // the Diagnostic Model screen's pairing) instead of the ten-pixel tracked label that
-    // made this panel the only content surface in the app whose name was smaller than its
-    // own captions. sp(16) side margins and sp(22) controls are unchanged, so it still
-    // lines up with the rail below it. An earlier version grew it with the board's own fit scale so it would
-    // not look stranded beside big figures; on a bay TV that produced a title bar half
-    // again too large, competing with the numbers it was captioning rather than framing
-    // them. Chrome that grows with its content is not chrome.
+    // other band of chrome in the session: the scope and the legend in Micro, and the sp(22)
+    // switch. The panel's title is the stage card's, so the row is only as tall as the switch
+    // and the gap under it. An earlier version grew it with the board's own fit scale so it
+    // would not look stranded beside big figures; on a bay TV that produced a header half again
+    // too large, competing with the numbers it was captioning rather than framing them. Chrome
+    // that grows with its content is not chrome.
     //
     // Fixing it also removes the reason the fit could not see the header's real height:
-    // there is no longer a fit → k → header → body → fit cycle to break, so the reserve
-    // below is simply the header, exactly.
-    readonly property int headerReserve: Theme.sp(44)
-    readonly property var fit: root._fitFor(root.width - 2 * Theme.sp(10),
-                                            root.height - headerReserve - Theme.sp(10),
+    // there is no fit → k → header → body → fit cycle to break, so the reserve below is simply
+    // the header, exactly.
+    readonly property int headerReserve: Theme.sp(32)
+    readonly property var fit: root._fitFor(root.width,
+                                            root.height - headerReserve,
                                             board.bandCounts)
     readonly property real k: fit.k
     function px(base) { return Math.round(base * root.k) }
@@ -221,114 +220,101 @@ Rectangle {
         anchors { top: parent.top; left: parent.left; right: parent.right }
         height: root.headerReserve
 
+        // The meta line, left of the switch. Each legend takes only the room the ones before it
+        // leave, and stands down rather than shrink to a few letters.
         Row {
-            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-            anchors.leftMargin: Theme.sp(16)
-            spacing: Theme.sp(10)
+            id: metaRow
+            readonly property real room: header.width - switcher.width - Theme.sp(16)
+            anchors.left: parent.left
+            y: Math.round((switcher.height - height) / 2)
+            spacing: Theme.sp(16)
 
-            // THE PANEL'S TITLE, sized as a title. It was a ten-pixel tracked label, which
-            // made this the only content surface in PinPoint whose name was smaller than
-            // its own captions — set beside the Diagnostic Model's screen title it did not
-            // read as the same application. It is the heading token now, paired with a
-            // micro meta line exactly as that screen pairs "Diagnostic Model" with
-            // "core v1.0.0 · schema 1" (DiagnosticModel.qml:721-733).
-            //
-            // fontSzHeading and NOT fontSzDisplay, deliberately. That screen is a screen;
-            // this is one panel among several sharing a stage, and a 30 px serif title
-            // inside it would be the loudest thing on a view it is not the subject of.
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("Launch monitor")
-                font.family: Theme.fontBody
-                font.pixelSize: Theme.fontSzHeading
-                font.weight: Theme.fontBodyWeight
-                color: Theme.colorText
-            }
             // The scope, in words. A mean whose scope you cannot see is a number you
             // cannot use — and when the club is unknown this says "all clubs" rather
             // than quietly averaging a driver into a wedge.
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
+            PpMicro {
+                id: scopeTxt
                 visible: board.emptyText === "" && text !== ""
-                text: board.scopeText
-                font.family: Theme.fontData
-                font.pixelSize: Theme.fontSzMicro
-                color: Theme.colorText3
+                width: Math.min(implicitWidth, metaRow.room)
+                elide: Text.ElideRight
+                text: board.scopeText.toUpperCase()
+                color: Theme.colorText2
+                font.letterSpacing: Theme.trackingData
             }
-        }
-
-        Row {
-            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-            anchors.rightMargin: Theme.sp(16)
-            spacing: Theme.sp(10)
 
             // What the tiles board's marks ARE. A reader who takes the ±1 SD band for a
             // corridor has been told the opposite of the truth, so the strip says so.
             // Graphics needs no such line: its geometry is labelled where it is drawn.
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: board.emptyText === "" && !root.graphicsMode
+            PpMicro {
+                id: bandLegend
+                readonly property real room: metaRow.room - scopeTxt.width - metaRow.spacing
+                visible: board.emptyText === "" && !root.graphicsMode && room >= Theme.sp(80)
                 text: qsTr("band ±1 SD · tick %1").arg(board.valueLabel)
-                // Micro, like the scope on the other end of the band: two meta lines on
-                // one header at two different sizes read as a mistake.
-                font.family: Theme.fontData
-                font.pixelSize: Theme.fontSzMicro
-                color: Theme.colorText3
+                font.letterSpacing: Theme.trackingData
                 elide: Text.ElideRight
-                width: Math.min(implicitWidth, root.width * 0.4)
+                width: Math.min(implicitWidth, room)
             }
 
-            // WHAT THE COLOUR MEANS, and which corridors it came from. A separate Text
-            // rather than more words on the line above, for two reasons: it applies to
-            // BOTH modes where that one is the tiles board's strip legend only, and each
-            // then elides on its own budget — appending it would have made the newest fact
-            // on the header the first one to disappear in a narrow split.
+            // WHAT THE MARK MEANS, and which corridors it came from. A separate line rather
+            // than more words on the one above, for two reasons: it applies to BOTH modes
+            // where that one is the tiles board's strip legend only, and each then elides on
+            // its own budget.
             //
             // Absent unless a corridor actually resolved. A legend over a board showing no
-            // colour is a promise the board is not keeping, and with 18 of the 25 readings
+            // flag is a promise the board is not keeping, and with 18 of the 25 readings
             // carrying no norm that is a state a golfer will genuinely be in.
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
+            Row {
+                id: corridorLegend
+                readonly property real room: (bandLegend.visible ? bandLegend.room - bandLegend.width
+                                                                   - metaRow.spacing
+                                                                 : metaRow.room - scopeTxt.width
+                                                                   - metaRow.spacing)
+                                             - legendBadge.width - spacing
                 visible: board.emptyText === "" && board.corridorScope !== ""
-                text: qsTr("colour: outside the %1 corridor").arg(board.corridorScope)
-                font.family: Theme.fontData
-                font.pixelSize: Theme.fontSzMicro
-                color: Theme.colorText3
-                elide: Text.ElideRight
-                width: Math.min(implicitWidth, root.width * 0.4)
+                         && room >= Theme.sp(80)
+                spacing: Theme.sp(6)
+                PpBadge {
+                    id: legendBadge
+                    anchors.verticalCenter: parent.verticalCenter
+                    size: Theme.sp(14)
+                    kind: "target"
+                    tone: Theme.colorWarn
+                }
+                PpMicro {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("outside the %1 corridor").arg(board.corridorScope)
+                    font.letterSpacing: Theme.trackingData
+                    elide: Text.ElideRight
+                    width: Math.min(implicitWidth, corridorLegend.room)
+                }
             }
+        }
 
-            // THE standard selector (PpSegmentedControl), not a lookalike — the same
-            // control the chart panel, the markup panel and the session toolbar use, so
-            // a two-way choice looks and behaves the same wherever a golfer meets one.
-            // Sized to the carousel header's own control height, sp(22), so a stage
-            // panel's title bar and the rail below it read as one system. Appearance is
-            // entirely the shared component's — only the box it fills is set here.
-            PpSegmentedControl {
-                anchors.verticalCenter: parent.verticalCenter
-                width: Theme.sp(130)
-                height: Theme.sp(22)
-                options:  [qsTr("Tiles"), qsTr("Graphics")]
-                selected: root.graphicsMode ? qsTr("Graphics") : qsTr("Tiles")
-                onActivated: (v) => appSettings.lmPanelMode =
-                                     (v === qsTr("Graphics")) ? "graphics" : "tiles"
-            }
+        // THE standard selector (PpSegmentedControl), not a lookalike — the same control the
+        // chart panel, the markup panel and the session toolbar use, so a two-way choice looks
+        // and behaves the same wherever a golfer meets one. Sized to the carousel header's own
+        // control height, sp(22). Appearance is entirely the shared component's — only the box
+        // it fills is set here.
+        PpSegmentedControl {
+            id: switcher
+            anchors.right: parent.right
+            width: Theme.sp(130)
+            height: Theme.sp(22)
+            options:  [qsTr("Tiles"), qsTr("Graphics")]
+            selected: root.graphicsMode ? qsTr("Graphics") : qsTr("Tiles")
+            onActivated: (v) => appSettings.lmPanelMode =
+                                 (v === qsTr("Graphics")) ? "graphics" : "tiles"
         }
     }
 
     // ── empty and degraded states ────────────────────────────────────────────
-    // One line, no icon, no illustration. Which line is LmSessionModel's decision:
+    // One quiet line, so the card keeps its shape. Which line is LmSessionModel's decision:
     // "no monitor", "not saving", "nothing yet" and "nothing for this club" are four
     // different problems with four different fixes, and only the model knows which.
-    Text {
-        anchors.centerIn: parent
-        width: parent.width - Theme.sp(40)
+    PpCardNote {
+        anchors { top: header.bottom; left: parent.left; right: parent.right }
         visible: board.emptyText !== ""
         text: board.emptyText
-        horizontalAlignment: Text.AlignHCenter
-        wrapMode: Text.WordWrap
-        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-        color: Theme.colorText3
     }
 
     // ── body: graphics ───────────────────────────────────────────────────────
@@ -339,10 +325,7 @@ Rectangle {
     // It takes the model's `graphics` map and NOTHING ELSE — see PpLmGraphicsBody for
     // why that decoupling is what makes the layout assertions cheap.
     Loader {
-        anchors {
-            top: header.bottom; left: parent.left; right: parent.right; bottom: parent.bottom
-            leftMargin: Theme.sp(10); rightMargin: Theme.sp(10); bottomMargin: Theme.sp(10)
-        }
+        anchors { top: header.bottom; left: parent.left; right: parent.right; bottom: parent.bottom }
         active: root.graphicsMode && board.emptyText === ""
         visible: active
         sourceComponent: graphicsBodyComp
@@ -355,10 +338,7 @@ Rectangle {
     // ── body: tiles ──────────────────────────────────────────────────────────
     Flickable {
         id: body
-        anchors {
-            top: header.bottom; left: parent.left; right: parent.right; bottom: parent.bottom
-            leftMargin: Theme.sp(10); rightMargin: Theme.sp(10); bottomMargin: Theme.sp(10)
-        }
+        anchors { top: header.bottom; left: parent.left; right: parent.right; bottom: parent.bottom }
         visible: board.emptyText === "" && !root.graphicsMode
         clip: true
         contentHeight: bands.implicitHeight
@@ -455,7 +435,9 @@ Rectangle {
                                 width: root.fit.tileW
                                 height: root.fit.tileH
                                 radius: root.px(Theme.radius)
-                                color: Theme.colorSurface
+                                // Set into the card as PpInset is (a faint tint and a
+                                // hairline), not a second card on the card's own surface.
+                                color: Qt.alpha(Theme.colorText, Theme.dark ? 0.035 : 0.04)
 
                                 // "" | "ideal" | "good" | "watch" | "action", from the
                                 // model. Only the last two show — see the file header.
@@ -463,13 +445,12 @@ Rectangle {
                                     modelData.grade !== undefined ? modelData.grade : ""
                                 readonly property bool flagged:
                                     grade === "watch" || grade === "action"
-                                // The app's grading pair, not a pair of this panel's own.
-                                // A golfer meets these two colours on the wrist grid and
-                                // every corridor bar; a launch monitor tile is not the
-                                // place to teach them a third meaning for a hue.
+                                // The coaching card's pair: colorAttention for Watch, and
+                                // the faults' colorWarn for Action — a reading out of its
+                                // corridor is a fault to work on, not an alarm (13.2).
                                 readonly property color flagColor:
-                                    grade === "action" ? Theme.colorRagFault
-                                                       : Theme.colorRagWatch
+                                    grade === "action" ? Theme.colorWarn
+                                                       : Theme.colorAttention
 
                                 // THE FRAME SCALES WITH THE BOARD and the resting one does
                                 // not. A 1 px hairline is the right weight for a border
@@ -478,7 +459,7 @@ Rectangle {
                                 // a third the apparent weight of the same mark on a laptop,
                                 // which is exactly backwards for the screen it is for.
                                 border.width: flagged ? Math.max(2, root.px(2)) : 1
-                                border.color: flagged ? flagColor : Theme.colorBorderMid
+                                border.color: flagged ? flagColor : Theme.colorBorder
 
                                 readonly property int padX: root.px(Theme.sp(10))
                                 readonly property int padY: root.px(Theme.sp(7))
@@ -505,8 +486,21 @@ Rectangle {
                                         font.pixelSize: tile.fontMicro
                                         color: Theme.colorText2
                                     }
+                                    // A flagged reading leads with the target badge, and says
+                                    // which side of the line in words beside its figure, so the
+                                    // frame and the figure's colour are never the only channel.
+                                    PpBadge {
+                                        id: flagBadge
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: tile.flagged
+                                        size: Math.round(tile.fontMicro * 1.4)
+                                        kind: "target"
+                                        tone: tile.flagColor
+                                    }
                                     Text {
-                                        anchors { left: parent.left; right: meanTxt.left
+                                        anchors { left: tile.flagged ? flagBadge.right : parent.left
+                                                  leftMargin: tile.flagged ? root.px(Theme.sp(5)) : 0
+                                                  right: meanTxt.left
                                                   rightMargin: root.px(Theme.sp(6)) }
                                         text: tile.modelData.abbrev
                                         font.family: Theme.fontData
@@ -600,6 +594,18 @@ Rectangle {
                                         // shot.
                                         color: tile.flagged ? tile.flagColor : Theme.colorText
                                         elide: Text.ElideRight
+                                    }
+                                    // The verdict in words, on the figure's baseline: "watch"
+                                    // at the corridor's edge, "outside" past it.
+                                    Text {
+                                        x: valueTxt.contentWidth + root.px(Theme.sp(6))
+                                        anchors.baseline: valueTxt.baseline
+                                        visible: tile.flagged
+                                                 && x + implicitWidth <= unitTxt.x - root.px(Theme.sp(4))
+                                        text: tile.grade === "action" ? qsTr("outside") : qsTr("watch")
+                                        font.family: Theme.fontData
+                                        font.pixelSize: tile.fontMicro
+                                        color: tile.flagColor
                                     }
                                 }
                             }

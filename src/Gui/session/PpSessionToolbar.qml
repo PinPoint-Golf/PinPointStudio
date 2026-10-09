@@ -17,10 +17,12 @@
  */
 
 // Persistent session toolbar (Command-Bar direction): session clock + the one
-// session-global Capture verb + two count-badged device pills. Each pill opens a
-// Popup hosting the relevant device panel. Reusable across all four mode screens
-// (Wrist first). Calibration is handled entirely INSIDE the panels — the toolbar
-// no longer routes a calibrate request anywhere.
+// session-global Capture verb + two device pills, each marked with the device
+// vocabulary's badge and saying its state in words. Each pill opens a Popup
+// hosting the relevant device panel on a popover card. Reusable across all four
+// mode screens (Wrist first). Calibration is handled entirely INSIDE the panels —
+// the toolbar no longer routes a calibrate request anywhere. The bar itself stays
+// flat: it is chrome, not a card.
 
 import QtQuick
 import QtQuick.Controls.Basic
@@ -49,6 +51,13 @@ Item {
     // ── Aggregate device state (drives pill badges + colours) ───────────────
     readonly property int  camTotal:     cameraManager.cameraList.length
     readonly property int  camConnected: cameraManager.instances.length
+    // Cameras the session means to use (a session-disabled camera is not missing).
+    readonly property int  camEnabled: {
+        var list = cameraManager.cameraList
+        var n = 0
+        for (var i = 0; i < list.length; ++i) if (list[i].sessionEnabled) ++n
+        return n
+    }
     // True when a connected camera is not "fixed in place" — i.e. it still needs
     // (stereo) calibration this session. Mirrors PpCameraPanel.needsCalibration;
     // stays lit until the camera is calibrated/fixed.
@@ -63,6 +72,23 @@ Item {
 
     readonly property int  imuTotal:     imuManager.imuDeviceList.length
     readonly property int  imuConnected: imuManager.imuCount   // connected instance count
+    readonly property int  imuEnabled: {
+        var list = imuManager.imuDeviceList
+        var n = 0
+        for (var i = 0; i < list.length; ++i) if (list[i].sessionEnabled) ++n
+        return n
+    }
+    // A sensor whose connection gave up (the driver's own words, as the IMU panel reads them).
+    readonly property bool imuFailed: {
+        var _dep = imuManager.instances
+        var list = imuManager.imuDeviceList
+        for (var i = 0; i < list.length; ++i) {
+            var inst = imuManager.instanceFor(list[i].id)
+            if (inst && !inst.imuConnected
+                     && (inst.stateLabel === "Error" || inst.stateLabel === "Not found")) return true
+        }
+        return false
+    }
     // True when at least one connected IMU is not yet *successfully* calibrated →
     // attention. A sensor counts as calibrated only when anatCalibrated AND the
     // mount check passes (same thresholds the calibration flow uses: deviation
@@ -121,6 +147,33 @@ Item {
     readonly property bool    phoneArmWarn:     root.captureLive
                                                 && (phoneArmState === "blocked" || phoneArmState === "stalled")
 
+    // ── Device pill states — the device vocabulary ─────────────────────────
+    // "error" (a target in colorError): failed, or a battery at 20% or under;
+    // "attention" (a target in colorAttention): calibrate, low battery, sync,
+    // arming, thermal, or only some of the session's devices connected;
+    // "off" (the dashed ring): none connected; "ok" (a check): all connected and
+    // fine. The value line always says which, in words.
+    readonly property string camStatus: {
+        if ((root.phoneBatteryLow && root.phoneLowestBattery <= 20)
+                || (root.phoneThermalWarn && root.phoneWorstThermal === "critical")) return "error"
+        if (root.phoneBatteryLow || root.phoneThermalWarn || root.phoneArmWarn
+                || root.phoneSyncWarn || root.phoneArming || root.camNeedsAttention) return "attention"
+        if (root.camConnected === 0) return "off"
+        return root.camConnected < root.camEnabled ? "attention" : "ok"
+    }
+    readonly property string imuStatus: {
+        if (root.imuFailed || (root.imuBatteryLow && root.imuLowestBattery <= 20)) return "error"
+        if (root.imuBatteryLow || root.imuNeedsAttention) return "attention"
+        if (root.imuConnected === 0) return "off"
+        return root.imuConnected < root.imuEnabled ? "attention" : "ok"
+    }
+    // The count in words: connected of the session's enabled devices.
+    function _countWords(total, enabled, connected) {
+        if (total === 0)   return qsTr("none")
+        if (enabled === 0) return qsTr("disabled")
+        return qsTr("%1 of %2").arg(connected).arg(enabled)
+    }
+
     // ── Motion pill label ────────────────────────────────────────────────────
     // "Off" wins outright (master switch dominates); otherwise the active
     // preset's label, or "Custom" once the user hand-edits an element away
@@ -174,6 +227,7 @@ Item {
     }
 
     RowLayout {
+        id: barRow
         anchors { fill: parent; leftMargin: Theme.sp(16); rightMargin: Theme.sp(14) }
         spacing: Theme.sp(12)
 
@@ -182,26 +236,36 @@ Item {
         // captureBtn / clock / End / SHOT below).
         Rectangle {
             id: reviewStrip
+            // On a narrow window the strip gives way to the mode switch rather than run under it:
+            // the session's name elides first, then the strip stands down altogether (the
+            // carousel's session chip still names what is loaded).
+            readonly property real room: modeSwitch.x - barRow.x - Theme.sp(12)
             visible: sessionReviewController.reviewActive
+                     && room >= reviewingLabel.implicitWidth + Theme.sp(28)
             Layout.alignment: Qt.AlignVCenter
             implicitWidth:  reviewRow.implicitWidth + Theme.sp(28)
             implicitHeight: Theme.sp(40)
+            Layout.preferredWidth: Math.max(0, Math.min(implicitWidth, room))
             radius: Theme.radius
             color: Theme.colorAccentLight
             border.width: 1; border.color: Theme.colorAccentMid
 
             Row {
                 id: reviewRow
-                anchors.centerIn: parent
+                anchors.verticalCenter: parent.verticalCenter
+                x: Theme.sp(14)
                 spacing: Theme.sp(10)
-                Text {
+                PpMicro {
+                    id: reviewingLabel
                     anchors.verticalCenter: parent.verticalCenter
                     text: qsTr("REVIEWING")
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorAccent
+                    color: Theme.colorAccent
                 }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
+                    width: Math.min(implicitWidth,
+                                    Math.max(0, reviewStrip.room - Theme.sp(28) - reviewingLabel.width - reviewRow.spacing))
+                    elide: Text.ElideRight
                     text: sessionReviewController.activeDayLabel
                           + (sessionReviewController.activeTimeLabel
                                  ? " · " + sessionReviewController.activeTimeLabel : "")
@@ -250,13 +314,13 @@ Item {
                     width: Theme.sp(9); height: Theme.sp(9); radius: Theme.sp(4.5)
                     anchors.verticalCenter: parent.verticalCenter
                     color: root.captureLive ? Theme.colorError
-                                            : (Theme.dark ? Theme.colorBg : "#FFFFFF")
+                                            : (Theme.dark ? Theme.colorBg : Theme.colorSurface)
                 }
                 Text {
                     text: root.captureLive ? qsTr("Stop") : qsTr("Capture")
                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
                     color: root.captureLive ? Theme.colorError
-                                            : (Theme.dark ? Theme.colorBg : "#FFFFFF")
+                                            : (Theme.dark ? Theme.colorBg : Theme.colorSurface)
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
@@ -282,17 +346,17 @@ Item {
 
             // Extend-or-new prompt — shown when today already has a session folder.
             // Extend appends to it; New starts a fresh "_NN"; Cancel leaves capture off.
+            // On an accent card: it asks you to choose before capture starts.
             Popup {
                 id: startPrompt
+                objectName: "startPrompt"
                 y: captureBtn.height + Theme.sp(10)
                 x: 0
                 padding: Theme.sp(14)
+                topPadding: Theme.sp(17)
                 margins: Theme.sp(8)
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-                background: Rectangle {
-                    color: Theme.colorSurface; radius: Theme.radiusLg
-                    border.width: 1; border.color: Theme.colorBorderStrong
-                }
+                background: PpPopoverCard { tone: Theme.colorAccent }
                 contentItem: Column {
                     spacing: Theme.sp(10)
                     Text {
@@ -363,11 +427,7 @@ Item {
             visible: !sessionReviewController.reviewActive
             spacing: Theme.sp(2)
             Layout.alignment: Qt.AlignVCenter
-            Text {
-                text: qsTr("SESSION")
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-            }
+            PpMicro { text: qsTr("SESSION") }
             Row {
                 spacing: Theme.sp(8)
                 Rectangle {
@@ -430,17 +490,17 @@ Item {
                 onClicked: endPopup.opened ? endPopup.close() : endPopup.open()
             }
 
+            // On a warn card: ending cannot be undone (the clock can't resume).
             Popup {
                 id: endPopup
+                objectName: "endPopup"
                 y: endBtn.height + Theme.sp(10)
                 x: 0
                 padding: Theme.sp(14)
+                topPadding: Theme.sp(17)
                 margins: Theme.sp(8)
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-                background: Rectangle {
-                    color: Theme.colorSurface; radius: Theme.radiusLg
-                    border.width: 1; border.color: Theme.colorBorderStrong
-                }
+                background: PpPopoverCard { tone: Theme.colorWarn }
                 contentItem: Column {
                     spacing: Theme.sp(10)
                     Text {
@@ -516,6 +576,7 @@ Item {
         // Always present alongside the View/Cameras/IMUs cluster (the device
         // pills are never gated on review state, and neither is View).
         PpDivider {
+            id: clusterDivider
             orientation: Qt.Vertical
             Layout.preferredHeight: Theme.sp(28)
             Layout.alignment: Qt.AlignVCenter
@@ -523,13 +584,14 @@ Item {
 
         // ── Club pill — the session's active club (a capture parameter, so ──
         // hidden while reviewing a loaded session). Shows the current club and a
-        // taped-club marker dot; its popup lists the athlete's bag. Leads the pill
-        // cluster as session context. Reuses PpToolPill (glyph + micro label + chevron).
+        // taped-club marker dot, which the micro label also says in words; its
+        // popup lists the athlete's bag. Leads the pill cluster as session
+        // context. Reuses PpToolPill (glyph + micro label + chevron).
         PpToolPill {
             id: clubPill
             visible: !sessionReviewController.reviewActive
             glyph: "⚑"
-            microLabel: qsTr("CLUB")
+            microLabel: root.activeClubTaped ? qsTr("CLUB · TAPED") : qsTr("CLUB")
             label: root.activeClub ? ClubFormat.display(root.activeClub) : qsTr("—")
             badge: root.activeClubTaped
             badgeColor: Theme.colorGood
@@ -577,7 +639,7 @@ Item {
             glyph: "◫"                 // ◫
             title: qsTr("CAMERAS")
             active: camPopup.opened
-            count: root.camConnected
+            status: root.camStatus
             valueText: root.camTotal === 0 ? qsTr("none")
                         : root.phoneBatteryLow ? qsTr("phone battery %1%").arg(root.phoneLowestBattery)
                         : root.phoneThermalWarn ? qsTr("phone %1").arg(root.phoneWorstThermal)
@@ -585,19 +647,7 @@ Item {
                         : root.phoneSyncWarn ? qsTr("sync ±%1ms").arg(root.phoneSyncSigmaMs.toFixed(1))
                         : root.phoneArming ? qsTr("phone arming…")
                         : root.camNeedsAttention ? qsTr("calibrate")
-                        : qsTr("%1 of %2").arg(root.camConnected).arg(root.camTotal)
-            ledColor: root.phoneBatteryLow ? (root.phoneLowestBattery <= 20 ? Theme.colorError : Theme.colorWarn)
-                       : root.phoneThermalWarn ? (root.phoneWorstThermal === "critical" ? Theme.colorError : Theme.colorWarn)
-                       : root.phoneArmWarn ? Theme.colorWarn
-                       : root.phoneSyncWarn ? Theme.colorWarn
-                       : root.phoneArming ? Theme.colorWarn
-                       : root.camNeedsAttention ? Theme.colorAttention
-                       : root.camConnected > 0 ? Theme.colorGood : Theme.colorText3
-            attention: root.camNeedsAttention && !root.phoneBatteryLow && !root.phoneThermalWarn && !root.phoneSyncWarn && !root.phoneArmWarn
-            warn: root.phoneBatteryLow || root.phoneThermalWarn || root.phoneSyncWarn || root.phoneArmWarn
-            warnColor: root.phoneBatteryLow ? (root.phoneLowestBattery <= 20 ? Theme.colorError : Theme.colorWarn)
-                        : root.phoneThermalWarn ? (root.phoneWorstThermal === "critical" ? Theme.colorError : Theme.colorWarn)
-                        : Theme.colorWarn
+                        : root._countWords(root.camTotal, root.camEnabled, root.camConnected)
             onClicked: {
                 imuPopup.close(); viewPopup.close(); motionPopup.close(); clubPopup.close()
                 camPopup.opened ? camPopup.close() : camPopup.open()
@@ -605,25 +655,21 @@ Item {
         }
 
         // ── IMUs pill ───────────────────────────────────────────────────────
-        // Low battery takes priority over the calibrate hint in the value line —
-        // a dying sensor is time-critical, and the message names the level so the
-        // user knows how low (e.g. "battery 32%"). Critical (≤20%) reads red.
+        // A failed connection, then low battery, take priority over the calibrate
+        // hint in the value line — a dying sensor is time-critical, and the message
+        // names the level so the user knows how low (e.g. "battery 32%"). Critical
+        // (≤20%) and failed read red.
         DevicePill {
             id: imuPill
             glyph: "⦿"                 // ⦿
             title: qsTr("IMUS")
             active: imuPopup.opened
-            count: root.imuConnected
+            status: root.imuStatus
             valueText: root.imuTotal === 0 ? qsTr("none")
+                        : root.imuFailed ? qsTr("failed")
                         : root.imuBatteryLow ? qsTr("battery %1%").arg(root.imuLowestBattery)
                         : root.imuNeedsAttention ? qsTr("calibrate")
-                        : qsTr("%1 connected").arg(root.imuConnected)
-            ledColor: root.imuBatteryLow ? (root.imuLowestBattery <= 20 ? Theme.colorError : Theme.colorWarn)
-                       : root.imuNeedsAttention ? Theme.colorAttention
-                       : root.imuConnected > 0 ? Theme.colorGood : Theme.colorText3
-            attention: root.imuNeedsAttention && !root.imuBatteryLow
-            warn: root.imuBatteryLow
-            warnColor: root.imuLowestBattery <= 20 ? Theme.colorError : Theme.colorWarn
+                        : root._countWords(root.imuTotal, root.imuEnabled, root.imuConnected)
             onClicked: {
                 camPopup.close(); viewPopup.close(); motionPopup.close(); clubPopup.close()
                 imuPopup.opened ? imuPopup.close() : imuPopup.open()
@@ -634,13 +680,16 @@ Item {
     // ── Mode switch — primary layout control (Capture/Replay/Analyse) ─────────
     // Centred on the toolbar as an overlay sibling of the RowLayout (the bar's
     // centre is otherwise empty — SHOT/ANALYSING moved to the title bar), so it
-    // sits at the TRUE centre regardless of the asymmetric left/right clusters.
+    // sits at the TRUE centre regardless of the asymmetric left/right clusters —
+    // unless the device cluster reaches past the centre (the live session adds
+    // the Club pill), when it steps left of the cluster rather than cover a pill.
     // The activity axis: Replay is never blocked (empty-state with no focused
     // swing); Replay/Analyse leave the data-source alone; Capture is the single
     // path back to the live current session (SessionReviewController.resumeLive).
     PpSegmentedControl {
         id: modeSwitch
-        anchors.horizontalCenter: parent.horizontalCenter
+        x: Math.min((parent.width - width) / 2,
+                    barRow.x + clusterDivider.x - width - Theme.sp(12))
         anchors.verticalCenter:   parent.verticalCenter
         width: Theme.sp(220)
         solid: false
@@ -657,64 +706,63 @@ Item {
     // ── Popups host the reusable panels; positioned under their pills ───────
     // margins clamp the popup within the window; the panel's implicitHeight
     // drives the popup height so it grows when a panel enters calibrate mode.
+    // Each sits on a popover card. A device panel calibrating turns its card's
+    // rule to colorAttention — the card says "work in progress", not a frame
+    // drawn inside it.
     Popup {
         id: viewPopup
+        objectName: "viewPopup"
         parent: viewPill
         y: viewPill.height + Theme.sp(10)
         x: viewPill.width - width
         padding: 0
         margins: Theme.sp(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-        background: Rectangle {
-            color: Theme.colorSurface; radius: Theme.radiusLg
-            border.width: 1; border.color: Theme.colorBorderStrong
-        }
+        background: PpPopoverCard { }
         contentItem: PpViewPanel { }
     }
 
     Popup {
         id: motionPopup
+        objectName: "motionPopup"
         parent: motionPill
         y: motionPill.height + Theme.sp(10)
         x: motionPill.width - width
         padding: 0
         margins: Theme.sp(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-        background: Rectangle {
-            color: Theme.colorSurface; radius: Theme.radiusLg
-            border.width: 1; border.color: Theme.colorBorderStrong
-        }
+        background: PpPopoverCard { }
         contentItem: PpMotionPanel { }
     }
 
     Popup {
         id: camPopup
+        objectName: "camPopup"
         parent: camPill
         y: camPill.height + Theme.sp(10)
         x: camPill.width - width
         padding: 0
         margins: Theme.sp(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-        background: Rectangle {
-            color: Theme.colorSurface; radius: Theme.radiusLg
-            border.width: 1; border.color: Theme.colorBorderStrong
+        background: PpPopoverCard {
+            tone: camPanel.mode === "calibrate" ? Theme.colorAttention : Theme.colorText3
         }
-        contentItem: PpCameraPanel {}
+        contentItem: PpCameraPanel { id: camPanel }
     }
 
     Popup {
         id: imuPopup
+        objectName: "imuPopup"
         parent: imuPill
         y: imuPill.height + Theme.sp(10)
         x: imuPill.width - width
         padding: 0
         margins: Theme.sp(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-        background: Rectangle {
-            color: Theme.colorSurface; radius: Theme.radiusLg
-            border.width: 1; border.color: Theme.colorBorderStrong
+        background: PpPopoverCard {
+            tone: imuPanel.mode === "calibrate" ? Theme.colorAttention : Theme.colorText3
         }
-        contentItem: PpImuPanel {}
+        contentItem: PpImuPanel { id: imuPanel }
     }
 
     // Club popup — under its pill in the right cluster (right-aligned like its
@@ -722,16 +770,14 @@ Item {
     // asks to close.
     Popup {
         id: clubPopup
+        objectName: "clubPopup"
         parent: clubPill
         y: clubPill.height + Theme.sp(10)
         x: clubPill.width - width
         padding: 0
         margins: Theme.sp(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-        background: Rectangle {
-            color: Theme.colorSurface; radius: Theme.radiusLg
-            border.width: 1; border.color: Theme.colorBorderStrong
-        }
+        background: PpPopoverCard { }
         contentItem: PpClubPanel {
             onRequestClose: clubPopup.close()
         }
@@ -744,17 +790,22 @@ Item {
     // can present the same item instead of a lookalike that drifts.
 
     // ── Inline pill component ───────────────────────────────────────────────
+    // The glyph tile carries the device vocabulary's badge at its corner (a check,
+    // the dashed ring, or a target in the state's tone); the value line says the
+    // same thing in words, so the tone is never the only signal.
     component DevicePill: Rectangle {
+        id: pill
         property string glyph:     ""
         property string title:     ""
         property string valueText: ""
-        property int    count:     0
-        property color  ledColor:  Theme.colorText3
+        property string status:    "off"   // "ok" | "off" | "attention" | "error"
         property bool   active:    false   // tints the glyph accent while the pill's popup is open
-        property bool   attention: false   // tints the value text amber (e.g. "calibrate")
-        property bool   warn:      false   // overrides the value-text tint (e.g. low battery)
-        property color  warnColor: Theme.colorWarn
         signal clicked()
+
+        readonly property color statusTone: status === "ok"        ? Theme.colorGood
+                                          : status === "attention" ? Theme.colorAttention
+                                          : status === "error"     ? Theme.colorError
+                                          :                          Theme.colorText3
 
         Layout.alignment: Qt.AlignVCenter
         implicitWidth: pillRow.implicitWidth + Theme.sp(24)
@@ -783,47 +834,48 @@ Item {
             anchors { fill: parent; leftMargin: Theme.sp(11); rightMargin: Theme.sp(13) }
             spacing: Theme.sp(11)
 
-            Item {  // glyph + count badge
+            Item {  // glyph + state badge
                 Layout.preferredWidth: Theme.sp(34); Layout.preferredHeight: Theme.sp(34)
                 Layout.alignment: Qt.AlignVCenter
                 Rectangle {
                     anchors.fill: parent; radius: Theme.radius; color: Theme.colorSurface
                     Text {
-                        anchors.centerIn: parent; text: glyph
+                        anchors.centerIn: parent; text: pill.glyph
                         font.family: Theme.fontSymbol; font.pixelSize: Theme.sp(18)
-                        color: active ? Theme.colorAccent : Theme.colorText2
+                        color: pill.active ? Theme.colorAccent : Theme.colorText2
                     }
                 }
+                // A disc of the pill's own fill under the badge cuts it out of the
+                // tile's corner, so its faint tint reads the same over both.
                 Rectangle {
                     anchors { right: parent.right; top: parent.top
-                              rightMargin: -Theme.sp(5); topMargin: -Theme.sp(5) }
-                    width: Theme.sp(19); height: Theme.sp(19); radius: width / 2
-                    color: ledColor
-                    Text {
-                        anchors.centerIn: parent; text: count
-                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                        color: Theme.dark ? Theme.colorBg : "#FFFFFF"
+                              rightMargin: -Theme.sp(6); topMargin: -Theme.sp(6) }
+                    width: Theme.sp(20); height: width; radius: width / 2
+                    color: pill.color
+                    PpBadge {
+                        anchors.centerIn: parent
+                        size: Theme.sp(18)
+                        kind: pill.status === "ok"  ? "check"
+                            : pill.status === "off" ? "unconfirmed"
+                            :                         "target"
+                        tone: pill.statusTone
                     }
                 }
             }
             Column {
                 Layout.alignment: Qt.AlignVCenter; spacing: Theme.sp(2)
+                PpMicro { text: pill.title }
                 Text {
-                    text: title; font.family: Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingMicro
-                    color: Theme.colorText3
-                }
-                Text {
-                    text: valueText; font.family: Theme.fontBody
+                    text: pill.valueText; font.family: Theme.fontBody
                     font.pixelSize: Theme.fontSzBody2
-                    color: warn ? warnColor
-                         : attention ? Theme.colorAttention : Theme.colorText
+                    color: pill.status === "attention" || pill.status === "error" ? pill.statusTone
+                                                                                   : Theme.colorText
                 }
             }
         }
         MouseArea {
             id: pillMa; anchors.fill: parent; hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor; onClicked: parent.clicked()
+            cursorShape: Qt.PointingHandCursor; onClicked: pill.clicked()
         }
     }
 }

@@ -98,7 +98,10 @@ Item {
     }
 
     // The view background is a QML rectangle behind a transparent View3D: a clearColor is
-    // tonemapped and never matches the surrounding UI.
+    // tonemapped and never matches the surrounding UI. Flat and borderless — the stage's 3-D
+    // SWING card is the frame — but opaque, and a step off the card's surface, because the
+    // figure's pale grey would wash out on a light theme's surface, and because the well marks
+    // the area that orbits under a drag, as a video tile marks its picture.
     Rectangle { anchors.fill: parent; color: Theme.colorBg2; radius: Theme.radius }
 
     // ── one bone: the node carries the parent-local offset/rotation, the mesh its own ─────────
@@ -157,21 +160,14 @@ Item {
         }
     }
 
-    // ── one status chip in the bottom row ──
-    component Chip: Rectangle {
+    // ── one status chip in the bottom row: a fact, untinted; a caveat about the data (what this
+    // shot cannot show) tinted in colorWarn ──
+    component Chip: PpChip {
         property string label: ""
-        radius: height / 2
-        height: Theme.sp(22)
-        width: chipText.implicitWidth + Theme.sp(18)
-        color: Theme.colorBg
-        border.width: 1; border.color: Theme.colorBorderMid
-        Text {
-            id: chipText
-            anchors.centerIn: parent
-            text: parent.label
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-            color: Theme.colorText2
-        }
+        property bool   caveat: false
+        text:   label
+        tinted: caveat
+        tone:   caveat ? Theme.colorWarn : Theme.colorText2
     }
 
     View3D {
@@ -456,6 +452,7 @@ Item {
         Chip { id: tierChip; visible: drv.available; label: drv.frameTierText }
         Chip {
             visible: drv.available && root.faceOnOnly
+            caveat: true
             label: drv.twoViews ? qsTr("face-on only: no fused shaft plane") : qsTr("face-on only")
         }
         Chip { visible: drv.available && drv.heldAtEnd; label: qsTr("held at P8") }
@@ -467,29 +464,39 @@ Item {
             id: planeChip
             // A face-on-only swing has no plane, and its own chip already says so.
             visible: drv.available && root.elemMode("plane") !== "off" && !root.faceOnOnly
+            caveat: !drv.planeAvailable
             label: drv.planeAvailable ? qsTr("downswing plane · club3d · %1°").arg(drv.planeInclDeg.toFixed(1))
                                       : qsTr("no downswing plane on this shot")
         }
+        // The P-position marks' legend, in words, while the marks are drawn.
+        Item {
+            visible: posDots.model > 0
+            width: posLegend.implicitWidth; height: Theme.sp(18)
+            PpMicro {
+                id: posLegend
+                anchors.verticalCenter: parent.verticalCenter
+                font.letterSpacing: Theme.trackingData
+                text: qsTr("P  ● FITTED  ○ SAMPLED")
+            }
+        }
     }
     // Footnotes sit under the preset bar, clear of the chips.
-    Text {
+    PpCardNote {
         anchors { right: parent.right; top: presets.bottom; margins: Theme.sp(12) }
         visible: drv.available && root.preset === "top"
         text: qsTr("Square to your stance at address")
-        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-        color: Theme.colorText3
     }
-    Text {
+    PpCardNote {
         anchors { right: parent.right; top: presets.bottom; margins: Theme.sp(12) }
         visible: root.matched
         text: (root.matchView === 0 ? qsTr("As the face-on camera saw it") : qsTr("As the DTL camera saw it"))
               + (root.matchView === 0 && drv.foMirrored ? qsTr(" · mirrored") : "")
-        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-        color: Theme.colorText3
     }
 
     // P-position labels: 2-D text pinned to the 3-D clubhead — 3-D text would face away from half
-    // the presets. Re-placed when the camera or the playhead moves.
+    // the presets. Re-placed when the camera or the playhead moves. Each leads with its
+    // provenance mark, so fitted and sampled read by shape as well as colour: a solid dot for a
+    // milestone fit (positionSource 1), a hollow ring for a raw track sample.
     property int _camTick: 0
     Connections {
         target: cam
@@ -504,27 +511,40 @@ Item {
     Repeater {
         id: posLabels
         model: posDots.model
-        Text {
+        Row {
+            id: posLabel
+            required property int index
             readonly property bool near: root.positionUs >= 0
                                          && Math.abs(drv.positionTimeUs(index) - root.positionUs) <= 40000
             readonly property vector3d sp: root.mapToView(drv.positionHead(index, root.rev), root._camTick, view.camera)
+            readonly property bool  fitted: drv.positionSource(index) === 1
+            readonly property color tint: fitted ? Theme.colorGood : Theme.colorAccent
+            // The label's words, kept on the item itself (tools/probes/swing3d_panel.qml reads them).
+            readonly property string text: "P" + drv.positionP(index)
             visible: near && sp.z > 0 && sp.x >= 0 && sp.y >= 0 && sp.x <= root.width && sp.y <= root.height
             x: sp.x + Theme.sp(6)
             y: sp.y - height - Theme.sp(2)
-            text: "P" + drv.positionP(index)
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.bold: true
-            color: drv.positionSource(index) === 1 ? Theme.colorGood : Theme.colorAccent
+            spacing: Theme.sp(4)
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: Theme.sp(7); height: width; radius: width / 2
+                color: posLabel.fitted ? posLabel.tint : "transparent"
+                border.width: posLabel.fitted ? 0 : Math.max(1, Theme.sp(1.4))
+                border.color: posLabel.tint
+            }
+            Text {
+                text: posLabel.text
+                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.bold: true
+                color: posLabel.tint
+            }
         }
     }
 
-    Text {
+    PpCardNote {
         anchors.centerIn: parent
         visible: !drv.available
         width: parent.width * 0.7
         horizontalAlignment: Text.AlignHCenter
-        wrapMode: Text.WordWrap
         text: drv.loading ? qsTr("Loading the 3-D swing…") : drv.reason
-        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
-        color: Theme.colorText3
     }
 }

@@ -17,7 +17,9 @@
  */
 
 // Composite Wrist-score headline — reuses PpQualityPill for the 0–100 quartile-graded number, adds
-// the band label + a shape glyph, and reveals an explainable breakdown on tap (design §7.6, §8.2-F).
+// the band's mark (Theme.qualityMark: a tick in the top band, a target below it) and the band's
+// word, so the band reads without its colour, and reveals an explainable breakdown on tap
+// (design §7.6, §8.2-F).
 
 import QtQuick
 import QtQuick.Layouts
@@ -32,54 +34,42 @@ ColumnLayout {
     property string breakdownText: ""
 
     property bool _open: false
-    spacing: Theme.sp(2)
+    spacing: Theme.sp(6)
 
     Row {
         Layout.alignment: Qt.AlignRight
-        spacing: Theme.sp(3)
+        spacing: Theme.sp(6)
 
-        scale: pillTap.pressed ? 0.97 : pillHover.hovered ? 1.02 : 1.0
-        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
-
-        Text {
+        PpBadge {
             anchors.verticalCenter: parent.verticalCenter
-            text: "▲"
-            font.family: Theme.fontSymbol
-            font.pixelSize: Theme.fontSzLabel
-            color: Theme.qualityColor(root.score)
+            kind: Theme.qualityMark(root.score)
+            tone: Theme.qualityColor(root.score)
         }
         PpQualityPill {
             anchors.verticalCenter: parent.verticalCenter
             large: true
             score: root.score
         }
-        Text {
+        PpMicro {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.band
-            font.family: Theme.fontBody
-            font.pixelSize: Theme.fontSzLabel
-            font.capitalization: Font.AllUppercase
-            font.letterSpacing: Theme.trackingLabel
+            text: root.band.toUpperCase()
             color: Theme.qualityColor(root.score)
         }
-        TapHandler { id: pillTap; onTapped: root._open = !root._open }
-        HoverHandler { id: pillHover; cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: root._open = !root._open }
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
     }
 
-    Rectangle {
+    // What the score lost, and to what: set into the panel under the pill.
+    PpInset {
         Layout.alignment: Qt.AlignRight
         visible: root._open
-        implicitWidth:  bd.implicitWidth + Theme.sp(16)
-        implicitHeight: bd.implicitHeight + Theme.sp(12)
-        color: Theme.colorSurface
-        border.width: Theme.borderWidth
-        border.color: Theme.colorBorder
-        radius: Theme.radius
+        implicitWidth: bd.implicitWidth + 2 * padX
+        padY: Theme.sp(10)
+        spacing: 0
 
         Column {
             id: bd
-            anchors.centerIn: parent
-            spacing: Theme.sp(1)
+            spacing: Theme.sp(2)
             Text {
                 anchors.right: parent.right
                 text: root.breakdownText

@@ -16,13 +16,16 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// The Findings dock card — prioritised fault findings, with the low-confidence ones behind a toggle.
+// The FINDINGS section of the Wrist motion panel — prioritised fault findings as FAULTS-style rows
+// (FindingCard), with the low-confidence ones behind a link. A section, not a card: a Micro heading
+// in colorWarn, CONFIDENCE heading the rows' pips, and hairlines between the rows.
+
+pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Layouts
 import PinPointStudio
 
-Rectangle {
+Column {
     id: root
 
     property var findings: []
@@ -32,73 +35,65 @@ Rectangle {
     readonly property var _low:  (findings || []).filter(function (f) { return f.lowConfidence })
     property bool _showLow: false
 
-    Layout.fillWidth: true
-    implicitHeight: col.implicitHeight + Theme.sp(24)
-    radius: Theme.radiusLg
-    color: Theme.colorSurface
-    border.width: Theme.borderWidth
-    border.color: Theme.colorBorder
+    spacing: 0
 
-    ColumnLayout {
-        id: col
-        anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(12) }
-        spacing: Theme.sp(8)
-
-        Text {
-            text: qsTr("Findings")
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
-            font.capitalization: Font.AllUppercase; font.letterSpacing: Theme.trackingLabel
-            color: Theme.colorText3
+    Item {
+        width:  parent.width
+        height: heading.implicitHeight + Theme.sp(4)
+        PpMicro {
+            id: heading
+            text:  qsTr("FINDINGS")
+            color: Theme.colorWarn
         }
-
-        Text {
-            visible: root._main.length === 0 && root._low.length === 0
-            Layout.fillWidth: true
-            text: qsTr("No faults found in this swing.")
-            wrapMode: Text.WordWrap
-            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; color: Theme.colorText3
+        PpMicro {
+            visible: root._main.length + root._low.length > 0
+            anchors.baseline: heading.baseline
+            x: parent.width - Theme.sp(22) - implicitWidth
+            text: qsTr("CONFIDENCE")
+            font.letterSpacing: Theme.trackingData
         }
+    }
 
-        Repeater {
-            model: root._main
-            delegate: FindingCard {
-                required property var modelData
-                Layout.fillWidth: true
-                finding: modelData
-                onSeek: (u) => root.seek(u)
-            }
-        }
+    PpCardNote {
+        visible: root._main.length === 0 && root._low.length === 0
+        width:   parent.width
+        topPadding: Theme.sp(6)
+        text: qsTr("No faults found in this swing.")
+    }
 
-        // low-confidence toggle + cards
-        Rectangle {
-            Layout.fillWidth: true
-            visible: root._low.length > 0
-            implicitHeight: lowRow.implicitHeight + Theme.sp(4)
-            radius: Theme.radius
-            color: lowMa.containsMouse
-                   ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 1.0)
-                   : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
-            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-            Row {
-                id: lowRow
-                spacing: Theme.sp(2)
-                Text { text: root._showLow ? "▴" : "▾"
-                       font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText2 }
-                Text {
-                    text: qsTr("Low-confidence findings (%1)").arg(root._low.length)
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText2
-                }
-            }
-            PpPressable { id: lowMa; hoverScale: 1.0; onClicked: root._showLow = !root._showLow }
+    Repeater {
+        model: root._main
+        delegate: FindingCard {
+            required property var modelData
+            required property int index
+            width:   root.width
+            divider: index > 0
+            finding: modelData
+            onSeek: (u) => root.seek(u)
         }
-        Repeater {
-            model: root._showLow ? root._low : []
-            delegate: FindingCard {
-                required property var modelData
-                Layout.fillWidth: true
-                finding: modelData
-                onSeek: (u) => root.seek(u)
-            }
+    }
+
+    // The low-confidence findings, behind a link.
+    Item {
+        visible: root._low.length > 0
+        width:   parent.width
+        height:  visible ? Theme.sp(36) : 0
+        Rectangle { visible: root._main.length > 0; width: parent.width; height: 1; color: Theme.colorBorder }
+        PpLink {
+            anchors { left: parent.left; leftMargin: Theme.sp(32); verticalCenter: parent.verticalCenter }
+            text: root._showLow ? qsTr("Hide the low-confidence findings")
+                                : qsTr("Low-confidence findings (%1)").arg(root._low.length)
+            hoverTint: false
+            onClicked: root._showLow = !root._showLow
+        }
+    }
+    Repeater {
+        model: root._showLow ? root._low : []
+        delegate: FindingCard {
+            required property var modelData
+            width:   root.width
+            finding: modelData
+            onSeek: (u) => root.seek(u)
         }
     }
 }

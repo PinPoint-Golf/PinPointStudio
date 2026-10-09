@@ -18,7 +18,7 @@
 
 // PpChartPlot — one plot region: a Y axis (grid + ticks + unit), an X time axis (ms from
 // impact), swing-phase bands + landmark emphasis (top of swing, impact), N metric traces,
-// band-coloured P-position dots, a replay playhead, and a shared hover crosshair. Given a series subset (each
+// verdict-marked P-position dots, a replay playhead, and a shared hover crosshair. Given a series subset (each
 // decorated with its `color`), a value range [valueLo,valueHi], a time domain
 // [domStartUs,domEndUs], and geometry — so it serves BOTH overlay (one plot, N series) and
 // split (N plots, one series each). Pure scale/path binding only; axis maths lives in
@@ -190,10 +190,32 @@ Item {
     }
     readonly property var _seqRings:  root._seqSplit(root._seqPeaks, false)
     readonly property var _seqRising: root._seqSplit(root._seqPeaks, true)
-    function _bandColor(b) {
-        return b === "warn"      ? Theme.colorWarn
-             : b === "attention" ? Theme.colorAttention
-             :                     Theme.colorGood
+    // ── A P-DOT'S VERDICT: ONE VOCABULARY, AND NO VERDICT IS NOT A PASS ───────────────
+    //
+    // A phaseSample's `band` reaches this plot in two spellings. The chart's own is
+    // good / attention / warn (ChartMetrics.bandAtNearest's, and the summary's); the scorer's is
+    // green / yellow / red (swing_analysis.h PhaseSample::band, swing_scorer.cpp bandSubScore).
+    // Today's producers emit neither — every curve is unscored, its corridor lives in the
+    // diagnostics norm set (metric_channel.h) — so on a current swing every band is "".
+    //
+    // ⚠ THIS USED TO FALL THROUGH TO colorGood, so every one of those verdict-less dots drew in
+    // pass green, and a "yellow" or "red" from an older file drew green too. Anything not
+    // recognised is now "" — no verdict, drawn grey. The same map is in PpMetricChart (the dot
+    // key under the legend) and PpChartSummary (the reading tiles); keep the three equal.
+    //
+    // A verdict has a SHAPE as well as a colour: in range is a filled dot, watch an open ring,
+    // outside a ring with a centre dot (the badge's target). No verdict is the plain grey dot.
+    function _verdict(b) {
+        return (b === "good" || b === "green")                          ? "good"
+             : (b === "attention" || b === "yellow" || b === "amber")   ? "attention"
+             : (b === "warn" || b === "red")                            ? "warn"
+             :                                                            ""
+    }
+    function _verdictColor(v) {
+        return v === "good"      ? Theme.colorGood
+             : v === "attention" ? Theme.colorAttention
+             : v === "warn"      ? Theme.colorWarn
+             :                     Theme.colorText3
     }
 
     // ── Measured vs bridged: how a curve says which of it is a measurement ────────
@@ -702,17 +724,21 @@ Item {
             }
         }
 
-        // P-position dots (band-coloured), per series.
+        // P-position dots, per series: a shape and a colour for the verdict (see _verdict).
         Repeater {
             model: root.showDots ? root.series : []
             delegate: Repeater {
                 id: dots
                 required property var modelData
                 model: dots.modelData.phaseSamples || []
-                delegate: Rectangle {
+                delegate: Item {
                     id: dot
                     required property var modelData
-                    readonly property real r: Theme.sp(3.2)
+                    readonly property string verdict: root._verdict(dot.modelData.band)
+                    readonly property color  tone:    root._verdictColor(dot.verdict)
+                    // The rings stand a little larger than the dot: an open shape reads smaller.
+                    readonly property real r: dot.verdict === "attention" || dot.verdict === "warn"
+                                              ? Theme.sp(4) : Theme.sp(3.2)
                     // NO DOT ON AN UNMEASURED SAMPLE, and none outside the metric's domain. The
                     // producers stopped emitting those phaseSamples (design §5.1), but a swing
                     // analysed before that still has them persisted, and a band-coloured dot is
@@ -736,11 +762,24 @@ Item {
                                       root._hasDomain(dots.modelData) ? dots.modelData.validFromUs : 0,
                                       root._hasDomain(dots.modelData) ? dots.modelData.validToUs   : 0)
                     visible: dot.measured && root._inDom(dot.modelData.t_us)
-                    width: 2 * r; height: 2 * r; radius: r
+                    width: 2 * r; height: 2 * r
                     x: root.xForT(dot.modelData.t_us) - r
                     y: root.yForV(dot.modelData.value) - r
-                    color: root._bandColor(dot.modelData.band)
-                    border.width: Theme.sp(1.5); border.color: Theme.colorBg
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: dot.r
+                        // Filled for in range and for no verdict; open (the plot's ground shows
+                        // through, so the curve under it does not) for watch and outside.
+                        color: dot.verdict === "attention" || dot.verdict === "warn" ? Theme.colorBg : dot.tone
+                        border.width: Theme.sp(1.5)
+                        border.color: dot.verdict === "attention" || dot.verdict === "warn" ? dot.tone : Theme.colorBg
+                    }
+                    Rectangle {                       // outside: the target's centre dot
+                        visible: dot.verdict === "warn"
+                        anchors.centerIn: parent
+                        width: Math.round(dot.r * 0.8); height: width; radius: width / 2
+                        color: dot.tone
+                    }
                 }
             }
         }

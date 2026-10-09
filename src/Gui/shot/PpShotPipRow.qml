@@ -26,6 +26,12 @@
 // look like the same read. The panel's PpTickRun makes this argument at the other end of the
 // session; this is the same fact at 3 px.
 //
+// NOT PpPips. The coaching-card pips are sp(6) dots at sp(4) apart, which is a row of eight
+// sessions; a swing's read is one pip per tracked condition, seventy-odd on a real ledger, in
+// a card Theme.sp(139) wide. So the row keeps the tick run's own marks (a filled bar for a
+// firing, a shorter outlined one for a condition the capture could not answer) and shares out
+// the width instead, and the fired COUNT in words is the signal colour never has to carry.
+//
 // EXTRACTED FROM PpShotCard SO IT CAN BE PRESSED. The card requires a dozen model roles and a
 // proxy row to exist at all; the pip row requires a list of states. Keeping it separate is
 // what lets the offscreen QML test assert the third state is drawn rather than eyeball it,
@@ -52,10 +58,13 @@ Item {
     // separates a filled pip from an outlined one — 4 px, and 3 px for the outlined one.
     readonly property int _tallH:  Math.max(2, Theme.sp(4))
     readonly property int _shortH: Math.max(1, Theme.sp(3))
-    readonly property real _gap:   Math.max(1, Theme.sp(1))
+    // A gap only where every pip still gets a whole pixel beside it. A full ledger has more
+    // conditions than the card has pixels for pip-and-gap, and a floor of one pixel each
+    // pushed the row out under the count, which then read over the pips.
+    readonly property real _gap:   root.count * 2 <= pipRow.width ? Math.max(1, Theme.sp(1)) : 0
 
     // The count reads as a severity, in the same three colours the rest of the app grades in.
-    readonly property color countColor: firedCount >= 4 ? Theme.colorError
+    readonly property color countColor: firedCount >= 4 ? Theme.colorWarn
                                       : firedCount >= 2 ? Theme.colorAttention
                                                         : Theme.colorGood
 
@@ -68,6 +77,7 @@ Item {
         anchors.rightMargin: Theme.sp(5)
         anchors.verticalCenter: parent.verticalCenter
         spacing: root._gap
+        clip: true
 
         Repeater {
             model: root.pips
@@ -82,14 +92,14 @@ Item {
 
                 // Even shares of the row, so a nine-condition read and a four-condition one
                 // both span the card and can be compared across cells at a glance.
-                width: Math.max(1, (pipRow.width - (root.count - 1) * root._gap)
-                                   / Math.max(1, root.count))
+                width: Math.max(0, pipRow.width - (root.count - 1) * root._gap)
+                       / Math.max(1, root.count)
                 height: notAssessable ? root._shortH : root._tallH
                 anchors.verticalCenter: parent.verticalCenter
                 radius: 1
 
                 color: notAssessable ? "transparent"
-                                     : (fired ? Theme.colorError : Theme.colorGood)
+                                     : (fired ? Theme.colorWarn : Theme.colorGood)
                 border.width: notAssessable ? 1 : 0
                 border.color: Theme.colorText3
             }

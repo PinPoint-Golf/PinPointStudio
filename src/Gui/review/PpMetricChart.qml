@@ -698,6 +698,25 @@ Item {
         return out
     }
 
+    // The P-dot verdicts the plots are drawing, in the order the key lists them — so the key under
+    // the legend names only shapes that are on screen. `band` is normalised exactly as
+    // PpChartPlot._verdict does it (keep the two equal): either spelling, and anything else is no
+    // verdict, never a pass.
+    function _verdict(b) {
+        return (b === "good" || b === "green")                          ? "good"
+             : (b === "attention" || b === "yellow" || b === "amber")   ? "attention"
+             : (b === "warn" || b === "red")                            ? "warn"
+             :                                                            ""
+    }
+    readonly property var _dotVerdicts: {
+        var seen = {}
+        for (var i = 0; i < root._visible.length; ++i) {
+            var ps = root._visible[i].phaseSamples || []
+            for (var j = 0; j < ps.length; ++j) seen[root._verdict(ps[j].band)] = true
+        }
+        return ["good", "attention", "warn", ""].filter(function (v) { return seen[v] === true })
+    }
+
     // Recording extents — the outer bounds of the axis and of the brush. NOT the window default
     // since the Address→Finish opening; _defaultStart/_defaultEnd are.
     readonly property real _dataStart: (root._list.length && root._list[0].t_us
@@ -916,8 +935,9 @@ Item {
     ChartMetrics   { id: cm }
     TimelineLabels { id: labels }
 
-    // Collapsible section header (caret + title, click to toggle) — same idiom as
-    // PpDataViewer's SectionHeader, ending in a hairline rule.
+    // Collapsible section header (caret + Micro title, click to toggle) — same idiom as
+    // PpDataViewer's SectionHeader, ending in a hairline rule. The panel's card is the only box;
+    // inside it a section is a heading and a hairline, never a card of its own.
     component SectionHeader: Rectangle {
         id: sh
         property string title: ""
@@ -938,14 +958,37 @@ Item {
                 Behavior on rotation { enabled: !Theme.reduceMotion
                                        NumberAnimation { duration: Theme.durationFast } }
             }
-            Text {
-                text: sh.title; color: Theme.colorText3
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingMicro
-            }
+            PpMicro { text: sh.title }
             Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.colorBorder }
         }
         PpPressable { id: shMa; hoverScale: 1.0; onClicked: sh.toggled() }
+    }
+
+    // One P-dot as PpChartPlot draws it, for the key: filled for in range (and grey for no
+    // verdict), an open ring for watch, a ring and centre dot for outside.
+    component DotKey: Item {
+        id: dk
+        property string verdict: ""
+        readonly property bool open: dk.verdict === "attention" || dk.verdict === "warn"
+        readonly property color tone: dk.verdict === "good"      ? Theme.colorGood
+                                    : dk.verdict === "attention" ? Theme.colorAttention
+                                    : dk.verdict === "warn"      ? Theme.colorWarn
+                                    :                              Theme.colorText3
+        readonly property real r: dk.open ? Theme.sp(4) : Theme.sp(3.2)
+        width: 2 * dk.r; height: 2 * dk.r
+        Rectangle {
+            anchors.fill: parent
+            radius: dk.r
+            color: dk.open ? "transparent" : dk.tone
+            border.width: dk.open ? Theme.sp(1.5) : 0
+            border.color: dk.tone
+        }
+        Rectangle {
+            visible: dk.verdict === "warn"
+            anchors.centerIn: parent
+            width: Math.round(dk.r * 0.8); height: width; radius: width / 2
+            color: dk.tone
+        }
     }
 
     // ── Layout ────────────────────────────────────────────────────────────────────
@@ -968,36 +1011,29 @@ Item {
             Layout.fillWidth: true
             spacing: Theme.sp(10)
 
-            // PpDisplayText is the app's one display-title component — brand warm→cool gradient
-            // fill, Theme.fontSzDisplay, flat fallback under reduce-motion — the same call the
-            // Metric Library and the metric detail sheet make. Not a Text with a gradient bolted
-            // on: the mask/MultiEffect machinery lives in that component precisely so no caller
-            // reimplements it.
+            // The preset's name in BODY type, not display type. The stage's card already titles
+            // this panel (CHARTS, in Micro), so a display-size gradient title under it was a
+            // second card title competing with the first — and with the plot, which is what the
+            // card frames. This line names which family of curves is on screen; the card says
+            // what the panel is.
             //
-            // Outside the collapsible sections, and above CONTROLS, because it titles the PANEL
-            // rather than any one section — collapsing all three must not take the panel's name
-            // with them. Hidden in compact, which is plot-only by definition.
-            PpDisplayText {
+            // Outside the collapsible sections, and above CONTROLS, because it names what the
+            // whole panel is showing rather than any one section — collapsing all three must not
+            // take it with them. Hidden in compact, which is plot-only by definition.
+            Text {
                 objectName: "presetTitle"        // tst_chart_presets reaches it by name
                 text: root._presetTitle
-                // ⚠ CAPPED, NEVER Layout.fillWidth — the gradient is why. PpDisplayText paints
-                // the brand sweep across a Rectangle anchored to its GLYPHS, and the glyphs track
-                // the item's width. Filled to a 900px panel, "Wrist & forearm" occupies the first
-                // fifth of that sweep and renders in near-flat warm: the gradient is still there
-                // and looks switched off. Sized to its text it spans warm→cool over the words,
-                // which is what every other caller gets by simply not stretching (MetricLibrary
-                // sizes naturally; MetricDetail caps, like this). The stretching in this row is
-                // the spacer's job, never the title's.
+                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
+                font.weight: Font.Medium
+                color: Theme.colorText
+                // SIZED TO ITS TEXT, never Layout.fillWidth: the stretching in this row is the
+                // spacer's job, and tst_chart_presets pins the title at its natural width.
                 //
                 // Capped against root.width rather than the enclosing layout: a layout's own
                 // width is derived from its children, so capping a child against it is a cycle Qt
                 // gives up on after two passes. root's width comes from the panel above it — and
                 // the combo's share is taken off it here, so a long title elides rather than
                 // squeezing the selector out of the row.
-                //
-                // The group names are short, but "Tempo & sequence · custom" at display size in a
-                // narrow split panel is not: elide rather than wrap, so the title can never push
-                // the plot down a line.
                 Layout.maximumWidth: Math.max(Theme.sp(60),
                                               root.width - presetCombo.width - Theme.sp(72))
                 elide: Text.ElideRight
@@ -1006,12 +1042,7 @@ Item {
 
             Item { Layout.fillWidth: true }      // spacer — pins the selector to the right
 
-            Text {
-                text: qsTr("METRICS")
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingLabel
-                color: Theme.colorText3
-            }
+            PpMicro { text: qsTr("METRICS") }
 
             PpComboBox {
                 id: presetCombo
@@ -1068,7 +1099,7 @@ Item {
                         Text {
                             anchors.centerIn: parent
                             visible: tog.modelData.on
-                            text: "✓"; color: Theme.dark ? Theme.colorBg : "#FFFFFF"
+                            text: "✓"; color: Theme.dark ? Theme.colorBg : Theme.colorSurface
                             font.pixelSize: Theme.fontSzMicro
                         }
                     }
@@ -1100,12 +1131,9 @@ Item {
             Layout.fillWidth: true
             spacing: Theme.sp(6)
 
-            Text {
+            PpMicro {
                 text: qsTr("SEGMENT")
                 height: Theme.sp(28); verticalAlignment: Text.AlignVCenter
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingLabel
-                color: Theme.colorText3
                 rightPadding: Theme.sp(2)
             }
 
@@ -1189,7 +1217,7 @@ Item {
                 // swing made the two windows sound like the same span read two ways.
                 text: root._preset === "Full" ? qsTr("Full recording")
                     : labels.phaseFullName(root._nearStart) + " → " + labels.phaseFullName(root._nearEnd)
-                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzHeading
+                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
                 color: Theme.colorText
             }
             Text {
@@ -1219,6 +1247,10 @@ Item {
             visible: root.compact || !root.chartCollapsed
             Layout.fillWidth: true
             Layout.fillHeight: true
+            // The plot is what the panel is for, so it keeps a readable height and the sections
+            // under it give way — the stage card clips them at its edge. Without a floor, a tall
+            // SUMMARY row in a short panel squeezed the plot to a hairline and kept the cards.
+            Layout.minimumHeight: root.compact ? 0 : Theme.sp(140)
 
             ColumnLayout {
                 anchors.fill: parent
@@ -1296,28 +1328,25 @@ Item {
             }
 
             // Shared hover tooltip (all visible series at the cursor).
-            Rectangle {
+            Item {
                 id: tip
                 visible: root.showCursor && root._cursorUs >= 0 && root._visible.length > 0
                 readonly property real cx: root._tooltipX(plotArea.width)
                 x: Math.min(cx + Theme.sp(14), plotArea.width - width - Theme.sp(2))
                 y: Theme.sp(4)
-                width: tipCol.width + Theme.sp(20); height: tipCol.height + Theme.sp(16)
-                color: Theme.colorSurface; radius: Theme.sp(8)
-                border.width: 1; border.color: Theme.colorBorderStrong
+                width: tipCol.width + Theme.sp(20); height: tipCol.height + Theme.sp(18)
+
+                PpPopoverCard { anchors.fill: parent }
 
                 Column {
                     id: tipCol
-                    x: Theme.sp(10); y: Theme.sp(8)
+                    x: Theme.sp(10); y: Theme.sp(10)
                     spacing: Theme.sp(3)
-                    Text {
+                    PpMicro {
                         text: {
                             var ms = Math.round((root._cursorUs - root.impactUs) / 1000)
                             return (ms > 0 ? "+" : "") + ms + qsTr(" ms · impact")
                         }
-                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingLabel
-                        color: Theme.colorText3
                     }
                     Repeater {
                         model: root._visible
@@ -1454,6 +1483,38 @@ Item {
                     TapHandler { onTapped: root._toggle(chip.modelData.key) }
                 }
             }
+
+            // The P-dot key, in words: colour is never the only thing that says a reading is
+            // in range, and a grey dot has to say that it is NOT a verdict.
+            Row {
+                visible: root.showDots && root._dotVerdicts.length > 0
+                spacing: Theme.sp(10)
+                PpMicro {
+                    text: qsTr("P DOTS")
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Repeater {
+                    model: root._dotVerdicts
+                    delegate: Row {
+                        id: keyItem
+                        required property string modelData
+                        spacing: Theme.sp(5)
+                        DotKey {
+                            verdict: keyItem.modelData
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: keyItem.modelData === "good"      ? qsTr("in range")
+                                : keyItem.modelData === "attention" ? qsTr("watch")
+                                : keyItem.modelData === "warn"      ? qsTr("outside")
+                                :                                     qsTr("position, not judged")
+                            anchors.verticalCenter: parent.verticalCenter
+                            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
+                            color: Theme.colorText3
+                        }
+                    }
+                }
+            }
         }
 
         // ── SUMMARY section ───────────────────────────────────────────────────────
@@ -1487,12 +1548,11 @@ Item {
         Item { Layout.fillWidth: true; Layout.fillHeight: root.chartCollapsed && !root.compact }
     }
 
-    // Empty state.
-    Text {
-        anchors.centerIn: parent
+    // Empty state: the card's one quiet line — centred in the compact tile, which has no card.
+    PpCardNote {
         visible: !root._hasAny
+        width: root.compact ? implicitWidth : parent.width
+        anchors.centerIn: root.compact ? parent : undefined
         text: qsTr("No analysis")
-        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-        color: Theme.colorText3
     }
 }

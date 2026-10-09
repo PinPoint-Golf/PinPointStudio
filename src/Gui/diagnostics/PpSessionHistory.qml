@@ -54,12 +54,21 @@ Item {
     readonly property var _faults: history ? (history.faultLines || []) : []
     readonly property int count: _cols.length
 
+    // The corridor strip's band colours (the faults' coral past the fault line, never the alarm
+    // red) and its band words, so a band is never told by its colour alone.
     function bandColor(grade) {
-        if (grade === "ideal")  return Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.18)
-        if (grade === "good")   return Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.08)
-        if (grade === "watch")  return Qt.rgba(Theme.colorAttention.r, Theme.colorAttention.g, Theme.colorAttention.b, 0.18)
-        if (grade === "action") return Qt.rgba(Theme.colorError.r, Theme.colorError.g, Theme.colorError.b, 0.14)
+        if (grade === "ideal")  return Qt.alpha(Theme.colorGood, 0.18)
+        if (grade === "good")   return Qt.alpha(Theme.colorGood, 0.08)
+        if (grade === "watch")  return Qt.alpha(Theme.colorAttention, 0.18)
+        if (grade === "action") return Qt.alpha(Theme.colorWarn, 0.14)
         return "transparent"
+    }
+    function bandWord(grade) {
+        return grade === "ideal"  ? qsTr("IDEAL")
+             : grade === "good"   ? qsTr("GOOD")
+             : grade === "watch"  ? qsTr("WATCH")
+             : grade === "action" ? qsTr("ACTION")
+             :                      ""
     }
 
     readonly property int _labelsH: tzCaption * 2 + px(4)
@@ -93,6 +102,19 @@ Item {
                 width: plot.width
                 height: Math.max(0, root._y(modelData.f0 || 0) - root._y(modelData.f1 || 0))
                 color: root.bandColor(modelData.grade || "")
+
+                // The band's name at its right end, where the columns thin out, and only where
+                // the band is tall enough to hold it.
+                PpMicro {
+                    objectName: "sdHistoryBandWord"
+                    anchors.right: parent.right
+                    anchors.rightMargin: root.px(3)
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: text !== "" && parent.height >= implicitHeight
+                    text: root.bandWord(parent.modelData.grade || "")
+                    font.pixelSize: root.tzCaption
+                    font.letterSpacing: Theme.trackingData
+                }
             }
         }
         Repeater {
@@ -102,7 +124,7 @@ Item {
                 y: root._y(modelData.f || 0)
                 width: plot.width
                 height: 1
-                color: Theme.colorError
+                color: Theme.colorWarn
                 opacity: 0.7
                 Text {
                     anchors.left: parent.left
@@ -110,7 +132,7 @@ Item {
                     text: parent.modelData.text || ""
                     font.family: Theme.fontData
                     font.pixelSize: root.tzCaption
-                    color: Theme.colorError
+                    color: Theme.colorWarn
                 }
             }
         }

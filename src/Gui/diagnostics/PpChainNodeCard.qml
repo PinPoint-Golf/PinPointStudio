@@ -118,21 +118,22 @@ Item {
     readonly property bool isOutcome: kind === "outcome"
 
     readonly property string _state: node ? (node.state || "") : ""
-    readonly property color _stateColor: _state === "fired" ? Theme.colorError
+    // A firing is a fault, colorWarn — never the alarm red (13.2); the outcome the same.
+    readonly property color _stateColor: _state === "fired" ? Theme.colorWarn
                                        : _state === "clean" ? Theme.colorGood
                                                             : Theme.colorText3
-    readonly property color _pillFill: _state === "fired" ? Theme.colorErrorLight
+    readonly property color _pillFill: _state === "fired" ? Theme.colorWarnLight
                                      : _state === "clean" ? Theme.colorGoodLight
                                                           : "transparent"
     readonly property color _trendColor: !node ? Theme.colorText3
-                                       : node.trend === "worsening" ? Theme.colorError
+                                       : node.trend === "worsening" ? Theme.colorWarn
                                        : node.trend === "improving" ? Theme.colorGood
                                                                     : Theme.colorText3
 
     // The dot that carries the node's kind through 12c's collapse: the state colour on a live
     // card, and the kind's own colour where there is no state to report.
     readonly property color markColor: isScreen ? Theme.colorAttention
-                                     : isOutcome ? Theme.colorError
+                                     : isOutcome ? Theme.colorWarn
                                      : isGhost ? Theme.colorText3
                                                : _stateColor
 
@@ -140,15 +141,13 @@ Item {
     // outcome. The Light tokens are the fills; the borders are the same hue at the mock's
     // alpha, which no token carries because no other surface asks for one.
     readonly property color _fill: isScreen ? Theme.colorAttentionLight
-                                 : isOutcome ? Theme.colorErrorLight
+                                 : isOutcome ? Theme.colorWarnLight
                                  : isGhost ? "transparent"
                                            : Theme.colorSurface
     readonly property color _stroke: isScreen
-                                     ? Qt.rgba(Theme.colorAttention.r, Theme.colorAttention.g,
-                                               Theme.colorAttention.b, 0.35)
+                                     ? Qt.alpha(Theme.colorAttention, 0.35)
                                      : isOutcome
-                                       ? Qt.rgba(Theme.colorError.r, Theme.colorError.g,
-                                                 Theme.colorError.b, 0.30)
+                                       ? Qt.alpha(Theme.colorWarn, 0.30)
                                        : Theme.colorBorderMid
 
     // A ghost is not evidence from this session, and the dash plus the dimming is the whole
@@ -208,11 +207,9 @@ Item {
         // the resting stroke while focus is declared, and the pulse lifts it on a shot that
         // fired here. Unfocused nodes fade the accent in over their own stroke and back out.
         border.color: root.focused
-                      ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b,
-                                0.45 + 0.55 * root._pulseT)
+                      ? Qt.alpha(Theme.colorAccent, 0.45 + 0.55 * root._pulseT)
                       : (root._pulseT > 0
-                         ? Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g,
-                                   Theme.colorAccent.b, root._pulseT)
+                         ? Qt.alpha(Theme.colorAccent, root._pulseT)
                          : root._stroke)
     }
 
@@ -384,7 +381,7 @@ Item {
             elide: Text.ElideRight
             font.family: Theme.fontData
             font.pixelSize: root.tzLabel
-            color: root.isOutcome ? Theme.colorError : Theme.colorText
+            color: root.isOutcome ? Theme.colorWarn : Theme.colorText
         }
 
         // ── the run ──────────────────────────────────────────────────────────

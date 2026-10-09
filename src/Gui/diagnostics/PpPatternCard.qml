@@ -20,6 +20,12 @@
 // tag, the state pill for THIS shot, the recurrence count, direction-or-dispersion, the
 // run of ticks, trend + recency, one line of evidence prose.
 //
+// A ROW OF THE CARD, NOT A CARD IN IT. The panel's card is the frame; a pattern is one of its
+// rows in the FAULTS idiom (HmWorkOns, design §13.7): a hairline above it, a target badge in
+// the card's colorWarn leading the name (an easing arrow in colorGood when the session reads
+// it as improving), the strength meter and the verdict in words at the right of the name line,
+// the two figures in the data type under them.
+//
 // EVERY STRING IS THE MODEL'S. `recurrence` is a count over assessable shots and never a
 // percentage; `directionText` is either the direction claim or the sentence saying why the
 // claim is withheld, and this file cannot tell which and does not need to. The one thing
@@ -30,7 +36,7 @@
 import QtQuick
 import PinPointStudio
 
-Rectangle {
+Item {
     id: root
 
     // One entry of SessionDiagnosticsModel::cards().
@@ -113,107 +119,67 @@ Rectangle {
     readonly property int tzFigure:  Math.max(1, Math.round(Theme.fontSzHeading * 1.25 * fit))
 
     readonly property string _pillState: card ? (card.thisShot || "") : ""
-    readonly property color _pillColor: _pillState === "fired" ? Theme.colorError
+    // A firing is a fault, colorWarn — never the alarm red (13.2).
+    readonly property color _pillColor: _pillState === "fired" ? Theme.colorWarn
                                       : _pillState === "clean" ? Theme.colorGood
                                                                : Theme.colorText3
-    readonly property color _pillFill: _pillState === "fired" ? Theme.colorErrorLight
-                                     : _pillState === "clean" ? Theme.colorGoodLight
-                                                              : "transparent"
     readonly property color _trendColor: !card ? Theme.colorText3
-                                       : card.trend === "worsening" ? Theme.colorError
+                                       : card.trend === "worsening" ? Theme.colorWarn
                                        : card.trend === "improving" ? Theme.colorGood
                                                                     : Theme.colorText3
+    readonly property bool _easing: card ? card.trend === "improving" : false
+
+    // The badge, and the indent the row's words take from it (13.5).
+    readonly property int _badge:  px(18)
+    readonly property int _indent: _badge + px(10)
 
     objectName: "sdPatternCard"
-
-    // ── the frame carries the firing ─────────────────────────────────────────
-    //
-    // THE CARD ROW IS A DOZEN CARDS AND THE EYE NEEDS A WAY IN. Every card was framed in the
-    // same neutral grey, so a condition that fired a mile outside its corridor on this swing
-    // sat in exactly the frame of one that came in clean, and the only thing separating them
-    // was a pill the width of six characters. A casual reader — the golfer between balls, who
-    // is the reader this panel was built for — had no way to know where to look first.
-    //
-    // So the frame takes the strength meter's own colour, off the SAME ramp and the SAME step,
-    // which is what stops the two disagreeing: a card cannot be framed in red while its meter
-    // reads 1. Alpha climbs with the step, so "well outside" is a louder frame than "just past
-    // the edge" without introducing a second scale to learn.
-    //
-    // ONLY A FIRING COLOURS IT. A clean card keeps the neutral frame it always had, and that
-    // contrast is the whole mechanism — if everything is coloured then nothing is emphasised.
-    // Same for a card with no reading behind it: absent evidence must never be able to look
-    // like the loudest thing on the panel.
-    readonly property bool _firedHere: _pillState === "fired"
-    readonly property int  _strength:  card ? (card.strength || 0) : 0
-    readonly property bool _strengthKnown: card ? card.strengthKnown === true : false
-    // The fired colour where there is no step to read — the same fallback the chips use, so a
-    // measure graded against an authored number is still drawn as the firing it is.
-    readonly property color _frameColor: root._strengthKnown ? Theme.strengthColor(root._strength)
-                                                             : Theme.colorError
-
-    color: Theme.colorSurface
-    radius: Theme.radius
-    border.width: 1
-    border.color: root._firedHere
-                  ? Qt.rgba(root._frameColor.r, root._frameColor.g, root._frameColor.b,
-                            root._strengthKnown ? Math.min(1.0, 0.38 + 0.12 * root._strength)
-                                                : 0.60)
-                  : Theme.colorBorderMid
     clip: true
 
-    // ...and the faintest wash of the same hue inside it, at the ~7% the fired chips and the
-    // review cells already use. The frame is what carries the claim; this is what makes a
-    // fired card read as a block rather than as an outline, which is what the eye actually
-    // catches at arm's length. Drawn as a child because the card's own `color` is the surface
-    // token and every other aesthetic follows it.
-    Rectangle {
-        objectName: "sdCardFiredWash"
-        anchors.fill: parent
-        radius: parent.radius
-        visible: root._firedHere
-        color: Qt.rgba(root._frameColor.r, root._frameColor.g, root._frameColor.b, 0.07)
-    }
+    // ── the row carries the firing in its words ──────────────────────────────
+    //
+    // THE CARD ROW IS A DOZEN PATTERNS AND THE EYE NEEDS A WAY IN. It used to be a frame and a
+    // wash in the strength colour round each card; as rows of the panel's card that would put a
+    // box back round every pattern — and on a session where most of them fired on the shot being
+    // read, a box round nearly every one, which emphasises nothing. So a firing is said where the
+    // FAULTS row says it: FIRED HERE in the tone at the right of the name, the strength meter
+    // beside it for how far, and this shot's figure in the tone. A clean row says CLEAN HERE in
+    // colorGood; a row with no reading says so in grey, never louder than a finding.
 
-    // The accent border, drawn OVER the resting one rather than replacing it: a Rectangle has
-    // exactly one border and this card needs two states of it that cross-fade. Focused holds
-    // the accent; the pulse lifts it on a shot that fired this condition. The two share one
-    // channel on purpose — a focused card that fired is the headline of the moment (§B3) and
-    // should not need two marks to say so.
+    // The pulse lifts a wash in the accent on a shot that fired this condition; a focused row
+    // holds a little of it. The two share one channel on purpose — a focused card that fired is
+    // the headline of the moment (§B3) and should not need two marks to say so.
     Rectangle {
-        objectName: "sdCardAccentBorder"
+        objectName: "sdCardAccentWash"
         anchors.fill: parent
-        color: "transparent"
-        radius: parent.radius
-        border.width: 1
-        border.color: Theme.colorAccent
-        // Hover lights it too: the whole card is the way into the condition, and the frame
-        // answering the pointer is the affordance the TRACE ▸ label used to spell out on every
-        // card at once.
-        opacity: root.focused ? 0.45 + 0.55 * root._pulseT
-                              : Math.max(root._pulseT, cardTap.containsMouse ? 0.5 : 0.0)
+        color: Qt.alpha(Theme.colorAccent, Theme.dark ? 0.10 : 0.08)
+        opacity: root.focused ? 0.35 + 0.65 * root._pulseT : root._pulseT
         visible: opacity > 0
     }
 
+    // The hairline that opens the row (13.7).
+    Rectangle {
+        width: parent.width; height: 1
+        color: Theme.colorBorder
+    }
+
     // ── the focus bar ────────────────────────────────────────────────────────
-    // A left edge, because it is a mark ON the card rather than a thing in it — and because
-    // the card's own content is already the full width of what it has to say.
+    // The row's own rule, in the accent: a mark ON the row rather than a thing in it, and the
+    // one place the declared focus stays visible at rest.
     Rectangle {
         objectName: "sdCardFocusBar"
         visible: root.focused
-        anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-        anchors.margins: 1
-        width: Math.max(1, root.px(3))
-        radius: width / 2
+        width: parent.width
+        height: Math.max(2, root.px(2))
         color: Theme.colorAccent
         opacity: 0.7 + 0.3 * root._pulseT
     }
 
     // ── the pulse ────────────────────────────────────────────────────────────
     //
-    // ONE PASS, NOTHING MOVES. Opacity and border alpha only: no size, no position, and
-    // emphatically no reordering — the display order is hysteretic and model-side, and a card
-    // that slid to a new seat while it flashed would be reporting a rank change the ledger
-    // did not make.
+    // ONE PASS, NOTHING MOVES. Opacity only: no size, no position, and emphatically no
+    // reordering — the display order is hysteretic and model-side, and a card that slid to a new
+    // seat while it flashed would be reporting a rank change the ledger did not make.
     //
     // reduceMotion IS NOT A SHORTER PULSE, it is no pulse: the stagger goes too, so nothing
     // is waiting to happen either. The card still redraws with its new pill, its new tick and
@@ -252,13 +218,12 @@ Rectangle {
         pulseSeq.start()
     }
 
-    // THE WHOLE CARD IS THE DRILL-IN'S TARGET, and it is declared HERE — before the content —
-    // rather than last, which is where the focus tap used to sit. Declaration order is hit order
-    // in QtQuick: the focus chip's own MouseArea lives inside the Column below and is therefore
-    // ON TOP of this one, so the six characters that toggle focus keep their clicks and the rest
-    // of the card opens the condition. A TapHandler could not do this — its default gesture
-    // policy takes a PASSIVE grab, so both would fire on one press and every tap on FOCUS would
-    // also open the page. (The miss picker next door documents the same lesson.)
+    // THE WHOLE ROW IS THE DRILL-IN'S TARGET, and it is declared HERE — before the content —
+    // rather than last. Declaration order is hit order in QtQuick: the focus tag's own MouseArea
+    // lives inside the Column below and is therefore ON TOP of this one, so the six characters
+    // that toggle focus keep their clicks and the rest of the row opens the condition. A
+    // TapHandler could not do this — its default gesture policy takes a PASSIVE grab, so both
+    // would fire on one press and every tap on FOCUS would also open the page.
     MouseArea {
         id: cardTap
         objectName: "sdCardTap"
@@ -269,38 +234,46 @@ Rectangle {
         onClicked: root.detailRequested(root.card.id || "")
     }
 
+    // The badge: a pattern is a fault to work on, so a target in the card's tone — or the easing
+    // arrow where the session reads it as getting better. A shape each, so the tone is never
+    // the only channel.
+    PpBadge {
+        objectName: "sdCardBadge"
+        y: Math.round(col.y + nameText.height / 2 - height / 2)
+        size: root._badge
+        kind: root._easing ? "easing" : "target"
+        tone: root._easing ? Theme.colorGood : Theme.colorWarn
+    }
+
     Column {
         id: col
         anchors.fill: parent
-        anchors.leftMargin:   root.px(11)
-        anchors.rightMargin:  root.px(11)
-        anchors.topMargin:    root.px(9)
-        anchors.bottomMargin: root.px(9)
+        anchors.leftMargin:   root._indent
+        anchors.topMargin:    root.px(10)
+        anchors.bottomMargin: root.px(8)
         spacing: root.px(5)
 
-        // ── name · NEW · state pill ──────────────────────────────────────────
+        // ── name · NEW · meter · verdict ─────────────────────────────────────
         Item {
             width: col.width
             height: nameText.implicitHeight
 
             // ── where it sits in the row ─────────────────────────────────────
             //
-            // FIRST THING ON THE CARD, because it is the answer to the question the card row is
+            // FIRST WORD ON THE ROW, because it is the answer to the question the card row is
             // being read for. The order was already the panel's judgement about what matters
             // most; saying it out loud costs four characters and saves the golfer counting
-            // cards. Equal scores share a rank and the badge says so with a trailing "=", which
+            // rows. Equal scores share a rank and the badge says so with a trailing "=", which
             // is the one case where the row's position would lie about the model's opinion.
-            Text {
+            PpMicro {
                 id: rankTag
                 objectName: "sdCardRank"
                 anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.baseline: nameText.baseline
                 visible: text !== ""
                 text: root.card ? (root.card.rankText || "") : ""
-                font.family: Theme.fontData
-                font.pixelSize: root.tzLabel
-                font.letterSpacing: Theme.trackingLabel
-                color: Theme.colorText3
+                font.pixelSize: root.tzMicro
+                font.letterSpacing: Theme.trackingData
             }
             Text {
                 id: nameText
@@ -312,68 +285,61 @@ Rectangle {
                 anchors.right: freshTag.visible ? freshTag.left
                              : meter.visible    ? meter.left
                                                 : pill.left
-                anchors.rightMargin: root.px(7)
+                anchors.rightMargin: root.px(8)
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.card ? root.card.name : ""
                 elide: Text.ElideRight
                 font.family: Theme.fontBody
                 font.pixelSize: root.tzBody
                 font.weight: Theme.fontBodyWeight
-                color: Theme.colorText
+                // The row answers the pointer the way a FAULTS row does: its name lights.
+                color: cardTap.containsMouse ? Theme.colorAccent : Theme.colorText
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
             }
-            Text {
+            PpMicro {
                 id: freshTag
                 objectName: "sdCardFresh"
                 anchors.right: meter.visible ? meter.left : pill.left
-                anchors.rightMargin: root.px(7)
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.rightMargin: root.px(8)
+                anchors.baseline: nameText.baseline
                 visible: root.card ? root.card.fresh === true : false
                 text: qsTr("NEW")
-                font.family: Theme.fontData
-                font.pixelSize: root.tzCaption
-                font.letterSpacing: Theme.trackingMicro
+                font.pixelSize: root.tzMicro
                 color: Theme.colorAccent
             }
             // HOW FAR OUT, immediately left of WHETHER it was out. The two belong in one
-            // glance: the pill is the verdict and the meter is its size, and a reader who
-            // takes only the colour off the card still gets the verdict they always did.
+            // glance: the words are the verdict and the meter is its size.
             PpStrengthMeter {
                 id: meter
                 objectName: "sdCardStrength"
                 anchors.right: pill.left
-                anchors.rightMargin: root.px(7)
+                anchors.rightMargin: root.px(8)
                 anchors.verticalCenter: parent.verticalCenter
                 level:   root.card ? (root.card.strength || 0) : 0
                 known:   root.card ? root.card.strengthKnown === true : false
                 caption: root.card ? (root.card.strengthText || "") : ""
                 fit: root.fit
             }
-            Rectangle {
+            // The verdict for THIS shot, in words — FIRED HERE, CLEAN HERE, NOT MEASURED.
+            Item {
                 id: pill
                 objectName: "sdStatePill"
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                width:  pillText.implicitWidth + root.px(12)
-                height: pillText.implicitHeight + root.px(2)
-                radius: Math.max(1, root.px(2))
-                color: root._pillFill
-                border.width: root._pillState === "notAssessable" ? 1 : 0
-                border.color: Theme.colorBorder
+                width:  pillText.implicitWidth
+                height: pillText.implicitHeight
 
-                Text {
+                PpMicro {
                     id: pillText
-                    anchors.centerIn: parent
                     text: root.card ? (root.card.statePill || "") : ""
-                    font.family: Theme.fontData
-                    font.pixelSize: root.tzCaption
-                    font.letterSpacing: Theme.trackingLabel
+                    font.pixelSize: root.tzMicro
                     color: root._pillColor
                 }
             }
         }
 
-        // ── recurrence: a count over assessable shots, and the largest thing on the card
-        //    because it is the thing being asserted (12b's note, which holds at every size).
+        // ── recurrence: a count over assessable shots, the thing being asserted (12b's note,
+        //    which holds at every size).
         Text {
             id: recurrenceTxt
             objectName: "sdCardRecurrence"
@@ -382,26 +348,24 @@ Rectangle {
             elide: Text.ElideRight
             font.family: Theme.fontData
             font.pixelSize: root.tzData
-            color: Theme.colorText
+            color: Theme.colorText2
         }
 
         // ── what was read, and what it was tested against ────────────────────
         //
-        // THE RECEIPT, and it is here because the card is now the drill-in's doorway. The meter
-        // in the header says HOW FAR out this swing sat; this says out of WHAT, in the measure's
-        // own units, which is the difference between a verdict and a reading. The model already
-        // published both strings (cardMap) — until now only the review strip drew them.
+        // THE RECEIPT, and it is here because the row is the drill-in's doorway. The meter says
+        // HOW FAR out this swing sat; this says out of WHAT, in the measure's own units, which is
+        // the difference between a verdict and a reading.
         //
         // It outranks the direction prose in the drop order below: a sentence about the session
-        // is what goes when the card is short, never the number this swing produced.
+        // is what goes when the row is short, never the number this swing produced.
         Text {
             id: readingTxt
             // ⚠ EVERY OPTIONAL LINE PLACES ITSELF FROM THE VISIBLE LINES ABOVE IT, NEVER FROM
             // ITS OWN `y`. A Column does not reposition a hidden child, so a line that hid once
-            // kept a stale y and measured its room from there: the trend line sat at y=120 on a
-            // card where it belonged at ~97, judged it had no room, and never came back — the
-            // trend was missing on every card at the panel's design height. `_top` is where the
-            // line WOULD go, from its predecessors' heights and visibility only.
+            // kept a stale y and measured its room from there, judged it had no room, and never
+            // came back. `_top` is where the line WOULD go, from its predecessors' heights and
+            // visibility only.
             readonly property real _top: recurrenceTxt.y + recurrenceTxt.height + col.spacing
             objectName: "sdCardReading"
             width: col.width - figures.reserve
@@ -415,16 +379,14 @@ Rectangle {
             elide: Text.ElideRight
             font.family: Theme.fontData
             font.pixelSize: root.tzMicro
-            color: root._pillState === "fired" ? Theme.colorError
+            color: root._pillState === "fired" ? Theme.colorWarn
                  : root._pillState === "clean" ? Theme.colorText2
                                                : Theme.colorText3
         }
 
         // ── direction, or the sentence saying the direction claim is withheld ─
         //
-        // THE FIRST THING TO GO WHEN THE CARD IS SHORT, and it goes before the run does. What
-        // is under this line is the ledger — the run, and what happened after the reviewed
-        // shot — and prose must not push evidence off the bottom of its own card. Dropped
+        // THE FIRST THING TO GO WHEN THE ROW IS SHORT, and it goes before the run does. Dropped
         // whole, never half-drawn: a tick run cut through the middle reads as a run of short
         // ticks, which is a claim about the session that the ledger never made.
         Text {
@@ -448,7 +410,7 @@ Rectangle {
         }
 
         // ── the run ──────────────────────────────────────────────────────────
-        // Last to go, and only when the card cannot hold it whole.
+        // Last to go, and only when the row cannot hold it whole.
         PpTickRun {
             id: run
             readonly property real _top: directionTxt.visible
@@ -490,10 +452,8 @@ Rectangle {
                 objectName: "sdCardRecency"
                 anchors.left: trendTxt.right
                 anchors.leftMargin: root.px(8)
-                anchors.right: traceTag.visible ? traceTag.left
-                             : focusTag.visible ? focusTag.left
-                                                : parent.right
-                anchors.rightMargin: (traceTag.visible || focusTag.visible) ? root.px(8) : 0
+                anchors.right: focusTag.visible ? focusTag.left : parent.right
+                anchors.rightMargin: focusTag.visible ? root.px(8) : 0
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.card ? (root.card.firingsAfterText || root.card.recencyText || "") : ""
                 elide: Text.ElideRight
@@ -501,53 +461,27 @@ Rectangle {
                 font.pixelSize: root.tzCaption
                 color: Theme.colorText3
             }
-            // The affordance, in the house micro-label style — a caret invites, a middot
-            // reports. It is here rather than as a hover-only reveal because a contract the
-            // golfer cannot see is a contract they will never declare, and nothing else on
-            // this panel is discoverable by hovering.
-            // THE DRILL-IN, SAID OUT LOUD. The whole card has opened the condition since the
-            // tap was reassigned, and nothing on the card said so — an affordance the golfer
-            // cannot see is one they will never use, which is the same argument the FOCUS
-            // micro-label is here for. It matters more now than it did: the causal chain left
-            // the front page and this caret is the only route to it.
-            Text {
-                id: traceTag
-                objectName: "sdCardTraceTag"
-                anchors.right: focusTag.visible ? focusTag.left : parent.right
-                anchors.rightMargin: focusTag.visible ? root.px(8) : 0
-                anchors.verticalCenter: parent.verticalCenter
-                // QUIET: gone from the resting card. Twelve cards each saying TRACE ▸ was twelve
-                // labels for one fact; the pointer and the lit frame say it on the card in hand.
-                visible: false
-                text: qsTr("TRACE ▸")
-                font.family: Theme.fontData
-                font.pixelSize: root.tzCaption
-                font.letterSpacing: Theme.trackingLabel
-                color: cardTap.containsMouse ? Theme.colorAccent : Theme.colorText3
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-            }
-            Text {
+            // THE FOCUS CONTRACT, in the house micro-label style — a caret invites, a middot
+            // reports. QUIET: shown on the row under the pointer, and always once it IS the
+            // focus — a declared focus is state worth seeing at rest; the offer to make one is
+            // not. Opacity rather than visibility so it keeps its place and its tap target.
+            PpMicro {
                 id: focusTag
                 objectName: "sdCardFocusTag"
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.interactive && !!root.card
-                // QUIET: shown on the card under the pointer, and always once it IS the focus —
-                // a declared focus is state worth seeing at rest; the offer to make one is not.
-                // Opacity rather than visibility so it keeps its place and its tap target.
                 opacity: (root.focused || cardTap.containsMouse || focusTap.containsMouse) ? 1.0 : 0.0
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
                 text: root.focused ? qsTr("FOCUSED ·") : qsTr("FOCUS ▸")
-                font.family: Theme.fontData
                 font.pixelSize: root.tzCaption
-                font.letterSpacing: Theme.trackingLabel
                 color: root.focused ? Theme.colorAccent
                                     : (focusTap.containsMouse ? Theme.colorAccent : Theme.colorText3)
                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
                 // THE FOCUS TARGET, and the only one. Grown past the glyphs by a few pixels
                 // because six characters at 8 px is not a thumb target — but not by so much that
-                // it eats the recency line beside it, which is the card's, not the contract's.
+                // it eats the recency line beside it, which is the row's, not the contract's.
                 MouseArea {
                     id: focusTap
                     objectName: "sdCardFocusTap"
@@ -562,7 +496,7 @@ Rectangle {
         }
 
         // ── one line of evidence prose ───────────────────────────────────────
-        // Dropped, not shrunk, when the card is too short to hold it: an evidence sentence
+        // Dropped, not shrunk, when the row is too short to hold it: an evidence sentence
         // clipped mid-clause reads as a different claim than the one the model made.
         Text {
             id: evidence
@@ -578,23 +512,20 @@ Rectangle {
             font.family: Theme.fontBody
             font.pixelSize: root.tzMicro
             font.weight: Theme.fontBodyWeight
-            color: Theme.colorText2
+            color: Theme.colorText3
         }
     }
 
     // ── the two figures ──────────────────────────────────────────────────────
     //
-    // Top-right, beside the recurrence line, in the large data type. The width it RESERVES from
-    // the lines beside it is its widest form, always — so dropping a caption for height never
-    // changes how those lines wrap, and the two decisions cannot chase each other round a loop.
+    // Right of the recurrence line, in the large data type. The width it RESERVES from the lines
+    // beside it is its widest form, always — so dropping a caption for height never changes how
+    // those lines wrap, and the two decisions cannot chase each other round a loop.
     //
-    // WHEN THE CARD IS SHORT the captions go and the unit moves up beside the numbers, small, on
+    // WHEN THE ROW IS SHORT the captions go and the unit moves up beside the numbers, small, on
     // their baseline — the unit is never dropped and the numbers never shrink (the brief: "drop
     // the captions before shrinking the numbers"). The room is what lies between the recurrence
-    // line's top and the run under it; at the real panel's 142 px cards that is one number high.
-    //
-    // THE RESERVE IS THE WIDER OF THE TWO FORMS, whichever is showing, so the form (a height
-    // decision) can never feed back into how the lines beside it wrap (a width decision).
+    // line's top and the run under it.
     Item {
         id: figures
         objectName: "sdCardFigures"
@@ -653,7 +584,7 @@ Rectangle {
                 font.family: Theme.fontData
                 font.pixelSize: root.tzFigure
                 // The verdict's colour, as everywhere on the panel; the quiet grey for "-".
-                color: state === "fired" ? Theme.colorError
+                color: state === "fired" ? Theme.colorWarn
                      : state === "clean" ? Theme.colorGood
                                          : Theme.colorText3
             }

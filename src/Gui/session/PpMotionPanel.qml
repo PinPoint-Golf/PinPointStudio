@@ -152,11 +152,7 @@ Item {
 
                     PpDivider { width: parent.width }
 
-                    Text {
-                        text: qsTr("PRESET")
-                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-                    }
+                    PpMicro { text: qsTr("PRESET") }
 
                     Column {
                         width: parent.width
@@ -256,8 +252,9 @@ Item {
                                 color: Theme.colorText
                             }
                         }
-                        Text {
+                        PpMicro {
                             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                            font.letterSpacing: Theme.trackingData
                             text: {
                                 var id = ViewLayout.motionPreset(root._mode)
                                 if (id === "custom") return qsTr("Custom")
@@ -266,8 +263,6 @@ Item {
                                     if (cat[i].id === id) return qsTr("from %1").arg(cat[i].label)
                                 return ""
                             }
-                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                            color: Theme.colorText3
                         }
                     }
 
@@ -281,11 +276,7 @@ Item {
                         color: Theme.colorText3
                     }
 
-                    Text {
-                        text: qsTr("BODY")
-                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-                    }
+                    PpMicro { text: qsTr("BODY") }
                     Column {
                         width: parent.width
                         spacing: Theme.sp(9)
@@ -299,11 +290,7 @@ Item {
                         }
                     }
 
-                    Text {
-                        text: qsTr("OBJECTS")
-                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                        font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-                    }
+                    PpMicro { text: qsTr("OBJECTS") }
                     Column {
                         width: parent.width
                         spacing: Theme.sp(9)
@@ -370,21 +357,40 @@ Item {
     }
 
     // ── element row: label + 4-segment off/frame/fan/trace control ─────────
+    // A dimmed segment is not enough on its own: when some of the row's modes
+    // can't draw on this swing, the reason sits under the label in words.
     component ElementRow: Item {
+        id: elementRow
         property string elementKey:   ""
         property string elementLabel: ""
         width: parent.width
-        height: Theme.sp(24)
+        height: Math.max(Theme.sp(24), labelCol.implicitHeight)
 
-        Text {
-            anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-            text: elementLabel
-            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-            color: Theme.colorText
+        Column {
+            id: labelCol
+            anchors { left: parent.left; right: rowSeg.left; rightMargin: Theme.sp(8)
+                      verticalCenter: parent.verticalCenter }
+            Text {
+                width: parent.width
+                text: elementRow.elementLabel
+                elide: Text.ElideRight
+                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+                color: Theme.colorText
+            }
+            Text {
+                width: parent.width
+                visible: text !== ""
+                text: rowSeg.reason
+                elide: Text.ElideRight
+                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                font.letterSpacing: Theme.trackingData
+                color: Theme.colorText3
+            }
         }
         ElementSegmented {
+            id: rowSeg
             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-            elementKey: parent.elementKey
+            elementKey: elementRow.elementKey
         }
     }
 
@@ -405,6 +411,24 @@ Item {
             { value: "trace", glyph: "∿" }
         ]
         readonly property string _selected: ViewLayout.elementMode(SessionMode.mode, elementKey)
+
+        // Why some of this element's modes are dimmed, in words ("" when every mode can draw).
+        readonly property string reason: {
+            if (!shotReplay.active) return qsTr("load a swing to draw it")
+            var key    = seg.elementKey
+            var frame  = seg._available("frame")
+            var motion = seg._available("fan") || seg._available("trace")
+            var pointLike = key === "ball" || key === "plane" || key === "synth"
+            if (!frame && !motion)
+                return key === "shaft" ? qsTr("no club track on this swing")
+                     : key === "ball"  ? qsTr("no ball track on this swing")
+                     : key === "synth" ? qsTr("not on this swing (two cameras)")
+                     :                   qsTr("no pose track on this swing")
+            if (!motion)
+                return pointLike ? qsTr("frame only")
+                                 : qsTr("fan · trace need a re-analysis")
+            return ""
+        }
 
         // Data-availability for the loaded swing. shotReplay is the global
         // Review/Analyse replay facade (ShotReplayController) — Capture never
@@ -497,7 +521,7 @@ Item {
             width: Theme.sp(14); height: width; radius: width / 2
             y: Theme.sp(2)
             x: checked ? parent.width - width - Theme.sp(2) : Theme.sp(2)
-            color: checked ? (Theme.dark ? Theme.colorBg : "#FFFFFF") : Theme.colorText3
+            color: checked ? (Theme.dark ? Theme.colorBg : Theme.colorSurface) : Theme.colorText3
             Behavior on x { NumberAnimation { duration: Theme.durationFast } }
         }
         MouseArea {

@@ -16,51 +16,52 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// The "Working well" dock card — positive findings the golfer should protect while fixing faults.
+// The WORKING WELL section of the Wrist motion panel — positive findings the golfer should protect
+// while fixing faults, as check rows (FindingCard) like the home screen's WHAT YOU DO WELL. A
+// section, not a card: a Micro heading in colorGood, an italic line on why, hairlines between rows.
+
+pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Layouts
 import PinPointStudio
 
-Rectangle {
+Column {
     id: root
 
     property var strengths: []
     signal seek(real us)
 
-    Layout.fillWidth: true
-    implicitHeight: col.implicitHeight + Theme.sp(24)
-    radius: Theme.radiusLg
-    color: Theme.colorSurface
-    border.width: Theme.borderWidth
-    border.color: Theme.colorBorder
+    spacing: 0
 
-    ColumnLayout {
-        id: col
-        anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(12) }
-        spacing: Theme.sp(8)
+    PpMicro {
+        bottomPadding: Theme.sp(4)
+        text:  qsTr("WORKING WELL")
+        color: Theme.colorGood
+    }
+    Text {
+        visible: root.strengths.length > 0
+        width:   parent.width
+        bottomPadding: Theme.sp(4)
+        text: qsTr("Keep these while you work on the findings — they're correct, and easy to lose by accident when changing something else.")
+        wrapMode: Text.WordWrap
+        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
+        font.weight: Theme.fontBodyWeight; font.italic: true
+        color: Theme.colorText3
+    }
+    PpCardNote {
+        visible: root.strengths.length === 0
+        width:   parent.width
+        topPadding: Theme.sp(6)
+        text: qsTr("Nothing in this swing stands out as one to keep yet.")
+    }
 
-        Text {
-            text: qsTr("Working well")
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
-            font.capitalization: Font.AllUppercase; font.letterSpacing: Theme.trackingLabel
-            color: Theme.colorText3
-        }
-        Text {
-            Layout.fillWidth: true
-            text: qsTr("Keep these while you work on the findings — they're correct, and easy to lose by accident when changing something else.")
-            wrapMode: Text.WordWrap
-            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; color: Theme.colorText3
-        }
-
-        Repeater {
-            model: root.strengths
-            delegate: FindingCard {
-                required property var modelData
-                Layout.fillWidth: true
-                finding: modelData
-                onSeek: (u) => root.seek(u)
-            }
+    Repeater {
+        model: root.strengths
+        delegate: FindingCard {
+            required property var modelData
+            width:   root.width
+            finding: modelData
+            onSeek: (u) => root.seek(u)
         }
     }
 }

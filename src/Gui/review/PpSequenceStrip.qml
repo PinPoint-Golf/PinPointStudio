@@ -24,12 +24,17 @@ import PinPointStudio
 // PpSequenceStrip — the kinematic sequence TILE under the chart (2026-10-02), deliberately plain:
 // four rows in the order the segments SHOULD peak, each with the place it ACTUALLY peaked, when,
 // how fast, and that speed as a % of the tour-pro peak, each with its ±σ. It mirrors the plot:
-// every peak marked on a curve has a row with numbers; an unplaced one is dimmed with a "?". A wrong order shows as a red number in
-// the ACTUAL column; nothing else needs reading. A first cut carried σ, timing windows, two order
+// every peak marked on a curve has a row with numbers; an unplaced one is dimmed with a "?". The
+// ACTUAL column carries the judgement as a mark beside the number — a tick in turn, a target out
+// of turn, a dashed ring where the peak could not be pinned — so a wrong order is a shape and a
+// colour, and nothing else needs reading. A first cut carried σ, timing windows, two order
 // sentences and a cohort paragraph — Mark: "way too wordy and almost unreadable".
 //
 // Shown only under the "Kinematic sequence" preset. Every string is ChartMetrics.sequenceTable's
-// (chart_metrics_test asserts them); this file binds and picks colours.
+// (chart_metrics_test asserts them); this file binds and picks colours and marks.
+//
+// A SECTION OF THE CHART PANEL, NOT A CARD: it sits inside the panel's card, so it opens on a
+// hairline and a Micro heading like the panel's other sections rather than drawing a box.
 ColumnLayout {
     id: root
     objectName: "sequenceStrip"
@@ -46,11 +51,7 @@ ColumnLayout {
 
     ChartMetrics { id: cm }
 
-    component HeadText: Text {
-        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-        font.letterSpacing: Theme.trackingLabel
-        color: Theme.colorText3
-    }
+    component HeadText: PpMicro {}
     component CellText: Text {
         font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody
         color: Theme.colorText
@@ -64,18 +65,17 @@ ColumnLayout {
     readonly property real _wPeak:  Theme.sp(120)
     readonly property real _wSpeed: Theme.sp(100)
 
-    Rectangle {
+    Item {
         objectName: "sequenceTile"
         Layout.fillWidth: true
-        implicitHeight: tileCol.implicitHeight + Theme.sp(20)
-        color: Theme.colorSurface
-        border.color: Theme.colorBorder; border.width: 1
-        radius: Theme.sp(8)
+        implicitHeight: tileCol.implicitHeight + Theme.sp(10)
+
+        Rectangle { width: parent.width; height: 1; color: Theme.colorBorder }
 
         ColumnLayout {
             id: tileCol
-            x: Theme.sp(14); y: Theme.sp(10)
-            width: parent.width - Theme.sp(28)
+            x: Theme.sp(6); y: Theme.sp(8)
+            width: parent.width - Theme.sp(12)
             spacing: Theme.sp(6)
 
             // ── title + the verdict ────────────────────────────────────────────────────────────
@@ -98,8 +98,9 @@ ColumnLayout {
                           + root._table.verdictText
                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
                     font.weight: Font.DemiBold
+                    // colorWarn, not colorError: an order to work on is a fault, not an alarm.
                     color: root._table.verdictState === "match"    ? Theme.colorGood
-                         : root._table.verdictState === "mismatch" ? Theme.colorError
+                         : root._table.verdictState === "mismatch" ? Theme.colorWarn
                                                                    : Theme.colorText2
                 }
             }
@@ -138,13 +139,33 @@ ColumnLayout {
                         Layout.preferredWidth: root._wRank
                         color: Theme.colorText3
                     }
-                    CellText {
-                        objectName: "sequenceActual:" + seg.modelData.segment
-                        text: seg.modelData.actualRank
+                    // The rank and its mark: out of turn is a target in colorWarn, in turn a tick in
+                    // colorGood, a peak the producer could not pin a dashed ring (its rank already
+                    // carries the "?"), and no peak at all neither.
+                    Row {
+                        id: rankCell
                         Layout.preferredWidth: root._wRank
-                        font.weight: Font.Bold
-                        color: seg.modelData.outOfTurn          ? Theme.colorError
-                             : seg.modelData.actualRank !== "—"  ? Theme.colorGood : Theme.colorText3
+                        spacing: Theme.sp(6)
+                        readonly property string mark: seg.modelData.actualRank === "—" ? ""
+                                                      : seg.modelData.outOfTurn          ? "target"
+                                                      : seg.modelData.placed             ? "check"
+                                                      :                                    "unconfirmed"
+                        CellText {
+                            id: rankText
+                            objectName: "sequenceActual:" + seg.modelData.segment
+                            text: seg.modelData.actualRank
+                            font.weight: Font.Bold
+                            color: seg.modelData.outOfTurn          ? Theme.colorWarn
+                                 : seg.modelData.actualRank !== "—"  ? Theme.colorGood : Theme.colorText3
+                        }
+                        PpBadge {
+                            visible: rankCell.mark !== ""
+                            anchors.verticalCenter: rankText.verticalCenter
+                            size: Theme.sp(16)
+                            kind: rankCell.mark !== "" ? rankCell.mark : "check"
+                            tone: rankCell.mark === "target" ? Theme.colorWarn
+                                : rankCell.mark === "check"  ? Theme.colorGood : Theme.colorText3
+                        }
                     }
                     CellText {
                         objectName: "sequencePeaked:" + seg.modelData.segment
@@ -175,7 +196,7 @@ ColumnLayout {
         // The whole title line toggles, edge to edge — the same hit area a section header has.
         Item {
             x: 0; y: 0; width: parent.width
-            height: Theme.sp(10) + Theme.sp(24)
+            height: Theme.sp(8) + Theme.sp(24)
             PpPressable { objectName: "sequenceToggle"; hoverScale: 1.0; onClicked: root.toggled() }
         }
     }

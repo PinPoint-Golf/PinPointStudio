@@ -25,6 +25,10 @@
 //
 // Expanding opens THE SAME CONTENT larger, not a different view (brief §8) — the same rows,
 // one per line, so nothing is revealed by expanding that the collapsed row was hiding.
+//
+// Unfolded, each is a row of the card in the FAULTS idiom: a hairline above it and the dashed
+// ring leading the name — the unconfirmed badge, because a watched condition is exactly that:
+// seen, and not yet evidence.
 
 import QtQuick
 import PinPointStudio
@@ -54,6 +58,7 @@ Item {
 
     readonly property int tzCaption: Math.max(1, Math.round(Theme.sp(8) * fit))
     readonly property int tzMicro:   Math.max(1, Math.round(Theme.fontSzMicro * fit))
+    readonly property int tzBody:    Math.max(1, Math.round(Theme.fontSzBody2 * fit))
     readonly property int count: items ? items.length : 0
 
     // Held off screen while the panel is showing a condition detail. A `visible:` at the use site
@@ -89,15 +94,13 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.leftMargin:  root.px(4)
-        anchors.rightMargin: root.px(4)
-        spacing: root.px(4)
+        spacing: root.foldable ? root.px(4) : 0
 
         Item {
             width: parent.width
             height: root.px(22)
 
-            Text {
+            PpMicro {
                 id: label
                 objectName: "sdWatchingLabel"
                 anchors.left: parent.left
@@ -105,10 +108,7 @@ Item {
                 text: root.foldable
                       ? (root.expanded ? "▴ " : "▾ ") + qsTr("WATCHING (%1)").arg(root.count)
                       : qsTr("SEEN, NOT YET A PATTERN · TAP ONE TO TRACE IT")
-                font.family: Theme.fontData
-                font.pixelSize: root.tzCaption
-                font.letterSpacing: Theme.trackingMicro
-                color: Theme.colorText3
+                font.pixelSize: root.tzMicro
             }
             Text {
                 objectName: "sdWatchingLine"
@@ -129,39 +129,55 @@ Item {
             model: root.expanded ? root.items : []
 
             Item {
+                id: watchItem
                 required property var modelData
                 objectName: "sdWatchingItem"
                 width: body.width
-                height: root.foldable ? root.px(16) : root.px(24)
+                height: root.foldable ? root.px(16) : root.px(36)
 
+                Rectangle {
+                    visible: !root.foldable
+                    width: parent.width; height: 1
+                    color: Theme.colorBorder
+                }
+                PpBadge {
+                    id: watchBadge
+                    visible: !root.foldable
+                    anchors.verticalCenter: parent.verticalCenter
+                    size: root.px(16)
+                    kind: "unconfirmed"
+                    tone: Theme.colorText3
+                }
                 Text {
                     anchors.left: parent.left
-                    anchors.leftMargin: root.px(14)
+                    anchors.leftMargin: root.foldable ? root.px(14) : watchBadge.width + root.px(10)
                     anchors.right: recurrence.left
                     anchors.rightMargin: root.px(9)
                     anchors.verticalCenter: parent.verticalCenter
-                    text: modelData.name || ""
+                    text: watchItem.modelData.name || ""
                     elide: Text.ElideRight
                     font.family: Theme.fontBody
-                    font.pixelSize: root.tzMicro
+                    font.pixelSize: root.foldable ? root.tzMicro : root.tzBody
                     font.weight: Theme.fontBodyWeight
-                    color: Theme.colorText2
+                    color: itemTap.containsMouse ? Theme.colorAccent : Theme.colorText
                 }
                 Text {
                     id: recurrence
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    text: modelData.recurrence || ""
+                    text: watchItem.modelData.recurrence || ""
                     font.family: Theme.fontData
                     font.pixelSize: root.tzMicro
                     color: Theme.colorText3
                 }
 
                 MouseArea {
+                    id: itemTap
                     objectName: "sdWatchingItemTap"
                     anchors.fill: parent
+                    hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root.itemActivated(parent.modelData.id || "")
+                    onClicked: root.itemActivated(watchItem.modelData.id || "")
                 }
             }
         }

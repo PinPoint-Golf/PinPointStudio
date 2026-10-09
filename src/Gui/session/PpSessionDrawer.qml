@@ -65,11 +65,7 @@ Item {
             Layout.topMargin:    Theme.sp(13)
             Layout.bottomMargin: Theme.sp(13)
 
-            Text {
-                text: qsTr("CHOOSE A SESSION")
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingLabel; color: Theme.colorText3
-            }
+            PpMicro { text: qsTr("CHOOSE A SESSION") }
             Item { Layout.fillWidth: true }
             Item {   // ✕ close (padded hit area)
                 Layout.preferredWidth:  Theme.sp(20)
@@ -89,7 +85,7 @@ Item {
         }
         Rectangle {
             Layout.fillWidth: true
-            height: 1; color: Theme.colorBorderMid; opacity: Theme.borderOpacityNormal
+            implicitHeight: 1; color: Theme.colorBorder
         }
 
         // ── Session rows ────────────────────────────────────────────────────
@@ -108,14 +104,12 @@ Item {
 
             // Quiet invitation when there is no saved history yet — the live row
             // is always present (count 1), so "no saved sessions" means count ≤ 1.
-            Text {
+            PpCardNote {
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: Theme.sp(16)
                 visible: list.count <= 1
                 text: qsTr("No saved sessions yet")
-                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                color: Theme.colorText3
             }
         }
     }
@@ -286,6 +280,7 @@ Item {
                     // hover rows, destructive action below a separator).
                     Popup {
                         id: rowMenu
+                        objectName: "rowMenu"
                         parent: kebab
                         x: kebab.width - width            // right edges aligned
                         y: -height - Theme.sp(4)          // open upward, like the carousel
@@ -293,10 +288,7 @@ Item {
                         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
                         contentWidth: Math.max(exportRow.implicitWidth, trashRow.implicitWidth)
                                       + Theme.sp(28)
-                        background: Rectangle {
-                            color: Theme.colorSurface; radius: Theme.radiusLg
-                            border.width: 1; border.color: Theme.colorBorderStrong
-                        }
+                        background: PpPopoverCard {}
 
                         contentItem: Column {
 
@@ -404,11 +396,9 @@ Item {
             font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
             color: valueColor
         }
-        Text {
+        PpMicro {
             anchors.right: parent.right
             text: unit
-            font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingLabel; color: Theme.colorText3
         }
     }
 }

@@ -26,6 +26,11 @@
 //   • horizontal — line near the top, labels in a row beneath (host: top rail).
 //   • vertical   — line near the left, labels in a column to the right (host: left of stage).
 // All iterative maths lives on `solver`; QML keeps to declarative bindings + handlers.
+//
+// A FLAT RAIL, NOT A CARD: it runs along the stage's edge and frames nothing. Its chips are the
+// card family's chips (PpChip), and the measured P-positions use the provenance marks — a solid
+// dot where the position was fitted, a hollow ring where it was sampled off the track — with
+// the key in words at the rail's far end.
 
 pragma ComponentBehavior: Bound
 
@@ -52,9 +57,15 @@ Item {
     readonly property int  _activeIdx: solver.activeStation(_phases, shotReplay.positionUs)
 
     // ── Geometry (cross-axis offsets fixed; main-axis = the line direction) ──────
+    // The cross-axis stack, from the rail's top (horizontal) or left (vertical) edge: the readout
+    // chip's row (horizontal only), the P-chips, their provenance marks at _markGap off the line,
+    // the line, then the station labels. Vertical puts the P-chips LEFT of the line, so the line
+    // stands far enough in for the widest of them ("P10") to fit.
     readonly property real _insetMain: _horizontal ? Theme.sp(34) : Theme.sp(22)
-    readonly property real _lineCross: _horizontal ? Theme.sp(46) : Theme.sp(26)
-    readonly property real _labelBand: _horizontal ? Theme.sp(74) : Theme.sp(48)
+    readonly property real _lineCross: _horizontal ? Theme.sp(52) : Theme.sp(48)
+    readonly property real _labelBand: _horizontal ? Theme.sp(80) : Theme.sp(68)
+    readonly property real _markGap:   Theme.sp(10)     // line → provenance mark centre
+    readonly property real _chipGap:   Theme.sp(14)     // line → P-chip's near edge
     readonly property real _lineLen:   Math.max(1, (_horizontal ? width : height) - 2 * _insetMain)
     readonly property real _beadMain:  _insetMain + _playFrac * _lineLen
     // Markup diamonds ride the side of the line OPPOSITE the labels (above when
@@ -81,12 +92,14 @@ Item {
     // user-facing show/hide would be a View-menu/ViewLayout concern (per-view display
     // settings), not something owned here.
     readonly property var _positions: (_detail && _detail.club) ? (_detail.club.positions || []) : []
-    // gap arg (Theme.sp(6)) reserves the chip's horizontal padding between
-    // neighbours so clustered chips (the P5/P6/P7 downswing group) never touch.
+    // gap arg reserves a PpChip's padding (sp(12)) plus a hair between neighbours, so
+    // clustered chips (the P5/P6/P7 downswing group) never touch.
     readonly property var _pTicks: (shotReplay.active && _positions.length > 0)
         ? solver.positionLayout(_positions, shotReplay.startUs, shotReplay.endUs, _horizontal,
-                                _lineLen, Theme.sp(6), Theme.fontData, Theme.fontSzMicro)
+                                _lineLen, Theme.sp(14), Theme.fontData, Theme.fontSzMicro)
         : []
+    readonly property bool _anyFitted:  _pTicks.some(function (t) { return t.source === 1 })
+    readonly property bool _anySampled: _pTicks.some(function (t) { return t.source !== 1 })
 
     // Ground-truth markup positions for the swing currently on the line, in the same
     // window-relative µs domain as the stations. Shown only while the Markup panel is
@@ -185,29 +198,28 @@ Item {
             }
         }
 
-        // ── Measured P-positions — provenance ticks ─────────────────────────────
-        // One tick per fused position (see root._pTicks above), straddling the line
-        // at its TRUE proportional time like the shaft ticks above. Colour flags fit
-        // provenance (MilestoneFit = the discrete higher-confidence fit; TrackSample
-        // = the raw fused track). Subtle reference chrome, drawn under the dots. The
-        // clickable "Pn" chips that carry the label and seek to each position are a
-        // SEPARATE layer declared after the scrub band (so their taps win) — below.
+        // ── Measured P-positions — provenance marks ─────────────────────────────
+        // One mark per fused position (see root._pTicks above), at its TRUE proportional time,
+        // just off the line on the P-chips' side — the anchor the chip above it was nudged from.
+        // The provenance vocabulary: a solid dot for MilestoneFit (source 1, the discrete fit),
+        // a hollow ring for TrackSample (source 0, sampled off the fused track). The clickable
+        // "Pn" chips that carry the label and seek to each position are a SEPARATE layer
+        // declared after the scrub band (so their taps win) — below.
         Repeater {
             model: root._pTicks
             delegate: Rectangle {
                 id: ptick
                 required property var modelData
+                readonly property bool fitted: ptick.modelData.source === 1
                 readonly property real tickMain: root._insetMain + ptick.modelData.frac * root._lineLen
-                readonly property real len:   Theme.sp(9)
-                readonly property real thick: Theme.sp(2)
-                width:  root._horizontal ? thick : len
-                height: root._horizontal ? len   : thick
-                radius: Theme.sp(1)
+                readonly property real markCross: root._lineCross - root._markGap
+                width: Theme.sp(6); height: width; radius: width / 2
                 antialiasing: true
-                color: ptick.modelData.source === 1 ? Theme.colorGood : Theme.colorText3
-                opacity: 0.5
-                x: (root._horizontal ? tickMain : root._lineCross) - width / 2
-                y: (root._horizontal ? root._lineCross : tickMain) - height / 2
+                color: ptick.fitted ? Theme.colorText2 : "transparent"
+                border.width: ptick.fitted ? 0 : Theme.sp(1.5)
+                border.color: Theme.colorText2
+                x: (root._horizontal ? tickMain : markCross) - width / 2
+                y: (root._horizontal ? markCross : tickMain) - height / 2
             }
         }
 
@@ -344,39 +356,52 @@ Item {
         // after the scrub band so a chip tap wins over a scrub drag.
         Repeater {
             model: root._pTicks
-            delegate: Rectangle {
+            delegate: PpChip {
                 id: pchip
                 required property var modelData
                 readonly property bool hovered: pchipHover.hovered
                 readonly property real labelMain: root._insetMain + pchip.modelData.center
-                readonly property real gap:  Theme.sp(9)
-                readonly property real padH: Theme.sp(4)
-                readonly property real padV: Theme.sp(2)
-                width:  plabel.implicitWidth  + 2 * padH
-                height: plabel.implicitHeight + 2 * padV
-                radius: height / 2
-                antialiasing: true
-                color: pchip.hovered
-                       ? Theme.colorSurface
-                       : Qt.rgba(Theme.colorSurface.r, Theme.colorSurface.g,
-                                 Theme.colorSurface.b, 0.5)
-                border.width: 1
-                border.color: pchip.hovered ? Theme.colorBorderStrong : Theme.colorBorderMid
+                text: pchip.modelData.label
+                tinted: pchip.hovered
+                tone: pchip.hovered ? Theme.colorAccent : Theme.colorText2
                 x: root._horizontal ? (labelMain - width / 2)
-                                    : (root._lineCross - gap - width)
-                y: root._horizontal ? (root._lineCross - gap - height)
+                                    : (root._lineCross - root._chipGap - width)
+                y: root._horizontal ? (root._lineCross - root._chipGap - height)
                                     : (labelMain - height / 2)
 
-                Text {
-                    id: plabel
-                    anchors.centerIn: parent
-                    text: pchip.modelData.label
-                    font.family: Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    color: pchip.hovered ? Theme.colorText : Theme.colorText2
-                }
                 TapHandler { onTapped: shotReplay.seekToUs(pchip.modelData.tUs) }
                 HoverHandler { id: pchipHover; cursorShape: Qt.PointingHandCursor }
+            }
+        }
+
+        // The provenance key, in words, at the rail's far end: across the top (horizontal),
+        // under the line (vertical). Only the marks that are on the rail are named.
+        Row {
+            visible: root._pTicks.length > 0
+            spacing: Theme.sp(10)
+            x: root._horizontal ? root.width - root._insetMain - width : Theme.sp(6)
+            y: root._horizontal ? Theme.sp(3) : root.height - height - Theme.sp(4)
+            Repeater {
+                model: [{ fitted: true,  on: root._anyFitted,  text: qsTr("fitted") },
+                        { fitted: false, on: root._anySampled, text: qsTr("sampled") }]
+                delegate: Row {
+                    id: keyItem
+                    required property var modelData
+                    visible: keyItem.modelData.on
+                    spacing: Theme.sp(4)
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Theme.sp(6); height: width; radius: width / 2
+                        color: keyItem.modelData.fitted ? Theme.colorText2 : "transparent"
+                        border.width: keyItem.modelData.fitted ? 0 : Theme.sp(1.5)
+                        border.color: Theme.colorText2
+                    }
+                    PpMicro {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: keyItem.modelData.text
+                        font.letterSpacing: Theme.trackingData
+                    }
+                }
             }
         }
 
@@ -439,57 +464,63 @@ Item {
 
         // Readout chip — follows the bead. Horizontal: along the top, centred on the
         // playhead. Vertical: in the label column (aligned with the station labels),
-        // shifting left only if a wide chip would overflow the panel edge.
+        // shifting left only if a wide chip would overflow the panel edge. A PpChip in the
+        // accent, on an opaque base so the P-chips and labels it passes over do not show through.
         Rectangle {
             id: readout
-            color: Theme.colorBg3
-            border.width: 1; border.color: Theme.colorBorderStrong
-            radius: Theme.radius
-            width:  readoutRow.implicitWidth + Theme.sp(20)
-            height: readoutRow.implicitHeight + Theme.sp(10)
+            color: Theme.colorSurface
+            radius: height / 2
+            width:  readoutRow.implicitWidth + Theme.sp(14)
+            height: Theme.sp(18)
             x: root._horizontal
                ? Math.max(root._insetMain,
                           Math.min(root.width - root._insetMain - width, root._beadMain - width / 2))
                : Math.max(Theme.sp(6),
                           Math.min(root._labelBand, root.width - width - Theme.sp(6)))
             y: root._horizontal
-               ? Theme.sp(8)
+               ? 0
                : Math.max(root._insetMain,
                           Math.min(root.height - root._insetMain - height, root._beadMain - height / 2))
 
+            Rectangle {
+                anchors.fill: parent
+                radius: height / 2
+                color: Qt.alpha(Theme.colorAccent, Theme.dark ? 0.12 : 0.09)
+                border.width: 1
+                border.color: Qt.alpha(Theme.colorAccent, 0.45)
+            }
             Row {
                 id: readoutRow
                 anchors.centerIn: parent
-                spacing: Theme.sp(8)
-                Text {
+                spacing: Theme.sp(7)
+                PpMicro {
                     text: root._activeName
                     // Vertical mode omits the phase name — the highlighted active
                     // station label in the column already shows it (keeps the chip
                     // compact + aligned with the labels).
                     visible: root._horizontal && text.length > 0
                     color: Theme.colorAccent
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
+                    font.letterSpacing: Theme.trackingData
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Rectangle {
-                    width: 1; height: Theme.sp(11); color: Theme.colorBorderStrong
+                    width: 1; height: Theme.sp(10); color: Qt.alpha(Theme.colorAccent, 0.45)
                     visible: root._horizontal && root._activeName.length > 0
                     anchors.verticalCenter: parent.verticalCenter
                 }
-                Text {
+                PpMicro {
                     text: ((shotReplay.positionUs - shotReplay.startUs) / 1000000).toFixed(2) + "s"
                     color: Theme.colorText2
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
+                    font.letterSpacing: Theme.trackingData
                     anchors.verticalCenter: parent.verticalCenter
                 }
-                Text {
+                PpMicro {
                     // ChartMetrics.formatValue, not a local round-and-concatenate: this used to
                     // print "12% stance width" — the catalogue's full phrase, jammed against the
                     // number with no separator — in a bead chip a few characters wide.
                     visible: root._series0 !== null
                     text: chartFmt.formatValue(root._metricVal, root._metricUnit)
-                    color: Theme.colorText3
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
+                    font.letterSpacing: Theme.trackingData
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
@@ -497,11 +528,9 @@ Item {
     }
 
     // ── Empty state ──────────────────────────────────────────────────────────────
-    Text {
+    PpCardNote {
         anchors.centerIn: parent
         visible: !shotReplay.active
         text: qsTr("Select a swing to review")
-        color: Theme.colorText3
-        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
     }
 }

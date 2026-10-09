@@ -103,6 +103,13 @@ Item {
     // Camera name shown in-frame (muted overlay; also the placeholder title).
     property string displayName: ""
 
+    // Marks that sit ON the picture (the chips, the stats pill): the overlay palette's own dark
+    // ink, fixed across themes like the skeleton it belongs to, under the palette's lightest
+    // words — so they read over any footage in either theme. Theme.colorText alone would be
+    // dark-on-dark in a light theme.
+    readonly property color _scrim:   Qt.alpha(Theme.poseInk, 0.6)
+    readonly property color _onScrim: Theme.dark ? Theme.colorText : Theme.colorBg
+
     // ── Per-screen overlay configuration ────────────────────────────────────
     property bool showPoseOverlay:      true   // skeleton canvas
     property bool showHittingArea:      true   // ROI overlay + detected ball circle
@@ -755,7 +762,7 @@ Item {
         color: Theme.colorBg2
         radius: Theme.radius
         border.width: 1
-        border.color: Theme.colorBorderMid
+        border.color: Theme.colorBorder
 
         VideoOutput {
             id: videoOut
@@ -763,42 +770,6 @@ Item {
             anchors.margins: root.videoInset
             fillMode: VideoOutput.PreserveAspectFit
             visible: root._isReplay || (root.instance !== null && !root.instance.needsDebayer)
-        }
-
-        // ── "Preview" pill ────────────────────────────────────────────────
-        //
-        // ⚠ **Says what this picture IS, because it is not what a swing will be
-        // recorded at.** A phone's tile carries its 5.11.2 `preview` Stream —
-        // 640x360@30, a derived view (5.11l) — while its shot footage arrives
-        // separately as PPCP Captures and never as frames off a device. An
-        // operator framing against this must not discover that difference from
-        // the first swing they review.
-        //
-        // ⛔ Driven by what is TRUE of the feed (`isPreviewFeed`), never by the
-        // session type: the same tile serves every session screen, and a phone
-        // is a phone in all of them.
-        Rectangle {
-            visible: root.instance !== null && root.instance.isPreviewFeed
-            anchors.top:        parent.top
-            anchors.left:       parent.left
-            anchors.topMargin:  Theme.sp(8)
-            anchors.leftMargin: Theme.sp(8)
-            implicitWidth:  previewBadgeText.implicitWidth + Theme.sp(16)
-            implicitHeight: Theme.sp(18)
-            color:  Qt.rgba(74/255, 58/255, 26/255, 0.9)
-            border.width: 1
-            border.color: Theme.colorWarn
-            radius: 2
-            z: 25
-
-            Text {
-                id: previewBadgeText
-                anchors.centerIn: parent
-                text:           qsTr("Preview")
-                font.family:    Theme.fontData
-                font.pixelSize: Theme.fontSzMicro
-                color:          Theme.colorWarn
-            }
         }
 
         BayerVideoItem {
@@ -832,81 +803,82 @@ Item {
         }
 
         // ── Placeholder states ────────────────────────────────────────────
-        // Not connected: dim frame with the camera name; the layout doesn't
-        // jump when video starts. Connected but idle: "No camera feed".
+        // Not connected: the frame keeps its size with the camera's name and the
+        // unconfirmed mark, so the layout doesn't jump when video starts.
+        // Connected but idle: "No camera feed", the same mark.
         // (Replay tiles never show this — their video is disk-backed.)
         Column {
             anchors.centerIn: parent
-            spacing: Theme.sp(4)
+            spacing: Theme.sp(8)
             visible: root.instance === null && !root._isReplay
-            Text {
+            PpMicro {
                 anchors.horizontalCenter: parent.horizontalCenter
                 visible: root.displayName !== ""
-                text: root.displayName
-                color: Theme.colorText2
-                font.family: Theme.fontBody
-                font.pixelSize: Theme.fontSzBody
+                text: root.displayName.toUpperCase()
             }
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: qsTr("Not connected")
-                color: Theme.colorText3
-                font.family: Theme.fontData
-                font.pixelSize: Theme.fontSzMicro
-                font.letterSpacing: Theme.trackingData
-            }
+            FeedState { anchors.horizontalCenter: parent.horizontalCenter; text: qsTr("Not connected") }
         }
 
-        Text {
+        FeedState {
             anchors.centerIn: parent
             visible: root.instance !== null && !root.instance.isRecording
             text: qsTr("No camera feed")
-            color: Theme.colorText3
-            font.family: Theme.fontBody
-            font.pixelSize: Theme.fontSzBody
         }
 
         // ── Camera name (muted, bottom-left, only while connected) ─────────
-        Text {
+        PpMicro {
             visible: root.instance !== null && root.displayName !== ""
             anchors.bottom: parent.bottom
             anchors.left: parent.left
             anchors.margins: Theme.sp(8)
-            text: root.displayName
-            color: Theme.colorText3
-            font.family: Theme.fontData
-            font.pixelSize: Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingData
+            text: root.displayName.toUpperCase()
         }
 
-        // ── Perspective badge (top-left overlay) ──────────────────────────
-        Rectangle {
-            visible: root.showPerspectiveBadge
-                     && root.instance !== null
-                     && root.instance.perspective !== CameraInstance.None
+        // ── Chips (top-left): the camera's perspective, then "Preview" ─────
+        // One row, so a phone's tile showing both never stacks one chip on the
+        // other. Each sits on the picture's scrim.
+        Row {
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.margins: Theme.sp(8)
-            width: perspBadgeText.implicitWidth + Theme.sp(10)
-            height: Theme.sp(20)
-            radius: Theme.radius
-            color: Theme.colorAccentMid
-            border.width: 1
-            border.color: Qt.rgba(Theme.colorAccent.r, Theme.colorAccent.g, Theme.colorAccent.b, 0.4)
+            spacing: Theme.sp(6)
+            z: 25
 
-            Text {
-                id: perspBadgeText
-                anchors.centerIn: parent
+            // Says which way the camera looks — a fact, so untinted.
+            PpChip {
+                visible: root.showPerspectiveBadge
+                         && root.instance !== null
+                         && root.instance.perspective !== CameraInstance.None
+                tinted: false
+                tone:   root._onScrim
+                color:  root._scrim
                 text: !root.instance ? ""
-                    : root.instance.perspective === CameraInstance.DownTheLine ? "DTL"
-                    : root.instance.perspective === CameraInstance.FaceOn ? "Face On"
-                    : root.instance.perspective === CameraInstance.Impact ? "Impact"
-                    : "Other"
-                color: Theme.colorAccent
-                font.family: Theme.fontData
-                font.pixelSize: Theme.fontSzMicro
-                font.weight: Font.Normal
-                font.letterSpacing: Theme.trackingData
+                    : root.instance.perspective === CameraInstance.DownTheLine ? qsTr("DTL")
+                    : root.instance.perspective === CameraInstance.FaceOn ? qsTr("FACE ON")
+                    : root.instance.perspective === CameraInstance.Impact ? qsTr("IMPACT")
+                    : qsTr("OTHER")
+            }
+
+            // ── "Preview" pill ────────────────────────────────────────────────
+            //
+            // ⚠ **Says what this picture IS, because it is not what a swing will be
+            // recorded at.** A phone's tile carries its 5.11.2 `preview` Stream —
+            // 640x360@30, a derived view (5.11l) — while its shot footage arrives
+            // separately as PPCP Captures and never as frames off a device. An
+            // operator framing against this must not discover that difference from
+            // the first swing they review.
+            //
+            // ⛔ Driven by what is TRUE of the feed (`isPreviewFeed`), never by the
+            // session type: the same tile serves every session screen, and a phone
+            // is a phone in all of them.
+            // A light theme's warn is too dark to read on the scrim, so there the chip
+            // turns over: the scrim's light words on a warn fill.
+            PpChip {
+                visible: root.instance !== null && root.instance.isPreviewFeed
+                tone:  Theme.dark ? Theme.colorWarn : root._onScrim
+                color: Theme.dark ? Qt.tint(root._scrim, Qt.alpha(Theme.colorWarn, 0.16))
+                                  : Qt.alpha(Theme.colorWarn, 0.9)
+                text:  qsTr("PREVIEW")
             }
         }
 
@@ -920,7 +892,7 @@ Item {
             width:  resLabel.implicitWidth + Theme.sp(10)
             height: Theme.sp(18)
             radius: Theme.radius - 1
-            color: Qt.rgba(0, 0, 0, 0.55)
+            color: root._scrim
 
             Text {
                 id: resLabel
@@ -939,7 +911,7 @@ Item {
                                + "  clip " + (root.instance.levelClipped * 100).toFixed(1) + "%"
                                + (root.viewGain > 1.001 ? "  view ×" + root.viewGain : "")
                              : "")
-                color: Theme.colorText
+                color: root._onScrim
                 font.family: Theme.fontData
                 font.pixelSize: Theme.fontSzMicro
             }
@@ -1617,21 +1589,30 @@ Item {
                 // position's head point so the coach can see where the P
                 // moments land on screen; the position nearest the playhead
                 // (within ±40 ms) is additionally highlighted with its own
-                // shaft line + a "P<n>" label. Green-ish (cGood) marks a
-                // milestone boundary-value fit (PositionSource::MilestoneFit,
-                // source === 1); the standard club accent marks a raw track
-                // sample (source === 0).
+                // shaft line + a "P<n>" label. Provenance is the app's mark
+                // vocabulary, so it reads by SHAPE as well as colour: a milestone
+                // boundary-value fit (PositionSource::MilestoneFit, source === 1) is a
+                // solid dot in cGood; a raw track sample (source === 0) is a hollow
+                // ring in the club accent. The host's card carries the legend.
                 if (shaftMode === "frame" && root.showSynthTier && _clubPositions.length > 0) {
                     var kMilestoneFit = 1
                     var kPosWindowUs  = 40000
+                    // One provenance mark at (x, y): filled when fitted, a ring when sampled.
+                    var posMark = function(x, y, r, fitted) {
+                        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2)
+                        if (fitted) { ctx.fill() }
+                        else        { ctx.lineWidth = Math.max(1, 0.4 * r); ctx.stroke() }
+                    }
 
-                    // Faint dots — every position, cheap fixed-size loop (≤ 8).
-                    ctx.fillStyle = cClub
+                    // Faint marks — every position, cheap fixed-size loop (≤ 8).
                     for (var dj = 0; dj < _clubPositions.length; ++dj) {
                         var dp  = _clubPositions[dj]
                         var dhx = dp.head[0] * cr.width + cr.x, dhy = dp.head[1] * cr.height + cr.y
-                        ctx.globalAlpha = 0.25 * clubMute
-                        ctx.beginPath(); ctx.arc(dhx, dhy, 0.030 * S, 0, Math.PI * 2); ctx.fill()
+                        var dFit = dp.source === kMilestoneFit
+                        ctx.fillStyle   = dFit ? cGood : cClub
+                        ctx.strokeStyle = dFit ? cGood : cClub
+                        ctx.globalAlpha = (dFit ? 0.25 : 0.4) * clubMute
+                        posMark(dhx, dhy, 0.030 * S, dFit)
                     }
 
                     // Nearest position to the playhead — highlighted line + label.
@@ -1643,7 +1624,8 @@ Item {
                     if (Math.abs(po.t_us - t) <= kPosWindowUs) {
                         var mgx    = po.grip[0] * cr.width + cr.x, mgy = po.grip[1] * cr.height + cr.y
                         var mhx    = po.head[0] * cr.width + cr.x, mhy = po.head[1] * cr.height + cr.y
-                        var mColor = (po.source === kMilestoneFit) ? cGood : cClub
+                        var mFit   = po.source === kMilestoneFit
+                        var mColor = mFit ? cGood : cClub
 
                         ctx.strokeStyle = mColor
                         ctx.globalAlpha = 0.9 * clubMute
@@ -1651,6 +1633,7 @@ Item {
                         ctx.beginPath(); ctx.moveTo(mgx, mgy); ctx.lineTo(mhx, mhy); ctx.stroke()
 
                         ctx.fillStyle    = mColor
+                        posMark(mhx, mhy, 0.045 * S, mFit)
                         ctx.font         = Theme.fontSzMicro + "px '" + Theme.fontData + "'"
                         ctx.textAlign    = "left"
                         ctx.textBaseline = "bottom"
@@ -1864,25 +1847,22 @@ Item {
             width:  root.instance ? root.instance.roi.width  * crW : 0
             height: root.instance ? root.instance.roi.height * crH : 0
 
-            Text {
+            PpMicro {
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.margins: Theme.sp(3)
                 text: qsTr("Hitting Area")
                 color: Theme.colorWarn
-                font.family: Theme.fontData
-                font.pixelSize: Theme.fontSzMicro
-                font.weight: Font.Normal
                 font.letterSpacing: Theme.trackingData
             }
 
             // Corner handle squares — editor affordance only (drag handled by
             // the unified MouseArea below; same pattern as the crop editor).
             readonly property int hs: Theme.sp(10)
-            Rectangle { visible: root.roiEditable; width: roiOverlay.hs; height: roiOverlay.hs; x: -roiOverlay.hs/2;                    y: -roiOverlay.hs/2;                     color: Theme.colorWarn; border.width: 1; border.color: "black" }
-            Rectangle { visible: root.roiEditable; width: roiOverlay.hs; height: roiOverlay.hs; x: roiOverlay.width-roiOverlay.hs/2;    y: -roiOverlay.hs/2;                     color: Theme.colorWarn; border.width: 1; border.color: "black" }
-            Rectangle { visible: root.roiEditable; width: roiOverlay.hs; height: roiOverlay.hs; x: -roiOverlay.hs/2;                    y: roiOverlay.height-roiOverlay.hs/2;    color: Theme.colorWarn; border.width: 1; border.color: "black" }
-            Rectangle { visible: root.roiEditable; width: roiOverlay.hs; height: roiOverlay.hs; x: roiOverlay.width-roiOverlay.hs/2;    y: roiOverlay.height-roiOverlay.hs/2;    color: Theme.colorWarn; border.width: 1; border.color: "black" }
+            Rectangle { visible: root.roiEditable; width: roiOverlay.hs; height: roiOverlay.hs; x: -roiOverlay.hs/2;                    y: -roiOverlay.hs/2;                     color: Theme.colorWarn; border.width: 1; border.color: Theme.poseInk }
+            Rectangle { visible: root.roiEditable; width: roiOverlay.hs; height: roiOverlay.hs; x: roiOverlay.width-roiOverlay.hs/2;    y: -roiOverlay.hs/2;                     color: Theme.colorWarn; border.width: 1; border.color: Theme.poseInk }
+            Rectangle { visible: root.roiEditable; width: roiOverlay.hs; height: roiOverlay.hs; x: -roiOverlay.hs/2;                    y: roiOverlay.height-roiOverlay.hs/2;    color: Theme.colorWarn; border.width: 1; border.color: Theme.poseInk }
+            Rectangle { visible: root.roiEditable; width: roiOverlay.hs; height: roiOverlay.hs; x: roiOverlay.width-roiOverlay.hs/2;    y: roiOverlay.height-roiOverlay.hs/2;    color: Theme.colorWarn; border.width: 1; border.color: Theme.poseInk }
         }
 
         // ── Rubber-band while dragging ────────────────────────────────────
@@ -2056,6 +2036,22 @@ Item {
                 }
                 dragMode = "none"
             }
+        }
+    }
+
+    // A feed that is not there: the unconfirmed mark beside the words, so the state reads as a
+    // shape and never as grey text alone.
+    component FeedState: Row {
+        property alias text: feedWords.text
+        spacing: Theme.sp(8)
+        PpBadge {
+            anchors.verticalCenter: parent.verticalCenter
+            kind: "unconfirmed"
+            size: Theme.sp(16)
+        }
+        PpCardNote {
+            id: feedWords
+            anchors.verticalCenter: parent.verticalCenter
         }
     }
 }

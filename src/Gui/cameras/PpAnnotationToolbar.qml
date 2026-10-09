@@ -20,27 +20,27 @@
 // delete/clear), driving the shared AnnotationTool state every PpAnnotationLayer
 // reads. The host floats it CENTRED over the camera tiles so its position reads
 // as "applies to all cameras"; the open/collapse toggle lives separately in the
-// LHS gutter. Content-sized, flat-panel chrome (no shadow).
+// LHS gutter. Content-sized; it floats over the footage, so it wears the popover
+// card's shell (stronger hairline, quiet rule) like every other floating panel.
 
 import QtQuick
 import QtQuick.Layouts
 import PinPointStudio
 
-Rectangle {
+Item {
     id: bar
 
     implicitWidth:  content.implicitWidth + Theme.sp(16)
     implicitHeight: Theme.sp(46)
-    radius: Theme.radiusLg
-    color: Qt.rgba(Theme.colorSurface.r, Theme.colorSurface.g, Theme.colorSurface.b, 0.96)
-    border.width: 1
-    border.color: Theme.colorBorderStrong
 
-    // Vivid, distinct inks (theme-derived where possible; white for high contrast
-    // over footage). The resolved colour is copied into each mark, so switching
-    // aesthetic never recolours marks already drawn.
+    PpPopoverCard { anchors.fill: parent }
+
+    // Vivid, distinct inks, all from the theme; the last is the palette's near-white,
+    // for high contrast over footage. The resolved colour is copied into each mark,
+    // so switching aesthetic never recolours marks already drawn.
     readonly property var _swatches: [ Theme.colorAccent, Theme.colorGood,
-                                       Theme.colorWarn, Theme.colorError, "#F5F5F5" ]
+                                       Theme.colorWarn, Theme.colorError,
+                                       Theme.dark ? Theme.colorText : Theme.colorBg ]
 
     // Tool segments: cursor / line / ellipse / hollow square.
     readonly property var _tools: [
@@ -53,6 +53,8 @@ Rectangle {
     Row {
         id: content
         anchors.centerIn: parent
+        // Clear of the shell's top rule, so the controls sit centred on the surface.
+        anchors.verticalCenterOffset: 1
         spacing: Theme.sp(10)
 
         // ── Collapse the palette (back to the gutter open button) ─────────────
@@ -104,7 +106,7 @@ Rectangle {
                             anchors.centerIn: parent
                             width: Theme.sp(16); height: Theme.sp(16)
                             kind: seg.modelData.kind
-                            iconColor: seg.active ? (Theme.dark ? Theme.colorBg : "#FFFFFF")
+                            iconColor: seg.active ? (Theme.dark ? Theme.colorBg : Theme.colorSurface)
                                                   : Theme.colorText2
                         }
                         MouseArea {
@@ -138,8 +140,7 @@ Rectangle {
                     radius: Theme.sp(5)
                     color: swatch.modelData
                     border.width: swatch.active ? 2 : 1
-                    border.color: swatch.active ? Theme.colorText
-                                         : Qt.rgba(Theme.colorText.r, Theme.colorText.g, Theme.colorText.b, 0.25)
+                    border.color: swatch.active ? Theme.colorText : Theme.colorBorderStrong
                     PpPressable {
                         onClicked: {
                             AnnotationTool.strokeColor = swatch.modelData

@@ -173,58 +173,53 @@ Item {
             // ball OR the spine standing up) draws the pictures below on one at a time. Each tab
             // says how often ITS measure fired, so the page shows which one is doing the work.
             readonly property var _measures: (root.detail && root.detail.measures) ? root.detail.measures : []
+            // The panel's own tab idiom: Micro labels, the selected one in colorText over a 2 px
+            // rule in the panel's colorWarn, the count beside it as an aside.
             Flow {
                 objectName: "sdDetailMeasureTabs"
                 width: col.width
                 visible: col._measures.length > 1
-                spacing: root.px(4)
+                spacing: root.px(20)
 
                 Repeater {
                     model: col._measures
 
-                    Rectangle {
+                    Item {
                         id: mTab
                         required property var modelData
                         objectName: "sdDetailMeasureTab"
                         readonly property bool on: root.detail && root.detail.measureId === modelData.id
-                        width: mRow.implicitWidth + root.px(16)
-                        height: mRow.implicitHeight + root.px(8)
-                        radius: Math.max(1, root.px(3))
-                        color: on ? Theme.colorSurface : "transparent"
-                        border.width: 1
-                        border.color: on ? Theme.colorBorderMid : Theme.colorBorder
+                        width: mRow.implicitWidth
+                        height: mRow.implicitHeight + root.px(6)
 
                         Rectangle {
                             visible: mTab.on
-                            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                            anchors.leftMargin:  root.px(6)
-                            anchors.rightMargin: root.px(6)
-                            height: Math.max(1, root.px(2))
-                            color: Theme.colorAccent
+                            anchors.bottom: parent.bottom
+                            width: mLabel.width; height: 2; radius: 1
+                            color: Theme.colorWarn
                         }
                         Row {
                             id: mRow
-                            anchors.centerIn: parent
                             spacing: root.px(6)
-                            Text {
+                            PpMicro {
                                 id: mLabel
                                 text: mTab.modelData.label || mTab.modelData.id
-                                font.family: Theme.fontData
                                 font.pixelSize: root.tzMicro
                                 color: mTab.on ? Theme.colorText
                                      : (mTap.containsMouse ? Theme.colorText2 : Theme.colorText3)
                             }
-                            Text {
+                            PpMicro {
                                 anchors.baseline: mLabel.baseline
                                 text: mTab.modelData.countText || ""
-                                font.family: Theme.fontData
-                                font.pixelSize: root.tzCaption
-                                color: (mTab.modelData.fired || 0) > 0 ? Theme.colorError : Theme.colorText3
+                                font.pixelSize: root.tzMicro
+                                font.letterSpacing: Theme.trackingData
+                                color: (mTab.modelData.fired || 0) > 0 ? Theme.colorWarn : Theme.colorText3
                             }
                         }
                         MouseArea {
                             id: mTap
                             anchors.fill: parent
+                            anchors.margins: -root.px(6)
                             enabled: root.interactive
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor

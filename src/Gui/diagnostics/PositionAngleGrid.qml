@@ -18,7 +18,8 @@
 
 // The dense position × DOF grid — a RAG heatmap table behind a collapsible "Data" drawer (hidden by
 // default to keep the instrument-light feel). Rows = DOFs, columns = P1–P8; each cell shows the Δ
-// value on a RAG-tinted background. Pure binding; colours/sizes via Theme.
+// value on a RAG-tinted background with the RAG's glyph beside it (● in range, ▲ watch, ■ fault,
+// ◆ no data), so the grid reads without its colour. Pure binding; colours/sizes via Theme.
 
 import QtQuick
 import QtQuick.Layouts
@@ -30,7 +31,9 @@ ColumnLayout {
     property var gridRows: []       // [{ name, cells:[{ value, rag, available, ref }] }]
     property var positions: []      // [{ id, … }]
     property int selected: 0
-    property real labelWidth: Theme.sp(150)
+    // The DOF names' column; it gives way on a narrow panel so the eight cells keep room for a
+    // glyph and a value.
+    property real labelWidth: Math.min(Theme.sp(150), Math.round(width * 0.24))
 
     spacing: Theme.sp(4)
 
@@ -51,29 +54,32 @@ ColumnLayout {
              : !cell.available ? "◆"
              : (cell.value > 0 ? "+" : "") + Math.round(cell.value)
     }
+    // The RAG's shape, beside a judged value. The reference cell is the zero everything is measured
+    // from, and a cell with no data is its ◆ already, so neither takes one.
+    function _glyph(cell) {
+        if (cell.ref || !cell.available) return ""
+        return cell.rag === "green" ? "●" : cell.rag === "amber" ? "▲" : cell.rag === "red" ? "■" : ""
+    }
 
     // ── Drawer toggle ───────────────────────────────────────────────────────────────
     property bool open: false
-    Rectangle {
+    Item {
         Layout.fillWidth: true
-        implicitHeight: toggleRow.implicitHeight + Theme.sp(6)
-        radius: Theme.radius
-        color: dtMa.containsMouse
-               ? Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 1.0)
-               : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+        implicitHeight: toggleRow.implicitHeight + Theme.sp(8)
         Row {
             id: toggleRow
-            spacing: Theme.sp(2)
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Theme.sp(6)
             Text {
+                anchors.verticalCenter: parent.verticalCenter
                 text: root.open ? "▾" : "▸"
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
-                color: Theme.colorText2
+                font.pixelSize: Theme.fontSzBody2
+                color: dtMa.containsMouse ? Theme.colorText : Theme.colorText3
             }
-            Text {
-                text: qsTr("Data — position × degree-of-freedom")
-                font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2
-                color: Theme.colorText2
+            PpMicro {
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("DATA · POSITION × DEGREE OF FREEDOM")
+                color: dtMa.containsMouse ? Theme.colorText : Theme.colorText3
             }
         }
         PpPressable { id: dtMa; hoverScale: 1.0; onClicked: root.open = !root.open }
@@ -122,6 +128,7 @@ ColumnLayout {
                 Repeater {
                     model: parent.modelData.cells
                     delegate: Rectangle {
+                        id: cell
                         required property var modelData
                         required property int index
                         Layout.fillWidth: true
@@ -130,11 +137,27 @@ ColumnLayout {
                         color: root._bg(modelData.rag)
                         border.width: index === root.selected ? Theme.borderWidth : 0
                         border.color: Theme.colorBorderStrong
-                        Text {
+                        // A narrow cell closes the glyph up to its value and sets both smaller,
+                        // so the pair still fits rather than the glyph being dropped.
+                        readonly property bool tight: width < Theme.sp(42)
+                        Row {
                             anchors.centerIn: parent
-                            text: root._text(parent.modelData)
-                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
-                            color: root._fg(parent.modelData.rag)
+                            spacing: cell.tight ? 1 : Theme.sp(3)
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: text !== ""
+                                text: root._glyph(cell.modelData)
+                                font.family: Theme.fontSymbol
+                                font.pixelSize: cell.tight ? Theme.fontSzMicro - 2 : Theme.fontSzMicro
+                                color: root._fg(cell.modelData.rag)
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: root._text(cell.modelData)
+                                font.family: Theme.fontData
+                                font.pixelSize: cell.tight ? Theme.fontSzMicro : Theme.fontSzLabel
+                                color: root._fg(cell.modelData.rag)
+                            }
                         }
                     }
                 }

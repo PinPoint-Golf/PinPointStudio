@@ -95,18 +95,28 @@ Item {
     readonly property string _dirR: spread ? (spread.dirRight || "") : ""
 
     // THE BAND COLOURS, by meaning and in both themes. The status family the rest of the panel
-    // already reads — green inside, amber where it fires, red past the fault line — at a fill
+    // already reads — green inside, amber where it fires, the faults' coral past the fault line —
+    // at a fill
     // alpha low enough that a dot of the same family still reads on top. Good is the Ideal green
     // at half strength, which is what it is: inside the corridor, not at its centre.
     function bandColor(grade) {
-        if (grade === "ideal")  return Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.20)
-        if (grade === "good")   return Qt.rgba(Theme.colorGood.r, Theme.colorGood.g, Theme.colorGood.b, 0.09)
-        if (grade === "watch")  return Qt.rgba(Theme.colorAttention.r, Theme.colorAttention.g, Theme.colorAttention.b, 0.20)
-        if (grade === "action") return Qt.rgba(Theme.colorError.r, Theme.colorError.g, Theme.colorError.b, 0.16)
+        if (grade === "ideal")  return Qt.alpha(Theme.colorGood, 0.20)
+        if (grade === "good")   return Qt.alpha(Theme.colorGood, 0.09)
+        if (grade === "watch")  return Qt.alpha(Theme.colorAttention, 0.20)
+        if (grade === "action") return Qt.alpha(Theme.colorWarn, 0.16)
         return "transparent"   // `open`: the side the norm does not grade is background
     }
+    // ...and their names, so a band is never told by its colour alone.
+    function bandWord(grade) {
+        return grade === "ideal"  ? qsTr("IDEAL")
+             : grade === "good"   ? qsTr("GOOD")
+             : grade === "watch"  ? qsTr("WATCH")
+             : grade === "action" ? qsTr("ACTION")
+             :                      ""
+    }
     function dotColor(state) {
-        return state === "fired" ? Theme.colorError
+        // A firing is a fault, colorWarn — not the alarm red (13.2).
+        return state === "fired" ? Theme.colorWarn
              : state === "clean" ? Theme.colorGood
                                  : Theme.colorText3
     }
@@ -262,7 +272,7 @@ Item {
                 objectName: "sdStripFaultLabel"
                 font.family: Theme.fontData
                 font.pixelSize: root.tzCaption
-                color: Theme.colorError
+                color: Theme.colorWarn
                 readonly property real lx: (modelData.f || 0) * root.width
                 readonly property bool leftOfLine: root._faults.length > 1 ? index === 0
                                                                           : lx > root.width / 2
@@ -309,6 +319,18 @@ Item {
                 width: Math.max(0, ((modelData.f1 || 0) - (modelData.f0 || 0)) * plot.width)
                 height: plot.height
                 color: root.bandColor(grade)
+
+                // The band's name in Micro words at its foot, where it has the room for them.
+                PpMicro {
+                    objectName: "sdStripBandWord"
+                    x: root.px(3)
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: root.px(1)
+                    visible: !root.bare && text !== "" && parent.width >= implicitWidth + root.px(6)
+                    text: root.bandWord(parent.grade)
+                    font.pixelSize: root.tzCaption
+                    font.letterSpacing: Theme.trackingData
+                }
             }
         }
         // The baseline, so the open side still reads as part of the same axis.
@@ -326,7 +348,7 @@ Item {
             visible: root._curve.length > 1
             preferredRendererType: Shape.CurveRenderer
             ShapePath {
-                strokeColor: Qt.rgba(Theme.colorText2.r, Theme.colorText2.g, Theme.colorText2.b, 0.45)
+                strokeColor: Qt.alpha(Theme.colorText2, 0.45)
                 strokeWidth: Math.max(1, root.px(1))
                 strokeStyle: ShapePath.DashLine
                 dashPattern: [3, 2]
@@ -356,7 +378,7 @@ Item {
                 x: (modelData.f || 0) * plot.width - width / 2
                 width: Math.max(1, root.px(1.5))
                 height: plot.height
-                color: Theme.colorError
+                color: Theme.colorWarn
             }
         }
 

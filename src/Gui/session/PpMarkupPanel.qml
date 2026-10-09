@@ -39,6 +39,11 @@ import PinPointStudio
 // (cv::VideoCapture → image://markup), independent of the replay stage.
 // MarkupController is a singleton, so only the ACTIVE host screen's panel drives
 // it — `panelActive` gates loadSwing so hidden-screen copies stay inert.
+//
+// The stage's MARKUP card frames it and gives it its title, so the panel draws no
+// header strip or outer frame: the swing's row, the frames, the controls and the
+// transport sit on the card's surface, parted by hairlines. Only the HUD over each
+// frame keeps a scrim, because it sits on the picture.
 Item {
     id: root
 
@@ -47,6 +52,11 @@ Item {
     property string targetSwingDir: ""
     // True only for the visible session screen's panel (host passes _screenActive).
     property bool   panelActive: true
+
+    // What sits ON a frame (the pane HUDs): the overlay palette's dark ink, fixed across
+    // themes, under the palette's lightest words — so it reads over any still in either theme.
+    readonly property color _scrim:   Qt.alpha(Theme.poseInk, 0.6)
+    readonly property color _onScrim: Theme.dark ? Theme.colorText : Theme.colorBg
 
     // grip→head picking is two clicks; the first is held here until the second.
     property bool pendingGrip: false
@@ -217,38 +227,27 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: 0
+        spacing: Theme.sp(10)
 
-        // ── Compact header ──────────────────────────────────────────────────────
-        Rectangle {
+        // ── The swing's row: which swing, how far along, and Save ───────────────
+        RowLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: Theme.sp(40)
-            color: Theme.colorBg2
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: Theme.sp(14); anchors.rightMargin: Theme.sp(12)
-                spacing: Theme.sp(12)
-                Text {
-                    text: qsTr("MARKUP")
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-                }
-                Text {
-                    Layout.fillWidth: true
-                    text: markupController.hasSwing ? markupController.currentSwingName : qsTr("— no swing —")
-                    elide: Text.ElideRight
-                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; color: Theme.colorText2
-                }
-                Text {
-                    text: qsTr("%1/10 P").arg(root.pComplete())
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Theme.colorText2
-                }
-                MlButton {
-                    text: markupController.dirty ? qsTr("● Save (q)") : qsTr("Saved")
-                    accent: markupController.dirty
-                    enabled: markupController.hasSwing
-                    onClicked: markupController.save()
-                }
+            spacing: Theme.sp(12)
+            Text {
+                Layout.fillWidth: true
+                text: markupController.hasSwing ? markupController.currentSwingName : qsTr("— no swing —")
+                elide: Text.ElideRight
+                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; color: Theme.colorText2
+            }
+            Text {
+                text: qsTr("%1/10 P").arg(root.pComplete())
+                font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Theme.colorText2
+            }
+            MlButton {
+                text: markupController.dirty ? qsTr("● Save (q)") : qsTr("Saved")
+                accent: markupController.dirty
+                enabled: markupController.hasSwing
+                onClicked: markupController.save()
             }
         }
 
@@ -263,11 +262,10 @@ Item {
             // their own aspect, so the portrait DTL frame is simply the narrower
             // one; when the pair will not fit the width they scale down together
             // rather than scrolling, cropping or opening anything.
-            Rectangle {
+            Item {
                 id: stage
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                color: "#000000"
 
                 readonly property real gap:    markupController.hasDtl ? Theme.sp(8) : 0
                 readonly property real aFace:  Math.max(0.05, markupController.videoAspect)
@@ -329,59 +327,65 @@ Item {
                     }
                 }
 
-                Text {
+                PpCardNote {
                     anchors.centerIn: parent
                     visible: !markupController.hasSwing
                     width: parent.width * 0.8
                     horizontalAlignment: Text.AlignHCenter
-                    wrapMode: Text.WordWrap
                     text: qsTr("Select a shot in the carousel to load it for labelling.")
-                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; color: Theme.colorText3
                 }
             }
 
 
-            // Controls (right)
-            Rectangle {
+            // Controls (right) — parted from the frames by a hairline, on the card's surface.
+            Item {
                 Layout.preferredWidth: Theme.sp(496)
                 Layout.fillHeight: true
-                color: Theme.colorBg
+
+                Rectangle {
+                    anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                    width: 1
+                    color: Theme.colorBorder
+                }
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: Theme.sp(14)
-                    spacing: Theme.sp(6)
+                    anchors.leftMargin: Theme.sp(14)
+                    spacing: Theme.sp(12)
 
-                    // Tab header — underline tabs, same aesthetic as PpModeStage's
-                    // "tabs" arrangement: a contiguous strip, subtle colorBg2 fill on
-                    // select/hover, 2px accent underline on the selected tab.
+                    // Tab header — the stage's own tab idiom (PpModeStage's tab strip):
+                    // Micro labels, the selected one in colorText over a 2 px rule in the
+                    // card's quiet tone.
                     Row {
-                        spacing: Theme.sp(5)
+                        spacing: Theme.sp(20)
                         Repeater {
-                            model: [qsTr("Positions"), qsTr("Metadata")]
-                            delegate: Rectangle {
+                            model: [qsTr("POSITIONS"), qsTr("METADATA")]
+                            delegate: Item {
                                 id: tabDel
                                 required property string modelData
                                 required property int index
                                 readonly property bool sel: root.rhsTab === index
-                                height: Theme.sp(30); width: tabTxt.implicitWidth + Theme.sp(26)
-                                radius: Theme.radius
-                                color: sel || tabMa.containsMouse
-                                           ? Theme.colorBg2
-                                           : Qt.rgba(Theme.colorBg2.r, Theme.colorBg2.g, Theme.colorBg2.b, 0)
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                                Rectangle {  // active underline
-                                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                                    height: 2; color: tabDel.sel ? Theme.colorAccent : "transparent"
+                                implicitWidth:  tabTxt.implicitWidth
+                                implicitHeight: tabTxt.implicitHeight + Theme.sp(6)
+                                PpMicro {
+                                    id: tabTxt
+                                    text: tabDel.modelData
+                                    color: tabDel.sel ? Theme.colorText
+                                         : tabMa.containsMouse ? Theme.colorText2 : Theme.colorText3
+                                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                                 }
-                                Text {
-                                    id: tabTxt; anchors.centerIn: parent; text: tabDel.modelData
-                                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                                    color: tabDel.sel ? Theme.colorText : Theme.colorText3
+                                Rectangle {
+                                    visible: tabDel.sel
+                                    anchors.bottom: parent.bottom
+                                    width: parent.width; height: 2; radius: 1
+                                    color: Theme.colorText3
                                 }
+                                // A Micro label is a small target; the hit area reaches past it.
                                 MouseArea {
                                     id: tabMa
-                                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    anchors.fill: parent
+                                    anchors.margins: -Theme.sp(6)
+                                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onClicked: { root.rhsTab = tabDel.index; root.forceActiveFocus() }
                                 }
                             }
@@ -414,7 +418,7 @@ Item {
                     // CLUB / SHAFT
                     Column {
                         width: parent.width; spacing: Theme.sp(8)
-                        MlSection { text: qsTr("CLUB / SHAFT") }
+                        PpMicro { text: qsTr("CLUB / SHAFT") }
                         Text {
                             width: parent.width; wrapMode: Text.WordWrap
                             text: markupController.hasDtl
@@ -434,14 +438,14 @@ Item {
                             visible: markupController.hasDtl
                             text: markupController.activePane === 1
                                   ? qsTr("◆ acting on the DTL pane") : qsTr("◆ acting on the Face-On pane")
-                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel; color: Theme.colorAccentLight
+                            font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel; color: Theme.colorAccent
                         }
                     }
 
                     // BALL (stationary — mark once)
                     Column {
                         width: parent.width; spacing: Theme.sp(8)
-                        MlSection { text: qsTr("BALL") }
+                        PpMicro { text: qsTr("BALL") }
                         Text {
                             width: parent.width; wrapMode: Text.WordWrap
                             text: markupController.hasDtl
@@ -489,7 +493,7 @@ Item {
                     // POSE OVERLAY
                     Column {
                         width: parent.width; spacing: Theme.sp(8)
-                        MlSection { text: qsTr("POSE OVERLAY") }
+                        PpMicro { text: qsTr("POSE OVERLAY") }
                         MlButton {
                             text: markupController.showSkeleton ? qsTr("Skeleton: on (s)") : qsTr("Skeleton: off (s)")
                             accent: markupController.showSkeleton && markupController.poseAvailable
@@ -499,7 +503,7 @@ Item {
                         Text {
                             width: parent.width; wrapMode: Text.WordWrap
                             text: markupController.poseAvailable
-                                  ? qsTr("Blue = body skeleton · amber ring = lead hand · purple = trail hand. Reference only — how the grip/head relate to the skeleton.")
+                                  ? qsTr("Blue = body skeleton · solid amber ring = lead hand · dashed ring = trail hand. Reference only — how the grip/head relate to the skeleton.")
                                   : qsTr("No recorded pose in this swing.")
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
                         }
@@ -508,7 +512,7 @@ Item {
                     // STEP STRIDE
                     Column {
                         width: parent.width; spacing: Theme.sp(8)
-                        MlSection { text: qsTr("STEP STRIDE") }
+                        PpMicro { text: qsTr("STEP STRIDE") }
                         Row {
                             spacing: Theme.sp(8)
                             MlButton { text: "−"; onClicked: markupController.stride = markupController.stride - 1 }
@@ -524,18 +528,24 @@ Item {
 
                     // P-POSITIONS — instants of the SWING, off the shared playhead.
                     Column {
-                        width: parent.width; spacing: Theme.sp(5)
-                        MlSection { text: qsTr("P-POSITIONS") }
+                        width: parent.width; spacing: Theme.sp(2)
+                        PpMicro { text: qsTr("P-POSITIONS") }
                         Repeater {
                             model: root.pDefs
+                            // Rows parted by hairlines, not boxed — the glyph on the right and
+                            // its colour carry the state: ● club placed, ○ tagged without a
+                            // club, · not tagged.
                             delegate: Rectangle {
                                 readonly property var ev: markupController.events[modelData.name]
                                 readonly property bool complete: !!(ev && ev.hasClub)
                                 width: parent.width; height: Theme.sp(42)
                                 radius: Theme.radius
-                                color: complete ? Theme.colorAccentMid : (ev ? Theme.colorBg3 : Theme.colorBg2)
-                                border.width: 1
-                                border.color: complete ? Theme.colorAccent : (ev ? Theme.colorWarn : Theme.colorBorder)
+                                color: rowMa.containsMouse ? Theme.colorBg2 : "transparent"
+                                Rectangle {
+                                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                                    height: 1
+                                    color: Theme.colorBorder
+                                }
 
                                 Text {
                                     id: keyHint
@@ -615,7 +625,9 @@ Item {
                                     }
                                 }
                                 MouseArea {
+                                    id: rowMa
                                     anchors.fill: parent; z: -1
+                                    hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: { markupController.setEvent(modelData.name); root.forceActiveFocus() }
                                 }
@@ -626,7 +638,7 @@ Item {
                     // THIS SWING
                     Column {
                         width: parent.width; spacing: Theme.sp(4)
-                        MlSection { text: qsTr("THIS SWING") }
+                        PpMicro { text: qsTr("THIS SWING") }
                         Text {
                             text: qsTr("%1 / 10 P-positions · %2 shaft frames").arg(root.pComplete()).arg(markupController.shaftCount)
                             font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Theme.colorText2
@@ -667,7 +679,7 @@ Item {
                             // SWING SCOPE — gates SwingLab's full-swing-only checks.
                             Column {
                                 width: parent.width; spacing: Theme.sp(8)
-                                MlSection { text: qsTr("SWING SCOPE") }
+                                PpMicro { text: qsTr("SWING SCOPE") }
                                 PpSegmentedControl {
                                     width: parent.width
                                     options: root.scopeOpts
@@ -691,7 +703,7 @@ Item {
                             // TEMPO
                             Column {
                                 width: parent.width; spacing: Theme.sp(8)
-                                MlSection { text: qsTr("TEMPO") }
+                                PpMicro { text: qsTr("TEMPO") }
                                 PpSegmentedControl {
                                     width: parent.width
                                     options: root.tempoOpts
@@ -710,7 +722,7 @@ Item {
                             // BALL CONTACT
                             Column {
                                 width: parent.width; spacing: Theme.sp(8)
-                                MlSection { text: qsTr("BALL CONTACT") }
+                                PpMicro { text: qsTr("BALL CONTACT") }
                                 PpSegmentedControl {
                                     width: parent.width
                                     options: root.contactOpts
@@ -729,7 +741,7 @@ Item {
                             // LIGHTING
                             Column {
                                 width: parent.width; spacing: Theme.sp(8)
-                                MlSection { text: qsTr("LIGHTING") }
+                                PpMicro { text: qsTr("LIGHTING") }
                                 PpSegmentedControl {
                                     width: parent.width
                                     options: root.lightingOpts
@@ -748,7 +760,7 @@ Item {
                             // SHAFT
                             Column {
                                 width: parent.width; spacing: Theme.sp(8)
-                                MlSection { text: qsTr("SHAFT") }
+                                PpMicro { text: qsTr("SHAFT") }
                                 PpSegmentedControl {
                                     width: parent.width
                                     options: root.shaftOpts
@@ -767,7 +779,7 @@ Item {
                             // CLUB
                             Column {
                                 width: parent.width; spacing: Theme.sp(8)
-                                MlSection { text: qsTr("CLUB") }
+                                PpMicro { text: qsTr("CLUB") }
                                 Text {
                                     width: parent.width; wrapMode: Text.WordWrap
                                     text: qsTr("Defaulted from the session; change it here if the club for this swing differs.")
@@ -802,7 +814,7 @@ Item {
                             // CLUB LEAVES FRAME — explains a legitimately low coverage.
                             Column {
                                 width: parent.width; spacing: Theme.sp(8)
-                                MlSection { text: qsTr("TRACKING") }
+                                PpMicro { text: qsTr("TRACKING") }
                                 MlButton {
                                     text: markupController.metaClubLeavesFrame
                                           ? qsTr("Club leaves frame: yes")
@@ -824,14 +836,18 @@ Item {
             }
         }
 
-        // ── Transport / status ──────────────────────────────────────────────────
-        Rectangle {
+        // ── Transport / status — under a hairline, on the card's surface ─────────
+        Item {
             Layout.fillWidth: true
             Layout.preferredHeight: Theme.sp(44)
-            color: Theme.colorBg2
+            Rectangle {
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                height: 1
+                color: Theme.colorBorder
+            }
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: Theme.sp(14); anchors.rightMargin: Theme.sp(14)
+                anchors.topMargin: Theme.sp(8)
                 spacing: Theme.sp(10)
 
                 MlButton { text: "⏮"; enabled: markupController.hasSwing; onClicked: markupController.setFrameIndex(0) }
@@ -864,20 +880,20 @@ Item {
         }
     }
 
-    // Toast for controller messages (save / decode feedback).
-    Rectangle {
+    // Toast for controller messages (save / decode feedback) — it floats, so it wears the
+    // popover card's shell.
+    Item {
         id: toast
         function show(t) { toastText.text = t; opacity = 1; toastTimer.restart() }
         anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: Theme.sp(60) }
-        width: toastText.width + Theme.sp(28); height: toastText.height + Theme.sp(16)
-        radius: Theme.radiusLg
-        color: Theme.colorSurface
-        border.width: 1; border.color: Theme.colorBorder
+        width: toastText.width + Theme.sp(28); height: toastText.height + Theme.sp(18)
         opacity: 0
         Behavior on opacity { NumberAnimation { duration: Theme.durationNormal } }
+        PpPopoverCard { anchors.fill: parent }
         Text {
             id: toastText
             anchors.centerIn: parent
+            anchors.verticalCenterOffset: 1
             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2; color: Theme.colorText
         }
         Timer { id: toastTimer; interval: 2200; onTriggered: toast.opacity = 0 }
@@ -918,7 +934,8 @@ Item {
 
         function repaint() { paneCanvas.requestPaint() }
 
-        color: "#000000"
+        color: Theme.colorBg2
+        radius: Theme.radius
         border.width: 1
         border.color: pane.isActive ? Theme.colorAccent : Theme.colorBorder
         Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
@@ -960,7 +977,7 @@ Item {
                 if (pane.showPose && markupController.showSkeleton && pose && pose.has && pose.kp) {
                     var kp = pose.kp
                     ctx.lineWidth = 2
-                    ctx.strokeStyle = Qt.rgba(0.50, 0.72, 0.96, 0.80)
+                    ctx.strokeStyle = Qt.alpha(Theme.poseBone, 0.80)
                     for (var e = 0; e < pane.edges.length; ++e) {
                         var a = pane.edges[e][0], b = pane.edges[e][1]
                         if (kp[a*3+2] < pane.minConf || kp[b*3+2] < pane.minConf) continue
@@ -969,7 +986,7 @@ Item {
                         ctx.lineTo(paneImg.sx(kp[b*3]), paneImg.sy(kp[b*3+1]))
                         ctx.stroke()
                     }
-                    ctx.fillStyle = Qt.rgba(0.50, 0.72, 0.96, 0.95)
+                    ctx.fillStyle = Qt.alpha(Theme.poseBone, 0.95)
                     for (var i = 0; i < 17; ++i) {
                         if (kp[i*3+2] < pane.minConf) continue
                         ctx.beginPath()
@@ -981,10 +998,13 @@ Item {
                         ctx.strokeStyle = Theme.colorAttention; ctx.lineWidth = 2
                         ctx.beginPath(); ctx.arc(lx, ly, 8, 0, 2 * Math.PI); ctx.stroke()
                     }
+                    // The trail hand is told from the lead by its dashed ring, not by hue alone.
                     if (pose.trail) {
                         var tx = paneImg.sx(pose.trail[0]), ty = paneImg.sy(pose.trail[1])
-                        ctx.strokeStyle = Qt.rgba(0.78, 0.55, 0.96, 0.85); ctx.lineWidth = 2
+                        ctx.strokeStyle = Qt.alpha(Theme.poseSpineTop, 0.85); ctx.lineWidth = 2
+                        ctx.setLineDash([3, 3])
                         ctx.beginPath(); ctx.arc(tx, ty, 7, 0, 2 * Math.PI); ctx.stroke()
+                        ctx.setLineDash([])
                     }
                 }
 
@@ -1010,15 +1030,16 @@ Item {
                 }
 
                 // Stationary ball centre (marked once per camera) — a reticle that
-                // reads on any background: dark halo + bright ring + centre dot.
+                // reads on any background: dark halo + bright ring + centre dot, in the
+                // overlay palette's ink and its brightest cyan.
                 var b2 = pane.ball
                 if (b2 && b2.has) {
                     var bx = paneImg.sx(b2.nx), by = paneImg.sy(b2.ny)
-                    ctx.lineWidth = 3; ctx.strokeStyle = Qt.rgba(0, 0, 0, 0.55)
+                    ctx.lineWidth = 3; ctx.strokeStyle = Qt.alpha(Theme.poseInk, 0.55)
                     ctx.beginPath(); ctx.arc(bx, by, 11, 0, 2 * Math.PI); ctx.stroke()
-                    ctx.lineWidth = 2; ctx.strokeStyle = Qt.rgba(0.20, 0.95, 0.80, 0.95)
+                    ctx.lineWidth = 2; ctx.strokeStyle = Qt.alpha(Theme.poseSpineTop, 0.95)
                     ctx.beginPath(); ctx.arc(bx, by, 11, 0, 2 * Math.PI); ctx.stroke()
-                    ctx.fillStyle = Qt.rgba(0.20, 0.95, 0.80, 0.95)
+                    ctx.fillStyle = Qt.alpha(Theme.poseSpineTop, 0.95)
                     ctx.beginPath(); ctx.arc(bx, by, 2.5, 0, 2 * Math.PI); ctx.fill()
                 }
             }
@@ -1035,30 +1056,35 @@ Item {
 
         // HUD: which camera, which of ITS frames, and — on the active pane — what
         // the next click will do. Each pane names its own frame index and time, so
-        // the pairing the playhead made is visible rather than assumed.
+        // the pairing the playhead made is visible rather than assumed. All of it in
+        // the scrim's light words (the active pane already wears the accent border),
+        // and cut at the pane's edge rather than spilling over its neighbour.
         Rectangle {
             visible: markupController.hasSwing
             anchors { left: paneImg.left; top: paneImg.top; margins: Theme.sp(6) }
-            width: hud.width + Theme.sp(16); height: hud.height + Theme.sp(8)
+            width: Math.min(hud.width + Theme.sp(16), paneImg.width - Theme.sp(12))
+            height: hud.height + Theme.sp(8)
             radius: Theme.radius
-            color: Qt.rgba(0, 0, 0, 0.55)
+            clip: true
+            color: root._scrim
             Row {
                 id: hud
-                anchors.centerIn: parent
+                x: Theme.sp(8)
+                anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.sp(10)
                 Text {
                     text: pane.title
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
-                    color: pane.isActive ? Theme.colorAccentLight : Theme.colorText3
+                    color: pane.isActive ? root._onScrim : Qt.alpha(root._onScrim, 0.6)
                 }
                 Text {
                     text: qsTr("%1 / %2").arg(pane.frameIdx).arg(Math.max(0, pane.frameTotal - 1))
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: "#ffffff"
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: root._onScrim
                 }
                 Text {
                     text: pane.frameSec.toFixed(3) + "s"
-                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Theme.colorAccentLight
+                    font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Qt.alpha(root._onScrim, 0.75)
                 }
                 Text {
                     visible: pane.isActive
@@ -1067,18 +1093,15 @@ Item {
                           : ((pane.pendingGrip && pane.pendingPane === pane.paneIndex)
                              ? qsTr("◇ pick head") : qsTr("◇ pick grip"))
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
-                    color: pane.ballMode ? Theme.colorAccentLight
-                           : (pane.shaft && pane.shaft.has) ? Theme.colorGood : Theme.colorText3
+                    // The glyph carries the state: ◆ a shaft is placed, ◇ a click is wanted.
+                    color: pane.ballMode ? root._onScrim : Qt.alpha(root._onScrim, 0.6)
                 }
             }
         }
     }
 
-    component MlSection: Text {
-        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
-        font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-    }
-
+    // PpButton's look at the panel's compact size, kept local because every press hands the
+    // keyboard back to the panel (its P keys and a/d stepping) — PpButton does not.
     component MlButton: Rectangle {
         id: btn
         property string text: ""
@@ -1089,16 +1112,16 @@ Item {
         radius: Theme.radius
         opacity: enabled ? 1.0 : 0.4
         color: accent ? Theme.colorAccent
-             : bMa.containsMouse ? Theme.colorBg3 : Theme.colorBg2
-        border.width: 1
-        border.color: accent ? Theme.colorAccent : Theme.colorBorder
+             : bMa.containsMouse ? Theme.colorBg2 : "transparent"
+        border.width: accent ? 0 : 1
+        border.color: Theme.colorBorderStrong
         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
         Text {
             id: lbl
             anchors.centerIn: parent
             text: btn.text
             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-            color: btn.accent ? "#ffffff" : Theme.colorText
+            color: btn.accent ? (Theme.dark ? Theme.colorBg : Theme.colorSurface) : Theme.colorText
         }
         MouseArea {
             id: bMa

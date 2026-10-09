@@ -213,9 +213,12 @@ Rectangle {
         }
     }
 
+    // The band's mark leads the number: the card is too small for the band's word, and the
+    // pill's colour alone would be the only thing saying it.
     PpQualityPill {
         anchors { right: parent.right; top: parent.top; margins: Theme.sp(6) }
         score: card.score
+        mark:  true
     }
 
     // ── the swing's diagnostic read, when a session diagnostics panel is up ──
@@ -319,25 +322,35 @@ Rectangle {
 
     // Data-integrity warning (bottom-right): frames were lost during capture, or the
     // IMU re-fusion parity failed. Either way the recording is known broken, the
-    // tooltip says which, and the session assessment leaves the shot out.
+    // tooltip says which, and the session assessment leaves the shot out. The glyph
+    // carries a word, so the warning is read on the strip without hovering for it.
     Rectangle {
         id: dataWarnBadge
         objectName: "dataWarnBadge"
         visible: card.dataWarning
         anchors { right: parent.right; bottom: parent.bottom; margins: Theme.sp(6) }
-        width:  warnGlyph.implicitWidth + Theme.sp(8)
-        height: warnGlyph.implicitHeight + Theme.sp(4)
+        width:  warnRow.implicitWidth + Theme.sp(8)
+        height: warnRow.implicitHeight + Theme.sp(4)
         radius: Theme.sp(4)
         color:  card.scrimColor
         z: 2    // above the star scrim (z:1) and the border
 
-        Text {
-            id: warnGlyph
+        Row {
+            id: warnRow
             anchors.centerIn: parent
-            text:           "⚠"            // ⚠ warning triangle with exclamation
-            font.family:    Theme.fontSymbol
-            font.pixelSize: Theme.sp(13)
-            color:          Theme.colorWarn
+            spacing: Theme.sp(3)
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text:           "⚠"            // ⚠ warning triangle with exclamation
+                font.family:    Theme.fontSymbol
+                font.pixelSize: Theme.sp(12)
+                color:          Theme.colorWarn
+            }
+            PpMicro {
+                anchors.verticalCenter: parent.verticalCenter
+                text:  qsTr("DATA")
+                color: Theme.colorWarn
+            }
         }
 
         HoverHandler { id: warnHover }

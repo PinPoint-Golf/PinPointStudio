@@ -17,8 +17,10 @@
  */
 
 // Per-(source,part) coverage lanes over the swing time axis. Each lane's `bins`
-// (0 present / 1 low-conf / 2 gap) renders as a fixed row of cells; a selection band
-// marks the detail window; a phase ladder runs underneath. Read-only.
+// (0 present / 1 low-conf / 2 gap) renders as a fixed row of cells — a full cell in the
+// source's colour, a short amber one, or none — so the three read by shape as well as
+// colour; a selection band marks the detail window; a phase ladder runs underneath.
+// Read-only.
 
 import QtQuick
 import QtQuick.Controls.Basic
@@ -51,7 +53,12 @@ Column {
             strip.seek(strip.spanUs * Math.max(0, Math.min(1, x / w)))
     }
 
-    padding: Theme.sp(10); spacing: Theme.sp(6)
+    // Flush with the card's other sections: no side padding of its own.
+    topPadding: Theme.sp(4); bottomPadding: Theme.sp(10); spacing: Theme.sp(6)
+
+    // A low-confidence cell: amber, and shorter than a present one.
+    readonly property color lowConfColor: Qt.alpha(Theme.colorAttention, 0.55)
+    readonly property real  lowConfHeight: 0.55
 
     // Lane labels arrive as "KIND · Name"; split so a compact kind glyph replaces the
     // word, freeing room for the full (untruncated) name.
@@ -69,10 +76,8 @@ Column {
 
     Row {  // legend
         spacing: Theme.sp(14)
-        Text { visible: strip.showTitle
-               text: qsTr("COVERAGE"); font.family: Theme.fontData
-               font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingMicro
-               color: Theme.colorText3; anchors.verticalCenter: parent.verticalCenter }
+        PpMicro { visible: strip.showTitle
+                  text: qsTr("COVERAGE"); anchors.verticalCenter: parent.verticalCenter }
         Row {
             spacing: Theme.sp(5); anchors.verticalCenter: parent.verticalCenter
             Rectangle { width: Theme.sp(10); height: Theme.sp(8); radius: 2; color: Theme.colorText2
@@ -82,15 +87,19 @@ Column {
         }
         Row {
             spacing: Theme.sp(5); anchors.verticalCenter: parent.verticalCenter
-            Rectangle { width: Theme.sp(10); height: Theme.sp(8); radius: 2
-                        color: Qt.rgba(0.91, 0.71, 0.29, 0.55)
-                        anchors.verticalCenter: parent.verticalCenter }
+            Item {
+                width: Theme.sp(10); height: Theme.sp(8)
+                anchors.verticalCenter: parent.verticalCenter
+                Rectangle { width: parent.width; height: Math.round(parent.height * strip.lowConfHeight)
+                            radius: 2; color: strip.lowConfColor
+                            anchors.verticalCenter: parent.verticalCenter }
+            }
             Text { text: qsTr("low conf"); font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
                    color: Theme.colorText3; anchors.verticalCenter: parent.verticalCenter }
         }
         Row {
             spacing: Theme.sp(5); anchors.verticalCenter: parent.verticalCenter
-            Rectangle { width: Theme.sp(10); height: Theme.sp(8); radius: 2; color: "#140F0C"
+            Rectangle { width: Theme.sp(10); height: Theme.sp(8); radius: 2; color: Theme.colorBg
                         border.width: 1; border.color: Theme.colorBorderMid
                         anchors.verticalCenter: parent.verticalCenter }
             Text { text: qsTr("gap"); font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
@@ -104,7 +113,7 @@ Column {
             required property string label
             required property string colorKey
             required property var    bins      // list<int>
-            width: strip.width - 2 * Theme.sp(10)
+            width: strip.width
             spacing: Theme.sp(8)
             Row {
                 width: strip.labelW
@@ -134,7 +143,7 @@ Column {
                 width: parent.width - strip.labelW - Theme.sp(8)
                 height: Theme.sp(13)
                 anchors.verticalCenter: parent.verticalCenter
-                Rectangle { anchors.fill: parent; color: "#140F0C"; radius: Theme.sp(3) }
+                Rectangle { anchors.fill: parent; color: Theme.colorBg; radius: Theme.sp(3) }
                 Row {
                     anchors.fill: parent; spacing: 2
                     Repeater {
@@ -142,9 +151,12 @@ Column {
                         delegate: Rectangle {
                             required property int modelData
                             width: (parent.width - (bins.length - 1) * 2) / bins.length
-                            height: parent.height; radius: 2
+                            height: modelData === 1 ? Math.round(parent.height * strip.lowConfHeight)
+                                                    : parent.height
+                            anchors.verticalCenter: parent.verticalCenter
+                            radius: 2
                             color: modelData === 2 ? "transparent"
-                                 : modelData === 1 ? Qt.rgba(0.91, 0.71, 0.29, 0.55)
+                                 : modelData === 1 ? strip.lowConfColor
                                  : strip.colorFn(colorKey)
                         }
                     }
@@ -155,7 +167,7 @@ Column {
                     x: parent.width * (strip.windowStartUs / strip.spanUs)
                     width: parent.width * ((strip.windowEndUs - strip.windowStartUs) / strip.spanUs)
                     y: -3; height: parent.height + 6
-                    color: Qt.rgba(0.49, 0.75, 0.67, 0.10)
+                    color: Qt.alpha(Theme.colorAccent, 0.10)
                     border.width: 0
                     Rectangle { width: 1; height: parent.height; color: Theme.colorAccent; opacity: 0.45 }
                     Rectangle { width: 1; height: parent.height; anchors.right: parent.right
@@ -186,7 +198,7 @@ Column {
 
     // phase ladder
     Row {
-        width: strip.width - 2 * Theme.sp(10)
+        width: strip.width
         Item { width: strip.labelW; height: Theme.sp(12) }
         Item {
             width: parent.width - strip.labelW - Theme.sp(8); height: Theme.sp(12)

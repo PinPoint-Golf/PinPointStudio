@@ -16,28 +16,15 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Muted placeholder for a stage panel whose producer hasn't landed yet
-// (Charts / Table). Replace with the real component when ready.
+// Placeholder for a stage panel whose producer hasn't landed yet. The stage's card carries its
+// title and frame; this only says so, in the card's one quiet line.
 
 import QtQuick
 import PinPointStudio
 
-Rectangle {
-    property string title: ""
-    radius: Theme.radius
-    color: Theme.colorBg2
-    border.width: 1; border.color: Theme.colorBorderMid
-
-    Text {
-        anchors { top: parent.top; left: parent.left; margins: Theme.sp(10) }
-        text: title
-        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
-        font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
-    }
-    Text {
-        anchors.centerIn: parent
+Item {
+    PpCardNote {
+        width: parent.width
         text: qsTr("Coming soon")
-        font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-        color: Theme.colorText3
     }
 }

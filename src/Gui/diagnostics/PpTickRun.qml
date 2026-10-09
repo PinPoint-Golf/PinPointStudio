@@ -121,8 +121,10 @@ Item {
             // Above its neighbours, since it is wider than its pitch when the run is tight.
             z: selected ? 1 : 0
 
+            // A firing in the faults' colorWarn (13.2), a clean shot in colorGood — the session
+            // pips' own pair, so the run and the pips read as one vocabulary.
             color: notAssessable ? "transparent"
-                                 : (fired ? Theme.colorError : Theme.colorGood)
+                                 : (fired ? Theme.colorWarn : Theme.colorGood)
             // Outlined in colorText when selected — over a fired fill, over a clean fill and
             // over the not-assessable tick's own grey outline, all three read.
             border.width: (selected || notAssessable) ? 1 : 0

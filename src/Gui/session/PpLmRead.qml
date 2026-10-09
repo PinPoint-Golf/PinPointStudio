@@ -63,7 +63,7 @@ Column {
     // because this panel marks what is OUT and stays silent about everything else.
     property string grade: ""
     readonly property bool flagged: grade === "watch" || grade === "action"
-    readonly property color flagColor: grade === "action" ? Theme.colorRagFault
+    readonly property color flagColor: grade === "action" ? Theme.colorWarn
                                                           : Theme.colorRagWatch
 
     signal hovered(string key, bool on)
@@ -116,6 +116,17 @@ Column {
             font.pixelSize: Theme.fontSzMicro
             color: Theme.colorText2
             visible: root.unit !== ""
+        }
+        // ...and the verdict in words beside it, so the figure's colour is never the only
+        // channel: "watch" at the corridor's edge, "outside" past it.
+        Text {
+            objectName: "readFlag"
+            anchors.baseline: readValue.baseline
+            visible: root.flagged
+            text: root.grade === "action" ? qsTr("outside") : qsTr("watch")
+            font.family: Theme.fontData
+            font.pixelSize: Theme.fontSzMicro
+            color: root.flagColor
         }
     }
 }

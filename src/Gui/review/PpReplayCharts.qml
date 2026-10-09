@@ -19,7 +19,8 @@
 // Charts stage-panel: the focused replay's metric traces (PpMetricChart),
 // scrubbing with the replay playhead, with split/overlay + chart-local segment
 // selection + per-window summary. Bound to shotReplay. Hosted by PpModeStage as the
-// "charts" panel; shows an empty-state until a swing is reviewed.
+// "charts" panel, whose card is its frame and title; until a swing is reviewed the card holds
+// one quiet line.
 
 import QtQuick
 import PinPointStudio
@@ -41,7 +42,6 @@ Item {
 
     PpMetricChart {
         anchors.fill: parent
-        anchors.margins: Theme.sp(12)
         sessionType: root.sessionType
         visible:    root._series.length > 0
         seriesList: root._series
@@ -64,21 +64,10 @@ Item {
         onScrubEnded:    shotReplay.endScrub()
     }
 
-    Column {
-        anchors.centerIn: parent
-        spacing: Theme.sp(6)
+    PpCardNote {
+        width: parent.width
         visible: root._series.length === 0
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: shotReplay.active ? qsTr("No metric traces for this swing")
-                                    : qsTr("Select a swing to review")
-            color: Theme.colorText2; font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
-        }
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: qsTr("Charts show the analyzed metric curves")
-            color: Theme.colorText3; font.family: Theme.fontData
-            font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingData
-        }
+        text: shotReplay.active ? qsTr("No metric traces for this swing")
+                                : qsTr("Select a swing to review — the charts show its analysed metric curves")
     }
 }
