@@ -68,21 +68,12 @@ Item {
             Item { width: 1; height: Theme.sp(48) }
 
             // ── ← Home ───────────────────────────────────────────────────────
-            Text {
+            PpLink {
                 id: back
-                text: qsTr("← Home")
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                color:          backPress.containsMouse ? Qt.lighter(Theme.colorAccent, 1.15) : Theme.colorAccent
-                MouseArea {
-                    id: backPress
-                    objectName: "diagnosticsBack"
-                    anchors.fill: parent
-                    anchors.margins: -Theme.sp(6)
-                    hoverEnabled: true
-                    cursorShape:  Qt.PointingHandCursor
-                    onClicked:    root.backRequested()
-                }
+                objectName:  "diagnosticsBack"
+                text:        qsTr("← Home")
+                pressMargin: Theme.sp(6)
+                onClicked:   root.backRequested()
             }
             Item { width: 1; height: Theme.sp(20) }
 
@@ -90,13 +81,9 @@ Item {
             Item {
                 width:  mainCol.width
                 height: Theme.sp(34)
-                Text {
+                PpMicro {
                     anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                     text: qsTr("SWING DIAGNOSTICS")
-                    font.family:        Theme.fontData
-                    font.pixelSize:     Theme.fontSzMicro
-                    font.letterSpacing: Theme.trackingMicro
-                    color:              Theme.colorText3
                 }
             }
             Text {

@@ -75,6 +75,23 @@ set(PP_QML_FILES
     src/Gui/shell/PpRail.qml
     src/Gui/shell/PpRailButton.qml
     src/Gui/components/PpDivider.qml
+    # The coaching-card pieces (design system §13), shared by home and the session panels.
+    src/Gui/components/PpCardShell.qml
+    src/Gui/components/PpCard.qml
+    src/Gui/components/PpStageCard.qml
+    src/Gui/components/PpPopoverCard.qml
+    src/Gui/components/PpMicro.qml
+    src/Gui/components/PpBadge.qml
+    src/Gui/components/PpMeter.qml
+    src/Gui/components/PpPip.qml
+    src/Gui/components/PpPips.qml
+    src/Gui/components/PpChip.qml
+    src/Gui/components/PpStrengthMark.qml
+    src/Gui/components/PpSwingTimeline.qml
+    src/Gui/components/PpInset.qml
+    src/Gui/components/PpLink.qml
+    src/Gui/components/PpCardNote.qml
+    src/Gui/components/PpFact.qml
     src/Gui/shell/PpHeader.qml
     src/Gui/shell/PpUpdateBanner.qml
     src/Gui/shell/PpDetectCluster.qml

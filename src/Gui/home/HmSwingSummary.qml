@@ -45,7 +45,6 @@
 // its width; the "SESSIONS" aside heads them.
 
 import QtQuick
-import QtQuick.Shapes
 import PinPointStudio
 
 Column {
@@ -101,199 +100,10 @@ Column {
     function capitalised(s) { s = String(s); return s.length ? s.charAt(0).toUpperCase() + s.slice(1) : s }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Pieces
+    // Pieces — shared with the other coaching cards (components/Pp*)
     // ════════════════════════════════════════════════════════════════════════
 
-    // A micro heading — the app's mono caps.
-    component Micro: Text {
-        font.family:        Theme.fontData
-        font.pixelSize:     Theme.fontSzMicro
-        font.letterSpacing: Theme.trackingMicro
-        color:              Theme.colorText3
-    }
-
-    // A card: surface, hairline border, a 3 px rule in the card's tone along the top edge that
-    // follows the rounded corners, and a heading row (title left, an aside right).
-    component Card: Item {
-        id: card
-        property color  tone: Theme.colorAccent
-        property string title: ""
-        property string aside: ""
-        readonly property int pad: Theme.sp(20)
-        property int    itemGap: Theme.sp(18)
-        property int    asideWidth: 0               // right-align the aside over a column this wide
-        default property alias content: body.data
-        readonly property int innerWidth: width - 2 * card.pad
-        implicitHeight: body.y + body.implicitHeight + card.pad
-
-        Rectangle {
-            anchors.fill: parent
-            radius:       Theme.radiusLg
-            color:        Theme.colorSurface
-            border.width: 1
-            border.color: Theme.colorBorderMid
-        }
-        // The top rule: a rounded tone shape, its lower part covered by the surface again.
-        Rectangle {
-            width: parent.width; height: Theme.radiusLg * 2
-            radius: Theme.radiusLg
-            color:  card.tone
-        }
-        Rectangle {
-            x: 1; y: 3
-            width: parent.width - 2; height: Theme.radiusLg * 2
-            color: Theme.colorSurface
-        }
-
-        Micro {
-            id: cardTitle
-            x: card.pad; y: card.pad + Theme.sp(2)
-            text:  card.title
-            color: card.tone
-        }
-        Micro {
-            visible: card.aside !== ""
-            anchors.baseline: cardTitle.baseline
-            x: card.width - card.pad - Math.max(implicitWidth, card.asideWidth)
-               + (card.asideWidth > implicitWidth ? card.asideWidth - implicitWidth : 0)
-            text: card.aside
-            font.letterSpacing: Theme.trackingData
-        }
-
-        Column {
-            id: body
-            x: card.pad
-            y: cardTitle.y + cardTitle.implicitHeight + Theme.sp(18)
-            width: card.innerWidth
-            spacing: card.itemGap
-        }
-    }
-
-    // One pip per session: filled = seen (or clean, for "do well") that session.
-    component Pips: Row {
-        id: pips
-        property var   marks: []
-        property color tone: Theme.colorText3
-        spacing: Theme.sp(4)
-        Repeater {
-            model: pips.marks
-            Rectangle {
-                required property var modelData
-                width: Theme.sp(6); height: width; radius: width / 2
-                color:        modelData ? pips.tone : "transparent"
-                border.width: modelData ? 0 : 1
-                border.color: Theme.colorBorderStrong
-            }
-        }
-    }
     readonly property int pipsWidth: root.pipCount * Theme.sp(6) + (root.pipCount - 1) * Theme.sp(4)
-
-    // Leading badges, one per card, so the two columns share a left edge and a rhythm.
-    component CheckBadge: Rectangle {
-        id: badge
-        readonly property int size: Theme.sp(20)
-        property color tone: Theme.colorGood
-        width: badge.size; height: width; radius: width / 2
-        color: Qt.alpha(badge.tone, Theme.dark ? 0.16 : 0.12)
-        Shape {
-            anchors.fill: parent
-            preferredRendererType: Shape.CurveRenderer
-            ShapePath {
-                strokeColor: badge.tone; strokeWidth: Math.max(1.5, Theme.sp(1.6)); fillColor: "transparent"
-                capStyle: ShapePath.RoundCap; joinStyle: ShapePath.RoundJoin
-                startX: badge.size * 0.29; startY: badge.size * 0.52
-                PathLine { x: badge.size * 0.44; y: badge.size * 0.66 }
-                PathLine { x: badge.size * 0.72; y: badge.size * 0.36 }
-            }
-        }
-    }
-    component AimBadge: Rectangle {
-        id: badge
-        readonly property int size: Theme.sp(20)
-        property color tone: Theme.colorAccent
-        width: badge.size; height: width; radius: width / 2
-        color: Qt.alpha(badge.tone, Theme.dark ? 0.16 : 0.12)
-        Rectangle {
-            anchors.centerIn: parent
-            width: Math.round(badge.size * 0.56); height: width; radius: width / 2
-            color: "transparent"; border.width: Math.max(1.5, Theme.sp(1.4)); border.color: badge.tone
-        }
-        Rectangle {
-            anchors.centerIn: parent
-            width: Math.round(badge.size * 0.2); height: width; radius: width / 2
-            color: badge.tone
-        }
-    }
-
-    // "↑ growing" / "↓ easing": a pill, tiny mono. Nothing when flat.
-    component TrendChip: Rectangle {
-        id: chip
-        property int trend: 0
-        readonly property color tone: trend > 0 ? Theme.colorWarn : Theme.colorGood
-        visible: trend !== 0
-        width:  visible ? chipText.implicitWidth + Theme.sp(12) : 0
-        height: Theme.sp(18)
-        radius: height / 2
-        color:  Qt.alpha(chip.tone, Theme.dark ? 0.12 : 0.09)
-        border.width: 1
-        border.color: Qt.alpha(chip.tone, 0.45)
-        Text {
-            id: chipText
-            anchors.centerIn: parent
-            text: chip.trend > 0 ? qsTr("↑ growing") : qsTr("↓ easing")
-            font.family:        Theme.fontData
-            font.pixelSize:     Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingData
-            color:              chip.tone
-        }
-    }
-
-    // How often, as ten rounded segments.
-    component FrequencyMeter: Row {
-        id: meter
-        property real  share: 0
-        property color tone: Theme.colorAccent
-        readonly property int filled: Math.max(0, Math.min(10, Math.round(share * 10)))
-        spacing: Theme.sp(3)
-        Repeater {
-            model: 10
-            Rectangle {
-                required property int index
-                width: Theme.sp(9); height: Theme.sp(6); radius: height / 2
-                color: index < meter.filled ? meter.tone : Theme.colorBorderMid
-            }
-        }
-    }
-
-    // "NEXT": the first thing on the list after the focus. A pill in the tone, tiny mono.
-    component NextChip: Rectangle {
-        id: chip
-        width:  chipText.implicitWidth + Theme.sp(12)
-        height: Theme.sp(18)
-        radius: height / 2
-        color:  Qt.alpha(root.toneWork, Theme.dark ? 0.12 : 0.09)
-        border.width: 1
-        border.color: Qt.alpha(root.toneWork, 0.45)
-        Text {
-            id: chipText
-            anchors.centerIn: parent
-            text: qsTr("NEXT")
-            font.family:        Theme.fontData
-            font.pixelSize:     Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingMicro
-            color:              root.toneWork
-        }
-    }
-
-    // A card with nothing in it says so in one quiet line, so the pair keeps its shape.
-    component CardNote: Text {
-        font.family:    Theme.fontBody
-        font.pixelSize: Theme.fontSzBody2
-        font.weight:    Theme.fontBodyWeight
-        color:          Theme.colorText3
-        wrapMode:       Text.WordWrap
-        lineHeight:     1.3
-    }
 
     // ════════════════════════════════════════════════════════════════════════
     // Layout
@@ -303,13 +113,13 @@ Column {
         width:  root.width
         height: Theme.sp(34)
 
-        Micro {
+        PpMicro {
             anchors { left: parent.left; verticalCenter: parent.verticalCenter }
             text: qsTr("YOUR SWING")
         }
         // The first reading of a golfer's sessions, said once and quietly. A recompute after
         // that leaves the summary standing and says nothing: it changes when it lands.
-        Micro {
+        PpMicro {
             objectName: "swingSummaryUpdating"
             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
             visible: root.updating && !root.ready
@@ -372,7 +182,7 @@ Column {
             height: root.stacked ? wellCard.implicitHeight + root.cardGap + workCard.implicitHeight
                                  : tallest
 
-            Card {
+            PpCard {
                 id: wellCard
                 width:  row1.cardW
                 height: root.stacked ? implicitHeight : row1.tallest
@@ -395,7 +205,8 @@ Column {
                         width:  wellCard.innerWidth
                         height: wellCol.implicitHeight
 
-                        CheckBadge {
+                        PpBadge {
+                            kind: "check"
                             tone: root.toneWell
                             y: Math.round((wellHead.lineCentre) - height / 2)
                         }
@@ -430,7 +241,7 @@ Column {
                                     color:          Theme.colorText3
                                     wrapMode:       Text.WordWrap
                                 }
-                                Pips {
+                                PpPips {
                                     anchors { right: parent.right; verticalCenter: wellCaption.verticalCenter }
                                     marks: root.latestPips(wellItem.modelData.sessions)
                                     tone:  root.toneWell
@@ -440,7 +251,7 @@ Column {
                     }
                 }
 
-                CardNote {
+                PpCardNote {
                     objectName: "doWellEmpty"
                     visible: root.doWell.length === 0
                     width:   wellCard.innerWidth
@@ -448,7 +259,7 @@ Column {
                 }
             }
 
-            Card {
+            PpCard {
                 id: workCard
                 x: root.stacked ? 0 : row1.cardW + root.cardGap
                 y: root.stacked ? wellCard.implicitHeight + root.cardGap : 0
@@ -474,7 +285,8 @@ Column {
                         width:  workCard.innerWidth
                         height: workCol.implicitHeight
 
-                        AimBadge {
+                        PpBadge {
+                            kind: "target"
                             tone: root.toneWork
                             y: Math.round(workHead.lineCentre - height / 2)
                         }
@@ -499,9 +311,12 @@ Column {
                                 color:          Theme.colorText
                                 wrapMode:       Text.WordWrap
                                 lineHeight:     1.3
-                                NextChip {
+                                PpChip {
                                     id: nextChip
                                     objectName: "nextChip"
+                                    text:     qsTr("NEXT")
+                                    tone:     root.toneWork
+                                    tracking: Theme.trackingMicro
                                     visible: workItem.index === 0
                                     x: workHead.contentWidth + Theme.sp(10)
                                     y: Math.round(workHead.lineCentre - height / 2)
@@ -516,7 +331,7 @@ Column {
                                 readonly property bool chipFits:
                                     meter.width + freqWords.implicitWidth + workChip.width
                                     + Theme.sp(10) + Theme.sp(8) + Theme.sp(8) + root.pipsWidth <= width
-                                TrendChip {
+                                PpChip {
                                     id: workChip
                                     x: meterRow.chipFits ? freqWords.x + freqWords.width + Theme.sp(8)
                                                          : meterRow.width - width
@@ -524,7 +339,7 @@ Column {
                                                          : -meterRow.y + Math.round(workHead.lineCentre - height / 2)
                                     trend: workItem.modelData.trend
                                 }
-                                FrequencyMeter {
+                                PpMeter {
                                     id: meter
                                     anchors.verticalCenter: parent.verticalCenter
                                     share: workItem.modelData.share
@@ -544,7 +359,7 @@ Column {
                                     font.weight:    Theme.fontBodyWeight
                                     color:          Theme.colorText3
                                 }
-                                Pips {
+                                PpPips {
                                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                                     marks: root.latestPips(workItem.modelData.sessions)
                                     tone:  root.toneWork
@@ -554,7 +369,7 @@ Column {
                     }
                 }
 
-                CardNote {
+                PpCardNote {
                     objectName: "needsWorkEmpty"
                     visible: root.needsWork.length === 0
                     width:   workCard.innerWidth
@@ -578,13 +393,14 @@ Column {
         height: Theme.sp(8) + (beside ? Math.max(linkText.implicitHeight, linkWords.implicitHeight)
                                       : linkWords.y + linkWords.implicitHeight - Theme.sp(8))
                 + Theme.sp(8)
-        Text {
+        // The words are the link; the press below spans the row's height, and is what a probe clicks.
+        PpLink {
             id: linkText
             y: Theme.sp(8)
             text: qsTr("Swing diagnostics →")
-            font.family:    Theme.fontBody
             font.pixelSize: Theme.fontSzBody
-            color:          linkPress.containsMouse ? Qt.lighter(Theme.colorAccent, 1.15) : Theme.colorAccent
+            interactive: false
+            hovered:     linkPress.containsMouse
         }
         Text {
             id: linkWords

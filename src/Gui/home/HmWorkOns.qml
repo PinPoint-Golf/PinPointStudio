@@ -127,193 +127,6 @@ Column {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Pieces — the summary's, redrawn here (inline components are file-local)
-    // ════════════════════════════════════════════════════════════════════════
-
-    component Micro: Text {
-        font.family:        Theme.fontData
-        font.pixelSize:     Theme.fontSzMicro
-        font.letterSpacing: Theme.trackingMicro
-        color:              Theme.colorText3
-    }
-
-    // Active: a target, as "What needs work" draws its items.
-    component AimBadge: Rectangle {
-        id: badge
-        property color tone: root.tone
-        width: root.badgeSize; height: width; radius: width / 2
-        color: Qt.alpha(badge.tone, Theme.dark ? 0.16 : 0.12)
-        Rectangle {
-            anchors.centerIn: parent
-            width: Math.round(badge.width * 0.56); height: width; radius: width / 2
-            color: "transparent"; border.width: Math.max(1.5, Theme.sp(1.4)); border.color: badge.tone
-        }
-        Rectangle {
-            anchors.centerIn: parent
-            width: Math.round(badge.width * 0.2); height: width; radius: width / 2
-            color: badge.tone
-        }
-    }
-    // Easing: a down arrow, the trend chip's own glyph.
-    component EasingBadge: Rectangle {
-        id: badge
-        readonly property int size: root.badgeSize
-        width: size; height: width; radius: width / 2
-        color: Qt.alpha(root.toneEasing, Theme.dark ? 0.16 : 0.12)
-        Shape {
-            anchors.fill: parent
-            preferredRendererType: Shape.CurveRenderer
-            ShapePath {
-                strokeColor: root.toneEasing; strokeWidth: Math.max(1.5, Theme.sp(1.6)); fillColor: "transparent"
-                capStyle: ShapePath.RoundCap; joinStyle: ShapePath.RoundJoin
-                startX: badge.size * 0.5; startY: badge.size * 0.27
-                PathLine { x: badge.size * 0.5; y: badge.size * 0.72 }
-            }
-            ShapePath {
-                strokeColor: root.toneEasing; strokeWidth: Math.max(1.5, Theme.sp(1.6)); fillColor: "transparent"
-                capStyle: ShapePath.RoundCap; joinStyle: ShapePath.RoundJoin
-                startX: badge.size * 0.31; startY: badge.size * 0.53
-                PathLine { x: badge.size * 0.5;  y: badge.size * 0.72 }
-                PathLine { x: badge.size * 0.69; y: badge.size * 0.53 }
-            }
-        }
-    }
-    // Unconfirmed: a dashed ring, untinted — something was here, and nothing recent says so.
-    component UnconfirmedBadge: Item {
-        id: badge
-        readonly property int size: root.badgeSize
-        width: size; height: size
-        Shape {
-            anchors.fill: parent
-            preferredRendererType: Shape.CurveRenderer
-            ShapePath {
-                strokeColor: root.toneQuiet; strokeWidth: Math.max(1.2, Theme.sp(1.2)); fillColor: "transparent"
-                strokeStyle: ShapePath.DashLine; dashPattern: [2, 2]
-                PathAngleArc {
-                    centerX: badge.size / 2; centerY: badge.size / 2
-                    radiusX: badge.size / 2 - 1; radiusY: radiusX
-                    startAngle: 0; sweepAngle: 360
-                }
-            }
-        }
-        Rectangle {
-            anchors.centerIn: parent
-            width: Math.round(badge.size * 0.2); height: width; radius: width / 2
-            color: root.toneQuiet
-        }
-    }
-
-    // "↓ easing" / "last seen 4 Jul": a pill, tiny mono.
-    component Chip: Rectangle {
-        id: chip
-        property string text: ""
-        property color  tone: root.toneEasing
-        property bool   tinted: true
-        visible: text !== ""
-        width:  visible ? chipText.implicitWidth + Theme.sp(12) : 0
-        height: Theme.sp(18)
-        radius: height / 2
-        color:  chip.tinted ? Qt.alpha(chip.tone, Theme.dark ? 0.12 : 0.09) : "transparent"
-        border.width: 1
-        border.color: chip.tinted ? Qt.alpha(chip.tone, 0.45) : Theme.colorBorderStrong
-        Text {
-            id: chipText
-            anchors.centerIn: parent
-            text: chip.text
-            font.family:        Theme.fontData
-            font.pixelSize:     Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingData
-            color:              chip.tone
-        }
-    }
-
-    // How many of the golfer's swings, as ten rounded segments.
-    component Meter: Row {
-        id: meter
-        property real  share: 0
-        property color tone: root.tone
-        readonly property int filled: Math.max(0, Math.min(10, Math.round(share * 10)))
-        spacing: Theme.sp(3)
-        Repeater {
-            model: 10
-            Rectangle {
-                required property int index
-                width: Theme.sp(9); height: Theme.sp(6); radius: height / 2
-                color: index < meter.filled ? meter.tone : Theme.colorBorderMid
-            }
-        }
-    }
-
-    // One pip, in PpTickRun's vocabulary: fired is a dot in the tone, clean a green dash, and a
-    // session that could not tell an outlined ring.
-    component Pip: Item {
-        id: pip
-        property string kind: "fired"
-        width: root.pipSize; height: root.pipSize
-        Rectangle {
-            readonly property bool clean: pip.kind === "clean"
-            anchors.centerIn: parent
-            width:  parent.width
-            height: clean ? Math.max(2, Theme.sp(2)) : parent.height
-            radius: height / 2
-            color:  pip.kind === "fired" ? root.tone
-                  : clean                 ? root.toneEasing
-                  :                         "transparent"
-            border.width: pip.kind === "notAssessable" ? 1 : 0
-            border.color: Theme.colorText3
-        }
-    }
-    component Pips: Row {
-        id: pips
-        property var ticks: []
-        spacing: root.pipGap
-        Repeater {
-            model: pips.ticks
-            Pip {
-                required property var modelData
-                kind: modelData.state
-            }
-        }
-    }
-
-    // A label and its value, in the opened row.
-    component Fact: Item {
-        id: fact
-        property string label: ""
-        property string text:  ""
-        default property alias extra: valueRow.data
-        readonly property int labelW: Theme.sp(84)
-        visible: fact.text !== "" || valueRow.children.length > 0
-        height:  visible ? Math.max(factLabel.implicitHeight, factText.visible ? factText.implicitHeight : 0,
-                                    valueRow.implicitHeight) : 0
-        // On the value's first baseline; beside a row of marks, on its centre.
-        Micro {
-            id: factLabel
-            anchors.baseline: fact.text !== "" ? factText.baseline : undefined
-            y: Math.round((valueRow.implicitHeight - implicitHeight) / 2)
-            text: fact.label
-        }
-        Row {
-            id: valueRow
-            x: fact.labelW
-            spacing: Theme.sp(8)
-        }
-        Text {
-            id: factText
-            visible: fact.text !== ""
-            x: fact.labelW + (valueRow.children.length > 0 ? valueRow.implicitWidth + Theme.sp(12) : 0)
-            width: fact.width - x
-            text:  fact.text
-            font.family:    Theme.fontBody
-            font.pixelSize: Theme.fontSzBody2
-            font.weight:    Theme.fontBodyWeight
-            color:          Theme.colorText2
-            wrapMode:       Text.WordWrap
-            lineHeight:     1.35
-        }
-    }
-
-    // ════════════════════════════════════════════════════════════════════════
     // The card
     // ════════════════════════════════════════════════════════════════════════
 
@@ -322,32 +135,19 @@ Column {
         width:  root.width
         height: body.y + body.implicitHeight + root.cardPad
 
-        Rectangle {
+        // The summary's card: surface, hairline border, and the 3 px rule in the tone.
+        PpCardShell {
             anchors.fill: parent
-            radius:       Theme.radiusLg
-            color:        Theme.colorSurface
-            border.width: 1
-            border.color: Theme.colorBorderMid
-        }
-        // The top rule: a rounded tone shape, its lower part covered by the surface again.
-        Rectangle {
-            width: parent.width; height: Theme.radiusLg * 2
-            radius: Theme.radiusLg
-            color:  root.tone
-        }
-        Rectangle {
-            x: 1; y: 3
-            width: parent.width - 2; height: Theme.radiusLg * 2
-            color: Theme.colorSurface
+            tone: root.tone
         }
 
-        Micro {
+        PpMicro {
             id: cardTitle
             x: root.cardPad; y: root.cardPad + Theme.sp(2)
             text:  root.title
             color: root.tone
         }
-        Micro {
+        PpMicro {
             objectName: "workOnsUpdating"
             anchors.baseline: cardTitle.baseline
             x: card.width - root.cardPad - implicitWidth
@@ -359,7 +159,7 @@ Column {
             font.letterSpacing: Theme.trackingData
         }
         // Heads the pips' column, where the catch-up is not speaking.
-        Micro {
+        PpMicro {
             visible: !root.catchingUp && root.items.length > 0
             anchors.baseline: cardTitle.baseline
             x: card.width - root.cardPad - root.chevronW - implicitWidth
@@ -423,10 +223,11 @@ Column {
                         readonly property real nameMaxW: (root.oneLine ? rightX - Theme.sp(20) : width - root.chevronW)
                                                          - root.textIndent - (chip.visible ? chip.width + Theme.sp(10) : 0)
 
-                        Loader {
+                        PpBadge {
                             y: Math.round(nameText.y + head.lineH / 2 - root.badgeSize / 2)
-                            sourceComponent: rowCol.unconfirmed ? unconfirmedBadge
-                                           : rowCol.easing      ? easingBadge : aimBadge
+                            size: root.badgeSize
+                            kind: rowCol.unconfirmed ? "unconfirmed" : rowCol.easing ? "easing" : "target"
+                            tone: rowCol.unconfirmed ? root.toneQuiet : rowCol.easing ? root.toneEasing : root.tone
                         }
                         Text {
                             id: nameText
@@ -441,7 +242,7 @@ Column {
                             wrapMode:       Text.WordWrap
                             lineHeight:     1.3
                         }
-                        Chip {
+                        PpChip {
                             id: chip
                             x: nameText.x + nameText.width + Theme.sp(10)
                             y: Math.round(nameText.y + head.lineH / 2 - height / 2)
@@ -458,10 +259,11 @@ Column {
                             y: root.oneLine ? Math.round(nameText.y + head.lineH / 2 - height / 2) : head.meterLineY
                             width: (root.oneLine ? root.rightBlockW : head.width - root.textIndent)
                             height: Theme.sp(18)
-                            Meter {
+                            PpMeter {
                                 id: meter
                                 anchors.verticalCenter: parent.verticalCenter
                                 share: root.share(rowCol.modelData)
+                                tone:  root.tone
                             }
                             Text {
                                 anchors { left: meter.right; leftMargin: Theme.sp(10)
@@ -472,10 +274,14 @@ Column {
                                 font.weight:    Theme.fontBodyWeight
                                 color:          Theme.colorText3
                             }
-                            Pips {
+                            PpPips {
                                 anchors { right: parent.right; rightMargin: root.chevronW
                                           verticalCenter: parent.verticalCenter }
-                                ticks: root.latestTicks(rowCol.modelData.ticks)
+                                ticks:     root.latestTicks(rowCol.modelData.ticks)
+                                tone:      root.tone
+                                cleanTone: root.toneEasing
+                                size:      root.pipSize
+                                gap:       root.pipGap
                             }
                         }
 
@@ -530,9 +336,9 @@ Column {
 
                         Item { width: 1; height: Theme.sp(2) }
 
-                        Fact { width: parent.width; label: qsTr("NOW");    text: rowCol.modelData.statusText }
-                        Fact { width: parent.width; label: qsTr("LATEST"); text: rowCol.modelData.latestText }
-                        Fact {
+                        PpFact { width: parent.width; label: qsTr("NOW");    text: rowCol.modelData.statusText }
+                        PpFact { width: parent.width; label: qsTr("LATEST"); text: rowCol.modelData.latestText }
+                        PpFact {
                             width: parent.width
                             label: qsTr("SWINGS")
                             text:  rowCol.modelData.coverageText !== ""
@@ -540,7 +346,7 @@ Column {
                                    : rowCol.modelData.countText
                         }
                         // The pips' key, counted over every session.
-                        Fact {
+                        PpFact {
                             width: parent.width
                             label: qsTr("SESSIONS")
                             Repeater {
@@ -555,7 +361,13 @@ Column {
                                     visible: n > 0
                                     spacing: Theme.sp(6)
                                     height: Math.ceil(body2Metrics.height * 1.35)
-                                    Pip { anchors.verticalCenter: parent.verticalCenter; kind: parent.modelData.state }
+                                    PpPip {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        kind:      parent.modelData.state
+                                        tone:      root.tone
+                                        cleanTone: root.toneEasing
+                                        size:      root.pipSize
+                                    }
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
                                         text: parent.modelData.words.arg(parent.n)
@@ -567,63 +379,45 @@ Column {
                                 }
                             }
                         }
-                        Fact { width: parent.width; label: qsTr("LINKED"); text: rowCol.modelData.causedByText }
+                        PpFact { width: parent.width; label: qsTr("LINKED"); text: rowCol.modelData.causedByText }
 
                         // The drill, set in: what to do about it.
-                        Rectangle {
+                        PpInset {
                             visible: rowCol.modelData.drillLabel !== ""
                             width:   Math.min(parent.width, Theme.sp(720))
-                            height:  visible ? drillCol.implicitHeight + 2 * Theme.sp(12) : 0
-                            radius:  Theme.radius
-                            color:   Qt.alpha(Theme.colorText, Theme.dark ? 0.035 : 0.04)
-                            border.width: 1
-                            border.color: Theme.colorBorder
-                            Column {
-                                id: drillCol
-                                x: Theme.sp(14); y: Theme.sp(12)
-                                width: parent.width - 2 * Theme.sp(14)
-                                spacing: Theme.sp(4)
-                                Row {
-                                    spacing: Theme.sp(10)
-                                    Micro {
-                                        anchors.baseline: drillName.baseline
-                                        text: qsTr("TRY")
-                                    }
-                                    Text {
-                                        id: drillName
-                                        text: rowCol.modelData.drillLabel
-                                        font.family:    Theme.fontBody
-                                        font.pixelSize: Theme.fontSzBody
-                                        font.weight:    Theme.fontBodyWeight
-                                        color:          Theme.colorAccent
-                                    }
+                            Row {
+                                spacing: Theme.sp(10)
+                                PpMicro {
+                                    anchors.baseline: drillName.baseline
+                                    text: qsTr("TRY")
                                 }
                                 Text {
-                                    width: parent.width
-                                    text:  rowCol.modelData.drillInstruction
+                                    id: drillName
+                                    text: rowCol.modelData.drillLabel
                                     font.family:    Theme.fontBody
-                                    font.pixelSize: Theme.fontSzBody2
+                                    font.pixelSize: Theme.fontSzBody
                                     font.weight:    Theme.fontBodyWeight
-                                    color:          Theme.colorText2
-                                    wrapMode:       Text.WordWrap
-                                    lineHeight:     1.4
+                                    color:          Theme.colorAccent
                                 }
+                            }
+                            Text {
+                                width: parent.width
+                                text:  rowCol.modelData.drillInstruction
+                                font.family:    Theme.fontBody
+                                font.pixelSize: Theme.fontSzBody2
+                                font.weight:    Theme.fontBodyWeight
+                                color:          Theme.colorText2
+                                wrapMode:       Text.WordWrap
+                                lineHeight:     1.4
                             }
                         }
 
-                        Text {
-                            objectName:     "workOnReview"
-                            visible:        rowCol.modelData.sessionDir !== ""
-                            text:           qsTr("Review the %1 session →").arg(rowCol.modelData.sessionLabel)
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody2
-                            color:          Theme.colorAccent
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape:  Qt.PointingHandCursor
-                                onClicked:    root.reviewSessionRequested(rowCol.modelData.sessionDir)
-                            }
+                        PpLink {
+                            objectName: "workOnReview"
+                            visible:    rowCol.modelData.sessionDir !== ""
+                            text:       qsTr("Review the %1 session →").arg(rowCol.modelData.sessionLabel)
+                            hoverTint:  false
+                            onClicked:  root.reviewSessionRequested(rowCol.modelData.sessionDir)
                         }
 
                         Item { width: 1; height: Theme.sp(10) }
@@ -640,24 +434,17 @@ Column {
 
                 Rectangle { width: parent.width; height: 1; color: Theme.colorBorder }
 
-                Text {
+                PpLink {
                     objectName: "workOnsMore"
                     anchors { left: parent.left; leftMargin: root.textIndent
                               verticalCenter: parent.verticalCenter; verticalCenterOffset: Theme.sp(4) }
-                    visible: parent.hidden > 0
-                    text:    root.showAll ? qsTr("Show fewer") : qsTr("%1 more").arg(parent.hidden)
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    color:          Theme.colorAccent
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape:  Qt.PointingHandCursor
-                        onClicked:    root.showAll = !root.showAll
-                    }
+                    visible:   parent.hidden > 0
+                    text:      root.showAll ? qsTr("Show fewer") : qsTr("%1 more").arg(parent.hidden)
+                    hoverTint: false
+                    onClicked: root.showAll = !root.showAll
                 }
 
-                Micro {
+                PpMicro {
                     anchors { right: parent.right; rightMargin: root.chevronW
                               verticalCenter: parent.verticalCenter; verticalCenterOffset: Theme.sp(4) }
                     visible: root.cleared > 0
@@ -668,8 +455,4 @@ Column {
             }
         }
     }
-
-    Component { id: aimBadge;         AimBadge {} }
-    Component { id: easingBadge;      EasingBadge {} }
-    Component { id: unconfirmedBadge; UnconfirmedBadge {} }
 }

@@ -38,7 +38,6 @@
 // paints only.
 
 import QtQuick
-import QtQuick.Shapes
 import PinPointStudio
 
 Item {
@@ -60,7 +59,6 @@ Item {
 
     readonly property int padX:       Theme.sp(20)
     readonly property int padY:       Theme.sp(24)
-    readonly property int ruleH:      4
     readonly property int badgeSize:  Theme.sp(20)
     readonly property int textIndent: badgeSize + Theme.sp(12)
     readonly property int innerWidth: width - 2 * padX
@@ -90,102 +88,9 @@ Item {
     implicitHeight: visible ? body.y + body.implicitHeight + padY : 0
 
     // ════════════════════════════════════════════════════════════════════════
-    // Pieces — the summary's (inline components are file-local)
+    // Pieces — the summary's are shared (components/Pp*); the prose is this card's own
     // ════════════════════════════════════════════════════════════════════════
 
-    component Micro: Text {
-        font.family:        Theme.fontData
-        font.pixelSize:     Theme.fontSzMicro
-        font.letterSpacing: Theme.trackingMicro
-        color:              Theme.colorText3
-    }
-    component CheckBadge: Rectangle {
-        id: badge
-        readonly property int size: root.badgeSize
-        property color tone: root.toneGood
-        width: badge.size; height: width; radius: width / 2
-        color: Qt.alpha(badge.tone, Theme.dark ? 0.16 : 0.12)
-        Shape {
-            anchors.fill: parent
-            preferredRendererType: Shape.CurveRenderer
-            ShapePath {
-                strokeColor: badge.tone; strokeWidth: Math.max(1.5, Theme.sp(1.6)); fillColor: "transparent"
-                capStyle: ShapePath.RoundCap; joinStyle: ShapePath.RoundJoin
-                startX: badge.size * 0.29; startY: badge.size * 0.52
-                PathLine { x: badge.size * 0.44; y: badge.size * 0.66 }
-                PathLine { x: badge.size * 0.72; y: badge.size * 0.36 }
-            }
-        }
-    }
-    component AimBadge: Rectangle {
-        id: badge
-        readonly property int size: root.badgeSize
-        property color tone: root.tone
-        width: badge.size; height: width; radius: width / 2
-        color: Qt.alpha(badge.tone, Theme.dark ? 0.16 : 0.12)
-        Rectangle {
-            anchors.centerIn: parent
-            width: Math.round(badge.size * 0.56); height: width; radius: width / 2
-            color: "transparent"; border.width: Math.max(1.5, Theme.sp(1.4)); border.color: badge.tone
-        }
-        Rectangle {
-            anchors.centerIn: parent
-            width: Math.round(badge.size * 0.2); height: width; radius: width / 2
-            color: badge.tone
-        }
-    }
-    component TrendChip: Rectangle {
-        id: chip
-        property int trend: 0
-        readonly property color tone: trend > 0 ? Theme.colorWarn : Theme.colorGood
-        visible: trend !== 0
-        width:  visible ? chipText.implicitWidth + Theme.sp(12) : 0
-        height: Theme.sp(18)
-        radius: height / 2
-        color:  Qt.alpha(chip.tone, Theme.dark ? 0.12 : 0.09)
-        border.width: 1
-        border.color: Qt.alpha(chip.tone, 0.45)
-        Text {
-            id: chipText
-            anchors.centerIn: parent
-            text: chip.trend > 0 ? qsTr("↑ growing") : qsTr("↓ easing")
-            font.family:        Theme.fontData
-            font.pixelSize:     Theme.fontSzMicro
-            font.letterSpacing: Theme.trackingData
-            color:              chip.tone
-        }
-    }
-    component FrequencyMeter: Row {
-        id: meter
-        property real  share: 0
-        property color tone: root.tone
-        readonly property int filled: Math.max(0, Math.min(10, Math.round(share * 10)))
-        spacing: Theme.sp(3)
-        Repeater {
-            model: 10
-            Rectangle {
-                required property int index
-                width: Theme.sp(9); height: Theme.sp(6); radius: height / 2
-                color: index < meter.filled ? meter.tone : Theme.colorBorderMid
-            }
-        }
-    }
-    component Pips: Row {
-        id: pips
-        property var   marks: []
-        property color tone: root.tone
-        spacing: Theme.sp(4)
-        Repeater {
-            model: pips.marks
-            Rectangle {
-                required property var modelData
-                width: Theme.sp(6); height: width; radius: width / 2
-                color:        modelData ? pips.tone : "transparent"
-                border.width: modelData ? 0 : 1
-                border.color: Theme.colorBorderStrong
-            }
-        }
-    }
     component Prose: Text {
         font.family:    Theme.fontBody
         font.pixelSize: Theme.fontSzBody
@@ -199,32 +104,14 @@ Item {
     // The card
     // ════════════════════════════════════════════════════════════════════════
 
-    Rectangle {
+    // The hero shell: the surface, an amber wash and hairline, and the heavier 4 px top rule.
+    PpCardShell {
         anchors.fill: parent
-        radius:       Theme.radiusLg
-        color:        Theme.colorSurface
-    }
-    Rectangle {     // the wash: the surface leaning amber, just enough to lift it off the page
-        anchors.fill: parent
-        radius:       Theme.radiusLg
-        color:        Qt.alpha(root.tone, Theme.dark ? 0.045 : 0.05)
-        border.width: 1
-        border.color: Qt.alpha(root.tone, Theme.dark ? 0.32 : 0.36)
-    }
-    // The top rule, heavier than the other cards': a rounded tone shape, its lower part covered.
-    Rectangle {
-        width: parent.width; height: Theme.radiusLg * 2
-        radius: Theme.radiusLg
-        color:  root.tone
-    }
-    Rectangle {
-        x: 1; y: root.ruleH
-        width: parent.width - 2; height: Theme.radiusLg * 2
-        color: Theme.colorSurface
-        Rectangle { anchors.fill: parent; color: Qt.alpha(root.tone, Theme.dark ? 0.045 : 0.05) }
+        hero: true
+        tone: root.tone
     }
 
-    Micro {
+    PpMicro {
         id: label
         x: root.padX; y: root.padY
         text:  qsTr("YOUR FOCUS")
@@ -264,7 +151,7 @@ Item {
             Item {
                 id: aimBlock
                 width: root.colW
-                Micro { id: aimLabel; text: qsTr("AIM FOR"); color: root.toneGood }
+                PpMicro { id: aimLabel; text: qsTr("AIM FOR"); color: root.toneGood }
                 Column {
                     id: aimCol
                     y: aimLabel.implicitHeight + Theme.sp(14)
@@ -282,7 +169,7 @@ Item {
                             // Side by side, each line keeps the pitch of the fault it faces.
                             readonly property Item facing: root.stacked ? null : nowRepeater.itemAt(index)
                             height: facing ? Math.max(aimText.height, facing.height) : aimText.height
-                            CheckBadge { y: Math.round(root.lineH / 2 - height / 2) }
+                            PpBadge { kind: "check"; tone: root.toneGood; y: Math.round(root.lineH / 2 - height / 2) }
                             Text {
                                 id: aimText
                                 x: root.textIndent
@@ -315,8 +202,8 @@ Item {
                 x: root.col2X
                 y: root.stacked ? pair.aimH + Theme.sp(22) : 0
                 width: root.colW
-                Micro { id: nowLabel; text: qsTr("RIGHT NOW"); color: root.tone }
-                Micro {
+                PpMicro { id: nowLabel; text: qsTr("RIGHT NOW"); color: root.tone }
+                PpMicro {
                     anchors.baseline: nowLabel.baseline
                     x: root.colW - implicitWidth
                     text: qsTr("SESSIONS")
@@ -341,7 +228,7 @@ Item {
                             readonly property int    pipCount:      (modelData.sessions || []).length
                             width:  nowCol.width
                             height: faultCol.implicitHeight
-                            AimBadge { y: Math.round(root.lineH / 2 - height / 2) }
+                            PpBadge { kind: "target"; tone: root.tone; y: Math.round(root.lineH / 2 - height / 2) }
                             Column {
                                 id: faultCol
                                 x: root.textIndent
@@ -372,10 +259,11 @@ Item {
                                     readonly property bool chipFits:
                                         meter.width + freq.implicitWidth + nowChip.width
                                         + Theme.sp(10) + Theme.sp(8) + Theme.sp(8) + root.pipsWidth <= width
-                                    FrequencyMeter {
+                                    PpMeter {
                                         id: meter
                                         anchors.verticalCenter: parent.verticalCenter
                                         share: fault.modelData.share
+                                        tone:  root.tone
                                     }
                                     Text {
                                         id: freq
@@ -390,16 +278,17 @@ Item {
                                         font.weight:    Theme.fontBodyWeight
                                         color:          Theme.colorText3
                                     }
-                                    TrendChip {
+                                    PpChip {
                                         id: nowChip
                                         x: nowRow.chipFits ? freq.x + freq.width + Theme.sp(8) : nowRow.width - width
                                         y: nowRow.chipFits ? Math.round((nowRow.height - height) / 2)
                                                            : -nowRow.y + Math.round(nowHead.lineCentre - height / 2)
                                         trend: fault.modelData.trend
                                     }
-                                    Pips {
+                                    PpPips {
                                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                                         marks: root.latestPips(fault.modelData.sessions)
+                                        tone:  root.tone
                                     }
                                 }
                             }
@@ -416,7 +305,7 @@ Item {
             width: parent.width
             spacing: Theme.sp(10)
             visible: root.focusItem !== null && root.focusItem.why !== ""
-            Micro { text: qsTr("WHY IT MATTERS") }
+            PpMicro { text: qsTr("WHY IT MATTERS") }
             Prose {
                 objectName: "focusWhy"
                 width: Math.min(parent.width, Theme.sp(720))
@@ -425,37 +314,26 @@ Item {
         }
 
         // ── HOW TO PRACTISE ──────────────────────────────────────────────────
-        Rectangle {
+        // Set in, with the drill's own mark: an amber bar down the inset's left edge.
+        PpInset {
             visible: root.focusItem !== null && root.focusItem.practise !== ""
             width:   parent.width
-            height:  visible ? practiseCol.implicitHeight + 2 * Theme.sp(16) : 0
-            radius:  Theme.radius
-            color:   Qt.alpha(Theme.colorText, Theme.dark ? 0.035 : 0.04)
-            border.width: 1
-            border.color: Theme.colorBorder
-            Rectangle {     // the drill's own mark: an amber bar down the inset's left edge
-                x: 0; y: Theme.sp(14)
-                width: 3; height: parent.height - 2 * Theme.sp(14)
-                radius: 1.5
-                color: root.tone
-            }
-            Column {
-                id: practiseCol
-                x: Theme.sp(18); y: Theme.sp(16)
-                width: parent.width - 2 * Theme.sp(18)
-                spacing: Theme.sp(8)
-                Micro { text: qsTr("HOW TO PRACTISE") }
-                Text {
-                    objectName: "focusPractise"
-                    width: Math.min(parent.width, Theme.sp(760))
-                    text:  root.focusItem ? root.focusItem.practise : ""
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody
-                    font.weight:    Theme.fontBodyWeight
-                    color:          Theme.colorText
-                    wrapMode:       Text.WordWrap
-                    lineHeight:     1.45
-                }
+            tone:    root.tone
+            bar:     true
+            padX:    Theme.sp(18)
+            padY:    Theme.sp(16)
+            spacing: Theme.sp(8)
+            PpMicro { text: qsTr("HOW TO PRACTISE") }
+            Text {
+                objectName: "focusPractise"
+                width: Math.min(parent.width, Theme.sp(760))
+                text:  root.focusItem ? root.focusItem.practise : ""
+                font.family:    Theme.fontBody
+                font.pixelSize: Theme.fontSzBody
+                font.weight:    Theme.fontBodyWeight
+                color:          Theme.colorText
+                wrapMode:       Text.WordWrap
+                lineHeight:     1.45
             }
         }
 
