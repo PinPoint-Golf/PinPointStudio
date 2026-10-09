@@ -540,6 +540,8 @@ QString SessionDiagnosticsModel::computeContentStamp() const
     h.addData(QJsonDocument(savePack(m_packProv->pack())).toJson(QJsonDocument::Compact));
     h.addData(QJsonDocument(saveNormPack(m_norms->norms())).toJson(QJsonDocument::Compact));
     h.addData(QJsonDocument(saveContextTree(m_norms->contexts())).toJson(QJsonDocument::Compact));
+    // The row shape too: a row written before a field existed regrades to fill it.
+    h.addData(QByteArray::number(kDiagSchemaVersion));
     return QString::fromLatin1(h.result().toHex().left(16));
 }
 
@@ -641,6 +643,21 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
             // Every branch that left z at 0 for want of a scale records None, so a meter is
             // never drawn over a reading that was graded against an authored number.
             r.corridorShape    = corridorShapeOf(f.evidence);
+        }
+        // Every signal's measure, when there is more than one to show (schema 4).
+        if (f.readings.size() > 1) {
+            for (const MeasureEvidence &e : f.readings) {
+                MeasureRow m;
+                m.measureId     = e.drivingMeasureId;
+                m.signalId      = e.drivingSignalId;
+                m.value         = e.value;
+                m.corridorLo    = e.corridorLo;
+                m.corridorHi    = e.corridorHi;
+                m.z             = e.z;
+                m.corridorShape = corridorShapeOf(e);
+                m.fired         = e.fired;
+                r.readings.push_back(std::move(m));
+            }
         }
         rec.rows.push_back(std::move(r));
     }
@@ -754,6 +771,7 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     // different ledger closes it rather than re-answering it against evidence it was not opened
     // over — and the id may not even exist in the new session's neighbourhood.
     m_detailConditionId.clear();
+    m_detailMeasureId.clear();
     m_detail = QVariantMap();
 
     emit sessionChanged();
@@ -1600,12 +1618,15 @@ SpreadCorridor SessionDiagnosticsModel::corridorForRow(const ConditionRow &r) co
 }
 
 SpreadCorridor SessionDiagnosticsModel::spreadCorridorOf(const ConditionLedger &l, int fi,
-                                                         QVariantMap *normInfo) const
+                                                         QVariantMap *normInfo,
+                                                         const QString &measure) const
 {
-    const QString measureId = l.drivingMeasureId;
+    const QString measureId = measure.isEmpty() ? l.drivingMeasureId : measure;
     auto usable = [&](const ConditionRow *r) {
-        return r && r->state != ShotState::NotAssessable && std::isfinite(r->value)
-            && (measureId.isEmpty() || r->drivingMeasureId == measureId);
+        if (!r || r->state == ShotState::NotAssessable) return false;
+        if (measureId.isEmpty()) return std::isfinite(r->value);
+        const std::optional<MeasureRow> m = rowReadingOf(*r, measureId);
+        return m && std::isfinite(m->value);
     };
 
     // WHICH CONTEXT'S NORM. The focus shot's, when it read this condition — that is the swing the
@@ -1646,7 +1667,18 @@ SpreadCorridor SessionDiagnosticsModel::spreadCorridorOf(const ConditionLedger &
         }
     }
     if (!c.known && rep) {
-        c = spreadCorridorFromRow(*rep, policy);
+        // The stored band of THIS measure's reading, not the driving one's.
+        ConditionRow band = *rep;
+        if (!measureId.isEmpty())
+            if (const std::optional<MeasureRow> m = rowReadingOf(*rep, measureId)) {
+                band.drivingMeasureId = m->measureId;
+                band.value            = m->value;
+                band.corridorLo       = m->corridorLo;
+                band.corridorHi       = m->corridorHi;
+                band.z                = m->z;
+                band.corridorShape    = m->corridorShape;
+            }
+        c = spreadCorridorFromRow(band, policy);
         if (c.known && normInfo) {
             (*normInfo)[QStringLiteral("source")]   = QStringLiteral("stored");
             (*normInfo)[QStringLiteral("tag")]      = normTagOf(false, NormSource::Heuristic, 0);
@@ -1718,29 +1750,39 @@ void publishCorridor(QVariantMap &out, const SpreadCorridor &c, const SpreadAxis
 
 } // namespace
 
-QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi, int selectedTick) const
+QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi, int selectedTick,
+                                               const QString &measure) const
 {
     QVariantMap out;
-    const QString measureId = l.drivingMeasureId;
+    const QString measureId = measure.isEmpty() ? l.drivingMeasureId : measure;
     const QString unit      = measureUnitOf(measureId);
     const int n             = int(m_shots.size());
 
-    // Every shot's reading, in shot order — NaN where there is none to place. A shot read on a
-    // DIFFERENT measure (a condition with several signals) is not placeable on this measure's
-    // axis and is treated as not assessable here, which is the honest reading of "not on this
-    // ruler"; the ledger's own counts are untouched.
+    // Every shot's reading OF THIS MEASURE, in shot order — NaN where there is none to place.
+    // A condition read by several measures records each (ConditionRow::readings), so a shot
+    // decided by a sibling measure still has its place on this ruler, drawn by THIS measure's own
+    // verdict: a dot is "fired" only where this measure fired. A row from before the readings
+    // were recorded holds its driving measure alone, and a shot decided by another is not
+    // placeable here — the honest reading of "not on this ruler"; the ledger's counts are
+    // untouched either way.
     std::vector<double> values(size_t(n), std::numeric_limits<double>::quiet_NaN());
     std::vector<QString> states(size_t(n), QStringLiteral("notAssessable"));
     for (int i = 0; i < n; ++i) {
         const ConditionRow *r = rowFor(m_shots[size_t(i)], l.id);
         if (!r) continue;
         states[size_t(i)] = shotStateKind(r->state);
-        if (r->state == ShotState::NotAssessable || !std::isfinite(r->value)) continue;
-        if (!measureId.isEmpty() && r->drivingMeasureId != measureId) {
+        if (r->state == ShotState::NotAssessable) continue;
+        if (measureId.isEmpty()) {
+            if (std::isfinite(r->value)) values[size_t(i)] = r->value;
+            continue;
+        }
+        const std::optional<MeasureRow> m = rowReadingOf(*r, measureId);
+        if (!m || !std::isfinite(m->value)) {
             states[size_t(i)] = QStringLiteral("notAssessable");
             continue;
         }
-        values[size_t(i)] = r->value;
+        states[size_t(i)] = m->fired ? QStringLiteral("fired") : QStringLiteral("clean");
+        values[size_t(i)] = m->value;
     }
 
     std::vector<double> placed;
@@ -1749,7 +1791,7 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
         if (std::isfinite(values[size_t(i)])) { placed.push_back(values[size_t(i)]); placedIdx.push_back(i); }
 
     QVariantMap normInfo;
-    const SpreadCorridor c = spreadCorridorOf(l, fi, &normInfo);
+    const SpreadCorridor c = spreadCorridorOf(l, fi, &normInfo, measureId);
     const SpreadAxis     a = spreadAxisFor(c, placed);
 
     out[QStringLiteral("measure")] = measureLabelOf(measureId);
@@ -2022,8 +2064,15 @@ SessionDiagnosticsModel::readHistory(const QString &sessionDir, int *missing)
         for (const ShotRecord &s : shots) {
             if (s.timestampMs > 0) hs.firstMs = std::min(hs.firstMs, s.timestampMs);
             for (const ConditionRow &r : s.rows) {
-                if (r.state == ShotState::NotAssessable || !std::isfinite(r.value)) continue;
-                hs.byCondition[r.conditionId].push_back(HistoryReading{ r.drivingMeasureId, r.value });
+                if (r.state == ShotState::NotAssessable) continue;
+                // One reading per MEASURE per shot: two signals on one measure (its two tails)
+                // read the same number, and counting it twice would weigh that shot double.
+                QSet<QString> seen;
+                for (const MeasureRow &m : rowReadings(r)) {
+                    if (!std::isfinite(m.value) || seen.contains(m.measureId)) continue;
+                    seen.insert(m.measureId);
+                    hs.byCondition[r.conditionId].push_back(HistoryReading{ m.measureId, m.value });
+                }
             }
         }
         if (hs.firstMs == std::numeric_limits<qint64>::max()) hs.firstMs = 0;
@@ -2070,10 +2119,11 @@ void SessionDiagnosticsModel::applyHistory(int generation, const std::vector<His
     }
 }
 
-QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi) const
+QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi,
+                                                const QString &measure) const
 {
     QVariantMap out;
-    const QString measureId = l.drivingMeasureId;
+    const QString measureId = measure.isEmpty() ? l.drivingMeasureId : measure;
     const QString unit      = measureUnitOf(measureId);
 
     struct Col { QString dir, label; qint64 firstMs = 0; bool current = false; std::vector<double> v; };
@@ -2098,8 +2148,12 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
         for (const ShotRecord &s : m_shots) {
             if (s.timestampMs > 0) c.firstMs = std::min(c.firstMs, s.timestampMs);
             const ConditionRow *r = rowFor(s, l.id);
-            if (r && r->state != ShotState::NotAssessable && std::isfinite(r->value) && onRuler(r->drivingMeasureId))
-                c.v.push_back(r->value);
+            if (!r || r->state == ShotState::NotAssessable) continue;
+            if (measureId.isEmpty()) {
+                if (std::isfinite(r->value)) c.v.push_back(r->value);
+            } else if (const std::optional<MeasureRow> m = rowReadingOf(*r, measureId)) {
+                if (std::isfinite(m->value)) c.v.push_back(m->value);
+            }
         }
         if (c.firstMs == std::numeric_limits<qint64>::max()) c.firstMs = QDateTime::currentMSecsSinceEpoch();
         cols.push_back(std::move(c));
@@ -2143,7 +2197,7 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
     for (int i = start; i < end; ++i)
         pooled.insert(pooled.end(), cols[size_t(i)].v.begin(), cols[size_t(i)].v.end());
 
-    const SpreadCorridor c = spreadCorridorOf(l, fi, nullptr);
+    const SpreadCorridor c = spreadCorridorOf(l, fi, nullptr, measureId);
     const SpreadAxis     a = spreadAxisFor(c, pooled);
     publishCorridor(out, c, a, unit);
     out[QStringLiteral("measure")] = measureLabelOf(measureId);
@@ -3724,7 +3778,51 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
     // balls wants this session's strip, and a column of last month's swings beside it is a
     // different conversation. A finished session is exactly where "and compared to before?"
     // is the next question.
-    out[QStringLiteral("history")] = (m_reviewing && l) ? historyFor(*l, fi) : QVariantMap();
+    // ── ONE TAB PER MEASURE, when the condition is read by more than one ─────────────
+    // Early extension is the pelvis toward the ball OR the spine standing up; the header card's
+    // one ruler shows whichever decided most shots, and the other measure would never be seen.
+    // Each tab redraws the shot-by-shot and across-sessions pictures on its own measure. The
+    // default is the measure that fired on most shots (then the one read most, then pack order),
+    // so the page opens on what is doing the work.
+    QString measureId;
+    if (l) {
+        const QStringList ms = conditionMeasures(conditionId);
+        if (ms.size() > 1) {
+            QVariantList tabs;
+            int bestFired = -1, bestRead = -1;
+            QString best;
+            for (const QString &mid : ms) {
+                int fired = 0, read = 0;
+                for (const ShotRecord &sh : m_shots) {
+                    const ConditionRow *r = rowFor(sh, conditionId);
+                    if (!r || r->state == ShotState::NotAssessable) continue;
+                    const std::optional<MeasureRow> m = rowReadingOf(*r, mid);
+                    if (!m || !std::isfinite(m->value)) continue;
+                    ++read;
+                    if (m->fired) ++fired;
+                }
+                if (fired > bestFired || (fired == bestFired && read > bestRead)) {
+                    bestFired = fired; bestRead = read; best = mid;
+                }
+                tabs.append(QVariantMap{
+                    { QStringLiteral("id"),    mid },
+                    { QStringLiteral("label"), measureLabelOf(mid) },
+                    { QStringLiteral("fired"), fired },
+                    { QStringLiteral("read"),  read },
+                    { QStringLiteral("countText"),
+                      read == 0 ? QStringLiteral("not read")
+                                : QStringLiteral("fired %1 of %2").arg(fired).arg(read) },
+                });
+            }
+            measureId = ms.contains(m_detailMeasureId) ? m_detailMeasureId : best;
+            out[QStringLiteral("measures")] = tabs;
+            header[QStringLiteral("spread")] = spreadFor(*l, fi, selectedTick, measureId);
+            out[QStringLiteral("header")]    = header;
+        }
+    }
+    out[QStringLiteral("measureId")]     = measureId;
+    out[QStringLiteral("measurePicked")] = m_detailMeasureId;   // the reader's pick, for the nav save
+    out[QStringLiteral("history")] = (m_reviewing && l) ? historyFor(*l, fi, measureId) : QVariantMap();
     // The two absences, in words, so the panel never has to invent a sentence for an empty list.
     out[QStringLiteral("noCausesLine")] =
         causes.isEmpty() ? QStringLiteral("The model authors no cause above this condition.")
@@ -3733,6 +3831,30 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
         effects.isEmpty() ? QStringLiteral("The model authors nothing downstream of this condition.")
                           : QString();
     return out;
+}
+
+QStringList SessionDiagnosticsModel::conditionMeasures(const QString &conditionId) const
+{
+    QStringList out;
+    if (!m_packProv) return out;
+    const CharacteristicPack &pack = m_packProv->pack();
+    const Condition *c = pack.condition(conditionId);
+    if (!c) return out;
+    for (const QString &sid : c->detectedBy)
+        if (const Signal *sig = pack.signal(sid)) {
+            const QString mid = sig->measures.value(0);     // the driving measure, as the engine reads it
+            if (!mid.isEmpty() && !out.contains(mid)) out << mid;
+        }
+    return out;
+}
+
+void SessionDiagnosticsModel::setDetailMeasure(const QString &measureId)
+{
+    if (m_detailConditionId.isEmpty() || measureId == m_detailMeasureId) return;
+    if (!measureId.isEmpty() && !conditionMeasures(m_detailConditionId).contains(measureId)) return;
+    m_detailMeasureId = measureId;
+    buildDetail();
+    emit detailChanged();
 }
 
 void SessionDiagnosticsModel::buildDetail()
@@ -3750,6 +3872,7 @@ void SessionDiagnosticsModel::openDetail(const QString &conditionId)
     if (!m_packProv || !m_packProv->pack().condition(conditionId)) return;
     if (m_detailConditionId == conditionId) return;
     m_detailConditionId = conditionId;
+    m_detailMeasureId.clear();
     buildDetail();
     emit detailChanged();
 }
@@ -3758,6 +3881,7 @@ void SessionDiagnosticsModel::closeDetail()
 {
     if (m_detailConditionId.isEmpty()) return;
     m_detailConditionId.clear();
+    m_detailMeasureId.clear();
     m_detail = QVariantMap();
     emit detailChanged();
 }

@@ -1092,6 +1092,53 @@ int main()
 
         FakeSource none;
         check(stateOf(none) == FindingState::Unavailable, "nothing readable at all is Unavailable");
+
+        // FIRST reads one signal, so it carries one reading.
+        const DetectionResult d = detect(p, cleanOverFiring);
+        const Finding *f = d.find(QStringLiteral("preference"));
+        check(f && f->readings.size() == 1 && f->readings[0].drivingMeasureId == QStringLiteral("mSway"),
+              "FIRST carries the one reading it took");
+    }
+
+    // ── Every reading behind a verdict: Finding::readings ─────────────────────────────
+    //
+    // A condition read by two measures (early extension: pelvis OR spine) must carry both, each
+    // with its own verdict, so the panel can draw the measure that did NOT decide the shot too.
+    {
+        CharacteristicPack p = pack;
+        Condition          c;
+        c.id            = QStringLiteral("twoMeasures");
+        c.label         = c.id;
+        c.observability = Observability::Observable;
+        c.confirmedBy   = ConfirmedBy::Measured;
+        c.detectedBy    = { QStringLiteral("sigSway"), QStringLiteral("sigSlide") };
+        c.state         = ConditionState::Active;
+        p.conditions.push_back(c);
+
+        FakeSource src;
+        src.add(QStringLiteral("mSway"),  0.0, -1.0, 1.0);   // clean
+        src.add(QStringLiteral("mSlide"), 9.0, -1.0, 1.0);   // fires
+        const DetectionResult d = detect(p, src);
+        const Finding *f = d.find(QStringLiteral("twoMeasures"));
+        check(f && f->state == FindingState::Fired, "two measures: fired on one");
+        check(f && f->evidence.drivingMeasureId == QStringLiteral("mSlide") && f->evidence.fired,
+              "…the driving evidence is the one that fired");
+        check(f && f->readings.size() == 2, "…and both readings are carried");
+        if (f && f->readings.size() == 2) {
+            check(f->readings[0].drivingMeasureId == QStringLiteral("mSway") && !f->readings[0].fired
+                      && f->readings[0].value == 0.0,
+                  "…the clean one in pack order, with its own verdict and value");
+            check(f->readings[1].drivingMeasureId == QStringLiteral("mSlide") && f->readings[1].fired
+                      && f->readings[1].value == 9.0,
+                  "…the fired one after it");
+        }
+
+        FakeSource blind;
+        blind.add(QStringLiteral("mSway"), 0.0, -1.0, 1.0);   // mSlide unreadable → Unavailable
+        const DetectionResult d2 = detect(p, blind);
+        const Finding *f2 = d2.find(QStringLiteral("twoMeasures"));
+        check(f2 && f2->state == FindingState::Unavailable && f2->readings.empty(),
+              "an Unavailable finding carries no readings, as it carries no evidence");
     }
 
     std::printf("%s (%d failure%s)\n", g_fail ? "FAILED" : "OK", g_fail, g_fail == 1 ? "" : "s");

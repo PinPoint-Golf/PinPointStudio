@@ -215,6 +215,10 @@ struct MeasureEvidence {
     //   is no scale to normalise by, and 0 is the only answer that does not invent one.
     double  z = 0.0;
 
+    // Whether THIS signal fired. Read only on Finding::readings, where each entry is one signal's
+    // own verdict; the driving evidence's state is the finding's.
+    bool    fired = false;
+
     static MeasureEvidence fromReading(const QString &signalId, const QString &measureId,
                                        const MeasureReading &r)
     {
@@ -258,6 +262,13 @@ struct Finding {
     // The reading that graded this finding. See MeasureEvidence: present for Fired and NotFired
     // alike, absent for Unavailable.
     MeasureEvidence evidence;
+
+    // EVERY reading behind the verdict, one per signal that was assessed, in c.detectedBy order —
+    // the driving one included. A condition read by several measures (early extension: the pelvis
+    // toward the ball OR the spine standing up) shows each on its own, so a shot decided by one
+    // measure is not missing from the other's picture. Empty when `evidence` is, for the same
+    // reason: an Unavailable finding was not assessed, whatever a sibling signal read.
+    std::vector<MeasureEvidence> readings;
 
     // ── The verdict as a probability (session_diagnostics_design.md §A8.4) ──────────────────
     //

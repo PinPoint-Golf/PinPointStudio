@@ -368,6 +368,10 @@ public:
     // the whole of the model, and a stack would be a second place for "where am I" to be wrong.
     Q_INVOKABLE void openDetail(const QString &conditionId);
     Q_INVOKABLE void closeDetail();
+    // Which of the open condition's measures the detail draws, when it is read by more than one
+    // (detail.measures, one tab each). Empty = the default: the one that fired most. Re-opening
+    // a different condition resets it; an id the condition does not read is declined.
+    Q_INVOKABLE void setDetailMeasure(const QString &measureId);
 
     // ── How far, not only whether (session_spread.h) ────────────────────────────────
     //
@@ -590,10 +594,16 @@ private:
     // `normInfo` gets what the curve is (source, n, citation) for the tag.
     pinpoint::analysis::SpreadCorridor corridorForRow(const pinpoint::analysis::ConditionRow &r) const;
     pinpoint::analysis::SpreadCorridor spreadCorridorOf(const pinpoint::analysis::ConditionLedger &l,
-                                                        int focusIdx, QVariantMap *normInfo) const;
+                                                        int focusIdx, QVariantMap *normInfo,
+                                                        const QString &measureId = QString()) const;
+    // `measureId` empty = the ledger's driving measure; otherwise that measure's own readings
+    // (ConditionRow::readings), each shot drawn by that measure's own verdict.
     QVariantMap spreadFor(const pinpoint::analysis::ConditionLedger &l, int focusIdx,
-                          int selectedTick) const;
-    QVariantMap historyFor(const pinpoint::analysis::ConditionLedger &l, int focusIdx) const;
+                          int selectedTick, const QString &measureId = QString()) const;
+    QVariantMap historyFor(const pinpoint::analysis::ConditionLedger &l, int focusIdx,
+                           const QString &measureId = QString()) const;
+    // The distinct measures a condition's signals read, in pack order.
+    QStringList conditionMeasures(const QString &conditionId) const;
     const pinpoint::analysis::ConditionLedger *ledger(const QString &id) const;
     int  indexOfShot(int shotId) const;
     // Which shot the panel is talking about: the selected one while reviewing, the newest
@@ -688,6 +698,7 @@ private:
     // matters — never persisted, never in the envelope, cleared on activation: which page was
     // being read is not a fact about the session.
     QString      m_detailConditionId;
+    QString      m_detailMeasureId;     // the tab picked; empty = the default
     QVariantMap  m_detail;
 
     // ── The same golfer's other sessions (historyOf) ────────────────────────────────

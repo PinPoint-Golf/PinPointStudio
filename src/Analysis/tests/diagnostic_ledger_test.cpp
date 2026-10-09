@@ -1048,6 +1048,39 @@ int main()
                 && before[i].recurrence == after[i].recurrence;
         check(same, "…and re-reducing the rebuilt rows gives the identical ledger");
 
+        // Schema 4: every signal's measure on a row read by more than one survives the trip,
+        // and a row from an older file answers rowReadings() from its driving fields.
+        {
+            ShotRecord s; s.shotId = 1;
+            ConditionRow r;
+            r.conditionId = QStringLiteral("ee"); r.state = ShotState::Fired;
+            r.drivingMeasureId = QStringLiteral("pelvis"); r.value = 7.0;
+            MeasureRow m1; m1.measureId = QStringLiteral("pelvis"); m1.signalId = QStringLiteral("s1");
+            m1.value = 7.0; m1.corridorLo = -2.5; m1.corridorHi = 0.0; m1.z = 2.8;
+            m1.corridorShape = CorridorShape::Ceiling; m1.fired = true;
+            MeasureRow m2; m2.measureId = QStringLiteral("spine"); m2.signalId = QStringLiteral("s2");
+            m2.value = -3.0; m2.corridorShape = CorridorShape::Floor; m2.fired = false;
+            r.readings = { m1, m2 };
+            s.rows.push_back(r);
+            const auto back4 = fromJsonDocument(QJsonDocument::fromJson(
+                QJsonDocument(toJson({ s })).toJson(QJsonDocument::Compact)));
+            const ConditionRow &x = back4.at(0).rows.at(0);
+            check(x.readings.size() == 2
+                      && x.readings[0].measureId == QStringLiteral("pelvis") && x.readings[0].fired
+                      && near(x.readings[0].z, 2.8, 1e-12) && x.readings[0].corridorShape == CorridorShape::Ceiling
+                      && x.readings[1].measureId == QStringLiteral("spine") && !x.readings[1].fired
+                      && near(x.readings[1].value, -3.0, 1e-12) && x.readings[1].signalId == QStringLiteral("s2"),
+                  "schema 4: every measure's reading survives the round trip");
+            const auto spine = rowReadingOf(x, QStringLiteral("spine"));
+            check(spine && !spine->fired && near(spine->value, -3.0, 1e-12), "…and is found by measure");
+
+            ConditionRow old = r; old.readings.clear();
+            const auto legacy = rowReadings(old);
+            check(legacy.size() == 1 && legacy[0].measureId == QStringLiteral("pelvis") && legacy[0].fired
+                      && !rowReadingOf(old, QStringLiteral("spine")),
+                  "a row without readings answers from its driving measure alone");
+        }
+
         // A NotAssessable reason is never dropped: the review strip prints it where the
         // corridor would go, and a blank there reads as a bug.
         bool reasonsKept = true;

@@ -335,7 +335,21 @@ MeasureEvidence pickEvidence(const std::vector<EvidenceCandidate> &candidates, b
         if (best == nullptr || c.confidence > best->confidence) best = &c;
     }
     if (best == nullptr) return {};
-    return MeasureEvidence::fromReading(best->signalId, best->measureId, best->reading);
+    MeasureEvidence e = MeasureEvidence::fromReading(best->signalId, best->measureId, best->reading);
+    e.fired = best->fired;
+    return e;
+}
+
+// Every assessed signal's reading, in pack order — Finding::readings.
+std::vector<MeasureEvidence> allEvidence(const std::vector<EvidenceCandidate> &candidates)
+{
+    std::vector<MeasureEvidence> out;
+    out.reserve(candidates.size());
+    for (const EvidenceCandidate &c : candidates) {
+        out.push_back(MeasureEvidence::fromReading(c.signalId, c.measureId, c.reading));
+        out.back().fired = c.fired;
+    }
+    return out;
 }
 
 } // namespace
@@ -456,6 +470,7 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
                 f.state      = FindingState::NotFired;
                 f.confidence = conf;
                 f.evidence   = pickEvidence(candidates, /*firedOnly*/ false);
+                f.readings   = allEvidence(candidates);
                 stampProbability(f, true);
             } else if (anyUnavailable) {
                 f.state      = FindingState::Unavailable;
@@ -464,6 +479,7 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
                 f.state      = FindingState::Fired;
                 f.confidence = conf;
                 f.evidence   = pickEvidence(candidates, /*firedOnly*/ true);
+                f.readings   = allEvidence(candidates);
                 stampProbability(f, true);
             }
             out.findings.push_back(std::move(f));
@@ -478,6 +494,7 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
             f.state      = FindingState::Fired;
             f.confidence = conf;
             f.evidence   = pickEvidence(candidates, /*firedOnly*/ true);
+            f.readings   = allEvidence(candidates);
             stampProbability(f, false);
         } else if (anyUnavailable) {
             f.state      = FindingState::Unavailable;
@@ -489,6 +506,7 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
             f.state      = FindingState::NotFired;
             f.confidence = conf;
             f.evidence   = pickEvidence(candidates, /*firedOnly*/ false);
+            f.readings   = allEvidence(candidates);
             stampProbability(f, false);
         }
 

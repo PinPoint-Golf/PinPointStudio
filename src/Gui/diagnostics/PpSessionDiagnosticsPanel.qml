@@ -237,6 +237,7 @@ Item {
             cardFilter:        body.cardFilter,
             watchingExpanded:  body.watchingExpanded,
             detailConditionId: diagModel.detailConditionId || "",
+            detailMeasureId:   (diagModel.detail && diagModel.detail.measurePicked) || "",
             scroll:            scroll
         }
     }
@@ -246,8 +247,11 @@ Item {
         body.tab              = nav.tab
         body.cardFilter       = nav.cardFilter
         body.watchingExpanded = nav.watchingExpanded
-        if (nav.detailConditionId !== "")
+        if (nav.detailConditionId !== "") {
             diagModel.openDetail(nav.detailConditionId)   // a no-op for an id the pack lacks
+            if (nav.detailMeasureId)
+                diagModel.setDetailMeasure(nav.detailMeasureId)   // declined if not its measure
+        }
         _pendingScroll = Object.assign({}, nav.scroll || {})
         _scrollTries = {}
         if (Object.keys(_pendingScroll).length > 0) scrollRestore.start()

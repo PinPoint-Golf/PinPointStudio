@@ -207,6 +207,10 @@ Rectangle {
         if (source && typeof source.closeDetail === "function")
             source.closeDetail()
     }
+    function _setDetailMeasure(measureId) {
+        if (source && typeof source.setDetailMeasure === "function")
+            source.setDetailMeasure(measureId)
+    }
 
     // READ BACK OFF THE MODEL, never remembered here — the same rule as `focused` and
     // `declaredMiss`. A request the model declined leaves the panel exactly as it was.
@@ -801,6 +805,7 @@ Rectangle {
             // Re-targets the page in place; BACK still returns to the panel in one step.
             onConditionActivated: (id) => root._openDetail(id)
             onCloseRequested: root._closeDetail()
+            onMeasureRequested: (id) => root._setDetailMeasure(id)
             onShotRequested: (dir, id) => root.shotRequested(dir, id)
         }
 

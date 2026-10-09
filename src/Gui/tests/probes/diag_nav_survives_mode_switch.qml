@@ -102,7 +102,7 @@ Item {
         const b = theBody()
         const f = b ? flick(b, "sdCardsFlick") : null
         check(!!f && f.visible && Math.abs(f.contentY - want.scroll) < 1,
-              what + ": card list scroll " + (f ? f.contentY : "-") + " (want " + want.scroll + ")")
+              what + ": card list scroll " + (f ? f.contentY : "-") + " (want " + want.scroll + ") contentHeight " + (f ? f.contentHeight + " height " + f.height : "-"))
     }
 
     Timer {
@@ -142,6 +142,11 @@ Item {
                 b.tab = "session"
                 b.watchingExpanded = true
                 b.cardFilter = "all"
+            } else if (s === 4) {
+                // A step after the place is set, so the list is measured as it is laid out with
+                // Watching open — not the geometry from before it unfolded.
+                const b = theBody()
+                const cards = b.cards || []
                 const f = probe.flick(b, "sdCardsFlick")
                 const most = f ? Math.max(0, f.contentHeight - f.height) : 0
                 probe.log("card list: contentHeight " + (f ? f.contentHeight : "-") + " height " + (f ? f.height : "-"))
@@ -151,22 +156,22 @@ Item {
                                detail: b.detailConditionId, scroll: f ? f.contentY : 0 }
                 probe.check(probe.want.detail === cards[0].id, "opened the detail of '" + cards[0].id + "'")
                 probe.before = b
-            } else if (s === 4) {
+            } else if (s === 5) {
                 SessionMode.enterAnalyse()
                 probe.check(cameraManager.ballCueEnabled === false, "ball ting OFF on Analyse")
-            } else if (s === 5) {
+            } else if (s === 6) {
                 probe.expectPlace("Replay → Analyse")
                 SessionMode.showReplay()
-            } else if (s === 6) {
+            } else if (s === 7) {
                 probe.expectPlace("Analyse → Replay")
                 probe.theBody()._closeDetail()
-            } else if (s === 7) {
+            } else if (s === 8) {
                 probe.expectScroll("Analyse → Replay, detail closed")
                 // A place saved in another session is not this one's: take the panel down,
                 // re-stamp the save with another folder, then bring a panel up.
                 probe.before = probe.theBody()
                 ViewLayout.setPanel(SessionMode.replay, "sessionDiagnostics", false)
-            } else if (s === 8) {
+            } else if (s === 9) {
                 probe.check(probe.theBody() === null, "panel taken down")
                 const nav = SessionMode.diagnosticsNav
                 probe.check(!!nav && nav.tab === "session" && nav.watchingExpanded === true,
@@ -175,13 +180,13 @@ Item {
                 nav.detailConditionId = probe.want.detail
                 SessionMode.diagnosticsNav = Object.assign({}, nav, { sessionDir: "/somewhere/else" })
                 ViewLayout.setPanel(SessionMode.replay, "sessionDiagnostics", true)
-            } else if (s === 9) {
+            } else if (s === 10) {
                 const b = probe.theBody()
                 probe.check(!!b && b !== probe.before, "rebuilt for the other-session case")
                 probe.check(!!b && b.detailConditionId === "", "another session's open detail is NOT restored")
                 probe.check(!!b && b.watchingExpanded === false, "…nor its Watching fold")
                 SessionMode.enterCapture()
-            } else if (s === 10) {
+            } else if (s === 11) {
                 probe.check(cameraManager.ballCueEnabled === true, "ball ting back ON on Capture")
                 probe.finish()
             }

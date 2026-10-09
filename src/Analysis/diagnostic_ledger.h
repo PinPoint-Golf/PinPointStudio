@@ -84,6 +84,7 @@
 #include "det_rng.h"                       // the P(Pattern) Monte Carlo
 
 #include <algorithm>
+#include <optional>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -182,7 +183,9 @@ inline constexpr std::array<double, 5> kDiagSeveritySteps{ 0.5, 1.0, 1.5, 2.0, 3
 // guessing. Fired rows are unaffected — their strength never needed the shape.
 // 3 added the §A8 probability — pFire, quantified, grossRisk — written only when formed. A file
 // at 2 reads back with none, and every row then restates its hard verdict in the soft counts.
-inline constexpr int kDiagSchemaVersion = 3;
+// 4 added ConditionRow::readings — every signal's measure on a row read by more than one. A file
+// at 3 reads back with none, and the row shows its driving measure alone.
+inline constexpr int kDiagSchemaVersion = 4;
 
 // Every §4 tunable in one injectable bundle.
 struct LedgerOptions {
@@ -425,6 +428,20 @@ inline CorridorShape corridorShapeFromString(const QString &s)
     return CorridorShape::Unknown;      // anything unrecognised is "we did not record it"
 }
 
+// One measure's reading behind a row, when the condition is read by more than one signal
+// (Finding::readings). The driving reading is among them; the row's own fields still say which
+// one decided it.
+struct MeasureRow {
+    QString measureId;
+    QString signalId;
+    double  value      = 0.0;
+    double  corridorLo = 0.0;
+    double  corridorHi = 0.0;
+    double  z          = 0.0;
+    CorridorShape corridorShape = CorridorShape::Unknown;
+    bool    fired      = false;     // this signal's own verdict
+};
+
 // One condition's reading on one shot.
 struct ConditionRow {
     QString   conditionId;
@@ -461,7 +478,41 @@ struct ConditionRow {
     float pFire      = -1.f;
     float grossRisk  = -1.f;
     bool  quantified = false;
+
+    // Every signal's reading, when there is more than one (schema 4). Empty on a single-signal
+    // row and on every row of an older file: rowReadings() then answers from the driving fields.
+    std::vector<MeasureRow> readings;
 };
+
+// The readings behind a row: every signal's when they were recorded, else the driving one alone
+// (nothing at all on a row with no measure).
+inline std::vector<MeasureRow> rowReadings(const ConditionRow &r)
+{
+    if (!r.readings.empty()) return r.readings;
+    if (r.drivingMeasureId.isEmpty()) return {};
+    MeasureRow m;
+    m.measureId     = r.drivingMeasureId;
+    m.value         = r.value;
+    m.corridorLo    = r.corridorLo;
+    m.corridorHi    = r.corridorHi;
+    m.z             = r.z;
+    m.corridorShape = r.corridorShape;
+    m.fired         = r.state == ShotState::Fired;
+    return { m };
+}
+
+// The reading of `measureId` behind a row, or nullopt. Several signals can read one measure (the
+// two tails of a corridor); the value is the same, and it fired if any of them did.
+inline std::optional<MeasureRow> rowReadingOf(const ConditionRow &r, const QString &measureId)
+{
+    std::optional<MeasureRow> out;
+    for (const MeasureRow &m : rowReadings(r)) {
+        if (m.measureId != measureId) continue;
+        if (!out) out = m;
+        else      out->fired = out->fired || m.fired;
+    }
+    return out;
+}
 
 // One assessable row's contribution to the soft counts (§A8.5): the share of the shot that
 // assessed anything (1 − g) and the probability it fired given that. A row with no probability
@@ -1739,6 +1790,23 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
                 ro[QStringLiteral("quantified")] = r.quantified;
             }
             if (r.grossRisk >= 0.f) ro[QStringLiteral("grossRisk")] = double(r.grossRisk);
+            // Schema 4 — only on a row read by more than one signal.
+            if (r.readings.size() > 1) {
+                QJsonArray ra;
+                for (const MeasureRow &m : r.readings) {
+                    QJsonObject mo;
+                    mo[QStringLiteral("measureId")]     = m.measureId;
+                    mo[QStringLiteral("signalId")]      = m.signalId;
+                    mo[QStringLiteral("value")]         = m.value;
+                    mo[QStringLiteral("corridorLo")]    = m.corridorLo;
+                    mo[QStringLiteral("corridorHi")]    = m.corridorHi;
+                    mo[QStringLiteral("z")]             = m.z;
+                    mo[QStringLiteral("corridorShape")] = corridorShapeToString(m.corridorShape);
+                    mo[QStringLiteral("fired")]         = m.fired;
+                    ra.append(mo);
+                }
+                ro[QStringLiteral("readings")] = ra;
+            }
             rowArr.append(ro);
         }
         QJsonObject so;
@@ -1837,6 +1905,19 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
             r.contextInferred  = ro.value(QStringLiteral("contextInferred")).toBool();
             r.material         = ro.value(QStringLiteral("material")).toBool(true);
             r.notAssessableReason = ro.value(QStringLiteral("notAssessableReason")).toString();
+            for (const QJsonValue &mv : ro.value(QStringLiteral("readings")).toArray()) {
+                const QJsonObject mo = mv.toObject();
+                MeasureRow m;
+                m.measureId     = mo.value(QStringLiteral("measureId")).toString();
+                m.signalId      = mo.value(QStringLiteral("signalId")).toString();
+                m.value         = mo.value(QStringLiteral("value")).toDouble();
+                m.corridorLo    = mo.value(QStringLiteral("corridorLo")).toDouble();
+                m.corridorHi    = mo.value(QStringLiteral("corridorHi")).toDouble();
+                m.z             = mo.value(QStringLiteral("z")).toDouble();
+                m.corridorShape = corridorShapeFromString(mo.value(QStringLiteral("corridorShape")).toString());
+                m.fired         = mo.value(QStringLiteral("fired")).toBool();
+                r.readings.push_back(std::move(m));
+            }
             s.rows.push_back(std::move(r));
         }
         shots.push_back(std::move(s));
