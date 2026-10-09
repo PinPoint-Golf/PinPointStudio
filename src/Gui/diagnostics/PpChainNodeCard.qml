@@ -479,7 +479,12 @@ Item {
             height: (root.isLive || !wide._fits)
                     ? Math.max(0, root.height - root.px(9) - y - (cta.visible ? cta.height + wide.spacing : 0))
                     : implicitHeight
-            visible: !root.isGhost && text !== "" && height >= root.tzMicro
+            // Below one line it is hidden by OPACITY, not dropped from the column. Dropping it
+            // changed the column's height, which flipped `_fits`, which unclamped the prose,
+            // which no longer fitted, which clamped it below a line again — every frame, a
+            // polish loop that left the condition detail blank in Analyse at some row heights.
+            visible: !root.isGhost && text !== ""
+            opacity: height >= root.tzMicro ? 1 : 0
             text: root.node ? (root.node.evidence || "") : ""
             wrapMode: Text.WordWrap
             elide: Text.ElideRight
