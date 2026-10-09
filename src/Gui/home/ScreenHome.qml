@@ -30,8 +30,9 @@ Item {
     // Coming-soon types skip the session wizard and jump straight to their
     // (placeholder) rail screen.
     signal openSessionScreenRequested(int sessionTypeIndex)
-    // A work-on's "review the session" link: load that saved session and show it.
-    signal reviewSessionRequested(string sessionDir)
+    // YOUR SWING's "Swing diagnostics →" row: open the technical layer (ScreenSwingDiagnostics),
+    // where the faults and what goes together now live.
+    signal swingDiagnosticsRequested()
 
     property int    selectedType: 1   // default to Wrist — the only startable type today
     // Session types not yet implemented: badged "coming soon" tiles that open
@@ -551,18 +552,22 @@ Item {
                 }
             }
 
-            // ── Section 3: Work-ons ──────────────────────────────────────────
+            // ── Section 3: Your swing ────────────────────────────────────────
             //
-            // About the athlete, so it sits under the athlete's launcher and above the
-            // hardware; drawn in the DEVICES list's own quiet language. Re-read whenever the
-            // home screen comes back into view — a session may have ended since.
-            Item { width: 1; height: Theme.sp(44); visible: workOnsList.visible }
+            // The athlete's swing in plain words and pictures, led by the one thing to practise:
+            // the focus, what they do well, what is next on their list, and the way into Swing
+            // diagnostics — the faults by name and what goes together, on their own screen
+            // (docs/design/home_themes_design.md). About the athlete, so it sits under the
+            // athlete's launcher and above the hardware. Read off WorkOnsController's catch-up,
+            // re-run whenever the home screen comes back into view (onVisibleChanged) — a
+            // session may have ended since.
+            Item { width: 1; height: Theme.sp(44); visible: swingSummary.visible }
 
-            HmWorkOns {
-                id: workOnsList
+            HmSwingSummary {
+                id: swingSummary
                 visible: athleteController.hasCurrentAthlete
                 height:  visible ? implicitHeight : 0
-                onReviewSessionRequested: (sessionDir) => root.reviewSessionRequested(sessionDir)
+                onDiagnosticsRequested: root.swingDiagnosticsRequested()
             }
 
             // ── Section 4: Device readiness ──────────────────────────────────

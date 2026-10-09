@@ -129,6 +129,21 @@ inline constexpr int kPackSchemaVersion = 1;
 //   unwatchedTailNoReason  a measure declaring a tail deliberately unwatched without saying why.
 //                        The declaration silences `ungradedTail`; without the reason it is
 //                        indistinguishable from a tail nobody has got to
+//   golferPhraseMissing  something the home screen's plain-language summary can name, with no
+//                        golfer words to name it in: a detectable Fault or Setup with no `golfer`,
+//                        or a measure that produces readings (live, held, external device) missing
+//                        `golferHigh` or `golferLow`, or a detectable Fault combining Any or First
+//                        with no `golferWell` or no `golferWhy`. The summary skips it, so it goes
+//                        quiet about a fault the golfer has, or about one they have beaten, or
+//                        names the focus without saying what it costs. A warning so a
+//                        user's own pack still loads; `core_pack_test` holds the shipped pack to zero
+//   golferPhraseWording  a golfer phrase that says why (because, causes, leads to…) where the
+//                        summary can only say what moved together, or uses the panel's vocabulary
+//                        — pelvis, thorax, lateral, flexion, extension, rotation, kinematic, a
+//                        P-position, any digit, °, %, mph, degrees. In `golferWell` also don't,
+//                        doesn't, not, never, no: that phrase says what the golfer DOES. A
+//                        `golferWhy` is one sentence, so it must also start with a capital and end
+//                        with a full stop ("so" is allowed there: it is the cost to the shot)
 //   faultNotObservable   a Fault that cannot be seen in the swing. Then it is not a swing fault; it
 //                        is a Capacity or an Intent. THIS IS THE CHECK THAT WOULD HAVE CAUGHT
 //                        `over_the_top`, which shipped Latent because nobody had written it a measure

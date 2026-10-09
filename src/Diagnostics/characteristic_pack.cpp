@@ -24,6 +24,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonParseError>
+#include <QRegularExpression>
 #include <QSet>
 
 #include <algorithm>
@@ -218,6 +219,68 @@ QJsonObject writeProvenance(const Provenance &p)
         o.insert(QStringLiteral("searchedOn"), p.searchedOn.toString(Qt::ISODate));
     if (!p.searchTerms.isEmpty()) o.insert(QStringLiteral("searchTerms"), p.searchTerms);
     return o;
+}
+
+// ── Golfer wording ──────────────────────────────────────────────────────────
+//
+// What `golferPhraseWording` refuses in a golfer phrase, and it is two lists for two reasons.
+//
+// CAUSAL WORDS, because the home screen reports co-movement and only co-movement: "On swings where
+// your hips slide further toward the target, your lead knee works in more" is something the
+// golfer's own swings showed, and "because" would turn it into a claim the summary has no evidence
+// for. The causal model stays one tap down, where its provenance is shown with it.
+//
+// JARGON, because the phrase is the only thing the golfer reads there, and the summary exists
+// because almost no golfer can read what the panel shows. Anatomy (pelvis, thorax), planes of motion
+// (lateral, flexion, rotation), P-positions and any number or unit are the vocabulary of the panel
+// one tap down. A digit is refused outright: a number in a sentence about "more" or "less than
+// usual" is either a threshold the summary does not use or a P-position under another spelling.
+//
+// Returns the first offending text, or empty when the phrase is clean.
+QString golferPhraseProblem(const QString &phrase)
+{
+    static const QRegularExpression bad(
+        QStringLiteral(R"(\b(?:because|cause|causes|caused|causing|due\s+to|leads\s+to|results\s+in)"
+                       R"(|therefore|pelvis|pelvic|thorax|thoracic|lateral|flexion|extension)"
+                       R"(|rotation|kinematic|mph|degrees|P\d+)\b|\d|°|%)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::UseUnicodePropertiesOption);
+    const QRegularExpressionMatch m = bad.match(phrase);
+    return m.hasMatch() ? m.captured(0) : QString();
+}
+
+// `golferWell` is held to everything above and one list more: NEGATION. The "What you do well" card
+// names the ideal the golfer is in, and "you don't lose width at the top" names the fault instead —
+// the golfer reads the thing they were supposedly not doing, and learns nothing about what to keep
+// doing. Said positively it is the coach's cue: "you keep your arms wide at the top". Only these
+// five, because they are the ones that turn a fault into its absence; "without" and "rather than"
+// are left to the author's ear. Both apostrophes, since a pack edited on a phone gets curly ones.
+QString golferWellProblem(const QString &phrase)
+{
+    const QString word = golferPhraseProblem(phrase);
+    if (!word.isEmpty()) return word;
+    static const QRegularExpression negation(
+        QStringLiteral(R"(\b(?:don['’]t|doesn['’]t|not|never|no)\b)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::UseUnicodePropertiesOption);
+    const QRegularExpressionMatch m = negation.match(phrase);
+    return m.hasMatch() ? m.captured(0) : QString();
+}
+
+// `golferWhy` is held to everything `golferPhraseProblem` refuses — the causal list there is
+// exactly the one that matters for it, because "so you lose speed" names what the fault costs the
+// SHOT and "because you sway" names another fault as its reason, which the home screen has no
+// evidence for — and one thing more: it is a SENTENCE. The focus card prints it as-is under the
+// fault, so it must start with a capital and end with a full stop; the lower-case golfer phrases
+// are fragments the summary builds sentences out of, and this is not. Empty passes here (the
+// missing check is separate). Returns what is wrong, or empty when the sentence is clean.
+QString golferWhyProblem(const QString &sentence)
+{
+    const QString word = golferPhraseProblem(sentence);
+    if (!word.isEmpty()) return word;
+    const QString s = sentence.trimmed();
+    if (s.isEmpty()) return QString();
+    if (!s.front().isUpper()) return QStringLiteral("no capital first letter");
+    if (!s.endsWith(QLatin1Char('.'))) return QStringLiteral("no full stop at the end");
+    return QString();
 }
 
 } // namespace
@@ -1009,6 +1072,106 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
         }
     }
 
+    // --- golfer wording ------------------------------------------------------
+    //
+    // The home screen's plain-language summary (docs/design/home_themes_design.md) speaks ONLY in
+    // these phrases, so a row without one is not rendered wrongly there — it is not rendered at all,
+    // and the summary goes quiet about a fault the golfer has. Which rows NEED one is exactly the
+    // set the summary can name: a fault or set-up the swing can detect (layer 1 reads fired /
+    // assessed off the ledger), and both directions of every measure that puts a number in the
+    // ledger (layer 2 names a theme by its members' directions), and the ideal of every fault the
+    // "What you do well" card can praise (`golferWell`), and what that same fault costs the
+    // golfer's shots when the focus card picks it (`golferWhy`). A delivery, outcome, capacity or
+    // intent never appears there, and nor does a measure that produces nothing, so asking them for a
+    // phrase would be a health list arguing for content nobody reads.
+    //
+    // BOTH CODES ARE WARNINGS, the `externalDeviceNoReason` / `unwatchedTailNoReason` level, and the
+    // choice is the same one: the row is incomplete, not wrong. A user's own pack written before
+    // these fields existed grades exactly as it did; failing its load over missing prose would take
+    // the user's whole layer down to say that the home screen has less to say. `core_pack_test`
+    // holds the SHIPPED pack to zero of both, which is where the requirement is enforced.
+    //
+    // The wording check is a warning for the same reason, though a causal word in a co-movement
+    // sentence is closer to a wrong answer than a missing one: the summary still says something
+    // true about the golfer's swings, just in words that overclaim or that the golfer cannot read.
+    for (const Condition &c : pack.conditions) {
+        const bool named = (c.kind == ConditionKind::Fault || c.kind == ConditionKind::Setup)
+                           && !c.detectedBy.isEmpty();
+        if (named && c.golfer.trimmed().isEmpty())
+            warn(r, QStringLiteral("golferPhraseMissing"), c.id,
+                 QStringLiteral("'%1' can be detected but has no golfer phrase, so the home "
+                                "screen's summary cannot mention it. Say it as a coach would to a "
+                                "golfer: \"you stand up through the ball\".").arg(c.id));
+        const QString word = golferPhraseProblem(c.golfer);
+        if (!word.isEmpty())
+            warn(r, QStringLiteral("golferPhraseWording"), c.id,
+                 QStringLiteral("'%1' golfer phrase \"%2\" uses '%3'. Golfer phrases say what "
+                                "happens in plain body words: no causes, no anatomy or planes of "
+                                "motion, no P-positions, no numbers or units.")
+                     .arg(c.id, c.golfer, word));
+
+        // "What you do well" can name a fault the golfer is clear of only when "clear of it" is one
+        // thing: a detectable Fault whose signals are alternatives (Any) or a preference (First).
+        // Under All the absence is "not every one of these fired", which is no single ideal to name,
+        // and a set-up is read on the panel, not praised on the home screen.
+        const bool praised = c.kind == ConditionKind::Fault && !c.detectedBy.isEmpty()
+                             && (c.detection == DetectionMode::Any || c.detection == DetectionMode::First);
+        if (praised && c.golferWell.trimmed().isEmpty())
+            warn(r, QStringLiteral("golferPhraseMissing"), c.id,
+                 QStringLiteral("'%1' can be detected but has no golferWell phrase, so the home "
+                                "screen cannot say when the golfer is clear of it. Say the ideal "
+                                "as what they do: \"you keep your arms wide at the top\".").arg(c.id));
+        const QString wellWord = golferWellProblem(c.golferWell);
+        if (!wellWord.isEmpty())
+            warn(r, QStringLiteral("golferPhraseWording"), c.id,
+                 QStringLiteral("'%1' golferWell phrase \"%2\" uses '%3'. It says what the golfer "
+                                "does, in plain body words: no don't / not / never / no, no causes, "
+                                "no anatomy or planes of motion, no P-positions, no numbers or units.")
+                     .arg(c.id, c.golferWell, wellWord));
+
+        // The focus card names the fault it picked and then says what it costs (`golferWhy`); the
+        // card can pick exactly the rows "What you do well" can praise, so the requirement is the
+        // same set.
+        if (praised && c.golferWhy.trimmed().isEmpty())
+            warn(r, QStringLiteral("golferPhraseMissing"), c.id,
+                 QStringLiteral("'%1' can be detected but has no golferWhy sentence, so the home "
+                                "screen cannot say what it costs the golfer's shots. Say it as one "
+                                "sentence: \"A straight trail leg lets your hips slide instead of "
+                                "turn, so you lose power.\"").arg(c.id));
+        const QString whyProblem = golferWhyProblem(c.golferWhy);
+        if (!whyProblem.isEmpty())
+            warn(r, QStringLiteral("golferPhraseWording"), c.id,
+                 QStringLiteral("'%1' golferWhy sentence \"%2\" has '%3'. It is one sentence with a "
+                                "capital and a full stop, saying what the fault costs the shot in "
+                                "plain words: no causes (\"so\" is fine), no anatomy or planes of "
+                                "motion, no P-positions, no numbers or units.")
+                     .arg(c.id, c.golferWhy, whyProblem));
+    }
+
+    for (const Measure &m : pack.measures) {
+        const bool producesReadings = m.status == MeasureStatus::Live
+                                      || m.status == MeasureStatus::Held
+                                      || m.status == MeasureStatus::ExternalDevice;
+        if (producesReadings && (m.golferHigh.trimmed().isEmpty() || m.golferLow.trimmed().isEmpty()))
+            warn(r, QStringLiteral("golferPhraseMissing"), m.id,
+                 QStringLiteral("Measure '%1' produces readings but does not say, in a golfer's "
+                                "words, what a %2 reading looks like, so the home screen cannot "
+                                "name a theme it belongs to.")
+                     .arg(m.id, m.golferHigh.trimmed().isEmpty()
+                                    ? (m.golferLow.trimmed().isEmpty() ? QStringLiteral("higher or a lower")
+                                                                       : QStringLiteral("higher"))
+                                    : QStringLiteral("lower")));
+        for (const QString &phrase : { m.golferHigh, m.golferLow }) {
+            const QString word = golferPhraseProblem(phrase);
+            if (!word.isEmpty())
+                warn(r, QStringLiteral("golferPhraseWording"), m.id,
+                     QStringLiteral("Measure '%1' golfer phrase \"%2\" uses '%3'. Golfer phrases "
+                                    "say what happens in plain body words: no causes, no anatomy or "
+                                    "planes of motion, no P-positions, no numbers or units.")
+                         .arg(m.id, phrase, word));
+        }
+    }
+
     return r;
 }
 
@@ -1076,6 +1239,8 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
         m.unit      = o.value(QStringLiteral("unit")).toString();
         m.gapReason = o.value(QStringLiteral("gapReason")).toString();
         m.highMeans = o.value(QStringLiteral("highMeans")).toString();
+        m.golferHigh = o.value(QStringLiteral("golferHigh")).toString();
+        m.golferLow  = o.value(QStringLiteral("golferLow")).toString();
 
         m.unwatchedReason = o.value(QStringLiteral("unwatchedReason")).toString();
 
@@ -1192,7 +1357,10 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
         Condition         c;
         c.id         = o.value(QStringLiteral("id")).toString();
         c.label      = o.value(QStringLiteral("label")).toString();
-        c.aliases    = readStringList(o.value(QStringLiteral("aliases")));
+        c.golfer     = o.value(QStringLiteral("golfer")).toString();
+        c.golferWell = o.value(QStringLiteral("golferWell")).toString();
+        c.golferWhy  = o.value(QStringLiteral("golferWhy")).toString();
+        c.aliases   = readStringList(o.value(QStringLiteral("aliases")));
         c.axis       = o.value(QStringLiteral("axis")).toString();
         c.detectedBy = readStringList(o.value(QStringLiteral("detectedBy")));
         // Absent => Any, so every condition authored before conjunctions existed keeps combining
@@ -1414,6 +1582,8 @@ QJsonObject savePack(const CharacteristicPack &pack)
         if (!m.unit.isEmpty())      o.insert(QStringLiteral("unit"), m.unit);
         if (!m.gapReason.isEmpty()) o.insert(QStringLiteral("gapReason"), m.gapReason);
         if (!m.highMeans.isEmpty()) o.insert(QStringLiteral("highMeans"), m.highMeans);
+        if (!m.golferHigh.isEmpty()) o.insert(QStringLiteral("golferHigh"), m.golferHigh);
+        if (!m.golferLow.isEmpty())  o.insert(QStringLiteral("golferLow"), m.golferLow);
         o.insert(QStringLiteral("viewNeeded"), viewNeededName(m.viewNeeded));
         o.insert(QStringLiteral("status"), measureStatusName(m.status));
         // Omitted when Target, so 105 of 106 shipped measures round-trip byte-identically and the
@@ -1444,6 +1614,9 @@ QJsonObject savePack(const CharacteristicPack &pack)
         QJsonObject o;
         o.insert(QStringLiteral("id"), c.id);
         o.insert(QStringLiteral("label"), c.label);
+        if (!c.golfer.isEmpty()) o.insert(QStringLiteral("golfer"), c.golfer);
+        if (!c.golferWell.isEmpty()) o.insert(QStringLiteral("golferWell"), c.golferWell);
+        if (!c.golferWhy.isEmpty()) o.insert(QStringLiteral("golferWhy"), c.golferWhy);
         if (!c.axis.isEmpty()) o.insert(QStringLiteral("axis"), c.axis);
         o.insert(QStringLiteral("group"), conditionGroupName(c.group));
         // Written unconditionally, beside the three fields they belong with — NOT omitted when they

@@ -24,6 +24,8 @@
 #include "../../Diagnostics/drill_pack.h"
 #include "../../Diagnostics/pack_io.h"
 #include "../../Diagnostics/pack_provider.h"
+#include "../../Diagnostics/swing_themes_pack.h"
+#include "../../Core/pp_debug.h"
 #include "../../Export/swing_store.h"
 
 #include <QCoreApplication>
@@ -32,11 +34,14 @@
 #include <QDateTime>
 #include <QDeadlineTimer>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QLocale>
 #include <QMetaObject>
+#include <QSemaphore>
+#include <QThread>
 #include <QTimer>
 
 #include <algorithm>
@@ -47,6 +52,8 @@ using namespace pinpoint::analysis;
 namespace {
 
 const QString kRecordFile = QStringLiteral("work_ons.json");
+const QString kThemesFile = QStringLiteral("swing_themes.json");
+const QString kLedgerFile = QStringLiteral("diagnostics.json");
 
 QString fmtNumber(double v)
 {
@@ -82,17 +89,32 @@ WorkOnsController::WorkOnsController(QObject *parent)
     : QObject(parent)
 {
     m_pool.setMaxThreadCount(1);
+    m_themesPool.setMaxThreadCount(1);
+    // The job's own thread works through the replicates too, so this plus it is every core.
+    m_replicatePool.setMaxThreadCount(std::max(1, QThread::idealThreadCount() - 1));
+    // Seconds of every core, beside a home screen being used: the screen comes first.
+    m_themesPool.setThreadPriority(QThread::LowPriority);
+    m_replicatePool.setThreadPriority(QThread::LowPriority);
 }
 
 WorkOnsController::~WorkOnsController()
 {
-    // The pool's lambda delivers back to `this`; drain it before the members go.
+    // The pools' lambdas deliver back to `this`; drain them before the members go. A themes job
+    // in flight is told to stop first, so quitting does not wait out a reduction.
+    if (m_themesCancel) m_themesCancel->store(true);
+    m_themesPool.waitForDone();
+    m_replicatePool.waitForDone();
     m_pool.waitForDone();
 }
 
 QString WorkOnsController::recordPath(const QString &sessionDir)
 {
     return QDir(sessionDir).filePath(kRecordFile);
+}
+
+QString WorkOnsController::themesPath(const QString &athleteDir)
+{
+    return QDir(athleteDir).filePath(kThemesFile);
 }
 
 SessionDiagnosticsModel *WorkOnsController::model()
@@ -122,10 +144,13 @@ void WorkOnsController::setAthleteDir(const QString &dir)
     if (m_athleteDir == dir) return;
     m_athleteDir = dir;
     emit athleteDirChanged();
-    // The previous golfer's list must not sit under this one's name while the scan runs.
+    // The previous golfer's list must not sit under this one's name while the scan runs —
+    // nor their swing summary, and a reduction of their sessions has nothing left to do.
     m_records.clear();
     m_queue.clear();
     m_sessionsFound = 0;
+    cancelThemes();
+    clearSummary();
     publish();
     refresh();
 }
@@ -142,6 +167,9 @@ void WorkOnsController::setPaused(bool on)
     if (m_paused == on) return;
     m_paused = on;
     emit pausedChanged();
+    // A reduction is all cores for seconds; it never runs beside capture. The summary on screen
+    // stays, and the pause lifting computes it again.
+    if (on) cancelThemes();
     // Unpausing is a session ending: the one moment a session is certain to have gone stale.
     if (!on) refresh();
 }
@@ -276,6 +304,8 @@ void WorkOnsController::deriveNext()
     }
     if (!m_deriving && m_queue.isEmpty() && m_model && !m_model->sessionDir().isEmpty())
         m_model->activateSession(QString());     // let go of the last session's rows
+    // Every record current: every ledger is reconciled, so the summary can be read off them.
+    maybeThemes();
 }
 
 void WorkOnsController::onModelSettled()
@@ -323,13 +353,24 @@ void WorkOnsController::finishDerive()
 
 bool WorkOnsController::waitForIdle(int msTimeout)
 {
+    // IDLE MEANS STILL IDLE AFTER A TURN OF THE EVENT LOOP. Deriving hands the next session to a
+    // zero-timer, and the summary starts from the end of that call — so for one turn after the
+    // last derivation nothing reads as busy although the reduction is about to begin.
+    const auto busy = [this] {
+        return (updating() && !(m_paused && !m_scanning && !m_deriving)) || m_themesRunning;
+    };
     QDeadlineTimer deadline(msTimeout);
-    while (updating() && !(m_paused && !m_scanning && !m_deriving) && !deadline.hasExpired()) {
+    while (!deadline.hasExpired()) {
+        if (!busy()) {
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+            if (!busy()) break;
+            continue;
+        }
         QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
         m_pool.waitForDone(20);
+        if (m_themesRunning) m_themesPool.waitForDone(20);
     }
-    QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
-    return !m_scanning && !m_deriving;
+    return !m_scanning && !m_deriving && !m_themesRunning;
 }
 
 // ── Publish ─────────────────────────────────────────────────────────────────────────────
@@ -372,6 +413,9 @@ void WorkOnsController::publish()
         // per-fault denominator ("26 of 26" beside "41 of 55") reads as two different histories;
         // the swings this fault could not be judged on are said in the detail instead.
         m[QStringLiteral("countText")] = swingsText(w.swingsFired, totalSwings);
+        // The same two numbers, for the row's ten-segment meter.
+        m[QStringLiteral("swingsFired")] = w.swingsFired;
+        m[QStringLiteral("swingsTotal")] = totalSwings;
         const int unjudged = std::max(0, totalSwings - w.swingsAssessable);
         m[QStringLiteral("coverageText")] =
             unjudged == 0 ? QString() : QStringLiteral("not measurable on %1 of them").arg(unjudged);
@@ -470,4 +514,305 @@ void WorkOnsController::publish()
     m_items = items;
     m_clearedCount = cleared;
     emit itemsChanged();
+}
+
+// ── Your swing ──────────────────────────────────────────────────────────────────────────
+
+// Everything the summary depends on: the rule and the schema it was reduced and stored under, the
+// content the ledgers were graded against, which drills exist (the focus groups the faults by the
+// first of each one's drills the drill set holds, and that order is stored), and every session's
+// work-ons fingerprint — which moves whenever a swing arrives, leaves or is re-analysed, i.e.
+// whenever that session's ledger is reconciled into something new. Sessions in NAME order, the
+// order the reduction takes them in.
+QString WorkOnsController::themesFingerprint() const
+{
+    QStringList dirs = m_fingerprints.keys();
+    std::sort(dirs.begin(), dirs.end(), [](const QString &a, const QString &b) {
+        return QFileInfo(a).fileName() < QFileInfo(b).fileName();
+    });
+    QCryptographicHash h(QCryptographicHash::Sha1);
+    h.addData(QByteArray::number(kThemeRuleVersion));
+    h.addData(QByteArray::number(kThemeSchemaVersion));
+    h.addData((m_model ? m_model->contentStamp() : QString()).toUtf8());
+    QStringList drillIds;
+    for (const Drill &d : sharedDrillSet().drills) drillIds.append(d.id);
+    drillIds.sort();
+    h.addData(drillIds.join(QLatin1Char('\x1f')).toUtf8());
+    h.addData(QByteArrayLiteral("\x1d"));
+    for (const QString &d : dirs) {
+        h.addData(QFileInfo(d).fileName().toUtf8());
+        h.addData(QByteArrayLiteral("\x1f"));
+        h.addData(m_fingerprints.value(d).toUtf8());
+        h.addData(QByteArrayLiteral("\x1e"));
+    }
+    return QString::fromLatin1(h.result().toHex().left(16));
+}
+
+// Called once the catch-up is done. Cheap when the summary on screen is already current.
+void WorkOnsController::maybeThemes()
+{
+    if (m_athleteDir.isEmpty() || m_paused || m_scanning || m_deriving || !m_queue.isEmpty()) return;
+
+    // No session with a swing in it: nothing to sum up, and no file to write into the folder.
+    if (m_fingerprints.isEmpty()) {
+        cancelThemes();
+        if (m_summaryReady) clearSummary();
+        return;
+    }
+
+    const QString fp = themesFingerprint();
+    if (m_summaryReady && fp == m_themesFingerprint) {
+        cancelThemes();         // a job for a state that has since come back to this one
+        return;
+    }
+    if (m_themesRunning && fp == m_themesJobFingerprint) return;
+    cancelThemes();             // superseded
+
+    // The pack is marshalled here, on the GUI thread; the job sees plain values only.
+    if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
+    const CharacteristicPack &pack = m_packProv->pack();
+
+    ThemesJob job;
+    job.generation   = ++m_themesGeneration;
+    job.athleteDir   = m_athleteDir;
+    job.fingerprint  = fp;
+    job.contentStamp = m_model ? m_model->contentStamp() : QString();
+    job.sessionDirs  = m_fingerprints.keys();
+    std::sort(job.sessionDirs.begin(), job.sessionDirs.end(), [](const QString &a, const QString &b) {
+        return QFileInfo(a).fileName() < QFileInfo(b).fileName();
+    });
+    job.measures   = themeMeasureInfo(pack);
+    job.conditions = themeConditionInfo(pack, sharedDrillSet());
+
+    auto cancel = std::make_shared<std::atomic<bool>>(false);
+    m_themesCancel = cancel;
+    m_themesJobFingerprint = fp;
+    m_themesRunning = true;
+    emit summaryChanged();
+
+    if (m_synchronous) {
+        applyThemes(job.generation, runThemes(job, cancel.get()));
+        return;
+    }
+    m_themesPool.start([this, job = std::move(job), cancel]() {
+        ThemesOutcome out = runThemes(job, cancel.get());
+        QMetaObject::invokeMethod(this, [this, generation = job.generation, out = std::move(out)]() mutable {
+            applyThemes(generation, std::move(out));
+        }, Qt::QueuedConnection);
+    });
+}
+
+// Stops the running job, if any. Its result, should it still arrive, is a generation behind and
+// is dropped; the summary on screen is left as it is.
+void WorkOnsController::cancelThemes()
+{
+    if (m_themesCancel) m_themesCancel->store(true);
+    m_themesCancel.reset();
+    ++m_themesGeneration;
+    if (!m_themesRunning) return;
+    m_themesRunning = false;
+    m_themesJobFingerprint.clear();
+    emit summaryChanged();
+}
+
+// Worker thread (or inline when synchronous). Touches no member but the replicate pool.
+WorkOnsController::ThemesOutcome WorkOnsController::runThemes(const ThemesJob &job, const std::atomic<bool> *cancel)
+{
+    QElapsedTimer clock;
+    clock.start();
+    ThemesOutcome out;
+    out.fingerprint  = job.fingerprint;
+    out.contentStamp = job.contentStamp;
+    out.athleteDir   = job.athleteDir;
+
+    // ── 1. The stored summary, when it was reduced from exactly this ──
+    {
+        QFile f(themesPath(job.athleteDir));
+        if (f.open(QIODevice::ReadOnly)) {
+            const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+            const QString stored = root.value(QStringLiteral("derivedFrom")).toObject()
+                                       .value(QStringLiteral("fingerprint")).toString();
+            bool ok = false;
+            SwingThemes st = swingThemesFromJson(root, &ok);     // another schema or rule: not ok
+            if (ok && !st.cancelled && stored == job.fingerprint) {
+                out.fromDisk = true;
+                out.themes   = std::move(st);
+                out.wallMs   = clock.elapsed();
+                return out;
+            }
+        }
+    }
+
+    // ── 2. Every session's ledger ──
+    std::vector<ThemeSessionInput> sessions;
+    sessions.reserve(size_t(job.sessionDirs.size()));
+    for (const QString &dir : job.sessionDirs) {
+        if (cancel && cancel->load()) return out;
+        const QString path = QDir(dir).filePath(kLedgerFile);
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly)) {
+            ppWarn() << "[SwingThemes] no ledger to read:" << qPrintable(path) << "—" << qPrintable(f.errorString());
+            continue;
+        }
+        QJsonParseError err;
+        const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
+        if (err.error != QJsonParseError::NoError || !doc.isObject()) {
+            ppWarn() << "[SwingThemes] ledger unreadable, left out:" << qPrintable(path) << "—" << qPrintable(err.errorString());
+            continue;
+        }
+        ThemeSessionInput in;
+        in.name  = QFileInfo(dir).fileName();
+        in.shots = fromJson(doc.object().value(QStringLiteral("ledger")).toObject());
+        sessions.push_back(std::move(in));
+    }
+
+    // ── 3. Reduce, the replicates fanned out ──
+    // The calling thread works through the indices beside the pool's threads, and waits for them.
+    // Only this one job uses the pool, so its threads are free when it asks.
+    QThreadPool *pool = &m_replicatePool;
+    const ThemeParallelFor parallelFor = [pool](int n, const std::function<void(int)> &body) {
+        std::atomic<int> next{ 0 };
+        const auto drain = [&]() {
+            for (int i = next.fetch_add(1); i < n; i = next.fetch_add(1)) body(i);
+        };
+        const int helpers = std::max(0, std::min(n - 1, pool->maxThreadCount()));
+        QSemaphore done;
+        for (int h = 0; h < helpers; ++h)
+            pool->start([&]() { drain(); done.release(); });
+        drain();
+        done.acquire(helpers);
+    };
+    SwingThemes st = reduceSwingThemes(sessions, job.measures, job.conditions, ThemeOptions{}, parallelFor, cancel);
+    if (st.cancelled || (cancel && cancel->load())) return out;
+
+    out.computed = true;
+    out.themes   = std::move(st);
+    out.wallMs   = clock.elapsed();
+    return out;
+}
+
+void WorkOnsController::applyThemes(int generation, ThemesOutcome out)
+{
+    if (generation != m_themesGeneration) return;      // cancelled or superseded
+    m_themesRunning = false;
+    m_themesCancel.reset();
+    m_themesJobFingerprint.clear();
+
+    if (!out.fromDisk && !out.computed) {              // stopped part way: neither written nor shown
+        emit summaryChanged();
+        return;
+    }
+
+    if (out.computed) {
+        QJsonObject root = toJson(out.themes);
+        root[QStringLiteral("derivedFrom")] = QJsonObject{
+            { QStringLiteral("fingerprint"),  out.fingerprint },
+            { QStringLiteral("contentStamp"), out.contentStamp },
+            { QStringLiteral("writtenAtMs"),  double(QDateTime::currentMSecsSinceEpoch()) },
+        };
+        QString why;
+        if (!atomicWrite(themesPath(out.athleteDir), QJsonDocument(root).toJson(QJsonDocument::Compact), &why))
+            ppWarn() << "[SwingThemes] could not write" << qPrintable(themesPath(out.athleteDir)) << "—" << qPrintable(why);
+
+        int firm = 0, probably = 0, possibly = 0, none = 0;
+        for (const SwingTheme &t : out.themes.themes) {
+            switch (t.tier) {
+            case ThemeTier::Firm:     ++firm;     break;
+            case ThemeTier::Probably: ++probably; break;
+            case ThemeTier::Possibly: ++possibly; break;
+            case ThemeTier::None:     ++none;     break;
+            }
+        }
+        ppInfo() << qPrintable(QStringLiteral("[SwingThemes] %1 swings over %2 sessions, k=%3, themes %4 firm / "
+                                             "%5 probably / %6 possibly / %7 not shown%8 — %9 ms")
+                                  .arg(out.themes.swings).arg(out.themes.sessions).arg(out.themes.k)
+                                  .arg(firm).arg(probably).arg(possibly).arg(none)
+                                  .arg(out.themes.enough ? QString() : QStringLiteral(" (not enough yet)"))
+                                  .arg(out.wallMs));
+    }
+
+    m_themes            = std::move(out.themes);
+    m_themesFingerprint = out.fingerprint;
+    m_summaryReady      = true;
+    publishSummary();
+}
+
+// The words, made now from the stored structure: a phrase edited in the pack (or a drill in the
+// drill set) shows at the next publish without a recompute. Every item a plain QVariantMap, so
+// QML reads it by key. The view's needsWork (every needs-work fault, capped) is not published: the
+// home screen draws the focus and what is next instead, and the faults by name are `items`.
+void WorkOnsController::publishSummary()
+{
+    m_summarySubtitle.clear();
+    m_focusItem.clear();
+    m_doWellItems.clear();
+    m_nextItems.clear();
+    m_togetherItems.clear();
+    m_togetherNote.clear();
+    if (m_summaryReady) {
+        if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
+        // The drill set gives the focus its drill's name and instruction.
+        const SwingSummaryView view = swingSummaryView(m_themes, themePhrases(m_packProv->pack(), sharedDrillSet()));
+        const auto pips = [](const std::vector<bool> &v) {
+            QVariantList out;
+            out.reserve(qsizetype(v.size()));
+            for (bool b : v) out.append(b);
+            return out;
+        };
+        // One fault item, the same shape in the focus's "right now" and in "next on your list".
+        const auto fault = [&pips](const NeedsWorkItem &n) {
+            return QVariantMap{
+                { QStringLiteral("text"),      n.text },
+                { QStringLiteral("share"),     n.share },
+                { QStringLiteral("frequency"), n.frequency },
+                { QStringLiteral("trend"),     n.trend },
+                { QStringLiteral("sessions"),  pips(n.pips) },
+            };
+        };
+
+        m_summarySubtitle = view.subtitle;
+
+        const FocusItem &f = view.focus;
+        QVariantList aimFor, rightNow;
+        for (const QString &a : f.aimFor) aimFor.append(a);
+        for (const NeedsWorkItem &n : f.rightNow) rightNow.append(fault(n));
+        m_focusItem = QVariantMap{
+            { QStringLiteral("present"),       f.present },
+            { QStringLiteral("title"),         f.title },
+            { QStringLiteral("aimFor"),        aimFor },
+            { QStringLiteral("rightNow"),      rightNow },
+            { QStringLiteral("why"),           f.why },
+            { QStringLiteral("practiseLabel"), f.practiseLabel },
+            { QStringLiteral("practise"),      f.practise },
+            { QStringLiteral("reason"),        f.reason },
+        };
+
+        for (const DoWellItem &d : view.doWell)
+            m_doWellItems.append(QVariantMap{
+                { QStringLiteral("text"),     d.text },
+                { QStringLiteral("caption"),  d.caption },
+                { QStringLiteral("sessions"), pips(d.pips) },
+            });
+        for (const NeedsWorkItem &n : view.next)
+            m_nextItems.append(fault(n));
+        for (const TogetherItem &t : view.together)
+            m_togetherItems.append(QVariantMap{
+                { QStringLiteral("tier"),       t.tier },
+                { QStringLiteral("first"),      t.first },
+                { QStringLiteral("second"),     t.second },
+                { QStringLiteral("startStop"),  t.startStop },
+                { QStringLiteral("startWords"), t.startWords },
+                { QStringLiteral("trend"),      t.trend },
+            });
+        m_togetherNote = view.note;
+    }
+    emit summaryChanged();
+}
+
+void WorkOnsController::clearSummary()
+{
+    m_themes = SwingThemes();
+    m_themesFingerprint.clear();
+    m_summaryReady = false;
+    publishSummary();
 }

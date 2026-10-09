@@ -1,6 +1,7 @@
 # Home screen themes — design
 
-Status: prototype (tools/themes/), not in the app. 9 Oct 2026.
+Status: in the app (home screen, YOUR SWING), 9 Oct 2026. The prototype in tools/themes/ is the
+reference the C++ is tested against.
 
 ## Purpose
 
@@ -81,9 +82,10 @@ All of it is numpy only and hand-written, so it ports to C++ directly.
      trivially).
    - Run with other sessions added.
    - Components are matched by the Hungarian method on congruence.
-8. **Name.** Each theme is named from its two strongest members, using the golfer phrase table
-   (`tools/themes/golfer_phrases.json`, keyed by measure and direction). The app version carries
-   these phrases in the pack.
+8. **Name.** Each theme is named from its two strongest members, in the golfer words the pack
+   carries for each measure and direction (`golferHigh` / `golferLow`). A second member of a
+   family already named (the same quantity at another moment) is skipped, so a theme never says
+   one thing twice.
 
 ## Coach layer: model comparison
 
@@ -171,18 +173,83 @@ Swing-to-swing co-movement is not the only evidence a causal edge can have. A ha
 without varying. Declared-focus sessions (the panel's "moved together" grade) and drill sessions
 are what will test the edges.
 
-## Before it goes into the app
+## In the app
 
-- **Phrases live in the pack.** Golfer phrases become pack content per condition and per
-  measure-and-direction, linted like the rest of the pack.
-- **Where it runs.** Port it as a pure reduction alongside work-ons (`work_ons.h`), re-derived on
-  the same catch-up and stamped with a rule version.
-- **Minimum data.** Below about 60 swings across 3 sessions, layer 2 says "not yet". Layer 1 works
-  from one session.
-- **Trends.** A theme's trend needs a camera-drift-free session score. Until then it is worded
-  tentatively, or left out.
-- **Drill sessions.** These vary faults on purpose, and are the fastest way to more themes and to
-  testing the model's edges.
+Built 9 Oct 2026. What was planned under "Before it goes into the app" and how it landed:
+
+- **Phrases live in the pack.** `core.json` carries `golfer` on every detectable fault and setup
+  condition ("you stand up through the ball") and `golferHigh` / `golferLow` on every measure that
+  produces readings. Measure phrases are COMPARATIVE ("your hips slide further toward the target
+  coming down"), because a theme compares a golfer's swings with each other, and each stands
+  alone. The pack validator warns `golferPhraseMissing` and `golferPhraseWording` (causal words,
+  jargon such as pelvis / thorax / P-numbers, digits and units); `core_pack_test` holds the shipped
+  pack to zero of both. Warnings, not errors, so an older user pack still loads.
+- **Where it runs.** `src/Analysis/swing_themes.h` is the pure reduction (both layers, and the
+  sentences); `src/Diagnostics/swing_themes_pack.h` marshals orientation, swing position and phrases
+  from the pack. `WorkOnsController` runs it once its catch-up has every session's record current,
+  off the GUI thread with the bootstrap replicates spread over a thread pool, and never while a
+  session is live. The result is `<athlete>/swing_themes.json`, fingerprinted by
+  `kThemeRuleVersion`, the content stamp and every session's work-ons fingerprint, so it is
+  recomputed only when a session changes. The words are made when the list is published, so a
+  phrase edit needs no recompute. Cost on the library (133 swings × 46 measures, k = 9): about
+  2 s optimised, 13 s in the Mac Debug build.
+- **Minimum data.** Under 60 swings or 3 sessions (after dropping sparse swings), layer 2 says
+  "Not yet — it takes about 60 swings over 3 sessions to see what goes together (so far: N swings
+  over M sessions)."
+- **Trends.** Still uncentred session scores, so still worded "may be". A trend is said only when
+  the slope is over 0.1 within-session SD per session AND at least 2 standard errors from zero,
+  the error taken from the sessions' own scatter about the line. Session means on the library
+  move ±0.8 SD from session to session — drift, far above their sampling error — and the slope
+  gate alone read that drift as a trend (the slide theme: slope −0.21, t −1.0, now "no clear change
+  yet"; arm-and-finish +0.30, t 3.3, still "may be growing").
+- **Display.** "YOUR SWING" is drawn to be looked at before
+  it is read (Mark rejected a first version of bulleted sentences as "really boring"):
+  - two cards side by side — **What you do well** (green: a tick, the strength, how often it is in
+    the ideal range, one pip per session) and **What needs work** (amber: the fault, a ten-step
+    "how often" meter, a growing / easing chip, one pip per session that saw it), five each at most;
+  - **What goes together** below, one row per theme (four at most, firm first): a signal-strength
+    mark for CLEAR / LIKELY / POSSIBLE in place of the "Probably:" prefix, the two halves joined by
+    a connector ("When your hips slide …" / "your lead knee caves in …"), and a six-stop swing
+    timeline (Address · Back · Top · Down · Impact · Finish) marking where it starts.
+  Superseded the same day by the focus-led layout below; the cards and the goes-together rows
+  carried over.
+- **The home screen is a coaching page; the rest is Swing diagnostics.** Two polished lists of the
+  same faults ("what needs work" and WORK ONS) read as a contradiction, and five faults on "almost
+  every swing" give a golfer no order. Mark's call, 9 Oct: one focus to the fore, the technical layer
+  one tap down. Home, top to bottom: YOUR SWING → **Your focus** → What you do well (3) | Next on your
+  list (4) → "Swing diagnostics →". The Swing diagnostics screen holds FAULTS (the work-ons card,
+  with its counts, corridors, drills and session links) and What goes together.
+- **The focus (rule v1).** The needs-work faults are grouped by the first drill the pack authors
+  for them (a fault with none is a group of its own), and the groups ranked: earliest in the swing
+  first (a condition's swing position is the earliest of its measures'), then a group with a drill,
+  then the one covering more faults, then the higher share. Starting at the earliest point is a
+  coaching convention, said as one ("Picked first: it comes earliest in your swing and covers two of
+  the things on your list.") — an earlier fault changes the positions later ones are read from; no
+  causal claim is made. The card shows the drill as its title, what to aim for (`golferWell`), how
+  often each covered fault happens now (meter + pips), why it matters (`golferWhy`, a new pack field:
+  what the fault costs the shots, in golfer words) and the drill's instruction. "Next on your list"
+  is the rest in the same order. On Mark's data: Trail hip load and hold (trail knee straightens +
+  sway, both in the backswing), then over the top, reverse spine at the top, early extension, hips
+  at impact. A related theme is NOT attached to the focus yet: the firm slide theme shares sway's
+  measure but moves the opposite way.
+- **What you do well (rule v1).** A golfer is told what is RIGHT too, and only what is true:
+  - a strength is a fault condition whose readings sit INSIDE THE IDEAL CORRIDOR, by value, on at
+    least 85 % of swings (recency-weighted over sessions that judged it on 8+ swings; 80 % in the
+    latest; 30+ swings over 2+ sessions). "Never fired" is not enough: Mark's lag sits below the
+    ideal band on most swings yet casting never fires, because the fault line is further out;
+  - never a conjunction (detection All) — the absence of "A and B" says nothing about A or B;
+  - prominence Occasional or above, ranked by prominence, then share;
+  - never the same quantity as anything in "what needs work" or as any member of a theme the page
+    shows (family = metricKey, with a signed series the same family as its magnitude — otherwise
+    "your hips keep turning through impact" sat beside "your hips haven't turned enough by impact");
+  - worded from the pack's `golferWell` (what a golfer in the ideal range does, never "don't").
+- **Parity with the prototype.** Both draw their random numbers from mt19937_64 with one seed per
+  replicate (`tools/themes/theme_rng.py` is bit-identical to `DetRng`), so
+  `swing_themes_golden_test` holds the C++ to the Python on a copy of Mark's five library ledgers
+  (`src/Analysis/tests/data/swing_themes/`): every number to 1e-9 in practice, tiers, members and
+  sentences exactly. Regenerate the fixture (its README) whenever the pack's orientation, reducers
+  or phrases change.
+- **Drill sessions.** Still the fastest way to more themes and to testing the model's edges.
 
 ## Tooling
 
@@ -195,4 +262,5 @@ so everything is numpy.
 | `theme_pca.py` | Themes, with stability, clustering cross-check and naming (`--out` dir → `themes.json`, loadings, stability, session scores) |
 | `theme_network.py` | Pairwise links and the model comparison (`--out` dir → `links.csv`, `model_comparison.csv`) |
 | `theme_summary.py` | The two-layer plain-language summary (`--themes <themes.json>`) |
-| `golfer_phrases.json` | Prototype golfer wording |
+| `theme_rng.py` | mt19937_64, bit-identical to the app's `DetRng`, and the per-replicate seeds |
+| `make_golden.py` | The C++ golden fixture: `strip` copies ledgers, `expected` writes the reference |

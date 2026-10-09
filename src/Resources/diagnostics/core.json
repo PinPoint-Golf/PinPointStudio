@@ -14,6 +14,8 @@
       "status": "live",
       "label": "Ball position in the stance, at P1",
       "unit": "% stance width",
+      "golferHigh": "the ball is further back in your stance",
+      "golferLow": "the ball is further forward in your stance",
       "highMeans": "further back, toward the trail foot"
     },
     {
@@ -27,6 +29,8 @@
       "status": "live",
       "label": "Stance width, at P1",
       "unit": "% shoulder width",
+      "golferHigh": "your stance is wider",
+      "golferLow": "your stance is narrower",
       "highMeans": "a wider stance, the heels further apart than the shoulders"
     },
     {
@@ -44,6 +48,8 @@
       "status": "live",
       "label": "Lag angle, lowest P5 to P6",
       "unit": "°",
+      "golferHigh": "you hold the wrist angle longer coming down",
+      "golferLow": "you lose the wrist angle sooner coming down",
       "highMeans": "more angle retained between the lead arm and the shaft in the downswing"
     },
     {
@@ -60,6 +66,8 @@
       "status": "live",
       "label": "Lead wrist flexion/extension, at P4",
       "unit": "°",
+      "golferHigh": "your lead wrist is more bowed at the top",
+      "golferLow": "your lead wrist is more cupped at the top",
       "highMeans": "a more bowed lead wrist at the top, less cupped"
     },
     {
@@ -76,6 +84,8 @@
       "status": "live",
       "label": "Lead wrist flexion/extension, at P7",
       "unit": "°",
+      "golferHigh": "your lead wrist is more bowed at impact",
+      "golferLow": "your lead wrist is more cupped at impact",
       "highMeans": "a more bowed lead wrist at impact, less cupped"
     },
     {
@@ -90,6 +100,8 @@
       "label": "Tempo ratio",
       "unit": ":1",
       "highMeans": "a longer backswing relative to the downswing, a slower transition",
+      "golferHigh": "you take more time going back than coming down",
+      "golferLow": "you rush more from the top",
       "unwatchedTail": "high",
       "unwatchedReason": "The corridor is centred on an address-to-top basis (2.6) while the published 3:1 figure is measured from the takeaway, and this norm's own citation says so. A tour-standard tempo therefore already reads about a tolerance high, so the high tail here is a mis-centred corridor rather than a fault. Re-centre it from a corpus and revisit."
     },
@@ -118,6 +130,8 @@
       "status": "live",
       "label": "Spine forward bend, at P1",
       "unit": "°",
+      "golferHigh": "you bend over more at address",
+      "golferLow": "you stand taller at address",
       "highMeans": "more forward bend from the hips, standing over the ball more"
     },
     {
@@ -137,6 +151,8 @@
       "label": "Spine forward bend, deepest P5 to P6 from P1",
       "unit": "°",
       "highMeans": "more forward bend than at address on the way down — dropping into the ball",
+      "golferHigh": "you drop toward the ball more coming down",
+      "golferLow": "you drop toward the ball less coming down",
       "unwatchedTail": "low",
       "unwatchedReason": "The low tail is a golfer who never reaches the address bend on the way down, which is standing up out of it. Since 2026-10-08 that is read by `m_spineBendLossDown` (the LEAST bend P5-P7 from address, on the down-the-line camera), which `early_extension` takes beside the pelvis thrust; watching this tail too would name one fault twice, and off the wrong window.\n\nREPLACES m_spineBendLoss, which was a MINIMUM over P4-P7 anchored at address and was read by `diving` on its HIGH tail. On a minimum, high means the bend never dropped below address at any point in the whole downswing — a sustained deep posture, not a dip. A golfer who drops into it before P6 and then stands up by impact has a minimum below address, so that swing scored as loss of posture and the dive was invisible: precisely the swing the characteristic exists to catch. The dip is a maximum, and it happens in the transition, so the window is P5-P6 and the sense is max."
     },
@@ -158,6 +174,8 @@
       "label": "Spine forward bend, least P5 to P7 from P1",
       "unit": "°",
       "highMeans": "more forward bend than at address on the way down; the LOW side is standing up out of the address posture",
+      "golferHigh": "you stay more bent over through the ball",
+      "golferLow": "you stand up more through the ball",
       "viewNeeded": "downTheLine"
     },
     {
@@ -171,6 +189,8 @@
       "status": "live",
       "label": "Secondary axis tilt, at P4",
       "unit": "°",
+      "golferHigh": "you lean back more at the top",
+      "golferLow": "you lean more toward the target at the top",
       "highMeans": "more tilt away from the target at the top"
     },
     {
@@ -189,6 +209,8 @@
       "status": "live",
       "label": "Pelvis thrust toward the ball, peak P5 to P7 from P1",
       "unit": "cm",
+      "golferHigh": "your hips move further toward the ball coming down",
+      "golferLow": "your hips stay further from the ball coming down",
       "highMeans": "the pelvis further toward the ball during the downswing"
     },
     {
@@ -207,6 +229,8 @@
       "label": "Pelvis lift, change P1 to P4",
       "unit": "% stance width",
       "highMeans": "the pelvis higher than at address by the top",
+      "golferHigh": "your hips rise more going back",
+      "golferLow": "your hips sink more going back",
       "viewNeeded": "faceOn",
       "unwatchedTail": "low",
       "unwatchedReason": "The low tail is the pelvis SINKING by the top, and it fired on 100 % of 123 corpus shots at 8-15 cm (−18 to −37 % of stance) while address-vs-top frames of the 9 Sep 2026 swing show the belt line 2-3 cm lower at most. The hip keypoints sit on the visible trochanter/thigh crease and migrate DOWN the body as the pelvis turns and the lead knee flexes, so a \"drop\" at the top is keypoint travel, not pelvis travel. Unwatched until the reading is validated against a taped belt line; the high tail (a rising pelvis) is kept because migration only lowers the reading."
@@ -248,6 +272,8 @@
         "knee working across"
       ],
       "highMeans": "the lead knee further toward the lead side than its own hip — working away from the trail leg",
+      "golferHigh": "your lead knee stays wider at the top",
+      "golferLow": "your lead knee works in more at the top",
       "unwatchedTail": "high",
       "unwatchedReason": "A lead knee that stays wider than its own hip through the backswing is not a fault anyone has named, and the corridor here is unseated in both directions. Authoring a characteristic for it would put a name on a reading nothing has established."
     },
@@ -267,6 +293,8 @@
         "trail hip riding up"
       ],
       "highMeans": "the trail hip sitting further above the lead hip at the top",
+      "golferHigh": "your trail hip rides higher at the top",
+      "golferLow": "your trail hip sits lower at the top",
       "unwatchedTail": "low",
       "unwatchedReason": "The other tail is the LEAD hip riding above the trail one at the top, which is a posture almost nobody produces and which no source describes as a fault. It grades because the corridor is two-sided; there is nothing to call it."
     },
@@ -287,6 +315,8 @@
       "label": "Pelvis lateral sway, peak P1 to P4 from P1",
       "unit": "% stance width",
       "highMeans": "the pelvis further toward the lead side during the backswing",
+      "golferHigh": "your hips drift more toward the target going back",
+      "golferLow": "your hips sway further from the target going back",
       "viewNeeded": "faceOn"
     },
     {
@@ -306,6 +336,8 @@
       "label": "Pelvis lateral sway, peak P5 to P7 from P1",
       "unit": "% stance width",
       "highMeans": "the pelvis further toward the lead side during the downswing",
+      "golferHigh": "your hips slide further toward the target coming down",
+      "golferLow": "your hips stay back more coming down",
       "viewNeeded": "faceOn"
     },
     {
@@ -324,6 +356,8 @@
       "label": "Pelvis lateral sway, change P1 to P7",
       "unit": "% stance width",
       "highMeans": "the pelvis further toward the lead side at impact than at address",
+      "golferHigh": "your hips move further toward the target by impact",
+      "golferLow": "your hips stay further back at impact",
       "viewNeeded": "faceOn"
     },
     {
@@ -354,6 +388,8 @@
       "status": "live",
       "label": "X-factor stretch, peak P4 to P5",
       "unit": "°",
+      "golferHigh": "your hips start down further ahead of your shoulders",
+      "golferLow": "your hips and shoulders start down more together",
       "highMeans": "more separation added between chest and pelvis through transition"
     },
     {
@@ -371,6 +407,8 @@
       "status": "live",
       "label": "Pelvis rotation, peak P4 to P7",
       "unit": "°",
+      "golferHigh": "your hips turn further from the top to impact",
+      "golferLow": "your hips turn less from the top to impact",
       "highMeans": "a larger peak turn away from address between the top and impact"
     },
     {
@@ -388,6 +426,8 @@
       "status": "live",
       "label": "Thorax rotation, peak P4 to P7",
       "unit": "°",
+      "golferHigh": "your shoulders turn further from the top to impact",
+      "golferLow": "your shoulders turn less from the top to impact",
       "highMeans": "a larger peak turn away from address between the top and impact"
     },
     {
@@ -401,6 +441,8 @@
       "status": "live",
       "label": "Pelvis speed peak, ms relative to impact",
       "unit": "ms",
+      "golferHigh": "your hips turn fastest later, nearer impact",
+      "golferLow": "your hips turn fastest earlier coming down",
       "highMeans": "the pelvis reached its top turning speed later, closer to the ball"
     },
     {
@@ -414,6 +456,8 @@
       "status": "live",
       "label": "Chest speed peak, ms relative to impact",
       "unit": "ms",
+      "golferHigh": "your shoulders turn fastest later, nearer impact",
+      "golferLow": "your shoulders turn fastest earlier coming down",
       "highMeans": "the chest reached its top turning speed later, closer to the ball"
     },
     {
@@ -487,6 +531,8 @@
       "label": "Ball distance from the body, at P1",
       "metricKey": "ballBodyDistance",
       "highMeans": "further from the body, reaching more for the ball",
+      "golferHigh": "you stand further from the ball",
+      "golferLow": "you stand closer to the ball",
       "unit": "% shoulder width"
     },
     {
@@ -509,6 +555,8 @@
       "label": "Chest lateral drift, change P1 to P5",
       "metricKey": "thoraxLateralDrift",
       "highMeans": "the chest further toward the lead side by early downswing",
+      "golferHigh": "your chest moves further toward the target starting down",
+      "golferLow": "your chest stays further back starting down",
       "unit": "% stance width"
     },
     {
@@ -533,6 +581,8 @@
       "label": "Lead knee flexion, peak P7 to P8",
       "metricKey": "leadKneeFlexion",
       "highMeans": "more lead-knee bend through impact",
+      "golferHigh": "your lead knee bends more through the ball",
+      "golferLow": "your lead leg stays straighter through the ball",
       "unit": "°"
     },
     {
@@ -551,6 +601,8 @@
       "label": "Trail elbow height above the shoulder line, at the top",
       "metricKey": "trailElbowHeight",
       "highMeans": "the trail elbow higher above the shoulder line",
+      "golferHigh": "your trail elbow sits higher at the top",
+      "golferLow": "your trail elbow sits lower at the top",
       "unit": "% shoulder width"
     },
     {
@@ -566,6 +618,8 @@
       "label": "Trail elbow direction at the top",
       "unit": "°",
       "highMeans": "the trail elbow pointing further behind the golfer at the top",
+      "golferHigh": "your trail elbow flies out more at the top",
+      "golferLow": "your trail elbow points more down at the top",
       "viewNeeded": "downTheLine"
     },
     {
@@ -589,6 +643,8 @@
       "label": "Lead arm angle from the torso, change P7 to P8",
       "metricKey": "leadArmToTorso",
       "highMeans": "the lead arm further from the torso after impact",
+      "golferHigh": "your lead arm pulls away from your body more after impact",
+      "golferLow": "your lead arm stays closer to your body after impact",
       "unit": "°"
     },
     {
@@ -608,6 +664,8 @@
       "label": "Lead hand distance from the chest, at the top",
       "metricKey": "leadHandWidth",
       "highMeans": "the hands further from the body at the top, a wider arc",
+      "golferHigh": "your arms stay wider at the top",
+      "golferLow": "your arms get narrower at the top",
       "unit": "% arm length"
     },
     {
@@ -623,6 +681,8 @@
       },
       "status": "live",
       "label": "Lead wrist bow / cup at P1",
+      "golferHigh": "your lead wrist is more bowed at address",
+      "golferLow": "your lead wrist is more cupped at address",
       "unit": "°"
     },
     {
@@ -642,6 +702,8 @@
       },
       "status": "live",
       "label": "Lead wrist bow / cup — change from address at P2",
+      "golferHigh": "your lead wrist is more bowed early going back",
+      "golferLow": "your lead wrist is more cupped early going back",
       "unit": "°"
     },
     {
@@ -661,6 +723,8 @@
       },
       "status": "live",
       "label": "Lead wrist bow / cup — change from address at P3",
+      "golferHigh": "your lead wrist is more bowed halfway back",
+      "golferLow": "your lead wrist is more cupped halfway back",
       "unit": "°"
     },
     {
@@ -681,6 +745,8 @@
       "status": "live",
       "label": "Lead wrist bow / cup — change from address at P4",
       "unit": "°",
+      "golferHigh": "your lead wrist is more bowed at the top",
+      "golferLow": "your lead wrist is more cupped at the top",
       "highMeans": "the lead wrist gained BOW between address and the top — flatter, or bowed; the low end is CUP gained on the way back, which points the face open at the top"
     },
     {
@@ -700,6 +766,8 @@
       },
       "status": "live",
       "label": "Lead wrist bow / cup — change from address at P5",
+      "golferHigh": "your lead wrist is more bowed starting down",
+      "golferLow": "your lead wrist is more cupped starting down",
       "unit": "°"
     },
     {
@@ -719,6 +787,8 @@
       },
       "status": "live",
       "label": "Lead wrist bow / cup — change from address at P6",
+      "golferHigh": "your lead wrist is more bowed just before impact",
+      "golferLow": "your lead wrist is more cupped just before impact",
       "unit": "°"
     },
     {
@@ -739,6 +809,8 @@
       "status": "live",
       "label": "Lead wrist bow / cup — change from address at P7",
       "unit": "°",
+      "golferHigh": "your lead wrist is more bowed at impact",
+      "golferLow": "your lead wrist is more cupped at impact",
       "highMeans": "the lead wrist gained BOW between address and impact — it arrives flatter or more bowed than it started; the low end is cup gained on the way down, which is scooping"
     },
     {
@@ -758,6 +830,8 @@
       },
       "status": "live",
       "label": "Lead wrist bow / cup — change from address at P8",
+      "golferHigh": "your lead wrist is more bowed after impact",
+      "golferLow": "your lead wrist is more cupped after impact",
       "unit": "°"
     },
     {
@@ -773,6 +847,8 @@
       },
       "status": "live",
       "label": "Lead wrist hinge at P1",
+      "golferHigh": "your lead wrist is less hinged at address",
+      "golferLow": "your lead wrist is more hinged at address",
       "unit": "°"
     },
     {
@@ -793,6 +869,8 @@
       "status": "live",
       "label": "Lead wrist hinge — change from address at P2",
       "unit": "°",
+      "golferHigh": "your lead wrist is less hinged early going back",
+      "golferLow": "your lead wrist is more hinged early going back",
       "highMeans": "more ulnar (less cocked) than at address; the radial cock of the backswing is negative"
     },
     {
@@ -813,6 +891,8 @@
       "status": "live",
       "label": "Lead wrist hinge — change from address at P3",
       "unit": "°",
+      "golferHigh": "your lead wrist is less hinged halfway back",
+      "golferLow": "your lead wrist is more hinged halfway back",
       "highMeans": "more ulnar (less cocked) than at address; the radial cock of the backswing is negative"
     },
     {
@@ -833,6 +913,8 @@
       "status": "live",
       "label": "Lead wrist hinge — change from address at P4",
       "unit": "°",
+      "golferHigh": "your lead wrist is less hinged at the top",
+      "golferLow": "your lead wrist is more hinged at the top",
       "highMeans": "LESS wrist set at the top — the lead wrist closer to its address hinge, or hinged the other way (ulnar); positive is ulnar on the producer, so the cocked, radial top of a normal backswing is the NEGATIVE end"
     },
     {
@@ -853,6 +935,8 @@
       "status": "live",
       "label": "Lead wrist hinge — change from address at P5",
       "unit": "°",
+      "golferHigh": "your lead wrist is less hinged starting down",
+      "golferLow": "your lead wrist is more hinged starting down",
       "highMeans": "more ulnar (less cocked) than at address; the radial cock of the backswing is negative"
     },
     {
@@ -873,6 +957,8 @@
       "status": "live",
       "label": "Lead wrist hinge — change from address at P6",
       "unit": "°",
+      "golferHigh": "your lead wrist is less hinged just before impact",
+      "golferLow": "your lead wrist is more hinged just before impact",
       "highMeans": "more ulnar (less cocked) than at address; the radial cock of the backswing is negative"
     },
     {
@@ -893,6 +979,8 @@
       "status": "live",
       "label": "Lead wrist hinge — change from address at P7",
       "unit": "°",
+      "golferHigh": "your lead wrist is less hinged at impact",
+      "golferLow": "your lead wrist is more hinged at impact",
       "highMeans": "more ulnar (less cocked) than at address; the radial cock of the backswing is negative"
     },
     {
@@ -913,6 +1001,8 @@
       "status": "live",
       "label": "Lead wrist hinge — change from address at P8",
       "unit": "°",
+      "golferHigh": "your lead wrist is less hinged after impact",
+      "golferLow": "your lead wrist is more hinged after impact",
       "highMeans": "more ulnar (less cocked) than at address; the radial cock of the backswing is negative"
     },
     {
@@ -925,6 +1015,8 @@
       },
       "status": "live",
       "label": "Lead forearm roll at P1",
+      "golferHigh": "your lead forearm is rolled more open at address",
+      "golferLow": "your lead forearm is rolled more closed at address",
       "unit": "°"
     },
     {
@@ -942,6 +1034,8 @@
       "status": "live",
       "label": "Lead forearm roll — change from address at P2",
       "unit": "°",
+      "golferHigh": "your lead forearm rolls more open early going back",
+      "golferLow": "your lead forearm rolls more closed early going back",
       "highMeans": "the lead forearm rotated further away from the target — the face opening in the takeaway"
     },
     {
@@ -958,6 +1052,8 @@
       },
       "status": "live",
       "label": "Lead forearm roll — change from address at P3",
+      "golferHigh": "your lead forearm rolls more open halfway back",
+      "golferLow": "your lead forearm rolls more closed halfway back",
       "unit": "°"
     },
     {
@@ -975,6 +1071,8 @@
       "status": "live",
       "label": "Lead forearm roll — change from address at P4",
       "unit": "°",
+      "golferHigh": "your lead forearm rolls more open at the top",
+      "golferLow": "your lead forearm rolls more closed at the top",
       "highMeans": "the lead forearm rolled further away from the target by the top — the face pointing more skyward, open; the low end is a face hooded at the top"
     },
     {
@@ -991,6 +1089,8 @@
       },
       "status": "live",
       "label": "Lead forearm roll — change from address at P5",
+      "golferHigh": "your lead forearm rolls more open starting down",
+      "golferLow": "your lead forearm rolls more closed starting down",
       "unit": "°"
     },
     {
@@ -1007,6 +1107,8 @@
       },
       "status": "live",
       "label": "Lead forearm roll — change from address at P6",
+      "golferHigh": "your lead forearm rolls more open just before impact",
+      "golferLow": "your lead forearm rolls more closed just before impact",
       "unit": "°"
     },
     {
@@ -1024,6 +1126,8 @@
       "status": "live",
       "label": "Lead forearm roll — change from address at P7",
       "unit": "°",
+      "golferHigh": "your lead forearm rolls more open at impact",
+      "golferLow": "your lead forearm rolls more closed at impact",
       "highMeans": "the lead forearm rotated further away from the target at impact — the face arriving open; the low end is the face rotated shut"
     },
     {
@@ -1040,6 +1144,8 @@
       },
       "status": "live",
       "label": "Lead forearm roll — change from address at P8",
+      "golferHigh": "your lead forearm rolls more open after impact",
+      "golferLow": "your lead forearm rolls more closed after impact",
       "unit": "°"
     },
     {
@@ -1052,6 +1158,8 @@
       },
       "status": "live",
       "label": "Lead elbow flexion at P1",
+      "golferHigh": "your lead arm is more bent at address",
+      "golferLow": "your lead arm is straighter at address",
       "unit": "°"
     },
     {
@@ -1068,6 +1176,8 @@
       },
       "status": "live",
       "label": "Lead elbow flexion — change from address at P2",
+      "golferHigh": "your lead arm is more bent early going back",
+      "golferLow": "your lead arm is straighter early going back",
       "unit": "°"
     },
     {
@@ -1084,6 +1194,8 @@
       },
       "status": "live",
       "label": "Lead elbow flexion — change from address at P3",
+      "golferHigh": "your lead arm is more bent halfway back",
+      "golferLow": "your lead arm is straighter halfway back",
       "unit": "°"
     },
     {
@@ -1101,6 +1213,8 @@
       "status": "live",
       "label": "Lead elbow flexion — change from address at P4",
       "unit": "°",
+      "golferHigh": "your lead arm is more bent at the top",
+      "golferLow": "your lead arm is straighter at the top",
       "highMeans": "more bend in the lead elbow at the top — a narrower, more collapsed arc"
     },
     {
@@ -1117,6 +1231,8 @@
       },
       "status": "live",
       "label": "Lead elbow flexion — change from address at P5",
+      "golferHigh": "your lead arm is more bent starting down",
+      "golferLow": "your lead arm is straighter starting down",
       "unit": "°"
     },
     {
@@ -1133,6 +1249,8 @@
       },
       "status": "live",
       "label": "Lead elbow flexion — change from address at P6",
+      "golferHigh": "your lead arm is more bent just before impact",
+      "golferLow": "your lead arm is straighter just before impact",
       "unit": "°"
     },
     {
@@ -1149,6 +1267,8 @@
       },
       "status": "live",
       "label": "Lead elbow flexion — change from address at P7",
+      "golferHigh": "your lead arm is more bent at impact",
+      "golferLow": "your lead arm is straighter at impact",
       "unit": "°"
     },
     {
@@ -1165,6 +1285,8 @@
       },
       "status": "live",
       "label": "Lead elbow flexion — change from address at P8",
+      "golferHigh": "your lead arm is more bent after impact",
+      "golferLow": "your lead arm is straighter after impact",
       "unit": "°"
     },
     {
@@ -1177,6 +1299,8 @@
       },
       "status": "live",
       "label": "Trail wrist bow / cup at P1",
+      "golferHigh": "your trail wrist is more bent back at address",
+      "golferLow": "your trail wrist is flatter at address",
       "unit": "°"
     },
     {
@@ -1193,6 +1317,8 @@
       },
       "status": "live",
       "label": "Trail wrist bow / cup — change from address at P2",
+      "golferHigh": "your trail wrist bends back more early going back",
+      "golferLow": "your trail wrist is flatter early going back",
       "unit": "°"
     },
     {
@@ -1209,6 +1335,8 @@
       },
       "status": "live",
       "label": "Trail wrist bow / cup — change from address at P3",
+      "golferHigh": "your trail wrist bends back more halfway back",
+      "golferLow": "your trail wrist is flatter halfway back",
       "unit": "°"
     },
     {
@@ -1225,6 +1353,8 @@
       },
       "status": "live",
       "label": "Trail wrist bow / cup — change from address at P4",
+      "golferHigh": "your trail wrist bends back more at the top",
+      "golferLow": "your trail wrist is flatter at the top",
       "unit": "°"
     },
     {
@@ -1241,6 +1371,8 @@
       },
       "status": "live",
       "label": "Trail wrist bow / cup — change from address at P5",
+      "golferHigh": "your trail wrist bends back more starting down",
+      "golferLow": "your trail wrist is flatter starting down",
       "unit": "°"
     },
     {
@@ -1257,6 +1389,8 @@
       },
       "status": "live",
       "label": "Trail wrist bow / cup — change from address at P6",
+      "golferHigh": "your trail wrist bends back more just before impact",
+      "golferLow": "your trail wrist is flatter just before impact",
       "unit": "°"
     },
     {
@@ -1273,6 +1407,8 @@
       },
       "status": "live",
       "label": "Trail wrist bow / cup — change from address at P7",
+      "golferHigh": "your trail wrist bends back more at impact",
+      "golferLow": "your trail wrist is flatter at impact",
       "unit": "°"
     },
     {
@@ -1286,6 +1422,8 @@
       "status": "live",
       "label": "Foot line tilt, at P1",
       "unit": "°",
+      "golferHigh": "your stance is more closed at address",
+      "golferLow": "your stance is more open at address",
       "highMeans": "the trail ankle sitting higher than the lead ankle in the image — the trail foot set further from the camera, a closed stance"
     },
     {
@@ -1299,6 +1437,8 @@
       "status": "live",
       "label": "Hip line tilt, at P1",
       "unit": "°",
+      "golferHigh": "your hips are more closed at address",
+      "golferLow": "your hips are more open at address",
       "highMeans": "the trail hip sitting higher than the lead hip at address"
     },
     {
@@ -1313,6 +1453,8 @@
       "label": "Hip line tilt, at P7",
       "unit": "°",
       "viewNeeded": "faceOn",
+      "golferHigh": "your trail hip sits higher at impact",
+      "golferLow": "your trail hip sits lower at impact",
       "highMeans": "the trail hip sitting higher than the lead hip at impact"
     },
     {
@@ -1331,6 +1473,8 @@
       "label": "Hip line tilt, change P1 to P7",
       "unit": "°",
       "viewNeeded": "faceOn",
+      "golferHigh": "your trail hip rises more by impact",
+      "golferLow": "your trail hip drops more by impact",
       "highMeans": "the trail hip having risen relative to the lead hip between address and impact"
     },
     {
@@ -1348,6 +1492,8 @@
       "aliases": [
         "hips over the stance at address"
       ],
+      "golferHigh": "your hips sit further toward the target at address",
+      "golferLow": "your hips sit nearer your trail foot at address",
       "highMeans": "the hip centre further AHEAD of the stance centre, toward the lead side"
     },
     {
@@ -1362,6 +1508,8 @@
       "label": "Plumb bob, at P7",
       "unit": "in",
       "viewNeeded": "faceOn",
+      "golferHigh": "your hips are further toward the target at impact",
+      "golferLow": "your hips stay nearer your trail foot at impact",
       "highMeans": "the hip centre further ahead of the stance centre at impact"
     },
     {
@@ -1380,6 +1528,8 @@
       "label": "Plumb bob, change P1 to P7",
       "unit": "in",
       "viewNeeded": "faceOn",
+      "golferHigh": "your hips move further toward the target by impact",
+      "golferLow": "your hips stay further back at impact",
       "highMeans": "the hips having travelled further toward the lead side between address and impact"
     },
     {
@@ -1397,6 +1547,8 @@
       "status": "live",
       "label": "Head sway, address to the top",
       "unit": "cm",
+      "golferHigh": "your head moves further toward the target going back",
+      "golferLow": "your head sways further from the target going back",
       "highMeans": "the head further toward the LEAD side by the top — positive is toward the lead side, the same displacement convention pelvisSway follows; swaying OFF the ball, away from the target, is the negative end"
     },
     {
@@ -1416,6 +1568,8 @@
       "label": "Head height, highest P5 to P7 from P1",
       "unit": "cm",
       "highMeans": "the head higher than address on the way down, rising out of the shot",
+      "golferHigh": "your head stays higher coming down",
+      "golferLow": "your head stays lower coming down",
       "unwatchedTail": "low",
       "unwatchedReason": "The low tail is the head DROPPING on the way down, which is the face-on half of `diving` — and diving is read on forward bend, where a squat that keeps the posture can be told apart from a dive that loses it. A head that lowers is not by itself a fault: it is what a golfer who is loading into the ground does. Author it here only alongside something that can make that distinction."
     },
@@ -1434,6 +1588,8 @@
       "status": "live",
       "label": "Head height change, address to the top",
       "unit": "cm",
+      "golferHigh": "your head rises more going back",
+      "golferLow": "your head drops more going back",
       "highMeans": "the head higher than it was at address"
     },
     {
@@ -1448,6 +1604,8 @@
       "shape": "ceiling",
       "label": "Lead heel lift, at the top",
       "unit": "cm",
+      "golferHigh": "your lead heel lifts higher at the top",
+      "golferLow": "your lead heel stays lower at the top",
       "highMeans": "the lead heel further off the ground"
     },
     {
@@ -1462,6 +1620,8 @@
       "shape": "ceiling",
       "label": "Clubhead speed peak, lead on impact",
       "unit": "ms",
+      "golferHigh": "the club hits top speed earlier, before the ball",
+      "golferLow": "the club keeps speeding up closer to the ball",
       "highMeans": "the clubhead reached its top speed further BEFORE the ball — speed given up before impact"
     },
     {
@@ -1476,6 +1636,8 @@
       "shape": "floor",
       "label": "Clubhead speed, at impact",
       "unit": "mph",
+      "golferHigh": "you swing the club faster",
+      "golferLow": "you swing the club slower",
       "highMeans": "a faster clubhead at the ball"
     },
     {
@@ -1489,6 +1651,8 @@
       "status": "live",
       "label": "Shaft lean, at impact",
       "unit": "°",
+      "golferHigh": "your hands lead the club more at impact",
+      "golferLow": "your hands lead the club less at impact",
       "highMeans": "the hands further ahead of the clubhead at impact — more forward lean"
     },
     {
@@ -1503,6 +1667,8 @@
       "gapReason": "Produced from the down-the-line view; excessive_knee_flex (crouching) is explained by poor core stability, but insufficient_knee_flex has no authored cause yet.",
       "label": "Lead knee flexion, at address",
       "unit": "°",
+      "golferHigh": "your lead knee bends more at address",
+      "golferLow": "your lead knee is straighter at address",
       "highMeans": "more bend in the lead knee at address — sitting deeper"
     },
     {
@@ -1521,6 +1687,8 @@
       "shape": "floor",
       "label": "Trail knee flexion, change from address to the top",
       "unit": "°",
+      "golferHigh": "your trail knee bends more going back",
+      "golferLow": "your trail leg straightens more going back",
       "highMeans": "the trail knee gaining flex through the backswing rather than losing it"
     },
     {
@@ -1534,6 +1702,8 @@
       "status": "live",
       "label": "Chest rotation, at the top",
       "unit": "°",
+      "golferHigh": "your shoulders turn more going back",
+      "golferLow": "your shoulders turn less going back",
       "highMeans": "a bigger shoulder turn at the top"
     },
     {
@@ -1547,6 +1717,8 @@
       "status": "live",
       "label": "Pelvis rotation, at P5",
       "unit": "°",
+      "golferHigh": "your hips are more open starting down",
+      "golferLow": "your hips are less open starting down",
       "highMeans": "the pelvis already further open in early downswing"
     },
     {
@@ -1560,6 +1732,8 @@
       "status": "live",
       "label": "Pelvis rotation, at impact",
       "unit": "°",
+      "golferHigh": "your hips are more open at impact",
+      "golferLow": "your hips are less open at impact",
       "highMeans": "the pelvis further open at impact"
     },
     {
@@ -1578,6 +1752,8 @@
       "shape": "floor",
       "label": "Pelvis rotation rate (signed series), delivery to impact",
       "unit": "°/s",
+      "golferHigh": "your hips keep turning harder into impact",
+      "golferLow": "your hips stall more into impact",
       "highMeans": "the pelvis still turning hard into impact rather than stalling"
     },
     {
@@ -1591,6 +1767,8 @@
       "status": "live",
       "label": "Secondary axis tilt, at impact",
       "unit": "°",
+      "golferHigh": "you lean back more at impact",
+      "golferLow": "you lean more toward the target at impact",
       "highMeans": "more tilt away from the target at impact — the trail shoulder lower"
     },
     {
@@ -1604,6 +1782,8 @@
       "status": "live",
       "label": "Spine side bend, at the top",
       "unit": "°",
+      "golferHigh": "you bend more to your trail side going back",
+      "golferLow": "you bend less to your trail side going back",
       "highMeans": "more side bend toward the trail side at the top"
     },
     {
@@ -1621,6 +1801,8 @@
       "status": "live",
       "label": "Widest lead-arm gap from the chest, address to halfway back",
       "unit": "% shoulder width",
+      "golferHigh": "your lead arm leaves your chest more going back",
+      "golferLow": "your lead arm hugs your chest more going back",
       "highMeans": "the lead arm running further from the chest — less connected"
     },
     {
@@ -1635,6 +1817,8 @@
       "shape": "ceiling",
       "label": "Pelvis centre from the lead ankle, at the finish",
       "unit": "% stance width",
+      "golferHigh": "you finish less over your lead foot",
+      "golferLow": "you finish more over your lead foot",
       "highMeans": "the body further from being stacked over the lead foot"
     },
     {
@@ -1649,6 +1833,8 @@
       "shape": "floor",
       "label": "Chest rotation, at the finish",
       "unit": "°",
+      "golferHigh": "you turn your chest further into the finish",
+      "golferLow": "your chest turns less into the finish",
       "highMeans": "a fuller turn through to the finish"
     },
     {
@@ -1690,6 +1876,8 @@
       "status": "live",
       "label": "Shaft angle past parallel, at the top",
       "unit": "°",
+      "golferHigh": "the club goes further back at the top",
+      "golferLow": "the club stops shorter at the top",
       "highMeans": "the shaft further past parallel — a longer backswing"
     },
     {
@@ -1704,6 +1892,8 @@
       "label": "Swing plane, backswing (address to the top)",
       "unit": "°",
       "highMeans": "the shaft climbing further above the plane it started on — steeper",
+      "golferHigh": "the club goes back steeper",
+      "golferLow": "the club goes back flatter",
       "viewNeeded": "downTheLine"
     },
     {
@@ -1718,6 +1908,8 @@
       "label": "Swing plane, at delivery",
       "unit": "°",
       "highMeans": "a steeper delivery plane, the shaft higher above the address plane",
+      "golferHigh": "the club comes down steeper",
+      "golferLow": "the club comes down flatter",
       "viewNeeded": "downTheLine"
     },
     {
@@ -1734,6 +1926,8 @@
       "status": "live",
       "label": "Low point, relative to the ball",
       "unit": "in",
+      "golferHigh": "the club bottoms out further past the ball",
+      "golferLow": "the club bottoms out further behind the ball",
       "highMeans": "the arc bottoming out further ahead of the ball, toward the target"
     },
     {
@@ -1747,6 +1941,8 @@
       "status": "live",
       "label": "Angle of attack, at impact (launch monitor)",
       "unit": "°",
+      "golferHigh": "you hit up on the ball more",
+      "golferLow": "you hit down on the ball more",
       "highMeans": "a more upward strike — hitting up on the ball"
     },
     {
@@ -1799,6 +1995,8 @@
       "status": "live",
       "label": "Face angle, at impact",
       "unit": "°",
+      "golferHigh": "the clubface is more open at impact",
+      "golferLow": "the clubface is more closed at impact",
       "highMeans": "the face further open relative to the target line — pointing right for a right-handed golfer"
     },
     {
@@ -1812,6 +2010,8 @@
       "status": "live",
       "label": "Face to path, at impact",
       "unit": "°",
+      "golferHigh": "the ball curves more to the right",
+      "golferLow": "the ball curves more to the left",
       "highMeans": "the face further open relative to the path — curvature to the right"
     },
     {
@@ -1825,6 +2025,8 @@
       "status": "live",
       "label": "Spin axis",
       "unit": "°",
+      "golferHigh": "the ball curves more to the right",
+      "golferLow": "the ball curves more to the left",
       "highMeans": "the axis tilted further right — more curvature to the right"
     },
     {
@@ -1838,6 +2040,8 @@
       "status": "live",
       "label": "Spin rate",
       "unit": "rpm",
+      "golferHigh": "the ball spins more",
+      "golferLow": "the ball spins less",
       "highMeans": "more spin on the ball"
     },
     {
@@ -1852,6 +2056,8 @@
       "shape": "floor",
       "label": "Smash factor",
       "unit": "ratio",
+      "golferHigh": "you catch the ball more solidly",
+      "golferLow": "you catch the ball less solidly",
       "highMeans": "more of the clubhead speed reaching the ball — a more efficient strike"
     },
     {
@@ -1865,6 +2071,8 @@
       "status": "live",
       "label": "Strike location across the face",
       "unit": "mm",
+      "golferHigh": "you strike the ball nearer the toe",
+      "golferLow": "you strike the ball nearer the heel",
       "highMeans": "the strike further toward the toe"
     },
     {
@@ -1879,6 +2087,8 @@
       "shape": "floor",
       "label": "Carry",
       "unit": "yd",
+      "golferHigh": "the ball carries further",
+      "golferLow": "the ball carries shorter",
       "highMeans": "the ball carrying further"
     },
     {
@@ -1892,6 +2102,8 @@
       "status": "live",
       "label": "Dynamic loft, at impact",
       "unit": "°",
+      "golferHigh": "the club has more loft at impact",
+      "golferLow": "the club has less loft at impact",
       "highMeans": "more loft delivered to the ball — a higher, weaker flight"
     },
     {
@@ -1905,6 +2117,8 @@
       "status": "live",
       "label": "Spin loft, at impact",
       "unit": "°",
+      "golferHigh": "you hit the ball with a more glancing blow",
+      "golferLow": "you hit the ball with a more direct blow",
       "highMeans": "a larger angle between delivered loft and the path — more spin, less speed"
     },
     {
@@ -1918,6 +2132,8 @@
       "status": "live",
       "label": "Clubhead speed, measured",
       "unit": "mph",
+      "golferHigh": "you swing the club faster",
+      "golferLow": "you swing the club slower",
       "highMeans": "a faster clubhead at impact"
     },
     {
@@ -1931,6 +2147,8 @@
       "status": "live",
       "label": "Ball speed, measured",
       "unit": "mph",
+      "golferHigh": "the ball comes off the face faster",
+      "golferLow": "the ball comes off the face slower",
       "highMeans": "a faster ball off the face"
     },
     {
@@ -1944,6 +2162,8 @@
       "status": "live",
       "label": "Attack angle, measured",
       "unit": "°",
+      "golferHigh": "you hit up on the ball more",
+      "golferLow": "you hit down on the ball more",
       "highMeans": "a more upward strike"
     },
     {
@@ -1957,6 +2177,8 @@
       "status": "live",
       "label": "Club path, measured",
       "unit": "°",
+      "golferHigh": "you swing more from the inside",
+      "golferLow": "you swing more across the ball",
       "highMeans": "the path further in-to-out — travelling right"
     },
     {
@@ -1970,6 +2192,8 @@
       "status": "live",
       "label": "Launch angle, measured",
       "unit": "°",
+      "golferHigh": "the ball launches higher",
+      "golferLow": "the ball launches lower",
       "highMeans": "the ball leaving higher"
     },
     {
@@ -1983,6 +2207,8 @@
       "status": "live",
       "label": "Start direction, measured",
       "unit": "°",
+      "golferHigh": "the ball starts further right",
+      "golferLow": "the ball starts further left",
       "highMeans": "the ball starting further right of the target"
     },
     {
@@ -1996,6 +2222,8 @@
       "status": "live",
       "label": "Lie angle, at impact",
       "unit": "°",
+      "golferHigh": "the toe of the club sits higher at impact",
+      "golferLow": "the heel of the club sits higher at impact",
       "highMeans": "the toe further up at impact"
     },
     {
@@ -2009,6 +2237,8 @@
       "status": "live",
       "label": "Closure rate, through impact",
       "unit": "°/s",
+      "golferHigh": "the clubface closes faster through impact",
+      "golferLow": "the clubface closes slower through impact",
       "highMeans": "the face rotating closed faster"
     },
     {
@@ -2022,6 +2252,8 @@
       "status": "live",
       "label": "Strike height, on the face",
       "unit": "mm",
+      "golferHigh": "you strike the ball higher on the face",
+      "golferLow": "you strike the ball lower on the face",
       "highMeans": "the strike further above the centre of the face"
     },
     {
@@ -2035,6 +2267,8 @@
       "status": "live",
       "label": "Compound miss, at impact",
       "unit": "ratio",
+      "golferHigh": "the ball starts and curves more to the right",
+      "golferLow": "the ball starts and curves more to the left",
       "highMeans": "the ball both starting and curving further to the right — the push-slice; negative is the same shot to the left, and zero means the start line and the curve disagreed"
     },
     {
@@ -2048,6 +2282,8 @@
       "status": "live",
       "label": "Back spin",
       "unit": "rpm",
+      "golferHigh": "the ball spins more",
+      "golferLow": "the ball spins less",
       "highMeans": "more backspin"
     },
     {
@@ -2061,6 +2297,8 @@
       "status": "live",
       "label": "Side spin",
       "unit": "rpm",
+      "golferHigh": "the ball curves more to the right",
+      "golferLow": "the ball curves more to the left",
       "highMeans": "more spin curving the ball right"
     },
     {
@@ -2074,6 +2312,8 @@
       "status": "live",
       "label": "Total distance",
       "unit": "yd",
+      "golferHigh": "the ball goes further",
+      "golferLow": "the ball goes shorter",
       "highMeans": "the ball finishing further away"
     },
     {
@@ -2087,6 +2327,8 @@
       "status": "live",
       "label": "Offline",
       "unit": "yd",
+      "golferHigh": "the ball finishes further right",
+      "golferLow": "the ball finishes further left",
       "highMeans": "the ball finishing further right of the target line"
     },
     {
@@ -2100,6 +2342,8 @@
       "status": "live",
       "label": "Peak height",
       "unit": "ft",
+      "golferHigh": "the ball flies higher",
+      "golferLow": "the ball flies lower",
       "highMeans": "a higher flight"
     },
     {
@@ -2113,6 +2357,8 @@
       "status": "live",
       "label": "Descent angle",
       "unit": "°",
+      "golferHigh": "the ball lands more steeply",
+      "golferLow": "the ball lands more flatly",
       "highMeans": "a steeper descent — the ball stopping faster"
     },
     {
@@ -2126,6 +2372,8 @@
       "status": "live",
       "label": "Distance to pin",
       "unit": "yd",
+      "golferHigh": "the ball finishes further from the pin",
+      "golferLow": "the ball finishes closer to the pin",
       "highMeans": "the ball finishing further from the pin"
     },
     {
@@ -2140,6 +2388,8 @@
       "status": "live",
       "label": "Pelvis rotation, at the top",
       "unit": "°",
+      "golferHigh": "your hips turn more going back",
+      "golferLow": "your hips turn less going back",
       "highMeans": "a deeper hip turn at the top, and more room to unwind into"
     },
     {
@@ -2155,6 +2405,8 @@
       "label": "Hand path loop, through the transition",
       "unit": "% hand rise",
       "highMeans": "the hands came down further outside the path they went up on — over the top",
+      "golferHigh": "your hands come over the top more",
+      "golferLow": "your hands drop more inside coming down",
       "viewNeeded": "downTheLine"
     },
     {
@@ -2171,6 +2423,8 @@
       "unwatchedTail": "high",
       "unwatchedReason": "The steepening tail used to be over_the_top. On 2026-09-23 over_the_top moved to m_handPathLoop, the hands coming down outside their own backswing path in the down-the-line view: across 34 corpus swings of a golfer who comes over the top on every one, this measure read -20 to +9 degrees and changed sign from swing to swing, while the hand loop was positive on all of them. Only the shallowing tail is read here now, and this corridor's norm is a deliberate placeholder in any case.",
       "highMeans": "the club steepened between backswing and downswing — the over-the-top direction",
+      "golferHigh": "the club steepens more as you start down",
+      "golferLow": "the club flattens more as you start down",
       "viewNeeded": "faceOn"
     },
     {
@@ -2190,6 +2444,8 @@
       "status": "live",
       "label": "Pelvis thrust toward the ball, peak P1 to P4 from P1",
       "unit": "cm",
+      "golferHigh": "your hips move further toward the ball going back",
+      "golferLow": "your hips stay further from the ball going back",
       "highMeans": "the pelvis further toward the ball by the top of the backswing"
     },
     {
@@ -2204,6 +2460,8 @@
       "gapReason": "Produced as a down-the-line proxy; weight_in_heels_address is explained by crouching, but the measure has no norm yet.",
       "label": "Balance heel to toe, at address",
       "unit": "% foot length",
+      "golferHigh": "your weight is more on your toes at address",
+      "golferLow": "your weight is more on your heels at address",
       "highMeans": "the balance point further toward the toes at address"
     },
     {
@@ -2222,6 +2480,8 @@
         "knee falling in through impact"
       ],
       "highMeans": "the lead knee further toward the lead side than its own hip — working away from the trail leg",
+      "golferHigh": "your lead knee stays wider at impact",
+      "golferLow": "your lead knee caves in more at impact",
       "unwatchedTail": "high",
       "unwatchedReason": "A lead knee OUTSIDE its own hip at impact is the posted-up position, not a fault — it is the thing good players do violently. Naming a characteristic for it would put a fault on the pattern this whole cluster exists to encourage. Same tail, same reason, as the reading at the top."
     },
@@ -2241,6 +2501,8 @@
       "label": "Shaft lie, change P1 to P7",
       "unit": "°",
       "highMeans": "the shaft came back STEEPER to the ground at impact than it was set at address — more upright, the toe up",
+      "golferHigh": "the shaft is more upright at impact than address",
+      "golferLow": "the shaft is flatter at impact than address",
       "viewNeeded": "downTheLine"
     }
   ],
@@ -3337,6 +3599,7 @@
     {
       "id": "s_posture",
       "label": "S-posture",
+      "golfer": "your lower back arches too much at address",
       "aliases": [
         "too much arch at address"
       ],
@@ -3362,6 +3625,7 @@
     {
       "id": "c_posture",
       "label": "C-posture",
+      "golfer": "your upper back rounds over at address",
       "aliases": [
         "rounded back at address"
       ],
@@ -3388,6 +3652,7 @@
     {
       "id": "posture_too_upright",
       "label": "Standing too upright",
+      "golfer": "you stand too upright at address",
       "aliases": [
         "standing too tall at address"
       ],
@@ -3411,6 +3676,7 @@
     {
       "id": "alignment_open",
       "label": "Shoulders open at address",
+      "golfer": "your shoulders are open at address",
       "group": "setup",
       "kind": "setup",
       "prominence": "common",
@@ -3432,6 +3698,7 @@
     {
       "id": "alignment_closed",
       "label": "Shoulders closed at address",
+      "golfer": "your shoulders are closed at address",
       "group": "setup",
       "kind": "setup",
       "prominence": "occasional",
@@ -3453,6 +3720,7 @@
     {
       "id": "ball_forward",
       "label": "Ball too far forward",
+      "golfer": "the ball is too far forward in your stance",
       "group": "setup",
       "kind": "setup",
       "prominence": "occasional",
@@ -3474,6 +3742,7 @@
     {
       "id": "ball_back",
       "label": "Ball too far back",
+      "golfer": "the ball is too far back in your stance",
       "group": "setup",
       "kind": "setup",
       "prominence": "occasional",
@@ -3495,6 +3764,7 @@
     {
       "id": "stance_wide",
       "label": "Stance too wide",
+      "golfer": "your feet are too far apart",
       "group": "setup",
       "kind": "setup",
       "prominence": "occasional",
@@ -3515,6 +3785,7 @@
     {
       "id": "stance_narrow",
       "label": "Stance too narrow",
+      "golfer": "your feet are too close together",
       "group": "setup",
       "kind": "setup",
       "prominence": "occasional",
@@ -3535,6 +3806,7 @@
     {
       "id": "ball_too_close",
       "label": "Ball too close to the body",
+      "golfer": "you stand too close to the ball",
       "aliases": [
         "crowding it"
       ],
@@ -3561,6 +3833,7 @@
     {
       "id": "ball_too_far",
       "label": "Ball too far from the body",
+      "golfer": "you stand too far from the ball",
       "aliases": [
         "reaching for it"
       ],
@@ -3584,6 +3857,7 @@
     {
       "id": "coming_out_of_it",
       "label": "Coming out of it",
+      "golfer": "your head lifts and you lean back through impact",
       "aliases": [
         "loss of posture",
         "standing up through it",
@@ -3615,6 +3889,9 @@
     {
       "id": "early_extension",
       "label": "Early extension",
+      "golfer": "you stand up through the ball",
+      "golferWell": "you stay in your posture through the ball",
+      "golferWhy": "Standing up takes away the room your arms need, so your hands have to rescue the strike.",
       "aliases": [
         "standing up",
         "hip thrust toward the ball"
@@ -3646,6 +3923,9 @@
     {
       "id": "reverse_spine_p4",
       "label": "Reverse spine angle at P4",
+      "golfer": "you lean toward the target at the top",
+      "golferWell": "you lean slightly away from the target at the top",
+      "golferWhy": "Leaning toward the target at the top strains your lower back and makes it hard to start down smoothly.",
       "aliases": [
         "leaning left at the top",
         "forward spine angle at the top",
@@ -3673,6 +3953,7 @@
     {
       "id": "reverse_pivot",
       "label": "Reverse pivot",
+      "golfer": "you lean toward the target going back, then away",
       "aliases": [
         "tilting instead of turning",
         "weight on the lead foot at the top"
@@ -3702,6 +3983,9 @@
     {
       "id": "flat_shoulder_plane",
       "label": "Flat shoulder plane",
+      "golfer": "your shoulders turn too flat going back",
+      "golferWell": "your shoulders turn on plane going back",
+      "golferWhy": "A flat shoulder turn leaves the club behind you, so you have to throw it back out and direction wanders.",
       "aliases": [
         "flat shoulder turn"
       ],
@@ -3725,6 +4009,9 @@
     {
       "id": "trail_hip_hike",
       "label": "Trail hip hike",
+      "golfer": "your trail hip rides up going back",
+      "golferWell": "your hips stay level going back",
+      "golferWhy": "Your trail hip riding up swaps turn for lift, so your backswing is shorter and you lose speed.",
       "aliases": [
         "hip riding up"
       ],
@@ -3748,6 +4035,9 @@
     {
       "id": "lead_knee_drifts_in_at_top",
       "label": "Lead knee works in at the top",
+      "golfer": "your lead knee works in going back",
+      "golferWell": "your lead knee holds its place going back",
+      "golferWhy": "Your lead knee working in feels like a turn without being one, so there is less to unwind and less speed.",
       "aliases": [
         "lead knee kicks in",
         "left knee falls in",
@@ -3775,6 +4065,9 @@
     {
       "id": "pelvis_rise_backswing",
       "label": "Pelvis rises during the backswing",
+      "golfer": "your hips rise going back",
+      "golferWell": "your hips hold their height going back",
+      "golferWhy": "When your hips rise going back they have to drop again, so contact swings between fat and thin.",
       "aliases": [
         "standing up going back",
         "lifting out of the shot"
@@ -3799,6 +4092,9 @@
     {
       "id": "sway",
       "label": "Sway",
+      "golfer": "your hips sway away from the target going back",
+      "golferWell": "your hips turn in place going back",
+      "golferWhy": "When your hips slide away, the bottom of your swing moves and contact gets harder to repeat.",
       "aliases": [
         "swaying off the ball",
         "lateral slide back"
@@ -3829,6 +4125,9 @@
     {
       "id": "slide",
       "label": "Slide",
+      "golfer": "your hips slide toward the target coming down",
+      "golferWell": "your hips shift a little toward the target coming down",
+      "golferWhy": "Sliding your hips toward the target outruns your turn, so the clubface is left open and the ball goes right.",
       "aliases": [
         "sliding",
         "excessive lateral drive"
@@ -3854,6 +4153,9 @@
     {
       "id": "hanging_back",
       "label": "Hanging back",
+      "golfer": "you hang back on your trail side through impact",
+      "golferWell": "your weight moves onto your lead side through impact",
+      "golferWhy": "Staying on your back foot moves the bottom of your swing behind the ball, so shots fly high, weak and short.",
       "aliases": [
         "staying back",
         "falling back",
@@ -3885,6 +4187,9 @@
     {
       "id": "forward_lunge",
       "label": "Forward lunge",
+      "golfer": "your chest lunges toward the target coming down",
+      "golferWell": "your chest stays behind the ball starting down",
+      "golferWhy": "Lunging at the ball with your chest brings the club in steep, so clean contact gets harder.",
       "aliases": [
         "lunging at it"
       ],
@@ -3908,6 +4213,9 @@
     {
       "id": "late_buckle",
       "label": "Late lead-knee buckle",
+      "golfer": "your lead knee buckles through impact",
+      "golferWell": "your lead leg firms up through impact",
+      "golferWhy": "A lead knee that buckles drops your whole body, so solid contact comes down to timing.",
       "aliases": [
         "knee buckling through impact"
       ],
@@ -3930,6 +4238,9 @@
     {
       "id": "flying_elbow",
       "label": "Flying trail elbow",
+      "golfer": "your trail elbow flies out at the top",
+      "golferWell": "your trail elbow points down at the top",
+      "golferWhy": "A flying trail elbow takes your arms off your turn, so you have to reroute the club and consistency suffers.",
       "aliases": [
         "trail elbow flying",
         "disconnected trail arm"
@@ -3956,6 +4267,9 @@
     {
       "id": "chicken_wing",
       "label": "Chicken wing",
+      "golfer": "your lead arm folds after impact",
+      "golferWell": "your lead arm stays close to your body after impact",
+      "golferWhy": "A folding lead arm shortens your swing where it should be longest, so you lose speed and the clubface wanders.",
       "aliases": [
         "lead-elbow breakdown",
         "wing"
@@ -3979,6 +4293,9 @@
     {
       "id": "over_the_top",
       "label": "Over the top",
+      "golfer": "your hands come over the top coming down",
+      "golferWell": "your hands come down inside the path they went up",
+      "golferWhy": "When the club comes over the top it cuts across the ball, so shots start left or curve right.",
       "aliases": [
         "coming over it",
         "OTT"
@@ -4007,6 +4324,9 @@
     {
       "id": "loss_of_width",
       "label": "Loss of width",
+      "golfer": "your swing gets narrow at the top",
+      "golferWell": "you keep your arms wide at the top",
+      "golferWhy": "Letting your hands collapse toward your chest shortens your swing, so you have less room to build speed.",
       "aliases": [
         "narrow downswing",
         "collapsing arms"
@@ -4033,6 +4353,9 @@
     {
       "id": "casting",
       "label": "Casting",
+      "golfer": "you throw the club out early from the top",
+      "golferWell": "you keep the wrist angle starting down",
+      "golferWhy": "Throwing the club out early uses up your wrist angle, so your speed peaks before the ball and you lose distance.",
       "aliases": [
         "early release",
         "throwing it from the top",
@@ -4064,6 +4387,9 @@
     {
       "id": "scooping",
       "label": "Scooping",
+      "golfer": "you scoop at the ball with your wrists",
+      "golferWell": "your lead wrist arrives flat at impact",
+      "golferWhy": "Scooping adds loft and catches the ball on the way up, so you lose solid contact and distance control.",
       "aliases": [
         "scoop",
         "cupping through impact",
@@ -4094,6 +4420,9 @@
     {
       "id": "insufficient_set",
       "label": "Insufficient wrist set",
+      "golfer": "your wrists barely hinge going back",
+      "golferWell": "your wrists hinge fully going back",
+      "golferWhy": "Too little wrist hinge leaves less angle to release, so you lose clubhead speed.",
       "aliases": [
         "no wrist hinge",
         "dead hands"
@@ -4119,6 +4448,9 @@
     {
       "id": "sequence_order",
       "label": "Out-of-order sequence",
+      "golfer": "your body turns in the wrong order coming down",
+      "golferWell": "your hips lead and your shoulders follow coming down",
+      "golferWhy": "When your chest starts down before your hips, your body stops adding speed and your arms are left to make it.",
       "group": "sequence",
       "kind": "fault",
       "prominence": "common",
@@ -4139,6 +4471,9 @@
     {
       "id": "xfactor_deficit",
       "label": "Low separation",
+      "golfer": "your upper and lower body don't separate coming down",
+      "golferWell": "your hips start down ahead of your shoulders",
+      "golferWhy": "With little stretch between your hips and shoulders there is little to release, so you lose speed.",
       "aliases": [
         "no separation",
         "all-arms swing",
@@ -4166,6 +4501,9 @@
     {
       "id": "transition_rush",
       "label": "Rushed transition",
+      "golfer": "you rush from the top",
+      "golferWell": "you change direction smoothly at the top",
+      "golferWhy": "Rushing the change of direction leaves your body no time to work in order, so speed and timing suffer.",
       "aliases": [
         "quick from the top",
         "snatching it"
@@ -4521,6 +4859,7 @@
     {
       "id": "feet_alignment_open",
       "label": "Feet open",
+      "golfer": "your stance is open at address",
       "aliases": [
         "open stance",
         "aiming left"
@@ -4545,6 +4884,7 @@
     {
       "id": "feet_alignment_closed",
       "label": "Feet closed",
+      "golfer": "your stance is closed at address",
       "aliases": [
         "closed stance",
         "aiming right"
@@ -4569,6 +4909,7 @@
     {
       "id": "hip_alignment_open",
       "label": "Hips open at address",
+      "golfer": "your hips are open at address",
       "aliases": [
         "hips aiming left"
       ],
@@ -4592,6 +4933,7 @@
     {
       "id": "hip_alignment_closed",
       "label": "Hips closed at address",
+      "golfer": "your hips are closed at address",
       "aliases": [
         "hips aiming right"
       ],
@@ -4615,6 +4957,7 @@
     {
       "id": "excessive_knee_flex",
       "label": "Sitting too deep",
+      "golfer": "you squat too much at address",
       "aliases": [
         "squatting at address",
         "crouching"
@@ -4639,6 +4982,7 @@
     {
       "id": "insufficient_knee_flex",
       "label": "Legs too straight",
+      "golfer": "your legs are too straight at address",
       "aliases": [
         "standing too tall",
         "locked legs"
@@ -4744,6 +5088,9 @@
     {
       "id": "inside_takeaway",
       "label": "Club taken inside",
+      "golfer": "you take the club back too far inside",
+      "golferWell": "the club goes back along the target line",
+      "golferWhy": "Taking the club inside early means rerouting it on the way down, so direction gets hard to repeat.",
       "aliases": [
         "sucked inside",
         "behind you",
@@ -4769,6 +5116,9 @@
     {
       "id": "outside_takeaway",
       "label": "Club taken outside",
+      "golfer": "you take the club back too far outside",
+      "golferWell": "the club goes back along the target line",
+      "golferWhy": "Pushing the club outside early sets it too high, so it tends to come down across the ball.",
       "aliases": [
         "picked it up outside",
         "lifted it away"
@@ -4793,6 +5143,9 @@
     {
       "id": "early_face_roll",
       "label": "Face rolled open early",
+      "golfer": "you roll the clubface open going back",
+      "golferWell": "the clubface stays square going back",
+      "golferWhy": "Rolling the clubface open going back means squaring it again in time, or the ball goes right.",
       "aliases": [
         "rolling open",
         "rolling it open",
@@ -4820,6 +5173,9 @@
     {
       "id": "cupped_at_top",
       "label": "Lead wrist cupped at the top",
+      "golfer": "your lead wrist cups at the top",
+      "golferWell": "your lead wrist is flat at the top",
+      "golferWhy": "A cupped lead wrist opens the clubface, so you have more to square coming down or the ball goes right.",
       "aliases": [
         "cupped at the top",
         "cupping at the top",
@@ -4846,6 +5202,9 @@
     {
       "id": "bowed_at_top",
       "label": "Lead wrist bowed at the top",
+      "golfer": "your lead wrist bows at the top",
+      "golferWell": "your lead wrist is flat at the top",
+      "golferWhy": "A bowed lead wrist shuts the clubface, so a normal release keeps turning it over and the ball goes left.",
       "aliases": [
         "bowed at the top",
         "bowing at the top",
@@ -4873,6 +5232,9 @@
     {
       "id": "open_face_top",
       "label": "Face open at the top",
+      "golfer": "the clubface is open at the top",
+      "golferWell": "the clubface is square at the top",
+      "golferWhy": "An open clubface at the top has further to square coming down, so the ball often goes right.",
       "aliases": [
         "open at the top",
         "open clubface at the top",
@@ -4898,6 +5260,9 @@
     {
       "id": "shut_face_top",
       "label": "Face shut at the top",
+      "golfer": "the clubface is shut at the top",
+      "golferWell": "the clubface is square at the top",
+      "golferWhy": "A shut clubface at the top needs no squaring, so a normal release turns it over and the ball goes left.",
       "aliases": [
         "shut at the top",
         "closed clubface at the top",
@@ -4923,6 +5288,9 @@
     {
       "id": "steep_backswing_plane",
       "label": "Steep backswing plane",
+      "golfer": "the club goes back too steep",
+      "golferWell": "the club goes back on plane",
+      "golferWhy": "A steep backswing tends to bring the club down steep and across the ball, so direction is harder to control.",
       "aliases": [
         "too upright going back"
       ],
@@ -4946,6 +5314,9 @@
     {
       "id": "flat_backswing_plane",
       "label": "Flat backswing plane",
+      "golfer": "the club goes back too flat",
+      "golferWell": "the club goes back on plane",
+      "golferWhy": "A flat backswing lets the club get trapped behind you, so you rely on your hands to save the shot.",
       "aliases": [
         "too flat going back",
         "round it"
@@ -4970,6 +5341,9 @@
     {
       "id": "across_the_line",
       "label": "Across the line at the top",
+      "golfer": "the club points across the line at the top",
+      "golferWell": "the club points along the target line at the top",
+      "golferWhy": "With the club pointing right of target at the top, you tend to throw it out and across the ball.",
       "aliases": [
         "crossed at the top",
         "pointing right"
@@ -4994,6 +5368,9 @@
     {
       "id": "laid_off",
       "label": "Laid off at the top",
+      "golfer": "the club points left of target at the top",
+      "golferWell": "the club points along the target line at the top",
+      "golferWhy": "With the club pointing left at the top, the clubface has little time to square, so direction varies.",
       "aliases": [
         "pointing left at the top"
       ],
@@ -5017,6 +5394,9 @@
     {
       "id": "overswing",
       "label": "Overswing",
+      "golfer": "you swing the club back too far",
+      "golferWell": "the club gets to about parallel at the top",
+      "golferWhy": "Swinging the club back past the point of control costs you accuracy without adding speed.",
       "aliases": [
         "too long",
         "past parallel"
@@ -5041,6 +5421,9 @@
     {
       "id": "bent_lead_arm",
       "label": "Lead arm bent at the top",
+      "golfer": "your lead arm bends at the top",
+      "golferWell": "your lead arm stays straight at the top",
+      "golferWhy": "A bent lead arm shortens your swing, so you build less speed and contact is harder to control.",
       "aliases": [
         "collapsed lead arm",
         "chicken-winged going back"
@@ -5065,6 +5448,9 @@
     {
       "id": "trail_knee_straighten",
       "label": "Trail knee straightens",
+      "golfer": "your trail leg straightens going back",
+      "golferWell": "your trail knee keeps its flex going back",
+      "golferWhy": "A straight trail leg lets your hips slide instead of turn, so you lose power.",
       "aliases": [
         "standing up on it going back"
       ],
@@ -5090,6 +5476,9 @@
     {
       "id": "head_drop_backswing",
       "label": "Head drops in the backswing",
+      "golfer": "your head dips going back",
+      "golferWell": "your head stays level going back",
+      "golferWhy": "When your head dips going back it must come up again in time, or you hit behind the ball.",
       "aliases": [
         "dipping",
         "squatting into it"
@@ -5114,6 +5503,9 @@
     {
       "id": "head_rise_backswing",
       "label": "Head rises in the backswing",
+      "golfer": "your head comes up going back",
+      "golferWell": "your head stays level going back",
+      "golferWhy": "When your head comes up going back it has to drop again in time, so solid contact comes down to timing.",
       "aliases": [
         "head comes up going back"
       ],
@@ -5137,6 +5529,9 @@
     {
       "id": "excessive_head_sway",
       "label": "Head sways off the ball",
+      "golfer": "your head sways away from the target going back",
+      "golferWell": "your head stays centred going back",
+      "golferWhy": "When your head sways away, the bottom of your swing moves with it and contact gets harder to repeat.",
       "aliases": [
         "swaying off it",
         "off the ball"
@@ -5161,6 +5556,9 @@
     {
       "id": "excessive_heel_lift",
       "label": "Lead heel lifts excessively",
+      "golfer": "your lead heel lifts too high going back",
+      "golferWell": "your lead heel stays down going back",
+      "golferWhy": "The higher your lead heel lifts, the more exactly it has to land again in time, so consistency suffers.",
       "aliases": [
         "heel off the ground"
       ],
@@ -5183,6 +5581,9 @@
     {
       "id": "short_backswing",
       "label": "Restricted body turn",
+      "golfer": "your shoulders don't turn enough going back",
+      "golferWell": "your shoulders make a full, controlled turn going back",
+      "golferWhy": "A short shoulder turn gives your swing less to work with, so you lose speed and distance.",
       "aliases": [
         "no turn",
         "short of the top"
@@ -5207,6 +5608,9 @@
     {
       "id": "disconnection",
       "label": "Lead arm disconnected",
+      "golfer": "your lead arm leaves your chest going back",
+      "golferWell": "your lead arm stays connected to your chest going back",
+      "golferWhy": "When your lead arm leaves your chest your arms have to time their own arrival, so contact gets less consistent.",
       "aliases": [
         "arms lifting",
         "loss of connection",
@@ -5291,6 +5695,9 @@
     {
       "id": "hip_spin_out",
       "label": "Hips spin out",
+      "golfer": "your hips spin open too early coming down",
+      "golferWell": "your hips start turning on time coming down",
+      "golferWhy": "Spinning your hips open too early leaves the club behind, so you strike the ball toward the heel.",
       "aliases": [
         "spinning out",
         "no shift"
@@ -5315,6 +5722,9 @@
     {
       "id": "hip_stall",
       "label": "Hips stall through impact",
+      "golfer": "your hips stop turning through impact",
+      "golferWell": "your hips keep turning through impact",
+      "golferWhy": "When your hips stop turning your hands have to take over, so the clubface and contact get hard to control.",
       "aliases": [
         "stalling",
         "stopping the turn"
@@ -5339,6 +5749,9 @@
     {
       "id": "deceleration",
       "label": "Decelerating into impact",
+      "golfer": "the club slows down before impact",
+      "golferWell": "the club keeps speeding up into the ball",
+      "golferWhy": "Slowing the club before the ball throws away speed and makes your contact inconsistent.",
       "aliases": [
         "quitting on it",
         "slowing down"
@@ -5515,6 +5928,9 @@
     {
       "id": "hips_closed_at_impact",
       "label": "Hips under-rotated at impact",
+      "golfer": "your hips haven't turned enough by impact",
+      "golferWell": "your hips are turned partly open at impact",
+      "golferWhy": "Hips that haven't turned enough get in your arms' way, so your hands take over and the strike varies.",
       "aliases": [
         "hips not clearing",
         "blocked"
@@ -5539,6 +5955,9 @@
     {
       "id": "reverse_spine_p7",
       "label": "Reverse spine angle at P7",
+      "golfer": "you lean toward the target at impact",
+      "golferWell": "you lean slightly away from the target at impact",
+      "golferWhy": "Leaning toward the target at impact brings the club in too steep, so you can't hit up on your driver.",
       "aliases": [
         "no tilt",
         "level shoulders at impact",
@@ -5565,6 +5984,9 @@
     {
       "id": "excessive_axis_tilt_impact",
       "label": "Too much tilt at impact",
+      "golfer": "you lean back too far at impact",
+      "golferWell": "you lean slightly away from the target at impact",
+      "golferWhy": "Leaning back too far at impact leaves your weight behind, so you catch the ground first or hit it thin.",
       "aliases": [
         "too much tilt"
       ],
@@ -5588,6 +6010,9 @@
     {
       "id": "off_balance_finish",
       "label": "Cannot hold the finish",
+      "golfer": "you can't hold your finish",
+      "golferWell": "you finish balanced over your lead foot",
+      "golferWhy": "A finish you can't hold shows your swing was off balance earlier, so your shots are hard to repeat.",
       "aliases": [
         "falling over",
         "stepping through"
@@ -5637,6 +6062,9 @@
     {
       "id": "abbreviated_finish",
       "label": "Follow-through cut short",
+      "golfer": "you cut your follow-through short",
+      "golferWell": "you swing through to a full finish",
+      "golferWhy": "Cutting your follow-through short usually means you were easing off well before the ball, so you lose speed.",
       "aliases": [
         "no follow-through"
       ],
@@ -6187,6 +6615,7 @@
     {
       "id": "posture_too_bent",
       "label": "Bent over too much at address",
+      "golfer": "you bend over too much at address",
       "aliases": [
         "too much hinge",
         "reaching down at it"
@@ -6211,6 +6640,7 @@
     {
       "id": "flat_lumbar_spine",
       "label": "Flat lower back at address",
+      "golfer": "your lower back is too flat at address",
       "aliases": [
         "no arch at address",
         "tucked pelvis"
@@ -6236,6 +6666,7 @@
     {
       "id": "flat_thoracic_spine",
       "label": "Flat upper back at address",
+      "golfer": "your upper back is too straight at address",
       "aliases": [
         "too straight through the chest"
       ],
@@ -6260,6 +6691,9 @@
     {
       "id": "diving",
       "label": "Diving into the ball",
+      "golfer": "you dip toward the ball coming down",
+      "golferWell": "you hold your address posture coming down",
+      "golferWhy": "Dipping toward the ball coming down brings the club in steep, so you tend to hit the ground first.",
       "aliases": [
         "dropping into it",
         "getting closer through the ball"
@@ -6283,6 +6717,9 @@
     {
       "id": "steep_shoulder_plane",
       "label": "Steep shoulder plane",
+      "golfer": "your shoulders tilt too steeply going back",
+      "golferWell": "your shoulders turn on plane going back",
+      "golferWhy": "A steep shoulder tilt sends the club up instead of around, so it comes down steep and contact suffers.",
       "aliases": [
         "shoulders turning too upright",
         "tilting rather than turning"
@@ -6307,6 +6744,9 @@
     {
       "id": "excessive_axis_tilt_top",
       "label": "Too much tilt away at the top",
+      "golfer": "you lean back too far at the top",
+      "golferWell": "you lean slightly away from the target at the top",
+      "golferWhy": "Leaning back too far at the top leaves your weight behind, so you hit up on the ball or behind it.",
       "aliases": [
         "leaning away from the target",
         "hanging the upper body back"
@@ -6331,6 +6771,9 @@
     {
       "id": "backing_off_the_ball",
       "label": "Backing away from the ball",
+      "golfer": "your hips back away from the ball coming down",
+      "golferWell": "your hips hold their distance from the ball coming down",
+      "golferWhy": "Backing your hips away from the ball moves the club further out, so you hit it off the toe and thin.",
       "aliases": [
         "pulling away from it",
         "standing off the ball"
@@ -6355,6 +6798,9 @@
     {
       "id": "pelvis_drift_lead_backswing",
       "label": "Pelvis drifts to the lead side going back",
+      "golfer": "your hips drift toward the target going back",
+      "golferWell": "your hips turn in place going back",
+      "golferWhy": "When your hips drift toward the target going back there is nothing to shift into, so you lose power.",
       "aliases": [
         "pelvis on the lead side at the top",
         "sliding toward the target going back"
@@ -6379,6 +6825,9 @@
     {
       "id": "pelvis_sink_backswing",
       "label": "Pelvis sinks during the backswing",
+      "golfer": "your hips sink going back",
+      "golferWell": "your hips hold their height going back",
+      "golferWhy": "When your hips sink going back they have to rise again, so contact swings between fat and thin.",
       "aliases": [
         "squatting going back",
         "settling into the backswing"
@@ -6426,6 +6875,9 @@
     {
       "id": "trail_elbow_deep",
       "label": "Trail elbow behind the body",
+      "golfer": "your trail elbow gets behind you at the top",
+      "golferWell": "your trail elbow stays in front of you at the top",
+      "golferWhy": "A trail elbow behind your body takes your hands too far inside, so the club needs a late reroute.",
       "aliases": [
         "elbow behind the body",
         "trail arm too deep"
@@ -6450,6 +6902,9 @@
     {
       "id": "over_rotation_at_top",
       "label": "Turning past control",
+      "golfer": "you turn too far going back",
+      "golferWell": "your shoulders make a full, controlled turn going back",
+      "golferWhy": "Turning further than you can hold makes your lower body give way, so the extra turn adds movement, not speed.",
       "aliases": [
         "over-turning",
         "turning further than it can be held"
@@ -6474,6 +6929,9 @@
     {
       "id": "club_short_of_parallel",
       "label": "Club never reaches the top",
+      "golfer": "the club stops well short at the top",
+      "golferWell": "the club gets to about parallel at the top",
+      "golferWhy": "Stopping well short at the top gives the club less room to speed up, so you lose distance.",
       "aliases": [
         "club well short at the top",
         "backswing stops early"
@@ -6498,6 +6956,9 @@
     {
       "id": "face_held_shut_takeaway",
       "label": "Face held shut in the takeaway",
+      "golfer": "you hold the clubface shut going back",
+      "golferWell": "the clubface stays square going back",
+      "golferWhy": "Holding the clubface shut going back leaves it shut at the top, so the ball starts left and curves further left.",
       "aliases": [
         "hooded takeaway",
         "face turned down going back"
@@ -6522,6 +6983,9 @@
     {
       "id": "arms_over_connected",
       "label": "Arms pinned to the chest",
+      "golfer": "your arms are pinned to your chest",
+      "golferWell": "your lead arm stays lightly connected to your chest going back",
+      "golferWhy": "Arms pinned to your chest have no room of their own, so the club gets trapped behind you coming down.",
       "aliases": [
         "arms stuck to the body",
         "no width in the arms"
@@ -6546,6 +7010,9 @@
     {
       "id": "locked_lead_arm",
       "label": "Lead arm locked straight at the top",
+      "golfer": "your lead arm is locked stiff at the top",
+      "golferWell": "your lead arm stays straight but soft at the top",
+      "golferWhy": "A rigid lead arm limits your turn, and the tension it takes to hold it costs you speed.",
       "aliases": [
         "lead arm rigid",
         "elbow locked out going back"
@@ -6570,6 +7037,9 @@
     {
       "id": "excessive_lag",
       "label": "Holding the angle too long",
+      "golfer": "you hold the wrist angle too long coming down",
+      "golferWell": "you release the wrist angle in time for impact",
+      "golferWhy": "Holding the angle too long leaves the clubface open, so the ball goes low and right and the speed never arrives.",
       "aliases": [
         "holding the angle",
         "handle drag",
@@ -6595,6 +7065,9 @@
     {
       "id": "over_set",
       "label": "Over-set at the top",
+      "golfer": "your wrists hinge too much at the top",
+      "golferWell": "your wrists hinge just enough at the top",
+      "golferWhy": "Too much wrist hinge at the top is hard to hold, so it gets let go early and adds no speed.",
       "aliases": [
         "too much hinge at the top",
         "over-cocked"
@@ -6619,6 +7092,9 @@
     {
       "id": "bowed_lead_wrist",
       "label": "Lead wrist bows too far into impact",
+      "golfer": "your lead wrist bows too much at impact",
+      "golferWell": "your lead wrist arrives flat at impact",
+      "golferWhy": "Bowing your lead wrist too far takes loft off and shuts the clubface, so the ball flies low and left.",
       "aliases": [
         "bowed wrist",
         "bowed at impact",
@@ -6693,6 +7169,9 @@
     {
       "id": "hips_too_open_at_impact",
       "label": "Hips too open at impact",
+      "golfer": "your hips have turned too far by impact",
+      "golferWell": "your hips are turned partly open at impact",
+      "golferWhy": "Hips that turn too far leave the club behind them, so your upper body has to rescue the clubface.",
       "aliases": [
         "hips way past it",
         "over-cleared"
@@ -6717,6 +7196,9 @@
     {
       "id": "late_pelvis_rotation",
       "label": "Pelvis slow to start turning",
+      "golfer": "your hips are slow to start turning coming down",
+      "golferWell": "your hips start turning on time coming down",
+      "golferWhy": "When your hips are slow to start, your arms and chest start the downswing instead, so you lose speed.",
       "aliases": [
         "late with the hips",
         "hips never get going"
@@ -6741,6 +7223,9 @@
     {
       "id": "excessive_separation_stretch",
       "label": "Separation stretched past control",
+      "golfer": "you stretch your hips and shoulders too far apart",
+      "golferWell": "your hips lead your shoulders a little starting down",
+      "golferWhy": "Stretching your hips and shoulders further apart than you can unwind wastes the stretch, so it adds no speed.",
       "aliases": [
         "over-stretching in transition",
         "too much separation"
@@ -6766,6 +7251,9 @@
     {
       "id": "head_drift_lead_backswing",
       "label": "Head drifts toward the target going back",
+      "golfer": "your head moves toward the target going back",
+      "golferWell": "your head stays centred going back",
+      "golferWhy": "When your head moves toward the target going back it has to come back late, so contact gets hard to repeat.",
       "aliases": [
         "head moving forward going back",
         "head toward the target in the backswing"
@@ -6815,6 +7303,9 @@
     {
       "id": "hips_under_rotated_at_top",
       "label": "Hips under-rotated at the top",
+      "golfer": "your hips don't turn enough going back",
+      "golferWell": "your hips turn fully going back",
+      "golferWhy": "Hips that barely turn going back leave little to unwind, so your arms start the downswing and you lose power.",
       "aliases": [
         "no hip depth",
         "hips never got round",
@@ -6840,6 +7331,9 @@
     {
       "id": "flipping",
       "label": "Flipping",
+      "golfer": "your hands flip the clubface shut at impact",
+      "golferWell": "the clubface arrives square at impact",
+      "golferWhy": "Turning the clubface over with your hands makes square a split-second timing job, so the ball often goes left.",
       "aliases": [
         "flip",
         "face rolled shut through impact",
@@ -6868,6 +7362,9 @@
     {
       "id": "face_held_open_impact",
       "label": "Face held open through impact",
+      "golfer": "you hold the clubface open through impact",
+      "golferWell": "the clubface arrives square at impact",
+      "golferWhy": "Holding the clubface open costs you speed and distance on every swing, and leaves the ball going right.",
       "aliases": [
         "holding it off",
         "holding the face off",
@@ -6920,6 +7417,9 @@
     {
       "id": "pelvis_thrust_backswing",
       "label": "Pelvis moves toward the ball in the backswing",
+      "golfer": "your hips move toward the ball going back",
+      "golferWell": "your hips hold their distance from the ball going back",
+      "golferWhy": "Moving your hips toward the ball going back crowds your arms, so the club must find another way down.",
       "aliases": [
         "early extension going back"
       ],
@@ -6963,6 +7463,7 @@
     {
       "id": "weight_in_heels_address",
       "label": "Weight in the heels at address",
+      "golfer": "your weight is back on your heels at address",
       "aliases": [
         "sitting back on the heels"
       ],
@@ -7024,6 +7525,9 @@
     {
       "id": "lead_knee_valgus_impact",
       "label": "Lead knee falls inward through impact",
+      "golfer": "your lead knee caves in at impact",
+      "golferWell": "your lead knee stays over your lead foot at impact",
+      "golferWhy": "A lead knee caving in takes away the brace you turn around, so your arms take over and you lose speed.",
       "aliases": [
         "knee valgus",
         "knee caving in"

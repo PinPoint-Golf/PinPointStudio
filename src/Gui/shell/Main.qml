@@ -561,6 +561,7 @@ ApplicationWindow {
     readonly property int screenSystem:     8
     readonly property int screenSettings:   9
     readonly property int screenWizard:     10
+    readonly property int screenSwingDiagnostics: 11
 
     // Maps StackLayout index → header screen name
     readonly property var screenNames: [
@@ -574,7 +575,8 @@ ApplicationWindow {
         qsTr("Athletes"),         // screenAthletes
         qsTr("System"),           // screenSystem
         qsTr("Settings"),         // screenSettings
-        qsTr("New session")       // screenWizard
+        qsTr("New session"),      // screenWizard
+        qsTr("Swing diagnostics") // screenSwingDiagnostics
     ]
 
     RowLayout {
@@ -691,11 +693,10 @@ ApplicationWindow {
                     onOpenSessionScreenRequested: function(sessionTypeIndex) {
                         navController.navigate(sessionTypeIndex + 1)
                     }
-                    // A work-on's way into the session that last showed it: the review
-                    // picker's own load, then the screen that draws a loaded session.
-                    onReviewSessionRequested: function(sessionDir) {
-                        sessionReviewController.loadSession(sessionDir)
-                        navController.navigate(root.screenWrist)
+                    // YOUR SWING's "Swing diagnostics →": the technical layer, from its top.
+                    onSwingDiagnosticsRequested: {
+                        swingDiagnosticsScreen.toTop()
+                        navController.navigate(root.screenSwingDiagnostics)
                     }
                 }
                 ScreenPlaceholder { iconText: "◑"; titleText: qsTr("Swing"); ambientBackground: true }      // screenSwing — coming soon
@@ -786,6 +787,17 @@ ApplicationWindow {
                         // pipeline lands. When calibration completes, call
                         // sessionSetup.flow.goTo("triangulate") and
                         // navController.navigate(root.screenWizard).
+                    }
+                }
+                ScreenSwingDiagnostics {                                   // screenSwingDiagnostics — from Home's YOUR SWING
+                    id: swingDiagnosticsScreen
+                    // "← Home": to Home itself, wherever the screen was reached from since.
+                    onBackRequested: navController.navigate(root.screenHome)
+                    // A fault's way into the session that last showed it: the review
+                    // picker's own load, then the screen that draws a loaded session.
+                    onReviewSessionRequested: function(sessionDir) {
+                        sessionReviewController.loadSession(sessionDir)
+                        navController.navigate(root.screenWrist)
                     }
                 }
             }

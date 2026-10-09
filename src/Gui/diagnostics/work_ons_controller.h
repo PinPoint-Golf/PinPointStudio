@@ -18,24 +18,28 @@
 
 #pragma once
 
+#include "../../Analysis/swing_themes.h"
 #include "../../Analysis/work_ons.h"
 
 #include <QHash>
 #include <QObject>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QThreadPool>
 #include <QVariantList>
+#include <QVariantMap>
 
+#include <atomic>
 #include <memory>
 #include <vector>
 
 class SessionDiagnosticsModel;
 namespace pinpoint::analysis { class ICharacteristicPackProvider; }
 
-// WORK ONS — the home screen's list of the faults a golfer keeps producing, and the thing that
-// keeps each session's record of them current (docs/design/work_ons_design.md). The context
-// property `workOns`.
+// WORK ONS — the list of the faults a golfer keeps producing (FAULTS, on the Swing diagnostics
+// screen that the home screen's YOUR SWING opens), and the thing that keeps each session's record
+// of them current (docs/design/work_ons_design.md). The context property `workOns`.
 //
 // ONE MECHANISM FOR "END OF SESSION" AND FOR CATCH-UP, because they are the same problem. A
 // session's record (<session>/work_ons.json) is STALE whenever what it was derived from has
@@ -50,13 +54,31 @@ namespace pinpoint::analysis { class ICharacteristicPackProvider; }
 // was never reduced, regrades what went stale), so a record is always derived from a CURRENT
 // ledger, and the list here cannot disagree with the panel a golfer opens on the same session.
 //
-// The home list is aggregateWorkOns() over the records and nothing else. No running totals:
+// The list is aggregateWorkOns() over the records and nothing else. No running totals:
 // trashing a session removes its contribution at the next refresh.
 //
 // THREADING. The folder scan (a stat per swing, on what may be a network share) runs on a
 // private single-thread pool and is delivered back queued. Derivation is the model's own worker.
 // Sessions are derived one at a time, and never while a session is live (`paused`) — detection
 // reads whole swing documents and must not compete with capture.
+//
+// YOUR SWING — the same catch-up ends in the golfer's swing summary (swing_themes.h,
+// docs/design/home_themes_design.md): the one thing to practise (the focus), what they do well,
+// what is next on their list, and what rises and falls together. It is reduced from every session's ledger once the work-ons are current — a current
+// work_ons.json means its diagnostics.json was reconciled — and kept in
+// <athlete>/swing_themes.json, stamped with a THEMES FINGERPRINT over the rule, the schema, the
+// content stamp and every session's (name, work-ons fingerprint). A matching file is read rather
+// than recomputed; anything else is recomputed off the GUI thread:
+//
+//   - one job at a time on its own single-thread pool, its 500 bootstrap and parallel-analysis
+//     replicates fanned out over a second pool (all cores but one, plus the job's own thread);
+//   - cancelled when a session goes live, when the athlete changes, or when a newer job
+//     supersedes it (a generation counter, as the scan has) — a cancelled result is neither
+//     written nor shown, and the next refresh or the pause lifting computes it again;
+//   - the summary on screen stays while a recompute runs, and is replaced when it lands.
+//
+// The WORDS are made at publish from the stored structure (swingSummaryView over the pack's
+// golfer phrases), so editing a phrase needs no recompute.
 class WorkOnsController : public QObject
 {
     Q_OBJECT
@@ -77,6 +99,34 @@ class WorkOnsController : public QObject
     Q_PROPERTY(int sessionsFound READ sessionsFound NOTIFY itemsChanged)
     Q_PROPERTY(bool updating READ updating NOTIFY updatingChanged)
 
+    // ── Your swing ──
+    // Every string final (swingSummaryView); HmSwingSummary.qml, HmFocus.qml and (in Swing
+    // diagnostics) HmGoesTogether.qml position and paint. A fault item, wherever it appears, is
+    // {text, share (0..1), frequency, trend (+1 growing, −1 easing, 0), sessions [bool, one per
+    // judged session]}.
+    // "From N swings over M sessions" — every shot in the ledgers, every session holding one.
+    Q_PROPERTY(QString summarySubtitle READ summarySubtitle NOTIFY summaryChanged)
+    // "Your focus": {present, title, aimFor [string], rightNow [fault item], why, practiseLabel,
+    // practise, reason}. present is false when nothing needs work; empty before a summary.
+    Q_PROPERTY(QVariantMap focusItem READ focusItem NOTIFY summaryChanged)
+    // "What you do well", at most three: {text, caption, sessions [bool, one per judged session]}.
+    Q_PROPERTY(QVariantList doWellItems READ doWellItems NOTIFY summaryChanged)
+    // "Next on your list", at most four fault items: the needs-work faults the focus does not
+    // cover, in the order they would come up.
+    Q_PROPERTY(QVariantList nextItems READ nextItems NOTIFY summaryChanged)
+    // "What goes together", at most four: {tier ("firm" | "probably" | "possibly"), first, second
+    // ("" when the theme has one part), startStop (0 address … 5 finish, −1 unplaced), startWords,
+    // trend}.
+    Q_PROPERTY(QVariantList togetherItems READ togetherItems NOTIFY summaryChanged)
+    // The "Not yet …" / "Nothing yet …" sentence when nothing goes together, else empty.
+    Q_PROPERTY(QString togetherNote READ togetherNote NOTIFY summaryChanged)
+    // A summary for THIS athlete is loaded (it may be stale while summaryUpdating).
+    Q_PROPERTY(bool summaryReady READ summaryReady NOTIFY summaryChanged)
+    Q_PROPERTY(bool summaryUpdating READ summaryUpdating NOTIFY summaryChanged)
+    // Swings and sessions the summary was reduced from (after the sparse-swing drop).
+    Q_PROPERTY(int summarySwings READ summarySwings NOTIFY summaryChanged)
+    Q_PROPERTY(int summarySessions READ summarySessions NOTIFY summaryChanged)
+
 public:
     explicit WorkOnsController(QObject *parent = nullptr);
     ~WorkOnsController() override;
@@ -94,14 +144,27 @@ public:
     int  sessionsFound() const { return m_sessionsFound; }
     bool updating() const { return m_scanning || m_deriving || !m_queue.isEmpty(); }
 
+    QString      summarySubtitle() const { return m_summarySubtitle; }
+    QVariantMap  focusItem() const { return m_focusItem; }
+    QVariantList doWellItems() const { return m_doWellItems; }
+    QVariantList nextItems() const { return m_nextItems; }
+    QVariantList togetherItems() const { return m_togetherItems; }
+    QString      togetherNote() const { return m_togetherNote; }
+    bool summaryReady() const { return m_summaryReady; }
+    bool summaryUpdating() const { return m_themesRunning; }
+    int  summarySwings() const { return m_summaryReady ? m_themes.swings : 0; }
+    int  summarySessions() const { return m_summaryReady ? m_themes.sessions : 0; }
+
     // Rescan the athlete's sessions and re-derive whatever is stale. Cheap when nothing is.
     Q_INVOKABLE void refresh();
 
-    // Test seam, as SessionDiagnosticsModel's: scan and derive inline.
+    // Test seam, as SessionDiagnosticsModel's: scan, derive and reduce the themes inline.
     void setSynchronous(bool on) { m_synchronous = on; }
+    // Waits for the scan, the derivation AND the swing summary.
     bool waitForIdle(int msTimeout = 60000);
 
     static QString recordPath(const QString &sessionDir);
+    static QString themesPath(const QString &athleteDir);
 
 signals:
     void athleteDirChanged();
@@ -109,6 +172,7 @@ signals:
     void pausedChanged();
     void itemsChanged();
     void updatingChanged();
+    void summaryChanged();
 
 private:
     struct Scanned {
@@ -126,6 +190,33 @@ private:
     void finishDerive();
     void publish();
     SessionDiagnosticsModel *model();
+
+    // ── Your swing ──
+    struct ThemesJob {
+        int     generation = 0;
+        QString athleteDir;
+        QString fingerprint;
+        QString contentStamp;
+        QStringList sessionDirs;    // name order
+        QHash<QString, pinpoint::analysis::ThemeMeasureInfo>   measures;
+        QHash<QString, pinpoint::analysis::ThemeConditionInfo> conditions;
+    };
+    struct ThemesOutcome {
+        bool    fromDisk = false;   // the stored summary was current; nothing was reduced
+        bool    computed = false;   // reduced here (and not cancelled)
+        pinpoint::analysis::SwingThemes themes;
+        QString fingerprint;        // the job's, carried back
+        QString contentStamp;
+        QString athleteDir;
+        qint64  wallMs = 0;
+    };
+    QString themesFingerprint() const;
+    void maybeThemes();
+    void cancelThemes();
+    ThemesOutcome runThemes(const ThemesJob &job, const std::atomic<bool> *cancel);
+    void applyThemes(int generation, ThemesOutcome out);
+    void publishSummary();
+    void clearSummary();
 
     QString m_athleteDir;
     QString m_gradePolicy = QStringLiteral("standard");
@@ -150,4 +241,21 @@ private:
     SessionDiagnosticsModel *m_model = nullptr;   // created on first need; owned (child)
     std::unique_ptr<pinpoint::analysis::ICharacteristicPackProvider> m_packProv;
     QThreadPool m_pool;
+
+    // ── Your swing ──
+    pinpoint::analysis::SwingThemes m_themes;      // valid when m_summaryReady
+    QString      m_themesFingerprint;              // what m_themes was reduced from
+    QString      m_themesJobFingerprint;           // what the running job will produce
+    bool         m_summaryReady  = false;
+    bool         m_themesRunning = false;
+    int          m_themesGeneration = 0;
+    std::shared_ptr<std::atomic<bool>> m_themesCancel;   // the running job's
+    QString      m_summarySubtitle;
+    QVariantMap  m_focusItem;
+    QVariantList m_doWellItems;
+    QVariantList m_nextItems;
+    QVariantList m_togetherItems;
+    QString      m_togetherNote;
+    QThreadPool  m_themesPool;          // one job at a time
+    QThreadPool  m_replicatePool;       // that job's replicates
 };

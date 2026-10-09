@@ -141,7 +141,9 @@ Item {
             Layout.alignment: Qt.AlignHCenter
             iconText:  "⌂"
             labelText: qsTr("Home")
+            // Stays highlighted on Swing diagnostics (11), which opens from Home.
             isActive:  root.currentPageIndex === 0
+                       || root.currentPageIndex === 11
             isMuted:   root._modeMuted(0)
             attention: root.anyLocked
             onClicked: root.pageRequested(0)

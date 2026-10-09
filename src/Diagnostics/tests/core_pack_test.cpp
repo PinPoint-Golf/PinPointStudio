@@ -614,6 +614,268 @@ int main()
         std::printf("        (%d health-list warnings)\n", warnings);
     }
 
+    // ── Every row the home screen can name has golfer words, and they are plain ─
+    //
+    // The lint is a WARNING so a user's own pack still loads without the prose. The shipped pack is
+    // held to zero here, because this is the content the home screen's summary actually speaks in
+    // (docs/design/home_themes_design.md): a missing phrase silences the summary about a real fault,
+    // and a causal or jargon word puts back exactly what the summary exists to keep one tap down.
+    {
+        const std::vector<ValidationIssue> missing = res.report.withCode(QStringLiteral("golferPhraseMissing"));
+        const std::vector<ValidationIssue> wording = res.report.withCode(QStringLiteral("golferPhraseWording"));
+        for (const ValidationIssue &i : missing)
+            std::printf("        %s\n", qPrintable(i.message));
+        for (const ValidationIssue &i : wording)
+            std::printf("        %s\n", qPrintable(i.message));
+        check(missing.empty(),
+              "every detectable fault / set-up and every measure that produces readings has golfer words");
+        check(wording.empty(),
+              "no shipped golfer phrase says why, or uses anatomy, planes, P-positions, numbers or units");
+
+        int conditionPhrases = 0, wellPhrases = 0, whySentences = 0, measurePhrases = 0;
+        for (const Condition &c : p.conditions) {
+            if (!c.golfer.isEmpty()) ++conditionPhrases;
+            if (!c.golferWell.isEmpty()) ++wellPhrases;
+            if (!c.golferWhy.isEmpty()) ++whySentences;
+        }
+        for (const Measure &m : p.measures)
+            measurePhrases += int(!m.golferHigh.isEmpty()) + int(!m.golferLow.isEmpty());
+        std::printf("        (%d condition phrases, %d golferWell phrases, %d golferWhy sentences, "
+                    "%d measure phrases)\n",
+                    conditionPhrases, wellPhrases, whySentences, measurePhrases);
+    }
+
+    // ── …and the lint fires on a pack that breaks it ──────────────────────────
+    //
+    // The zero above proves nothing on its own: a check that never fires passes it too. One small
+    // pack, one row per way of being wrong, and one row per way of being right that must NOT fire —
+    // an outcome needs no phrase, and "extend" is not "extension".
+    {
+        const QByteArray json = R"({
+          "id": "golfer_lint", "version": "1", "schemaVersion": 1,
+          "measures": [
+            { "id": "m_half", "kind": "provided", "metricKey": "half", "status": "live",
+              "reducer": { "kind": "at", "anchor": "p1" },
+              "golferHigh": "your hips turn more because you sway" },
+            { "id": "m_whole", "kind": "provided", "metricKey": "whole", "status": "held",
+              "reducer": { "kind": "at", "anchor": "p1" }, "gapReason": "test",
+              "golferHigh": "your head rises more going back",
+              "golferLow": "your head drops more going back" },
+            { "id": "m_unproduced", "kind": "provided", "metricKey": "none", "status": "planned",
+              "reducer": { "kind": "at", "anchor": "p1" } } ],
+          "signals": [ { "id": "s_half", "test": "outsideCorridor", "measures": ["m_half"],
+                         "direction": "high" },
+                       { "id": "s_whole", "test": "outsideCorridor", "measures": ["m_whole"],
+                         "direction": "high" } ],
+          "conditions": [
+            { "id": "c_missing", "label": "c", "kind": "fault", "detectedBy": ["s_half"] },
+            { "id": "c_jargon", "label": "c", "kind": "fault", "detectedBy": ["s_half"],
+              "golfer": "your pelvis slides at P7" },
+            { "id": "c_clean", "label": "c", "kind": "setup", "detectedBy": ["s_whole"],
+              "golfer": "your arms extend fully after impact" },
+            { "id": "c_outcome", "label": "c", "kind": "outcome", "group": "ballFlight",
+              "detectedBy": ["s_whole"] } ]
+        })";
+        const PackLoadResult lint = loadPack(json, QStringLiteral("golfer_lint"));
+        auto flagged = [&](const char *code, const char *subject) {
+            for (const ValidationIssue &i : lint.report.withCode(QString::fromLatin1(code)))
+                if (i.subject == QLatin1String(subject)) return true;
+            return false;
+        };
+        check(lint.loaded, "a pack with missing or jargon golfer phrases still loads");
+        check(flagged("golferPhraseMissing", "c_missing"),
+              "golferPhraseMissing: a detectable fault with no golfer phrase");
+        check(flagged("golferPhraseMissing", "m_half"),
+              "golferPhraseMissing: a live measure with only one direction phrased");
+        check(!flagged("golferPhraseMissing", "c_outcome") && !flagged("golferPhraseMissing", "m_unproduced")
+                  && !flagged("golferPhraseMissing", "c_clean") && !flagged("golferPhraseMissing", "m_whole"),
+              "golferPhraseMissing: silent on an outcome, an unproduced measure, and complete rows");
+        check(flagged("golferPhraseWording", "c_jargon"),
+              "golferPhraseWording: anatomy and a P-position in a condition phrase");
+        check(flagged("golferPhraseWording", "m_half"),
+              "golferPhraseWording: a causal word in a measure phrase");
+        check(!flagged("golferPhraseWording", "c_clean") && !flagged("golferPhraseWording", "m_whole"),
+              "golferPhraseWording: silent on plain phrases (\"extend\" is not \"extension\")");
+
+        const PackLoadResult back = loadPack(savePack(lint.pack), QStringLiteral("golfer_lint2"));
+        const Condition *c = back.pack.condition(QStringLiteral("c_clean"));
+        const Measure   *m = back.pack.measure(QStringLiteral("m_whole"));
+        check(c && c->golfer == QStringLiteral("your arms extend fully after impact")
+                  && m && m->golferHigh == QStringLiteral("your head rises more going back")
+                  && m->golferLow == QStringLiteral("your head drops more going back"),
+              "golfer, golferHigh and golferLow survive a save and reload");
+    }
+
+    // ── …and golferWell is held to the same lint, plus the negation ban ───────────
+    //
+    // Required on a detectable Fault combining Any or First — the rows "What you do well" can name —
+    // and nowhere else: a conjunction has no single ideal, a set-up is not praised. Each banned
+    // negation fires on its own row (one with a curly apostrophe, as a phone types it), jargon fires
+    // here as it does in `golfer`, and words that merely START with "no" must not. The two rows the
+    // missing check must stay silent on also carry a clean golferWhy, which is required on the same
+    // rows and has its own block below.
+    {
+        const QByteArray json = R"({
+          "id": "golfer_well_lint", "version": "1", "schemaVersion": 1,
+          "measures": [
+            { "id": "m_a", "kind": "provided", "metricKey": "a", "status": "held",
+              "reducer": { "kind": "at", "anchor": "p1" }, "gapReason": "test",
+              "golferHigh": "your arms get wider at the top",
+              "golferLow": "your arms get narrower at the top" },
+            { "id": "m_b", "kind": "provided", "metricKey": "b", "status": "held",
+              "reducer": { "kind": "at", "anchor": "p1" }, "gapReason": "test",
+              "golferHigh": "your head rises more going back",
+              "golferLow": "your head drops more going back" } ],
+          "signals": [ { "id": "s_a", "test": "outsideCorridor", "measures": ["m_a"], "direction": "low" },
+                       { "id": "s_b", "test": "outsideCorridor", "measures": ["m_b"], "direction": "high" } ],
+          "conditions": [
+            { "id": "w_missing", "label": "c", "kind": "fault", "detectedBy": ["s_a"],
+              "golfer": "your swing gets narrow at the top" },
+            { "id": "w_first", "label": "c", "kind": "fault", "detection": "first",
+              "detectedBy": ["s_a", "s_b"], "golfer": "your swing gets narrow at the top" },
+            { "id": "w_all", "label": "c", "kind": "fault", "detection": "all",
+              "detectedBy": ["s_a", "s_b"], "golfer": "your swing gets narrow at the top" },
+            { "id": "w_setup", "label": "c", "kind": "setup", "detectedBy": ["s_a"],
+              "golfer": "you stand too close at address" },
+            { "id": "w_dont", "label": "c", "kind": "fault", "detectedBy": ["s_a"],
+              "golfer": "your swing gets narrow at the top",
+              "golferWell": "you don't lose width at the top",
+              "golferWhy": "A narrow swing has less room to build speed, so you lose distance." },
+            { "id": "w_doesnt", "label": "c", "kind": "fault", "detectedBy": ["s_a"],
+              "golfer": "your swing gets narrow at the top",
+              "golferWell": "your lead arm doesn’t collapse at the top" },
+            { "id": "w_not", "label": "c", "kind": "fault", "detectedBy": ["s_a"],
+              "golfer": "your swing gets narrow at the top",
+              "golferWell": "your arms are not narrow at the top" },
+            { "id": "w_never", "label": "c", "kind": "fault", "detectedBy": ["s_b"],
+              "golfer": "your head comes up going back",
+              "golferWell": "your head never rises going back" },
+            { "id": "w_no", "label": "c", "kind": "fault", "detectedBy": ["s_b"],
+              "golfer": "your head comes up going back",
+              "golferWell": "your head makes no move going back" },
+            { "id": "w_jargon", "label": "c", "kind": "fault", "detectedBy": ["s_b"],
+              "golfer": "your head comes up going back",
+              "golferWell": "your pelvis stays level at P4" },
+            { "id": "w_clean", "label": "c", "kind": "fault", "detectedBy": ["s_a"],
+              "golfer": "your swing gets narrow at the top",
+              "golferWell": "you keep your arms noticeably wide at the top",
+              "golferWhy": "A narrow swing has less room to build speed, so you lose distance." } ]
+        })";
+        const PackLoadResult lint = loadPack(json, QStringLiteral("golfer_well_lint"));
+        auto flagged = [&](const char *code, const char *subject) {
+            for (const ValidationIssue &i : lint.report.withCode(QString::fromLatin1(code)))
+                if (i.subject == QLatin1String(subject)) return true;
+            return false;
+        };
+        check(lint.loaded, "a pack with missing or negated golferWell phrases still loads");
+        check(flagged("golferPhraseMissing", "w_missing") && flagged("golferPhraseMissing", "w_first"),
+              "golferPhraseMissing: a detectable Any / First fault with no golferWell");
+        check(!flagged("golferPhraseMissing", "w_all") && !flagged("golferPhraseMissing", "w_setup")
+                  && !flagged("golferPhraseMissing", "w_clean") && !flagged("golferPhraseMissing", "w_dont"),
+              "golferPhraseMissing: silent on a conjunction, a set-up, and rows that have golferWell");
+        check(flagged("golferPhraseWording", "w_dont") && flagged("golferPhraseWording", "w_doesnt")
+                  && flagged("golferPhraseWording", "w_not") && flagged("golferPhraseWording", "w_never")
+                  && flagged("golferPhraseWording", "w_no"),
+              "golferPhraseWording: don't, doesn't (curly), not, never and no in a golferWell phrase");
+        check(flagged("golferPhraseWording", "w_jargon"),
+              "golferPhraseWording: anatomy and a P-position in a golferWell phrase");
+        check(!flagged("golferPhraseWording", "w_clean") && !flagged("golferPhraseWording", "w_missing"),
+              "golferPhraseWording: silent on a plain golferWell (\"noticeably\" is not \"no\")");
+
+        const PackLoadResult back = loadPack(savePack(lint.pack), QStringLiteral("golfer_well_lint2"));
+        const Condition *c = back.pack.condition(QStringLiteral("w_clean"));
+        const Condition *a = back.pack.condition(QStringLiteral("w_all"));
+        check(c && c->golferWell == QStringLiteral("you keep your arms noticeably wide at the top")
+                  && a && a->golferWell.isEmpty(),
+              "golferWell survives a save and reload, and stays absent where it was");
+    }
+
+    // ── …and golferWhy is one plain sentence about the shot ───────────────────────
+    //
+    // Required on the same rows as golferWell (a detectable Any / First fault), and nowhere else.
+    // It is a SENTENCE, so a lower-case start and a missing full stop each fire on their own row; a
+    // causal word fires (the reason is never another fault) and jargon fires as it does everywhere,
+    // while "so" — the word that states the cost to the shot — must not, and nor may "costs",
+    // which is not "causes".
+    {
+        const QByteArray json = R"({
+          "id": "golfer_why_lint", "version": "1", "schemaVersion": 1,
+          "measures": [
+            { "id": "m_a", "kind": "provided", "metricKey": "a", "status": "held",
+              "reducer": { "kind": "at", "anchor": "p1" }, "gapReason": "test",
+              "golferHigh": "your arms get wider at the top",
+              "golferLow": "your arms get narrower at the top" },
+            { "id": "m_b", "kind": "provided", "metricKey": "b", "status": "held",
+              "reducer": { "kind": "at", "anchor": "p1" }, "gapReason": "test",
+              "golferHigh": "your head rises more going back",
+              "golferLow": "your head drops more going back" } ],
+          "signals": [ { "id": "s_a", "test": "outsideCorridor", "measures": ["m_a"], "direction": "low" },
+                       { "id": "s_b", "test": "outsideCorridor", "measures": ["m_b"], "direction": "high" } ],
+          "conditions": [
+            { "id": "y_missing", "label": "c", "kind": "fault", "detectedBy": ["s_a"],
+              "golfer": "your swing gets narrow at the top",
+              "golferWell": "you keep your arms wide at the top" },
+            { "id": "y_first", "label": "c", "kind": "fault", "detection": "first",
+              "detectedBy": ["s_a", "s_b"], "golfer": "your swing gets narrow at the top",
+              "golferWell": "you keep your arms wide at the top" },
+            { "id": "y_all", "label": "c", "kind": "fault", "detection": "all",
+              "detectedBy": ["s_a", "s_b"], "golfer": "your swing gets narrow at the top" },
+            { "id": "y_setup", "label": "c", "kind": "setup", "detectedBy": ["s_a"],
+              "golfer": "you stand too close at address" },
+            { "id": "y_lower", "label": "c", "kind": "fault", "detectedBy": ["s_a"],
+              "golfer": "your swing gets narrow at the top",
+              "golferWell": "you keep your arms wide at the top",
+              "golferWhy": "a narrow swing has less room to build speed, so you lose distance." },
+            { "id": "y_nostop", "label": "c", "kind": "fault", "detectedBy": ["s_a"],
+              "golfer": "your swing gets narrow at the top",
+              "golferWell": "you keep your arms wide at the top",
+              "golferWhy": "A narrow swing has less room to build speed, so you lose distance" },
+            { "id": "y_because", "label": "c", "kind": "fault", "detectedBy": ["s_b"],
+              "golfer": "your head comes up going back",
+              "golferWell": "your head stays level going back",
+              "golferWhy": "Your head comes up because you stand up, so contact suffers." },
+            { "id": "y_leads", "label": "c", "kind": "fault", "detectedBy": ["s_b"],
+              "golfer": "your head comes up going back",
+              "golferWell": "your head stays level going back",
+              "golferWhy": "A rising head leads to thin contact." },
+            { "id": "y_jargon", "label": "c", "kind": "fault", "detectedBy": ["s_b"],
+              "golfer": "your head comes up going back",
+              "golferWell": "your head stays level going back",
+              "golferWhy": "Losing your pelvis tilt at P4 costs you speed." },
+            { "id": "y_clean", "label": "c", "kind": "fault", "detectedBy": ["s_a"],
+              "golfer": "your swing gets narrow at the top",
+              "golferWell": "you keep your arms wide at the top",
+              "golferWhy": "A narrow swing also has less room to build speed, so it costs you distance." } ]
+        })";
+        const PackLoadResult lint = loadPack(json, QStringLiteral("golfer_why_lint"));
+        auto flagged = [&](const char *code, const char *subject) {
+            for (const ValidationIssue &i : lint.report.withCode(QString::fromLatin1(code)))
+                if (i.subject == QLatin1String(subject)) return true;
+            return false;
+        };
+        check(lint.loaded, "a pack with missing or badly worded golferWhy sentences still loads");
+        check(flagged("golferPhraseMissing", "y_missing") && flagged("golferPhraseMissing", "y_first"),
+              "golferPhraseMissing: a detectable Any / First fault with no golferWhy");
+        check(!flagged("golferPhraseMissing", "y_all") && !flagged("golferPhraseMissing", "y_setup")
+                  && !flagged("golferPhraseMissing", "y_clean") && !flagged("golferPhraseMissing", "y_lower"),
+              "golferPhraseMissing: silent on a conjunction, a set-up, and rows that have golferWhy");
+        check(flagged("golferPhraseWording", "y_lower") && flagged("golferPhraseWording", "y_nostop"),
+              "golferPhraseWording: a golferWhy with no capital, and one with no full stop");
+        check(flagged("golferPhraseWording", "y_because") && flagged("golferPhraseWording", "y_leads"),
+              "golferPhraseWording: because and leads to in a golferWhy");
+        check(flagged("golferPhraseWording", "y_jargon"),
+              "golferPhraseWording: anatomy and a P-position in a golferWhy");
+        check(!flagged("golferPhraseWording", "y_clean") && !flagged("golferPhraseWording", "y_missing"),
+              "golferPhraseWording: silent on a plain golferWhy (\"so\" is allowed, \"costs\" is not \"causes\")");
+
+        const PackLoadResult back = loadPack(savePack(lint.pack), QStringLiteral("golfer_why_lint2"));
+        const Condition *c = back.pack.condition(QStringLiteral("y_clean"));
+        const Condition *a = back.pack.condition(QStringLiteral("y_all"));
+        check(c && c->golferWhy == QStringLiteral("A narrow swing also has less room to build speed, so it costs you distance.")
+                  && a && a->golferWhy.isEmpty(),
+              "golferWhy survives a save and reload, and stays absent where it was");
+    }
+
     // ── No LIVE corridor signal is left without a norm ─────────────────────────
     // "The pack is dark" was the state this whole exercise existed to end: 30 corridor signals and
     // not one norm to grade against, so the engine correctly reported Unavailable for every single

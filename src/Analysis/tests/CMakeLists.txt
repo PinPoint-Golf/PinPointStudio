@@ -140,6 +140,13 @@ pp_add_test(diagnostic_ledger_test SOURCES diagnostic_ledger_test.cpp)
 # weights, easing/cleared, and work_ons.json round-trip. Header-only.
 pp_add_test(work_ons_test SOURCES work_ons_test.cpp)
 
+# Swing themes (swing_themes.h) — the home screen's two-layer summary: the hand-written linear
+# algebra against numpy's values (eigensolver, varimax, Hungarian, ranks, percentiles), mt19937_64
+# and the per-replicate seeds, planted two-factor data recovered with the right members and tiers
+# while session drift is not, pure noise and thin data said honestly, serial == threaded, cancel,
+# layer 1's rules, the wording (never "because") and the JSON round-trip. Header-only, no pack.
+pp_add_test(swing_themes_test SOURCES swing_themes_test.cpp LINK Threads::Threads)
+
 # Launch monitor ball flight (lm_flight_path.h) — the drag + Magnus integration against
 # the design brief's reference shot, the launch/descent asymmetry that is the only reason
 # the curve is drawn rather than sketched, and the normalisation that pins the drawn
@@ -978,6 +985,20 @@ pp_add_test(core_pack_test
                     -DPP_CORE_NORMS_PATH="${DIAGRES}/norms.json"
                     -DPP_CORE_REFERENCES_PATH="${DIAGRES}/references.json")
 
+# Swing themes against the Python reference (tools/themes/make_golden.py) on real ledgers: the
+# fixture's five sessions of one golfer and the shipped core.json, marshalled through
+# swing_themes_pack.h as the app does, reduced on threads and compared with expected.json field by
+# field (prepared matrix, k, eigenvalues, loadings, tiers, members, stability, trend, layer 1 and
+# every line). Prints the reduction's wall time. ~2 s optimised, ~13 s in a -O0 build on 10 cores,
+# so the timeout leaves room for a slow Debug box.
+pp_add_test(swing_themes_golden_test
+    SOURCES swing_themes_golden_test.cpp ${DIAG_PACK} ${DIAG}/drill_pack.cpp
+    INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS}
+    LINK    Threads::Threads
+    COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json"
+                    -DPP_SWING_THEMES_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/swing_themes")
+set_tests_properties(swing_themes_golden_test PROPERTIES TIMEOUT 600)
+
 # Detection + explanation passes, DARK: synthetic measure source only, never invoked on a real
 # swing. Asserts the rule the whole library depends on — an absent measure resolves Unavailable and
 # never as a pass — plus greedy explanation ranking, the "a leaf is never a root" rule, and that
@@ -1231,6 +1252,11 @@ set_tests_properties(session_diagnostics_model_test PROPERTIES
 # re-derives a changed one, the pause while a session is live, and the home list's wording off
 # the shipped pack. work_ons_test (above, header-only) proves the two reductions. Same link line
 # as the model test, because the controller derives through the model.
+# The same catch-up ends in the home screen's swing summary (swing_themes.h, header-only, with
+# swing_themes_pack.h marshalling the pack): reduced on the controller's own pools once every
+# record is current, kept in swing_themes.json under a fingerprint, recomputed when a session
+# arrives or the file is from another rule, cancelled by a live session. Its threads are Qt's
+# (QThreadPool), so nothing is added to the link line.
 pp_add_test(work_ons_controller_test
     SOURCES ${DIAG}/tests/work_ons_controller_test.cpp
             ${SRC}/Gui/diagnostics/work_ons_controller.cpp

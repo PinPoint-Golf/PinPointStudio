@@ -1,17 +1,20 @@
-// END-TO-END: THE HOME SCREEN'S WORK ONS LIST.
+// END-TO-END: THE WORK ONS LIST — FAULTS, IN THE SWING DIAGNOSTICS SCREEN.
 //
 // work_ons_test proves the reductions and work_ons_controller_test the catch-up; neither can
-// see whether the home screen draws the list, opens a row, or offers the way into a session.
-// This drives the real app:
+// see whether the app draws the list, opens a row, or offers the way into a session. The list
+// lives on the Swing diagnostics screen, opened from the home screen's YOUR SWING. This drives
+// the real app:
 //
-//   wait for the catch-up → the list has rows → each row is drawn → opening one shows its
-//   detail and the "review the session" link.
+//   wait for the catch-up and the swing summary (its "Swing diagnostics →" link is drawn with
+//   it) → click the link → the list has rows → each row is drawn → opening one shows its detail
+//   and the "review the session" link.
 //
 // Point the app at a folder of sessions that is NOT the library (PINPOINT_WORKONS_DIR), so the
 // catch-up writes its work_ons.json files there:
 //   PINPOINT_WORKONS_DIR=<athlete dir> QT_QPA_PLATFORM=offscreen PinPointStudio \
 //       --probe-qml <abs path to this file> [--probe-min-rows 3] [--probe-png <abs path>]
 // Exit 0 = PASS, 1 = FAIL; "PROBE:" lines say why. build/run-me/verify-workons.sh wraps it.
+// The Mac app is a Debug build: the swing summary takes ~15 s there, so this waits up to 4 minutes.
 
 import QtQuick
 import PinPointStudio
@@ -45,6 +48,11 @@ Item {
         for (let i = 0; i < kids.length; ++i) walk(kids[i], name, out)
     }
     function rootItem() { let t = probe; while (t.parent) t = t.parent; return t }
+    function find(item, name) { const out = []; walk(item, name, out); return out.length ? out[0] : null }
+    function drawn(item) {
+        for (let t = item; t; t = t.parent) if (!t.visible) return false
+        return item.width > 0 && item.height > 0
+    }
 
     property int waited: 0
     property double startedMs: Date.now()
@@ -53,8 +61,29 @@ Item {
         onTriggered: {
             probe.waited += 1
             const done = workOns.athleteDir !== "" && !workOns.updating && workOns.sessionsFound > 0
-            if (!done && probe.waited < 480) return
+                         && workOns.summaryReady && !workOns.summaryUpdating
+            if (!done && probe.waited < 960) return      // 4 minutes
             running = false
+            probe.openDiagnostics()
+        }
+    }
+
+    // The list is on the Swing diagnostics screen: get there the golfer's way.
+    property var screen: null
+    function openDiagnostics() {
+        const link = find(rootItem(), "diagnosticsLink")
+        check(link !== null && drawn(link), "the home screen draws the 'Swing diagnostics →' link")
+        if (!link) { finish(); return }
+        link.clicked(null)
+        opened.start()
+    }
+    Timer {
+        id: opened
+        interval: 600
+        onTriggered: {
+            probe.screen = probe.find(probe.rootItem(), "swingDiagnosticsScreen")
+            probe.check(probe.screen !== null && probe.drawn(probe.screen), "the link opens the Swing diagnostics screen")
+            if (!probe.screen) { probe.finish(); return }
             probe.inspect()
         }
     }
@@ -79,8 +108,9 @@ Item {
         check(items.length >= minRows, "the list has at least " + minRows + " work-ons (" + items.length + ")")
 
         const rows = []
-        walk(rootItem(), "workOnRow", rows)
-        check(rows.length === Math.min(items.length, 5), "the home screen draws " + rows.length + " rows (five at most until 'more')")
+        walk(screen, "workOnRow", rows)
+        check(rows.length === Math.min(items.length, 5) && rows.every(drawn),
+              "Swing diagnostics draws " + rows.length + " rows (five at most until 'more')")
         if (rows.length === 0) { finish(); return }
 
         const details = [], presses = [], links = []

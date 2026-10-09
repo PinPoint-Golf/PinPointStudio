@@ -25,6 +25,9 @@ Method choices (all small enough to port to hand-written C++):
     95th percentile, 500 shuffles) — imputed cells never enter the retention decision.
   * Rotation: Kaiser varimax. Components are signed so their largest loading is positive.
   * Matching across resamples: Hungarian assignment on |congruence|.
+  * Random numbers: theme_rng (std::mt19937_64, as the app's DetRng), ONE seed per replicate —
+    parallel-analysis shuffle i from seed_for(1, i), bootstrap replicate b from seed_for(2, b) — so
+    the C++ port (src/Analysis/swing_themes.h) draws the same rows; make_golden.py pins it.
   * numpy only, so it runs under `python3 -I`; the PNG is drawn only if matplotlib imports.
 
     python3 -I tools/themes/theme_pca.py [--out DIR] [--boot 500]
@@ -42,6 +45,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from theme_data import centre_per_session, load_pack, load_table  # noqa: E402
+from theme_rng import MT19937_64, STREAM_BOOT, STREAM_PA, seed_for  # noqa: E402
 
 LIBRARY = "/mnt/swingdata/Mark-Liversedge"
 CORPUS = "/mnt/swingdata/corpus/swings"
@@ -203,15 +207,20 @@ def eig_desc(C):
     return w[o], V[:, o]
 
 
-def parallel_analysis(Z, n=500, q=95, rng=None):
+def shuffle_columns(Z, i):
+    """Parallel-analysis shuffle i: one DetRng seeded seed_for(STREAM_PA, i) permutes a copy of
+    each column in turn (NaNs travel with their column) by Fisher-Yates — the C++ draws the same."""
+    rng = MT19937_64(seed_for(STREAM_PA, i))
+    return np.column_stack([Z[rng.permutation_index(Z.shape[0]), j] for j in range(Z.shape[1])])
+
+
+def parallel_analysis(Z, n=500, q=95):
     """On PAIRWISE-COMPLETE correlations of the raw (NaN-bearing) matrix, so imputed cells cannot
     lend structure to the observed eigenvalues. Columns shuffled with their NaNs."""
-    rng = rng or np.random.default_rng(0)
     w, _ = eig_desc(corr_pairwise(Z))
     sims = np.empty((n, Z.shape[1]))
     for i in range(n):
-        P = np.column_stack([rng.permutation(Z[:, j]) for j in range(Z.shape[1])])
-        sims[i] = eig_desc(corr_pairwise(P))[0]
+        sims[i] = eig_desc(corr_pairwise(shuffle_columns(Z, i)))[0]
     thr = np.percentile(sims, q, axis=0)
     k = 0
     while k < len(w) and w[k] > thr[k]:
@@ -238,11 +247,12 @@ def varimax(L, gamma=1.0, iters=500, tol=1e-8):
     return (A @ R) * h[:, None]
 
 
-def fit(Z, k=None, impute="em", pa_n=500, rng=None):
-    """-> dict(k, L (rotated, signed, ordered), eig, thr, F (completed), varshare)."""
-    thr = None
+def fit(Z, k=None, impute="em", pa_n=500):
+    """-> dict(k, L (rotated, signed, ordered), eig (of the completed matrix), eigPa + thr (parallel
+    analysis, when k was not given), F (completed), varshare)."""
+    thr = w_pa = None
     if k is None:
-        k, w, thr = parallel_analysis(Z, n=pa_n, rng=rng)
+        k, w_pa, thr = parallel_analysis(Z, n=pa_n)
     F = em_impute(Z, k=k) if impute == "em" else np.where(np.isfinite(Z), Z, 0.0)
     w, V = eig_desc(corr(F))
     L = V[:, :k] * np.sqrt(np.maximum(w[:k], 0))
@@ -253,7 +263,8 @@ def fit(Z, k=None, impute="em", pa_n=500, rng=None):
     ss = np.sum(Lr ** 2, axis=0)
     o = np.argsort(ss)[::-1]
     Lr, ss = Lr[:, o], ss[o]
-    return {"k": k, "L": Lr, "eig": w, "thr": thr, "F": F, "varshare": ss / Z.shape[1]}
+    return {"k": k, "L": Lr, "eig": w, "eigPa": w_pa, "thr": thr, "F": F,
+            "varshare": ss / Z.shape[1]}
 
 
 def congruence(a, b):
@@ -416,27 +427,41 @@ def when_of(meta_m):
                default=0)
 
 
-def describe(pack, meta, orient, measures, L, j, cov):
-    members = []
-    for i in np.argsort(-np.abs(L[:, j])):
+def theme_members(L, j, measures, orient, meta):
+    """Theme j's members: |loading| >= LOAD_MIN, by -|loading| (stable). rawHigh = the theme pushes
+    the measure's RAW value up (loading x orientation sign > 0)."""
+    out = []
+    for i in np.argsort(-np.abs(L[:, j]), kind="stable"):
         if abs(L[i, j]) < LOAD_MIN:
             break
         m = measures[i]
-        sign = orient.get(m, (1.0, ""))[0]
-        raw_dir = "high" if L[i, j] * sign > 0 else "low"
+        sign = orient.get(m, (1.0, "twoSided"))[0]
+        out.append({"index": int(i), "measure": m, "loading": float(L[i, j]),
+                    "rawHigh": bool(L[i, j] * sign > 0), "when": when_of(meta.get(m, {}))})
+    return out
+
+
+def starts_at(members):
+    """The earliest swing position (1..10) any member is read at; 0 when none is placed."""
+    return min((x["when"] for x in members if x["when"] > 0), default=0)
+
+
+def describe(pack, meta, orient, measures, L, j, cov):
+    members = []
+    for x in theme_members(L, j, measures, orient, meta):
+        m, i = x["measure"], x["index"]
+        raw_dir = "high" if x["rawHigh"] else "low"
         members.append({
-            "measure": m, "label": meta[m].get("label") or m, "loading": round(float(L[i, j]), 3),
+            "measure": m, "label": meta[m].get("label") or m, "loading": round(x["loading"], 3),
             "orientation": orient.get(m, (1, "twoSided"))[1], "rawDirection": raw_dir,
-            "metricKey": meta[m].get("metricKey", ""), "when": when_of(meta[m]),
+            "metricKey": meta[m].get("metricKey", ""), "when": x["when"],
             "status": STATUS.get(m, ""), "view": meta[m].get("view", ""), "coverage": round(float(cov[i]), 2),
             "conditions": member_conditions(pack, m, raw_dir),
         })
-    whens = [x["when"] for x in members if x["when"] > 0]
+    w0 = starts_at(members)
     first = None
-    if whens:
-        w0 = min(whens)
-        first = [x["label"] for x in members if x["when"] == w0]
-        first = {"phase": f"P{w0}", "measures": first}
+    if w0:
+        first = {"phase": f"P{w0}", "measures": [x["label"] for x in members if x["when"] == w0]}
     return members, first
 
 
@@ -459,22 +484,109 @@ def names_for(members):
     return out[:3]
 
 
-# ── driver ───────────────────────────────────────────────────────────────────────────────────────
-def boot_stability(Z, session, ref, k, n, rng):
-    cs = []
-    groups = [np.where(session == s)[0] for s in np.unique(session)]
-    for _ in range(n):
-        idx = np.concatenate([rng.choice(g, size=len(g), replace=True) for g in groups])
-        f = fit(Z[idx], k=k)
-        cs.append(match(ref, f["L"]))
-    return np.array(cs)
+# ── stability, trend, tier ───────────────────────────────────────────────────────────────────────
+def boot_indices(session, b):
+    """Bootstrap replicate b's rows: one DetRng seeded seed_for(STREAM_BOOT, b); for each session
+    present, ascending, draw len(g) rows of that session with replacement (g[below(len(g))])."""
+    rng = MT19937_64(seed_for(STREAM_BOOT, b))
+    idx = []
+    for s in np.unique(session):
+        g = np.where(session == s)[0]
+        js = rng.raw_array(len(g)) % np.uint64(len(g))
+        idx.extend(g[js.astype(np.int64)].tolist())
+    return np.array(idx, dtype=int)
 
 
-def run(dirs, label, pack, orient, rng, pa_n=500):
+def boot_stability(Z, session, ref, k, n):
+    """n x k: congruence of each reference theme with its match in replicate b's fit (fixed k)."""
+    return np.array([match(ref, fit(Z[boot_indices(session, b)], k=k)["L"]) for b in range(n)])
+
+
+def loso_stability(Z, session, ref, k):
+    """sessions-present x k: congruence of each theme with its match when one session is left out.
+    Only sessions that still hold a swing after the sparse drop are left out (ascending)."""
+    return np.array([match(ref, fit(Z[session != s], k=k)["L"]) for s in np.unique(session)])
+
+
+def theme_tier(boot_median, boot_p05, loso_min, loso_median):
+    """How firmly a theme may be told (design table): 'firm', 'probably', 'possibly' or None."""
+    if boot_p05 >= 0.84 and loso_min >= 0.85:
+        return "firm"
+    if boot_median >= 0.75 and loso_median >= 0.9:
+        return "probably"
+    if boot_median >= 0.7 and loso_median >= 0.85:
+        return "possibly"
+    return None
+
+
+def stability_summary(B, loso, j):
+    b = B[:, j]
+    return {"bootMedian": float(np.median(b)), "bootP05": float(np.percentile(b, 5)),
+            "losoMin": float(np.min(loso[:, j])), "losoMedian": float(np.median(loso[:, j]))}
+
+
+def em_vs_zero_fill(Z, L, k):
+    """Per theme: congruence with the zero-fill fit at the same k (recorded, never a gate)."""
+    return match(L, fit(Z, k=k, impute="zero")["L"])
+
+
+def best_cluster(labels, measures, member_ids):
+    """The multi-member cluster (numbered by first appearance) sharing most with the theme, first
+    on ties; with its Jaccard overlap. ([], 0.0) when no cluster has two members."""
+    clusters = {}
+    for i, c in enumerate(labels):
+        clusters.setdefault(int(c), []).append(measures[i])
+    multi = [v for v in clusters.values() if len(v) > 1]
+    best = max(multi, key=lambda v: jaccard(v, member_ids), default=[])
+    return best, (jaccard(best, member_ids) if best else 0.0)
+
+
+def renumber_by_first_appearance(labels):
+    seen = {}
+    return np.array([seen.setdefault(int(c), len(seen) + 1) for c in labels], dtype=int)
+
+
+def session_trend(L, F, Xo, spread, session, slope_gate=0.1, min_t=2.0):
+    """Per theme: the session scores on the uncentred scale (in within-session SDs), the
+    least-squares slope over session order, and the reading (+1 more of it, -1 less, 0 flat).
+
+    Uncentred: (Xo - global median) / pooled spread, clipped at +-3 x WINSOR, unread -> 0, through
+    the least-squares score weights W = L (L'L)^-1. Scale: sqrt of the mean over sessions of the
+    within-session population variance of the EM-completed scores F W."""
+    W = scores_weights(L)
+    gmed = np.nanmedian(Xo, axis=0)
+    Zu = np.clip((Xo - gmed) / spread, -WINSOR * 3, WINSOR * 3)
+    Zu = np.where(np.isfinite(Zu), Zu, 0.0)
+    Su, Sc = Zu @ W, F @ W
+    present = np.unique(session)
+    k = L.shape[1]
+    within_sd = np.array([np.sqrt(np.mean([np.var(Sc[session == s, j]) for s in present]))
+                          for j in range(k)])
+    scores = np.array([[np.mean(Su[session == s, j]) / within_sd[j] for s in present]
+                       for j in range(k)])
+    x = np.arange(len(present), dtype=float)
+    xc = x - x.mean()
+    slopes = np.array([float(np.sum(xc * (scores[j] - scores[j].mean())) / np.sum(xc * xc))
+                       if len(present) > 1 else 0.0 for j in range(k)])
+    # ...and only when the sessions LINE UP: the slope stands min_t standard errors clear of zero,
+    # the error from the sessions' own scatter about the line. Session means carry drift far larger
+    # than their sampling error, so the slope gate alone reads drift as a trend.
+    n = len(present)
+    ses = np.full(k, np.inf)
+    if n > 2:
+        for j in range(k):
+            r = scores[j] - scores[j].mean() - slopes[j] * xc
+            ses[j] = np.sqrt(np.sum(r * r) / (n - 2) / np.sum(xc * xc))
+    lined = np.abs(slopes) >= min_t * ses
+    trends = np.where(~lined, 0, np.where(slopes > slope_gate, 1, np.where(slopes < -slope_gate, -1, 0)))
+    return scores, slopes, trends
+
+
+def run(dirs, label, pack, orient, pa_n=500):
     t, dropped = drop_sparse_swings(load_table(dirs, pack))
     print(f"{label}: dropped {len(dropped)} sparse swings {dropped}")
     Z, measures, Xo, spread = prepare(t, orient)
-    f = fit(Z, pa_n=pa_n, rng=rng)
+    f = fit(Z, pa_n=pa_n)
     return t, Z, measures, Xo, spread, f
 
 
@@ -484,36 +596,31 @@ def main():
     ap.add_argument("--boot", type=int, default=500)
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
-    rng = np.random.default_rng(20261009)
     pack = load_pack()
     orient = orientation(pack)
     STATUS.update({m["id"]: m.get("status", "") for m in pack["measures"]})
 
     lib_dirs = sorted(glob.glob(os.path.join(LIBRARY, "*/")))
-    t, Z, measures, Xo, spread, f = run(lib_dirs, "library", pack, orient, rng)
+    t, Z, measures, Xo, spread, f = run(lib_dirs, "library", pack, orient)
     meta = t.meta
     cov = np.mean(np.isfinite(Z), axis=0)
     k, L = f["k"], f["L"]
     print(f"library: {Z.shape[0]} swings x {Z.shape[1]} measures, {len(t.sessions)} sessions")
-    print(f"parallel analysis keeps k={k}; eig {np.round(f['eig'][:6], 2)} "
+    print(f"parallel analysis keeps k={k}; eig {np.round(f['eigPa'][:6], 2)} "
           f"thr {np.round(f['thr'][:6], 2)}")
 
     # imputation check
-    fz = fit(Z, k=k, impute="zero")
-    imp_cong = match(L, fz["L"])
+    imp_cong = em_vs_zero_fill(Z, L, k)
     print("EM vs zero-fill congruence:", np.round(imp_cong, 3))
 
     # bootstrap / LOSO
-    B = boot_stability(Z, t.session, L, k, a.boot, rng)
-    loso = []
-    for s in range(len(t.sessions)):
-        r = t.session != s
-        loso.append(match(L, fit(Z[r], k=k)["L"]))
-    loso = np.array(loso)
+    B = boot_stability(Z, t.session, L, k, a.boot)
+    loso = loso_stability(Z, t.session, L, k)
+    present = [t.sessions[s] for s in np.unique(t.session)]
 
     # families collapsed
     keep_idx, fams = families(measures, meta, cov)
-    fc = fit(Z[:, keep_idx], k=None, pa_n=500, rng=rng)
+    fc = fit(Z[:, keep_idx], k=None, pa_n=500)
     Lfull_on_keep = L[keep_idx]
     collapse_cong = match(Lfull_on_keep, fc["L"])
     collapse_cong_k = match(Lfull_on_keep, fit(Z[:, keep_idx], k=k)["L"])
@@ -522,6 +629,7 @@ def main():
 
     # clustering
     labels, Rs = cluster(Z)
+    labels = renumber_by_first_appearance(labels)
     clusters = {}
     for i, c in enumerate(labels):
         clusters.setdefault(int(c), []).append(measures[i])
@@ -533,7 +641,7 @@ def main():
     Zc_all, mc, _, _ = prepare(tc, orient)
     common = [m for m in measures if m in mc]
     Zc = Zc_all[:, [mc.index(m) for m in common]]
-    fcorp = fit(Zc, k=None, pa_n=500, rng=rng)
+    fcorp = fit(Zc, k=None, pa_n=500)
     fcorp_k = fit(Zc, k=k)
     Lc_ref = L[[measures.index(m) for m in common]]
     corp_cong = match(Lc_ref, fcorp_k["L"])
@@ -547,7 +655,7 @@ def main():
     common_o = [m for m in measures if m in mo]
     Zo = Zo_all[:, [mo.index(m) for m in common_o]]
     fo = fit(Zo, k=k)
-    fo_free = fit(Zo, k=None, pa_n=500, rng=rng)
+    fo_free = fit(Zo, k=None, pa_n=500)
     corp_only_cong = match(L[[measures.index(m) for m in common_o]], fo["L"])
     corp_only_cong_free = match(L[[measures.index(m) for m in common_o]], fo_free["L"])
     print(f"corpus only: {Zo.shape[0]} swings, {len(to.sessions)} sessions, PA k={fo_free['k']}; "
@@ -555,48 +663,39 @@ def main():
           f"{np.round(corp_only_cong_free, 3)}")
 
     # session trend (uncentred, projected through the same weights)
-    W = scores_weights(L)
-    gmed = np.nanmedian(Xo, axis=0)
-    Zu = np.clip((Xo - gmed) / spread, -WINSOR * 3, WINSOR * 3)
-    Zu = np.where(np.isfinite(Zu), Zu, 0.0)
-    Su = Zu @ W
-    Sc = f["F"] @ W
-    within_sd = np.array([np.sqrt(np.mean([np.var(Sc[t.session == s, j])
-                                           for s in range(len(t.sessions))]))
-                          for j in range(k)])
+    scores, slopes, trends = session_trend(L, f["F"], Xo, spread, t.session)
 
     themes, stab_rows, sess_rows = [], [], []
     for j in range(k):
         members, first = describe(pack, meta, orient, measures, L, j, cov)
         mem_ids = [x["measure"] for x in members]
-        best_c = max(multi.values(), key=lambda v: jaccard(v, mem_ids), default=[])
-        sm = [float(np.mean(Su[t.session == s, j]) / within_sd[j])
-              for s in range(len(t.sessions))]
-        x = np.arange(len(sm))
-        slope = float(np.polyfit(x, sm, 1)[0])
-        b = B[:, j]
-        st = {"theme": j + 1, "boot_median": float(np.median(b)),
-              "boot_p05": float(np.percentile(b, 5)), "boot_frac_ge_085": float(np.mean(b >= STABLE)),
-              "loso_min": float(np.min(loso[:, j])), "loso_median": float(np.median(loso[:, j])),
+        best_c, best_j = best_cluster(labels, measures, mem_ids)
+        sm = [float(v) for v in scores[j]]
+        slope = float(slopes[j])
+        ss = stability_summary(B, loso, j)
+        st = {"theme": j + 1, "boot_median": ss["bootMedian"],
+              "boot_p05": ss["bootP05"], "boot_frac_ge_085": float(np.mean(B[:, j] >= STABLE)),
+              "loso_min": ss["losoMin"], "loso_median": ss["losoMedian"],
               "em_vs_zero_fill": float(imp_cong[j]), "families_collapsed_own_k": float(collapse_cong[j]),
               "families_collapsed_same_k": float(collapse_cong_k[j]),
               "plus_corpus_same_k": float(corp_cong[j]), "plus_corpus_own_k": float(corp_cong_free[j]),
               "corpus_only_same_k": float(corp_only_cong[j]),
               "corpus_only_own_k": float(corp_only_cong_free[j])}
         st["stable"] = bool(st["boot_median"] >= STABLE and st["loso_min"] >= 0.80)
+        st["tier"] = theme_tier(ss["bootMedian"], ss["bootP05"], ss["losoMin"], ss["losoMedian"])
         stab_rows.append(st)
-        for s, v in zip(t.sessions, sm):
+        for s, v in zip(present, sm):
             sess_rows.append({"theme": j + 1, "session": s, "n": int(np.sum(t.session ==
                               t.sessions.index(s))), "score_within_sd": round(v, 3)})
         themes.append({
             "theme": j + 1, "varianceShare": round(float(f["varshare"][j]), 3),
             "members": members, "startsAt": first, "candidateNames": names_for(members),
             "stability": {k_: (round(v, 3) if isinstance(v, float) else v) for k_, v in st.items()},
-            "clusterAgreement": {"bestCluster": best_c, "jaccard": round(jaccard(best_c, mem_ids), 2)},
-            "sessionTrend": {"sessions": t.sessions, "scoreWithinSd": [round(v, 3) for v in sm],
-                             "slopePerSession": round(slope, 3),
-                             "reading": "worse (more of the fault)" if slope > 0.1 else
-                             "better (less of the fault)" if slope < -0.1 else "flat"},
+            "clusterAgreement": {"bestCluster": best_c, "jaccard": round(best_j, 2)},
+            "sessionTrend": {"sessions": present, "scoreWithinSd": [round(v, 3) for v in sm],
+                             "slopePerSession": round(slope, 3), "trend": int(trends[j]),
+                             "reading": "worse (more of the fault)" if trends[j] > 0 else
+                             "better (less of the fault)" if trends[j] < 0 else "flat"},
         })
 
     # ── write ──
@@ -622,7 +721,7 @@ def main():
     doc = {
         "method": __doc__.strip().split("\n\n")[2],
         "library": {"swings": int(Z.shape[0]), "measures": len(measures), "sessions": t.sessions,
-                    "k": k, "eigen": np.round(f["eig"][:8], 3).tolist(),
+                    "k": k, "eigen": np.round(f["eigPa"][:8], 3).tolist(),
                     "paThreshold": np.round(f["thr"][:8], 3).tolist()},
         "themes": themes,
         "clusters": {str(c): v for c, v in multi.items()},

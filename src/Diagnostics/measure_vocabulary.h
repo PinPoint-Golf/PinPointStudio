@@ -174,6 +174,21 @@ struct Measure {
     // docs/design/pinpoint_sign_conventions.md.
     QString       highMeans;
 
+    // How a GOLFER, not a coach, would say that a reading was higher — and lower — than usual. Used
+    // by the home screen's plain-language summary (docs/design/home_themes_design.md) in "On swings
+    // where {A}, {B}", across ONE golfer's swings compared with each other, so both phrases are
+    // COMPARATIVE to that golfer's usual and never absolute: "your hips slide further toward the
+    // target", "your hips turn less going back".
+    //
+    // Derived from `highMeans`, and an inverted pair is the same bug an inverted signal is: a
+    // summary that tells a golfer the opposite of what their swings did, in words they will trust
+    // because they are plain. Each phrase stands alone — the other half of the sentence may be any
+    // measure at all, so "them" or "it" has nothing to refer to. Two measures of one quantity at
+    // different moments say the moment ("going back" / "coming down"), or a theme naming both reads
+    // as the same thing twice. `golferPhraseMissing` / `golferPhraseWording` lint both.
+    QString       golferHigh;
+    QString       golferLow;
+
     // A tail that GRADES and is deliberately not watched, with the reason it is not.
     //
     // Same contract as `gapReason` for NotCapturable: the field says something is intentional, the

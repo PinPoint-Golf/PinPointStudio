@@ -237,7 +237,36 @@ struct Condition {
     // rendering "Scooping — also called flipping: …" needs no second dataset. Two conditions may not
     // claim one term (`duplicateAlias`), or a search would resolve to whichever came first.
     QStringList                 aliases;
-    QString                     axis;                  // joins the two tails of one measure; may be empty
+    // The fault as a GOLFER, not a coach, would hear it said — "you stand up through the ball",
+    // "your hips sway away from the target going back". Second person, present tense, lower-case,
+    // plain body words, a swing position rather than a P-number. Used by the home screen's
+    // plain-language summary (docs/design/home_themes_design.md), which shows no labels, metrics or
+    // causal model at all, so this is the only name the condition has there. Not the label
+    // reworded: the label is for an author, and `golferPhraseWording` refuses the words that would
+    // make it one again. Empty is legal and loads; `golferPhraseMissing` says so where it matters.
+    QString                     golfer;
+    // The same fault's ABSENCE, said as what the golfer does instead — "you keep your arms wide at
+    // the top", "your lead arm stays connected to your chest going back". The home screen's "What you
+    // do well" card speaks in it, and it names the IDEAL the corridor rewards, not the fault negated:
+    // "you don't lose width" tells a golfer what they avoided, not what they did. So the wording lint
+    // refuses don't / doesn't / not / never / no here, on top of everything it refuses in `golfer`.
+    // Two tails of one measure may share it — flat and steep backswing are both "the club goes back
+    // on plane". Required (`golferPhraseMissing`) only where that card can name the row: a detectable
+    // Fault whose signals combine Any or First; a conjunction is never one thing the golfer does well.
+    QString                     golferWell;
+    // What the fault COSTS the golfer's shots, said the way they would say it — "A straight trail
+    // leg lets your hips slide instead of turn, so you lose power and contact gets harder to
+    // repeat." The home screen's focus card puts it under the fault so the golfer knows why this
+    // one is worth the work. It is `consequence` translated, not shortened: the coach's prose says
+    // what the move does to the swing, this says what that does to speed, distance, contact,
+    // direction, consistency or the body, and nothing else. ONE sentence, so unlike the two phrases
+    // above it starts with a capital and ends with a full stop (the wording lint checks both). "so"
+    // is the word that carries it, and it is allowed: it states a consequence for the shot, which is
+    // the point, where because / causes / leads to would claim a link between faults that the home
+    // screen has no evidence for. Never another fault as the reason. Required on the same rows as
+    // `golferWell`.
+    QString                     golferWhy;
+    QString                     axis;                // joins the two tails of one measure; may be empty
     ConditionGroup              group        = ConditionGroup::Setup;
     ConditionKind               kind         = ConditionKind::Fault;   // what sort of thing; see above
     // The MIDDLE rung, deliberately, and not the first value the way every other enum here defaults.
