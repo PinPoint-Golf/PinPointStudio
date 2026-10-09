@@ -100,15 +100,8 @@ Item {
     implicitHeight: large ? px(240) : px(30)
     visible: count > 0
 
-    // The corridor strip's band colours: the faults' coral past the fault line, never the alarm
-    // red (13.2). The strip above the run names the bands in words.
-    function bandColor(grade) {
-        if (grade === "ideal")  return Qt.alpha(Theme.colorGood, 0.18)
-        if (grade === "good")   return Qt.alpha(Theme.colorGood, 0.08)
-        if (grade === "watch")  return Qt.alpha(Theme.colorAttention, 0.18)
-        if (grade === "action") return Qt.alpha(Theme.colorWarn, 0.14)
-        return "transparent"
-    }
+    // The bands are the corridor strip's (Theme.corridorFill); the strip above the run names them
+    // in words.
 
     // A value of 1 is the top of the axis; the plot reserves the not-assessable tick's height at
     // the bottom so a reading at the axis floor never sits on top of one.
@@ -125,7 +118,7 @@ Item {
             y: root._y(modelData.f1 || 0)
             x: root._gutter; width: root._pw
             height: Math.max(0, root._y(modelData.f0 || 0) - root._y(modelData.f1 || 0))
-            color: root.bandColor(grade)
+            color: Theme.corridorFill(grade)
         }
     }
     Repeater {

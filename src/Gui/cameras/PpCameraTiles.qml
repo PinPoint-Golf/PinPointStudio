@@ -112,7 +112,6 @@ Item {
 
     // Chrome that floats over the footage (the picture-in-picture's halo and transport): the
     // overlay palette's dark ink, fixed across themes, under the palette's lightest words.
-    readonly property color _scrim:   Qt.alpha(Theme.poseInk, 0.6)
     readonly property color _onScrim: Theme.dark ? Theme.colorText : Theme.colorBg
 
     RowLayout {
@@ -292,7 +291,7 @@ Item {
             anchors.fill: parent
             anchors.margins: -Theme.sp(3)
             radius: Theme.radius
-            color: root._scrim
+            color: Theme.colorScrim
         }
 
         Loader {
@@ -370,7 +369,7 @@ Item {
             anchors.bottom: parent.bottom
             height: Theme.sp(22)
             z: 11   // over the move/resize MouseArea
-            color: root._scrim
+            color: Theme.colorScrim
 
             readonly property real  t0:   shotReplay.impactLoopStartUs
             readonly property real  t1:   shotReplay.impactLoopEndUs

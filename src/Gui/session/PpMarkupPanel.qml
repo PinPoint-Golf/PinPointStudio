@@ -55,7 +55,6 @@ Item {
 
     // What sits ON a frame (the pane HUDs): the overlay palette's dark ink, fixed across
     // themes, under the palette's lightest words — so it reads over any still in either theme.
-    readonly property color _scrim:   Qt.alpha(Theme.poseInk, 0.6)
     readonly property color _onScrim: Theme.dark ? Theme.colorText : Theme.colorBg
 
     // grip→head picking is two clicks; the first is held here until the second.
@@ -1066,7 +1065,7 @@ Item {
             height: hud.height + Theme.sp(8)
             radius: Theme.radius
             clip: true
-            color: root._scrim
+            color: Theme.colorScrim
             Row {
                 id: hud
                 x: Theme.sp(8)

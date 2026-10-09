@@ -350,6 +350,8 @@ QtObject {
     // direction. Mirrors the constants in src/Video/video_overlay_pose.cpp.
     readonly property color poseBone:        "#74d0e6"   // bones, joint rings, head, dots
     readonly property color poseInk:         "#c8121a23" // ring fill (dark ink, ~200 alpha)
+    // The dark backing behind text laid over video (camera tiles, camera frame, markup).
+    readonly property color colorScrim:      Qt.alpha(poseInk, 0.6)
     readonly property color poseSpineTop:    "#d6f2ff"   // spine neck end + end tick + diamonds
     readonly property color poseSpineBottom: "#4aa6c4"   // spine pelvis end
     readonly property color poseSpineTick2:  "#6cc3dc"   // pelvis-end spine tick
@@ -630,6 +632,57 @@ QtObject {
         if (score < 50) return colorWarnLight
         if (score < 75) return colorAttentionLight
         return colorGoodLight
+    }
+    // A judged reading's verdict (charts, chart summary, chart key). Either spelling of a band is
+    // read — the chart's good / attention / warn, the scorer's green / yellow / red — and anything
+    // else is no verdict, never a pass.
+    function bandVerdict(b) {
+        return (b === "good" || b === "green")                          ? "good"
+             : (b === "attention" || b === "yellow" || b === "amber")   ? "attention"
+             : (b === "warn" || b === "red")                            ? "warn"
+             :                                                            ""
+    }
+    // The verdict's colour. No verdict is `none`, which defaults to the quiet grey of a dot that
+    // only marks a position; a reading in running text passes colorText instead.
+    function verdictColor(v, none) {
+        return v === "good"      ? colorGood
+             : v === "attention" ? colorAttention
+             : v === "warn"      ? colorWarn
+             : (none !== undefined ? none : colorText3)
+    }
+    // ...and its words, so a verdict is never told by colour alone.
+    function verdictWords(v) {
+        return v === "good"      ? qsTr("in range")
+             : v === "attention" ? qsTr("watch")
+             : v === "warn"      ? qsTr("outside")
+             :                     ""
+    }
+    // Corridor bands (ideal / good / watch / action), wherever a corridor is drawn: the corridor
+    // strip, the value run, the session history and the model editor's plot. The status family —
+    // green inside, amber where it fires, the faults' coral past the fault line, never the alarm
+    // red (13.2). Good is the Ideal green at half strength: inside the corridor, not at its centre.
+    // The FILL is shaded low enough that a dot of the same family still reads on top of it.
+    function corridorFill(grade) {
+        if (grade === "ideal")  return Qt.alpha(colorGood, 0.20)
+        if (grade === "good")   return Qt.alpha(colorGood, 0.09)
+        if (grade === "watch")  return Qt.alpha(colorAttention, 0.20)
+        if (grade === "action") return Qt.alpha(colorWarn, 0.16)
+        return "transparent"   // `open`: the side a norm does not grade is background
+    }
+    // The band's own colour at full strength, for a swatch that names it.
+    function corridorTone(grade) {
+        if (grade === "ideal")  return colorGood
+        if (grade === "good")   return Qt.alpha(colorGood, 0.5)
+        if (grade === "watch")  return colorAttention
+        if (grade === "action") return colorWarn
+        return colorText3
+    }
+    function corridorWord(grade) {
+        return grade === "ideal"  ? qsTr("IDEAL")
+             : grade === "good"   ? qsTr("GOOD")
+             : grade === "watch"  ? qsTr("WATCH")
+             : grade === "action" ? qsTr("ACTION")
+             :                      ""
     }
     // Session-diagnostics strength ramp (PpStrengthMeter): the 0..5 step a reading sits at,
     // off diagnostic_ledger.h's severityLevel(), to the status family the rest of the panel

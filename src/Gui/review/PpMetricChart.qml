@@ -699,20 +699,13 @@ Item {
     }
 
     // The P-dot verdicts the plots are drawing, in the order the key lists them — so the key under
-    // the legend names only shapes that are on screen. `band` is normalised exactly as
-    // PpChartPlot._verdict does it (keep the two equal): either spelling, and anything else is no
-    // verdict, never a pass.
-    function _verdict(b) {
-        return (b === "good" || b === "green")                          ? "good"
-             : (b === "attention" || b === "yellow" || b === "amber")   ? "attention"
-             : (b === "warn" || b === "red")                            ? "warn"
-             :                                                            ""
-    }
+    // the legend names only shapes that are on screen. `band` is normalised by Theme.bandVerdict,
+    // as the plots do it: either spelling, and anything else is no verdict, never a pass.
     readonly property var _dotVerdicts: {
         var seen = {}
         for (var i = 0; i < root._visible.length; ++i) {
             var ps = root._visible[i].phaseSamples || []
-            for (var j = 0; j < ps.length; ++j) seen[root._verdict(ps[j].band)] = true
+            for (var j = 0; j < ps.length; ++j) seen[Theme.bandVerdict(ps[j].band)] = true
         }
         return ["good", "attention", "warn", ""].filter(function (v) { return seen[v] === true })
     }
@@ -970,10 +963,7 @@ Item {
         id: dk
         property string verdict: ""
         readonly property bool open: dk.verdict === "attention" || dk.verdict === "warn"
-        readonly property color tone: dk.verdict === "good"      ? Theme.colorGood
-                                    : dk.verdict === "attention" ? Theme.colorAttention
-                                    : dk.verdict === "warn"      ? Theme.colorWarn
-                                    :                              Theme.colorText3
+        readonly property color tone: Theme.verdictColor(dk.verdict)
         readonly property real r: dk.open ? Theme.sp(4) : Theme.sp(3.2)
         width: 2 * dk.r; height: 2 * dk.r
         Rectangle {
@@ -1504,10 +1494,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                         }
                         Text {
-                            text: keyItem.modelData === "good"      ? qsTr("in range")
-                                : keyItem.modelData === "attention" ? qsTr("watch")
-                                : keyItem.modelData === "warn"      ? qsTr("outside")
-                                :                                     qsTr("position, not judged")
+                            text: Theme.verdictWords(keyItem.modelData) || qsTr("position, not judged")
                             anchors.verticalCenter: parent.verticalCenter
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
                             color: Theme.colorText3

@@ -136,15 +136,6 @@ Item {
         root._frozenMax = NaN
     }
 
-    function _bandColor(grade) {
-        switch (grade) {
-        case "ideal":  return Theme.colorRagGood
-        case "good":   return Theme.colorBandGreen
-        case "watch":  return Theme.colorRagWatch
-        case "action": return Theme.colorRagFault
-        }
-        return Theme.colorRagNone
-    }
 
     implicitHeight: Theme.sp(210)
 
@@ -181,9 +172,8 @@ Item {
                     x:      modelData.x
                     width:  modelData.w
                     height: canvas.height
-                    color:  root._bandColor(modelData.grade)
-                    // Very low alpha: these are the context the curve sits in, not the subject.
-                    opacity: modelData.grade === "ideal" ? 0.13 : 0.07
+                    // The corridor strip's fills: the context the curve sits in, not the subject.
+                    color:  Theme.corridorFill(modelData.grade)
                 }
             }
 
@@ -390,7 +380,7 @@ Item {
                         implicitWidth:  Theme.sp(7)
                         implicitHeight: Theme.sp(7)
                         radius: width / 2
-                        color:  root._bandColor(share.modelData.g)
+                        color:  Theme.corridorTone(share.modelData.g)
                     }
                     Text {
                         text: qsTr("%1 %2%").arg(share.modelData.w)

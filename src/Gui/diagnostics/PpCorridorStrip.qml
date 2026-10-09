@@ -94,26 +94,8 @@ Item {
     readonly property string _dirC: spread ? (spread.dirCentre || "") : ""
     readonly property string _dirR: spread ? (spread.dirRight || "") : ""
 
-    // THE BAND COLOURS, by meaning and in both themes. The status family the rest of the panel
-    // already reads — green inside, amber where it fires, the faults' coral past the fault line —
-    // at a fill
-    // alpha low enough that a dot of the same family still reads on top. Good is the Ideal green
-    // at half strength, which is what it is: inside the corridor, not at its centre.
-    function bandColor(grade) {
-        if (grade === "ideal")  return Qt.alpha(Theme.colorGood, 0.20)
-        if (grade === "good")   return Qt.alpha(Theme.colorGood, 0.09)
-        if (grade === "watch")  return Qt.alpha(Theme.colorAttention, 0.20)
-        if (grade === "action") return Qt.alpha(Theme.colorWarn, 0.16)
-        return "transparent"   // `open`: the side the norm does not grade is background
-    }
-    // ...and their names, so a band is never told by its colour alone.
-    function bandWord(grade) {
-        return grade === "ideal"  ? qsTr("IDEAL")
-             : grade === "good"   ? qsTr("GOOD")
-             : grade === "watch"  ? qsTr("WATCH")
-             : grade === "action" ? qsTr("ACTION")
-             :                      ""
-    }
+    // The band colours and their names are Theme.corridorFill and Theme.corridorWord, shared with
+    // the value run, the session history and the model editor's plot.
     function dotColor(state) {
         // A firing is a fault, colorWarn — not the alarm red (13.2).
         return state === "fired" ? Theme.colorWarn
@@ -318,7 +300,7 @@ Item {
                 x: (modelData.f0 || 0) * plot.width
                 width: Math.max(0, ((modelData.f1 || 0) - (modelData.f0 || 0)) * plot.width)
                 height: plot.height
-                color: root.bandColor(grade)
+                color: Theme.corridorFill(grade)
 
                 // The band's name in Micro words at its foot, where it has the room for them.
                 PpMicro {
@@ -327,7 +309,7 @@ Item {
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: root.px(1)
                     visible: !root.bare && text !== "" && parent.width >= implicitWidth + root.px(6)
-                    text: root.bandWord(parent.grade)
+                    text: Theme.corridorWord(parent.grade)
                     font.pixelSize: root.tzCaption
                     font.letterSpacing: Theme.trackingData
                 }

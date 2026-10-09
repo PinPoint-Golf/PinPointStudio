@@ -121,27 +121,8 @@ ColumnLayout {
     // phaseSample anywhere near impact showed its @impact reading in PASS GREEN — a grade invented
     // from an empty list. A missing verdict is not a good one.
     //
-    // Either spelling of a band is read (the chart's good / attention / warn, the scorer's
-    // green / yellow / red); the map is PpChartPlot._verdict's, and the two must stay equal.
-    function _verdict(b) {
-        return (b === "good" || b === "green")                          ? "good"
-             : (b === "attention" || b === "yellow" || b === "amber")   ? "attention"
-             : (b === "warn" || b === "red")                            ? "warn"
-             :                                                            ""
-    }
-    function _bandColor(v) {
-        return v === "warn"      ? Theme.colorWarn
-             : v === "attention" ? Theme.colorAttention
-             : v === "good"      ? Theme.colorGood
-             :                     Theme.colorText
-    }
-    // A judged reading says so in words as well as in its colour and its badge.
-    function _verdictWords(v) {
-        return v === "good"      ? qsTr("in range")
-             : v === "attention" ? qsTr("watch")
-             : v === "warn"      ? qsTr("outside")
-             :                     ""
-    }
+    // Either spelling of a band is read (Theme.bandVerdict), and a judged reading says so in
+    // words (Theme.verdictWords) as well as in its colour and its badge.
     // WHICH ARRAY IS THE CURVE (Phase 6): `mean` — the 40 ms centred windowed mean the chart strokes
     // and summaryMasked reduces — where the host decorated one (PpMetricChart._plottable), else the
     // persisted `value`. The same one-line rule as PpChartPlot._meanOf, PpMetricChart._meanOf and
@@ -416,10 +397,10 @@ ColumnLayout {
                         // No curve: one tile per phase sample, nothing window-scoped.
                         var pss = card.modelData.phaseSamples || []
                         for (i = 0; i < pss.length; ++i) {
-                            var v0 = root._verdict(cm.bandAtNearest(pss, pss[i].t_us))
+                            var v0 = Theme.bandVerdict(cm.bandAtNearest(pss, pss[i].t_us))
                             out.push({ label: card.readLabel({ phase: pss[i].phase }),
                                        text: card.fmt(pss[i].value), ok: true,
-                                       verdict: v0, color: root._bandColor(v0),
+                                       verdict: v0, color: Theme.verdictColor(v0, Theme.colorText),
                                        sub: "", unit: "", tip: "", window: false })
                         }
                         var cos0 = grid._companionsOf(card.modelData.key)
@@ -432,11 +413,11 @@ ColumnLayout {
                     var rs = sp.readAt || []
                     for (i = 0; i < rs.length; ++i) {
                         var r = card.reading(rs[i].phase)
-                        var v = r.ok ? root._verdict(cm.bandAtNearest(card.modelData.phaseSamples, r.us)) : ""
+                        var v = r.ok ? Theme.bandVerdict(cm.bandAtNearest(card.modelData.phaseSamples, r.us)) : ""
                         out.push({ label: card.readLabel(rs[i]),
                                    text: r.ok ? card.fmt(r.val) : "—",
                                    ok: r.ok, verdict: v,
-                                   color: r.ok ? root._bandColor(v) : Theme.colorText3,
+                                   color: r.ok ? Theme.verdictColor(v, Theme.colorText) : Theme.colorText3,
                                    sub: "", unit: "", window: false,
                                    tip: (r.ok && r.raw !== "")
                                         ? qsTr("Drawn value (40 ms windowed mean). "
@@ -515,10 +496,10 @@ ColumnLayout {
                     var rs = sp.readAt || []
                     for (i = 0; i < rs.length; ++i) {
                         var r = card.companionReading(s, rs[i].phase)
-                        var v = r.ok ? root._verdict(cm.bandAtNearest(s.phaseSamples, r.us)) : ""
+                        var v = r.ok ? Theme.bandVerdict(cm.bandAtNearest(s.phaseSamples, r.us)) : ""
                         out.push({ label: rs[i].label ? rs[i].label : nm + " " + card.readLabel(rs[i]),
                                    text: r.ok ? cm.formatBare(r.val, s.unit) : "—", ok: r.ok,
-                                   verdict: v, color: r.ok ? root._bandColor(v) : Theme.colorText3,
+                                   verdict: v, color: r.ok ? Theme.verdictColor(v, Theme.colorText) : Theme.colorText3,
                                    sub: "", unit: r.ok ? unit : "", tip: "", window: false })
                     }
                     if (sp.delta && sp.deltaSpan) {
@@ -675,7 +656,7 @@ ColumnLayout {
                                         Layout.alignment: Qt.AlignVCenter
                                         size: Theme.sp(16)
                                         kind: verdict === "good" ? "check" : "target"
-                                        tone: root._bandColor(verdict)
+                                        tone: Theme.verdictColor(verdict, Theme.colorText)
                                     }
                                     Text { id: valText
                                            Layout.alignment: Qt.AlignBaseline
@@ -702,7 +683,7 @@ ColumnLayout {
                                 // reading without one sits level with a PEAK that has one. A judged
                                 // reading has no ± and says its band here instead, in its tone.
                                 Text { readonly property string words: cell.tile && cell.tile.verdict
-                                                                       ? root._verdictWords(cell.tile.verdict) : ""
+                                                                       ? Theme.verdictWords(cell.tile.verdict) : ""
                                        Layout.fillWidth: true; elide: Text.ElideRight
                                        text: (cell.tile && cell.tile.sub) ? cell.tile.sub
                                            : words !== "" ? words : "±"
@@ -711,7 +692,7 @@ ColumnLayout {
                                        font.pixelSize: Theme.fontSzMicro
                                        font.letterSpacing: Theme.trackingData
                                        color: words !== "" && !(cell.tile && cell.tile.sub)
-                                              ? root._bandColor(cell.tile.verdict) : Theme.colorText3 }
+                                              ? Theme.verdictColor(cell.tile.verdict, Theme.colorText) : Theme.colorText3 }
                             }
                         }
                     }

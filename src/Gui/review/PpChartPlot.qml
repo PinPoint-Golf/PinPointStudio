@@ -200,23 +200,11 @@ Item {
     //
     // ⚠ THIS USED TO FALL THROUGH TO colorGood, so every one of those verdict-less dots drew in
     // pass green, and a "yellow" or "red" from an older file drew green too. Anything not
-    // recognised is now "" — no verdict, drawn grey. The same map is in PpMetricChart (the dot
-    // key under the legend) and PpChartSummary (the reading tiles); keep the three equal.
+    // recognised is now "" — no verdict, drawn grey. The map is Theme.bandVerdict, shared with
+    // PpMetricChart (the dot key under the legend) and PpChartSummary (the reading tiles).
     //
     // A verdict has a SHAPE as well as a colour: in range is a filled dot, watch an open ring,
     // outside a ring with a centre dot (the badge's target). No verdict is the plain grey dot.
-    function _verdict(b) {
-        return (b === "good" || b === "green")                          ? "good"
-             : (b === "attention" || b === "yellow" || b === "amber")   ? "attention"
-             : (b === "warn" || b === "red")                            ? "warn"
-             :                                                            ""
-    }
-    function _verdictColor(v) {
-        return v === "good"      ? Theme.colorGood
-             : v === "attention" ? Theme.colorAttention
-             : v === "warn"      ? Theme.colorWarn
-             :                     Theme.colorText3
-    }
 
     // ── Measured vs bridged: how a curve says which of it is a measurement ────────
     //
@@ -724,7 +712,7 @@ Item {
             }
         }
 
-        // P-position dots, per series: a shape and a colour for the verdict (see _verdict).
+        // P-position dots, per series: a shape and a colour for the verdict (see Theme.bandVerdict).
         Repeater {
             model: root.showDots ? root.series : []
             delegate: Repeater {
@@ -734,8 +722,8 @@ Item {
                 delegate: Item {
                     id: dot
                     required property var modelData
-                    readonly property string verdict: root._verdict(dot.modelData.band)
-                    readonly property color  tone:    root._verdictColor(dot.verdict)
+                    readonly property string verdict: Theme.bandVerdict(dot.modelData.band)
+                    readonly property color  tone:    Theme.verdictColor(dot.verdict)
                     // The rings stand a little larger than the dot: an open shape reads smaller.
                     readonly property real r: dot.verdict === "attention" || dot.verdict === "warn"
                                               ? Theme.sp(4) : Theme.sp(3.2)
