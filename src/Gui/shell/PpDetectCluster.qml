@@ -87,17 +87,17 @@ Item {
     Row {
         id: cluster
         anchors.centerIn: parent
-        spacing: Theme.sp(8)
+        spacing: Theme.gap(8)
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: qsTr("DETECT")
+            text: Theme.caps(qsTr("Detect"))
             font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
             font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
         }
         Row {
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Theme.sp(10)
+            spacing: Theme.gap(10)
             DetectDot { id: imuDot;  available: imuManager.imuCount > 0 }
             DetectDot { id: acDot;   available: true }
             // Ball/vision dot (design §8.3): steady green core while the ball is

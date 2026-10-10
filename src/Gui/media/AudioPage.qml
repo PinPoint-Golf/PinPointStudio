@@ -48,9 +48,9 @@ Item {
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: Theme.sp(16)
-                anchors.bottomMargin: Theme.sp(8)
-                spacing: Theme.sp(12)
+                anchors.margins: Theme.gap(16)
+                anchors.bottomMargin: Theme.gap(8)
+                spacing: Theme.gap(12)
 
                 Label {
                     text: qsTr("Live Transcript")
@@ -74,7 +74,7 @@ Item {
                         color: Theme.colorText
                         font.family: Theme.fontData
                         font.pixelSize: Theme.fontSzBody
-                        padding: Theme.sp(12)
+                        padding: Theme.gap(12)
                         background: Rectangle {
                             color: Theme.colorSurface
                             radius: Theme.radius
@@ -87,7 +87,7 @@ Item {
                 }
 
                 RowLayout {
-                    spacing: Theme.sp(8)
+                    spacing: Theme.gap(8)
 
                     Button {
                         id: listenButton
@@ -231,9 +231,9 @@ Item {
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: Theme.sp(16)
-                anchors.topMargin: Theme.sp(8)
-                spacing: Theme.sp(12)
+                anchors.margins: Theme.gap(16)
+                anchors.topMargin: Theme.gap(8)
+                spacing: Theme.gap(12)
 
                 Label {
                     text: qsTr("Text to Speech")
@@ -253,7 +253,7 @@ Item {
                     color: Theme.colorText
                     font.family: Theme.fontBody
                     font.pixelSize: Theme.fontSzBody
-                    padding: Theme.sp(10)
+                    padding: Theme.gap(10)
                     background: Rectangle {
                         color: Theme.colorSurface
                         radius: Theme.radius
@@ -270,7 +270,7 @@ Item {
                 }
 
                 RowLayout {
-                    spacing: Theme.sp(8)
+                    spacing: Theme.gap(8)
 
                     Button {
                         id: speakButton
@@ -447,7 +447,7 @@ Item {
                 // Download progress — only visible while fetching model files
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
                     visible: ttsController.downloading
 
                     ProgressBar {

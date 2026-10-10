@@ -33,7 +33,7 @@ Flow {
 
     signal picked(string name)
 
-    spacing: Theme.sp(6)
+    spacing: Theme.gap(6)
 
     Repeater {
         model: Theme.metricColorNames

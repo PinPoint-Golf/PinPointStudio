@@ -131,8 +131,8 @@ Item {
 
                 Column {
                     id: page1Col
-                    anchors { fill: parent; margins: Theme.sp(13) }
-                    spacing: Theme.sp(12)
+                    anchors { fill: parent; margins: Theme.gap(13) }
+                    spacing: Theme.gap(12)
 
                     Item {
                         width: parent.width
@@ -152,11 +152,11 @@ Item {
 
                     PpDivider { width: parent.width }
 
-                    PpMicro { text: qsTr("PRESET") }
+                    PpMicro { text: Theme.caps(qsTr("Preset")) }
 
                     Column {
                         width: parent.width
-                        spacing: Theme.sp(7)
+                        spacing: Theme.gap(7)
                         Repeater {
                             model: root._presetRows
                             delegate: PresetRow {
@@ -197,7 +197,7 @@ Item {
                             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         }
                         RowLayout {
-                            anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+                            anchors { fill: parent; leftMargin: Theme.gap(10); rightMargin: Theme.gap(10) }
                             Text {
                                 Layout.fillWidth: true
                                 text: qsTr("Customise…")
@@ -226,8 +226,8 @@ Item {
 
                 Column {
                     id: page2Col
-                    anchors { fill: parent; margins: Theme.sp(13) }
-                    spacing: Theme.sp(12)
+                    anchors { fill: parent; margins: Theme.gap(13) }
+                    spacing: Theme.gap(12)
 
                     // Header — back chevron + title + breadcrumb.
                     Item {
@@ -235,7 +235,7 @@ Item {
                         height: Theme.sp(20)
                         Row {
                             anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                            spacing: Theme.sp(8)
+                            spacing: Theme.gap(8)
                             Text {
                                 text: "‹"
                                 font.pixelSize: Theme.fontSzBody; color: Theme.colorText2
@@ -276,10 +276,10 @@ Item {
                         color: Theme.colorText3
                     }
 
-                    PpMicro { text: qsTr("BODY") }
+                    PpMicro { text: Theme.caps(qsTr("Body")) }
                     Column {
                         width: parent.width
-                        spacing: Theme.sp(9)
+                        spacing: Theme.gap(9)
                         Repeater {
                             model: root._bodyRows
                             delegate: ElementRow {
@@ -290,10 +290,10 @@ Item {
                         }
                     }
 
-                    PpMicro { text: qsTr("OBJECTS") }
+                    PpMicro { text: Theme.caps(qsTr("Objects")) }
                     Column {
                         width: parent.width
-                        spacing: Theme.sp(9)
+                        spacing: Theme.gap(9)
                         Repeater {
                             model: root._objectRows
                             delegate: ElementRow {
@@ -338,8 +338,8 @@ Item {
 
         Column {
             anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
-                      leftMargin: Theme.sp(12); rightMargin: Theme.sp(12) }
-            spacing: Theme.sp(2)
+                      leftMargin: Theme.gap(12); rightMargin: Theme.gap(12) }
+            spacing: Theme.gap(2)
             Text {
                 width: parent.width
                 text: presetLabel; elide: Text.ElideRight
@@ -368,7 +368,7 @@ Item {
 
         Column {
             id: labelCol
-            anchors { left: parent.left; right: rowSeg.left; rightMargin: Theme.sp(8)
+            anchors { left: parent.left; right: rowSeg.left; rightMargin: Theme.gap(8)
                       verticalCenter: parent.verticalCenter }
             Text {
                 width: parent.width
@@ -473,8 +473,8 @@ Item {
 
         Row {
             anchors.fill: parent
-            anchors.margins: Theme.sp(2)
-            spacing: Theme.sp(1)
+            anchors.margins: Theme.gap(2)
+            spacing: Theme.gap(1)
             Repeater {
                 model: seg._segs
                 delegate: Rectangle {

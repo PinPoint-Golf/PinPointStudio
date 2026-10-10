@@ -62,23 +62,23 @@ Popup {
 
         Text {
             Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.sp(12)
-            Layout.rightMargin: Theme.sp(12)
-            Layout.topMargin:   Theme.sp(10)
+            Layout.leftMargin:  Theme.gap(12)
+            Layout.rightMargin: Theme.gap(12)
+            Layout.topMargin:   Theme.gap(10)
             text:                root.title
             font.family:         Theme.fontBody
             font.pixelSize:      Theme.fontSzMicro
             font.letterSpacing:  Theme.trackingMicro
-            font.capitalization: Font.AllUppercase
+            font.capitalization: Theme.capsFont
             color:               Theme.colorText3
         }
 
         PpTextField {
             id: searchField
             Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.sp(10)
-            Layout.rightMargin: Theme.sp(10)
-            Layout.topMargin:   Theme.sp(6)
+            Layout.leftMargin:  Theme.gap(10)
+            Layout.rightMargin: Theme.gap(10)
+            Layout.topMargin:   Theme.gap(6)
             placeholderText: qsTr("Type to narrow…")
 
             // Enter takes the highlighted candidate. With three characters typed that is usually
@@ -92,9 +92,9 @@ Popup {
 
         Text {
             Layout.fillWidth:    true
-            Layout.leftMargin:   Theme.sp(12)
-            Layout.topMargin:    Theme.sp(6)
-            Layout.bottomMargin: Theme.sp(2)
+            Layout.leftMargin:   Theme.gap(12)
+            Layout.topMargin:    Theme.gap(6)
+            Layout.bottomMargin: Theme.gap(2)
             text: qsTr("%n legal target(s)", "", root._candidates.length)
             font.family:    Theme.fontData
             font.pixelSize: Theme.fontSzMicro
@@ -105,7 +105,7 @@ Popup {
             id: listView
             Layout.fillWidth:       true
             Layout.preferredHeight: Math.min(Theme.sp(240), Math.max(Theme.sp(32), count * Theme.sp(28)))
-            Layout.bottomMargin:    Theme.sp(8)
+            Layout.bottomMargin:    Theme.gap(8)
             clip:  true
             model: root._candidates
 
@@ -126,9 +126,9 @@ Popup {
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin:  Theme.sp(12)
-                    anchors.rightMargin: Theme.sp(12)
-                    spacing: Theme.sp(8)
+                    anchors.leftMargin:  Theme.gap(12)
+                    anchors.rightMargin: Theme.gap(12)
+                    spacing: Theme.gap(8)
 
                     Text {
                         Layout.fillWidth: true

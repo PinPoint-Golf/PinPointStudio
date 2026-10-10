@@ -42,7 +42,7 @@ Rectangle {
     Row {
         id: segRow
         anchors.centerIn: parent
-        spacing: Theme.sp(2)
+        spacing: Theme.gap(2)
 
         Repeater {
             model: root.speeds

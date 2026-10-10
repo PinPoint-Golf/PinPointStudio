@@ -34,14 +34,14 @@ Column {
     spacing: 0
 
     PpMicro {
-        bottomPadding: Theme.sp(4)
-        text:  qsTr("WORKING WELL")
+        bottomPadding: Theme.gap(4)
+        text:  Theme.caps(qsTr("Working well"))
         color: Theme.colorGood
     }
     Text {
         visible: root.strengths.length > 0
         width:   parent.width
-        bottomPadding: Theme.sp(4)
+        bottomPadding: Theme.gap(4)
         text: qsTr("Keep these while you work on the findings — they're correct, and easy to lose by accident when changing something else.")
         wrapMode: Text.WordWrap
         font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
@@ -51,7 +51,7 @@ Column {
     PpCardNote {
         visible: root.strengths.length === 0
         width:   parent.width
-        topPadding: Theme.sp(6)
+        topPadding: Theme.gap(6)
         text: qsTr("Nothing in this swing stands out as one to keep yet.")
     }
 

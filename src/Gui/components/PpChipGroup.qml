@@ -32,7 +32,7 @@ Row {
     signal selectionChanged(string value)
     signal blockedClicked(string value)
 
-    spacing: Theme.sp(6)
+    spacing: Theme.gap(6)
 
     Repeater {
         model: root.options

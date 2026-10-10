@@ -808,12 +808,12 @@ Item {
         // (Replay tiles never show this — their video is disk-backed.)
         Column {
             anchors.centerIn: parent
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
             visible: root.instance === null && !root._isReplay
             PpMicro {
                 anchors.horizontalCenter: parent.horizontalCenter
                 visible: root.displayName !== ""
-                text: root.displayName.toUpperCase()
+                text: Theme.caps(root.displayName)
             }
             FeedState { anchors.horizontalCenter: parent.horizontalCenter; text: qsTr("Not connected") }
         }
@@ -829,8 +829,8 @@ Item {
             visible: root.instance !== null && root.displayName !== ""
             anchors.bottom: parent.bottom
             anchors.left: parent.left
-            anchors.margins: Theme.sp(8)
-            text: root.displayName.toUpperCase()
+            anchors.margins: Theme.gap(8)
+            text: Theme.caps(root.displayName)
         }
 
         // ── Chips (top-left): the camera's perspective, then "Preview" ─────
@@ -839,8 +839,8 @@ Item {
         Row {
             anchors.top: parent.top
             anchors.left: parent.left
-            anchors.margins: Theme.sp(8)
-            spacing: Theme.sp(6)
+            anchors.margins: Theme.gap(8)
+            spacing: Theme.gap(6)
             z: 25
 
             // Says which way the camera looks — a fact, so untinted.
@@ -853,9 +853,9 @@ Item {
                 color:  Theme.colorScrim
                 text: !root.instance ? ""
                     : root.instance.perspective === CameraInstance.DownTheLine ? qsTr("DTL")
-                    : root.instance.perspective === CameraInstance.FaceOn ? qsTr("FACE ON")
-                    : root.instance.perspective === CameraInstance.Impact ? qsTr("IMPACT")
-                    : qsTr("OTHER")
+                    : root.instance.perspective === CameraInstance.FaceOn ? Theme.caps(qsTr("Face on"))
+                    : root.instance.perspective === CameraInstance.Impact ? Theme.caps(qsTr("Impact"))
+                    : Theme.caps(qsTr("Other"))
             }
 
             // ── "Preview" pill ────────────────────────────────────────────────
@@ -877,7 +877,7 @@ Item {
                 tone:  Theme.dark ? Theme.colorWarn : root._onScrim
                 color: Theme.dark ? Qt.tint(Theme.colorScrim, Qt.alpha(Theme.colorWarn, 0.16))
                                   : Qt.alpha(Theme.colorWarn, 0.9)
-                text:  qsTr("PREVIEW")
+                text:  Theme.caps(qsTr("Preview"))
             }
         }
 
@@ -887,7 +887,7 @@ Item {
                      && root.instance.isRecording && root.instance.frameWidth > 0
             anchors.bottom: parent.bottom
             anchors.right:  parent.right
-            anchors.margins: Theme.sp(8)
+            anchors.margins: Theme.gap(8)
             width:  resLabel.implicitWidth + Theme.sp(10)
             height: Theme.sp(18)
             radius: Theme.radius - 1
@@ -1849,7 +1849,7 @@ Item {
             PpMicro {
                 anchors.top: parent.top
                 anchors.left: parent.left
-                anchors.margins: Theme.sp(3)
+                anchors.margins: Theme.gap(3)
                 text: qsTr("Hitting Area")
                 color: Theme.colorWarn
                 font.letterSpacing: Theme.trackingData
@@ -2042,7 +2042,7 @@ Item {
     // shape and never as grey text alone.
     component FeedState: Row {
         property alias text: feedWords.text
-        spacing: Theme.sp(8)
+        spacing: Theme.gap(8)
         PpBadge {
             anchors.verticalCenter: parent.verticalCenter
             kind: "unconfirmed"

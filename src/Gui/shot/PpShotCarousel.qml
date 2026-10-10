@@ -242,9 +242,9 @@ Item {
     ColumnLayout {
         id: railCol
         anchors { fill: parent
-                  leftMargin: Theme.sp(16); rightMargin: Theme.sp(16)
+                  leftMargin: Theme.gap(16); rightMargin: Theme.gap(16)
                   topMargin: root._stripTopMargin; bottomMargin: root._stripBottomMargin }
-        spacing: Theme.sp(7)
+        spacing: Theme.gap(7)
 
         // ── Scope-aware action bar — focused-shot header + folded-in filtered-set
         //    actions. Shown only when a shot is focused or a filter is active. ──
@@ -303,7 +303,7 @@ Item {
             id: chipsRow
             Layout.alignment: Qt.AlignLeft
             Layout.minimumHeight: root._transportShown ? root._stripBandHeight : 0
-            spacing: Theme.sp(4)
+            spacing: Theme.gap(4)
 
             // The dock's two choosers are capsules (the chip's shape) that show their outline
             // under the pointer and while their popover is up; the dock itself stays flat.
@@ -325,13 +325,13 @@ Item {
                 Row {
                     id: sessRow
                     anchors.centerIn: parent
-                    spacing: Theme.sp(7)
+                    spacing: Theme.gap(7)
 
                     // Live: the recording's red, as a word as well as a dot.
                     PpChip {
                         visible: !root.reviewing
                         anchors.verticalCenter: parent.verticalCenter
-                        text:     qsTr("● LIVE")
+                        text:     Theme.caps(qsTr("● Live"))
                         tone:     Theme.colorError
                         tracking: Theme.trackingMicro
                     }
@@ -390,13 +390,13 @@ Item {
                 Row {
                     id: pillRow
                     anchors.centerIn: parent
-                    spacing: Theme.sp(7)
+                    spacing: Theme.gap(7)
 
                     // In the accent while a filter is on: the strip is showing a subset, and
                     // the count beside it says how much of the session that is.
                     PpMicro {
                         anchors.verticalCenter: parent.verticalCenter
-                        text:  qsTr("FILTER")
+                        text:  Theme.caps(qsTr("Filter"))
                         color: filterProxy.filterActive ? Theme.colorAccent : Theme.colorText3
                     }
                     Text {
@@ -431,7 +431,7 @@ Item {
             Layout.fillWidth: true
             Layout.preferredHeight: root._stripHeight
             orientation: ListView.Horizontal
-            spacing:     Theme.sp(5)
+            spacing:     Theme.gap(5)
             clip:        true
             model:       filterProxy
 
@@ -522,7 +522,7 @@ Item {
         x: Theme.sp(16)
         y: -height - Theme.sp(10)
         padding: 0
-        margins: Theme.sp(8)
+        margins: Theme.gap(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         background: PpPopoverCard {}
         // The panel is the filter alone while the film strip is up — the cards are the
@@ -561,7 +561,7 @@ Item {
         x: Theme.sp(16)
         y: -height - Theme.sp(10)
         padding: 0
-        margins: Theme.sp(8)
+        margins: Theme.gap(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         background: PpPopoverCard {}
         contentItem: PpSwingEditPanel {
@@ -593,7 +593,7 @@ Item {
                          Math.min(sessDrawer.implicitHeight, _bodyH - Theme.sp(20)))
 
         padding: 0
-        margins: Theme.sp(8)
+        margins: Theme.gap(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         background: PpPopoverCard {}
         contentItem: PpSessionDrawer {

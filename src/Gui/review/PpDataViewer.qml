@@ -78,7 +78,7 @@ Item {
         implicitHeight: Theme.sp(28)
         Row {
             anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-            spacing: Theme.sp(7)
+            spacing: Theme.gap(7)
             Text { text: sh.collapsed ? "▸" : "▾"; color: shMa.containsMouse ? Theme.colorText : Theme.colorText3
                    font.pixelSize: Theme.fontSzBody2; anchors.verticalCenter: parent.verticalCenter }
             PpMicro { text: sh.title; color: shMa.containsMouse ? Theme.colorText : Theme.colorText3
@@ -151,17 +151,17 @@ Item {
 
         // ── scope (region + segment + resolved tags) ────────────────────────
         SectionHeader {
-            Layout.fillWidth: true; title: qsTr("SCOPE"); collapsed: root.scopeCollapsed
+            Layout.fillWidth: true; title: Theme.caps(qsTr("Scope")); collapsed: root.scopeCollapsed
             onToggled: { root.scopeCollapsed = !root.scopeCollapsed
                          root._persistSection("scope", root.scopeCollapsed) }
 
             // The swing's provenance, behind the card's one popover.
             Item {
-                anchors { right: parent.right; rightMargin: Theme.sp(4); verticalCenter: parent.verticalCenter }
+                anchors { right: parent.right; rightMargin: Theme.gap(4); verticalCenter: parent.verticalCenter }
                 width: propsRow.implicitWidth; height: propsRow.implicitHeight
                 Row {
                     id: propsRow
-                    spacing: Theme.sp(5)
+                    spacing: Theme.gap(5)
                     Text { text: "ⓘ"; font.pixelSize: Theme.fontSzBody2
                            color: propsMa.containsMouse ? Theme.colorText : Theme.colorText3
                            anchors.verticalCenter: parent.verticalCenter }
@@ -175,18 +175,18 @@ Item {
         }
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.bottomMargin: Theme.sp(10)
-            spacing: Theme.sp(8)
+            Layout.bottomMargin: Theme.gap(10)
+            spacing: Theme.gap(8)
             visible: !root.scopeCollapsed
             RowLayout {
-                Layout.fillWidth: true; spacing: Theme.sp(8)
+                Layout.fillWidth: true; spacing: Theme.gap(8)
                 PpMicro {
-                    text: qsTr("REGION"); Layout.preferredWidth: root.ctrlGutter
+                    text: Theme.caps(qsTr("Region")); Layout.preferredWidth: root.ctrlGutter
                     Layout.alignment: Qt.AlignTop
                     height: Theme.sp(26); verticalAlignment: Text.AlignVCenter
                 }
                 Flow {
-                    Layout.fillWidth: true; spacing: Theme.sp(6)
+                    Layout.fillWidth: true; spacing: Theme.gap(6)
                     Repeater {
                         model: src.regionOptions
                         // A chip: the chosen region tinted in the accent, the rest untinted;
@@ -203,7 +203,7 @@ Item {
                             PpChip {
                                 id: rcChip
                                 anchors.verticalCenter: parent.verticalCenter
-                                text:   rcItem.modelData.toUpperCase()
+                                text:   Theme.caps(rcItem.modelData)
                                 tinted: rcItem.active
                                 tone:   rcItem.active ? Theme.colorAccent
                                       : rcMa.containsMouse ? Theme.colorText : Theme.colorText2
@@ -218,15 +218,15 @@ Item {
 
             // ── phase segments — window the table vertically ────────────────
             RowLayout {
-                Layout.fillWidth: true; spacing: Theme.sp(8)
+                Layout.fillWidth: true; spacing: Theme.gap(8)
                 visible: src.segments.length > 1
                 PpMicro {
-                    text: qsTr("SEGMENT"); Layout.preferredWidth: root.ctrlGutter
+                    text: Theme.caps(qsTr("Segment")); Layout.preferredWidth: root.ctrlGutter
                     Layout.alignment: Qt.AlignTop
                     height: Theme.sp(26); verticalAlignment: Text.AlignVCenter
                 }
                 Flow {
-                    Layout.fillWidth: true; spacing: Theme.sp(6)
+                    Layout.fillWidth: true; spacing: Theme.gap(6)
                     Repeater {
                         model: src.segments
                         delegate: Item {
@@ -252,14 +252,14 @@ Item {
             }
 
             RowLayout {
-                Layout.fillWidth: true; spacing: Theme.sp(8)
+                Layout.fillWidth: true; spacing: Theme.gap(8)
                 PpMicro {
-                    text: qsTr("RESOLVES TO"); Layout.preferredWidth: root.ctrlGutter
+                    text: Theme.caps(qsTr("Resolves to")); Layout.preferredWidth: root.ctrlGutter
                     Layout.alignment: Qt.AlignTop
                     height: Theme.sp(26); verticalAlignment: Text.AlignVCenter
                 }
                 Flow {
-                    Layout.fillWidth: true; spacing: Theme.sp(6)
+                    Layout.fillWidth: true; spacing: Theme.gap(6)
                     Repeater {
                         model: src.resolvedSources
                         // An untinted chip: the source's colour as a dot, its name, and × to drop it.
@@ -271,7 +271,7 @@ Item {
                             color: "transparent"
                             border.width: 1; border.color: Theme.colorBorderStrong
                             Row {
-                                id: tagRow; anchors.centerIn: parent; spacing: Theme.sp(6)
+                                id: tagRow; anchors.centerIn: parent; spacing: Theme.gap(6)
                                 Rectangle { width: Theme.sp(6); height: Theme.sp(6); radius: width / 2
                                             anchors.verticalCenter: parent.verticalCenter
                                             color: root.srcColor(modelData.colorKey) }
@@ -301,7 +301,7 @@ Item {
 
         // ── coverage strip ──────────────────────────────────────────────────
         SectionHeader {
-            Layout.fillWidth: true; title: qsTr("COVERAGE"); collapsed: root.coverageCollapsed
+            Layout.fillWidth: true; title: Theme.caps(qsTr("Coverage")); collapsed: root.coverageCollapsed
             onToggled: { root.coverageCollapsed = !root.coverageCollapsed
                          root._persistSection("coverage", root.coverageCollapsed) }
         }
@@ -336,7 +336,7 @@ Item {
 
         // ── detail table ────────────────────────────────────────────────────
         SectionHeader {
-            Layout.fillWidth: true; title: qsTr("TABLE"); collapsed: root.tableCollapsed
+            Layout.fillWidth: true; title: Theme.caps(qsTr("Table")); collapsed: root.tableCollapsed
             onToggled: { root.tableCollapsed = !root.tableCollapsed
                          root._persistSection("table", root.tableCollapsed) }
 
@@ -344,8 +344,8 @@ Item {
             // clipboard or export it to a CSV file. These sit on top of the header's toggle
             // area, so a click here acts on the table rather than collapsing the section.
             Row {
-                anchors { right: parent.right; rightMargin: Theme.sp(4); verticalCenter: parent.verticalCenter }
-                spacing: Theme.sp(14)
+                anchors { right: parent.right; rightMargin: Theme.gap(4); verticalCenter: parent.verticalCenter }
+                spacing: Theme.gap(14)
 
                 PpSegmentedControl {
                     anchors.verticalCenter: parent.verticalCenter
@@ -404,7 +404,7 @@ Item {
             id: tableArea
             Layout.fillWidth: true; Layout.fillHeight: !root.tableCollapsed
             visible: !root.tableCollapsed
-            Layout.topMargin: Theme.sp(2)
+            Layout.topMargin: Theme.gap(2)
 
             // Keyboard cursor row (highlighted; driven by arrows / Home·End / Page).
             property int currentRow: 0
@@ -499,7 +499,7 @@ Item {
                     // The state's mark, left of a right-aligned number. A left-aligned column
                     // (the state column) already says it in words.
                     Text {
-                        anchors { left: parent.left; leftMargin: Theme.sp(6); verticalCenter: parent.verticalCenter }
+                        anchors { left: parent.left; leftMargin: Theme.gap(6); verticalCenter: parent.verticalCenter }
                         visible: align !== Qt.AlignLeft
                         text: root.stateMark(cellState)
                         font.family: Theme.fontSymbol; font.pixelSize: Theme.fontSzMicro
@@ -507,7 +507,7 @@ Item {
                     }
                     Text {
                         anchors.fill: parent
-                        anchors.rightMargin: Theme.sp(8); anchors.leftMargin: Theme.sp(8)
+                        anchors.rightMargin: Theme.gap(8); anchors.leftMargin: Theme.gap(8)
                         horizontalAlignment: align === Qt.AlignLeft ? Text.AlignLeft : Text.AlignRight
                         verticalAlignment: Text.AlignVCenter
                         text: display
@@ -531,7 +531,7 @@ Item {
                 id: cellKey
                 visible: tableArea.height >= header.height + 3 * tableArea.rowH + Theme.sp(6)
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                spacing: Theme.sp(14)
+                spacing: Theme.gap(14)
                 Repeater {
                     model: [ { g: "—",  t: qsTr("missing") },
                              { g: "↦",  t: qsTr("held from the last sample") },
@@ -540,7 +540,7 @@ Item {
                              { g: "↦*", t: qsTr("worked out from a held source") } ]
                     delegate: Row {
                         required property var modelData
-                        spacing: Theme.sp(4)
+                        spacing: Theme.gap(4)
                         Text { anchors.verticalCenter: parent.verticalCenter
                                text: parent.modelData.g
                                font.family: Theme.fontSymbol; font.pixelSize: Theme.fontSzMicro

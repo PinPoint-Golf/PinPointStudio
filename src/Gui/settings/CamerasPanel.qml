@@ -170,7 +170,7 @@ Item {
         font.family:    Theme.fontData
         font.pixelSize: Theme.fontSzMicro
         font.letterSpacing: Theme.trackingMicro
-        font.capitalization: Font.AllUppercase
+        font.capitalization: Theme.capsFont
         color:          Theme.colorText3
     }
 
@@ -302,9 +302,9 @@ Item {
             anchors.top:   parent.top
             anchors.left:  parent.left
             anchors.right: parent.right
-            anchors.margins: Theme.sp(14)
+            anchors.margins: Theme.gap(14)
             height: Theme.sp(54)
-            spacing: Theme.sp(10)
+            spacing: Theme.gap(10)
 
             // Status dot
             Rectangle {
@@ -370,7 +370,7 @@ Item {
             // Alias (editable) + meta
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(2)
+                spacing: Theme.gap(2)
 
                 PpTextField {
                     Layout.fillWidth: true
@@ -380,7 +380,7 @@ Item {
                 }
 
                 Row {
-                    spacing: Theme.sp(10)
+                    spacing: Theme.gap(10)
                     Text {
                         text:           camData.description || ""
                         font.family:    Theme.fontData
@@ -404,7 +404,7 @@ Item {
 
             // Enable toggle
             Row {
-                spacing: Theme.sp(6)
+                spacing: Theme.gap(6)
                 Layout.alignment: Qt.AlignVCenter
 
                 Text {
@@ -440,9 +440,9 @@ Item {
                     left:        parent.left
                     right:       parent.right
                     top:         parent.top
-                    leftMargin:  Theme.sp(14)
-                    rightMargin: Theme.sp(14)
-                    topMargin:   Theme.sp(4)
+                    leftMargin:  Theme.gap(14)
+                    rightMargin: Theme.gap(14)
+                    topMargin:   Theme.gap(4)
                 }
                 text:           qsTr("Excluded — will not appear in view assignment or consume capture resources.")
                 font.family:    Theme.fontData
@@ -459,25 +459,25 @@ Item {
             anchors.top:    headerRow.bottom
             anchors.left:   parent.left
             anchors.right:  parent.right
-            anchors.leftMargin:   Theme.sp(14)
-            anchors.rightMargin:  Theme.sp(14)
-            anchors.bottomMargin: Theme.sp(28)
+            anchors.leftMargin:   Theme.gap(14)
+            anchors.rightMargin:  Theme.gap(14)
+            anchors.bottomMargin: Theme.gap(28)
             height: camData.enabled ? implicitHeight + Theme.sp(28) : 0
             visible: camData.enabled
-            spacing: Theme.sp(16)
+            spacing: Theme.gap(16)
             clip: true
 
             // View selector ──────────────────────────────────────────────────
             ColumnLayout {
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 Layout.alignment: Qt.AlignTop
 
                 Text {
-                    text:           qsTr("VIEW")
+                    text:           qsTr("View")
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color:          Theme.colorText3
                 }
 
@@ -559,15 +559,15 @@ Item {
 
             // Mirrored toggle ─────────────────────────────────────────────────
             ColumnLayout {
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 Layout.alignment: Qt.AlignTop
 
                 Text {
-                    text:           qsTr("IMAGE")
+                    text:           qsTr("Image")
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color:          Theme.colorText3
                 }
 
@@ -620,20 +620,20 @@ Item {
             // is part of its mode below) ─────────────────────────────────────
             ColumnLayout {
                 visible: !camRow.isImpact
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 Layout.alignment: Qt.AlignTop
 
                 Text {
-                    text:           qsTr("FRAME RATE")
+                    text:           qsTr("Frame rate")
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color:          Theme.colorText3
                 }
 
                 Row {
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
 
                     readonly property var fpsOptions: {
                         var opts = []
@@ -702,20 +702,20 @@ Item {
 
             // Trigger chips ───────────────────────────────────────────────────
             ColumnLayout {
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 Layout.alignment: Qt.AlignTop
 
                 Text {
-                    text:           qsTr("TRIGGER")
+                    text:           qsTr("Trigger")
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color:          Theme.colorText3
                 }
 
                 Row {
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
 
                     readonly property string selectedMode: {
                         var v = appSettings.cameraTriggerMode[camData.cameraKey]
@@ -777,20 +777,20 @@ Item {
 
             // ── Fixed in place toggle ────────────────────────────────────────
             ColumnLayout {
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 Layout.alignment: Qt.AlignTop
 
                 Text {
-                    text:                qsTr("FIXED IN PLACE")
+                    text:                qsTr("Fixed in place")
                     font.family:         Theme.fontData
                     font.pixelSize:      Theme.fontSzMicro
                     font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color:               Theme.colorText3
                 }
 
                 RowLayout {
-                    spacing: Theme.sp(6)
+                    spacing: Theme.gap(6)
 
                     TogglePill {
                         readonly property bool fixedVal: {
@@ -832,7 +832,7 @@ Item {
 
             // Action buttons ─────────────────────────────────────────────────
             Row {
-                spacing:  Theme.sp(6)
+                spacing:  Theme.gap(6)
                 Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
 
                 // Set crop — always available (setRoi() is a software crop on every camera)
@@ -975,38 +975,38 @@ Item {
             anchors.top:    bodyRow.bottom
             anchors.left:   parent.left
             anchors.right:  parent.right
-            anchors.leftMargin:  Theme.sp(14)
-            anchors.rightMargin: Theme.sp(14)
+            anchors.leftMargin:  Theme.gap(14)
+            anchors.rightMargin: Theme.gap(14)
             height: (camData.enabled && camRow.isImpact) ? implicitHeight + Theme.sp(24) : 0
             visible: camData.enabled && camRow.isImpact
-            spacing: Theme.sp(14)
+            spacing: Theme.gap(14)
             clip: true
 
           // Row 1: the mode and the exposure — what makes the camera an impact
           // camera at all. Row 2: the tuning that makes the club visible in it.
           RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(24)
+            spacing: Theme.gap(24)
 
             // Impact mode chips — crop size × rate, as the camera reported them
             // at enumeration (impact_camera_design.md §3.1, §10.2) ───────────
             ColumnLayout {
                 visible: camRow.isImpact
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 Layout.alignment: Qt.AlignTop
 
                 Text {
-                    text:           qsTr("IMPACT MODE")
+                    text:           qsTr("Impact mode")
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color:          Theme.colorText3
                 }
 
                 Flow {
                     id: modeFlow
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
                     Layout.preferredWidth: Theme.sp(520)
 
                     // The impact strip, stored apart from the camera's other-role crop (camera_roi.h).
@@ -1098,9 +1098,9 @@ Item {
             // camera, and they overwhelm the row when always shown. The crop,
             // rate and resolution (the mode chips above, and Set crop) stay.
             ColumnLayout {
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 Layout.alignment: Qt.AlignTop
-                TuneHeading { text: qsTr("TUNING") }
+                TuneHeading { text: Theme.caps(qsTr("Tuning")) }
                 Rectangle {
                     id: tuningToggle
                     width:  tuningToggleRow.implicitWidth + Theme.sp(20)
@@ -1119,7 +1119,7 @@ Item {
                     Row {
                         id: tuningToggleRow
                         anchors.centerIn: parent
-                        spacing: Theme.sp(6)
+                        spacing: Theme.gap(6)
                         Text {
                             text:           camRow.tuningOpen ? "▾" : "▸"
                             font.family:    Theme.fontSymbol
@@ -1160,30 +1160,30 @@ Item {
             id: tuningSection
             visible: camRow.tuningOpen
             Layout.fillWidth: true
-            spacing: Theme.sp(14)
+            spacing: Theme.gap(14)
 
           RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(24)
+            spacing: Theme.gap(24)
 
             // Exposure chips — the impact camera's locked exposure ────────────
             ColumnLayout {
                 visible: camRow.isImpact
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 Layout.alignment: Qt.AlignTop
 
                 Text {
-                    text:           qsTr("EXPOSURE")
+                    text:           qsTr("Exposure")
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color:          Theme.colorText3
                 }
 
                 Row {
                     id: exposureRow
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
 
                     readonly property double selectedUs: {
                         var v = appSettings.cameraExposureUs[camData.cameraKey]
@@ -1240,7 +1240,7 @@ Item {
                         width:  Theme.sp(72)
                         height: Theme.sp(24)
                         implicitHeight: Theme.sp(24)
-                        leftPadding: Theme.sp(8); rightPadding: Theme.sp(8)
+                        leftPadding: Theme.gap(8); rightPadding: Theme.gap(8)
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
                         placeholderText: qsTr("µs")
@@ -1275,17 +1275,17 @@ Item {
           // level readout (bg / peak / clip) is what to watch.
           RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(24)
+            spacing: Theme.gap(24)
 
             // Sensor gain — before the ADC, so it lifts the club above the
             // 8-bit floor. Chips to the camera's own maximum.
             ColumnLayout {
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 Layout.alignment: Qt.AlignTop
-                TuneHeading { text: qsTr("GAIN") }
+                TuneHeading { text: Theme.caps(qsTr("Gain")) }
                 Row {
                     id: gainRow
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
                     readonly property double selected:
                         root.impactTuning(camData.cameraKey, "gainDb", root.impactDefaultGainDb)
                     readonly property double maxDb: camData.gainMaxDb > 0 ? camData.gainMaxDb : 24
@@ -1314,12 +1314,12 @@ Item {
             // View gain — the tile and the replay only. The recorded pixels
             // are never touched; the level readout ignores it.
             ColumnLayout {
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 Layout.alignment: Qt.AlignTop
-                TuneHeading { text: qsTr("VIEW") }
+                TuneHeading { text: Theme.caps(qsTr("View")) }
                 Row {
                     id: viewRow
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
                     readonly property double selected:
                         root.impactTuning(camData.cameraKey, "viewGain", root.impactDefaultViewGain)
                     Repeater {
@@ -1342,9 +1342,9 @@ Item {
 
             // Strobe — Line1 carries ExposureActive for an LED strobe driver.
             ColumnLayout {
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 Layout.alignment: Qt.AlignTop
-                TuneHeading { text: qsTr("STROBE") }
+                TuneHeading { text: Theme.caps(qsTr("Strobe")) }
                 TogglePill {
                     checked: root.impactTuning(camData.cameraKey, "strobe", false)
                     onToggled: (v) => root.setImpactTuning(camData.cameraKey, "strobe", v, null)
@@ -1363,14 +1363,14 @@ Item {
           // ── Row 3: the live levels and the note ──────────────────────────
           RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(24)
+            spacing: Theme.gap(24)
 
             // What the raw frame measures right now, if the camera streams:
             // the number that turns tuning from guessing into a procedure.
             ColumnLayout {
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 Layout.alignment: Qt.AlignTop
-                TuneHeading { text: qsTr("LEVELS") }
+                TuneHeading { text: Theme.caps(qsTr("Levels")) }
                 Text {
                     readonly property var inst: camRow.realInstance
                     text: (inst && inst.isRecording)
@@ -1393,10 +1393,10 @@ Item {
 
             // Free text stamped into every clip: what the camera cannot read.
             ColumnLayout {
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 Layout.alignment: Qt.AlignTop
                 Layout.fillWidth: true
-                TuneHeading { text: qsTr("NOTE") }
+                TuneHeading { text: Theme.caps(qsTr("Note")) }
                 PpTextField {
                     id: noteField
                     Layout.fillWidth: true
@@ -1487,18 +1487,18 @@ Item {
                                     left:   parent.left
                                     right:  parent.right
                                     top:    parent.top
-                                    leftMargin:  Theme.sp(14)
-                                    rightMargin: Theme.sp(14)
-                                    topMargin:   Theme.sp(9)
+                                    leftMargin:  Theme.gap(14)
+                                    rightMargin: Theme.gap(14)
+                                    topMargin:   Theme.gap(9)
                                 }
-                                spacing: Theme.sp(3)
+                                spacing: Theme.gap(3)
 
                                 Text {
                                     text:            modelData.key
                                     font.family:     Theme.fontData
                                     font.pixelSize:  Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingMicro
-                                    font.capitalization: Font.AllUppercase
+                                    font.capitalization: Theme.capsFont
                                     color:           Theme.colorText3
                                 }
                                 Text {
@@ -1517,11 +1517,11 @@ Item {
                 // ── Preview + controls ───────────────────────────────────────
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.leftMargin:  Theme.sp(16)
-                    Layout.rightMargin: Theme.sp(16)
-                    Layout.topMargin:   Theme.sp(16)
-                    Layout.bottomMargin: Theme.sp(28)
-                    spacing: Theme.sp(20)
+                    Layout.leftMargin:  Theme.gap(16)
+                    Layout.rightMargin: Theme.gap(16)
+                    Layout.topMargin:   Theme.gap(16)
+                    Layout.bottomMargin: Theme.gap(28)
+                    spacing: Theme.gap(20)
 
                     // Video preview + draggable ROI
                     ColumnLayout {
@@ -1595,7 +1595,7 @@ Item {
 
                                 Text {
                                     anchors.centerIn: parent
-                                    anchors.margins:  Theme.sp(16)
+                                    anchors.margins:  Theme.gap(16)
                                     width:             parent.width - Theme.sp(32)
                                     text:              camRow.localPreviewInstance
                                                            ? camRow.localPreviewInstance.lastPreviewError
@@ -1924,8 +1924,8 @@ Item {
                             Rectangle {
                                 anchors.top:        parent.top
                                 anchors.left:       parent.left
-                                anchors.topMargin:  Theme.sp(8)
-                                anchors.leftMargin: Theme.sp(8)
+                                anchors.topMargin:  Theme.gap(8)
+                                anchors.leftMargin: Theme.gap(8)
                                 implicitWidth:  liveBadgeRow.implicitWidth + Theme.sp(16)
                                 implicitHeight: Theme.sp(18)
                                 color:  Qt.rgba(26/255, 74/255, 46/255, 0.9)
@@ -1937,7 +1937,7 @@ Item {
                                 Row {
                                     id: liveBadgeRow
                                     anchors.centerIn: parent
-                                    spacing: Theme.sp(4)
+                                    spacing: Theme.gap(4)
 
                                     Rectangle {
                                         width:  Theme.sp(5); height: Theme.sp(5); radius: Theme.sp(3)
@@ -1957,8 +1957,8 @@ Item {
                             Text {
                                 anchors.top:         parent.top
                                 anchors.right:       parent.right
-                                anchors.topMargin:   Theme.sp(8)
-                                anchors.rightMargin: Theme.sp(8)
+                                anchors.topMargin:   Theme.gap(8)
+                                anchors.rightMargin: Theme.gap(8)
                                 readonly property double displayFps: {
                                     if (camRow.instance && camRow.instance.configuredFps > 0)
                                         return camRow.instance.configuredFps
@@ -1985,8 +1985,8 @@ Item {
                             RowLayout {
                                 anchors {
                                     fill:        parent
-                                    leftMargin:  Theme.sp(10)
-                                    rightMargin: Theme.sp(10)
+                                    leftMargin:  Theme.gap(10)
+                                    rightMargin: Theme.gap(10)
                                 }
 
                                 Text {
@@ -2022,24 +2022,24 @@ Item {
                     // ── Numeric inputs + storage ─────────────────────────────
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: Theme.sp(10)
+                        spacing: Theme.gap(10)
                         Layout.alignment: Qt.AlignTop
 
                         // Origin inputs
                         ColumnLayout {
-                            spacing: Theme.sp(4)
+                            spacing: Theme.gap(4)
 
                             Text {
-                                text:           qsTr("ORIGIN (px)")
+                                text:           qsTr("Origin (px)")
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
                                 font.letterSpacing: Theme.trackingMicro
-                                font.capitalization: Font.AllUppercase
+                                font.capitalization: Theme.capsFont
                                 color:          Theme.colorText3
                             }
 
                             RowLayout {
-                                spacing: Theme.sp(6)
+                                spacing: Theme.gap(6)
 
                                 Text {
                                     text:  "X"
@@ -2060,7 +2060,7 @@ Item {
 
                                     TextInput {
                                         id: xField
-                                        anchors { fill: parent; leftMargin: Theme.sp(8); rightMargin: Theme.sp(8) }
+                                        anchors { fill: parent; leftMargin: Theme.gap(8); rightMargin: Theme.gap(8) }
                                         verticalAlignment: TextInput.AlignVCenter
                                         font.family:    Theme.fontData
                                         font.pixelSize: Theme.fontSzBody2
@@ -2095,7 +2095,7 @@ Item {
 
                                     TextInput {
                                         id: yField
-                                        anchors { fill: parent; leftMargin: Theme.sp(8); rightMargin: Theme.sp(8) }
+                                        anchors { fill: parent; leftMargin: Theme.gap(8); rightMargin: Theme.gap(8) }
                                         verticalAlignment: TextInput.AlignVCenter
                                         font.family:    Theme.fontData
                                         font.pixelSize: Theme.fontSzBody2
@@ -2115,19 +2115,19 @@ Item {
 
                         // Size inputs
                         ColumnLayout {
-                            spacing: Theme.sp(4)
+                            spacing: Theme.gap(4)
 
                             Text {
-                                text:           qsTr("SIZE (px)")
+                                text:           qsTr("Size (px)")
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
                                 font.letterSpacing: Theme.trackingMicro
-                                font.capitalization: Font.AllUppercase
+                                font.capitalization: Theme.capsFont
                                 color:          Theme.colorText3
                             }
 
                             RowLayout {
-                                spacing: Theme.sp(6)
+                                spacing: Theme.gap(6)
 
                                 Text {
                                     text:  "W"
@@ -2148,7 +2148,7 @@ Item {
 
                                     TextInput {
                                         id: wField
-                                        anchors { fill: parent; leftMargin: Theme.sp(8); rightMargin: Theme.sp(8) }
+                                        anchors { fill: parent; leftMargin: Theme.gap(8); rightMargin: Theme.gap(8) }
                                         verticalAlignment: TextInput.AlignVCenter
                                         font.family:    Theme.fontData
                                         font.pixelSize: Theme.fontSzBody2
@@ -2183,7 +2183,7 @@ Item {
 
                                     TextInput {
                                         id: hField
-                                        anchors { fill: parent; leftMargin: Theme.sp(8); rightMargin: Theme.sp(8) }
+                                        anchors { fill: parent; leftMargin: Theme.gap(8); rightMargin: Theme.gap(8) }
                                         verticalAlignment: TextInput.AlignVCenter
                                         font.family:    Theme.fontData
                                         font.pixelSize: Theme.fontSzBody2
@@ -2203,19 +2203,19 @@ Item {
 
                         // Preset buttons
                         ColumnLayout {
-                            spacing: Theme.sp(4)
+                            spacing: Theme.gap(4)
 
                             Text {
-                                text:           qsTr("PRESETS")
+                                text:           qsTr("Presets")
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
                                 font.letterSpacing: Theme.trackingMicro
-                                font.capitalization: Font.AllUppercase
+                                font.capitalization: Theme.capsFont
                                 color:          Theme.colorText3
                             }
 
                             Row {
-                                spacing: Theme.sp(4)
+                                spacing: Theme.gap(4)
 
                                 Repeater {
                                     model: [
@@ -2328,23 +2328,23 @@ Item {
                                 id: storageCol
                                 anchors {
                                     fill:        parent
-                                    margins:     Theme.sp(12)
+                                    margins:     Theme.gap(12)
                                 }
-                                spacing: Theme.sp(10)
+                                spacing: Theme.gap(10)
 
                                 // Frame storage bar
                                 ColumnLayout {
                                     Layout.fillWidth: true
-                                    spacing: Theme.sp(4)
+                                    spacing: Theme.gap(4)
 
                                     RowLayout {
                                         Layout.fillWidth: true
                                         Text {
-                                            text:           qsTr("FRAME STORAGE (ROI vs FULL FRAME)")
+                                            text:           qsTr("Frame storage (ROI vs full frame)")
                                             font.family:    Theme.fontData
                                             font.pixelSize: Theme.fontSzMicro
                                             font.letterSpacing: Theme.trackingMicro
-                                            font.capitalization: Font.AllUppercase
+                                            font.capitalization: Theme.capsFont
                                             color:          Theme.colorText3
                                             Layout.fillWidth: true
                                         }
@@ -2386,20 +2386,20 @@ Item {
                                 // Ring buffer bar
                                 ColumnLayout {
                                     Layout.fillWidth: true
-                                    spacing: Theme.sp(4)
+                                    spacing: Theme.gap(4)
 
                                     RowLayout {
                                         Layout.fillWidth: true
                                         Text {
-                                            text:           qsTr("RING BUFFER  ")
+                                            text:           qsTr("Ring buffer  ")
                                                             + storageRect.slotCount
-                                                            + qsTr(" SLOTS  (")
+                                                            + qsTr(" slots  (")
                                                             + Math.round(storageRect.slotFps)
                                                             + qsTr(" fps × 5 s → nextPow2)")
                                             font.family:    Theme.fontData
                                             font.pixelSize: Theme.fontSzMicro
                                             font.letterSpacing: Theme.trackingMicro
-                                            font.capitalization: Font.AllUppercase
+                                            font.capitalization: Theme.capsFont
                                             color:          Theme.colorText3
                                             Layout.fillWidth: true
                                         }
@@ -2456,7 +2456,7 @@ Item {
                         // Reset / done buttons
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: Theme.sp(6)
+                            spacing: Theme.gap(6)
 
                             Rectangle {
                                 id: resetBtn
@@ -2542,7 +2542,7 @@ Item {
                 id: ballPanelContent
                 anchors.left:  parent.left
                 anchors.right: parent.right
-                spacing: Theme.sp(12)
+                spacing: Theme.gap(12)
 
                 Rectangle {
                     Layout.fillWidth: true
@@ -2555,7 +2555,7 @@ Item {
                 Text {
                     visible: camRow.realInstance === null
                     Layout.fillWidth: true
-                    Layout.margins: Theme.sp(16)
+                    Layout.margins: Theme.gap(16)
                     text: qsTr("Connecting the camera\u2026 If this persists, check the camera is not in use elsewhere.")
                     wrapMode: Text.WordWrap
                     font.family: Theme.fontBody
@@ -2566,10 +2566,10 @@ Item {
                 RowLayout {
                     visible: camRow.realInstance !== null
                     Layout.fillWidth: true
-                    Layout.margins: Theme.sp(16)
-                    Layout.topMargin: Theme.sp(4)
-                    Layout.bottomMargin: Theme.sp(28)
-                    spacing: Theme.sp(16)
+                    Layout.margins: Theme.gap(16)
+                    Layout.topMargin: Theme.gap(4)
+                    Layout.bottomMargin: Theme.gap(28)
+                    spacing: Theme.gap(16)
 
                     // Live view with the hitting-area overlay; drag to draw.
                     // Loader-gated so a collapsed panel never subscribes to
@@ -2604,7 +2604,7 @@ Item {
                     ColumnLayout {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignTop
-                        spacing: Theme.sp(8)
+                        spacing: Theme.gap(8)
 
                         Text {
                             Layout.fillWidth: true
@@ -2698,7 +2698,7 @@ Item {
         z: 1000
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: Theme.sp(24)
+        anchors.bottomMargin: Theme.gap(24)
     }
 
     // Main scroll view
@@ -2714,15 +2714,15 @@ Item {
             x: Theme.sp(32)
             y: Theme.sp(28)
             width: parent.width - Theme.sp(64)
-            spacing: Theme.sp(16)
+            spacing: Theme.gap(16)
 
             // ── Page header ────────────────────────────────────────────────
             Text {
-                text: qsTr("HARDWARE")
+                text: qsTr("Hardware")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 
@@ -2745,11 +2745,11 @@ Item {
                 Layout.fillWidth: true
 
                 Text {
-                    text:           qsTr("DETECTED CAMERAS")
+                    text:           qsTr("Detected cameras")
                     font.family:    Theme.fontBody
                     font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color:          Theme.colorText3
                     Layout.fillWidth: true
                 }
@@ -2763,8 +2763,8 @@ Item {
             // Camera rows
             ColumnLayout {
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.sp(26)
-                spacing: Theme.sp(8)
+                Layout.leftMargin: Theme.gap(26)
+                spacing: Theme.gap(8)
 
                 Repeater {
                     model: cameraManager.cameraList
@@ -2793,11 +2793,11 @@ Item {
 
             // ── Global capture section ─────────────────────────────────────
             Text {
-                text:           qsTr("GLOBAL CAPTURE")
+                text:           qsTr("Global capture")
                 font.family:    Theme.fontBody
                 font.pixelSize: Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:          Theme.colorText3
             }
 
@@ -2805,13 +2805,13 @@ Item {
             RowLayout {
                 objectName: "setting_preroll"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         text:           qsTr("Pre-roll buffer")
@@ -2831,7 +2831,7 @@ Item {
 
                 // Chip group for preroll values
                 Row {
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
                     Layout.alignment: Qt.AlignVCenter
 
                     readonly property var prerollOptions: [
@@ -2886,13 +2886,13 @@ Item {
             RowLayout {
                 objectName: "setting_camSync"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true

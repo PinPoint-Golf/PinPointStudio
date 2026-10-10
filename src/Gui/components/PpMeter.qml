@@ -31,7 +31,7 @@ Row {
     property color tone: Theme.colorAccent
     readonly property int filled: Math.max(0, Math.min(10, Math.round(share * 10)))
 
-    spacing: Theme.sp(3)
+    spacing: Theme.gap(3)
     Repeater {
         model: 10
         Rectangle {

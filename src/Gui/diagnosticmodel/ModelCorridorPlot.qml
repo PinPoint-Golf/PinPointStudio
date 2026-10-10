@@ -153,7 +153,7 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: Theme.sp(6)
+        spacing: Theme.gap(6)
         visible: root._found
 
         // ── The canvas ────────────────────────────────────────────────────────
@@ -222,7 +222,7 @@ Item {
 
                 ShapePath {
                     strokeColor: Theme.colorText
-                    strokeWidth: 1.5
+                    strokeWidth: Theme.curveWidth(1.5)
                     fillColor:   "transparent"
                     capStyle:    ShapePath.RoundCap
                     PathPolyline {
@@ -288,7 +288,7 @@ Item {
                     visible: handle.live
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.bottom: parent.top
-                    anchors.bottomMargin: Theme.sp(4)
+                    anchors.bottomMargin: Theme.gap(4)
                     width:  readout.implicitWidth + Theme.sp(10)
                     height: readout.implicitHeight + Theme.sp(5)
                     radius: Theme.radius
@@ -342,7 +342,7 @@ Item {
             Text {
                 anchors.top: parent.top
                 anchors.right: parent.right
-                anchors.margins: Theme.sp(4)
+                anchors.margins: Theme.gap(4)
                 visible: root._found
                 text: root._found
                           ? qsTr("μ %1 %2   ·   −%3 / +%4")
@@ -359,7 +359,7 @@ Item {
         // ── What it found ─────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(12)
+            spacing: Theme.gap(12)
 
             // The band shares. This is the corridor editor's whole argument in four numbers: a
             // corridor grading almost everything into one band is visibly wrong to somebody who has
@@ -374,7 +374,7 @@ Item {
                 delegate: RowLayout {
                     id: share
                     required property var modelData
-                    spacing: Theme.sp(5)
+                    spacing: Theme.gap(5)
 
                     Rectangle {
                         implicitWidth:  Theme.sp(7)
@@ -435,11 +435,11 @@ Item {
         // "is this swing good?" and does not belong on the same ruler.
         GridLayout {
             Layout.fillWidth: true
-            Layout.topMargin: Theme.sp(4)
+            Layout.topMargin: Theme.gap(4)
             visible:  root.editable && root._found
             columns:  root.width > Theme.sp(420) ? 6 : 4
-            columnSpacing: Theme.sp(10)
-            rowSpacing:    Theme.sp(4)
+            columnSpacing: Theme.gap(10)
+            rowSpacing:    Theme.gap(4)
 
             component Field: RowLayout {
                 id: field
@@ -448,7 +448,7 @@ Item {
                 required property string value
                 property string placeholder: ""
 
-                spacing: Theme.sp(5)
+                spacing: Theme.gap(5)
 
                 Text {
                     text:           field.label

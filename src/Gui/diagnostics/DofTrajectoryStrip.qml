@@ -67,13 +67,13 @@ Item {
         height: implicitHeight
         Row {
             anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
             PpMicro {
-                text: (root.strip.name || "").toUpperCase()
+                text: Theme.caps(root.strip.name || "")
                 color: Theme.colorText2
             }
             PpMicro {
-                text: (root.strip.sub || "").toUpperCase()
+                text: Theme.caps(root.strip.sub || "")
                 font.letterSpacing: Theme.trackingData
             }
         }
@@ -93,8 +93,8 @@ Item {
     Item {
         id: plot
         anchors { left: parent.left; right: parent.right
-                  top: head.bottom; topMargin: Theme.sp(2)
-                  bottom: foot.top; bottomMargin: Theme.sp(2) }
+                  top: head.bottom; topMargin: Theme.gap(2)
+                  bottom: foot.top; bottomMargin: Theme.gap(2) }
 
         readonly property real padL: Theme.sp(8)
         readonly property real padR: Theme.sp(8)
@@ -150,7 +150,7 @@ Item {
         Rectangle {
             x: plot.plotL; width: plot.plotW
             y: plot.yAt(0); height: 1
-            color: Theme.colorBorderMid; opacity: 0.6
+            color: Theme.baselineColor(Theme.colorBorderMid); opacity: Theme.baselineOpacity(0.6)
         }
 
         // Position cursor.
@@ -166,7 +166,7 @@ Item {
             preferredRendererType: Shape.CurveRenderer
             ShapePath {
                 strokeColor: Theme.colorText3
-                strokeWidth: Theme.sp(1.5)
+                strokeWidth: Theme.sp(Theme.curveWidth(1.5))
                 fillColor: "transparent"
                 strokeStyle: ShapePath.DashLine
                 dashPattern: [4, 4]
@@ -188,7 +188,7 @@ Item {
             preferredRendererType: Shape.CurveRenderer
             ShapePath {
                 strokeColor: Theme.colorText
-                strokeWidth: Theme.sp(2)
+                strokeWidth: Theme.sp(Theme.curveWidth(2))
                 fillColor: "transparent"
                 capStyle: ShapePath.RoundCap
                 joinStyle: ShapePath.RoundJoin
@@ -257,15 +257,15 @@ Item {
     Row {
         id: foot
         anchors { left: parent.left; bottom: parent.bottom }
-        spacing: Theme.sp(8)
+        spacing: Theme.gap(8)
         PpMicro {
             anchors.verticalCenter: parent.verticalCenter
-            text: (root.strip.source || "").toUpperCase()
+            text: Theme.caps(root.strip.source || "")
             font.letterSpacing: Theme.trackingData
         }
         PpMicro {
             anchors.verticalCenter: parent.verticalCenter
-            text: qsTr("CONFIDENCE")
+            text: Theme.caps(qsTr("Confidence"))
             font.letterSpacing: Theme.trackingData
         }
         PpPips {

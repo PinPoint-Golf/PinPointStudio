@@ -64,13 +64,13 @@ Rectangle {
     // ── Identity ────────────────────────────────────────────────────────────
     Column {
         id: ident
-        anchors { left: parent.left; leftMargin: Theme.sp(10); top: parent.top; topMargin: Theme.sp(5) }
+        anchors { left: parent.left; leftMargin: Theme.gap(10); top: parent.top; topMargin: Theme.gap(5) }
         width: Math.max(Theme.sp(40), parent.width - Theme.sp(10) - Theme.sp(360))
         spacing: 1
         visible: root.haveData
 
         Row {
-            spacing: Theme.sp(6)
+            spacing: Theme.gap(6)
 
             Rectangle {
                 width: Theme.sp(5)
@@ -115,24 +115,24 @@ Rectangle {
 
     // ── Counters ────────────────────────────────────────────────────────────
     Row {
-        anchors { right: parent.right; rightMargin: Theme.sp(10); top: parent.top; topMargin: Theme.sp(6) }
-        spacing: Theme.sp(8)
+        anchors { right: parent.right; rightMargin: Theme.gap(10); top: parent.top; topMargin: Theme.gap(6) }
+        spacing: Theme.gap(8)
         visible: root.haveData
 
-        Cell { label: qsTr("FRAMES");  value: root.haveData ? String(root.camData.previewFrames) : "—" }
-        Cell { label: qsTr("OPENED");  value: root.haveData ? String(root.camData.streamsOpened) : "—" }
+        Cell { label: Theme.caps(qsTr("Frames"));  value: root.haveData ? String(root.camData.previewFrames) : "—" }
+        Cell { label: Theme.caps(qsTr("Opened"));  value: root.haveData ? String(root.camData.streamsOpened) : "—" }
         Cell {
-            label: qsTr("REFUSED")
+            label: Theme.caps(qsTr("Refused"))
             value: root.haveData ? String(root.camData.streamsRefused) : "—"
             tint: root.haveData && root.camData.streamsRefused > 0 ? Theme.colorWarn : Theme.colorText2
         }
         Cell {
-            label: qsTr("DECODE")
+            label: Theme.caps(qsTr("Decode"))
             value: root.haveData ? String(root.camData.decodeFailures) : "—"
             tint: root.haveData && root.camData.decodeFailures > 0 ? Theme.colorError : Theme.colorText2
         }
         Cell {
-            label: qsTr("ABSENT")
+            label: Theme.caps(qsTr("Absent"))
             value: root.haveData ? String(root.camData.absentSegments) : "—"
             tint: root.haveData && root.camData.absentSegments > 0 ? Theme.colorWarn : Theme.colorText2
         }
@@ -148,7 +148,7 @@ Rectangle {
         // verbatim (`in_use`, `disconnected`, …) rather than mapped onto a word
         // this host already knows (10.3a / I13).
         Cell {
-            label: qsTr("AVAIL")
+            label: Theme.caps(qsTr("Avail"))
             width: Theme.sp(64)
             value: {
                 if (!root.haveData || !root.camData.avail) return "—"
@@ -165,7 +165,7 @@ Rectangle {
     Text {
         id: errLbl
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom
-                  leftMargin: Theme.sp(22); rightMargin: Theme.sp(10); bottomMargin: Theme.sp(3) }
+                  leftMargin: Theme.gap(22); rightMargin: Theme.gap(10); bottomMargin: Theme.gap(3) }
         visible: root.errText !== ""
         text: root.errText
         font.family: Theme.fontData

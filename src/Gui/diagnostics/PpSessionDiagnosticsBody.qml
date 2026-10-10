@@ -79,9 +79,9 @@ Item {
     // in the session's ranking, not a place in the current view of it.
     property string cardFilter: "all"     // "all" | "ball" | "roots"
     readonly property var _cardFilterChips: [
-        { key: "all",   label: qsTr("ALL") },
-        { key: "ball",  label: qsTr("REACHES THE BALL") },
-        { key: "roots", label: qsTr("ROOTS") }
+        { key: "all",   label: Theme.caps(qsTr("All")) },
+        { key: "ball",  label: Theme.caps(qsTr("Reaches the ball")) },
+        { key: "roots", label: Theme.caps(qsTr("Roots")) }
     ]
     readonly property var _visibleCards: {
         const cs = cards || []
@@ -112,9 +112,9 @@ Item {
     // Hoisted for the same reason as the filter chips: a literal in the Repeater's binding would
     // be a new array, and new delegates, on every re-evaluation.
     readonly property var _tabDefs: [
-        { key: "shot",     label: qsTr("THIS SHOT") },
-        { key: "session",  label: qsTr("SESSION") },
-        { key: "watching", label: qsTr("WATCHING") }
+        { key: "shot",     label: Theme.caps(qsTr("This shot")) },
+        { key: "session",  label: Theme.caps(qsTr("Session")) },
+        { key: "watching", label: Theme.caps(qsTr("Watching")) }
     ]
     readonly property bool _shotAvailable: readingShot || (!isClosing && !reviewing)
     readonly property string _tab: interactive ? tab
@@ -317,8 +317,14 @@ Item {
     readonly property string _stageWord:  header ? (header.stageLabel || "") : ""
     readonly property string _reviewWord: header ? (header.reviewBadge || "") : ""
     readonly property string cardAside:
-        [_shotLabelText, _stageWord, _reviewWord].filter(function (s) { return s !== "" })
-                                                  .join(" · ").toUpperCase()
+        Theme.caps([_shotLabelText, _unshout(_stageWord), _unshout(_reviewWord)]
+                   .filter(function (s) { return s !== "" }).join(" · "))
+    // The model spells the stage and the review badge in capitals (its C++ and tests own that
+    // spelling). Lower-casing a shouted word hands Theme.caps a sentence-case source, in the same
+    // lower-case voice as the shot label beside it; the capital themes set it back exactly.
+    function _unshout(s) {
+        return s.replace(/\b[A-Z]{2,}\b/g, function (w) { return w.toLowerCase() })
+    }
 
     readonly property int _framePad: px(14)
 
@@ -341,7 +347,7 @@ Item {
             objectName: "sdTitle"
             // 12c abbreviates rather than eliding: the panel's own name is the last thing that
             // should be half a word.
-            text: root.compact ? qsTr("SESSION DIAG.") : qsTr("SESSION DIAGNOSTICS")
+            text: root.compact ? Theme.caps(qsTr("Session diag.")) : Theme.caps(qsTr("Session diagnostics"))
             font.pixelSize: root.tzMicro
             color: root.tone
         }
@@ -353,7 +359,7 @@ Item {
             PpMicro {
                 objectName: "sdShotLabel"
                 visible: text !== ""
-                text: root._shotLabelText.toUpperCase()
+                text: Theme.caps(root._shotLabelText)
                 font.pixelSize: root.tzMicro
                 font.letterSpacing: Theme.trackingData
             }
@@ -361,7 +367,7 @@ Item {
             PpMicro {
                 objectName: "sdStageChip"
                 visible: root._stageWord !== ""
-                text: (root._shotLabelText !== "" ? " · " : "") + root._stageWord.toUpperCase()
+                text: (root._shotLabelText !== "" ? " · " : "") + Theme.caps(root._unshout(root._stageWord))
                 font.pixelSize: root.tzMicro
                 font.letterSpacing: Theme.trackingData
             }
@@ -373,7 +379,7 @@ Item {
                 objectName: "sdReviewBadge"
                 visible: root._reviewWord !== ""
                 text: (root._shotLabelText !== "" || root._stageWord !== "" ? " · " : "")
-                      + root._reviewWord.toUpperCase()
+                      + Theme.caps(root._unshout(root._reviewWord))
                 font.pixelSize: root.tzMicro
                 font.letterSpacing: Theme.trackingData
             }
@@ -636,7 +642,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     fit: root.k
                     chip.objectName: "sdDetailBack"
-                    chip.text: qsTr("◂ BACK")
+                    chip.text: Theme.caps(qsTr("◂ Back"))
                     chip.tone: Theme.colorAccent
                     chip.tinted: backMouse.containsMouse
                     MouseArea {
@@ -680,9 +686,9 @@ Item {
                 // The name once there is one, and the invitation until then. The caret says it
                 // opens something; the middot says it is settled and can still be changed.
                 chip.text: root.declaredMiss !== ""
-                           ? qsTr("MISS · %1").arg(root.declaredMissName || root.declaredMiss)
+                           ? Theme.caps(qsTr("Miss · %1")).arg(root.declaredMissName || root.declaredMiss)
                              + (root.interactive ? qsTr(" ▸") : "")
-                           : qsTr("DECLARE MISS ▸")
+                           : Theme.caps(qsTr("Declare miss ▸"))
                 chip.tone: Theme.colorAccent
                 chip.tinted: root.declaredMiss !== "" || missHover.hovered
 
@@ -866,7 +872,7 @@ Item {
                     id: firedLabel
                     objectName: "sdFiredLabel"
                     anchors.left: parent.left
-                    text: qsTr("YOUR PATTERNS THAT FIRED HERE")
+                    text: Theme.caps(qsTr("Your patterns that fired here"))
                     font.pixelSize: root.tzMicro
                 }
                 // THE METER'S ONLY LEGEND. It sat on the strip's headline line, crowding the one
@@ -1000,8 +1006,8 @@ Item {
                     // rule the card row's "+N more" keeps. A pattern whose bookends did not fit
                     // still had a worst swing and a best one.
                     text: root._bookendsHidden > 0
-                          ? qsTr("SESSION\nBOOKENDS · +%1").arg(root._bookendsHidden)
-                          : qsTr("SESSION\nBOOKENDS")
+                          ? Theme.caps(qsTr("Session\nbookends · +%1")).arg(root._bookendsHidden)
+                          : Theme.caps(qsTr("Session\nbookends"))
                     font.pixelSize: root.tzMicro
                 }
 
@@ -1153,7 +1159,7 @@ Item {
 
                         PpMicro {
                             width: parent.width
-                            text: qsTr("USUALLY YOURS · EXPECTATIONS TO TEST, NOT FINDINGS")
+                            text: Theme.caps(qsTr("Usually yours · expectations to test, not findings"))
                             elide: Text.ElideRight
                             font.pixelSize: root.tzMicro
                         }
@@ -1584,7 +1590,7 @@ Item {
                 height: implicitHeight + root.px(6)
                 // WHAT THE DECLARATION IS FOR, said where it is made. It pre-arms the chains
                 // upstream of the outcome; it is not a filter and it is not evidence (§A6).
-                text: qsTr("WHAT IS THE BAD SHOT?")
+                text: Theme.caps(qsTr("What is the bad shot?"))
                 font.pixelSize: root.tzMicro
             }
 
@@ -1654,7 +1660,7 @@ Item {
                     anchors.left: parent.left
                     anchors.leftMargin: root.px(11)
                     anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("NO DECLARED MISS")
+                    text: Theme.caps(qsTr("No declared miss"))
                     font.pixelSize: root.tzMicro
                     color: clearMouse.containsMouse ? Theme.colorText : Theme.colorText3
                 }

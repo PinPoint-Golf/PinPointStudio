@@ -68,7 +68,7 @@ Column {
 
     signal hovered(string key, bool on)
 
-    spacing: Theme.sp(2)
+    spacing: Theme.gap(2)
 
     HoverHandler {
         enabled: root.metricKey !== ""
@@ -76,7 +76,7 @@ Column {
     }
 
     Row {
-        spacing: Theme.sp(4)
+        spacing: Theme.gap(4)
         Text {
             text: root.label
             font.family: Theme.fontData
@@ -94,7 +94,7 @@ Column {
         }
     }
     Row {
-        spacing: Theme.sp(3)
+        spacing: Theme.gap(3)
         Text {
             // Named so the layout test can assert what colour a reading is printed in.
             // The corridor state is a fact a reader sees only as a hue, and a hue is

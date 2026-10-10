@@ -64,12 +64,12 @@ Item {
         ColumnLayout {
             id: contentCol
             anchors.fill: parent
-            anchors.margins: Theme.sp(14)
-            spacing: Theme.sp(8)
+            anchors.margins: Theme.gap(14)
+            spacing: Theme.gap(8)
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(12)
+                spacing: Theme.gap(12)
 
                 Rectangle {
                     Layout.alignment: Qt.AlignVCenter
@@ -79,7 +79,7 @@ Item {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(2)
+                    spacing: Theme.gap(2)
 
                     Text {
                         Layout.fillWidth: true

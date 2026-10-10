@@ -45,19 +45,19 @@ Item {
 
         RowLayout {
             Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.sp(18)
-            Layout.rightMargin: Theme.sp(14)
-            Layout.topMargin:   Theme.sp(14)
-            Layout.bottomMargin: Theme.sp(8)
-            spacing: Theme.sp(8)
+            Layout.leftMargin:  Theme.gap(18)
+            Layout.rightMargin: Theme.gap(14)
+            Layout.topMargin:   Theme.gap(14)
+            Layout.bottomMargin: Theme.gap(8)
+            spacing: Theme.gap(8)
 
             Text {
                 Layout.fillWidth:    true
-                text:                qsTr("EDITS")
+                text:                qsTr("Edits")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
 
@@ -75,9 +75,9 @@ Item {
         // history is read.
         Text {
             Layout.fillWidth:    true
-            Layout.leftMargin:   Theme.sp(18)
-            Layout.rightMargin:  Theme.sp(18)
-            Layout.bottomMargin: Theme.sp(10)
+            Layout.leftMargin:   Theme.gap(18)
+            Layout.rightMargin:  Theme.gap(18)
+            Layout.bottomMargin: Theme.gap(10)
             visible: root.sessionScoped
             text: qsTr("This history lasts until you close the app. Saved work is kept; the "
                        + "ability to step back through it is not.")
@@ -141,11 +141,11 @@ Item {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.leftMargin:  Theme.sp(18)
-                    anchors.rightMargin: Theme.sp(14)
-                    anchors.topMargin:    Theme.sp(6)
-                    anchors.bottomMargin: Theme.sp(6)
-                    spacing: Theme.sp(1)
+                    anchors.leftMargin:  Theme.gap(18)
+                    anchors.rightMargin: Theme.gap(14)
+                    anchors.topMargin:    Theme.gap(6)
+                    anchors.bottomMargin: Theme.gap(6)
+                    spacing: Theme.gap(1)
 
                     Text {
                         Layout.fillWidth: true

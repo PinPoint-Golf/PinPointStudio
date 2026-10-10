@@ -55,7 +55,7 @@ Item {
         anchors.centerIn: parent
         // Clear of the shell's top rule, so the controls sit centred on the surface.
         anchors.verticalCenterOffset: 1
-        spacing: Theme.sp(10)
+        spacing: Theme.gap(10)
 
         // ── Collapse the palette (back to the gutter open button) ─────────────
         Rectangle {
@@ -86,8 +86,8 @@ Item {
 
             RowLayout {
                 anchors.fill: parent
-                anchors.margins: Theme.sp(3)
-                spacing: Theme.sp(2)
+                anchors.margins: Theme.gap(3)
+                spacing: Theme.gap(2)
                 Repeater {
                     model: bar._tools
                     delegate: Rectangle {
@@ -129,7 +129,7 @@ Item {
         // ── Ink colour swatches ───────────────────────────────────────────────
         Row {
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Theme.sp(6)
+            spacing: Theme.gap(6)
             Repeater {
                 model: bar._swatches
                 delegate: Rectangle {

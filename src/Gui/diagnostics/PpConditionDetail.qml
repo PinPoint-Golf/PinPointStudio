@@ -232,7 +232,7 @@ Item {
                 objectName: "sdDetailHowFarLabel"
                 width: col.width
                 visible: col._spread !== null
-                text: qsTr("HOW FAR, SHOT BY SHOT") + (col._spread && col._spread.measure
+                text: Theme.caps(qsTr("How far, shot by shot")) + (col._spread && col._spread.measure
                                                         ? "  ·  " + col._spread.measure : "")
                 elide: Text.ElideRight
                 font.family: Theme.fontData
@@ -311,7 +311,7 @@ Item {
                 objectName: "sdDetailHistoryLabel"
                 width: col.width
                 visible: col._history !== null
-                text: qsTr("ACROSS SESSIONS")
+                text: Theme.caps(qsTr("Across sessions"))
                 font.family: Theme.fontData
                 font.pixelSize: root.tzMicro
                 font.letterSpacing: Theme.trackingMicro
@@ -349,7 +349,7 @@ Item {
                 Text {
                     id: causesLabel
                     anchors.left: parent.left
-                    text: qsTr("WHAT MIGHT HAVE CAUSED THIS")
+                    text: Theme.caps(qsTr("What might have caused this"))
                     font.family: Theme.fontData
                     font.pixelSize: root.tzMicro
                     font.letterSpacing: Theme.trackingMicro
@@ -425,7 +425,7 @@ Item {
                                 Text {
                                     id: causePathLabel
                                     anchors.left: parent.left
-                                    text: qsTr("PATH %1").arg(causeRow.index + 1)
+                                    text: Theme.caps(qsTr("Path %1")).arg(causeRow.index + 1)
                                     font.family: Theme.fontData
                                     font.pixelSize: root.tzCaption
                                     font.letterSpacing: Theme.trackingMicro
@@ -435,7 +435,7 @@ Item {
                                     objectName: "sdDetailPathToggle"
                                     anchors.right: parent.right
                                     anchors.baseline: causePathLabel.baseline
-                                    text: causeRow.open ? qsTr("CLOSE ▴") : qsTr("OPEN ▸")
+                                    text: causeRow.open ? Theme.caps(qsTr("Close ▴")) : Theme.caps(qsTr("Open ▸"))
                                     font.family: Theme.fontData
                                     font.pixelSize: root.tzCaption
                                     font.letterSpacing: Theme.trackingLabel
@@ -516,7 +516,7 @@ Item {
                 Text {
                     id: effectsLabel
                     anchors.left: parent.left
-                    text: qsTr("WHAT THIS LEADS TO")
+                    text: Theme.caps(qsTr("What this leads to"))
                     font.family: Theme.fontData
                     font.pixelSize: root.tzMicro
                     font.letterSpacing: Theme.trackingMicro
@@ -588,7 +588,7 @@ Item {
                                 Text {
                                     id: effectPathLabel
                                     anchors.left: parent.left
-                                    text: qsTr("PATH %1").arg(effectRow.index + 1)
+                                    text: Theme.caps(qsTr("Path %1")).arg(effectRow.index + 1)
                                     font.family: Theme.fontData
                                     font.pixelSize: root.tzCaption
                                     font.letterSpacing: Theme.trackingMicro
@@ -598,7 +598,7 @@ Item {
                                     objectName: "sdDetailPathToggle"
                                     anchors.right: parent.right
                                     anchors.baseline: effectPathLabel.baseline
-                                    text: effectRow.open ? qsTr("CLOSE ▴") : qsTr("OPEN ▸")
+                                    text: effectRow.open ? Theme.caps(qsTr("Close ▴")) : Theme.caps(qsTr("Open ▸"))
                                     font.family: Theme.fontData
                                     font.pixelSize: root.tzCaption
                                     font.letterSpacing: Theme.trackingLabel

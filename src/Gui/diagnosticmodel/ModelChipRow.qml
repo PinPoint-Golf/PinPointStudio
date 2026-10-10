@@ -34,20 +34,20 @@ ColumnLayout {
 
     signal picked(string value)
 
-    spacing: Theme.sp(4)
+    spacing: Theme.gap(4)
 
     Text {
-        Layout.leftMargin:   Theme.sp(14)
+        Layout.leftMargin:   Theme.gap(14)
         text:                root.label
         font.family:         Theme.fontBody
         font.pixelSize:      Theme.fontSzMicro
         font.letterSpacing:  Theme.trackingMicro
-        font.capitalization: Font.AllUppercase
+        font.capitalization: Theme.capsFont
         color:               Theme.colorText3
     }
 
     Text {
-        Layout.leftMargin: Theme.sp(14)
+        Layout.leftMargin: Theme.gap(14)
         visible: root.options.length === 0
         text:    qsTr("choose the one above first")
         font.family:    Theme.fontBody
@@ -57,9 +57,9 @@ ColumnLayout {
 
     Flow {
         Layout.fillWidth:   true
-        Layout.leftMargin:  Theme.sp(14)
-        Layout.rightMargin: Theme.sp(14)
-        spacing: Theme.sp(6)
+        Layout.leftMargin:  Theme.gap(14)
+        Layout.rightMargin: Theme.gap(14)
+        spacing: Theme.gap(6)
 
         Repeater {
             model: root.options

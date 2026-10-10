@@ -106,8 +106,8 @@ Item {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.foldable
-                      ? (root.expanded ? "▴ " : "▾ ") + qsTr("WATCHING (%1)").arg(root.count)
-                      : qsTr("SEEN, NOT YET A PATTERN · TAP ONE TO TRACE IT")
+                      ? (root.expanded ? "▴ " : "▾ ") + Theme.caps(qsTr("Watching (%1)")).arg(root.count)
+                      : Theme.caps(qsTr("Seen, not yet a pattern · tap one to trace it"))
                 font.pixelSize: root.tzMicro
             }
             Text {

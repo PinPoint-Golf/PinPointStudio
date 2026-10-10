@@ -32,9 +32,9 @@ Item {
     property string title:      ""
     property string aside:      ""
     property int    asideWidth: 0               // right-align the aside over a column this wide
-    property int    pad:        Theme.sp(20)
-    property int    itemGap:    Theme.sp(18)
-    property int    bodyGap:    Theme.sp(18)
+    property int    pad:        Theme.gap(20)
+    property int    itemGap:    Theme.gap(18)
+    property int    bodyGap:    Theme.gap(18)
     default property alias content: body.data
     readonly property int innerWidth: width - 2 * card.pad
     // The title, for a caller to set something on its baseline.

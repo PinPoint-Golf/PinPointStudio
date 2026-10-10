@@ -59,14 +59,14 @@ Item {
     Column {
         id: content
         anchors { left: parent.left; right: parent.right; top: parent.top
-                  leftMargin: Theme.sp(14); rightMargin: Theme.sp(14); topMargin: Theme.sp(13) }
+                  leftMargin: Theme.gap(14); rightMargin: Theme.gap(14); topMargin: Theme.gap(13) }
 
         Item {   // header: EDIT SWING · Done
             width: parent.width; height: doneText.implicitHeight
             PpMicro {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("EDIT SWING")
+                text: Theme.caps(qsTr("Edit swing"))
             }
             PpLink {
                 id: doneText
@@ -109,7 +109,7 @@ Item {
             Row {
                 id: warnRow
                 width:   parent.width
-                spacing: Theme.sp(10)
+                spacing: Theme.gap(10)
 
                 PpBadge {
                     id: warnBadge
@@ -119,12 +119,12 @@ Item {
                 }
                 Column {
                     width:   warnRow.width - warnBadge.width - warnRow.spacing
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
                     PpMicro {
                         // Centred on the badge, the way a coaching line's first line is.
                         height: warnBadge.height
                         verticalAlignment: Text.AlignVCenter
-                        text:  qsTr("DATA WARNING")
+                        text:  Theme.caps(qsTr("Data warning"))
                         color: Theme.colorWarn
                     }
                     Text {
@@ -143,7 +143,7 @@ Item {
 
         Item { width: 1; height: Theme.sp(15) }
 
-        PpMicro { text: qsTr("CLUB") }
+        PpMicro { text: Theme.caps(qsTr("Club")) }
         Item { width: 1; height: Theme.sp(7) }
         PpComboBox {
             id: clubCombo
@@ -155,19 +155,19 @@ Item {
 
         Item { width: 1; height: Theme.sp(15) }
 
-        PpMicro { text: qsTr("RATING") }
+        PpMicro { text: Theme.caps(qsTr("Rating")) }
         Item { width: 1; height: Theme.sp(7) }
         PpStarRating {
             interactive: true
             value:       root.summary.rating !== undefined ? root.summary.rating : 0
             starSize:    Theme.sp(22)
-            spacing:     Theme.sp(5)
+            spacing:     Theme.gap(5)
             onRated:     (n) => root.rated(n)
         }
 
         Item { width: 1; height: Theme.sp(15) }
 
-        PpMicro { text: qsTr("NOTE") }
+        PpMicro { text: Theme.caps(qsTr("Note")) }
         Item { width: 1; height: Theme.sp(7) }
         PpTextField {
             id: noteField

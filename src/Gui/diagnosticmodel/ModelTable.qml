@@ -175,8 +175,8 @@ Item {
 
         Row {
             anchors.fill: parent
-            anchors.leftMargin:  Theme.sp(18)
-            anchors.rightMargin: Theme.sp(18)
+            anchors.leftMargin:  Theme.gap(18)
+            anchors.rightMargin: Theme.gap(18)
 
             Repeater {
                 model: root.columns
@@ -206,7 +206,7 @@ Item {
                         font.pixelSize:      Theme.fontSzMicro
                         font.weight:         Theme.fontBodyWeight
                         font.letterSpacing:  Theme.trackingMicro
-                        font.capitalization: Font.AllUppercase
+                        font.capitalization: Theme.capsFont
                         color: headerCell.active ? Theme.colorAccent : Theme.colorText3
                         elide: Text.ElideRight
                     }
@@ -291,8 +291,8 @@ Item {
 
             Row {
                 anchors.fill: parent
-                anchors.leftMargin:  Theme.sp(18)
-                anchors.rightMargin: Theme.sp(18)
+                anchors.leftMargin:  Theme.gap(18)
+                anchors.rightMargin: Theme.gap(18)
 
                 Repeater {
                     model: rowItem.modelData.cells
@@ -361,8 +361,8 @@ Item {
                                      && rowItem.isSelected && cellPress.containsMouse
                                      && !cellItem.editing
                             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                            anchors.rightMargin:  Theme.sp(8)
-                            anchors.bottomMargin: Theme.sp(4)
+                            anchors.rightMargin:  Theme.gap(8)
+                            anchors.bottomMargin: Theme.gap(4)
                             height:  1
                             color:   Theme.colorAccent
                             opacity: 0.5
@@ -375,7 +375,7 @@ Item {
                                      && !cellItem.editing
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.right: parent.right
-                            anchors.rightMargin: Theme.sp(2)
+                            anchors.rightMargin: Theme.gap(2)
                             text:           "▾"
                             font.family:    Theme.fontData
                             font.pixelSize: Theme.fontSzMicro
@@ -387,7 +387,7 @@ Item {
                         Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.right: parent.right
-                            anchors.rightMargin: Theme.sp(3)
+                            anchors.rightMargin: Theme.gap(3)
                             width:  Theme.sp(3)
                             height: Theme.sp(3)
                             radius: width / 2
@@ -404,7 +404,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.left:  parent.left
                             anchors.right: parent.right
-                            anchors.rightMargin: Theme.sp(8)
+                            anchors.rightMargin: Theme.gap(8)
                             horizontalAlignment: cellItem.modelData.kind === "number"
                                                      ? TextInput.AlignRight : TextInput.AlignLeft
                             // A corridor figure is a number, and the keyboard says so before the
@@ -491,8 +491,8 @@ Item {
                                      && (cellItem.modelData.kind === "text"
                                          || cellItem.modelData.kind === "number")
                             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                            anchors.rightMargin:  Theme.sp(8)
-                            anchors.bottomMargin: Theme.sp(4)
+                            anchors.rightMargin:  Theme.gap(8)
+                            anchors.bottomMargin: Theme.gap(4)
                             height: 1
                             color:  Theme.colorAccent
                         }
@@ -504,7 +504,7 @@ Item {
                             id: enumPopup
                             visible: cellItem.editing && cellItem.modelData.kind === "enum"
                             y: cellItem.height
-                            padding: Theme.sp(4)
+                            padding: Theme.gap(4)
                             closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
                             onClosed: if (cellItem.editing) root.endEdit()
 
@@ -536,7 +536,7 @@ Item {
                                             id: optionText
                                             anchors.verticalCenter: parent.verticalCenter
                                             anchors.left: parent.left
-                                            anchors.leftMargin: Theme.sp(10)
+                                            anchors.leftMargin: Theme.gap(10)
                                             text: enumOption.modelData.label
                                             font.family:    Theme.fontBody
                                             font.pixelSize: Theme.fontSzBody2
@@ -682,7 +682,7 @@ Item {
                     font.pixelSize:      Theme.fontSzMicro
                     font.weight:         Theme.fontBodyWeight
                     font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color: graphPress.containsMouse ? Theme.colorAccent : Theme.colorText2
                 }
 

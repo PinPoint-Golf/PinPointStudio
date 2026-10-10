@@ -63,8 +63,8 @@ Rectangle {
         anchors.left:           parent.left
         anchors.right:          caret.left
         anchors.verticalCenter: parent.verticalCenter
-        anchors.leftMargin:     Theme.sp(10)
-        anchors.rightMargin:    Theme.sp(6)
+        anchors.leftMargin:     Theme.gap(10)
+        anchors.rightMargin:    Theme.gap(6)
         text:  root.currentLabel
         font.family:    Theme.fontBody
         font.pixelSize: Theme.fontSzBody
@@ -77,7 +77,7 @@ Rectangle {
     Text {
         id: caret
         anchors.right:          parent.right
-        anchors.rightMargin:    Theme.sp(10)
+        anchors.rightMargin:    Theme.gap(10)
         anchors.verticalCenter: parent.verticalCenter
         text: "⌄"
         font.family:    Theme.fontBody
@@ -96,7 +96,7 @@ Rectangle {
         id: menu
         y: root.height + Theme.sp(2)
         width: root.width
-        padding: Theme.sp(4)
+        padding: Theme.gap(4)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
         background: Rectangle {
@@ -126,8 +126,8 @@ Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left:        parent.left
                         anchors.right:       parent.right
-                        anchors.leftMargin:  Theme.sp(10)
-                        anchors.rightMargin: Theme.sp(10)
+                        anchors.leftMargin:  Theme.gap(10)
+                        anchors.rightMargin: Theme.gap(10)
                         text: option.modelData.label
                         font.family:    Theme.fontBody
                         font.pixelSize: Theme.fontSzBody2

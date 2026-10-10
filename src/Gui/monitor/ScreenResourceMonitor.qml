@@ -178,12 +178,12 @@ Item {
 
         Column {
             width: Theme.sp(320)
-            padding: Theme.sp(20)
-            spacing: Theme.sp(12)
+            padding: Theme.gap(20)
+            spacing: Theme.gap(12)
 
             // Section label
             Text {
-                text: qsTr("DEVICES")
+                text: Theme.caps(qsTr("Devices"))
                 font.family: Theme.fontBody
                 font.pixelSize: Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
@@ -273,12 +273,12 @@ Item {
 
         Column {
             width: rightScroll.availableWidth
-            padding: Theme.sp(20)
-            spacing: Theme.sp(16)
+            padding: Theme.gap(20)
+            spacing: Theme.gap(16)
 
             // Section label
             Text {
-                text: qsTr("EVENT BUFFER")
+                text: Theme.caps(qsTr("Event buffer"))
                 font.family: Theme.fontBody
                 font.pixelSize: Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
@@ -296,8 +296,8 @@ Item {
                 color: Theme.colorSurface
 
                 Row {
-                    anchors { fill: parent; leftMargin: Theme.sp(16); rightMargin: Theme.sp(16) }
-                    spacing: Theme.sp(12)
+                    anchors { fill: parent; leftMargin: Theme.gap(16); rightMargin: Theme.gap(16) }
+                    spacing: Theme.gap(12)
 
                     // Status dot
                     Rectangle {
@@ -313,10 +313,12 @@ Item {
                         }
                     }
 
-                    // State label
+                    // State label. The state arrives in lower case, so it is sentence-cased
+                    // before the theme decides whether labels are set in capitals.
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: resourceMonitor.bufferState.toUpperCase()
+                        text: Theme.caps(resourceMonitor.bufferState.charAt(0).toUpperCase()
+                                         + resourceMonitor.bufferState.slice(1))
                         font.family: Theme.fontData
                         font.pixelSize: Theme.fontSzDataSm
                         font.letterSpacing: Theme.trackingMicro
@@ -340,13 +342,13 @@ Item {
                     // KV pairs
                     Row {
                         anchors.verticalCenter: parent.verticalCenter
-                        spacing: Theme.sp(28)
+                        spacing: Theme.gap(28)
 
                         // Total events
                         Column {
-                            spacing: Theme.sp(2)
+                            spacing: Theme.gap(2)
                             Text {
-                                text: qsTr("EVENTS")
+                                text: Theme.caps(qsTr("Events"))
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -369,9 +371,9 @@ Item {
 
                         // Timeline entries
                         Column {
-                            spacing: Theme.sp(2)
+                            spacing: Theme.gap(2)
                             Text {
-                                text: qsTr("TIMELINE")
+                                text: Theme.caps(qsTr("Timeline"))
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -394,9 +396,9 @@ Item {
 
                         // Source count
                         Column {
-                            spacing: Theme.sp(2)
+                            spacing: Theme.gap(2)
                             Text {
-                                text: qsTr("SOURCES")
+                                text: Theme.caps(qsTr("Sources"))
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -427,7 +429,7 @@ Item {
 
                 // Section label
                 Text {
-                    text: qsTr("REGISTERED SOURCES")
+                    text: Theme.caps(qsTr("Registered sources"))
                     font.family: Theme.fontBody
                     font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
@@ -456,7 +458,7 @@ Item {
                     }
 
                     Row {
-                        anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+                        anchors { fill: parent; leftMargin: Theme.gap(10); rightMargin: Theme.gap(10) }
 
                         property int nameW: parent.width - Theme.sp(10) - Theme.sp(10) - Theme.sp(80) - Theme.sp(72) - Theme.sp(80) - Theme.sp(90) - Theme.sp(60)
 
@@ -465,7 +467,7 @@ Item {
                             height: parent.height
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("SOURCE")
+                                text: Theme.caps(qsTr("Source"))
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -477,7 +479,7 @@ Item {
                             width: Theme.sp(80); height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: qsTr("WRITTEN")
+                                text: Theme.caps(qsTr("Written"))
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -489,7 +491,7 @@ Item {
                             width: Theme.sp(72); height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: qsTr("WRAPS")
+                                text: Theme.caps(qsTr("Wraps"))
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -501,7 +503,7 @@ Item {
                             width: Theme.sp(80); height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: qsTr("BYTES")
+                                text: Theme.caps(qsTr("Bytes"))
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -513,7 +515,7 @@ Item {
                             width: Theme.sp(90); height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: qsTr("MAX INTER")
+                                text: Theme.caps(qsTr("Max inter"))
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -525,7 +527,7 @@ Item {
                             width: Theme.sp(60); height: parent.height
                             Text {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                text: qsTr("FILL")
+                                text: Theme.caps(qsTr("Fill"))
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -577,7 +579,7 @@ Item {
                 id: profilerSection
                 visible: profiler.available
                 width: parent.width - 40
-                spacing: Theme.sp(12)
+                spacing: Theme.gap(12)
 
                 // Header: section label + deep toggle + Reset + Dump-to-log
                 Item {
@@ -586,7 +588,7 @@ Item {
 
                     Text {
                         anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                        text: qsTr("PROFILER")
+                        text: Theme.caps(qsTr("Profiler"))
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -595,7 +597,7 @@ Item {
 
                     Row {
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        spacing: Theme.sp(8)
+                        spacing: Theme.gap(8)
 
                         // Deep toggle — greyed when the deep tier isn't compiled in
                         Rectangle {
@@ -618,7 +620,7 @@ Item {
                             Text {
                                 id: deepLbl
                                 anchors.centerIn: parent
-                                text: qsTr("DEEP")
+                                text: Theme.caps(qsTr("Deep"))
                                 font.family: Theme.fontData
                                 font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro
@@ -691,14 +693,14 @@ Item {
                     color: Theme.colorSurface
 
                     Row {
-                        anchors { fill: parent; leftMargin: Theme.sp(16); rightMargin: Theme.sp(16) }
-                        spacing: Theme.sp(28)
+                        anchors { fill: parent; leftMargin: Theme.gap(16); rightMargin: Theme.gap(16) }
+                        spacing: Theme.gap(28)
 
                         Column {
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: Theme.sp(2)
+                            spacing: Theme.gap(2)
                             Text {
-                                text: qsTr("PROCESS CPU")
+                                text: Theme.caps(qsTr("Process CPU"))
                                 font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                             }
@@ -721,7 +723,7 @@ Item {
 
                         Column {
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: Theme.sp(2)
+                            spacing: Theme.gap(2)
                             Text {
                                 text: qsTr("RSS")
                                 font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
@@ -752,7 +754,7 @@ Item {
 
                     Text {
                         visible: !profiler.gpuAvailable
-                        anchors { left: parent.left; leftMargin: Theme.sp(16); verticalCenter: parent.verticalCenter }
+                        anchors { left: parent.left; leftMargin: Theme.gap(16); verticalCenter: parent.verticalCenter }
                         text: qsTr("GPU  —  none (CPU inference)")
                         font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm
                         color: Theme.colorText3
@@ -760,14 +762,14 @@ Item {
 
                     Row {
                         visible: profiler.gpuAvailable
-                        anchors { fill: parent; leftMargin: Theme.sp(16); rightMargin: Theme.sp(16) }
-                        spacing: Theme.sp(28)
+                        anchors { fill: parent; leftMargin: Theme.gap(16); rightMargin: Theme.gap(16) }
+                        spacing: Theme.gap(28)
 
                         Column {
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: Theme.sp(2)
+                            spacing: Theme.gap(2)
                             Text {
-                                text: qsTr("GPU (PROCESS)")
+                                text: Theme.caps(qsTr("GPU (process)"))
                                 font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                             }
@@ -790,9 +792,9 @@ Item {
 
                         Column {
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: Theme.sp(2)
+                            spacing: Theme.gap(2)
                             Text {
-                                text: qsTr("GPU (DEVICE)")
+                                text: Theme.caps(qsTr("GPU (device)"))
                                 font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                             }
@@ -823,7 +825,7 @@ Item {
                     spacing: 0
 
                     Text {
-                        text: qsTr("THREADS")
+                        text: Theme.caps(qsTr("Threads"))
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -847,7 +849,7 @@ Item {
                             }
 
                             Rectangle {
-                                anchors { right: thVal.left; rightMargin: Theme.sp(10); verticalCenter: parent.verticalCenter }
+                                anchors { right: thVal.left; rightMargin: Theme.gap(10); verticalCenter: parent.verticalCenter }
                                 width: Theme.sp(90); height: Theme.sp(4); radius: Theme.sp(2)
                                 color: Theme.colorBg3
                                 Rectangle {
@@ -891,7 +893,7 @@ Item {
                     spacing: 0
 
                     Text {
-                        text: qsTr("SCOPES")
+                        text: Theme.caps(qsTr("Scopes"))
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -914,14 +916,14 @@ Item {
                         }
 
                         Row {
-                            anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+                            anchors { fill: parent; leftMargin: Theme.gap(10); rightMargin: Theme.gap(10) }
                             property int nameW: parent.width - Theme.sp(10) - Theme.sp(10) - Theme.sp(64) - Theme.sp(76) - Theme.sp(76) - Theme.sp(76) - Theme.sp(76)
 
                             Item {
                                 width: parent.nameW; height: parent.height
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: qsTr("SCOPE")
+                                    text: Theme.caps(qsTr("Scope"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -930,7 +932,7 @@ Item {
                                 width: Theme.sp(64); height: parent.height
                                 Text {
                                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    text: qsTr("CALLS")
+                                    text: Theme.caps(qsTr("Calls"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -939,7 +941,7 @@ Item {
                                 width: Theme.sp(76); height: parent.height
                                 Text {
                                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    text: qsTr("TOTAL")
+                                    text: Theme.caps(qsTr("Total"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -948,7 +950,7 @@ Item {
                                 width: Theme.sp(76); height: parent.height
                                 Text {
                                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    text: qsTr("AVG")
+                                    text: Theme.caps(qsTr("Avg"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -957,7 +959,7 @@ Item {
                                 width: Theme.sp(76); height: parent.height
                                 Text {
                                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    text: qsTr("MAX")
+                                    text: Theme.caps(qsTr("Max"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -1006,7 +1008,7 @@ Item {
                     spacing: 0
 
                     Text {
-                        text: qsTr("ANALYSIS STAGES")
+                        text: Theme.caps(qsTr("Analysis stages"))
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -1038,14 +1040,14 @@ Item {
                         }
 
                         Row {
-                            anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+                            anchors { fill: parent; leftMargin: Theme.gap(10); rightMargin: Theme.gap(10) }
                             property int nameW: parent.width - Theme.sp(10) - Theme.sp(10) - Theme.sp(64) - Theme.sp(76) - Theme.sp(76) - Theme.sp(76) - Theme.sp(76)
 
                             Item {
                                 width: parent.nameW; height: parent.height
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: qsTr("STAGE")
+                                    text: Theme.caps(qsTr("Stage"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -1054,7 +1056,7 @@ Item {
                                 width: Theme.sp(64); height: parent.height
                                 Text {
                                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    text: qsTr("CALLS")
+                                    text: Theme.caps(qsTr("Calls"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -1063,7 +1065,7 @@ Item {
                                 width: Theme.sp(76); height: parent.height
                                 Text {
                                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    text: qsTr("TOTAL")
+                                    text: Theme.caps(qsTr("Total"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -1072,7 +1074,7 @@ Item {
                                 width: Theme.sp(76); height: parent.height
                                 Text {
                                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    text: qsTr("AVG")
+                                    text: Theme.caps(qsTr("Avg"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -1081,7 +1083,7 @@ Item {
                                 width: Theme.sp(76); height: parent.height
                                 Text {
                                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    text: qsTr("MAX")
+                                    text: Theme.caps(qsTr("Max"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -1129,7 +1131,7 @@ Item {
                     spacing: 0
 
                     Text {
-                        text: qsTr("MEMORY")
+                        text: Theme.caps(qsTr("Memory"))
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -1152,13 +1154,13 @@ Item {
                         }
 
                         Row {
-                            anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+                            anchors { fill: parent; leftMargin: Theme.gap(10); rightMargin: Theme.gap(10) }
 
                             Item {
                                 width: parent.width - Theme.sp(100) - Theme.sp(100); height: parent.height
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: qsTr("CATEGORY")
+                                    text: Theme.caps(qsTr("Category"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -1167,7 +1169,7 @@ Item {
                                 width: Theme.sp(100); height: parent.height
                                 Text {
                                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    text: qsTr("CURRENT")
+                                    text: Theme.caps(qsTr("Current"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -1176,7 +1178,7 @@ Item {
                                 width: Theme.sp(100); height: parent.height
                                 Text {
                                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    text: qsTr("PEAK")
+                                    text: Theme.caps(qsTr("Peak"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -1193,7 +1195,7 @@ Item {
                             color: index % 2 === 1 ? Theme.colorBg : Theme.colorSurface
 
                             Row {
-                                anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+                                anchors { fill: parent; leftMargin: Theme.gap(10); rightMargin: Theme.gap(10) }
 
                                 Item {
                                     width: parent.width - Theme.sp(100) - Theme.sp(100); height: parent.height
@@ -1248,7 +1250,7 @@ Item {
                     spacing: 0
 
                     Text {
-                        text: qsTr("GPU MEMORY")
+                        text: Theme.caps(qsTr("GPU memory"))
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -1280,13 +1282,13 @@ Item {
                         }
 
                         Row {
-                            anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+                            anchors { fill: parent; leftMargin: Theme.gap(10); rightMargin: Theme.gap(10) }
 
                             Item {
                                 width: parent.width - Theme.sp(100) - Theme.sp(100); height: parent.height
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: qsTr("CATEGORY")
+                                    text: Theme.caps(qsTr("Category"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -1295,7 +1297,7 @@ Item {
                                 width: Theme.sp(100); height: parent.height
                                 Text {
                                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    text: qsTr("CURRENT")
+                                    text: Theme.caps(qsTr("Current"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -1304,7 +1306,7 @@ Item {
                                 width: Theme.sp(100); height: parent.height
                                 Text {
                                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                                    text: qsTr("PEAK")
+                                    text: Theme.caps(qsTr("Peak"))
                                     font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                                 }
@@ -1321,7 +1323,7 @@ Item {
                             color: index % 2 === 1 ? Theme.colorBg : Theme.colorSurface
 
                             Row {
-                                anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+                                anchors { fill: parent; leftMargin: Theme.gap(10); rightMargin: Theme.gap(10) }
 
                                 Item {
                                     width: parent.width - Theme.sp(100) - Theme.sp(100); height: parent.height
@@ -1376,7 +1378,7 @@ Item {
             Row {
                 id: logTabBar
                 width: parent.width - 40
-                spacing: Theme.sp(20)
+                spacing: Theme.gap(20)
 
                 // Message Log tab
                 Item {
@@ -1388,8 +1390,8 @@ Item {
 
                     Text {
                         id: msgTabLbl
-                        anchors { left: parent.left; top: parent.top; topMargin: Theme.sp(3) }
-                        text: qsTr("MESSAGE LOG")
+                        anchors { left: parent.left; top: parent.top; topMargin: Theme.gap(3) }
+                        text: Theme.caps(qsTr("Message log"))
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -1419,8 +1421,8 @@ Item {
 
                     Text {
                         id: statsTabLbl
-                        anchors { left: parent.left; top: parent.top; topMargin: Theme.sp(3) }
-                        text: qsTr("STATS HISTORY")
+                        anchors { left: parent.left; top: parent.top; topMargin: Theme.gap(3) }
+                        text: Theme.caps(qsTr("Stats history"))
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -1450,8 +1452,8 @@ Item {
 
                     Text {
                         id: anTabLbl
-                        anchors { left: parent.left; top: parent.top; topMargin: Theme.sp(3) }
-                        text: qsTr("ANALYSIS RUNS")
+                        anchors { left: parent.left; top: parent.top; topMargin: Theme.gap(3) }
+                        text: Theme.caps(qsTr("Analysis runs"))
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -1485,8 +1487,8 @@ Item {
 
                     Text {
                         id: ppcpTabLbl
-                        anchors { left: parent.left; top: parent.top; topMargin: Theme.sp(3) }
-                        text: qsTr("PINPOINTCAPTURE")
+                        anchors { left: parent.left; top: parent.top; topMargin: Theme.gap(3) }
+                        text: Theme.caps(qsTr("PinPointCapture"))
                         font.family: Theme.fontBody
                         font.pixelSize: Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -1594,7 +1596,7 @@ Item {
                     Rectangle {
                         id: exportBtn
                         visible: resourceMonitor.messageLog.length > 0
-                        anchors { right: clearBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                        anchors { right: clearBtn.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                         width: exportLbl.implicitWidth + Theme.sp(16)
                         height: Theme.sp(18)
                         radius: Theme.radius
@@ -1632,7 +1634,7 @@ Item {
                     Rectangle {
                         id: filterBox
                         visible: resourceMonitor.messageLog.length > 0
-                        anchors { right: filterChips.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                        anchors { right: filterChips.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                         width: Theme.sp(120)
                         height: Theme.sp(18)
                         radius: Theme.radius
@@ -1641,7 +1643,7 @@ Item {
                         border.color: filterInput.activeFocus ? Theme.colorAccent : Theme.colorBorderMid
 
                         Text {
-                            anchors { left: parent.left; leftMargin: Theme.sp(7); verticalCenter: parent.verticalCenter }
+                            anchors { left: parent.left; leftMargin: Theme.gap(7); verticalCenter: parent.verticalCenter }
                             visible: filterInput.text.length === 0
                             text: qsTr("Filter…")
                             font.family: Theme.fontBody
@@ -1651,7 +1653,7 @@ Item {
 
                         TextInput {
                             id: filterInput
-                            anchors { left: parent.left; right: clearFilter.left; leftMargin: Theme.sp(7); rightMargin: Theme.sp(4); verticalCenter: parent.verticalCenter }
+                            anchors { left: parent.left; right: clearFilter.left; leftMargin: Theme.gap(7); rightMargin: Theme.gap(4); verticalCenter: parent.verticalCenter }
                             font.family: Theme.fontBody
                             font.pixelSize: Theme.sp(10)
                             color: Theme.colorText
@@ -1663,7 +1665,7 @@ Item {
 
                         Text {
                             id: clearFilter
-                            anchors { right: parent.right; rightMargin: Theme.sp(5); verticalCenter: parent.verticalCenter }
+                            anchors { right: parent.right; rightMargin: Theme.gap(5); verticalCenter: parent.verticalCenter }
                             visible: filterInput.text.length > 0
                             text: "×"
                             font.pixelSize: Theme.sp(12)
@@ -1677,8 +1679,8 @@ Item {
                     Row {
                         id: filterChips
                         visible: resourceMonitor.messageLog.length > 0
-                        anchors { right: exportBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
-                        spacing: Theme.sp(4)
+                        anchors { right: exportBtn.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
+                        spacing: Theme.gap(4)
 
                         Repeater {
                             model: ["INFO", "WARN", "ERROR"]
@@ -1740,13 +1742,13 @@ Item {
                     }
 
                     Row {
-                        anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+                        anchors { fill: parent; leftMargin: Theme.gap(10); rightMargin: Theme.gap(10) }
 
                         Item {
                             width: Theme.sp(62); height: parent.height
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("TIME")
+                                text: Theme.caps(qsTr("Time"))
                                 font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                             }
@@ -1756,7 +1758,7 @@ Item {
                             width: Theme.sp(52); height: parent.height
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("SEVERITY")
+                                text: Theme.caps(qsTr("Severity"))
                                 font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                             }
@@ -1764,7 +1766,7 @@ Item {
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("MESSAGE")
+                            text: Theme.caps(qsTr("Message"))
                             font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                             font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                         }
@@ -1818,7 +1820,7 @@ Item {
                         TextEdit {
                             id: logTs
                             anchors { left: parent.left; top: parent.top
-                                      leftMargin: Theme.sp(10); topMargin: Theme.sp(6) }
+                                      leftMargin: Theme.gap(10); topMargin: Theme.gap(6) }
                             width: Theme.sp(52)
                             text: modelData.timestamp
                             font.family: Theme.fontData
@@ -1834,7 +1836,7 @@ Item {
                         Rectangle {
                             id: sevBadge
                             anchors { left: logTs.right; top: parent.top
-                                      leftMargin: Theme.sp(4); topMargin: Theme.sp(5) }
+                                      leftMargin: Theme.gap(4); topMargin: Theme.gap(5) }
                             width: Theme.sp(44)
                             height: Theme.sp(16)
                             radius: Theme.sp(3)
@@ -1859,8 +1861,8 @@ Item {
                             id: logMsg
                             anchors {
                                 left: sevBadge.right; right: parent.right; top: parent.top
-                                leftMargin: Theme.sp(8); rightMargin: Theme.sp(10)
-                                topMargin: Theme.sp(6)
+                                leftMargin: Theme.gap(8); rightMargin: Theme.gap(10)
+                                topMargin: Theme.gap(6)
                             }
                             text: modelData.message
                             wrapMode: TextEdit.WordWrap
@@ -1919,7 +1921,7 @@ Item {
                     // Export
                     Rectangle {
                         id: statsExportBtn
-                        anchors { right: statsClearBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                        anchors { right: statsClearBtn.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                         width: statsExportLbl.implicitWidth + Theme.sp(16)
                         height: Theme.sp(18)
                         radius: Theme.radius
@@ -1954,8 +1956,8 @@ Item {
                     // Category filter chips
                     Row {
                         id: statsChips
-                        anchors { right: statsExportBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
-                        spacing: Theme.sp(4)
+                        anchors { right: statsExportBtn.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
+                        spacing: Theme.gap(4)
 
                         Repeater {
                             model: profiler.statsCategories
@@ -1997,7 +1999,7 @@ Item {
 
                     // Text filter
                     Rectangle {
-                        anchors { right: statsChips.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                        anchors { right: statsChips.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                         width: Theme.sp(120)
                         height: Theme.sp(18)
                         radius: Theme.radius
@@ -2006,7 +2008,7 @@ Item {
                         border.color: statsFilterInput.activeFocus ? Theme.colorAccent : Theme.colorBorderMid
 
                         Text {
-                            anchors { left: parent.left; leftMargin: Theme.sp(7); verticalCenter: parent.verticalCenter }
+                            anchors { left: parent.left; leftMargin: Theme.gap(7); verticalCenter: parent.verticalCenter }
                             visible: statsFilterInput.text.length === 0
                             text: qsTr("Filter…")
                             font.family: Theme.fontBody
@@ -2016,7 +2018,7 @@ Item {
 
                         TextInput {
                             id: statsFilterInput
-                            anchors { left: parent.left; right: statsClearFilter.left; leftMargin: Theme.sp(7); rightMargin: Theme.sp(4); verticalCenter: parent.verticalCenter }
+                            anchors { left: parent.left; right: statsClearFilter.left; leftMargin: Theme.gap(7); rightMargin: Theme.gap(4); verticalCenter: parent.verticalCenter }
                             font.family: Theme.fontBody
                             font.pixelSize: Theme.sp(10)
                             color: Theme.colorText
@@ -2028,7 +2030,7 @@ Item {
 
                         Text {
                             id: statsClearFilter
-                            anchors { right: parent.right; rightMargin: Theme.sp(5); verticalCenter: parent.verticalCenter }
+                            anchors { right: parent.right; rightMargin: Theme.gap(5); verticalCenter: parent.verticalCenter }
                             visible: statsFilterInput.text.length > 0
                             text: "×"
                             font.pixelSize: Theme.sp(12)
@@ -2055,13 +2057,13 @@ Item {
                     }
 
                     Row {
-                        anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+                        anchors { fill: parent; leftMargin: Theme.gap(10); rightMargin: Theme.gap(10) }
 
                         Item {
                             width: Theme.sp(52); height: parent.height
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("TIME")
+                                text: Theme.caps(qsTr("Time"))
                                 font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                             }
@@ -2070,14 +2072,14 @@ Item {
                             width: Theme.sp(60); height: parent.height
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("CATEGORY")
+                                text: Theme.caps(qsTr("Category"))
                                 font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                             }
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("MESSAGE")
+                            text: Theme.caps(qsTr("Message"))
                             font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                             font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                         }
@@ -2163,7 +2165,7 @@ Item {
                     // Export
                     Rectangle {
                         id: anExportBtn
-                        anchors { right: anClearBtn.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                        anchors { right: anClearBtn.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                         width: anExportLbl.implicitWidth + Theme.sp(16)
                         height: Theme.sp(18)
                         radius: Theme.radius
@@ -2212,28 +2214,28 @@ Item {
                     }
 
                     Row {
-                        anchors { fill: parent; leftMargin: Theme.sp(24); rightMargin: Theme.sp(10) }
-                        spacing: Theme.sp(8)
+                        anchors { fill: parent; leftMargin: Theme.gap(24); rightMargin: Theme.gap(10) }
+                        spacing: Theme.gap(8)
 
                         Item {
                             width: Theme.sp(52); height: parent.height
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("TIME")
+                                text: Theme.caps(qsTr("Time"))
                                 font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                                 font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                             }
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("SESSION")
+                            text: Theme.caps(qsTr("Session"))
                             font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                             font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                         }
                     }
                     Text {
-                        anchors { right: parent.right; rightMargin: Theme.sp(10); verticalCenter: parent.verticalCenter }
-                        text: qsTr("FRAMES · TOTAL · SCORE")
+                        anchors { right: parent.right; rightMargin: Theme.gap(10); verticalCenter: parent.verticalCenter }
+                        text: Theme.caps(qsTr("Frames · total · score"))
                         font.family: Theme.fontData; font.pixelSize: Theme.sp(9)
                         font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                     }
@@ -2278,7 +2280,7 @@ Item {
                 id: ppcpCol
                 visible: root.logTab === 3 && root.ppcpAvailable
                 width: parent.width - 40
-                spacing: Theme.sp(10)
+                spacing: Theme.gap(10)
 
                 // Header: the listener, and the arbitration counters summed
                 // across every phone.
@@ -2382,6 +2384,6 @@ Item {
         glyph: "💾"
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: Theme.sp(24)
+        anchors.bottomMargin: Theme.gap(24)
     }
 }

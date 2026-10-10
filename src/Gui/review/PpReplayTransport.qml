@@ -38,7 +38,7 @@ Item {
     RowLayout {
         id: bar
         anchors.centerIn: parent
-        spacing: Theme.sp(4)
+        spacing: Theme.gap(4)
 
         TBtn { glyph: "⏮"; onActed: shotReplay.seekToUs(shotReplay.startUs) }
         TBtn { glyph: "◂"; onActed: shotReplay.stepFrame(-1) }
@@ -49,13 +49,13 @@ Item {
         // Playback speed (capture-time multiplier; 1× = real time) — honoured by
         // the running replay immediately.
         PpSpeedSelector {
-            Layout.leftMargin: Theme.sp(8)
+            Layout.leftMargin: Theme.gap(8)
             current: shotReplay.speed
             onSelected: (speed) => shotReplay.setSpeed(speed)
         }
 
         PpMicro {
-            Layout.leftMargin: Theme.sp(8)
+            Layout.leftMargin: Theme.gap(8)
             text: root._fmt(shotReplay.positionUs - shotReplay.startUs)
                   + " / " + root._fmt(shotReplay.endUs - shotReplay.startUs)
             font.letterSpacing: Theme.trackingData

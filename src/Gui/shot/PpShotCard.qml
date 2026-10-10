@@ -151,7 +151,7 @@ Rectangle {
             anchors {
                 left: parent.left; right: parent.right
                 verticalCenter: parent.verticalCenter; verticalCenterOffset: -Theme.sp(6)
-                leftMargin: Theme.sp(7); rightMargin: Theme.sp(7)
+                leftMargin: Theme.gap(7); rightMargin: Theme.gap(7)
             }
             height:  Theme.sp(34)
             visible: !card.hasVideo && !card.deviceOnly
@@ -173,7 +173,7 @@ Rectangle {
         Text {
             objectName: "provenanceLabel"
             anchors { left: parent.left; bottom: parent.bottom
-                      leftMargin: Theme.sp(7)
+                      leftMargin: Theme.gap(7)
                       // Steps up out of the pip row's band when there is one. The provenance
                       // label and the diagnostic read are both worth a line and neither is
                       // worth covering the other, and this card has exactly one clear band.
@@ -185,9 +185,9 @@ Rectangle {
             // both produced nothing has no video, no reading and no trace, and the card
             // announced it as an IMU swing. The rule was written for the monitor and
             // never extended to the case underneath it.
-            text:           card.deviceOnly ? qsTr("MONITOR ONLY")
-                          : card.sawMotion  ? qsTr("IMU ONLY")
-                          :                   qsTr("NOT RECORDED")
+            text:           card.deviceOnly ? Theme.caps(qsTr("Monitor only"))
+                          : card.sawMotion  ? Theme.caps(qsTr("IMU only"))
+                          :                   Theme.caps(qsTr("Not recorded"))
             font.family:    Theme.fontData
             font.pixelSize: Theme.fontSzMicro
             font.letterSpacing: Theme.trackingLabel
@@ -197,7 +197,7 @@ Rectangle {
 
     // ── Overlays ─────────────────────────────────────────────────────────────
     Rectangle {   // ordinal chip, top-left
-        anchors { left: parent.left; top: parent.top; margins: Theme.sp(6) }
+        anchors { left: parent.left; top: parent.top; margins: Theme.gap(6) }
         width:  ordinalText.implicitWidth + Theme.sp(10)
         height: ordinalText.implicitHeight + Theme.sp(3)
         radius: Theme.sp(4)
@@ -216,7 +216,7 @@ Rectangle {
     // The band's mark leads the number: the card is too small for the band's word, and the
     // pill's colour alone would be the only thing saying it.
     PpQualityPill {
-        anchors { right: parent.right; top: parent.top; margins: Theme.sp(6) }
+        anchors { right: parent.right; top: parent.top; margins: Theme.gap(6) }
         score: card.score
         mark:  true
     }
@@ -237,7 +237,7 @@ Rectangle {
     Rectangle {
         id: pipBand
         anchors { left: parent.left; right: parent.right
-                  bottom: parent.bottom; bottomMargin: Theme.sp(24) }
+                  bottom: parent.bottom; bottomMargin: Theme.gap(24) }
         height: Theme.sp(14)
         z: 2
         visible: pipLoader.item && pipLoader.item.count > 0
@@ -252,7 +252,7 @@ Rectangle {
         Loader {
             id: pipLoader
             anchors { fill: parent
-                      leftMargin: Theme.sp(6); rightMargin: Theme.sp(6) }
+                      leftMargin: Theme.gap(6); rightMargin: Theme.gap(6) }
             active: SessionMode.sessionDiagnostics !== null
             sourceComponent: pipComponent
         }
@@ -300,7 +300,7 @@ Rectangle {
         PpStarRating {
             objectName: "starRating"
             anchors { left: parent.left; bottom: parent.bottom
-                      leftMargin: Theme.sp(7); bottomMargin: Theme.sp(7) }
+                      leftMargin: Theme.gap(7); bottomMargin: Theme.gap(7) }
             value:       card.rating
             starSize:    Math.round(Theme.fontSzMicro * 1.5)
             offColor:    Qt.rgba(1, 1, 1, 0.45)   // off-stars over media scrim
@@ -328,7 +328,7 @@ Rectangle {
         id: dataWarnBadge
         objectName: "dataWarnBadge"
         visible: card.dataWarning
-        anchors { right: parent.right; bottom: parent.bottom; margins: Theme.sp(6) }
+        anchors { right: parent.right; bottom: parent.bottom; margins: Theme.gap(6) }
         width:  warnRow.implicitWidth + Theme.sp(8)
         height: warnRow.implicitHeight + Theme.sp(4)
         radius: Theme.sp(4)
@@ -338,7 +338,7 @@ Rectangle {
         Row {
             id: warnRow
             anchors.centerIn: parent
-            spacing: Theme.sp(3)
+            spacing: Theme.gap(3)
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text:           "⚠"            // ⚠ warning triangle with exclamation
@@ -348,7 +348,7 @@ Rectangle {
             }
             PpMicro {
                 anchors.verticalCenter: parent.verticalCenter
-                text:  qsTr("DATA")
+                text:  Theme.caps(qsTr("Data"))
                 color: Theme.colorWarn
             }
         }

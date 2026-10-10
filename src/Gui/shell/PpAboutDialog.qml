@@ -40,7 +40,7 @@ Popup {
     modal: true
     dim: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    padding: Theme.sp(24)
+    padding: Theme.gap(24)
     width: Math.min(Theme.sp(480), (parent ? parent.width : Theme.sp(480)) - Theme.sp(48))
 
     // Live updater state + status-badge palette — mirrors GeneralPanel.qml's version row.
@@ -69,12 +69,12 @@ Popup {
     }
 
     contentItem: ColumnLayout {
-        spacing: Theme.sp(18)
+        spacing: Theme.gap(18)
 
         // ── Identity: icon + wordmark + OS ──────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(16)
+            spacing: Theme.gap(16)
 
             Image {
                 source:            appInfo.iconSource
@@ -90,7 +90,7 @@ Popup {
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
-                spacing: Theme.sp(3)
+                spacing: Theme.gap(3)
 
                 PpDisplayText {
                     Layout.fillWidth: true
@@ -113,7 +113,7 @@ Popup {
         // ── Version + build provenance ──────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(4)
+            spacing: Theme.gap(4)
 
             Text {
                 Layout.fillWidth: true
@@ -137,11 +137,11 @@ Popup {
         // ── Update section (always shown; inert where updates aren't supported) ──
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(10)
+                spacing: Theme.gap(10)
 
                 // Status badge — hidden in the neutral idle state (the button carries it).
                 Rectangle {
@@ -209,11 +209,11 @@ Popup {
 
         // ── Bundled libraries ───────────────────────────────────────────────
         Text {
-            text:                qsTr("LIBRARIES")
+            text:                qsTr("Libraries")
             font.family:         Theme.fontBody
             font.pixelSize:      Theme.fontSzLabel
             font.letterSpacing:  Theme.trackingLabel
-            font.capitalization: Font.AllUppercase
+            font.capitalization: Theme.capsFont
             color:               Theme.colorText3
         }
 
@@ -227,14 +227,14 @@ Popup {
             ColumnLayout {
                 id: depsCol
                 width:   depsScroll.availableWidth
-                spacing: Theme.sp(7)
+                spacing: Theme.gap(7)
 
                 Repeater {
                     model: appInfo.dependencies
                     delegate: RowLayout {
                         required property var modelData
                         Layout.fillWidth: true
-                        spacing: Theme.sp(12)
+                        spacing: Theme.gap(12)
 
                         Text {
                             text:           modelData.name

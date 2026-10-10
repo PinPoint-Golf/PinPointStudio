@@ -184,7 +184,7 @@ Item {
             transport: Component { PpReplayTransport {} }
             transportActive: root._transitMode
             metricKeys: []
-            traceLabel: qsTr("SESSION SHOTS")
+            traceLabel: Theme.caps(qsTr("Session shots"))
         }
     }
 

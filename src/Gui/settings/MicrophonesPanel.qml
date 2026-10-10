@@ -172,8 +172,8 @@ Item {
 
         RowLayout {
             anchors.fill:    parent
-            anchors.margins: Theme.sp(12)
-            spacing:         Theme.sp(10)
+            anchors.margins: Theme.gap(12)
+            spacing:         Theme.gap(10)
 
             // Radio dot
             Rectangle {
@@ -196,7 +196,7 @@ Item {
 
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(1)
+                spacing: Theme.gap(1)
                 Text {
                     text:           devRow.devData.description || qsTr("Unknown device")
                     font.family:    Theme.fontBody
@@ -216,11 +216,11 @@ Item {
 
             Text {
                 visible:        devRow.isActive
-                text:           qsTr("ACTIVE")
+                text:           qsTr("Active")
                 font.family:         Theme.fontData
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorAccent
                 Layout.alignment:    Qt.AlignVCenter
             }
@@ -249,15 +249,15 @@ Item {
             x:       Theme.sp(32)
             y:       Theme.sp(28)
             width:   parent.width - Theme.sp(64)
-            spacing: Theme.sp(16)
+            spacing: Theme.gap(16)
 
             // ── Page header ────────────────────────────────────────────────
             Text {
-                text:                qsTr("HARDWARE")
+                text:                qsTr("Hardware")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
             PpDisplayText {
@@ -277,13 +277,13 @@ Item {
             RowLayout {
                 objectName: "setting_acousticShotDetection"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1; Behavior on opacity { NumberAnimation { duration: Theme.durationFast } } }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         text:           qsTr("Use microphone for shot detection")
                         font.family:    Theme.fontBody
@@ -313,11 +313,11 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 Text {
-                    text:                qsTr("INPUT DEVICES")
+                    text:                qsTr("Input devices")
                     font.family:         Theme.fontBody
                     font.pixelSize:      Theme.fontSzMicro
                     font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color:               Theme.colorText3
                     Layout.fillWidth:    true
                 }
@@ -349,8 +349,8 @@ Item {
 
             ColumnLayout {
                 Layout.fillWidth:  true
-                Layout.leftMargin: Theme.sp(26)
-                spacing: Theme.sp(8)
+                Layout.leftMargin: Theme.gap(26)
+                spacing: Theme.gap(8)
 
                 Repeater {
                     model: root.devices
@@ -380,7 +380,7 @@ Item {
             ColumnLayout {
                 objectName: "setting_micDistance"
                 Layout.fillWidth: true
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1; Behavior on opacity { NumberAnimation { duration: Theme.durationFast } } }
 
@@ -388,7 +388,7 @@ Item {
                     Layout.fillWidth: true
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: Theme.sp(3)
+                        spacing: Theme.gap(3)
                         Text {
                             text:           qsTr("Distance to hitting strip")
                             font.family:    Theme.fontBody
@@ -453,11 +453,11 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 Text {
-                    text:                qsTr("CALIBRATION")
+                    text:                qsTr("Calibration")
                     font.family:         Theme.fontBody
                     font.pixelSize:      Theme.fontSzMicro
                     font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color:               Theme.colorText3
                     Layout.fillWidth:    true
                 }
@@ -510,7 +510,7 @@ Item {
 
             Text {
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.sp(26)
+                Layout.leftMargin: Theme.gap(26)
                 text: root.calibrating
                           ? qsTr("Listening… hit shots and watch the trace. A green marker and the counter confirm each acoustic detection. Raise sensitivity if a strike is missed; lower it if background noise triggers false detections.")
                           : qsTr("Press Start calibration to open the microphone and watch the live sound level against the detection threshold.")
@@ -524,7 +524,7 @@ Item {
             // Meter + controls card
             Rectangle {
                 Layout.fillWidth:  true
-                Layout.leftMargin: Theme.sp(26)
+                Layout.leftMargin: Theme.gap(26)
                 radius: Theme.radius
                 color:  Theme.colorBg2
                 border.width: 1
@@ -536,8 +536,8 @@ Item {
                     anchors.left:    parent.left
                     anchors.right:   parent.right
                     anchors.top:     parent.top
-                    anchors.margins: Theme.sp(14)
-                    spacing: Theme.sp(12)
+                    anchors.margins: Theme.gap(14)
+                    spacing: Theme.gap(12)
 
                     // ── Rolling level trace ──────────────────────────────────
                     Rectangle {
@@ -647,7 +647,7 @@ Item {
                     // ── Sensitivity slider ───────────────────────────────────
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: Theme.sp(4)
+                        spacing: Theme.gap(4)
 
                         RowLayout {
                             Layout.fillWidth: true
@@ -731,7 +731,7 @@ Item {
                     // ── Detection counter ────────────────────────────────────
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: Theme.sp(12)
+                        spacing: Theme.gap(12)
 
                         Rectangle {
                             width:  Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(4)

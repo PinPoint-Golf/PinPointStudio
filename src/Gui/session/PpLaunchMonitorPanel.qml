@@ -227,7 +227,7 @@ Item {
             readonly property real room: header.width - switcher.width - Theme.sp(16)
             anchors.left: parent.left
             y: Math.round((switcher.height - height) / 2)
-            spacing: Theme.sp(16)
+            spacing: Theme.gap(16)
 
             // The scope, in words. A mean whose scope you cannot see is a number you
             // cannot use — and when the club is unknown this says "all clubs" rather
@@ -237,7 +237,7 @@ Item {
                 visible: board.emptyText === "" && text !== ""
                 width: Math.min(implicitWidth, metaRow.room)
                 elide: Text.ElideRight
-                text: board.scopeText.toUpperCase()
+                text: Theme.caps(board.scopeText)
                 color: Theme.colorText2
                 font.letterSpacing: Theme.trackingData
             }
@@ -272,7 +272,7 @@ Item {
                                              - legendBadge.width - spacing
                 visible: board.emptyText === "" && board.corridorScope !== ""
                          && room >= Theme.sp(80)
-                spacing: Theme.sp(6)
+                spacing: Theme.gap(6)
                 PpBadge {
                     id: legendBadge
                     anchors.verticalCenter: parent.verticalCenter
@@ -395,7 +395,7 @@ Item {
                             spacing: root.px(Theme.sp(2))
                             Text {
                                 width: parent.width
-                                text: bandRow.band.toUpperCase()
+                                text: Theme.caps(bandRow.band)
                                 font.family: Theme.fontData
                                 font.pixelSize: root.px(Theme.fontSzMicro)
                                 font.letterSpacing: Theme.trackingMicro
@@ -502,7 +502,7 @@ Item {
                                                   leftMargin: tile.flagged ? root.px(Theme.sp(5)) : 0
                                                   right: meanTxt.left
                                                   rightMargin: root.px(Theme.sp(6)) }
-                                        text: tile.modelData.abbrev
+                                        text: Theme.caps(tile.modelData.abbrev)
                                         font.family: Theme.fontData
                                         font.pixelSize: tile.fontMicro
                                         font.letterSpacing: Theme.trackingMicro

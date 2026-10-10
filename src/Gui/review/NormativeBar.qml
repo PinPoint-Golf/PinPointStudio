@@ -177,7 +177,7 @@ Item {
     // ── Min / max tick labels ─────────────────────────────────────────────────
     Item {
         id: tickRow
-        anchors { left: parent.left; right: parent.right; top: track.bottom; topMargin: Theme.sp(6) }
+        anchors { left: parent.left; right: parent.right; top: track.bottom; topMargin: Theme.gap(6) }
         height: loTick.implicitHeight
 
         Text {

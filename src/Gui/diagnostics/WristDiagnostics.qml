@@ -56,7 +56,7 @@ Item {
 
     // Right of the card's title: which position the panel is reading.
     readonly property string cardAside: dx.hasData && root._pos && root._pos.tag
-                                        ? qsTr("AT %1").arg(root._pos.tag) : ""
+                                        ? Theme.caps(qsTr("At %1")).arg(root._pos.tag) : ""
 
     function _ragColor(r) {
         return r === "green" ? Theme.colorRagGood
@@ -89,7 +89,7 @@ Item {
             // stretches to it (the strips absorb the slack, so they grow rather than the panel
             // hugging the top); when it is taller, it grows past and scrolls.
             height: Math.max(implicitHeight, flick.height - Theme.sp(8))
-            spacing: Theme.sp(14)
+            spacing: Theme.gap(14)
 
             // FINDINGS and WORKING WELL side by side when there's room; stacked on a narrow panel.
             readonly property bool _wide: width >= Theme.sp(640)
@@ -97,11 +97,11 @@ Item {
             // ── Header: the position and its note · score pill ──────────────────────
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 Flow {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignTop
-                    spacing: Theme.sp(6)
+                    spacing: Theme.gap(6)
                     Text {
                         text: root._pos ? root._pos.name : ""
                         font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
@@ -128,14 +128,14 @@ Item {
             // ── Model (band archetype, Auto-detect) + Compare-to (ghost) controls ───
             Flow {
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
 
                 // Band model — Auto detects from the swing; the rest are manual overrides.
                 Row {
-                    spacing: Theme.sp(8)
+                    spacing: Theme.gap(8)
                     PpMicro {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: qsTr("MODEL")
+                        text: Theme.caps(qsTr("Model"))
                     }
                     PpSegmentedControl {
                         width: Theme.sp(230)
@@ -146,17 +146,17 @@ Item {
                     PpMicro {
                         anchors.verticalCenter: parent.verticalCenter
                         visible: dx.archetype === -1
-                        text: "→ " + dx.effectiveArchetypeName.toUpperCase()
+                        text: "→ " + Theme.caps(dx.effectiveArchetypeName)
                         font.letterSpacing: Theme.trackingData
                     }
                 }
 
                 // Compare-to ghost.
                 Row {
-                    spacing: Theme.sp(8)
+                    spacing: Theme.gap(8)
                     PpMicro {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: qsTr("COMPARE")
+                        text: Theme.caps(qsTr("Compare"))
                     }
                     PpSegmentedControl {
                         width: Theme.sp(210)
@@ -188,7 +188,7 @@ Item {
                     Row {
                         id: refRow
                         anchors.centerIn: parent
-                        spacing: Theme.sp(3)
+                        spacing: Theme.gap(3)
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             text: "★"
@@ -214,10 +214,10 @@ Item {
             Flow {
                 Layout.fillWidth: true
                 visible: dx.resemblance && dx.resemblance.neutral !== undefined
-                spacing: Theme.sp(14)
+                spacing: Theme.gap(14)
                 PpMicro {
                     height: Theme.sp(18); verticalAlignment: Text.AlignVCenter
-                    text: qsTr("ARCHETYPE SIMILARITY INDEX")
+                    text: Theme.caps(qsTr("Archetype similarity index"))
                 }
                 Repeater {
                     model: [ { name: qsTr("Neutral"), key: "neutral", mode: 0 },
@@ -228,7 +228,7 @@ Item {
                         required property var modelData
                         readonly property bool effective: dx.effectiveArchetype === modelData.mode
                         height: Theme.sp(18)
-                        spacing: Theme.sp(6)
+                        spacing: Theme.gap(6)
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             text: qsTr("%1 %2%").arg(simItem.modelData.name)
@@ -251,7 +251,7 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.minimumHeight: implicitHeight
-                spacing: Theme.sp(14)
+                spacing: Theme.gap(14)
                 Repeater {
                     model: dx.strips
                     delegate: DofTrajectoryStrip {
@@ -279,8 +279,8 @@ Item {
             GridLayout {
                 Layout.fillWidth: true
                 columns: body._wide ? 3 : 1
-                columnSpacing: Theme.sp(16)
-                rowSpacing: Theme.sp(14)
+                columnSpacing: Theme.gap(16)
+                rowSpacing: Theme.gap(14)
 
                 FindingsList {
                     Layout.fillWidth: true
@@ -309,10 +309,10 @@ Item {
             // ── Legend: each RAG glyph with its word ─────────────────────────────────
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 Flow {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(16)
+                    spacing: Theme.gap(16)
                     Repeater {
                         model: [ { g: "●", t: qsTr("in range"), c: "green" },
                                  { g: "▲", t: qsTr("watch"),    c: "amber" },
@@ -320,7 +320,7 @@ Item {
                                  { g: "◆", t: qsTr("no data"),  c: "none"  } ]
                         delegate: Row {
                             required property var modelData
-                            spacing: Theme.sp(4)
+                            spacing: Theme.gap(4)
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: parent.modelData.g
@@ -339,7 +339,7 @@ Item {
                 }
                 PpMicro {
                     Layout.alignment: Qt.AlignTop
-                    text: qsTr("Δ FROM ADDRESS · DEGREES")
+                    text: Theme.caps(qsTr("Δ from address · degrees"))
                     font.letterSpacing: Theme.trackingData
                 }
             }

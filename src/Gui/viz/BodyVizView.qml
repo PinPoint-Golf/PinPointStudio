@@ -870,7 +870,7 @@ Item {
 
     // ── Orbit hint ────────────────────────────────────────────────────────────
     Text {
-        anchors { bottom: parent.bottom; right: parent.right; margins: Theme.sp(10) }
+        anchors { bottom: parent.bottom; right: parent.right; margins: Theme.gap(10) }
         text:           qsTr("Drag · Scroll to zoom")
         color:          Theme.colorText3
         font.family:    Theme.fontBody

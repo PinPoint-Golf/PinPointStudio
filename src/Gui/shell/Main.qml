@@ -182,7 +182,7 @@ ApplicationWindow {
         modal: true
         dim: true
         closePolicy: Popup.CloseOnEscape          // Esc = cancel (safe default)
-        padding: Theme.sp(20)
+        padding: Theme.gap(20)
         width: Math.min(Theme.sp(420), root.width - Theme.sp(48))
 
         background: Rectangle {
@@ -193,7 +193,7 @@ ApplicationWindow {
         }
 
         contentItem: Column {
-            spacing: Theme.sp(12)
+            spacing: Theme.gap(12)
 
             Text {
                 width: parent.width
@@ -225,7 +225,7 @@ ApplicationWindow {
 
             Row {
                 anchors.right: parent.right
-                spacing: Theme.sp(8)
+                spacing: Theme.gap(8)
 
                 // End session & close — attention-styled primary
                 Rectangle {

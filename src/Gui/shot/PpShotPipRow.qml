@@ -74,7 +74,7 @@ Item {
         id: pipRow
         anchors.left: parent.left
         anchors.right: countText.left
-        anchors.rightMargin: Theme.sp(5)
+        anchors.rightMargin: Theme.gap(5)
         anchors.verticalCenter: parent.verticalCenter
         spacing: root._gap
         clip: true

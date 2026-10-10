@@ -36,7 +36,7 @@ Rectangle {
         (root.scopeData.deep && !root.deepOn) ? Theme.colorText3 : Theme.colorText2
 
     Row {
-        anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+        anchors { fill: parent; leftMargin: Theme.gap(10); rightMargin: Theme.gap(10) }
         visible: root.scopeData !== null && root.scopeData !== undefined
 
         // Scope name (fills remaining width)

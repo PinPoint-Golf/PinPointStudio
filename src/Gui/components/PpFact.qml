@@ -44,12 +44,12 @@ Item {
     Row {
         id: valueRow
         x: fact.labelWidth
-        spacing: Theme.sp(8)
+        spacing: Theme.gap(8)
     }
     Text {
         id: factText
         visible: fact.text !== ""
-        x: fact.labelWidth + (valueRow.children.length > 0 ? valueRow.implicitWidth + Theme.sp(12) : 0)
+        x: fact.labelWidth + (valueRow.children.length > 0 ? valueRow.implicitWidth + Theme.gap(12) : 0)
         width: fact.width - x
         text:  fact.text
         font.family:    Theme.fontBody

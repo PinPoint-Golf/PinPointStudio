@@ -57,7 +57,7 @@ Popup {
     // Esc = cancel, the safe default. Deliberately NOT CloseOnPressOutside: a click beside a prompt
     // that is asking about saved work is not an answer.
     closePolicy: Popup.CloseOnEscape
-    padding: Theme.sp(20)
+    padding: Theme.gap(20)
     width: Math.min(Theme.sp(440), (parent ? parent.width : Theme.sp(600)) - Theme.sp(48))
 
     // Escape, a click on Cancel and a programmatic close all land here, so the cancel path is stated
@@ -74,7 +74,7 @@ Popup {
     }
 
     contentItem: Column {
-        spacing: Theme.sp(12)
+        spacing: Theme.gap(12)
 
         Text {
             width: parent.width
@@ -102,7 +102,7 @@ Popup {
 
         Row {
             anchors.right: parent.right
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             // The primary, outlined in the tone rather than filled: it is the consequential answer,
             // and a filled button here would read as the recommended one.

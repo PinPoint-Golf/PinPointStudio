@@ -109,6 +109,13 @@ Item {
     // Design pixels through the app's type scale and the panel's fit — the panel's own
     // px(), repeated here so the card is usable on its own.
     function px(n) { return Math.round(n * Theme.fontScale * root.fit) }
+    // The model spells the state pill in capitals (its C++ and tests own that spelling); the
+    // shouted words go back to sentence case so Theme.caps sets the case, exactly as before in
+    // the capital themes.
+    function _unshout(s) {
+        const t = String(s || "").replace(/\b[A-Z]{2,}\b/g, function (w) { return w.toLowerCase() })
+        return t.charAt(0).toUpperCase() + t.slice(1)
+    }
 
     readonly property int tzCaption: Math.max(1, Math.round(Theme.sp(8) * fit))
     readonly property int tzMicro:   Math.max(1, Math.round(Theme.fontSzMicro  * fit))
@@ -303,7 +310,7 @@ Item {
                 anchors.rightMargin: root.px(8)
                 anchors.baseline: nameText.baseline
                 visible: root.card ? root.card.fresh === true : false
-                text: qsTr("NEW")
+                text: Theme.caps(qsTr("New"))
                 font.pixelSize: root.tzMicro
                 color: Theme.colorAccent
             }
@@ -331,7 +338,7 @@ Item {
 
                 PpMicro {
                     id: pillText
-                    text: root.card ? (root.card.statePill || "") : ""
+                    text: root.card ? Theme.caps(root._unshout(root.card.statePill)) : ""
                     font.pixelSize: root.tzMicro
                     color: root._pillColor
                 }
@@ -473,7 +480,7 @@ Item {
                 visible: root.interactive && !!root.card
                 opacity: (root.focused || cardTap.containsMouse || focusTap.containsMouse) ? 1.0 : 0.0
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-                text: root.focused ? qsTr("FOCUSED ·") : qsTr("FOCUS ▸")
+                text: root.focused ? Theme.caps(qsTr("Focused ·")) : Theme.caps(qsTr("Focus ▸"))
                 font.pixelSize: root.tzCaption
                 color: root.focused ? Theme.colorAccent
                                     : (focusTap.containsMouse ? Theme.colorAccent : Theme.colorText3)

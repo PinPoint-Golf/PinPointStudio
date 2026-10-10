@@ -88,7 +88,7 @@ ColumnLayout {
     property string segmentName: ""
     property bool   showHeader:  true     // false when a host SectionHeader labels this
 
-    spacing: Theme.sp(9)
+    spacing: Theme.gap(9)
 
     ChartMetrics   { id: cm }
     TimelineLabels { id: labels }         // value-at-time lookup (impact landmark)
@@ -204,8 +204,8 @@ ColumnLayout {
     RowLayout {
         visible: root.showHeader
         Layout.fillWidth: true
-        spacing: Theme.sp(9)
-        PpMicro { text: qsTr("SUMMARY") + (root.segmentName ? " · " + root.segmentName : "") }
+        spacing: Theme.gap(9)
+        PpMicro { text: Theme.caps(qsTr("Summary")) + (root.segmentName ? " · " + root.segmentName : "") }
         Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.colorBorder }
     }
 
@@ -234,7 +234,7 @@ ColumnLayout {
         id: grid
         Layout.fillWidth: true
         Layout.fillHeight: false
-        columnSpacing: Theme.sp(10); rowSpacing: Theme.sp(10)
+        columnSpacing: Theme.gap(10); rowSpacing: Theme.gap(10)
         columns: Math.max(1, Math.min(grid.cardSeries.length,
                                       Math.floor((grid.width + grid.columnSpacing)
                                                  / (Theme.sp(190) + grid.columnSpacing))))
@@ -383,7 +383,7 @@ ColumnLayout {
                     // every other position is its P-tag, because "@ SHAFT-PARALLEL THROUGH" does
                     // not fit a cell.
                     var name = labels.phaseFullName(r.phase)
-                    return "@ " + (name.length <= 7 ? name.toUpperCase() : card.tag(r.phase))
+                    return "@ " + (name.length <= 7 ? Theme.caps(name) : card.tag(r.phase))
                 }
                 function fmt(v) { return cm.formatBare(v, card.modelData.unit) }
 
@@ -430,9 +430,9 @@ ColumnLayout {
                         var span = sp.peakSpan
                         var pOk  = span ? card.spanPeakOk : card.winPeakOk
                         var ps   = span ? card.stSpan : card.st
-                        out.push({ label: span ? qsTr("PEAK %1→%2").arg(card.tag(sp.peakFrom))
+                        out.push({ label: span ? Theme.caps(qsTr("Peak %1→%2")).arg(card.tag(sp.peakFrom))
                                                                     .arg(card.tag(sp.peakTo))
-                                               : qsTr("PEAK"),
+                                               : Theme.caps(qsTr("Peak")),
                                    text: pOk ? card.fmt(ps.peak) : "—", ok: pOk,
                                    color: pOk ? Theme.colorText : Theme.colorText3,
                                    sub: pOk ? cm.formatUncertainty(ps.peakSigma) : "",
@@ -450,7 +450,7 @@ ColumnLayout {
                                        color: dOk ? Theme.colorText : Theme.colorText3,
                                        sub: "", unit: "", tip: "", window: false })
                         } else {
-                            out.push({ label: sp.deltaLabel || qsTr("Δ SEGMENT"),
+                            out.push({ label: sp.deltaLabel || Theme.caps(qsTr("Δ segment")),
                                        text: card.valueOk ? card.fmt(card.st.delta) : "—",
                                        ok: card.valueOk,
                                        color: card.valueOk ? Theme.colorText : Theme.colorText3,
@@ -462,7 +462,7 @@ ColumnLayout {
                         // fast, at its fastest" — and NOT put through the σ step rule: σ is in the
                         // metric's unit and this is per 100 ms. Its ± is rateSigma, quoted. Unit
                         // hidden with the value: "— °/100ms" claims a rate that was never fitted.
-                        out.push({ label: qsTr("PK RATE"),
+                        out.push({ label: Theme.caps(qsTr("Pk rate")),
                                    text: card.rateOk ? String(Math.round(Math.abs(card.st.rate))) : "—",
                                    ok: card.rateOk,
                                    color: card.rateOk ? Theme.colorText : Theme.colorText3,
@@ -491,7 +491,7 @@ ColumnLayout {
                 }
                 function companionTiles(s) {
                     var out = [], sp = cm.cardSpecFor(s.key), i
-                    var nm  = (cm.shortLabel(s.key) || s.label || s.key).toUpperCase()
+                    var nm  = Theme.caps(cm.shortLabel(s.key) || s.label || s.key)
                     var unit = root._unit(s.unit) === root._unit(card.modelData.unit) ? "" : root._unit(s.unit)
                     var rs = sp.readAt || []
                     for (i = 0; i < rs.length; ++i) {
@@ -535,7 +535,7 @@ ColumnLayout {
                 ColumnLayout {
                     id: cardCol
                     width: parent.width
-                    spacing: Theme.sp(10)
+                    spacing: Theme.gap(10)
 
                     RowLayout {                       // name + unit + σ
                         Layout.fillWidth: true
@@ -593,7 +593,7 @@ ColumnLayout {
                         opacity: card.partial ? 1 : 0
                         Layout.fillWidth: true
                         elide: Text.ElideRight
-                        text: qsTr("PARTIAL")
+                        text: Theme.caps(qsTr("Partial"))
                         font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingData
                         color: Theme.colorText3
@@ -617,7 +617,7 @@ ColumnLayout {
                     GridLayout {
                         Layout.fillWidth: true
                         columns: 2
-                        columnSpacing: Theme.sp(12); rowSpacing: Theme.sp(9)
+                        columnSpacing: Theme.gap(12); rowSpacing: Theme.gap(9)
 
                         Repeater {
                             model: Math.max(4, Math.ceil(card.tiles.length / 2) * 2)
@@ -639,7 +639,7 @@ ColumnLayout {
                                        color: Theme.colorText3 }
                                 RowLayout {
                                     Layout.fillWidth: true
-                                    spacing: Theme.sp(3)
+                                    spacing: Theme.gap(3)
                                     // The value elides too: once the unit has collapsed to its
                                     // ellipsis nothing else can give way. The UNIT is the half that
                                     // gives way first — the number is the reading.

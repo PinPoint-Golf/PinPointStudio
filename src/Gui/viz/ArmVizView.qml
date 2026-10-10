@@ -445,13 +445,13 @@ Item {
 
     // ── IMU assignment legend ─────────────────────────────────────────────────
     Column {
-        anchors { bottom: parent.bottom; left: parent.left; margins: Theme.sp(10) }
-        spacing: Theme.sp(4)
+        anchors { bottom: parent.bottom; left: parent.left; margins: Theme.gap(10) }
+        spacing: Theme.gap(4)
 
         Repeater {
             model: ImuMounts.armRoles   // leadForearm, leadHand, leadUpperArm — named by ImuMounts
             delegate: Row {
-                spacing: Theme.sp(6)
+                spacing: Theme.gap(6)
                 // ⚠ CONNECTEDNESS IS A DEVICE PROPERTY, SO THIS ASKS THE DEVICE.
                 // The imuLead* bindings above hold the per-UNIT object, which for
                 // a HackMotion is an HmUnit — and an HmUnit has no imuConnected at
@@ -485,7 +485,7 @@ Item {
 
     // ── Orbit hint ────────────────────────────────────────────────────────────
     Text {
-        anchors { bottom: parent.bottom; right: parent.right; margins: Theme.sp(10) }
+        anchors { bottom: parent.bottom; right: parent.right; margins: Theme.gap(10) }
         text:           qsTr("Drag · Scroll to zoom")
         color:          Theme.colorText3
         font.family:    Theme.fontBody

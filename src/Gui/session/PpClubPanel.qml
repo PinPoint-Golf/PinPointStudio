@@ -71,10 +71,10 @@ Item {
 
     Column {
         id: col
-        anchors { fill: parent; margins: Theme.sp(13) }
-        spacing: Theme.sp(10)
+        anchors { fill: parent; margins: Theme.gap(13) }
+        spacing: Theme.gap(10)
 
-        PpMicro { text: qsTr("CLUB") }
+        PpMicro { text: Theme.caps(qsTr("Club")) }
 
         // Empty state — no bag for this athlete: one quiet line, so the card keeps its shape.
         PpCardNote {
@@ -86,7 +86,7 @@ Item {
         // Club rows — one selectable row per bag club, taped ones marked.
         Column {
             width: parent.width
-            spacing: Theme.sp(3)
+            spacing: Theme.gap(3)
 
             Repeater {
                 model: root.clubModel
@@ -115,8 +115,8 @@ Item {
                     Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
 
                     RowLayout {
-                        anchors { fill: parent; leftMargin: Theme.sp(11); rightMargin: Theme.sp(10) }
-                        spacing: Theme.sp(8)
+                        anchors { fill: parent; leftMargin: Theme.gap(11); rightMargin: Theme.gap(10) }
+                        spacing: Theme.gap(8)
 
                         Text {
                             text: ClubFormat.display(clubRow.modelData)
@@ -132,12 +132,12 @@ Item {
                         // the same "instrumented / ready" hue the device LEDs use.
                         Row {
                             visible: clubRow.taped
-                            spacing: Theme.sp(5)
+                            spacing: Theme.gap(5)
                             Layout.alignment: Qt.AlignVCenter
 
                             Row {   // band ticks (up to 4 shown)
                                 anchors.verticalCenter: parent.verticalCenter
-                                spacing: Theme.sp(2)
+                                spacing: Theme.gap(2)
                                 Repeater {
                                     model: Math.min(clubRow.bands.length, 4)
                                     Rectangle {

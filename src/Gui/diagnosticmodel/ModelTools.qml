@@ -68,7 +68,7 @@ Popup {
         font.family:         Theme.fontBody
         font.pixelSize:      Theme.fontSzMicro
         font.letterSpacing:  Theme.trackingMicro
-        font.capitalization: Font.AllUppercase
+        font.capitalization: Theme.capsFont
         color:               Theme.colorText3
     }
 
@@ -92,9 +92,9 @@ Popup {
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin:  Theme.sp(14)
-            anchors.rightMargin: Theme.sp(14)
-            spacing: Theme.sp(8)
+            anchors.leftMargin:  Theme.gap(14)
+            anchors.rightMargin: Theme.gap(14)
+            spacing: Theme.gap(8)
 
             Text {
                 Layout.fillWidth: true
@@ -122,8 +122,8 @@ Popup {
         spacing: 0
 
         Heading {
-            Layout.margins:      Theme.sp(14)
-            Layout.bottomMargin: Theme.sp(2)
+            Layout.margins:      Theme.gap(14)
+            Layout.bottomMargin: Theme.gap(2)
             text: qsTr("Views and artefacts")
         }
 
@@ -154,15 +154,15 @@ Popup {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.topMargin: Theme.sp(8)
+            Layout.topMargin: Theme.gap(8)
             Layout.preferredHeight: 1
             color:   Theme.colorBorder
             opacity: Theme.borderOpacityNormal
         }
 
         Heading {
-            Layout.margins:      Theme.sp(14)
-            Layout.bottomMargin: Theme.sp(2)
+            Layout.margins:      Theme.gap(14)
+            Layout.bottomMargin: Theme.gap(2)
             text: qsTr("Norm sets")
         }
 
@@ -173,10 +173,10 @@ Popup {
                 required property var modelData
 
                 Layout.fillWidth:   true
-                Layout.leftMargin:  Theme.sp(14)
-                Layout.rightMargin: Theme.sp(14)
-                Layout.bottomMargin: Theme.sp(3)
-                spacing: Theme.sp(8)
+                Layout.leftMargin:  Theme.gap(14)
+                Layout.rightMargin: Theme.gap(14)
+                Layout.bottomMargin: Theme.gap(3)
+                spacing: Theme.gap(8)
 
                 Text {
                     Layout.fillWidth: true
@@ -210,7 +210,7 @@ Popup {
         // what is already saved back to what shipped.
         Rectangle {
             Layout.fillWidth: true
-            Layout.topMargin: Theme.sp(8)
+            Layout.topMargin: Theme.gap(8)
             Layout.preferredHeight: 1
             visible: root.hasLocalContent
             color:   Theme.colorBorder

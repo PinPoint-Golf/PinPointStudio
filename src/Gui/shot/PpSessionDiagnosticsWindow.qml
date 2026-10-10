@@ -142,7 +142,7 @@ Window {
     Rectangle {
         visible: win.interactive
         anchors { right: parent.right; top: parent.top
-                  rightMargin: Theme.sp(12); topMargin: Theme.sp(12) }
+                  rightMargin: Theme.gap(12); topMargin: Theme.gap(12) }
         implicitWidth: pinTxt.implicitWidth + Theme.sp(16)
         implicitHeight: Theme.sp(24)
         radius: Theme.radius
@@ -155,7 +155,7 @@ Window {
         Text {
             id: pinTxt
             anchors.centerIn: parent
-            text: win.pinned ? qsTr("PINNED") : qsTr("PIN")
+            text: win.pinned ? Theme.caps(qsTr("Pinned")) : Theme.caps(qsTr("Pin"))
             font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
             font.letterSpacing: Theme.trackingMicro
             color: win.pinned ? Theme.colorText2

@@ -69,12 +69,12 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Theme.sp(16)
-        spacing: Theme.sp(12)
+        anchors.margins: Theme.gap(16)
+        spacing: Theme.gap(12)
 
         // ── Header row: title + IMU selector chips ────────────────────────────
         RowLayout {
-            spacing: Theme.sp(12)
+            spacing: Theme.gap(12)
 
             Label {
                 text: qsTr("IMU")
@@ -219,7 +219,7 @@ Item {
             ColumnLayout {
                 anchors.fill: parent
                 visible: imuManager.instances.length > 0
-                spacing: Theme.sp(6)
+                spacing: Theme.gap(6)
 
                 // ── Tab bar ───────────────────────────────────────────────────
                 TabBar {
@@ -322,7 +322,7 @@ Item {
                         ListView {
                             id: imuLogView
                             anchors.fill:    parent
-                            anchors.margins: Theme.sp(8)
+                            anchors.margins: Theme.gap(8)
                             clip:  true
                             model: imuLogModel
                             spacing: 1
@@ -356,7 +356,7 @@ Item {
                         property QtObject ctrl: modelData
 
                         Layout.fillWidth: true
-                        spacing: Theme.sp(8)
+                        spacing: Theme.gap(8)
 
                         // Status dot
                         Rectangle {

@@ -68,7 +68,7 @@ Item {
 
         // Back/forward navigation cluster
         Row {
-            spacing:          Theme.sp(4)
+            spacing:          Theme.gap(4)
             Layout.alignment: Qt.AlignVCenter
             height:           Theme.headerHeight
 
@@ -140,7 +140,7 @@ Item {
             font.family:         Theme.fontBody
             font.pixelSize:      Theme.fontSzLabel
             font.letterSpacing:  Theme.trackingLabel
-            font.capitalization: Font.AllUppercase
+            font.capitalization: Theme.capsFont
             color:               Theme.colorText3
         }
 

@@ -709,10 +709,10 @@ Item {
         RowLayout {
             id: globalBar
             Layout.fillWidth:       true
-            Layout.leftMargin:      Theme.sp(24)
-            Layout.rightMargin:     Theme.sp(24)
+            Layout.leftMargin:      Theme.gap(24)
+            Layout.rightMargin:     Theme.gap(24)
             Layout.preferredHeight: Theme.sp(42)
-            spacing: Theme.sp(10)
+            spacing: Theme.gap(10)
 
             // Below this the title and the pack label drop out before anything else does. They are
             // the only two items on the bar that say something the reader already knows.
@@ -787,7 +787,7 @@ Item {
                     id: findHint
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.right:          parent.right
-                    anchors.rightMargin:    Theme.sp(9)
+                    anchors.rightMargin:    Theme.gap(9)
                     visible: !searchField.activeFocus && searchField.text === ""
                     text:    Qt.platform.os === "osx" ? "⌘F" : "Ctrl+F"
                     font.family:    Theme.fontData
@@ -936,11 +936,11 @@ Item {
         RowLayout {
             id: contextBar
             Layout.fillWidth:       true
-            Layout.leftMargin:      Theme.sp(24)
-            Layout.rightMargin:     Theme.sp(24)
-            Layout.bottomMargin:    Theme.sp(6)
+            Layout.leftMargin:      Theme.gap(24)
+            Layout.rightMargin:     Theme.gap(24)
+            Layout.bottomMargin:    Theme.gap(6)
             Layout.preferredHeight: Theme.sp(38)
-            spacing: Theme.sp(10)
+            spacing: Theme.gap(10)
 
             ModelTrail {
                 Layout.fillWidth:    true
@@ -973,9 +973,9 @@ Item {
                 objectName: "dotLegend"
                 Layout.fillWidth: false
                 Layout.alignment: Qt.AlignVCenter
-                Layout.leftMargin:  Theme.sp(10)
-                Layout.rightMargin: Theme.sp(14)   // clear of the count beside it
-                spacing: Theme.sp(12)
+                Layout.leftMargin:  Theme.gap(10)
+                Layout.rightMargin: Theme.gap(14)   // clear of the count beside it
+                spacing: Theme.gap(12)
                 visible: !root._searching && legendRepeater.count > 0 && _fits
 
                 readonly property bool _fits: {
@@ -999,7 +999,7 @@ Item {
                     delegate: Row {
                         id: legendEntry
                         required property var modelData
-                        spacing: Theme.sp(5)
+                        spacing: Theme.gap(5)
 
                         Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
@@ -1183,7 +1183,7 @@ Item {
                     id: railUnfoldButton
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top:              parent.top
-                    anchors.topMargin:        Theme.sp(12)
+                    anchors.topMargin:        Theme.gap(12)
                     visible: root._railFolded
                     width:   Theme.sp(22)
                     height:  Theme.sp(20)
@@ -1525,9 +1525,9 @@ Item {
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin:  Theme.sp(18)
-                        anchors.rightMargin: Theme.sp(18)
-                        spacing: Theme.sp(16)
+                        anchors.leftMargin:  Theme.gap(18)
+                        anchors.rightMargin: Theme.gap(18)
+                        spacing: Theme.gap(16)
 
                         // Both figures are derived from the arrays that feed the rows, never stated.
                         Text {
@@ -1587,7 +1587,7 @@ Item {
                     id: unfoldButton
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top:              parent.top
-                    anchors.topMargin:        Theme.sp(12)
+                    anchors.topMargin:        Theme.gap(12)
                     visible: root._inspectorFolded
                     width:   Theme.sp(22)
                     height:  Theme.sp(20)
@@ -1927,7 +1927,7 @@ Item {
         id: toast
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: Theme.sp(44)
+        anchors.bottomMargin: Theme.gap(44)
         showUndo: false
         // Most of what reaches this toast is a removal, so 🗑 stays the default — but a notice that
         // carries a written file's path is a save, and a trash can on it says the opposite.

@@ -57,8 +57,8 @@ Item {
     readonly property color tone:     Theme.colorAccent
     readonly property color toneGood: Theme.colorGood
 
-    readonly property int padX:       Theme.sp(20)
-    readonly property int padY:       Theme.sp(24)
+    readonly property int padX:       Theme.gap(20)
+    readonly property int padY:       Theme.gap(24)
     readonly property int badgeSize:  Theme.sp(20)
     readonly property int textIndent: badgeSize + Theme.sp(12)
     readonly property int innerWidth: width - 2 * padX
@@ -68,7 +68,7 @@ Item {
     // Body-relative x of the RIGHT NOW column: the right-hand card's content edge.
     readonly property real col2X:     stacked ? 0 : (width + gridGap) / 2
     readonly property real lineH:     Theme.fontSzBody * 1.3
-    readonly property int  itemGap:   Theme.sp(16)
+    readonly property int  itemGap:   Theme.gap(16)
 
     readonly property int maxPips: 8
     function latestPips(marks) {
@@ -114,7 +114,7 @@ Item {
     PpMicro {
         id: label
         x: root.padX; y: root.padY
-        text:  qsTr("YOUR FOCUS")
+        text:  Theme.caps(qsTr("Your focus"))
         color: root.tone
     }
     Text {
@@ -137,7 +137,7 @@ Item {
         x: root.padX
         y: headline.y + headline.height + Theme.sp(24)
         width: root.innerWidth
-        spacing: Theme.sp(24)
+        spacing: Theme.gap(24)
 
         // ── AIM FOR | RIGHT NOW ──────────────────────────────────────────────
         Item {
@@ -151,7 +151,7 @@ Item {
             Item {
                 id: aimBlock
                 width: root.colW
-                PpMicro { id: aimLabel; text: qsTr("AIM FOR"); color: root.toneGood }
+                PpMicro { id: aimLabel; text: Theme.caps(qsTr("Aim for")); color: root.toneGood }
                 Column {
                     id: aimCol
                     y: aimLabel.implicitHeight + Theme.sp(14)
@@ -202,11 +202,11 @@ Item {
                 x: root.col2X
                 y: root.stacked ? pair.aimH + Theme.sp(22) : 0
                 width: root.colW
-                PpMicro { id: nowLabel; text: qsTr("RIGHT NOW"); color: root.tone }
+                PpMicro { id: nowLabel; text: Theme.caps(qsTr("Right now")); color: root.tone }
                 PpMicro {
                     anchors.baseline: nowLabel.baseline
                     x: root.colW - implicitWidth
-                    text: qsTr("SESSIONS")
+                    text: Theme.caps(qsTr("Sessions"))
                     font.letterSpacing: Theme.trackingData
                 }
                 Column {
@@ -233,7 +233,7 @@ Item {
                                 id: faultCol
                                 x: root.textIndent
                                 width: parent.width - root.textIndent
-                                spacing: Theme.sp(4)
+                                spacing: Theme.gap(4)
                                 Text {
                                     id: nowHead
                                     // The chip's room, when it has had to move up to this line.
@@ -267,7 +267,7 @@ Item {
                                     }
                                     Text {
                                         id: freq
-                                        anchors { left: meter.right; leftMargin: Theme.sp(10)
+                                        anchors { left: meter.right; leftMargin: Theme.gap(10)
                                                   verticalCenter: parent.verticalCenter }
                                         width: Math.min(implicitWidth, parent.width - meter.width - Theme.sp(10)
                                                                        - root.pipsWidth - Theme.sp(8))
@@ -303,9 +303,9 @@ Item {
         // ── WHY IT MATTERS ───────────────────────────────────────────────────
         Column {
             width: parent.width
-            spacing: Theme.sp(10)
+            spacing: Theme.gap(10)
             visible: root.focusItem !== null && root.focusItem.why !== ""
-            PpMicro { text: qsTr("WHY IT MATTERS") }
+            PpMicro { text: Theme.caps(qsTr("Why it matters")) }
             Prose {
                 objectName: "focusWhy"
                 width: Math.min(parent.width, Theme.sp(720))
@@ -322,8 +322,8 @@ Item {
             bar:     true
             padX:    Theme.sp(18)
             padY:    Theme.sp(16)
-            spacing: Theme.sp(8)
-            PpMicro { text: qsTr("HOW TO PRACTISE") }
+            spacing: Theme.gap(8)
+            PpMicro { text: Theme.caps(qsTr("How to practise")) }
             Text {
                 objectName: "focusPractise"
                 width: Math.min(parent.width, Theme.sp(760))

@@ -181,12 +181,12 @@ Item {
         height: Theme.sp(46)
 
         PpMicro {
-            anchors { left: parent.left; leftMargin: Theme.sp(15); verticalCenter: parent.verticalCenter }
-            text: root.mode === "calibrate" ? qsTr("CALIBRATE CAMERAS") : qsTr("CAMERAS")
+            anchors { left: parent.left; leftMargin: Theme.gap(15); verticalCenter: parent.verticalCenter }
+            text: root.mode === "calibrate" ? Theme.caps(qsTr("Calibrate cameras")) : Theme.caps(qsTr("Cameras"))
             color: root.mode === "calibrate" ? Theme.colorAttention : Theme.colorText3
         }
         PpMicro {
-            anchors { right: parent.right; rightMargin: Theme.sp(15); verticalCenter: parent.verticalCenter }
+            anchors { right: parent.right; rightMargin: Theme.gap(15); verticalCenter: parent.verticalCenter }
             visible: root.mode === "list"
             font.letterSpacing: Theme.trackingData
             text: qsTr("%1 of %2 connected").arg(cameraManager.instances.length)
@@ -206,7 +206,7 @@ Item {
         anchors { left: parent.left; right: parent.right; top: hairline.bottom }
 
         Row {
-            width: parent.width; padding: Theme.sp(12); spacing: Theme.sp(8)
+            width: parent.width; padding: Theme.gap(12); spacing: Theme.gap(8)
             ScopedAction { glyph: "⟳"; label: qsTr("Scan");    onTriggered: cameraManager.enumerate() }
             ScopedAction {
                 glyph: "⇄"
@@ -258,7 +258,7 @@ Item {
             PpCardNote {
                 id: noCams
                 anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
-                          leftMargin: Theme.sp(15); rightMargin: Theme.sp(15) }
+                          leftMargin: Theme.gap(15); rightMargin: Theme.gap(15) }
                 text: qsTr("No cameras found — Scan to look again.")
             }
         }
@@ -293,7 +293,7 @@ Item {
         border.color: primary ? Theme.colorAttention : Theme.colorBorderStrong
         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
         Column {
-            anchors.centerIn: parent; spacing: Theme.sp(4)
+            anchors.centerIn: parent; spacing: Theme.gap(4)
             Text { anchors.horizontalCenter: parent.horizontalCenter; text: glyph
                    font.family: Theme.fontSymbol; font.pixelSize: Theme.sp(16)
                    color: primary ? Theme.colorAttention : Theme.colorText2 }
@@ -399,9 +399,9 @@ Item {
         }
 
         RowLayout {
-            anchors { fill: parent; leftMargin: Theme.sp(15); rightMargin: Theme.sp(15)
+            anchors { fill: parent; leftMargin: Theme.gap(15); rightMargin: Theme.gap(15)
                       bottomMargin: camRow.torchRefusal !== "" ? Theme.sp(16) : 0 }
-            spacing: Theme.sp(11)
+            spacing: Theme.gap(11)
 
             // State badge — a check when connected, the dashed ring when not (or
             // disabled); the subtitle says which in words.
@@ -422,7 +422,7 @@ Item {
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
-                spacing: Theme.sp(2)
+                spacing: Theme.gap(2)
                 opacity: deviceEnabled ? 1.0 : 0.45
                 Text {
                     Layout.fillWidth: true
@@ -470,8 +470,8 @@ Item {
                 // in words, "unknown" included, so no state is told by colour alone.
                 Row {
                     visible: camRow.hasTorch
-                    Layout.topMargin: Theme.sp(4)
-                    spacing: Theme.sp(6)
+                    Layout.topMargin: Theme.gap(4)
+                    spacing: Theme.gap(6)
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
@@ -549,8 +549,8 @@ Item {
         // and a torch nobody touched look exactly the same.
         Text {
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom
-                      leftMargin: Theme.sp(15); rightMargin: Theme.sp(15)
-                      bottomMargin: Theme.sp(4) }
+                      leftMargin: Theme.gap(15); rightMargin: Theme.gap(15)
+                      bottomMargin: Theme.gap(4) }
             visible: camRow.torchRefusal !== ""
             text: qsTr("torch refused — %1").arg(camRow.torchRefusal)
             font.family: Theme.fontData

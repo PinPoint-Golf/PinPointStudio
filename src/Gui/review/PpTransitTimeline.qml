@@ -378,7 +378,7 @@ Item {
         // under the line (vertical). Only the marks that are on the rail are named.
         Row {
             visible: root._pTicks.length > 0
-            spacing: Theme.sp(10)
+            spacing: Theme.gap(10)
             x: root._horizontal ? root.width - root._insetMain - width : Theme.sp(6)
             y: root._horizontal ? Theme.sp(3) : root.height - height - Theme.sp(4)
             Repeater {
@@ -388,7 +388,7 @@ Item {
                     id: keyItem
                     required property var modelData
                     visible: keyItem.modelData.on
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         width: Theme.sp(6); height: width; radius: width / 2
@@ -492,7 +492,7 @@ Item {
             Row {
                 id: readoutRow
                 anchors.centerIn: parent
-                spacing: Theme.sp(7)
+                spacing: Theme.gap(7)
                 PpMicro {
                     text: root._activeName
                     // Vertical mode omits the phase name — the highlighted active

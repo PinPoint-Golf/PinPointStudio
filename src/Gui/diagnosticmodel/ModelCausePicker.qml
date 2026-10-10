@@ -135,26 +135,26 @@ Popup {
     }
 
     contentItem: ColumnLayout {
-        spacing: Theme.sp(6)
+        spacing: Theme.gap(6)
 
         Text {
             Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.sp(12)
-            Layout.rightMargin: Theme.sp(12)
-            Layout.topMargin:   Theme.sp(10)
+            Layout.leftMargin:  Theme.gap(12)
+            Layout.rightMargin: Theme.gap(12)
+            Layout.topMargin:   Theme.gap(10)
             text:                root.title
             font.family:         Theme.fontBody
             font.pixelSize:      Theme.fontSzMicro
             font.letterSpacing:  Theme.trackingMicro
-            font.capitalization: Font.AllUppercase
+            font.capitalization: Theme.capsFont
             color:               Theme.colorText3
         }
 
         PpTextField {
             id: nameField
             Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.sp(10)
-            Layout.rightMargin: Theme.sp(10)
+            Layout.leftMargin:  Theme.gap(10)
+            Layout.rightMargin: Theme.gap(10)
             placeholderText: root.allowCreate ? qsTr("Find one, or name a new one…")
                                               : qsTr("Type to narrow…")
 
@@ -172,8 +172,8 @@ Popup {
 
         Text {
             Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.sp(12)
-            Layout.rightMargin: Theme.sp(12)
+            Layout.leftMargin:  Theme.gap(12)
+            Layout.rightMargin: Theme.gap(12)
             text: root._candidates.length === 0
                       ? (root.allowCreate ? qsTr("Nothing existing fits — name it and press Enter")
                                           : qsTr("No legal target"))
@@ -193,7 +193,7 @@ Popup {
             Layout.fillWidth:       true
             Layout.preferredHeight: Math.min(Theme.sp(220),
                                              Math.max(Theme.sp(28), count * Theme.sp(28)))
-            Layout.bottomMargin:    Theme.sp(2)
+            Layout.bottomMargin:    Theme.gap(2)
             clip:  true
             model: root._rows
             currentIndex: 0
@@ -215,9 +215,9 @@ Popup {
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin:  Theme.sp(12)
-                    anchors.rightMargin: Theme.sp(12)
-                    spacing: Theme.sp(8)
+                    anchors.leftMargin:  Theme.gap(12)
+                    anchors.rightMargin: Theme.gap(12)
+                    spacing: Theme.gap(8)
 
                     // The create row is marked rather than merely last: a list where the final
                     // entry silently means something different from the rest is a list that will
@@ -268,10 +268,10 @@ Popup {
         // it attaches. Hidden entirely when there is nothing to create.
         RowLayout {
             Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.sp(10)
-            Layout.rightMargin: Theme.sp(10)
+            Layout.leftMargin:  Theme.gap(10)
+            Layout.rightMargin: Theme.gap(10)
             visible: root.allowCreate && nameField.text.trim().length > 0
-            spacing: Theme.sp(6)
+            spacing: Theme.gap(6)
 
             component Chip: Rectangle {
                 id: chip
@@ -317,9 +317,9 @@ Popup {
 
         Text {
             Layout.fillWidth:    true
-            Layout.leftMargin:   Theme.sp(12)
-            Layout.rightMargin:  Theme.sp(12)
-            Layout.bottomMargin: Theme.sp(10)
+            Layout.leftMargin:   Theme.gap(12)
+            Layout.rightMargin:  Theme.gap(12)
+            Layout.bottomMargin: Theme.gap(10)
             visible: root.allowCreate && nameField.text.trim().length > 0
             text: root._type === "measures"
                       ? qsTr("Measures are minted from their facets — Enter opens that.")

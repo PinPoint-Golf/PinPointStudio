@@ -83,7 +83,7 @@ Item {
                 height: Theme.sp(34)
                 PpMicro {
                     anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                    text: qsTr("SWING DIAGNOSTICS")
+                    text: Theme.caps(qsTr("Swing diagnostics"))
                 }
             }
             Text {
@@ -104,7 +104,7 @@ Item {
             HmWorkOns {
                 id: faultsCard
                 width:      mainCol.width
-                title:      qsTr("FAULTS")
+                title:      Theme.caps(qsTr("Faults"))
                 controller: root.controller
                 onReviewSessionRequested: (sessionDir) => root.reviewSessionRequested(sessionDir)
             }

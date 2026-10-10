@@ -226,12 +226,12 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: Theme.sp(10)
+        spacing: Theme.gap(10)
 
         // ── The swing's row: which swing, how far along, and Save ───────────────
         RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(12)
+            spacing: Theme.gap(12)
             Text {
                 Layout.fillWidth: true
                 text: markupController.hasSwing ? markupController.currentSwingName : qsTr("— no swing —")
@@ -280,7 +280,7 @@ Item {
                     MlPane {
                         id: facePane
                         paneIndex: 0
-                        title: qsTr("FACE-ON")
+                        title: Theme.caps(qsTr("Face-on"))
                         visible: markupController.hasSwing
                         width:  stage.paneH * stage.aFace
                         height: stage.paneH
@@ -349,16 +349,16 @@ Item {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: Theme.sp(14)
-                    spacing: Theme.sp(12)
+                    anchors.leftMargin: Theme.gap(14)
+                    spacing: Theme.gap(12)
 
                     // Tab header — the stage's own tab idiom (PpModeStage's tab strip):
                     // Micro labels, the selected one in colorText over a 2 px rule in the
                     // card's quiet tone.
                     Row {
-                        spacing: Theme.sp(20)
+                        spacing: Theme.gap(20)
                         Repeater {
-                            model: [qsTr("POSITIONS"), qsTr("METADATA")]
+                            model: [Theme.caps(qsTr("Positions")), Theme.caps(qsTr("Metadata"))]
                             delegate: Item {
                                 id: tabDel
                                 required property string modelData
@@ -412,12 +412,12 @@ Item {
                     // state, so no binding loop) so an overlay vertical scrollbar
                     // never paints over the right-anchored row controls.
                     width: ctrlScroll.width - Theme.sp(12)
-                    spacing: Theme.sp(14)
+                    spacing: Theme.gap(14)
 
                     // CLUB / SHAFT
                     Column {
-                        width: parent.width; spacing: Theme.sp(8)
-                        PpMicro { text: qsTr("CLUB / SHAFT") }
+                        width: parent.width; spacing: Theme.gap(8)
+                        PpMicro { text: Theme.caps(qsTr("Club / shaft")) }
                         Text {
                             width: parent.width; wrapMode: Text.WordWrap
                             text: markupController.hasDtl
@@ -426,7 +426,7 @@ Item {
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
                         }
                         Row {
-                            spacing: Theme.sp(8)
+                            spacing: Theme.gap(8)
                             MlButton { text: qsTr("Undo (u)"); onClicked: {
                                 if (root.pendingGrip) { root.pendingGrip = false; root.repaintPanes() }
                                 else markupController.clearShaftIn(markupController.activePane) } }
@@ -443,8 +443,8 @@ Item {
 
                     // BALL (stationary — mark once)
                     Column {
-                        width: parent.width; spacing: Theme.sp(8)
-                        PpMicro { text: qsTr("BALL") }
+                        width: parent.width; spacing: Theme.gap(8)
+                        PpMicro { text: Theme.caps(qsTr("Ball")) }
                         Text {
                             width: parent.width; wrapMode: Text.WordWrap
                             text: markupController.hasDtl
@@ -453,7 +453,7 @@ Item {
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel; color: Theme.colorText3
                         }
                         Row {
-                            spacing: Theme.sp(8)
+                            spacing: Theme.gap(8)
                             MlButton {
                                 readonly property var _pb: markupController.activePane === 1
                                                            ? markupController.dtlBallPoint : markupController.ballPoint
@@ -491,8 +491,8 @@ Item {
 
                     // POSE OVERLAY
                     Column {
-                        width: parent.width; spacing: Theme.sp(8)
-                        PpMicro { text: qsTr("POSE OVERLAY") }
+                        width: parent.width; spacing: Theme.gap(8)
+                        PpMicro { text: Theme.caps(qsTr("Pose overlay")) }
                         MlButton {
                             text: markupController.showSkeleton ? qsTr("Skeleton: on (s)") : qsTr("Skeleton: off (s)")
                             accent: markupController.showSkeleton && markupController.poseAvailable
@@ -510,10 +510,10 @@ Item {
 
                     // STEP STRIDE
                     Column {
-                        width: parent.width; spacing: Theme.sp(8)
-                        PpMicro { text: qsTr("STEP STRIDE") }
+                        width: parent.width; spacing: Theme.gap(8)
+                        PpMicro { text: Theme.caps(qsTr("Step stride")) }
                         Row {
-                            spacing: Theme.sp(8)
+                            spacing: Theme.gap(8)
                             MlButton { text: "−"; onClicked: markupController.stride = markupController.stride - 1 }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
@@ -527,8 +527,8 @@ Item {
 
                     // P-POSITIONS — instants of the SWING, off the shared playhead.
                     Column {
-                        width: parent.width; spacing: Theme.sp(2)
-                        PpMicro { text: qsTr("P-POSITIONS") }
+                        width: parent.width; spacing: Theme.gap(2)
+                        PpMicro { text: Theme.caps(qsTr("P-positions")) }
                         Repeater {
                             model: root.pDefs
                             // Rows parted by hairlines, not boxed — the glyph on the right and
@@ -548,18 +548,18 @@ Item {
 
                                 Text {
                                     id: keyHint
-                                    anchors { left: parent.left; leftMargin: Theme.sp(8); top: parent.top; topMargin: Theme.sp(6) }
+                                    anchors { left: parent.left; leftMargin: Theme.gap(8); top: parent.top; topMargin: Theme.gap(6) }
                                     text: modelData.key
                                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3
                                 }
                                 Text {
-                                    anchors { left: keyHint.right; leftMargin: Theme.sp(8); top: parent.top; topMargin: Theme.sp(4) }
+                                    anchors { left: keyHint.right; leftMargin: Theme.gap(8); top: parent.top; topMargin: Theme.gap(4) }
                                     text: modelData.label
                                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody; color: Theme.colorText
                                 }
                                 Text {
-                                    anchors { left: parent.left; leftMargin: Theme.sp(8); right: jumpChip.left; rightMargin: Theme.sp(6)
-                                              bottom: parent.bottom; bottomMargin: Theme.sp(5) }
+                                    anchors { left: parent.left; leftMargin: Theme.gap(8); right: jumpChip.left; rightMargin: Theme.gap(6)
+                                              bottom: parent.bottom; bottomMargin: Theme.gap(5) }
                                     text: modelData.desc; elide: Text.ElideRight
                                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3
                                 }
@@ -569,7 +569,7 @@ Item {
                                 // body to set/replace the position.
                                 Rectangle {
                                     id: jumpChip
-                                    anchors { right: dot.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                                    anchors { right: dot.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                                     height: Theme.sp(24)
                                     width: jumpRow.implicitWidth + Theme.sp(14)
                                     radius: Theme.radius
@@ -580,7 +580,7 @@ Item {
                                     Row {
                                         id: jumpRow
                                         anchors.centerIn: parent
-                                        spacing: Theme.sp(5)
+                                        spacing: Theme.gap(5)
                                         Text {
                                             anchors.verticalCenter: parent.verticalCenter
                                             text: ev ? (ev.sec.toFixed(2) + "s") : "—"
@@ -607,14 +607,14 @@ Item {
                                 }
                                 Text {
                                     id: dot
-                                    anchors { right: clr.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                                    anchors { right: clr.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                                     text: complete ? "●" : (ev ? "○" : "·")
                                     font.pixelSize: Theme.fontSzBody
                                     color: complete ? Theme.colorGood : (ev ? Theme.colorWarn : Theme.colorText3)
                                 }
                                 Text {
                                     id: clr
-                                    anchors { right: parent.right; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                                    anchors { right: parent.right; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                                     text: ev ? "✕" : ""
                                     font.family: Theme.fontSymbol; font.pixelSize: Theme.fontSzBody; color: Theme.colorText3
                                     MouseArea {
@@ -636,8 +636,8 @@ Item {
 
                     // THIS SWING
                     Column {
-                        width: parent.width; spacing: Theme.sp(4)
-                        PpMicro { text: qsTr("THIS SWING") }
+                        width: parent.width; spacing: Theme.gap(4)
+                        PpMicro { text: Theme.caps(qsTr("This swing")) }
                         Text {
                             text: qsTr("%1 / 10 P-positions · %2 shaft frames").arg(root.pComplete()).arg(markupController.shaftCount)
                             font.family: Theme.fontData; font.pixelSize: Theme.fontSzDataSm; color: Theme.colorText2
@@ -667,7 +667,7 @@ Item {
                         contentWidth: width
                         Column {
                             width: metaScroll.width - Theme.sp(12)
-                            spacing: Theme.sp(18)
+                            spacing: Theme.gap(18)
 
                             Text {
                                 width: parent.width; wrapMode: Text.WordWrap
@@ -677,8 +677,8 @@ Item {
 
                             // SWING SCOPE — gates SwingLab's full-swing-only checks.
                             Column {
-                                width: parent.width; spacing: Theme.sp(8)
-                                PpMicro { text: qsTr("SWING SCOPE") }
+                                width: parent.width; spacing: Theme.gap(8)
+                                PpMicro { text: Theme.caps(qsTr("Swing scope")) }
                                 PpSegmentedControl {
                                     width: parent.width
                                     options: root.scopeOpts
@@ -701,8 +701,8 @@ Item {
 
                             // TEMPO
                             Column {
-                                width: parent.width; spacing: Theme.sp(8)
-                                PpMicro { text: qsTr("TEMPO") }
+                                width: parent.width; spacing: Theme.gap(8)
+                                PpMicro { text: Theme.caps(qsTr("Tempo")) }
                                 PpSegmentedControl {
                                     width: parent.width
                                     options: root.tempoOpts
@@ -720,8 +720,8 @@ Item {
 
                             // BALL CONTACT
                             Column {
-                                width: parent.width; spacing: Theme.sp(8)
-                                PpMicro { text: qsTr("BALL CONTACT") }
+                                width: parent.width; spacing: Theme.gap(8)
+                                PpMicro { text: Theme.caps(qsTr("Ball contact")) }
                                 PpSegmentedControl {
                                     width: parent.width
                                     options: root.contactOpts
@@ -739,8 +739,8 @@ Item {
 
                             // LIGHTING
                             Column {
-                                width: parent.width; spacing: Theme.sp(8)
-                                PpMicro { text: qsTr("LIGHTING") }
+                                width: parent.width; spacing: Theme.gap(8)
+                                PpMicro { text: Theme.caps(qsTr("Lighting")) }
                                 PpSegmentedControl {
                                     width: parent.width
                                     options: root.lightingOpts
@@ -758,8 +758,8 @@ Item {
 
                             // SHAFT
                             Column {
-                                width: parent.width; spacing: Theme.sp(8)
-                                PpMicro { text: qsTr("SHAFT") }
+                                width: parent.width; spacing: Theme.gap(8)
+                                PpMicro { text: Theme.caps(qsTr("Shaft")) }
                                 PpSegmentedControl {
                                     width: parent.width
                                     options: root.shaftOpts
@@ -777,8 +777,8 @@ Item {
 
                             // CLUB
                             Column {
-                                width: parent.width; spacing: Theme.sp(8)
-                                PpMicro { text: qsTr("CLUB") }
+                                width: parent.width; spacing: Theme.gap(8)
+                                PpMicro { text: Theme.caps(qsTr("Club")) }
                                 Text {
                                     width: parent.width; wrapMode: Text.WordWrap
                                     text: qsTr("Defaulted from the session; change it here if the club for this swing differs.")
@@ -812,8 +812,8 @@ Item {
 
                             // CLUB LEAVES FRAME — explains a legitimately low coverage.
                             Column {
-                                width: parent.width; spacing: Theme.sp(8)
-                                PpMicro { text: qsTr("TRACKING") }
+                                width: parent.width; spacing: Theme.gap(8)
+                                PpMicro { text: Theme.caps(qsTr("Tracking")) }
                                 MlButton {
                                     text: markupController.metaClubLeavesFrame
                                           ? qsTr("Club leaves frame: yes")
@@ -846,8 +846,8 @@ Item {
             }
             RowLayout {
                 anchors.fill: parent
-                anchors.topMargin: Theme.sp(8)
-                spacing: Theme.sp(10)
+                anchors.topMargin: Theme.gap(8)
+                spacing: Theme.gap(10)
 
                 MlButton { text: "⏮"; enabled: markupController.hasSwing; onClicked: markupController.setFrameIndex(0) }
                 MlButton { text: "◀ a"; enabled: markupController.hasSwing; onClicked: markupController.stepFrame(-1) }
@@ -884,7 +884,7 @@ Item {
     Item {
         id: toast
         function show(t) { toastText.text = t; opacity = 1; toastTimer.restart() }
-        anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: Theme.sp(60) }
+        anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: Theme.gap(60) }
         width: toastText.width + Theme.sp(28); height: toastText.height + Theme.sp(18)
         opacity: 0
         Behavior on opacity { NumberAnimation { duration: Theme.durationNormal } }
@@ -942,7 +942,7 @@ Item {
         Image {
             id: paneImg
             anchors.fill: parent
-            anchors.margins: Theme.sp(4)
+            anchors.margins: Theme.gap(4)
             fillMode: Image.PreserveAspectFit
             cache: false
             asynchronous: false
@@ -1060,7 +1060,7 @@ Item {
         // and cut at the pane's edge rather than spilling over its neighbour.
         Rectangle {
             visible: markupController.hasSwing
-            anchors { left: paneImg.left; top: paneImg.top; margins: Theme.sp(6) }
+            anchors { left: paneImg.left; top: paneImg.top; margins: Theme.gap(6) }
             width: Math.min(hud.width + Theme.sp(16), paneImg.width - Theme.sp(12))
             height: hud.height + Theme.sp(8)
             radius: Theme.radius
@@ -1070,7 +1070,7 @@ Item {
                 id: hud
                 x: Theme.sp(8)
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: Theme.sp(10)
+                spacing: Theme.gap(10)
                 Text {
                     text: pane.title
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro

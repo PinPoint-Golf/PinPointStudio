@@ -63,17 +63,17 @@ Popup {
     }
 
     contentItem: ColumnLayout {
-        spacing: Theme.sp(8)
+        spacing: Theme.gap(8)
 
         Text {
             Layout.fillWidth:  true
-            Layout.margins:    Theme.sp(14)
+            Layout.margins:    Theme.gap(14)
             Layout.bottomMargin: 0
-            text:                qsTr("NEW MEASURE")
+            text:                qsTr("New measure")
             font.family:         Theme.fontBody
             font.pixelSize:      Theme.fontSzMicro
             font.letterSpacing:  Theme.trackingMicro
-            font.capitalization: Font.AllUppercase
+            font.capitalization: Theme.capsFont
             color:               Theme.colorText3
         }
 
@@ -82,8 +82,8 @@ Popup {
         PpTextField {
             id: phrase
             Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.sp(14)
-            Layout.rightMargin: Theme.sp(14)
+            Layout.leftMargin:  Theme.gap(14)
+            Layout.rightMargin: Theme.gap(14)
             placeholderText: qsTr("Describe it — e.g. “lead knee angle to ground”")
             onEditingFinished: {
                 if (!root.browser || text.length === 0) return
@@ -131,8 +131,8 @@ Popup {
         // string is for humans only.
         Rectangle {
             Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.sp(14)
-            Layout.rightMargin: Theme.sp(14)
+            Layout.leftMargin:  Theme.gap(14)
+            Layout.rightMargin: Theme.gap(14)
             Layout.preferredHeight: previewText.implicitHeight + Theme.sp(16)
             radius: Theme.radius
             color:  Theme.colorBg2
@@ -140,7 +140,7 @@ Popup {
             Text {
                 id: previewText
                 anchors.fill: parent
-                anchors.margins: Theme.sp(8)
+                anchors.margins: Theme.gap(8)
                 text: root._preview.valid === true
                           ? root._preview.label
                           : (root._preview.reason || qsTr("Pick what is being measured"))
@@ -155,8 +155,8 @@ Popup {
         // second name for one number; a near-duplicate is one facet away and is usually a mistake.
         Text {
             Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.sp(14)
-            Layout.rightMargin: Theme.sp(14)
+            Layout.leftMargin:  Theme.gap(14)
+            Layout.rightMargin: Theme.gap(14)
             visible: root._preview.exactMatch !== undefined
             text: qsTr("This already exists as “%1” — use that one.")
                       .arg(root._preview.exactMatch ? root._preview.exactMatch.label : "")
@@ -168,8 +168,8 @@ Popup {
 
         Text {
             Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.sp(14)
-            Layout.rightMargin: Theme.sp(14)
+            Layout.leftMargin:  Theme.gap(14)
+            Layout.rightMargin: Theme.gap(14)
             visible: root._preview.nearDuplicates !== undefined
                      && root._preview.nearDuplicates.length > 0
             text: {
@@ -186,9 +186,9 @@ Popup {
 
         RowLayout {
             Layout.fillWidth:    true
-            Layout.margins:      Theme.sp(14)
+            Layout.margins:      Theme.gap(14)
             Layout.topMargin:    0
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             Item { Layout.fillWidth: true }
 

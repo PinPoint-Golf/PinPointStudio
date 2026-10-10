@@ -54,10 +54,10 @@ Item {
     // Emitted when the athlete avatar is clicked
     signal avatarClicked()
 
-    // Background — Instrument uses colorBg2; Studio and Editorial use colorBg
+    // Background — the theme's rail ground (Instrument's colorBg2, colorBg elsewhere)
     Rectangle {
         anchors.fill: parent
-        color: Theme.aesthetic === "instrument" ? Theme.colorBg2 : Theme.colorBg
+        color: Theme.colorRail
     }
 
     // Right-edge hairline separator

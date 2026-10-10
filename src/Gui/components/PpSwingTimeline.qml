@@ -29,8 +29,8 @@ Item {
 
     property int    start: 0            // 0 Address … 5 Finish
     property color  tone: Theme.gradientCool
-    readonly property var stops: [qsTr("ADDRESS"), qsTr("BACK"), qsTr("TOP"),
-                                  qsTr("DOWN"), qsTr("IMPACT"), qsTr("FINISH")]
+    readonly property var stops: [Theme.caps(qsTr("Address")), Theme.caps(qsTr("Back")), Theme.caps(qsTr("Top")),
+                                  Theme.caps(qsTr("Down")), Theme.caps(qsTr("Impact")), Theme.caps(qsTr("Finish"))]
     TextMetrics { id: firstLabel; text: tl.stops[0]; font.family: Theme.fontData
                   font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingData }
     TextMetrics { id: lastLabel; text: tl.stops[5]; font.family: Theme.fontData

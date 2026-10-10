@@ -30,6 +30,11 @@
 //
 // The hero pieces are always there and only shown in hero, so the two draw exactly what their
 // inline originals drew (HmSwingSummary's Card, HmFocus's shell).
+//
+// The theme sets the rule heights (Theme.cardRule / heroRule) and whether a hero is tinted
+// (Theme.heroTinted). A rule of 0 draws no rule at all, the tone shape and its surface cover both
+// hidden, so no sliver of tone shows at the corners. An untinted hero is a standard card: the
+// surface and its hairline, no wash. Folio uses both, for a card that is only a hairline box.
 
 import QtQuick
 import PinPointStudio
@@ -40,17 +45,18 @@ Item {
     property color tone:     Theme.colorAccent
     property bool  hero:     false
     property bool  floating: false
-    readonly property int ruleH: hero ? 4 : 3
+    readonly property int  ruleH:  hero ? Theme.heroRule : Theme.cardRule
+    readonly property bool tinted: hero && Theme.heroTinted
 
     Rectangle {
         anchors.fill: parent
         radius:       Theme.radiusLg
         color:        Theme.colorSurface
-        border.width: shell.hero ? 0 : 1
+        border.width: shell.tinted ? 0 : 1
         border.color: shell.floating ? Theme.colorBorderStrong : Theme.colorBorderMid
     }
     Rectangle {     // the wash: the surface leaning to the tone
-        visible:      shell.hero
+        visible:      shell.tinted
         anchors.fill: parent
         radius:       Theme.radiusLg
         color:        Qt.alpha(shell.tone, Theme.dark ? 0.045 : 0.05)
@@ -58,16 +64,18 @@ Item {
         border.color: Qt.alpha(shell.tone, Theme.dark ? 0.32 : 0.36)
     }
     Rectangle {
+        visible: shell.ruleH > 0
         width: parent.width; height: Theme.radiusLg * 2
         radius: Theme.radiusLg
         color:  shell.tone
     }
     Rectangle {
+        visible: shell.ruleH > 0
         x: 1; y: shell.ruleH
         width: parent.width - 2; height: Theme.radiusLg * 2
         color: Theme.colorSurface
         Rectangle {
-            visible: shell.hero
+            visible: shell.tinted
             anchors.fill: parent
             color: Qt.alpha(shell.tone, Theme.dark ? 0.045 : 0.05)
         }

@@ -34,9 +34,9 @@ Rectangle {
     Row {
         id: body
         anchors { left: parent.left; right: parent.right; top: parent.top }
-        anchors.margins: Theme.sp(11)
-        anchors.topMargin: Theme.sp(11)
-        spacing: Theme.sp(10)
+        anchors.margins: Theme.gap(11)
+        anchors.topMargin: Theme.gap(11)
+        spacing: Theme.gap(10)
 
         Text {
             text: "⚠"
@@ -46,11 +46,11 @@ Rectangle {
         }
 
         Column {
-            spacing: Theme.sp(3)
+            spacing: Theme.gap(3)
             width: parent.width - Theme.sp(24)
 
             Text {
-                text: qsTr("WARNING")
+                text: Theme.caps(qsTr("Warning"))
                 font.family: Theme.fontData
                 font.pixelSize: Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro

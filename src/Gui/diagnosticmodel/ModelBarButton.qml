@@ -60,7 +60,7 @@ Rectangle {
     Row {
         id: content
         anchors.centerIn: parent
-        spacing: Theme.sp(6)
+        spacing: Theme.gap(6)
 
         Text {
             visible: root.glyph !== ""

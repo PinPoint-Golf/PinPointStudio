@@ -55,7 +55,7 @@ Rectangle {
         text:             root.label
         font.family:         Theme.fontData
         font.pixelSize:      Theme.fontSzMicro
-        font.capitalization: Font.AllUppercase
+        font.capitalization: Theme.capsFont
         font.letterSpacing:  Theme.trackingMicro
         color:               Theme.colorText3
     }

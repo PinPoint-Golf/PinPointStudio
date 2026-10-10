@@ -83,8 +83,8 @@ Rectangle {
             visible: root.runData !== null && root.runData !== undefined
 
             Row {
-                anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: Theme.sp(10) }
-                spacing: Theme.sp(8)
+                anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: Theme.gap(10) }
+                spacing: Theme.gap(8)
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
@@ -143,7 +143,7 @@ Rectangle {
 
             // Right-aligned metrics: frames · total · score
             Text {
-                anchors { right: parent.right; rightMargin: Theme.sp(10); verticalCenter: parent.verticalCenter }
+                anchors { right: parent.right; rightMargin: Theme.gap(10); verticalCenter: parent.verticalCenter }
                 text: root.runData.frames + qsTr(" fr · ") + root.runData.totalMsStr + qsTr(" · score ") + root.runData.scoreStr
                 font.family: Theme.fontData
                 font.pixelSize: Theme.fontSzDataSm
@@ -166,7 +166,7 @@ Rectangle {
                 height: Theme.sp(24)
                 visible: root.expanded && root.spanMs > 0
                 Text {
-                    anchors { left: parent.left; leftMargin: root.trackX; right: legend.left; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                    anchors { left: parent.left; leftMargin: root.trackX; right: legend.left; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                     text: root.runData ? root.runData.pathStr : ""
                     elide: Text.ElideRight
                     font.family: Theme.fontData
@@ -175,8 +175,8 @@ Rectangle {
                 }
                 Row {
                     id: legend
-                    anchors { right: parent.right; rightMargin: Theme.sp(10); verticalCenter: parent.verticalCenter }
-                    spacing: Theme.sp(6)
+                    anchors { right: parent.right; rightMargin: Theme.gap(10); verticalCenter: parent.verticalCenter }
+                    spacing: Theme.gap(6)
                     Rectangle { anchors.verticalCenter: parent.verticalCenter; width: Theme.sp(10); height: Theme.sp(6); radius: Theme.sp(1); color: root.pathColor }
                     Text { text: qsTr("critical path"); font.family: Theme.fontData; font.pixelSize: Theme.sp(9); color: Theme.colorText3 }
                     Rectangle { anchors.verticalCenter: parent.verticalCenter; width: Theme.sp(10); height: Theme.sp(6); radius: Theme.sp(1); color: root.otherColor }
@@ -201,7 +201,7 @@ Rectangle {
                         width: lanes.width
                         height: lanes.laneH
                         Text {
-                            anchors { left: parent.left; leftMargin: Theme.sp(10); verticalCenter: parent.verticalCenter }
+                            anchors { left: parent.left; leftMargin: Theme.gap(10); verticalCenter: parent.verticalCenter }
                             text: "T" + index
                             font.family: Theme.fontData
                             font.pixelSize: Theme.sp(9)
@@ -293,7 +293,7 @@ Rectangle {
 
                     // Critical-path marker.
                     Rectangle {
-                        anchors { left: parent.left; leftMargin: Theme.sp(20); verticalCenter: parent.verticalCenter }
+                        anchors { left: parent.left; leftMargin: Theme.gap(20); verticalCenter: parent.verticalCenter }
                         width: Theme.sp(6)
                         height: width
                         radius: width / 2
@@ -310,7 +310,7 @@ Rectangle {
                                : modelData.critical ? Theme.colorText : Theme.colorText2
                     }
                     Text {
-                        anchors { right: parent.right; rightMargin: Theme.sp(10); verticalCenter: parent.verticalCenter }
+                        anchors { right: parent.right; rightMargin: Theme.gap(10); verticalCenter: parent.verticalCenter }
                         text: modelData.ran
                               ? modelData.msStr
                               : (modelData.skipReason.length > 0

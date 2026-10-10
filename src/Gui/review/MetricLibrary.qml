@@ -114,15 +114,15 @@ Item {
             x:       Theme.sp(32)
             y:       Theme.sp(28)
             width:   scrollView.availableWidth - Theme.sp(64)
-            spacing: Theme.sp(20)
+            spacing: Theme.gap(20)
 
             // ── Page header ────────────────────────────────────────────────────
             Text {
-                text:                qsTr("REFERENCE")
+                text:                qsTr("Reference")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
 
@@ -152,11 +152,11 @@ Item {
             // ── Filter row: type chips (left) + Hide-planned toggle (right) ─────
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(12)
+                spacing: Theme.gap(12)
 
                 Flow {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(7)
+                    spacing: Theme.gap(7)
 
                     // "All" chip
                     Rectangle {
@@ -266,7 +266,7 @@ Item {
                     readonly property var rows: root._query(modelData)
 
                     Layout.fillWidth: true
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
                     visible: rows.length > 0
 
                     Text {
@@ -274,9 +274,9 @@ Item {
                         font.family:         Theme.fontBody
                         font.pixelSize:      Theme.fontSzMicro
                         font.letterSpacing:  Theme.trackingMicro
-                        font.capitalization: Font.AllUppercase
+                        font.capitalization: Theme.capsFont
                         color:               Theme.colorText3
-                        Layout.bottomMargin: Theme.sp(2)
+                        Layout.bottomMargin: Theme.gap(2)
                     }
 
                     Repeater {
@@ -297,7 +297,7 @@ Item {
             // this type" sent the reader looking for a manifest gap that was not there.
             Text {
                 Layout.fillWidth: true
-                Layout.topMargin: Theme.sp(8)
+                Layout.topMargin: Theme.gap(8)
                 visible: root._totalCount === 0
                 text: root._search.length > 0
                       ? qsTr("Nothing matches “%1”.").arg(root._search)

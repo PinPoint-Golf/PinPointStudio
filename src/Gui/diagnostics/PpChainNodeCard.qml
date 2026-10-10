@@ -92,6 +92,13 @@ Item {
     clip: true
 
     function px(n) { return Math.round(n * Theme.fontScale * root.fit) }
+    // The model spells the state pill in capitals (its C++ and tests own that spelling); the
+    // shouted words go back to sentence case so Theme.caps sets the case, exactly as before in
+    // the capital themes.
+    function _unshout(s) {
+        const t = String(s || "").replace(/\b[A-Z]{2,}\b/g, function (w) { return w.toLowerCase() })
+        return t.charAt(0).toUpperCase() + t.slice(1)
+    }
 
     readonly property int tzCaption: Math.max(1, Math.round(Theme.sp(8) * fit))
     readonly property int tzMicro:   Math.max(1, Math.round(Theme.fontSzMicro  * fit))
@@ -332,7 +339,7 @@ Item {
                 Text {
                     id: pillText
                     anchors.centerIn: parent
-                    text: root.node ? (root.node.statePill || "") : ""
+                    text: root.node ? Theme.caps(root._unshout(root.node.statePill)) : ""
                     font.family: Theme.fontData
                     font.pixelSize: root.tzCaption
                     font.letterSpacing: Theme.trackingLabel
@@ -438,7 +445,7 @@ Item {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.focusable
-                text: root.focused ? qsTr("FOCUSED ·") : qsTr("FOCUS ▸")
+                text: root.focused ? Theme.caps(qsTr("Focused ·")) : Theme.caps(qsTr("Focus ▸"))
                 font.family: Theme.fontData
                 font.pixelSize: root.tzCaption
                 font.letterSpacing: Theme.trackingLabel
@@ -504,7 +511,7 @@ Item {
             objectName: "sdChainScreenCta"
             width: wide.width
             visible: root.isScreen
-            text: qsTr("RUN THE SCREEN ▸")
+            text: Theme.caps(qsTr("Run the screen ▸"))
             font.family: Theme.fontData
             font.pixelSize: root.tzCaption
             font.letterSpacing: Theme.trackingLabel
@@ -549,7 +556,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             // The screened root has no recurrence to report and its CTA is the point of it
             // being on the rail at all, so that is what takes the slot.
-            text: root.isScreen ? qsTr("RUN THE SCREEN ▸")
+            text: root.isScreen ? Theme.caps(qsTr("Run the screen ▸"))
                                 : (root.node ? (root.node.recurrence || "") : "")
             font.family: Theme.fontData
             font.pixelSize: root.tzCaption

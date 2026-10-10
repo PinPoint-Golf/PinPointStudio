@@ -254,7 +254,7 @@ Item {
                     font.family:        Theme.fontData
                     font.pixelSize:     Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color: Theme.colorText3
                     elide: Text.ElideRight
                 }
@@ -395,7 +395,7 @@ Item {
                     Text {
                         id: tipText
                         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
-                                  leftMargin: Theme.sp(8); rightMargin: Theme.sp(8) }
+                                  leftMargin: Theme.gap(8); rightMargin: Theme.gap(8) }
                         text: cell.tipText
                         wrapMode: Text.WordWrap
                         font.family:    Theme.fontBody
@@ -426,7 +426,7 @@ Item {
         }
         Rectangle {
             id: track
-            anchors { left: parent.left; right: doneText.left; rightMargin: Theme.sp(10); verticalCenter: parent.verticalCenter }
+            anchors { left: parent.left; right: doneText.left; rightMargin: Theme.gap(10); verticalCenter: parent.verticalCenter }
             height: Math.max(2, Theme.sp(2))
             radius: height / 2
             color: Theme.colorBorderMid

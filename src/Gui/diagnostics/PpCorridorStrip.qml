@@ -322,7 +322,8 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: parent.width
             height: 1
-            color: Theme.colorBorderMid
+            color: Theme.baselineColor(Theme.colorBorderMid)
+            opacity: Theme.baselineOpacity(1.0)
         }
 
         // The norm's curve: faint, and drawn from the plot's floor up — a shape, not a reading.

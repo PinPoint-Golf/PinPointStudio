@@ -35,7 +35,7 @@ ColumnLayout {
     // glyph and a value.
     property real labelWidth: Math.min(Theme.sp(150), Math.round(width * 0.24))
 
-    spacing: Theme.sp(4)
+    spacing: Theme.gap(4)
 
     function _bg(rag) {
         return rag === "green" ? Theme.colorGoodLight
@@ -69,7 +69,7 @@ ColumnLayout {
         Row {
             id: toggleRow
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Theme.sp(6)
+            spacing: Theme.gap(6)
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.open ? "▾" : "▸"
@@ -78,7 +78,7 @@ ColumnLayout {
             }
             PpMicro {
                 anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("DATA · POSITION × DEGREE OF FREEDOM")
+                text: Theme.caps(qsTr("Data · position × degree of freedom"))
                 color: dtMa.containsMouse ? Theme.colorText : Theme.colorText3
             }
         }
@@ -89,12 +89,12 @@ ColumnLayout {
     ColumnLayout {
         Layout.fillWidth: true
         visible: root.open
-        spacing: Theme.sp(2)
+        spacing: Theme.gap(2)
 
         // Header — P1…P8.
         RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(3)
+            spacing: Theme.gap(3)
             Item { Layout.preferredWidth: root.labelWidth; Layout.fillHeight: true }
             Repeater {
                 model: root.positions
@@ -117,7 +117,7 @@ ColumnLayout {
             delegate: RowLayout {
                 required property var modelData
                 Layout.fillWidth: true
-                spacing: Theme.sp(3)
+                spacing: Theme.gap(3)
                 Text {
                     Layout.preferredWidth: root.labelWidth
                     text: parent.modelData.name

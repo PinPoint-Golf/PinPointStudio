@@ -124,12 +124,12 @@ Item {
         height: Theme.sp(46)
 
         PpMicro {
-            anchors { left: parent.left; leftMargin: Theme.sp(15); verticalCenter: parent.verticalCenter }
-            text: root.mode === "calibrate" ? qsTr("CALIBRATE SENSORS") : qsTr("IMUS")
+            anchors { left: parent.left; leftMargin: Theme.gap(15); verticalCenter: parent.verticalCenter }
+            text: root.mode === "calibrate" ? Theme.caps(qsTr("Calibrate sensors")) : Theme.caps(qsTr("IMUs"))
             color: root.mode === "calibrate" ? Theme.colorAttention : Theme.colorText3
         }
         PpMicro {
-            anchors { right: parent.right; rightMargin: Theme.sp(15); verticalCenter: parent.verticalCenter }
+            anchors { right: parent.right; rightMargin: Theme.gap(15); verticalCenter: parent.verticalCenter }
             visible: root.mode === "list"
             font.letterSpacing: Theme.trackingData
             text: qsTr("%1 of %2 connected").arg(imuManager.imuCount).arg(imuManager.imuDeviceList.length)
@@ -150,7 +150,7 @@ Item {
         // Scoped actions: Scan / Connect / Calibrate
         Row {
             width: parent.width
-            padding: Theme.sp(12); spacing: Theme.sp(8)
+            padding: Theme.gap(12); spacing: Theme.gap(8)
             ScopedAction {
                 glyph: "⟳"; label: qsTr("Scan")
                 onTriggered: imuManager.rescanImu()
@@ -211,7 +211,7 @@ Item {
             PpCardNote {
                 id: noImus
                 anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
-                          leftMargin: Theme.sp(15); rightMargin: Theme.sp(15) }
+                          leftMargin: Theme.gap(15); rightMargin: Theme.gap(15) }
                 text: qsTr("No IMUs found — Scan to look again.")
             }
         }
@@ -255,7 +255,7 @@ Item {
         border.color: primary ? Theme.colorAttention : Theme.colorBorderStrong
         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
         Column {
-            anchors.centerIn: parent; spacing: Theme.sp(4)
+            anchors.centerIn: parent; spacing: Theme.gap(4)
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter; text: glyph
                 font.family: Theme.fontSymbol; font.pixelSize: Theme.sp(16)
@@ -309,8 +309,8 @@ Item {
         }
 
         RowLayout {
-            anchors { fill: parent; leftMargin: Theme.sp(15); rightMargin: Theme.sp(15) }
-            spacing: Theme.sp(11)
+            anchors { fill: parent; leftMargin: Theme.gap(15); rightMargin: Theme.gap(15) }
+            spacing: Theme.gap(11)
 
             // State badge: a check (connected, calibrated), a colorAttention
             // target (connected, needs calibration), a colorError target
@@ -351,7 +351,7 @@ Item {
             // preferredWidth 0 + minimumWidth 0: take the space that is left after
             // the fixed-size siblings, never demand more.
             Column {
-                Layout.fillWidth: true; spacing: Theme.sp(2)
+                Layout.fillWidth: true; spacing: Theme.gap(2)
                 Layout.preferredWidth: 0
                 Layout.minimumWidth: 0
                 opacity: deviceEnabled ? 1.0 : 0.45
@@ -386,15 +386,15 @@ Item {
                 Row {
                     id: chipRow
                     visible: imuRowItem.hasBattery || imuRowItem.placement !== ""
-                    topPadding: Theme.sp(4)
-                    spacing: Theme.sp(6)
+                    topPadding: Theme.gap(4)
+                    spacing: Theme.gap(6)
                     // Battery, toned by charge (good >60%, attention >20%, error
                     // ≤20%), with the level in words.
                     PpChip {
                         id: batChip
                         visible: imuRowItem.hasBattery
                         readonly property int pct: inst ? inst.batteryPercent : 0
-                        text: qsTr("BAT %1%").arg(batChip.pct)
+                        text: Theme.caps(qsTr("Bat %1%")).arg(batChip.pct)
                         tone: pct > 60 ? Theme.colorGood
                             : pct > 20 ? Theme.colorAttention
                             :            Theme.colorError

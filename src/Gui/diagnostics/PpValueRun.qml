@@ -151,8 +151,8 @@ Item {
                 y: parent.ty
                 width: root._pw
                 height: 1
-                color: Theme.colorBorderMid
-                opacity: 0.5
+                color: Theme.gridColor(Theme.colorBorderMid)
+                opacity: Theme.gridOpacity(0.5)
             }
             Text {
                 text: parent.text
@@ -170,7 +170,8 @@ Item {
         y: root.height - 1
         x: root._gutter; width: root._pw
         height: 1
-        color: Theme.colorBorderMid
+        color: Theme.baselineColor(Theme.colorBorderMid)
+        opacity: Theme.baselineOpacity(1.0)
     }
 
     // ── the hovered column, so a tap target is visible before it is pressed ──
@@ -212,7 +213,7 @@ Item {
         z: 1
         ShapePath {
             strokeColor: Theme.colorText2
-            strokeWidth: Math.max(1, root.px(root.large ? 2 : 1.5))
+            strokeWidth: Math.max(1, root.px(Theme.curveWidth(root.large ? 2 : 1.5)))
             fillColor: "transparent"
             joinStyle: ShapePath.RoundJoin
             capStyle: ShapePath.RoundCap

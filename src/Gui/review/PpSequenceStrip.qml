@@ -47,7 +47,7 @@ ColumnLayout {
     property bool collapsed: false
     signal toggled()
 
-    spacing: Theme.sp(6)
+    spacing: Theme.gap(6)
 
     ChartMetrics { id: cm }
 
@@ -76,12 +76,12 @@ ColumnLayout {
             id: tileCol
             x: Theme.sp(6); y: Theme.sp(8)
             width: parent.width - Theme.sp(12)
-            spacing: Theme.sp(6)
+            spacing: Theme.gap(6)
 
             // ── title + the verdict ────────────────────────────────────────────────────────────
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(7)
+                spacing: Theme.gap(7)
                 Text {
                     objectName: "sequenceCaret"
                     text: "▸"; rotation: root.collapsed ? 0 : 90
@@ -89,7 +89,7 @@ ColumnLayout {
                     Behavior on rotation { enabled: !Theme.reduceMotion
                                            NumberAnimation { duration: Theme.durationFast } }
                 }
-                HeadText { objectName: "sequenceStripHeader"; text: qsTr("SEQUENCE") }
+                HeadText { objectName: "sequenceStripHeader"; text: Theme.caps(qsTr("Sequence")) }
                 Item { Layout.fillWidth: true }
                 Text {
                     objectName: "sequenceVerdict"
@@ -108,13 +108,13 @@ ColumnLayout {
             RowLayout {
                 visible: !root.collapsed
                 Layout.fillWidth: true
-                spacing: Theme.sp(12)
+                spacing: Theme.gap(12)
                 HeadText { text: "";                 Layout.preferredWidth: root._wLabel }
-                HeadText { text: qsTr("SHOULD");     Layout.preferredWidth: root._wRank }
-                HeadText { text: qsTr("ACTUAL");     Layout.preferredWidth: root._wRank }
-                HeadText { text: qsTr("PEAK");       Layout.preferredWidth: root._wPeak }
-                HeadText { text: qsTr("°/S");        Layout.preferredWidth: root._wSpeed }
-                HeadText { text: qsTr("% OF PRO");   Layout.fillWidth: true }
+                HeadText { text: Theme.caps(qsTr("Should"));     Layout.preferredWidth: root._wRank }
+                HeadText { text: Theme.caps(qsTr("Actual"));     Layout.preferredWidth: root._wRank }
+                HeadText { text: Theme.caps(qsTr("Peak"));       Layout.preferredWidth: root._wPeak }
+                HeadText { text: Theme.caps(qsTr("°/s"));        Layout.preferredWidth: root._wSpeed }
+                HeadText { text: Theme.caps(qsTr("% of pro"));   Layout.fillWidth: true }
             }
 
             Repeater {
@@ -125,7 +125,7 @@ ColumnLayout {
                     objectName: "sequenceRow:" + seg.modelData.segment
                     visible: !root.collapsed
                     Layout.fillWidth: true
-                    spacing: Theme.sp(12)
+                    spacing: Theme.gap(12)
                     // A peak the producer could not pin down is shown — it is on the curve — but
                     // dimmed, and its rank carries a "?".
                     opacity: seg.modelData.placed || seg.modelData.actualRank === "—" ? 1.0 : 0.6
@@ -145,7 +145,7 @@ ColumnLayout {
                     Row {
                         id: rankCell
                         Layout.preferredWidth: root._wRank
-                        spacing: Theme.sp(6)
+                        spacing: Theme.gap(6)
                         readonly property string mark: seg.modelData.actualRank === "—" ? ""
                                                       : seg.modelData.outOfTurn          ? "target"
                                                       : seg.modelData.placed             ? "check"

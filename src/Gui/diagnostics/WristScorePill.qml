@@ -34,11 +34,11 @@ ColumnLayout {
     property string breakdownText: ""
 
     property bool _open: false
-    spacing: Theme.sp(6)
+    spacing: Theme.gap(6)
 
     Row {
         Layout.alignment: Qt.AlignRight
-        spacing: Theme.sp(6)
+        spacing: Theme.gap(6)
 
         PpBadge {
             anchors.verticalCenter: parent.verticalCenter
@@ -52,7 +52,7 @@ ColumnLayout {
         }
         PpMicro {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.band.toUpperCase()
+            text: Theme.caps(root.band)
             color: Theme.qualityColor(root.score)
         }
         TapHandler { onTapped: root._open = !root._open }
@@ -69,7 +69,7 @@ ColumnLayout {
 
         Column {
             id: bd
-            spacing: Theme.sp(2)
+            spacing: Theme.gap(2)
             Text {
                 anchors.right: parent.right
                 text: root.breakdownText

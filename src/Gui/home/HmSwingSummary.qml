@@ -87,12 +87,12 @@ Column {
     readonly property color toneWork:     Theme.colorAccent      // the app's own "your focus" amber
 
     // ── Shared geometry ──────────────────────────────────────────────────────
-    readonly property int cardPad:   Theme.sp(20)
-    readonly property int cardGap:   Theme.sp(16)
+    readonly property int cardPad:   Theme.gap(20)
+    readonly property int cardGap:   Theme.gap(16)
     readonly property int badgeSize: Theme.sp(20)
     readonly property int textIndent: badgeSize + Theme.sp(12)
     readonly property int headlineSize: Theme.fontSzBody
-    readonly property int itemGap:   Theme.sp(18)
+    readonly property int itemGap:   Theme.gap(18)
 
     width:   parent ? parent.width : 0
     spacing: 0
@@ -115,7 +115,7 @@ Column {
 
         PpMicro {
             anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-            text: qsTr("YOUR SWING")
+            text: Theme.caps(qsTr("Your swing"))
         }
         // The first reading of a golfer's sessions, said once and quietly. A recompute after
         // that leaves the summary standing and says nothing: it changes when it lands.
@@ -187,8 +187,8 @@ Column {
                 width:  row1.cardW
                 height: root.stacked ? implicitHeight : row1.tallest
                 tone:   root.toneWell
-                title:  qsTr("WHAT YOU DO WELL")
-                aside:  root.doWell.length > 0 ? qsTr("SESSIONS") : ""
+                title:  Theme.caps(qsTr("What you do well"))
+                aside:  root.doWell.length > 0 ? Theme.caps(qsTr("Sessions")) : ""
                 asideWidth: root.pipsWidth
 
                 Repeater {
@@ -214,7 +214,7 @@ Column {
                             id: wellCol
                             x: root.textIndent
                             width: parent.width - root.textIndent
-                            spacing: Theme.sp(4)
+                            spacing: Theme.gap(4)
                             Text {
                                 id: wellHead
                                 readonly property real lineCentre: (font.pixelSize * 1.3) / 2
@@ -266,8 +266,8 @@ Column {
                 width:  row1.cardW
                 height: root.stacked ? implicitHeight : row1.tallest
                 tone:   root.toneWork
-                title:  qsTr("NEXT ON YOUR LIST")
-                aside:  root.needsWork.length > 0 ? qsTr("SESSIONS") : ""
+                title:  Theme.caps(qsTr("Next on your list"))
+                aside:  root.needsWork.length > 0 ? Theme.caps(qsTr("Sessions")) : ""
                 asideWidth: root.pipsWidth
 
                 Repeater {
@@ -294,7 +294,7 @@ Column {
                             id: workCol
                             x: root.textIndent
                             width: parent.width - root.textIndent
-                            spacing: Theme.sp(4)
+                            spacing: Theme.gap(4)
                             Text {
                                 id: workHead
                                 readonly property real lineCentre: (font.pixelSize * 1.3) / 2
@@ -314,7 +314,7 @@ Column {
                                 PpChip {
                                     id: nextChip
                                     objectName: "nextChip"
-                                    text:     qsTr("NEXT")
+                                    text:     Theme.caps(qsTr("Next"))
                                     tone:     root.toneWork
                                     tracking: Theme.trackingMicro
                                     visible: workItem.index === 0
@@ -347,7 +347,7 @@ Column {
                                 }
                                 Text {
                                     id: freqWords
-                                    anchors { left: meter.right; leftMargin: Theme.sp(10)
+                                    anchors { left: meter.right; leftMargin: Theme.gap(10)
                                               verticalCenter: parent.verticalCenter }
                                     // Never under the pips, on a narrow card.
                                     width: Math.min(implicitWidth, meterRow.width - meter.width - Theme.sp(10)

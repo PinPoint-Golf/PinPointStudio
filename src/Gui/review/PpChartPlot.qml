@@ -441,8 +441,9 @@ Item {
             Rectangle {
                 x: root._plotLeft; y: yt.yy
                 width: root._plotW; height: 1
-                color: yt.modelData === 0 ? Theme.colorBorderStrong : Theme.colorBorderMid
-                opacity: yt.modelData === 0 ? 0.7 : 0.45
+                color: yt.modelData === 0 ? Theme.baselineColor(Theme.colorBorderStrong)
+                                          : Theme.gridColor(Theme.colorBorderMid)
+                opacity: yt.modelData === 0 ? Theme.baselineOpacity(0.7) : Theme.gridOpacity(0.45)
             }
             Text {
                 x: root._plotLeft - Theme.sp(4) - width      // right edge sits just left of the grid
@@ -466,7 +467,7 @@ Item {
     Column {
         visible: root.facetName.length > 0
         x: Theme.sp(4); y: root._plotTop + Theme.sp(2)
-        spacing: Theme.sp(1)
+        spacing: Theme.gap(1)
         Text {
             text: root.facetName
             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
@@ -528,8 +529,9 @@ Item {
                 visible: root._inDom(ph.modelData.t_us)
                 x: ph.tx; y: root._plotTop
                 width: ph.landmark ? Theme.sp(1.5) : 1; height: root._plotH
-                color: ph.landmark ? Theme.colorAccent : Theme.colorBorderMid
-                opacity: ph.isImpact ? 0.85 : (ph.isTop ? 0.55 : 0.4)
+                // A plain phase tick is a vertical grid line at a P-position, so it wears the grid.
+                color: ph.landmark ? Theme.colorAccent : Theme.gridColor(Theme.colorBorderMid)
+                opacity: ph.isImpact ? 0.85 : (ph.isTop ? 0.55 : Theme.gridOpacity(0.4))
             }
             // Short tag at the foot of the tick.
             Text {
@@ -543,9 +545,10 @@ Item {
         }
     }
 
-    // Optional thin frame around the plot rect (split facets read as separate cards).
+    // Optional thin frame around the plot rect (split facets read as separate cards). A theme
+    // without plot boxes (chartFrame false) lets the facets' own grids and gutters separate them.
     Rectangle {
-        visible: root.showFrame
+        visible: root.showFrame && Theme.chartFrame
         x: root._plotLeft; y: root._plotTop
         width: root._plotW; height: root._plotH
         color: "transparent"; border.width: 1; border.color: Theme.colorBorder
@@ -692,7 +695,7 @@ Item {
                 opacity: curve.modelData.outside ? 0.55 : curve.modelData.dashed ? 0.35 : 1.0
                 ShapePath {
                     strokeColor: curve.modelData.color
-                    strokeWidth: Theme.sp(2)
+                    strokeWidth: Theme.sp(Theme.curveWidth(2))
                     fillColor:   "transparent"
                     joinStyle:   ShapePath.RoundJoin
                     capStyle:    ShapePath.RoundCap
@@ -757,10 +760,13 @@ Item {
                         anchors.fill: parent
                         radius: dot.r
                         // Filled for in range and for no verdict; open (the plot's ground shows
-                        // through, so the curve under it does not) for watch and outside.
-                        color: dot.verdict === "attention" || dot.verdict === "warn" ? Theme.colorBg : dot.tone
+                        // through, so the curve under it does not) for watch and outside. The fill
+                        // vs ring IS the verdict, so a hollow-marker theme keeps it and only moves
+                        // the ground to the surface its markers sit on.
+                        readonly property color ground: Theme.chartMarkerHollow ? Theme.colorSurface : Theme.colorBg
+                        color: dot.verdict === "attention" || dot.verdict === "warn" ? ground : dot.tone
                         border.width: Theme.sp(1.5)
-                        border.color: dot.verdict === "attention" || dot.verdict === "warn" ? dot.tone : Theme.colorBg
+                        border.color: dot.verdict === "attention" || dot.verdict === "warn" ? dot.tone : ground
                     }
                     Rectangle {                       // outside: the target's centre dot
                         visible: dot.verdict === "warn"
@@ -793,7 +799,7 @@ Item {
                 Rectangle { anchors.right: parent.right; anchors.bottom: parent.bottom; width: 1; height: Theme.sp(4); color: Theme.colorBorderStrong }
                 Text {
                     objectName: "sequenceGapText"
-                    anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: Theme.sp(2)
+                    anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: Theme.gap(2)
                     text: gapItem.modelData.text
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                     color: Theme.colorText3
@@ -873,7 +879,7 @@ Item {
                 Rectangle {
                     x: pk.cx - pk.r; y: pk.cy - pk.r
                     width: 2 * pk.r; height: 2 * pk.r; radius: pk.r
-                    color: Theme.colorBg
+                    color: Theme.chartMarkerHollow ? Theme.colorSurface : Theme.colorBg
                     border.width: Theme.sp(2); border.color: pk.col
                 }
                 Text {
@@ -930,8 +936,10 @@ Item {
                 width: 2 * r; height: 2 * r; radius: r
                 x: root.xForT(root.cursorUs) - r
                 y: root.yForV(cv) - r
-                color: cmark.modelData.color
-                border.width: Theme.sp(1.5); border.color: Theme.colorBg
+                // A hollow-marker theme rings the point in the series colour on the surface.
+                color: Theme.chartMarkerHollow ? Theme.colorSurface : cmark.modelData.color
+                border.width: Theme.sp(1.5)
+                border.color: Theme.chartMarkerHollow ? cmark.modelData.color : Theme.colorBg
             }
         }
 

@@ -40,7 +40,7 @@ Rectangle {
     Text {
         id: ts
         anchors { left: parent.left; top: parent.top
-                  leftMargin: Theme.sp(10); topMargin: Theme.sp(5) }
+                  leftMargin: Theme.gap(10); topMargin: Theme.gap(5) }
         width: Theme.sp(52)
         text: root.statData.timestamp
         font.family: Theme.fontData
@@ -52,7 +52,7 @@ Rectangle {
     Rectangle {
         id: catBadge
         anchors { left: ts.right; top: parent.top
-                  leftMargin: Theme.sp(4); topMargin: Theme.sp(4) }
+                  leftMargin: Theme.gap(4); topMargin: Theme.gap(4) }
         width: Theme.sp(52)
         height: Theme.sp(16)
         radius: Theme.sp(3)
@@ -74,7 +74,7 @@ Rectangle {
     Text {
         id: msg
         anchors { left: catBadge.right; right: parent.right; top: parent.top
-                  leftMargin: Theme.sp(8); rightMargin: Theme.sp(10); topMargin: Theme.sp(5) }
+                  leftMargin: Theme.gap(8); rightMargin: Theme.gap(10); topMargin: Theme.gap(5) }
         text: root.statData.message
         wrapMode: Text.WordWrap
         font.family: Theme.fontData

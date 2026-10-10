@@ -58,9 +58,9 @@ Rectangle {
             left:    parent.left
             right:   parent.right
             top:     parent.top
-            margins: Theme.sp(14)
+            margins: Theme.gap(14)
         }
-        spacing: Theme.sp(4)
+        spacing: Theme.gap(4)
 
         // Initials circle
         Rectangle {

@@ -35,8 +35,8 @@ Rectangle {
     // Title
     Text {
         id: chartTitle
-        anchors { top: parent.top; left: parent.left; right: parent.right; margins: Theme.sp(14) }
-        text: qsTr("TIMELINE INDEX — ENTRIES PER 2 S WINDOW")
+        anchors { top: parent.top; left: parent.left; right: parent.right; margins: Theme.gap(14) }
+        text: Theme.caps(qsTr("Timeline index — entries per 2 s window"))
         font.family: Theme.fontData
         font.pixelSize: Theme.fontSzMicro
         font.letterSpacing: Theme.trackingMicro
@@ -46,7 +46,7 @@ Rectangle {
     // Footer
     Item {
         id: footer
-        anchors { bottom: parent.bottom; left: parent.left; right: parent.right; margins: Theme.sp(14) }
+        anchors { bottom: parent.bottom; left: parent.left; right: parent.right; margins: Theme.gap(14) }
         height: Theme.sp(14)
 
         Text {
@@ -76,8 +76,8 @@ Rectangle {
             bottomMargin: 4
             left: parent.left
             right: parent.right
-            leftMargin: Theme.sp(14)
-            rightMargin: Theme.sp(14)
+            leftMargin: Theme.gap(14)
+            rightMargin: Theme.gap(14)
         }
 
         property int  barCount: root.historyData.length > 0 ? root.historyData.length : 1
@@ -91,6 +91,9 @@ Rectangle {
             ? (width - 3.0 * (barCount - 1)) / barCount
             : width
 
+        // Theme.sp, not Theme.gap: the gutter between bars is part of the chart's geometry,
+        // and barW above is computed from it — a gutter that grew with the theme's spacing
+        // would push the newest bars off the right-hand edge.
         Row {
             anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
             spacing: Theme.sp(3)

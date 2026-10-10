@@ -30,9 +30,9 @@ Item {
 
     property color tone:    Theme.colorAccent
     property bool  bar:     false
-    property int   padX:    Theme.sp(14)
-    property int   padY:    Theme.sp(12)
-    property int   spacing: Theme.sp(4)
+    property int   padX:    Theme.gap(14)
+    property int   padY:    Theme.gap(12)
+    property int   spacing: Theme.gap(4)
     default property alias content: col.data
     readonly property real contentHeight: col.implicitHeight
 

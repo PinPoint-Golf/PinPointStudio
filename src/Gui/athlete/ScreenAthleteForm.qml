@@ -190,7 +190,7 @@ Item {
 
             // ── Header ───────────────────────────────────────────────────────
             Text {
-                text:               qsTr("ATHLETE PROFILE")
+                text:               Theme.caps(qsTr("Athlete profile"))
                 font.family:        Theme.fontData
                 font.pixelSize:     Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
@@ -235,7 +235,7 @@ Item {
                         color:  Theme.colorBg2
 
                         RowLayout {
-                            anchors { fill: parent; leftMargin: Theme.sp(14); rightMargin: Theme.sp(14) }
+                            anchors { fill: parent; leftMargin: Theme.gap(14); rightMargin: Theme.gap(14) }
                             Text {
                                 text:           qsTr("Required")
                                 font.family:    Theme.fontData
@@ -271,15 +271,15 @@ Item {
 
                         Column {
                             id: reqBody
-                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(18) }
-                            spacing: Theme.sp(12)
+                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(18) }
+                            spacing: Theme.gap(12)
 
                             // Name
                             Column {
                                 width:   parent.width
-                                spacing: Theme.sp(4)
+                                spacing: Theme.gap(4)
                                 Text {
-                                    text:               qsTr("NAME")
+                                    text:               Theme.caps(qsTr("Name"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -305,9 +305,9 @@ Item {
                             // Handedness
                             Column {
                                 width:   parent.width
-                                spacing: Theme.sp(4)
+                                spacing: Theme.gap(4)
                                 Text {
-                                    text:               qsTr("HANDEDNESS")
+                                    text:               Theme.caps(qsTr("Handedness"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -348,7 +348,7 @@ Item {
                         color:  Theme.colorBg2
 
                         RowLayout {
-                            anchors { fill: parent; leftMargin: Theme.sp(14); rightMargin: Theme.sp(14) }
+                            anchors { fill: parent; leftMargin: Theme.gap(14); rightMargin: Theme.gap(14) }
                             Text {
                                 text:           qsTr("Recommended")
                                 font.family:    Theme.fontData
@@ -382,15 +382,15 @@ Item {
 
                         Column {
                             id: recBody
-                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(18) }
-                            spacing: Theme.sp(12)
+                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(18) }
+                            spacing: Theme.gap(12)
 
                             // Height
                             Column {
                                 width:   parent.width
-                                spacing: Theme.sp(4)
+                                spacing: Theme.gap(4)
                                 Text {
-                                    text:               qsTr("HEIGHT")
+                                    text:               Theme.caps(qsTr("Height"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -426,9 +426,9 @@ Item {
                             // Weight
                             Column {
                                 width:   parent.width
-                                spacing: Theme.sp(4)
+                                spacing: Theme.gap(4)
                                 Text {
-                                    text:               qsTr("WEIGHT")
+                                    text:               Theme.caps(qsTr("Weight"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -464,9 +464,9 @@ Item {
                             // Handicap
                             Column {
                                 width:   parent.width
-                                spacing: Theme.sp(4)
+                                spacing: Theme.gap(4)
                                 Text {
-                                    text:               qsTr("HANDICAP")
+                                    text:               Theme.caps(qsTr("Handicap"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -483,9 +483,9 @@ Item {
                             // Primary club
                             Column {
                                 width:   parent.width
-                                spacing: Theme.sp(4)
+                                spacing: Theme.gap(4)
                                 Text {
-                                    text:               qsTr("PRIMARY CLUB")
+                                    text:               Theme.caps(qsTr("Primary club"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -526,9 +526,9 @@ Item {
                             // describes everyone, never "not measured".
                             Column {
                                 width:   parent.width
-                                spacing: Theme.sp(4)
+                                spacing: Theme.gap(4)
                                 Text {
-                                    text:               qsTr("DATE OF BIRTH")
+                                    text:               Theme.caps(qsTr("Date of birth"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -554,9 +554,9 @@ Item {
 
                             Column {
                                 width:   parent.width
-                                spacing: Theme.sp(4)
+                                spacing: Theme.gap(4)
                                 Text {
-                                    text:               qsTr("SEX")
+                                    text:               Theme.caps(qsTr("Sex"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -634,7 +634,7 @@ Item {
                         color:  Theme.colorBg2
 
                         RowLayout {
-                            anchors { fill: parent; leftMargin: Theme.sp(14); rightMargin: Theme.sp(14) }
+                            anchors { fill: parent; leftMargin: Theme.gap(14); rightMargin: Theme.gap(14) }
                             Text {
                                 text:           qsTr("Optional")
                                 font.family:    Theme.fontData
@@ -668,15 +668,15 @@ Item {
 
                         Column {
                             id: optBody
-                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(18) }
-                            spacing: Theme.sp(12)
+                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(18) }
+                            spacing: Theme.gap(12)
 
                             // Driver speed target
                             Column {
                                 width:   parent.width
-                                spacing: Theme.sp(4)
+                                spacing: Theme.gap(4)
                                 Text {
-                                    text:               qsTr("DRIVER SPEED TARGET")
+                                    text:               Theme.caps(qsTr("Driver speed target"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -713,9 +713,9 @@ Item {
                             // Notes
                             Column {
                                 width:   parent.width
-                                spacing: Theme.sp(4)
+                                spacing: Theme.gap(4)
                                 Text {
-                                    text:               qsTr("NOTES / TAGS")
+                                    text:               Theme.caps(qsTr("Notes / tags"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -746,7 +746,7 @@ Item {
 
                         Text {
                             id: noteText
-                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(18); topMargin: Theme.sp(10) }
+                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(18); topMargin: Theme.gap(10) }
                             text:           qsTr("Pinpoint builds baselines automatically from early sessions. You don't need to know your driver speed to get started.")
                             font.family:    Theme.fontData
                             font.pixelSize: Theme.fontSzDataSm
@@ -772,7 +772,7 @@ Item {
             Item { width: 1; height: Theme.sp(24) }
             Row {
                 anchors.right: parent.right
-                spacing: Theme.sp(8)
+                spacing: Theme.gap(8)
                 bottomPadding: 32
 
                 PpButton {

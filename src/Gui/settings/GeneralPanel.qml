@@ -95,13 +95,13 @@ Item {
         signal toggled()
 
         Layout.fillWidth: true
-        spacing: Theme.sp(16)
+        spacing: Theme.gap(16)
         property bool searchHighlight: false
         Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: cfr.searchHighlight ? 1.0 : 0.0; z: -1 }
 
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(3)
+            spacing: Theme.gap(3)
 
             Text {
                 // Fills so the toggle sits at the row's far edge even with no subtitle —
@@ -162,7 +162,7 @@ Item {
         property string placeholder: ""
 
         Layout.fillWidth: true
-        spacing: Theme.sp(16)
+        spacing: Theme.gap(16)
         property bool searchHighlight: false
         Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: ckf.searchHighlight ? 1.0 : 0.0; z: -1 }
 
@@ -227,16 +227,16 @@ Item {
             x: Theme.sp(32)
             y: Theme.sp(28)
             width: parent.width - Theme.sp(64)
-            spacing: Theme.sp(20)
+            spacing: Theme.gap(20)
 
             // ── Page header ───────────────────────────────────────────────────
 
             Text {
-                text: qsTr("CONFIGURATION")
+                text: qsTr("Configuration")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 
@@ -257,11 +257,11 @@ Item {
             // ── Group 1 — Localisation ────────────────────────────────────────
 
             Text {
-                text: qsTr("LOCALISATION")
+                text: qsTr("Localisation")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 
@@ -269,13 +269,13 @@ Item {
             RowLayout {
                 objectName: "setting_language"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -319,13 +319,13 @@ Item {
             RowLayout {
                 objectName: "setting_units"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -355,11 +355,11 @@ Item {
             // ── Group 2 — Session behaviour ───────────────────────────────────
 
             Text {
-                text: qsTr("SESSION BEHAVIOUR")
+                text: qsTr("Session behaviour")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 
@@ -367,13 +367,13 @@ Item {
             RowLayout {
                 objectName: "setting_autoDetect"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -423,7 +423,7 @@ Item {
             RowLayout {
                 objectName: "setting_swingSensitivity"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 opacity: appSettings.autoDetectSwing ? 1.0 : 0.4
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
@@ -431,7 +431,7 @@ Item {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -460,13 +460,13 @@ Item {
             RowLayout {
                 objectName: "setting_aiCoaching"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -517,11 +517,11 @@ Item {
             // ── Group 3 — Motion capture ──────────────────────────────────────
 
             Text {
-                text: qsTr("MOTION CAPTURE")
+                text: qsTr("Motion capture")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 
@@ -529,7 +529,7 @@ Item {
             ColumnLayout {
                 id: mcSection
                 Layout.fillWidth: true
-                spacing: Theme.sp(10)
+                spacing: Theme.gap(10)
 
                 // True while we're asking the user to fetch the High-tier model (or
                 // the fetch is in flight): "High" is committed only once the model is
@@ -551,7 +551,7 @@ Item {
                 RowLayout {
                     objectName: "setting_motionCapture"
                     Layout.fillWidth: true
-                    spacing: Theme.sp(16)
+                    spacing: Theme.gap(16)
                     property bool searchHighlight: false
                     Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
                     // The (lazy) hardware probe is kicked from root.onHostVisibleChanged
@@ -573,7 +573,7 @@ Item {
 
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: Theme.sp(3)
+                        spacing: Theme.gap(3)
 
                         Text {
                             text:           qsTr("Motion capture quality")
@@ -656,8 +656,8 @@ Item {
                     ColumnLayout {
                         id: dlCol
                         anchors.fill: parent
-                        anchors.margins: Theme.sp(10)
-                        spacing: Theme.sp(8)
+                        anchors.margins: Theme.gap(10)
+                        spacing: Theme.gap(8)
 
                         Text {
                             Layout.fillWidth: true
@@ -692,7 +692,7 @@ Item {
 
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: Theme.sp(8)
+                            spacing: Theme.gap(8)
                             Item { Layout.fillWidth: true }
 
                             PpButton {
@@ -742,11 +742,11 @@ Item {
             // ── Group 4 — Application ────────────────────────────────────────
 
             Text {
-                text: qsTr("APPLICATION")
+                text: qsTr("Application")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 
@@ -754,13 +754,13 @@ Item {
             RowLayout {
                 objectName: "setting_checkUpdates"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -810,13 +810,13 @@ Item {
             RowLayout {
                 objectName: "setting_diagnostics"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -866,7 +866,7 @@ Item {
             RowLayout {
                 objectName: "setting_version"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
@@ -880,7 +880,7 @@ Item {
 
                 Row {
                     id: verRow
-                    spacing: Theme.sp(10)
+                    spacing: Theme.gap(10)
                     Layout.alignment: Qt.AlignVCenter
 
                     // Live updater state (Linux AppImage). Off-Linux / dev builds
@@ -1008,14 +1008,14 @@ Item {
                 objectName: "setting_gpuAccel"
                 visible: cudaRuntime.supported
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
                 Component.onCompleted: cudaRuntime.refresh()
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         text:           qsTr("GPU acceleration")
@@ -1091,11 +1091,11 @@ Item {
             // ── Group 4 — Cloud fallback ──────────────────────────────────────
 
             Text {
-                text: qsTr("CLOUD FALLBACK")
+                text: qsTr("Cloud fallback")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 

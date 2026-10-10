@@ -123,7 +123,7 @@ Rectangle {
             color:  Theme.colorBg2
 
             RowLayout {
-                anchors { fill: parent; leftMargin: Theme.sp(14); rightMargin: Theme.sp(14) }
+                anchors { fill: parent; leftMargin: Theme.gap(14); rightMargin: Theme.gap(14) }
                 Text {
                     text:           qsTr("Clubs")
                     font.family:    Theme.fontData
@@ -158,8 +158,8 @@ Rectangle {
 
             Column {
                 id: body
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(18) }
-                spacing: Theme.sp(14)
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(18) }
+                spacing: Theme.gap(14)
 
                 Text {
                     width: parent.width
@@ -172,7 +172,7 @@ Rectangle {
 
                 // Add club
                 Row {
-                    spacing: Theme.sp(10)
+                    spacing: Theme.gap(10)
 
                     PpComboBox {
                         id: addCombo
@@ -214,7 +214,7 @@ Rectangle {
                 // bag — up to 17 clubs — wraps. Selecting a tab shows ONE detail card.
                 Flow {
                     width:   parent.width
-                    spacing: Theme.sp(5)
+                    spacing: Theme.gap(5)
 
                     Repeater {
                         model: root.configuredIds
@@ -273,12 +273,12 @@ Rectangle {
 
                     ColumnLayout {
                         id: clubCol
-                        anchors { fill: parent; margins: Theme.sp(14) }
-                        spacing: Theme.sp(10)
+                        anchors { fill: parent; margins: Theme.gap(14) }
+                        spacing: Theme.gap(10)
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                spacing: Theme.sp(10)
+                                spacing: Theme.gap(10)
 
                                 Text {
                                     text: root.selectedClubId
@@ -305,11 +305,11 @@ Rectangle {
                             GridLayout {
                                 Layout.fillWidth: true
                                 columns: 2
-                                columnSpacing: Theme.sp(20)
-                                rowSpacing: Theme.sp(8)
+                                columnSpacing: Theme.gap(20)
+                                rowSpacing: Theme.gap(8)
 
                                 Text {
-                                    text:               qsTr("SHAFT")
+                                    text:               Theme.caps(qsTr("Shaft"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -324,7 +324,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               qsTr("LOFT (°)")
+                                    text:               Theme.caps(qsTr("Loft (°)"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -343,7 +343,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               qsTr("CLUB LENGTH (MM)")
+                                    text:               Theme.caps(qsTr("Club length (mm)"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -362,7 +362,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               qsTr("SHAFT LENGTH (MM)")
+                                    text:               Theme.caps(qsTr("Shaft length (mm)"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -381,7 +381,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               qsTr("HANDS END (MM FROM BUTT)")
+                                    text:               Theme.caps(qsTr("Hands end (mm from butt)"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -400,7 +400,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               qsTr("BAND WIDTH (MM)")
+                                    text:               Theme.caps(qsTr("Band width (mm)"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -417,7 +417,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               qsTr("BAND CENTRES (MM FROM BUTT)")
+                                    text:               Theme.caps(qsTr("Band centres (mm from butt)"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -425,7 +425,7 @@ Rectangle {
                                 }
                                 ColumnLayout {
                                     Layout.fillWidth: true
-                                    spacing: Theme.sp(4)
+                                    spacing: Theme.gap(4)
 
                                     PpTextField {
                                         id: centersField
@@ -461,7 +461,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               qsTr("HOSEL FROM BUTT (MM)")
+                                    text:               Theme.caps(qsTr("Hosel from butt (mm)"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -480,7 +480,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               qsTr("RETRO PATCH ON HEAD")
+                                    text:               Theme.caps(qsTr("Retro patch on head"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel
@@ -513,7 +513,7 @@ Rectangle {
                                 }
 
                                 Text {
-                                    text:               qsTr("NOTES")
+                                    text:               Theme.caps(qsTr("Notes"))
                                     font.family:        Theme.fontData
                                     font.pixelSize:     Theme.fontSzMicro
                                     font.letterSpacing: Theme.trackingLabel

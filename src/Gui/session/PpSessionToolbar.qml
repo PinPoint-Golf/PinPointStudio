@@ -219,7 +219,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: Theme.aesthetic === "instrument" ? Theme.colorBg2 : Theme.colorSurface
+        color: Theme.colorToolbar
     }
     Rectangle {  // bottom hairline
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
@@ -228,8 +228,8 @@ Item {
 
     RowLayout {
         id: barRow
-        anchors { fill: parent; leftMargin: Theme.sp(16); rightMargin: Theme.sp(14) }
-        spacing: Theme.sp(12)
+        anchors { fill: parent; leftMargin: Theme.gap(16); rightMargin: Theme.gap(14) }
+        spacing: Theme.gap(12)
 
         // ── Review strip — replaces the whole capture cluster while a saved ──
         // session is loaded (device pills stay; see the !reviewActive gates on
@@ -254,11 +254,11 @@ Item {
                 id: reviewRow
                 anchors.verticalCenter: parent.verticalCenter
                 x: Theme.sp(14)
-                spacing: Theme.sp(10)
+                spacing: Theme.gap(10)
                 PpMicro {
                     id: reviewingLabel
                     anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("REVIEWING")
+                    text: Theme.caps(qsTr("Reviewing"))
                     color: Theme.colorAccent
                 }
                 Text {
@@ -309,7 +309,7 @@ Item {
             Row {
                 id: captureLbl
                 anchors.centerIn: parent
-                spacing: Theme.sp(8)
+                spacing: Theme.gap(8)
                 Rectangle {
                     width: Theme.sp(9); height: Theme.sp(9); radius: Theme.sp(4.5)
                     anchors.verticalCenter: parent.verticalCenter
@@ -352,20 +352,20 @@ Item {
                 objectName: "startPrompt"
                 y: captureBtn.height + Theme.sp(10)
                 x: 0
-                padding: Theme.sp(14)
-                topPadding: Theme.sp(17)
-                margins: Theme.sp(8)
+                padding: Theme.gap(14)
+                topPadding: Theme.gap(17)
+                margins: Theme.gap(8)
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
                 background: PpPopoverCard { tone: Theme.colorAccent }
                 contentItem: Column {
-                    spacing: Theme.sp(10)
+                    spacing: Theme.gap(10)
                     Text {
                         text: qsTr("A session already exists for today.")
                         font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
                         color: Theme.colorText
                     }
                     Row {
-                        spacing: Theme.sp(8)
+                        spacing: Theme.gap(8)
                         Rectangle {
                             width: extendLbl.implicitWidth + Theme.sp(20)
                             height: Theme.sp(30); radius: Theme.radius
@@ -425,11 +425,11 @@ Item {
         // ── Session clock (alongside Capture, to its right) ─────────────────
         Column {
             visible: !sessionReviewController.reviewActive
-            spacing: Theme.sp(2)
+            spacing: Theme.gap(2)
             Layout.alignment: Qt.AlignVCenter
-            PpMicro { text: qsTr("SESSION") }
+            PpMicro { text: Theme.caps(qsTr("Session")) }
             Row {
-                spacing: Theme.sp(8)
+                spacing: Theme.gap(8)
                 Rectangle {
                     width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(4)
                     anchors.verticalCenter: parent.verticalCenter
@@ -496,20 +496,20 @@ Item {
                 objectName: "endPopup"
                 y: endBtn.height + Theme.sp(10)
                 x: 0
-                padding: Theme.sp(14)
-                topPadding: Theme.sp(17)
-                margins: Theme.sp(8)
+                padding: Theme.gap(14)
+                topPadding: Theme.gap(17)
+                margins: Theme.gap(8)
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
                 background: PpPopoverCard { tone: Theme.colorWarn }
                 contentItem: Column {
-                    spacing: Theme.sp(10)
+                    spacing: Theme.gap(10)
                     Text {
                         text: qsTr("End session?")
                         font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody
                         color: Theme.colorText
                     }
                     Row {
-                        spacing: Theme.sp(8)
+                        spacing: Theme.gap(8)
                         Rectangle {
                             width: confirmLbl.implicitWidth + Theme.sp(20)
                             height: Theme.sp(30); radius: Theme.radius
@@ -591,7 +591,7 @@ Item {
             id: clubPill
             visible: !sessionReviewController.reviewActive
             glyph: "⚑"
-            microLabel: root.activeClubTaped ? qsTr("CLUB · TAPED") : qsTr("CLUB")
+            microLabel: root.activeClubTaped ? Theme.caps(qsTr("Club · taped")) : Theme.caps(qsTr("Club"))
             label: root.activeClub ? ClubFormat.display(root.activeClub) : qsTr("—")
             badge: root.activeClubTaped
             badgeColor: Theme.colorGood
@@ -619,7 +619,7 @@ Item {
         PpToolPill {
             id: motionPill
             glyph: "∿"
-            microLabel: qsTr("MOTION")
+            microLabel: Theme.caps(qsTr("Motion"))
             label: root.motionPillLabel
             active: motionPopup.opened
             onClicked: {
@@ -637,7 +637,7 @@ Item {
         DevicePill {
             id: camPill
             glyph: "◫"                 // ◫
-            title: qsTr("CAMERAS")
+            title: Theme.caps(qsTr("Cameras"))
             active: camPopup.opened
             status: root.camStatus
             valueText: root.camTotal === 0 ? qsTr("none")
@@ -662,7 +662,7 @@ Item {
         DevicePill {
             id: imuPill
             glyph: "⦿"                 // ⦿
-            title: qsTr("IMUS")
+            title: Theme.caps(qsTr("IMUs"))
             active: imuPopup.opened
             status: root.imuStatus
             valueText: root.imuTotal === 0 ? qsTr("none")
@@ -716,7 +716,7 @@ Item {
         y: viewPill.height + Theme.sp(10)
         x: viewPill.width - width
         padding: 0
-        margins: Theme.sp(8)
+        margins: Theme.gap(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         background: PpPopoverCard { }
         contentItem: PpViewPanel { }
@@ -729,7 +729,7 @@ Item {
         y: motionPill.height + Theme.sp(10)
         x: motionPill.width - width
         padding: 0
-        margins: Theme.sp(8)
+        margins: Theme.gap(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         background: PpPopoverCard { }
         contentItem: PpMotionPanel { }
@@ -742,7 +742,7 @@ Item {
         y: camPill.height + Theme.sp(10)
         x: camPill.width - width
         padding: 0
-        margins: Theme.sp(8)
+        margins: Theme.gap(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         background: PpPopoverCard {
             tone: camPanel.mode === "calibrate" ? Theme.colorAttention : Theme.colorText3
@@ -757,7 +757,7 @@ Item {
         y: imuPill.height + Theme.sp(10)
         x: imuPill.width - width
         padding: 0
-        margins: Theme.sp(8)
+        margins: Theme.gap(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         background: PpPopoverCard {
             tone: imuPanel.mode === "calibrate" ? Theme.colorAttention : Theme.colorText3
@@ -775,7 +775,7 @@ Item {
         y: clubPill.height + Theme.sp(10)
         x: clubPill.width - width
         padding: 0
-        margins: Theme.sp(8)
+        margins: Theme.gap(8)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         background: PpPopoverCard { }
         contentItem: PpClubPanel {
@@ -831,8 +831,8 @@ Item {
 
         RowLayout {
             id: pillRow
-            anchors { fill: parent; leftMargin: Theme.sp(11); rightMargin: Theme.sp(13) }
-            spacing: Theme.sp(11)
+            anchors { fill: parent; leftMargin: Theme.gap(11); rightMargin: Theme.gap(13) }
+            spacing: Theme.gap(11)
 
             Item {  // glyph + state badge
                 Layout.preferredWidth: Theme.sp(34); Layout.preferredHeight: Theme.sp(34)
@@ -863,7 +863,7 @@ Item {
                 }
             }
             Column {
-                Layout.alignment: Qt.AlignVCenter; spacing: Theme.sp(2)
+                Layout.alignment: Qt.AlignVCenter; spacing: Theme.gap(2)
                 PpMicro { text: pill.title }
                 Text {
                     text: pill.valueText; font.family: Theme.fontBody

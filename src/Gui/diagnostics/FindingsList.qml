@@ -42,14 +42,14 @@ Column {
         height: heading.implicitHeight + Theme.sp(4)
         PpMicro {
             id: heading
-            text:  qsTr("FINDINGS")
+            text:  Theme.caps(qsTr("Findings"))
             color: Theme.colorWarn
         }
         PpMicro {
             visible: root._main.length + root._low.length > 0
             anchors.baseline: heading.baseline
             x: parent.width - Theme.sp(22) - implicitWidth
-            text: qsTr("CONFIDENCE")
+            text: Theme.caps(qsTr("Confidence"))
             font.letterSpacing: Theme.trackingData
         }
     }
@@ -57,7 +57,7 @@ Column {
     PpCardNote {
         visible: root._main.length === 0 && root._low.length === 0
         width:   parent.width
-        topPadding: Theme.sp(6)
+        topPadding: Theme.gap(6)
         text: qsTr("No faults found in this swing.")
     }
 
@@ -80,7 +80,7 @@ Column {
         height:  visible ? Theme.sp(36) : 0
         Rectangle { visible: root._main.length > 0; width: parent.width; height: 1; color: Theme.colorBorder }
         PpLink {
-            anchors { left: parent.left; leftMargin: Theme.sp(32); verticalCenter: parent.verticalCenter }
+            anchors { left: parent.left; leftMargin: Theme.gap(32); verticalCenter: parent.verticalCenter }
             text: root._showLow ? qsTr("Hide the low-confidence findings")
                                 : qsTr("Low-confidence findings (%1)").arg(root._low.length)
             hoverTint: false

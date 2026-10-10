@@ -65,7 +65,7 @@ Popup {
     modal: true
     dim: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    padding: Theme.sp(24)
+    padding: Theme.gap(24)
     width: Math.min(Theme.sp(520), (parent ? parent.width : Theme.sp(520)) - Theme.sp(48))
 
     // 4.4a — expiry is reported as expiry and never as a failure to connect, and
@@ -153,7 +153,7 @@ Popup {
     }
 
     contentItem: Column {
-        spacing: Theme.sp(16)
+        spacing: Theme.gap(16)
 
         // ── Title, and the way out ─────────────────────────────────────────
         Item {
@@ -190,7 +190,7 @@ Popup {
         // ── The symbol, and what to do with it ─────────────────────────────
         Row {
             width:   parent.width
-            spacing: Theme.sp(20)
+            spacing: Theme.gap(20)
 
             // ⚠ WHITE, IN EVERY THEME.  A QR is dark-on-light by definition and
             // a reader looking at an inverted one may or may not cope; twelve
@@ -258,7 +258,7 @@ Popup {
 
             Column {
                 width:   parent.width - (root.showing ? (plate.width + Theme.sp(20)) : 0)
-                spacing: Theme.sp(10)
+                spacing: Theme.gap(10)
 
                 Repeater {
                     model: [
@@ -271,7 +271,7 @@ Popup {
                         required property string modelData
                         required property int index
                         width:   parent.width
-                        spacing: Theme.sp(8)
+                        spacing: Theme.gap(8)
 
                         Text {
                             text:               (parent.index + 1) + "."
@@ -300,7 +300,7 @@ Popup {
         // ── Where the pairing has got to ───────────────────────────────────
         Column {
             width:   parent.width
-            spacing: Theme.sp(6)
+            spacing: Theme.gap(6)
 
             Text {
                 objectName:     "ppcpPairStage"
@@ -340,7 +340,7 @@ Popup {
         // ── Controls, and the addresses behind the disclosure ──────────────
         Row {
             width:   parent.width
-            spacing: Theme.sp(10)
+            spacing: Theme.gap(10)
 
             // ⚠ NO LONGER TWO STATES, BECAUSE EXPIRY NO LONGER STRANDS ANYONE.
             // This used to read "Get a new code" and turn primary once the

@@ -55,7 +55,7 @@ Rectangle {
     Column {
         anchors.centerIn: parent
         width: parent.width - Theme.sp(24)
-        spacing: Theme.sp(5)
+        spacing: Theme.gap(5)
 
         Item {   // label left, elapsed time right
             width: parent.width
@@ -64,7 +64,7 @@ Rectangle {
             Text {
                 id: analysingLbl
                 anchors.left: parent.left
-                text: qsTr("ANALYSING")
+                text: Theme.caps(qsTr("Analysing"))
                 font.family: Theme.fontData
                 font.pixelSize: Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro

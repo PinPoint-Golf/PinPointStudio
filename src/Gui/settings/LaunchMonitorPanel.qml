@@ -165,16 +165,16 @@ Item {
             x:       Theme.sp(32)
             y:       Theme.sp(28)
             width:   parent.width - Theme.sp(64)
-            spacing: Theme.sp(20)
+            spacing: Theme.gap(20)
 
             // ── Page header ───────────────────────────────────────────────────
 
             Text {
-                text:                qsTr("DEVICES")
+                text:                qsTr("Devices")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
 
@@ -195,11 +195,11 @@ Item {
             // ── Group 1 — Connection ──────────────────────────────────────────
 
             Text {
-                text:                qsTr("CONNECTION")
+                text:                qsTr("Connection")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
 
@@ -207,13 +207,13 @@ Item {
             RowLayout {
                 objectName: "setting_lmDevice"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         text:           qsTr("Device")
                         font.family:    Theme.fontBody
@@ -254,14 +254,14 @@ Item {
             RowLayout {
                 objectName: "setting_lmEnabled"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 visible: root.chosen
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         text:           qsTr("Enabled")
                         font.family:    Theme.fontBody
@@ -294,7 +294,7 @@ Item {
             RowLayout {
                 objectName: "setting_lmPath"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 visible: !root.isGsPro
                 opacity: root.chosen ? 1.0 : 0.45
                 property bool searchHighlight: false
@@ -302,7 +302,7 @@ Item {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         Layout.fillWidth: true
                         text:           qsTr("Shot data folder")
@@ -325,8 +325,8 @@ Item {
                         border.color:     Theme.colorBorderMid
                         Text {
                             anchors.fill:            parent
-                            anchors.leftMargin:      Theme.sp(8)
-                            anchors.rightMargin:     Theme.sp(8)
+                            anchors.leftMargin:      Theme.gap(8)
+                            anchors.rightMargin:     Theme.gap(8)
                             verticalAlignment:       Text.AlignVCenter
                             elide:                   Text.ElideLeft
                             text:                    appSettings.launchMonitorPath !== ""
@@ -341,7 +341,7 @@ Item {
                 }
 
                 ColumnLayout {
-                    spacing: Theme.sp(6)
+                    spacing: Theme.gap(6)
                     PpButton {
                         label:     qsTr("Change…")
                         enabled:   root.chosen
@@ -363,14 +363,14 @@ Item {
             RowLayout {
                 objectName: "setting_lmGsProLink"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 visible: root.isGsPro
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         text:           qsTr("Link")
                         font.family:    Theme.fontBody
@@ -393,9 +393,9 @@ Item {
                 }
 
                 ColumnLayout {
-                    spacing: Theme.sp(6)
+                    spacing: Theme.gap(6)
                     RowLayout {
-                        spacing: Theme.sp(8)
+                        spacing: Theme.gap(8)
                         Text {
                             text:           qsTr("Port")
                             font.family:    Theme.fontData
@@ -424,7 +424,7 @@ Item {
             RowLayout {
                 objectName: "setting_lmStatus"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 visible: root.configured
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
@@ -437,7 +437,7 @@ Item {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         text:           launchMonitor.stateLabel
                         font.family:    Theme.fontBody
@@ -463,11 +463,11 @@ Item {
             // ── Group 2 — Behaviour ───────────────────────────────────────────
 
             Text {
-                text:                qsTr("BEHAVIOUR")
+                text:                qsTr("Behaviour")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
 
@@ -475,13 +475,13 @@ Item {
             RowLayout {
                 objectName: "setting_lmChime"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         text:           qsTr("Chime when a reading arrives")
                         font.family:    Theme.fontBody
@@ -510,13 +510,13 @@ Item {
             RowLayout {
                 objectName: "setting_lmStandalone"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         text:           qsTr("Record shots the monitor sees on its own")
                         font.family:    Theme.fontBody
@@ -545,14 +545,14 @@ Item {
             RowLayout {
                 objectName: "setting_lmPoll"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 opacity: root.configured ? 1.0 : 0.45
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         Layout.fillWidth: true
                         text:           qsTr("Check for new shots every")

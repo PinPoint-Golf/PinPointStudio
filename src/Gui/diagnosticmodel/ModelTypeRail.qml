@@ -60,19 +60,19 @@ Item {
         // goes — so learning either teaches the other.
         RowLayout {
             Layout.fillWidth: true
-            Layout.leftMargin:   Theme.sp(18)
-            Layout.rightMargin:  Theme.sp(10)
-            Layout.topMargin:    Theme.sp(12)
-            Layout.bottomMargin: Theme.sp(6)
+            Layout.leftMargin:   Theme.gap(18)
+            Layout.rightMargin:  Theme.gap(10)
+            Layout.topMargin:    Theme.gap(12)
+            Layout.bottomMargin: Theme.gap(6)
 
             Text {
                 Layout.fillWidth:    true
-                text:                qsTr("CONTENT")
+                text:                qsTr("Content")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.weight:         Theme.fontBodyWeight
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
 
@@ -124,9 +124,9 @@ Item {
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin:  Theme.sp(18)
-                    anchors.rightMargin: Theme.sp(18)
-                    spacing: Theme.sp(9)
+                    anchors.leftMargin:  Theme.gap(18)
+                    anchors.rightMargin: Theme.gap(18)
+                    spacing: Theme.gap(9)
 
                     Text {
                         Layout.fillWidth: true
@@ -156,9 +156,9 @@ Item {
         // The census. Summed from the rail above rather than stated, so it cannot disagree with it.
         Text {
             Layout.fillWidth:    true
-            Layout.leftMargin:   Theme.sp(18)
-            Layout.rightMargin:  Theme.sp(18)
-            Layout.topMargin:    Theme.sp(8)
+            Layout.leftMargin:   Theme.gap(18)
+            Layout.rightMargin:  Theme.gap(18)
+            Layout.topMargin:    Theme.gap(8)
             text: qsTr("%n object(s) in all", "", root.totalObjects)
             font.family:    Theme.fontData
             font.pixelSize: Theme.fontSzMicro
@@ -182,9 +182,9 @@ Item {
 
         RowLayout {
             Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.sp(18)
-            Layout.rightMargin: Theme.sp(18)
-            Layout.topMargin:   Theme.sp(12)
+            Layout.leftMargin:  Theme.gap(18)
+            Layout.rightMargin: Theme.gap(18)
+            Layout.topMargin:   Theme.gap(12)
             visible: root.facets.length > 0
 
             // The heading is the fold's own control, so there is no separate strip to explain: the
@@ -194,13 +194,13 @@ Item {
             Text {
                 Layout.fillWidth:    true
                 text: root.facetsFolded && root._activeFacetCount > 0
-                          ? qsTr("FILTERS (%1)").arg(root._activeFacetCount)
-                          : qsTr("FILTERS")
+                          ? qsTr("Filters (%1)").arg(root._activeFacetCount)
+                          : qsTr("Filters")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.weight:         Theme.fontBodyWeight
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: root.facetsFolded && root._activeFacetCount > 0 ? Theme.colorAccent
                                                                        : Theme.colorText3
                 PpPressable { hoverScale: 1.0; onClicked: root.facetsFoldToggled() }
@@ -257,7 +257,7 @@ Item {
             Layout.preferredHeight: facetColumn.implicitHeight
             Layout.maximumHeight:   facetColumn.implicitHeight
             Layout.minimumHeight:   Theme.sp(140)
-            Layout.bottomMargin:    Theme.sp(12)
+            Layout.bottomMargin:    Theme.gap(12)
             clip: true
             // A layout excludes an invisible child outright, so the floor above goes with it and a
             // folded list keeps none of the rail.
@@ -279,8 +279,8 @@ Item {
 
                         Text {
                             x: Theme.sp(18)
-                            topPadding:    Theme.sp(8)
-                            bottomPadding: Theme.sp(3)
+                            topPadding:    Theme.gap(8)
+                            bottomPadding: Theme.gap(3)
                             text:           facetGroup.modelData.label
                             font.family:    Theme.fontBody
                             font.pixelSize: Theme.fontSzMicro
@@ -307,9 +307,9 @@ Item {
 
                                 RowLayout {
                                     anchors.fill: parent
-                                    anchors.leftMargin:  Theme.sp(18)
-                                    anchors.rightMargin: Theme.sp(18)
-                                    spacing: Theme.sp(8)
+                                    anchors.leftMargin:  Theme.gap(18)
+                                    anchors.rightMargin: Theme.gap(18)
+                                    spacing: Theme.gap(8)
 
                                     Rectangle {
                                         Layout.preferredWidth:  Theme.sp(12)

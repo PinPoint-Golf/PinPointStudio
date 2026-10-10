@@ -185,9 +185,9 @@ Item {
                         anchors.left:            parent.left
                         anchors.right:           parent.right
                         anchors.verticalCenter:  parent.verticalCenter
-                        anchors.leftMargin:  Theme.sp(10)
-                        anchors.rightMargin: Theme.sp(10)
-                        spacing: Theme.sp(6)
+                        anchors.leftMargin:  Theme.gap(10)
+                        anchors.rightMargin: Theme.gap(10)
+                        spacing: Theme.gap(6)
 
                         Text {
                             id: searchIcon
@@ -219,11 +219,11 @@ Item {
 
                     Rectangle {
                         anchors.bottom:       parent.bottom
-                        anchors.bottomMargin: Theme.sp(6)
+                        anchors.bottomMargin: Theme.gap(6)
                         anchors.left:         parent.left
                         anchors.right:        parent.right
-                        anchors.leftMargin:   Theme.sp(10)
-                        anchors.rightMargin:  Theme.sp(10)
+                        anchors.leftMargin:   Theme.gap(10)
+                        anchors.rightMargin:  Theme.gap(10)
                         height: 1
                         color: searchInput.activeFocus ? Theme.colorAccent : Theme.colorBorderMid
                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
@@ -291,24 +291,24 @@ Item {
                                     Text {
                                         id: eyebrow
                                         anchors.left:         parent.left
-                                        anchors.leftMargin:   Theme.sp(16)
+                                        anchors.leftMargin:   Theme.gap(16)
                                         anchors.bottom:       parent.bottom
-                                        anchors.bottomMargin: Theme.sp(4)
+                                        anchors.bottomMargin: Theme.gap(4)
                                         visible:              !root.navCollapsed
                                         text:                 modelData.sectionHead
                                         font.family:          Theme.fontBody
                                         font.pixelSize:       Theme.fontSzMicro
                                         font.weight:          Theme.fontBodyWeight
                                         font.letterSpacing:   Theme.trackingMicro
-                                        font.capitalization:  Font.AllUppercase
+                                        font.capitalization:  Theme.capsFont
                                         color:                Theme.colorText3
                                     }
 
                                     Rectangle {
                                         anchors.left:           parent.left
                                         anchors.right:          parent.right
-                                        anchors.leftMargin:     Theme.sp(12)
-                                        anchors.rightMargin:    Theme.sp(12)
+                                        anchors.leftMargin:     Theme.gap(12)
+                                        anchors.rightMargin:    Theme.gap(12)
                                         anchors.verticalCenter: parent.verticalCenter
                                         height:  1
                                         visible: root.navCollapsed
@@ -371,9 +371,9 @@ Item {
 
                                     Text {
                                         anchors.left:           navItemIcon.right
-                                        anchors.leftMargin:     Theme.sp(10)
+                                        anchors.leftMargin:     Theme.gap(10)
                                         anchors.right:          navItemBadge.visible ? navItemBadge.left : parent.right
-                                        anchors.rightMargin:    Theme.sp(10)
+                                        anchors.rightMargin:    Theme.gap(10)
                                         anchors.verticalCenter: parent.verticalCenter
                                         visible:        !root.navCollapsed
                                         text:           modelData.label
@@ -389,7 +389,7 @@ Item {
                                     Text {
                                         id: navItemBadge
                                         anchors.right:          parent.right
-                                        anchors.rightMargin:    Theme.sp(12)
+                                        anchors.rightMargin:    Theme.gap(12)
                                         anchors.verticalCenter: parent.verticalCenter
                                         text:           navItem.actualBadge >= 0 ? navItem.actualBadge.toString() : ""
                                         visible:        navItem.actualBadge >= 0 && !root.navCollapsed
@@ -432,8 +432,8 @@ Item {
                     ListView {
                         id: resultsList
                         anchors.fill:    parent
-                        anchors.margins: Theme.sp(8)
-                        spacing:         Theme.sp(2)
+                        anchors.margins: Theme.gap(8)
+                        spacing:         Theme.gap(2)
                         clip:            true
                         model:           root.searchResults
 
@@ -464,9 +464,9 @@ Item {
                                 anchors {
                                     left:  parent.left;  right: parent.right
                                     verticalCenter: parent.verticalCenter
-                                    leftMargin: Theme.sp(10); rightMargin: Theme.sp(10)
+                                    leftMargin: Theme.gap(10); rightMargin: Theme.gap(10)
                                 }
-                                spacing: Theme.sp(2)
+                                spacing: Theme.gap(2)
 
                                 Text {
                                     text:                modelData.panelLabel + "  →  " + modelData.groupLabel

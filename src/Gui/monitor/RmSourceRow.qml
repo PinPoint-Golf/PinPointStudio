@@ -29,7 +29,7 @@ Rectangle {
     color: isAlternate ? Theme.colorBg : Theme.colorSurface
 
     Row {
-        anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
+        anchors { fill: parent; leftMargin: Theme.gap(10); rightMargin: Theme.gap(10) }
         visible: root.sourceData !== null && root.sourceData !== undefined
 
         // Source name (fills remaining width)
@@ -39,7 +39,7 @@ Rectangle {
 
             Row {
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: Theme.sp(6)
+                spacing: Theme.gap(6)
 
                 Rectangle {
                     width: Theme.sp(5)

@@ -134,7 +134,7 @@ Item {
         font.family:         Theme.fontBody
         font.pixelSize:      Theme.fontSzMicro
         font.letterSpacing:  Theme.trackingMicro
-        font.capitalization: Font.AllUppercase
+        font.capitalization: Theme.capsFont
         color:               Theme.colorText3
     }
 
@@ -142,7 +142,7 @@ Item {
         property string title
         property string subtitle
         Layout.fillWidth: true
-        spacing: Theme.sp(3)
+        spacing: Theme.gap(3)
         Text { text: parent.title; font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody; color: Theme.colorText }
         Text {
             text: parent.subtitle; visible: text.length > 0
@@ -162,9 +162,9 @@ Item {
             x:       Theme.sp(32)
             y:       Theme.sp(28)
             width:   parent.width - Theme.sp(64)
-            spacing: Theme.sp(20)
+            spacing: Theme.gap(20)
 
-            SectionHead { text: qsTr("LIBRARY") }
+            SectionHead { text: Theme.caps(qsTr("Library")) }
             PpDisplayText { text: qsTr("Archiving") }
             Text {
                 text: qsTr("Move whole sessions off the library to another drive and back. An archived session stays in your list with its scores and metrics; opening it brings the rest back. Every copy is checked byte for byte before anything in the library is removed.")
@@ -173,11 +173,11 @@ Item {
             }
 
             // ── Space ─────────────────────────────────────────────────────────
-            SectionHead { text: qsTr("SPACE") }
+            SectionHead { text: Theme.caps(qsTr("Space")) }
             RowLayout {
                 objectName: "setting_archiveSpace"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
                 RowTitle {
@@ -202,11 +202,11 @@ Item {
             PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
             // ── Where archives go ─────────────────────────────────────────────
-            SectionHead { text: qsTr("ARCHIVE LOCATION") }
+            SectionHead { text: Theme.caps(qsTr("Archive location")) }
             ColumnLayout {
                 objectName: "setting_archiveLocation"
                 Layout.fillWidth: true
-                spacing: Theme.sp(6)
+                spacing: Theme.gap(6)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
                 RowTitle {
@@ -223,7 +223,7 @@ Item {
             RowLayout {
                 objectName: "setting_archiveKeepRaw"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
                 RowTitle {
@@ -240,11 +240,11 @@ Item {
             PpDivider { orientation: Qt.Horizontal; Layout.fillWidth: true }
 
             // ── Automatic ─────────────────────────────────────────────────────
-            SectionHead { text: qsTr("AUTOMATIC — CHECKED A MINUTE AFTER START-UP") }
+            SectionHead { text: Theme.caps(qsTr("Automatic — checked a minute after start-up")) }
             RowLayout {
                 objectName: "setting_archiveAge"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
                 RowTitle { title: qsTr("Archive sessions older than"); subtitle: qsTr("Needs an archive location. Today's sessions are never touched.") }
@@ -258,7 +258,7 @@ Item {
             RowLayout {
                 objectName: "setting_archiveFloor"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
                 RowTitle { title: qsTr("Archive the oldest sessions when free space falls"); subtitle: qsTr("Oldest first, until there is room again.") }
@@ -272,7 +272,7 @@ Item {
             RowLayout {
                 objectName: "setting_trashRetention"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
                 RowTitle {
@@ -300,7 +300,7 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 visible: root.hasController && archiveController.status.length > 0
-                spacing: Theme.sp(12)
+                spacing: Theme.gap(12)
                 Text {
                     text: root.hasController ? archiveController.status : ""
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText2
@@ -314,7 +314,7 @@ Item {
             }
 
             // ── Sessions ──────────────────────────────────────────────────────
-            SectionHead { text: qsTr("SESSIONS") }
+            SectionHead { text: Theme.caps(qsTr("Sessions")) }
             Text {
                 visible: root.hasController && archiveController.sessions.length === 0
                 text: qsTr("No sessions found in the library.")
@@ -325,7 +325,7 @@ Item {
                 delegate: RowLayout {
                     required property var modelData
                     Layout.fillWidth: true
-                    spacing: Theme.sp(16)
+                    spacing: Theme.gap(16)
                     RowTitle {
                         title: modelData.name
                         subtitle: qsTr("%1 swings · %2 · %3").arg(modelData.swings)

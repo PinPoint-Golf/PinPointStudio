@@ -177,8 +177,8 @@ Item {
                 // WHICH swing, said on the strip that reads it: in a live session the header's
                 // shot label names the newest, and this may be any of them.
                 text: (root.readout && root.readout.shotCount > 0)
-                      ? qsTr("SHOT %1 OF %2").arg(root.readout.shotIndex + 1).arg(root.readout.shotCount)
-                      : qsTr("THIS SHOT")
+                      ? Theme.caps(qsTr("Shot %1 of %2")).arg(root.readout.shotIndex + 1).arg(root.readout.shotCount)
+                      : Theme.caps(qsTr("This shot"))
                 font.pixelSize: root.tzMicro
                 // Accent: the tense has changed, and this is the carousel's pick named back.
                 color: Theme.colorAccent
@@ -453,7 +453,7 @@ Item {
                 objectName: "sdReviewTailToggle"
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.tailExpanded ? qsTr("HIDE ▾") : qsTr("SHOW ▸")
+                text: root.tailExpanded ? Theme.caps(qsTr("Hide ▾")) : Theme.caps(qsTr("Show ▸"))
                 font.pixelSize: root.tzMicro
                 color: tailTap.containsMouse ? Qt.lighter(Theme.colorAccent, 1.15) : Theme.colorAccent
             }

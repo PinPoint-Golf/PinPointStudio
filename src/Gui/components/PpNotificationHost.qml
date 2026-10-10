@@ -32,7 +32,7 @@ ListView {
     // Index 0 — the first thing raised — keeps the bottom anchor position the
     // old saveErrorToast had, and later news piles above it.
     verticalLayoutDirection: ListView.BottomToTop
-    spacing: Theme.sp(10)
+    spacing: Theme.gap(10)
     interactive: false
     height: Math.min(contentHeight, parent ? parent.height * 0.6 : contentHeight)
     implicitWidth: Theme.sp(560)
@@ -76,7 +76,7 @@ ListView {
             Row {
                 id: content
                 anchors.centerIn: parent
-                spacing: Theme.sp(14)
+                spacing: Theme.gap(14)
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
@@ -89,7 +89,7 @@ ListView {
 
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: Theme.sp(2)
+                    spacing: Theme.gap(2)
                     Text {
                         // ⭐ The count is the diagnostically valuable part, and
                         // the old shape lost it entirely.

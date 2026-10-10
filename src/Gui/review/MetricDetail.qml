@@ -155,14 +155,14 @@ Item {
         font.family:         Theme.fontBody
         font.pixelSize:      Theme.fontSzMicro
         font.letterSpacing:  Theme.trackingMicro
-        font.capitalization: Font.AllUppercase
+        font.capitalization: Theme.capsFont
         color:               Theme.colorText3
     }
 
     // ── reusable body paragraph ───────────────────────────────────────────────
     component Body: Text {
         Layout.fillWidth: true
-        Layout.leftMargin: Theme.sp(26)
+        Layout.leftMargin: Theme.gap(26)
         font.family:    Theme.fontBody
         font.pixelSize: Theme.fontSzBody2
         font.weight:    Theme.fontBodyWeight
@@ -181,7 +181,7 @@ Item {
             x:       Theme.sp(32)
             y:       Theme.sp(24)
             width:   scrollView.availableWidth - Theme.sp(64)
-            spacing: Theme.sp(20)
+            spacing: Theme.gap(20)
 
             // ── Back affordance ───────────────────────────────────────────────
             Item {
@@ -190,7 +190,7 @@ Item {
 
                 Row {
                     id: backRow
-                    spacing: Theme.sp(6)
+                    spacing: Theme.gap(6)
                     Text {
                         text: "‹"
                         anchors.verticalCenter: parent.verticalCenter
@@ -216,7 +216,7 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing:          Theme.sp(12)
+                spacing:          Theme.gap(12)
 
                 // Capped rather than filling. A filling title eats the whole row and strands the
                 // pill against the right margin, where it reads as a page-level badge instead of
@@ -244,7 +244,7 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(8)
+                spacing: Theme.gap(8)
 
                 // Type pill
                 Rectangle {
@@ -286,7 +286,7 @@ Item {
                     Text {
                         id: hdrScored
                         anchors.centerIn: parent
-                        text: qsTr("SCORED")
+                        text: Theme.caps(qsTr("Scored"))
                         font.family:        Theme.fontData
                         font.pixelSize:     Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -308,8 +308,8 @@ Item {
                 RowLayout {
                     id: plannedRow
                     anchors.fill: parent
-                    anchors.margins: Theme.sp(10)
-                    spacing: Theme.sp(10)
+                    anchors.margins: Theme.gap(10)
+                    spacing: Theme.gap(10)
 
                     Text {
                         text: "◷"
@@ -344,8 +344,8 @@ Item {
 
             ColumnLayout {
                 Layout.fillWidth:  true
-                Layout.leftMargin: Theme.sp(26)
-                spacing: Theme.sp(14)
+                Layout.leftMargin: Theme.gap(26)
+                spacing: Theme.gap(14)
 
                 // Where the corridor came from: the norm set, resolved in this shot's context. The
                 // inheritance is STATED rather than implied — a driver graded by the full-swing
@@ -367,7 +367,7 @@ Item {
                     delegate: ColumnLayout {
                         required property var modelData
                         Layout.fillWidth: true
-                        spacing: Theme.sp(6)
+                        spacing: Theme.gap(6)
 
                         // The phase, and — where the corridor grades a CHANGE from address rather
                         // than an absolute reading — which of the two it is. Two rows on one metric
@@ -467,18 +467,18 @@ Item {
 
             ColumnLayout {
                 Layout.fillWidth:  true
-                Layout.leftMargin: Theme.sp(26)
-                spacing: Theme.sp(6)
+                Layout.leftMargin: Theme.gap(26)
+                spacing: Theme.gap(6)
 
                 Repeater {
                     model: root._measures()
                     delegate: RowLayout {
                         required property var modelData
                         Layout.fillWidth: true
-                        spacing: Theme.sp(8)
+                        spacing: Theme.gap(8)
                         Rectangle {
                             Layout.alignment: Qt.AlignTop
-                            Layout.topMargin: Theme.sp(6)
+                            Layout.topMargin: Theme.gap(6)
                             implicitWidth:  Theme.sp(5)
                             implicitHeight: Theme.sp(5)
                             radius: width / 2
@@ -486,7 +486,7 @@ Item {
                         }
                         ColumnLayout {
                             Layout.fillWidth: true
-                            spacing: Theme.sp(1)
+                            spacing: Theme.gap(1)
                             Text {
                                 Layout.fillWidth: true
                                 text: modelData.note.length > 0
@@ -516,8 +516,8 @@ Item {
 
             Text {
                 Layout.fillWidth:  true
-                Layout.leftMargin: Theme.sp(26)
-                Layout.topMargin:  Theme.sp(4)
+                Layout.leftMargin: Theme.gap(26)
+                Layout.topMargin:  Theme.gap(4)
                 visible: root._stereoNote.length > 0
                 text: root._stereoNote
                 font.family:    Theme.fontBody
@@ -535,9 +535,9 @@ Item {
 
             Flow {
                 Layout.fillWidth:  true
-                Layout.leftMargin: Theme.sp(26)
+                Layout.leftMargin: Theme.gap(26)
                 visible: root._usedBy.length > 0
-                spacing: Theme.sp(7)
+                spacing: Theme.gap(7)
 
                 Repeater {
                     model: root._usedBy

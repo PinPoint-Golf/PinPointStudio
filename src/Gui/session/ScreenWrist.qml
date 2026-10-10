@@ -206,7 +206,7 @@ Item {
             transport: Component { PpReplayTransport {} }
             transportActive: root._transitMode
             metricKeys: ["leadWristFlexExt", "leadWristRadUln", "forearmPronation", "leadArmFlexion"]
-            traceLabel: qsTr("LEAD-WRIST FLEXION · ADDRESS → IMPACT")
+            traceLabel: Theme.caps(qsTr("Lead-wrist flexion · address → impact"))
         }
     }
 

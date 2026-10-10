@@ -27,8 +27,8 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Theme.sp(16)
-        spacing: Theme.sp(12)
+        anchors.margins: Theme.gap(16)
+        spacing: Theme.gap(12)
 
         Label {
                     text: qsTr("Film")
@@ -40,7 +40,7 @@ Item {
 
         // ── URL + download controls ───────────────────────────────────────────
         RowLayout {
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             TextField {
                 id: urlField
@@ -105,7 +105,7 @@ Item {
         // ── Download progress ─────────────────────────────────────────────────
         ColumnLayout {
             visible: filmController.isDownloading || filmController.downloadStatus.length > 0
-            spacing: Theme.sp(4)
+            spacing: Theme.gap(4)
 
             ProgressBar {
                 Layout.fillWidth: true
@@ -142,18 +142,18 @@ Item {
         ColumnLayout {
             visible: filmController.cacheEntries.length > 0
             Layout.fillWidth: true
-            spacing: Theme.sp(4)
+            spacing: Theme.gap(4)
 
             RowLayout {
-                spacing: Theme.sp(6)
+                spacing: Theme.gap(6)
                 Label {
-                    text: qsTr("CACHED")
+                    text: qsTr("Cached")
                     color: Theme.colorText3
                     font.family: Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
                     font.weight: Font.Normal
                     font.letterSpacing: Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                 }
                 Label {
                     text: filmController.cacheEntries.length + " video" +
@@ -169,7 +169,7 @@ Item {
                 Layout.fillWidth: true
                 implicitHeight: 116
                 orientation: Qt.Horizontal
-                spacing: Theme.sp(8)
+                spacing: Theme.gap(8)
                 clip: true
                 model: filmController.cacheEntries
 
@@ -199,7 +199,7 @@ Item {
                             anchors.top: parent.top
                             anchors.left: parent.left
                             anchors.right: parent.right
-                            anchors.margins: Theme.sp(1)
+                            anchors.margins: Theme.gap(1)
                             height: Theme.sp(92)
                             radius: Theme.radius - 1
                             color: Theme.colorBg
@@ -226,7 +226,7 @@ Item {
                                 visible: modelData.durationMs > 0
                                 anchors.bottom: parent.bottom
                                 anchors.right: parent.right
-                                anchors.margins: Theme.sp(4)
+                                anchors.margins: Theme.gap(4)
                                 width: durLabel.implicitWidth + Theme.sp(8)
                                 height: Theme.sp(16)
                                 radius: Theme.radius - 2
@@ -247,7 +247,7 @@ Item {
                                 visible: cardHover.hovered
                                 anchors.top: parent.top
                                 anchors.right: parent.right
-                                anchors.margins: Theme.sp(4)
+                                anchors.margins: Theme.gap(4)
                                 width: Theme.sp(18); height: Theme.sp(18); radius: Theme.sp(9)
                                 color: delHover.hovered ? Qt.lighter(Theme.colorWarn, 1.08) : Theme.colorWarn
                                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
@@ -302,7 +302,7 @@ Item {
             VideoOutput {
                 id: filmOut
                 anchors.fill: parent
-                anchors.margins: Theme.sp(2)
+                anchors.margins: Theme.gap(2)
                 fillMode: VideoOutput.PreserveAspectFit
                 Component.onCompleted: filmController.setVideoSink(filmOut.videoSink)
             }
@@ -325,7 +325,7 @@ Item {
         // ── Seek bar ──────────────────────────────────────────────────────────
         RowLayout {
             visible: filmController.hasMedia
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             Label {
                 text: formatTime(filmController.position)
@@ -384,7 +384,7 @@ Item {
 
         // ── Playback controls + pipeline stats ────────────────────────────────
         RowLayout {
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             Button {
                 text: qsTr("⏪ 10s")

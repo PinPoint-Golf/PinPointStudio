@@ -27,12 +27,12 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Theme.sp(16)
-        spacing: Theme.sp(12)
+        anchors.margins: Theme.gap(16)
+        spacing: Theme.gap(12)
 
         // ── Header row: title + camera selector ───────────────────────────────
         RowLayout {
-            spacing: Theme.sp(12)
+            spacing: Theme.gap(12)
 
             Label {
                 text: qsTr("Camera")
@@ -92,7 +92,7 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             Repeater {
                 model: cameraManager.instances
@@ -140,7 +140,7 @@ Item {
 
         // ── Shared controls ───────────────────────────────────────────────────
         RowLayout {
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             Button {
                 id: startButton
@@ -212,7 +212,7 @@ Item {
         // ── Buffer status (visible while recording) ───────────────────────────
         RowLayout {
             visible: cameraManager.isRecording
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             Item { Layout.fillWidth: true }
 

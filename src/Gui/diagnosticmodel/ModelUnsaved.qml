@@ -77,11 +77,11 @@ Popup {
         // pushes is itself undoable — revert() puts itself on the stack for exactly that reason.
         RowLayout {
             Layout.fillWidth:    true
-            Layout.leftMargin:   Theme.sp(14)
-            Layout.rightMargin:  Theme.sp(14)
-            Layout.topMargin:    Theme.sp(10)
-            Layout.bottomMargin: Theme.sp(12)
-            spacing: Theme.sp(10)
+            Layout.leftMargin:   Theme.gap(14)
+            Layout.rightMargin:  Theme.gap(14)
+            Layout.topMargin:    Theme.gap(10)
+            Layout.bottomMargin: Theme.gap(12)
+            spacing: Theme.gap(10)
 
             Text {
                 Layout.fillWidth: true

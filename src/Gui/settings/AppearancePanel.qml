@@ -24,22 +24,15 @@ import PinPointStudio
 Item {
     id: root
 
-    // Hardcoded preview colours for each themeIndex (0–11).
-    // These must NOT use Theme.* tokens — cards always show their own colours.
-    readonly property var themeData: [
-        { aesthetic: "Instrument", mode: "Light", railBg: "#FBF8F0", sidenavBg: "#FBF8F0", contentBg: "#F4EFE3", dot: "#B5701A" },
-        { aesthetic: "Instrument", mode: "Dark",  railBg: "#0A0F13", sidenavBg: "#0A0F13", contentBg: "#05080A", dot: "#E6AC54" },
-        { aesthetic: "Editorial",  mode: "Light", railBg: "#FFFFFF", sidenavBg: "#FFFFFF", contentBg: "#FAF8F4", dot: "#234E8C" },
-        { aesthetic: "Editorial",  mode: "Dark",  railBg: "#191612", sidenavBg: "#191612", contentBg: "#14110F", dot: "#7FB0E8" },
-        { aesthetic: "Studio",     mode: "Light", railBg: "#FBFCFD", sidenavBg: "#FBFCFD", contentBg: "#F4F5F7", dot: "#0B5FE6" },
-        { aesthetic: "Studio",     mode: "Dark",  railBg: "#131519", sidenavBg: "#131519", contentBg: "#0E1013", dot: "#5A9BFF" },
-        { aesthetic: "Vector",     mode: "Light", railBg: "#FAFBFC", sidenavBg: "#FAFBFC", contentBg: "#F0F1F4", dot: "#CC3300" },
-        { aesthetic: "Vector",     mode: "Dark",  railBg: "#13151A", sidenavBg: "#13151A", contentBg: "#0A0B0D", dot: "#FF5500" },
-        { aesthetic: "Terrain",    mode: "Light", railBg: "#FAFBF5", sidenavBg: "#FAFBF5", contentBg: "#F2F4EC", dot: "#1E7A4E" },
-        { aesthetic: "Terrain",    mode: "Dark",  railBg: "#0B110D", sidenavBg: "#0B110D", contentBg: "#080D0A", dot: "#4FCB8C" },
-        { aesthetic: "Links",      mode: "Light", railBg: "#F6F1E4", sidenavBg: "#F6F1E4", contentBg: "#EDE7D7", dot: "#7E2D3A" },
-        { aesthetic: "Links",      mode: "Dark",  railBg: "#131820", sidenavBg: "#131820", contentBg: "#10131A", dot: "#C85C6A" }
-    ]
+    // Each card previews ITS theme, never the current one, so the colours come from the theme
+    // tables (Theme.themeInfo) rather than the live Theme.* tokens. One entry per themeIndex,
+    // in themeIndex order — a new aesthetic in Theme.themeOrder gets its two cards for free.
+    readonly property var themeData: {
+        var d = []
+        for (var i = 0; i < Theme.themeCount; ++i)
+            d.push(Theme.themeInfo(i))
+        return d
+    }
 
     // ── Search scroll-to support ──────────────────────────────────────────────
 
@@ -90,16 +83,16 @@ Item {
             x: Theme.sp(32)
             y: Theme.sp(28)
             width: parent.width - Theme.sp(64)
-            spacing: Theme.sp(20)
+            spacing: Theme.gap(20)
 
             // ── Page header ───────────────────────────────────────────────────
 
             Text {
-                text: qsTr("CONFIGURATION")
+                text: qsTr("Configuration")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 
@@ -120,36 +113,39 @@ Item {
             // ── Group 1 — Aesthetic & colour mode ────────────────────────────
 
             Text {
-                text: qsTr("AESTHETIC & COLOUR MODE")
+                text: qsTr("Aesthetic & colour mode")
                 font.family:        Theme.fontBody
                 font.pixelSize:     Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 
-            // 4-wide card grid, wrapping to 3 rows for 12 themes (4 + 4 + 4)
+            // 4-wide card grid, one card per themeIndex, wrapping to as many rows as the themes
+            // need (twelve → 3 rows, fourteen → 4 with Folio light and dark on the last).
             Item {
                 id: cardGrid
                 objectName: "setting_aesthetic"
+                readonly property int columns: 4
+                readonly property int rows:    Math.ceil(root.themeData.length / columns)
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.sp(16)
-                implicitHeight: Theme.sp(80) * 3 + Theme.sp(10) * 2
+                Layout.leftMargin: Theme.gap(16)
+                implicitHeight: Theme.sp(80) * rows + Theme.sp(10) * (rows - 1)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 Repeater {
-                    model: 12
+                    model: root.themeData.length
                     delegate: Rectangle {
                         id: themeCard
                         required property int index
 
                         readonly property var   tData:      root.themeData[index]
                         readonly property bool  isSelected: Theme.themeIndex === index
-                        readonly property real  cardW:      (cardGrid.width - 3 * Theme.sp(10)) / 4
+                        readonly property real  cardW:      (cardGrid.width - (cardGrid.columns - 1) * Theme.sp(10)) / cardGrid.columns
 
-                        x: (index % 4) * (cardW + Theme.sp(10))
-                        y: Math.floor(index / 4) * (Theme.sp(80) + Theme.sp(10))
+                        x: (index % cardGrid.columns) * (cardW + Theme.sp(10))
+                        y: Math.floor(index / cardGrid.columns) * (Theme.sp(80) + Theme.sp(10))
                         width:  cardW
                         height: Theme.sp(80)
                         radius: Theme.radius
@@ -170,7 +166,7 @@ Item {
 
                                 Column {
                                     anchors.centerIn: parent
-                                    spacing: Theme.sp(4)
+                                    spacing: Theme.gap(4)
                                     Repeater {
                                         model: 3
                                         Rectangle {
@@ -200,10 +196,10 @@ Item {
 
                                 Column {
                                     anchors {
-                                        left: parent.left; leftMargin: Theme.sp(6)
-                                        top:  parent.top;  topMargin:  Theme.sp(10)
+                                        left: parent.left; leftMargin: Theme.gap(6)
+                                        top:  parent.top;  topMargin:  Theme.gap(10)
                                     }
-                                    spacing: Theme.sp(6)
+                                    spacing: Theme.gap(6)
                                     Repeater {
                                         model: 4
                                         Rectangle {
@@ -241,8 +237,8 @@ Item {
                             }
 
                             Row {
-                                anchors { left: parent.left; leftMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
-                                spacing: Theme.sp(4)
+                                anchors { left: parent.left; leftMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
+                                spacing: Theme.gap(4)
 
                                 Text {
                                     text:           tData.aesthetic
@@ -263,7 +259,7 @@ Item {
                             // Selected checkmark circle
                             Rectangle {
                                 visible: isSelected
-                                anchors { right: parent.right; rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                                anchors { right: parent.right; rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                                 width:  Theme.sp(14)
                                 height: Theme.sp(14)
                                 radius: Theme.sp(7)
@@ -312,11 +308,11 @@ Item {
             // user's version of the theme's. Which metric uses which name is set per metric in
             // Diagnostic Model → Metrics.
             Text {
-                text: qsTr("METRIC COLOURS")
+                text: qsTr("Metric colours")
                 font.family:        Theme.fontBody
                 font.pixelSize:     Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 
@@ -324,7 +320,7 @@ Item {
                 id: metricPalette
                 objectName: "setting_metricPalette"
                 Layout.fillWidth: true
-                spacing: Theme.sp(12)
+                spacing: Theme.gap(12)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
@@ -360,11 +356,11 @@ Item {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(16)
+                    spacing: Theme.gap(16)
 
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: Theme.sp(3)
+                        spacing: Theme.gap(3)
                         Text {
                             Layout.fillWidth: true
                             text:           qsTr("Colours for %1 · %2")
@@ -395,8 +391,8 @@ Item {
                 // Twelve tiles on the theme's own surface, so a colour is judged where it is drawn.
                 Flow {
                     Layout.fillWidth: true
-                    Layout.leftMargin: Theme.sp(16)
-                    spacing: Theme.sp(8)
+                    Layout.leftMargin: Theme.gap(16)
+                    spacing: Theme.gap(8)
 
                     Repeater {
                         model: Theme.metricColorNames
@@ -417,7 +413,7 @@ Item {
                             Row {
                                 anchors.verticalCenter: parent.verticalCenter
                                 x: Theme.sp(10)
-                                spacing: Theme.sp(10)
+                                spacing: Theme.gap(10)
 
                                 // A short trace, not a blob — a metric is a line on a chart, and a
                                 // colour that works as a fill can still be too faint as a 2 px stroke.
@@ -440,7 +436,7 @@ Item {
 
                                 Column {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    spacing: Theme.sp(1)
+                                    spacing: Theme.gap(1)
                                     Text {
                                         text: tile.modelData.charAt(0).toUpperCase() + tile.modelData.slice(1)
                                         font.family:    Theme.fontBody
@@ -472,8 +468,8 @@ Item {
                     objectName: "paletteEditor"
                     visible: metricPalette.editing !== ""
                     Layout.fillWidth: true
-                    Layout.leftMargin: Theme.sp(16)
-                    spacing: Theme.sp(10)
+                    Layout.leftMargin: Theme.gap(16)
+                    spacing: Theme.gap(10)
 
                     Text {
                         text: metricPalette.editing.length
@@ -535,11 +531,11 @@ Item {
             // ── Group 2 — Type scale ──────────────────────────────────────────
 
             Text {
-                text: qsTr("TYPE SCALE")
+                text: qsTr("Type scale")
                 font.family:        Theme.fontBody
                 font.pixelSize:     Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 
@@ -547,13 +543,13 @@ Item {
             RowLayout {
                 objectName: "setting_textSize"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -571,7 +567,7 @@ Item {
                 }
 
                 Row {
-                    spacing: Theme.sp(8)
+                    spacing: Theme.gap(8)
                     Layout.alignment: Qt.AlignVCenter
 
                     Text {
@@ -630,7 +626,7 @@ Item {
             // Live font scale preview
             Rectangle {
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.sp(26)
+                Layout.leftMargin: Theme.gap(26)
                 implicitHeight: Theme.sp(90)
                 color:        Theme.colorSurface
                 border.width: 1
@@ -657,9 +653,9 @@ Item {
 
                         RowLayout {
                             anchors.fill:        parent
-                            anchors.leftMargin:  Theme.sp(10)
-                            anchors.rightMargin: Theme.sp(10)
-                            spacing: Theme.sp(8)
+                            anchors.leftMargin:  Theme.gap(10)
+                            anchors.rightMargin: Theme.gap(10)
+                            spacing: Theme.gap(8)
 
                             Text {
                                 text:        "Pinpoint"
@@ -679,10 +675,10 @@ Item {
                             }
 
                             Text {
-                                text:                "SWING ANALYSIS"
+                                text:                "Swing analysis"
                                 font.family:         Theme.fontBody
                                 font.pixelSize:      Theme.fontSzLabel
-                                font.capitalization: Font.AllUppercase
+                                font.capitalization: Theme.capsFont
                                 font.letterSpacing:  Theme.trackingLabel
                                 color: Theme.colorText3
                             }
@@ -743,7 +739,7 @@ Item {
 
                                 ColumnLayout {
                                     anchors.centerIn: parent
-                                    spacing: Theme.sp(1)
+                                    spacing: Theme.gap(1)
 
                                     Text {
                                         text:           modelData.label
@@ -782,11 +778,11 @@ Item {
             // ── Group 3 — Interface ───────────────────────────────────────────
 
             Text {
-                text: qsTr("INTERFACE")
+                text: qsTr("Interface")
                 font.family:        Theme.fontBody
                 font.pixelSize:     Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 
@@ -794,13 +790,13 @@ Item {
             RowLayout {
                 objectName: "setting_density"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -829,13 +825,13 @@ Item {
             RowLayout {
                 objectName: "setting_reduceMotion"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -884,13 +880,13 @@ Item {
             RowLayout {
                 objectName: "setting_gradientTitles"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -939,13 +935,13 @@ Item {
             RowLayout {
                 objectName: "setting_overlayOpacity"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -963,7 +959,7 @@ Item {
                 }
 
                 Row {
-                    spacing: Theme.sp(8)
+                    spacing: Theme.gap(8)
                     Layout.alignment: Qt.AlignVCenter
 
                     Text {

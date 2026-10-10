@@ -55,10 +55,10 @@ Item {
             left:           parent.left
             right:          parent.right
             verticalCenter: parent.verticalCenter
-            leftMargin:     Theme.sp(12)
-            rightMargin:    Theme.sp(12)
+            leftMargin:     Theme.gap(12)
+            rightMargin:    Theme.gap(12)
         }
-        spacing: Theme.sp(12)
+        spacing: Theme.gap(12)
 
         // Avatar circle
         Rectangle {

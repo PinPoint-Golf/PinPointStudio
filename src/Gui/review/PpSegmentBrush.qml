@@ -251,8 +251,9 @@ Item {
             Rectangle {
                 x: pt.tx; y: root._plotT
                 width: 1; height: root._plotH
-                color: pt.isImpact ? Theme.colorAccent : Theme.colorBorderMid
-                opacity: pt.isImpact ? 0.7 : 0.3
+                // A plain phase tick is a vertical grid line, as on the plot above it.
+                color: pt.isImpact ? Theme.colorAccent : Theme.gridColor(Theme.colorBorderMid)
+                opacity: pt.isImpact ? 0.7 : Theme.gridOpacity(0.3)
             }
             Text {
                 x: pt.tx + Theme.sp(2); y: root._plotB + Theme.sp(2)
@@ -354,7 +355,7 @@ Item {
 
     // Hint text (top-right).
     Text {
-        anchors { top: parent.top; right: parent.right; topMargin: Theme.sp(5); rightMargin: Theme.sp(8) }
+        anchors { top: parent.top; right: parent.right; topMargin: Theme.gap(5); rightMargin: Theme.gap(8) }
         text: qsTr("drag to select · drag edges to resize")
         font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
         font.letterSpacing: Theme.trackingMicro

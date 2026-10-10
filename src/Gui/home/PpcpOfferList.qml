@@ -57,7 +57,7 @@ Column {
 
         Text {
             anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-            text:               qsTr("SESSIONS OFFERED")
+            text:               Theme.caps(qsTr("Sessions offered"))
             font.family:        Theme.fontData
             font.pixelSize:     Theme.fontSzMicro
             font.letterSpacing: Theme.trackingMicro
@@ -134,7 +134,7 @@ Column {
                 Column {
                     width:  parent.width - Theme.sp(20) - Theme.sp(150) - Theme.sp(96)
                     height: parent.height
-                    spacing: Theme.sp(2)
+                    spacing: Theme.gap(2)
 
                     Item { width: 1; height: Theme.sp(6) }
 

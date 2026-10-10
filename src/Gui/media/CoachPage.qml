@@ -32,7 +32,7 @@ Item {
 
         ColumnLayout {
             anchors.centerIn: parent
-            spacing: Theme.sp(16)
+            spacing: Theme.gap(16)
             width: Math.min(parent.width - Theme.sp(64), Theme.sp(400))
 
             Label {
@@ -85,14 +85,14 @@ Item {
     // ── Main chat layout ──────────────────────────────────────────────────────
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Theme.sp(16)
-        spacing: Theme.sp(8)
+        anchors.margins: Theme.gap(16)
+        spacing: Theme.gap(8)
         visible: llmController.llmReady
 
         // ── Header row: backend badge + latency ──────────────────────────────
         RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             Item { Layout.fillWidth: true }
 
@@ -175,8 +175,8 @@ Item {
             ListView {
                 id: chatList
                 model: llmController.conversation
-                spacing: Theme.sp(8)
-                bottomMargin: Theme.sp(4)
+                spacing: Theme.gap(8)
+                bottomMargin: Theme.gap(4)
 
                 // Auto-scroll to bottom as new tokens arrive.
                 onCountChanged:     Qt.callLater(() => chatList.positionViewAtEnd())
@@ -208,9 +208,9 @@ Item {
                         Text {
                             id: bubbleText
                             anchors {
-                                left: parent.left;  leftMargin:  Theme.sp(10)
-                                right: parent.right; rightMargin: Theme.sp(10)
-                                top: parent.top;    topMargin:   Theme.sp(8)
+                                left: parent.left;  leftMargin:  Theme.gap(10)
+                                right: parent.right; rightMargin: Theme.gap(10)
+                                top: parent.top;    topMargin:   Theme.gap(8)
                             }
                             text: modelData.text + (isPartial && isCoach ? "▌" : "")
                             wrapMode: Text.WordWrap
@@ -231,7 +231,7 @@ Item {
                     // Role label (small, muted) above each bubble.
                     Label {
                         anchors.bottom:  bubble.top
-                        anchors.bottomMargin: Theme.sp(2)
+                        anchors.bottomMargin: Theme.gap(2)
                         anchors.left:  isCoach ? bubble.left  : undefined
                         anchors.right: isCoach ? undefined     : bubble.right
                         text: isCoach ? qsTr("Coach") : qsTr("You")
@@ -246,7 +246,7 @@ Item {
         // ── Voice toggles + input row ────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             // Voice input chip
             Rectangle {
@@ -331,7 +331,7 @@ Item {
         // ── Text input + Send / Stop ─────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             TextArea {
                 id: messageInput
@@ -342,7 +342,7 @@ Item {
                 color: Theme.colorText
                 font.family: Theme.fontBody
                 font.pixelSize: Theme.fontSzBody
-                padding: Theme.sp(10)
+                padding: Theme.gap(10)
                 implicitHeight: Math.max(Theme.sp(40), contentHeight + Theme.sp(20))
 
                 background: Rectangle {

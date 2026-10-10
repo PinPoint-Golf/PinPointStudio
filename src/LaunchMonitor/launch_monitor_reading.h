@@ -116,7 +116,8 @@ struct FieldDef {
     // and puts thirteen of these in one "Ball flight" bucket that the board splits
     // three ways, so it cannot be mapped without hand-writing this column anyway.
     const char *group;
-    // The board abbreviation ("CLUB SPEED", "DYN. LOFT"). Deliberately NOT
+    // The board abbreviation ("Club speed", "Dyn. loft"), in sentence case: the board sets it in
+    // capitals through Theme.caps / Theme.capsFont, except in a theme that does not (Folio). Deliberately NOT
     // MetricDescriptor::shortLabel: that carries the "(LM)" qualifier which exists to
     // disambiguate against our own estimate, and a panel showing only measured values
     // has nothing to disambiguate against. The moment a bare-key estimate appears

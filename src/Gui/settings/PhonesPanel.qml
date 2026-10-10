@@ -254,11 +254,11 @@ Item {
             RowLayout {
                 id: headerRow
                 Layout.fillWidth:       true
-                Layout.topMargin:       Theme.sp(14)
-                Layout.leftMargin:      Theme.sp(14)
-                Layout.rightMargin:     Theme.sp(14)
+                Layout.topMargin:       Theme.gap(14)
+                Layout.leftMargin:      Theme.gap(14)
+                Layout.rightMargin:     Theme.gap(14)
                 Layout.preferredHeight: Theme.sp(54)
-                spacing: Theme.sp(10)
+                spacing: Theme.gap(10)
 
                 // Status dot — green connected, accent while merely discovered
                 // on this network, warn while remembered but neither, grey
@@ -279,7 +279,7 @@ Item {
                 // Alias (editable) + meta
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(2)
+                    spacing: Theme.gap(2)
 
                     PpTextField {
                         id: aliasField
@@ -334,7 +334,7 @@ Item {
                     }
 
                     Row {
-                        spacing: Theme.sp(10)
+                        spacing: Theme.gap(10)
                         // What the phone called itself in its MSG `declare`
                         // (or the shortened handle, for one that never has) —
                         // kept visible under the alias rather than replaced
@@ -496,7 +496,7 @@ Item {
                 // The card's bottom breathing room — the "no margin" half of
                 // Mark's report — the same role `bodyWrap`'s trailing
                 // `Theme.sp(20)` plays under ImusPanel's capabilities strip.
-                Layout.bottomMargin: Theme.sp(14)
+                Layout.bottomMargin: Theme.gap(14)
                 spacing: 0
 
                 // Battery/thermal are 7.4b's `heartbeat_ack` readings — only a
@@ -601,18 +601,18 @@ Item {
                                 left:   parent.left
                                 right:  parent.right
                                 top:    parent.top
-                                leftMargin:  Theme.sp(14)
-                                rightMargin: Theme.sp(14)
-                                topMargin:   Theme.sp(9)
+                                leftMargin:  Theme.gap(14)
+                                rightMargin: Theme.gap(14)
+                                topMargin:   Theme.gap(9)
                             }
-                            spacing: Theme.sp(3)
+                            spacing: Theme.gap(3)
 
                             Text {
                                 text:            modelData.key
                                 font.family:     Theme.fontData
                                 font.pixelSize:  Theme.fontSzMicro
                                 font.letterSpacing: Theme.trackingMicro
-                                font.capitalization: Font.AllUppercase
+                                font.capitalization: Theme.capsFont
                                 color:           Theme.colorText3
                             }
                             Text {
@@ -680,15 +680,15 @@ Item {
             x:       Theme.sp(32)
             y:       Theme.sp(28)
             width:   parent.width - Theme.sp(64)
-            spacing: Theme.sp(16)
+            spacing: Theme.gap(16)
 
             // ── Page header ────────────────────────────────────────────────
             Text {
-                text:                qsTr("HARDWARE")
+                text:                qsTr("Hardware")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
             PpDisplayText {
@@ -730,17 +730,17 @@ Item {
             RowLayout {
                 visible: root.havePpcp
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(2)
+                    spacing: Theme.gap(2)
                     Text {
-                        text:                qsTr("THIS COMPUTER")
+                        text:                qsTr("This computer")
                         font.family:         Theme.fontBody
                         font.pixelSize:      Theme.fontSzMicro
                         font.letterSpacing:  Theme.trackingMicro
-                        font.capitalization: Font.AllUppercase
+                        font.capitalization: Theme.capsFont
                         color:               Theme.colorText3
                     }
                     Text {
@@ -772,11 +772,11 @@ Item {
                 Layout.fillWidth: true
 
                 Text {
-                    text:                qsTr("REMEMBERED PHONES")
+                    text:                qsTr("Remembered phones")
                     font.family:         Theme.fontBody
                     font.pixelSize:      Theme.fontSzMicro
                     font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color:               Theme.colorText3
                     Layout.fillWidth:    true
                 }
@@ -798,8 +798,8 @@ Item {
             // ── One row per held pairing ───────────────────────────────────
             ColumnLayout {
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.sp(26)
-                spacing: Theme.sp(8)
+                Layout.leftMargin: Theme.gap(26)
+                spacing: Theme.gap(8)
                 visible: root.rows.length > 0
 
                 Repeater {
@@ -822,7 +822,7 @@ Item {
                 id: summaryRect
                 visible: root.rows.length > 0
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.sp(26)
+                Layout.leftMargin: Theme.gap(26)
                 height:  Theme.sp(40)
                 color:   Theme.colorBg2
                 radius:  Theme.radius
@@ -834,8 +834,8 @@ Item {
 
                 RowLayout {
                     anchors.fill:    parent
-                    anchors.margins: Theme.sp(12)
-                    spacing:         Theme.sp(16)
+                    anchors.margins: Theme.gap(12)
+                    spacing:         Theme.gap(16)
 
                     Text {
                         text:  summaryRect.connectedCount + qsTr(" connected")

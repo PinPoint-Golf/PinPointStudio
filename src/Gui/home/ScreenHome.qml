@@ -168,7 +168,7 @@ Item {
                 spacing: 0
 
                 Text {
-                    text:               qsTr("GOLF SWING ANALYSIS")
+                    text:               Theme.caps(qsTr("Golf swing analysis"))
                     font.family:        Theme.fontData
                     font.pixelSize:     Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
@@ -239,7 +239,7 @@ Item {
 
                 Row {
                     width:   parent.width
-                    spacing: Theme.sp(10)
+                    spacing: Theme.gap(10)
 
                     Repeater {
                         model: [
@@ -259,7 +259,7 @@ Item {
 
                             Column {
                                 id: secCardCol
-                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(14) }
+                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(14) }
                                 spacing: 0
 
                                 Item { width: 1; height: Theme.sp(14) }
@@ -349,7 +349,7 @@ Item {
                     anchors.right:          switchLink.left
                     anchors.rightMargin:    12
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         width:          parent.width
@@ -405,15 +405,15 @@ Item {
 
                 Item { width: 1; height: Theme.sp(40) }
 
-                // Banner — title font at double the largest theme title size.
+                // Banner — the hero title size (twice display, except where a theme sets its own).
                 PpDisplayText {
                     text:           qsTr("PinPoint Studio")
-                    pixelSize:      Theme.fontSzDisplay * 2
+                    pixelSize:      Theme.fontSzHero
                 }
                 Item { width: 1; height: Theme.sp(20) }
 
                 Text {
-                    text:               qsTr("NEW SESSION")
+                    text:               Theme.caps(qsTr("New session"))
                     font.family:        Theme.fontData
                     font.pixelSize:     Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
@@ -422,7 +422,7 @@ Item {
                 Item { width: 1; height: Theme.sp(16) }
 
                 Row {
-                    spacing: Theme.sp(20)
+                    spacing: Theme.gap(20)
                     width:   parent.width
 
                     Repeater {
@@ -466,11 +466,11 @@ Item {
                 // same chip language as the Clubs-section tab strip.
                 Column {
                     width:   parent.width
-                    spacing: Theme.sp(8)
+                    spacing: Theme.gap(8)
                     visible: root.clubModel.length > 0
 
                     Text {
-                        text:               qsTr("CLUB")
+                        text:               Theme.caps(qsTr("Club"))
                         font.family:        Theme.fontData
                         font.pixelSize:     Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -479,7 +479,7 @@ Item {
 
                     Flow {
                         width:   parent.width
-                        spacing: Theme.sp(6)
+                        spacing: Theme.gap(6)
 
                         Repeater {
                             model: root.clubModel
@@ -579,7 +579,7 @@ Item {
 
                 Text {
                     anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                    text:               qsTr("DEVICES")
+                    text:               Theme.caps(qsTr("Devices"))
                     font.family:        Theme.fontData
                     font.pixelSize:     Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro

@@ -46,12 +46,12 @@ Column {
     readonly property color toneTogether: Theme.gradientCool     // a relation, neither praise nor fault
 
     // ── Shared geometry ──────────────────────────────────────────────────────
-    readonly property int cardPad:   Theme.sp(20)
-    readonly property int cardGap:   Theme.sp(16)
+    readonly property int cardPad:   Theme.gap(20)
+    readonly property int cardGap:   Theme.gap(16)
     readonly property int badgeSize: Theme.sp(20)
     readonly property int textIndent: badgeSize + Theme.sp(12)
     readonly property int headlineSize: Theme.fontSzBody
-    readonly property int itemGap:   Theme.sp(18)
+    readonly property int itemGap:   Theme.gap(18)
 
     width:   parent ? parent.width : 0
     spacing: 0
@@ -71,7 +71,7 @@ Column {
             width: root.width
             height: implicitHeight
             tone:  root.toneTogether
-            title: qsTr("WHAT GOES TOGETHER")
+            title: Theme.caps(qsTr("What goes together"))
 
             Text {
                 width: togetherCard.innerWidth

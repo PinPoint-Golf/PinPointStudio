@@ -384,7 +384,7 @@ Popup {
                 Column {
                     anchors.centerIn: parent
                     width: parent.width
-                    spacing: Theme.sp(2)
+                    spacing: Theme.gap(2)
 
                     Text {
                         width: parent.width
@@ -567,7 +567,7 @@ Popup {
             Column {
                 anchors.centerIn: parent
                 width: root._r0 * 1.7
-                spacing: Theme.sp(3)
+                spacing: Theme.gap(3)
 
                 Text {
                     width: parent.width

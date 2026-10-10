@@ -236,16 +236,16 @@ Item {
             x:       Theme.sp(32)
             y:       Theme.sp(28)
             width:   parent.width - Theme.sp(64)
-            spacing: Theme.sp(20)
+            spacing: Theme.gap(20)
 
             // ── Page header ───────────────────────────────────────────────────
 
             Text {
-                text:                qsTr("DATA")
+                text:                qsTr("Data")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
 
@@ -266,11 +266,11 @@ Item {
             // ── Group 1 — Athlete library ─────────────────────────────────────
 
             Text {
-                text:                qsTr("ATHLETE LIBRARY")
+                text:                qsTr("Athlete library")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
 
@@ -278,13 +278,13 @@ Item {
             RowLayout {
                 objectName: "setting_libraryPath"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -310,8 +310,8 @@ Item {
 
                         Text {
                             anchors {
-                                left: parent.left; leftMargin: Theme.sp(10)
-                                right: parent.right; rightMargin: Theme.sp(10)
+                                left: parent.left; leftMargin: Theme.gap(10)
+                                right: parent.right; rightMargin: Theme.gap(10)
                                 verticalCenter: parent.verticalCenter
                             }
                             text:           appSettings.athleteLibraryPath.length > 0
@@ -328,7 +328,7 @@ Item {
 
                 ColumnLayout {
                     Layout.alignment: Qt.AlignBottom
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
                     PpButton {
                         label:     qsTr("Change…")
                         onClicked: folderDialog.open()
@@ -344,7 +344,7 @@ Item {
             // Disk usage bar
             Rectangle {
                 Layout.fillWidth:  true
-                Layout.leftMargin: Theme.sp(26)
+                Layout.leftMargin: Theme.gap(26)
                 implicitHeight:   diskContent.implicitHeight + Theme.sp(24)
                 color:            Theme.colorBg2
                 border.width:     1
@@ -354,22 +354,22 @@ Item {
 
                 ColumnLayout {
                     id: diskContent
-                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(12) }
-                    spacing: Theme.sp(6)
+                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(12) }
+                    spacing: Theme.gap(6)
 
                     Text {
-                        text:                qsTr("DISK USAGE — ") + (root.diskInfo.volumeName || "—")
+                        text:                qsTr("Disk usage — ") + (root.diskInfo.volumeName || "—")
                         font.family:         Theme.fontData
                         font.pixelSize:      Theme.fontSzMicro
                         font.letterSpacing:  Theme.trackingMicro
-                        font.capitalization: Font.AllUppercase
+                        font.capitalization: Theme.capsFont
                         color:               Theme.colorText3
                     }
 
                     // Sessions bar
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: Theme.sp(10)
+                        spacing: Theme.gap(10)
 
                         Text {
                             text:                  qsTr("Sessions")
@@ -418,7 +418,7 @@ Item {
                     // Available bar
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: Theme.sp(10)
+                        spacing: Theme.gap(10)
 
                         Text {
                             text:                  qsTr("Available")
@@ -466,15 +466,15 @@ Item {
             RowLayout {
                 objectName: "setting_swingFormat"
                 Layout.fillWidth:  true
-                Layout.leftMargin: Theme.sp(26)
-                spacing: Theme.sp(16)
+                Layout.leftMargin: Theme.gap(26)
+                spacing: Theme.gap(16)
                 visible: root.hasConverter
                          && (libraryConverter.pending > 0 || libraryConverter.running
                              || libraryConverter.status.length > 0)
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         text:           qsTr("Swing file format")
                         font.family:    Theme.fontBody
@@ -508,13 +508,13 @@ Item {
             RowLayout {
                 objectName: "setting_sessionNaming"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -567,11 +567,11 @@ Item {
             // ── Group 2 — Video recording ─────────────────────────────────────
 
             Text {
-                text:                qsTr("VIDEO RECORDING")
+                text:                qsTr("Video recording")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
 
@@ -579,13 +579,13 @@ Item {
             RowLayout {
                 objectName: "setting_videoRes"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         text:           qsTr("Recording resolution")
@@ -604,7 +604,7 @@ Item {
                 }
 
                 Row {
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
                     Layout.alignment: Qt.AlignVCenter
 
                     Repeater {
@@ -653,13 +653,13 @@ Item {
             RowLayout {
                 objectName: "setting_videoCodec"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         text:           qsTr("Video codec")
@@ -684,7 +684,7 @@ Item {
                 }
 
                 Row {
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
                     Layout.alignment: Qt.AlignVCenter
 
                     Repeater {
@@ -733,13 +733,13 @@ Item {
             RowLayout {
                 objectName: "setting_videoQuality"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -757,7 +757,7 @@ Item {
                 }
 
                 Row {
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
                     Layout.alignment: Qt.AlignVCenter
 
                     Repeater {
@@ -806,13 +806,13 @@ Item {
             RowLayout {
                 objectName: "setting_saveRaw"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -841,7 +841,7 @@ Item {
             RowLayout {
                 objectName: "setting_skipAnalysisRaw"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 opacity: appSettings.saveRawFrames ? 1.0 : 0.4
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
                 property bool searchHighlight: false
@@ -849,7 +849,7 @@ Item {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -889,7 +889,7 @@ Item {
                     anchors {
                         left: parent.left; right: parent.right
                         top:  parent.top
-                        leftMargin: Theme.sp(12); rightMargin: Theme.sp(12); topMargin: Theme.sp(10)
+                        leftMargin: Theme.gap(12); rightMargin: Theme.gap(12); topMargin: Theme.gap(10)
                     }
                     text:           qsTr("Raw Bayer frames are about 900 MB per camera per swing, against 2.5 MB for a Compact clip. Check the library volume has room before recording long sessions.")
                     font.family:    Theme.fontData
@@ -906,15 +906,15 @@ Item {
 
                     // Column 1 — per-swing clip
                     ColumnLayout {
-                        spacing: Theme.sp(4)
-                        Layout.leftMargin: Theme.sp(26)
+                        spacing: Theme.gap(4)
+                        Layout.leftMargin: Theme.gap(26)
 
                         Text {
                             text:                qsTr("Per-swing clip")
                             font.family:         Theme.fontData
                             font.pixelSize:      Theme.fontSzMicro
                             font.letterSpacing:  Theme.trackingMicro
-                            font.capitalization: Font.AllUppercase
+                            font.capitalization: Theme.capsFont
                             color:               Theme.colorText3
                         }
                         Text {
@@ -948,20 +948,20 @@ Item {
                         width:            1
                         Layout.fillHeight: true
                         color:            Theme.colorBorderMid
-                        Layout.leftMargin:  Theme.sp(12)
-                        Layout.rightMargin: Theme.sp(12)
+                        Layout.leftMargin:  Theme.gap(12)
+                        Layout.rightMargin: Theme.gap(12)
                     }
 
                     // Column 2 — per session
                     ColumnLayout {
-                        spacing: Theme.sp(4)
+                        spacing: Theme.gap(4)
 
                         Text {
                             text:                qsTr("Per hour (60 swings)")
                             font.family:         Theme.fontData
                             font.pixelSize:      Theme.fontSzMicro
                             font.letterSpacing:  Theme.trackingMicro
-                            font.capitalization: Font.AllUppercase
+                            font.capitalization: Theme.capsFont
                             color:               Theme.colorText3
                         }
                         Text {
@@ -977,20 +977,20 @@ Item {
                         width:             1
                         Layout.fillHeight: true
                         color:             Theme.colorBorderMid
-                        Layout.leftMargin:  Theme.sp(12)
-                        Layout.rightMargin: Theme.sp(12)
+                        Layout.leftMargin:  Theme.gap(12)
+                        Layout.rightMargin: Theme.gap(12)
                     }
 
                     // Column 3 — remaining capacity
                     ColumnLayout {
-                        spacing: Theme.sp(4)
+                        spacing: Theme.gap(4)
 
                         Text {
                             text:                qsTr("Remaining capacity")
                             font.family:         Theme.fontData
                             font.pixelSize:      Theme.fontSzMicro
                             font.letterSpacing:  Theme.trackingMicro
-                            font.capitalization: Font.AllUppercase
+                            font.capitalization: Theme.capsFont
                             color:               Theme.colorText3
                         }
                         Text {
@@ -1011,11 +1011,11 @@ Item {
             // ── Group 3 — Sensor data ─────────────────────────────────────────
 
             Text {
-                text:                qsTr("SENSOR DATA")
+                text:                qsTr("Sensor data")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
 
@@ -1023,13 +1023,13 @@ Item {
             RowLayout {
                 objectName: "setting_savePose"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         text:           qsTr("Save pose keypoints")
@@ -1058,13 +1058,13 @@ Item {
             RowLayout {
                 objectName: "setting_saveImu"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true

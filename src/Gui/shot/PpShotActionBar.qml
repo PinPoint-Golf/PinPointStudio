@@ -72,7 +72,7 @@ Item {
 
     RowLayout {
         anchors.fill: parent
-        spacing: Theme.sp(9)
+        spacing: Theme.gap(9)
 
         // ── LEFT · focused identity  (#N · club · time · ★ · score) ─────────
         //    One clickable chip: hover-lifts and reveals an ✎ hint; a click opens
@@ -93,15 +93,15 @@ Item {
 
             Row {
                 id: identityRow
-                anchors { left: parent.left; leftMargin: Theme.sp(8)
+                anchors { left: parent.left; leftMargin: Theme.gap(8)
                           verticalCenter: parent.verticalCenter }
-                spacing: Theme.sp(7)
+                spacing: Theme.gap(7)
 
                 // What the bar is about, in the dock's Micro voice — the chips row under it
                 // names its SESSION and FILTER the same way.
                 PpMicro {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("SWING")
+                    text: Theme.caps(qsTr("Swing"))
                 }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
@@ -177,11 +177,11 @@ Item {
             id: setRow
             Layout.alignment: Qt.AlignVCenter
             visible: !root._hasFocus
-            spacing: Theme.sp(7)
+            spacing: Theme.gap(7)
 
             PpMicro {
                 anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("FILTERED")
+                text: Theme.caps(qsTr("Filtered"))
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
@@ -260,7 +260,7 @@ Item {
             Row {
                 id: allRow
                 anchors.centerIn: parent
-                spacing: Theme.sp(7)
+                spacing: Theme.gap(7)
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text:           qsTr("all %1 shown").arg(root.visibleCount)
@@ -290,7 +290,7 @@ Item {
                 parent: allCtl
                 y: -height - Theme.sp(4)
                 x: allCtl.width - width
-                padding: Theme.sp(5)
+                padding: Theme.gap(5)
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
                 contentWidth: Math.max(allExportRow.implicitWidth, allTrashRow.implicitWidth)
                               + Theme.sp(28)
@@ -306,9 +306,9 @@ Item {
                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         Row {
                             id: allExportRow
-                            anchors { left: parent.left; leftMargin: Theme.sp(10)
+                            anchors { left: parent.left; leftMargin: Theme.gap(10)
                                       verticalCenter: parent.verticalCenter }
-                            spacing: Theme.sp(10)
+                            spacing: Theme.gap(10)
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: "⤓"
@@ -325,7 +325,7 @@ Item {
                             }
                         }
                         PpMicro {   // count tail
-                            anchors { right: parent.right; rightMargin: Theme.sp(10)
+                            anchors { right: parent.right; rightMargin: Theme.gap(10)
                                       verticalCenter: parent.verticalCenter }
                             text: qsTr("%1 shots").arg(root.visibleCount)
                             font.letterSpacing: Theme.trackingData
@@ -344,9 +344,9 @@ Item {
                         color: allReanalyseMa.containsMouse ? Theme.colorBg2 : "transparent"
                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         Row {
-                            anchors { left: parent.left; leftMargin: Theme.sp(10)
+                            anchors { left: parent.left; leftMargin: Theme.gap(10)
                                       verticalCenter: parent.verticalCenter }
-                            spacing: Theme.sp(10)
+                            spacing: Theme.gap(10)
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: "↻"
@@ -363,7 +363,7 @@ Item {
                             }
                         }
                         PpMicro {   // count tail
-                            anchors { right: parent.right; rightMargin: Theme.sp(10)
+                            anchors { right: parent.right; rightMargin: Theme.gap(10)
                                       verticalCenter: parent.verticalCenter }
                             text: qsTr("%1 shots").arg(root.visibleCount)
                             font.letterSpacing: Theme.trackingData
@@ -391,9 +391,9 @@ Item {
                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                         Row {
                             id: allTrashRow
-                            anchors { left: parent.left; leftMargin: Theme.sp(10)
+                            anchors { left: parent.left; leftMargin: Theme.gap(10)
                                       verticalCenter: parent.verticalCenter }
-                            spacing: Theme.sp(10)
+                            spacing: Theme.gap(10)
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: "🗑"
@@ -410,7 +410,7 @@ Item {
                             }
                         }
                         PpMicro {   // count tail
-                            anchors { right: parent.right; rightMargin: Theme.sp(10)
+                            anchors { right: parent.right; rightMargin: Theme.gap(10)
                                       verticalCenter: parent.verticalCenter }
                             text: qsTr("%1 shots").arg(root.visibleCount)
                             font.letterSpacing: Theme.trackingData

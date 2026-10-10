@@ -457,7 +457,7 @@ Item {
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
                 horizontalAlignment: Text.AlignHCenter
             }
@@ -676,9 +676,9 @@ Item {
                     anchors.right:  parent.right
                     anchors.top:    parent.top
                     height:         root._condRowH(nodeItem.modelData)
-                    anchors.leftMargin:  Theme.sp(7)
-                    anchors.rightMargin: Theme.sp(7)
-                    spacing: Theme.sp(6)
+                    anchors.leftMargin:  Theme.gap(7)
+                    anchors.rightMargin: Theme.gap(7)
+                    spacing: Theme.gap(6)
 
                     // What kind of thing this is, as a glyph. Colour alone cannot carry it — a
                     // reader with any colour deficiency gets the same information from the shape.
@@ -734,7 +734,7 @@ Item {
                     // under it. The word itself is in the hub's meta line when the node is held.
                     Text {
                         Layout.alignment: Qt.AlignTop
-                        Layout.topMargin: Theme.sp(3)
+                        Layout.topMargin: Theme.gap(3)
                         visible:        nodeItem.modelData.ubiquitous === true
                         text:           "∀"
                         font.family:    Theme.fontSymbol
@@ -771,7 +771,7 @@ Item {
 
                     Text {
                         anchors.left:           parent.left
-                        anchors.leftMargin:     Theme.sp(9)
+                        anchors.leftMargin:     Theme.gap(9)
                         anchors.verticalCenter: parent.verticalCenter
                         text: nodeItem.modelData.detectionLabel || ""
                         font.family:    Theme.fontData
@@ -823,8 +823,8 @@ Item {
                         Rectangle {
                             visible: !(mrow.index === 0 && (nodeItem.modelData.captionH || 0) > 0)
                             anchors { left: parent.left; right: parent.right; top: parent.top }
-                            anchors.leftMargin:  Theme.sp(6)
-                            anchors.rightMargin: Theme.sp(6)
+                            anchors.leftMargin:  Theme.gap(6)
+                            anchors.rightMargin: Theme.gap(6)
                             height: 1
                             color: Theme.colorBorderMid
                             opacity: Theme.borderOpacityNormal
@@ -836,7 +836,7 @@ Item {
                         Rectangle {
                             visible: (nodeItem.modelData.captionH || 0) > 0
                             anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                            anchors.leftMargin: Theme.sp(6)
+                            anchors.leftMargin: Theme.gap(6)
                             width: Theme.sp(2)
                             color: Theme.colorAccent
                             opacity: 0.5
@@ -844,9 +844,9 @@ Item {
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin:  Theme.sp(9)
-                            anchors.rightMargin: Theme.sp(7)
-                            spacing: Theme.sp(5)
+                            anchors.leftMargin:  Theme.gap(9)
+                            anchors.rightMargin: Theme.gap(7)
+                            spacing: Theme.gap(5)
 
                             Text {
                                 Layout.fillWidth: true
@@ -914,8 +914,8 @@ Item {
 
                         Rectangle {
                             anchors { left: parent.left; right: parent.right; top: parent.top }
-                            anchors.leftMargin:  Theme.sp(6)
-                            anchors.rightMargin: Theme.sp(6)
+                            anchors.leftMargin:  Theme.gap(6)
+                            anchors.rightMargin: Theme.gap(6)
                             height: 1
                             color: Theme.colorBorderMid
                             opacity: Theme.borderOpacityNormal
@@ -923,9 +923,9 @@ Item {
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin:  Theme.sp(9)
-                            anchors.rightMargin: Theme.sp(7)
-                            spacing: Theme.sp(5)
+                            anchors.leftMargin:  Theme.gap(9)
+                            anchors.rightMargin: Theme.gap(7)
+                            spacing: Theme.gap(5)
 
                             // The type glyph the rest of the app gives a reference. A row that is a
                             // paper rather than a measure has to say so without being read — the
@@ -1005,7 +1005,7 @@ Item {
 
                 Opener {
                     anchors.right: parent.left
-                    anchors.rightMargin: Theme.sp(3)
+                    anchors.rightMargin: Theme.gap(3)
                     live:  root._opensLeft(nodeItem.modelData)
                     count: nodeItem.modelData.hiddenCauses || 0
                     hot:   root._opensLeft(nodeItem.modelData)
@@ -1013,7 +1013,7 @@ Item {
                 }
                 Opener {
                     anchors.left: parent.right
-                    anchors.leftMargin: Theme.sp(3)
+                    anchors.leftMargin: Theme.gap(3)
                     live:  root._opensRight(nodeItem.modelData)
                     count: nodeItem.modelData.hiddenEffects || 0
                     hot:   root._opensRight(nodeItem.modelData)
@@ -1901,7 +1901,7 @@ Item {
         visible: hovered !== null
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: Theme.sp(16)
+        anchors.bottomMargin: Theme.gap(16)
         width:  Math.min(reasonText.implicitWidth + Theme.sp(24), root.width - Theme.sp(48))
         height: reasonText.implicitHeight + Theme.sp(16)
         radius: Theme.radius
@@ -1933,7 +1933,7 @@ Item {
         visible: root._dragging && root._armKind === "link" && root._dragTarget === ""
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: Theme.sp(16)
+        anchors.bottomMargin: Theme.gap(16)
         width:  hintText.implicitWidth + Theme.sp(24)
         height: hintText.implicitHeight + Theme.sp(14)
         radius: Theme.radius
@@ -1992,7 +1992,7 @@ Item {
     Rectangle {
         anchors.top:   parent.top
         anchors.right: parent.right
-        anchors.margins: Theme.sp(10)
+        anchors.margins: Theme.gap(10)
         visible: root._nodes.length > 0
         width:   switchRow.implicitWidth + Theme.sp(18)
         height:  Theme.sp(26)
@@ -2005,7 +2005,7 @@ Item {
         RowLayout {
             id: switchRow
             anchors.centerIn: parent
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             component Switch: Text {
                 id: sw
@@ -2078,7 +2078,7 @@ Item {
     Rectangle {
         anchors.right:  parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: Theme.sp(10)
+        anchors.margins: Theme.gap(10)
         visible: root._nodes.length > 0
         width:   zoomRow.implicitWidth + Theme.sp(18)
         height:  Theme.sp(26)
@@ -2091,7 +2091,7 @@ Item {
         RowLayout {
             id: zoomRow
             anchors.centerIn: parent
-            spacing: Theme.sp(9)
+            spacing: Theme.gap(9)
 
             Text {
                 text: "−"
@@ -2146,7 +2146,7 @@ Item {
     Text {
         anchors.left:   parent.left
         anchors.bottom: parent.bottom
-        anchors.margins: Theme.sp(10)
+        anchors.margins: Theme.gap(10)
         visible: root.layoutData.truncated === true
         text:    qsTr("bounded — some neighbours are not drawn")
         font.family:    Theme.fontData

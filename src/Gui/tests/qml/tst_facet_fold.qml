@@ -58,6 +58,8 @@ Item {
         }
         return out
     }
+    // The words as WRITTEN. The headings are sentence case in the source and set in capitals by the
+    // theme's font (Theme.capsFont), so `text` reads "Filters" whichever theme draws it.
     function has(w, t) { return w.indexOf(t) >= 0 }
     // Substring, for text whose exact form depends on a translator this harness does not load —
     // the census renders its plural as the literal `object(s)` here and as `objects` in the app.
@@ -82,7 +84,7 @@ Item {
         // the filter list's: this one takes the type list with it.
         function test_the_rail_offers_its_own_fold() {
             var w = words(rail)
-            verify(has(w, "CONTENT"))
+            verify(has(w, "Content"))
             verify(has(w, "‹‹"))               // points the way the pane goes, as the inspector does
             rail.collapseRequested()
             compare(probe.railFolds, 1)
@@ -94,7 +96,7 @@ Item {
         function test_the_two_folds_are_independent() {
             rail.facetsFolded = true
             var w = words(rail)
-            verify(has(w, "CONTENT"))
+            verify(has(w, "Content"))
             verify(has(w, "Measures"))
             verify(has(w, "Characteristics"))
             verify(has(w, "‹‹"))
@@ -102,7 +104,7 @@ Item {
 
         function test_open_shows_the_list_and_offers_to_hide_it() {
             var w = words(rail)
-            verify(has(w, "FILTERS"))
+            verify(has(w, "Filters"))
             verify(has(w, "hide"))
             verify(!has(w, "show"))
             // The options themselves are on screen.
@@ -114,7 +116,7 @@ Item {
         function test_folded_takes_the_options_away_but_not_the_way_back() {
             rail.facetsFolded = true
             var w = words(rail)
-            verify(has(w, "FILTERS"))
+            verify(has(w, "Filters"))
             verify(has(w, "show"))
             verify(!has(w, "hide"))
             // The list is gone…
@@ -130,7 +132,7 @@ Item {
             rail.facetsFolded = true
             var w = words(rail)
             // The count rides on the heading — the rail owes this whether or not the list is shown.
-            verify(has(w, "FILTERS (2)"))
+            verify(has(w, "Filters (2)"))
             // And the one control that turns it off is still there.
             verify(has(w, "clear"))
         }
@@ -138,8 +140,8 @@ Item {
         function test_no_count_when_nothing_is_filtering() {
             rail.facetsFolded = true
             var w = words(rail)
-            verify(has(w, "FILTERS"))
-            verify(!has(w, "FILTERS (0)"))
+            verify(has(w, "Filters"))
+            verify(!has(w, "Filters (0)"))
             verify(!has(w, "clear"))
         }
 
@@ -157,7 +159,7 @@ Item {
             var saved = rail.facets
             rail.facets = []
             var w = words(rail)
-            verify(!has(w, "FILTERS"))
+            verify(!has(w, "Filters"))
             verify(!has(w, "hide"))
             verify(!has(w, "show"))
             rail.facets = saved

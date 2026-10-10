@@ -943,8 +943,8 @@ Item {
         radius: Theme.sp(4)
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: Theme.sp(6); anchors.rightMargin: Theme.sp(6)
-            spacing: Theme.sp(7)
+            anchors.leftMargin: Theme.gap(6); anchors.rightMargin: Theme.gap(6)
+            spacing: Theme.gap(7)
             Text {
                 text: "▸"; rotation: sh.collapsed ? 0 : 90
                 color: Theme.colorText3; font.pixelSize: Theme.fontSzBody2
@@ -984,7 +984,7 @@ Item {
     // ── Layout ────────────────────────────────────────────────────────────────────
     ColumnLayout {
         anchors.fill: parent
-        spacing: Theme.sp(8)
+        spacing: Theme.gap(8)
         visible: root._hasAny
 
         // ── Panel title row: the panel's name, and the one control that changes it ─
@@ -999,7 +999,7 @@ Item {
         RowLayout {
             visible: !root.compact
             Layout.fillWidth: true
-            spacing: Theme.sp(10)
+            spacing: Theme.gap(10)
 
             // The preset's name in BODY type, not display type. The stage's card already titles
             // this panel (CHARTS, in Micro), so a display-size gradient title under it was a
@@ -1032,7 +1032,7 @@ Item {
 
             Item { Layout.fillWidth: true }      // spacer — pins the selector to the right
 
-            PpMicro { text: qsTr("METRICS") }
+            PpMicro { text: Theme.caps(qsTr("Metrics")) }
 
             PpComboBox {
                 id: presetCombo
@@ -1051,7 +1051,7 @@ Item {
         // ── CONTROLS section ──────────────────────────────────────────────────────
         SectionHeader {
             visible: !root.compact
-            title: qsTr("CONTROLS"); collapsed: root.controlsCollapsed
+            title: Theme.caps(qsTr("Controls")); collapsed: root.controlsCollapsed
             onToggled: { root.controlsCollapsed = !root.controlsCollapsed
                          root._persistSection("controls", root.controlsCollapsed) }
         }
@@ -1061,7 +1061,7 @@ Item {
         RowLayout {
             visible: !root.compact && !root.controlsCollapsed
             Layout.fillWidth: true
-            spacing: Theme.sp(10)
+            spacing: Theme.gap(10)
 
             PpSegmentedControl {
                 Layout.preferredWidth: Theme.sp(150)
@@ -1079,7 +1079,7 @@ Item {
                 delegate: Row {
                     id: tog
                     required property var modelData
-                    spacing: Theme.sp(5)
+                    spacing: Theme.gap(5)
                     Rectangle {
                         width: Theme.sp(14); height: Theme.sp(14); radius: Theme.sp(4)
                         anchors.verticalCenter: parent.verticalCenter
@@ -1119,12 +1119,12 @@ Item {
         Flow {
             visible: !root.compact && !root.controlsCollapsed
             Layout.fillWidth: true
-            spacing: Theme.sp(6)
+            spacing: Theme.gap(6)
 
             PpMicro {
-                text: qsTr("SEGMENT")
+                text: Theme.caps(qsTr("Segment"))
                 height: Theme.sp(28); verticalAlignment: Text.AlignVCenter
-                rightPadding: Theme.sp(2)
+                rightPadding: Theme.gap(2)
             }
 
             Repeater {
@@ -1146,7 +1146,7 @@ Item {
                     Text {
                         id: segLblText
                         anchors.centerIn: parent
-                        text: segChip.lbl.toUpperCase()
+                        text: Theme.caps(segChip.lbl)
                         font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
                         font.letterSpacing: Theme.trackingData
                         color: segChip.active ? Theme.colorAccent : Theme.colorText2
@@ -1170,7 +1170,7 @@ Item {
                 Text {
                     id: customText
                     anchors.centerIn: parent
-                    text: qsTr("CUSTOM")
+                    text: Theme.caps(qsTr("Custom"))
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzLabel
                     font.letterSpacing: Theme.trackingData
                     color: Theme.colorAccent
@@ -1200,7 +1200,7 @@ Item {
         RowLayout {
             visible: !root.compact && !root.controlsCollapsed
             Layout.fillWidth: true
-            spacing: Theme.sp(12)
+            spacing: Theme.gap(12)
             Text {
                 // "Full recording", not "Full swing": since the panel opens on Address→Finish, the
                 // Full chip is precisely the thing that is WIDER than the swing, and calling it the
@@ -1226,7 +1226,7 @@ Item {
         // ── CHART section ─────────────────────────────────────────────────────────
         SectionHeader {
             visible: !root.compact
-            title: qsTr("CHART"); collapsed: root.chartCollapsed
+            title: Theme.caps(qsTr("Chart")); collapsed: root.chartCollapsed
             onToggled: { root.chartCollapsed = !root.chartCollapsed
                          root._persistSection("chart", root.chartCollapsed) }
         }
@@ -1244,7 +1244,7 @@ Item {
 
             ColumnLayout {
                 anchors.fill: parent
-                spacing: Theme.sp(10)
+                spacing: Theme.gap(10)
 
                 Repeater {
                     model: root._plots
@@ -1331,7 +1331,7 @@ Item {
                 Column {
                     id: tipCol
                     x: Theme.sp(10); y: Theme.sp(10)
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     PpMicro {
                         text: {
                             var ms = Math.round((root._cursorUs - root.impactUs) / 1000)
@@ -1349,7 +1349,7 @@ Item {
                             // instead of four whole-series marshals.
                             readonly property int idx: root._nearestIndex(trow.modelData,
                                                                           root._cursorUs)
-                            spacing: Theme.sp(8)
+                            spacing: Theme.gap(8)
                             Rectangle {
                                 width: Theme.sp(8); height: Theme.sp(8); radius: Theme.sp(2)
                                 anchors.verticalCenter: parent.verticalCenter
@@ -1416,7 +1416,7 @@ Item {
         Flow {
             visible: !root.compact && !root.chartCollapsed
             Layout.fillWidth: true
-            spacing: Theme.sp(10)
+            spacing: Theme.gap(10)
 
             Repeater {
                 // The preset's metrics — see _legendSeries. The colour rides on the model entry, so
@@ -1440,7 +1440,7 @@ Item {
                     // The Δ baseline, resolved ONCE per chip: it depends on the data alone, and the
                     // Δ readout below re-evaluates on every replay frame.
                     readonly property real addr: root._addrValue(chip.modelData)
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
                     opacity: chip.on ? 1.0 : 0.4
 
                     Rectangle {
@@ -1478,9 +1478,9 @@ Item {
             // in range, and a grey dot has to say that it is NOT a verdict.
             Row {
                 visible: root.showDots && root._dotVerdicts.length > 0
-                spacing: Theme.sp(10)
+                spacing: Theme.gap(10)
                 PpMicro {
-                    text: qsTr("P DOTS")
+                    text: Theme.caps(qsTr("P dots"))
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Repeater {
@@ -1488,7 +1488,7 @@ Item {
                     delegate: Row {
                         id: keyItem
                         required property string modelData
-                        spacing: Theme.sp(5)
+                        spacing: Theme.gap(5)
                         DotKey {
                             verdict: keyItem.modelData
                             anchors.verticalCenter: parent.verticalCenter
@@ -1507,7 +1507,7 @@ Item {
         // ── SUMMARY section ───────────────────────────────────────────────────────
         SectionHeader {
             visible: !root.compact
-            title: qsTr("SUMMARY"); collapsed: root.summaryCollapsed
+            title: Theme.caps(qsTr("Summary")); collapsed: root.summaryCollapsed
             onToggled: { root.summaryCollapsed = !root.summaryCollapsed
                          root._persistSection("summary", root.summaryCollapsed) }
         }

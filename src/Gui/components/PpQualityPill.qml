@@ -46,7 +46,7 @@ Rectangle {
     Row {
         id: pillRow
         anchors.centerIn: parent
-        spacing: Theme.sp(2)
+        spacing: Theme.gap(2)
 
         PpBadge {
             visible: root.mark

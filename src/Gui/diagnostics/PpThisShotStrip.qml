@@ -84,7 +84,7 @@ Item {
                     id: stripLabel
                     anchors.left: parent.left
                     anchors.baseline: headline.baseline
-                    text: qsTr("THIS SHOT")
+                    text: Theme.caps(qsTr("This shot"))
                     font.pixelSize: root.tzMicro
                 }
                 Text {
@@ -185,7 +185,7 @@ Item {
                                 // beside them would only repeat it.
                                 visible: text !== ""
                                 text: chip.fired
-                                      ? (qsTr("FIRED") + (chip.ghosted ? " ↓" : ""))
+                                      ? (Theme.caps(qsTr("Fired")) + (chip.ghosted ? " ↓" : ""))
                                       : ""
                                 font.pixelSize: root.tzCaption
                                 color: chip.stateColor
@@ -228,7 +228,7 @@ Item {
                     objectName: "sdQuietLabel"
                     anchors.left: parent.left
                     anchors.baseline: quietLine.baseline
-                    text: qsTr("BANDWIDTH · QUIET")
+                    text: Theme.caps(qsTr("Bandwidth · quiet"))
                     font.pixelSize: root.tzMicro
                     color: Theme.colorGood
                 }

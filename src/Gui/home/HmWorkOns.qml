@@ -54,7 +54,7 @@ Column {
     // Rows drawn before "show all".
     property int collapsedCount: 5
     // The card's heading: "FAULTS" in the Swing diagnostics screen.
-    property string title: qsTr("WORK ONS")
+    property string title: Theme.caps(qsTr("Work ons"))
 
     signal reviewSessionRequested(string sessionDir)
 
@@ -75,10 +75,10 @@ Column {
     readonly property color toneQuiet:  Theme.colorText3
 
     // ── Geometry, the summary's ──────────────────────────────────────────────
-    readonly property int cardPad:    Theme.sp(20)
+    readonly property int cardPad:    Theme.gap(20)
     readonly property int badgeSize:  Theme.sp(20)
     readonly property int textIndent: badgeSize + Theme.sp(12)
-    readonly property int rowPad:     Theme.sp(14)
+    readonly property int rowPad:     Theme.gap(14)
     readonly property int innerWidth: width - 2 * cardPad
     // One line per row down to this card width; below it the meter and pips go under the name.
     readonly property bool oneLine:   innerWidth >= Theme.sp(620)
@@ -163,7 +163,7 @@ Column {
             visible: !root.catchingUp && root.items.length > 0
             anchors.baseline: cardTitle.baseline
             x: card.width - root.cardPad - root.chevronW - implicitWidth
-            text: qsTr("SESSIONS")
+            text: Theme.caps(qsTr("Sessions"))
             font.letterSpacing: Theme.trackingData
         }
 
@@ -266,7 +266,7 @@ Column {
                                 tone:  root.tone
                             }
                             Text {
-                                anchors { left: meter.right; leftMargin: Theme.sp(10)
+                                anchors { left: meter.right; leftMargin: Theme.gap(10)
                                           verticalCenter: parent.verticalCenter }
                                 text: rowCol.modelData.countText
                                 font.family:    Theme.fontBody
@@ -320,7 +320,7 @@ Column {
                         visible: rowCol.open
                         x:       root.textIndent
                         width:   parent.width - root.textIndent - root.chevronW
-                        spacing: Theme.sp(10)
+                        spacing: Theme.gap(10)
 
                         Text {
                             width:          Math.min(parent.width, Theme.sp(720))
@@ -336,11 +336,11 @@ Column {
 
                         Item { width: 1; height: Theme.sp(2) }
 
-                        PpFact { width: parent.width; label: qsTr("NOW");    text: rowCol.modelData.statusText }
-                        PpFact { width: parent.width; label: qsTr("LATEST"); text: rowCol.modelData.latestText }
+                        PpFact { width: parent.width; label: Theme.caps(qsTr("Now"));    text: rowCol.modelData.statusText }
+                        PpFact { width: parent.width; label: Theme.caps(qsTr("Latest")); text: rowCol.modelData.latestText }
                         PpFact {
                             width: parent.width
-                            label: qsTr("SWINGS")
+                            label: Theme.caps(qsTr("Swings"))
                             text:  rowCol.modelData.coverageText !== ""
                                    ? qsTr("%1 · %2").arg(rowCol.modelData.countText).arg(rowCol.modelData.coverageText)
                                    : rowCol.modelData.countText
@@ -348,7 +348,7 @@ Column {
                         // The pips' key, counted over every session.
                         PpFact {
                             width: parent.width
-                            label: qsTr("SESSIONS")
+                            label: Theme.caps(qsTr("Sessions"))
                             Repeater {
                                 model: [
                                     { state: "fired",         words: qsTr("%1 showed it") },
@@ -359,7 +359,7 @@ Column {
                                     required property var modelData
                                     readonly property int n: root.tickCount(rowCol.modelData.ticks, modelData.state)
                                     visible: n > 0
-                                    spacing: Theme.sp(6)
+                                    spacing: Theme.gap(6)
                                     height: Math.ceil(body2Metrics.height * 1.35)
                                     PpPip {
                                         anchors.verticalCenter: parent.verticalCenter
@@ -379,17 +379,17 @@ Column {
                                 }
                             }
                         }
-                        PpFact { width: parent.width; label: qsTr("LINKED"); text: rowCol.modelData.causedByText }
+                        PpFact { width: parent.width; label: Theme.caps(qsTr("Linked")); text: rowCol.modelData.causedByText }
 
                         // The drill, set in: what to do about it.
                         PpInset {
                             visible: rowCol.modelData.drillLabel !== ""
                             width:   Math.min(parent.width, Theme.sp(720))
                             Row {
-                                spacing: Theme.sp(10)
+                                spacing: Theme.gap(10)
                                 PpMicro {
                                     anchors.baseline: drillName.baseline
-                                    text: qsTr("TRY")
+                                    text: Theme.caps(qsTr("Try"))
                                 }
                                 Text {
                                     id: drillName

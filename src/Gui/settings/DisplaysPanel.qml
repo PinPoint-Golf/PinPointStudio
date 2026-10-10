@@ -126,16 +126,16 @@ Item {
             x: Theme.sp(32)
             y: Theme.sp(28)
             width: parent.width - Theme.sp(64)
-            spacing: Theme.sp(20)
+            spacing: Theme.gap(20)
 
             // ── Page header ───────────────────────────────────────────────────
 
             Text {
-                text: qsTr("CONFIGURATION")
+                text: qsTr("Configuration")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 
@@ -160,7 +160,7 @@ Item {
 
                 Row {
                     id: monRow
-                    spacing: Theme.sp(12)
+                    spacing: Theme.gap(12)
                     anchors.top: parent.top
                     anchors.left: parent.left
 
@@ -177,7 +177,7 @@ Item {
                                 || (appSettings.mainDisplayMode === "cursor"  && index === 0)
                             readonly property bool isSecondary: appSettings.secondaryDisplayMode === "screen:" + index
 
-                            spacing: Theme.sp(4)
+                            spacing: Theme.gap(4)
                             anchors.bottom: parent.bottom
 
                             Rectangle {
@@ -198,7 +198,7 @@ Item {
                                     visible: isMain || isSecondary
                                     anchors.top:     parent.top
                                     anchors.right:   parent.right
-                                    anchors.margins: Theme.sp(4)
+                                    anchors.margins: Theme.gap(4)
                                     implicitWidth:  badgeText.implicitWidth + Theme.sp(8)
                                     implicitHeight: Theme.sp(14)
                                     radius: 1
@@ -217,7 +217,7 @@ Item {
                                 Text {
                                     anchors.left:    parent.left
                                     anchors.bottom:  parent.bottom
-                                    anchors.margins: Theme.sp(4)
+                                    anchors.margins: Theme.gap(4)
                                     text:            (index + 1).toString()
                                     font.family:    Theme.fontData
                                     font.pixelSize: Theme.fontSzMicro
@@ -254,9 +254,9 @@ Item {
                 Row {
                     id: legend
                     anchors.top:        monRow.bottom
-                    anchors.topMargin:  Theme.sp(10)
+                    anchors.topMargin:  Theme.gap(10)
                     anchors.left:       parent.left
-                    spacing: Theme.sp(16)
+                    spacing: Theme.gap(16)
 
                     Repeater {
                         model: [
@@ -266,7 +266,7 @@ Item {
                         ]
                         delegate: Row {
                             required property var modelData
-                            spacing: Theme.sp(5)
+                            spacing: Theme.gap(5)
                             Rectangle {
                                 width:  Theme.sp(8)
                                 height: Theme.sp(8)
@@ -289,11 +289,11 @@ Item {
             // ── Group 1 — Main window ─────────────────────────────────────────
 
             Text {
-                text: qsTr("MAIN WINDOW")
+                text: qsTr("Main window")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 
@@ -301,13 +301,13 @@ Item {
             RowLayout {
                 objectName: "setting_launchOn"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         Layout.fillWidth: true
                         text:           qsTr("Launch on")
@@ -352,7 +352,7 @@ Item {
             RowLayout {
                 objectName: "setting_rememberGeometry"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 opacity: appSettings.windowMaximized ? 0.4 : 1.0
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
@@ -360,7 +360,7 @@ Item {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         Layout.fillWidth: true
                         text:           qsTr("Remember window size and position")
@@ -409,13 +409,13 @@ Item {
             RowLayout {
                 objectName: "setting_fullScreen"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         Layout.fillWidth: true
                         text:           qsTr("Launch in full screen")
@@ -465,11 +465,11 @@ Item {
             // ── Group 2 — Post-shot display ───────────────────────────────────
 
             Text {
-                text: qsTr("POST-SHOT DISPLAY")
+                text: qsTr("Post-shot display")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 
@@ -491,13 +491,13 @@ Item {
             RowLayout {
                 objectName: "setting_secondaryDisplay"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         Layout.fillWidth: true
                         text:           qsTr("Secondary display")
@@ -539,7 +539,7 @@ Item {
             RowLayout {
                 objectName: "setting_postShotDisplayMode"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
                 opacity: appSettings.secondaryDisplayMode === "none" ? 0.4 : 1.0
@@ -547,7 +547,7 @@ Item {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         Layout.fillWidth: true
                         text:           qsTr("Post-shot display mode")
@@ -583,7 +583,7 @@ Item {
             RowLayout {
                 objectName: "setting_postShotDelay"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 opacity: appSettings.secondaryDisplayMode === "none" ? 0.4 : 1.0
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
                 property bool searchHighlight: false
@@ -591,7 +591,7 @@ Item {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         Layout.fillWidth: true
                         text:           qsTr("Display delay")
@@ -631,7 +631,7 @@ Item {
             RowLayout {
                 objectName: "setting_postShotDwell"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 opacity: (appSettings.secondaryDisplayMode === "none"
                           || appSettings.postShotDisplayMode !== "window") ? 0.4 : 1.0
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
@@ -640,7 +640,7 @@ Item {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         Layout.fillWidth: true
                         text:           qsTr("Window dwell")
@@ -679,7 +679,7 @@ Item {
             RowLayout {
                 objectName: "setting_mirrorMain"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 opacity: appSettings.secondaryDisplayMode === "none" ? 0.4 : 1.0
                 Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
                 property bool searchHighlight: false
@@ -687,7 +687,7 @@ Item {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         Layout.fillWidth: true
                         text:           qsTr("Mirror main window")
@@ -737,11 +737,11 @@ Item {
             // ── Group 3 — Rendering ───────────────────────────────────────────
 
             Text {
-                text: qsTr("RENDERING")
+                text: qsTr("Rendering")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color: Theme.colorText3
             }
 
@@ -749,13 +749,13 @@ Item {
             RowLayout {
                 objectName: "setting_frameRateCap"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         Layout.fillWidth: true
                         text:           qsTr("Frame rate cap")
@@ -791,13 +791,13 @@ Item {
             RowLayout {
                 objectName: "setting_hwAccel"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Text {
                         Layout.fillWidth: true
                         text:           qsTr("Hardware acceleration")

@@ -53,7 +53,7 @@ Item {
     RowLayout {
         id: layout
         anchors.fill: parent
-        spacing: Theme.sp(6)
+        spacing: Theme.gap(6)
 
         Text {
             visible: root.trail.length === 0
@@ -74,7 +74,7 @@ Item {
 
                 readonly property bool terminal: index === root.trail.length - 1
 
-                spacing: Theme.sp(6)
+                spacing: Theme.gap(6)
                 // Earlier steps give up their width first: what you are looking at NOW is the part
                 // that must stay readable, so the terminal item keeps its room and the rest elide.
                 Layout.maximumWidth: terminal ? Theme.sp(260) : Theme.sp(110)

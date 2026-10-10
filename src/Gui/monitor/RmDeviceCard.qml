@@ -56,8 +56,8 @@ Rectangle {
         }
 
         Row {
-            anchors { fill: parent; leftMargin: Theme.sp(12); rightMargin: Theme.sp(10) }
-            spacing: Theme.sp(8)
+            anchors { fill: parent; leftMargin: Theme.gap(12); rightMargin: Theme.gap(10) }
+            spacing: Theme.gap(8)
 
             // Status dot
             Rectangle {
@@ -134,7 +134,9 @@ Rectangle {
                         var s = root.deviceData.status
                         if (s === "connected" && root.deviceData.dataRateHz > 0)
                             return root.deviceData.dataRateHz.toFixed(0) + " Hz"
-                        return s.toUpperCase()
+                        // The status arrives in lower case. Sentence case first, so an
+                        // aesthetic that does not set labels in capitals still reads a label.
+                        return Theme.caps(s.charAt(0).toUpperCase() + s.slice(1))
                     }
                     font.family: Theme.fontData
                     font.pixelSize: Theme.sp(9)
@@ -154,11 +156,11 @@ Rectangle {
     Column {
         id: body
         anchors { top: header.bottom; left: parent.left; right: parent.right }
-        topPadding: Theme.sp(12)
-        bottomPadding: Theme.sp(12)
-        leftPadding: Theme.sp(14)
-        rightPadding: Theme.sp(14)
-        spacing: Theme.sp(7)
+        topPadding: Theme.gap(12)
+        bottomPadding: Theme.gap(12)
+        leftPadding: Theme.gap(14)
+        rightPadding: Theme.gap(14)
+        spacing: Theme.gap(7)
 
         property var rows: {
             var d = root.deviceData
@@ -263,7 +265,7 @@ Rectangle {
 
             Row {
                 width: body.width - body.leftPadding - body.rightPadding
-                spacing: Theme.sp(8)
+                spacing: Theme.gap(8)
 
                 Text {
                     width: parent.width * 0.52

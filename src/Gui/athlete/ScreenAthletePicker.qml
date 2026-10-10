@@ -58,12 +58,12 @@ Item {
 
             // ── Header ───────────────────────────────────────────────────────
             Text {
-                text:               qsTr("ATHLETES")
+                text:               Theme.caps(qsTr("Athletes"))
                 font.family:        Theme.fontData
                 font.pixelSize:     Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
                 color:              Theme.colorText3
-                bottomPadding:      Theme.sp(10)
+                bottomPadding:      Theme.gap(10)
             }
             PpDisplayText {
                 text: qsTr("Choose athlete")
@@ -73,22 +73,22 @@ Item {
             // ── Recent section ───────────────────────────────────────────────
             Column {
                 width:   parent.width
-                spacing: Theme.sp(8)
+                spacing: Theme.gap(8)
                 visible: athleteController.athletes.length > 0
 
                 Text {
-                    text:               qsTr("RECENT")
+                    text:               Theme.caps(qsTr("Recent"))
                     font.family:        Theme.fontData
                     font.pixelSize:     Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
                     color:              Theme.colorText3
-                    bottomPadding:      Theme.sp(2)
+                    bottomPadding:      Theme.gap(2)
                 }
 
                 Row {
                     id: recentRow
                     width:   parent.width
-                    spacing: Theme.sp(10)
+                    spacing: Theme.gap(10)
 
                     readonly property int cardCount: Math.min(3, athleteController.athletes.length)
 
@@ -137,7 +137,7 @@ Item {
 
                     TextField {
                         id: searchField
-                        anchors { fill: parent; leftMargin: Theme.sp(8); rightMargin: Theme.sp(8) }
+                        anchors { fill: parent; leftMargin: Theme.gap(8); rightMargin: Theme.gap(8) }
                         placeholderText:      qsTr("⌕  Search…")
                         placeholderTextColor: Theme.colorText3
                         background:           null
@@ -207,7 +207,7 @@ Item {
 
             RowLayout {
                 width:   parent.width
-                spacing: Theme.sp(8)
+                spacing: Theme.gap(8)
 
                 PpButton {
                     label:    qsTr("＋ New athlete")

@@ -40,7 +40,7 @@ Item {
     Column {
         id: buttonCol
         anchors.horizontalCenter: parent.horizontalCenter
-        spacing: Theme.sp(3)
+        spacing: Theme.gap(3)
 
         Rectangle {
             id: bg
@@ -57,13 +57,12 @@ Item {
             // Active treatment — fill (+ Instrument border), cross-fading in/out
             // at durationNormal so the selection glides between rail buttons
             // rather than snapping. Synced with the page cross-fade in Main.qml.
-            // (Editorial / Vector use the accent bar below instead of a border.)
+            // (A railActiveBar theme uses the accent bar below instead of a border.)
             Rectangle {
                 anchors.fill: parent
                 radius:       parent.radius
-                color: (Theme.aesthetic === "editorial" || Theme.aesthetic === "vector")
-                           ? Theme.colorAccentLight : Theme.colorSurface
-                border.width: (Theme.aesthetic === "editorial" || Theme.aesthetic === "vector") ? 0 : 1
+                color: Theme.railActiveBar ? Theme.colorAccentLight : Theme.colorSurface
+                border.width: Theme.railActiveBar ? 0 : 1
                 border.color: Theme.colorBorderMid
                 opacity:      root.isActive ? 1 : 0
                 Behavior on opacity {
@@ -71,14 +70,14 @@ Item {
                 }
             }
 
-            // Editorial / Vector active: 2px left-edge accent bar (cross-fades too)
+            // railActiveBar themes, active: 2px left-edge accent bar (cross-fades too)
             Rectangle {
                 x: 0
                 y: 0
                 width:   2
                 height:  parent.height
                 color:   Theme.colorAccent
-                opacity: (root.isActive && (Theme.aesthetic === "editorial" || Theme.aesthetic === "vector")) ? 1 : 0
+                opacity: (root.isActive && Theme.railActiveBar) ? 1 : 0
                 Behavior on opacity {
                     NumberAnimation { duration: Theme.durationNormal; easing.type: Easing.OutCubic }
                 }
@@ -110,7 +109,7 @@ Item {
             id: labelItem
             width:                  Theme.sp(60)
             horizontalAlignment:    Text.AlignHCenter
-            text:                   root.labelText.toUpperCase()
+            text:                   Theme.caps(root.labelText)
             font.family:            Theme.fontBody
             font.pixelSize:         Theme.sp(8)
             font.letterSpacing:     Theme.trackingMicro

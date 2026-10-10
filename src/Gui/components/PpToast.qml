@@ -78,11 +78,11 @@ Rectangle {
     Row {
         id: toastRow
         anchors.centerIn: parent
-        spacing: Theme.sp(14)
+        spacing: Theme.gap(14)
 
         Row {
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Theme.sp(9)
+            spacing: Theme.gap(9)
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text:           root.glyph
@@ -137,7 +137,7 @@ Rectangle {
         Text {
             anchors.verticalCenter: parent.verticalCenter
             visible:        root.showUndo
-            text:           qsTr("UNDO")
+            text:           Theme.caps(qsTr("Undo"))
             font.family:    Theme.fontData
             font.pixelSize: Theme.fontSzBody2
             font.letterSpacing: Theme.trackingLabel

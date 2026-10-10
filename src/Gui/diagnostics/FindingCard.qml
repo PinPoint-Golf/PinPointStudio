@@ -124,7 +124,7 @@ Column {
             x: root._indent
             y: nameText.y + nameText.height + Theme.sp(4)
             width: head.width - x - root._chevronW
-            spacing: Theme.sp(6)
+            spacing: Theme.gap(6)
             Text {
                 text: root._sevLabel(root._sev)
                 font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
@@ -166,7 +166,7 @@ Column {
         visible: root._open
         x:       root._indent
         width:   parent.width - root._indent - root._chevronW
-        spacing: Theme.sp(8)
+        spacing: Theme.gap(8)
 
         Text {
             width: Math.min(parent.width, Theme.sp(720))
@@ -180,17 +180,17 @@ Column {
         }
         PpFact {
             width: parent.width; labelWidth: root._factLabelW
-            label: qsTr("LINKED"); text: root.finding.linkedTo || ""
+            label: Theme.caps(qsTr("Linked")); text: root.finding.linkedTo || ""
         }
         PpFact {
             width: parent.width; labelWidth: root._factLabelW
-            label: qsTr("CONFIDENCE")
+            label: Theme.caps(qsTr("Confidence"))
             text:  qsTr("%1 · %2 of 4").arg(root._confWords(root._conf)).arg(root._conf)
             PpPips { marks: root._confMarks; tone: Theme.colorText2 }
         }
         PpFact {
             width: parent.width; labelWidth: root._factLabelW
-            label: qsTr("CORROBORATED")
+            label: Theme.caps(qsTr("Corroborated"))
             text:  (root.finding.corroboratedBy || []).join(", ")
         }
 
@@ -203,7 +203,7 @@ Column {
             width:   Math.min(parent.width, Theme.sp(720))
             tone:    root._tone
             bar:     true
-            PpMicro { text: root._strength ? qsTr("KEEP") : qsTr("TRY") }
+            PpMicro { text: root._strength ? Theme.caps(qsTr("Keep")) : Theme.caps(qsTr("Try")) }
             Text {
                 width: parent.width
                 text:  coachInset.words

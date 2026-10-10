@@ -40,8 +40,8 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.margins: Theme.sp(3)
-        spacing: Theme.sp(2)
+        anchors.margins: Theme.gap(3)
+        spacing: Theme.gap(2)
 
         Repeater {
             model: seg.options

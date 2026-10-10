@@ -46,14 +46,14 @@ Item {
 
     PpMicro {
         id: title
-        anchors { left: parent.left; top: parent.top; leftMargin: Theme.sp(14); topMargin: Theme.sp(14) }
-        text: qsTr("PROPERTIES")
+        anchors { left: parent.left; top: parent.top; leftMargin: Theme.gap(14); topMargin: Theme.gap(14) }
+        text: Theme.caps(qsTr("Properties"))
     }
 
     // Top-right action icons: copy all properties, reveal the swing folder.
     Row {
-        anchors { right: parent.right; rightMargin: Theme.sp(12); verticalCenter: title.verticalCenter }
-        spacing: Theme.sp(12)
+        anchors { right: parent.right; rightMargin: Theme.gap(12); verticalCenter: title.verticalCenter }
+        spacing: Theme.gap(12)
 
         Text {        // copy-to-clipboard; flashes a check as feedback
             anchors.verticalCenter: parent.verticalCenter
@@ -91,7 +91,7 @@ Item {
 
     Flickable {
         anchors { left: parent.left; right: parent.right; top: title.bottom; bottom: parent.bottom
-                  topMargin: Theme.sp(8) }
+                  topMargin: Theme.gap(8) }
         clip: true
         contentHeight: col.implicitHeight
         boundsBehavior: Flickable.StopAtBounds
@@ -100,8 +100,8 @@ Item {
         Column {
             id: col
             width: parent.width
-            spacing: Theme.sp(12)
-            leftPadding: Theme.sp(14); rightPadding: Theme.sp(14); bottomPadding: Theme.sp(14)
+            spacing: Theme.gap(12)
+            leftPadding: Theme.gap(14); rightPadding: Theme.gap(14); bottomPadding: Theme.gap(14)
 
             PpCardNote {
                 visible: panel.metadata.length === 0
@@ -114,10 +114,10 @@ Item {
                 delegate: Column {
                     required property var modelData
                     width: col.width - Theme.sp(28)
-                    spacing: Theme.sp(4)
+                    spacing: Theme.gap(4)
 
                     PpMicro {
-                        text: (modelData.group || "").toUpperCase()
+                        text: Theme.caps(modelData.group || "")
                         color: Theme.colorText2
                     }
                     Repeater {

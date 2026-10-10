@@ -102,7 +102,7 @@ Popup {
     // Esc = cancel, which is this application's stated safe default and is also
     // 11.7d's: the escape hatch must not be the affirmative one.
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    padding: Theme.sp(24)
+    padding: Theme.gap(24)
     width: Math.min(Theme.sp(520), (parent ? parent.width : Theme.sp(520)) - Theme.sp(48))
 
     background: Rectangle {
@@ -122,7 +122,7 @@ Popup {
     }
 
     contentItem: ColumnLayout {
-        spacing: Theme.sp(16)
+        spacing: Theme.gap(16)
 
         Text {
             objectName: "guidedTitle"
@@ -142,7 +142,7 @@ Popup {
         ColumnLayout {
             objectName: "guidedWindowList"
             Layout.fillWidth: true
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
             visible: root.phase === "idle" && !root.paired && !root.failed
 
             Text {
@@ -159,7 +159,7 @@ Popup {
                 model: root.windows
                 delegate: RowLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(12)
+                    spacing: Theme.gap(12)
 
                     Text {
                         Layout.fillWidth: true
@@ -212,7 +212,7 @@ Popup {
         ColumnLayout {
             objectName: "guidedCompare"
             Layout.fillWidth: true
-            spacing: Theme.sp(12)
+            spacing: Theme.gap(12)
             // 11.7e — the digits AND any control that affirms them appear only
             // once 11.5d has completed.  `comparing` is exactly that state.
             visible: root.comparing
@@ -268,7 +268,7 @@ Popup {
             // ⛔ DO NOT REORDER THESE TO MATCH THE HOUSE CONVENTION.
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(12)
+                spacing: Theme.gap(12)
 
                 PpButton {
                     objectName: "guidedAffirm"
@@ -311,7 +311,7 @@ Popup {
         RowLayout {
             Layout.fillWidth: true
             visible: root.failed || root.paired
-            spacing: Theme.sp(12)
+            spacing: Theme.gap(12)
 
             Item { Layout.fillWidth: true }
 
@@ -362,7 +362,7 @@ Popup {
         RowLayout {
             Layout.fillWidth: true
             visible: root.busy || root.phase === "idle"
-            spacing: Theme.sp(12)
+            spacing: Theme.gap(12)
 
             Item { Layout.fillWidth: true }
 

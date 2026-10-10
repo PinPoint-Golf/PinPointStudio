@@ -151,7 +151,7 @@ Rectangle {
 
     Column {
         id: contentCol
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: Theme.sp(12) }
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: Theme.gap(12) }
         spacing: 0
 
         Item { width: 1; height: Theme.sp(4) }
@@ -207,7 +207,7 @@ Rectangle {
         Item { width: 1; height: Theme.sp(6) }
 
         Row {
-            spacing: Theme.sp(12)
+            spacing: Theme.gap(12)
 
             Text {
                 text: {
@@ -239,7 +239,7 @@ Rectangle {
     // "Coming soon" badge — top-right, shown only for non-startable tiles.
     Rectangle {
         visible: root.comingSoon
-        anchors { top: parent.top; right: parent.right; margins: Theme.sp(10) }
+        anchors { top: parent.top; right: parent.right; margins: Theme.gap(10) }
         radius: Theme.radius
         color:  Theme.colorBg3
         border.width: 1
@@ -250,7 +250,7 @@ Rectangle {
         Text {
             id: csLabel
             anchors.centerIn:   parent
-            text:               qsTr("COMING SOON")
+            text:               Theme.caps(qsTr("Coming soon"))
             font.family:        Theme.fontData
             font.pixelSize:     Theme.fontSzMicro
             font.letterSpacing: Theme.trackingMicro

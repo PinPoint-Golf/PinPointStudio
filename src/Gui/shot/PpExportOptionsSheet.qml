@@ -42,8 +42,8 @@ Popup {
     signal confirmed(var selectedVideoFiles, bool includeJson)
     signal cancelled()
 
-    padding: Theme.sp(16)
-    margins: Theme.sp(8)
+    padding: Theme.gap(16)
+    margins: Theme.gap(8)
     modal:   false
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
@@ -87,7 +87,7 @@ Popup {
         Row {
             id: crRow
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Theme.sp(10)
+            spacing: Theme.gap(10)
             Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Theme.sp(16); height: Theme.sp(16); radius: Theme.sp(4)
@@ -120,13 +120,13 @@ Popup {
     }
 
     contentItem: ColumnLayout {
-        spacing: Theme.sp(14)
+        spacing: Theme.gap(14)
 
         // ── header ───────────────────────────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(3)
-            PpMicro { text: qsTr("EXPORT SHOTS") }
+            spacing: Theme.gap(3)
+            PpMicro { text: Theme.caps(qsTr("Export shots")) }
             Text {
                 visible: root.shotCount > 0
                 text:    qsTr("%n shot(s) · zipped to your home folder", "", root.shotCount)
@@ -138,10 +138,10 @@ Popup {
         }
 
         // ── cameras ───────────────────────────────────────────────────────────
-        PpMicro { text: qsTr("CAMERAS") }
+        PpMicro { text: Theme.caps(qsTr("Cameras")) }
         Column {
             Layout.fillWidth: true
-            spacing: Theme.sp(4)
+            spacing: Theme.gap(4)
             Repeater {
                 model: root.cameras
                 delegate: CheckRow {
@@ -175,8 +175,8 @@ Popup {
         // ── footer ───────────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
-            Layout.topMargin: Theme.sp(4)
-            spacing: Theme.sp(8)
+            Layout.topMargin: Theme.gap(4)
+            spacing: Theme.gap(8)
             Item { Layout.fillWidth: true }
             PpButton {
                 label: qsTr("Cancel")

@@ -60,12 +60,12 @@ Item {
         RowLayout {
             id: headerRow
             Layout.fillWidth: true
-            Layout.leftMargin:   Theme.sp(18)
-            Layout.rightMargin:  Theme.sp(16)
-            Layout.topMargin:    Theme.sp(13)
-            Layout.bottomMargin: Theme.sp(13)
+            Layout.leftMargin:   Theme.gap(18)
+            Layout.rightMargin:  Theme.gap(16)
+            Layout.topMargin:    Theme.gap(13)
+            Layout.bottomMargin: Theme.gap(13)
 
-            PpMicro { text: qsTr("CHOOSE A SESSION") }
+            PpMicro { text: Theme.caps(qsTr("Choose a session")) }
             Item { Layout.fillWidth: true }
             Item {   // ✕ close (padded hit area)
                 Layout.preferredWidth:  Theme.sp(20)
@@ -96,10 +96,10 @@ Item {
             clip: true
             model: sessionReviewController.sessionsModel
             boundsBehavior: Flickable.StopAtBounds
-            topMargin:    Theme.sp(6)
-            bottomMargin: Theme.sp(6)
-            leftMargin:   Theme.sp(8)
-            rightMargin:  Theme.sp(8)
+            topMargin:    Theme.gap(6)
+            bottomMargin: Theme.gap(6)
+            leftMargin:   Theme.gap(8)
+            rightMargin:  Theme.gap(8)
             delegate: sessionRow
 
             // Quiet invitation when there is no saved history yet — the live row
@@ -107,7 +107,7 @@ Item {
             PpCardNote {
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
-                anchors.bottomMargin: Theme.sp(16)
+                anchors.bottomMargin: Theme.gap(16)
                 visible: list.count <= 1
                 text: qsTr("No saved sessions yet")
             }
@@ -158,15 +158,15 @@ Item {
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin:  Theme.sp(12)
-                anchors.rightMargin: Theme.sp(12)
-                spacing: Theme.sp(12)
+                anchors.leftMargin:  Theme.gap(12)
+                anchors.rightMargin: Theme.gap(12)
+                spacing: Theme.gap(12)
 
                 // Mini film-strip preview (thumbnail → ◑ placeholder, same idiom
                 // as PpShotCard until real thumbnails are extracted).
                 Row {
                     Layout.alignment: Qt.AlignVCenter
-                    spacing: Theme.sp(2)
+                    spacing: Theme.gap(2)
                     Repeater {
                         model: 4
                         delegate: Rectangle {
@@ -200,10 +200,10 @@ Item {
                 // stats at the narrow (~⅓) drawer width.
                 Column {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
                     Row {
                         width: parent.width
-                        spacing: Theme.sp(7)
+                        spacing: Theme.gap(7)
                         Rectangle {
                             visible: rowBg.isLive
                             anchors.verticalCenter: parent.verticalCenter
@@ -284,7 +284,7 @@ Item {
                         parent: kebab
                         x: kebab.width - width            // right edges aligned
                         y: -height - Theme.sp(4)          // open upward, like the carousel
-                        padding: Theme.sp(5)
+                        padding: Theme.gap(5)
                         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
                         contentWidth: Math.max(exportRow.implicitWidth, trashRow.implicitWidth)
                                       + Theme.sp(28)
@@ -300,9 +300,9 @@ Item {
                                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                                 Row {
                                     id: exportRow
-                                    anchors { left: parent.left; leftMargin: Theme.sp(10)
+                                    anchors { left: parent.left; leftMargin: Theme.gap(10)
                                               verticalCenter: parent.verticalCenter }
-                                    spacing: Theme.sp(10)
+                                    spacing: Theme.gap(10)
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
                                         text: "⤓"
@@ -346,9 +346,9 @@ Item {
                                 Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                                 Row {
                                     id: trashRow
-                                    anchors { left: parent.left; leftMargin: Theme.sp(10)
+                                    anchors { left: parent.left; leftMargin: Theme.gap(10)
                                               verticalCenter: parent.verticalCenter }
-                                    spacing: Theme.sp(10)
+                                    spacing: Theme.gap(10)
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
                                         text: "🗑"
@@ -388,7 +388,7 @@ Item {
 
         Layout.alignment: Qt.AlignVCenter
         Layout.preferredWidth: Theme.sp(54)
-        spacing: Theme.sp(1)
+        spacing: Theme.gap(1)
 
         Text {
             anchors.right: parent.right

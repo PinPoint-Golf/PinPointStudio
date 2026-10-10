@@ -62,7 +62,7 @@ Item {
 
     Column {
         anchors.centerIn: parent
-        spacing: Theme.sp(12)
+        spacing: Theme.gap(12)
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
@@ -78,7 +78,7 @@ Item {
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text:               qsTr("COMING SOON")
+            text:               Theme.caps(qsTr("Coming soon"))
             font.family:        Theme.fontData
             font.pixelSize:     Theme.fontSzMicro
             font.letterSpacing: Theme.trackingMicro

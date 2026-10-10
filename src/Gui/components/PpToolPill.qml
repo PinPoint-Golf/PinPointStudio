@@ -38,7 +38,7 @@ Rectangle {
     // Generalized for MotionPill (Phase 4): icon glyph + micro label above
     // the value line, defaulting to the original View pill's values.
     property string glyph:      "▦"
-    property string microLabel: qsTr("VIEW")
+    property string microLabel: Theme.caps(qsTr("View"))
     // Optional corner dot on the glyph tile (ClubPill uses it as the taped-club
     // marker). Off by default so View/Motion pills are unaffected.
     property bool   badge:      false
@@ -73,8 +73,8 @@ Rectangle {
 
     RowLayout {
         id: vpRow
-        anchors { fill: parent; leftMargin: Theme.sp(11); rightMargin: Theme.sp(11) }
-        spacing: Theme.sp(11)
+        anchors { fill: parent; leftMargin: Theme.gap(11); rightMargin: Theme.gap(11) }
+        spacing: Theme.gap(11)
         Item {
             Layout.preferredWidth: Theme.sp(34); Layout.preferredHeight: Theme.sp(34)
             Layout.alignment: Qt.AlignVCenter
@@ -96,14 +96,14 @@ Rectangle {
             }
         }
         Column {
-            Layout.alignment: Qt.AlignVCenter; spacing: Theme.sp(2)
+            Layout.alignment: Qt.AlignVCenter; spacing: Theme.gap(2)
             Text {
                 text: microLabel; font.family: Theme.fontData
                 font.pixelSize: Theme.fontSzMicro; font.letterSpacing: Theme.trackingMicro
                 color: Theme.colorText3
             }
             Row {
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 Text {
                     text: label
                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2

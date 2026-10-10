@@ -38,8 +38,8 @@ Item {
     property string    title:   ""
     property string    aside:   ""
     property Component heading: null
-    property int       pad:     Theme.sp(14)
-    property int       bodyGap: Theme.sp(10)
+    property int       pad:     Theme.gap(14)
+    property int       bodyGap: Theme.gap(10)
     default property alias content: body.data
     readonly property int innerWidth: width - 2 * card.pad
 
@@ -60,14 +60,14 @@ Item {
         PpMicro {
             id: cardTitle
             visible: card.heading === null
-            width: Math.max(0, headRow.width - (cardAside.visible ? cardAside.width + Theme.sp(12) : 0))
+            width: Math.max(0, headRow.width - (cardAside.visible ? cardAside.width + Theme.gap(12) : 0))
             elide: Text.ElideRight
             text:  card.title
             color: card.tone
         }
         Loader {
             id: headingLoader
-            width: headRow.width - (cardAside.visible ? cardAside.width + Theme.sp(12) : 0)
+            width: headRow.width - (cardAside.visible ? cardAside.width + Theme.gap(12) : 0)
             sourceComponent: card.heading
         }
         // Top-aligned rather than on a baseline: a heading component has none to offer, and the

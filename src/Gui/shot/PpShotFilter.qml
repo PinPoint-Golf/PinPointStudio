@@ -88,14 +88,14 @@ Item {
     Column {
         id: content
         anchors { left: parent.left; right: parent.right; top: parent.top
-                  leftMargin: Theme.sp(14); rightMargin: Theme.sp(14); topMargin: Theme.sp(13) }
+                  leftMargin: Theme.gap(14); rightMargin: Theme.gap(14); topMargin: Theme.gap(13) }
 
         Item {   // header: FILTER · Clear all
             width: parent.width; height: clearText.implicitHeight
             PpMicro {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("FILTER")
+                text: Theme.caps(qsTr("Filter"))
             }
             PpLink {
                 id: clearText
@@ -109,13 +109,13 @@ Item {
 
         Item { width: 1; height: Theme.sp(13) }
 
-        PpMicro { text: qsTr("QUALITY") }
+        PpMicro { text: Theme.caps(qsTr("Quality")) }
 
         Item { width: 1; height: Theme.sp(7) }
 
         Row {   // traffic-light band chips — exact band select, tap again to clear
             width: parent.width
-            spacing: Theme.sp(6)
+            spacing: Theme.gap(6)
 
             Repeater {
                 model: Theme.qualityBands
@@ -167,7 +167,7 @@ Item {
 
         Item { width: 1; height: Theme.sp(13) }
 
-        PpMicro { text: qsTr("RATING") }
+        PpMicro { text: Theme.caps(qsTr("Rating")) }
 
         Item { width: 1; height: Theme.sp(7) }
 
@@ -180,7 +180,7 @@ Item {
                 interactive: true
                 value:       root.proxy.ratingFilter
                 starSize:    Theme.sp(19)
-                spacing:     Theme.sp(4)
+                spacing:     Theme.gap(4)
                 onRated: (n) => root.proxy.ratingFilter = n
             }
             PpMicro {
@@ -257,7 +257,7 @@ Item {
 
         PpMicro {
             visible: root.showShots
-            text:    qsTr("SHOTS")
+            text:    Theme.caps(qsTr("Shots"))
         }
 
         Item { width: 1; height: Theme.sp(7); visible: root.showShots }
@@ -338,7 +338,7 @@ Item {
 
                         Row {   // the band's mark, then the ordinal, centred as one
                             anchors.centerIn: parent
-                            spacing: Theme.sp(3)
+                            spacing: Theme.gap(3)
                             PpBadge {
                                 anchors.verticalCenter: parent.verticalCenter
                                 kind: Theme.qualityMark(cell.score)
@@ -363,7 +363,7 @@ Item {
                             objectName:     "shotPickerWarn"
                             visible:        cell.dataWarning
                             anchors { right: parent.right; top: parent.top
-                                      rightMargin: Theme.sp(2); topMargin: -Theme.sp(1) }
+                                      rightMargin: Theme.gap(2); topMargin: -Theme.sp(1) }
                             text:           "⚠"
                             font.family:    Theme.fontSymbol
                             font.pixelSize: Theme.sp(9)
@@ -405,7 +405,7 @@ Item {
 
             Text {
                 anchors { left: parent.left; right: scoreText.left
-                          rightMargin: Theme.sp(8); verticalCenter: parent.verticalCenter }
+                          rightMargin: Theme.gap(8); verticalCenter: parent.verticalCenter }
                 elide: Text.ElideRight
                 text: {
                     const c = root._hoverChip
@@ -429,7 +429,7 @@ Item {
                 id: scoreText
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                 visible: readout._score >= 0
-                spacing: Theme.sp(4)
+                spacing: Theme.gap(4)
                 PpBadge {
                     anchors.verticalCenter: parent.verticalCenter
                     kind: Theme.qualityMark(readout._score)

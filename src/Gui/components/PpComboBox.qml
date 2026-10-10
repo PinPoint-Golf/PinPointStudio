@@ -52,8 +52,8 @@ ComboBox {
     font.weight:    Theme.fontBodyWeight
 
     contentItem: Text {
-        leftPadding:       Theme.sp(10)
-        rightPadding:      Theme.sp(26)   // clear the chevron
+        leftPadding:       Theme.gap(10)
+        rightPadding:      Theme.gap(26)   // clear the chevron
         text:              (root.displayFn ? root.displayFn(root.displayText) : root.displayText) + root.displaySuffix
         font:              root.font
         color:             root.enabled ? Theme.colorText : Theme.colorText3
@@ -115,8 +115,8 @@ ComboBox {
         highlighted:    root.highlightedIndex === index
 
         contentItem: Text {
-            leftPadding:       Theme.sp(10)
-            rightPadding:      Theme.sp(10)
+            leftPadding:       Theme.gap(10)
+            rightPadding:      Theme.gap(10)
             text:              (root.displayFn ? root.displayFn(itemDelegate.modelData) : itemDelegate.modelData) + root.displaySuffix
             font.family:       Theme.fontBody
             font.pixelSize:    root.font.pixelSize

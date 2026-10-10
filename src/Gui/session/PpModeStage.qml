@@ -73,22 +73,24 @@ Item {
     // board, the table, markup) get the quiet card so the frame never competes with what is
     // in it. A role rather than the colour itself, because a colour here would rebuild this
     // list — and so every panel on the stage — on a theme change.
+    // Theme.caps on the titles is the exception that is allowed: it changes only when the
+    // aesthetic moves into or out of one that sets headings in capitals, not on every theme.
     readonly property var _defs: [
-        { key: "sessionDiagnostics", label: qsTr("Session diagnostics"), title: qsTr("SESSION DIAGNOSTICS"),
+        { key: "sessionDiagnostics", label: qsTr("Session diagnostics"), title: Theme.caps(qsTr("Session diagnostics")),
           tone: "warn",  comp: sessionDiagnosticsDelegate },
-        { key: "camera",        label: qsTr("Camera"),                title: qsTr("CAMERA"),
+        { key: "camera",        label: qsTr("Camera"),                title: Theme.caps(qsTr("Camera")),
           tone: "quiet", comp: cameraDelegate },
-        { key: "swing3d",       label: qsTr("3-D swing"),             title: qsTr("3-D SWING"),
+        { key: "swing3d",       label: qsTr("3-D swing"),             title: Theme.caps(qsTr("3-D swing")),
           tone: "quiet", comp: swing3dDelegate },
-        { key: "launchMonitor", label: qsTr("Launch monitor"),        title: qsTr("LAUNCH MONITOR"),
+        { key: "launchMonitor", label: qsTr("Launch monitor"),        title: Theme.caps(qsTr("Launch monitor")),
           tone: "quiet", comp: launchMonitorDelegate },
-        { key: "wristMotion",   label: qsTr("Wrist motion analysis"), title: qsTr("WRIST MOTION"),
+        { key: "wristMotion",   label: qsTr("Wrist motion analysis"), title: Theme.caps(qsTr("Wrist motion")),
           tone: "warn",  comp: wristMotionDelegate },
-        { key: "charts",        label: qsTr("Charts"),                title: qsTr("CHARTS"),
+        { key: "charts",        label: qsTr("Charts"),                title: Theme.caps(qsTr("Charts")),
           tone: "quiet", comp: chartsDelegate },
-        { key: "table",         label: qsTr("Table"),                 title: qsTr("TABLE"),
+        { key: "table",         label: qsTr("Table"),                 title: Theme.caps(qsTr("Table")),
           tone: "quiet", comp: tableDelegate },
-        { key: "markup",        label: qsTr("Markup"),                title: qsTr("MARKUP"),
+        { key: "markup",        label: qsTr("Markup"),                title: Theme.caps(qsTr("Markup")),
           tone: "quiet", comp: markupDelegate }
     ]
     function _toneFor(role) { return role === "warn" ? Theme.colorWarn : Theme.colorText3 }
@@ -141,7 +143,7 @@ Item {
 
     // ── SPLIT — even row ─────────────────────────────────────────────────────
     RowLayout {
-        anchors.fill: parent; anchors.margins: Theme.sp(10)
+        anchors.fill: parent; anchors.margins: Theme.gap(10)
         spacing: stage._gap
         visible: stage.arrangement === "split" && stage.active.length > 0
         Repeater {
@@ -157,7 +159,7 @@ Item {
 
     // ── STAGE — first panel dominant, rest in a side column ──────────────────
     RowLayout {
-        anchors.fill: parent; anchors.margins: Theme.sp(10)
+        anchors.fill: parent; anchors.margins: Theme.gap(10)
         spacing: stage._gap
         visible: stage.arrangement === "stage" && stage.active.length > 0
         PanelCard {
@@ -186,7 +188,7 @@ Item {
 
     // ── TABS — one card, its heading the tab strip ───────────────────────────
     PanelCard {
-        anchors.fill: parent; anchors.margins: Theme.sp(10)
+        anchors.fill: parent; anchors.margins: Theme.gap(10)
         visible: stage._tabDef !== null
         def: stage._tabDef
         placeholder: placeholderComp
@@ -199,7 +201,7 @@ Item {
     Component {
         id: tabStrip
         Row {
-            spacing: Theme.sp(20)
+            spacing: Theme.gap(20)
             Repeater {
                 model: stage.active
                 delegate: Item {

@@ -36,7 +36,7 @@ Row {
 
     signal rated(int newValue)
 
-    spacing: Theme.sp(2)
+    spacing: Theme.gap(2)
 
     Repeater {
         model: root.max

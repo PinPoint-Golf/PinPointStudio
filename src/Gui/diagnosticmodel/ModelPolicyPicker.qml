@@ -52,13 +52,13 @@ Popup {
         spacing: 0
 
         Text {
-            Layout.margins:      Theme.sp(14)
-            Layout.bottomMargin: Theme.sp(4)
+            Layout.margins:      Theme.gap(14)
+            Layout.bottomMargin: Theme.gap(4)
             text:                qsTr("How it grades")
             font.family:         Theme.fontBody
             font.pixelSize:      Theme.fontSzMicro
             font.letterSpacing:  Theme.trackingMicro
-            font.capitalization: Font.AllUppercase
+            font.capitalization: Theme.capsFont
             color:               Theme.colorText3
         }
 
@@ -85,8 +85,8 @@ Popup {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.leftMargin:  Theme.sp(14)
-                    anchors.rightMargin: Theme.sp(14)
+                    anchors.leftMargin:  Theme.gap(14)
+                    anchors.rightMargin: Theme.gap(14)
                     spacing: 0
 
                     Text {

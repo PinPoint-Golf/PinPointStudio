@@ -54,7 +54,7 @@ Column {
     }
 
     // Flush with the card's other sections: no side padding of its own.
-    topPadding: Theme.sp(4); bottomPadding: Theme.sp(10); spacing: Theme.sp(6)
+    topPadding: Theme.gap(4); bottomPadding: Theme.gap(10); spacing: Theme.gap(6)
 
     // A low-confidence cell: amber, and shorter than a present one.
     readonly property color lowConfColor: Qt.alpha(Theme.colorAttention, 0.55)
@@ -75,18 +75,18 @@ Column {
     }
 
     Row {  // legend
-        spacing: Theme.sp(14)
+        spacing: Theme.gap(14)
         PpMicro { visible: strip.showTitle
-                  text: qsTr("COVERAGE"); anchors.verticalCenter: parent.verticalCenter }
+                  text: Theme.caps(qsTr("Coverage")); anchors.verticalCenter: parent.verticalCenter }
         Row {
-            spacing: Theme.sp(5); anchors.verticalCenter: parent.verticalCenter
+            spacing: Theme.gap(5); anchors.verticalCenter: parent.verticalCenter
             Rectangle { width: Theme.sp(10); height: Theme.sp(8); radius: 2; color: Theme.colorText2
                         anchors.verticalCenter: parent.verticalCenter; opacity: 0.7 }
             Text { text: qsTr("present"); font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
                    color: Theme.colorText3; anchors.verticalCenter: parent.verticalCenter }
         }
         Row {
-            spacing: Theme.sp(5); anchors.verticalCenter: parent.verticalCenter
+            spacing: Theme.gap(5); anchors.verticalCenter: parent.verticalCenter
             Item {
                 width: Theme.sp(10); height: Theme.sp(8)
                 anchors.verticalCenter: parent.verticalCenter
@@ -98,7 +98,7 @@ Column {
                    color: Theme.colorText3; anchors.verticalCenter: parent.verticalCenter }
         }
         Row {
-            spacing: Theme.sp(5); anchors.verticalCenter: parent.verticalCenter
+            spacing: Theme.gap(5); anchors.verticalCenter: parent.verticalCenter
             Rectangle { width: Theme.sp(10); height: Theme.sp(8); radius: 2; color: Theme.colorBg
                         border.width: 1; border.color: Theme.colorBorderMid
                         anchors.verticalCenter: parent.verticalCenter }
@@ -114,11 +114,11 @@ Column {
             required property string colorKey
             required property var    bins      // list<int>
             width: strip.width
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
             Row {
                 width: strip.labelW
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: Theme.sp(5)
+                spacing: Theme.gap(5)
                 Text {
                     text: strip.kindGlyph(strip.kindOf(label))
                     color: strip.colorFn(colorKey)

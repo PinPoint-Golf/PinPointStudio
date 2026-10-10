@@ -57,11 +57,11 @@ Item {
     function _srcName(s) {
         switch (s) {
         case "imu":    return qsTr("IMU")
-        case "camera": return qsTr("CAM")
-        case "club":   return qsTr("CLUB")
-        case "ball":   return qsTr("BALL")
+        case "camera": return Theme.caps(qsTr("Cam"))
+        case "club":   return Theme.caps(qsTr("Club"))
+        case "ball":   return Theme.caps(qsTr("Ball"))
         }
-        return (s || "").toUpperCase()
+        return Theme.caps(s || "")
     }
 
     implicitHeight: Theme.sp(50)
@@ -76,18 +76,18 @@ Item {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin:  Theme.sp(10)
-        anchors.rightMargin: Theme.sp(12)
-        spacing: Theme.sp(10)
+        anchors.leftMargin:  Theme.gap(10)
+        anchors.rightMargin: Theme.gap(12)
+        spacing: Theme.gap(10)
 
         // ── Label + secondary line ──────────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: Theme.sp(3)
+            spacing: Theme.gap(3)
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(7)
+                spacing: Theme.gap(7)
 
                 // Scored marker — metrics that feed a session score.
                 Rectangle {
@@ -121,7 +121,7 @@ Item {
                     Text {
                         id: plannedLbl
                         anchors.centerIn: parent
-                        text: qsTr("PLANNED")
+                        text: Theme.caps(qsTr("Planned"))
                         font.family:        Theme.fontData
                         font.pixelSize:     Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -132,7 +132,7 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(7)
+                spacing: Theme.gap(7)
 
                 // Type pill — filled, muted.
                 Rectangle {
@@ -167,7 +167,7 @@ Item {
         // ── Source glyphs ───────────────────────────────────────────────────
         Row {
             Layout.alignment: Qt.AlignVCenter
-            spacing: Theme.sp(4)
+            spacing: Theme.gap(4)
 
             Repeater {
                 model: root._sources

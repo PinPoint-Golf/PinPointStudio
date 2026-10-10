@@ -72,7 +72,7 @@ Rectangle {
     Row {
         id: btnContent
         anchors.centerIn: parent
-        spacing: Theme.sp(7)
+        spacing: Theme.gap(7)
 
         Loader {
             visible:  root.icon !== null

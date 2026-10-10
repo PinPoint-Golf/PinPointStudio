@@ -31,9 +31,9 @@ Column {
     property color  tone: Theme.gradientCool
     readonly property int bars: tier === "firm" ? 3 : tier === "probably" ? 2 : 1
 
-    spacing: Theme.sp(6)
+    spacing: Theme.gap(6)
     Row {
-        spacing: Theme.sp(3)
+        spacing: Theme.gap(3)
         Repeater {
             model: 3
             Item {
@@ -50,8 +50,8 @@ Column {
         }
     }
     PpMicro {
-        text: strength.tier === "firm" ? qsTr("CLEAR")
-            : strength.tier === "probably" ? qsTr("LIKELY") : qsTr("POSSIBLE")
+        text: strength.tier === "firm" ? Theme.caps(qsTr("Clear"))
+            : strength.tier === "probably" ? Theme.caps(qsTr("Likely")) : Theme.caps(qsTr("Possible"))
         color: Theme.colorText2
         font.letterSpacing: Theme.trackingData
     }

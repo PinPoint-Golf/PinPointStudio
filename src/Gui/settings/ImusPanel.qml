@@ -167,9 +167,9 @@ Item {
             anchors.top:     parent.top
             anchors.left:    parent.left
             anchors.right:   parent.right
-            anchors.margins: Theme.sp(14)
+            anchors.margins: Theme.gap(14)
             height:   Theme.sp(54)
-            spacing:  Theme.sp(10)
+            spacing:  Theme.gap(10)
 
             // Status dot
             Rectangle {
@@ -186,7 +186,7 @@ Item {
             // Alias (editable) + meta
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(2)
+                spacing: Theme.gap(2)
 
                 PpTextField {
                     Layout.fillWidth: true
@@ -196,7 +196,7 @@ Item {
                 }
 
                 Row {
-                    spacing: Theme.sp(10)
+                    spacing: Theme.gap(10)
                     Text { text: imuData.description || "";    font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }
                     Text { text: imuData.transport || "";      font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }
                     Text { text: imuData.id || "";             font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }
@@ -206,7 +206,7 @@ Item {
 
             // Enable toggle
             Row {
-                spacing: Theme.sp(6)
+                spacing: Theme.gap(6)
                 Layout.alignment: Qt.AlignVCenter
 
                 Text {
@@ -247,9 +247,9 @@ Item {
                     left:        parent.left
                     right:       parent.right
                     top:         parent.top
-                    leftMargin:  Theme.sp(14)
-                    rightMargin: Theme.sp(14)
-                    topMargin:   Theme.sp(4)
+                    leftMargin:  Theme.gap(14)
+                    rightMargin: Theme.gap(14)
+                    topMargin:   Theme.gap(4)
                 }
                 text:        qsTr("Excluded — will not be connected at session start.")
                 font.family: Theme.fontData
@@ -280,23 +280,23 @@ Item {
                 // Config chips row
                 RowLayout {
                     Layout.fillWidth:    true
-                    Layout.leftMargin:   Theme.sp(14)
-                    Layout.rightMargin:  Theme.sp(14)
-                    Layout.topMargin:    Theme.sp(4)
-                    Layout.bottomMargin: Theme.sp(12)
-                    spacing: Theme.sp(16)
+                    Layout.leftMargin:   Theme.gap(14)
+                    Layout.rightMargin:  Theme.gap(14)
+                    Layout.topMargin:    Theme.gap(4)
+                    Layout.bottomMargin: Theme.gap(12)
+                    spacing: Theme.gap(16)
 
                     // ── Placement selector ───────────────────────────────────
                     ColumnLayout {
-                        spacing: Theme.sp(4)
+                        spacing: Theme.gap(4)
                         Layout.alignment: Qt.AlignTop
 
                         Text {
-                            text:                qsTr("PLACEMENT")
+                            text:                qsTr("Placement")
                             font.family:         Theme.fontData
                             font.pixelSize:      Theme.fontSzMicro
                             font.letterSpacing:  Theme.trackingMicro
-                            font.capitalization: Font.AllUppercase
+                            font.capitalization: Theme.capsFont
                             color:               Theme.colorText3
                         }
 
@@ -465,21 +465,21 @@ Item {
                     // driven by inst.dataRateHz).
                     ColumnLayout {
                         visible: !imuRow.isHackMotion
-                        spacing: Theme.sp(4)
+                        spacing: Theme.gap(4)
                         Layout.alignment: Qt.AlignTop
 
                         Text {
-                            text:                qsTr("OUTPUT RATE")
+                            text:                qsTr("Output rate")
                             font.family:         Theme.fontData
                             font.pixelSize:      Theme.fontSzMicro
                             font.letterSpacing:  Theme.trackingMicro
-                            font.capitalization: Font.AllUppercase
+                            font.capitalization: Theme.capsFont
                             color:               Theme.colorText3
                         }
 
                         Row {
                             id: rateChipRow
-                            spacing: Theme.sp(4)
+                            spacing: Theme.gap(4)
 
                             readonly property var rateOptions: {
                                 var rates = imuData.supportedRatesHz
@@ -549,15 +549,15 @@ Item {
                     // the live-test readout shows once the test panel is open.
                     ColumnLayout {
                         visible: imuRow.isHackMotion
-                        spacing: Theme.sp(4)
+                        spacing: Theme.gap(4)
                         Layout.alignment: Qt.AlignTop
 
                         Text {
-                            text:                qsTr("OUTPUT RATE")
+                            text:                qsTr("Output rate")
                             font.family:         Theme.fontData
                             font.pixelSize:      Theme.fontSzMicro
                             font.letterSpacing:  Theme.trackingMicro
-                            font.capitalization: Font.AllUppercase
+                            font.capitalization: Theme.capsFont
                             color:               Theme.colorText3
                         }
 
@@ -651,18 +651,18 @@ Item {
                                     left:   parent.left
                                     right:  parent.right
                                     top:    parent.top
-                                    leftMargin:  Theme.sp(14)
-                                    rightMargin: Theme.sp(14)
-                                    topMargin:   Theme.sp(9)
+                                    leftMargin:  Theme.gap(14)
+                                    rightMargin: Theme.gap(14)
+                                    topMargin:   Theme.gap(9)
                                 }
-                                spacing: Theme.sp(3)
+                                spacing: Theme.gap(3)
 
                                 Text {
                                     text:                modelData.key
                                     font.family:         Theme.fontData
                                     font.pixelSize:      Theme.fontSzMicro
                                     font.letterSpacing:  Theme.trackingMicro
-                                    font.capitalization: Font.AllUppercase
+                                    font.capitalization: Theme.capsFont
                                     color:               Theme.colorText3
                                 }
                                 Text {
@@ -714,11 +714,11 @@ Item {
                 // ── Panel header ──────────────────────────────────────────────
                 RowLayout {
                     Layout.fillWidth:    true
-                    Layout.leftMargin:   Theme.sp(14)
-                    Layout.rightMargin:  Theme.sp(14)
-                    Layout.topMargin:    Theme.sp(12)
-                    Layout.bottomMargin: Theme.sp(12)
-                    spacing: Theme.sp(8)
+                    Layout.leftMargin:   Theme.gap(14)
+                    Layout.rightMargin:  Theme.gap(14)
+                    Layout.topMargin:    Theme.gap(12)
+                    Layout.bottomMargin: Theme.gap(12)
+                    spacing: Theme.gap(8)
 
                     Text {
                         // The mount by name (imuRow.mountLabel — a wG3's pair reads
@@ -730,7 +730,7 @@ Item {
                         font.family:         Theme.fontData
                         font.pixelSize:      Theme.fontSzMicro
                         font.letterSpacing:  Theme.trackingMicro
-                        font.capitalization: Font.AllUppercase
+                        font.capitalization: Theme.capsFont
                         color:               Theme.colorText3
                         Layout.fillWidth:    true
                     }
@@ -824,10 +824,10 @@ Item {
                 // ── Body — viz left, live data right ─────────────────────────
                 RowLayout {
                     Layout.fillWidth:    true
-                    Layout.leftMargin:   Theme.sp(14)
-                    Layout.rightMargin:  Theme.sp(14)
-                    Layout.bottomMargin: Theme.sp(24)
-                    spacing: Theme.sp(16)
+                    Layout.leftMargin:   Theme.gap(14)
+                    Layout.rightMargin:  Theme.gap(14)
+                    Layout.bottomMargin: Theme.gap(24)
+                    spacing: Theme.gap(16)
 
                     // ImuVizView — loaded only when test panel is open to avoid
                     // creating GPU contexts for every row at startup.
@@ -889,7 +889,7 @@ Item {
                     // once per HmUnit, side by side.
                     Row {
                         visible: imuRow.isHackMotion
-                        spacing: Theme.sp(10)
+                        spacing: Theme.gap(10)
                         Layout.alignment: Qt.AlignTop
 
                         Repeater {
@@ -900,14 +900,14 @@ Item {
 
                             delegate: ColumnLayout {
                                 required property var modelData
-                                spacing: Theme.sp(4)
+                                spacing: Theme.gap(4)
 
                                 Text {
                                     text:                modelData.label
                                     font.family:         Theme.fontData
                                     font.pixelSize:      Theme.fontSzMicro
                                     font.letterSpacing:  Theme.trackingMicro
-                                    font.capitalization: Font.AllUppercase
+                                    font.capitalization: Theme.capsFont
                                     color:               Theme.colorText3
                                 }
 
@@ -955,12 +955,12 @@ Item {
                     ColumnLayout {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignTop
-                        spacing: Theme.sp(12)
+                        spacing: Theme.gap(12)
 
                         // Connection status + battery
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: Theme.sp(8)
+                            spacing: Theme.gap(8)
 
                             // Status dot
                             Rectangle {
@@ -995,7 +995,7 @@ Item {
                                 visible: imuRow.isConnected
                                          && imuRow.inst !== null
                                          && imuRow.inst.batteryPercent >= 0
-                                spacing: Theme.sp(4)
+                                spacing: Theme.gap(4)
 
                                 Text {
                                     text:           qsTr("BAT")
@@ -1050,10 +1050,10 @@ Item {
                             visible: imuRow.isConnected && imuRow.inst !== null
                                      && !imuRow.isHackMotion
                                      && imuRow.inst.gimbalDropCount > 0
-                            spacing: Theme.sp(6)
+                            spacing: Theme.gap(6)
 
                             Text {
-                                text:           qsTr("GIMBAL DROPS")
+                                text:           Theme.caps(qsTr("Gimbal drops"))
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
                                 color:          Theme.colorText3
@@ -1084,21 +1084,21 @@ Item {
                         ColumnLayout {
                             visible: !imuRow.isHackMotion
                             Layout.fillWidth:    true
-                            Layout.bottomMargin: Theme.sp(8)
-                            spacing: Theme.sp(4)
+                            Layout.bottomMargin: Theme.gap(8)
+                            spacing: Theme.gap(4)
 
                             Text {
-                                text:                qsTr("QUATERNION")
+                                text:                qsTr("Quaternion")
                                 font.family:         Theme.fontData
                                 font.pixelSize:      Theme.fontSzMicro
                                 font.letterSpacing:  Theme.trackingMicro
-                                font.capitalization: Font.AllUppercase
+                                font.capitalization: Theme.capsFont
                                 color:               Theme.colorText3
                             }
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                spacing: Theme.sp(6)
+                                spacing: Theme.gap(6)
 
                                 Repeater {
                                     // ⚠ 0 rather than 4 for a HackMotion. The
@@ -1123,18 +1123,18 @@ Item {
 
                                         ColumnLayout {
                                             anchors.fill:          parent
-                                            anchors.topMargin:     Theme.sp(8)
-                                            anchors.bottomMargin:  Theme.sp(12)
-                                            anchors.leftMargin:    Theme.sp(8)
-                                            anchors.rightMargin:   Theme.sp(8)
-                                            spacing: Theme.sp(2)
+                                            anchors.topMargin:     Theme.gap(8)
+                                            anchors.bottomMargin:  Theme.gap(12)
+                                            anchors.leftMargin:    Theme.gap(8)
+                                            anchors.rightMargin:   Theme.gap(8)
+                                            spacing: Theme.gap(2)
 
                                             Text {
                                                 text: ["W", "X", "Y", "Z"][index]
                                                 font.family:         Theme.fontData
                                                 font.pixelSize:      Theme.fontSzMicro
                                                 font.letterSpacing:  Theme.trackingMicro
-                                                font.capitalization: Font.AllUppercase
+                                                font.capitalization: Theme.capsFont
                                                 color:               Theme.colorText3
                                             }
                                             Text {
@@ -1159,8 +1159,8 @@ Item {
                         ColumnLayout {
                             visible: imuRow.isHackMotion
                             Layout.fillWidth:    true
-                            Layout.bottomMargin: Theme.sp(8)
-                            spacing: Theme.sp(8)
+                            Layout.bottomMargin: Theme.gap(8)
+                            spacing: Theme.gap(8)
 
                             Repeater {
                                 model: imuRow.isHackMotion && imuRow.inst
@@ -1171,20 +1171,20 @@ Item {
                                 delegate: ColumnLayout {
                                     required property var modelData
                                     Layout.fillWidth: true
-                                    spacing: Theme.sp(4)
+                                    spacing: Theme.gap(4)
 
                                     Text {
-                                        text:                qsTr("QUATERNION — ") + modelData.label
+                                        text:                qsTr("Quaternion — ") + modelData.label
                                         font.family:         Theme.fontData
                                         font.pixelSize:      Theme.fontSzMicro
                                         font.letterSpacing:  Theme.trackingMicro
-                                        font.capitalization: Font.AllUppercase
+                                        font.capitalization: Theme.capsFont
                                         color:               Theme.colorText3
                                     }
 
                                     RowLayout {
                                         Layout.fillWidth: true
-                                        spacing: Theme.sp(6)
+                                        spacing: Theme.gap(6)
 
                                         Repeater {
                                             model: 4
@@ -1201,18 +1201,18 @@ Item {
 
                                                 ColumnLayout {
                                                     anchors.fill:          parent
-                                                    anchors.topMargin:     Theme.sp(8)
-                                                    anchors.bottomMargin:  Theme.sp(12)
-                                                    anchors.leftMargin:    Theme.sp(8)
-                                                    anchors.rightMargin:   Theme.sp(8)
-                                                    spacing: Theme.sp(2)
+                                                    anchors.topMargin:     Theme.gap(8)
+                                                    anchors.bottomMargin:  Theme.gap(12)
+                                                    anchors.leftMargin:    Theme.gap(8)
+                                                    anchors.rightMargin:   Theme.gap(8)
+                                                    spacing: Theme.gap(2)
 
                                                     Text {
                                                         text: ["W", "X", "Y", "Z"][index]
                                                         font.family:         Theme.fontData
                                                         font.pixelSize:      Theme.fontSzMicro
                                                         font.letterSpacing:  Theme.trackingMicro
-                                                        font.capitalization: Font.AllUppercase
+                                                        font.capitalization: Theme.capsFont
                                                         color:               Theme.colorText3
                                                     }
                                                     Text {
@@ -1237,20 +1237,20 @@ Item {
                         // ── Calibration tools ─────────────────────────────────
                         ColumnLayout {
                             Layout.fillWidth: true
-                            spacing: Theme.sp(4)
+                            spacing: Theme.gap(4)
                             enabled: imuRow.isConnected && imuRow.inst !== null
 
                             Text {
-                                text:                qsTr("CALIBRATION")
+                                text:                qsTr("Calibration")
                                 font.family:         Theme.fontData
                                 font.pixelSize:      Theme.fontSzMicro
                                 font.letterSpacing:  Theme.trackingMicro
-                                font.capitalization: Font.AllUppercase
+                                font.capitalization: Theme.capsFont
                                 color:               Theme.colorText3
                             }
 
                             Row {
-                                spacing: Theme.sp(6)
+                                spacing: Theme.gap(6)
 
                                 // Zero orientation — Witmotion only. There is no
                                 // host-side zero on a HackMotion (imu_device.h);
@@ -1394,15 +1394,15 @@ Item {
             x:       Theme.sp(32)
             y:       Theme.sp(28)
             width:   parent.width - Theme.sp(64)
-            spacing: Theme.sp(16)
+            spacing: Theme.gap(16)
 
             // ── Page header ────────────────────────────────────────────────
             Text {
-                text:                qsTr("HARDWARE")
+                text:                qsTr("Hardware")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
 
@@ -1425,11 +1425,11 @@ Item {
                 Layout.fillWidth: true
 
                 Text {
-                    text:                qsTr("ENUMERATED DEVICES")
+                    text:                qsTr("Enumerated devices")
                     font.family:         Theme.fontBody
                     font.pixelSize:      Theme.fontSzMicro
                     font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color:               Theme.colorText3
                     Layout.fillWidth:    true
                 }
@@ -1489,8 +1489,8 @@ Item {
             // ── Device rows ────────────────────────────────────────────────
             ColumnLayout {
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.sp(26)
-                spacing: Theme.sp(8)
+                Layout.leftMargin: Theme.gap(26)
+                spacing: Theme.gap(8)
 
                 Repeater {
                     model: imuManager.imuDeviceList
@@ -1528,7 +1528,7 @@ Item {
             Rectangle {
                 id: summaryRect
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.sp(26)
+                Layout.leftMargin: Theme.gap(26)
                 height:  Theme.sp(40)
                 color:   Theme.colorBg2
                 radius:  Theme.radius
@@ -1558,8 +1558,8 @@ Item {
 
                 RowLayout {
                     anchors.fill:    parent
-                    anchors.margins: Theme.sp(12)
-                    spacing:         Theme.sp(16)
+                    anchors.margins: Theme.gap(12)
+                    spacing:         Theme.gap(16)
 
                     Text {
                         text:  summaryRect.connectedCount + qsTr(" of ") + summaryRect.enabledCount + qsTr(" connected")
@@ -1596,11 +1596,11 @@ Item {
 
             // ── Global IMU settings ────────────────────────────────────────
             Text {
-                text:                qsTr("GLOBAL IMU SETTINGS")
+                text:                qsTr("Global IMU settings")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
 
@@ -1608,13 +1608,13 @@ Item {
             RowLayout {
                 objectName: "setting_imuAutoConnect"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -1642,13 +1642,13 @@ Item {
             RowLayout {
                 objectName: "setting_imuAutoReconnect"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -1676,13 +1676,13 @@ Item {
             RowLayout {
                 objectName: "setting_hackmotionEnabled"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -1715,13 +1715,13 @@ Item {
             RowLayout {
                 objectName: "setting_imuFlash"
                 Layout.fillWidth: true
-                spacing: Theme.sp(16)
+                spacing: Theme.gap(16)
                 property bool searchHighlight: false
                 Rectangle { x: -Theme.sp(6); y: -Theme.sp(6); width: parent.width + Theme.sp(12); height: parent.height + Theme.sp(12); color: Theme.colorAccentLight; radius: Theme.radius; opacity: parent.searchHighlight ? 1.0 : 0.0; z: -1 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.sp(3)
+                    spacing: Theme.gap(3)
 
                     Text {
                         Layout.fillWidth: true
@@ -1749,21 +1749,21 @@ Item {
 
             // ── Orientation fusion (global) ────────────────────────────────
             Text {
-                text:                qsTr("ORIENTATION FUSION")
+                text:                qsTr("Orientation fusion")
                 font.family:         Theme.fontBody
                 font.pixelSize:      Theme.fontSzMicro
                 font.letterSpacing:  Theme.trackingMicro
-                font.capitalization: Font.AllUppercase
+                font.capitalization: Theme.capsFont
                 color:               Theme.colorText3
             }
 
             ColumnLayout {
                 Layout.fillWidth:  true
-                Layout.leftMargin: Theme.sp(26)
-                spacing:           Theme.sp(6)
+                Layout.leftMargin: Theme.gap(26)
+                spacing:           Theme.gap(6)
 
                 RowLayout {
-                    spacing: Theme.sp(8)
+                    spacing: Theme.gap(8)
 
                     Repeater {
                         model: [ { key: "Madgwick", label: qsTr("Madgwick Filter") },

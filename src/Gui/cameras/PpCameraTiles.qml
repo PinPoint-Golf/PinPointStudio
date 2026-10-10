@@ -108,7 +108,7 @@ Item {
     readonly property string cardAside:
         (root._replayArmed && root._replayStreams.length > 0
          && ViewLayout.elementMode(SessionMode.mode, "shaft") === "frame")
-        ? qsTr("P  ● FITTED  ○ SAMPLED") : ""
+        ? Theme.caps(qsTr("P  ● fitted  ○ sampled")) : ""
 
     // Chrome that floats over the footage (the picture-in-picture's halo and transport): the
     // overlay palette's dark ink, fixed across themes, under the palette's lightest words.
@@ -118,7 +118,7 @@ Item {
         id: tilesRow
         anchors.fill: parent
         anchors.leftMargin: root._leftGutter   // reserve the telestrator gutter
-        spacing: Theme.sp(8)
+        spacing: Theme.gap(8)
 
         // ── Live camera tiles (Capture only) ───────────────────────────────
         Repeater {
@@ -394,9 +394,9 @@ Item {
             Row {
                 id: pipBtns
                 anchors.left: parent.left
-                anchors.leftMargin: Theme.sp(4)
+                anchors.leftMargin: Theme.gap(4)
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: Theme.sp(2)
+                spacing: Theme.gap(2)
                 PipBtn { glyph: shotReplay.impactLoopPlaying ? "⏸" : "▶"; onActed: shotReplay.toggleImpactLoop() }
                 PipBtn { glyph: "◂"; onActed: shotReplay.stepImpactFrame(-1) }
                 PipBtn { glyph: "▸"; onActed: shotReplay.stepImpactFrame(1) }
@@ -407,8 +407,8 @@ Item {
                 id: pipTrack
                 anchors.left: pipBtns.right
                 anchors.right: parent.right
-                anchors.leftMargin: Theme.sp(8)
-                anchors.rightMargin: Theme.sp(10)
+                anchors.leftMargin: Theme.gap(8)
+                anchors.rightMargin: Theme.gap(10)
                 anchors.verticalCenter: parent.verticalCenter
                 height: parent.height
 
@@ -562,7 +562,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        spacing: Theme.sp(6)
+        spacing: Theme.gap(6)
         visible: (!root._replay && root._liveCameras.length === 0 && root._liveImpact === null)
                  || (root._replayHere && shotReplay.streams.length === 0)
         PpCardNote {
@@ -575,8 +575,8 @@ Item {
             width: parent.width
             elide: Text.ElideRight
             font.letterSpacing: Theme.trackingData
-            text: !root._replay ? qsTr("ENABLE CAMERAS IN THE TOOLBAR'S CAMERAS PANEL")
-                                : qsTr("PICK A SHOT FROM THE FILMSTRIP BELOW")
+            text: !root._replay ? Theme.caps(qsTr("Enable cameras in the toolbar's Cameras panel"))
+                                : Theme.caps(qsTr("Pick a shot from the filmstrip below"))
         }
     }
 
@@ -625,7 +625,7 @@ Item {
         x: Math.max(0, Math.min(root.width - width * fit,
                                 root._leftGutter + (tilesEnd.x - tilesRow.spacing - width) / 2))
         anchors.top: parent.top
-        anchors.topMargin: Theme.sp(8)
+        anchors.topMargin: Theme.gap(8)
         z: 50
         visible: root._annotate && AnnotationTool.paletteOpen
         opacity: visible ? 1 : 0

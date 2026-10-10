@@ -74,11 +74,13 @@ Item {
     readonly property bool _neutral: kind === "reference" || kind === "bracket"
     readonly property bool _dashed:  kind === "club" || kind === "reference"
     // The two neutral alphas the brief specifies: a reference is readable, a ruler
-    // recedes behind the thing it measures.
-    readonly property color _color: _neutral
-        ? Qt.rgba(Theme.colorText.r, Theme.colorText.g, Theme.colorText.b,
-                  kind === "bracket" ? 0.18 : 0.22)
-        : hue
+    // recedes behind the thing it measures. A reference is the drawing's zero line — the
+    // target line, the ground — so it is the chart baseline and takes the theme's.
+    readonly property color _refColor: Theme.baselineColor(Theme.colorText)
+    readonly property color _color: !_neutral ? hue
+        : kind === "bracket"
+        ? Qt.rgba(Theme.colorText.r, Theme.colorText.g, Theme.colorText.b, 0.18)
+        : Qt.rgba(_refColor.r, _refColor.g, _refColor.b, Theme.baselineOpacity(0.22))
 
     width: Math.max(1, len * s)
     height: Math.max(1, thickness * s)

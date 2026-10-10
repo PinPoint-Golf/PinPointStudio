@@ -49,17 +49,17 @@ Item {
 
     Column {
         id: col
-        anchors { fill: parent; margins: Theme.sp(13) }
-        spacing: Theme.sp(12)
+        anchors { fill: parent; margins: Theme.gap(13) }
+        spacing: Theme.gap(12)
 
         // ── ARRANGEMENT ─────────────────────────────────────────────────────
         Column {
             width: parent.width
-            spacing: Theme.sp(9)
-            PpMicro { text: qsTr("ARRANGEMENT") }
+            spacing: Theme.gap(9)
+            PpMicro { text: Theme.caps(qsTr("Arrangement")) }
             Row {
                 width: parent.width
-                spacing: Theme.sp(7)
+                spacing: Theme.gap(7)
                 readonly property real cardW: (width - 2 * Theme.sp(7)) / 3
                 ArrangeCard { value: "tabs";  label: qsTr("Tabs");  width: parent.cardW }
                 ArrangeCard { value: "split"; label: qsTr("Split"); width: parent.cardW }
@@ -74,11 +74,11 @@ Item {
         // (not per-mode, unlike arrangement/panels above).
         Column {
             width: parent.width
-            spacing: Theme.sp(9)
-            PpMicro { text: qsTr("TIMELINE") }
+            spacing: Theme.gap(9)
+            PpMicro { text: Theme.caps(qsTr("Timeline")) }
             Row {
                 width: parent.width
-                spacing: Theme.sp(7)
+                spacing: Theme.gap(7)
                 readonly property real cardW: (width - Theme.sp(7)) / 2
                 OrientCard { value: "horizontal"; label: qsTr("Horizontal"); horizontalGlyph: true;  width: parent.cardW }
                 OrientCard { value: "vertical";   label: qsTr("Vertical");   horizontalGlyph: false; width: parent.cardW }
@@ -109,8 +109,8 @@ Item {
         // to post-capture playback AND replaying a selected past swing.
         Column {
             width: parent.width
-            spacing: Theme.sp(9)
-            PpMicro { text: qsTr("REPLAY") }
+            spacing: Theme.gap(9)
+            PpMicro { text: Theme.caps(qsTr("Replay")) }
             Item {
                 width: parent.width
                 height: Theme.sp(20)
@@ -167,13 +167,13 @@ Item {
         // ── PANELS ──────────────────────────────────────────────────────────
         Column {
             width: parent.width
-            spacing: Theme.sp(9)
-            PpMicro { text: qsTr("PANELS") }
+            spacing: Theme.gap(9)
+            PpMicro { text: Theme.caps(qsTr("Panels")) }
             Grid {
                 width: parent.width
                 columns: 2
-                columnSpacing: Theme.sp(14)
-                rowSpacing: Theme.sp(9)
+                columnSpacing: Theme.gap(14)
+                rowSpacing: Theme.gap(9)
                 Repeater {
                     model: root.panelMeta
                     delegate: Item {
@@ -229,7 +229,7 @@ Item {
 
         Column {
             anchors.centerIn: parent
-            spacing: Theme.sp(5)
+            spacing: Theme.gap(5)
             // schematic glyph — two/one/dominant rects
             Row {
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -285,7 +285,7 @@ Item {
 
         Column {
             anchors.centerIn: parent
-            spacing: Theme.sp(5)
+            spacing: Theme.gap(5)
             Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Theme.sp(20); height: Theme.sp(14)

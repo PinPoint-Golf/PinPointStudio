@@ -148,7 +148,7 @@ Item {
             right: parent.right; rightMargin: root.padX
         }
         height: root.titleH
-        spacing: Theme.sp(8)
+        spacing: Theme.gap(8)
 
         // A SUB-HEADING OF THE STAGE CARD, in the coaching card's Micro: the card's own title
         // (LAUNCH MONITOR) is the heading, and a schematic inside it is a section of it, as
@@ -160,7 +160,7 @@ Item {
         // chrome does not carry data.
         PpMicro {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.title.toUpperCase()
+            text: Theme.caps(root.title)
             color: Theme.colorText2
         }
         Text {
@@ -186,7 +186,7 @@ Item {
             top: titleRow.bottom
             left: parent.left; leftMargin: root.padX
             right: parent.right; rightMargin: root.padX
-            bottom: strip.top; bottomMargin: Theme.sp(6)
+            bottom: strip.top; bottomMargin: Theme.gap(6)
         }
         sourceComponent: root.diagram
     }
@@ -213,11 +213,11 @@ Item {
             right: parent.right; rightMargin: root.padX
             bottom: parent.bottom; bottomMargin: root.padBottom
         }
-        spacing: Theme.sp(6)
+        spacing: Theme.gap(6)
 
         Flow {
             width: parent.width
-            spacing: Theme.sp(14)
+            spacing: Theme.gap(14)
             // Not merely empty: an empty Flow still contributes the Column's spacing, which
             // would steal six pixels from a drawing that is hosting its own labels.
             visible: root.reads && root.reads.length > 0
@@ -249,7 +249,7 @@ Item {
             RowLayout {
                 id: inferredRow
                 width: parent.width
-                spacing: Theme.sp(6)
+                spacing: Theme.gap(6)
 
                 Text {
                     text: root.inferred && root.inferred.label ? root.inferred.label : ""

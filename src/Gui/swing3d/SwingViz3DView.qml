@@ -430,7 +430,7 @@ Item {
     // ── overlay: presets, the tier chip, the frame's honesty ──
     PpSegmentedControl {
         id: presets
-        anchors { top: parent.top; left: parent.left; right: parent.right; margins: Theme.sp(10) }
+        anchors { top: parent.top; left: parent.left; right: parent.right; margins: Theme.gap(10) }
         solid: false
         // The match chips only when this swing's fitted camera (and its image size) is on file.
         readonly property bool camFo: drv.available && drv.cameraAvailable(0)
@@ -447,8 +447,8 @@ Item {
     // The chips wrap upward rather than run off a narrow panel.
     Flow {
         id: chipRow
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: Theme.sp(10) }
-        spacing: Theme.sp(6)
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: Theme.gap(10) }
+        spacing: Theme.gap(6)
         Chip { id: tierChip; visible: drv.available; label: drv.frameTierText }
         Chip {
             visible: drv.available && root.faceOnOnly
@@ -476,18 +476,18 @@ Item {
                 id: posLegend
                 anchors.verticalCenter: parent.verticalCenter
                 font.letterSpacing: Theme.trackingData
-                text: qsTr("P  ● FITTED  ○ SAMPLED")
+                text: Theme.caps(qsTr("P  ● fitted  ○ sampled"))
             }
         }
     }
     // Footnotes sit under the preset bar, clear of the chips.
     PpCardNote {
-        anchors { right: parent.right; top: presets.bottom; margins: Theme.sp(12) }
+        anchors { right: parent.right; top: presets.bottom; margins: Theme.gap(12) }
         visible: drv.available && root.preset === "top"
         text: qsTr("Square to your stance at address")
     }
     PpCardNote {
-        anchors { right: parent.right; top: presets.bottom; margins: Theme.sp(12) }
+        anchors { right: parent.right; top: presets.bottom; margins: Theme.gap(12) }
         visible: root.matched
         text: (root.matchView === 0 ? qsTr("As the face-on camera saw it") : qsTr("As the DTL camera saw it"))
               + (root.matchView === 0 && drv.foMirrored ? qsTr(" · mirrored") : "")
@@ -524,7 +524,7 @@ Item {
             visible: near && sp.z > 0 && sp.x >= 0 && sp.y >= 0 && sp.x <= root.width && sp.y <= root.height
             x: sp.x + Theme.sp(6)
             y: sp.y - height - Theme.sp(2)
-            spacing: Theme.sp(4)
+            spacing: Theme.gap(4)
             Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Theme.sp(7); height: width; radius: width / 2

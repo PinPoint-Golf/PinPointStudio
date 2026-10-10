@@ -180,53 +180,53 @@ Item {
           caption: qsTr("plan view · target right · angles ×%1").arg(kPlanGain),
           weight: kLeftWeight, dw: 672, dh: 182, comp: pathFaceComp, inferred: "shape",
           readKeys: [
-              { key: "lm.clubheadSpeed",   label: qsTr("CLUB SPEED") },
-              { key: "lm.clubPath",        label: qsTr("CLUB PATH") },
-              { key: "lm.faceAngle",       label: qsTr("FACE ANGLE") },
-              { key: "lm.faceToPath",      label: qsTr("FACE TO PATH") },
-              { key: "lm.launchDirection", label: qsTr("START DIRECTION") },
-              { key: "lm.closureRate",     label: qsTr("CLOSURE RATE ↻") },
+              { key: "lm.clubheadSpeed",   label: Theme.caps(qsTr("Club speed")) },
+              { key: "lm.clubPath",        label: Theme.caps(qsTr("Club path")) },
+              { key: "lm.faceAngle",       label: Theme.caps(qsTr("Face angle")) },
+              { key: "lm.faceToPath",      label: Theme.caps(qsTr("Face to path")) },
+              { key: "lm.launchDirection", label: Theme.caps(qsTr("Start direction")) },
+              { key: "lm.closureRate",     label: Theme.caps(qsTr("Closure rate ↻")) },
           ] },
         { title: qsTr("Spin"), hue: hueSpin,
           caption: qsTr("down the line · axis ×%1").arg(kSpinGain),
           weight: kRightWeight, dw: 300, dh: 220, comp: spinComp, inferred: "",
           readKeys: [
-              { key: "lm.spinRate", label: qsTr("SPIN RATE · TOTAL") },
-              { key: "lm.backSpin", label: qsTr("BACK SPIN") },
-              { key: "lm.sideSpin", label: qsTr("SIDE SPIN") },
-              { key: "lm.spinAxis", label: qsTr("SPIN AXIS") },
+              { key: "lm.spinRate", label: Theme.caps(qsTr("Spin rate · total")) },
+              { key: "lm.backSpin", label: Theme.caps(qsTr("Back spin")) },
+              { key: "lm.sideSpin", label: Theme.caps(qsTr("Side spin")) },
+              { key: "lm.spinAxis", label: Theme.caps(qsTr("Spin axis")) },
           ] },
         { title: qsTr("Impact"), hue: hueClub,
           caption: qsTr("side view · loft and launch true · attack ×%1").arg(kAttackGain),
           weight: 432, dw: 408, dh: 182, comp: impactComp, inferred: "",
           readKeys: [
-              { key: "lm.attackAngle", label: qsTr("ATTACK ANGLE") },
-              { key: "lm.dynamicLoft", label: qsTr("DYN. LOFT") },
-              { key: "lm.launchAngle", label: qsTr("LAUNCH ANGLE") },
+              { key: "lm.attackAngle", label: Theme.caps(qsTr("Attack angle")) },
+              { key: "lm.dynamicLoft", label: Theme.caps(qsTr("Dyn. loft")) },
+              { key: "lm.launchAngle", label: Theme.caps(qsTr("Launch angle")) },
               // Spin loft has no line of its own: it IS the gap between the two club
               // lines already on the card, so the note says which two rather than adding
               // a third rule that only restates them.
-              { key: "lm.spinLoft",    label: qsTr("SPIN LOFT"),
-                note: qsTr("· LOFT LESS ATTACK") },
-              { key: "lowPoint",       label: qsTr("LOW POINT") },
+              { key: "lm.spinLoft",    label: Theme.caps(qsTr("Spin loft")),
+                note: Theme.caps(qsTr("· loft less attack")) },
+              { key: "lowPoint",       label: Theme.caps(qsTr("Low point")) },
           ] },
         { title: qsTr("Strike"), hue: hueStrike,
           caption: "", captionKind: "strike",
           weight: 248, dw: 280, dh: 190, comp: strikeComp, inferred: "strike",
           readKeys: [
-              { key: "lm.strikeLocation", label: qsTr("STRIKE LOC.") },
-              { key: "lm.strikeHeight",   label: qsTr("STRIKE HT.") },
-              { key: "lm.lieAngle",       label: qsTr("LIE ANGLE") },
+              { key: "lm.strikeLocation", label: Theme.caps(qsTr("Strike loc.")) },
+              { key: "lm.strikeHeight",   label: Theme.caps(qsTr("Strike ht.")) },
+              { key: "lm.lieAngle",       label: Theme.caps(qsTr("Lie angle")) },
           ] },
         { title: qsTr("Flight"), hue: hueFlight,
           caption: "", captionKind: "flight",
           weight: kRightWeight, dw: 428, dh: 182, comp: flightComp, inferred: "",
           readKeys: [
-              { key: "lm.carryDistance", label: qsTr("CARRY") },
-              { key: "lm.totalDistance", label: qsTr("TOTAL") },
-              { key: "lm.peakHeight",    label: qsTr("PEAK HEIGHT") },
-              { key: "lm.descentAngle",  label: qsTr("DESCENT") },
-              { key: "lm.offline",       label: qsTr("OFFLINE") },
+              { key: "lm.carryDistance", label: Theme.caps(qsTr("Carry")) },
+              { key: "lm.totalDistance", label: Theme.caps(qsTr("Total")) },
+              { key: "lm.peakHeight",    label: Theme.caps(qsTr("Peak height")) },
+              { key: "lm.descentAngle",  label: Theme.caps(qsTr("Descent")) },
+              { key: "lm.offline",       label: Theme.caps(qsTr("Offline")) },
           ] },
     ]
 
@@ -282,7 +282,7 @@ Item {
                            // one would put a verdict on our own error bar.
                            grade: "",
                            note:  (lp.has === true && lp.source === "inferred")
-                                  ? qsTr("· PPS EST.") : "" })
+                                  ? Theme.caps(qsTr("· PPS est.")) : "" })
                 continue
             }
             out.push({ label: r.label,
@@ -299,12 +299,12 @@ Item {
     function inferredFor(kind) {
         if (kind === "shape")
             return { has: root.shape.has === true,
-                     label: qsTr("INFERRED FLIGHT · START × CURVE"),
+                     label: Theme.caps(qsTr("Inferred flight · start × curve")),
                      name: root.shape.name !== undefined ? root.shape.name : "",
                      evidence: root.shape.evidence !== undefined ? root.shape.evidence : "" }
         if (kind === "strike")
             return { has: root.strike.has === true,
-                     label: qsTr("INFERRED STRIKE"),
+                     label: Theme.caps(qsTr("Inferred strike")),
                      name: root.strike.name !== undefined ? root.strike.name : "",
                      evidence: root.strike.evidence !== undefined ? root.strike.evidence : "" }
         return null
@@ -508,7 +508,7 @@ Item {
                             Column {
                                 id: inner
                                 x: Theme.sp(20)
-                                spacing: Theme.sp(2)
+                                spacing: Theme.gap(2)
                                 // The same eyebrow as a card's title and as every section
                                 // heading on the Diagnostics screen. colorText3 here is
                                 // correct where it would not be on a tile: this is a LABEL
@@ -518,12 +518,12 @@ Item {
                                     text: modelData.abbrev
                                     font.family: Theme.fontData
                                     font.pixelSize: Theme.fontSzMicro
-                                    font.capitalization: Font.AllUppercase
+                                    font.capitalization: Theme.capsFont
                                     font.letterSpacing: Theme.trackingMicro
                                     color: Theme.colorText3
                                 }
                                 Row {
-                                    spacing: Theme.sp(3)
+                                    spacing: Theme.gap(3)
                                     Text {
                                         id: headlineValue
                                         text: modelData.text
@@ -654,7 +654,7 @@ Item {
         property string name: ""
         property string evidence: ""
         property color hue: Theme.colorText2
-        spacing: Theme.sp(2)
+        spacing: Theme.gap(2)
 
         Text {
             width: inf.width
@@ -739,7 +739,7 @@ Item {
             }
             Text {
                 x: pf.d(20); y: pf.d(100)
-                text: qsTr("TARGET LINE")
+                text: Theme.caps(qsTr("Target line"))
                 font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                 font.letterSpacing: Theme.trackingMicro
                 color: Theme.colorText3
@@ -788,17 +788,17 @@ Item {
             // which is the whole reason a schematic beats a table, and is why these move to
             // the card's strip only when the drawing is too small to hold them.
             Read { visible: pf.hosted; x: pf.d(16);  y: pf.ly(14);  hue: root.hueClub
-                   label: qsTr("CLUB SPEED");    metricKey: "lm.clubheadSpeed"; value: root.txt("lm.clubheadSpeed"); unit: root.unit("lm.clubheadSpeed") }
+                   label: Theme.caps(qsTr("Club speed"));    metricKey: "lm.clubheadSpeed"; value: root.txt("lm.clubheadSpeed"); unit: root.unit("lm.clubheadSpeed") }
             Read { visible: pf.hosted; x: pf.d(190); y: pf.ly(14);  hue: root.hueClub
-                   label: qsTr("CLOSURE RATE ↻"); metricKey: "lm.closureRate"; value: root.txt("lm.closureRate");   unit: root.unit("lm.closureRate") }
+                   label: Theme.caps(qsTr("Closure rate ↻")); metricKey: "lm.closureRate"; value: root.txt("lm.closureRate");   unit: root.unit("lm.closureRate") }
             Read { visible: pf.hosted; x: pf.d(372); y: pf.ly(14);  hue: root.hueClub
-                   label: qsTr("FACE TO PATH");  metricKey: "lm.faceToPath"; value: root.txt("lm.faceToPath");     unit: root.unit("lm.faceToPath") }
+                   label: Theme.caps(qsTr("Face to path"));  metricKey: "lm.faceToPath"; value: root.txt("lm.faceToPath");     unit: root.unit("lm.faceToPath") }
             // Set well right of FACE TO PATH and under the far end of the start-direction
             // ray, which is where the eye already is — and spelled out, because "START
             // DIR." saves eleven pixels on a card that has room and costs the reader the
             // one word that says which direction is meant.
             Read { visible: pf.hosted; x: pf.d(520); y: pf.ly(14);  hue: root.hueLaunch
-                   label: qsTr("START DIRECTION"); metricKey: "lm.launchDirection"; value: root.txt("lm.launchDirection"); unit: root.unit("lm.launchDirection") }
+                   label: Theme.caps(qsTr("Start direction")); metricKey: "lm.launchDirection"; value: root.txt("lm.launchDirection"); unit: root.unit("lm.launchDirection") }
             // THE BOTTOM ROW: club path, face angle and the inferred read, all on one y.
             // Ragged tops under a drawing read as three separate afterthoughts; one line
             // reads as a row, which is what they are.
@@ -814,9 +814,9 @@ Item {
             // start — which the old y of 146 dodged by sitting lower. It cannot sit lower
             // now that it shares the row, so it steps aside instead.
             Read { visible: pf.hosted; x: pf.d(16);  y: pf.bottomRowTop; hue: root.hueClub
-                   label: qsTr("CLUB PATH");     metricKey: "lm.clubPath"; value: root.txt("lm.clubPath");        unit: root.unit("lm.clubPath") }
+                   label: Theme.caps(qsTr("Club path"));     metricKey: "lm.clubPath"; value: root.txt("lm.clubPath");        unit: root.unit("lm.clubPath") }
             Read { visible: pf.hosted; x: pf.d(190); y: pf.bottomRowTop; hue: root.hueClub
-                   label: qsTr("FACE ANGLE");    metricKey: "lm.faceAngle"; value: root.txt("lm.faceAngle");       unit: root.unit("lm.faceAngle") }
+                   label: Theme.caps(qsTr("Face angle"));    metricKey: "lm.faceAngle"; value: root.txt("lm.faceAngle");       unit: root.unit("lm.faceAngle") }
             // BALL SPEED and SMASH are NOT repeated here. Both lead the headline strip a
             // few pixels above, and a figure printed twice on one screen makes a reader
             // check whether the two agree instead of reading either. The strip is the
@@ -847,7 +847,7 @@ Item {
                 width: pf.d(256)
                 visible: pf.hosted && root.shape.has === true
                 hue: root.hueFlight
-                label: qsTr("INFERRED FLIGHT · START × CURVE")
+                label: Theme.caps(qsTr("Inferred flight · start × curve"))
                 name: root.shape.name !== undefined ? root.shape.name : ""
                 evidence: root.shape.evidence !== undefined ? root.shape.evidence : ""
             }
@@ -886,8 +886,8 @@ Item {
                 id: bandA
                 visible: sc.hosted
                 vertical: !sc.stacked
-                keys: [ { key: "lm.spinRate", label: qsTr("SPIN RATE · TOTAL") },
-                        { key: "lm.backSpin", label: qsTr("BACK SPIN") } ]
+                keys: [ { key: "lm.spinRate", label: Theme.caps(qsTr("Spin rate · total")) },
+                        { key: "lm.backSpin", label: Theme.caps(qsTr("Back spin")) } ]
                 cellW: (sc.width - gap) / 2
                 cellH: sc.cellH
                 x: 0
@@ -898,8 +898,8 @@ Item {
                 id: bandB
                 visible: sc.hosted
                 vertical: !sc.stacked
-                keys: [ { key: "lm.sideSpin", label: qsTr("SIDE SPIN") },
-                        { key: "lm.spinAxis", label: qsTr("SPIN AXIS") } ]
+                keys: [ { key: "lm.sideSpin", label: Theme.caps(qsTr("Side spin")) },
+                        { key: "lm.spinAxis", label: Theme.caps(qsTr("Spin axis")) } ]
                 cellW: (sc.width - gap) / 2
                 cellH: sc.cellH
                 x: sc.stacked ? 0 : sc.width - sc.sideW
@@ -1072,22 +1072,22 @@ Item {
             }
 
             Read { visible: im.hosted; x: im.d(14);  y: im.ly(18);  hue: root.hueClub
-                   label: qsTr("ATTACK ANGLE"); metricKey: "lm.attackAngle"; value: root.txt("lm.attackAngle"); unit: root.unit("lm.attackAngle") }
+                   label: Theme.caps(qsTr("Attack angle")); metricKey: "lm.attackAngle"; value: root.txt("lm.attackAngle"); unit: root.unit("lm.attackAngle") }
             Read { visible: im.hosted; x: im.d(152); y: im.ly(18);  hue: root.hueClub
-                   label: qsTr("DYN. LOFT");    metricKey: "lm.dynamicLoft"; value: root.txt("lm.dynamicLoft"); unit: root.unit("lm.dynamicLoft") }
+                   label: Theme.caps(qsTr("Dyn. loft"));    metricKey: "lm.dynamicLoft"; value: root.txt("lm.dynamicLoft"); unit: root.unit("lm.dynamicLoft") }
             Read { visible: im.hosted; x: im.d(290); y: im.ly(18);  hue: root.hueLaunch
-                   label: qsTr("LAUNCH ANGLE"); metricKey: "lm.launchAngle"; value: root.txt("lm.launchAngle"); unit: root.unit("lm.launchAngle") }
+                   label: Theme.caps(qsTr("Launch angle")); metricKey: "lm.launchAngle"; value: root.txt("lm.launchAngle"); unit: root.unit("lm.launchAngle") }
             // Spin loft is not drawn as a wedge: it IS the gap between the two club lines
             // already on this card, so the card says so rather than adding a third line
             // that only restates them.
             Read { visible: im.hosted; x: im.d(14);  y: im.ly(146); hue: root.hueClub
-                   label: qsTr("SPIN LOFT"); note: qsTr("· LOFT LESS ATTACK")
+                   label: Theme.caps(qsTr("Spin loft")); note: Theme.caps(qsTr("· loft less attack"))
                    metricKey: "lm.spinLoft"; value: root.txt("lm.spinLoft"); unit: root.unit("lm.spinLoft") }
             // Beside the ruler it belongs to, at the right-hand end of the ground line.
             Read { visible: im.hosted; x: im.d(272); y: im.ly(146); hue: root.hueClub
-                   label: qsTr("LOW POINT")
+                   label: Theme.caps(qsTr("Low point"))
                    note: (root.lowPoint.has === true && root.lowPoint.source === "inferred")
-                         ? qsTr("· PPS EST.") : ""
+                         ? Theme.caps(qsTr("· PPS est.")) : ""
                    value: root.lowPoint.has === true ? root.lowPoint.text : "—"
                    unit: root.lowPoint.has === true ? root.lowPoint.unit : "" }
         }
@@ -1143,9 +1143,9 @@ Item {
                 id: band
                 visible: sc.hosted
                 vertical: !sc.stacked
-                keys: [ { key: "lm.strikeLocation", label: qsTr("STRIKE LOC.") },
-                        { key: "lm.strikeHeight",   label: qsTr("STRIKE HT.") },
-                        { key: "lm.lieAngle",       label: qsTr("LIE ANGLE") } ]
+                keys: [ { key: "lm.strikeLocation", label: Theme.caps(qsTr("Strike loc.")) },
+                        { key: "lm.strikeHeight",   label: Theme.caps(qsTr("Strike ht.")) },
+                        { key: "lm.lieAngle",       label: Theme.caps(qsTr("Lie angle")) } ]
                 cellW: (sc.bodyW - 2 * gap) / 3
                 cellH: sc.cellH
                 x: 0
@@ -1221,13 +1221,13 @@ Item {
 
                 Text {
                     x: root.leftHanded ? sk.d(106) : sk.d(14); y: sk.d(4)
-                    text: qsTr("TOE")
+                    text: Theme.caps(qsTr("Toe"))
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                 }
                 Text {
                     x: root.leftHanded ? sk.d(14) : sk.d(106); y: sk.d(4)
-                    text: qsTr("HEEL")
+                    text: Theme.caps(qsTr("Heel"))
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro; color: Theme.colorText3
                 }
@@ -1243,7 +1243,7 @@ Item {
                 y: sc.stacked ? sc.bodyH + sc.gapY : (sc.height - implicitHeight) / 2
                 width: sc.stacked ? sc.width : sc.inferredW
                 hue: root.hueStrike
-                label: qsTr("INFERRED STRIKE")
+                label: Theme.caps(qsTr("Inferred strike"))
                 name: root.strike.name !== undefined ? root.strike.name : ""
                 // Context, not evidence: smash is shown beside the read and takes no part in
                 // it. A toe strike with a great smash is still a toe strike.
@@ -1347,14 +1347,14 @@ Item {
 
                 ShapePath {                              // trajectory — SOLID, the ball's line
                     strokeColor: root.hueFlight
-                    strokeWidth: Math.max(1, 1.4 * fl.s)
+                    strokeWidth: Math.max(1, Theme.curveWidth(1.4) * fl.s)
                     fillColor: "transparent"
                     capStyle: ShapePath.RoundCap
                     PathPolyline { path: fl.poly(root.flight.profile, false) }
                 }
                 ShapePath {                              // ground track — SOLID
                     strokeColor: root.hueFlight
-                    strokeWidth: Math.max(1, 1.4 * fl.s)
+                    strokeWidth: Math.max(1, Theme.curveWidth(1.4) * fl.s)
                     fillColor: "transparent"
                     capStyle: ShapePath.RoundCap
                     PathPolyline { path: fl.poly(root.flight.track, true) }
@@ -1369,7 +1369,7 @@ Item {
                 opacity: 0.45
                 ShapePath {
                     strokeColor: root.hueFlight
-                    strokeWidth: Math.max(1, 1.4 * fl.s)
+                    strokeWidth: Math.max(1, Theme.curveWidth(1.4) * fl.s)
                     fillColor: "transparent"
                     PathPolyline {
                         path: root.flight.has === true
@@ -1400,7 +1400,7 @@ Item {
                 Text {
                     id: carryTxt
                     anchors.centerIn: parent
-                    text: qsTr("CARRY %1 %2").arg(root.txt("lm.carryDistance"))
+                    text: Theme.caps(qsTr("Carry %1 %2")).arg(root.txt("lm.carryDistance"))
                                              .arg(root.unit("lm.carryDistance"))
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                     font.letterSpacing: Theme.trackingMicro
@@ -1418,13 +1418,13 @@ Item {
             }
 
             Read { visible: fl.hosted; x: fl.d(52);  y: fl.ly(0);   hue: root.hueFlight
-                   label: qsTr("PEAK HEIGHT"); metricKey: "lm.peakHeight"; value: root.txt("lm.peakHeight"); unit: root.unit("lm.peakHeight") }
+                   label: Theme.caps(qsTr("Peak height")); metricKey: "lm.peakHeight"; value: root.txt("lm.peakHeight"); unit: root.unit("lm.peakHeight") }
             Read { visible: fl.hosted; x: fl.d(340); y: fl.ly(44);  hue: root.hueFlight
-                   label: qsTr("DESCENT");     metricKey: "lm.descentAngle"; value: root.txt("lm.descentAngle"); unit: root.unit("lm.descentAngle") }
+                   label: Theme.caps(qsTr("Descent"));     metricKey: "lm.descentAngle"; value: root.txt("lm.descentAngle"); unit: root.unit("lm.descentAngle") }
             Read { visible: fl.hosted; x: fl.d(258); y: fl.ly(116); hue: root.hueFlight
-                   label: qsTr("TOTAL");       metricKey: "lm.totalDistance"; value: root.txt("lm.totalDistance"); unit: root.unit("lm.totalDistance") }
+                   label: Theme.caps(qsTr("Total"));       metricKey: "lm.totalDistance"; value: root.txt("lm.totalDistance"); unit: root.unit("lm.totalDistance") }
             Read { visible: fl.hosted; x: fl.d(44);  y: fl.ly(144); hue: root.hueFlight
-                   label: qsTr("OFFLINE");     metricKey: "lm.offline"; value: root.txt("lm.offline"); unit: root.unit("lm.offline") }
+                   label: Theme.caps(qsTr("Offline"));     metricKey: "lm.offline"; value: root.txt("lm.offline"); unit: root.unit("lm.offline") }
         }
     }
 }

@@ -156,8 +156,8 @@ Rectangle {
         }
 
         Row {
-            anchors { fill: parent; leftMargin: Theme.sp(12); rightMargin: Theme.sp(10) }
-            spacing: Theme.sp(8)
+            anchors { fill: parent; leftMargin: Theme.gap(12); rightMargin: Theme.gap(10) }
+            spacing: Theme.gap(8)
 
             Rectangle {
                 width: Theme.sp(7)
@@ -244,26 +244,26 @@ Rectangle {
     Column {
         id: body
         anchors { top: header.bottom; left: parent.left; right: parent.right
-                  topMargin: Theme.sp(10); leftMargin: Theme.sp(12); rightMargin: Theme.sp(12) }
-        spacing: Theme.sp(10)
+                  topMargin: Theme.gap(10); leftMargin: Theme.gap(12); rightMargin: Theme.gap(12) }
+        spacing: Theme.gap(10)
 
         // The link's readings.
         Flow {
             width: parent.width
-            spacing: Theme.sp(10)
+            spacing: Theme.gap(10)
 
-            Reading { label: qsTr("BATTERY");  value: root.fmtBattery();  tint: root.batteryTint() }
-            Reading { label: qsTr("THERMAL");  value: root.fmtThermal();  tint: root.thermalTint() }
-            Reading { label: qsTr("STORAGE");  value: root.fmtStorage() }
-            Reading { label: qsTr("TRANSPORT"); value: root.fmtTransport() }
+            Reading { label: Theme.caps(qsTr("Battery"));  value: root.fmtBattery();  tint: root.batteryTint() }
+            Reading { label: Theme.caps(qsTr("Thermal"));  value: root.fmtThermal();  tint: root.thermalTint() }
+            Reading { label: Theme.caps(qsTr("Storage"));  value: root.fmtStorage() }
+            Reading { label: Theme.caps(qsTr("Transport")); value: root.fmtTransport() }
             Reading {
-                label: qsTr("SYNC σ")
+                label: Theme.caps(qsTr("Sync σ"))
                 value: root.fmtSigma()
                 tint: root.phone && root.phone.syncSigmaMs >= 0 && root.phone.syncSigmaMs > 2.0
                       ? Theme.colorWarn : Theme.colorText2
             }
             Reading {
-                label: qsTr("ARM")
+                label: Theme.caps(qsTr("Arm"))
                 value: root.fmtArm()
                 width: Theme.sp(140)
                 tint: root.phone && root.phone.armState === "armed"   ? Theme.colorGood
@@ -272,7 +272,7 @@ Rectangle {
                                                                         : Theme.colorText2
             }
             Reading {
-                label: qsTr("SESSION")
+                label: Theme.caps(qsTr("Session"))
                 value: !root.live ? "—" : (root.stat.sessionOpen ? qsTr("open") : qsTr("closed"))
                 tint: root.live && root.stat.sessionOpen ? Theme.colorGood : Theme.colorText2
             }
@@ -286,15 +286,15 @@ Rectangle {
             // field existed a consumer had to fabricate a start time from the
             // first message it happened to see, which is precisely what 5.10h
             // exists to prevent.
-            Reading { label: qsTr("SESSION FOR"); value: root.fmtSessionFor() }
+            Reading { label: Theme.caps(qsTr("Session for")); value: root.fmtSessionFor() }
             Reading {
-                label: qsTr("ARBITER")
+                label: Theme.caps(qsTr("Arbiter"))
                 value: !root.live ? "—" : (root.stat.arbiter ? qsTr("yes") : qsTr("no"))
                 tint: root.live && root.stat.arbiter ? Theme.colorAccent : Theme.colorText2
             }
-            Reading { label: qsTr("CHANNELS");  value: root.live ? String(root.stat.channels) : "—" }
-            Reading { label: qsTr("SHOTS HELD"); value: root.live ? String(root.stat.retained) : "—" }
-            Reading { label: qsTr("SHOT GROUPS"); value: root.live ? String(root.stat.groups) : "—" }
+            Reading { label: Theme.caps(qsTr("Channels"));  value: root.live ? String(root.stat.channels) : "—" }
+            Reading { label: Theme.caps(qsTr("Shots held")); value: root.live ? String(root.stat.retained) : "—" }
+            Reading { label: Theme.caps(qsTr("Shot groups")); value: root.live ? String(root.stat.groups) : "—" }
         }
 
         // ── MSG 5.6 / CORE 5.21 — the ring buffer's standing margin ─────────
@@ -325,15 +325,15 @@ Rectangle {
             visible: root.buffers.length === 0
 
             Text {
-                anchors { left: parent.left; leftMargin: Theme.sp(10); verticalCenter: parent.verticalCenter }
-                text: qsTr("RING BUFFER")
+                anchors { left: parent.left; leftMargin: Theme.gap(10); verticalCenter: parent.verticalCenter }
+                text: Theme.caps(qsTr("Ring buffer"))
                 font.family: Theme.fontData
                 font.pixelSize: Theme.sp(8)
                 font.letterSpacing: Theme.trackingMicro
                 color: Theme.colorText3
             }
             Text {
-                anchors { right: parent.right; rightMargin: Theme.sp(10); verticalCenter: parent.verticalCenter }
+                anchors { right: parent.right; rightMargin: Theme.gap(10); verticalCenter: parent.verticalCenter }
                 text: root.live ? qsTr("no buffer_status reported yet")
                                 : qsTr("not connected")
                 font.family: Theme.fontBody
@@ -347,7 +347,7 @@ Rectangle {
         // array behind it is rebuilt every 500 ms refresh.
         Column {
             width: parent.width
-            spacing: Theme.sp(4)
+            spacing: Theme.gap(4)
             Repeater {
                 model: root.buffers.length
                 Rectangle {
@@ -361,11 +361,11 @@ Rectangle {
                     border.color: Theme.colorBorderMid
 
                     Column {
-                        anchors { left: parent.left; leftMargin: Theme.sp(10)
+                        anchors { left: parent.left; leftMargin: Theme.gap(10)
                                   verticalCenter: parent.verticalCenter }
                         spacing: 1
                         Text {
-                            text: qsTr("RING BUFFER")
+                            text: Theme.caps(qsTr("Ring buffer"))
                             font.family: Theme.fontData
                             font.pixelSize: Theme.sp(8)
                             font.letterSpacing: Theme.trackingMicro
@@ -380,25 +380,25 @@ Rectangle {
                     }
 
                     Row {
-                        anchors { right: parent.right; rightMargin: Theme.sp(10)
+                        anchors { right: parent.right; rightMargin: Theme.gap(10)
                                   verticalCenter: parent.verticalCenter }
-                        spacing: Theme.sp(10)
+                        spacing: Theme.gap(10)
 
                         Reading {
-                            label: qsTr("TARGET")
+                            label: Theme.caps(qsTr("Target"))
                             width: Theme.sp(70)
                             value: !buf || buf.retentionTargetMs < 0 ? "—"
                                  : root.fmtMs(buf.retentionTargetMs)
                         }
                         Reading {
-                            label: qsTr("DISCARDED / OPEN")
+                            label: Theme.caps(qsTr("Discarded / open"))
                             width: Theme.sp(110)
                             value: buf ? String(buf.discardedSinceOpen) : "—"
                             tint: buf && buf.discardedSinceOpen > 0 ? Theme.colorWarn
                                                                     : Theme.colorText2
                         }
                         Reading {
-                            label: qsTr("LAST DISCARD")
+                            label: Theme.caps(qsTr("Last discard"))
                             width: Theme.sp(90)
                             value: !buf || buf.lastDiscardDurationMs < 0 ? "—"
                                  : root.fmtMs(buf.lastDiscardDurationMs)
@@ -417,7 +417,7 @@ Rectangle {
 
             Text {
                 anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                text: qsTr("CAMERAS (%1)").arg(root.cameras.length)
+                text: Theme.caps(qsTr("Cameras (%1)")).arg(root.cameras.length)
                 font.family: Theme.fontData
                 font.pixelSize: Theme.sp(9)
                 font.letterSpacing: Theme.trackingMicro

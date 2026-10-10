@@ -120,8 +120,8 @@ Item {
         id: foldButton
         anchors.left:       parent.left
         anchors.top:        parent.top
-        anchors.leftMargin: Theme.sp(14)
-        anchors.topMargin:  Theme.sp(12)
+        anchors.leftMargin: Theme.gap(14)
+        anchors.topMargin:  Theme.gap(12)
         z: 2
         width:  Theme.sp(24)
         height: Theme.sp(20)
@@ -153,25 +153,25 @@ Item {
         // ── Header ────────────────────────────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth:    true
-            Layout.leftMargin:   Theme.sp(18)
-            Layout.rightMargin:  Theme.sp(18)
+            Layout.leftMargin:   Theme.gap(18)
+            Layout.rightMargin:  Theme.gap(18)
             // Room at the top for the fold control, which floats over this pane rather than sitting
             // in the header — the header only exists when something is selected, and a pane you can
             // only fold while it has content is a pane that traps you on an empty one.
-            Layout.topMargin:    Theme.sp(38)
-            Layout.bottomMargin: Theme.sp(12)
-            spacing: Theme.sp(5)
+            Layout.topMargin:    Theme.gap(38)
+            Layout.bottomMargin: Theme.gap(12)
+            spacing: Theme.gap(5)
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(8)
+                spacing: Theme.gap(8)
 
                 Text {
                     text:                root.detail.eyebrow || ""
                     font.family:         Theme.fontBody
                     font.pixelSize:      Theme.fontSzMicro
                     font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color:               Theme.colorText3
                 }
 
@@ -218,8 +218,8 @@ Item {
 
             Flow {
                 Layout.fillWidth: true
-                Layout.topMargin: Theme.sp(5)
-                spacing: Theme.sp(6)
+                Layout.topMargin: Theme.gap(5)
+                spacing: Theme.gap(6)
 
                 Repeater {
                     model: root.detail.badges || []
@@ -260,9 +260,9 @@ Item {
         // is the reason anybody opened this row.
         ModelCorridorPlot {
             Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.sp(14)
-            Layout.rightMargin: Theme.sp(14)
-            Layout.topMargin:   Theme.sp(10)
+            Layout.leftMargin:  Theme.gap(14)
+            Layout.rightMargin: Theme.gap(14)
+            Layout.topMargin:   Theme.gap(10)
             visible:  root.detail && root.detail.type === "corridors"
             plotSource: root.corridorPlotSource
             editable:   root.editable
@@ -281,11 +281,11 @@ Item {
             id: plotColour
             objectName: "inspectorPlotColour"
             Layout.fillWidth:   true
-            Layout.leftMargin:  Theme.sp(18)
-            Layout.rightMargin: Theme.sp(18)
-            Layout.topMargin:    Theme.sp(12)
-            Layout.bottomMargin: Theme.sp(12)
-            spacing: Theme.sp(8)
+            Layout.leftMargin:  Theme.gap(18)
+            Layout.rightMargin: Theme.gap(18)
+            Layout.topMargin:    Theme.gap(12)
+            Layout.bottomMargin: Theme.gap(12)
+            spacing: Theme.gap(8)
 
             readonly property string metricKey: !root._found ? ""
                                               : root.detail.type === "metrics"  ? (root.detail.id || "")
@@ -311,7 +311,7 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: Theme.sp(8)
+                spacing: Theme.gap(8)
 
                 Text {
                     Layout.fillWidth:    true
@@ -319,7 +319,7 @@ Item {
                     font.family:         Theme.fontBody
                     font.pixelSize:      Theme.fontSzMicro
                     font.letterSpacing:  Theme.trackingMicro
-                    font.capitalization: Font.AllUppercase
+                    font.capitalization: Theme.capsFont
                     color:               Theme.colorText3
                 }
 
@@ -403,14 +403,14 @@ Item {
                         required property var modelData
 
                         width: parent.width
-                        spacing: Theme.sp(6)
-                        bottomPadding: Theme.sp(12)
-                        topPadding:    Theme.sp(12)
+                        spacing: Theme.gap(6)
+                        bottomPadding: Theme.gap(12)
+                        topPadding:    Theme.gap(12)
 
                         RowLayout {
                             width: sectionItem.width - Theme.sp(36)
                             x:     Theme.sp(18)
-                            spacing: Theme.sp(8)
+                            spacing: Theme.gap(8)
 
                             Text {
                                 Layout.fillWidth:    true
@@ -418,7 +418,7 @@ Item {
                                 font.family:         Theme.fontBody
                                 font.pixelSize:      Theme.fontSzMicro
                                 font.letterSpacing:  Theme.trackingMicro
-                                font.capitalization: Font.AllUppercase
+                                font.capitalization: Theme.capsFont
                                 color:               Theme.colorText3
                                 elide:               Text.ElideRight
                             }
@@ -487,8 +487,8 @@ Item {
                                         anchors.left:   parent.left
                                         anchors.right:  parent.right
                                         anchors.verticalCenter: parent.verticalCenter
-                                        anchors.leftMargin:  Theme.sp(12)
-                                        anchors.rightMargin: Theme.sp(12)
+                                        anchors.leftMargin:  Theme.gap(12)
+                                        anchors.rightMargin: Theme.gap(12)
                                         text: hubRow.modelData.label
                                         font.family:    Theme.fontBody
                                         font.pixelSize: Theme.fontSzBody2
@@ -520,10 +520,10 @@ Item {
                                 RowLayout {
                                     visible: sectionItem.modelData.kind === "bindings"
                                     anchors.fill: parent
-                                    anchors.leftMargin:  Theme.sp(18)
+                                    anchors.leftMargin:  Theme.gap(18)
                                         + Theme.sp(12) * (hubRow.modelData.depth || 0)
-                                    anchors.rightMargin: Theme.sp(18)
-                                    spacing: Theme.sp(9)
+                                    anchors.rightMargin: Theme.gap(18)
+                                    spacing: Theme.gap(9)
 
                                     Text {
                                         Layout.fillWidth: true
@@ -587,18 +587,18 @@ Item {
                                     // painted, the control under it did not, and the field read as
                                     // present but dead. Both dimensions have to be stated.
                                     height: implicitHeight
-                                    spacing: Theme.sp(3)
+                                    spacing: Theme.gap(3)
 
                                     RowLayout {
                                         Layout.fillWidth: true
-                                        spacing: Theme.sp(6)
+                                        spacing: Theme.gap(6)
 
                                         Text {
                                             text: hubRow.modelData.label
                                             font.family:         Theme.fontBody
                                             font.pixelSize:      Theme.fontSzMicro
                                             font.letterSpacing:  Theme.trackingMicro
-                                            font.capitalization: Font.AllUppercase
+                                            font.capitalization: Theme.capsFont
                                             color:               Theme.colorText3
                                         }
                                         Text {
@@ -688,7 +688,7 @@ Item {
                                         TextEdit {
                                             id: proseEdit
                                             anchors.fill: parent
-                                            anchors.margins: Theme.sp(8)
+                                            anchors.margins: Theme.gap(8)
                                             enabled: root.editable
                                             text: hubRow.modelData.value !== undefined
                                                       ? String(hubRow.modelData.value) : ""
@@ -728,9 +728,9 @@ Item {
                                 RowLayout {
                                     visible: hubRow.kind === "actions"
                                     anchors.fill: parent
-                                    anchors.leftMargin:  Theme.sp(18)
-                                    anchors.rightMargin: Theme.sp(18)
-                                    spacing: Theme.sp(9)
+                                    anchors.leftMargin:  Theme.gap(18)
+                                    anchors.rightMargin: Theme.gap(18)
+                                    spacing: Theme.gap(9)
 
                                     Rectangle {
                                         implicitWidth:  actionLbl.implicitWidth + Theme.sp(18)
@@ -773,9 +773,9 @@ Item {
                                 RowLayout {
                                     visible: hubRow.kind === "claims"
                                     anchors.fill: parent
-                                    anchors.leftMargin:  Theme.sp(18)
-                                    anchors.rightMargin: Theme.sp(18)
-                                    spacing: Theme.sp(9)
+                                    anchors.leftMargin:  Theme.gap(18)
+                                    anchors.rightMargin: Theme.gap(18)
+                                    spacing: Theme.gap(9)
 
                                     Text {
                                         Layout.fillWidth: true
@@ -824,9 +824,9 @@ Item {
                                              && hubRow.kind !== "quote" && hubRow.kind !== "actions"
                                              && hubRow.kind !== "claims" && hubRow.kind !== "fields"
                                     anchors.fill: parent
-                                    anchors.leftMargin:  Theme.sp(18)
-                                    anchors.rightMargin: Theme.sp(18)
-                                    spacing: Theme.sp(9)
+                                    anchors.leftMargin:  Theme.gap(18)
+                                    anchors.rightMargin: Theme.gap(18)
+                                    spacing: Theme.gap(9)
 
                                     Rectangle {
                                         Layout.alignment: Qt.AlignVCenter
@@ -879,7 +879,7 @@ Item {
                                         RowLayout {
                                             id: pillRow
                                             anchors.centerIn: parent
-                                            spacing: Theme.sp(5)
+                                            spacing: Theme.gap(5)
 
                                             Text {
                                                 text: hubRow.modelData.pillHint || ""
@@ -950,7 +950,7 @@ Item {
                             visible: root.editable && sectionItem.modelData.action !== ""
                                      && sectionItem.modelData.action !== "binding"
                             x: Theme.sp(18)
-                            topPadding: Theme.sp(4)
+                            topPadding: Theme.gap(4)
                             text: sectionItem.modelData.action === "cause"     ? qsTr("+ add cause")
                                 : sectionItem.modelData.action === "corridor"  ? qsTr("+ add corridor")
                                 : sectionItem.modelData.action === "settles"   ? qsTr("+ settles a characteristic")
@@ -1016,12 +1016,12 @@ Item {
 
         RowLayout {
             Layout.fillWidth:    true
-            Layout.leftMargin:   Theme.sp(18)
-            Layout.rightMargin:  Theme.sp(18)
-            Layout.topMargin:    Theme.sp(10)
-            Layout.bottomMargin: Theme.sp(12)
+            Layout.leftMargin:   Theme.gap(18)
+            Layout.rightMargin:  Theme.gap(18)
+            Layout.topMargin:    Theme.gap(10)
+            Layout.bottomMargin: Theme.gap(12)
             visible: root.editable && root._found
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             Item { Layout.fillWidth: true }
 
