@@ -53,6 +53,10 @@ src/
 
 ## 2. THEME SINGLETON
 
+> **The live Theme is table-driven (October 2026) — see section 14.** The sketch below is the
+> original instruction and no longer matches `src/Gui/theme/Theme.qml` line for line; the token
+> names it introduces are still the ones the app uses.
+
 Declare `Theme.qml` as a QML singleton using `pragma Singleton`. It exposes the
 active palette and typography scale. All other QML files import it and reference
 `Theme.colorBg` etc. — never hardcoded values.
@@ -1079,7 +1083,7 @@ the root application `Rectangle` to animate the transition.
 The home screen's YOUR SWING section and the Swing diagnostics screen (October 2026) set a
 look that Mark approved for the whole app: "SO MUCH BETTER", then "it looks excellent". **It is
 the target for every panel.** The Wrist session screen carries it (October 2026, 13.11), and the
-rest follow it. It is built only from Theme tokens, so it works in all six aesthetics. The reference
+rest follow it. It is built only from Theme tokens, so it works in every aesthetic. The reference
 renders below are Instrument.
 
 The pieces are shared components in `src/Gui/components/` (13.10). Use them; don't redraw them.
@@ -1311,6 +1315,122 @@ The card's foot holds "6 more" (a link) and "2 cleared" (Micro, `colorGood`).
 
 Exceptions to section 10: the top rule (3 px, or 4 px on the hero) and the inset's 3 px tone bar are
 filled shapes, not borders, and the tick is a `Shape` path. Borders themselves stay 1 px.
+
+## 14. THEMES AS DATA, AND FOLIO
+
+October 2026. Mark liked the look of a set of repository charts: warm neutral greys, hairline grids,
+no boxes, generous whitespace, one neo-grotesk for everything including the numbers, small grey
+sentence-case labels, and one restrained blue. **Folio** is that look as a seventh aesthetic. To make
+it possible, theming was widened. It used to cover colour, fonts and radii; it now also covers spacing,
+heading case, card rules, chart furniture and the app chrome. A theme also became data instead of
+code.
+
+| Home, light | Swing diagnostics, light | Swing diagnostics, dark |
+|---|---|---|
+| ![Folio home](aesthetic/folio_home_light.png) | ![Folio diagnostics light](aesthetic/folio_diagnostics_light.png) | ![Folio diagnostics dark](aesthetic/folio_diagnostics_dark.png) |
+
+| Wrist → Charts, light | Wrist → Charts, dark |
+|---|---|
+| ![Folio charts light](aesthetic/folio_charts_light.png) | ![Folio charts dark](aesthetic/folio_charts_dark.png) |
+
+| Wrist → Session diagnostics, light | Settings → Appearance (14 tiles) |
+|---|---|
+| ![Folio wrist](aesthetic/folio_wrist_light.png) | ![Folio appearance](aesthetic/folio_appearance_light.png) |
+
+### 14.1 A theme is one table entry
+
+`Theme._themes` holds one entry per aesthetic. Each entry has the keys it shares across modes and a
+`light` and a `dark` block:
+
+- **Shared keys:** `label`, `swatch` (the Appearance tile's dot), the three font families,
+  `fontBodyWeight`, `displayBase`, the display italic and weight, `radius`, `radiusLg` and
+  `railWidth`.
+- **Mode blocks:** the 26 colours and `chartSeries`.
+
+A token reads `_m.<name>` for a colour every theme defines, or `_v(name, default)` for an
+**optional key**. The default is what the six original aesthetics always did, so a theme lists only
+where it differs. An optional key may also sit in a mode block, as Folio's chart greys do.
+
+- **themeIndex** is `2 × place in themeOrder (+1 for dark)`. Indices 0–11 never moved, so a saved
+  `ui/themeIndex` keeps its meaning. Folio is 12 (light) and 13 (dark). `themeCount` and
+  `cycleTheme()` follow `themeOrder`.
+- **A new theme** is one entry plus its name in `themeOrder`. `themeInfo(i)` feeds the Appearance
+  tiles, and the tile grid sizes itself from `themeCount`. Run `tools/theme/metric_palette.py` with
+  the theme added to `THEMES` and `SURF` for its `_metricPalettes` block.
+- **No component may branch on `Theme.aesthetic`.** The three that did (the rail, its buttons, the
+  session toolbar) now read tokens. `grep "aesthetic ==="` over `src/Gui` is empty outside
+  `setup/` and `calibration/`.
+- **Proof of the restructure:** a probe dumped every token and sampled function for the 12
+  original themes, from the old build and the new one. All 2,472 values matched. Whole-window
+  renders of home, diagnostics and settings in all 12 themes were pixel-identical before and after.
+  `tst_theme_tables.qml` pins indices, completeness, the pass-throughs and the Folio values.
+
+### 14.2 The new token families
+
+| Family | Tokens | Original aesthetics | Folio |
+|---|---|---|---|
+| Space | `gap(n)`, `spacingScale` | `gap(n)` = `sp(n)` | 1.15× the room between things, not their size |
+| Heading case | `caps(s)`, `capsFont`, `capsHeadings` | CAPITALS | as written (sentence case) |
+| Tracking | `trackingMicro / Label / Data`, `fontSzMicro` | 0.8 / 0.6 / 0.3, micro 10 | 0.15 / 0.1 / 0, micro 11 |
+| Cards | `cardRule`, `heroRule`, `heroTinted` | 3 px / 4 px rule, tinted hero | no rule; the hero is a plain card |
+| Charts | `gridColor(c)`, `gridOpacity(o)`, `baselineColor(c)`, `baselineOpacity(o)`, `curveWidth(w)`, `chartFrame`, `chartMarkerHollow` | pass-through: each chart hands in what it drew before | opaque hairlines `#E1E0D9` / `#2C2C2A`, baseline `#C3C2B7` / `#383835`, no plot box, hollow rings on `colorSurface` |
+| Chrome | `colorRail`, `colorToolbar`, `railActiveBar` | instrument on `colorBg2`; editorial and vector use the bar | rail on `colorBg`, toolbar on `colorSurface`, accent bar |
+| Titles | `fontSzHero`, `gradientTitlesActive` | 2 × display, gradient sweep | 34, flat ink |
+
+The rules for using them:
+
+- **Space vs size.** Spacing, margins, padding, and a card's pad and gaps are `Theme.gap()`. The size of
+  a mark (badge, pip, meter capsule, stroke, rule) stays `Theme.sp()`. One exception: where a size is
+  computed from a gutter (the resource monitor's bar row), the gutter stays `sp()`.
+- **Heading case.** Headings are written in **sentence case** in the source. Set them with
+  `Theme.caps(qsTr("Your focus"))`, or with `font.capitalization: Theme.capsFont` on the Text.
+  - Acronyms stay capitals in the source: IMU, CPU, DTL, GRF, LM, P1…P10.
+  - `.arg()` goes after the case change, `Theme.caps(qsTr("Path %1")).arg(x)`, so the argument keeps
+    its own case.
+  - Never capitalise inside a shared component: PpMicro carries live values as well as headings.
+  - Strings that arrive from C++ already in capitals are lower-cased at the display site before
+    `caps()` (`_unshout()` in the session-diagnostics panel).
+  - The launch-monitor board abbreviations are sentence case in `launch_monitor_reading.cpp`.
+- **Chart furniture is a pass-through.** Hand in the colour and opacity the chart used before.
+  - Grid lines and the zero line wear the tokens. Meaning-carrying lines (Top, Impact, the playhead)
+    and the phase-band wash do not.
+  - Markers whose ring already MEANS something (watch / outside P-dots, the current shot on a
+    corridor strip) keep their encoding. Only their fill moves to `colorSurface`.
+
+### 14.3 Folio
+
+- **Type.** Inter for body, "Inter Display" for display and the hero, and **"Inter Tabular"** for
+  `fontData`. Inter Tabular is Inter with its tabular figures frozen in as the default digits and
+  the family renamed. Every number in the app therefore lines up in columns in the sans, and no call
+  site has to ask for `font.features`.
+  - The faces are static instances, because CoreText won't interpolate a variable weight axis for an
+    application font.
+  - They are subset to Latin, Greek, punctuation, arrows, maths and shapes.
+  - `tools/theme/make_inter_fonts.py <Inter-4.1 dir>` rebuilds them.
+  - OFL-1.1; `Inter-OFL.txt` ships beside them; the licence entry is in `LICENSEDEPS.md`.
+- **Colour.**
+  - **Light:** ink `#2B2B2A` / `#52514E` / muted `#898781` on page `#F6F6F3`, white surfaces and
+    alpha-ink hairlines.
+  - **Dark:** `#EDEDEA` / `#C3C2B7` / `#8F8D86` on `#0F0F0E`, with surface `#1A1A19`.
+  - **Accent:** `#2573D1` (light) / `#3987E5` (dark).
+  - **Status colours** are the reference chart palette's hues, darkened where needed. Every text and
+    status colour clears 4.5:1 on its surface; the muted grey, used only for captions, is the charts'
+    own at 3.6:1, like the other themes' caption greys.
+  - **`chartSeries`** is the validated eight-slot categorical order (blue, orange, aqua, yellow,
+    magenta, green, violet, red), and the metric palette comes from the same generator rules as the
+    other themes.
+- **The look.** No coloured top rules: a card is a hairline box, and its tone lives in its title and
+  its marks. There are no gradients, headings are small and sentence case, and there is more air
+  between things. The inset keeps its 3 px tone bar (a mark, not chrome).
+
+### 14.4 Known gaps
+
+- `src/Gui/setup/` and `src/Gui/calibration/` were not swept: changes there need approval case by
+  case. Their colours and fonts follow Folio through the tokens, but their headings stay in capitals.
+- A few labels arrive in capitals from data and still show that way in Folio: the metric manifest's
+  read-at labels (BACKSWING, DOWNSWING, Δ LIE, Δ PLANE) and the IN/OUT state codes.
+- The offscreen renderer draws no gradient titles, so in renders the original themes' page titles
+  are blank. They draw in the app.
 
 ---
 
