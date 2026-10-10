@@ -63,6 +63,15 @@ its own terms.
 | ViTPose / ViTPose++ | Apache-2.0 (code) | Confirm terms for the exact checkpoint shipped; some published weights inherit training-dataset (e.g. COCO) terms. |
 | RTMPose | Apache-2.0 | MMPose lineage. |
 
+### Bundled typefaces
+
+Font files compiled into the application's resources (`cmake/PinPointFonts.cmake`).
+
+| Typeface | Licence | Notes |
+|---|---|---|
+| Inter 4.1 (The Inter Project Authors) — `Inter-*.ttf`, `InterDisplay-*.ttf` | OFL-1.1 | The Folio theme's face. Static instances, subset by `tools/theme/make_inter_fonts.py`; `Inter-OFL.txt` ships beside them. |
+| Inter Tabular — `InterTabular-*.ttf` | OFL-1.1 | A modified Inter made for this project: the tabular figures set as the default digits, subset and renamed. Inter's licence reserves no font name, so the renamed derivative is permitted under the same licence. |
+
 ### Development-only tools (not distributed)
 
 The Python lab scripts under `tools/` (SwingLab, impactlab, the launch-monitor

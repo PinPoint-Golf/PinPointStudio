@@ -154,7 +154,7 @@ Item {
                 appSettings.metricPalette = ({})
                 // Another theme: same NAME, that theme's value.
                 probe._before = probe.curveColour(probe.chart, probe.key)
-                Theme.themeIndex = (Theme.themeIndex + 3) % 12        // other aesthetic AND other mode
+                Theme.themeIndex = (Theme.themeIndex + 3) % Theme.themeCount   // other aesthetic AND other mode
             } else if (s === 6) {
                 const now = probe.curveColour(probe.chart, probe.key)
                 probe.check(same(now, Theme.metricColor(probe.key)) && !same(now, probe._before),

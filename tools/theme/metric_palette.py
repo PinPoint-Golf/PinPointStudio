@@ -56,11 +56,13 @@ THEMES = {
     "editorial":  ((0.66, 0.83, 0.120), (0.42, 0.59, 0.130), 0),
     "vector":     ((0.64, 0.81, 0.200), (0.46, 0.62, 0.190), 0),
     "terrain":    ((0.65, 0.82, 0.120), (0.43, 0.60, 0.120), 8),
-    "links":      ((0.63, 0.80, 0.115), (0.42, 0.58, 0.115), 4)}
+    "links":      ((0.63, 0.80, 0.115), (0.42, 0.58, 0.115), 4),
+    "folio":      ((0.64, 0.81, 0.140), (0.45, 0.61, 0.140), 0)}
 # Theme.colorSurface (dark, light) — what the chart is drawn on
 SURF = {"studio": ("#131519", "#FBFCFD"), "instrument": ("#0A0F13", "#FBF8F0"),
         "editorial": ("#191612", "#FFFFFF"), "vector": ("#13151A", "#FAFBFC"),
-        "terrain": ("#0B110D", "#FAFBF5"), "links": ("#131820", "#F6F1E4")}
+        "terrain": ("#0B110D", "#FAFBF5"), "links": ("#131820", "#F6F1E4"),
+        "folio": ("#1A1A19", "#FFFFFF")}
 
 def build(t, mode):
     d, l, bias = THEMES[t]

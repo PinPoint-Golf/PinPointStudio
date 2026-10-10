@@ -21,8 +21,7 @@
 #
 # The C++ side deliberately does NOT carry a matching hardcoded list: it enumerates
 # `:/fonts` at run time, so a face added here reaches both consumers with no third place to
-# update. (main.cpp still spells its own list out; that duplication predates this file and
-# is worth collapsing the same way when someone is next in there.)
+# update. (main.cpp enumerates `:/fonts` the same way since Folio added thirteen faces.)
 #
 # Paths are relative to the repo root; each consumer prefixes them.
 
@@ -56,4 +55,19 @@ set(PP_FONT_FILES
     src/Resources/fonts/SpaceGrotesk-Variable.ttf
     src/Resources/fonts/SpaceMono-Regular.ttf
     src/Resources/fonts/SpaceMono-Bold.ttf
+    # Folio (tools/theme/make_inter_fonts.py): static Inter faces, Inter Display for the hero, and
+    # Inter Tabular — Inter with tabular figures as the default digits, Folio's fontData.
+    src/Resources/fonts/Inter-Light.ttf
+    src/Resources/fonts/Inter-Regular.ttf
+    src/Resources/fonts/Inter-Italic.ttf
+    src/Resources/fonts/Inter-Medium.ttf
+    src/Resources/fonts/Inter-MediumItalic.ttf
+    src/Resources/fonts/Inter-SemiBold.ttf
+    src/Resources/fonts/Inter-Bold.ttf
+    src/Resources/fonts/InterDisplay-Regular.ttf
+    src/Resources/fonts/InterDisplay-Medium.ttf
+    src/Resources/fonts/InterTabular-Regular.ttf
+    src/Resources/fonts/InterTabular-Medium.ttf
+    src/Resources/fonts/InterTabular-SemiBold.ttf
+    src/Resources/fonts/InterTabular-Bold.ttf
 )

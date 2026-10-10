@@ -29,6 +29,7 @@
 #include "../Ppcp/ppcp_host_service.h"
 #endif
 #include <QDir>
+#include <algorithm>
 #include <QThreadPool>
 #include <QTimer>
 #include <QLocale>
@@ -176,53 +177,30 @@ int main(int argc, char *argv[])
     // FFmpeg → PpMessageLog capture on top of it.
     PinPointDebug::installFfmpegLogCapture();
 
-    // Load bundled fonts so Theme.qml family names resolve on all platforms.
-    const QStringList fontResources = {
-        ":/fonts/Georgia.ttf",
-        ":/fonts/Georgiab.ttf",
-        ":/fonts/Georgiai.ttf",
-        ":/fonts/Georgiaz.ttf",
-        ":/fonts/DMSans-Variable.ttf",
-        ":/fonts/DMSans-Italic-Variable.ttf",
-        ":/fonts/DMMono-Regular.ttf",
-        ":/fonts/DMMono-Medium.ttf",
-        ":/fonts/DMSerifDisplay-Regular.ttf",
-        ":/fonts/Fraunces-Variable.ttf",
-        ":/fonts/Fraunces-Italic-Variable.ttf",
-        // Static Regular (wght=400) and SemiBold (wght=600) instances: macOS/CoreText
-        // won't interpolate the variable weight axis, so terrain body/tile text
-        // (Font.Normal) and titles (Font.DemiBold) fell back to the system font — with
-        // no concrete 400/600 face registered under family "Fraunces", the variable
-        // file's default instance is 9pt Black (900). Both static faces are pinned to
-        // opsz=9, SOFT=0, WONK=0 to match visually.
-        ":/fonts/Fraunces-Regular.ttf",
-        ":/fonts/Fraunces-SemiBold.ttf",
-        ":/fonts/SourceSerif4-Variable.ttf",
-        ":/fonts/SourceSerif4-Italic-Variable.ttf",
-        ":/fonts/HankenGrotesk-Variable.ttf",
-        ":/fonts/HankenGrotesk-Italic-Variable.ttf",
-        ":/fonts/Literata-Variable.ttf",
-        ":/fonts/Literata-Italic-Variable.ttf",
-        // Static Regular (wght=400) and Medium (wght=500) instances for the Links
-        // theme serif: macOS/CoreText won't interpolate the variable weight axis, so
-        // Links body/display text (Font.Normal) and the few Medium labels/active-tabs
-        // (Font.Medium) would fall back to the system font without concrete 400/500
-        // faces registered under family "Literata". Same fix as the Fraunces statics
-        // above; both pinned to opsz=12 (Literata's default optical size).
-        ":/fonts/Literata-Regular.ttf",
-        ":/fonts/Literata-Medium.ttf",
-        ":/fonts/InstrumentSans-Variable.ttf",
-        ":/fonts/JetBrainsMono-Variable.ttf",
-        ":/fonts/PlayfairDisplay-Variable.ttf",
-        ":/fonts/Geist-Variable.ttf",
-        ":/fonts/GeistMono-Variable.ttf",
-        ":/fonts/SpaceGrotesk-Variable.ttf",
-        ":/fonts/SpaceMono-Regular.ttf",
-        ":/fonts/SpaceMono-Bold.ttf",
-    };
-    for (const QString &path : fontResources) {
-        if (QFontDatabase::addApplicationFont(path) < 0)
-            ppWarn() << "[Fonts] failed to load" << path;
+    // Load bundled fonts so Theme.qml family names resolve on all platforms. ENUMERATED, not
+    // listed: the faces are cmake/PinPointFonts.cmake's one list, compiled into :/fonts, so adding
+    // a face there reaches the app (and qml_ui_test, which reads the directory the same way) with
+    // no second list to keep in step.
+    //
+    // Several families ship STATIC faces beside (or instead of) a variable file — Fraunces
+    // Regular/SemiBold, Literata Regular/Medium, every Inter weight. macOS/CoreText won't
+    // interpolate the variable weight axis of an application font, so a weight with no concrete
+    // face registered under the family falls back to the system font (or, for Fraunces, to the
+    // variable file's default instance, 9pt Black). Register every face; CoreText picks by weight.
+    // Variable files first, statics after: the order the hand-written list always had, so a family
+    // carrying both resolves a weight exactly as it did before the list was enumerated.
+    {
+        const QDir fontDir(QStringLiteral(":/fonts"));
+        QStringList faces = fontDir.entryList({ QStringLiteral("*.ttf") }, QDir::Files, QDir::Name);
+        std::stable_partition(faces.begin(), faces.end(), [](const QString &f) {
+            return f.contains(QLatin1String("Variable"));
+        });
+        if (faces.isEmpty())
+            ppWarn() << "[Fonts] no bundled faces under :/fonts — every Theme family falls back";
+        for (const QString &face : faces) {
+            if (QFontDatabase::addApplicationFont(fontDir.filePath(face)) < 0)
+                ppWarn() << "[Fonts] failed to load" << face;
+        }
     }
 
     app.setWindowIcon(QIcon(":/icons/pinpointstudio_256.png"));
