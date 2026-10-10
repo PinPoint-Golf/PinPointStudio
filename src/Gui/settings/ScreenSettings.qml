@@ -69,13 +69,22 @@ Item {
         })
     }
 
+    // Where the Diagnostic Model sits in the stack, found rather than written down. The deep links
+    // below said `9` and went on saying it when Archiving took that slot (23 Sept), so a metric
+    // tile's click-through opened Archiving. A position looked up from the panel itself cannot drift.
+    function _stackIndexOf(panel) {
+        for (var i = 0; i < settingsStack.children.length; ++i)
+            if (settingsStack.children[i] === panel) return i
+        return 0
+    }
+
     // Deep link straight to one metric (a metric tile click-through, routed via
     // MetricRoute). Same callLater shape as navigateToResult: the panel Loader must
     // have instantiated before we can address it.
     function showMetricDetail(key) {
         searchInput.text = ""
         root.searchQuery = ""
-        root.activeNavIndex = 9                       // Diagnostic Model
+        root.activeNavIndex = root._stackIndexOf(diagnosticModelPanel)
         Qt.callLater(function() { diagnosticModelPanel.showMetric(key) })
     }
 
@@ -84,7 +93,7 @@ Item {
     function showCharacteristicDetail(conditionId) {
         searchInput.text = ""
         root.searchQuery = ""
-        root.activeNavIndex = 9                       // Diagnostic Model
+        root.activeNavIndex = root._stackIndexOf(diagnosticModelPanel)
         Qt.callLater(function() { diagnosticModelPanel.showCharacteristic(conditionId) })
     }
 
@@ -94,7 +103,7 @@ Item {
     function showMeasureDetail(measureId) {
         searchInput.text = ""
         root.searchQuery = ""
-        root.activeNavIndex = 9                       // Diagnostic Model
+        root.activeNavIndex = root._stackIndexOf(diagnosticModelPanel)
         Qt.callLater(function() { diagnosticModelPanel.showMeasure(measureId) })
     }
 
@@ -555,6 +564,7 @@ Item {
             color: Theme.colorBg
 
             StackLayout {
+                id: settingsStack
                 anchors.fill:  parent
                 currentIndex:  root.activeNavIndex
 
