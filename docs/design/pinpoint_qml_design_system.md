@@ -1358,8 +1358,7 @@ where it differs. An optional key may also sit in a mode block, as Folio's chart
   tiles, and the tile grid sizes itself from `themeCount`. Run `tools/theme/metric_palette.py` with
   the theme added to `THEMES` and `SURF` for its `_metricPalettes` block.
 - **No component may branch on `Theme.aesthetic`.** The three that did (the rail, its buttons, the
-  session toolbar) now read tokens. `grep "aesthetic ==="` over `src/Gui` is empty outside
-  `setup/` and `calibration/`.
+  session toolbar) now read tokens. `grep "aesthetic ==="` over `src/Gui` is empty.
 - **Proof of the restructure:** a probe dumped every token and sampled function for the 12
   original themes, from the old build and the new one. All 2,472 values matched. Whole-window
   renders of home, diagnostics and settings in all 12 themes were pixel-identical before and after.
@@ -1425,8 +1424,6 @@ The rules for using them:
 
 ### 14.4 Known gaps
 
-- `src/Gui/setup/` and `src/Gui/calibration/` were not swept: changes there need approval case by
-  case. Their colours and fonts follow Folio through the tokens, but their headings stay in capitals.
 - A few labels arrive in capitals from data and still show that way in Folio: the metric manifest's
   read-at labels (BACKSWING, DOWNSWING, Δ LIE, Δ PLANE) and the IN/OUT state codes.
 - The offscreen renderer draws no gradient titles, so in renders the original themes' page titles
