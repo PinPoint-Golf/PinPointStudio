@@ -69,6 +69,7 @@ Font files compiled into the application's resources (`cmake/PinPointFonts.cmake
 
 | Typeface | Licence | Notes |
 |---|---|---|
+| Gelasio 1.008 (The Gelasio Project Authors) — `Gelasio-*.ttf` | OFL-1.1 | The Instrument theme's serif, replacing Georgia (which was bundled without a licence to redistribute it). The four style-linked faces, with their vertical line metrics set to Georgia's by `tools/theme/make_gelasio_fonts.py`; `Gelasio-OFL.txt` ships beside them and records the change. Gelasio's licence reserves no font name. |
 | Inter 4.1 (The Inter Project Authors) — `Inter-*.ttf`, `InterDisplay-*.ttf` | OFL-1.1 | The Folio theme's face. Static instances, subset by `tools/theme/make_inter_fonts.py`; `Inter-OFL.txt` ships beside them. |
 | Inter Tabular — `InterTabular-*.ttf` | OFL-1.1 | A modified Inter made for this project: the tabular figures set as the default digits, subset and renamed. Inter's licence reserves no font name, so the renamed derivative is permitted under the same licence. |
 

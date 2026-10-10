@@ -28,7 +28,10 @@ import PinPointStudio
 //   * the new token families are pass-throughs in the original aesthetics — caps(), gap(), the
 //     chart furniture and the card rules give exactly what the screens drew before — and Folio's
 //     own values where Folio sets them.
-// And that Folio's faces are really bundled: "Inter Tabular" exists and its digits are one width.
+// And that the bundled faces are what draws: every family and weight a theme asks for resolves to a
+// concrete face of THAT family (not a synthesised bold, not a system fallback) — the check that
+// matters on Windows, where a static face's family grouping differs from macOS — "Inter Tabular"'s
+// digits are one width, and no theme names Georgia, which was never licensed to be bundled.
 TestCase {
     name: "ThemeTables"
 
@@ -125,11 +128,41 @@ TestCase {
         compare(Theme.themeInfo(12).aesthetic, "Folio")
     }
 
+    // family, weight, italic → the style name of the face that must answer. Gelasio ships only its four
+    // style-linked faces, so 500 resolves to Regular and 600 to Bold, exactly as Georgia's four did.
+    readonly property var faces: [
+        ["Gelasio", Font.Normal, false, "Regular"], ["Gelasio", Font.Bold, false, "Bold"],
+        ["Gelasio", Font.Normal, true, "Italic"],   ["Gelasio", Font.Bold, true, "Bold Italic"],
+        ["Inter", Font.Light, false, "Light"],      ["Inter", Font.Normal, false, "Regular"],
+        ["Inter", Font.Medium, false, "Medium"],    ["Inter", Font.DemiBold, false, "SemiBold"],
+        ["Inter", Font.Bold, false, "Bold"],        ["Inter", Font.Normal, true, "Italic"],
+        ["Inter Display", Font.Normal, false, "Regular"], ["Inter Display", Font.Medium, false, "Medium"],
+        ["Inter Tabular", Font.Normal, false, "Regular"], ["Inter Tabular", Font.Medium, false, "Medium"],
+        ["Inter Tabular", Font.DemiBold, false, "SemiBold"], ["Inter Tabular", Font.Bold, false, "Bold"],
+        ["Literata", Font.Normal, false, "Regular"], ["Literata", Font.Medium, false, "Medium"],
+        ["Fraunces", Font.Normal, false, "Regular"], ["Fraunces", Font.DemiBold, false, "SemiBold"]
+    ]
+    function test_bundledFacesAnswer() {
+        for (const f of faces) {
+            const t = Qt.createQmlObject('import QtQuick; Text { text: "Ag" }', this)
+            t.font.family = f[0]; t.font.weight = f[1]; t.font.italic = f[2]; t.font.pixelSize = 20
+            const what = f[0] + " " + f[1] + (f[2] ? " italic" : "")
+            compare(t.fontInfo.family, f[0], what + ": the bundled family answers, not a fallback")
+            compare(t.fontInfo.styleName, f[3], what + ": a concrete " + f[3] + " face")
+            t.destroy()
+        }
+        for (let i = 0; i < Theme.themeCount; ++i) {
+            Theme.themeIndex = i
+            for (const k of ["fontBody", "fontData", "fontDisplay"])
+                verify(Theme[k] !== "Georgia", Theme.aesthetic + " " + k + " names Georgia")
+        }
+    }
+
     FontMetrics { id: tabular; font.family: "Inter Tabular"; font.pixelSize: 40 }
     FontMetrics { id: inter;   font.family: "Inter";         font.pixelSize: 40 }
     function test_folioFacesAreBundled() {
         const fams = Qt.fontFamilies()
-        for (const f of ["Inter", "Inter Display", "Inter Tabular"])
+        for (const f of ["Inter", "Inter Display", "Inter Tabular", "Gelasio"])
             verify(fams.indexOf(f) >= 0, f + " is registered (cmake/PinPointFonts.cmake → :/fonts)")
         // Every digit one advance in Inter Tabular — that is the whole reason it exists — while
         // Inter itself keeps its proportional figures.

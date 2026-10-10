@@ -26,10 +26,12 @@
 # Paths are relative to the repo root; each consumer prefixes them.
 
 set(PP_FONT_FILES
-    src/Resources/fonts/Georgia.ttf
-    src/Resources/fonts/Georgiab.ttf
-    src/Resources/fonts/Georgiai.ttf
-    src/Resources/fonts/Georgiaz.ttf
+    # Instrument's serif (tools/theme/make_gelasio_fonts.py): Gelasio, metric-compatible with the
+    # Georgia it replaced, in the four style-linked faces only, with Georgia's line box.
+    src/Resources/fonts/Gelasio-Regular.ttf
+    src/Resources/fonts/Gelasio-Italic.ttf
+    src/Resources/fonts/Gelasio-Bold.ttf
+    src/Resources/fonts/Gelasio-BoldItalic.ttf
     src/Resources/fonts/DMSans-Variable.ttf
     src/Resources/fonts/DMSans-Italic-Variable.ttf
     src/Resources/fonts/DMMono-Regular.ttf

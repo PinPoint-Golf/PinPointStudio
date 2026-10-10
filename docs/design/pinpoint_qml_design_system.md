@@ -107,7 +107,7 @@ QtObject {
     // fontBody: primary UI font (menus, labels, body copy)
     // fontData: monospaced font for all numeric values, timestamps, status
     // fontDisplay: display font for headings/session titles
-    //              Instrument: DM Serif Display (italic) — fontBody is Georgia (serif)
+    //              Instrument: DM Serif Display (italic) — fontBody is Gelasio (serif)
     //              Editorial:  Source Serif 4 (italic)
     //              Vector:     Space Mono (upright — no italic variant)
     //              Studio:     Geist (same as fontBody, no separate display font)
@@ -167,7 +167,7 @@ QtObject {
     property color goodLight:    Qt.rgba(30/255, 77/255, 58/255, 0.09)
     property color warn:         "#7A3B1E"
     property color warnLight:    Qt.rgba(122/255, 59/255, 30/255, 0.08)
-    property string fontBody:    "Georgia"
+    property string fontBody:    "Gelasio"
     property string fontData:    "DM Mono"
     property string fontDisplay: "DM Serif Display"
     property int railWidth:      56
@@ -310,7 +310,7 @@ Use `Font.Light` and `Font.Normal` only. Never use `Font.DemiBold` or `Font.Bold
 in Pinpoint UI — it reads as too heavy against the ambient chrome.
 
 When setting weight on a `fontBody` element, use `Theme.fontBodyWeight` instead of
-`Font.Light` directly. Georgia (Instrument) has no Light variant; the token returns
+`Font.Light` directly. Gelasio (Instrument) ships no Light face; the token returns
 `Font.Normal` for Instrument and `Font.Light` for all other aesthetics.
 
 ---
@@ -1418,6 +1418,10 @@ The rules for using them:
   - **`chartSeries`** is the validated eight-slot categorical order (blue, orange, aqua, yellow,
     magenta, green, violet, red), and the metric palette comes from the same generator rules as the
     other themes.
+- **Instrument's serif is Gelasio** (October 2026), not Georgia, which was bundled without a licence to
+  redistribute it. Gelasio matches Georgia's advance widths exactly; `tools/theme/make_gelasio_fonts.py`
+  ships only the four style-linked faces (one family on every platform's font stack) and sets their line
+  metrics to Georgia's, so Instrument lays out as before, identically on macOS and Windows.
 - **The look.** No coloured top rules: a card is a hairline box, and its tone lives in its title and
   its marks. There are no gradients, headings are small and sentence case, and there is more air
   between things. The inset keeps its 3 px tone bar (a mark, not chrome).

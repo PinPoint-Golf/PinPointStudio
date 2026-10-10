@@ -90,7 +90,7 @@ QtObject {
     // also sit in a mode block when they differ between light and dark (Folio's chart greys).
     readonly property var _themes: ({
         instrument: {
-            label: "Instrument", swatch: ["#B5701A", "#E6AC54"], fontBody: "Georgia", fontData: "DM Mono", fontDisplay: "Georgia",
+            label: "Instrument", swatch: ["#B5701A", "#E6AC54"], fontBody: "Gelasio", fontData: "DM Mono", fontDisplay: "Gelasio",
             fontBodyWeight: Font.Normal, displayBase: 26, fontDisplayItalic: false, fontDisplayWeight: Font.Bold, radius: 6,
             radiusLg: 10, railWidth: 56, railTone: "bg2", toolbarTone: "bg2",
             light: { colorBg: "#F4EFE3", colorBg2: "#ECE6D7", colorBg3: "#E1DACA", colorSurface: "#FBF8F0",
@@ -490,7 +490,7 @@ QtObject {
     // same characters as flat monochrome glyphs and prevents that fallback.
     // On macOS, Apple Color Emoji does the same — Apple Symbols provides flat
     // monochrome glyphs for those codepoints and wins the font-selection race.
-    // Georgia (Instrument), Fraunces (Terrain) and Literata (Links) are serifs that
+    // Gelasio (Instrument), Fraunces (Terrain) and Literata (Links) are serifs that
     // read best at Normal for body — use Normal to avoid thin, silently-rounded body
     // text. Literata additionally only ships concrete static faces at 400/500 in this
     // build (macOS/CoreText won't interpolate the variable weight axis — see main.cpp),
