@@ -50,7 +50,7 @@ QtObject {
 
     readonly property list<StepDescriptor> builtIn: [
         StepDescriptor {
-            key: "goals"; title: qsTr("Goals"); eyebrow: qsTr("GOALS"); group: "session"
+            key: "goals"; title: qsTr("Goals"); eyebrow: Theme.caps(qsTr("Goals")); group: "session"
             page: "pages/GoalsPage.qml"
             // applies, gate: always.
             summary: function(ctx, draft) {
@@ -61,7 +61,7 @@ QtObject {
             }
         },
         StepDescriptor {
-            key: "cameras"; title: qsTr("Cameras"); eyebrow: qsTr("CAMERAS"); group: "cameras"
+            key: "cameras"; title: qsTr("Cameras"); eyebrow: Theme.caps(qsTr("Cameras")); group: "cameras"
             page: "pages/CamerasPage.qml"
             // applies: always. gate: none — Connect is the page's primary until nothing is left
             // to connect; the header › never runs it (F5).
@@ -100,14 +100,14 @@ QtObject {
         StepDescriptor {
             // Straight after Cameras, before anything that depends on where a camera points:
             // moving one to fix its framing would undo a triangulation or a learnt hitting area.
-            key: "framing"; title: qsTr("Framing"); eyebrow: qsTr("FRAMING"); group: "cameras"
+            key: "framing"; title: qsTr("Framing"); eyebrow: Theme.caps(qsTr("Framing")); group: "cameras"
             page: "pages/FramingPage.qml"
             // applies: a connected camera that sees the golfer (not the impact camera). gate: none
             // — the verdict is advice; a camera that cannot be moved still records.
             applies: function(ctx, draft) { return ctx.framingCameras.length > 0 }
         },
         StepDescriptor {
-            key: "triangulate"; title: qsTr("Triangulate"); eyebrow: qsTr("TRIANGULATION"); group: "cameras"
+            key: "triangulate"; title: qsTr("Triangulate"); eyebrow: Theme.caps(qsTr("Triangulation")); group: "cameras"
             page: "pages/TriangulatePage.qml"
             applies: function(ctx, draft) { return ctx.hasFaceOnAndDtlSelected }
             // The stub checks (D7, kept as today; wizard l.520–525): only when the cameras step
@@ -130,7 +130,7 @@ QtObject {
             }
         },
         StepDescriptor {
-            key: "ball"; title: qsTr("Ball"); eyebrow: qsTr("BALL DETECTION"); group: "cameras"
+            key: "ball"; title: qsTr("Ball"); eyebrow: Theme.caps(qsTr("Ball detection")); group: "cameras"
             page: "pages/BallPage.qml"
             // Continue only on a LIVE detected ball (wizard l.157); Skip is the way past.
             gate: function(ctx, draft) { return ctx.ballPresent }
@@ -144,7 +144,7 @@ QtObject {
         StepDescriptor {
             // DECISION(stage5b): "Sensors" in the indicator and on the closing page — the page's
             // name in the brief, and the golfer's word; the eyebrow is today's.
-            key: "imus"; title: qsTr("Sensors"); eyebrow: qsTr("MOTION SENSORS"); group: "sensors"
+            key: "imus"; title: qsTr("Sensors"); eyebrow: Theme.caps(qsTr("Motion sensors")); group: "sensors"
             page: "pages/ImusPage.qml"
             // applies: always — the Sensors page is where a found sensor gets its mount (§4.12).
             issues: function(ctx, draft) {
@@ -216,7 +216,7 @@ QtObject {
             }
         },
         StepDescriptor {
-            key: "calibrateArm"; title: qsTr("Calibrate"); eyebrow: qsTr("CALIBRATE"); group: "sensors"
+            key: "calibrateArm"; title: qsTr("Calibrate"); eyebrow: Theme.caps(qsTr("Calibrate")); group: "sensors"
             instrumentGroup: "arm"
             page: "pages/CalibrateArmPage.qml"
             // §4.12, D6 superseded: the arm steps exist when the arm GROUP is in the session —
@@ -231,7 +231,7 @@ QtObject {
             }
         },
         StepDescriptor {
-            key: "checkArm"; title: qsTr("Confirm"); eyebrow: qsTr("CONFIRM TRACKING"); group: "sensors"
+            key: "checkArm"; title: qsTr("Confirm"); eyebrow: Theme.caps(qsTr("Confirm tracking")); group: "sensors"
             instrumentGroup: "arm"
             page: "pages/CheckArmPage.qml"
             applies: function(ctx, draft) { return ctx.groups.arm.inSession }
@@ -240,10 +240,10 @@ QtObject {
         // Registering them is ALSO what offers the trunk mounts (§4.12): flip
         // ImuMounts.trunkMountsOffered in the same change until the two are wired together.
         //
-        // StepDescriptor { key: "calibrateTrunk"; title: qsTr("Calibrate trunk"); eyebrow: qsTr("CALIBRATE TRUNK"); group: "sensors"; instrumentGroup: "trunk"; page: "pages/CalibrateTrunkPage.qml"; applies: function(ctx, draft) { return ctx.groups.trunk.inSession }; gate: function(ctx, draft) { return draft.outcome("trunk").done } },
-        // StepDescriptor { key: "checkTrunk"; title: qsTr("Check trunk"); eyebrow: qsTr("CHECK TRUNK"); group: "sensors"; instrumentGroup: "trunk"; page: "pages/CheckTrunkPage.qml"; applies: function(ctx, draft) { return ctx.groups.trunk.inSession } },
+        // StepDescriptor { key: "calibrateTrunk"; title: qsTr("Calibrate trunk"); eyebrow: Theme.caps(qsTr("Calibrate trunk")); group: "sensors"; instrumentGroup: "trunk"; page: "pages/CalibrateTrunkPage.qml"; applies: function(ctx, draft) { return ctx.groups.trunk.inSession }; gate: function(ctx, draft) { return draft.outcome("trunk").done } },
+        // StepDescriptor { key: "checkTrunk"; title: qsTr("Check trunk"); eyebrow: Theme.caps(qsTr("Check trunk")); group: "sensors"; instrumentGroup: "trunk"; page: "pages/CheckTrunkPage.qml"; applies: function(ctx, draft) { return ctx.groups.trunk.inSession } },
         StepDescriptor {
-            key: "ready"; title: qsTr("Ready"); eyebrow: qsTr("READY"); group: "ready"
+            key: "ready"; title: qsTr("Ready"); eyebrow: Theme.caps(qsTr("Ready")); group: "ready"
             page: "pages/ReadyPage.qml"
             // applies: always. Start is flow.exit("start"), not a next(): nothing gates it.
         }

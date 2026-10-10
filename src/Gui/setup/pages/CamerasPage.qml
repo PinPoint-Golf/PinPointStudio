@@ -69,8 +69,8 @@ WizardPage {
 
     Column {
         id: camsCol
-        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.sp(32) }
-        spacing: Theme.sp(16)
+        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.gap(32) }
+        spacing: Theme.gap(16)
 
         // One row per available camera — capture is not limited by
         // view assignment. Grouped face-on, down-the-line, then

@@ -36,8 +36,8 @@ Item {
     height: Theme.sp(44)
 
     RowLayout {
-        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: Theme.sp(14) }
-        spacing: Theme.sp(10)
+        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: Theme.gap(14) }
+        spacing: Theme.gap(10)
 
         Rectangle {
             width: Theme.sp(6); height: Theme.sp(6); radius: Theme.sp(3)

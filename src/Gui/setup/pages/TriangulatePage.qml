@@ -45,8 +45,8 @@ WizardPage {
 
     Column {
         id: triangulateCol
-        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.sp(32) }
-        spacing: Theme.sp(16)
+        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.gap(32) }
+        spacing: Theme.gap(16)
 
         SetupStepIntro {
             width:   parent.width
@@ -67,7 +67,7 @@ WizardPage {
                 subOk:        qsTr("Calibration valid")
                 subFail:      page.ctx.anyFixedCamera
                                   ? qsTr("OPTIONAL — CAMERAS ARE FIXED IN PLACE")
-                                  : qsTr("CALIBRATION NEEDED")
+                                  : Theme.caps(qsTr("Calibration needed"))
                 showRecal:    true
                 recalEnabled: page.ctx.faceOn.length > 0 && page.ctx.dtl.length > 0
                 onRecalibrate: page.flow.requestCameraRecalibrate()
@@ -80,7 +80,7 @@ WizardPage {
                 subOk:    qsTr("Baseline confirmed")
                 subFail:  page.ctx.anyFixedCamera
                               ? qsTr("OPTIONAL — CAMERAS ARE FIXED IN PLACE")
-                              : qsTr("NOT CONFIRMED")
+                              : Theme.caps(qsTr("Not confirmed"))
             }
         }
 

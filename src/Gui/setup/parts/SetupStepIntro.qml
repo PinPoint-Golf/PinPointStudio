@@ -29,7 +29,7 @@ Column {
     property string eyebrow: ""
     property string heading: ""
     property string body:    ""
-    spacing: Theme.sp(8)
+    spacing: Theme.gap(8)
 
     Text {
         text:               eyebrow

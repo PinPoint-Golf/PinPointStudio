@@ -78,6 +78,7 @@ Item {
         else if (name === "diagnostics") { navController.navigate(11); after(1500, then) }
         else if (name === "settings") { navController.navigate(9); after(1200, then) }
         else if (name === "athletes") { navController.navigate(7); after(1200, then) }
+        else if (name === "setup") { navController.navigate(10); after(2000, then) }
         else if (name === "system") { navController.navigate(8); after(1200, then) }
         else if (name === "wrist" || name === "wristreplay") {
             navController.navigate(2)

@@ -39,8 +39,8 @@ WizardPage {
 
     Column {
         id: goalsCol
-        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.sp(32) }
-        spacing: Theme.sp(16)
+        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.gap(32) }
+        spacing: Theme.gap(16)
 
         SetupStepIntro {
             width:   parent.width
@@ -52,8 +52,8 @@ WizardPage {
         GridLayout {
             width:         parent.width
             columns:       2
-            columnSpacing: Theme.sp(8)
-            rowSpacing:    Theme.sp(8)
+            columnSpacing: Theme.gap(8)
+            rowSpacing:    Theme.gap(8)
 
             Repeater {
                 model: page.draft.goalDefs
@@ -91,13 +91,13 @@ WizardPage {
                         id: chipCol
                         anchors {
                             left: parent.left; right: parent.right
-                            leftMargin: Theme.sp(14); rightMargin: Theme.sp(14)
+                            leftMargin: Theme.gap(14); rightMargin: Theme.gap(14)
                             verticalCenter: parent.verticalCenter
                         }
-                        spacing: Theme.sp(5)
+                        spacing: Theme.gap(5)
 
                         Row {
-                            spacing: Theme.sp(6)
+                            spacing: Theme.gap(6)
                             Text {
                                 text:           chip.modelData.name
                                 font.family:    Theme.fontBody

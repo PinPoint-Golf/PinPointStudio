@@ -52,8 +52,8 @@ WizardPage {
 
     Column {
         id: ballCalCol
-        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.sp(32) }
-        spacing: Theme.sp(16)
+        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.gap(32) }
+        spacing: Theme.gap(16)
 
         SetupStepIntro {
             width:   parent.width
@@ -76,7 +76,7 @@ WizardPage {
         RowLayout {
             width: parent.width
             visible: page.ctx.ballInstance !== null
-            spacing: Theme.sp(20)
+            spacing: Theme.gap(20)
 
             Loader {
                 id: ballStepFrame
@@ -102,7 +102,7 @@ WizardPage {
                 id: ballStepCol
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignTop
-                spacing: Theme.sp(12)
+                spacing: Theme.gap(12)
 
                 Text {
                     Layout.fillWidth: true
@@ -135,8 +135,8 @@ WizardPage {
                 // present transition (ballPresent), so no QML sound here.
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.topMargin: Theme.sp(4)
-                    spacing: Theme.sp(8)
+                    Layout.topMargin: Theme.gap(4)
+                    spacing: Theme.gap(8)
                     Rectangle {
                         width: Theme.sp(11); height: width; radius: width / 2
                         color: page.learning        ? Theme.colorWarn

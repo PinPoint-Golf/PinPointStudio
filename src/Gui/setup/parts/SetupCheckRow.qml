@@ -60,7 +60,7 @@ Item {
 
     RowLayout {
         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
-        spacing: Theme.sp(10)
+        spacing: Theme.gap(10)
 
         SetupStatusCircle {
             opacity: cr.disabled ? 0.45 : 1.0
@@ -71,7 +71,7 @@ Item {
 
         Column {
             Layout.fillWidth: true
-            spacing: Theme.sp(2)
+            spacing: Theme.gap(2)
             opacity: cr.disabled ? 0.45 : 1.0
             Text {
                 text:           cr.label
@@ -117,7 +117,7 @@ Item {
         // Per-row enable toggle (e.g. include/exclude an IMU for connection).
         Row {
             visible:          cr.showToggle
-            spacing:          Theme.sp(6)
+            spacing:          Theme.gap(6)
             Layout.alignment: Qt.AlignVCenter
             Text {
                 text:           qsTr("Enable")

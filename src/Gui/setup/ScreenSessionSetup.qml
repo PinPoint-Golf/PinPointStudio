@@ -178,12 +178,12 @@ Item {
                         left:           parent.left
                         right:          closeBtn.left
                         verticalCenter: parent.verticalCenter
-                        rightMargin:    Theme.sp(16)
+                        rightMargin:    Theme.gap(16)
                     }
-                    spacing: Theme.sp(6)
+                    spacing: Theme.gap(6)
 
                     Row {
-                        spacing: Theme.sp(8)
+                        spacing: Theme.gap(8)
                         Text {
                             text:           hdrBox._preset ? hdrBox._preset.icon : ""
                             font.pixelSize: Theme.sp(20)
@@ -214,8 +214,8 @@ Item {
 
                     Text {
                         text:               ctxObj.athleteName !== ""
-                                                ? ctxObj.athleteName.toUpperCase()
-                                                : qsTr("NO ATHLETE")
+                                                ? Theme.caps(ctxObj.athleteName)
+                                                : Theme.caps(qsTr("No athlete"))
                         font.family:        Theme.fontData
                         font.pixelSize:     Theme.fontSzMicro
                         font.letterSpacing: Theme.trackingMicro
@@ -306,7 +306,7 @@ Item {
 
                 RowLayout {
                     anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
-                    spacing: Theme.sp(8)
+                    spacing: Theme.gap(8)
 
                     // Hint text
                     Text {

@@ -143,7 +143,7 @@ QtObject {
     function stepLabelFor(key) {
         var d = _descriptor(key)
         if (d === null || numbering[key] === undefined) return ""
-        return qsTr("STEP %1 OF %2 · %3").arg(numbering[key]).arg(plan.length).arg(d.eyebrow)
+        return Theme.caps(qsTr("Step %1 of %2 · %3")).arg(numbering[key]).arg(plan.length).arg(d.eyebrow)
     }
 
     // ── Operations (all queued, R5) ──────────────────────────────────────────────────────────────

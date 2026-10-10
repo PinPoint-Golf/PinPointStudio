@@ -114,8 +114,8 @@ WizardPage {
 
     Column {
         id: imusCol
-        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.sp(32) }
-        spacing: Theme.sp(16)
+        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.gap(32) }
+        spacing: Theme.gap(16)
 
         SetupStepIntro {
             width:   parent.width
@@ -129,14 +129,14 @@ WizardPage {
         // ── Scan header ─────────────────────────────────────────────
         RowLayout {
             width: parent.width
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             Text {
                 Layout.fillWidth: true
                 text: {
                     var n = page.ctx.sensorsFound
                     return n === 0
-                        ? qsTr("NO DEVICES FOUND")
+                        ? Theme.caps(qsTr("No devices found"))
                         : n === 1 ? qsTr("1 DEVICE FOUND")
                                   : qsTr("%1 DEVICES FOUND").arg(n)
                 }
@@ -283,8 +283,8 @@ WizardPage {
                             id: mountCol
                             visible: !devRow._excluded
                             anchors { left: parent.left; right: parent.right; top: parent.top
-                                      leftMargin: Theme.sp(26); topMargin: Theme.sp(6) }
-                            spacing: Theme.sp(6)
+                                      leftMargin: Theme.gap(26); topMargin: Theme.gap(6) }
+                            spacing: Theme.gap(6)
 
                             // A remembered mount: confirmed by being shown (in the row's label),
                             // with a small way to change it.
@@ -317,7 +317,7 @@ WizardPage {
                             Flow {
                                 visible: devRow._asking
                                 width:   parent.width
-                                spacing: Theme.sp(6)
+                                spacing: Theme.gap(6)
 
                                 Repeater {
                                     model: devRow._asking ? devRow._options : []
@@ -390,7 +390,7 @@ WizardPage {
                     property string deviceId: modelData.deviceId
                     width: parent.width
                     label:   qsTr("%1 — %2 (not found)").arg(modelData.mountLabel).arg(modelData.name)
-                    subFail: qsTr("POWER IT ON AND SCAN")
+                    subFail: Theme.caps(qsTr("Power it on and scan"))
                 }
             }
         }

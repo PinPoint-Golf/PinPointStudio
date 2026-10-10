@@ -87,41 +87,41 @@ QtObject {
     readonly property var presets: [
         { icon: "◑", name: qsTr("Swing Analysis"), railIndex: 1, comingSoon: true,
           goals: [
-            { key: "generalAssessment", name: qsTr("General assessment"),  sub: qsTr("CHECK WHERE I'M AT · IDENTIFY AREAS TO IMPROVE") },
-            { key: "kinematicSequence", name: qsTr("Kinematic sequence"),  sub: qsTr("SEGMENT VELOCITY ORDER")    },
+            { key: "generalAssessment", name: qsTr("General assessment"),  sub: Theme.caps(qsTr("Check where i'm at · identify areas to improve")) },
+            { key: "kinematicSequence", name: qsTr("Kinematic sequence"),  sub: Theme.caps(qsTr("Segment velocity order"))    },
             { key: "xFactor",           name: qsTr("X-factor"),            sub: qsTr("HIP–SHOULDER SEPARATION")   },
             { key: "swingTempo",        name: qsTr("Swing tempo"),          sub: qsTr("BACK : DOWN RATIO")         },
-            { key: "earlyExtension",    name: qsTr("Early extension"),      sub: qsTr("HIP SWAY DETECTION")        },
-            { key: "clubPath",          name: qsTr("Club path"),            sub: qsTr("IN-OUT TREND")              },
-            { key: "wristAngles",       name: qsTr("Wrist angles"),         sub: qsTr("FLEXION AT IMPACT")         }
+            { key: "earlyExtension",    name: qsTr("Early extension"),      sub: Theme.caps(qsTr("Hip sway detection"))        },
+            { key: "clubPath",          name: qsTr("Club path"),            sub: Theme.caps(qsTr("In-out trend"))              },
+            { key: "wristAngles",       name: qsTr("Wrist angles"),         sub: Theme.caps(qsTr("Flexion at impact"))         }
           ] },
         { icon: "⌖", name: qsTr("Wrist Motion"), railIndex: 2, comingSoon: false,
           goals: [
-            { key: "generalAssessment", name: qsTr("General assessment"),  sub: qsTr("CHECK WHERE I'M AT · IDENTIFY AREAS TO IMPROVE") },
-            { key: "wristAngleTop",       name: qsTr("Wrist angle at the top"),    sub: qsTr("FLAT / BOWED / CUPPED AT TOP")     },
-            { key: "impactConditions",    name: qsTr("Impact conditions"),         sub: qsTr("FLEXION / EXTENSION AT CONTACT")   },
-            { key: "wristAngleSequence",  name: qsTr("Wrist angle sequence"),      sub: qsTr("TRANSITION & ARC PROFILE")         },
-            { key: "trailWristExtension", name: qsTr("Trail wrist extension"),     sub: qsTr("SCOOP / FLIP DETECTION")           }
+            { key: "generalAssessment", name: qsTr("General assessment"),  sub: Theme.caps(qsTr("Check where i'm at · identify areas to improve")) },
+            { key: "wristAngleTop",       name: qsTr("Wrist angle at the top"),    sub: Theme.caps(qsTr("Flat / bowed / cupped at top"))     },
+            { key: "impactConditions",    name: qsTr("Impact conditions"),         sub: Theme.caps(qsTr("Flexion / extension at contact"))   },
+            { key: "wristAngleSequence",  name: qsTr("Wrist angle sequence"),      sub: Theme.caps(qsTr("Transition & arc profile"))         },
+            { key: "trailWristExtension", name: qsTr("Trail wrist extension"),     sub: Theme.caps(qsTr("Scoop / flip detection"))           }
           ] },
         { icon: "⇅", name: qsTr("Ground Forces"), railIndex: 3, comingSoon: true,
           goals: [
-            { key: "generalAssessment", name: qsTr("General assessment"),  sub: qsTr("CHECK WHERE I'M AT · IDENTIFY AREAS TO IMPROVE") },
-            { key: "kinematicSequence", name: qsTr("Kinematic sequence"),  sub: qsTr("SEGMENT VELOCITY ORDER")    },
+            { key: "generalAssessment", name: qsTr("General assessment"),  sub: Theme.caps(qsTr("Check where i'm at · identify areas to improve")) },
+            { key: "kinematicSequence", name: qsTr("Kinematic sequence"),  sub: Theme.caps(qsTr("Segment velocity order"))    },
             { key: "xFactor",           name: qsTr("X-factor"),            sub: qsTr("HIP–SHOULDER SEPARATION")   },
             { key: "swingTempo",        name: qsTr("Swing tempo"),          sub: qsTr("BACK : DOWN RATIO")         },
-            { key: "earlyExtension",    name: qsTr("Early extension"),      sub: qsTr("HIP SWAY DETECTION")        },
-            { key: "clubPath",          name: qsTr("Club path"),            sub: qsTr("IN-OUT TREND")              },
-            { key: "wristAngles",       name: qsTr("Wrist angles"),         sub: qsTr("FLEXION AT IMPACT")         }
+            { key: "earlyExtension",    name: qsTr("Early extension"),      sub: Theme.caps(qsTr("Hip sway detection"))        },
+            { key: "clubPath",          name: qsTr("Club path"),            sub: Theme.caps(qsTr("In-out trend"))              },
+            { key: "wristAngles",       name: qsTr("Wrist angles"),         sub: Theme.caps(qsTr("Flexion at impact"))         }
           ] },
         { icon: "✦", name: qsTr("AI Coach"), railIndex: 4, comingSoon: true,
           goals: [
-            { key: "generalAssessment", name: qsTr("General assessment"),  sub: qsTr("CHECK WHERE I'M AT · IDENTIFY AREAS TO IMPROVE") },
-            { key: "kinematicSequence", name: qsTr("Kinematic sequence"),  sub: qsTr("SEGMENT VELOCITY ORDER")    },
+            { key: "generalAssessment", name: qsTr("General assessment"),  sub: Theme.caps(qsTr("Check where i'm at · identify areas to improve")) },
+            { key: "kinematicSequence", name: qsTr("Kinematic sequence"),  sub: Theme.caps(qsTr("Segment velocity order"))    },
             { key: "xFactor",           name: qsTr("X-factor"),            sub: qsTr("HIP–SHOULDER SEPARATION")   },
             { key: "swingTempo",        name: qsTr("Swing tempo"),          sub: qsTr("BACK : DOWN RATIO")         },
-            { key: "earlyExtension",    name: qsTr("Early extension"),      sub: qsTr("HIP SWAY DETECTION")        },
-            { key: "clubPath",          name: qsTr("Club path"),            sub: qsTr("IN-OUT TREND")              },
-            { key: "wristAngles",       name: qsTr("Wrist angles"),         sub: qsTr("FLEXION AT IMPACT")         }
+            { key: "earlyExtension",    name: qsTr("Early extension"),      sub: Theme.caps(qsTr("Hip sway detection"))        },
+            { key: "clubPath",          name: qsTr("Club path"),            sub: Theme.caps(qsTr("In-out trend"))              },
+            { key: "wristAngles",       name: qsTr("Wrist angles"),         sub: Theme.caps(qsTr("Flexion at impact"))         }
           ] }
     ]
 

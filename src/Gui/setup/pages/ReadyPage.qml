@@ -63,12 +63,12 @@ WizardPage {
 
     Column {
         id: readyCol
-        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.sp(32) }
-        spacing: Theme.sp(20)
+        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.gap(32) }
+        spacing: Theme.gap(20)
 
         Column {
             width: parent.width
-            spacing: Theme.sp(8)
+            spacing: Theme.gap(8)
 
             Text {
                 text:               page.stepLabel
@@ -108,16 +108,16 @@ WizardPage {
         Column {
             visible: !page._fullyReady
             width:   parent.width
-            spacing: Theme.sp(6)
+            spacing: Theme.gap(6)
 
-            SectionLabel { text: qsTr("TO FIX BEFORE YOU START"); bottomPadding: Theme.sp(4) }
+            SectionLabel { text: Theme.caps(qsTr("To fix before you start")); bottomPadding: Theme.gap(4) }
 
             Repeater {
                 model: page.flow.issues
                 delegate: Row {
                     required property var modelData
                     width:   parent.width
-                    spacing: Theme.sp(8)
+                    spacing: Theme.gap(8)
 
                     Text {
                         text:           "⚠"
@@ -125,12 +125,12 @@ WizardPage {
                         font.pixelSize: Theme.fontSzBody2
                         color:          Theme.colorWarn
                         anchors.top:    parent.top
-                        anchors.topMargin: Theme.sp(1)
+                        anchors.topMargin: Theme.gap(1)
                     }
 
                     Column {
                         width:   parent.width - Theme.sp(8) - Theme.sp(16)
-                        spacing: Theme.sp(3)
+                        spacing: Theme.gap(3)
 
                         Text {
                             width:          parent.width
@@ -169,9 +169,9 @@ WizardPage {
         // ── What is set up ───────────────────────────────────────────
         Column {
             width:   parent.width
-            spacing: Theme.sp(10)
+            spacing: Theme.gap(10)
 
-            SectionLabel { text: qsTr("WHAT IS SET UP") }
+            SectionLabel { text: Theme.caps(qsTr("What is set up")) }
 
             Rectangle {
                 width:  parent.width
@@ -211,9 +211,9 @@ WizardPage {
         // ── What this session will record ────────────────────────────
         Column {
             width:   parent.width
-            spacing: Theme.sp(10)
+            spacing: Theme.gap(10)
 
-            SectionLabel { text: qsTr("WHAT THIS SESSION WILL RECORD") }
+            SectionLabel { text: Theme.caps(qsTr("What this session will record")) }
 
             Rectangle {
                 width:  parent.width
@@ -257,19 +257,19 @@ WizardPage {
 
                                 RowLayout {
                                     anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
-                                              margins: Theme.sp(14) }
-                                    spacing: Theme.sp(10)
+                                              margins: Theme.gap(14) }
+                                    spacing: Theme.gap(10)
 
                                     Rectangle {
                                         Layout.alignment: Qt.AlignTop
-                                        Layout.topMargin: Theme.sp(7)
+                                        Layout.topMargin: Theme.gap(7)
                                         width: Theme.sp(6); height: Theme.sp(6); radius: Theme.sp(3)
                                         color: capRow._toneColor
                                     }
                                     Column {
                                         id: capCol
                                         Layout.fillWidth: true
-                                        spacing: Theme.sp(2)
+                                        spacing: Theme.gap(2)
                                         Text {
                                             width:          parent.width
                                             text:           modelData.label
@@ -316,7 +316,7 @@ WizardPage {
             Text {
                 id: noticeText
                 objectName: "readyNotice"
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.sp(12) }
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Theme.gap(12) }
                 text: page._fullyReady
                           ? qsTr("Everything's set up and ready to go. Step up when you like — Pinpoint will start capturing the moment you take your address.")
                           : qsTr("Starting with an incomplete setup is fine — partial data is often still useful. For the full picture though, it's worth coming back once the hardware is sorted. Your results will thank you for it.")

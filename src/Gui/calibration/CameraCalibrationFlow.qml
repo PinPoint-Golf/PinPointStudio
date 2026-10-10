@@ -50,7 +50,7 @@ Item {
         ColumnLayout {
             id: col
             width: parent.width
-            spacing: Theme.sp(16)
+            spacing: Theme.gap(16)
 
             Item { Layout.preferredHeight: Theme.sp(8) }   // top breathing room
 
@@ -63,7 +63,7 @@ Item {
 
             PpDisplayText {
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.sp(20); Layout.rightMargin: Theme.sp(20)
+                Layout.leftMargin: Theme.gap(20); Layout.rightMargin: Theme.gap(20)
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
                 text: qsTr("Stereo camera calibration runs here")
@@ -72,7 +72,7 @@ Item {
 
             Text {
                 Layout.fillWidth: true
-                Layout.leftMargin: Theme.sp(20); Layout.rightMargin: Theme.sp(20)
+                Layout.leftMargin: Theme.gap(20); Layout.rightMargin: Theme.gap(20)
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
                 lineHeight: 1.5
@@ -83,8 +83,8 @@ Item {
 
             RowLayout {
                 Layout.alignment: Qt.AlignHCenter
-                Layout.bottomMargin: Theme.sp(12)
-                spacing: Theme.sp(8)
+                Layout.bottomMargin: Theme.gap(12)
+                spacing: Theme.gap(8)
                 PpButton {
                     label:   qsTr("Start")
                     primary: true

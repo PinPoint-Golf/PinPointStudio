@@ -86,10 +86,10 @@ Item {
         // Presentation helpers — every one of these is STATE, never a score.
         function _hmDeg(v) { return (v === undefined || isNaN(v)) ? "—" : v.toFixed(2) + "°" }
         function _hmStateText(s) {
-            if (s === calCalibrated)   return qsTr("CALIBRATED")
-            if (s === calUncalibrated) return qsTr("UNCALIBRATED")
-            if (s === calLost)         return qsTr("LOST")
-            return qsTr("NOT CHECKED")
+            if (s === calCalibrated)   return Theme.caps(qsTr("Calibrated"))
+            if (s === calUncalibrated) return Theme.caps(qsTr("Uncalibrated"))
+            if (s === calLost)         return Theme.caps(qsTr("Lost"))
+            return Theme.caps(qsTr("Not checked"))
         }
     }
 
@@ -105,7 +105,7 @@ Item {
 
         Column {
             width:   armStatus.width
-            spacing: Theme.sp(16)
+            spacing: Theme.gap(16)
 
             Text {
                 visible:            armStatus.showHeader
@@ -157,7 +157,7 @@ Item {
 
         ColumnLayout {
             width:   armStatus.width
-            spacing: Theme.sp(12)
+            spacing: Theme.gap(12)
 
             StatusBadge  { Layout.alignment: Qt.AlignLeft }
             PhaseText     { Layout.fillWidth: true }
@@ -276,7 +276,7 @@ Item {
 
     component StatusLabel: Row {
         visible: !d.isHackMotion
-        spacing: Theme.sp(6)
+        spacing: Theme.gap(6)
         Rectangle {
             visible:      d.calibrationDone
             width:        Theme.sp(16)
@@ -309,14 +309,14 @@ Item {
                  : _capturing         ? Theme.colorAccent
                  :                       Theme.colorText3
             text: {
-                if (d.calibrationDone)    return qsTr("CALIBRATION COMPLETE")
-                if (d.calibPhase === 0)   return qsTr("WATCH THE GUIDE")
+                if (d.calibrationDone)    return Theme.caps(qsTr("Calibration complete"))
+                if (d.calibPhase === 0)   return Theme.caps(qsTr("Watch the guide"))
                 if (d.calibPhase === 1) {
-                    if (d._armDownCaptured) return qsTr("FOLLOW THE GUIDE")
+                    if (d._armDownCaptured) return Theme.caps(qsTr("Follow the guide"))
                     var imu = d.leadImu
-                    if (!imu || !imu.imuConnected) return qsTr("WAITING FOR SENSOR")
+                    if (!imu || !imu.imuConnected) return Theme.caps(qsTr("Waiting for sensor"))
                     if (d.phase1AccumMs > 0)       return qsTr("HOLD STILL — CAPTURING")
-                    return qsTr("HOLD STILL")
+                    return Theme.caps(qsTr("Hold still"))
                 }
                 return qsTr("HOLD STILL — CAPTURING")
             }
@@ -406,7 +406,7 @@ Item {
     // invites the coach to hurry a motion the device is measuring.
     component HmStepBar: Row {
         visible: d.isHackMotion && d.hmStep >= 1 && d.hmStep <= 5
-        spacing: Theme.sp(4)
+        spacing: Theme.gap(4)
         Repeater {
             model: 4
             Rectangle {
@@ -433,19 +433,19 @@ Item {
              : d.hmStep >= 1       ? Theme.colorAccent
              :                       Theme.colorText3
         text: {
-            if (d.calibrationDone) return qsTr("CALIBRATION COMPLETE")
-            if (d.hmStep === 9)    return qsTr("NOT CALIBRATED")
-            if (d.hmStep === 0)    return qsTr("READY")
+            if (d.calibrationDone) return Theme.caps(qsTr("Calibration complete"))
+            if (d.hmStep === 9)    return Theme.caps(qsTr("Not calibrated"))
+            if (d.hmStep === 0)    return Theme.caps(qsTr("Ready"))
             if (d.hmStep === 1)    return d.hmPhase === d.calpMarkingPose0
-                                          ? qsTr("MARKING POSITION 1") : qsTr("HOLD STILL")
+                                          ? Theme.caps(qsTr("Marking position 1")) : Theme.caps(qsTr("Hold still"))
             if (d.hmStep === 2)    return d.hmPhase === d.calpMarkingPose1
-                                          ? qsTr("MARKING POSITION 2") : qsTr("FOLLOW THE GUIDE")
+                                          ? Theme.caps(qsTr("Marking position 2")) : Theme.caps(qsTr("Follow the guide"))
             // ⚠ APPLYING and VERIFYING are NOT success. VERIFYING in particular means
             // the transform is already applied and the check has NOT been taken — so
             // no tick and nothing that reads as a verdict.
             if (d.hmStep === 3)    return qsTr("APPLYING…")
             if (d.hmStep === 4)    return d.hmAwaitingPresence ? qsTr("CHECKING…")
-                                                              : qsTr("HOLD STILL")
+                                                              : Theme.caps(qsTr("Hold still"))
             return ""
         }
         Behavior on font.pixelSize { NumberAnimation { duration: Theme.durationNormal } }
@@ -459,7 +459,7 @@ Item {
         property string label: ""
         property string value: ""
         property color  tint:  Theme.colorText2
-        spacing: Theme.sp(8)
+        spacing: Theme.gap(8)
         Text {
             width:          Theme.sp(150)
             text:           hmReadoutRow.label
@@ -484,7 +484,7 @@ Item {
     // beside it.
     component HmReadouts: Column {
         visible: d.isHackMotion && (d.hmStep === 4 || d.hmStep === 5)
-        spacing: Theme.sp(6)
+        spacing: Theme.gap(6)
 
         // ⚠ ONLY INTERPRETABLE AT REST WITH A STRAIGHT WRIST — the same stream reads
         // 170-180° mid-motion — which is why it is shown only while the athlete is

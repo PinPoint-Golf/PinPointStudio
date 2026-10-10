@@ -66,7 +66,7 @@ Item {
     // ── Config ────────────────────────────────────────────────────────────────
     property string layoutMode: "full"     // "full" (wizard) | "compact" (toolbar panel)
     property bool   showHeader: true        // step eyebrow + "Calibrate Sensors" title
-    property string stepLabel:  qsTr("CALIBRATE")   // host-supplied eyebrow text
+    property string stepLabel:  Theme.caps(qsTr("Calibrate"))   // host-supplied eyebrow text
 
     // R3: the one activity flag. See the header for what it means. Every host binds it:
     // session setup's CalibrateArmPage (`active: page.active`) and the toolbar's PpImuPanel
@@ -382,8 +382,8 @@ Item {
 
         RowLayout {
             anchors.fill:    parent
-            anchors.margins: Theme.sp(8)
-            spacing:         Theme.sp(12)
+            anchors.margins: Theme.gap(8)
+            spacing:         Theme.gap(12)
 
             BodyVizView {
                 id: calibBvvFull
@@ -420,7 +420,7 @@ Item {
             ArmCalibrationStatus {
                 Layout.preferredWidth: Theme.sp(360)
                 Layout.fillHeight:     true
-                Layout.topMargin:      Theme.sp(32)
+                Layout.topMargin:      Theme.gap(32)
                 mode:            "full"
                 routine:         flow._routine
                 isHackMotion:    flow.isHackMotion
@@ -449,12 +449,12 @@ Item {
             Item {
                 id: actionBar
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                anchors.margins: Theme.sp(12)
+                anchors.margins: Theme.gap(12)
                 height: Theme.sp(54)
 
                 RowLayout {
-                    anchors { fill: parent; leftMargin: Theme.sp(10); rightMargin: Theme.sp(10) }
-                    spacing: Theme.sp(8)
+                    anchors { fill: parent; leftMargin: Theme.gap(10); rightMargin: Theme.gap(10) }
+                    spacing: Theme.gap(8)
                     PpButton {
                         visible: flow._showRecalibrate
                         label:   qsTr("↺  Recalibrate")
@@ -485,15 +485,15 @@ Item {
                 ColumnLayout {
                     id: compactCol
                     width: parent.width
-                    spacing: Theme.sp(12)
+                    spacing: Theme.gap(12)
 
                     BodyVizView {
                         id: calibBvvCompact
                         Layout.fillWidth:       true
                         Layout.preferredHeight: Theme.sp(220)
-                        Layout.leftMargin:      Theme.sp(12)
-                        Layout.rightMargin:     Theme.sp(12)
-                        Layout.topMargin:       Theme.sp(12)
+                        Layout.leftMargin:      Theme.gap(12)
+                        Layout.rightMargin:     Theme.gap(12)
+                        Layout.topMargin:       Theme.gap(12)
                         Component.onCompleted: guide.view = calibBvvCompact
 
                         poseSource:       null
@@ -520,9 +520,9 @@ Item {
 
                     ArmCalibrationStatus {
                         Layout.fillWidth:    true
-                        Layout.leftMargin:   Theme.sp(15)
-                        Layout.rightMargin:  Theme.sp(15)
-                        Layout.bottomMargin: Theme.sp(12)
+                        Layout.leftMargin:   Theme.gap(15)
+                        Layout.rightMargin:  Theme.gap(15)
+                        Layout.bottomMargin: Theme.gap(12)
                         mode:            "compact"
                         routine:         flow._routine
                         isHackMotion:    flow.isHackMotion

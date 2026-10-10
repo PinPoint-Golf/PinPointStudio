@@ -160,8 +160,8 @@ WizardPage {
 
     Column {
         id: framingCol
-        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.sp(32) }
-        spacing: Theme.sp(16)
+        anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: Theme.gap(32) }
+        spacing: Theme.gap(16)
 
         SetupStepIntro {
             width:   parent.width
@@ -183,7 +183,7 @@ WizardPage {
                 objectName: "framingCamera_" + cameraKey
 
                 width: framingCol.width
-                spacing: Theme.sp(20)
+                spacing: Theme.gap(20)
 
                 Connections {
                     target:  camRow.instance

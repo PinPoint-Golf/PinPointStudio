@@ -51,14 +51,14 @@ WizardPage {
 
     ColumnLayout {
         anchors.fill:    parent
-        anchors.margins: Theme.sp(8)
-        spacing:         Theme.sp(12)
+        anchors.margins: Theme.gap(8)
+        spacing:         Theme.gap(12)
 
         Column {
             Layout.fillWidth:    true
             Layout.maximumWidth: Theme.contentWidth(page.width)
-            Layout.topMargin:    Theme.sp(32)
-            spacing:             Theme.sp(8)
+            Layout.topMargin:    Theme.gap(32)
+            spacing:             Theme.gap(8)
 
             Text {
                 text:               page.stepLabel
@@ -100,7 +100,7 @@ WizardPage {
             // check; '—' until the sensors are calibrated (roll needs the optional upper arm).
             Rectangle {
                 visible: page.liveWrist !== null
-                anchors { top: parent.top; right: parent.right; margins: Theme.sp(10) }
+                anchors { top: parent.top; right: parent.right; margins: Theme.gap(10) }
                 width:   metricsCol.width  + Theme.sp(20)
                 height:  metricsCol.height + Theme.sp(14)
                 radius:  Theme.radius
@@ -111,10 +111,10 @@ WizardPage {
                 Column {
                     id: metricsCol
                     anchors.centerIn: parent
-                    spacing: Theme.sp(6)
+                    spacing: Theme.gap(6)
 
                     Row {
-                        spacing: Theme.sp(10)
+                        spacing: Theme.gap(10)
                         Text {
                             text: qsTr("Bow / cup"); width: Theme.sp(54)
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
@@ -127,7 +127,7 @@ WizardPage {
                         }
                     }
                     Row {
-                        spacing: Theme.sp(10)
+                        spacing: Theme.gap(10)
                         Text {
                             text: qsTr("Hinge"); width: Theme.sp(54)
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
@@ -140,7 +140,7 @@ WizardPage {
                         }
                     }
                     Row {
-                        spacing: Theme.sp(10)
+                        spacing: Theme.gap(10)
                         Text {
                             text: liveWrist ? liveWrist.rollTitle : ""; width: Theme.sp(54)
                             font.family: Theme.fontBody; font.pixelSize: Theme.fontSzLabel
@@ -160,8 +160,8 @@ WizardPage {
         // tracking looks wrong. Calibration itself happens there, not on this screen.
         Row {
             Layout.fillWidth:    true
-            Layout.bottomMargin: Theme.sp(8)
-            spacing:             Theme.sp(6)
+            Layout.bottomMargin: Theme.gap(8)
+            spacing:             Theme.gap(6)
 
             Text {
                 text:           qsTr("Not tracking your movement?")
