@@ -2685,9 +2685,10 @@ Item {
             compare(bl.text, "← better"); compare(br.text, "worse →")
             verify(bl.font.pixelSize > one(strip, "sdStripFaultLabel").font.pixelSize,
                    "…in larger type than the labels under it")
-            const mu = 0.0625 * strip.width
-            verify(bl.x + bl.implicitWidth <= mu + 0.5 && br.x >= mu - 0.5,
-                   "…split at the aspiration point: better to its left, worse to its right")
+            const fault = 0.469 * strip.width
+            verify(bl.x + bl.implicitWidth <= fault + 0.5 && br.x >= fault - 0.5
+                       && fault - (bl.x + bl.implicitWidth) < strip.px(12) && br.x - fault < strip.px(12),
+                   "…split at the fault line: better just to its left, worse just to its right")
             verify(!shown(one(strip, "sdStripDirLeft")), "the faint corner words are gone at this size")
             compare(one(strip, "sdStripCaption").text,
                     "median 14 % hand rise · 3 past the fault line · 3 of 4 outside · 1 not measured · 1 off scale, at 200 % hand rise",

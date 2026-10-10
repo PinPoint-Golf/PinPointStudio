@@ -140,17 +140,19 @@ Item {
     // ── the label row: which way is better, and the fault line's words ───────
     // ── which way is better, large: its own row, split where the corridor splits ──
     //
-    // A one-sided corridor splits at the aspiration point: "← better" ends just left of it and
-    // "worse →" starts just right of it on a ceiling, the mirror on a floor — so the arrows point
-    // away from the line they are about. A two-sided corridor puts "better" over mu and each
-    // "worse" just outside its own fault line. Clamped inside the strip.
+    // A one-sided corridor splits at its FAULT LINE: "← better" ends just left of it and "worse →"
+    // starts just right of it on a ceiling, the mirror on a floor — so the arrows point away from
+    // the line the golfer is judged against, which is the one that matters. A two-sided corridor
+    // puts "better" over mu and each "worse" just outside its own fault line. Clamped inside the
+    // strip.
     Item {
         id: dirRow
         objectName: "sdStripDirRow"
         width: root.width
         height: root._dirRowH
         visible: height > 0
-        readonly property real splitX: (root.spread && root.spread.muF !== undefined ? root.spread.muF : 0.5) * width
+        readonly property real splitX: (root._dirC === "" && root._faults.length === 1 ? root._faults[0].f
+                                        : root.spread && root.spread.muF !== undefined ? root.spread.muF : 0.5) * width
         readonly property real loX: root._dirC !== "" && root._faults.length > 0 ? root._faults[0].f * width : splitX
         readonly property real hiX: root._dirC !== "" && root._faults.length > 1 ? root._faults[root._faults.length - 1].f * width : splitX
         Text {

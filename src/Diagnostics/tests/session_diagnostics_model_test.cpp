@@ -1622,6 +1622,15 @@ int main(int argc, char **argv)
         ax.fraction(13.0, &clipped);
         check(clipped == 0, "…while an ordinary bad shot stays on the axis");
 
+        // The open side reaches only as far as the shots on it — padding, not a fixed stretch.
+        {
+            const SpreadAxis none = spreadAxisFor(cc, { 3, 5, 9 });
+            check(none.lo < cc.mu && none.lo >= cc.mu - 0.05 * (none.hi - none.lo),
+                  "no shot below the aspiration point: the open side is the padding alone");
+            const SpreadAxis some = spreadAxisFor(cc, { -2, 3, 5, 9 });
+            check(some.lo < -2.0, "…a shot below it still gets its room");
+        }
+
         // The corridor in words: the PASS band and the FAULT line the strip draws — never the
         // stored Ideal band ("pass 0.0 to 4.3" was mu to mu + σ, an edge nothing fires at).
         const QString hr = QStringLiteral("% hand rise");

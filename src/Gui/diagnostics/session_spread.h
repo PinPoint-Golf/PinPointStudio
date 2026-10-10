@@ -241,8 +241,10 @@ inline int spreadDecimals(double span)
 //
 // THE BANDS' EXTENT. A two-sided corridor out to a quarter of the graded width past each fault
 // line, so Action is a visible band rather than a hairline; a one-sided one the same past its
-// fault line, and half the graded width into the open side, so "below the aspiration point" has
-// somewhere to be.
+// fault line, and NOTHING into the open side — that side reaches only as far as the shots that
+// landed there, and the padding alone shows where the aspiration point is. A fixed reach into a
+// side nobody's shots were on was a quarter of the strip spent on nothing (and on a ceiling at 0,
+// on readings the measure cannot take).
 //
 // THE FENCE. Three spreads past the quartiles, the spread being the interquartile range or the
 // norm's own σ, whichever is larger — so a tight session cannot make its own ordinary misses look
@@ -252,14 +254,17 @@ inline SpreadAxis spreadAxisFor(const SpreadCorridor &c, const std::vector<doubl
     double lo =  std::numeric_limits<double>::infinity();
     double hi = -std::numeric_limits<double>::infinity();
     double sigma = 0.0;
+    // The open side's reach for the DECIMALS only: half the graded width, as the axis itself once
+    // reached. Trimming empty axis off the drawing must not turn "13 %" into "13.0 %".
+    double openReach = 0.0;
 
     if (c.known) {
         const double wLo = c.lowOpen  ? 0.0 : c.mu - c.faultLo;
         const double wHi = c.highOpen ? 0.0 : c.faultHi - c.mu;
-        const double w   = std::max(wLo, wHi);
-        lo = c.lowOpen  ? c.mu - 0.5 * w : c.faultLo - 0.25 * wLo;
-        hi = c.highOpen ? c.mu + 0.5 * w : c.faultHi + 0.25 * wHi;
+        lo = c.lowOpen  ? c.mu : c.faultLo - 0.25 * wLo;
+        hi = c.highOpen ? c.mu : c.faultHi + 0.25 * wHi;
         sigma = std::max(c.sigmaLo, c.sigmaHi);
+        openReach = (c.lowOpen || c.highOpen) ? 0.5 * std::max(wLo, wHi) : 0.0;
     }
 
     std::vector<double> finite;
@@ -289,7 +294,9 @@ inline SpreadAxis spreadAxisFor(const SpreadCorridor &c, const std::vector<doubl
     SpreadAxis a;
     a.lo = lo - pad;
     a.hi = hi + pad;
-    a.decimals = spreadDecimals(a.hi - a.lo);
+    const double wordLo = c.known && c.lowOpen  ? std::min(lo, c.mu - openReach) : lo;
+    const double wordHi = c.known && c.highOpen ? std::max(hi, c.mu + openReach) : hi;
+    a.decimals = spreadDecimals((1.0 + 2.0 * 0.04) * (wordHi - wordLo));
     return a;
 }
 
