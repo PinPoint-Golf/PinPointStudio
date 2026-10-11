@@ -1277,6 +1277,8 @@ The card's foot holds "6 more" (a link) and "2 cleared" (Micro, `colorGood`).
 - **Make each panel a card** with one tone chosen by role (13.2), a Micro title in that tone, and an
   aside where a column needs a heading. A panel inside a frame it does not own draws no frame or
   title of its own (13.11).
+  *Superseded for stage panels (Mark, 11 October 2026; section 15).* A stage card always takes
+  the quiet tone, and its colour comes only from its content. Home-screen cards keep their tones.
 - **Keep the numbers on session screens.** They are the technical layer, so values stay in `fontData`.
   But wherever a value is judged against an ideal, give it a mark as well (a badge, meter, pips or a
   glyph) and words, so colour is never the only signal.
@@ -1301,6 +1303,18 @@ The card's foot holds "6 more" (a link) and "2 cleared" (Micro, `colorGood`).
   `colorText` over a 2 px rule in that panel's tone. A panel may put one more thing on the heading
   row through `readonly property string cardAside`; a panel also shown outside the stage carries
   `property bool framed` and is told it is framed already.
+
+  > **Superseded by section 15 (Mark, 11 October 2026): every stage card takes the quiet tone.**
+  > The warn tone on SESSION DIAGNOSTICS and WRIST MOTION is gone. On a swing with no faults it
+  > made "warn" mean "this panel", not "out". Mark: *"Quiet tone please. The previous design
+  > system was confused and noisy."*
+  > - This build changes `PpModeStage._defs`: `sessionDiagnostics` and `wristMotion` take the quiet
+  >   role, so every card title is `colorText3`.
+  > - The selected tab's rule is ink, not the panel's tone.
+  > - Colour inside a card comes only from content (15.4).
+  >
+  > The text above is kept as the October 2026 history. The renders in this section still show
+  > the old warn titles.
 - **No card inside a card.** Inside a panel, sections are hairlines, Micro sub-headings and insets.
 - **Faults are `colorWarn` everywhere** (13.2): diagnostics tick runs and verdicts, the carousel's
   pips, the launch monitor's Action readings. The Wrist position grid keeps its ● ▲ ■ glyphs.
@@ -1436,9 +1450,811 @@ The rules for using them:
 - The offscreen renderer draws no gradient titles, so in renders the original themes' page titles
   are blank. They draw in the app.
 
+## 15. THE TYPESET SYSTEM
+
+October 2026. After three design rounds on the Session diagnostics panel, Mark approved a second
+look for the app: the **typeset** system. It sets a panel the way a typesetter sets a page, where
+the old panels were dashboards of boxes. Session diagnostics is being built in it now. It is the
+target for every other stage panel and, later, for whole screens. To apply it to a panel, follow
+`docs/design/stage_typeset_playbook.md`.
+
+How it fits with sections 13 and 14:
+
+- **Section 14 still holds.** A theme is data. The typeset values are one more block in each
+  `_themes` entry (15.3), and no component branches on `Theme.aesthetic`.
+- **Section 13's shell still frames each stage panel** (13.11). Inside the frame, the content
+  follows this section. Where the two disagree inside a stage panel, this section wins:
+  - colour means only "outside its corridor", so there are no `colorGood` ticks, tone badges or
+    frequency meters;
+  - the selected tab's rule is ink, not the panel's tone, because a warn rule would spend "out" on
+    chrome;
+  - every stage card takes the quiet tone (decided by Mark, 11 October; see 15.11).
+- **"Colour is never the only channel" (13.1) still holds.** Here an out-of-corridor state also has
+  a position (a dot past the fault line), a shape (a bar where a clean shot has a tick) or a
+  heading it sits under ("Outside the corridor").
+
+### 15.1 Why it exists
+
+Mark, on the old panel (11 October 2026): *"far too noisy, dense walls of text with no finesse
+and fonts that are too large. I would prefer something more akin to a typeset published
+document."* He liked Folio and the matplotlib growth-chart look: Inter, generous spacing,
+hairlines, a professional finish. He wanted future aesthetic changes to be driven from theming.
+
+The critique of the old panel, point by point, and the typeset answer:
+
+| The old panel | The typeset answer |
+|---|---|
+| Every line the same size and nearly the same grey; in Vector, all prose in letter-spaced Space Mono | A type scale of named roles; at most four sizes and two weights on a view; prose always in the text face |
+| Six lines per pattern card, most cut with "…" ("fault outside -…") | No ellipsis, ever. Rewrite, wrap, fold to a second line, or move it to Detail |
+| "Fired here" said five ways: pill, 5-bar meter, orange numeral, orange value, orange tick | One encoding per fact: the value is set in warn, and nothing beside it repeats that |
+| Orange and green spent on values, corridors, sentences, pills, ticks and numerals | Warn means "outside its corridor" and nothing else; clean is ink, the absence of colour |
+| The 66 clean conditions in the same box as the 10 that fired (78 equal cells) | What fired leads; the clean ones are a quiet count, an index or the tail of a dot plot |
+| Type scaled with the panel (up to 2.4×, on top of fontScale 1.25), while captions sat at 8–9 px | Roles keep their size at every width; spare room becomes margin and content; nothing renders under 10 px |
+| No grid and no measure; lines ran 1,500 px | A column grid; figures right-aligned in tabular numerals; prose no wider than 44 em |
+| Detail: saturated zone fills, three chart styles, causes as boxed cards repeating the same qualifiers | One figure grammar with a neutral corridor wash; causes as one graph or as typeset chains with footnote marks |
+| Pills, dashed rings, chip outlines, "▸" arrows, link blue on every bookend title | Hairlines and whitespace; controls are quiet text |
+
+"A typeset published document" means four things here:
+- a page has a **measure**, a **grid** and a **type scale**;
+- the **figures do the comparing** and the **sentences do the explaining**;
+- **every fact appears once**;
+- the same page can be **printed** without a second design.
+
+The three rounds:
+- **Round 1** tried three directions on the full panel: A *Ledger* (the annual-report table), B
+  *Editorial* (the magazine feature) and C *Figures* (Tufte's small multiples).
+- **Round 2** made each one work at four panel widths and on A4. Three agents worked separately
+  and arrived at nearly the same rules. That agreement is the best evidence we have that the rules
+  are right, so they became the house rules (15.2).
+- **Round 3** merged the three into one aesthetic with three registers (15.6), added interaction
+  (15.7) and fault-forward figures (15.8), and built a shared block library.
+
+### 15.2 The twelve house rules
+
+These bind every typeset panel.
+
+**1. Measure in em, not pixels.** Size classes come from the width a component is *given*, in
+units of the body type: **wide** 90 em or more, **medium** 60–90, **compact** 42–60,
+**narrow** under 42. No component ever asks which layout it is in.
+- *Why:* the same panel is drawn at four widths in the app, at two on paper, on the cast and on
+  laptops. A layout name knows nothing about the user's fontScale or the window, and em does.
+- *Example:* the half layout (734 px) is 52 em, so compact. A4 portrait's text block (674 px at a
+  13 px print body) is also 52 em and compact. One set of rules lays out both.
+
+**2. Type is fixed and space gives way.** Each type role keeps its size at every width. Gutters
+step down one notch below medium before anything else changes. There are no fit factors.
+- *Why:* the old panel's fit factor gave big type and tiny captions with no middle. Bigger type on
+  a bigger panel says nothing more.
+- *Example:* Session's body is 14 px at full and at third. At full, the extra room becomes the
+  median, trend and typical / worst / best columns.
+- The cast's zoom is not an exception. It scales the whole surface, like browser zoom, for viewing
+  distance (15.6).
+
+**3. Fold, don't drop.** Every element has a tier and an "else". A column that cannot fit becomes
+a labelled item on its row's second line, a sentence absorbs a figure, a note moves under its
+chart. Nothing is ellipsised and nothing silently disappears. Tiers live in tables, as data.
+- *Why:* lost and truncated information was the loudest complaint. A tier table makes the
+  decision once, where it can be reviewed.
+- *Example:* at compact, This shot's corridor, out-by and tier columns become one second line under
+  the condition's name: "pass ≤ 8.7 · fault 13   out by 5.1×   pattern".
+
+**4. Flows count their own columns** from a minimum in em: prose at least 26 em and at most 44,
+an index 20, a small-multiple tile 22, a chart 30, a key figure 10. Never a fixed column count.
+- *Why:* a fixed count is right at exactly one width.
+- *Example:* the eight Session small multiples go 4 → 3 → 2 → 1 across, and no code names a count.
+
+**5. Rails fold.** A side rail or margin survives only while two content columns still fit
+beside it. Otherwise its heading goes above the content and its notes go below.
+- *Why:* a rail at half width leaves a sliver for the content it is meant to serve.
+- *Example:* Editorial's left rail (kicker, head, standfirst) hangs beside the content only at
+  wide. Below that, the head moves above and the bookends and footnotes move below.
+
+**6. Pages are made of blocks.** A view is an ordered list of blocks that never split: an entry,
+a row, a figure, a path. A heading travels with its first block. The screen scrolls the blocks;
+print measures them and packs them onto pages. Only lists may split, and then they repeat their
+heading ("continued").
+- *Why:* one rule makes both scrolling and pagination honest. A row cut across two pages, or a
+  heading stranded at a page foot, is the commonest print fault.
+- *Example:* a cause path is one atom. The clean-conditions index may break between rows, and its
+  next page opens with "Index, continued" and the column head.
+
+**7. One encoding per fact.** Colour means "outside its corridor" and nothing else. The picked
+shot gets one mark. Accent means a live control. In Vector the accent orange is too close to warn
+orange, so Vector's links are ink with an underline.
+- *Why:* when everything is coloured, nothing stands out.
+- *Example:* a fired value is set in warn. There is no pill, meter or orange tick beside it.
+
+**8. Charts keep their grammar at every size.** Labels keep their size, ticks thin out, panels
+that share a scale stack below a stated width, and a diagram below its minimum changes form
+instead of shrinking.
+- *Why:* a shrunken chart can't be read, and a reader who has learnt a figure once should be able
+  to read it anywhere.
+- *Example:* the run chart's shot labels thin to 1, 5, 10, 15 and the picked shot when a shot gets
+  less than 22 px. Below medium, the cause graph becomes typeset chains.
+
+**9. Above the fold, every view answers its question at every width.**
+- The questions: *what went wrong on this swing* (This shot), *what keeps happening* (Session),
+  *what is emerging* (Watching), and *how far, how often and why* (Detail).
+- As the width drops, the "why" sentence moves up.
+- *Why:* the panel is glanced at between shots. An answer below the fold has not been given.
+- *Example:* in Replay, all eight Session rows fit above the fold at every width. Detail at half
+  opens with the head, the key figures (including the distance to travel) and the figures.
+
+**10. Print is a medium, not a separate design.** It uses the same blocks and classes: A4
+portrait is compact and landscape is medium. Print role overrides set the body at about 10 pt,
+hairlines at 0.5 px, lighter tints and always the light palette. Every page gets a running head,
+a folio and a footer. Affordances disappear and links become cross-references ("detail on p. 5").
+Keys appear once per page and show only that page's marks.
+- *Why:* a second layout drifts from the first on its first change.
+- *Example:* the same ledger table prints at a 13 px body with 0.5 px rules, and its Open link
+  becomes "The feature on p. 4 reads it in full."
+
+**11. Chrome thins last and least.** At narrow, tab counts and breadcrumbs go. Back, the view
+toggles and the subject's name never do.
+- *Why:* losing your place costs more than a line of height.
+- *Example:* at third the tabs read "This shot · Session · Watching" with no counts, and each view's
+  head states its own count.
+
+**12. Height is a resource too.** A list splits into columns only when its rows don't fit the
+height. Spare height admits the next tier of content, never bigger type.
+- *Why:* added in round 3, after Mark's live try-out showed a list split in two with 900 px
+  empty below it.
+- *Example:* Replay's This shot continues below the fired conditions with the clean ones, closest
+  to their edge first, until the space runs out. Replay's Session shows the small multiples once all
+  eight fit, and sparkline rows when they don't.
+
+### 15.3 Roles as data
+
+The mock library holds the roles in `Roles.qml`. The build moves them into Theme like this:
+
+- **A `typeset` block in each `_themes` entry.** It is optional, and a theme lists only where it
+  differs from `Theme._typesetDefault` (the "Default" column below).
+  - Folio and Vector carry blocks.
+  - Instrument, Editorial, Studio, Terrain and Links take the default until each one has been
+    judged in renders.
+- **`Theme.typeset`** is the merged table for the current aesthetic: the default, then the entry's
+  block.
+  - Values that depend on light or dark (the pick and hover washes) are computed from
+    `Theme.dark`, not stored.
+- **`Theme.typesetPrint`** is one print block, shared by every theme.
+- **`PpTypeset`, the per-instance helper** (`Roles` in the mock), is created once per panel or
+  register: `PpTypeset { id: ts; medium: root.medium }`.
+  - It merges `Theme.typeset` with the print block when `medium` is `"print"`.
+  - It exposes the fonts, inks, marks, classes, flows, tiers and text helpers.
+  - Blocks take it as `roles: ts`.
+  - It is an instance, not a singleton, because the medium belongs to the instance: one window can
+    show a panel and lay out its printed report at the same time.
+  - Never give it the id `roles`. In `roles: roles` the block's own property shadows the id, and
+    the block silently uses a default.
+- **Sizes are design units.** `u(n)` is `Theme.sp(n)` on screen, so the user's fontScale applies.
+  In print it is `round(n × printScale × 2) / 2`, and the user's fontScale never applies. Nothing
+  multiplies a size by a panel fit factor.
+- **Gutters are design units through `u()` too**, as in the approved renders. They do not take
+  Folio's `spacingScale` (14.2) yet; that is a judgement for a later round.
+
+**Type roles.** Sizes are design units. "Screen px" is at the default fontScale of 1.25.
+
+| Role (helper font) | For | Units | Screen px | Print px | Default | Folio | Vector |
+|---|---|---|---|---|---|---|---|
+| feature (`fFeature`, `fPull`) | the Detail head; pull figures | 21 | 26 | 25 | `fontDisplay`, Normal | serif (`Theme.serifFamily`), Regular | Space Grotesk Light |
+| title (`fTitle`) | view heads: "Ten outside the corridor" | 16 | 20 | 19 | as feature | as feature | as feature |
+| standfirst (`fStand`) | the one sentence under a head | 12.5 | 16 | 15 | `fontBody` | serif | Space Grotesk |
+| body (`fBody`, `fBodyM`, `fBodyL`) | rows, entries, prose; `M` strong, `L` link | 11 | 14 | 13 | `fontBody` Normal / Medium | Inter | Space Grotesk, Regular (not the theme's Light) |
+| small (`fSmall`, `fSmallM`, `fSmallI`, `fSmallL`) | second lines, notes, captions; `I` notes | 9.5 | 12 | 11 | `fontBody` | notes italic | notes upright |
+| label (`fLabel`, `fLabelL`) | column heads, axis labels, keys | 9 (Vector 8) | 11 (10) | 11 (10) | `fontBody`, sentence case, tracking 0.1 | as default | `fontData` (Space Mono), capitals, tracking 0.8 |
+| micro (`fMicro`) | the smallest furniture | 8.5 | 11 | 10 | `fontBody` | as default | as default |
+| kicker (`fKicker`) | "No. 1 · P4 · hand path loop" | 9.5 | 12 | 11 | label face, DemiBold | DemiBold, sentence case | Space Mono, Normal, capitals |
+| section (`fSection`) | crossheads: "What might have caused this" | 11 (Vector 9.5) | 14 (12) | 13 (11) | body face, Medium | sentence case | small size, capitals, tracking 1.2, Normal |
+| figure (`fFig`, `fFigS`, `fFigLabel`, `fFigL`) | every number in a column or a chart | body / small / label / title | | | `fontData` | Inter Tabular | Space Mono |
+| inline figure (`figHtml`) | a number inside a sentence | inherits | | | `fontData` | Inter Tabular | Space Grotesk (a mono figure mid-sentence breaks the line) |
+| tab (`fTab`) | the view toggles | body (Vector label) | 14 (10) | | body face | as default | label face, capitals |
+
+- **Weights:** text Normal, strong Medium. **Leading:** 1.32, small 1.25; Vector 1.28 and 1.22.
+- **Limits:** a view uses at most four sizes and two weights, and nothing renders under 10 px.
+- **Folio's display and standfirst are serif.** That is Georgia, else Gelasio (14.3), the
+  editorial voice Mark liked.
+- **Vector's display is Space Grotesk Light, not the theme's Space Mono.** Headlines are prose, and
+  Space Mono at 20 px reads as a terminal, not a headline.
+
+**Other typeset keys.** "–" means the theme keeps the default.
+
+| Key | Default | Folio | Vector | What it does |
+|---|---|---|---|---|
+| `italicNotes` | false | true | – | the direction sentence (a row's second line) in italic |
+| `exhibitWord` | "Fig." | – | "FIG." | figure captions |
+| `leader` | ".  " | – | " ·" | index leader dots |
+| `linkAccent`, `linkUnderline` | true, false | – | false, true | links in accent, or in ink with an underline where accent ≈ warn |
+| `ruleAlpha` | 0.55 | 0.5 | 0.7 | the heavy rule at the top of a table or figure |
+| `hairAlpha` | 0.10 | 0.09 | 0.11 | row hairlines |
+| `figureRuleTop` | 1.5 | – | 2 | the top rule's weight, in px |
+| `zoneTint` | 0.045 | 0.04 | 0.06 | the corridor wash, as ink alpha |
+| `faultAlpha` | 0.75 | – | 0.9 | the fault line, as warn alpha |
+| `passAlpha`, `passDash` | 0.55, [2, 3] | – | –, [1, 3] | the dashed pass edge |
+| `stemAlpha` | 0.45 | – | – | dot-plot stems |
+| `markShape` | round | round | square | ONE mark shape per theme |
+| `markFired`, `markClean` | 7, 5 | – | 6, 4 | mark sizes (units) |
+| `cleanHollow` | true | true | false | clean marks as rings or filled |
+| `ring` | 14 | – | 12 | the picked-shot ring |
+| `barRadius` | 1 | – | 0 | strip bar corners |
+| `stripPitch`, `stripBar`, `stripH` | 7.5, 3.2, 9 | – | – | the 15-shot strip |
+| `gutter` | wide 20, medium 20, compact 14, narrow 12 | – | – | gutters step down one notch below medium |
+
+**The print block** (`Theme.typesetPrint`), shared by all themes:
+- `printScale` 1.18, so the body is 13 px, about 10 pt;
+- `hair` 0.5 px, `tintScale` 0.7, `ring` 12;
+- page geometry in A4 logical px at 96 dpi: `marginX` 60 (about 16 mm), `headY` 30, `top` 76,
+  `bottom` 92;
+- paper is always white, with the theme's light palette.
+
+**Ink roles**, derived by the helper from Theme colours and the keys above:
+
+| Ink | From | Means |
+|---|---|---|
+| `ink`, `ink2`, `ink3` | `colorText`, `colorText2`, `colorText3` | text, secondary text, quiet text |
+| `warn` | `colorWarn` | outside its corridor, and nothing else |
+| `accent` | `colorAccent` | a live control, sparingly |
+| `link` | `accent`, or `colorText2` underlined | a link |
+| `paper` | `colorBg`; white in print | the page |
+| `rule`, `hair`, `hw` | `colorText` at `ruleAlpha` / `hairAlpha`; width 1 px, 0.5 in print | the top rule; row hairlines |
+| `wash` | `colorText` at `zoneTint` × `tintScale` | the corridor, the only wash in a chart |
+| `fault` | `colorWarn` at `faultAlpha` | the fault line, a hairline |
+| `passEdge` | `colorText3` at `passAlpha`, dashed | the pass edge |
+| `pickWash` | `colorText` at 0.07 light, 0.10 dark | the picked shot as a column |
+| `hoverWash`, `rowHover` | 0.035 / 0.05; 0.03 / 0.05 | a hovered shot column; a hovered row |
+| `dim` | opacity 0.28 | what recedes under a highlight |
+| `grid`, `baseline` | the `gridColor()` / `baselineColor()` pass-throughs (14.2) | chart furniture |
+| `fast`, `normal` | `durationFast`, `durationNormal` | hover; a change of focus |
+
+**Text helpers** live on the helper too. Figures and sentences are built from the live data
+(`fig`, `unitOf`, `num`, `frac`, `word`, `corridorShort`, `trendWord`, and the standfirst and entry
+sentences). Missing values show "-" and never 0. Negative numbers use the minus sign "−".
+
+### 15.4 The shared encodings
+
+The three variants disagreed on some encodings. These were reconciled once, in the library, and
+bind every panel.
+
+1. **Colour means "out".** Warn appears on values, fired marks, strip bars and the fault line,
+   and nowhere else.
+2. **One strip, three marks, never a gap** (decision D5). In the shot strip:
+   - a fired shot is a warn bar;
+   - a clean shot is a short ink3 tick;
+   - a not-measured shot is a shorter ink3 **stub on the baseline**.
+
+   An absent measure is "unavailable", never a pass, and a gap would read as nothing there. The
+   same three marks are used in the Barcode, the Sparkline and the run charts. A barcode is a stack
+   of strips, and the ledger's "Shots" column is the same drawing. Missing values print "-", never
+   0.
+   **Nothing assumes 15 shots** (D7):
+   - strips and barcodes size their pitch to the shot count and the width given;
+   - below a minimum pitch they thin their labels or wrap, and never clip;
+   - shot labels come from data;
+   - "Shot N of M" uses the ordinal (`shotIndex + 1`), not the shot id.
+3. **One mark for the picked shot.** It is an ink ring where the shot is a point, and a 7 % ink
+   column where it is a cell (a strip, a barcode or a ledger column). A hovered shot takes the same
+   form, lighter. A highlight dims everything else to 0.28.
+4. **One chart wash, on the corridor.**
+   - The corridor gets a neutral ink wash.
+   - The fault line is a warn hairline, and the pass edge a dashed ink3 line.
+   - A warn wash on the fault zone (proposed by two variants) was rejected, because it spends
+     colour on a region rather than on data.
+5. **One mark shape per theme.** Folio's marks are round, with clean marks hollow. Vector's are
+   square, with clean marks filled.
+6. **Links.** Folio uses the accent. Vector uses ink2 with an underline.
+7. **Hairlines** are 1 px on screen and 0.5 px in print. `rule` is the heavy top of a table or a
+   figure, and `hair` separates rows.
+8. **Numbers** are right-aligned in tabular figures. A unit has its own column, or rides on the
+   figure when it is a symbol (°, %).
+9. **Words** are plain, in sentence case, with no ellipsis.
+   - Qualifiers that would repeat on every row become footnote marks (\* † ‡ §), each defined
+     once.
+10. **Link grades keep their honesty** (D6). The model's five link grades are its core honesty
+    device, so the panel draws exactly what the evidence supports:
+    - each grade keeps its own stroke;
+    - only the two grades that support a direction, *moved together* and *conditionally
+      dependent*, get an arrowhead (they are also the strongest strokes);
+    - *coherent*, *present together* and *unanchored* get no arrow, and *unanchored* is drawn at
+      half opacity;
+    - in text (PathChains), each grade gets its own glyph, for example ⇒ for a directional grade,
+      → coherent, ∼ present together and ⋯ unanchored;
+    - one key defines the strokes and glyphs once.
+
+    Port the mapping from the old panel's `PpChainLink.qml` exactly, into both CauseGraph and
+    PathChains. Never let a strong grade fall into a weak style, and never draw an arrow the
+    evidence does not support.
+
+### 15.5 Size classes, flows and tiers
+
+**Size classes.** em is the body role's rendered size: 14 px on screen at fontScale 1.25, and
+13 px in print. The table gives the measured spaces in a 1680 × 1050 window.
+
+| Class | em | Where it occurs |
+|---|---|---|
+| wide | ≥ 90 | full: tabs arrangement, the panel ~1522 × 699 (109 em) |
+| medium | 60–90 | stage: 62 % plus a side column, ~940 × 699 (67 em); A4 landscape text block, 1003 px (77 em) |
+| compact | 42–60 | half: split with Charts, ~734 × 707 (52 em); A4 portrait text block, 674 px (52 em) |
+| narrow | < 42 | third: split with Charts and Table, ~480 × 707 (34 em) |
+
+- **Height varies too, and it is the scarcer resource.** Replay's carousel takes height, so the
+  panel there is ~1522 × 603 at full and ~734 × 611 at half. With the Transit timeline and the
+  carousel both on, the stage card is only **553 px (about 39 em) tall in both modes**, at every
+  width: full 1562 × 553, half 774 × 553 and third 511 × 553 (the stage audit). The cast is a
+  separate window of about 1040 × 760. Laptops shrink everything, so never rely on height
+  (rule 12), and judge every panel at 553 px.
+- **Bind to the width you are given.** `sizeClass(width)` is the only question a block asks.
+  - The helper also offers `atLeast(w, cls)`, `shows(tier, w)`, `gutter(w)`,
+    `columns(w, minEm)`, `measureW(w)`, `railFolds(w)` and `marginFolds(w)`.
+  - A class boundary can fall inside a real layout: Folio's half sits just under 52 em, so a block
+    with a 52 em minimum goes tight there in Folio and not in Vector. Choose minimums so a real
+    layout does not straddle them, or fold a column on its own before the whole block changes form.
+
+**Flows.** `columns = ⌊(available + gap) / (minimum × em + gap)⌋`. The minimums, in em:
+
+| Flow | Min | Flow | Min |
+|---|---|---|---|
+| prose column | 26 | prose measure (maximum) | 44 |
+| index line (name … value) | 20 | contents line with a sub-line | 22 |
+| session entry | 30 (36 with a margin sparkline) | fired entry | 26 |
+| small-multiple tile | 22 | key figure | 10 |
+| watching table column | 46 | dot-plot block, rich / tight | 52 / 34 |
+| chart | 30 | run panel inside a figure row | 14 |
+| spread, run and history in one row | 62 | two prose columns side by side | 62 |
+| Detail opening in one row | 74 | Fig. 2 beside Fig. 3 | 66 |
+| rail or sidenote margin | 18 | cause-graph column | 12 |
+| sparkline | 7 | | |
+
+Where the variants differed, the house rules' numbers win: index 20 (A had 24, B 16), tile 22,
+chart 30, and prose 26 to 44.
+
+**Tiers.** Tier 1 always shows, tier 2 from compact up, tier 3 from medium up, and tier 4 at wide
+only. Every element with a tier above 1 names its **else**: where it goes when it drops.
+- A block's own column tiers live as data at the top of that block's file.
+- The shared element tiers (chrome, rails, margins) live on the helper.
+
+A worked tier table: the This shot ledger ("Outside the corridor").
+
+| Column | Tier | Below its tier it folds to |
+|---|---|---|
+| name, value, unit | 1 | (always on line 1) |
+| shots strip, fired (15/15) | 2 | line 2, first and second |
+| out by (5.1×) | 3 | line 2, labelled "out by" |
+| tier (pattern / watching), corridor | 4 | line 2 |
+
+The Session ledger keeps rank, name, fired and this shot's value always. The strip and unit drop
+below compact and the median below medium; trend and typical / worst / best show only at wide.
+Each folds, labelled, into a third line ("median 22 · steady · typical shot 14 · worst 9 · best 13").
+
+Shared element tiers:
+
+| Element | Tier | Else |
+|---|---|---|
+| tab counts | 2 | each view's head states its count |
+| breadcrumb in Detail | 2 | the head names the condition; Back stays |
+| review note in the tab row | 3 | a note at the foot of the view |
+| left rail | 4 | head above; legend, bookends and footnotes below |
+| sidenote margin | 4 | notes under the figure, in prose columns |
+| long standfirst | 3 | the short form; the rest opens a later section |
+| path 1's evidence | 2 | behind Open |
+| "a high reading means …" | 2 | the fact file's "Reads" line |
+| tile measure | 2 | Detail's meta line |
+| tile bookends | 2 | folded into the firings line |
+| barcode values | 3 | a short "On shot 8" ledger under the barcode |
+| barcode names inline | 2 | names stand above their rows |
+| cause graph | 3 | typeset chains (PathChains), or an indented outline |
+
+**Fold, don't drop, mechanically.**
+- A folded column joins its row's second line in a fixed order, with its label.
+- A shaded picked-shot column becomes per-strip cell shading once the strips fold.
+- The same rule applies above the row:
+  - a rail folds to a head above and notes below;
+  - a margin folds to notes under its figure;
+  - a graph changes to chains;
+  - a long standfirst changes to its short form, with the rest moved to the section that
+    continues it.
+- If you cannot say where an element went, it was dropped. Fix it.
+
+### 15.6 The registers
+
+A **register** is how much a panel says, and how it says it. The situation chooses it, not the
+view and not the width. Every register uses the same blocks, the same type roles and the same
+encodings. Moving from Replay to Analyse must feel like zooming into the same page, never like
+opening a different app.
+
+| | Replay · glance | Analyse · read | Print · report |
+|---|---|---|---|
+| Used in | Replay, Capture (live), the second-screen cast | Analyse | the printed report (PDF export comes later) |
+| Its job | on screen for the whole replay: the answer in one look, quiet beside the video | explain, then lead into depth | stand alone, with nothing to click |
+| Lead voice | figures (C) | the ledger (A), with B's sentences for the "why" | editorial (B) |
+| This shot | a dot plot of the fired conditions with their values; then one quiet line ("66 clean · 2 not measurable") and a shot ruler; spare height admits the clean ones, closest to their edge first | standfirst, the fired ledger, notes, questions; then "Every condition on one scale", a dot plot of all 78 | a standfirst and the fired table; the clean conditions go to an index at the back |
+| Session | one sparkline row per pattern; small multiples once all eight fit | a ledger with the direction sentence as line 2 and folded facts as line 3; a row opens Detail | numbered entries with marginal sparklines |
+| Watching | the barcode, sorted by rate | the barcode with this shot's values (or an "On shot 8" ledger below medium) | the barcode |
+| Detail | not offered: a glance never drills | DetailBar, FeatureHead, KeyFigures, fault-forward figures, questions, causes, effects | the feature, from a fresh page |
+
+**How a surface chooses.**
+- On the stage, the session mode picks the register: Capture and Replay take Replay, and Analyse
+  takes Analyse. `medium: "print"` takes Print. In the mock, `Panel.qml` reads `SessionMode.mode`.
+- Within a register, the size class still comes from the width.
+- **The cast is always the Replay register** (D4), with `surface: "cast"`, whatever mode the stage
+  is in. It honours `body.interactive`:
+  - An **auto-closing cast** (`interactive: false`) takes no clicks at all. It never switches the
+    main stage's mode, and it opens on This shot when a shot is available.
+    - It has no tab row, since nobody presses a tab from across the room.
+    - A running head takes the tab row's place: "Shot 8 of 15 · 7 iron" on the left and the view's
+      name on the right.
+  - A **persistent cast** (coach or kiosk, `interactive: true`) keeps its tabs, so the coach can
+    move between views. It still never offers Detail.
+  - Both `surface` and `interactive` are passed to the register. Never infer one from the other.
+- **The cast's zoom.** It scales the whole surface, from 1 to 1.6.
+  - It is computed from the data, as an em estimate of the view's height, never measured from the
+    laid-out page, so there is no layout loop.
+  - It never takes the page below compact.
+
+**Replay never shows a detail** (D9). A tab press while `body.detailOpen` is true closes the
+detail first. In Analyse, Esc closes the detail.
+
+**Live states** (D2, D3). Replay is the live glance, so it must read correctly between swings:
+- **A quiet shot.** If nothing new surfaced, This shot says so in one calm line built from the
+  model's cadence caption ("Quiet shot — nothing new surfaced on this swing"). It keeps the shot
+  ruler, and the tabs stay live.
+- **Live, with nothing picked.** When `readout` is null but the session is live and has shots,
+  This shot reads the after-shot data (`source.afterShotDelta`, `source.thisShot`), which is the
+  newest swing. It does not say "No shot yet".
+- **Empty messages** are the old panel's own words, per state. "The next swing reads here"
+  appears only when a swing can still come. Watching's empty sentence and the empty-filter
+  explanation are kept as well.
+
+**Port, don't drop** (D10). Everything the old panel did has a typeset home:
+
+| Old feature | Typeset home |
+|---|---|
+| measure tabs in Detail | one measure at a time; the pick survives a rebuild |
+| live recency, "last fired N shots ago" | kept as text |
+| a condition's evidence sentence | Analyse ledger line 2, from medium width |
+| the norm citation | an inline note (never a tooltip) |
+| a screened root's "Run the screen" | `body.screenRequested` |
+| the coverage line | the foot of Replay's Session |
+| a path's Open | expands the path in place (PathChains) |
+| the honesty mark on a condition that is not a card | kept |
+| the cold head and expectations | a Session block, "Expectations to test, not findings" |
+| the declared-miss chip and its picker | the chip sits quietly at the right of the tab row; the picker opens inline under the tabs (a list, the current one marked, "No declared miss" clears it), never as a pop-up |
+
+**Dropped, with reasons** (D11):
+- "scroll for the rest": the scroll bar says it;
+- the whole-rows card grid: rows are atoms now;
+- the silent tail fold: the clean conditions continue by closeness to their edge (rule 12).
+
+**Heads give the answer.** A Replay head is the answer itself ("Ten outside the corridor",
+"Eight patterns", "Fifteen watched"), with one ink3 line of context beside it, or under it when
+the two don't fit.
+
+**Why the encodings must be identical across registers.**
+- A reader who learnt the strip in Replay reads it in Analyse and on paper without relearning.
+- Moving between registers then feels like a change of depth, not a change of app.
+- One library change restyles all three registers at once.
+
+The registers choose blocks and voice. They never choose their own colours, marks or type.
+
+### 15.7 Interaction
+
+Mark asked for interactivity used *"sensitively — getting into the UX a little and guiding the
+user to understand the data and ask sharper questions."*
+
+- **Quiet by default.** Nothing moves or appears until the reader moves.
+  - Hovering reveals in place, into space that was already reserved.
+  - There is no layout jump, no floating tooltip, no pop-up, no menu and no native dialog.
+  - **The one exception is the after-shot pulse** (D1). A new swing is the golfer moving. After a
+    surfaced shot, the rows and marks whose state changed get ONE soft ink wash that fades over
+    `durationSlow`, with the focused condition first.
+    - It runs in both registers.
+    - It is ink, never warn or accent.
+    - Under reduce-motion there is no pulse at all.
+- **Place-keeping** (D8). The panel keeps your place through republishes and rebuilds:
+  - the card filter lives on the body (`body.cardFilter`);
+  - scroll areas carry stable `objectName`s and restore from the body's saved navigation;
+  - a hover survives a republish;
+  - demo code runs only when `demoState` is non-empty.
+- **One focus at a time (brushing).** One shared `Brush` holds `pickedShot`, `hoveredShot`,
+  `pickedCondition`, `hoveredCondition` and the highlight sets.
+  - Hover shot 12 in any strip, and shot 12 lights in every strip, dot plot, run chart and barcode
+    on the panel.
+  - The picked shot's mark (from the carousel) stays. A hovered shot is a lighter second mark.
+  - Blocks write to the Brush themselves, so hover needs no wiring.
+- **Every click goes somewhere real**, through the live body:
+
+  | Click | Goes to |
+  |---|---|
+  | a condition (Analyse) | `body._openDetail(id)` |
+  | Back | `body._closeDetail()` |
+  | a shot: strip cell, mark, barcode cell, ruler column, typical / worst / best | `body.shotRequested(dir, shotId)`: the carousel picks it and the whole panel re-reads it |
+  | Focus | `body._declareFocus(id, on)` |
+  | a tab | `body.tab = key` (the body's own view state) |
+  | a condition in Replay | `body._openDetail(id)`, then `SessionMode.enterAnalyse()` |
+  | Esc (Analyse) | closes the detail |
+  | Run the screen (a screened root) | `body.screenRequested` |
+  | the declared-miss chip | opens the inline picker under the tabs |
+  | anything, on an auto-closing cast | nothing: it takes no clicks (D4) |
+
+  The Replay click is the glance's only door into depth. It opens the detail *first* because the
+  open condition lives on the controller, and the mode switch rebuilds the stage's panels. Analyse
+  then comes up on that condition, and no code calls a body the rebuild has torn down. The door is
+  closed on the cast: a cast never switches the main stage's mode (D4).
+- **Motion is time, not decoration.** Hover uses `durationFast`, a change of focus
+  `durationNormal`, and the after-shot pulse `durationSlow`. Reduce-motion is respected, because Theme's durations already go to 0.
+- **Sharper questions (Analyse only).**
+  - A view may end its lead table with at most three questions the reader can ask with one click.
+  - Each one is computed from the data shown and phrased as a question, with the condition's name
+    first so "it" is never ambiguous.
+  - Each is answered *in place*: it lights or filters what is already on the panel, or steps the
+    carousel.
+  - The questions sit straight after the lead table, where the primary read ends, not after a long
+    figure where nobody would see them.
+
+  | Question | Shown only when | Answer |
+  |---|---|---|
+  | "Trail knee straightens: which shots were clean?" | the pattern has clean shots | lights those shots; offers "step through them" |
+  | "Over the top: what fired with it?" | other conditions overlap its fired shots | lights them: "fired together on 9 of its 10 shots" |
+  | "Early extension: is it getting worse?" | the trend is known | lights the first and last thirds of the run |
+  | "Worst against best?" | bookends exist | two clicks, each putting one shot in the carousel |
+  | "Why might this happen?" (Detail) | a likely-driver path exists | expands that path in place |
+
+- **The honesty rules.**
+  - **Co-occurrence, never cause.** Every co-occurrence answer ends: "They occur together; that is
+    not to say one causes another."
+  - **Only ask what the data answers.** A question with no answer is not shown. Over the top
+    fired on 15 of 15 shots, so its Detail has no "which shots were clean?".
+  - **Never a coaching verdict.**
+  - **No direction is claimed for a clean two-sided row.**
+- **Interactive states must be renderable.** Each register declares `property string demoState`
+  and a short list of named states (`hoverShot12`, `hoverCondition`, `question-clean`,
+  `question-together`, `question-worse`) that put the panel in that state statically. Review
+  renders use them, and Mark clicks the real thing.
+- **Print has none of this.** Affordances become cross-references. The answers can appear as
+  footnotes ("Clean on shots 2, 9 and 11"), because the answer itself is content.
+
+### 15.8 The fault-forward figure grammar
+
+Mark, mid-round: *"in figures the detail view has a lot of wasted space when the characteristic
+is a fault (the below the line space is dead). bear in mind that users will drill into faults
+not things that are going well (!)"*
+
+The figure gives the corridor its true share of the axis only when the shots are there. For a
+fault, where every shot sits past the fault line, that share would be most of the chart, and
+empty.
+
+**The rule: a data-driven broken axis.** `FigureScale` keeps a linear window over the shots plus
+the pass edge they must get back to, padded 8 %.
+- Everything outside the window collapses into a 16 px band at that end, behind a drawn break.
+- An end collapses only if it would waste at least 12 % of the axis.
+- For a fault, the band is the empty corridor. For a clean condition, it is the empty watch and
+  fault zones.
+
+Of the three options weighed, this one won:
+- **(a), a broken axis, kept.** The axis stays in true units, and one rule covers high-side,
+  low-side, two-sided, clean and mixed sets.
+- **(b), a compressed corridor zone, rejected.** It puts two scales on one continuous axis, and
+  the reader cannot see where one stops.
+- **(c), distance past the fault line, rejected as the axis.** It drops the true values that the
+  ledger, the captions and the coach all quote. Its insight survives as the distance label.
+
+**Honesty.**
+- The break is always drawn: `//` at both ends of every panel, and "≈" on the axis.
+- Ticks appear only where the scale is true.
+- A band is labelled "≈ compressed". A fault line inside a band reads "fault ≈" at its compressed
+  position.
+- Shots, curves and quartile bars inside a band are still drawn there, and lines break at the gap.
+- The figure's note explains the break.
+
+**The distance to travel.** The empty zone becomes the target. The run chart draws a dimension
+line from the picked shot to the pass edge on its side, with a warn tick where it crosses the
+fault line.
+- The labels sit on a knock-out halo, at the measure's own decimals: "9 past the fault line" and
+  "13 to get back inside", or "2.1° short of the fault line" for a shot in the watch zone.
+- KeyFigures states the same two numbers above the fold. When both are on one screen, the build
+  keeps the number in one place (`FigureRow.showTravel`).
+
+**The cases.**
+
+| Case | Example | What the figure does |
+|---|---|---|
+| high-side fault | Over the top | the corridor below 7.4 collapses; the window runs from just under the 8.7 pass edge to 25; the empty watch zone up to the fault line at 13 is the target, measured |
+| low-side fault | Early extension's spine bend; Hips under-rotated in the tiles | mirrored: the band is at the top |
+| two-sided corridor | ±7.5 cm pelvis thrust (its Session tile) | the window takes the pass edge on the side the shots are on; the rest of the corridor and the far side share one band, and the far fault reads "fault ≈" |
+| clean condition | Stance too wide, opened from the index | the economical figure: 112 px tall instead of 170 (print 92 instead of 132); the window keeps both pass edges and collapses both fault zones; the picked shot shows its margin to each edge ("8 to 82", "28 to 118") and claims no direction |
+
+**Every figure that has a corridor uses it:** Detail's spread, run and history, the Session small
+multiples and the Replay sparklines.
+- Small multiples share one ladder: 0 is the middle of the corridor, 2 the pass edge and 3 the
+  fault line.
+  - The window is z 1.5 to 6, and −2 to 1.5 collapses into an 11 px band, labelled once.
+  - Each tile adds "13 to the pass edge" for the picked shot.
+  - Chart heights are 108 px at wide, 92 at medium and compact, 64 at narrow and 60 in print. About
+    3½ tiles now sit above the fold at third, where there were 2.
+- Sparklines use a 3 px band and a 2 px break.
+  - Marks are capped at 55 % of a shot's pitch, so 15 fired shots stay 15 marks and never merge
+    into one orange bar.
+  - Marks are inset by the ring's radius, so nothing spills into the next row.
+- Marks are snapped to half pixels. Round marks at fractional centres render as notched blobs.
+
+**The rest of the figure grammar.**
+- Fired marks are filled and in warn. Clean marks follow the theme (15.4), and the picked shot is
+  ringed once per chart.
+- Zone edges are labelled once, in a right-hand gutter.
+- One key per view sits above its figures, never repeated per figure.
+- A caption names the measure the figures read.
+- Panels that share a value axis sit in one row while the run panel keeps 14 em, and stack below
+  that.
+- Fault figures are 170 px tall at every width.
+
+### 15.9 Print
+
+Print is a medium, not a separate layout (rule 10).
+- The register sets `medium: "print"`, and the same blocks lay out at the text block's width.
+- Portrait (794 × 1123 logical px) is compact, and landscape (1123 × 794) is medium.
+- Pages are rendered at 2×.
+
+**Paper.**
+- The body is 13 px (about 10 pt), from `printScale`, never the user's fontScale.
+- Hairlines are 0.5 px, tints are at 0.7, and the light palette is used on white.
+- Warn still marks out-of-corridor.
+
+**Furniture.** Every page has the same three:
+- **A running head:** "PinPoint Studio · Session diagnostics" on the left, and "golfer · date ·
+  club · shot 8 of 15" on the right.
+- **A quiet footer:** the final session state and "generated <date>".
+- **A folio:** the section and "Page n of N".
+
+**No affordances.** Tabs, Back, Focus, filters, Open, "tap to…" and the questions' buttons are
+removed. Links become cross-references ("The feature on p. 4 reads it in full", "path 2 below").
+
+**The document**, in order:
+1. A masthead built from the data ("Fifteen shots, eight habits"), then the session entries.
+2. "Asked of the data": the questions' answers as footnotes.
+   - Patterns that fired on exactly the same shots are stated once, as a group.
+   - The wording is co-occurrence only.
+3. This shot: the fired table, with a cross-reference to the index.
+4. Watching: the barcode.
+5. The open condition's feature, from a fresh page: the opening, the figures, the key figures, its
+   answers, then causes and effects.
+6. The index: "Inside the corridor on shot 8", all the clean conditions alphabetically, then the
+   not-measurable note.
+
+Moving the clean list to the back was the biggest gain. In mid-report it stranded half pages, and
+at the back it fills whatever the feature leaves.
+
+**Pagination.**
+- The Pager lays the blocks out once, as a galley at the text width. It cuts pages only between
+  atoms: rows, entries, figures, notes and heads.
+- `keepNext` keeps a head with what follows. `keepPrev` keeps a footnote with its table.
+- `breakBefore` starts a fresh page. Only the feature uses it, and other sections flow on.
+- **A list that breaks repeats its section and its column head** ("This shot, continued", then the
+  head).
+- **No stranded pages.**
+  - A list cut must carry at least three atoms, unless the part carried over is a quarter page.
+  - Inside a list, a looser joint is allowed when a keep chain would leave the page under 62 %
+    full.
+- **Keys belong to the page.** Each page footer carries one key, with only the marks that page
+  uses.
+- An atom taller than a page overflows honestly, and none does at this data's size.
+- Results: 7 portrait pages, and 9 to 10 landscape (Vector's wider face makes rows taller).
+
+**The running section label names the section the page starts in.** The mock named the section a
+page ends in. A page that opens on "Over the top, continued" and ends in the Index is about Over the
+top.
+
+**A "full report"**, with every pattern's feature in rank order before the index, is ready as an
+option. Each feature starts a fresh page and each session entry cross-refers to its own feature.
+It runs to about 23 portrait pages. Whether to offer it is Mark's call (15.11).
+
+### 15.10 How it was made, and how the next one is made
+
+The process is the point:
+1. **Mock** the panel with real data, over the live panel.
+2. **Judge** every width, theme, mode and state.
+3. **Then build.**
+
+Nothing was designed in the abstract. Every round rendered QML over the real panel in the real
+app, fed the real data: the 4 July 2026 session (7 iron, 15 shots, shot 8 picked).
+
+**The typeset harness** is the tool for this. Today it lives in the session's scratchpad:
+- `variant3.sh` and `render_variant3.qml` render a register over the real Session diagnostics
+  panel, in the real stage arrangement (full, stage, half or third), in Replay or Analyse, on the
+  cast, or as A4 pages;
+- `guard.sh` caps it at two app instances and kills a runaway above 6 GB;
+- `build/run-me/try-diag-registers.sh` and `try_registers.qml` are the live try-out, in which Mark
+  uses the real app with the new panel laid over the real one.
+
+The playbook describes how to run it and where it should live permanently.
+
+**The round's outputs:**
+- a review PDF with every view at every width, in both themes;
+- the interaction states as renders;
+- the print pages;
+- the notes;
+- Mark's live try-out, which produced rule 12.
+
+**The build follows the same order:**
+1. The role table goes into Theme (15.3).
+2. The blocks move into `src/Gui`.
+3. The panel is replaced view by view, and each view is judged in the app before any commit.
+
+Verify by driving every tab, mode and detail page with `--probe-qml`, not by attaching once.
+
+### 15.11 Still open
+
+- **The model defects** that every design agent hit are a separate task, to be done after the
+  panel build:
+  - Early extension's figures read spine bend in degrees, while its card quotes pelvis thrust in
+    cm. The cm fault number is reused as degrees.
+  - The cause headline names "Across the line at the top", which is on none of the drawn paths.
+  - Clean conditions on a two-sided corridor report an excess of 2 or more from the opposite side.
+    The model should publish a graded-side excess, 0 on the open side.
+  - The closing line still says "this shot is the wide tick".
+- **Whether print offers the full report.**
+- **The library's API requests**, to fold in during the build:
+  - a SparkRow column head;
+  - a shot-counts block;
+  - FeatureHead section switches;
+  - `Questions` filters and subjects;
+  - barcode and dot-plot print atoms with repeating heads;
+  - one key kind for the strip and the barcode;
+  - a KeyFigures `exclude`.
+- **The hover wash on strips** (`hoverWash`) is hard to see, and may need to be stronger.
+- **Themes other than Folio and Vector** take the default typeset block, unjudged.
+- **DECIDED (Mark, 11 October): every stage card takes the quiet tone.** Mark: *"Quiet tone
+  please. The previous design system was confused and noisy."*
+  - This build implements it: `PpModeStage._defs` gives `sessionDiagnostics` and `wristMotion`
+    the quiet role, like every other panel. Card titles are `colorText3`.
+  - In the tabs arrangement, the selected tab's rule is ink.
+  - Colour comes only from content, and only for "outside its corridor".
+  - This supersedes 13.11's warn-toned titles for those two cards.
+- **The stage audit's other foundations**, still proposed:
+  - Vector gets a selection style that is not orange (ink with an underline, like the stage tabs);
+  - one quiet selection control replaces capsules and chip clouds;
+  - panel-level px thresholds give way to `sizeClass(width)`.
+
+  The audit and the programme are in `stage_typeset_playbook.md` §7.
+
+Decisions D1–D11 (the after-shot pulse, the quiet shot, live with nothing picked, the cast,
+not-measured stubs, link grades, session length, place-keeping, no detail in Replay, port don't
+drop, and the drops) were taken for Mark on 11 October, in the build brief for round 4. They are
+written into 15.4, 15.6 and 15.7 above.
+
+### 15.12 Reference renders
+
+The reference renders are in `docs/design/aesthetic/`. Those marked (app) are grabs of the BUILT
+panel, 4 July session, shot 8, offscreen at 1680 × 1050. Those marked (mock) come from the round-3
+review renders, with the same blocks before the port. The questions, the fault-forward page and print
+were judged there, and the port was checked pixel-identical to them.
+
+- `aesthetic/typeset_before_session_folio_light.png`: the old panel, for contrast (app, before the build)
+- `aesthetic/typeset_replay_vs_analyse_folio_light.png`: the same page, zoomed (half) (app)
+- `aesthetic/typeset_analyse_shot_folio_light.png`: This shot at full, half and third (app)
+- `aesthetic/typeset_analyse_session_vector_dark.png`: the Session ledger in Vector (app)
+- `aesthetic/typeset_replay_cast.png`: the cast, both themes (app)
+- `aesthetic/typeset_questions_folio_light.png`: two sharper questions answered in place (mock)
+- `aesthetic/typeset_faultforward_folio_light.png`: a fault, a two-sided measure and a clean
+  condition (mock)
+- `aesthetic/typeset_print_portrait_folio.png`: the seven A4 pages (mock; the built app writes the same pages to PDF through `PdfDocumentWriter`, see `build/run-me/verify-diag-print.sh`)
+
+The full round-3 review is `build/run-me/diag-variants/
+session-diagnostics-round3.pdf`, with its pages as `pages-r3/NN.png`. It is local only, because
+`build/` is not in git. The pages are:
+- 02–03: Replay against Analyse;
+- 04–05: at Mark's window size;
+- 06–11: Replay views;
+- 12: the cast;
+- 13–14: Replay states;
+- 15–22: Analyse views;
+- 23–24: questions;
+- 25–26: fault-forward figures;
+- 27: the whole Detail page;
+- 28–31: print;
+- 32–36: notes.
+
 ---
 
 *This document is the single source of truth for Pinpoint visual implementation.
-Section 13 matches the app's own code in `src/Gui/home/`; the rest matches the HTML prototypes.
+Section 13 matches the app's own code in `src/Gui/home/`; section 15 matches the approved typeset
+block library and its round-3 renders (the build follows it); the rest matches the HTML prototypes.
 Outside section 13, when in doubt, match the HTML prototypes in `pinpoint-aesthetic-*.html`;
 the palette values in sections 3–12 were extracted directly from those prototypes.*
