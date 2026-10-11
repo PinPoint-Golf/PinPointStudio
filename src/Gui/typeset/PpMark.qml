@@ -17,7 +17,6 @@
  */
 
 import QtQuick
-import QtQuick.Shapes
 
 // MARK — the ONE point mark used by every chart (dot plot, spread, run, sparkline, history, key).
 // Shape per theme (Folio round, Vector square); fired = warn, filled; clean = ink3, hollow in Folio,
@@ -47,41 +46,27 @@ Item {
     opacity: ok && brush && shotId >= 0 ? brush.shotOpacity(shotId, roles.dim) : 1
     Behavior on opacity { NumberAnimation { duration: mk.ok ? mk.roles.normal : 0 } }
 
-    // Round marks are drawn as true curves: a small Rectangle with radius = size/2 tessellates into a
-    // notched blob at these sizes (Folio, 11 Oct). Square marks stay Rectangles (crisp as they are).
-    Shape {
-        visible: mk.ok && !mk.square
-        preferredRendererType: Shape.CurveRenderer
-        ShapePath {
-            fillColor: !mk.ok ? "transparent" : mk.fired ? mk.roles.warn : (mk.hollow ? "transparent" : mk.roles.ink3)
-            strokeColor: mk.fired || !mk.hollow || !mk.ok ? "transparent" : mk.roles.ink3
-            strokeWidth: mk.fired || !mk.hollow ? 0 : 1
-            PathAngleArc { centerX: 0; centerY: 0; radiusX: mk.size / 2 - (mk.hollow && !mk.fired ? 0.5 : 0); radiusY: radiusX; startAngle: 0; sweepAngle: 360 }
-        }
-    }
-    Shape {
-        visible: mk.ok && !mk.square && (mk.ringed || mk.hovered)
-        preferredRendererType: Shape.CurveRenderer
-        ShapePath {
-            fillColor: "transparent"
-            strokeColor: !mk.ok ? "transparent" : mk.ringed ? mk.roles.ink : mk.roles.ink3
-            strokeWidth: mk.ringed ? 1.25 : 1
-            PathAngleArc { centerX: 0; centerY: 0; radiusX: mk.ringSize / 2; radiusY: radiusX; startAngle: 0; sweepAngle: 360 }
-        }
-    }
+    // ONE Rectangle per mark, round or square. Round marks are snapped to whole pixels with an even
+    // diameter, which draws them round at these sizes (unsnapped, a small radius = size/2 tessellates
+    // into a notched blob). NOT Shape.CurveRenderer: it was tried on 11 Oct and its marks ignore an
+    // ancestor's clip once that ancestor scrolls — dots floated outside a scrolled panel.
+    readonly property real _s:  square ? size : 2 * Math.max(1, Math.round(size / 2))
+    readonly property real _rs: square ? ringSize : 2 * Math.max(1, Math.round(ringSize / 2))
+    readonly property real _dx: square ? 0 : Math.round(cx) - cx
+    readonly property real _dy: square ? 0 : Math.round(cy) - cy
     Rectangle {
-        visible: mk.ok && mk.square
-        x: -mk.size / 2; y: -mk.size / 2; width: mk.size; height: mk.size
-        radius: mk.square ? 0 : mk.size / 2
+        visible: mk.ok
+        x: mk._dx - mk._s / 2; y: mk._dy - mk._s / 2; width: mk._s; height: mk._s
+        radius: mk.square ? 0 : mk._s / 2
         color: !mk.ok ? "transparent" : mk.fired ? mk.roles.warn : (mk.hollow ? "transparent" : mk.roles.ink3)
         border.width: mk.fired || !mk.hollow ? 0 : 1
         border.color: mk.ok ? mk.roles.ink3 : "transparent"
         antialiasing: true
     }
     Rectangle {
-        visible: mk.ok && mk.square && (mk.ringed || mk.hovered)
-        x: -mk.ringSize / 2; y: -mk.ringSize / 2; width: mk.ringSize; height: mk.ringSize
-        radius: mk.square ? 0 : mk.ringSize / 2
+        visible: mk.ok && (mk.ringed || mk.hovered)
+        x: mk._dx - mk._rs / 2; y: mk._dy - mk._rs / 2; width: mk._rs; height: mk._rs
+        radius: mk.square ? 0 : mk._rs / 2
         color: "transparent"
         border.width: mk.ringed ? 1.25 : 1
         border.color: !mk.ok ? "transparent" : mk.ringed ? mk.roles.ink : mk.roles.ink3
