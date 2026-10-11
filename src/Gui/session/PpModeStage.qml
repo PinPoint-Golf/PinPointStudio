@@ -68,16 +68,17 @@ Item {
     // filters on ViewLayout.isPanelOn and on the host screen having wired a delegate — so a
     // session without it is camera-first exactly as before, with nothing to notice.
     //
-    // `title` is the card's Micro heading. `tone` is a ROLE, resolved by _toneFor: the two text
-    // panels that name faults read in colorWarn, and the canvases (video, 3-D, plots, the
-    // board, the table, markup) get the quiet card so the frame never competes with what is
-    // in it. A role rather than the colour itself, because a colour here would rebuild this
-    // list — and so every panel on the stage — on a theme change.
+    // `title` is the card's Micro heading. `tone` is a ROLE, resolved by _toneFor. EVERY card is
+    // quiet (design system §15, Mark, 11 Oct 2026: "Quiet tone please"): colour on the stage means
+    // "outside its corridor" and nothing else, so a frame never speaks for what is inside it — a
+    // warn-toned title over a 100/100 swing read as a fault. The "warn" role is kept for a surface
+    // that genuinely is a warning. A role rather than the colour itself, because a colour here would
+    // rebuild this list — and so every panel on the stage — on a theme change.
     // Theme.caps on the titles is the exception that is allowed: it changes only when the
     // aesthetic moves into or out of one that sets headings in capitals, not on every theme.
     readonly property var _defs: [
         { key: "sessionDiagnostics", label: qsTr("Session diagnostics"), title: Theme.caps(qsTr("Session diagnostics")),
-          tone: "warn",  comp: sessionDiagnosticsDelegate },
+          tone: "quiet", comp: sessionDiagnosticsDelegate },
         { key: "camera",        label: qsTr("Camera"),                title: Theme.caps(qsTr("Camera")),
           tone: "quiet", comp: cameraDelegate },
         { key: "swing3d",       label: qsTr("3-D swing"),             title: Theme.caps(qsTr("3-D swing")),
@@ -85,7 +86,7 @@ Item {
         { key: "launchMonitor", label: qsTr("Launch monitor"),        title: Theme.caps(qsTr("Launch monitor")),
           tone: "quiet", comp: launchMonitorDelegate },
         { key: "wristMotion",   label: qsTr("Wrist motion analysis"), title: Theme.caps(qsTr("Wrist motion")),
-          tone: "warn",  comp: wristMotionDelegate },
+          tone: "quiet", comp: wristMotionDelegate },
         { key: "charts",        label: qsTr("Charts"),                title: Theme.caps(qsTr("Charts")),
           tone: "quiet", comp: chartsDelegate },
         { key: "table",         label: qsTr("Table"),                 title: Theme.caps(qsTr("Table")),
