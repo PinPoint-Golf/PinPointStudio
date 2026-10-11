@@ -1,6 +1,8 @@
 @echo off
-rem studio-build.cmd — the ONE way to build on GOLFSIMPC from the Mac. Lives in the repo so it
-rem is never retyped through ssh quoting. Run it by file:
+rem studio-build.cmd - the ONE way to build on GOLFSIMPC from the Mac. Lives in the repo so it
+rem is never retyped through ssh quoting. ASCII ONLY: a multi-byte character (an em dash on line 2,
+rem 11 Oct) makes cmd misread the lines after it under a UTF-8 console, so the cd into the Release
+rem tree failed and cmake configured in-source in the repo root. Run it by file:
 rem   ssh developer@GOLFSIMPC.local "cmd /c C:\Users\developer\Projects\PinPointStudio\tools\studio\studio-build.cmd [app|tool|both|deploy] [pull|nopull]"
 rem Defaults: both, pull. Pulls origin/main fast-forward (refuses on a dirty tree) and builds in
 rem build\Release-Installer, the studio's one Release tree: the app (cmake . first so the embedded
