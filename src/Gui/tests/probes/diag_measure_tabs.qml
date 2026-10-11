@@ -24,11 +24,11 @@
 // with shots placed on its own ruler, a default that is the measure that fired most, a tab pick
 // the model honours, and the pick surviving a Replay → Analyse → Replay rebuild of the panel.
 //
-// TYPESET REGISTERS (11 Oct): the detail is drawn only in Analyse (PpDiagAnalyse; Replay never drills,
-// D9). The detail is still OPENED in Replay — that is the restore case — and the model half is checked
-// there; the DRAWN half (`sdDetailMeasureTabs`, one `sdDetailMeasureTab` per measure with `measureId` and
-// `on`) is checked after entering Analyse, where the picked tab must be the ruled one. Back in Replay the
-// pick must survive, and Replay must draw no measure tab at all.
+// TYPESET REGISTERS (11 Oct): an open detail is always drawn by PpDiagAnalyse, in Replay too (the stage
+// stays in Replay). The detail is OPENED in Replay — that is the restore case — and both halves are
+// checked there and again after entering Analyse: the model's measures, and the DRAWN tabs
+// (`sdDetailMeasureTabs`, one `sdDetailMeasureTab` per measure with `measureId` and `on`), where the picked
+// tab must be the ruled one. Back in Replay the pick must survive the rebuild and still be drawn.
 //
 // Run on a COPY of the settings (XDG_CONFIG_HOME): build/run-me/verify-measure-tabs.sh
 // Exit 0 = PASS, 1 = FAIL; "PROBE:" lines say why.
@@ -136,8 +136,9 @@ Item {
                 probe.check(d && d.id === probe.cond, "detail open on " + probe.cond)
                 const ms = (d && d.measures) || []
                 probe.check(ms.length === 2, ms.length + " measure tabs in the model")
-                probe.check(probe.register(b) === "Replay" && probe.visibleTabs(b).length === 0,
-                            "Replay draws no detail, so no measure tab (D9)")
+                probe.check(probe.register(b) === "Analyse" && probe.visibleTabs(b).length === 2,
+                            "Replay reads the open detail in place: two measure tabs drawn")
+                probe.check(SessionMode.mode === SessionMode.replay, "with the stage still in Replay")
                 let most = null
                 for (const m of ms) {
                     probe.log("tab " + m.id + " '" + m.label + "' " + m.countText)
@@ -181,6 +182,9 @@ Item {
                 probe.check(!!d && d.id === probe.cond, "detail still open after the rebuild")
                 probe.check(!!d && d.measureId === probe.picked,
                             "picked tab kept: " + (d ? d.measureId : "-") + " (want " + probe.picked + ")")
+                const on = b ? probe.visibleTabs(b).filter(function (t) { return t.on }) : []
+                probe.check(on.length === 1 && on[0].measureId === probe.picked,
+                            "Replay: the picked tab is drawn ruled: " + (on.length ? on[0].measureId : "-"))
                 SessionMode.enterCapture()
                 probe.finish()
             }

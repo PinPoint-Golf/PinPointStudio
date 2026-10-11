@@ -28,9 +28,10 @@
 // and on again on Capture.
 //
 // TYPESET REGISTERS (11 Oct): the body hosts a register — PpDiagReplay in Replay, PpDiagAnalyse in
-// Analyse (`sdRegister`, `register`). Replay never draws a detail (D9): with one open it stays on the
-// reader's tab and shows the quiet `sdDetailParked` line, so the card list `sdCardsFlick` is on screen
-// there; Analyse draws the detail (`sdDetailBody`). The checks below assert both, beside the place.
+// Analyse (`sdRegister`, `register`). An open detail is read in PpDiagAnalyse in either mode, so the
+// detail (`sdDetailBody`) is drawn on both sides of the flip, with the stage still in Replay on the way
+// back; closing it there returns to PpDiagReplay, whose card list `sdCardsFlick` must come back where
+// it was. The checks below assert both, beside the place.
 //
 // Writes the View layout — run on a COPY of the settings (XDG_CONFIG_HOME):
 //   build/run-me/verify-diag-nav.sh [session dir] [ordinal]
@@ -108,11 +109,7 @@ Item {
         check(b.detailConditionId === want.detail,
               what + ": detail '" + b.detailConditionId + "' (want '" + want.detail + "')")
         check(register(b) === reg, what + ": the " + reg + " register is loaded (" + register(b) + ")")
-        if (reg === "Analyse")
-            check(anyShown(b, "sdDetailBody"), what + ": Analyse draws the open detail")
-        else
-            check(anyShown(b, "sdDetailParked") && !anyShown(b, "sdDetailBody"),
-                  what + ": Replay draws no detail, only the line pointing to Analyse (D9)")
+        check(anyShown(b, "sdDetailBody"), what + ": the open detail is drawn")
         before = b
     }
     // Checked after closing the detail the way a reader would: in Analyse the card list sits behind the
@@ -182,7 +179,8 @@ Item {
                 probe.expectPlace("Replay → Analyse", "Analyse")
                 SessionMode.showReplay()
             } else if (s === 7) {
-                probe.expectPlace("Analyse → Replay", "Replay")
+                probe.expectPlace("Analyse → Replay", "Analyse")
+                probe.check(SessionMode.mode === SessionMode.replay, "Analyse → Replay: the stage stays in Replay under the detail")
                 probe.theBody()._closeDetail()
             } else if (s === 8) {
                 probe.expectScroll("Analyse → Replay, detail closed")

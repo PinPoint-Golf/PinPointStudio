@@ -29,10 +29,12 @@ import PinPointStudio
 //   Session    one PpSparkRow per pattern (or the small multiples when all fit the height); Cold says the
 //              n is too small and shows the expectations (F41-F42); the coverage line at the foot (F39).
 //   Watching   C's PpBarcode, emerging first; empty, the old sentence (F45).
-//   Detail     never shown (D9). A detail opened elsewhere leaves the reader on their tab with one quiet
-//              line pointing to Analyse; a tab press closes the detail first.
-// A click on a condition is the glance's one door into depth: it opens that condition and switches to
-// Analyse (never from the cast). A click on a shot moves the carousel.
+//   Detail     never drawn here. A condition clicked in the glance opens its detail, and the body reads an
+//              open detail in PpDiagAnalyse with the stage still in Replay, holding this register hidden
+//              underneath; Back returns to it as it was. Only the cast shows this register under an open
+//              detail (D9): it stays on the reader's tab, and a tab press closes the detail first.
+// A click on a condition is the glance's one door into depth (never from the cast). A click on a shot
+// moves the carousel.
 // Cast (surface "cast", always this register, D4): a running head names the shot; the WHOLE surface is
 // zoomed for distance. An auto-closing cast (interactive false) takes no clicks at all and never flips the
 // stage; a persistent cast (coach, kiosk) keeps its tabs.
@@ -63,12 +65,11 @@ Item {
     readonly property var demoStates: ["", "hoverShot12", "hoverCondition", "hoverWatching", "missPicker"]
 
     readonly property bool cast: surface === "cast"
-    // D9: a glance never drills. "detail" (opened in Analyse, or restored by navigation) shows the tab the
-    // reader is on, and the tab row stays live.
+    // D9: the cast never drills. "detail" (open on the main stage) shows the tab the reader is on, and the
+    // tab row stays live.
     readonly property string bodyTab: body && body.tab ? String(body.tab) : "shot"
     readonly property string shown: (view === "shot" || view === "session" || view === "watching") ? view
                                   : (["shot", "session", "watching"].indexOf(bodyTab) >= 0 ? bodyTab : "shot")
-    readonly property bool detailParked: view === "detail" && !cast
 
     // ── data ──
     readonly property var shot: ss.shot
@@ -94,13 +95,12 @@ Item {
     function n(x) { return ro.word(x) }              // words to ten, figures above (house style)
 
     // ── wiring: every click goes somewhere real ──
-    // A condition opens in Analyse. Open FIRST on the body we hold, then switch: Analyse comes up already on
-    // that condition. Never from the cast: the cast is a second screen and must not flip the main stage.
+    // A condition opens its detail in place: the body reads it in the Analyse register and the stage stays
+    // in Replay. Never from the cast: the cast is a second screen and must not change the main stage.
     function openCondition(id) {
         const b = root.body
         if (!b || !id || root.cast || !root.interactive) return
         b._openDetail(id)
-        SessionMode.enterAnalyse()
     }
     function pickShot(dir, id) { if (root.body && root.interactive && id > 0) root.body.shotRequested(dir || br.dirOf(id), id) }
     // D9: a tab press while a detail is open closes the detail first, then goes to the tab.
@@ -242,17 +242,6 @@ Item {
                 items: visible ? ss.missCandidates().map(m => ({ id: m.id, label: m.name || m.id })) : []
                 current: ss.declaredMiss
                 onPicked: id => { if (root.body && typeof root.body._declareMiss === "function") root.body._declareMiss(id); root.missOpen = false }
-            }
-            Text {
-                objectName: "sdDetailParked"
-                visible: root.detailParked && !!root.detail
-                topPadding: ro.u(8)
-                width: under.width; wrapMode: Text.WordWrap
-                text: (root.detail ? root.detail.name || "" : "") + " is open in Analyse"
-                      + (root.interactive ? "  ·  <a href='analyse'>Read it there</a>" : "")
-                textFormat: Text.StyledText; linkColor: ro.link
-                font: ro.fSmall; color: ro.ink3
-                onLinkActivated: SessionMode.enterAnalyse()
             }
         }
 

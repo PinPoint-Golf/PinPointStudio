@@ -1868,7 +1868,7 @@ opening a different app.
 | This shot | a dot plot of the fired conditions with their values; then one quiet line ("66 clean · 2 not measurable") and a shot ruler; spare height admits the clean ones, closest to their edge first | standfirst, the fired ledger, notes, questions; then "Every condition on one scale", a dot plot of all 78 | a standfirst and the fired table; the clean conditions go to an index at the back |
 | Session | one sparkline row per pattern; small multiples once all eight fit | a ledger with the direction sentence as line 2 and folded facts as line 3; a row opens Detail | numbered entries with marginal sparklines |
 | Watching | the barcode, sorted by rate | the barcode with this shot's values (or an "On shot 8" ledger below medium) | the barcode |
-| Detail | not offered: a glance never drills | DetailBar, FeatureHead, KeyFigures, fault-forward figures, questions, causes, effects | the feature, from a fresh page |
+| Detail | the glance's click opens it in place, drawn by the Analyse register (the cast never drills) | DetailBar, FeatureHead, KeyFigures, fault-forward figures, questions, causes, effects | the feature, from a fresh page |
 
 **How a surface chooses.**
 - On the stage, the session mode picks the register: Capture and Replay take Replay, and Analyse
@@ -1889,8 +1889,12 @@ opening a different app.
     laid-out page, so there is no layout loop.
   - It never takes the page below compact.
 
-**Replay never shows a detail** (D9). A tab press while `body.detailOpen` is true closes the
-detail first. In Analyse, Esc closes the detail.
+**A detail opened in Replay is read in place** (D9, revised 11 Oct after Mark's try-out: a click
+that flipped the stage to Analyse read as a wiring fault). An open detail always loads the Analyse
+register, whatever the stage's mode, so the stage stays in Replay; the Replay glance is held, hidden,
+under it, and Back returns to it with its tab and scroll intact. The cast never drills: it stays on the
+reader's tab, and a tab press while `body.detailOpen` is true closes the detail first. Esc closes the
+detail.
 
 **Live states** (D2, D3). Replay is the live glance, so it must read correctly between swings:
 - **A quiet shot.** If nothing new surfaced, This shot says so in one calm line built from the

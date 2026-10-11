@@ -1810,7 +1810,7 @@ Item {
             laidOut()
             compare(probe.detailCalls, 1, "a glance's row opens its condition")
             compare(probe.lastDetailId, id)
-            compare(SessionMode.mode, SessionMode.analyse, "and takes the stage to the read")
+            compare(SessionMode.mode, SessionMode.replay, "and the stage stays in Replay")
         }
 
         // KEPT, rewritten: the page itself — Back and the crumb, the feature head, both headlines in the
@@ -2822,21 +2822,40 @@ Item {
                    "the real session's newest swing")
         }
 
-        // D9: Replay never draws a detail. Opened elsewhere, the reader stays on their tab with one quiet
-        // line pointing to Analyse, and a tab press closes the detail first.
-        function test_60_replayNeverDrillsAndATabPressClosesTheDetail() {
+        // A detail opened in Replay is read in place: the body loads the Analyse register for it while the
+        // stage stays in Replay, and closing it returns to the glance. Only the cast never drills (D9): it
+        // keeps the reader on their tab, and a tab press closes the detail first.
+        function test_60_replayReadsADetailInPlaceAndOnlyTheCastParksIt() {
             useRegister("Replay")
-            setSource(detailSource())
+            const s = detailSource()
+            setSource(s)
             compare(body.view, "detail")
-            compare(findAll(body, "sdDetailBody").length, 0, "no detail page in the glance")
+            compare(reg().register, "Analyse", "an open detail is read in the Analyse register")
+            compare(SessionMode.mode, SessionMode.replay, "without the stage leaving Replay")
+            verify(shown(viewOf("detail")), "the detail page is drawn")
+            verify(shown(one(body, "sdDetailBack")), "with a way back")
+            const held = findAll(body, "sdRegisterHeld")
+            compare(held.length, 1, "the glance is held under the detail, not torn down")
+            verify(!shown(held[0]), "and hidden")
+
+            const closed = detailSource()
+            closed.detailConditionId = ""
+            closed.detail = null
+            setSource(closed)
+            compare(reg().register, "Replay", "closing it returns to the glance")
+            verify(reg() === held[0], "the same glance that was held")
+
+            body.surface = "cast"
+            setSource(detailSource())
+            compare(reg().register, "Replay", "the cast keeps the glance under an open detail")
+            compare(findAll(body, "sdDetailBody").length, 0, "no detail page on the cast")
             compare(findAll(body, "sdDetailFlick").length, 0)
             verify(shown(viewOf("session")), "the reader's own tab is under it")
-            verify(plain(oneShown(body, "sdDetailParked").text).indexOf("Casting is open in Analyse") === 0,
-                   "with one line saying where the detail is")
             mouseClick(tabByKey("shot"))
             laidOut()
             compare(probe.closeDetailCalls, 1, "a tab press closes the detail first")
             compare(body.tab, "shot", "then goes to the tab")
+            body.surface = "panel"
         }
 
         // F49: one measure at a time — a tab per measure, the shown one ruled, the pick asked of the model

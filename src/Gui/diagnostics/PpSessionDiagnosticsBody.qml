@@ -27,7 +27,9 @@
 // THE REGISTER IS CHOSEN, NOT THE LAYOUT (§15.6). A register is how much the panel says:
 //   1. forceRegister ("Replay" | "Analyse"), set by tests only;
 //   2. surface "cast": ALWAYS PpDiagReplay (D4), whatever mode the main stage is in;
-//   3. SessionMode: Analyse reads in depth (PpDiagAnalyse); Capture and Replay glance (PpDiagReplay).
+//   3. SessionMode: Analyse reads in depth (PpDiagAnalyse); Capture and Replay glance (PpDiagReplay),
+//      except that an open detail is always read in PpDiagAnalyse: a condition clicked in Replay opens
+//      in place, and Back returns to the glance, with the stage still in Replay.
 // The register is handed `body: root` and reads and drives everything through this API: the view is
 // `detailOpen ? "detail" : _tab`, and interactive, cardFilter and pulseCue come straight through. It
 // lays itself out by the size class of the width it is given and NEVER scales its type: there is no
@@ -100,7 +102,8 @@ Item {
     // PICKING A SHOT OFF THE CAROUSEL IS ASKING ABOUT IT. Only on the edge into shot-reading, never on
     // every re-fetch of the readout, so a reader who goes back to Session is not dragged back.
     onReadingShotChanged: if (readingShot) tab = "shot"
-    // What the register shows: the open detail over the tab (PpDiagReplay never draws one, D9).
+    // What the register shows: the open detail over the tab (an open detail loads PpDiagAnalyse; the cast's
+    // PpDiagReplay, and the one held under the detail, read "detail" as the reader's tab, D9).
     readonly property string view: detailOpen ? "detail" : _tab
 
     readonly property int _shotFiredCount: {
@@ -327,22 +330,41 @@ Item {
     }
 
     // ── the register ─────────────────────────────────────────────────────────
-    readonly property string register: forceRegister !== "" ? forceRegister
-                                     : surface === "cast" ? "Replay"
-                                     : SessionMode.mode === SessionMode.analyse ? "Analyse" : "Replay"
-    readonly property Item registerItem: registerLoader.item
+    // An open detail is read in the Analyse register whatever the stage's mode: a condition clicked in
+    // Replay opens in place, and Back returns to the glance, without the stage leaving Replay. The glance
+    // is HELD while the detail is up (hidden, renamed, never torn down), so Back finds its tab, scroll and
+    // hover where they were.
+    readonly property string _baseRegister: forceRegister !== "" ? forceRegister
+                                          : surface === "cast" ? "Replay"
+                                          : SessionMode.mode === SessionMode.analyse ? "Analyse" : "Replay"
+    readonly property string register: _baseRegister === "Replay" && detailOpen && forceRegister === ""
+                                       && surface !== "cast" ? "Analyse" : _baseRegister
+    readonly property Item registerItem: register === "Analyse" ? analyseLoader.item : replayLoader.item
 
     Loader {
-        id: registerLoader
+        id: replayLoader
         x: root._drawFrame ? root._framePad : 0
         y: root._drawFrame ? frameHead.y + frameHead.height + Theme.gap(10) : 0
         width: root.width - 2 * x
         height: root.height - y - (root._drawFrame ? root._framePad : 0)
-        sourceComponent: root.register === "Analyse" ? analyseC : replayC
+        active: root._baseRegister === "Replay"
+        visible: root.register === "Replay"
+        sourceComponent: replayC
+    }
+    Loader {
+        id: analyseLoader
+        x: replayLoader.x
+        y: replayLoader.y
+        width: replayLoader.width
+        height: replayLoader.height
+        active: root.register === "Analyse"
+        sourceComponent: analyseC
     }
     Component {
         id: replayC
         PpDiagReplay {
+            // Held under an open detail, it must not answer for the register the reader sees.
+            objectName: root.register === "Replay" ? "sdRegister" : "sdRegisterHeld"
             body: root
             view: root.view
             readout: root.readout
