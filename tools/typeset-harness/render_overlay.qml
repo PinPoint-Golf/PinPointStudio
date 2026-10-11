@@ -71,22 +71,27 @@ Item {
         const kids = item.children || []
         for (let i = 0; i < kids.length; ++i) walkPred(kids[i], pred, out)
     }
-    // The shallowest Loader under a stage card that has loaded something: the card's panel Loader.
+    // The card's panel Loader: of the Loaders under a stage card that have loaded something (not
+    // looking inside what they loaded), the one whose item is largest. The shallowest is the card's
+    // heading Loader when the card has a heading, so depth alone picks a 25 px title row.
     function panelIn(card) {
-        let level = [card]
+        let level = [card], best = null
         while (level.length) {
             const nextLevel = []
             for (const it of level) {
                 const kids = it.children || []
                 for (let i = 0; i < kids.length; ++i) {
                     const k = kids[i]
-                    if (k.sourceComponent !== undefined && k.item !== undefined && k.item) return k.item
+                    if (k.sourceComponent !== undefined && k.item !== undefined && k.item) {
+                        if (!best || k.item.width * k.item.height > best.width * best.height) best = k.item
+                        continue
+                    }
                     nextLevel.push(k)
                 }
             }
             level = nextLevel
         }
-        return null
+        return best
     }
     // Every live instance of the target, visible ones first (two screens can each hold a stage).
     function findTargets() {
