@@ -35,7 +35,7 @@ Write down every fact the panel shows and every control it has. For each fact, r
   imagined ones.
 
 Output: the inventory table, and a list of model defects you find. Keep those separate and fix
-them at the end, not in the panel. For diagnostics the defects went to `MODEL_DEFECTS.md`.
+them at the end, not in the panel. For diagnostics the defects went to `docs/design/diagnostics_model_defects.md`.
 
 ### Step 2. One question per view
 
@@ -316,8 +316,9 @@ were not measurable; 8 session patterns; 15 watched conditions.
 - **After:** the round-3 review, `build/run-me/diag-variants/session-diagnostics-round3.pdf`, with
   its pages in `pages-r3/` (index in spec 15.12). The print PDFs are in
   `build/run-me/diag-variants/print-r3/`. These are local, because `build/` is not in git.
-- **Before:** `out/before_<aesthetic>_<mode>_<view>_{window,panel}.png` in the harness scratch
-  directory. The scratchpad is temporary, so copy them to `docs/design/aesthetic/typeset_before_*.png`
+- **Before:** `out/before_<aesthetic>_<mode>_<view>_{window,panel}.png` in the round's scratch
+  directory, which was temporary. Re-render them with `tools/typeset-harness/render.sh` (overlay
+  `none`) from a pre-redesign build if they are needed for `docs/design/aesthetic/typeset_before_*.png`
   (spec 15.12, TODO).
 - **Rounds 1 and 2:** `session-diagnostics-variants.pdf` and `session-diagnostics-round2.pdf`, with
   the variants' QML and notes in `build/run-me/diag-variants/qml/`.
@@ -326,74 +327,85 @@ were not measurable; 8 session patterns; 15 watched conditions.
 
 ## 5. The harness
 
+**The typeset harness** lives in `tools/typeset-harness/`. Its `README.md` is the reference for the
+tools: commands, options, environment variables, the mock's contract, the panel profiles, the memory
+guard and the traps. This section says what it is for and how a redesign uses it.
+
 ### What it is
 
-**The typeset harness** renders QML you write over a real panel in the real app, fed the real
-data, in the real stage arrangement. Nothing is built: the app's `--probe-qml` loads the render
-script, and the render script loads your file.
+The harness renders QML you write over a real panel in the real app, fed the real data, in the real
+stage arrangement. Nothing is built: the app's `--probe-qml` hook loads a probe script, and the probe
+loads your file.
 
-| File | Does |
+| Tool | Use it for |
 |---|---|
-| `variant3.sh` | the entry point for one render run (arguments below) |
-| `render_variant3.qml` | the probe: switches mode and arrangement, finds the panel body (`objectName: "sdBody"`), makes it transparent, lays your file exactly over it, feeds it the body's data and the body itself, steps themes, views and demo states, grabs `_window.png` and `_panel.png`; in print, sizes your root to the A4 page and grabs each page at 2× |
-| `guard.sh` | wraps every app run: at most two app instances across all agents (lock slots), and kills the app if its footprint passes 6 GB |
-| `build/render_stage.sh` and `build/render_stage.qml` | the audit probe: no overlay; for each theme, layout (full, half, third) and panel, it sets the real arrangement with the timeline and carousel on, and grabs the window and the panel's stage card. Use it for the "before" renders of step 1. `render_stage.sh <tag> <analyse\|replay> <themes> <layouts> <panels>` |
-| `assemble3.py` | builds the review PDF from the renders and the notes (Pillow, with the repo's Inter fonts) |
-| `try_registers.qml` and `build/run-me/try-diag-registers.sh` | the live try-out: the real app, windowed, with the new panel laid over every Session diagnostics body; it re-attaches after any rebuild; a watchdog stops it above 8 GB |
+| `render.sh` (probe `render_overlay.qml`) | Step 5: one render run of a mock over the target panel. It also renders the real panel (overlay `none`), the cast and A4 print pages at 2×. `--dump` writes the panel's live data as JSON for step 1. |
+| `render_stage.sh` (probe `render_stage.qml`) | Step 1's "before" renders: each real stage panel at full, half and third. |
+| `try.sh` (probe `try_overlay.qml`) | Step 6's live try-out for Mark, and its `--selftest`, which must pass first. |
+| `assemble_review.py` | Step 6's review PDF. |
+| `guard.sh` | Wraps every app run: at most two instances machine-wide, and a kill above 6 GB (8 GB for the try-out). |
+| `panels/<name>.env` | One profile per stage panel: the target, the data fed to the mock, the tab and view properties, the views. |
+| `briefs/` | The four briefs the design agents were given, as worked examples. |
 
-**Where its inputs live:**
-- **Slots** on the share, `/mnt/swingdata/scratch/diag-beautify/slot-<x>/`, one per agent. Each
-  holds its own copy of the session and of the settings (`XDG_CONFIG_HOME`), so parallel runs
-  never fight and Mark's settings are never touched.
-- **Screen configurations**, `screen*.json`, for the offscreen platform:
+**The target.** `--panel <profile>` picks it:
+- Session diagnostics' body is found by its `objectName` (`sdBody`);
+- every other stage panel is found through its stage card (`key:charts`, `key:wristMotion`, …), so
+  no panel needed a source change to be reachable.
+
+A panel whose data lives on an inner id (Wrist motion's `dx`, Table's `src`) must expose it on its
+root before a mock can read it. That is a source change and costs a build, so batch such changes into
+one build. Only the `diagnostics` profile is proven. The others are starting points to confirm in
+step 1 with a dump.
+
+**Where its inputs and outputs live:**
+- **Run output:** on the share, `/mnt/swingdata/scratch/typeset-harness/out` (`TYPESET_OUT`).
+- **Slots:** `/mnt/swingdata/scratch/typeset-harness/slots/<name>` (`TYPESET_SLOTS`), one per agent.
+  Each slot is made on first use: a copy of the fixture session and of Mark's settings. Parallel runs
+  never fight, and Mark's settings and library are never touched.
+- **The fixture:** the 4 July 2026 session (7 iron, 15 shots, shot 8), from `TYPESET_SESSION`.
+- **Screens:** `tools/typeset-harness/screens/`:
   - `screen.json`: 1680 × 1050;
-  - `screen_tall.json`: 1680 × 2600, for whole Detail pages;
+  - `screen_tall.json`: 1680 × 2600, for whole pages;
   - `screen_print.json`: 1680 × 1200 at dpr 2;
   - `screen_mark.json`: 2560 × 1560, Mark's window.
-- **The app:** the Debug build,
-  `build/Qt_6_11_1_for_macOS_Debug/PinPointStudio.app`.
+- **The app:** the Debug build, `build/Qt_6_11_1_for_macOS_Debug/PinPointStudio.app` (`PPS_APP`).
 
 ### Running it
 
-`$D` is the harness directory: today the session scratchpad's `diag/` folder, and after the move
-`tools/typeset-harness/`.
-
 ```
-$D/variant3.sh <slot> <Register.qml> <tag> <layout> [themes=7,12] [views] [detailId=over_the_top] \
-               [tall|normal] [mode=analyse|replay] [states=s1,s2]
+H=tools/typeset-harness
+$H/render_stage.sh before analyse 12,7 full,half,third charts           # step 1: the panel as it is
+$H/render.sh --panel charts --dump none charts_data half                # step 1: the data it shows
+$H/render.sh --panel charts my/Analyse.qml r1_analyse half              # step 5: a mock, themes 7 and 12
+$H/render.sh --panel charts --states hover my/Analyse.qml r1_analyse half
+$H/render.sh --panel charts --screen mark my/Analyse.qml r1_big half    # Mark's window
+$H/render.sh --mode replay my/Replay.qml f3_replay cast                 # diagnostics is the default profile
+$H/render.sh --themes 6,12 my/Print.qml f3_print print-portrait
+$H/try.sh --selftest charts my/Panel.qml                                # must pass before Mark looks
+/opt/homebrew/bin/python3 $H/assemble_review.py --src /mnt/swingdata/scratch/typeset-harness/out \
+    --dest <dir> --title "Charts — round 1" --tags r1_a,r1_b,r1_c
 ```
 
-- **slot:** your letter (`a`, `b`, `c` or `base`). Only use your own.
-- **layout:** `full`, `stage`, `half`, `third`, `cast`, `print-portrait` or `print-landscape`. The
-  probe switches the app's real arrangement first, so the window grab shows your panel with its
-  real neighbours.
-- **themes:** theme indices: 6 Vector light, 7 Vector dark, 12 Folio light, 13 Folio dark. Print
-  takes 6 and 12.
-- **states:** sets `demoState` before each grab, and the file name gains `_<state>`.
+- **Slots:** each agent passes its own `--slot <name>`.
+- **Layouts:** `full`, `stage`, `stagecam`, `half`, `third`, `cast`, `print-portrait`,
+  `print-landscape`. The probe sets the app's real arrangement first, with the timeline and carousel
+  on, so the window grab shows your panel with its real neighbours.
+- **Themes:** 6 Vector light, 7 Vector dark, 12 Folio light, 13 Folio dark.
 - **Output:**
-  - screen: `<tag>_<layout>_<aesthetic>_<mode>_<view>[_<state>]_{window,panel}.png`;
-  - print: `<tag>_print-<orient>_<aesthetic>_<mode>_p<N>.png`.
-- **Time:** about 60–90 s per run. Two lanes can run at once, because the guard allows two apps.
-  See `final3.sh` for a two-lane full pass.
+  - screen: `<tag>_<layout>_<aesthetic>_<light|dark>_<view>[_<state>]_{window,panel}.png`;
+  - print: `<tag>_print-<orient>_<aesthetic>_<light|dark>_p<N>.png`.
+- **Time:** about 40–90 s per run. Two lanes can run at once, because the guard allows two apps.
 
-Examples:
+**For Mark,** each try-out is a one-line script in `build/run-me/`. The diagnostics one,
+`build/run-me/try-diag-registers.sh`, calls `try.sh diagnostics` on the round-3 `Panel.qml`. Name new
+ones `try-<panel>-typeset.sh`.
 
-```
-$D/variant3.sh a $D/reg/Analyse.qml f3_analyse half 7,12 shot,session,watching,detail over_the_top normal analyse
-$D/variant3.sh a $D/reg/Analyse.qml f3_analyse half 12 shot,session over_the_top normal analyse hoverShot12,question-clean
-$D/variant3.sh base $D/reg/Replay.qml f3_replay cast 7,12 shot,session,watching over_the_top normal replay
-$D/variant3.sh b $D/reg/Print.qml f3_print print-portrait 6,12
-SCREEN_JSON=/mnt/swingdata/scratch/diag-beautify/screen_mark.json $D/variant3.sh a $D/reg/Replay.qml big half 7,12 shot,session,watching over_the_top normal replay
-```
-
-The live try-out is one line, for Mark: `build/run-me/try-diag-registers.sh`.
-
-**The register file's contract.** The root declares the properties below, and only reads them;
-the probe sets them.
+**The mock's contract.** The root declares the properties below, and only reads them; the probe sets
+only what the root declares. The fed properties come from the panel's profile (`FEED`).
 
 ```qml
-property string view            // "shot" | "session" | "watching" | "detail"
-property var readout; property var cards; property var source; property var header; property var detail
+property string view            // a tab value, or "detail"
+property var readout; property var cards; property var source; property var header; property var detail   // diagnostics' FEED
 property var body               // the live panel body: clicks go through it
 property string medium: "screen"   // "screen" | "print"
 property string printOrientation: ""
@@ -401,54 +413,40 @@ property int printPage: 0
 readonly property int printPageCount: …
 property string demoState: ""
 property string surface: "panel"   // "panel" | "cast"
+property string register        // optional: "Replay" | "Analyse", checked by the self-test
 ```
 
-Another panel replaces the first line's data properties with its own, read from its own body.
+### The move to `tools/typeset-harness/`: done (11 October 2026)
 
-### Where it should live: `tools/typeset-harness/`
+The harness began in a session scratchpad, which is deleted when the session ends. It was moved
+into the repo and made generic:
 
-Today the harness is in a session scratchpad
-(`/private/tmp/claude-501/…/scratchpad/diag`), which disappears. Only the try-out, and copies of
-the round-1/2 harness, are in `build/run-me/diag-variants/`, which is not in git. Move it to
-`tools/typeset-harness/` and make it generic. The move needs:
+| Scratchpad | Now |
+|---|---|
+| `variant3.sh`, `app.sh` | `render.sh`, whose overlay `none` replaces `app.sh` |
+| `render_variant3.qml`, `render_app.qml` | `render_overlay.qml`, with `--probe-target` (default `sdBody`), `--probe-feed`, `--probe-tab-prop` and `--probe-dump` |
+| `build/render_stage.sh`, `.qml` | `render_stage.sh`, `.qml` |
+| `try_registers.qml` | `try_overlay.qml` + `try.sh`, whose feed, view binding and self-test follow the profile |
+| `assemble3.py` | `assemble_review.py`, driven by tags, views, layouts, themes and states rather than a fixed page plan |
+| `guard.sh` | `guard.sh`; its lock directory is `/tmp/pps-typeset-locks`, and the limit is `GUARD_GB` |
+| `empty.qml`, `screen*.json` | `screens/` |
+| `BRIEF*.md` | `briefs/` |
 
-1. **Generic names.**
-   - `variant3.sh` becomes `render.sh`.
-   - `render_variant3.qml` becomes `render_panel.qml`.
-   - `render_stage.sh` and `render_stage.qml` become `audit.sh` and `audit_stage.qml`.
-   - `try_registers.qml` becomes `try_panel.qml`, with a `try.sh` beside it.
-   - Keep `guard.sh`.
-   - `assemble3.py` becomes `assemble.py`, taking a page plan per panel.
-2. **No hard-coded paths.**
-   - The app path comes from `PPS_APP`, defaulting to the Debug build.
-   - The scratch root comes from `TYPESET_SCRATCH`, defaulting to `/mnt/swingdata/scratch/typeset`.
-   - The output tree is `$TYPESET_SCRATCH/<panel>/out`. Run trees belong on the share, not in the
-     repo or in `/tmp`.
-   - The guard's lock directory moves out of a user-specific temp path.
-3. **A target argument.** `--probe-target <objectName>` replaces the hard-coded `sdBody`.
-   - Each stage panel needs a stable `objectName` on its body, and a body that exposes its data,
-     its current view (`_tab` or equivalent) and its actions.
-   - Panels without one need a small code change, which costs a build. Batch those changes into
-     one build.
-4. **A per-panel contract file.** It lists the data properties, the views, the click targets and
-   the demo states. The probe's `feed()` reads it, binding the view as well as the data (section 6).
-5. **Screens in the repo.** The four `screen*.json` files are tiny: keep them in
-   `tools/typeset-harness/screens/`.
-6. **A pinned fixture session.** The 4 July session copy is a pinned input, so it belongs in the
-   corpus on the share, not in `build/`. The slot directories are copied from it on first use, as
-   `try-diag-registers.sh` does today.
-7. **A data dumper.** A probe mode that writes the panel's live data as JSON, for agents to read
-   before they design (step 1).
-8. **Runner scripts for Mark** in `build/run-me/` (for example `try-<panel>-typeset.sh`), each one
-   line that calls `tools/typeset-harness/try.sh <panel>`.
-9. **Silence.** The app runs muted in every probe. Keep it that way, because no test or probe may
-   play sound.
-10. **Mocks import real blocks.** Once the typeset blocks are built into `src/Gui`, new mocks import
-    them through `import PinPointStudio`. The round-3 mock library stays only as a reference in
-    `build/run-me/diag-variants/live/`.
+How the original plan was met:
+- **Paths:** none is hard-coded. The app comes from `PPS_APP`; output and slots come from
+  `TYPESET_OUT` and `TYPESET_SLOTS`, under `/mnt/swingdata/scratch/typeset-harness`.
+- **Per-panel contract:** a shell profile per panel (`panels/<name>.env`) rather than a separate
+  contract file.
+- **Data dumper:** `render.sh --dump`.
 
-This playbook serves as the harness's documentation. Point to it from the scripts' header
-comments; don't add a separate README.
+Still open from that plan:
+- **Pin the fixture.** The fixture session is read from the library. It should be pinned in the
+  corpus on the share (`TYPESET_SESSION` takes any path).
+- **Expose inner data.** Each panel body without exposed data still needs a small source change,
+  batched into one build.
+- **Import real blocks.** Once the typeset blocks are in `src/Gui/typeset`, new mocks import them
+  through `import PinPointStudio`. The round-3 mock library in `build/run-me/diag-variants/live/` is
+  only a reference.
 
 ---
 
@@ -488,7 +486,7 @@ comments; don't add a separate README.
 
 Smaller ones, each of which cost a render cycle:
 - **A QML error can leave the app waiting out its 500 s timeout.** If the first output lines show
-  an error, kill that run (`pkill -f "render_variant3.*<your file>"`) and fix the error.
+  an error, kill that run (`pkill -f "render_overlay.qml"`) and fix the error.
 - **The overlay can be created at a pre-settle size** (1534 × 853). Bind to the body's size, never
   copy it once.
 - **Shapes ignore their clip** in a paged print window. Set the opacity of an off-page figure to 0.
@@ -510,7 +508,7 @@ Smaller ones, each of which cost a render cycle:
 
 The seven other stage panels, plus the carousel and timeline, measured against the house rules and
 the registers on 11 October 2026. The audit only rendered and read; it changed no code. The full
-audit is `AUDIT.md` in the harness `build/` directory.
+audit is `docs/design/stage_audit_20261011.md`.
 
 **How it was rendered.** The audit probe (section 5) used the real app with the 4 July session,
 shot 8, on the 1680 × 1050 screen. It rendered:
@@ -518,7 +516,7 @@ shot 8, on the 1680 × 1050 screen. It rendered:
 - Replay: the five panels it offers;
 - four crops of the timeline and carousel.
 
-That is 148 PNGs (`out/audit_*`).
+That is 148 PNGs, archived on the share at `/mnt/swingdata/scratch/typeset-harness/archive/2026-10-11/renders/audit_*`.
 
 What could not be seen offscreen:
 - Camera video and the 3-D view draw nothing offscreen, so only their chrome was audited.

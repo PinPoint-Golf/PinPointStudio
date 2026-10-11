@@ -2155,15 +2155,20 @@ The process is the point:
 Nothing was designed in the abstract. Every round rendered QML over the real panel in the real
 app, fed the real data: the 4 July 2026 session (7 iron, 15 shots, shot 8 picked).
 
-**The typeset harness** is the tool for this. Today it lives in the session's scratchpad:
-- `variant3.sh` and `render_variant3.qml` render a register over the real Session diagnostics
-  panel, in the real stage arrangement (full, stage, half or third), in Replay or Analyse, on the
-  cast, or as A4 pages;
-- `guard.sh` caps it at two app instances and kills a runaway above 6 GB;
-- `build/run-me/try-diag-registers.sh` and `try_registers.qml` are the live try-out, in which Mark
-  uses the real app with the new panel laid over the real one.
+**The typeset harness** is the tool for this. It lives in `tools/typeset-harness/`, and its
+`README.md` documents it:
+- `render.sh` (probe `render_overlay.qml`) renders a mock over any real stage panel, or the real
+  panel itself. The panel is chosen by a profile in `panels/`, and the render covers the real stage
+  arrangement (full, stage, half or third), Replay or Analyse, the cast, or A4 pages. `--dump` writes
+  the panel's live data as JSON;
+- `render_stage.sh` renders every real stage panel at full, half and third, for the "before" audit;
+- `try.sh` (probe `try_overlay.qml`) is the live try-out, in which Mark uses the real app with the
+  new panel laid over the real one. Its `--selftest` drives every tab, both modes and the detail, and
+  must pass first;
+- `assemble_review.py` builds the review PDF;
+- `guard.sh` caps the harness at two app instances and kills a runaway above 6 GB.
 
-The playbook describes how to run it and where it should live permanently.
+The playbook (`docs/design/stage_typeset_playbook.md`, section 5) describes how a redesign uses it.
 
 **The round's outputs:**
 - a review PDF with every view at every width, in both themes;
@@ -2181,16 +2186,17 @@ Verify by driving every tab, mode and detail page with `--probe-qml`, not by att
 
 ### 15.11 Still open
 
-- **The model defects** that every design agent hit are a separate task, to be done after the
-  panel build:
-  - Early extension's figures read spine bend in degrees, while its card quotes pelvis thrust in
-    cm. The cm fault number is reused as degrees.
+- **The model defects** that every design agent hit are a separate task, written up in
+  `docs/design/diagnostics_model_defects.md`:
+  - Early extension's details page opens on a different measure (spine bend lost, °) from the one
+    its card quotes (pelvis thrust, cm). Its −7.5° fault line is a real authored norm, not the cm
+    value reused, as was first thought.
   - The cause headline names "Across the line at the top", which is on none of the drawn paths.
-  - Clean conditions on a two-sided corridor report an excess of 2 or more from the opposite side.
+  - Clean one-directional conditions report an excess of 2 or more from the side that cannot fire.
     The model should publish a graded-side excess, 0 on the open side.
   - The closing line still says "this shot is the wide tick".
 - **Whether print offers the full report.**
-- **The library's API requests**, to fold in during the build:
+- **The library's API requests** (all folded in during the build, 11 Oct):
   - a SparkRow column head;
   - a shot-counts block;
   - FeatureHead section switches;
