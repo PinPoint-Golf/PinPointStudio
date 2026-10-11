@@ -320,7 +320,7 @@ Add the "Phase 2 plan" section to `swing_storage_impl.md`: the decisions, stages
 1. **Build on GOLFSIMPC:**
    - clone `libppswing` beside `PinPointStudio` (`C:\Users\developer\Projects\libppswing`, the same convention as libhackmotion);
    - `git fetch; merge --ff-only` after checking the ahead-count;
-   - build the studio's app dir and `build\swinglab-vs18` (swinglab_run, pps_convert_library), colocated with the Release DLLs;
+   - build the studio's one Release tree, `build\Release-Installer` (the app, swinglab_run, pps_convert_library, beside its DLLs);
    - run the stage-1 test targets in Windows Debug.
 2. **Precondition:** no PinPointStudio process on GOLFSIMPC (`tasklist`) or on the Mac, so nothing writes JSON mid-conversion. The studio's installed app must be the new build from here on; released alpha/beta builds cannot see a converted library.
 3. **Backup:** `tar -czf build\swingdocs-pre-ppsw-20260923.tgz -T <list>` over every `swing.json` and `swing_summary.json` in both roots (about 0.6 GB), on the studio. Only the JSON names, never the directories. Check the tarball's member count is 340 before continuing.
