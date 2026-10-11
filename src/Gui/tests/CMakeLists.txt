@@ -220,6 +220,19 @@ pp_add_test(test_markup_truth
     INCLUDE ${GUI} ${GUI}/markup ${SRC} ${SRC}/Core
     LINK    Qt6::Core)
 
+# PdfDocumentWriter + PpPdfPrinter (print/) — print is to PDF. Drawn QImages through the writer,
+# the PDF read back as bytes (page objects, A4 MediaBox per orientation, lossless images, the
+# creator), the failures reported rather than written; then the QML printer run for real against a
+# three-page stand-in register in an offscreen window. Qt Gui's QPdfWriter only — no Qt Pdf.
+# Offscreen is forced in main() too, so no window appears however it is run.
+find_package(Qt6 REQUIRED COMPONENTS Quick)
+pp_add_test(pdf_document_writer_test
+    SOURCES pdf_document_writer_test.cpp ${GUI}/print/pdf_document_writer.cpp
+    INCLUDE ${GUI} ${GUI}/print ${SRC}
+    LINK    Qt6::Qml Qt6::Quick  AUTOMOC
+    COMPILE_OPTIONS -DPP_PRINT_QML_DIR="${GUI}/print")
+set_tests_properties(pdf_document_writer_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # No binding may subscribe to a dependency it does not USE.
 #
 # A revision counter named on a line of its own is an expression statement whose value is discarded;
