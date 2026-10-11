@@ -143,14 +143,17 @@ TestCase {
         ["Fraunces", Font.Normal, false, "Regular"], ["Fraunces", Font.DemiBold, false, "SemiBold"]
     ]
     function test_bundledFacesAnswer() {
+        // Every face is tried and every miss listed, so one run on a platform names them all.
+        const misses = []
         for (const f of faces) {
             const t = Qt.createQmlObject('import QtQuick; Text { text: "Ag" }', this)
             t.font.family = f[0]; t.font.weight = f[1]; t.font.italic = f[2]; t.font.pixelSize = 20
-            const what = f[0] + " " + f[1] + (f[2] ? " italic" : "")
-            compare(t.fontInfo.family, f[0], what + ": the bundled family answers, not a fallback")
-            compare(t.fontInfo.styleName, f[3], what + ": a concrete " + f[3] + " face")
+            if (t.fontInfo.family !== f[0] || t.fontInfo.styleName !== f[3])
+                misses.push(f[0] + " " + f[1] + (f[2] ? " italic" : "") + " → " + t.fontInfo.family
+                            + " / " + t.fontInfo.styleName + " (want " + f[3] + ")")
             t.destroy()
         }
+        verify(misses.length === 0, "faces that did not answer: " + misses.join("; "))
         for (let i = 0; i < Theme.themeCount; ++i) {
             Theme.themeIndex = i
             for (const k of ["fontBody", "fontData", "fontDisplay"])

@@ -45,9 +45,12 @@ def freeze_tnum(src, dst):
             for cp, g in list(t.cmap.items()):
                 if g in subst:
                     t.cmap[cp] = subst[g]
+    # EVERY family name, including 21 (the WWS family). Windows groups faces by it: a Tabular face still
+    # saying 21 = "Inter" is filed under Inter, so "Inter Tabular" at Medium found no Medium face there
+    # (macOS, which reads 16, never noticed). tst_theme_tables' face check catches it on the studio.
     for rec in f["name"].names:
         s = rec.toUnicode()
-        if rec.nameID in (1, 3, 4, 16):
+        if rec.nameID in (1, 3, 4, 16, 21):
             rec.string = s.replace("Inter", "Inter Tabular", 1)
         elif rec.nameID == 6:
             rec.string = s.replace("Inter", "InterTabular", 1)
