@@ -78,6 +78,12 @@ QtObject {
     readonly property string aesthetic: themeOrder[Math.floor(themeIndex / 2)]
     readonly property bool   dark:      (themeIndex % 2) === 1
 
+    // Instrument's serif. Georgia comes with macOS and Windows, so it is drawn from the system there
+    // and never bundled: it was once, with no licence to redistribute it. Where the system has no
+    // Georgia (Linux), the bundled Gelasio stands in. It has Georgia's advance widths and, through
+    // tools/theme/make_gelasio_fonts.py, Georgia's line box, so a layout measures the same either way.
+    readonly property string serifFamily: Qt.fontFamilies().indexOf("Georgia") >= 0 ? "Georgia" : "Gelasio"
+
     // ── The themes ───────────────────────────────────────────────────────────
     // Shared keys every theme sets: label, swatch ([light, dark] dot on the Appearance tile),
     // fontBody, fontData, fontDisplay, fontBodyWeight, displayBase, fontDisplayItalic,
@@ -90,7 +96,7 @@ QtObject {
     // also sit in a mode block when they differ between light and dark (Folio's chart greys).
     readonly property var _themes: ({
         instrument: {
-            label: "Instrument", swatch: ["#B5701A", "#E6AC54"], fontBody: "Gelasio", fontData: "DM Mono", fontDisplay: "Gelasio",
+            label: "Instrument", swatch: ["#B5701A", "#E6AC54"], fontBody: serifFamily, fontData: "DM Mono", fontDisplay: serifFamily,
             fontBodyWeight: Font.Normal, displayBase: 26, fontDisplayItalic: false, fontDisplayWeight: Font.Bold, radius: 6,
             radiusLg: 10, railWidth: 56, railTone: "bg2", toolbarTone: "bg2",
             light: { colorBg: "#F4EFE3", colorBg2: "#ECE6D7", colorBg3: "#E1DACA", colorSurface: "#FBF8F0",
@@ -490,7 +496,7 @@ QtObject {
     // same characters as flat monochrome glyphs and prevents that fallback.
     // On macOS, Apple Color Emoji does the same — Apple Symbols provides flat
     // monochrome glyphs for those codepoints and wins the font-selection race.
-    // Gelasio (Instrument), Fraunces (Terrain) and Literata (Links) are serifs that
+    // Georgia/Gelasio (Instrument), Fraunces (Terrain) and Literata (Links) are serifs that
     // read best at Normal for body — use Normal to avoid thin, silently-rounded body
     // text. Literata additionally only ships concrete static faces at 400/500 in this
     // build (macOS/CoreText won't interpolate the variable weight axis — see main.cpp),

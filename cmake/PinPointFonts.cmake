@@ -26,8 +26,9 @@
 # Paths are relative to the repo root; each consumer prefixes them.
 
 set(PP_FONT_FILES
-    # Instrument's serif (tools/theme/make_gelasio_fonts.py): Gelasio, metric-compatible with the
-    # Georgia it replaced, in the four style-linked faces only, with Georgia's line box.
+    # Instrument's serif where the system has no Georgia (tools/theme/make_gelasio_fonts.py):
+    # Gelasio, metric-compatible with Georgia, in the four style-linked faces only, with Georgia's
+    # line box. Georgia itself comes from macOS and Windows and is never bundled (see below).
     src/Resources/fonts/Gelasio-Regular.ttf
     src/Resources/fonts/Gelasio-Italic.ttf
     src/Resources/fonts/Gelasio-Bold.ttf
@@ -73,3 +74,9 @@ set(PP_FONT_FILES
     src/Resources/fonts/InterTabular-SemiBold.ttf
     src/Resources/fonts/InterTabular-Bold.ttf
 )
+
+# Georgia is the system's, never ours to ship: it was bundled once with no licence to redistribute
+# it. Theme.serifFamily uses the installed one and falls back to Gelasio.
+if(PP_FONT_FILES MATCHES "Georgia")
+    message(FATAL_ERROR "PinPointFonts.cmake bundles a Georgia face; Georgia is not licensed for redistribution")
+endif()

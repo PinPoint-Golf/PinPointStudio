@@ -31,7 +31,8 @@ import PinPointStudio
 // And that the bundled faces are what draws: every family and weight a theme asks for resolves to a
 // concrete face of THAT family (not a synthesised bold, not a system fallback) — the check that
 // matters on Windows, where a static face's family grouping differs from macOS — "Inter Tabular"'s
-// digits are one width, and no theme names Georgia, which was never licensed to be bundled.
+// digits are one width, and Instrument's serif is the system's Georgia where there is one and the
+// bundled Gelasio where there isn't (Georgia itself was never licensed to be bundled).
 TestCase {
     name: "ThemeTables"
 
@@ -154,10 +155,28 @@ TestCase {
             t.destroy()
         }
         verify(misses.length === 0, "faces that did not answer: " + misses.join("; "))
+    }
+
+    // Georgia when the system has it (macOS, Windows), else Gelasio; and only Instrument asks for it.
+    function test_instrumentSerif() {
+        const georgia = Qt.fontFamilies().indexOf("Georgia") >= 0
+        compare(Theme.serifFamily, georgia ? "Georgia" : "Gelasio")
         for (let i = 0; i < Theme.themeCount; ++i) {
             Theme.themeIndex = i
             for (const k of ["fontBody", "fontData", "fontDisplay"])
-                verify(Theme[k] !== "Georgia", Theme.aesthetic + " " + k + " names Georgia")
+                verify(Theme[k] !== "Georgia" || Theme.aesthetic === "instrument",
+                       Theme.aesthetic + " " + k + " names Georgia")
+        }
+        Theme.themeIndex = 0
+        compare(Theme.fontBody, Theme.serifFamily); compare(Theme.fontDisplay, Theme.serifFamily)
+        if (!georgia) return
+        // The system's four faces answer as themselves, as the bundled Georgia's did.
+        for (const f of [[Font.Normal, false, "Regular"], [Font.Bold, false, "Bold"],
+                         [Font.Normal, true, "Italic"], [Font.Bold, true, "Bold Italic"]]) {
+            const t = Qt.createQmlObject('import QtQuick; Text { text: "Ag" }', this)
+            t.font.family = "Georgia"; t.font.weight = f[0]; t.font.italic = f[1]; t.font.pixelSize = 20
+            compare(t.fontInfo.family + " / " + t.fontInfo.styleName, "Georgia / " + f[2])
+            t.destroy()
         }
     }
 
