@@ -24,6 +24,12 @@
 // with shots placed on its own ruler, a default that is the measure that fired most, a tab pick
 // the model honours, and the pick surviving a Replay → Analyse → Replay rebuild of the panel.
 //
+// TYPESET REGISTERS (11 Oct): the detail is drawn only in Analyse (PpDiagAnalyse; Replay never drills,
+// D9). The detail is still OPENED in Replay — that is the restore case — and the model half is checked
+// there; the DRAWN half (`sdDetailMeasureTabs`, one `sdDetailMeasureTab` per measure with `measureId` and
+// `on`) is checked after entering Analyse, where the picked tab must be the ruled one. Back in Replay the
+// pick must survive, and Replay must draw no measure tab at all.
+//
 // Run on a COPY of the settings (XDG_CONFIG_HOME): build/run-me/verify-measure-tabs.sh
 // Exit 0 = PASS, 1 = FAIL; "PROBE:" lines say why.
 
@@ -66,11 +72,18 @@ Item {
         const shown = bodies.filter(function (b) { return b.visible && b.width > 0 })
         return shown.length === 1 ? shown[0] : null
     }
+    // On screen only if every ancestor up to `top` is visible (a view kept alive behind another is not).
+    function shown(item, top) {
+        let i = item
+        while (i && i !== top) { if (!i.visible) return false; i = i.parent }
+        return !!i
+    }
     function visibleTabs(b) {
         const o = []
         walk(b, "sdDetailMeasureTab", o)
-        return o.filter(function (t) { return t.visible && t.width > 0 })
+        return o.filter(function (t) { return probe.shown(t, b) && t.width > 0 })
     }
+    function register(b) { const o = []; walk(b, "sdRegister", o); return o.length ? o[0].register : "" }
 
     Instantiator {
         id: shots
@@ -123,7 +136,8 @@ Item {
                 probe.check(d && d.id === probe.cond, "detail open on " + probe.cond)
                 const ms = (d && d.measures) || []
                 probe.check(ms.length === 2, ms.length + " measure tabs in the model")
-                probe.check(probe.visibleTabs(b).length === 2, "…and two drawn")
+                probe.check(probe.register(b) === "Replay" && probe.visibleTabs(b).length === 0,
+                            "Replay draws no detail, so no measure tab (D9)")
                 let most = null
                 for (const m of ms) {
                     probe.log("tab " + m.id + " '" + m.label + "' " + m.countText)
@@ -149,6 +163,16 @@ Item {
             } else if (s === 5) {
                 SessionMode.enterAnalyse()
             } else if (s === 6) {
+                const b = probe.theBody()
+                probe.check(!!b && b !== probe.before, "Analyse: the panel WAS rebuilt")
+                probe.check(!!b && probe.register(b) === "Analyse", "Analyse: the Analyse register draws the detail")
+                const tabs = b ? probe.visibleTabs(b) : []
+                probe.check(tabs.length === 2, "Analyse: two measure tabs drawn (" + tabs.length + ")")
+                const on = tabs.filter(function (t) { return t.on })
+                probe.check(on.length === 1 && on[0].measureId === probe.picked,
+                            "Analyse: the picked tab is the ruled one: " + (on.length ? on[0].measureId : "-")
+                            + " (want " + probe.picked + ")")
+                probe.before = b
                 SessionMode.showReplay()
             } else if (s === 7) {
                 const b = probe.theBody()

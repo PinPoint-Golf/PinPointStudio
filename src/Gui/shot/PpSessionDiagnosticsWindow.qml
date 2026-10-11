@@ -99,13 +99,13 @@ Window {
     // card — grows together, so the proportions are identical at every setting. Text stays
     // crisp through Qt's distance-field rasteriser.
     //
-    // THIS COMPOSES WITH THE PANEL'S OWN FIT rather than replacing it. The diagnostics panel
-    // already takes the largest k at which the whole design fits the box it is given
-    // (PpSessionDiagnosticsBody._fitFor, kMax 2.4), so a 1920 cast is already at ~2.1 with no
-    // help. Laying it out smaller therefore raises the effective type by exactly the factor
-    // asked for, and the MAGNITUDE is a user preference and not a constant: a 13" laptop
-    // mirrored at arm's length and a 65" TV across a bay want very different type, and there
-    // is no correct answer to pick for them. appSettings.dashboardScale chooses.
+    // THIS COMPOSES WITH THE REGISTER'S OWN CAST ZOOM rather than replacing it. The panel no longer
+    // scales its type to fit (typeset house rule 2: type is fixed, space gives way); on the cast the
+    // Replay register zooms its WHOLE surface from the data instead (PpDiagReplay.zoom, 1…1.6, never
+    // below compact). Laying the panel out smaller here raises the effective type by exactly the
+    // factor asked for on top of that, and the MAGNITUDE is a user preference and not a constant: a
+    // 13" laptop mirrored at arm's length and a 65" TV across a bay want very different type, and
+    // there is no correct answer to pick for them. appSettings.dashboardScale chooses.
     readonly property real _scaleStep: appSettings.dashboardScale === "small"  ? 0.78
                                      : appSettings.dashboardScale === "large"  ? 1.35
                                      :                                           1.0
@@ -130,6 +130,9 @@ Window {
                 id: diag
                 anchors.fill: parent
                 interactive: win.interactive
+                // The cast: always the Replay register (D4), which draws the cast's running head, so
+                // the body's own frame stands down (S30).
+                surface: "cast"
                 // The cast is not where the reader navigates; the stage panel's saved place is
                 // theirs (SessionMode.diagnosticsNav), and this must neither read nor overwrite it.
                 remembersNav: false

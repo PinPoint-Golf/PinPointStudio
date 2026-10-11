@@ -16,34 +16,32 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// EVERYTHING THE SESSION DIAGNOSTICS PANEL LOOKS LIKE. Chrome, header, the after-shot
-// strip, and the body the stage machine chooses — one component that MATURES from Cold to
-// Closing rather than four panels that replace each other, because the golfer is watching
-// one object accumulate evidence and a panel that swapped itself out would break that.
+// THE SESSION DIAGNOSTICS PANEL'S BODY: its data and view state, the frame on surfaces that have no
+// stage card round them, and the TYPESET REGISTER that draws everything else (design system §15).
 //
-// IT TAKES A `source` AND OWNS NOTHING. Every string, every count and every tick state on
-// this panel is read off one object shaped like SessionDiagnosticsModel; the wiring that
-// produces one — the session directory, the shot processor, review — lives next door in
-// PpSessionDiagnosticsPanel. That split is the same one PpLaunchMonitorPanel makes with
-// PpLmGraphicsBody and it buys the same thing: this file can be loaded offscreen and
-// pressed with a fixture, so the states that matter most (Cold with no expectations, the
-// quiet strip, a not-assessable tick) are asserted rather than eyeballed. It also means
-// there is exactly one answer to "where does this number come from" — `source` — and no
-// second place for a zone to compute one.
+// IT TAKES A `source` AND OWNS NOTHING. Every string, count and tick state is read off one object
+// shaped like SessionDiagnosticsModel; the wiring that produces one (the session directory, the shot
+// processor, review) lives next door in PpSessionDiagnosticsPanel. So this file still loads offscreen
+// with a fixture, and there is one answer to "where does this number come from": `source`.
 //
-// ── HOW IT SIZES ITSELF ──────────────────────────────────────────────────────────────
+// THE REGISTER IS CHOSEN, NOT THE LAYOUT (§15.6). A register is how much the panel says:
+//   1. forceRegister ("Replay" | "Analyse"), set by tests only;
+//   2. surface "cast": ALWAYS PpDiagReplay (D4), whatever mode the main stage is in;
+//   3. SessionMode: Analyse reads in depth (PpDiagAnalyse); Capture and Replay glance (PpDiagReplay).
+// The register is handed `body: root` and reads and drives everything through this API: the view is
+// `detailOpen ? "detail" : _tab`, and interactive, cardFilter and pulseCue come straight through. It
+// lays itself out by the size class of the width it is given and NEVER scales its type: there is no
+// fit factor here any more (house rule 2). The cast's viewing-distance zoom scales the whole surface
+// instead (the register's own cast zoom and PpSessionDiagnosticsWindow.contentScale).
 //
-// The design is quoted at 1168 × 560, and the panel's homes are that stage, a 396-wide
-// split beside another panel, and a 1920 second screen. So every metric on it is one scale
-// factor `k` away from the design's own proportions, and _fitFor() takes the largest k at
-// which the WHOLE design still fits both axes. k never drops below 1: below the design size
-// the panel does not shrink, it REDUCES — `compact` drops the captions the narrow
-// arrangement drops (12c) and the card row takes what fits and counts the rest. A
-// recurrence count too small to read is not a smaller panel, it is a useless one, and this
-// is the launch monitor board's rule applied to a second surface for the same reason.
+// THIS API IS THE INTEGRATION SEAM (the panel's navigation save and restore, PpModeStage's card, the
+// cast window, the tests and every probe reach in): source, readout, tab, _tab, cardFilter,
+// watchingExpanded, interactive, framed, cardAside, readingShot, reviewing, detailOpen,
+// detailConditionId, detail, cards, header, chains, pulseCue; _openDetail, _closeDetail,
+// _setDetailMeasure, _declareFocus, _declareMiss, pulseAfterShot; screenRequested, shotRequested;
+// objectName "sdBody". Change none of it without changing every caller.
 
 import QtQuick
-import QtQuick.Layouts
 import PinPointStudio
 
 Item {
@@ -52,37 +50,19 @@ Item {
     // Anything with SessionDiagnosticsModel's read surface. Null draws the empty chrome.
     property var source: null
 
-    // SessionDiagnosticsModel::shotReadout(selectedShotId), for the shot the carousel has
-    // focused — null when nothing is selected. THE ONE THING THIS BODY TAKES THAT IS NOT A
-    // PROPERTY OF `source`, and it is because shotReadout() is an INVOKABLE: it cannot be
-    // bound, so somebody has to call it and re-call it when the selection or the surface
-    // changes. That somebody is the panel, which is where the model's signals are (see
-    // PpSessionDiagnosticsPanel). A test hands a fixture map in directly, exactly as it hands
-    // `source` in — the body still computes nothing.
+    // SessionDiagnosticsModel::shotReadout(selectedShotId), for the shot the carousel has focused —
+    // null when nothing is selected. shotReadout() is an INVOKABLE, so it cannot be bound: the panel
+    // calls it and re-calls it when the selection or the surface changes. A test hands a fixture in.
     property var readout: null
 
-    // Panel-local, and per brief §8 the only state this panel owns beyond the carousel's
-    // selection and the cadence setting. Two collapsed regions, both of which open into the
-    // SAME content rather than a different view: Watching (n) is the one that remains, now
-    // that the collapsed chain rows have gone with the rail. (The miss picker below is a
-    // second, and it is a transient rather than a state: it is open only while it is being
-    // answered.)
+    // LEGACY, kept as a no-op: the panel's navigation still saves and restores it, and the Watching
+    // view no longer folds (the barcode is the whole view).
     property bool watchingExpanded: false
 
-    // ── the card filter (panel-local, like the watching fold) ────────────────
-    //
-    // A VIEW STATE AND NOT A MODEL ONE, on the same terms as watchingExpanded: the model
-    // publishes the two FACTS (reachesBall, rootHere) and this decides which of them the reader
-    // is looking through. Nothing is withdrawn by filtering — the count in the header still
-    // speaks for the whole session, and a filtered-out pattern keeps its rank, which is why the
-    // badges read #1 #4 #7 under a filter rather than renumbering themselves. A rank is a place
-    // in the session's ranking, not a place in the current view of it.
+    // ── the card filter: a VIEW state, saved with the navigation ─────────────
+    // The model publishes the two facts (reachesBall, rootHere); this decides which the reader looks
+    // through. Nothing is withdrawn: a filtered-out pattern keeps its rank. PpDiagAnalyse offers it.
     property string cardFilter: "all"     // "all" | "ball" | "roots"
-    readonly property var _cardFilterChips: [
-        { key: "all",   label: Theme.caps(qsTr("All")) },
-        { key: "ball",  label: Theme.caps(qsTr("Reaches the ball")) },
-        { key: "roots", label: Theme.caps(qsTr("Roots")) }
-    ]
     readonly property var _visibleCards: {
         const cs = cards || []
         if (cardFilter === "ball")  return cs.filter(function (c) { return c.reachesBall === true })
@@ -90,27 +70,25 @@ Item {
         return cs
     }
 
-    // Off on the auto-closing cast, where every affordance on the panel is a trap: the
-    // surface is a glance and it is about to vanish under the pointer
-    // (PpSessionDiagnosticsWindow.interactive). Nothing about what the panel SAYS changes.
+    // Off on the auto-closing cast, where every affordance is a trap: the surface is a glance and it is
+    // about to vanish under the pointer (PpSessionDiagnosticsWindow.interactive).
     property bool interactive: true
 
-    // ── the two tabs: THIS SHOT and SESSION ──────────────────────────────────
-    //
-    // THEY USED TO BE STACKED, and on a desktop stage the two competed for the same height: the
-    // shot strip squeezed the card grid and the card grid capped the shot strip at two rows. They
-    // answer different questions — "what did this swing do" and "what keeps happening" — so each
-    // now gets the whole body and the tab label carries the other one's headline count, which is
-    // what keeps the tab you are NOT on from going silent.
-    //
-    // A VIEW STATE, panel-local. The user's choice is `tab` and EVERY TAB CAN ALWAYS BE
-    // PRESSED: a tab with nothing to show says why (pick a shot in the carousel; nothing below
-    // the pattern gate yet) rather than ignoring the press — a disabled THIS SHOT in review with
-    // nothing picked read as a broken control. `_tab` only differs on the auto-closing post-shot
-    // cast, where nobody can press a tab and the shot is what the cast is for.
+    // Where the panel is drawn: "panel" (the stage, or anywhere in the app) or "cast" (the second-screen
+    // window). The cast always reads the Replay register (D4) and draws its own running head, so the
+    // body's frame stands down there.
+    property string surface: "panel"
+
+    // Tests only: pin the register ("Replay" | "Analyse") regardless of SessionMode.
+    property string forceRegister: ""
+    // Renders only: a named interaction state the register shows statically (§15.7). Always "" in the app.
+    property string demoState: ""
+
+    // ── the views ────────────────────────────────────────────────────────────
+    // The user's choice is `tab`, and every tab can always be pressed: a tab with nothing to show says
+    // why. `_tab` differs only on the auto-closing cast, where nobody can press a tab and the shot is
+    // what the cast is for.
     property string tab: "session"           // "shot" | "session" | "watching"
-    // Hoisted for the same reason as the filter chips: a literal in the Repeater's binding would
-    // be a new array, and new delegates, on every re-evaluation.
     readonly property var _tabDefs: [
         { key: "shot",     label: Theme.caps(qsTr("This shot")) },
         { key: "session",  label: Theme.caps(qsTr("Session")) },
@@ -119,10 +97,11 @@ Item {
     readonly property bool _shotAvailable: readingShot || (!isClosing && !reviewing)
     readonly property string _tab: interactive ? tab
                                  : (_shotAvailable ? "shot" : "session")
-    // PICKING A SHOT OFF THE CAROUSEL IS ASKING ABOUT IT. Only on the edge into shot-reading,
-    // never on every re-fetch of the readout, so a reader who then goes back to SESSION to see
-    // the wide tick in the cards is not dragged back on the next republish.
+    // PICKING A SHOT OFF THE CAROUSEL IS ASKING ABOUT IT. Only on the edge into shot-reading, never on
+    // every re-fetch of the readout, so a reader who goes back to Session is not dragged back.
     onReadingShotChanged: if (readingShot) tab = "shot"
+    // What the register shows: the open detail over the tab (PpDiagReplay never draws one, D9).
+    readonly property string view: detailOpen ? "detail" : _tab
 
     readonly property int _shotFiredCount: {
         const xs = readingShot ? (readout.conditions || [])
@@ -132,36 +111,12 @@ Item {
             if ((readingShot ? xs[i].stateKind : xs[i].kind) === "fired") ++n
         return n
     }
-    readonly property string _shotTabNote: {
-        if (!_shotAvailable) return ""
-        if (!readingShot && source && source.quiet === true) return qsTr("quiet")
-        return _shotFiredCount > 0 ? qsTr("%1 fired").arg(_shotFiredCount) : ""
-    }
     readonly property int _watchingCount: (source && source.watching) ? source.watching.length : 0
-    readonly property string _sessionTabNote: {
-        const n = header ? (header.patternCount || 0) : 0
-        return n > 0 ? (n === 1 ? qsTr("1 pattern") : qsTr("%1 patterns").arg(n)) : ""
-    }
-
-    // The session's patterns that fired on this swing, which the THIS SHOT tab draws under the
-    // strip. The strip's ghosted chips say "its card is where it is read" — with the cards on
-    // another tab that would point at nothing, so the cards come with the chips.
-    readonly property var _firedCards: (cards || []).filter(function (c) {
-        return c.thisShot === "fired"
-    })
 
     // ── the two declarations the golfer can make (design §A6) ────────────────
-    //
-    // BOTH GO STRAIGHT TO THE MODEL AND NEITHER IS MIRRORED HERE. declareFocus, clearFocus and
-    // declareMiss are the model's, the read-back is the model's (`focused` on each card,
-    // `declaredMiss` on the surface), and this file holds no copy that could disagree with it.
-    // That is what makes a declined declaration — the model is reviewing, the id is not in the
-    // pack — leave the panel exactly as it was rather than showing a state the ledger is not in.
-    //
-    // GUARDED ON THE FUNCTION, not on the source being non-null: the offscreen test presses
-    // this body with a plain fixture object, and a fixture that wants to assert the tap
-    // arrived supplies a spy of the same name. A fixture that does not gets a no-op instead of
-    // a TypeError that would fail an unrelated assertion three tests later.
+    // BOTH GO STRAIGHT TO THE MODEL AND NEITHER IS MIRRORED HERE; the read-back is the model's.
+    // GUARDED ON THE FUNCTION, not on the source: a test fixture that wants to assert the tap arrived
+    // supplies a spy of the same name; one that does not gets a no-op rather than a TypeError.
     function _declareFocus(conditionId, on) {
         if (!source) return
         if (on && typeof source.declareFocus === "function")
@@ -169,10 +124,10 @@ Item {
         else if (!on && typeof source.clearFocus === "function")
             source.clearFocus()
     }
+    // The register's inline picker closes itself on a pick.
     function _declareMiss(missId) {
         if (source && typeof source.declareMiss === "function")
             source.declareMiss(missId)
-        missPicker.close()
     }
     function _missCandidates() {
         if (source && typeof source.missCandidates === "function")
@@ -180,24 +135,9 @@ Item {
         return []
     }
 
-    // ── the condition detail (user request; brief §9 has no design for it) ───
-    //
-    // A BODY SWAP, NOT A LOADER AND NOT A STACK. The composition behind the detail is HIDDEN,
-    // never torn down, which is what makes BACK a restoration rather than a rebuild: the
-    // watching row comes back expanded if it was, chain B comes back open if it was, the cards
-    // come back in the order hystereticOrder() had them. A Loader would rebuild every delegate
-    // on the way back and quietly reset all three, and would also re-run the pulse machinery on
-    // cards that were not there for the shot (see PpPatternCard's `_ready`).
-    //
-    // ONE STEP BACK, ALWAYS. Opening a cause or an effect from inside the detail RE-TARGETS this
-    // page; BACK still returns to the panel. That is a deliberate simplification of the obvious
-    // alternative — a breadcrumb stack — because the panel is a glance between balls and a
-    // reader four levels deep with no way to see where they are is worse than a reader who has
-    // to tap the card again.
-    //
-    // GUARDED ON THE FUNCTION, exactly as the two declarations are: the offscreen test presses
-    // this body with a plain fixture, and a fixture that wants to assert the tap arrived supplies
-    // a spy of the same name. One that does not gets a no-op rather than a TypeError.
+    // ── the condition detail ─────────────────────────────────────────────────
+    // Opening re-targets the one detail page; Back returns to the tab. The model holds which detail is
+    // open (so it survives a stage rebuild); every register keeps each view alive, so Back restores.
     function _openDetail(conditionId) {
         if (!conditionId) return
         if (source && typeof source.openDetail === "function")
@@ -212,65 +152,50 @@ Item {
             source.setDetailMeasure(measureId)
     }
 
-    // READ BACK OFF THE MODEL, never remembered here — the same rule as `focused` and
-    // `declaredMiss`. A request the model declined leaves the panel exactly as it was.
+    // READ BACK OFF THE MODEL, never remembered here.
     readonly property string detailConditionId:
         source ? (source.detailConditionId || "") : ""
     readonly property var detail: source ? source.detail : null
     readonly property bool detailOpen: detailConditionId !== "" && !!detail && !!detail.header
 
-    // ── the after-shot pulse (§B3, §B8) ──────────────────────────────────────
+    // ── the after-shot pulse (§B3, §B8; D1) ──────────────────────────────────
+    // ONE CUE OBJECT, PUBLISHED DOWNWARD: { token, ids, focusId }. `ids` are condition IDS, in the
+    // panel's drawing order (the session's patterns first, then the rest), the focused one first; a
+    // token so the same ids firing twice in a row are still two events. The register's PpBrush pulses
+    // them (PpPulseWash on every row).
     //
-    // ONE CUE OBJECT, PUBLISHED DOWNWARD: { token, ids, focusId }. Single-property so a card
-    // can never see ids that belong to a different shot, and a token so the same set of ids
-    // firing twice in a row is still two events.
-    //
-    // CALLED, NOT BOUND. shotIngested is a SIGNAL on SessionDiagnosticsModel and this file has
-    // no model — the panel next door does, and it calls this when one lands, exactly as it
-    // calls shotReadout() and hands the result down. It is also the seam the offscreen test
-    // uses: a synthetic after-shot moment is a fixture plus this call, with no event loop and
-    // no ingest in it.
+    // afterShotDelta.fired is a list of the model's CHIP MAPS ({ id, name, kind, tier, … }), not ids;
+    // a fixture may hand plain ids. Both are read as ids here (R round 4, note 14: the old code keyed a
+    // map on the chip object itself, so the drawing order was lost and the cue carried chips).
     property var pulseCue: null
     property int _pulseToken: 0
 
     function pulseAfterShot() {
         const d = source ? source.afterShotDelta : null
-        const fired = (d && d.fired) ? d.fired : []
+        const fired = ((d && d.fired) ? d.fired : [])
+            .map(function (x) { return x && typeof x === "object" ? (x.id || "") : String(x || "") })
+            .filter(function (id) { return id !== "" })
         if (fired.length === 0) { root.pulseCue = null; return }
 
         const wanted = {}
         for (let i = 0; i < fired.length; ++i) wanted[fired[i]] = true
 
-        // ORDER IS THE PANEL'S DRAWING ORDER, never the delta's. `fired` comes out in the
-        // shot's own row order; what the eye is following is the sweep down the arrangement in
-        // front of it, and a stagger that ran in some third order would read as a shuffle.
-        // So the body on screen decides: the rail's nodes when the rail is the body, the card
-        // row's cards when it is not, and whatever fired that the chosen body does not draw
-        // brings up the rear rather than being dropped — it still happened.
+        // ORDER IS THE PANEL'S DRAWING ORDER, never the delta's: the patterns as the session ranks
+        // them, then anything only a detail draws, then whatever fired that neither draws.
         const ids = []
         function take(id) {
             if (id && wanted[id] && ids.indexOf(id) < 0) ids.push(id)
         }
-        function takeCards() {
-            const cs = root.cards || []
-            for (let i = 0; i < cs.length; ++i) take(cs[i].id)
+        const cs = root.cards || []
+        for (let i = 0; i < cs.length; ++i) take(cs[i].id)
+        const chs = root.chains || []
+        for (let i = 0; i < chs.length; ++i) {
+            const ns = chs[i].nodes || []
+            for (let j = 0; j < ns.length; ++j) take(ns[j].id)
         }
-        function takeRail() {
-            const chs = root.chains || []
-            for (let i = 0; i < chs.length; ++i) {
-                const ns = chs[i].nodes || []
-                for (let j = 0; j < ns.length; ++j) take(ns[j].id)
-            }
-        }
-        // The card row is the body at every stage now, so it leads the sweep; anything that
-        // fired and is only on a rail (which is to say, only inside a drill-in) brings up the
-        // rear rather than being dropped — it still happened.
-        takeCards(); takeRail()
         for (let i = 0; i < fired.length; ++i) take(fired[i])
 
-        // THE FOCUSED NODE LEADS. Under a focus contract its marker is the headline of the
-        // moment (§B3), and leading the stagger is how a sweep says so without a second mark:
-        // it is the one that moves first and the rest follow it.
+        // THE FOCUSED CONDITION LEADS the stagger.
         const focusId = d.focusId || ""
         const at = ids.indexOf(focusId)
         if (at > 0) { ids.splice(at, 1); ids.unshift(focusId) }
@@ -279,160 +204,18 @@ Item {
         root.pulseCue = { token: root._pulseToken, ids: ids, focusId: focusId }
     }
 
-    // A screen was asked for, from a screened root on the
-    // rail. `screenRef` is the model's when it recommended that screen and empty when it did
-    // not; `conditionId` always names what the screen would settle, so a host can route on
-    // whichever it has. THIS PANEL RUNS NO SCREEN: the protocol UI is not designed yet
-    // (brief §9) and inventing one here would be inventing a design.
+    // A screen was asked for, from a screened root. `screenRef` is the model's when it recommended that
+    // screen and empty when it did not; `conditionId` always names what the screen would settle. THIS
+    // PANEL RUNS NO SCREEN: the host routes it.
     signal screenRequested(string screenRef, string conditionId)
 
-    // A shot was picked on the condition detail's strip or value run. THIS BODY SELECTS
-    // NOTHING: the carousel owns the selection (brief §8), so the request goes up to the panel,
-    // which hands it to the carousel's own click path and lets every surface read the pick back.
-    // By swing folder, the one identity the carousel and the ledger share.
+    // A shot was picked (a strip cell, a mark, a ruler column, a bookend). THIS BODY SELECTS NOTHING:
+    // the carousel owns the selection, so the request goes up to the panel. By swing folder, the one
+    // identity the carousel and the ledger share.
     signal shotRequested(string swingDir, int shotId)
 
     objectName: "sdBody"
     clip: true
-
-    // ── the frame ────────────────────────────────────────────────────────────
-    //
-    // THE STAGE OWNS THE FRAME, the cast does not. On the stage PpModeStage puts this panel in
-    // its SESSION DIAGNOSTICS card and switches `framed` off, so the body draws no surface, no
-    // border and no title of its own — the card's heading carries the title, and `cardAside`
-    // carries what the old header chips said (the stage, the review tense). The wall cast has no
-    // stage around it, so there the body draws the same card itself: the coaching card's shell
-    // with its colorWarn rule, the Micro title and the aside on one heading row. Framed is the
-    // default because a body with nobody to frame it must still read as the panel.
-    property bool framed: true
-
-    // The tone the card takes (13.2): this panel names faults.
-    readonly property color tone: Theme.colorWarn
-
-    // What the header used to say in chips, as the card heading's aside: the newest swing's
-    // label live (never while an older one is being read), the stage the ledger has matured to,
-    // and the tense the panel is read in.
-    readonly property string _shotLabelText:
-        (!reviewing && !readingShot && !detailOpen && header) ? (header.shotLabel || "") : ""
-    readonly property string _stageWord:  header ? (header.stageLabel || "") : ""
-    readonly property string _reviewWord: header ? (header.reviewBadge || "") : ""
-    readonly property string cardAside:
-        Theme.caps([_shotLabelText, _unshout(_stageWord), _unshout(_reviewWord)]
-                   .filter(function (s) { return s !== "" }).join(" · "))
-    // The model spells the stage and the review badge in capitals (its C++ and tests own that
-    // spelling). Lower-casing a shouted word hands Theme.caps a sentence-case source, in the same
-    // lower-case voice as the shot label beside it; the capital themes set it back exactly.
-    function _unshout(s) {
-        return s.replace(/\b[A-Z]{2,}\b/g, function (w) { return w.toLowerCase() })
-    }
-
-    readonly property int _framePad: px(14)
-
-    PpCardShell {
-        anchors.fill: parent
-        visible: root.framed
-        tone: root.tone
-    }
-
-    // The framed card's heading: the panel's name in the tone, the aside on the right.
-    Item {
-        id: frameHead
-        visible: root.framed
-        x: root._framePad; y: root._framePad
-        width: parent.width - 2 * root._framePad
-        height: visible ? frameTitle.implicitHeight : 0
-
-        PpMicro {
-            id: frameTitle
-            objectName: "sdTitle"
-            // 12c abbreviates rather than eliding: the panel's own name is the last thing that
-            // should be half a word.
-            text: root.compact ? Theme.caps(qsTr("Session diag.")) : Theme.caps(qsTr("Session diagnostics"))
-            font.pixelSize: root.tzMicro
-            color: root.tone
-        }
-        // Top-aligned with the title, as PpStageCard sets its aside: a Row has no baseline.
-        Row {
-            anchors.right: parent.right
-            anchors.top: parent.top
-
-            PpMicro {
-                objectName: "sdShotLabel"
-                visible: text !== ""
-                text: Theme.caps(root._shotLabelText)
-                font.pixelSize: root.tzMicro
-                font.letterSpacing: Theme.trackingData
-            }
-            // The stage is a word, not a control.
-            PpMicro {
-                objectName: "sdStageChip"
-                visible: root._stageWord !== ""
-                text: (root._shotLabelText !== "" ? " · " : "") + Theme.caps(root._unshout(root._stageWord))
-                font.pixelSize: root.tzMicro
-                font.letterSpacing: Theme.trackingData
-            }
-            // ── the tense ────────────────────────────────────────────────────
-            // REVIEWING · shot 9 of 14, beside the stage rather than replacing it because they
-            // say different things — the stage is what the ledger matured to, the badge is which
-            // tense the panel is being read in.
-            PpMicro {
-                objectName: "sdReviewBadge"
-                visible: root._reviewWord !== ""
-                text: (root._shotLabelText !== "" || root._stageWord !== "" ? " · " : "")
-                      + Theme.caps(root._unshout(root._reviewWord))
-                font.pixelSize: root.tzMicro
-                font.letterSpacing: Theme.trackingData
-            }
-        }
-    }
-
-    // A chip at the panel's own scale. PpChip sets its type on the Theme scale; the cast lays
-    // this body out at k ≈ 2, so the chip is drawn at its own size and scaled with the rest.
-    component FitChip: Item {
-        property alias chip: fitChip
-        property real fit: 1.0
-        implicitWidth:  fitChip.width * fit
-        implicitHeight: fitChip.height * fit
-        PpChip {
-            id: fitChip
-            transformOrigin: Item.TopLeft
-            scale: parent.fit
-        }
-    }
-
-    // ── the design's own proportions, at k = 1 ───────────────────────────────
-    readonly property int baseW: 1168
-    readonly property int baseH: 560
-    // 12b doubles the type at 1920; past ~2.4 the panel is being read from further away
-    // than it was drawn for and more scale stops buying legibility.
-    readonly property real kMax: 2.4
-    // Below this the wide arrangement gives way to 12c's reductions.
-    readonly property int baseCompactW: 640
-
-    function _fitFor(w, h) {
-        if (w <= 0 || h <= 0)
-            return 1
-        const kw = w / (baseW * Theme.fontScale)
-        const kh = h / (baseH * Theme.fontScale)
-        return Math.max(1, Math.min(kMax, Math.min(kw, kh)))
-    }
-
-    readonly property real k: _fitFor(width, height)
-    readonly property bool compact: width < Math.round(baseCompactW * Theme.fontScale)
-
-    // A design pixel, through the app's type scale and then the panel's fit. The one place
-    // a number from the mock is allowed to appear.
-    function px(n) { return Math.round(n * Theme.fontScale * root.k) }
-
-    // The mock's 8–15 px type, on the Theme scale, at the panel's fit. fontSzMicro is the
-    // smallest token there is, so the 8 px captions go through Theme.sp() — the same
-    // fontScale, one step below the scale's floor.
-    readonly property int tzCaption: Math.max(1, Math.round(Theme.sp(8) * k))
-    readonly property int tzMicro:   Math.max(1, Math.round(Theme.fontSzMicro   * k))
-    readonly property int tzLabel:   Math.max(1, Math.round(Theme.fontSzLabel   * k))
-    readonly property int tzBody:    Math.max(1, Math.round(Theme.fontSzBody2   * k))
-    readonly property int tzData:    Math.max(1, Math.round(Theme.fontSzDataSm  * k))
-    readonly property int tzHead:    Math.max(1, Math.round(Theme.fontSzHeading * k))
 
     // ── the source, read once ────────────────────────────────────────────────
     readonly property var header:       source ? source.headerInfo    : null
@@ -448,1230 +231,147 @@ Item {
     readonly property bool isEstablished: stage === "established"
     readonly property bool isClosing:   stage === "closing"
 
-    // ── the declared miss ────────────────────────────────────────────────────
-    //
-    // DESIGN-REVIEW: minimal by intent. The chip asks and the picker answers, and neither
-    // says anything about what the declaration DID — `missChain` is published (everything
-    // authored upstream of the outcome, pre-armed) and nothing on this panel draws it yet,
-    // so the golfer declares a miss and sees the chip change and nothing else. There is also
-    // no verification tense: the model checks the declaration against launch-monitor data
-    // where the session has any, and the panel does not report the answer. Both want a
-    // design pass.
-    //
-    // The session's opening question — "what is the bad shot?" — and the panel ASKS it only
-    // while the answer can still shape the session: Cold and Forming, when there is not yet a
-    // picture to read. Past that the invitation stands down and the chip reports whatever was
-    // declared, because a declaration is a fact about the session and does not expire with the
-    // stage that took it.
+    // The declared miss: invited while the answer can still shape the session (Cold, Forming), reported
+    // once declared. The register draws the chip and its inline picker (PpDiagReplayState).
     readonly property string declaredMiss:     source ? (source.declaredMiss || "")     : ""
     readonly property string declaredMissName: source ? (source.declaredMissName || "") : ""
     readonly property bool _missInvited:
         interactive && declaredMiss === "" && (isCold || isForming) && !reviewing
 
     // ── review (13a, brief §6) ───────────────────────────────────────────────
-    // READ OFF THE PUBLISHED SURFACE, never off a controller: the model is the one that
-    // decides the panel is in review (it also freezes the stage at Closing when it is), and a
-    // body that asked something else could disagree with the counts it is drawing. The badge
-    // string is non-empty exactly when the model is reviewing a ledger with shots in it.
+    // READ OFF THE PUBLISHED SURFACE: the badge is non-empty exactly when the model is reviewing.
     readonly property bool reviewing:
         !!header && (header.reviewBadge || "") !== ""
-    // ...and a SHOT IS BEING READ only once the carousel has focused one. Review without a
-    // selection is the finished session's own summary — bookends and all — because the panel
-    // holds the final state and selection is what enters shot-reading (brief §6).
-    //
-    // ⚠ LIVE TOO, NOT ONLY IN REVIEW. THIS SHOT used to read the selection only while reviewing,
-    // so in a live session picking an older swing off the carousel changed the replay and left
-    // THIS SHOT on the latest one — a panel that ignored the carousel it says it follows. A live
-    // pick of any swing but the newest now reads that swing; the newest keeps the after-shot
-    // strip, because that strip IS the newest swing, with its delta and its quiet state, which a
-    // readout does not carry.
+    // A SHOT IS BEING READ once the carousel has focused one: in review any pick, live any swing but
+    // the newest (the newest is the after-shot read, with its delta and its quiet state).
     readonly property bool readingShot:
         !!readout && !!readout.conditions && readout.conditions.length > 0
         && (reviewing || readout.shotIndex !== readout.shotCount - 1)
 
-    // ── how many cards fit, and how many are left over ───────────────────────
-    // The MODEL decides which cards come first (hystereticOrder), so taking a prefix is a
-    // decision about space and never about importance. What does not fit is COUNTED rather
-    // than dropped silently — a pattern that scrolled off the end still happened.
-    readonly property int baseCardMinW: 300
-    // Rows are opened by hairlines, not boxed, so columns stand far enough apart for each row's
-    // rule to read as its own.
-    readonly property int _cardGap: px(16)
-    readonly property int _cardCols: {
-        if (width <= 0) return 1
-        const avail = content.width
-        return Math.max(1, Math.floor((avail + _cardGap) / (px(baseCardMinW) + _cardGap)))
-    }
-    // ⚠ THE CARD ROW IS A GRID NOW, and that follows from the rail leaving the front page.
-    // One row of three was the right answer while the rail was the body and the cards were the
-    // Forming stage's preface to it; with the observed faults promoted to the front page, a
-    // single row showed three of a real session's twelve and counted the other nine in 8 px
-    // type — the panel's whole middle left empty under them. The cards take the height the rail
-    // used to, and "+N more" now means the session genuinely has more than the panel can hold.
-    readonly property int _cardH: px(150)
-    // EVERY PATTERN IS LAID OUT. The area scrolls, so a prefix would be withholding rather than
-    // fitting — and what is off the bottom of a Flickable is one flick away, which is not the
-    // same thing as absent.
-    readonly property int _cardsShown: (width > 0) ? _visibleCards.length : 0
-    readonly property int _cardRows: Math.max(1, Math.ceil(_cardsShown / Math.max(1, _cardCols)))
+    // ── the frame ────────────────────────────────────────────────────────────
+    // THE STAGE OWNS THE FRAME. On the stage PpModeStage puts this panel in its card and switches
+    // `framed` off, so the body draws no surface, border or title — the card's heading carries the title
+    // and `cardAside` what the old header chips said. ON THE CAST the register draws the running head
+    // (the shot and the view), so the frame stands down there too (S30). Anywhere else a framed body
+    // draws the card itself, in the QUIET tone every stage card takes (§15.11: colour means "outside
+    // its corridor" and nothing else, so a frame never speaks for what is inside it).
+    property bool framed: true
+    readonly property bool _drawFrame: framed && surface !== "cast"
 
-    // The height the body has for cards. Read off the Flickable, which is anchored top and
-    // bottom — its height comes from the body and never from its content, so nothing here can
-    // close a loop back through contentHeight.
-    readonly property int _cardsAvailH: cardFlick ? cardFlick.height : 0
+    readonly property color tone: Theme.colorText3
 
-    // ⚠ WHOLE ROWS, NEVER A SLICE OF ONE. The panel was showing one row and three quarters:
-    // the second row's cards were cut off through their trend line, which reads as a rendering
-    // fault rather than as a scroll, and costs the reader the one row they can see at a glance.
-    //
-    // So the viewport is divided into a WHOLE NUMBER of rows and the row height is the quotient.
-    // ROUNDED, not floored, and that is the whole trick: at 1.75 design-heights of room, floor
-    // gives one enormous row and round gives two slightly tight ones, which is what a reader
-    // wants every time. Rounding also bounds the squash — a row can never be less than two
-    // thirds of the design height nor more than one and a half times it — and two thirds is
-    // about where the card's own drop ladder starts shedding its prose lines, which is a
-    // graceful way to lose the last sentence rather than a clipped one.
-    readonly property int _cardRowsVisible: {
-        if (_cardsAvailH <= 0 || _cardH <= 0) return 1
-        const fit = Math.round((_cardsAvailH + _cardGap) / (_cardH + _cardGap))
-        return Math.max(1, Math.min(_cardRows, fit))
-    }
-    // The row height: stretched to fill while everything fits, and the design's own 150 once it
-    // does not. See the delegate for why it is not stretched in the scrolling case.
-    //
-    // READ OFF THE FLICKABLE'S HEIGHT AS A BINDING, not recorded from a handler. It was a
-    // handler first, and the theme test caught what that costs: a property written by
-    // onHeightChanged holds the height it was last TOLD about, so a card kept the row height of
-    // the arrangement before last and the same panel measured two different geometries. The
-    // read is safe because the Flickable is anchored top and bottom — its height comes from the
-    // body, never from its content, so nothing here can close a loop through contentHeight.
-    // Every row the same height, and that height is the viewport divided by the rows it shows.
-    // A session with fewer rows than fit still fills the space rather than sitting in a strip
-    // with the panel's middle empty under it.
-    readonly property int _cardRowH: {
-        const gaps = (_cardRowsVisible - 1) * _cardGap
-        return Math.max(1, Math.floor((_cardsAvailH - gaps) / Math.max(1, _cardRowsVisible)))
+    // Narrow enough that the frame's title abbreviates rather than elides (12c).
+    readonly property bool compact: width < Math.round(640 * Theme.fontScale)
+
+    // What the header used to say in chips, as the card heading's aside: the newest swing's label
+    // live (never while an older one is being read), the stage, and the tense the panel is read in.
+    readonly property string _shotLabelText:
+        (!reviewing && !readingShot && !detailOpen && header) ? (header.shotLabel || "") : ""
+    readonly property string _stageWord:  header ? (header.stageLabel || "") : ""
+    readonly property string _reviewWord: header ? (header.reviewBadge || "") : ""
+    readonly property string cardAside:
+        Theme.caps([_shotLabelText, _unshout(_stageWord), _unshout(_reviewWord)]
+                   .filter(function (s) { return s !== "" }).join(" · "))
+    // The model spells the stage and the review badge in capitals; lower-case a shouted word so
+    // Theme.caps gets a sentence-case source.
+    function _unshout(s) {
+        return s.replace(/\b[A-Z]{2,}\b/g, function (w) { return w.toLowerCase() })
     }
 
-    // ── how many bookends the closing row draws ──────────────────────────────
-    // Same decision as the card row's and for the same reason, arrived at the hard way: the
-    // row divided its width between EVERY pattern, so a twelve-pattern session got twelve
-    // cells of about 160 px holding three lines of 8 px type, and every one of them elided
-    // into "most repr…". A cell that cannot be read is not a disclosure. The model orders the
-    // bookends as it orders everything else, so a prefix is a decision about space.
-    readonly property int _bookendMinW: 190
-    readonly property int _bookendsShown: {
-        const n = bookends ? bookends.length : 0
-        if (n <= 0 || width <= 0) return 0
-        const avail = content.width - px(90)      // the row's label
-        return Math.max(1, Math.min(n, Math.floor(avail / px(_bookendMinW))))
-    }
-    readonly property int _bookendsHidden: (bookends ? bookends.length : 0) - _bookendsShown
+    readonly property int _framePad: Theme.gap(14)
 
-    // driver.screenConditionId / screenRef — the only place the published surface carries a
-    // screen ref for the screened-root node the rail draws.
-    readonly property string _screenConditionId: driver ? (driver.screenConditionId || "") : ""
-    readonly property string _screenRef:         driver ? (driver.screenRef || "") : ""
-
-    // ⚠ THE LIKELY DRIVER FOOTER AND THE UNCHAINED PATTERN ROW ARE GONE FROM THIS PANEL. Both
-    // were causal-chain claims made at session level, under a card grid where every card
-    // already opens its own condition's causes and effects (PpConditionDetail) — and the footer
-    // never said what it was anchored on, so it read as a second, unexplained answer to the
-    // question the detail answers properly. `driver` is still read above for the screen ids
-    // the detail's screened roots need; `unchainedLine` stays published by the model.
-
-    // 12c's collapsed chain, from the model's own node names — the arrow and the separator are
-    // the only things composed here, the same contribution PpWatchingRow makes to its line.
-    function _chainSummary(c) {
-        if (!c || !c.nodes) return ""
-        const parts = []
-        for (let i = 0; i < c.nodes.length; ++i)
-            parts.push(c.nodes[i].name || "")
-        return parts.join(" → ")
-    }
-    // ...and the marks, which are what make a collapsed chain B worth opening: it is mostly
-    // ghosts and a screened root, and the summary must not hide that.
-    function _chainNote(c) {
-        if (!c || !c.nodes) return ""
-        const parts = []
-        for (let i = 0; i < c.nodes.length; ++i)
-            if (c.nodes[i].mark)
-                parts.push(c.nodes[i].mark)
-        return parts.join(" · ")
-    }
-
-    ColumnLayout {
-        id: content
+    PpCardShell {
         anchors.fill: parent
-        anchors.leftMargin:   root.framed ? root._framePad : 0
-        anchors.rightMargin:  root.framed ? root._framePad : 0
-        anchors.bottomMargin: root.framed ? root._framePad : 0
-        anchors.topMargin:    root.framed ? frameHead.y + frameHead.height + root.px(10) : 0
-        spacing: root.px(8)
-
-        // ── header ───────────────────────────────────────────────────────────
-        // THE TABS, AND WHAT THE GOLFER CAN SAY. The stage and the review tense are the card
-        // heading's aside now (cardAside), so this row is the panel's own heading under it: the
-        // three tabs in the card-heading idiom PpModeStage's tab strip uses, and the declared
-        // miss at the right. The captions that used to trail along it each say their one thing
-        // in the tab it is about: the count leads the SESSION tab, the review note foots THIS
-        // SHOT, quiet is the strip's own state and the THIS SHOT tab's note.
-        //
-        // On the condition detail the tabs stand down for ◂ BACK and the condition's name.
-        // Narrow, the tabs take a row of their own under the chips when there are chips.
-        Item {
-            id: headerItem
-            readonly property int rowH: root.px(26)
-            readonly property bool _chipLine: root.detailOpen || missWrap.visible
-            Layout.fillWidth: true
-            Layout.preferredHeight: (root.compact && tabBar.visible && _chipLine)
-                                    ? root.px(34) + tabBar.height
-                                    : rowH
-
-            Row {
-                anchors.left: parent.left
-                y: Math.round((headerItem.rowH - height) / 2)
-                spacing: root.px(10)
-                visible: root.detailOpen
-
-                // ── back, out of the condition detail ────────────────────────
-                // The one control that says the body under it is a detour, in the accent
-                // because it is the only thing on the row a tap does something with.
-                FitChip {
-                    id: backWrap
-                    anchors.verticalCenter: parent.verticalCenter
-                    fit: root.k
-                    chip.objectName: "sdDetailBack"
-                    chip.text: Theme.caps(qsTr("◂ Back"))
-                    chip.tone: Theme.colorAccent
-                    chip.tinted: backMouse.containsMouse
-                    MouseArea {
-                        id: backMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root._closeDetail()
-                    }
-                }
-                // The condition the detail is open on, named in the header — the body below it
-                // is one condition's page.
-                Text {
-                    objectName: "sdDetailTitle"
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: Math.min(implicitWidth,
-                                    headerItem.width - backWrap.width - parent.spacing)
-                    text: root.detail ? (root.detail.name || "") : ""
-                    elide: Text.ElideRight
-                    font.family: Theme.fontBody
-                    font.pixelSize: root.tzBody
-                    font.weight: Theme.fontBodyWeight
-                    color: Theme.colorText
-                }
-            }
-
-            // ── the declared miss ────────────────────────────────────────────────
-            // A chip at the right of the row — a statement about the SESSION and not about a
-            // pattern, and the one thing on this panel the golfer supplies rather than the
-            // model. Deliberately NOT toned like a finding: intent shapes attention and pre-arms
-            // chains and is never evidence (§A6). The accent is the app's "you can act here".
-            // The declaration is about the session and the detail is about one condition, so
-            // it stands down on the detail.
-            FitChip {
-                id: missWrap
-                anchors.right: parent.right
-                y: Math.round((headerItem.rowH - height) / 2)
-                visible: !root.detailOpen && (root._missInvited || root.declaredMiss !== "")
-                fit: root.k
-                chip.objectName: "sdMissChip"
-                // The name once there is one, and the invitation until then. The caret says it
-                // opens something; the middot says it is settled and can still be changed.
-                chip.text: root.declaredMiss !== ""
-                           ? Theme.caps(qsTr("Miss · %1")).arg(root.declaredMissName || root.declaredMiss)
-                             + (root.interactive ? qsTr(" ▸") : "")
-                           : Theme.caps(qsTr("Declare miss ▸"))
-                chip.tone: Theme.colorAccent
-                chip.tinted: root.declaredMiss !== "" || missHover.hovered
-
-                HoverHandler { id: missHover; enabled: root.interactive
-                               cursorShape: Qt.PointingHandCursor }
-                TapHandler {
-                    enabled: root.interactive
-                    onTapped: missPicker.openBelow(missWrap)
-                }
-            }
-
-            // ── the tabs ─────────────────────────────────────────────────────
-            // The card-heading idiom: Micro labels, the selected one in colorText over a 2 px
-            // rule in the panel's tone, each tab's note beside it as an aside. Hidden on the
-            // detail, which is one condition's page and belongs to neither tab.
-            Row {
-                id: tabBar
-                objectName: "sdTabBar"
-                visible: !root.detailOpen
-                x: 0
-                y: (root.compact && headerItem._chipLine) ? root.px(34)
-                                                          : Math.round((headerItem.rowH - height) / 2)
-                // Narrow, the three tabs and their notes must still fit one 396 line.
-                spacing: root.compact ? root.px(10) : root.px(20)
-
-                Repeater {
-                    model: root._tabDefs
-
-                    Item {
-                        id: tabChip
-                        required property var modelData
-                        objectName: "sdTab"
-                        readonly property string key: modelData.key
-                        readonly property bool on: root._tab === key
-                        readonly property string note:
-                            key === "shot"     ? root._shotTabNote
-                          : key === "watching" ? (root._watchingCount > 0 ? String(root._watchingCount) : "")
-                                               : root._sessionTabNote
-                        implicitWidth:  tabRow.implicitWidth
-                        implicitHeight: tabRow.implicitHeight + root.px(6)
-
-                        Row {
-                            id: tabRow
-                            spacing: root.px(6)
-
-                            PpMicro {
-                                id: tabLabel
-                                objectName: "sdTabLabel"
-                                text: tabChip.modelData.label
-                                font.pixelSize: root.tzMicro
-                                color: tabChip.on ? Theme.colorText
-                                     : (tabTap.containsMouse ? Theme.colorText2 : Theme.colorText3)
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
-                            PpMicro {
-                                objectName: "sdTabNote"
-                                visible: text !== ""
-                                anchors.baseline: tabLabel.baseline
-                                text: tabChip.note
-                                font.pixelSize: root.compact ? root.tzCaption : root.tzMicro
-                                font.letterSpacing: Theme.trackingData
-                            }
-                        }
-                        // The selected tab's rule, in the panel's tone — the one mark that says
-                        // which body is on screen.
-                        Rectangle {
-                            visible: tabChip.on
-                            anchors.bottom: parent.bottom
-                            width: tabLabel.width; height: 2; radius: 1
-                            color: root.tone
-                        }
-
-                        // A Micro label is a small target; the hit area reaches past it.
-                        MouseArea {
-                            id: tabTap
-                            anchors.fill: parent
-                            anchors.margins: -root.px(6)
-                            enabled: root.interactive
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.tab = tabChip.key
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── one condition, drilled into ──────────────────────────────────────
-        // Takes the whole body when it is open: the strips above it and the footers below it
-        // are the session picture's, and this page is one condition's. The composition is still
-        // there, hidden, and BACK is a visibility change.
-        PpConditionDetail {
-            objectName: "sdDetailBody"
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            visible: root.detailOpen
-            detail: root.detail
-            fit: root.k
-            compact: root.compact
-            interactive: root.interactive
-            screenConditionId: root._screenConditionId
-            screenRef:         root._screenRef
-            onScreenRequested: (ref, cond) => root.screenRequested(ref, cond)
-            onFocusToggled:    (id, on) => root._declareFocus(id, on)
-            // Re-targets the page in place; BACK still returns to the panel in one step.
-            onConditionActivated: (id) => root._openDetail(id)
-            onCloseRequested: root._closeDetail()
-            onMeasureRequested: (id) => root._setDetailMeasure(id)
-            onShotRequested: (dir, id) => root.shotRequested(dir, id)
-        }
-
-        // ══ THIS SHOT ═══════════════════════════════════════════════════════
-        // TWO TENSES OF ONE QUESTION — "what does this panel have to say about a swing". A live
-        // session reports the moment after the swing, with the session's patterns that fired on
-        // it underneath; a reviewed one with a shot picked off the carousel reports that shot,
-        // every condition, read inside the finished ledger. A closed live session has no
-        // after-shot moment and the tab stands down (see `_shotAvailable`).
-        PpThisShotStrip {
-            Layout.fillWidth: true
-            Layout.preferredHeight: implicitHeight
-            visible: !root.detailOpen && root._tab === "shot" && !root.isClosing
-                     && !root.readingShot
-            chips:   root.source ? root.source.thisShot : []
-            delta:   root.source ? root.source.afterShotDelta : null
-            quiet:   root.source ? root.source.quiet === true : false
-            fit:     root.k
-            compact: root.compact
-        }
-
-        PpReviewShotStrip {
-            id: reviewStrip
-            Layout.fillWidth: true
-            Layout.preferredHeight: implicitHeight
-            visible: !root.detailOpen && root._tab === "shot" && root.readingShot
-            readout: root.readout
-            fit:     root.k
-            compact: root.compact
-            // The tab is the strip's now, so it is bounded by the body rather than by the mock's
-            // two-row band: every condition is laid out and the grid scrolls only once the tab
-            // itself is full.
-            maxRows: 1000
-            // Less the header, the foot, and the column's three gaps around the strip and the
-            // (here empty) cards body under it.
-            maxHeight: Math.max(root.px(80),
-                                content.height - headerItem.height - 3 * root.px(8)
-                                - (shotFoot.visible ? shotFoot.implicitHeight : 0))
-        }
-
-        // The patterns that fired here, as the session tab draws them — the place the strip's
-        // ghosted chips point at. In review the strip's cells already carry each condition's
-        // reading, corridor and tier, so the space is the strip's.
-        Item {
-            id: shotRest
-            objectName: "sdShotCardsBody"
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            visible: !root.detailOpen && root._tab === "shot"
-
-            // The live after-shot moment, with its fired cards. Review draws its strip instead,
-            // and with no shot to read the tab says where one comes from.
-            readonly property bool live: root._shotAvailable && !root.readingShot
-
-            PpCardNote {
-                objectName: "sdShotEmpty"
-                anchors { left: parent.left; right: parent.right; top: parent.top }
-                anchors.topMargin: root.px(6)
-                visible: !root._shotAvailable
-                text: root.reviewing
-                      ? qsTr("Pick a shot in the carousel to read it here.")
-                      : qsTr("The session has closed — pick a shot in the carousel to read it here.")
-                font.pixelSize: root.tzBody
-            }
-
-            Item {
-                id: shotCardsHeader
-                visible: shotRest.live
-                anchors { left: parent.left; right: parent.right; top: parent.top }
-                height: firedLabel.implicitHeight
-
-                PpMicro {
-                    id: firedLabel
-                    objectName: "sdFiredLabel"
-                    anchors.left: parent.left
-                    text: Theme.caps(qsTr("Your patterns that fired here"))
-                    font.pixelSize: root.tzMicro
-                }
-                // THE METER'S ONLY LEGEND. It sat on the strip's headline line, crowding the one
-                // sentence the golfer reads between balls; here it heads the cards whose meters
-                // and dashed chips it explains, and is still on screen, not behind a hover.
-                PpMicro {
-                    objectName: "sdChipHint"
-                    anchors.left: firedLabel.right
-                    anchors.leftMargin: root.px(12)
-                    anchors.right: parent.right
-                    anchors.baseline: firedLabel.baseline
-                    horizontalAlignment: Text.AlignRight
-                    visible: !root.compact
-                    text: qsTr("bars = how far outside the corridor · dashed chip = one of your patterns")
-                    elide: Text.ElideLeft
-                    font.pixelSize: root.tzCaption
-                    font.letterSpacing: Theme.trackingData
-                }
-            }
-
-            PpCardNote {
-                objectName: "sdFiredEmpty"
-                anchors { left: parent.left; right: parent.right; top: shotCardsHeader.bottom }
-                anchors.topMargin: root.px(10)
-                visible: shotRest.live && root._firedCards.length === 0
-                text: (root.cards && root.cards.length > 0)
-                      ? qsTr("None of this session's patterns fired on this swing.")
-                      : qsTr("No patterns yet — the strip above is everything this swing said.")
-                font.pixelSize: root.tzBody
-            }
-
-            Flickable {
-                id: shotFlick
-                objectName: "sdShotCardsFlick"
-                visible: shotRest.live && root._firedCards.length > 0
-                anchors { left: parent.left; right: parent.right
-                          top: shotCardsHeader.bottom; bottom: parent.bottom }
-                anchors.topMargin: root.px(8)
-                contentWidth: width
-                contentHeight: shotGrid.implicitHeight
-                clip: true
-                // Cut to the viewport as a layer: the rows' badges draw curve-rendered Shapes,
-                // which a scissor clip let spill past the fold.
-                layer.enabled: true
-                boundsBehavior: Flickable.StopAtBounds
-
-                Grid {
-                    id: shotGrid
-                    width: shotFlick.width
-                    columns: root._cardCols
-                    spacing: root._cardGap
-
-                    Repeater {
-                        model: shotFlick.visible ? root._firedCards.length : 0
-
-                        PpPatternCard {
-                            required property int index
-                            card: root._firedCards[index]
-                            fit: root.k
-                            interactive: root.interactive
-                            pulseCue: root.pulseCue
-                            onFocusToggled: (id, on) => root._declareFocus(id, on)
-                            onDetailRequested: (id) => root._openDetail(id)
-                            width: Math.max(0, (shotGrid.width - (root._cardCols - 1) * shotGrid.spacing)
-                                               / Math.max(1, root._cardCols))
-                            // The design height: a fired card here is read for its reading and
-                            // direction, and stretching two of them to fill the tab would only
-                            // spread the same lines further apart.
-                            height: root._cardH
-                        }
-                    }
-                }
-            }
-        }
-
-        // The review tense, stated under the shot it qualifies: the tier tags in the cells are
-        // SESSION tiers, and the panel does not rewind to what it knew at this shot.
-        Flow {
-            id: shotFoot
-            Layout.fillWidth: true
-            Layout.preferredHeight: visible ? implicitHeight : 0
-            visible: !root.detailOpen && root._tab === "shot" && root.readingShot
-            spacing: root.px(6)
-
-            Text {
-                objectName: "sdReviewNote"
-                visible: text !== ""
-                text: root.header ? (root.header.reviewNote || "") : ""
-                font.family: Theme.fontData
-                font.pixelSize: root.tzCaption
-                color: Theme.colorText3
-            }
-            Text {
-                objectName: "sdReviewHint"
-                visible: !root.compact
-                text: (root.header && root.header.reviewNote ? "· " : "")
-                      + qsTr("every condition shown · IN / OUT is this swing against its corridor")
-                font.family: Theme.fontData
-                font.pixelSize: root.tzCaption
-                color: Theme.colorText3
-            }
-        }
-
-        // ══ SESSION ═════════════════════════════════════════════════════════
-        // A band of its own inside the card, closed off from the patterns under it by a hairline
-        // rather than a fill: one frame per panel, and that frame is the card's.
-        Item {
-            objectName: "sdBookends"
-            Layout.fillWidth: true
-            Layout.preferredHeight: root.px(56)
-            visible: !root.detailOpen && root._tab === "session" && root.isClosing
-            clip: true
-
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width; height: 1
-                color: Theme.colorBorder
-            }
-
-            Row {
-                id: bookendsRow
-                anchors.fill: parent
-                anchors.topMargin:    root.px(4)
-                anchors.bottomMargin: root.px(8)
-                spacing: root.px(14)
-
-                PpMicro {
-                    id: bookendsLabel
-                    anchors.verticalCenter: parent.verticalCenter
-                    // The tail is COUNTED in the label rather than dropped silently — the same
-                    // rule the card row's "+N more" keeps. A pattern whose bookends did not fit
-                    // still had a worst swing and a best one.
-                    text: root._bookendsHidden > 0
-                          ? Theme.caps(qsTr("Session\nbookends · +%1")).arg(root._bookendsHidden)
-                          : Theme.caps(qsTr("Session\nbookends"))
-                    font.pixelSize: root.tzMicro
-                }
-
-                Repeater {
-                    model: root._bookendsShown
-
-                    Item {
-                        required property int index
-                        readonly property var modelData: root.bookends[index]
-                        objectName: "sdBookend"
-
-                        // Even shares of what is left after the label and the gaps. Named
-                        // through the Row's id: a Repeater delegate's `parent` is the Row at
-                        // run time but the Repeater to anything reading the file.
-                        readonly property int _n: root._bookendsShown
-                        width: Math.max(0, (bookendsRow.width - bookendsLabel.width
-                                            - bookendsRow.spacing * _n) / Math.max(1, _n))
-                        height: bookendsRow.height
-
-                        // ⚠ A BOOKEND OPENS ITS CONDITION, exactly as a card does.
-                        //
-                        // It carried a "▸" from the day it was drawn and did nothing when it was
-                        // pressed, which is worse than having no caret at all: the closing row
-                        // names conditions the card row may never have shown — the ones that
-                        // ranked below the fold — so it is often the only place a golfer meets
-                        // them, and it was the one place they could not follow one up.
-                        //
-                        // Same verb, same target, same destination: the card ASKS and the model
-                        // decides (_openDetail), and the page replaces the body in the middle of
-                        // the frame the way it does from anywhere else. A second route to one
-                        // page, not a second page.
-                        MouseArea {
-                            id: bookendTap
-                            objectName: "sdBookendTap"
-                            anchors.fill: parent
-                            enabled: root.interactive && !!modelData && !!modelData.id
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root._openDetail(modelData.id || "")
-                        }
-
-                        Rectangle {
-                            anchors.left: parent.left
-                            width: 1
-                            height: parent.height
-                            color: Theme.colorBorder
-                        }
-
-                        Column {
-                            anchors.left: parent.left
-                            anchors.leftMargin: root.px(12)
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: root.px(2)
-
-                            Text {
-                                objectName: "sdBookendName"
-                                width: parent.width
-                                text: (modelData.name || "") + " ▸"
-                                elide: Text.ElideRight
-                                font.family: Theme.fontData
-                                font.pixelSize: root.tzCaption
-                                font.letterSpacing: Theme.trackingLabel
-                                // Lit on hover like the card's TRACE caret, so the affordance
-                                // answers the pointer rather than only claiming to.
-                                color: bookendTap.containsMouse ? Theme.colorText
-                                                                : Theme.colorAccent
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                            }
-                            Text {
-                                width: parent.width
-                                text: modelData.representativeText || ""
-                                elide: Text.ElideRight
-                                font.family: Theme.fontData
-                                font.pixelSize: root.tzMicro
-                                color: Theme.colorText
-                            }
-                            Text {
-                                width: parent.width
-                                text: (modelData.worstText || "") + " · " + (modelData.bestText || "")
-                                elide: Text.ElideRight
-                                font.family: Theme.fontData
-                                font.pixelSize: root.tzCaption
-                                color: Theme.colorText3
-                            }
-                        }
-                    }
-                }
-            }
-
-        }
-
-        // ── the body the stage machine chooses ───────────────────────────────
-        Item {
-            id: stageBody
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            // THE SWAP. Hidden, never torn down — see root._openDetail(). The tab is the same
-            // kind of swap: the session body is hidden behind THIS SHOT, never rebuilt.
-            visible: !root.detailOpen && root._tab === "session"
-
-            // ── Cold ─────────────────────────────────────────────────────────
-            Item {
-                objectName: "sdColdBody"
-                anchors.fill: parent
-                visible: root.isCold
-                clip: true
-
-                Column {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.topMargin: root.px(6)
-                    spacing: root.px(14)
-
-                    Column {
-                        width: parent.width
-                        spacing: root.px(5)
-
-                        Text {
-                            objectName: "sdColdHeadline"
-                            width: parent.width
-                            text: root.header ? (root.header.coldLine || "") : ""
-                            wrapMode: Text.WordWrap
-                            font.family: Theme.fontBody
-                            font.pixelSize: root.tzHead
-                            font.weight: Theme.fontBodyWeight
-                            color: Theme.colorText
-                        }
-                        Text {
-                            objectName: "sdColdSubline"
-                            width: parent.width
-                            text: root.header ? (root.header.countLine || "") : ""
-                            elide: Text.ElideRight
-                            font.family: Theme.fontData
-                            font.pixelSize: root.tzMicro
-                            color: Theme.colorText2
-                        }
-                    }
-
-                    // USUALLY YOURS. Omitted ENTIRELY when the athlete has no fault profile
-                    // yet — an empty "expectations" heading over nothing would read as the
-                    // model having looked and found none, which is a different claim.
-                    Column {
-                        objectName: "sdExpectations"
-                        width: parent.width
-                        spacing: root.px(7)
-                        visible: root.expectations && root.expectations.length > 0
-
-                        PpMicro {
-                            width: parent.width
-                            text: Theme.caps(qsTr("Usually yours · expectations to test, not findings"))
-                            elide: Text.ElideRight
-                            font.pixelSize: root.tzMicro
-                        }
-
-                        Flow {
-                            width: parent.width
-                            spacing: root.px(8)
-
-                            Repeater {
-                                model: root.expectations
-
-                                Item {
-                                    required property var modelData
-                                    objectName: "sdExpectationCard"
-
-                                    // Design width, but never wider than the panel — in the
-                                    // narrow arrangement the cards become one column.
-                                    width: Math.min(root.px(250), parent.width)
-                                    height: expectCol.implicitHeight + 2 * root.px(9)
-
-                                    // Dashed, and that is the whole point: this is the one
-                                    // thing on the panel that is not evidence from this
-                                    // session (brief §3.3).
-                                    PpDashedFrame {
-                                        anchors.fill: parent
-                                        frameRadius: Theme.radius
-                                        strokeColor: Theme.colorBorderStrong
-                                        dashOn:  Math.max(1, root.px(3))
-                                        dashOff: Math.max(1, root.px(3))
-                                    }
-                                    // ...and its badge is the unconfirmed one for the same
-                                    // reason: placed on evidence this session has not renewed.
-                                    PpBadge {
-                                        id: expectBadge
-                                        x: root.px(11)
-                                        y: Math.round(expectCol.y + root.tzBody * 1.3 / 2 - height / 2)
-                                        size: root.px(16)
-                                        kind: "unconfirmed"
-                                        tone: Theme.colorText3
-                                    }
-
-                                    Column {
-                                        id: expectCol
-                                        anchors.left: expectBadge.right
-                                        anchors.right: parent.right
-                                        anchors.leftMargin:  root.px(9)
-                                        anchors.rightMargin: root.px(11)
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        spacing: root.px(3)
-
-                                        Text {
-                                            width: parent.width
-                                            text: modelData.name || ""
-                                            elide: Text.ElideRight
-                                            font.family: Theme.fontBody
-                                            font.pixelSize: root.tzBody
-                                            font.weight: Theme.fontBodyWeight
-                                            color: Theme.colorText2
-                                        }
-                                        Text {
-                                            width: parent.width
-                                            text: modelData.text || ""
-                                            elide: Text.ElideRight
-                                            font.family: Theme.fontData
-                                            font.pixelSize: root.tzMicro
-                                            color: Theme.colorText3
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // The sentence that has to stay true in the implementation as well as on
-                    // the screen (brief §3.3, §5.5). It is here because the profile is on
-                    // screen; it is true because profileBias() has two call sites.
-                    Text {
-                        width: parent.width
-                        visible: root.expectations && root.expectations.length > 0
-                        text: qsTr("from your fault profile · biases ranking and presentation only, never firing or corridors")
-                        wrapMode: Text.WordWrap
-                        font.family: Theme.fontData
-                        font.pixelSize: root.tzCaption
-                        color: Theme.colorText3
-                    }
-                }
-            }
-
-            // ── Forming, and a Closing session the model drew no chain for ───
-            Item {
-                objectName: "sdCardsBody"
-                anchors.fill: parent
-                visible: !root.isCold
-
-                Item {
-                    id: pictureHeader
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    height: pictureLabel.implicitHeight
-
-                    // THE SESSION'S COUNT LEADS ITS TAB. It was "SESSION PICTURE" here with the
-                    // count trailing along the header; the tab already says SESSION, and the
-                    // count is the one thing this label can add — "counted over all N shots" is
-                    // the reminder that every number below is a session total.
-                    PpMicro {
-                        id: pictureLabel
-                        objectName: "sdStageNote"
-                        anchors.left: parent.left
-                        anchors.top: parent.top
-                        text: root.header ? (root.header.countLine || "") : ""
-                        font.pixelSize: root.tzMicro
-                        font.letterSpacing: Theme.trackingData
-                        color: Theme.colorText2
-                    }
-                    // ── the filter, on the row it filters ────────────────────
-                    //
-                    // TWO QUESTIONS, NOT A SCORE. "Reaches the ball" is whether the pack authors
-                    // a causal path from this condition to a ball-flight outcome; "roots" is
-                    // whether anything among this session's own patterns is authored as causing
-                    // it. Both are the model's facts; which one the reader looks through is this
-                    // panel's business, which is why the state lives here and the facts do not.
-                    //
-                    // The chips are the panel's existing micro-label idiom (FOCUS ▸, TRACE ▸,
-                    // OPEN ▸) rather than a control from somewhere else: the accent says which
-                    // is on, and the row beneath answers immediately, so there is nothing to
-                    // learn. ALL is first and is the resting state — a panel that opened already
-                    // filtered would be hiding findings from a reader who never asked it to.
-                    Row {
-                        id: filterChips
-                        objectName: "sdCardFilter"
-                        anchors.left: pictureLabel.right
-                        anchors.leftMargin: root.px(12)
-                        // verticalCenter, NOT baseline: a Row has no baseline of its own, so
-                        // anchoring one puts the row's TOP on the label's baseline and drops the
-                        // chips a line below the header they belong to.
-                        anchors.verticalCenter: pictureLabel.verticalCenter
-                        spacing: root.px(10)
-                        visible: root.interactive && (root.cards ? root.cards.length > 1 : false)
-
-                        Repeater {
-                            // Hoisted, not inline: an array literal in a binding is a NEW array
-                            // every time the binding re-evaluates, so the chips would be torn
-                            // down and rebuilt under the pointer on every filter change.
-                            model: root._cardFilterChips
-
-                            Text {
-                                required property var modelData
-                                objectName: "sdCardFilterChip"
-                                readonly property bool on: root.cardFilter === modelData.key
-                                text: modelData.label
-                                font.family: Theme.fontData
-                                font.pixelSize: root.tzMicro
-                                font.letterSpacing: Theme.trackingMicro
-                                color: on ? Theme.colorAccent
-                                          : (chipTap.containsMouse ? Theme.colorText2
-                                                                   : Theme.colorText3)
-                                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                                MouseArea {
-                                    id: chipTap
-                                    anchors.fill: parent
-                                    anchors.margins: -root.px(4)
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.cardFilter = modelData.key
-                                }
-                            }
-                        }
-                    }
-
-                    PpMicro {
-                        id: moreTail
-                        objectName: "sdMoreTail"
-                        anchors.right: parent.right
-                        anchors.baseline: pictureLabel.baseline
-                        // NOT A COUNT ANY MORE. It used to say "+N more" about patterns the
-                        // row had no space for, which was true while they were unreachable. They
-                        // are one flick away now, so what the reader needs is to know the area
-                        // moves — the count of patterns is already in the header's own line.
-                        visible: cardFlick.contentHeight > cardFlick.height + 1
-                        text: qsTr("scroll for the rest")
-                        font.pixelSize: root.tzMicro
-                        font.letterSpacing: Theme.trackingData
-                    }
-                }
-
-                // ⚠ THE CARD ROW SCROLLS. Losing that was a regression and it was mine: the
-                // chain rail's body had a Flickable, so a session with more conditions than fit
-                // could be read all the way down, and when the rail came off this page the grid
-                // that replaced it took a prefix and counted the rest in 8 px type. A dozen
-                // patterns with six on screen means half the session is a number in the corner.
-                //
-                // So every pattern is laid out and the area flicks, on the house pattern the
-                // review strip already keeps: bare Flickable, clipped, stopping at its bounds.
-                // "+N more" goes with it — nothing is hidden any more, and a tail that counted
-                // what you can simply scroll to would be a lie about the panel.
-                // A FILTER THAT EMPTIES THE ROW SAYS SO. An empty strip under a chip that is
-                // lit reads as a panel that has lost its cards; the sentence names the filter
-                // doing it and, for the ball filter, why a pattern can fail it — an unwritten
-                // edge is not the same claim as a harmless fault, and the panel must not let the
-                // reader take it for one.
-                PpCardNote {
-                    objectName: "sdCardFilterEmpty"
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: pictureHeader.bottom
-                    anchors.topMargin: root.px(12)
-                    visible: root._cardsShown === 0 && !!root.cards && root.cards.length > 0
-                    text: root.cardFilter === "ball"
-                          ? qsTr("No pattern this session has an authored path to the ball. That is a statement about what the model has been written to claim, not about what these faults cost you.")
-                          : qsTr("Every pattern this session has another pattern authored as causing it.")
-                    font.pixelSize: root.tzBody
-                }
-
-                Flickable {
-                    id: cardFlick
-                    objectName: "sdCardsFlick"
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: pictureHeader.bottom
-                    anchors.topMargin: root.px(8)
-                    anchors.bottom: parent.bottom
-                    contentWidth: width
-                    contentHeight: cardRow.implicitHeight
-                    clip: true
-                    // Cut to the viewport as a layer: the rows' badges draw curve-rendered
-                    // Shapes, which a scissor clip let spill past the fold.
-                    layer.enabled: true
-                    boundsBehavior: Flickable.StopAtBounds
-
-                    Grid {
-                        id: cardRow
-                        objectName: "sdCardsRow"
-                        width: cardFlick.width
-                        columns: root._cardCols
-                        spacing: root._cardGap
-
-                        Repeater {
-                            model: root._cardsShown
-
-                            PpPatternCard {
-                                required property int index
-                                card: root._visibleCards[index]
-                                fit: root.k
-                                interactive: root.interactive
-                                pulseCue: root.pulseCue
-                                onFocusToggled: (id, on) => root._declareFocus(id, on)
-                                onDetailRequested: (id) => root._openDetail(id)
-                                width: Math.max(0, (cardRow.width - (root._cardCols - 1) * cardRow.spacing)
-                                                   / Math.max(1, root._cardCols))
-                                // TALLER ONLY WHEN THERE IS ROOM GOING SPARE. A session with two
-                                // patterns should not sit in a 150 px strip with the panel's whole
-                                // middle empty under it — that was the complaint that moved the
-                                // rail off this page. A session with twelve gets the design height
-                                // and the area scrolls, because stretching there would show fewer
-                                // cards for more scrolling, which is the worst of both.
-                                height: root._cardRowH
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ⚠ THE CHAIN RAIL WAS A BODY HERE, and it is gone from this file rather than
-            // hidden in it. 215 lines: two stacked rails wide, the vertical form, the collapsed
-            // chain rows and the "+N more chains" tail.
-            //
-            // It did not survive contact with a real session. The mock's six patterns and one
-            // tidy chain became fifteen patterns and eighteen authored chains (build findings
-            // §7), and what filled the panel was everything the capture could NOT measure — a
-            // screened root carrying four lines of prose, a ghost card with an empty run, two
-            // unanchored links — while the conditions that actually fired were pushed into a
-            // third of the width. The unmeasured out-ranked the observed.
-            //
-            // THE CHAIN IS NOT LOST AND THIS IS NOT A DELETION OF THE IDEA. It is one tap
-            // behind any card, in PpConditionDetail, which draws the SAME rails out of the SAME
-            // components over a RICHER neighbourhood — the full authored ancestry and descent
-            // rather than the session's two best paths, with the unmeasured paths collapsed to
-            // one line apiece. A golfer who wants to know what caused a fault asks about that
-            // fault; they do not ask the panel to guess which two chains to open with.
-            //
-            // `chains` stays published; what ended is its claim on the panel's middle.
-        }
-
-        // ══ WATCHING ══════════════════════════════════════════════════════
-        // ITS OWN TAB, and that is the design's restraint kept rather than dropped: a watched
-        // condition never headlines, so it has never earned a line of the SESSION tab's height.
-        // It sat there as a folded row costing a line on every session; here it is the same
-        // rows, unfolded, one tap from the session picture and never under it.
-        Item {
-            objectName: "sdWatchingBody"
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            visible: !root.detailOpen && root._tab === "watching"
-
-            PpCardNote {
-                objectName: "sdWatchingEmpty"
-                anchors { left: parent.left; right: parent.right; top: parent.top }
-                anchors.topMargin: root.px(6)
-                visible: root._watchingCount === 0
-                text: qsTr("Nothing below the pattern gate yet — a condition that fires but has not recurred enough to be a pattern is listed here.")
-                font.pixelSize: root.tzBody
-            }
-
-            Flickable {
-                objectName: "sdWatchingFlick"
-                anchors.fill: parent
-                visible: root._watchingCount > 0
-                contentWidth: width
-                contentHeight: watchingRow.implicitHeight
-                clip: true
-                // Cut to the viewport as a layer, as the card rows are: the badges are
-                // curve-rendered Shapes.
-                layer.enabled: true
-                boundsBehavior: Flickable.StopAtBounds
-
-                PpWatchingRow {
-                    id: watchingRow
-                    width: parent.width
-                    height: implicitHeight
-                    items: root.source ? root.source.watching : []
-                    foldable: false
-                    expanded: true
-                    suppressed: root.detailOpen || root._tab !== "watching"
-                    fit: root.k
-                    // A watched condition has a ledger like any other; opening one is the same
-                    // verb the cards and the rail nodes take.
-                    onItemActivated: (id) => root._openDetail(id)
-                }
-            }
-        }
-
-        // THE CAPTURE'S COVERAGE, stated once along the bottom of the session picture. It used
-        // to ride in the LIKELY DRIVER footer's right-hand column; that footer is gone.
-        PpCoverageLine {
-            Layout.fillWidth: true
-            Layout.preferredHeight: visible ? implicitHeight : 0
-            // Stated on the session picture. The detail is one condition's page and the
-             // coverage line is a fact about the capture, which belongs to the panel behind it.
-            line: (root.detailOpen || root._tab !== "session") ? ""
-                                  : (root.source ? (root.source.coverageLine || "") : "")
-            fit: root.k
-        }
-
-        // ⚠ THE TENSE FOOTER IS GONE TOO ("The ledger stays at the finished session: counts
-        // under each node are the totals…"). A paragraph along the bottom explaining a tick
-        // device was clutter under every reviewed session; the review note under THIS SHOT
-        // states the tense in one line.
+        visible: root._drawFrame
+        tone: root.tone
     }
 
-    // ── the miss picker ──────────────────────────────────────────────────────
-    //
-    // A LOCAL, PLAIN-QtQuick POPUP and deliberately not the model browser's ModelCausePicker,
-    // whose idiom this borrows: that one lives in a different module, carries a search field,
-    // a create-a-new-condition row and a legality contract, and importing it here would drag
-    // the whole authoring surface onto a panel that is not an editor. What is needed is a list
-    // of the outcomes the pack already authors, which is a list.
-    //
-    // THE CANDIDATES ARE THE MODEL'S — SessionDiagnosticsModel::missCandidates(), which asks
-    // the pack's ConditionKind and not this file's idea of what a miss looks like. A body that
-    // kept its own list of "slice, hook, thin, fat" would be authoring content in the QML, and
-    // it would go stale the first time the pack gained an outcome.
+    // The framed card's heading: the panel's name, the aside on the right.
     Item {
-        id: missPicker
-        objectName: "sdMissPicker"
-        anchors.fill: parent
-        visible: _open
-        z: 100
+        id: frameHead
+        visible: root._drawFrame
+        x: root._framePad; y: root._framePad
+        width: parent.width - 2 * root._framePad
+        height: visible ? frameTitle.implicitHeight : 0
 
-        property bool _open: false
-        property var  _rows: []
-        property real _anchorX: 0
-        property real _anchorY: 0
-
-        function openBelow(item) {
-            _rows = root._missCandidates()
-            const p = item.mapToItem(missPicker, 0, item.height)
-            _anchorX = p.x
-            _anchorY = p.y + root.px(6)
-            _open = true
+        PpMicro {
+            id: frameTitle
+            objectName: "sdTitle"
+            text: root.compact ? Theme.caps(qsTr("Session diag.")) : Theme.caps(qsTr("Session diagnostics"))
+            color: root.tone
         }
-        function close() { _open = false }
-
-        // Anywhere else is "not now". No modal veil: the panel behind it is still the answer
-        // to a different question and dimming it would say the picker had taken the surface
-        // over, which it has not.
-        //
-        // A MouseArea rather than a TapHandler, here and on the sheet below, and the reason is
-        // the dismiss: TapHandler's default gesture policy takes a PASSIVE grab, so a scrim
-        // handler and a row handler both fire on the same press and every click inside the
-        // sheet would also be a click outside it. MouseArea accepts the event and stops it.
-        MouseArea { anchors.fill: parent; onClicked: missPicker.close() }
-
-        Item {
-            objectName: "sdMissPickerSheet"
-            // Kept inside the panel on both axes — the header chip can sit near the right-hand
-            // edge in the narrow arrangement, and a sheet half off the panel is clipped away
-            // by root's own `clip` rather than drawn outside it.
-            x: Math.max(root.px(6), Math.min(missPicker._anchorX,
-                                             missPicker.width - width - root.px(6)))
-            y: Math.max(root.px(6), Math.min(missPicker._anchorY,
-                                             missPicker.height - height - root.px(6)))
-            width: root.px(260)
-            // SIZED FROM THE ROW COUNT, not from the ListView's contentHeight: the list's own
-            // height comes from this one through the anchors, so reading contentHeight back
-            // would be a loop the engine breaks by leaving the sheet at whatever it had — a
-            // three-row list showing one row.
-            readonly property int _rowH: root.px(24)
-            height: Math.min(root.px(300),
-                             head.height
-                             + Math.max(1, missPicker._rows.length) * _rowH
-                             + (clearRow.visible ? clearRow.height : 0)
-                             + 2 * root.px(6))
-            clip: true
-
-            PpPopoverCard { anchors.fill: parent }
-
-            // The sheet eats its own clicks, so a tap on its background is not also a tap on
-            // the scrim. Before the rows, so the rows above it get theirs first.
-            MouseArea { anchors.fill: parent }
+        Row {
+            anchors.right: parent.right
+            anchors.top: parent.top
 
             PpMicro {
-                id: head
-                objectName: "sdMissPickerLabel"
-                anchors { left: parent.left; right: parent.right; top: parent.top }
-                anchors.margins: root.px(10)
-                height: implicitHeight + root.px(6)
-                // WHAT THE DECLARATION IS FOR, said where it is made. It pre-arms the chains
-                // upstream of the outcome; it is not a filter and it is not evidence (§A6).
-                text: Theme.caps(qsTr("What is the bad shot?"))
-                font.pixelSize: root.tzMicro
+                objectName: "sdShotLabel"
+                visible: text !== ""
+                text: Theme.caps(root._shotLabelText)
+                font.letterSpacing: Theme.trackingData
             }
-
-            ListView {
-                id: list
-                objectName: "sdMissPickerList"
-                anchors { left: parent.left; right: parent.right; top: head.bottom
-                          bottom: clearRow.visible ? clearRow.top : parent.bottom }
-                anchors.leftMargin:  root.px(4)
-                anchors.rightMargin: root.px(4)
-                anchors.bottomMargin: root.px(4)
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-                model: missPicker._rows
-
-                delegate: Rectangle {
-                    required property var modelData
-                    objectName: "sdMissCandidate"
-                    width: list.width
-                    height: list.parent._rowH
-                    radius: Theme.radius
-                    readonly property bool _isCurrent: modelData.id === root.declaredMiss
-                    color: _isCurrent ? Theme.colorAccentLight
-                                      : (rowMouse.containsMouse ? Theme.colorBg3 : "transparent")
-
-                    Text {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.leftMargin:  root.px(7)
-                        anchors.rightMargin: root.px(7)
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: modelData.name || modelData.id || ""
-                        elide: Text.ElideRight
-                        font.family: Theme.fontBody
-                        font.pixelSize: root.tzLabel
-                        font.weight: Theme.fontBodyWeight
-                        color: parent._isCurrent ? Theme.colorAccent : Theme.colorText
-                    }
-
-                    MouseArea {
-                        id: rowMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root._declareMiss(parent.modelData.id || "")
-                    }
-                }
+            PpMicro {
+                objectName: "sdStageChip"
+                visible: root._stageWord !== ""
+                text: (root._shotLabelText !== "" ? " · " : "") + Theme.caps(root._unshout(root._stageWord))
+                font.letterSpacing: Theme.trackingData
             }
-
-            // Withdrawing is declaring nothing, and it is the same call with an empty id — the
-            // model treats "" as a clear, so there is no second verb to keep in step.
-            Item {
-                id: clearRow
-                objectName: "sdMissClear"
-                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                height: visible ? root.px(26) : 0
-                visible: root.declaredMiss !== ""
-
-                Rectangle {
-                    anchors { left: parent.left; right: parent.right; top: parent.top }
-                    anchors.leftMargin:  root.px(9)
-                    anchors.rightMargin: root.px(9)
-                    height: 1
-                    color: Theme.colorBorder
-                }
-                PpMicro {
-                    anchors.left: parent.left
-                    anchors.leftMargin: root.px(11)
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: Theme.caps(qsTr("No declared miss"))
-                    font.pixelSize: root.tzMicro
-                    color: clearMouse.containsMouse ? Theme.colorText : Theme.colorText3
-                }
-                MouseArea {
-                    id: clearMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root._declareMiss("")
-                }
+            PpMicro {
+                objectName: "sdReviewBadge"
+                visible: root._reviewWord !== ""
+                text: (root._shotLabelText !== "" || root._stageWord !== "" ? " · " : "")
+                      + Theme.caps(root._unshout(root._reviewWord))
+                font.letterSpacing: Theme.trackingData
             }
+        }
+    }
+
+    // ── the register ─────────────────────────────────────────────────────────
+    readonly property string register: forceRegister !== "" ? forceRegister
+                                     : surface === "cast" ? "Replay"
+                                     : SessionMode.mode === SessionMode.analyse ? "Analyse" : "Replay"
+    readonly property Item registerItem: registerLoader.item
+
+    Loader {
+        id: registerLoader
+        x: root._drawFrame ? root._framePad : 0
+        y: root._drawFrame ? frameHead.y + frameHead.height + Theme.gap(10) : 0
+        width: root.width - 2 * x
+        height: root.height - y - (root._drawFrame ? root._framePad : 0)
+        sourceComponent: root.register === "Analyse" ? analyseC : replayC
+    }
+    Component {
+        id: replayC
+        PpDiagReplay {
+            body: root
+            view: root.view
+            readout: root.readout
+            cards: root.cards || []
+            source: root.source
+            header: root.header
+            detail: root.detail
+            surface: root.surface
+            interactive: root.interactive
+            cardFilter: root.cardFilter
+            pulseCue: root.pulseCue
+            demoState: root.demoState
+        }
+    }
+    Component {
+        id: analyseC
+        PpDiagAnalyse {
+            body: root
+            view: root.view
+            readout: root.readout
+            cards: root.cards || []
+            source: root.source
+            header: root.header
+            detail: root.detail
+            surface: root.surface
+            interactive: root.interactive
+            cardFilter: root.cardFilter
+            pulseCue: root.pulseCue
+            demoState: root.demoState
         }
     }
 }

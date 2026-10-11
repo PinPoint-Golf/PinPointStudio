@@ -66,6 +66,10 @@ Item {
     // PpSessionDiagnosticsWindow.interactive; nothing about what the panel SAYS changes.
     property alias interactive: body.interactive
 
+    // "panel" (the stage) or "cast" (PpSessionDiagnosticsWindow). The cast always reads the Replay
+    // register and draws its own running head, so the body's frame stands down there (D4, S30).
+    property alias surface: body.surface
+
     // Whether this panel keeps the reader's place across its own rebuilds (SessionMode
     // .diagnosticsNav). On for the stage panel, which PpModeStage tears down and rebuilds on
     // every mode switch; off for the secondary-display cast, which has its own lifetime and
@@ -176,10 +180,7 @@ Item {
         SessionMode.sessionDiagnostics = diagModel
         if (remembersNav) {
             _restoreNav()
-            for (let i = 0; i < flickWatch.count; ++i) {
-                const c = flickWatch.objectAt(i)
-                c.target = _flick(c.modelData)
-            }
+            _watchFlicks()
         }
         _navReady = remembersNav
     }
@@ -224,6 +225,15 @@ Item {
     // subscribes it to every child list in the body, and the body adds children by the hundred
     // when a detail opens (the probe hung on exactly that).
     property var _flickCache: ({})
+    // The named Flickables live in the body's REGISTER, which the body swaps when the mode changes
+    // (Replay ⇄ Analyse): forget the old ones and watch the new register's.
+    function _watchFlicks() {
+        _flickCache = ({})
+        for (let i = 0; i < flickWatch.count; ++i) {
+            const c = flickWatch.objectAt(i)
+            c.target = _flick(c.modelData)
+        }
+    }
     function _flick(name) {
         let f = _flickCache[name]
         if (!f) { f = _findNamed(body, name); if (f) _flickCache[name] = f }
@@ -305,6 +315,7 @@ Item {
         function onCardFilterChanged()       { root._saveNav() }
         function onWatchingExpandedChanged() { root._saveNav(); root._resumeScrollRestore() }
         function onDetailOpenChanged()       { root._resumeScrollRestore() }
+        function onRegisterItemChanged()     { if (root.remembersNav) { root._watchFlicks(); root._resumeScrollRestore() } }
     }
     Connections {
         target: diagModel

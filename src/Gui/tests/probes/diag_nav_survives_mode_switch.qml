@@ -27,6 +27,11 @@
 // must not be restored. Also checks the ball-ready ting is off on the stage's Replay/Analyse
 // and on again on Capture.
 //
+// TYPESET REGISTERS (11 Oct): the body hosts a register — PpDiagReplay in Replay, PpDiagAnalyse in
+// Analyse (`sdRegister`, `register`). Replay never draws a detail (D9): with one open it stays on the
+// reader's tab and shows the quiet `sdDetailParked` line, so the card list `sdCardsFlick` is on screen
+// there; Analyse draws the detail (`sdDetailBody`). The checks below assert both, beside the place.
+//
 // Writes the View layout — run on a COPY of the settings (XDG_CONFIG_HOME):
 //   build/run-me/verify-diag-nav.sh [session dir] [ordinal]
 // Exit 0 = PASS, 1 = FAIL; "PROBE:" lines say why.
@@ -70,6 +75,14 @@ Item {
         return shown.length === 1 ? shown[0] : null
     }
     function flick(body, name) { const o = []; walk(body, name, o); return o.length ? o[0] : null }
+    // On screen only if every ancestor up to `top` is visible.
+    function shown(item, top) {
+        let i = item
+        while (i && i !== top) { if (!i.visible) return false; i = i.parent }
+        return !!i
+    }
+    function register(body) { const o = []; walk(body, "sdRegister", o); return o.length ? o[0].register : "" }
+    function anyShown(body, name) { const o = []; walk(body, name, o); return o.some(x => shown(x, body)) }
 
     Instantiator {
         id: shots
@@ -84,7 +97,7 @@ Item {
     property var    before: null
     property var    want: ({})
     property int    step: 0
-    function expectPlace(what) {
+    function expectPlace(what, reg) {
         const b = theBody()
         check(!!b, what + ": one Session diagnostics panel is up")
         if (!b) return
@@ -94,10 +107,16 @@ Item {
         check(b.cardFilter === want.cardFilter, what + ": filter " + b.cardFilter)
         check(b.detailConditionId === want.detail,
               what + ": detail '" + b.detailConditionId + "' (want '" + want.detail + "')")
+        check(register(b) === reg, what + ": the " + reg + " register is loaded (" + register(b) + ")")
+        if (reg === "Analyse")
+            check(anyShown(b, "sdDetailBody"), what + ": Analyse draws the open detail")
+        else
+            check(anyShown(b, "sdDetailParked") && !anyShown(b, "sdDetailBody"),
+                  what + ": Replay draws no detail, only the line pointing to Analyse (D9)")
         before = b
     }
-    // The card list sits behind the open detail and is not laid out until it closes, so its
-    // scroll is checked after closing the detail the way a reader would.
+    // Checked after closing the detail the way a reader would: in Analyse the card list sits behind the
+    // open detail (and is built only on first show), so the Replay list is the one that must come back.
     function expectScroll(what) {
         const b = theBody()
         const f = b ? flick(b, "sdCardsFlick") : null
@@ -160,10 +179,10 @@ Item {
                 SessionMode.enterAnalyse()
                 probe.check(cameraManager.ballCueEnabled === false, "ball ting OFF on Analyse")
             } else if (s === 6) {
-                probe.expectPlace("Replay → Analyse")
+                probe.expectPlace("Replay → Analyse", "Analyse")
                 SessionMode.showReplay()
             } else if (s === 7) {
-                probe.expectPlace("Analyse → Replay")
+                probe.expectPlace("Analyse → Replay", "Replay")
                 probe.theBody()._closeDetail()
             } else if (s === 8) {
                 probe.expectScroll("Analyse → Replay, detail closed")

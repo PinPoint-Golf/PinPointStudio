@@ -19,37 +19,95 @@
 import QtQuick
 import QtTest
 import PinPointStudio
+import "data/diag_session.js" as Real
 
-// The session diagnostics panel's body, loaded for real and pressed through its states.
+// The session diagnostics panel's body, loaded for real and pressed through its states — the TYPESET
+// panel (design system §15; INVENTORY of 11 Oct 2026 §4 is the test map this file was rewritten from).
 //
-// THE ASSERTIONS THAT EARN THIS FILE are the ones about RESTRAINT, because they are the
-// ones a screenshot cannot make and a session cannot be made to produce on demand:
+// THE BODY HOSTS A REGISTER. PpSessionDiagnosticsBody keeps its data and state API (source, readout,
+// tab, cardFilter, detailOpen, pulseCue, _openDetail … shotRequested) and loads ONE of two registers:
+//   · PpDiagReplay  — the glance: Capture, Replay, and the second-screen cast (surface "cast", D4);
+//   · PpDiagAnalyse — the read: SessionMode.analyse.
+// So every test says which register it presses (useRegister), and asserts both where the behaviour
+// belongs to both. A view (This shot / Session / Watching / the Analyse detail) is its own named
+// Flickable, built on first show and never torn down (D8), so a view is found by its objectName only
+// after it has been shown.
 //
-//   · Cold with an empty fault profile omits the "usually yours" block ENTIRELY. An
-//     expectations heading over nothing reads as "the model looked and found none", which
-//     is a different claim from "there is no profile yet".
-//   · The not-assessable tick EXISTS, is shorter than a firing, and is never a gap. That
-//     one is brief §3.1 and §5.2 drawn: a gap in the run reads as "nothing happened on
-//     that swing", and the ledger has no such state.
-//   · The bandwidth-quiet strip REPLACES the delta strip at the same height rather than
-//     collapsing it, so a quiet panel can never be mistaken for a stalled one.
+// THE ASSERTIONS THAT EARN THIS FILE are still the ones about RESTRAINT, the ones a screenshot cannot make:
+//   · Cold with an empty fault profile omits the "usually yours" block ENTIRELY;
+//   · a shot the capture could not measure is a STUB — present, distinct from a clean tick, never a gap;
+//   · a quiet shot says so in one calm line and keeps its ruler; the read in Analyse is never gated;
+//   · the two strong link grades carry an arrowhead and the three weak ones never do;
+//   · a zero count is a word ("none"), never "no of";
+//   · type never grows with the panel (house rule 2), and nothing is ellipsised.
 //
-// It loads PpSessionDiagnosticsBody rather than PpSessionDiagnosticsPanel deliberately, and
-// the split exists for this: the body takes a `source` and owns none of it, so the fixture
-// below is the exact shape SessionDiagnosticsModel publishes and nothing here is a stand-in
-// for the thing under test. The panel next door is the model, the session directory and the
-// ingest connection — none of which a UI test should have to stand up to find out whether a
-// tick is the right height.
+// FIXTURES. Two kinds, both in the shape SessionDiagnosticsModel publishes:
+//   · small hand-written sources below (cold, forming, established, closing, review, the detail), for
+//     the behaviours that need exact strings and counts;
+//   · the REAL session in data/diag_session.js (the 4 July Wrist session, 78 conditions a shot, eight
+//     cards with their spreads, a detail with two measures), and the live states cut from it the way the
+//     register round's harness cut them — for the layout rules, which only mean something on real data.
+//
+// TEST MAP (old → new; the full table, with the reasons, is in the scratch TESTS_NOTES.md).
+//   KEPT (same behaviour, new structure) — the old numbers are kept as the function names' prefixes:
+//     04 05b 05c 05d 07 07b 07c 07d 08 09 11 11c 12 14 16b 19 20 21 22 23 24 25 26 28 36 38 39 40 42
+//     43 44 45 47 48
+//   REWRITTEN FROM "NEEDS NEW DESIGN" (the design now exists: BRIEF4 D1-D11, the registers' NOTES4):
+//     01 02 03 (Cold, expectations) · 05 (the not-measured stub, D5) · 06 (the quiet shot, D2)
+//     15 (five link grades, D6) · 16 (node kinds, the screened-root request, F56/F64) · 27 (focus on the
+//     rows, F33) · 29 (a screened root asks for its screen) · 30 31 (declared miss, inline picker, F66-67)
+//     32 33 (the after-shot pulse and reduceMotion, D1)
+//   NEW (what the redesign promises): 50-61, see each function.
+//   OBSOLETE, deleted — each with its reason:
+//     test_10_designSizeIsScaleOneAndAWiderStageScalesUp — the panel fit factor `k` is gone (house rule
+//         2: type never scales with the panel). Replaced by test_55 (a font role's size is the same in a
+//         480 and a 1522 panel).
+//     test_11b_theViewportHoldsWholeRowsOfCards — there is no card grid: ledger rows are atoms (RULES 6),
+//         and the grid's "whole rows" arithmetic has nothing left to divide (D11).
+//     test_34_theStripOrdersByInformationAndFoldsTheSilentTail — the silent-tail fold is replaced by
+//         closeness ordering + a count (S37, D11). Its one surviving claim ("what fired comes first") moved
+//         into test_23.
+//     test_35_theTailOpensInPlaceIntoTheSameCells — there is no tail to open (S37, D11).
+//     test_41_theDetailGoesVerticalWhenCompact — the vertical rails are gone; below medium the causes
+//         CHANGE FORM into PpPathChains (covered by test_19); Back at narrow is in test_39.
+//     test_46_theFiguresFitTheCardsAtEverySize — there are no card figures; the ledger folds its columns
+//         instead. Replaced by test_58 (fold, don't drop).
+//   Also gone with the components they asserted (no test of their own): the strength meter's 5-step
+//   ladder (an "out by" figure that refuses to guess replaces it, test_05b), the verdict pills
+//   FIRED/CLEAN (the value's colour carries "outside", RULES 7), "scroll for the rest" (the scroll bar
+//   says it), the newest-swing after-shot strip as a separate drawing (one shot read for every pick),
+//   the corridor strip's "← better / worse →" words and nearest-dot picking (every mark is its own
+//   pick target now), and the "twice its first height" run (no fit factor).
+//
+// It loads PpSessionDiagnosticsBody rather than PpSessionDiagnosticsPanel deliberately: the body takes a
+// `source` and owns none of it, so the fixture is the exact shape the model publishes and nothing here
+// stands in for the thing under test. Silent: nothing here plays a sound or opens a window.
 Item {
     id: probe
     width: 1168; height: 560
 
     property var src: null
+    // shotReadout() is an invokable, so the panel fetches it and hands it down; the body takes it as a
+    // second input. Null is "no shot selected", which is a state under test in its own right.
+    property var readout: null
 
-    // What the panel asked for, and never what it did about it — the screen flow is not
-    // designed (brief §9), so the signal is the whole of the contract under test.
+    // What the panel asked for, and never what it did about it.
     property string lastScreenRef: ""
     property string lastScreenCondition: ""
+    property int    screenCalls: 0
+    property string lastShotDir: ""
+    property int    lastShotId: -1
+    property int    shotCalls: 0
+
+    // The carousel's half (the pip row), pressed on its own; declared first so the body is on top.
+    PpShotPipRow {
+        id: pipProbe
+        width: Theme.sp(127); height: Theme.sp(14)
+        pips: probe.pipFixture
+        firedCount: probe.pipFired
+    }
+    property var pipFixture: []
+    property int pipFired: 0
 
     PpSessionDiagnosticsBody {
         id: body
@@ -57,21 +115,452 @@ Item {
         source: probe.src
         readout: probe.readout
         onScreenRequested: (ref, cond) => {
+            probe.screenCalls += 1
             probe.lastScreenRef = ref
             probe.lastScreenCondition = cond
         }
-        onShotRequested: (dir, id) => { probe.lastShotDir = dir; probe.lastShotId = id }
+        onShotRequested: (dir, id) => { probe.shotCalls += 1; probe.lastShotDir = dir; probe.lastShotId = id }
     }
-    // The shot a value run asked for. The body selects nothing; the panel hands this to the
-    // carousel, so the request IS the contract under test here.
-    property string lastShotDir: ""
-    property int lastShotId: -1
 
-    // ── how far: a spread in the shape SessionDiagnosticsModel::spreadFor publishes ──────
-    //
-    // A ceiling (over the top on m_handPathLoop, σ 13/3): the open low side, then ideal, good,
-    // watch and action, the fault line at 13 %. Five shots, the second not measured, the fourth
-    // the one being read, the fifth off the scale.
+    // ── the declarations, spied ──────────────────────────────────────────────
+    // declareFocus / clearFocus / declareMiss / missCandidates / openDetail / closeDetail /
+    // setDetailMeasure are INVOKABLES on the model, reached through `source`. A fixture supplies spies,
+    // so the test asserts what the panel ASKED FOR. The render is asserted against fixtures that already
+    // carry the model's answer (a plain JS object's properties are not bindable: a spy that mutated the
+    // fixture would change nothing on screen).
+    property int    focusCalls: 0
+    property string lastFocusId: ""
+    property int    clearFocusCalls: 0
+    property int    missCalls: 0
+    property string lastMissId: "\u0000"      // distinguishable from declareMiss("")
+    property int    detailCalls: 0
+    property string lastDetailId: ""
+    property int    closeDetailCalls: 0
+    property int    measureCalls: 0
+    property string lastMeasureId: ""
+
+    readonly property var missRows: [
+        { id: "slice",       name: "Slice" },
+        { id: "hook",        name: "Hook" },
+        { id: "thin_strike", name: "Thin strike" }
+    ]
+
+    function spied(s) {
+        if (!s) return s
+        s.declareFocus     = function (id) { probe.focusCalls += 1; probe.lastFocusId = id }
+        s.clearFocus       = function ()   { probe.clearFocusCalls += 1 }
+        s.declareMiss      = function (id) { probe.missCalls += 1; probe.lastMissId = id }
+        s.missCandidates   = function ()   { return probe.missRows }
+        s.openDetail       = function (id) { probe.detailCalls += 1; probe.lastDetailId = id }
+        s.closeDetail      = function ()   { probe.closeDetailCalls += 1 }
+        s.setDetailMeasure = function (id) { probe.measureCalls += 1; probe.lastMeasureId = id }
+        return s
+    }
+
+    // ═══════════════════════════ hand-written fixtures ═══════════════════════════
+
+    // A tick carries its shot ID (ids, not positions, are what the brush and the carousel share).
+    function tick(state, i, sel) { return { state: state, shotId: i + 1, selected: sel === true } }
+    function ticksOf(states, sel) {
+        const out = []
+        for (let i = 0; i < states.length; ++i) out.push(tick(states[i], i, i === sel))
+        return out
+    }
+    // A condition on a shot readout, as shotReadout() publishes it. strengthExcess is the dot plot's x:
+    // 0 the middle of the corridor, 2 the pass edge (where a condition fires), 3 the fault line.
+    function cond(id, name, kind, val, band, tier, excess, ticks) {
+        return { id: id, name: name, stateKind: kind,
+                 state: kind === "fired" ? "OUT" : kind === "clean" ? "IN" : "—",
+                 valueText: val, corridorText: band, reason: kind === "notAssessable" ? band : "",
+                 strengthKnown: kind !== "notAssessable", strength: kind === "fired" ? 5 : 1,
+                 strengthExcess: excess, strengthText: "", tierTag: tier, tail: false,
+                 recurrence: "", ticks: ticks || [], firingsAfter: 0,
+                 firingsAfterText: "no firings after this shot" }
+    }
+
+    readonly property string coverage: "23 of 140 characteristics measurable with current capture"
+
+    // The two pattern cards. Card 0's run holds all three cell states, including the one this file is
+    // here to check (the not-measured shot 2).
+    function patternCards() {
+        return [
+            { id: "casting", name: "Casting", consequence: "", tier: "pattern", phase: "downswing",
+              rankText: "#1", reachesBall: true, rootHere: true,
+              recurrence: "4 of 5 measurable shots", fired: 4, assessable: 5,
+              fresh: true, resolving: false, focused: false, thisShot: "fired", statePill: "FIRED",
+              valueText: "15 % hand rise", corridorText: "pass up to 8.7 · fault at 13 % hand rise",
+              strengthKnown: true, strength: 4, strengthExcess: 2.2,
+              strengthText: "4 of 5 · well outside the corridor · 2.2× the distance to the corridor edge",
+              directionClaimed: true,
+              directionText: "Consistent direction: the high side on 92% of its firings.",
+              trend: "worsening", trendKnown: true, trendArrow: "↑", trendText: "worsening",
+              recencyText: "fired on the last measurable shot", firingsAfterText: "",
+              evidence: "Casting on 4 of the 5 swings where rushed transition fired — on 0 of the 1 where it did not.",
+              ticks: ticksOf(["fired", "notAssessable", "fired", "clean", "fired"]) },
+            { id: "face_roll", name: "Face roll through impact", consequence: "", tier: "pattern", phase: "impact",
+              rankText: "#2", reachesBall: false, rootHere: false,
+              recurrence: "3 of 5 measurable shots", fired: 3, assessable: 5,
+              fresh: false, resolving: false, focused: false, thisShot: "clean", statePill: "CLEAN",
+              valueText: "2.1°", corridorText: "pass 0.0 to 4.0°",
+              strengthKnown: true, strength: 1, strengthExcess: 0.6,
+              strengthText: "1 of 5 · inside the corridor · 0.6× the distance to the corridor edge",
+              directionClaimed: false,
+              directionText: "Direction agreement 56%, below the 70% gate: dispersion, not a direction.",
+              trend: "stable", trendKnown: false, trendArrow: "", trendText: "trend after 6 measurable shots",
+              recencyText: "last fired 1 measurable shots ago", firingsAfterText: "",
+              evidence: "The face arrives at a different angle each time, which is why the miss has two sides.",
+              ticks: ticksOf(["clean", "fired", "fired", "fired", "clean"]) }
+        ]
+    }
+
+    function coldSource(expectations) {
+        return {
+            stage: "cold", closed: false, shotCount: 2, patternCount: 0,
+            focusConditionId: "", declaredMiss: "", declaredMissName: "",
+            headerInfo: {
+                stage: "cold", stageLabel: "COLD", shotLabel: "shot 2", shotCount: 2, patternCount: 0,
+                reachedEstablished: false, reviewBadge: "", reviewNote: "",
+                countLine: "0 patterns · counted over all 2 shots",
+                cadenceNote: "", coldLine: "Too few swings to call a pattern.",
+                formingLine: "", closingLine: ""
+            },
+            thisShot: [{ kind: "clean", name: "clean on every measurable condition" }],
+            quiet: false,
+            afterShotDelta: { headline: "0 of 7 conditions fired on this swing · 0 of them patterns", note: "", surfaced: true },
+            cards: [], watching: [], bookends: [], chains: [],
+            expectations: expectations,
+            unchainedLine: "",
+            coverageLine: probe.coverage,
+            detailConditionId: "", detail: null
+        }
+    }
+
+    readonly property var expectationRows: [
+        { id: "casting", name: "Casting",
+          text: "pattern in 4 of your last 6 sessions", caveat: "an expectation to test, not a finding" },
+        { id: "early_extension", name: "Early extension",
+          text: "pattern in 3 of your last 6 sessions", caveat: "an expectation to test, not a finding" },
+        { id: "over_the_top", name: "Over the top",
+          text: "pattern in 2 of your last 6 sessions", caveat: "an expectation to test, not a finding" }
+    ]
+
+    // Two patterns, five shots, live. The newest swing (id 5, index 4) is published as the after-shot
+    // delta, so with nothing picked This shot reads it (D3): casting (a pattern) and sway (watched) fired.
+    function formingSource(quiet) {
+        return {
+            stage: "forming", closed: false, shotCount: 5, patternCount: 2,
+            focusConditionId: "", declaredMiss: "", declaredMissName: "",
+            headerInfo: {
+                stage: "forming", stageLabel: "FORMING", shotLabel: "shot 5", shotCount: 5, patternCount: 2,
+                recordedStage: "forming", reachedEstablished: false, reviewBadge: "", reviewNote: "",
+                countLine: "2 patterns · counted over all 5 shots",
+                cadenceNote: quiet ? "BANDWIDTH · QUIET" : "",
+                coldLine: "",
+                formingLine: "No chain is drawn: the model authors no edge between these patterns.",
+                closingLine: ""
+            },
+            thisShot: [
+                { id: "casting", name: "Casting", kind: "fired", tier: "pattern", focus: false,
+                  strengthKnown: true, strength: 4, strengthExcess: 2.2,
+                  strengthText: "4 of 5 · well outside the corridor · 2.2× the distance to the corridor edge" },
+                { id: "sway", name: "Lateral sway", kind: "fired", tier: "watching", focus: false,
+                  strengthKnown: true, strength: 2, strengthExcess: 2.05,
+                  strengthText: "2 of 5 · at the corridor edge · 1.1× the distance to the corridor edge" },
+                { kind: "notAssessable", name: "2 not assessable on this capture" }
+            ],
+            quiet: quiet,
+            afterShotDelta: { shotId: 5, shotIndex: 4, firedCount: 2, cleanCount: 1, notAssessableCount: 2,
+                              firedPatternCount: 1, fired: ["casting", "sway"], focusId: "", newPatterns: [],
+                              streakBroken: false,
+                              headline: "2 of 3 conditions fired on this swing · 1 of them pattern",
+                              note: "2 measures not assessable on this capture", surfaced: !quiet },
+            cards: patternCards(),
+            watching: [
+                { id: "sway", name: "Lateral sway", recurrence: "1 of 5 measurable shots" },
+                { id: "flat_shoulder", name: "Flat shoulder plane", recurrence: "1 of 4 measurable shots" }
+            ],
+            bookends: [], expectations: [], chains: [],
+            unchainedLine: "Face roll through impact · no authored edge to any other pattern this session",
+            coverageLine: probe.coverage,
+            detailConditionId: "", detail: null
+        }
+    }
+    // The newest swing, PICKED (the readout of shot 5 of 5): the same facts as the delta, every condition.
+    function newestReadout() {
+        return { shotId: 5, shotIndex: 4, shotCount: 5, club: "7i",
+                 firedCount: 2, cleanCount: 1, notAssessableCount: 1, measurableSetCount: 3,
+                 headline: "2 of 3 conditions fired on this swing · 1 of them pattern", note: "",
+                 conditions: [
+                     cond("casting", "Casting", "fired", "15 % hand rise", "pass up to 8.7 · fault at 13 % hand rise", "pattern", 2.2,
+                          ticksOf(["fired", "notAssessable", "fired", "clean", "fired"], 4)),
+                     cond("sway", "Lateral sway", "fired", "84 mm", "pass 20 to 55 mm", "watching", 2.05,
+                          ticksOf(["clean", "clean", "clean", "clean", "fired"], 4)),
+                     cond("face_roll", "Face roll through impact", "clean", "2.1°", "pass 0.0 to 4.0°", "pattern", 0.6,
+                          ticksOf(["clean", "fired", "fired", "fired", "clean"], 4)),
+                     cond("x_factor", "X-factor", "notAssessable", "not measurable", "ball not tracked", "watching", 0, [])
+                 ] }
+    }
+
+    // ── the detail rails (the model's marshallers' shapes) ──
+    function chainNode(id, name, kind, mark, extra) {
+        const n = { id: id, name: name, kind: kind, mark: mark, measure: "", phase: "", focused: false,
+                    recurrence: "", ticks: [], trend: "stable", trendArrow: "",
+                    state: "notAssessable", statePill: "NOT MEASURED", evidence: "" }
+        for (const k in extra) n[k] = extra[k]
+        return n
+    }
+    function liveNode(id, name, phase, measure, recurrence, state, evidence) {
+        return chainNode(id, name, "live", "", { phase: phase, measure: measure, recurrence: recurrence,
+                                                 state: state, statePill: state === "fired" ? "FIRED" : "CLEAN",
+                                                 evidence: evidence, strengthKnown: true,
+                                                 ticks: ticksOf(["fired", "notAssessable", "fired", "clean", "fired", "fired"]) })
+    }
+    function chainLink(from, to, grade, word, stroke, width, arrow, opacity, note) {
+        return { from: from, to: to, grade: grade, word: word, stroke: stroke,
+                 width: width, arrow: arrow, opacity: opacity, note: note, pairs: 12 }
+    }
+    function detailRail(nodes, links, primary, liveCount) {
+        const end = nodes[nodes.length - 1]
+        return { nodes: nodes, links: links, primary: primary === true, liveCount: liveCount, anyLive: liveCount > 0,
+                 endId: end.id, endName: end.name, endKind: end.kind, endRecurrence: end.recurrence || "",
+                 endLmAnchored: end.lmAnchored === true }
+    }
+
+    function establishedSource(eligible) {
+        const driver = eligible
+            ? { eligible: true, rootId: "rushed_transition", rootName: "Rushed transition", coverage: 3,
+                whyText: "Rushed transition — would explain 3 of your patterns",
+                explains: [{ id: "casting", name: "Casting" }],
+                screenConditionId: "pelvic_disassociation",
+                screenRef: "screen.pelvic_disassociation",
+                screenLabel: "Seated trunk rotation",
+                screenCta: "Seated trunk rotation would anchor this chain",
+                screenReason: "it would explain 4 of your patterns",
+                screenProtocol: "Sit, cross the arms, rotate.",
+                rival: null, offered: [] }
+            : { eligible: false, waitingText: "the driver appears once the pattern set has held still for 3 shots" }
+        return {
+            stage: "established", closed: false, shotCount: 11, patternCount: 2,
+            focusConditionId: "", declaredMiss: "", declaredMissName: "",
+            headerInfo: {
+                stage: "established", stageLabel: "ESTABLISHED", shotLabel: "shot 11", shotCount: 11, patternCount: 2,
+                recordedStage: "established", reachedEstablished: true, reviewBadge: "", reviewNote: "",
+                countLine: "2 patterns · counted over all 11 shots",
+                cadenceNote: "", coldLine: "", formingLine: "", closingLine: ""
+            },
+            thisShot: [
+                { id: "casting", name: "Casting", kind: "fired", tier: "pattern", focus: false,
+                  strengthKnown: true, strength: 4, strengthExcess: 2.2, strengthText: "" },
+                { kind: "notAssessable", name: "2 not assessable on this capture" }
+            ],
+            quiet: false,
+            // No shot id: the model has published no newest swing to read (This shot says "No shot yet").
+            afterShotDelta: { headline: "", note: "", surfaced: true },
+            cards: patternCards(), expectations: [], bookends: [], chains: [],
+            unchained: [{ id: "face_roll", name: "Face roll through impact", recurrence: "3 of 11 measurable shots" }],
+            unchainedLine: "Face roll through impact is a pattern the model authors no edge for this session — reported on its own.",
+            driver: driver,
+            watching: [{ id: "sway", name: "Lateral sway", recurrence: "1 of 11 measurable shots" }],
+            coverageLine: probe.coverage,
+            detailConditionId: "", detail: null
+        }
+    }
+
+    // SessionDiagnosticsModel::detail() for `casting`. Two cause paths and two effect paths, and between
+    // them ALL FIVE link grades — the strong two (moved together, conditionally dependent) and the weak
+    // three (coherent, present together, unanchored) — and every node kind: live, ghost, screened root,
+    // outcome.
+    function detailPayload() {
+        const castingCard = {
+            id: "casting", name: "Casting", consequence: "", tier: "pattern", phase: "downswing",
+            measure: "wrist release rate", kind: "live", mark: "", kindText: "", rankText: "#1",
+            recurrence: "4 of 6 measurable shots", fired: 4, assessable: 6,
+            fresh: false, resolving: false, focused: false,
+            thisShot: "fired", statePill: "FIRED", valueText: "15 % hand rise",
+            directionClaimed: true, directionText: "The high side on 4 of its 4 firings.",
+            trend: "worsening", trendKnown: true, trendArrow: "↑", trendText: "worsening",
+            recencyText: "fired on the last measurable shot", firingsAfterText: "",
+            evidence: "Casting on 4 of the 5 swings where rushed transition fired — on 0 of the 1 where it did not.",
+            ticks: ticksOf(["fired", "notAssessable", "fired", "clean", "fired", "fired"])
+        }
+        const rushed = liveNode("rushed_transition", "Rushed transition", "transition", "transition tempo",
+                                "5 of 6 measurable shots", "fired", "Rushed transition on 5 of the 6 swings measured.")
+        const casting = liveNode("casting", "Casting", "downswing", "wrist release rate",
+                                 "4 of 6 measurable shots", "fired", castingCard.evidence)
+        const shaftLean = liveNode("shaft_lean", "Not enough shaft lean", "impact", "shaft lean at impact",
+                                   "4 of 6 measurable shots", "clean", "Shaft lean sits behind the ball on 4 of 6.")
+        const scooping = liveNode("scooping", "Scooping", "impact", "lead wrist extension",
+                                  "3 of 6 measurable shots", "fired", "Scooping on 3 of the 6 swings measured.")
+        const slice = chainNode("slice", "Slice", "outcome", "declared miss · launch-monitor verified",
+                                { recurrence: "5 of 6 measurable shots", state: "fired", statePill: "FIRED", lmAnchored: true })
+        const pelvic = chainNode("pelvic_disassociation", "Poor pelvic disassociation", "screenedRoot",
+                                 "screened root · needs a physical screen",
+                                 { evidence: "A thirty-second physical test would settle whether this is the root." })
+        const overTop = chainNode("over_the_top", "Over the top", "ghost", "ghost · authored as asserted, no measure", {})
+        return {
+            id: "casting", name: "Casting",
+            header: castingCard,
+            causeHeadline: "Likely driver: Rushed transition — would explain 3 of your patterns.",
+            outcomeHeadline: "Most likely outcome: Slice — 5 of 6 measurable shots.",
+            causes: [
+                detailRail([rushed, casting],
+                           [chainLink("rushed_transition", "casting", "movedTogether", "Moved together",
+                                      "solidAccent", 2.0, true, 1.0, "baseline 5 · 6 since focus")], true, 2),
+                detailRail([pelvic, overTop, casting],
+                           [chainLink("pelvic_disassociation", "over_the_top", "unanchored", "Unanchored",
+                                      "dottedFaint", 1.0, false, 0.5, "screen would confirm"),
+                            chainLink("over_the_top", "casting", "presentTogether", "Present together",
+                                      "dotted", 1.0, false, 1.0, "neither measured")], false, 1)
+            ],
+            effects: [
+                detailRail([casting, shaftLean, scooping, slice],
+                           [chainLink("casting", "shaft_lean", "conditionallyDependent", "Conditionally dependent",
+                                      "solid", 1.5, true, 1.0, "Fisher exact · 12 paired shots"),
+                            chainLink("shaft_lean", "scooping", "coherent", "Coherent",
+                                      "dashed", 1.5, false, 1.0, "no variance to test"),
+                            chainLink("scooping", "slice", "conditionallyDependent", "Conditionally dependent",
+                                      "solid", 1.5, true, 1.0, "Fisher exact · 6 paired shots")], true, 3),
+                detailRail([casting, scooping],
+                           [chainLink("casting", "scooping", "coherent", "Coherent",
+                                      "dashed", 1.5, false, 1.0, "no variance to test")], false, 2)
+            ],
+            causesCapped: false, effectsCapped: false,
+            rivals: [{ childId: "casting", childName: "Casting",
+                       chosenParentId: "rushed_transition", chosenName: "Rushed transition",
+                       rivalParentId: "grip_strength", rivalName: "Grip too strong", adjudicated: false,
+                       text: "Grip too strong could also explain Casting — not adjudicated: it is not measurable on this capture." }],
+            noCausesLine: "", noEffectsLine: ""
+        }
+    }
+    // The panel with a detail open on it — the model publishes both, and the body reads the pair.
+    function detailSource() {
+        const s = spied(establishedSource(true))
+        s.detailConditionId = "casting"
+        s.detail = probe.detailPayload()
+        return s
+    }
+
+    // The live session ended: bookends published (Closing only), with the shot each one names.
+    function closingSource() {
+        const s = formingSource(false)
+        s.stage = "closing"
+        s.closed = true
+        s.headerInfo.stage = "closing"
+        s.headerInfo.stageLabel = "CLOSING"
+        s.headerInfo.closed = true
+        s.headerInfo.closingLine = "Counts are session totals; this shot is the wide tick."
+        s.bookends = [
+            { id: "casting", name: "Casting", representativeShotId: 4, worstShotId: 3, bestShotId: 5,
+              worstText: "worst 3", bestText: "best 5", representativeText: "shot 4 · most representative" },
+            { id: "face_roll", name: "Face roll through impact", representativeShotId: 2, worstShotId: 1, bestShotId: 5,
+              worstText: "worst 1", bestText: "best 5", representativeText: "shot 2 · most representative" }
+        ]
+        return s
+    }
+
+    // ── review: a finished 14-shot session, reviewed at shot 9 ──
+    function reviewSource() {
+        const s = establishedSource(true)
+        s.stage = "closing"
+        s.closed = true
+        s.shotCount = 14
+        s.headerInfo.stage = "closing"
+        s.headerInfo.stageLabel = "CLOSING"
+        s.headerInfo.shotCount = 14
+        s.headerInfo.shotLabel = "shot 9 of 14"
+        s.headerInfo.countLine = "2 patterns · counted over all 14 shots"
+        s.headerInfo.closingLine = "Counts are session totals; this shot is the wide tick."
+        s.headerInfo.reviewBadge = "REVIEWING · shot 9 of 14"
+        s.headerInfo.reviewNote  = "final session state · this shot read inside the finished ledger"
+        // The review tense: what happened HERE and what happened AFTER, off one row, and the run 14 long.
+        s.cards[0].thisShot = "fired"
+        s.cards[0].firingsAfterText = "3 more firings after this shot"
+        s.cards[0].ticks = ticksOf(["fired", "notAssessable", "fired", "clean", "fired", "fired", "clean",
+                                    "fired", "fired", "clean", "fired", "clean", "fired", "fired"], 8)
+        s.cards[1].thisShot = "clean"
+        s.cards[1].firingsAfterText = "no firings after this shot"
+        s.cards[1].ticks = ticksOf(["clean", "fired", "fired", "fired", "clean", "clean", "clean",
+                                    "fired", "clean", "clean", "clean", "fired", "clean", "clean"], 8)
+        s.bookends = [
+            { id: "casting", name: "Casting", representativeShotId: 7, worstShotId: 3, bestShotId: 11,
+              worstText: "worst 3", bestText: "best 11", representativeText: "shot 7 · most representative" }
+        ]
+        return s
+    }
+    // The reviewed shot: five fired, two clean and two the capture could not answer — which are the ones
+    // this fixture exists for. The ids are not the ordinals: shot 9 of 14 is swing id 23 here, because
+    // swings were deleted (D7: a label is the ORDINAL).
+    function reviewReadout() {
+        return {
+            shotId: 23, shotIndex: 8, shotCount: 14, club: "7i",
+            firedCount: 5, cleanCount: 2, notAssessableCount: 2, measurableSetCount: 7,
+            headline: "5 of 7 conditions fired on this swing · 4 of them patterns",
+            note: "2 measures not assessable on this capture",
+            tailCount: 0, tailSummary: "",
+            conditions: [
+                // The true minus (U+2212) is the model's; nothing in the QML reformats it.
+                cond("casting", "Casting", "fired", "−4.4°", "pass −2.0 to +2.0°", "pattern", 3.4),
+                cond("rushed_transition", "Rushed transition", "fired", "18 ms", "pass 30 to 70 ms", "pattern", 2.9),
+                cond("scooping", "Scooping", "fired", "12.4°", "pass 0.0 to 8.0°", "pattern", 2.6),
+                cond("path_out_to_in", "Path too far out-to-in", "fired", "−5.1°", "pass −2.0 to +2.0°", "pattern", 2.4),
+                cond("sway", "Lateral sway", "fired", "84 mm", "pass 20 to 55 mm", "watching", 2.2),
+                cond("shaft_lean", "Not enough shaft lean", "clean", "+6.2°", "pass +4.0 to +12.0°", "watching", 1.6),
+                cond("face_roll", "Face roll through impact", "clean", "2.1°", "pass 0.0 to 4.0°", "pattern", 0.6),
+                cond("x_factor", "X-factor", "notAssessable", "not measurable", "ball not tracked", "watching", 0),
+                cond("head_height", "Head height Δ", "notAssessable", "not measurable", "shaft occluded at P6", "clean all session", 0)
+            ]
+        }
+    }
+
+    // A six-shot session that recorded FORMING (two patterns, no authored edge), closed and reviewed at
+    // shot 6: the flat rows with their full runs are the body, and the reviewed shot is one picked cell.
+    function formingReviewSource() {
+        const s = formingSource(false)
+        s.stage = "closing"
+        s.closed = true
+        s.shotCount = 6
+        s.headerInfo.stage = "closing"
+        s.headerInfo.stageLabel = "CLOSING"
+        s.headerInfo.recordedStage = "forming"
+        s.headerInfo.reachedEstablished = false
+        s.headerInfo.shotCount = 6
+        s.headerInfo.shotLabel = "shot 6 of 6"
+        s.headerInfo.countLine = "2 patterns · counted over all 6 shots"
+        s.headerInfo.reviewBadge = "REVIEWING · shot 6 of 6"
+        s.headerInfo.reviewNote  = "final session state · this shot read inside the finished ledger"
+        s.cards[0].name = "Too much shaft lean at impact"
+        s.cards[0].recurrence = "6 of 6 measurable shots"
+        s.cards[0].thisShot = "fired"
+        s.cards[0].ticks = ticksOf(["fired", "fired", "fired", "fired", "fired", "fired"], 5)
+        s.cards[1].name = "Head drifts toward the target going back"
+        s.cards[1].recurrence = "5 of 6 measurable shots"
+        s.cards[1].thisShot = "fired"
+        s.cards[1].ticks = ticksOf(["fired", "clean", "fired", "fired", "fired", "fired"], 5)
+        s.driver = { eligible: false, final: true, finalText: "No driver: this session's patterns share no authored cause." }
+        return s
+    }
+    function sixShotReadout() {
+        return {
+            shotId: 6, shotIndex: 5, shotCount: 6, club: "Driver",
+            firedCount: 3, cleanCount: 1, notAssessableCount: 1, measurableSetCount: 4,
+            headline: "3 of 4 conditions fired on this swing · 2 of them patterns", note: "",
+            conditions: [
+                cond("casting", "Too much shaft lean at impact", "fired", "40.0°", "pass −4.0 to 6.0°", "pattern", 3.1,
+                     ticksOf(["fired", "fired", "fired", "fired", "fired", "fired"], 5)),
+                cond("face_roll", "Head drifts toward the target going back", "fired", "−41.6cm", "pass 1.0 to 7.0cm", "pattern", 2.8,
+                     ticksOf(["fired", "clean", "fired", "fired", "fired", "fired"], 5)),
+                cond("sway", "Lateral sway", "fired", "84 mm", "pass 20 to 55 mm", "watching", 2.3,
+                     ticksOf(["clean", "clean", "clean", "clean", "clean", "fired"], 5)),
+                cond("flat_shoulder", "Flat shoulder plane", "clean", "31°", "pass 25 to 40°", "watching", 0.9,
+                     ticksOf(["clean", "fired", "clean", "notAssessable", "clean", "clean"], 5)),
+                cond("x_factor", "X-factor", "notAssessable", "not measurable", "ball not tracked", "watching", 0, [])
+            ]
+        }
+    }
+
+    // ── how far: a spread in the shape SessionDiagnosticsModel::spreadFor publishes ──
+    // A ceiling, the fault line at 13 %. Five shots: the second not measured, the fourth the one read,
+    // the fifth off the scale.
     function spreadFixture() {
         const run = []
         const states = ["fired", "notAssessable", "clean", "fired", "fired"]
@@ -133,703 +622,36 @@ Item {
                  columns: [col("4 Jul", false, [0.7, 0.75, 0.8], 0.75),
                            col("5 Oct", false, [0.6, 0.66, 0.7], 0.66),
                            col("7 Oct", true,  [0.4, 0.45, 0.5], 0.45)],
-                 yTicks: sp.yTicks,
+                 yTicks: sp.yTicks, unit: "% hand rise", measure: sp.measure,
                  caption: "median 22 → 19 → 13 % hand rise", loading: false, missing: 0,
                  hiddenEarlier: 0, hiddenLater: 0 }
     }
-
-    // shotReadout() is an invokable, so the panel fetches it and hands it down — which means
-    // the body takes it as a second input and a fixture supplies it the same way it supplies
-    // `source`. Null is "no shot selected", which is a state under test in its own right.
-    property var readout: null
-
-    // ── the two declarations, spied ──────────────────────────────────────────
-    //
-    // declareFocus / clearFocus / declareMiss / missCandidates are INVOKABLES on the model, so
-    // the body reaches them through `source` exactly as it reads every string off it — which
-    // means a fixture can supply them and the test asserts what the panel ASKED FOR rather
-    // than what some model then did about it. That split is the point: this suite is about the
-    // affordance, and detection's indifference to both declarations is enforced and asserted
-    // in the C++ suite, where it belongs.
-    property int    focusCalls: 0
-    property string lastFocusId: ""
-    property int    clearFocusCalls: 0
-    property int    missCalls: 0
-    property string lastMissId: "\u0000"      // distinguishable from declareMiss("")
-
-    readonly property var missRows: [
-        { id: "slice",       name: "Slice" },
-        { id: "hook",        name: "Hook" },
-        { id: "thin_strike", name: "Thin strike" }
-    ]
-
-    // openDetail / closeDetail are invokables like the rest, so the same treatment: the panel
-    // ASKS and the model decides, and the test asserts the ask. The RENDER is asserted against a
-    // fixture that already carries `detailConditionId` + `detail`, because a plain JS object's
-    // properties are not bindable — a spy that mutated the fixture would change nothing on
-    // screen, which is exactly the mistake the read-back rule exists to prevent.
-    property int    detailCalls: 0
-    property string lastDetailId: ""
-    property int    closeDetailCalls: 0
-
-    // The pack's outcome layer, as the model's missCandidates() publishes it.
-    function spied(s) {
-        s.declareFocus   = function (id) { probe.focusCalls += 1; probe.lastFocusId = id }
-        s.clearFocus     = function ()   { probe.clearFocusCalls += 1 }
-        s.declareMiss    = function (id) { probe.missCalls += 1; probe.lastMissId = id }
-        s.missCandidates = function ()   { return probe.missRows }
-        s.openDetail     = function (id) { probe.detailCalls += 1; probe.lastDetailId = id }
-        s.closeDetail    = function ()   { probe.closeDetailCalls += 1 }
+    // The forming source with card 0 carrying a spread (session median 14, this shot 15).
+    function spreadSource() {
+        const s = spied(formingSource(false))
+        s.cards[0].spread = probe.spreadFixture()
         return s
     }
-
-    // The carousel's half of 13a, pressed on its own. PpShotCard needs a dozen proxy-model
-    // roles and a ListView to exist at all; the pip row needs a list of states, which is the
-    // whole reason it was extracted rather than left inline on the card.
-    PpShotPipRow {
-        id: pipProbe
-        width: Theme.sp(127); height: Theme.sp(14)
-        pips: probe.pipFixture
-        firedCount: probe.pipFired
-    }
-    property var pipFixture: []
-    property int pipFired: 0
-
-    // ── fixtures, in the shape the model publishes ───────────────────────────
-
-    function tick(state) { return { state: state, shotId: 0, selected: false } }
-
-    function coldSource(expectations) {
-        return {
-            stage: "cold",
-            headerInfo: {
-                stage: "cold", stageLabel: "COLD", shotLabel: "shot 2",
-                countLine: "0 patterns · counted over all 2 shots",
-                cadenceNote: "", coldLine: "Too few swings to call a pattern.",
-                formingLine: "", closingLine: ""
-            },
-            thisShot: [{ kind: "clean", name: "clean on every measurable condition" }],
-            quiet: false,
-            afterShotDelta: { headline: "0 of 7 conditions fired on this swing · 0 of them patterns",
-                              note: "", surfaced: true },
-            cards: [], watching: [], bookends: [],
-            expectations: expectations,
-            unchainedLine: "",
-            coverageLine: "23 of 140 characteristics measurable with current capture"
-        }
-    }
-
-    readonly property var expectationRows: [
-        { id: "casting", name: "Casting",
-          text: "pattern in 4 of your last 6 sessions", caveat: "an expectation to test, not a finding" },
-        { id: "early_extension", name: "Early extension",
-          text: "pattern in 3 of your last 6 sessions", caveat: "an expectation to test, not a finding" },
-        { id: "over_the_top", name: "Over the top",
-          text: "pattern in 2 of your last 6 sessions", caveat: "an expectation to test, not a finding" }
-    ]
-
-    // Two patterns, no authored edge between them — the Forming state's whole reason for
-    // existing. The first card's run holds all three row states, including the one this
-    // file is here to check.
-    // THE TWO PATTERN CARDS, shared. They were formingSource's alone while the chain rail was
-    // the Established body and the card row was the Forming stage's own arrangement. The cards
-    // are the body at every stage now, so the Established and review fixtures carry the same
-    // two — a source without them would be a panel the model cannot publish.
-    function patternCards() {
-        return [
-            { id: "casting", name: "Casting", consequence: "", tier: "pattern",
-              rankText: "#1", reachesBall: true, rootHere: true,
-              recurrence: "4 of 5 measurable shots", fired: 4, assessable: 5,
-              fresh: true, resolving: false, thisShot: "fired", statePill: "FIRED",
-              strengthKnown: true, strength: 4,
-              strengthText: "4 of 5 · well outside the corridor · 2.2× the distance to the corridor edge",
-              directionClaimed: true,
-              directionText: "Consistent direction: the high side on 92% of its firings.",
-              trend: "worsening", trendArrow: "↑", trendText: "worsening",
-              recencyText: "fired on the last measurable shot",
-              evidence: "Casting on 4 of the 5 swings where rushed transition fired — on 0 of the 1 where it did not.",
-              ticks: [tick("fired"), tick("notAssessable"), tick("fired"),
-                      tick("clean"), tick("fired")] },
-            { id: "face_roll", name: "Face roll through impact", consequence: "", tier: "pattern",
-              rankText: "#2", reachesBall: false, rootHere: false,
-              recurrence: "3 of 5 measurable shots", fired: 3, assessable: 5,
-              fresh: false, resolving: false, thisShot: "clean", statePill: "CLEAN",
-              strengthKnown: true, strength: 1,
-              strengthText: "1 of 5 · inside the corridor · 0.6× the distance to the corridor edge",
-              directionClaimed: false,
-              directionText: "Direction agreement 56%, below the 70% gate: dispersion, not a direction.",
-              trend: "stable", trendArrow: "", trendText: "trend after 6 measurable shots",
-              recencyText: "last fired 1 measurable shots ago",
-              evidence: "The face arrives at a different angle each time, which is why the miss has two sides.",
-              ticks: [tick("clean"), tick("fired"), tick("fired"),
-                      tick("fired"), tick("clean")] }
-        ]
-    }
-
-    function formingSource(quiet) {
-        return {
-            stage: "forming",
-            headerInfo: {
-                stage: "forming", stageLabel: "FORMING", shotLabel: "shot 5",
-                // The ratcheted stage, published beside the displayed one. Forming never
-                // reached Established, and that is what decides the composition.
-                recordedStage: "forming", reachedEstablished: false,
-                countLine: "2 patterns · counted over all 5 shots",
-                cadenceNote: quiet ? "BANDWIDTH · QUIET" : "",
-                coldLine: "",
-                formingLine: "No chain is drawn: the model authors no edge between these patterns.",
-                closingLine: ""
-            },
-            thisShot: [
-                { id: "casting", name: "Casting", kind: "fired", tier: "pattern", focus: false,
-                  strengthKnown: true, strength: 4,
-                  strengthText: "4 of 5 · well outside the corridor · 2.2× the distance to the corridor edge" },
-                { id: "face_roll", name: "Face roll through impact", kind: "fired", tier: "watching",
-                  focus: false, strengthKnown: true, strength: 2,
-                  strengthText: "2 of 5 · at the corridor edge · 1.1× the distance to the corridor edge" },
-                { kind: "notAssessable", name: "2 not assessable on this capture" }
-            ],
-            quiet: quiet,
-            afterShotDelta: { headline: "2 of 5 conditions fired on this swing · 1 of them pattern",
-                              note: "2 measures not assessable on this capture", surfaced: !quiet },
-            cards: patternCards(),
-            watching: [
-                { id: "sway", name: "Lateral sway", recurrence: "1 of 5 measurable shots" },
-                { id: "flat_shoulder", name: "Flat shoulder plane", recurrence: "1 of 4 measurable shots" }
-            ],
-            bookends: [],
-            expectations: [],
-            unchainedLine: "Face roll through impact · no authored edge to any other pattern this session",
-            coverageLine: "23 of 140 characteristics measurable with current capture"
-        }
-    }
-
-    // ── the rail ─────────────────────────────────────────────────────────────
-    // Brief §4's two chains, because between them they are the whole honesty argument:
-    // chain A is a fully live spine and chain B is mostly unmeasurable — a screened root, two
-    // ghosts, one live card and the miss the golfer declared. All five link grades appear
-    // across the two, which is the point of pressing both rather than one nice one.
-    function chainNode(id, name, kind, mark, extra) {
-        const n = {
-            id: id, name: name, kind: kind, mark: mark,
-            measure: "", phase: "", focused: false,
-            recurrence: "", ticks: [], trend: "stable", trendArrow: "",
-            state: "notAssessable", statePill: "NOT MEASURED", evidence: ""
-        }
-        for (const k in extra)
-            n[k] = extra[k]
-        return n
-    }
-
-    function liveNode(id, name, phase, measure, recurrence, state, pill, trend, arrow, evidence) {
-        return chainNode(id, name, "live", "", {
-            phase: phase, measure: measure, recurrence: recurrence,
-            state: state, statePill: pill, trend: trend, trendArrow: arrow,
-            evidence: evidence,
-            strengthKnown: state !== "notAssessable",
-            strength: state === "fired" ? 3 : 0,
-            strengthText: state === "fired"
-                ? "3 of 5 · outside the corridor · 1.6× the distance to the corridor edge"
-                : "0 of 5 · middle of the corridor · 0.1× the distance to the corridor edge",
-            ticks: [tick("fired"), tick("notAssessable"), tick("fired"),
-                    tick("clean"), tick("fired"), tick("fired")]
-        })
-    }
-
-    function chainLink(from, to, grade, word, stroke, width, arrow, opacity, note) {
-        return { from: from, to: to, grade: grade, word: word, stroke: stroke,
-                 width: width, arrow: arrow, opacity: opacity, note: note, pairs: 12 }
-    }
-
-    function establishedSource(eligible) {
-        const chainA = {
-            anyLive: true, liveCount: 4,
-            nodes: [
-                liveNode("rushed_transition", "Rushed transition", "transition", "transition tempo",
-                         "5 of 6 measurable shots", "fired", "FIRED", "worsening", "↑",
-                         "Rushed transition on 5 of the 6 swings measured."),
-                liveNode("casting", "Casting", "downswing", "wrist release rate",
-                         "4 of 6 measurable shots", "fired", "FIRED", "worsening", "↑",
-                         "Casting on 4 of the 5 swings where rushed transition fired — on 0 of the 1 where it did not."),
-                liveNode("shaft_lean", "Not enough shaft lean", "impact", "shaft lean at impact",
-                         "4 of 6 measurable shots", "clean", "CLEAN", "stable", "",
-                         "Shaft lean sits behind the ball on 4 of 6."),
-                liveNode("scooping", "Scooping", "impact", "lead wrist extension",
-                         "3 of 6 measurable shots", "fired", "FIRED", "improving", "↓",
-                         "Scooping on 3 of the 6 swings measured.")
-            ],
-            links: [
-                chainLink("rushed_transition", "casting", "movedTogether", "Moved together",
-                          "solidAccent", 2.0, true, 1.0, "baseline 5 · 6 since focus"),
-                chainLink("casting", "shaft_lean", "conditionallyDependent", "Conditionally dependent",
-                          "solid", 1.5, true, 1.0, "Fisher exact · 12 paired shots"),
-                chainLink("shaft_lean", "scooping", "coherent", "Coherent",
-                          "dashed", 1.5, false, 1.0, "no variance to test")
-            ]
-        }
-        const chainB = {
-            anyLive: true, liveCount: 1,
-            nodes: [
-                chainNode("pelvic_disassociation", "Poor pelvic disassociation", "screenedRoot",
-                          "screened root · needs a physical screen",
-                          { evidence: "A thirty-second physical test would settle whether this is the root." }),
-                chainNode("pelvis_slow", "Pelvis slow to start turning", "ghost",
-                          "ghost · measure planned", {}),
-                chainNode("over_the_top", "Over the top", "ghost",
-                          "ghost · authored as asserted, no measure", {}),
-                liveNode("path_out_to_in", "Path too far out-to-in", "impact", "club path",
-                         "5 of 6 measurable shots", "fired", "FIRED", "worsening", "↑",
-                         "Path sits left of neutral on 5 of the 6 swings the monitor read."),
-                chainNode("slice", "Slice", "outcome", "declared miss · launch-monitor verified",
-                          { recurrence: "5 of 6 shots", state: "fired", statePill: "FIRED" })
-            ],
-            links: [
-                chainLink("pelvic_disassociation", "pelvis_slow", "unanchored", "Unanchored",
-                          "dottedFaint", 1.0, false, 0.5, "screen would confirm"),
-                chainLink("pelvis_slow", "over_the_top", "presentTogether", "Present together",
-                          "dotted", 1.0, false, 1.0, "neither measured"),
-                chainLink("over_the_top", "path_out_to_in", "coherent", "Coherent",
-                          "dashed", 1.5, false, 1.0, "no variance to test"),
-                chainLink("path_out_to_in", "slice", "conditionallyDependent", "Conditionally dependent",
-                          "solid", 1.5, true, 1.0, "Fisher exact · 6 paired shots")
-            ]
-        }
-
-        const driver = eligible
-            ? { eligible: true,
-                rootId: "rushed_transition", rootName: "Rushed transition", coverage: 3,
-                whyText: "Rushed transition — would explain 3 of your patterns",
-                explains: [{ id: "casting", name: "Casting" }],
-                screenConditionId: "pelvic_disassociation",
-                screenRef: "screen.pelvic_disassociation",
-                screenLabel: "Seated trunk rotation",
-                screenCta: "Seated trunk rotation would anchor this chain",
-                screenReason: "it would explain 4 of your patterns",
-                screenProtocol: "Sit, cross the arms, rotate.",
-                rival: { childId: "casting", childName: "Casting",
-                         chosenParentId: "rushed_transition", chosenName: "Rushed transition",
-                         rivalParentId: "grip_strength", rivalName: "Grip too strong",
-                         adjudicated: false,
-                         text: "Grip too strong could also explain Casting — not adjudicated: it is not measurable on this capture." },
-                offered: [] }
-            : { eligible: false,
-                waitingText: "the driver appears once the pattern set has held still for 3 shots" }
-
-        return {
-            stage: "established",
-            headerInfo: {
-                stage: "established", stageLabel: "ESTABLISHED", shotLabel: "shot 11",
-                recordedStage: "established", reachedEstablished: true,
-                countLine: "4 patterns · counted over all 11 shots",
-                cadenceNote: "", coldLine: "", formingLine: "", closingLine: ""
-            },
-            thisShot: [
-                { id: "casting", name: "Casting", kind: "fired", tier: "pattern", focus: false,
-                  strengthKnown: true, strength: 4,
-                  strengthText: "4 of 5 · well outside the corridor · 2.2× the distance to the corridor edge" },
-                { kind: "notAssessable", name: "2 not assessable on this capture" }
-            ],
-            quiet: false,
-            afterShotDelta: { headline: "3 of 9 conditions fired on this swing · 2 of them patterns",
-                              note: "", surfaced: true },
-            cards: patternCards(), expectations: [], bookends: [],
-            chains: [chainA, chainB],
-            unchained: [{ id: "face_roll", name: "Face roll through impact",
-                          recurrence: "3 of 11 measurable shots" }],
-            unchainedLine: "Face roll through impact is a pattern the model authors no edge for this session — reported on its own.",
-            driver: driver,
-            watching: [{ id: "sway", name: "Lateral sway", recurrence: "1 of 11 measurable shots" }],
-            coverageLine: "23 of 140 characteristics measurable with current capture"
-        }
-    }
-
-    // ── the condition detail ─────────────────────────────────────────────────
-    //
-    // SessionDiagnosticsModel::detail() for `casting`, in the published shape. The rails are the
-    // rails: same node maps, same link maps, same grades as the chain fixtures above, because
-    // the model builds them with the same marshallers. Two cause paths and two effect paths, so
-    // the primary/collapsed split is pressed on both sides, and the downstream ends at the
-    // declared miss so the outcome headline has something LM-anchored to quote.
-    function detailRail(nodes, links, primary, liveCount) {
-        const end = nodes[nodes.length - 1]
-        return {
-            nodes: nodes, links: links,
-            primary: primary === true, liveCount: liveCount, anyLive: liveCount > 0,
-            endId: end.id, endName: end.name, endKind: end.kind,
-            endRecurrence: end.recurrence || "",
-            endLmAnchored: end.lmAnchored === true
-        }
-    }
-
-    function detailPayload() {
-        const castingCard = {
-            id: "casting", name: "Casting", consequence: "", tier: "pattern",
-            kind: "live", mark: "",
-            recurrence: "4 of 6 measurable shots", fired: 4, assessable: 6,
-            fresh: false, resolving: false, focused: false,
-            thisShot: "fired", statePill: "FIRED",
-            directionClaimed: true, directionText: "The high side on 4 of its 4 firings.",
-            trend: "worsening", trendArrow: "↑", trendText: "worsening",
-            recencyText: "fired on the last measurable shot",
-            evidence: "Casting on 4 of the 5 swings where rushed transition fired — on 0 of the 1 where it did not.",
-            ticks: [tick("fired"), tick("notAssessable"), tick("fired"),
-                    tick("clean"), tick("fired"), tick("fired")]
-        }
-
-        const rushed = liveNode("rushed_transition", "Rushed transition", "transition",
-                                "transition tempo", "5 of 6 measurable shots", "fired", "FIRED",
-                                "worsening", "↑", "Rushed transition on 5 of the 6 swings measured.")
-        const casting = liveNode("casting", "Casting", "downswing", "wrist release rate",
-                                 "4 of 6 measurable shots", "fired", "FIRED", "worsening", "↑",
-                                 castingCard.evidence)
-        const shaftLean = liveNode("shaft_lean", "Not enough shaft lean", "impact",
-                                   "shaft lean at impact", "4 of 6 measurable shots", "clean",
-                                   "CLEAN", "stable", "", "Shaft lean sits behind the ball on 4 of 6.")
-        const scooping = liveNode("scooping", "Scooping", "impact", "lead wrist extension",
-                                  "3 of 6 measurable shots", "fired", "FIRED", "improving", "↓",
-                                  "Scooping on 3 of the 6 swings measured.")
-        const slice = chainNode("slice", "Slice", "outcome",
-                                "declared miss · launch-monitor verified",
-                                { recurrence: "5 of 6 measurable shots", state: "fired",
-                                  statePill: "FIRED", lmAnchored: true })
-        const pelvic = chainNode("pelvic_disassociation", "Poor pelvic disassociation",
-                                 "screenedRoot", "screened root · needs a physical screen", {})
-        const overTop = chainNode("over_the_top", "Over the top", "ghost",
-                                  "ghost · authored as asserted, no measure", {})
-
-        return {
-            id: "casting", name: "Casting",
-            header: castingCard,
-            causeHeadline: "Likely driver: Rushed transition — would explain 3 of your patterns.",
-            outcomeHeadline: "Most likely outcome: Slice — 5 of 6 measurable shots.",
-            causes: [
-                detailRail([rushed, casting],
-                           [chainLink("rushed_transition", "casting", "movedTogether",
-                                      "Moved together", "solidAccent", 2.0, true, 1.0,
-                                      "baseline 5 · 6 since focus")],
-                           true, 2),
-                detailRail([pelvic, overTop, casting],
-                           [chainLink("pelvic_disassociation", "over_the_top", "unanchored",
-                                      "Unanchored", "dottedFaint", 1.0, false, 0.5,
-                                      "screen would confirm"),
-                            chainLink("over_the_top", "casting", "presentTogether",
-                                      "Present together", "dotted", 1.0, false, 1.0,
-                                      "neither measured")],
-                           false, 1)
-            ],
-            effects: [
-                detailRail([casting, shaftLean, scooping, slice],
-                           [chainLink("casting", "shaft_lean", "conditionallyDependent",
-                                      "Conditionally dependent", "solid", 1.5, true, 1.0,
-                                      "Fisher exact · 12 paired shots"),
-                            chainLink("shaft_lean", "scooping", "coherent", "Coherent",
-                                      "dashed", 1.5, false, 1.0, "no variance to test"),
-                            chainLink("scooping", "slice", "conditionallyDependent",
-                                      "Conditionally dependent", "solid", 1.5, true, 1.0,
-                                      "Fisher exact · 6 paired shots")],
-                           true, 3),
-                detailRail([casting, scooping],
-                           [chainLink("casting", "scooping", "coherent", "Coherent",
-                                      "dashed", 1.5, false, 1.0, "no variance to test")],
-                           false, 2)
-            ],
-            causesCapped: false, effectsCapped: false,
-            rivals: [{ childId: "casting", childName: "Casting",
-                       chosenParentId: "rushed_transition", chosenName: "Rushed transition",
-                       rivalParentId: "grip_strength", rivalName: "Grip too strong",
-                       adjudicated: false,
-                       text: "Grip too strong could also explain Casting — not adjudicated: it is not measurable on this capture." }],
-            noCausesLine: "", noEffectsLine: ""
-        }
-    }
-
-    // The panel with a detail open on it — the model publishes both, and the body reads the pair.
-    function detailSource() {
-        const s = spied(establishedSource(true))
-        s.detailConditionId = "casting"
-        s.detail = probe.detailPayload()
+    // The detail of casting with its spread, its five-shot run and its history across sessions.
+    function spreadDetailSource() {
+        const s = detailSource()
+        s.detail.header.spread = probe.spreadFixture()
+        s.detail.header.ticks = ticksOf(["fired", "notAssessable", "clean", "fired", "fired"])
+        s.detail.history = probe.historyFixture()
         return s
     }
-
-    function closingSource() {
-        const s = formingSource(false)
-        s.stage = "closing"
-        s.closed = true
-        s.headerInfo.stage = "closing"
-        s.headerInfo.stageLabel = "CLOSING"
-        s.headerInfo.closingLine = "Counts are session totals; this shot is the wide tick."
-        s.bookends = [
-            { id: "casting", name: "Casting", worstText: "worst · shot 3",
-              bestText: "best · shot 11", representativeText: "most representative · shot 7" },
-            { id: "face_roll", name: "Face roll through impact", worstText: "worst · shot 2",
-              bestText: "best · shot 9", representativeText: "most representative · shot 6" }
-        ]
-        return s
-    }
-
-    // ── review (13a, brief §6) ───────────────────────────────────────────────
-    //
-    // A FINISHED SESSION THAT STILL HAS ITS RAIL, because that is the arrangement review is
-    // for: session counts under every node, the reviewed shot as the one wide tick inside
-    // each run, and each node saying what happened to it AFTER that swing. The stage is
-    // Closing (the model freezes it there while reviewing) and the chains are the ones the
-    // Established fixture publishes — the panel does not rewind, so they are the same chains.
-
-    // The selected shot's tick, decided by the model and never by the delegate. `state` is
-    // what that shot did to this condition, so the run and the state pill beside it are the
-    // same fact — the model keeps those two in step and a fixture that did not would be
-    // asserting a panel the model cannot produce.
-    function selectTickAt(node, i, state) {
-        const ts = []
-        for (let j = 0; j < node.ticks.length; ++j)
-            ts.push({ state: j === i ? state : node.ticks[j].state,
-                      shotId: j, selected: j === i })
-        node.ticks = ts
-        return node
-    }
-
-    function reviewSource() {
-        const s = establishedSource(true)
-        s.stage = "closing"
-        s.closed = true
-        s.headerInfo.stage = "closing"
-        s.headerInfo.stageLabel = "CLOSING"
-        s.headerInfo.shotLabel = "shot 9 of 14"
-        s.headerInfo.countLine = "4 patterns · counted over all 14 shots"
-        s.headerInfo.closingLine = "Counts are session totals; this shot is the wide tick."
-        s.headerInfo.reviewBadge = "REVIEWING · shot 9 of 14"
-        s.headerInfo.reviewNote  = "final session state · this shot read inside the finished ledger"
-        s.headerInfo.reviewFootLine =
-            "The ledger stays at the finished session: counts under each node are the totals "
-            + "over all 14 shots, and this shot is the wide tick inside each run. Recurrence "
-            + "is not a rate at this n."
-
-        // The review tense on the nodes: the pill says what happened HERE, the recency line
-        // says what happened after, and the run carries the same answer as the wide tick.
-        // chain A is rushed transition → casting → shaft lean → scooping, and all three
-        // states appear across it so the pill is pressed at each of them.
-        const here = [
-            { pill: "FIRED HERE",   state: "fired",         after: "1 more firing after this shot" },
-            { pill: "FIRED HERE",   state: "fired",         after: "3 more firings after this shot" },
-            { pill: "CLEAN HERE",   state: "clean",         after: "no firings after this shot" },
-            { pill: "NOT MEASURED", state: "notAssessable", after: "no firings after this shot" }
-        ]
-        // THE CARDS CARRY THE REVIEW TENSE TOO, and they are what the panel draws now: the
-        // pill says what happened HERE, the recency slot answers "was this the end of it or the
-        // middle", and the reviewed shot is the one wide tick inside the run. cardMap() keeps
-        // those three in step off one row, so a fixture that moved one without the others would
-        // be asserting a card the model cannot produce.
-        const cardHere = [
-            { pill: "FIRED HERE", state: "fired", after: "3 more firings after this shot" },
-            { pill: "CLEAN HERE", state: "clean", after: "no firings after this shot" }
-        ]
-        for (let i = 0; i < s.cards.length && i < cardHere.length; ++i) {
-            s.cards[i].statePill        = cardHere[i].pill
-            s.cards[i].thisShot         = cardHere[i].state
-            s.cards[i].firingsAfterText = cardHere[i].after
-            selectTickAt(s.cards[i], 2, cardHere[i].state)
-        }
-
-        for (let i = 0; i < s.chains[0].nodes.length; ++i) {
-            s.chains[0].nodes[i].statePill        = here[i].pill
-            s.chains[0].nodes[i].firingsAfterText = here[i].after
-            // The meter reads the SAME row as the pill — nodeMap() publishes them together,
-            // so a fixture that moved one without the other would be a shape the model
-            // cannot produce.
-            s.chains[0].nodes[i].strengthKnown = here[i].state !== "notAssessable"
-            s.chains[0].nodes[i].strength      = here[i].state === "fired" ? 3 : 0
-            s.chains[0].nodes[i].strengthText  = here[i].state === "notAssessable" ? ""
-                : here[i].state === "fired"
-                    ? "3 of 5 · outside the corridor · 1.6× the distance to the corridor edge"
-                    : "0 of 5 · middle of the corridor · 0.1× the distance to the corridor edge"
-            selectTickAt(s.chains[0].nodes[i], 2, here[i].state)
-        }
-        return s
-    }
-
-    // The nine cells: fired, clean and the two the capture could not answer — which are the
-    // ones this fixture exists for. Their value slot reads "not measurable" and their corridor
-    // slot carries the REASON, and neither is ever blank.
-    //
-    // IN THE MODEL'S OWN ORDER, WITH THE TAIL MARKED. shotReadout() publishes four buckets —
-    // fired here, clean here, silent here but a pattern or a watch this session, and the tail
-    // that is silent both ways — and the strip's whole layout decision is taken off that order
-    // and that flag. A fixture in pack order would be asserting a payload the model does not
-    // produce.
-    function reviewReadout() {
-        function cell(id, name, kind, state, val, band, tier, tail) {
-            return { id: id, name: name, stateKind: kind, state: state,
-                     valueText: val, corridorText: band,
-                     reason: kind === "notAssessable" ? band : "",
-                     // Fired reads carry a loud meter, clean ones a quiet one, and the reads
-                     // the capture could not take carry none at all.
-                     strengthKnown: kind !== "notAssessable",
-                     strength: kind === "fired" ? 5 : 1,
-                     strengthText: kind === "notAssessable" ? ""
-                                 : kind === "fired" ? "5 of 5 · far outside the corridor · 3.4× the distance to the corridor edge"
-                                                    : "1 of 5 · inside the corridor · 0.6× the distance to the corridor edge",
-                     tierTag: tier, tail: tail === true,
-                     recurrence: "", ticks: [], selectedIndex: 8,
-                     firingsAfter: 0, firingsAfterText: "no firings after this shot" }
-        }
-        return {
-            shotId: 9, shotIndex: 8, shotCount: 14, club: "7i",
-            firedCount: 5, cleanCount: 2, notAssessableCount: 2,
-            measurableSetCount: 9,
-            // The denominator is the MEASURABLE SET — what the grid below actually draws.
-            headline: "5 of 9 conditions fired on this swing · 4 of them patterns",
-            note: "2 measures not assessable on this capture",
-            tailCount: 1,
-            tailSummary: "1 more · clean all session, not measurable on this swing",
-            conditions: [
-                // ── fired here ──
-                // The true minus (U+2212) is the model's, and it is what makes the reading
-                // line up with the corridor beside it. Nothing in the QML reformats it.
-                cell("casting", "Casting", "fired", "OUT",
-                     "−4.4°", "pass −2.0 to +2.0°", "pattern"),
-                cell("rushed_transition", "Rushed transition", "fired", "OUT",
-                     "18 ms", "pass 30 to 70 ms", "pattern"),
-                cell("scooping", "Scooping", "fired", "OUT",
-                     "12.4°", "pass 0.0 to 8.0°", "pattern"),
-                cell("path_out_to_in", "Path too far out-to-in", "fired", "OUT",
-                     "−5.1°", "pass −2.0 to +2.0°", "pattern"),
-                cell("sway", "Lateral sway", "fired", "OUT",
-                     "84 mm", "pass 20 to 55 mm", "watching"),
-                // ── clean here ──
-                cell("shaft_lean", "Not enough shaft lean", "clean", "IN",
-                     "+6.2°", "pass +4.0 to +12.0°", "watching"),
-                cell("face_roll", "Face roll through impact", "clean", "IN",
-                     "2.1°", "pass 0.0 to 4.0°", "clean all session"),
-                // ── not assessable here, but a watch this session: still information ──
-                cell("x_factor", "X-factor", "notAssessable", "—",
-                     "not measurable", "ball not tracked", "watching"),
-                // ── the tail: silent here AND silent all session ──
-                cell("head_height", "Head height Δ", "notAssessable", "—",
-                     "not measurable", "shaft occluded at P6", "clean all session", true)
-            ]
-        }
-    }
-
-    // ── the user's session, which is the one that found all this ─────────────
-    //
-    // A six-shot Wrist session that recorded FORMING — two patterns the model authors no edge
-    // between — reviewed at shot 6, so the panel displays CLOSING + REVIEWING over a ledger
-    // that never established. It is the shape every one of these three defects showed up on:
-    // a thirty-one condition measurable set with an eighteen-cell silent tail, a chain the
-    // model scaffolded but never authored, and a finished session with nothing to wait for.
-    function formingReviewSource() {
-        const s = formingSource(false)
-        s.stage = "closing"
-        s.closed = true
-        s.headerInfo.stage = "closing"
-        s.headerInfo.stageLabel = "CLOSING"
-        // The RECORDED stage is what it always was. The display froze; the session did not
-        // retroactively earn a chain by being looked at.
-        s.headerInfo.recordedStage = "forming"
-        s.headerInfo.reachedEstablished = false
-        s.headerInfo.shotLabel = "shot 6 of 6"
-        s.headerInfo.countLine = "2 patterns · counted over all 6 shots"
-        s.headerInfo.reviewBadge = "REVIEWING · shot 6 of 6"
-        s.headerInfo.reviewNote  = "final session state · this shot read inside the finished ledger"
-        s.headerInfo.reviewFootLine =
-            "The ledger stays at the finished session: counts under each node are the totals "
-            + "over all 6 shots, and this shot is the wide tick inside each run. Recurrence "
-            + "is not a rate at this n."
-        s.headerInfo.formingLine =
-            "No chain is drawn: the model authors no edge between these patterns."
-
-        // Six shots, six ticks, and shot 6 is the wide outlined one on both cards.
-        s.cards[0].name = "Too much shaft lean at impact"
-        s.cards[0].recurrence = "6 of 6 measurable shots"
-        s.cards[0].statePill = "FIRED HERE"
-        s.cards[0].thisShot = "fired"
-        s.cards[0].ticks = [tick("fired"), tick("fired"), tick("fired"),
-                            tick("fired"), tick("fired"), tick("fired")]
-        selectTickAt(s.cards[0], 5, "fired")
-        s.cards[1].name = "Head drifts toward the target going back"
-        s.cards[1].recurrence = "5 of 6 measurable shots"
-        s.cards[1].statePill = "FIRED HERE"
-        s.cards[1].thisShot = "fired"
-        s.cards[1].ticks = [tick("fired"), tick("clean"), tick("fired"),
-                            tick("fired"), tick("fired"), tick("fired")]
-        selectTickAt(s.cards[1], 5, "fired")
-
-        // THE CHAINS ARE STILL PUBLISHED. The model scaffolds the authored neighbourhood
-        // around every pattern whatever the stage, so this session has rails — ghosts and a
-        // screened root around two nodes it authors no edge between. They are exactly what the
-        // panel used to draw over the cards, and the fixture keeps them so the composition
-        // rule is tested against the payload that broke it rather than against an empty list.
-        s.chains = establishedSource(true).chains
-        s.unchainedLine =
-            "Too much shaft lean at impact, Head drifts toward the target going back are "
-            + "patterns the model authors no edge between this session — reported on their own."
-
-        // §B7: at the close the footer is definitive. explain() ranked no root because nothing
-        // here is joined by an authored edge, and the footer says so rather than waiting.
-        s.driver = { eligible: false, final: true,
-                     finalText: "No driver: this session's patterns share no authored cause." }
-        return s
-    }
-
-    // Thirty-one conditions, four of them fired, eighteen of them silent both ways — the
-    // measurable set of a real Wrist capture, and the reason the strip had grown to five rows.
-    function wideReadout() {
-        function cell(id, name, kind, state, val, band, tier, tail) {
-            return { id: id, name: name, stateKind: kind, state: state,
-                     valueText: val, corridorText: band,
-                     reason: kind === "notAssessable" ? band : "",
-                     // Fired reads carry a loud meter, clean ones a quiet one, and the reads
-                     // the capture could not take carry none at all.
-                     strengthKnown: kind !== "notAssessable",
-                     strength: kind === "fired" ? 5 : 1,
-                     strengthText: kind === "notAssessable" ? ""
-                                 : kind === "fired" ? "5 of 5 · far outside the corridor · 3.4× the distance to the corridor edge"
-                                                    : "1 of 5 · inside the corridor · 0.6× the distance to the corridor edge",
-                     tierTag: tier, tail: tail === true,
-                     recurrence: "", ticks: [], selectedIndex: 5,
-                     firingsAfter: 0, firingsAfterText: "no firings after this shot" }
-        }
-        const cs = [
-            cell("shaft_lean", "Too much shaft lean at impact", "fired", "OUT",
-                 "40.0°", "pass −4.0 to 6.0°", "pattern"),
-            cell("head_drift", "Head drifts toward the target going back", "fired", "OUT",
-                 "−41.6cm", "pass 1.0 to 7.0cm", "pattern"),
-            cell("stance_narrow", "Stance too narrow", "fired", "OUT",
-                 "0.1% shoulder width", "pass 1.0 to 2.0", "watching"),
-            cell("head_rise", "Head rises in the backswing", "fired", "OUT",
-                 "8.2cm", "pass −3.0 to 3.0cm", "watching"),
-            cell("stance_wide", "Stance too wide", "clean", "IN",
-                 "0.1% shoulder width", "pass 1.0 to 2.0", "watching"),
-            cell("head_drop", "Head drops in the backswing", "clean", "IN",
-                 "8.2cm", "pass −3.0 to 3.0cm", "watching")
-        ]
-        // Not assessable here, but each of them fired somewhere in the session: these are the
-        // ones review is FOR, and they are why the tail is defined by both silences and not
-        // just by "not measurable".
-        const watched = ["Shoulders open at address", "Ball too far back", "Flying trail elbow",
-                         "Reverse spine angle", "Sway", "Ball too far forward", "Trail hip hike"]
-        for (let w = 0; w < watched.length; ++w)
-            cs.push(cell("w" + w, watched[w], "notAssessable", "—",
-                         "not measurable", "metric not produced", "watching"))
-        // ...and the tail: silent on this swing and silent all session.
-        const quiet = ["Shoulders closed at address", "Flat shoulder plane", "Lead knee works in at the top",
-                       "Pelvis rises during the backswing", "Loss of width", "Out-of-order sequence",
-                       "Rushed transition", "Feet open", "Feet closed", "Hips open at address",
-                       "Hips closed at address", "Overswing", "Casting", "Early extension",
-                       "Chicken wing", "Reverse pivot", "Lateral slide", "Late release"]
-        for (let q = 0; q < quiet.length; ++q)
-            cs.push(cell("q" + q, quiet[q], "notAssessable", "—",
-                         "not measurable", "metric not produced", "clean all session", true))
-        return {
-            shotId: 6, shotIndex: 5, shotCount: 6, club: "Driver",
-            firedCount: 4, cleanCount: 2, notAssessableCount: 25,
-            measurableSetCount: cs.length,
-            headline: "4 of " + cs.length + " conditions fired on this swing · 2 of them patterns",
-            note: "25 measures not assessable on this capture",
-            tailCount: quiet.length,
-            tailSummary: quiet.length + " more · clean all session, not measurable on this swing",
-            conditions: cs
-        }
+    // The picked shot for the spread detail: shot `idx` of 5 (ids 1-5).
+    function spreadReadout(idx) {
+        const states = ["fired", "notAssessable", "clean", "fired", "fired", "clean"]
+        const n = idx >= 5 ? 6 : 5
+        return { shotId: idx + 1, shotIndex: idx, shotCount: n, club: "7i",
+                 firedCount: states[idx] === "fired" ? 1 : 0, cleanCount: states[idx] === "clean" ? 1 : 0,
+                 notAssessableCount: states[idx] === "notAssessable" ? 1 : 0, measurableSetCount: 1,
+                 headline: "", note: "",
+                 conditions: [cond("casting", "Casting", states[idx],
+                                   states[idx] === "notAssessable" ? "not measurable" : "13 % hand rise",
+                                   "pass up to 8.7 · fault at 13 % hand rise", "pattern",
+                                   states[idx] === "fired" ? 2.4 : 0.8)] }
     }
 
     TestCase {
@@ -838,8 +660,6 @@ Item {
         when: windowShown
 
         // ── tree walking ─────────────────────────────────────────────────────
-        // findChild() finds one; most of what matters here is a COUNT — how many
-        // expectation cards, how many ticks, how many of them are short.
         function findAll(item, name, out) {
             out = out || []
             if (!item)
@@ -852,25 +672,20 @@ Item {
             }
             return out
         }
-
-        function visibleAll(item, name) {
-            return findAll(item, name).filter(function (i) { return i.visible })
-        }
-
-        // ...and the same list narrowed to what is actually ON SCREEN. `visible` is an item's own
-        // flag and says nothing about its ancestors, which matters the moment the panel gained a
-        // second body: the composition behind a condition detail is hidden by ONE invisible
-        // parent, and every rail inside it is still visible: true.
-        function shownAll(item, name) {
-            return findAll(item, name).filter(function (i) { return shown(i) })
-        }
-
+        function visibleAll(item, name) { return findAll(item, name).filter(function (i) { return i.visible }) }
+        // `visible` is an item's own flag and says nothing about its ancestors: a view behind another
+        // view is hidden by ONE invisible parent and everything in it is still visible: true.
+        function shownAll(item, name) { return findAll(item, name).filter(function (i) { return shown(i) }) }
         function one(item, name) {
             const all = findAll(item, name)
             verify(all.length >= 1, "expected a '" + name + "', found none")
             return all[0]
         }
-
+        function oneShown(item, name) {
+            const all = shownAll(item, name)
+            verify(all.length >= 1, "expected a '" + name + "' on screen, found none (" + findAll(item, name).length + " hidden)")
+            return all[0]
+        }
         // An item is only really on screen if every ancestor up to the body is too.
         function shown(item) {
             let i = item
@@ -882,46 +697,151 @@ Item {
             return !!i
         }
 
+        // ── the register and its views ───────────────────────────────────────
+        function reg() { return one(body, "sdRegister") }
+        // Which register the body loads is SessionMode's (or the cast's) choice, never the test's: the
+        // test sets the mode the app would be in, and checks the body followed it.
+        function useRegister(name) {
+            SessionMode.mode = name === "Analyse" ? SessionMode.analyse : SessionMode.replay
+            laidOut()
+            compare(reg().register, name, "the body loaded the " + name + " register")
+        }
+        readonly property var viewNames: ({ shot: "sdShotView", session: "sdSessionView",
+                                            watching: "sdWatchingView", detail: "sdDetailBody" })
+        function showTab(key) { body.tab = key; laidOut() }
+        function viewOf(key) { return oneShown(body, viewNames[key]) }
+        function tabByKey(key) {
+            const ts = shownAll(body, "sdTab").filter(function (t) { return t.key === key })
+            verify(ts.length === 1, "one '" + key + "' tab on screen")
+            return ts[0]
+        }
+        function tabCount(key) { return one(tabByKey(key), "sdTabCount") }
+        // Replay's session view draws a sparkline row per pattern, or its small multiples when they fit.
+        function replaySessionItems(v) { return shownAll(v, "sdSparkRow").concat(shownAll(v, "sdSmallMultiple")) }
+
+        // ── sources ──────────────────────────────────────────────────────────
+        function laidOut() {
+            // A Row/Column positions on POLISH, not on the binding that sized it: read geometry, or
+            // press anything, only after a frame has gone through.
+            waitForRendering(body)
+            wait(0)
+        }
         function setSource(s) {
             probe.src = null
             wait(0)
             probe.src = s
-            wait(0)
+            laidOut()
         }
-
-        // BEFORE ANY CLICK. A Row positions its children on a POLISH, not on the binding that
-        // sized them, so a delegate read one wait(0) after its model changed is still at x = 0
-        // — and two cards stacked at the same x take the same click. wait(0) is enough to read
-        // a string off an item and is not enough to press one. (The same reason test_08 waits
-        // on the watching row's height with tryVerify rather than comparing it outright.)
-        function laidOut() {
-            waitForRendering(body)
-            wait(0)
-        }
-
-        // Review is TWO inputs — the surface and the selected shot's readout — because
-        // selection is what turns "the finished session" into "this shot inside it".
+        // Review is TWO inputs — the surface and the selected shot's readout.
         function setReview(s, r) {
+            probe.readout = null
             setSource(s)
             probe.readout = r
-            wait(0)
+            laidOut()
+        }
+        // A real-session state ({ source, readout }), with the declarations spied.
+        function applyState(st) { setReview(st.source ? spied(st.source) : null, st.readout) }
+        // A republish: the source REPLACED, never nulled in between, exactly as the model's arrives.
+        function republish(s, r) {
+            probe.src = s
+            if (r !== undefined)
+                probe.readout = r
+            laidOut()
+        }
+
+        // ── text ─────────────────────────────────────────────────────────────
+        function isText(i) { return !!i && i.elide !== undefined && i.truncated !== undefined && typeof i.text === "string" }
+        function textsIn(item, out) {
+            out = out || []
+            if (!item) return out
+            const kids = item.children
+            for (let i = 0; i < kids.length; ++i) {
+                if (isText(kids[i])) out.push(kids[i])
+                textsIn(kids[i], out)
+            }
+            return out
+        }
+        function plain(s) {
+            return String(s === undefined || s === null ? "" : s).replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ")
+                       .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ").trim()
+        }
+        function shownTexts(item) { return textsIn(item).filter(function (t) { return shown(t) && t.text !== "" }) }
+        function allText(item) { return shownTexts(item).map(function (t) { return plain(t.text) }).join(" | ") }
+        // A view head: Replay's Head (title, sub) or Analyse's PpStandfirst (kicker, head, standfirst).
+        function headText(h) {
+            const parts = []
+            for (const k of ["title", "sub", "kicker", "head", "standfirst", "text"])
+                if (h[k] !== undefined && typeof h[k] === "string") parts.push(plain(h[k]))
+            return parts.join(" · ")
+        }
+        // A ledger cell (or its folded twin): an Item carrying `text`, its Text child drawing it.
+        function inkOf(cell) {
+            const kids = cell.children
+            for (let i = 0; i < kids.length; ++i) if (isText(kids[i])) return kids[i].color
+            return undefined
+        }
+
+        // ── pointer ──────────────────────────────────────────────────────────
+        // A press can only land on what is on screen: scroll the item's view so it is inside it.
+        function flickOf(item) {
+            let f = item ? item.parent : null
+            while (f && f !== body && !(f.contentY !== undefined && f.contentItem !== undefined && /Flick$/.test(f.objectName)))
+                f = f.parent
+            return f && f !== body ? f : null
+        }
+        function intoView(item) {
+            const f = flickOf(item)
+            if (!f) return
+            const y = item.mapToItem(f.contentItem, 0, 0).y
+            const h = Math.max(item.height, 1)
+            if (y < f.contentY || y + h > f.contentY + f.height)
+                f.contentY = Math.max(0, Math.min(y - Theme.sp(20), f.contentHeight - f.height))
+            laidOut()
+        }
+        // A ledger row opens its condition from anywhere but its own controls: press it on its name.
+        function clickRow(row, cellName) {
+            intoView(row)
+            const c = one(row, cellName || "sdSessionRowName")
+            const p = c.mapToItem(row, Math.min(Theme.sp(6), c.width / 2), Math.min(Theme.sp(6), c.height / 2))
+            mouseClick(row, p.x, p.y)
+            laidOut()
+        }
+        function park() { mouseMove(body, 1, 1); laidOut() }
+        // Hover a ledger row with the real pointer, over its NAME — where a reader points. (The first run
+        // found the rich-text name kept the hover from the row's MouseArea; the row hovers by HoverHandler
+        // now.) The brush is the row's hover state (rw.hot).
+        function hoverRow(row) {
+            intoView(row)
+            const br = one(row, "sdShotStrip").brush
+            const p = one(row, "sdSessionRowName").mapToItem(row, Theme.sp(4), Theme.sp(4))
+            mouseMove(row, p.x, p.y)
+            laidOut()
+            compare(br.hoveredCondition, row.cardId, "the pointer on the row's name hovers the row")
         }
 
         function init() {
             probe.width = 1168; probe.height = 560
-            Theme.themeIndex = 5          // studio dark, the design's own frame
+            Theme.themeIndex = 5          // studio dark
             Theme.fontScale = 1.0
+            Theme.reduceMotion = false
+            SessionMode.mode = SessionMode.capture
+            body.surface = "panel"
+            body.forceRegister = ""
+            body.interactive = true
             body.watchingExpanded = false
             body.cardFilter = "all"
-            probe.readout = null
             body.tab = "session"
-            body.interactive = true
+            body.pulseCue = null
+            probe.readout = null
+            probe.src = null
             probe.pipFixture = []
             probe.pipFired = 0
             probe.lastScreenRef = ""
             probe.lastScreenCondition = ""
+            probe.screenCalls = 0
             probe.lastShotDir = ""
             probe.lastShotId = -1
+            probe.shotCalls = 0
             probe.focusCalls = 0
             probe.lastFocusId = ""
             probe.clearFocusCalls = 0
@@ -930,1129 +850,1364 @@ Item {
             probe.detailCalls = 0
             probe.lastDetailId = ""
             probe.closeDetailCalls = 0
+            probe.measureCalls = 0
+            probe.lastMeasureId = ""
+            laidOut()
+        }
+        function cleanupTestCase() {
+            SessionMode.mode = SessionMode.capture
+            Theme.themeIndex = 5
+            Theme.fontScale = 1.0
             Theme.reduceMotion = false
-            body.pulseCue = null
-            wait(0)
         }
 
-        // Which of the panel's regions are on screen, as one comparable string. BACK must put
-        // every one of them back exactly as it found it — that is the whole claim of a
-        // visibility swap over a Loader, and it is not assertable one item at a time.
-        readonly property var compositionNames: [
-            "sdThisShotStrip", "sdBookends", "sdColdBody", "sdCardsBody",
-            "sdWatchingRow", "sdCoverageLine", "sdPatternCard"
-        ]
-        function compositionSnapshot() {
-            const out = []
-            for (let i = 0; i < compositionNames.length; ++i) {
-                const items = findAll(body, compositionNames[i])
-                const flags = []
-                for (let j = 0; j < items.length; ++j)
-                    flags.push(shown(items[j]) ? "1" : "0")
-                out.push(compositionNames[i] + ":" + flags.join(""))
-            }
-            return out.join(" | ")
-        }
+        // ═══════════════════════════ Cold (S2-S4, F41-F42) ═══════════════════════════
 
-        // ── rail helpers ─────────────────────────────────────────────────────
-        //
-        // ⚠ THE RAIL IS NO LONGER A BODY, so its tests press it where it now lives: inside the
-        // condition detail, which draws the SAME PpChainRail over the SAME components. Nothing
-        // about what is asserted changed — the node kinds, the five link grades and the vertical
-        // form are the rail's own contract and the detail exercises every one of them. What
-        // changed is the route in, which is the point of the whole rework.
-        //
-        // Both non-primary paths are opened, because a collapsed path draws no rail and the
-        // grades that live on them (present-together, unanchored) would otherwise be untested.
-        function railStage() {
-            setSource(detailSource())
-            const d = one(body, "sdDetailBody")
-            d.expandedCause  = 1
-            d.expandedEffect = 1
-            laidOut()
-            return d
-        }
-
-
-        function linkByGrade(grade) {
-            const all = shownAll(body, "sdChainLink")
-            for (let i = 0; i < all.length; ++i)
-                if (all[i].grade === grade)
-                    return all[i]
-            return null
-        }
-
-        // A click can only land on what is on screen: the condition detail scrolls, and a target
-        // below its fold is clipped out of the press. Scroll it into view first (the detail's frame
-        // heading, since the coaching-card look, moved the fold up by the height of that row —
-        // these clicks had been riding it two pixels inside).
-        function intoView(item) {
-            let flick = item ? item.parent : null
-            while (flick && flick !== body && flick.objectName !== "sdDetailFlick")
-                flick = flick.parent
-            if (!flick || flick === body) return        // not inside the detail: nothing scrolls
-            const y = item.mapToItem(flick.contentItem, 0, 0).y
-            if (y + item.height > flick.contentY + flick.height || y < flick.contentY)
-                flick.contentY = Math.max(0, Math.min(y - Theme.sp(20),
-                                                      flick.contentHeight - flick.height))
-            laidOut()
-        }
-
-        function nodeById(id) {
-            const all = findAll(body, "sdChainNode")
-            for (let i = 0; i < all.length; ++i)
-                if (all[i].node && all[i].node.id === id && shown(all[i]))
-                    return all[i]
-            return null
-        }
-
-        // ── Cold ─────────────────────────────────────────────────────────────
-
+        // NEEDS-NEW-DESIGN → rewritten: Cold's head is the model's coldLine, its count line under it, in
+        // BOTH registers' Session view; the stage word stays on the body's frame.
         function test_01_coldSaysTheNIsTooSmall() {
-            setSource(coldSource(probe.expectationRows))
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                setSource(spied(coldSource(probe.expectationRows)))
+                showTab("session")
+                const v = viewOf("session")
+                const cold = oneShown(v, "sdColdBody")
+                compare(one(cold, "sdColdHeadline").text, "Too few swings to call a pattern.", r + ": the n is too small")
+                compare(one(cold, "sdColdSubline").text, "0 patterns · counted over all 2 shots", r + ": and what it counted over")
+                verify(!shown(one(v, "sdSessionHead")), r + ": no pattern head over a session too young to have patterns")
+                compare(shownAll(v, "sdSessionRow").length + replaySessionItems(v).length, 0, r + ": and no rows")
+                verify(shown(one(body, "sdStageChip")), r + ": the stage word is on the body's frame")
+                verify(body.cardAside.toLowerCase().indexOf("cold") >= 0, r + ": and in the stage card's aside")
+            }
 
-            verify(shown(one(body, "sdColdBody")), "the Cold body is the one on screen")
-            verify(!shown(one(body, "sdCardsBody")), "and the card row is not")
-
-            compare(one(body, "sdColdHeadline").text, "Too few swings to call a pattern.")
-            compare(one(body, "sdColdSubline").text, "0 patterns · counted over all 2 shots")
-            compare(one(body, "sdStageChip").visible, true, "the stage chip is drawn")
+            // The real model's Cold, no shots yet: the same line, and This shot waits for the next swing.
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                applyState(Real.cold0())
+                showTab("session")
+                compare(one(oneShown(viewOf("session"), "sdColdBody"), "sdColdHeadline").text,
+                        "Too few swings to call a pattern.", r + ": Cold with no shots")
+                showTab("shot")
+                const empty = oneShown(viewOf("shot"), "sdShotEmpty")
+                verify(allText(empty).toLowerCase().indexOf("next swing reads here") >= 0,
+                       r + ": live with nothing yet, the next swing reads here: " + allText(empty))
+            }
         }
 
+        // The fault profile's expectations: dashed, headed as expectations rather than findings.
         function test_02_coldDrawsTheExpectationsDashed() {
-            setSource(coldSource(probe.expectationRows))
-
-            verify(shown(one(body, "sdExpectations")), "USUALLY YOURS is on screen")
-            const cards = visibleAll(body, "sdExpectationCard")
-            compare(cards.length, 3, "one dashed card per expectation")
-            for (let i = 0; i < cards.length; ++i) {
-                verify(cards[i].width > 0 && cards[i].height > 0,
-                       "expectation card " + i + " has a size")
-                verify(cards[i].width <= probe.width, "and fits the panel")
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                setSource(spied(coldSource(probe.expectationRows)))
+                showTab("session")
+                const v = viewOf("session")
+                const ex = oneShown(v, "sdExpectations")
+                const cards = shownAll(ex, "sdExpectationCard")
+                compare(cards.length, 3, r + ": one dashed row per expectation")
+                for (let i = 0; i < cards.length; ++i) {
+                    verify(cards[i].width > 0 && cards[i].height > 0, r + ": expectation " + i + " has a size")
+                    verify(cards[i].mapToItem(v, cards[i].width, 0).x <= v.width + 1, r + ": and fits the view")
+                }
+                const words = allText(ex)
+                verify(words.indexOf("Usually yours") >= 0, r + ": headed as the golfer's own profile")
+                verify(words.indexOf("expectations to test, not findings") >= 0, r + ": and never as a finding")
+                verify(words.indexOf("pattern in 4 of your last 6 sessions") >= 0, r + ": with the profile's own sentence")
             }
+            // The real session's Cold (two shots) carries its profile the same way.
+            useRegister("Analyse")
+            applyState(Real.cold2(true))
+            showTab("session")
+            compare(shownAll(viewOf("session"), "sdExpectationCard").length, 3, "the real Cold, three expectations")
         }
 
-        // The one a screenshot never catches: no profile, so no heading either.
+        // The one a screenshot never catches: no profile, so no heading either. An expectations heading
+        // over nothing reads as "the model looked and found none", a different claim from "no profile yet".
         function test_03_coldWithNoProfileOmitsTheBlockEntirely() {
-            setSource(coldSource([]))
-
-            verify(shown(one(body, "sdColdBody")), "still the Cold body")
-            compare(one(body, "sdColdHeadline").text, "Too few swings to call a pattern.")
-            verify(!shown(one(body, "sdExpectations")),
-                   "an empty profile draws no 'expectations' heading at all")
-            compare(findAll(body, "sdExpectationCard").length, 0, "and no cards")
-        }
-
-        // ── Forming ──────────────────────────────────────────────────────────
-
-        function test_04_formingDrawsTheCardsAndTheirState() {
-            setSource(formingSource(false))
-
-            verify(shown(one(body, "sdCardsBody")), "the card row is the body")
-            verify(!shown(one(body, "sdColdBody")), "and Cold is gone")
-
-            const cards = visibleAll(body, "sdPatternCard")
-            compare(cards.length, 2, "both patterns fit at the design size")
-
-            compare(findAll(cards[0], "sdCardName")[0].text, "Casting")
-            compare(findAll(cards[0], "sdStatePill")[0].children[0].text, "FIRED")
-            compare(findAll(cards[0], "sdCardRecurrence")[0].text, "4 of 5 measurable shots")
-            compare(findAll(cards[0], "sdCardFresh")[0].visible, true, "the NEW tag is on the fresh one")
-
-            compare(findAll(cards[1], "sdStatePill")[0].children[0].text, "CLEAN")
-            compare(findAll(cards[1], "sdCardFresh")[0].visible, false, "and not on the other")
-            // Below the agreement gate the card reports dispersion, not a direction.
-            verify(findAll(cards[1], "sdCardDirection")[0].text.indexOf("dispersion") >= 0,
-                   "the withheld direction claim says so")
-
-            // The slot that used to explain the missing rail now carries the way to it. The
-            // no-authored-edge claim did not vanish with it — it is on the UNCHAINED row, per
-            // pattern, which is where a statement about conditions belongs.
-            verify(findAll(cards[0], "sdCardTap")[0].enabled,
-                   "the whole card is the way into the causal chain")
-            compare(findAll(cards[0], "sdCardFocusTag")[0].opacity, 0,
-                    "and the FOCUS offer is quiet until the pointer is on the card")
-        }
-
-        // ── the run ──────────────────────────────────────────────────────────
-
-        function test_05_notAssessableIsShortAndOutlined_neverAGap() {
-            setSource(formingSource(false))
-
-            const card = visibleAll(body, "sdPatternCard")[0]
-            const run = findAll(card, "sdTickRun")[0]
-            const ticks = findAll(run, "sdTick")
-
-            // Five rows in, five ticks out. Nothing is skipped for being unmeasurable.
-            compare(ticks.length, 5, "one tick per shot, including the unmeasurable one")
-
-            const fired = ticks[0], na = ticks[1], clean = ticks[3]
-            verify(na.height > 0, "the not-assessable tick is drawn")
-            verify(na.height < fired.height,
-                   "and is shorter than a firing (" + na.height + " vs " + fired.height + ")")
-            verify(na.border.width >= 1, "outlined rather than filled")
-            compare(na.color.a, 0, "with no fill")
-            verify(fired.color !== clean.color, "fired and clean are different marks")
-            compare(fired.color, Theme.colorWarn)
-            compare(clean.color, Theme.colorGood)
-
-            // Bottom-aligned: the short tick sits on the run's baseline, so the run reads as
-            // a sequence with a weaker mark in it rather than one with a hole.
-            compare(na.y + na.height, fired.y + fired.height)
-        }
-
-        // ── the strength meter ───────────────────────────────────────────────
-        //
-        // WHAT THE COLOUR ALONE COULD NOT SAY. A firing drawn red says THAT a reading was out
-        // of its corridor; the meter is the only thing on the panel that says by how much, so
-        // what is asserted here is that the bar COUNT tracks the model's step (colour is a
-        // second channel, never the only one), that the ramp runs green through amber to red,
-        // and — the one that matters — that a reading nobody took draws nothing rather than
-        // landing on step 0, which is the best news on the ladder.
-        function test_05b_theMeterSaysHowFarOutAndRefusesToGuess() {
-            setSource(formingSource(false))
-
-            const cards = visibleAll(body, "sdPatternCard")
-            const loud  = one(cards[0], "sdCardStrength")
-            const quiet = one(cards[1], "sdCardStrength")
-
-            verify(shown(loud), "the fired card carries a meter")
-            compare(findAll(loud, "sdStrengthBar").length, 5, "five steps, always drawn")
-
-            function lit(meter) {
-                const bars = findAll(meter, "sdStrengthBar")
-                let n = 0
-                for (let i = 0; i < bars.length; ++i)
-                    if (bars[i].opacity === 1.0) ++n
-                return n
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                setSource(spied(coldSource([])))
+                showTab("session")
+                const v = viewOf("session")
+                verify(shown(one(v, "sdColdBody")), r + ": still the Cold body")
+                compare(one(v, "sdColdHeadline").text, "Too few swings to call a pattern.")
+                verify(!shown(one(v, "sdExpectations")), r + ": an empty profile draws no expectations block at all")
+                compare(one(v, "sdExpectations").height, 0, r + ": not even its space")
+                compare(findAll(v, "sdExpectationCard").length, 0, r + ": and no rows")
+                verify(allText(v).indexOf("Usually yours") < 0, r + ": and no heading anywhere in the view")
             }
-            compare(lit(loud), 4, "step 4 lights four of the five")
-            compare(lit(quiet), 1, "…and step 1 lights one")
-
-            // The ramp, off the theme rather than off a colour written here twice.
-            const loudBars = findAll(loud, "sdStrengthBar")
-            const quietBars = findAll(quiet, "sdStrengthBar")
-            compare(loudBars[0].color, Theme.strengthColor(4), "well outside is drawn in the warn hue")
-            compare(quietBars[0].color, Theme.strengthColor(1), "…and inside the corridor in the good one")
-            verify(!Qt.colorEqual(loudBars[0].color, quietBars[0].color),
-                   "the two do not read as the same strength")
-
-            // A RISING LADDER, so the meter cannot be mistaken for the tick run beside it.
-            verify(loudBars[4].height > loudBars[0].height, "the steps climb")
-
-            // Step 0 is not an empty meter: the unlit ladder goes green, because "dead centre
-            // of the corridor" and "we never read it" must not look alike.
-            const zero = { id: "z", name: "Z", tier: "pattern", recurrence: "1 of 5 measurable shots",
-                           fired: 1, assessable: 5, fresh: false, resolving: false,
-                           thisShot: "clean", statePill: "CLEAN",
-                           strengthKnown: true, strength: 0,
-                           strengthText: "0 of 5 · middle of the corridor · 0.1× the distance to the corridor edge",
-                           directionClaimed: true, directionText: "", trend: "stable",
-                           trendArrow: "", trendText: "stable", recencyText: "", evidence: "",
-                           ticks: [tick("clean")] }
-            const blind = JSON.parse(JSON.stringify(zero))
-            blind.id = "b"; blind.name = "B"
-            blind.strengthKnown = false; blind.strength = 0; blind.strengthText = ""
-
-            const s = formingSource(false)
-            s.cards = [zero, blind]
-            setSource(s)
-
-            const after = visibleAll(body, "sdPatternCard")
-            const zeroMeter = one(after[0], "sdCardStrength")
-            compare(lit(zeroMeter), 0, "step 0 lights nothing")
-            verify(Qt.colorEqual(findAll(zeroMeter, "sdStrengthBar")[0].color,
-                                 Qt.rgba(Theme.colorGood.r, Theme.colorGood.g,
-                                         Theme.colorGood.b, 0.35)),
-                   "…but the empty ladder is green, not grey")
-
-            verify(!shown(one(after[1], "sdCardStrength")),
-                   "and a card with no reading behind it draws no meter at all")
+            useRegister("Replay")
+            applyState(Real.cold2(false))
+            showTab("session")
+            verify(!shown(one(viewOf("session"), "sdExpectations")), "the real Cold with no profile: no block")
         }
 
-        // THE VERDICT IS THE WAY IN. Twelve rows that looked alike gave the eye nothing to land on.
-        // Since the coaching-card look (design system §13) a condition is a row, not a framed
-        // card: it leads with a target badge in the fault tone and closes on its verdict in words,
-        // and the strength meter carries how hard. What is asserted here is that a firing says so
-        // in words AND in the fault tone, that a clean row says it is clean in the good tone, and —
-        // just as importantly — that nothing is drawn in the alarm red (§13.2: nothing here is an
-        // alarm). Absent evidence must not be able to look like the loudest thing here either.
-        function test_05c_theVerdictCarriesTheFiringAndOnlyAFiring() {
-            setSource(formingSource(false))
-            const cards = visibleAll(body, "sdPatternCard")
+        // ═══════════════════════════ Forming: the session rows ═══════════════════════════
 
-            // Card 0 fired at step 4; card 1 is clean.
-            const fired = cards[0], clean = cards[1]
-            const firedPill = one(fired, "sdStatePill").children[0]
-            compare(firedPill.color, Theme.colorWarn, "a firing reads in the fault tone")
-            verify(firedPill.text !== "", "…and says so in words")
-            compare(one(fired, "sdCardBadge").kind, "target", "it leads with a target")
-            compare(one(fired, "sdCardBadge").tone, Theme.colorWarn, "…in the fault tone")
-            verify(shown(one(fired, "sdCardStrength")), "and the meter says how hard")
+        function test_04_formingDrawsTheRowsAndTheirState() {
+            useRegister("Analyse")
+            setSource(spied(formingSource(false)))
+            showTab("session")
+            park()
+            const v = viewOf("session")
+            const rows = shownAll(v, "sdSessionRow")
+            compare(rows.length, 2, "a row per pattern")
+            compare(rows[0].cardId, "casting")
+            compare(rows[1].cardId, "face_roll")
+            verify(plain(one(rows[0], "sdSessionRowName").text).indexOf("Casting") === 0, "the row is named")
+            compare(findAll(rows[0], "sdSessionRowFresh").length, 1, "the fresh pattern is marked new")
+            compare(findAll(rows[1], "sdSessionRowFresh").length, 0, "and the other is not")
+            verify(plain(one(rows[0], "sdSessionRowName").text).indexOf("new") > 0, "the word 'new' is on its name line")
+            compare(one(rows[0], "sdSessionRowFired").text, "4/5", "a count, never a rate")
+            compare(one(rows[1], "sdSessionRowFired").text, "3/5")
+            // Below the agreement gate the row reports dispersion, not a direction.
+            verify(one(rows[1], "sdSessionRowLine2").text.indexOf("dispersion") >= 0, "the withheld direction claim says so")
+            verify(Qt.colorEqual(inkOf(one(rows[0], "sdSessionRowShot")), Theme.colorWarn),
+                   "a pattern outside its corridor on this shot reads in the warn colour")
+            verify(!Qt.colorEqual(inkOf(one(rows[1], "sdSessionRowShot")), Theme.colorWarn),
+                   "and one inside it does not")
+            compare(shownAll(v, "sdSessionRowFocus").length, 0, "the focus offer is quiet until the pointer is on a row")
 
-            const cleanPill = one(clean, "sdStatePill").children[0]
-            compare(cleanPill.color, Theme.colorGood, "a clean row says it is clean, in the good tone")
-            verify(cleanPill.text !== firedPill.text, "…in different words from a firing")
-
-            // No reading behind it, and it still fired: the fired verdict, never a step it has not
-            // earned.
-            const s3 = formingSource(false)
-            s3.cards[0].strengthKnown = false
-            s3.cards[0].strength = 0
-            setSource(s3)
-            laidOut()
-            const blind = visibleAll(body, "sdPatternCard")[0]
-            compare(one(blind, "sdStatePill").children[0].color, Theme.colorWarn,
-                    "a firing with no step is still a plain firing")
-            verify(!shown(one(blind, "sdCardStrength")), "and draws no meter to go with it")
+            // The glance: a sparkline row (or a small multiple) per pattern, in the session's order.
+            useRegister("Replay")
+            showTab("session")
+            const items = replaySessionItems(viewOf("session"))
+            compare(items.length, 2, "Replay draws each pattern once")
+            compare(items.map(function (i) { return i.cardId }).sort().join(","), "casting,face_roll")
         }
 
-        // THE BADGE IS THE FIRST THING ON THE CARD, because it is the answer to the question
-        // the row is being read for. What is asserted here is that it is drawn, that it leads
-        // the name rather than crowding it, and — the one that matters — that a card the model
-        // gave no rank draws nothing rather than inventing a position for itself.
-        function test_05d_theRankBadgeLeadsTheCard() {
-            setSource(formingSource(false))
-            const cards = visibleAll(body, "sdPatternCard")
+        // ═══════════════════════════ the strip (D5) ═══════════════════════════
 
-            compare(one(cards[0], "sdCardRank").text, "#1")
-            compare(one(cards[1], "sdCardRank").text, "#2")
-            verify(shown(one(cards[0], "sdCardRank")), "and it is on screen, not merely set")
+        function marksOf(cell) {
+            const stub = one(cell, "sdShotStub")
+            const kids = stub.parent.children
+            return { fired: kids[0], clean: kids[1], stub: stub }
+        }
+        // NEEDS-NEW-DESIGN → rewritten: THREE distinct marks — a fired bar, a clean tick, a not-measured
+        // STUB on the baseline — and a cell for every shot. A gap would read as "nothing happened on that
+        // swing", and the ledger has no such state.
+        function test_05_notMeasuredIsAStubOnTheBaseline_neverAGap() {
+            useRegister("Analyse")
+            setSource(spied(formingSource(false)))
+            showTab("session")
+            const row = shownAll(viewOf("session"), "sdSessionRow")[0]
+            const strip = oneShown(row, "sdShotStrip")
+            const cells = findAll(strip, "sdShotCell")
+            compare(cells.length, 5, "one cell per shot, the unmeasured one included")
+            compare(cells.map(function (c) { return c.cellState }).join(","), "fired,notMeasured,fired,clean,fired")
 
-            // It LEADS: the name starts to the right of it, and does not sit on top of it.
-            const rank = one(cards[0], "sdCardRank")
-            const name = one(cards[0], "sdCardName")
-            verify(name.x >= rank.x + rank.width,
-                   "the name begins after the badge (" + name.x + " vs " + (rank.x + rank.width) + ")")
+            for (let i = 0; i < cells.length; ++i) {
+                const m = marksOf(cells[i])
+                const on = [m.fired.visible, m.clean.visible, m.stub.visible].filter(function (x) { return x }).length
+                compare(on, 1, "cell " + i + " draws exactly one mark — never none")
+            }
+            const fired = marksOf(cells[0]), na = marksOf(cells[1]), clean = marksOf(cells[3])
+            verify(Qt.colorEqual(fired.fired.color, Theme.colorWarn), "the fired bar is the warn colour")
+            verify(Qt.colorEqual(clean.clean.color, Theme.colorText3), "the clean tick is ink3, not a good-green")
+            verify(Qt.colorEqual(na.stub.color, Theme.colorText3), "the stub is ink3")
+            verify(na.stub.height > 0, "the not-measured stub is drawn")
+            verify(na.stub.height < clean.clean.height, "and is lower than the clean tick (" + na.stub.height + " vs " + clean.clean.height + ")")
+            verify(clean.clean.height < fired.fired.height, "which is shorter than a firing")
+            verify(na.stub.width > clean.clean.width, "a flat block, not a hairline: the three never read alike")
+            compare(na.stub.y + na.stub.height, cells[1].height, "the stub stands on the baseline")
+            compare(clean.clean.y + clean.clean.height, cells[3].height, "as does the clean tick")
 
-            // A TIE IS MARKED ON BOTH HOLDERS. The model decides it; the card must not tidy the
-            // "=" away, because the row's position would then be asserting an order the ranking
-            // explicitly refused to make.
-            const tied = formingSource(false)
+            // The glance draws the same three: the row's strip, or the tile's run.
+            useRegister("Replay")
+            showTab("session")
+            const items = replaySessionItems(viewOf("session")).filter(function (i) { return i.cardId === "casting" })
+            compare(items.length, 1)
+            if (items[0].objectName === "sdSparkRow") {
+                const rc = findAll(oneShown(items[0], "sdShotStrip"), "sdShotCell")
+                compare(rc.length, 5, "Replay's strip has a cell per shot")
+                compare(rc.filter(function (c) { return marksOf(c).stub.visible }).length, 1, "and one stub")
+            } else {
+                compare(findAll(items[0], "sdTileStub").length, 1, "the tile's run carries the stub")
+            }
+        }
+
+        // KEPT, narrowed: the meter is gone; "out by" is the measure of how far, and it REFUSES TO GUESS:
+        // a reading nobody took is "-", never 0 — 0 would be the best news on the scale.
+        function test_05b_outBySaysHowFarAndRefusesToGuess() {
+            useRegister("Analyse")
+            const r = reviewReadout()
+            r.conditions[1].strengthKnown = false             // rushed transition: fired, no reading of how far
+            setReview(spied(reviewSource()), r)
+            showTab("shot")
+            const rows = shownAll(viewOf("shot"), "sdFiredRow")
+            compare(rows.length, 5, "a ledger row per firing")
+            const byId = {}
+            for (let i = 0; i < rows.length; ++i) byId[rows[i].conditionId] = rows[i]
+            compare(one(byId["casting"], "sdFiredRowOutBy").text, "3.4×", "how far, as a multiple of the distance to the edge")
+            compare(one(byId["rushed_transition"], "sdFiredRowOutBy").text, "-", "and no reading is a dash, never 0")
+        }
+
+        // KEPT, narrowed: COLOUR MEANS "OUTSIDE ITS CORRIDOR" AND NOTHING ELSE (RULES 7). A firing reads in
+        // the warn colour; a clean value does not; and nothing on the panel is drawn in the alarm red.
+        function test_05c_theWarnColourCarriesTheFiringAndOnlyAFiring() {
+            useRegister("Analyse")
+            setReview(spied(reviewSource()), reviewReadout())
+            showTab("shot")
+            const fired = shownAll(viewOf("shot"), "sdFiredRow")[0]
+            verify(Qt.colorEqual(inkOf(one(fired, "sdFiredRowValue")), Theme.colorWarn), "a fired value reads in warn")
+            showTab("session")
+            const rows = shownAll(viewOf("session"), "sdSessionRow")
+            verify(!Qt.colorEqual(inkOf(one(rows[1], "sdSessionRowShot")), Theme.colorWarn), "a clean one does not")
+
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                for (const k of ["shot", "session", "watching"]) {
+                    showTab(k)
+                    const ts = shownTexts(reg())
+                    for (let i = 0; i < ts.length; ++i)
+                        verify(!Qt.colorEqual(ts[i].color, Theme.colorError),
+                               r + "/" + k + ": nothing is an alarm ('" + plain(ts[i].text) + "' is colorError)")
+                }
+            }
+        }
+
+        // KEPT: the rank leads the row; a tie is marked on both holders; no rank, no number.
+        function test_05d_theRankLeadsTheRow() {
+            useRegister("Analyse")
+            setSource(spied(formingSource(false)))
+            showTab("session")
+            let rows = shownAll(viewOf("session"), "sdSessionRow")
+            compare(one(rows[0], "sdSessionRowRank").text, "1", "the model's rank, without its #")
+            compare(one(rows[1], "sdSessionRowRank").text, "2")
+            const rank = one(rows[0], "sdSessionRowRank"), name = one(rows[0], "sdSessionRowName")
+            verify(name.x >= rank.x + rank.width, "the rank leads the name rather than crowding it")
+
+            // A TIE IS MARKED ON BOTH HOLDERS: the row order must not assert an order the ranking refused.
+            const tied = spied(formingSource(false))
             tied.cards[0].rankText = "#1="
             tied.cards[1].rankText = "#1="
             setSource(tied)
-            laidOut()
-            const both = visibleAll(body, "sdPatternCard")
-            compare(one(both[0], "sdCardRank").text, "#1=")
-            compare(one(both[1], "sdCardRank").text, "#1=")
+            rows = shownAll(viewOf("session"), "sdSessionRow")
+            compare(one(rows[0], "sdSessionRowRank").text, "1=")
+            compare(one(rows[1], "sdSessionRowRank").text, "1=")
 
-            // ...and no rank means no badge — a watched or unmeasured condition opened from its
-            // own page has no place in the row and must not borrow one.
-            const unranked = formingSource(false)
+            // ...and no rank means no number — the column is there, empty, and nothing is invented.
+            const unranked = spied(formingSource(false))
             unranked.cards[0].rankText = ""
             setSource(unranked)
+            rows = shownAll(viewOf("session"), "sdSessionRow")
+            compare(one(rows[0], "sdSessionRowRank").text, "", "an unranked pattern draws no rank")
+            compare(rows[0].rankText, "")
+        }
+
+        // ═══════════════════════════ cadence: the quiet shot (S8, D2) ═══════════════════════════
+
+        // NEEDS-NEW-DESIGN → rewritten (D2): a quiet shot says so in ONE calm line built from the model's
+        // cadence caption, keeps its shot ruler, and leaves the tabs live. Analyse states the same line
+        // over the full read — a read is never gated (F21).
+        function test_06_aQuietShotSaysSoAndKeepsItsRuler() {
+            useRegister("Replay")
+            setSource(spied(formingSource(false)))
+            showTab("shot")
+            let v = viewOf("shot")
+            verify(!shown(one(v, "sdQuietState")), "a surfaced shot is not quiet")
+            verify(shown(one(v, "sdShotHead")), "it has its head")
+
+            setSource(spied(formingSource(true)))
+            v = viewOf("shot")
+            verify(shown(one(v, "sdQuietState")), "quiet takes This shot")
+            compare(one(v, "sdQuietLabel").text, "Quiet shot — nothing new surfaced on this swing")
+            verify(one(v, "sdQuietLine").text.indexOf("2 of 3 conditions fired on this swing") >= 0,
+                   "the quiet line still says what the shot did")
+            verify(one(v, "sdQuietLine").text.indexOf("the ledger is still counting") >= 0, "and that nothing stopped")
+            verify(!shown(one(v, "sdShotHead")), "the loud head stands down")
+            compare(shownAll(v, "sdDotRow").length, 0, "and the plot with it")
+
+            // The newest swing PICKED: the same quiet line, and the ruler stays — a quiet panel must
+            // never read as a stalled one.
+            probe.readout = newestReadout()
             laidOut()
-            const first = visibleAll(body, "sdPatternCard")[0]
-            verify(!shown(one(first, "sdCardRank")), "an unranked card draws no badge")
-            compare(one(first, "sdCardName").x, 0, "…and its name takes the leading edge back")
+            v = viewOf("shot")
+            verify(shown(one(v, "sdQuietState")), "picked, the newest swing is still quiet")
+            verify(shown(one(v, "sdShotRuler")), "and its shot ruler stays")
+            // The tabs stay live.
+            mouseClick(tabByKey("session"))
+            laidOut()
+            compare(body.tab, "session", "the tabs take a press while quiet")
+
+            useRegister("Analyse")
+            probe.readout = null
+            setSource(spied(formingSource(true)))
+            showTab("shot")
+            v = viewOf("shot")
+            verify(shown(one(v, "sdQuietState")), "Analyse says the shot was quiet")
+            verify(one(v, "sdQuietLine").text.indexOf("cadence gates surfacing, never the engine") >= 0, "and why")
+            verify(shown(one(v, "sdDotPlot")), "and still draws the read — Analyse is never gated")
+            compare(tabCount("shot").text, "quiet", "the tab's note says quiet")
+
+            // The real session's quiet newest swing.
+            useRegister("Replay")
+            applyState(Real.quiet(true))
+            showTab("shot")
+            verify(shown(one(viewOf("shot"), "sdQuietState")), "the real quiet shot")
+            verify(shown(one(viewOf("shot"), "sdShotRuler")), "with its ruler")
         }
 
-        // ── cadence ──────────────────────────────────────────────────────────
+        // ═══════════════════════════ Closing (S13, F19, F38) ═══════════════════════════
 
-        function test_06_quietSwapsTheStripWithoutCollapsingIt() {
-            setSource(formingSource(false))
-            body.tab = "shot"
-            wait(0)
-            const strip = one(body, "sdThisShotStrip")
-            const loudH = strip.height
-            verify(shown(one(body, "sdChipState")), "the delta strip is up")
-            verify(!shown(one(body, "sdQuietState")), "and the quiet one is not")
-            compare(visibleAll(body, "sdChip").length, 3, "a chip per this-shot entry")
+        // KEPT, rewritten: the bookends are three columns on each pattern's row (typical, worst, best) that
+        // name a shot, folded onto the row's second line below wide; This shot says the session has closed.
+        function test_07_closingPutsTheBookendsOnTheRowsAndTheTenseOnThisShot() {
+            useRegister("Analyse")
+            setSource(spied(closingSource()))
+            showTab("session")
+            let rows = shownAll(viewOf("session"), "sdSessionRow")
+            compare(rows.length, 2, "the rows survive the close")
+            const t = oneShown(rows[0], "sdSessionRowTypical"), w = oneShown(rows[0], "sdSessionRowWorst"),
+                  b = oneShown(rows[0], "sdSessionRowBest")
+            compare([t.text, w.text, b.text].join(","), "4,3,5", "typical, worst and best each name a shot")
+            compare(t.shotId, 4, "and carry it, to put that shot in the carousel")
 
-            setSource(formingSource(true))
-            verify(shown(one(body, "sdQuietState")), "quiet takes the strip")
-            verify(!shown(one(body, "sdChipState")), "and the chips stand down")
-            compare(one(body, "sdQuietLabel").text, "BANDWIDTH · QUIET")
-            verify(one(body, "sdQuietLine").text.length > 0,
-                   "the quiet state still states what the shot did")
-            // The strip must not shrink: a collapsed strip reads as a stalled panel.
-            compare(one(body, "sdThisShotStrip").height, loudH,
-                    "quiet is the same height as loud")
+            // Narrower: the columns FOLD onto the row's second line, with their words; they never vanish.
+            probe.width = 480
+            laidOut()
+            rows = shownAll(viewOf("session"), "sdSessionRow")
+            const ft = oneShown(rows[0], "sdSessionRowTypical")
+            compare(ft.text, "4")
+            verify(allText(ft).indexOf("typical shot") >= 0, "folded, it says what it is: " + allText(ft))
+            probe.width = 1168
+            laidOut()
+
+            // This shot, in the closed tense: no swing is coming, so it says where a shot comes from.
+            for (const r of ["Analyse", "Replay"]) {
+                useRegister(r)
+                showTab("shot")
+                const e = oneShown(viewOf("shot"), "sdShotEmpty")
+                verify(allText(e).indexOf("The session has closed") >= 0, r + ": the closed tense: " + allText(e))
+                verify(allText(e).indexOf("carousel") >= 0, r + ": and where to pick a shot")
+                verify(allText(e).toLowerCase().indexOf("next swing") < 0, r + ": never 'the next swing'")
+            }
         }
 
-        // ── Closing ──────────────────────────────────────────────────────────
+        // ═══════════════════════════ the tabs ═══════════════════════════
 
-        function test_07_closingReplacesTheStripWithBookends() {
-            setSource(closingSource())
-
-            verify(shown(one(body, "sdBookends")), "the bookends strip is up")
-            verify(!shown(one(body, "sdThisShotStrip")),
-                   "a closed session has no after-shot moment to report")
-            compare(visibleAll(body, "sdBookend").length, 2, "one column per bookended pattern")
-            // The body it had is the body it keeps.
-            verify(shown(one(body, "sdCardsBody")), "the cards survive the close")
-        }
-
-        // ── the tabs ─────────────────────────────────────────────────────────
-
-        // THIS SHOT and SESSION used to be stacked and competed for one body's height. Each is a
-        // tab now, the tab you are not on still says its headline count, and the shot's fired
-        // patterns come with the strip so its ghosted chips have somewhere to point.
         function test_07b_theShotAndTheSessionAreTabsNotAStack() {
-            setSource(formingSource(false))
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                setSource(spied(formingSource(false)))
+                compare(shownAll(body, "sdTab").length, 3, r + ": three tabs")
+                compare(body.tab, "session", r + ": Session rests")
+                verify(shown(viewOf("session")))
+                compare(shownAll(body, "sdShotView").length, 0, r + ": This shot is not stacked over it")
 
-            compare(findAll(body, "sdTab").length, 3, "three tabs")
-            verify(shown(one(body, "sdCardsBody")), "SESSION is the resting tab")
-            verify(!shown(one(body, "sdThisShotStrip")), "and the strip is not stacked over it")
-            compare(findAll(body, "sdTabNote")[0].text, "2 fired",
-                    "the THIS SHOT tab says what the swing did without being opened")
+                mouseClick(tabByKey("shot"))
+                laidOut()
+                compare(body.tab, "shot", r + ": the press is the body's tab")
+                verify(shown(viewOf("shot")))
+                verify(!shown(one(body, "sdSessionView")), r + ": the session view steps aside (and is kept)")
 
-            mouseClick(findAll(body, "sdTab")[0])
-            wait(0)
-            compare(body.tab, "shot")
-            verify(shown(one(body, "sdThisShotStrip")), "the strip has the tab")
-            verify(!shown(one(body, "sdCardsBody")), "and the session body steps aside")
-            verify(!shown(one(body, "sdWatchingRow")), "with its footers")
-            const fired = visibleAll(body, "sdPatternCard")
-            compare(fired.length, 1, "the one pattern that fired here is drawn under the strip")
-            compare(one(fired[0], "sdCardName").text, "Casting")
-            verify(shown(one(body, "sdChipHint")), "with the meter's legend heading it")
-
-            // A closed live session has no after-shot moment — but the tab still takes the press
-            // and says where a shot comes from, rather than ignoring it.
-            setSource(closingSource())
-            body.tab = "session"
-            wait(0)
-            mouseClick(findAll(body, "sdTab")[0])
-            wait(0)
-            compare(body._tab, "shot", "THIS SHOT can always be pressed")
-            verify(shown(one(body, "sdShotEmpty")), "and it says how to get a shot to read")
-            verify(one(body, "sdShotEmpty").text.indexOf("carousel") >= 0)
+                // A closed live session has no after-shot moment — but the tab still takes the press and
+                // says where a shot comes from, rather than ignoring it.
+                setSource(spied(closingSource()))
+                body.tab = "session"
+                laidOut()
+                mouseClick(tabByKey("shot"))
+                laidOut()
+                compare(body._tab, "shot", r + ": This shot can always be pressed")
+                verify(allText(oneShown(viewOf("shot"), "sdShotEmpty")).indexOf("carousel") >= 0)
+                body.tab = "session"
+            }
+            // The read counts beside its tabs; the glance does not (each view's head states its own).
+            useRegister("Analyse")
+            setSource(spied(formingSource(false)))
+            compare(tabCount("shot").text, "2", "This shot: what the newest swing fired")
+            compare(tabCount("session").text, "2", "Session: the patterns")
+            compare(tabCount("watching").text, "2", "Watching: the watched")
+            useRegister("Replay")
+            for (const k of ["shot", "session", "watching"])
+                verify(!shown(tabCount(k)), "Replay: no count beside " + k)
         }
 
+        // KEPT: the pick edge opens This shot ONCE; the auto-closing cast holds This shot and is the glance.
         function test_07c_pickingAShotOpensItsTabAndTheCastHoldsIt() {
-            setReview(reviewSource(), null)
+            useRegister("Analyse")
+            setReview(spied(reviewSource()), null)
             compare(body._tab, "session", "review with nothing picked rests on the session")
             probe.readout = reviewReadout()
-            wait(0)
-            compare(body._tab, "shot", "picking a shot off the carousel opens THIS SHOT")
-            verify(shown(one(body, "sdReviewStrip")))
+            laidOut()
+            compare(body._tab, "shot", "picking a shot off the carousel opens This shot")
+            verify(shownAll(viewOf("shot"), "sdDotRow").length > 0, "and reads it")
 
-            // ...once, on the edge: a reader who goes back to SESSION is not dragged back by
-            // the next re-fetch of the same selection.
+            // ...once, on the edge: a reader who goes back is not dragged back by a re-fetch.
             body.tab = "session"
             probe.readout = reviewReadout()
-            wait(0)
+            laidOut()
             compare(body._tab, "session")
 
-            // The auto-closing cast cannot be pressed, and it is there for the shot.
-            setReview(formingSource(false), null)
+            // The auto-closing cast: no tabs to press, This shot held, the Replay register whatever the
+            // stage is in (D4), and its own head in place of the body's frame (S30).
+            SessionMode.mode = SessionMode.analyse
+            body.surface = "cast"
             body.interactive = false
-            wait(0)
-            compare(body._tab, "shot")
-            verify(shown(one(body, "sdThisShotStrip")))
+            setReview(spied(formingSource(false)), null)
+            compare(body._tab, "shot", "the cast is there for the shot")
+            compare(reg().register, "Replay", "the cast is the glance, even with the stage in Analyse")
+            verify(shown(viewOf("shot")))
+            compare(shownAll(body, "sdTab").length, 0, "an auto-closing cast draws no tabs to press")
+            verify(shown(one(body, "sdCastHead")), "the cast names its shot in its own head")
+            verify(!shown(one(body, "sdTitle")), "and the body's frame stands down")
         }
 
-        // LIVE, THIS SHOT FOLLOWS THE CAROUSEL. It used to read the selection only in review, so a
-        // live pick of an older swing changed the replay and left THIS SHOT on the newest one.
+        // KEPT: live, This shot follows the carousel — and says WHICH shot by its ordinal (D7).
         function test_07d_aLivePickOfAnOlderSwingIsTheShotRead() {
-            setSource(formingSource(false))
-            body.tab = "shot"
-            probe.readout = reviewReadout()          // shot 9 of 14 — not the newest
-            wait(0)
-            compare(body.reviewing, false, "a live session, not review")
-            verify(shown(one(body, "sdReviewStrip")), "the picked swing is read")
-            verify(!shown(one(body, "sdThisShotStrip")), "not the newest swing's after-shot strip")
-            compare(one(body, "sdReviewStripLabel").text, "SHOT 9 OF 14", "and it says which")
-            verify(!shown(one(body, "sdShotLabel")), "the header's newest-shot label stands down")
-
-            // Picking the newest swing is the after-shot moment, delta and all.
-            const newest = reviewReadout()
-            newest.shotIndex = 13
-            probe.readout = newest
-            wait(0)
-            verify(shown(one(body, "sdThisShotStrip")), "the newest swing keeps the after-shot strip")
-            verify(!shown(one(body, "sdReviewStrip")))
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                probe.readout = null
+                setSource(spied(formingSource(false)))
+                body.tab = "session"
+                probe.readout = reviewReadout()          // shot 9 of 14 — swing id 23 — not the newest
+                laidOut()
+                compare(body.reviewing, false, "a live session, not review")
+                compare(body._tab, "shot", r + ": the picked swing is read")
+                const h = headText(oneShown(viewOf("shot"), "sdShotHead")).toLowerCase()
+                verify(h.indexOf("shot 9 of 14") >= 0, r + ": named by its ordinal: " + h)
+                verify(h.indexOf("23") < 0, r + ": never by its swing id: " + h)
+                verify(!shown(one(body, "sdShotLabel")), r + ": the frame's newest-shot label stands down")
+            }
+            probe.readout = null
         }
 
-        // ── watching + coverage ──────────────────────────────────────────────
+        // ═══════════════════════════ Watching + coverage ═══════════════════════════
 
         function test_08_watchingIsATabOfItsOwn() {
-            setSource(formingSource(false))
-
-            // It never headlines, so it no longer costs the SESSION tab a line.
-            verify(!shown(one(body, "sdWatchingRow")), "not on the session tab")
-            compare(findAll(body, "sdTabNote")[2].text, "2", "the WATCHING tab counts them")
-
-            mouseClick(findAll(body, "sdTab")[2])
+            useRegister("Analyse")
+            setReview(spied(formingSource(false)), newestReadout())
+            compare(tabCount("watching").text, "2", "the tab counts them")
+            mouseClick(tabByKey("watching"))
             laidOut()
             compare(body._tab, "watching")
-            verify(shown(one(body, "sdWatchingRow")), "the rows are the tab")
-            compare(shownAll(body, "sdWatchingItem").length, 2, "unfolded, one per line")
-            verify(!shown(one(body, "sdWatchingLine")), "with no truncating one-liner")
-            verify(!shown(one(body, "sdCardsBody")), "and the session body steps aside")
+            compare(shownAll(viewOf("watching"), "sdBarcodeRow").length, 2, "a barcode row per watched condition")
+            verify(!shown(one(body, "sdSessionView")), "and the session view steps aside")
+
+            // Nothing picked: no run per watched condition to draw, so names and counts — a barcode of
+            // blanks would be a gap, never "not measured".
+            probe.readout = null
+            laidOut()
+            const words = allText(viewOf("watching"))
+            verify(words.indexOf("Lateral sway") >= 0 && words.indexOf("Flat shoulder plane") >= 0, "every watched one is named")
+            compare(shownAll(viewOf("watching"), "sdBarcodeRow").length, 0, "with no barcode of blanks")
+
+            useRegister("Replay")
+            showTab("watching")
+            compare(oneShown(viewOf("watching"), "sdWatchingHead").title, "Two watched", "the glance's head states the count")
 
             // An empty tab says what would be there rather than going blank.
-            const none = formingSource(false)
-            none.watching = []
-            setSource(none)
-            verify(shown(one(body, "sdWatchingEmpty")), "nothing watched is stated, not blank")
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                const none = spied(formingSource(false))
+                none.watching = []
+                setSource(none)
+                showTab("watching")
+                const e = oneShown(viewOf("watching"), "sdWatchingEmpty")
+                verify(plain(e.text).indexOf("Nothing below the pattern gate yet") === 0, r + ": stated, not blank")
+            }
         }
 
+        // KEPT: the coverage line is on the Session view at every stage, in BOTH registers (F39).
         function test_09_coverageIsAlwaysStated() {
-            setSource(formingSource(false))
-
-            const cov = one(body, "sdCoverageLine")
-            verify(cov.visible, "the coverage line is never omitted")
-            verify(cov.text.indexOf("140") >= 0, "and states the whole pack, not the measured few")
-
-            // Established used to tuck it into the LIKELY DRIVER footer; that footer is gone,
-            // so it is its own line at every stage.
-            setSource(establishedSource(true))
-            verify(shown(one(body, "sdCoverageLine")), "stated at Established too")
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                const sources = [coldSource(probe.expectationRows), formingSource(false), establishedSource(true), closingSource()]
+                for (let i = 0; i < sources.length; ++i) {
+                    setSource(spied(sources[i]))
+                    showTab("session")
+                    const cov = oneShown(viewOf("session"), "sdCoverageLine")
+                    verify(plain(cov.text).indexOf("140") >= 0, r + " source " + i + ": the whole pack, not the measured few")
+                }
+            }
         }
 
-        // ── the fit ──────────────────────────────────────────────────────────
+        // ═══════════════════════════ the fit ═══════════════════════════
 
-        function test_10_designSizeIsScaleOneAndAWiderStageScalesUp() {
-            setSource(formingSource(false))
-            fuzzyCompare(body.k, 1.0, 0.001, "1168 x 560 is the design size")
-            compare(body.compact, false)
-
-            probe.width = 2336; probe.height = 1120
-            wait(0)
-            verify(body.k > 1.9, "twice the stage is roughly twice the scale, got " + body.k)
-            verify(body.tzBody > Theme.fontSzBody2, "and the type grew with it")
-
-            probe.width = 1168; probe.height = 560
-            wait(0)
-        }
-
-        // 12c: below the wide arrangement's floor the panel REDUCES rather than shrinking.
+        // KEPT, narrowed: at 396 the panel REDUCES rather than shrinking — every pattern laid out and
+        // reachable by scrolling, the frame's title abbreviated, and nothing ellipsised.
         function test_11_narrowReducesRatherThanShrinking() {
-            setSource(formingSource(false))
-            probe.width = 396; probe.height = 560
-            wait(0)
-
-            compare(body.k, 1.0, "never below the design's own type size")
-            compare(body.compact, true, "the narrow arrangement's reductions are on")
-            compare(one(body, "sdTitle").text, "SESSION DIAG.", "the title abbreviates, never elides")
-            verify(one(body, "sdTabBar").y >= body.px(34),
-                   "the tabs drop to a row of their own under the header's chips")
-
-            // ONE CARD WIDE, and as deep as the panel allows. This used to assert one card and
-            // a "+1 more" tail, which was the single row's answer: it could show one of the two
-            // and had to count the other. The card row is a grid now — it took the height the
-            // chain rail used to — so at 396 x 560 both patterns are simply on screen. Reducing
-            // rather than shrinking is unchanged; there is just less to reduce.
-            compare(body._cardCols, 1, "the narrow arrangement is one card wide")
-            const cards = visibleAll(body, "sdPatternCard")
-            compare(cards.length, 2, "and the column is deep enough for both")
-            verify(cards[0].width <= probe.width, "each fitting the width it was given")
-            verify(!one(body, "sdMoreTail").visible, "nothing is hidden, so nothing is counted")
-
-            // ...and what does not fit on screen is REACHABLE, not counted. Nine conditions in
-            // a 396 column is more than any viewport holds; every one is laid out and the area
-            // flicks to them, which is the behaviour the chain rail's body had and the card grid
-            // briefly lost when it replaced it.
             const many = formingSource(false)
             many.cards = []
             for (let i = 0; i < 9; ++i) {
-                const c = JSON.parse(JSON.stringify(patternCards()[0]))
+                const c = patternCards()[0]
                 c.id = "c" + i
                 c.name = "Condition " + i
+                c.rankText = "#" + (i + 1)
+                c.fresh = false
                 many.cards.push(c)
             }
-            setSource(many)
-            laidOut()
-            compare(visibleAll(body, "sdPatternCard").length, 9,
-                    "every pattern is laid out, not just the ones that fit")
-            const flick = one(body, "sdCardsFlick")
-            verify(flick.contentHeight > flick.height,
-                   "the content is taller than the viewport, so there is something to reach")
-            verify(one(body, "sdMoreTail").visible, "and the panel says the area moves")
-            compare(one(body, "sdMoreTail").text, "scroll for the rest")
-
-            // It actually scrolls, and the last card is reachable at the bottom of the run.
-            flick.contentY = flick.contentHeight - flick.height
-            laidOut()
-            const last = visibleAll(body, "sdPatternCard")[8]
-            const top  = last.mapToItem(flick, 0, 0).y
-            verify(top < flick.height && top + last.height > 0,
-                   "the ninth card is on screen once the area is scrolled to the bottom")
-        }
-
-        // WHOLE ROWS, NEVER A SLICE OF ONE. The panel was showing one row and three quarters —
-        // the second row's cards cut through their trend line, which a reader takes for a
-        // rendering fault rather than for a scroll. The viewport is divided into a whole number
-        // of rows now, so what is on screen is always readable and what is not is one flick
-        // away. This is the assertion that says the arithmetic rounds the right way: at just
-        // under two design heights of room the answer is two tight rows, never one huge one.
-        function test_11b_theViewportHoldsWholeRowsOfCards() {
-            const many = formingSource(false)
-            many.cards = []
-            for (let i = 0; i < 12; ++i) {
-                const c = JSON.parse(JSON.stringify(patternCards()[0]))
-                c.id = "c" + i
-                c.name = "Condition " + i
-                many.cards.push(c)
+            probe.width = 396; probe.height = 560
+            for (const r of ["Analyse", "Replay"]) {
+                useRegister(r)
+                setSource(spied(JSON.parse(JSON.stringify(many))))
+                showTab("session")
+                const v = viewOf("session")
+                const rows = r === "Analyse" ? shownAll(v, "sdSessionRow") : replaySessionItems(v)
+                compare(rows.length, 9, r + ": every pattern is laid out, not just the ones that fit")
+                for (let i = 0; i < rows.length; ++i)
+                    verify(rows[i].mapToItem(v, rows[i].width, 0).x <= v.width + 1, r + ": row " + i + " fits the width")
+                const flick = oneShown(body, "sdCardsFlick")
+                // Analyse's two-line rows overflow 560; Replay's one-line rows may all fit (then the last is
+                // simply on screen). Either way the ninth must be reachable.
+                if (r === "Analyse")
+                    verify(flick.contentHeight > flick.height, r + ": there is something below to reach")
+                if (flick.contentHeight > flick.height)
+                    flick.contentY = flick.contentHeight - flick.height
+                laidOut()
+                const top = rows[8].mapToItem(flick, 0, 0).y
+                verify(top < flick.height && top + rows[8].height > 0, r + ": the ninth is on screen at the bottom of the scroll")
+                const ts = shownTexts(reg())
+                for (let i = 0; i < ts.length; ++i)
+                    verify(ts[i].elide === Text.ElideNone || !ts[i].truncated, r + ": '" + plain(ts[i].text) + "' is not ellipsised")
+                verify(plain(one(body, "sdTitle").text).toLowerCase() === "session diag.", "the title abbreviates, never elides")
             }
-            setSource(many)
-            laidOut()
-
-            const flick = one(body, "sdCardsFlick")
-            const rows  = body._cardRowsVisible
-            compare(body._cardCols, 3, "three columns at the design size")
-            // Three, not two: the SESSION tab no longer shares its height with the shot strip.
-            compare(rows, 3, "and three whole rows of them in the height there is")
-
-            // The rows EXACTLY fill the viewport — no dead strip, no cut row. Integer division
-            // leaves at most a pixel per row.
-            const used = rows * body._cardRowH + (rows - 1) * body._cardGap
-            verify(Math.abs(used - flick.height) <= rows,
-                   "the visible rows fill the viewport (" + used + " vs " + flick.height + ")")
-
-            // The last visible row ends at the fold, and the row after it starts below it —
-            // which is what "no partial row" means when you say it in geometry.
-            const cards = visibleAll(body, "sdPatternCard")
-            compare(cards.length, 12, "every card is still laid out")
-            const lastVisible = cards[rows * body._cardCols - 1]
-            const firstBelow  = cards[rows * body._cardCols]
-            verify(lastVisible.mapToItem(flick, 0, lastVisible.height).y <= flick.height + 1,
-                   "the last visible row ends at or above the fold")
-            verify(firstBelow.mapToItem(flick, 0, 0).y >= flick.height - 1,
-                   "and the next row starts at or below it, never straddling")
-
-            // The squash is bounded by the rounding: a row is never less than two thirds of the
-            // design height, which is where the card's own drop ladder starts shedding prose
-            // rather than clipping it.
-            verify(body._cardRowH >= Math.round(body._cardH * 0.66),
-                   "a row is never squashed past the card's graceful floor, got "
-                   + body._cardRowH + " against " + body._cardH)
         }
 
-        // TWO QUESTIONS, NOT A SCORE. The filter asks whether the pack authors a path from a
-        // condition to the ball, and whether anything in this session's own pattern set causes
-        // it — both facts the model publishes, with the panel deciding only which is being
-        // looked through. What is asserted is that the row answers, that nothing is renumbered
-        // by filtering (a rank is a place in the SESSION's ranking, not in the current view of
-        // it), and that a filter which empties the row says so rather than going blank.
+        // KEPT: two questions, not a score. The filter is the BODY's state (navigation saves it, D8), ranks
+        // are never renumbered, an emptying filter explains which claim it is; the glance never filters.
         function test_11c_theFilterAsksTwoQuestionsAndRenumbersNothing() {
-            setSource(formingSource(false))
+            useRegister("Analyse")
+            const s = spied(formingSource(false))
+            s.cards[0].reachesBall = false; s.cards[0].rootHere = true
+            s.cards[1].reachesBall = true;  s.cards[1].rootHere = false
+            setSource(s)
+            showTab("session")
+            let tools = shownAll(viewOf("session"), "sdFilterTool")
+            compare(tools.map(function (t) { return t.key }).join(","), "all,ball,roots", "All, Reaches the ball, Roots")
+            compare(tools[0].text, "All")
+            verify(tools[0].on, "All is the resting state")
+            compare(shownAll(viewOf("session"), "sdSessionRow").length, 2, "with nothing filtered out")
+
+            mouseClick(tools[1])
             laidOut()
+            compare(body.cardFilter, "ball", "the filter is the body's, so it survives a rebuild")
+            let rows = shownAll(viewOf("session"), "sdSessionRow")
+            compare(rows.length, 1, "only the pattern with an authored path to the ball")
+            compare(rows[0].cardId, "face_roll")
+            compare(one(rows[0], "sdSessionRowRank").text, "2", "THE RANK IS NOT RENUMBERED")
+            tools = shownAll(viewOf("session"), "sdFilterTool")
+            verify(tools[1].on && !tools[0].on, "the tool says which question is open")
+            compare(tabCount("session").text, "1", "the tab's count follows the filter")
 
-            const chips = visibleAll(body, "sdCardFilterChip")
-            compare(chips.length, 3, "ALL, REACHES THE BALL, ROOTS")
-            compare(chips[0].text, "ALL")
-            compare(chips[0].color, Theme.colorAccent, "and ALL is the resting state")
-            compare(visibleAll(body, "sdPatternCard").length, 2, "with nothing filtered out")
-
-            // Card 0 reaches the ball and is a root; card 1 is neither.
-            mouseClick(chips[1])
+            mouseClick(tools[2])
             laidOut()
-            let shownCards = visibleAll(body, "sdPatternCard")
-            compare(shownCards.length, 1, "only the pattern with an authored path to the ball")
-            compare(one(shownCards[0], "sdCardName").text, "Casting")
-            // THE STATE FIRST, THEN THE PAINT. The chip's colour crosses a Behavior, so one
-            // laidOut() after the press it is still mid-animation — chip 0 has not finished
-            // leaving the accent and chip 1 has not arrived. `on` is the claim; tryVerify is how
-            // you assert the paint that follows it without asserting a frame number.
-            compare(visibleAll(body, "sdCardFilterChip")[1].on, true,
-                    "the chip says which question is open")
-            tryVerify(function () {
-                return Qt.colorEqual(visibleAll(body, "sdCardFilterChip")[1].color,
-                                     Theme.colorAccent)
-            }, 2000, "…and the accent arrives on it")
-
-            // THE RANK IS NOT RENUMBERED. Filtering changes what is on screen and not where a
-            // pattern sits in the session — a #1 that became #1 by hiding its rivals would be
-            // the panel flattering the filter.
-            compare(one(shownCards[0], "sdCardRank").text, "#1")
-
-            mouseClick(visibleAll(body, "sdCardFilterChip")[2])
+            rows = shownAll(viewOf("session"), "sdSessionRow")
+            compare(rows.length, 1, "roots only")
+            compare(rows[0].cardId, "casting")
+            mouseClick(shownAll(viewOf("session"), "sdFilterTool")[0])
             laidOut()
-            shownCards = visibleAll(body, "sdPatternCard")
-            compare(shownCards.length, 1, "roots only")
-            compare(one(shownCards[0], "sdCardName").text, "Casting")
+            compare(shownAll(viewOf("session"), "sdSessionRow").length, 2, "All puts them back")
 
-            mouseClick(visibleAll(body, "sdCardFilterChip")[0])
-            laidOut()
-            compare(visibleAll(body, "sdPatternCard").length, 2, "ALL puts them back")
-
-            // A FILTER THAT EMPTIES THE ROW SAYS SO, and says which claim it is making — an
-            // unwritten edge is not the same thing as a harmless fault.
-            const none = formingSource(false)
+            // A FILTER THAT EMPTIES THE LIST SAYS SO, and which claim it is making.
+            const none = spied(formingSource(false))
             none.cards[0].reachesBall = false
             none.cards[1].reachesBall = false
             setSource(none)
+            mouseClick(shownAll(viewOf("session"), "sdFilterTool")[1])
             laidOut()
-            mouseClick(visibleAll(body, "sdCardFilterChip")[1])
-            laidOut()
-            compare(visibleAll(body, "sdPatternCard").length, 0)
-            verify(shown(one(body, "sdCardFilterEmpty")), "the empty row explains itself")
-            verify(one(body, "sdCardFilterEmpty").text.indexOf("what the model has been written") >= 0,
-                   "…and does not let an unwritten edge read as a harmless fault")
+            compare(shownAll(viewOf("session"), "sdSessionRow").length, 0)
+            const e = oneShown(viewOf("session"), "sdCardFilterEmpty")
+            verify(plain(e.text).indexOf("what the model has been written to claim") >= 0,
+                   "an unwritten edge does not read as a harmless fault")
+
+            // A glance shows every pattern: Replay has no filter, whatever the body's is.
+            useRegister("Replay")
+            showTab("session")
+            compare(shownAll(viewOf("session"), "sdFilterTool").length, 0, "no filter on the glance")
+            compare(replaySessionItems(viewOf("session")).length, 2, "and every pattern drawn")
+            body.cardFilter = "all"
         }
 
-        // ── both Studio themes from one layout ───────────────────────────────
-        // Theme reads appSettings once at completion and only writes back after that, so the
-        // theme is set on Theme here. Setting appSettings.themeIndex would change nothing
-        // and the test would assert the same theme twice.
-        function test_12_bothStudioThemes() {
-            setSource(formingSource(false))
-
-            const geometry = []
-            const marks = []
-            // 4 = studio light, 5 = studio dark.
-            for (let t = 4; t <= 5; ++t) {
+        // KEPT, adapted: light and dark of one aesthetic (Folio) — the same geometry, a different warn.
+        function test_12_bothThemesOfOneAesthetic() {
+            useRegister("Analyse")
+            setSource(spied(formingSource(false)))
+            showTab("session")
+            const geometry = [], marks = []
+            for (const t of [12, 13]) {
                 Theme.themeIndex = t
-                // SETTLED, not merely re-bound. A theme change re-runs the whole composition and
-                // the card area takes its height from the layout, so a geometry read one wait(0)
-                // in is a read of the arrangement mid-flight — which is how this test came to
-                // compare 423 against 340 and call it a theme difference.
                 laidOut()
-
-                const cards = visibleAll(body, "sdPatternCard")
-                compare(cards.length, 2, "theme " + t + ": both cards survive")
-                geometry.push(cards[0].width + "x" + Math.round(cards[0].height))
-
-                const ticks = findAll(findAll(cards[0], "sdTickRun")[0], "sdTick")
-                compare(ticks.length, 5, "theme " + t + ": the run is intact")
-                verify(ticks[1].height < ticks[0].height,
-                       "theme " + t + ": not-assessable is still the short one")
-                marks.push("" + ticks[0].color)
-
-                compare(one(body, "sdColdBody").visible, false,
-                        "theme " + t + ": still Forming")
-                verify(one(body, "sdCoverageLine").visible, "theme " + t + ": coverage stated")
+                const rows = shownAll(viewOf("session"), "sdSessionRow")
+                compare(rows.length, 2, "theme " + t + ": both rows")
+                geometry.push(Math.round(rows[0].width) + "x" + Math.round(rows[0].height))
+                const cells = findAll(oneShown(rows[0], "sdShotStrip"), "sdShotCell")
+                compare(cells.length, 5, "theme " + t + ": the strip is intact")
+                verify(marksOf(cells[1]).stub.visible, "theme " + t + ": not measured is still the stub")
+                marks.push(String(marksOf(cells[0]).fired.color))
+                verify(shown(one(viewOf("session"), "sdCoverageLine")), "theme " + t + ": coverage stated")
             }
-
-            compare(geometry[0], geometry[1], "geometry does not depend on the theme")
+            compare(geometry[0], geometry[1], "geometry does not depend on light or dark")
             verify(marks[0] !== marks[1], "but the fired mark does — both themes are real")
-
             Theme.themeIndex = 5
-            wait(0)
         }
 
-        // ── Established: the chain rail ──────────────────────────────────────
+        // ═══════════════════════════ the condition detail (Analyse; Replay never drills, D9) ═══════════════════════════
 
-        function test_14_theDrillInDrawsEveryPathAndOnlyTheEdgesTheModelAuthored() {
-            // The panel opens on the observed faults; the chain is what a card opens INTO.
-            setSource(establishedSource(true))
-            verify(shown(one(body, "sdCardsBody")), "the cards are the body at Established")
-            compare(findAll(body, "sdChainRail").length, 0, "and no rail is drawn beside them")
-
-            railStage()
-
-            const rails = shownAll(body, "sdDetailCauseRail")
-                              .concat(shownAll(body, "sdDetailEffectRail"))
-            compare(rails.length, 4, "two paths in, two out, all four open")
-
-            // Two nodes and one link, three and two, four and three, two and one. An edge is
-            // drawn ONLY where the model published one, so a rail can never join two nodes
-            // because they happened to be adjacent.
-            const counts = []
-            for (let i = 0; i < rails.length; ++i)
-                counts.push(findAll(rails[i], "sdChainNode").length)
-            compare(counts.join(","), "2,3,4,2")
-            compare(visibleAll(body, "sdChainLink").length, 7,
-                    "seven authored edges across the neighbourhood, and no others")
+        function graphs() { return shownAll(viewOf("detail"), "sdCauseGraph") }
+        function graphOf(which) {
+            const gs = graphs().filter(function (g) { return g.which === which })
+            verify(gs.length === 1, "one " + which + " graph on screen")
+            return gs[0]
+        }
+        // A node other than the open condition itself (that one is in both graphs, and takes no click).
+        function nodeById(id) {
+            const gs = graphs()
+            for (let i = 0; i < gs.length; ++i) {
+                const ns = shownAll(gs[i], "sdCauseNode")
+                for (let j = 0; j < ns.length; ++j)
+                    if (ns[j].conditionId === id && !ns[j].isSubject) return ns[j]
+            }
+            return null
+        }
+        function clickNode(n) {
+            intoView(n)
+            mouseClick(n, Theme.sp(20), Theme.sp(6))     // on its name, inside the node's own pick area
+            laidOut()
+        }
+        // What the model authored: the unique node ids and the unique (from, to) pairs across the paths.
+        function authored(paths) {
+            const nodes = {}, edges = {}
+            for (const p of paths) {
+                const ns = p.nodes || []
+                for (let i = 0; i < ns.length; ++i) {
+                    nodes[ns[i].id] = true
+                    if (i + 1 < ns.length) edges[ns[i].id + ">" + ns[i + 1].id] = true
+                }
+            }
+            return { nodes: Object.keys(nodes).length, edges: Object.keys(edges).length }
         }
 
-        // §4.1's table, drawn. The word and the stroke are published together so a surface
-        // cannot pick them independently; this is the half that checks the stroke arrives.
+        // KEPT, rewritten: the detail draws every authored node once and ONLY the edges the model authored
+        // — merged into one graph per side from medium up, as numbered paths below it.
+        function test_14_theDetailDrawsEveryPathAndOnlyTheEdgesTheModelAuthored() {
+            useRegister("Analyse")
+            setSource(spied(establishedSource(true)))
+            showTab("session")
+            compare(shownAll(body, "sdCauseGraph").length, 0, "the session draws no chain: a row opens INTO one")
+
+            setSource(detailSource())
+            const d = detailPayload()
+            const c = authored(d.causes), e = authored(d.effects)
+            compare(shownAll(graphOf("causes"), "sdCauseNode").length, c.nodes, "every cause-side node, once")
+            compare(shownAll(graphOf("causes"), "sdCauseEdge").length, c.edges, "and only the authored edges")
+            compare(shownAll(graphOf("effects"), "sdCauseNode").length, e.nodes)
+            compare(shownAll(graphOf("effects"), "sdCauseEdge").length, e.edges)
+            compare(c.edges + e.edges, 7, "seven authored edges across the neighbourhood, and no others")
+
+            // Below medium the graph CHANGES FORM: the paths, numbered, one per authored path.
+            probe.width = 480
+            laidOut()
+            compare(shownAll(viewOf("detail"), "sdCauseGraph").length, 0, "no squeezed graph")
+            const pc = oneShown(viewOf("detail"), "sdPathChains")
+            compare(shownAll(pc, "sdPathChain").length, d.causes.length + d.effects.length, "every path listed")
+        }
+
+        // NEEDS-NEW-DESIGN → rewritten (D6, F60): the five grades keep FIVE distinct strokes, and the
+        // arrowhead only where the evidence supports a direction — moved together and conditionally
+        // dependent. This is the honesty device of the whole model.
         function test_15_everyLinkGradeGetsItsOwnStroke() {
-            railStage()
+            useRegister("Analyse")
+            setSource(detailSource())
+            const edges = shownAll(viewOf("detail"), "sdCauseEdge")
+            const byGrade = {}
+            for (let i = 0; i < edges.length; ++i) byGrade[edges[i].grade] = edges[i]
+            const want = {
+                movedTogether:          { stroke: "solid",  width: 2.0, arrow: true,  opacity: 1.0, ink: Theme.colorText },
+                conditionallyDependent: { stroke: "solid",  width: 1.5, arrow: true,  opacity: 1.0, ink: Theme.colorText2 },
+                coherent:               { stroke: "dashed", width: 1.5, arrow: false, opacity: 1.0, ink: Theme.colorText2 },
+                presentTogether:        { stroke: "dotted", width: 1.0, arrow: false, opacity: 1.0, ink: Theme.colorText3 },
+                unanchored:             { stroke: "dotted", width: 1.0, arrow: false, opacity: 0.5, ink: Theme.colorText3 }
+            }
+            const signatures = {}
+            for (const g in want) {
+                const e = byGrade[g], w = want[g]
+                verify(!!e, g + " is drawn")
+                compare(e.strokeStyle, w.stroke, g + ": stroke")
+                compare(e.hasArrow, w.arrow, g + (w.arrow ? ": a direction the evidence supports gets a head" : ": no head"))
+                fuzzyCompare(e.st.width, w.width, 0.01, g + ": weight")
+                fuzzyCompare(e.strokeOpacity, w.opacity, 0.01, g + ": opacity")
+                verify(Qt.colorEqual(e.st.color, w.ink), g + ": ink, never the accent and never warn (colour means 'out')")
+                signatures[e.strokeStyle + "|" + e.st.width + "|" + e.strokeOpacity + "|" + e.st.color] = true
+            }
+            compare(Object.keys(signatures).length, 5, "five grades, five different strokes")
+            for (let i = 0; i < edges.length; ++i)
+                verify(!edges[i].hasArrow || edges[i].grade === "movedTogether" || edges[i].grade === "conditionallyDependent",
+                       "an arrowhead only on the two strong grades, never on " + edges[i].grade)
 
-            const moved = linkByGrade("movedTogether")
-            verify(moved, "the moved-together edge is on screen")
-            compare(moved.strokeStyle, "solid")
-            compare(moved.strokeColor, Theme.colorAccent, "accent, and only this grade is")
-            fuzzyCompare(moved.strokeWidth, 2.0, 0.01)
-            compare(moved.hasArrow, true, "a direction the evidence supports gets a head")
-            compare(one(moved, "sdChainLinkWord").text, "Moved together")
-            compare(one(moved, "sdChainLinkNote").text, "baseline 5 · 6 since focus")
-
-            const dep = linkByGrade("conditionallyDependent")
-            compare(dep.strokeStyle, "solid")
-            compare(dep.strokeColor, Theme.colorText2)
-            fuzzyCompare(dep.strokeWidth, 1.5, 0.01)
-            compare(dep.hasArrow, true)
-            verify(one(dep, "sdChainLinkNote").text.indexOf("Fisher exact") >= 0)
-
-            // The three that cannot carry a direction do not get a head, and the stroke is
-            // what says so — which is why 12c can drop the note and keep the claim.
-            const coh = linkByGrade("coherent")
-            compare(coh.strokeStyle, "dashed")
-            compare(coh.strokeColor, Theme.colorText2)
-            fuzzyCompare(coh.strokeWidth, 1.5, 0.01)
-            compare(coh.hasArrow, false, "nothing varied, so nothing was tested")
-            compare(one(coh, "sdChainLinkNote").text, "no variance to test")
-
-            const pres = linkByGrade("presentTogether")
-            compare(pres.strokeStyle, "dotted")
-            compare(pres.strokeColor, Theme.colorText3)
-            fuzzyCompare(pres.strokeWidth, 1.0, 0.01)
-            compare(pres.hasArrow, false)
-            compare(one(pres, "sdChainLinkNote").text, "neither measured")
-
-            const unan = linkByGrade("unanchored")
-            compare(unan.strokeStyle, "dotted")
-            compare(unan.strokeColor, Theme.colorText3)
-            compare(unan.hasArrow, false)
-            fuzzyCompare(unan.opacity, 0.5, 0.01,
-                         "a root nobody has screened is drawn as barely there")
-            compare(one(unan, "sdChainLinkNote").text, "screen would confirm")
+            // The paths' form: one glyph per grade, keyed once, the arrow sentence with it.
+            probe.width = 480
+            laidOut()
+            const pc = oneShown(viewOf("detail"), "sdPathChains")
+            const glyphs = {}
+            for (const g in want) glyphs[pc.linkGlyph(g)] = g
+            compare(Object.keys(glyphs).length, 5, "five grades, five glyphs")
+            const words = shownTexts(pc).map(function (t) { return t.text }).join(" ")
+            for (const gl in glyphs)
+                verify(words.indexOf(gl) >= 0, "the " + glyphs[gl] + " glyph " + gl + " is drawn")
+            verify(plain(words).indexOf("An arrow only where the evidence gives a direction.") >= 0, "and the key says what the arrow means")
         }
 
-        // Chain B is the reason the honesty devices exist (brief §4). Each of the three
-        // non-live kinds says a different thing and none of them borrows the live card.
+        // NEEDS-NEW-DESIGN → rewritten (F56, F59): every kind is drawn as itself — a live reading, a ghost,
+        // a screened root (a REQUEST, never a finding), the declared outcome — and a non-card condition's
+        // page says what kind of thing it is.
         function test_16_ghostScreenedRootAndOutcomeAreEachDrawnAsThemselves() {
-            railStage()
-
-            const live = nodeById("casting")
+            useRegister("Analyse")
+            setSource(detailSource())
+            const live = nodeById("rushed_transition")
             compare(live.kind, "live")
-            compare(one(live, "sdChainNodeName").text, "Casting")
-            compare(one(live, "sdChainNodePill").children[0].text, "FIRED")
-            // The line the Forming card has no data for and the chain card does.
-            compare(one(live, "sdChainNodePhase").text, "downswing · wrist release rate")
-            compare(one(live, "sdChainNodeRecurrence").text, "4 of 6 measurable shots")
-            compare(findAll(one(live, "sdChainNodeRun"), "sdTick").length, 6,
-                    "one tick per shot on the rail too")
-
+            compare(live.mark, "fired", "a live node is its reading")
+            compare(nodeById("shaft_lean").mark, "clean")
             const ghost = nodeById("over_the_top")
             compare(ghost.kind, "ghost")
-            verify(one(ghost, "sdChainGhostFrame").visible,
-                   "dashed, because it is not evidence from this session")
-            verify(ghost.opacity < 1.0, "and dimmed with it")
-            compare(one(ghost, "sdChainNodeMark").text, "ghost · authored as asserted, no measure")
-            verify(!shown(one(ghost, "sdChainNodeRecurrence")),
-                   "a node nobody measured reports no recurrence")
-
-            const screened = nodeById("pelvic_disassociation")
-            compare(screened.kind, "screenedRoot")
-            compare(one(screened, "sdChainNodeMark").text, "screened root · needs a physical screen")
-            verify(shown(one(screened, "sdChainScreenCta")),
-                   "a screened root is drawn as a request, never as a finding")
-
+            compare(ghost.mark, "ghost", "authored, not measured: never a reading")
+            const root = nodeById("pelvic_disassociation")
+            compare(root.kind, "screenedRoot")
+            compare(root.mark, "root")
+            compare(oneShown(root, "sdScreenCta").text, "Run the screen", "a screened root is drawn as a request")
             const outcome = nodeById("slice")
             compare(outcome.kind, "outcome")
-            compare(one(outcome, "sdChainNodeName").text, "Slice")
-            compare(one(outcome, "sdChainNodeMark").text, "declared miss · launch-monitor verified")
-            compare(one(outcome, "sdChainNodeRecurrence").text, "5 of 6 measurable shots")
+            compare(outcome.mark, "outcome", "the declared miss is an outcome, not a fired condition")
+
+            // The honesty mark: the page of a condition that is not a pattern card says what it is.
+            verify(!shown(one(viewOf("detail"), "sdDetailMark")), "a pattern's own page carries no mark")
+            const s = detailSource()
+            s.detail.header.kindText = "ghost"
+            s.detail.header.mark = "authored as asserted, no measure"
+            republish(s)
+            compare(oneShown(viewOf("detail"), "sdDetailMark").text, "ghost · authored as asserted, no measure")
+
+            // The paths' form carries the marks as footnotes, keyed once.
+            probe.width = 480
+            laidOut()
+            const words = allText(oneShown(viewOf("detail"), "sdPathChains"))
+            verify(words.indexOf("screened root, needs a physical screen") >= 0, "the screened root's mark: " + words)
+            verify(words.indexOf("declared miss, launch-monitor verified") >= 0, "and the outcome's")
         }
 
-        // ── the driver footer ────────────────────────────────────────────────
+        // KEPT, narrowed: a measured condition below the gate is a READING, never an absence. A watched
+        // node keeps its kind and draws its reading, and the paths say "measured · not yet a pattern".
+        function test_16b_aMeasuredConditionBelowTheGateIsDrawnAsAReading() {
+            useRegister("Analyse")
+            const s = detailSource()
+            const rail = s.detail.causes[0]
+            rail.nodes[0] = chainNode("hanging_back", "Hanging back", "watched", "measured · not yet a pattern",
+                                      { phase: "downswing", measure: "thorax drift", recurrence: "3 of 7 measurable shots",
+                                        state: "fired", statePill: "FIRED", strengthKnown: true })
+            rail.links[0].from = "hanging_back"
+            setSource(s)
+            const n = nodeById("hanging_back")
+            verify(!!n, "the watched node is drawn")
+            compare(n.kind, "watched")
+            verify(n.mark !== "ghost", "not drawn as an absence")
+            compare(n.mark, "fired", "it is what it read on this shot")
 
+            probe.width = 480
+            laidOut()
+            const pc = oneShown(viewOf("detail"), "sdPathChains")
+            const words = allText(pc)
+            verify(words.indexOf("measured, not yet a pattern") >= 0, "the paths say what is true of it: " + words)
+            verify(words.indexOf("planned") < 0, "and never that its measure is planned")
+        }
 
-
-        // ── 12c: the spine ───────────────────────────────────────────────────
-
-        // 12c's turn, where the rail lives now. The claim is unchanged and it is the rail's
-        // own: at 396 the rail runs top-to-bottom, one path is open and the rest are one line
-        // each, and opening one opens THE SAME rail in place rather than a different view
-        // (brief §8). The detail has always collapsed its non-primary paths exactly so.
-        function test_19_narrowTurnsTheRailAndCollapsesEveryPathButTheFirst() {
+        // KEPT, rewritten: below medium every path is listed, and "Open" expands one IN PLACE (F58) —
+        // node by node, link by link, with the grade's word and the model's note — and closes again.
+        function test_19_narrowListsEveryPathAndOpensOneInPlace() {
+            useRegister("Analyse")
+            probe.width = 480
             setSource(detailSource())
-            probe.width = 396; probe.height = 560
+            const pc = oneShown(viewOf("detail"), "sdPathChains")
+            const causes = shownAll(pc, "sdPathChain").filter(function (c) { return c.which === "causes" })
+            compare(causes.length, 2, "both cause paths listed")
+            const second = causes[1]
+            compare(one(second, "sdPathOpen").open, false, "closed at rest")
+            const h0 = second.height
+            intoView(second)
+            mouseClick(second, second.width / 2, Theme.sp(4))
             laidOut()
-
-            compare(body.compact, true)
-            const rails = shownAll(body, "sdDetailCauseRail")
-                              .concat(shownAll(body, "sdDetailEffectRail"))
-            compare(rails.length, 2, "one path open per side, the rest collapsed")
-            compare(rails[0].vertical, true, "and it is the vertical form")
-            compare(findAll(rails[0], "sdChainNodeDot").length, 2,
-                    "one line per node, mark carried by the dot")
-
-            // The grade survives the collapse because it is carried by the stroke.
-            const moved = linkByGrade("movedTogether")
-            verify(moved, "the graded link survives the turn")
-            compare(moved.vertical, true)
-            compare(moved.strokeColor, Theme.colorAccent)
-            compare(moved.hasArrow, true)
-
-            // The closed paths are one line apiece, and they say what they end in.
-            const frames = shownAll(body, "sdDetailPathFrame")
-            verify(frames.length >= 2, "the non-primary paths are still listed")
-            const toggles = shownAll(body, "sdDetailPathToggle")
-            let closed = 0
-            for (let i = 0; i < toggles.length; ++i)
-                if (toggles[i].text === "OPEN ▸") ++closed
-            compare(closed, 2, "one closed path on each side")
-
-            // Expanding opens THE SAME rail, in place.
-            const d = one(body, "sdDetailBody")
-            d.expandedCause = 1
+            compare(one(second, "sdPathOpen").open, true, "Open expands the path")
+            verify(second.height > h0, "in place, under itself")
+            const words = allText(second)
+            verify(words.indexOf("Present together: neither measured") >= 0, "each link with its grade and note: " + words)
+            verify(words.indexOf("Over the top") >= 0, "each node with its reading")
+            mouseClick(second, second.width / 2, Theme.sp(4))
             laidOut()
-            const openRails = shownAll(body, "sdDetailCauseRail")
-                                  .concat(shownAll(body, "sdDetailEffectRail"))
-            compare(openRails.length, 3, "the second cause path opened where the summary was")
-            compare(openRails[1].vertical, true)
-            compare(findAll(openRails[1], "sdChainNodeDot").length, 3,
-                    "with every node the model authored, and no fewer")
-
-            probe.width = 1168; probe.height = 560
-            wait(0)
+            compare(one(second, "sdPathOpen").open, false, "and closes again")
         }
 
-        // ── review: 13a ──────────────────────────────────────────────────────
+        // NEEDS-NEW-DESIGN → rewritten (F33): the quiet focus link on a session row — shown on hover, and
+        // at rest once focused, with the focused row marked; read back off the model.
+        function test_27_aPatternRowOffersFocusAndSaysWhichStateItIsIn() {
+            useRegister("Analyse")
+            setSource(spied(formingSource(false)))
+            showTab("session")
+            park()
+            let rows = shownAll(viewOf("session"), "sdSessionRow")
+            compare(shownAll(viewOf("session"), "sdSessionRowFocus").length, 0, "quiet at rest")
+            compare(shownAll(viewOf("session"), "sdSessionRowFocusBar").length, 0, "no row marked focused")
+            intoView(rows[0])
+            hoverRow(rows[0])
+            const offer = oneShown(rows[0], "sdSessionRowFocus")
+            compare(offer.text, "Focus", "offered while the pointer is on the row")
+            compare(offer.focused, false)
+            park()
 
-        function test_21_reviewStatesItsTenseInTheHeader() {
-            setReview(reviewSource(), reviewReadout())
+            const s = spied(formingSource(false))
+            s.cards[0].focused = true
+            s.focusConditionId = "casting"
+            setSource(s)
+            park()
+            rows = shownAll(viewOf("session"), "sdSessionRow")
+            const f = oneShown(rows[0], "sdSessionRowFocus")
+            compare(f.text, "Focused · clear", "the focused row says so at rest")
+            verify(f.focused)
+            verify(shown(one(rows[0], "sdSessionRowFocusBar")), "and is marked")
+            compare(shownAll(rows[1], "sdSessionRowFocus").length, 0, "the other offers nothing at rest")
+            verify(!shown(one(rows[1], "sdSessionRowFocusBar")), "and is not marked")
 
-            verify(shown(one(body, "sdReviewBadge")), "the REVIEWING badge is up")
-            verify(!shown(one(body, "sdShotLabel")),
-                   "the badge names the shot, so the shot label does not repeat it")
-            // The review note foots the shot it qualifies...
-            verify(shown(one(body, "sdReviewNote")), "the review note is under the shot")
-            compare(one(body, "sdReviewNote").text,
-                    "final session state · this shot read inside the finished ledger")
-
-            // ...and the count leads the SESSION tab, saying what it counts over — it is a
-            // SESSION total, not this shot's, and the panel does not rewind.
-            body.tab = "session"
-            wait(0)
-            verify(shown(one(body, "sdStageNote")), "the count heads the session tab")
-            compare(one(body, "sdStageNote").text, "4 patterns · counted over all 14 shots")
-
+            useRegister("Replay")
+            showTab("session")
+            verify(headText(oneShown(viewOf("session"), "sdSessionHead")).indexOf("focus: Casting") >= 0,
+                   "the glance names the focus in its head")
         }
 
-        function test_22_reviewWithNoShotSelectedIsStillTheFinishedSession() {
-            // Brief §6: the panel holds the FINAL state, and selection is what enters
-            // shot-reading. Reviewing without a pick is the session's own summary.
-            setReview(reviewSource(), null)
+        // KEPT: the focus link ASKS the model (declareFocus / clearFocus by the model's state), opens
+        // nothing, and the panel waits for the read-back. The detail's own focus toggle does the same.
+        function test_28_theFocusLinkAsksTheModelToDeclareOrClearFocus() {
+            useRegister("Analyse")
+            setSource(spied(formingSource(false)))
+            showTab("session")
+            park()
+            let row = shownAll(viewOf("session"), "sdSessionRow")[0]
+            intoView(row)
+            hoverRow(row)
+            mouseClick(oneShown(row, "sdSessionRowFocus"))
+            laidOut()
+            compare(probe.focusCalls, 1, "the link reached declareFocus")
+            compare(probe.lastFocusId, "casting", "with the row's own condition")
+            compare(probe.clearFocusCalls, 0)
+            compare(probe.detailCalls, 0, "and opened nothing")
+            compare(row.focused, false, "the panel waits for the model rather than assuming")
 
-            verify(shown(one(body, "sdReviewBadge")), "the tense is still stated")
-            verify(!shown(one(body, "sdReviewStrip")),
-                   "but there is no shot to read, so no shot strip")
-            verify(shown(one(body, "sdBookends")), "the session's bookends hold the slot")
+            const s = spied(formingSource(false))
+            s.cards[0].focused = true
+            setSource(s)
+            park()
+            row = shownAll(viewOf("session"), "sdSessionRow")[0]
+            mouseClick(oneShown(row, "sdSessionRowFocus"))
+            laidOut()
+            compare(probe.clearFocusCalls, 1, "a focused row clears")
+            compare(probe.focusCalls, 1, "and does not re-declare")
 
-            // ...and picking one swaps that slot, and only that slot.
-            probe.readout = reviewReadout()
-            wait(0)
-            verify(shown(one(body, "sdReviewStrip")), "the reviewed shot takes the slot")
-            verify(!shown(one(body, "sdBookends")), "the bookends step aside for it")
-            verify(!shown(one(body, "sdThisShotStrip")),
-                   "and the live after-shot strip is not in review at all")
+            // The detail's toggle.
+            setSource(detailSource())
+            const df = oneShown(body, "sdDetailFocus")
+            compare(df.focused, false)
+            mouseClick(df)
+            laidOut()
+            compare(probe.focusCalls, 2, "the detail's focus toggle declares")
+            compare(probe.lastFocusId, "casting")
+            const s2 = detailSource()
+            s2.cards[0].focused = true
+            setSource(s2)
+            const df2 = oneShown(body, "sdDetailFocus")
+            verify(df2.focused, "read back off the model")
+            compare(df2.text, "Focused · clear")
+            mouseClick(df2)
+            laidOut()
+            compare(probe.clearFocusCalls, 2, "and clears")
         }
 
-        function test_23_reviewShowsEveryConditionAndNeverABlankSlot() {
-            setReview(reviewSource(), reviewReadout())
+        // NEEDS-NEW-DESIGN → rewritten (F63-F64): a screened root asks for its SCREEN, never for a page,
+        // with the model's screen reference when the model recommended it; a live node opens its page and
+        // declares nothing. Below medium (no graph) one line lists the screened roots, each a request.
+        function test_29_aScreenedRootAsksForItsScreenNeverForAPage() {
+            useRegister("Analyse")
+            setSource(detailSource())
+            const root = nodeById("pelvic_disassociation")
+            clickNode(root)
+            compare(probe.detailCalls, 0, "a screened root opens no page")
+            compare(probe.screenCalls, 1, "it asks for its screen")
+            compare(probe.lastScreenCondition, "pelvic_disassociation")
+            compare(probe.lastScreenRef, "screen.pelvic_disassociation", "the model's screen, when it recommended this one")
+            compare(probe.focusCalls, 0, "and declares nothing")
 
-            // CHANGED (defect 1): the denominator is the measurable set, not fired+clean. It
-            // has to be, because the grid underneath it draws the measurable set — a headline
-            // that counted a different population from the cells below it reads as a bug.
-            compare(one(body, "sdReviewHeadline").text,
-                    "5 of 9 conditions fired on this swing · 4 of them patterns")
-            // The not-assessable measures are stated SEPARATELY rather than folded into the
-            // denominator, which would turn "we did not look" into "it was fine".
-            compare(one(body, "sdReviewSubline").text,
-                    "2 measures not assessable on this capture")
+            const cta = oneShown(nodeById("pelvic_disassociation"), "sdScreenCta")
+            intoView(cta)
+            mouseClick(cta)
+            laidOut()
+            compare(probe.screenCalls, 2, "its 'Run the screen' asks too")
 
-            // CHANGED (defect 1): eight of the nine are on screen and the ninth — silent here
-            // AND silent all session — is behind the tail line, one press away. Everything is
-            // still published and nothing is a "+3 more"; opening it is what the next test is.
-            const strip = one(body, "sdReviewStrip")
-            strip.tailExpanded = true
-            wait(0)
+            clickNode(nodeById("rushed_transition"))
+            compare(probe.detailCalls, 1, "a live node opens its own page")
+            compare(probe.lastDetailId, "rushed_transition")
+            compare(probe.focusCalls, 0, "and declares nothing either")
 
-            const cells = visibleAll(body, "sdReviewCell")
-            compare(cells.length, 9, "every condition is drawn — nothing is a '+3 more'")
-
-            const marks  = visibleAll(body, "sdReviewCellMark").map(t => t.text)
-            const values = visibleAll(body, "sdReviewCellValue").map(t => t.text)
-            const bands  = visibleAll(body, "sdReviewCellCorridor").map(t => t.text)
-            const tiers  = visibleAll(body, "sdReviewCellTier").map(t => t.text)
-
-            compare(marks.filter(m => m === "OUT").length, 5)
-            compare(marks.filter(m => m === "IN").length, 2)
-            compare(marks.filter(m => m === "—").length, 2, "the third state has its own mark")
-
-            // Neither slot is EVER blank on a cell the capture could not answer: the value
-            // reads "not measurable" and the corridor slot carries the reason.
-            compare(values.filter(v => v === "not measurable").length, 2)
-            verify(bands.indexOf("shaft occluded at P6") >= 0, "the reason is in the band slot")
-            verify(bands.indexOf("ball not tracked") >= 0)
-            for (let i = 0; i < bands.length; ++i)
-                verify(bands[i] !== "", "cell " + i + " states what it was tested against")
-
-            // The true minus survives the trip: it is what makes the reading line up with
-            // the corridor beside it.
-            verify(values.indexOf("−4.4°") >= 0, "U+2212, not a hyphen")
-
-            // The session tier sits beside this shot's read, which is the comparison the
-            // cell exists to make: was this swing typical of the session or not.
-            verify(tiers.indexOf("pattern") >= 0)
-            verify(tiers.indexOf("watching") >= 0)
-            verify(tiers.indexOf("clean all session") >= 0)
-
-            // Dashed on the two, and only the two, the capture could not answer.
-            compare(visibleAll(body, "sdReviewCellDash").length, 2)
-
-            // The design's cell width, at k = 1 on a 1168 panel: five to a row, two rows.
-            compare(cells[0].width, 220)
+            probe.width = 480
+            laidOut()
+            const req = oneShown(viewOf("detail"), "sdScreenRequests")
+            const ctas = shownAll(req, "sdScreenCta")
+            compare(ctas.length, 1, "one request per screened root on the paths")
+            compare(ctas[0].conditionId, "pelvic_disassociation")
+            intoView(ctas[0])
+            mouseClick(ctas[0])
+            laidOut()
+            compare(probe.screenCalls, 3)
+            compare(probe.lastScreenCondition, "pelvic_disassociation")
         }
 
-        // ── defect 1: the strip is a band, and the silence is folded, not hidden ─
-        //
-        // A REAL CAPTURE ANSWERS THIRTY-ONE CONDITIONS AND HAS NOTHING TO SAY ABOUT EIGHTEEN
-        // OF THEM. Drawn flat, in pack order, that is five rows and four fifths of the panel
-        // spent on "not measurable · clean all session" — the finding the golfer opened the
-        // shot to read ends up below the fold, under two dozen cells that say nothing twice.
-        // This is the whole of the fix asserted: order, bound, fold, and open.
-        function test_34_theStripOrdersByInformationAndFoldsTheSilentTail() {
-            setReview(formingReviewSource(), wideReadout())
+        // KEPT, rewritten: EVERY CLICK GOES SOMEWHERE REAL. A row opens its condition (and not focus); a
+        // strip cell puts its shot in the carousel; a watched row opens its condition; a bookend puts its
+        // SHOT in the carousel (F38: the behaviour change); a glance's row opens the condition in Analyse.
+        function test_38_everyClickGoesSomewhereReal() {
+            useRegister("Analyse")
+            setSource(spied(formingSource(false)))
+            showTab("session")
+            park()
+            let row = shownAll(viewOf("session"), "sdSessionRow")[0]
+            clickRow(row)
+            compare(probe.detailCalls, 1, "the row asked for its condition's page")
+            compare(probe.lastDetailId, "casting")
+            compare(probe.focusCalls, 0, "and did not declare focus on the way")
+
+            row = shownAll(viewOf("session"), "sdSessionRow")[0]
+            const cell = findAll(oneShown(row, "sdShotStrip"), "sdShotCell")[2]
+            mouseClick(cell)
             laidOut()
+            compare(probe.lastShotId, 3, "a strip cell asks for its shot")
+            compare(probe.detailCalls, 1, "and opens nothing")
 
-            const strip = one(body, "sdReviewStrip")
+            setReview(spied(formingSource(false)), newestReadout())
+            showTab("watching")
+            const wr = shownAll(viewOf("watching"), "sdBarcodeRow").filter(function (r) { return r.conditionId === "sway" })[0]
+            intoView(wr)
+            mouseClick(wr, 2, wr.height / 2)
+            laidOut()
+            compare(probe.lastDetailId, "sway", "a watched row opens its own condition")
 
-            // ── it is ordered ────────────────────────────────────────────────
-            // Fired first, then clean, then the ones that could not be read here but fired
-            // somewhere this session. Nothing that fired is ever below something that did not.
-            const marks = visibleAll(body, "sdReviewCellMark").map(t => t.text)
-            compare(marks.slice(0, 4).join(""), "OUTOUTOUTOUT", "what fired comes first")
-            compare(marks.slice(4, 6).join(""), "ININ", "then what was read and passed")
-            verify(marks.indexOf("—") > marks.lastIndexOf("IN"),
-                   "and every unread cell is below every read one")
+            probe.readout = null
+            setSource(spied(closingSource()))
+            showTab("session")
+            row = shownAll(viewOf("session"), "sdSessionRow")[1]
+            const worst = oneShown(row, "sdSessionRowWorst")
+            const kids = worst.children
+            let txt = null
+            for (let i = 0; i < kids.length; ++i) if (isText(kids[i])) txt = kids[i]
+            probe.detailCalls = 0
+            intoView(worst)
+            mouseClick(txt)
+            laidOut()
+            compare(probe.lastShotId, 1, "a bookend puts ITS shot in the carousel")
+            compare(probe.detailCalls, 0, "rather than opening its condition")
 
-            // ── it is bounded by its tab ─────────────────────────────────────
-            // The strip used to be a two-row band over the card grid. It has THIS SHOT to
-            // itself now, so the thirteen read cells are all on screen at k = 1 and nothing has
-            // to be flicked to — and it still ends inside the panel.
-            const grid = one(body, "sdReviewGrid")
-            verify(grid.contentHeight <= grid.height + 1,
-                   "every unfolded cell is on screen without scrolling: " + grid.contentHeight
-                   + " in " + grid.height + " (strip " + strip.height + ", max " + strip.maxHeight
-                   + ", body " + body.height + ")")
-            verify(strip.mapToItem(body, 0, strip.height).y <= body.height + 1,
-                   "and the strip ends inside the panel")
-
-            // ── the tail is folded, and it says what it folded ───────────────
-            const tail = one(body, "sdReviewTailSummary")
-            verify(shown(tail), "one dashed line stands in for the silent tail")
-            compare(tail.text, "18 more · clean all session, not measurable on this swing")
-            compare(one(body, "sdReviewTailToggle").text, "SHOW ▸")
-
-            const folded = visibleAll(body, "sdReviewCell").length
-            compare(folded, 13, "the 18 silent-both-ways cells are folded away, the 13 are not")
+            useRegister("Replay")
+            setReview(spied(reviewSource()), reviewReadout())
+            showTab("shot")
+            const dot = shownAll(viewOf("shot"), "sdDotRow")[0]
+            const id = dot.conditionId
+            probe.detailCalls = 0
+            intoView(dot)
+            mouseClick(dot)
+            laidOut()
+            compare(probe.detailCalls, 1, "a glance's row opens its condition")
+            compare(probe.lastDetailId, id)
+            compare(SessionMode.mode, SessionMode.analyse, "and takes the stage to the read")
         }
 
-        function test_35_theTailOpensInPlaceIntoTheSameCells() {
-            setReview(formingReviewSource(), wideReadout())
-            laidOut()
+        // KEPT, rewritten: the page itself — Back and the crumb, the feature head, both headlines in the
+        // model's words, the rival named and not adjudicated; the tabs and the miss chip stand down.
+        function test_39_theDetailDrawsCausesEffectsAndBothHeadlines() {
+            useRegister("Analyse")
+            const s = detailSource()
+            s.stage = "forming"                         // the miss chip would be inviting on the tabs
+            setSource(s)
+            const d = viewOf("detail")
+            compare(shownAll(body, "sdSessionView").length, 0, "the detail is the view")
+            compare(shownAll(body, "sdTab").length, 0, "the tabs stand down over one condition's page")
+            compare(shownAll(body, "sdMissChip").length, 0, "and so does the session's opening question")
+            verify(shown(one(body, "sdDetailBack")), "with a way back")
+            verify(plain(oneShown(body, "sdDetailTitle").text).indexOf("Casting") >= 0, "and the condition named")
+            verify(shown(one(d, "sdFeatureHead")))
+            compare(plain(oneShown(d, "sdDetailCauseHeadline").text),
+                    "Likely driver: Rushed transition — would explain 3 of your patterns.", "a count, never a probability")
+            compare(plain(oneShown(d, "sdDetailOutcomeHeadline").text),
+                    "Most likely outcome: Slice — 5 of 6 measurable shots.")
+            verify(shownAll(d, "sdDetailRival").some(function (t) { return t.text.indexOf("not adjudicated") >= 0 }),
+                   "the rival, named and explicitly not adjudicated")
+            const f = oneShown(body, "sdDetailFlick")
+            const br = f.mapToItem(body, f.width, f.height)
+            verify(br.x <= body.width + 1 && br.y <= body.height + 1, "the page scrolls inside the panel")
 
-            const before = one(body, "sdReviewStrip").height
-            mouseClick(one(body, "sdReviewTailRow"))
+            probe.width = 396
             laidOut()
-
-            compare(one(body, "sdReviewStrip").tailExpanded, true)
-            compare(one(body, "sdReviewTailToggle").text, "HIDE ▾")
-            compare(visibleAll(body, "sdReviewCell").length, 31,
-                    "the same cells, in the same grid — nothing was withheld and nothing is a "
-                    + "different view (§8)")
-            // It OPENS: a press that only lengthened a scroll region would look like nothing
-            // happened at all.
-            verify(one(body, "sdReviewStrip").height > before, "and it opens in place")
-            // ...and it is bounded by the tab: the strip has the THIS SHOT tab to itself now,
-            // so the limit is the panel, not the old two-row band.
-            const st = one(body, "sdReviewStrip")
-            verify(st.mapToItem(body, 0, st.height).y <= body.height + 1,
-                   "the opened strip still ends inside the panel")
-
-            // Closing it puts them back behind the one line.
-            mouseClick(one(body, "sdReviewTailRow"))
-            laidOut()
-            compare(visibleAll(body, "sdReviewCell").length, 13)
+            verify(shown(one(body, "sdDetailBack")), "Back never goes, at any width")
         }
 
-        // ── defect 2: a session that never established never gets a rail ─────
-        //
-        // The panel used to draw the rail whenever a Closing session had chains at all. It
-        // always has chains: extractChains() publishes the authored neighbourhood around every
-        // pattern, ghosts and screened roots included, whether or not the model authors an edge
-        // between the patterns themselves. So a Forming session — two patterns, no edge, the
-        // UNCHAINED line saying exactly that one row below — was closed, reviewed, and drawn as
-        // slim runless node rows over a chain that does not exist, in place of the two full
-        // cards whose tick runs are the entire reason for reading a shot inside a finished
-        // ledger. Design 12a: Forming is "flat cards, no chain".
-        function test_36_aFormingSessionKeepsItsCardsWhenItClosesAndIsReviewed() {
-            setReview(formingReviewSource(), wideReadout())
-            body.tab = "session"
-            laidOut()
-
-            compare(body.header.reachedEstablished, false,
-                    "the recorded stage is Forming, not Closing")
-            verify(!!body.chains && body.chains.length > 0,
-                   "the chains are still published — unread in this composition, not withdrawn")
-
-            verify(shown(one(body, "sdCardsBody")), "the flat card row is the body")
-            compare(findAll(body, "sdChainRail").length, 0, "and no rail is drawn over it")
-
-            // FULL CARDS, WITH THE RUNS. This is what the rail displaced.
-            const cards = visibleAll(body, "sdPatternCard")
-            compare(cards.length, 2, "both patterns get a card of their own")
-            for (let c = 0; c < cards.length; ++c) {
-                const run = findAll(cards[c], "sdTick").filter(t => shown(t))
-                compare(run.length, 6, "card " + c + ": six shots, six ticks")
-                verify(run[0].height >= 6, "card " + c + ": the run is drawn at a readable size")
-                const sel = run.filter(t => t.selected)
-                compare(sel.length, 1, "card " + c + ": the reviewed shot is one wide tick")
-                verify(sel[0].width > run[0].width, "card " + c + ": and it is wider")
-                compare(sel[0].border.width, 1, "card " + c + ": and outlined")
+        // KEPT, rewritten (D8): BACK asks the model to close, and the view it returns to is the view that
+        // was left — the same tab, the same filter, the same scroll (each view is kept alive, never rebuilt).
+        function manyCards(n) {
+            const out = []
+            for (let i = 0; i < n; ++i) {
+                const c = patternCards()[0]
+                c.id = i === 0 ? "casting" : "c" + i
+                c.name = i === 0 ? "Casting" : "Condition " + i
+                c.rankText = "#" + (i + 1)
+                c.fresh = false
+                out.push(c)
             }
-            // The review pill, which is the other half of "this shot, inside the session".
-            const pills = visibleAll(body, "sdStatePill").filter(p => shown(p))
-            compare(pills.length, 2)
-            for (let p = 0; p < pills.length; ++p)
-                compare(pills[p].children[0].text, "FIRED HERE",
-                        "pill " + p + " is in the review tense")
+            return out
+        }
+        function test_40_backRestoresThePlaceUntouched() {
+            useRegister("Analyse")
+            probe.height = 420
+            const s = spied(establishedSource(true))
+            s.cards = manyCards(9)
+            setSource(s)
+            showTab("session")
+            body.watchingExpanded = true
+            mouseClick(shownAll(viewOf("session"), "sdFilterTool")[2])        // Roots
+            laidOut()
+            const flick = oneShown(body, "sdCardsFlick")
+            verify(flick.contentHeight > flick.height, "something to scroll")
+            flick.contentY = Math.min(Theme.sp(60), flick.contentHeight - flick.height)
+            laidOut()
+            const before = { tab: body.tab, filter: body.cardFilter, y: flick.contentY }
 
-            // ...and the slot that used to carry "No chain is drawn: the model authors no edge
-            // between these patterns". That sentence existed to stop a missing RAIL being read
-            // as the model failing to find a chain. No composition draws a rail now, so the
-            // sentence would be describing the layout in the voice reserved for the model —
-            // and the claim it was making is still made, per pattern, on the UNCHAINED row.
+            const open = spied(establishedSource(true))
+            open.cards = s.cards
+            open.detailConditionId = "casting"
+            open.detail = detailPayload()
+            republish(open)
+            verify(shown(viewOf("detail")), "the detail took the view")
+            mouseClick(oneShown(body, "sdDetailBack"))
+            laidOut()
+            compare(probe.closeDetailCalls, 1, "Back asked the model to close")
+
+            // The model answers by clearing detailConditionId; the panel reads it back.
+            const back = spied(establishedSource(true))
+            back.cards = s.cards
+            republish(back)
+            compare(shownAll(body, "sdDetailBody").length, 0, "the page is gone")
+            compare(body.tab, before.tab, "the same tab")
+            compare(body.cardFilter, before.filter, "the same filter")
+            verify(oneShown(body, "sdCardsFlick") === flick, "the same view, never rebuilt")
+            compare(flick.contentY, before.y, "at the same scroll")
+            compare(body.watchingExpanded, true, "and the legacy navigation state untouched")
         }
 
-        // ── defect 3: a finished session is not waiting for anything ─────────
-
-        function test_24_theSelectedShotIsTheWideOutlinedTick() {
-            setReview(reviewSource(), reviewReadout())
-            body.tab = "session"      // the run is on the cards, behind the SESSION tab
-            wait(0)
-
-            // The run is on the card, which is what a reviewed session draws — the same
-            // ticksFor() payload the rail used to carry, and the same rule about it.
-            const card = visibleAll(body, "sdPatternCard")[0]
-            verify(card, "the reviewed session keeps its cards")
-            const run = findAll(card, "sdTick").filter(t => shown(t))
-            compare(run.length, 5, "one tick per shot, and the selection adds none")
-
-            const sel = run.filter(t => t.selected)
-            compare(sel.length, 1, "exactly one selected tick")
-            const other = run.filter(t => !t.selected && !t.notAssessable)[0]
-
-            verify(sel[0].width > other.width, "wider than its neighbours")
-            verify(sel[0].height > other.height, "and taller")
-            compare(sel[0].border.width, 1, "outlined")
-            compare(sel[0].border.color, Theme.colorText,
-                    "in colorText, so it survives being drawn over a fired fill")
-            // ...and NOT recoloured: the tick's colour already means fired/clean, and a
-            // selection that overwrote it would delete the fact it is pointing at.
-            compare(sel[0].color, Theme.colorWarn)
+        // KEPT: a cause node RE-TARGETS the page; there is no stack — Back is one step out.
+        function test_42_openingAConditionFromTheDetailRetargetsInPlace() {
+            useRegister("Analyse")
+            setSource(detailSource())
+            clickNode(nodeById("rushed_transition"))
+            compare(probe.detailCalls, 1, "the cause node asked for its own page")
+            compare(probe.lastDetailId, "rushed_transition")
+            compare(probe.closeDetailCalls, 0, "without closing the one it is on")
+            mouseClick(oneShown(body, "sdDetailBack"))
+            laidOut()
+            compare(probe.closeDetailCalls, 1, "Back is one step out of the detail")
         }
 
-        function test_25_cardsSayWhatHappenedHereAndAfter() {
-            setReview(reviewSource(), reviewReadout())
-            body.tab = "session"      // the run is on the cards, behind the SESSION tab
-            wait(0)
+        // ═══════════════════════════ how far: the figures ═══════════════════════════
 
-            const cards = visibleAll(body, "sdPatternCard")
-            compare(one(cards[0], "sdStatePill").children[0].text, "FIRED HERE",
-                    "the pill is in the review tense")
-            compare(one(cards[0], "sdCardRecency").text, "3 more firings after this shot",
-                    "and the recency slot answers 'was this the end of it, or the middle'")
-            // The session counts are untouched by the selection — the panel does not rewind.
-            compare(one(cards[0], "sdCardRecurrence").text, "4 of 5 measurable shots")
+        // KEPT, narrowed: a row carries its figures — the session median, this shot's reading in the warn
+        // colour when outside, the unit ONCE — and its strip; the charts are the detail's, never a row's.
+        function test_43_aRowShowsItsFiguresAndItsStripNotCharts() {
+            useRegister("Analyse")
+            setSource(spreadSource())
+            showTab("session")
+            let row = shownAll(viewOf("session"), "sdSessionRow")[0]
+            compare(findAll(row, "sdSpreadStrip").length, 0, "no spread chart on a row")
+            compare(findAll(row, "sdRunChart").length, 0, "and no run chart")
+            compare(findAll(oneShown(row, "sdShotStrip"), "sdShotCell").length, 5, "the row keeps its strip")
+            compare(oneShown(row, "sdSessionRowMedian").text, "14", "the session median")
+            compare(oneShown(row, "sdSessionRowShot").text, "15", "this shot's reading")
+            verify(Qt.colorEqual(inkOf(oneShown(row, "sdSessionRowShot")), Theme.colorWarn), "outside, so warn")
+            compare(oneShown(row, "sdSessionRowUnit").text, "% hand rise", "the unit")
+            compare(shownTexts(row).filter(function (t) { return plain(t.text) === "% hand rise" }).length, 1, "once")
 
-            compare(one(cards[1], "sdStatePill").children[0].text, "CLEAN HERE")
-            compare(one(cards[1], "sdCardRecency").text, "no firings after this shot")
+            // An unmeasured shot: "-", never 0, in the quiet ink so it never reads as a clean value.
+            const s2 = spreadSource()
+            s2.cards[0].spread.currentNumber = "-"
+            s2.cards[0].thisShot = "notAssessable"
+            setSource(s2)
+            row = shownAll(viewOf("session"), "sdSessionRow")[0]
+            compare(oneShown(row, "sdSessionRowShot").text, "-", "an unmeasured shot reads '-'")
+            verify(Qt.colorEqual(inkOf(oneShown(row, "sdSessionRowShot")), Theme.colorText3), "in the quiet ink3")
         }
 
-        // ── the carousel's half (brief §6.1) ─────────────────────────────────
+        // KEPT, rewritten: the run — a mark per measured shot, a STUB on the foot for the unmeasured one
+        // (never a gap), round Y labels, higher drawn higher, the picked shot ringed; a click asks for that
+        // swing by its folder.
+        function test_44_theDetailRunKeepsTheStripsPromises() {
+            useRegister("Analyse")
+            setReview(spreadDetailSource(), spreadReadout(3))
+            const fr = oneShown(viewOf("detail"), "sdFigureRow")
+            const rc = oneShown(fr, "sdRunChart")
+            const marks = findAll(rc, "sdRunMark")
+            compare(marks.length, 4, "a mark per measured shot")
+            const stubs = findAll(rc, "sdRunStub").filter(function (s) { return s.visible })
+            compare(stubs.length, 1, "the unmeasured shot is a stub, never a gap")
+            verify(stubs[0].height > 0 && stubs[0].height < rc.height / 4, "a SHORT stub")
+            let lowest = 0
+            for (let i = 0; i < marks.length; ++i) lowest = Math.max(lowest, marks[i].y)
+            verify(stubs[0].y + stubs[0].height >= lowest, "standing on the foot of the run")
+            const ticks = shownAll(fr, "sdRunYTick").map(function (t) { return t.text })
+            verify(ticks.length >= 2, "the run has Y labels: " + ticks.join(" "))
+            for (let i = 0; i < ticks.length; ++i)
+                verify(["0", "10", "20"].indexOf(ticks[i]) >= 0, "round ones: " + ticks[i])
+            function markOf(id) { return marks.filter(function (m) { return m.shotId === id })[0] }
+            verify(markOf(1).y > markOf(4).y, "a higher reading is drawn higher")
+            verify(markOf(4).ringed, "the shot being read is ringed")
+            const sel = one(rc, "sdRunSelected")
+            verify(sel.visible)
+            compare(sel.shotId, 4)
 
+            intoView(markOf(1))
+            mouseClick(markOf(1))
+            laidOut()
+            compare(probe.lastShotDir, "/lib/a/s/swing_0001", "a click on shot 1's mark asks for shot 1 by folder")
+            compare(probe.lastShotId, 1)
+        }
+
+        // KEPT, narrowed: the spread's caption, the run's readout line, and across sessions one column per
+        // session with the current last; no history published, no columns.
+        function test_45_theSpreadAndTheHistoryCaptionThemselves() {
+            useRegister("Analyse")
+            setReview(spreadDetailSource(), spreadReadout(3))
+            const fr = oneShown(viewOf("detail"), "sdFigureRow")
+            compare(plain(oneShown(fr, "sdSpreadCaption").text), spreadFixture().captionShort, "the spread's caption")
+            compare(oneShown(fr, "sdDetailHoverReadout").text, "shot 4 · 13 % hand rise · inside the pass band · fired",
+                    "the run's line reads the picked shot")
+            const hist = oneShown(fr, "sdHistoryStrip")
+            const cols = findAll(hist, "sdHistoryColumn")
+            compare(cols.length, 3, "one column per session")
+            verify(cols[2].current && !cols[0].current, "this session is the last")
+            const meds = findAll(hist, "sdHistoryMedian")
+            verify(meds[0].y < meds[2].y, "an older, higher median is drawn higher")
+            compare(oneShown(fr, "sdHistoryCaption").text, "7 Oct · 13")
+            verify(allText(viewOf("detail")).indexOf("the hands came down further outside the path they went up on") >= 0,
+                   "what 'higher' means is stated")
+
+            const s = spreadDetailSource()
+            s.detail.history = ({})
+            republish(s)
+            compare(findAll(oneShown(viewOf("detail"), "sdFigureRow"), "sdHistoryColumn").length, 0,
+                    "no history published, no columns drawn")
+        }
+
+        // KEPT, rewritten (F53): one hovered shot, lit in every chart, and the run's line READS it; an
+        // unmeasured shot hovered elsewhere reads "-"; leaving restores the picked shot; a hover selects
+        // nothing.
+        function test_47_aHoverLightsTheSameShotEverywhereAndTheLineReadsIt() {
+            useRegister("Analyse")
+            setReview(spreadDetailSource(), spreadReadout(3))
+            const fr = oneShown(viewOf("detail"), "sdFigureRow")
+            const strip = oneShown(fr, "sdSpreadStrip"), rc = oneShown(fr, "sdRunChart")
+            const line = oneShown(fr, "sdDetailHoverReadout")
+            const dot3 = findAll(strip, "sdStripDot").filter(function (d) { return d.shotId === 3 })[0]
+            intoView(dot3)
+            mouseMove(dot3, 0, 0)
+            laidOut()
+            compare(strip.brush.hoveredShot, 3, "the pointer on shot 3's dot hovers shot 3")
+            const mk3 = findAll(rc, "sdRunMark").filter(function (m) { return m.shotId === 3 })[0]
+            verify(mk3.hovered, "lit in the run too")
+            compare(line.text, "shot 3 · 13 % hand rise · inside the pass band · clean", "and the line reads it")
+
+            park()
+            strip.brush.hoverShot(2, true)               // shot 2, hovered on a row's strip or the ruler
+            laidOut()
+            compare(line.text, "shot 2 · - · not measured", "an unmeasured shot reads '-'")
+            strip.brush.hoverShot(2, false)
+            laidOut()
+            compare(line.text, "shot 4 · 13 % hand rise · inside the pass band · fired", "leaving restores the picked shot")
+            compare(probe.shotCalls, 0, "hovering selects nothing")
+        }
+
+        // KEPT, rewritten: a republish (a pick in the carousel, a shot landing) moves every shot-dependent
+        // part of the open page — and a hover in progress SURVIVES it (D8: no demo code runs on a republish).
+        function detailAt(idx, extraShot) {
+            const s = spreadDetailSource()
+            const sp = s.detail.header.spread
+            if (extraShot) {
+                sp.run.push({ index: 5, shotId: 6, swingDir: "/lib/a/s/swing_0006", state: "clean",
+                              assessable: true, fx: 0.95, fy: 0.15, clipped: 0, current: false, selected: false,
+                              valueText: "3 % hand rise", readout: "shot 6 · 3 % hand rise · inside the pass band · clean" })
+                for (let i = 0; i < 5; ++i) sp.run[i].fx = (i + 0.5) / 6
+                sp.dots.push({ index: 5, shotId: 6, swingDir: "/lib/a/s/swing_0006", f: 0.15, clipped: 0, stack: 1,
+                               state: "clean", current: false, recent: true, valueText: "3 % hand rise" })
+                s.detail.header.ticks = ticksOf(["fired", "notAssessable", "clean", "fired", "fired", "clean"])
+            }
+            for (let i = 0; i < sp.run.length; ++i) { sp.run[i].current = i === idx; sp.run[i].selected = i === idx }
+            for (let i = 0; i < sp.dots.length; ++i) sp.dots[i].current = sp.dots[i].index === idx
+            sp.currentReadout = sp.run[idx].readout
+            return s
+        }
+        function test_48_theOpenDetailFollowsTheCurrentShot() {
+            useRegister("Analyse")
+            setReview(detailAt(3, false), spreadReadout(3))
+            function fr() { return oneShown(viewOf("detail"), "sdFigureRow") }
+            function ringedDot() {
+                const ds = findAll(oneShown(fr(), "sdSpreadStrip"), "sdStripDot").filter(function (d) { return d.ringed })
+                return ds.length === 1 ? ds[0].shotId : -1
+            }
+            function check(idx, tag) {
+                verify(shown(viewOf("detail")), tag + ": the detail is still open")
+                const sel = one(oneShown(fr(), "sdRunChart"), "sdRunSelected")
+                const measured = idx !== 1
+                compare(sel.visible, measured, tag + ": the run's picked mark")
+                if (measured) compare(sel.shotId, idx + 1, tag + ": on the right shot")
+                compare(ringedDot(), measured ? idx + 1 : -1, tag + ": the spread's ringed dot")
+            }
+            check(3, "shot 4 picked")
+            republish(detailAt(2, false), spreadReadout(2))
+            check(2, "shot 3 picked")
+            compare(oneShown(fr(), "sdDetailHoverReadout").text, "shot 3 · 13 % hand rise · inside the pass band · clean",
+                    "the line follows the pick")
+            republish(detailAt(1, false), spreadReadout(1))
+            check(1, "the unmeasured shot picked")
+
+            // A HOVER IN PROGRESS survives a republish.
+            republish(detailAt(3, false), spreadReadout(3))
+            const strip = oneShown(fr(), "sdSpreadStrip")
+            const dot3 = findAll(strip, "sdStripDot").filter(function (d) { return d.shotId === 3 })[0]
+            intoView(dot3)
+            mouseMove(dot3, 0, 0)
+            laidOut()
+            compare(strip.brush.hoveredShot, 3, "hovering shot 3")
+            republish(detailAt(0, false), spreadReadout(0))
+            compare(oneShown(fr(), "sdSpreadStrip").brush.hoveredShot, 3, "the hover survives the shot changing under it")
+            compare(oneShown(fr(), "sdDetailHoverReadout").text, "shot 3 · 13 % hand rise · inside the pass band · clean",
+                    "and the line still reads it")
+            park()
+
+            // LIVE: a sixth shot lands and the page, following the newest, moves onto it.
+            republish(detailAt(5, true), spreadReadout(5))
+            compare(findAll(oneShown(fr(), "sdRunChart"), "sdRunMark").length, 5, "the run grows by one")
+            compare(findAll(oneShown(fr(), "sdSpreadStrip"), "sdStripDot").length, 5, "and the spread by its dot")
+            compare(one(oneShown(fr(), "sdRunChart"), "sdRunSelected").shotId, 6, "on the new shot")
+            compare(oneShown(fr(), "sdDetailHoverReadout").text, "shot 6 · 3 % hand rise · inside the pass band · clean")
+        }
+
+        // ═══════════════════════════ review (13a) ═══════════════════════════
+
+        // KEPT: review states its tense — the badge on the frame, the review note (on the tab row, or at
+        // the foot of the view), and the session count heads Session.
+        function test_21_reviewStatesItsTense() {
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                setReview(spied(reviewSource()), reviewReadout())
+                verify(shown(one(body, "sdReviewBadge")), r + ": the reviewing badge is up")
+                verify(body.cardAside.toLowerCase().indexOf("reviewing") >= 0, r + ": and in the stage card's aside")
+                verify(!shown(one(body, "sdShotLabel")), r + ": the badge names the shot, so the label does not repeat it")
+                showTab("shot")
+                const notes = shownAll(body, "sdReviewNote").map(function (n) { return plain(n.text).toLowerCase() })
+                verify(notes.some(function (t) { return t.indexOf("final session state") === 0 }),
+                       r + ": the review note is stated: " + notes.join(" / "))
+                showTab("session")
+                verify(headText(oneShown(viewOf("session"), "sdSessionHead")).indexOf("14 shots") >= 0,
+                       r + ": the session count says what it counts over")
+            }
+        }
+
+        // KEPT, rewritten: review with nothing picked is the finished session — This shot says to pick one
+        // in the carousel (F19, the review tense), the rows keep their bookends; a pick swaps only This shot.
+        function test_22_reviewWithNoShotSelectedIsStillTheFinishedSession() {
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                body.tab = "session"                    // the previous register's pick left the reader on This shot
+                setReview(spied(reviewSource()), null)
+                verify(shown(one(body, "sdReviewBadge")), r + ": the tense is still stated")
+                compare(body._tab, "session", r + ": review rests on the session")
+                showTab("shot")
+                const e = oneShown(viewOf("shot"), "sdShotEmpty")
+                verify(allText(e).indexOf("Pick a shot in the carousel to read it here.") >= 0, r + ": " + allText(e))
+                verify(allText(e).toLowerCase().indexOf("next swing") < 0, r + ": no swing is coming in review")
+                compare(shownAll(viewOf("shot"), "sdDotRow").length, 0)
+                if (r === "Analyse") {
+                    showTab("session")
+                    compare(oneShown(shownAll(viewOf("session"), "sdSessionRow")[0], "sdSessionRowTypical").text, "7",
+                            "the finished session's bookends hold their place")
+                }
+                probe.readout = reviewReadout()
+                laidOut()
+                compare(body._tab, "shot", r + ": the pick opens This shot")
+                verify(shownAll(viewOf("shot"), "sdDotRow").length > 0, r + ": and reads it")
+                verify(!shown(one(viewOf("shot"), "sdShotEmpty")))
+            }
+        }
+
+        // KEPT, rewritten: every condition measured on the shot is on the plot; the ones the capture could
+        // not answer are NAMED with their reasons; the true minus survives; the session tier is beside each.
+        // (And old test_34's surviving claim: in the glance, what fired comes first.)
+        function test_23_reviewReadsEveryConditionAndNeverABlankSlot() {
+            useRegister("Analyse")
+            setReview(spied(reviewSource()), reviewReadout())
+            showTab("shot")
+            const v = viewOf("shot")
+            const dots = shownAll(v, "sdDotRow")
+            compare(dots.length, 7, "every measured condition on one scale")
+            compare(dots.filter(function (d) { return d.stateKind === "fired" }).length, 5)
+            compare(dots.filter(function (d) { return d.stateKind === "clean" }).length, 2)
+            const tiers = dots.map(function (d) { return d.tierTag })
+            verify(tiers.indexOf("pattern") >= 0 && tiers.indexOf("watching") >= 0, "the session tier beside the read")
+            const nm = plain(oneShown(v, "sdNotMeasuredNote").text)
+            verify(nm.indexOf("X-factor — ball not tracked") >= 0, "the unmeasured are named with the reason: " + nm)
+            verify(nm.indexOf("Head height Δ — shaft occluded at P6") >= 0)
+            const casting = shownAll(v, "sdFiredRow").filter(function (r) { return r.conditionId === "casting" })[0]
+            compare(oneShown(casting, "sdFiredRowValue").text, "−4.4", "U+2212, not a hyphen")
+            const tierCells = shownAll(v, "sdFiredRowTier").map(function (t) { return t.text })
+            verify(tierCells.indexOf("pattern") >= 0 && tierCells.indexOf("watching") >= 0, "the ledger's tier column")
+
+            useRegister("Replay")
+            showTab("shot")
+            const order = shownAll(viewOf("shot"), "sdDotRow").map(function (d) { return d.stateKind })
+            verify(order.length >= 5, "the glance draws at least the firings")
+            const firstClean = order.indexOf("clean")
+            verify(firstClean < 0 || order.lastIndexOf("fired") < firstClean, "what fired comes first: " + order.join(","))
+            compare(order.indexOf("notAssessable"), -1, "the unmeasured are counted, not plotted")
+            verify(plain(oneShown(viewOf("shot"), "sdQuietCount").text).indexOf("2 not measurable") >= 0,
+                   "and the count is there")
+        }
+
+        // KEPT, rewritten: the reviewed shot is ONE picked cell per strip, its bar not recoloured, and the
+        // pick a column down the ledger at exactly that shot.
+        function test_24_theSelectedShotIsThePickColumn() {
+            useRegister("Analyse")
+            setReview(spied(formingReviewSource()), sixShotReadout())
+            showTab("session")
+            const table = oneShown(viewOf("session"), "sdSessionTable")
+            const rows = shownAll(table, "sdSessionRow")
+            const cells = findAll(oneShown(rows[0], "sdShotStrip"), "sdShotCell")
+            const picked = cells.filter(function (c) { return c.picked })
+            compare(picked.length, 1, "exactly one picked cell")
+            compare(picked[0].shotId, 6, "the reviewed shot")
+            verify(Qt.colorEqual(marksOf(picked[0]).fired.color, Theme.colorWarn),
+                   "not recoloured: the bar still says it fired")
+            const col = one(table, "sdPickColumn")
+            verify(col.visible, "the pick is a column through the table")
+            verify(Math.abs(col.x - picked[0].mapToItem(table, 0, 0).x) <= 1, "at that shot's x")
+        }
+
+        // KEPT: the review tense on the rows ("3 more firings after this shot") and, live, the recency
+        // (F29); the session counts untouched by the selection.
+        function test_25_rowsSayWhatHappenedHereAndAfter() {
+            useRegister("Analyse")
+            setReview(spied(reviewSource()), reviewReadout())
+            showTab("session")
+            let rows = shownAll(viewOf("session"), "sdSessionRow")
+            verify(one(rows[0], "sdSessionRowLine2").text.indexOf("3 more firings after this shot") >= 0,
+                   "was this the end of it, or the middle")
+            verify(one(rows[1], "sdSessionRowLine2").text.indexOf("No firings after this shot") >= 0)
+            compare(one(rows[0], "sdSessionRowFired").text, "4/5", "the session count, untouched by the selection")
+
+            probe.readout = null
+            setSource(spied(formingSource(false)))
+            rows = shownAll(viewOf("session"), "sdSessionRow")
+            verify(one(rows[1], "sdSessionRowLine2").text.indexOf("Last fired 1 measurable shots ago") >= 0,
+                   "live, the recency: " + one(rows[1], "sdSessionRowLine2").text)
+        }
+
+        // KEPT unchanged: the carousel's pip row (outside the panel).
         function test_26_thePipRowIsTheSwingsWholeReadAtCarouselSize() {
             probe.pipFixture = [
                 { id: "a", state: "fired" }, { id: "b", state: "clean" },
@@ -2063,901 +2218,650 @@ Item {
             ]
             probe.pipFired = 4
             wait(0)
-
             const pips = findAll(pipProbe, "sdPip")
             compare(pips.length, 9, "one pip per tracked condition, and never a gap")
-
             const fired = pips.filter(p => p.fired)
             const na    = pips.filter(p => p.notAssessable)
             compare(fired.length, 4)
             compare(na.length, 2)
             compare(fired[0].color, Theme.colorWarn)
             compare(pips[1].color, Theme.colorGood)
-
-            // Same third state as the tick run: shorter and outlined, never left out — two
-            // shots with different unmeasured sets must not read as the same swing.
             verify(na[0].height < fired[0].height, "the unmeasured pip is shorter")
             compare(na[0].border.width, 1, "and outlined rather than filled")
-
-            // The count is the severity, in the app's three grading colours.
             const count = one(pipProbe, "sdPipCount")
             compare(count.text, "4 fired")
             compare(count.color, Theme.colorWarn)
-
             probe.pipFired = 0
             wait(0)
             compare(count.color, Theme.colorGood, "a swing that fired nothing says so in green")
         }
 
-        // A MEASURED CONDITION BELOW THE GATE IS NOT AN ABSENCE, and this is the regression
-        // test for the day it was drawn as one. Hanging back read on seven shots out of seven
-        // and fired on three; reverse pivot read on seven and fired on none. Both came back
-        // from chainNodeKind() as ghosts, so the panel drew a dashed blank and told the golfer
-        // their measure was planned — about the two things on the rail it had measured most.
-        function test_16b_aMeasuredConditionBelowTheGateIsDrawnAsAReading() {
-            const src = detailSource()
-            // The pack authors a live measure, the capture answered it every time, and the
-            // evidence does not reach the pattern gate. That is a `watched` node.
-            const rail = src.detail.causes[0]
-            rail.nodes[0] = chainNode("hanging_back", "Hanging back", "watched",
-                                      "measured · not yet a pattern",
-                                      { phase: "downswing · thorax drift",
-                                        recurrence: "3 of 7 measurable shots",
-                                        state: "fired", statePill: "FIRED",
-                                        strengthKnown: true, strength: 4,
-                                        strengthText: "4 of 5 · well outside the corridor",
-                                        ticks: [tick("fired"), tick("clean"), tick("fired"),
-                                                tick("clean"), tick("clean"), tick("clean"),
-                                                tick("fired")] })
-            rail.links = []
-            setSource(src)
-            laidOut()
-
-            const node = nodeById("hanging_back")
-            verify(node, "the watched node is drawn")
-            compare(node.kind, "watched")
-
-            // It keeps everything a reading has.
-            compare(one(node, "sdChainNodeRecurrence").text, "3 of 7 measurable shots",
-                    "its count is shown, because it has one")
-            compare(findAll(one(node, "sdChainNodeRun"), "sdTick").length, 7,
-                    "one tick per shot, exactly as a live node")
-            compare(one(node, "sdChainNodePill").children[0].text, "FIRED",
-                    "and what it did on this swing")
-            verify(shown(one(node, "sdChainNodeStrength")), "including how far out it was")
-
-            // ...and it is NOT drawn as an absence.
-            verify(!one(node, "sdChainGhostFrame").visible,
-                   "not dashed — a dashed frame means no evidence from this session")
-            verify(one(node, "sdChainNodeMark").text.indexOf("planned") < 0,
-                   "and it never claims its measure is planned")
-            compare(one(node, "sdChainNodeMark").text, "measured · not yet a pattern",
-                    "it says what is actually true of it")
-        }
-
-        // ── the focus contract (design §A6) ──────────────────────────────────
-
-        // The affordance has to be VISIBLE to be a contract anybody enters, and it has to say
-        // which of the two states it is in — a tag that read the same focused and unfocused
-        // would make the accent bar the only evidence, and the bar is easy to miss on a card
-        // that is already coloured by its state pill.
-        function test_27_aPatternCardOffersFocusAndSaysWhichStateItIsIn() {
-            setSource(spied(formingSource(false)))
-
-            const cards = visibleAll(body, "sdPatternCard")
-            compare(cards.length, 2)
-            compare(one(cards[0], "sdCardFocusTag").text, "FOCUS \u25B8")
-            compare(cards[0].focused, false)
-            verify(!shown(one(cards[0], "sdCardFocusBar")),
-                   "an unfocused card carries no accent bar")
-
-            // ...and the read-back is the MODEL'S `focused`, not a click this file remembers.
-            const s = spied(formingSource(false))
-            s.cards[0].focused = true
-            setSource(s)
-            const focusedCards = visibleAll(body, "sdPatternCard")
-            compare(focusedCards[0].focused, true)
-            compare(one(focusedCards[0], "sdCardFocusTag").text, "FOCUSED \u00B7")
-            verify(shown(one(focusedCards[0], "sdCardFocusBar")),
-                   "the focused card takes the accent bar")
-            verify(!shown(one(focusedCards[1], "sdCardFocusBar")),
-                   "and it is the only one that does")
-        }
-
-        // Tapping ASKS the model. Nothing in the panel is toggled here — declareFocus() records
-        // a split at the current shot count and only the model can do that, so a body that
-        // flipped its own flag would be showing a contract the ledger has not entered.
-        //
-        // CHANGED WITH THE DRILL-IN: the focus target is the CHIP and only the chip. The whole
-        // card now opens the condition (test_38), and two verbs cannot share one hit target.
-        function test_28_tappingAPatternCardsFocusChipAsksTheModelToDeclareOrClearFocus() {
-            setSource(spied(formingSource(false)))
-
-            laidOut()
-            const cards = visibleAll(body, "sdPatternCard")
-            mouseClick(one(cards[0], "sdCardFocusTag"))
-            wait(0)
-            compare(probe.focusCalls, 1, "the tap reached declareFocus")
-            compare(probe.lastFocusId, "casting", "with the card's own condition id")
-            compare(probe.clearFocusCalls, 0)
-            // The card did not move on its own: `focused` is still what the fixture publishes.
-            compare(cards[0].focused, false,
-                    "the panel waits for the model rather than assuming")
-
-            // A card the model reports as focused clears instead — one affordance, two verbs,
-            // chosen by the state the model is in.
-            const s = spied(formingSource(false))
-            s.cards[0].focused = true
-            setSource(s)
-            laidOut()
-            mouseClick(one(visibleAll(body, "sdPatternCard")[0], "sdCardFocusTag"))
-            wait(0)
-            compare(probe.clearFocusCalls, 1, "the focused card clears")
-            compare(probe.focusCalls, 1, "and does not re-declare")
-        }
-
-        // The rail's live nodes carry the same contract in the same words. The three that are
-        // not live do not: a ghost, a screened root and the declared outcome are things the
-        // panel reports ABOUT, and a session cannot be run at one.
-        function test_29_onlyLiveChainNodesOfferTheFocusContract() {
-            setSource(spied(detailSource()))
-            const d = one(body, "sdDetailBody")
-            d.expandedCause = 1
-            d.expandedEffect = 1
-            laidOut()
-
-            const live = nodeById("casting")
-            verify(shown(one(live, "sdChainNodeFocusTag")), "a live node offers focus")
-            // The CHIP, and only the chip — the rest of the node opens the condition (test_38).
-            mouseClick(one(live, "sdChainNodeFocusTag"))
-            wait(0)
-            compare(probe.focusCalls, 1)
-            compare(probe.lastFocusId, "casting")
-
-            verify(!shown(one(nodeById("over_the_top"), "sdChainNodeFocusTag")),
-                   "a ghost does not")
-            verify(!shown(one(nodeById("slice"), "sdChainNodeFocusTag")),
-                   "and neither does the declared outcome")
-
-            // The screened root's tap is still its OWN — the two never collide because a
-            // screened root is not live.
-            probe.focusCalls = 0
-            intoView(nodeById("pelvic_disassociation"))
-            mouseClick(nodeById("pelvic_disassociation"))
-            wait(0)
-            compare(probe.focusCalls, 0, "a screened root does not declare focus")
-            compare(probe.lastScreenCondition, "pelvic_disassociation",
-                    "it asks for its screen, as it always did")
-        }
-
-        // ── the declared miss (design §A6) ───────────────────────────────────
-
-        function test_30_theMissChipInvitesInColdAndFormingAndReportsOnceDeclared() {
-            setSource(spied(coldSource(probe.expectationRows)))
-            verify(shown(one(body, "sdMissChip")), "Cold asks the opening question")
-
-            setSource(spied(formingSource(false)))
-            verify(shown(one(body, "sdMissChip")), "so does Forming")
-            compare(one(body, "sdMissChip").children[0].text, "DECLARE MISS \u25B8")
-
-            // Past Forming the INVITATION stands down — there is a picture to read by then and
-            // the panel stops asking for one.
-            setSource(spied(establishedSource(true)))
-            verify(!shown(one(body, "sdMissChip")),
-                   "Established does not ask again")
-
-            // ...but a declaration is a fact about the session and does not expire with the
-            // stage that took it, so the chip reports it at any stage.
-            const s = spied(establishedSource(true))
-            s.declaredMiss = "slice"
-            s.declaredMissName = "Slice"
-            setSource(s)
-            verify(shown(one(body, "sdMissChip")), "a declared miss is always reported")
-            verify(one(body, "sdMissChip").children[0].text.indexOf("Slice") >= 0,
-                   "by name, not by id")
-        }
-
-        // The picker is the PACK'S outcome layer, fetched through the model. Nothing about
-        // "slice, hook, thin" is written in the QML, which is what stops the list going stale
-        // the first time the pack gains an outcome.
-        function test_31_theMissPickerListsTheModelsCandidatesAndDeclaresOne() {
-            setSource(spied(formingSource(false)))
-            laidOut()
-
-            verify(!shown(one(body, "sdMissPicker")), "closed until asked for")
-            mouseClick(one(body, "sdMissChip"))
-            laidOut()
-            verify(shown(one(body, "sdMissPicker")), "the chip opens it")
-
-            const rows = visibleAll(body, "sdMissCandidate")
-            compare(rows.length, 3, "one row per outcome the model offers")
-            verify(one(body, "sdMissPickerLabel").text.indexOf("BAD SHOT") >= 0,
-                   "and it states the question it is asking")
-
-            mouseClick(rows[1])
-            wait(0)
-            compare(probe.missCalls, 1)
-            compare(probe.lastMissId, "hook", "the row's own id, not its label")
-            verify(!shown(one(body, "sdMissPicker")), "answering closes it")
-
-            // Withdrawing is the same verb with an empty id — the model treats "" as a clear,
-            // so there is no second call to keep in step. Offered only once there is one.
-            const s = spied(formingSource(false))
-            s.declaredMiss = "hook"
-            s.declaredMissName = "Hook"
-            setSource(s)
-            laidOut()
-            mouseClick(one(body, "sdMissChip"))
-            laidOut()
-            const clear = one(body, "sdMissClear")
-            verify(shown(clear), "a declared miss can be withdrawn")
-            mouseClick(clear)
-            wait(0)
-            compare(probe.lastMissId, "", "declareMiss('') is the clear")
-        }
-
-        // ── the after-shot pulse (§B3, §B8) ──────────────────────────────────
-
-        function test_32_thePulseRunsOnWhatFiredAndLeadsWithTheFocusedNode() {
-            const s = spied(formingSource(false))
-            s.afterShotDelta.fired = ["face_roll", "casting"]
-            s.afterShotDelta.focusId = "casting"
-            s.cards[0].focused = true          // casting
-            setSource(s)
-
-            const cards = visibleAll(body, "sdPatternCard")
-            compare(cards[0].pulsing, false, "nothing is pulsing before a shot lands")
-
-            body.pulseAfterShot()
-            verify(!!body.pulseCue, "a cue was published")
-            // The focused node leads: its marker is the headline of the moment, and leading
-            // the stagger is how the sweep says so without a second mark.
-            compare(body.pulseCue.ids[0], "casting")
-            compare(body.pulseCue.ids.length, 2)
-            verify(cards[0].pulsing, "the leading card is already moving")
-
-            // ...and a condition that did NOT fire on this shot does not move at all.
-            const s2 = spied(formingSource(false))
-            s2.afterShotDelta.fired = ["casting"]
-            setSource(s2)
-            body.pulseAfterShot()
-            const only = visibleAll(body, "sdPatternCard")
-            verify(only[0].pulsing, "the one that fired pulses")
-            compare(only[1].pulsing, false, "the one that did not stays put")
-        }
-
-        // reduceMotion is NO pulse, not a shorter one — and no stagger either, so there is
-        // nothing queued to happen later. The card still redraws with its new pill, its new
-        // tick and its NEW tag: the state change was never carried by the animation.
-        function test_33_thePulseHonoursReduceMotion() {
-            const s = spied(formingSource(false))
-            s.afterShotDelta.fired = ["casting", "face_roll"]
-            setSource(s)
-
-            Theme.reduceMotion = true
-            wait(0)
-            body.pulseAfterShot()
-
-            const cards = visibleAll(body, "sdPatternCard")
-            for (let i = 0; i < cards.length; ++i) {
-                compare(cards[i].pulsing, false,
-                        "card " + i + ": no animation is running under reduceMotion")
-                compare(cards[i]._pulseT, 0.0, "card " + i + ": and nothing was displaced")
+        // KEPT: a session that never established is reviewed as flat rows with their full runs — no chain
+        // drawn over them — and the reviewed shot one picked cell in each.
+        function test_36_aFormingSessionKeepsItsRowsWhenItClosesAndIsReviewed() {
+            useRegister("Analyse")
+            setReview(spied(formingReviewSource()), sixShotReadout())
+            showTab("session")
+            compare(body.header.reachedEstablished, false, "the recorded stage is Forming")
+            compare(shownAll(body, "sdCauseGraph").length + shownAll(body, "sdPathChains").length, 0, "no chain drawn")
+            const rows = shownAll(viewOf("session"), "sdSessionRow")
+            compare(rows.length, 2, "both patterns get a row")
+            for (let i = 0; i < rows.length; ++i) {
+                const cells = findAll(oneShown(rows[i], "sdShotStrip"), "sdShotCell")
+                compare(cells.length, 6, "row " + i + ": six shots, six cells")
+                verify(cells[0].height >= 6, "row " + i + ": drawn at a readable size")
+                compare(cells.filter(function (c) { return c.picked }).length, 1, "row " + i + ": the reviewed shot picked")
             }
-            // Nothing was merely DEFERRED either: a stagger would show up here.
-            wait(50)
-            for (let i = 0; i < cards.length; ++i)
-                compare(cards[i].pulsing, false, "card " + i + ": nothing started late")
-
-            Theme.reduceMotion = false
-            wait(0)
         }
 
-        // ── the condition detail (user request; brief §9 has no design) ──────
-        //
-        // THE TAP REASSIGNMENT IS THE PART THAT COULD SILENTLY BREAK. The card used to declare
-        // focus and now opens a page; the chip used to be decoration and is now the only focus
-        // target. Both halves are asserted here, and the second half is asserted NEGATIVELY —
-        // a focus tap that also opened the detail would look like a working panel and would
-        // make the contract undeclarable.
-        function test_38_theCardOpensTheConditionAndTheChipStillOnlyDeclaresFocus() {
+        // ═══════════════════════════ the declared miss (F66-F67) ═══════════════════════════
+
+        // NEEDS-NEW-DESIGN → rewritten: a quiet link at the right of the tab row — it invites in Cold and
+        // Forming, stands down from Established, reports a declaration by name at any stage, stands down on
+        // the detail and on the cast, and never invites on a surface nobody can press.
+        function test_30_theMissChipInvitesInColdAndFormingAndReportsOnceDeclared() {
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                setSource(spied(coldSource(probe.expectationRows)))
+                compare(plain(oneShown(body, "sdMissChip").text), "Declare miss", r + ": Cold asks the opening question")
+                setSource(spied(formingSource(false)))
+                compare(plain(oneShown(body, "sdMissChip").text), "Declare miss", r + ": so does Forming")
+                setSource(spied(establishedSource(true)))
+                compare(shownAll(body, "sdMissChip").length, 0, r + ": Established does not ask again")
+                const s = spied(establishedSource(true))
+                s.declaredMiss = "slice"
+                s.declaredMissName = "Slice"
+                setSource(s)
+                compare(plain(oneShown(body, "sdMissChip").text), "Miss: Slice", r + ": a declaration is reported, by name")
+                body.interactive = false
+                setSource(spied(formingSource(false)))
+                compare(shownAll(body, "sdMissChip").length, 0, r + ": no invitation on a surface nobody can press")
+                body.interactive = true
+            }
+            useRegister("Analyse")
+            const d = detailSource()
+            d.stage = "forming"
+            setSource(d)
+            compare(shownAll(body, "sdMissChip").length, 0, "it stands down over one condition's page")
+            body.surface = "cast"
             setSource(spied(formingSource(false)))
-            laidOut()
+            compare(shownAll(body, "sdMissChip").length, 0, "and on the cast")
+        }
 
-            const cards = visibleAll(body, "sdPatternCard")
-            mouseClick(cards[0])
-            wait(0)
-            compare(probe.detailCalls, 1, "the card asked for the condition's page")
-            compare(probe.lastDetailId, "casting", "with its own id")
-            compare(probe.focusCalls, 0, "and did not declare focus on the way")
+        // NEEDS-NEW-DESIGN → rewritten: the picker opens INLINE under the tab row — inside the panel, never a
+        // pop-up — lists the model's candidates (the current one marked), declares by id, closes on an
+        // answer, and "No declared miss" clears with declareMiss("").
+        function test_31_theMissPickerOpensInPlaceAndDeclaresOne() {
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                probe.missCalls = 0
+                setSource(spied(formingSource(false)))
+                showTab("session")
+                compare(shownAll(body, "sdMissPicker").length, 0, r + ": closed until asked for")
+                const y0 = oneShown(body, "sdCardsFlick").mapToItem(body, 0, 0).y
+                mouseClick(oneShown(body, "sdMissChip"))
+                laidOut()
+                const pk = oneShown(body, "sdMissPicker")     // shown() walks up to the body: in the panel's own tree
+                verify(oneShown(body, "sdCardsFlick").mapToItem(body, 0, 0).y > y0, r + ": it opens in place and pushes the view down")
+                compare(plain(one(pk, "sdMissPickerLabel").text), "What is the bad shot?", r + ": it states its question")
+                const rows = shownAll(pk, "sdMissCandidate")
+                compare(rows.map(function (c) { return c.missId }).join(","), "slice,hook,thin_strike", r + ": the model's candidates")
+                mouseClick(rows[1])
+                laidOut()
+                compare(probe.missCalls, 1)
+                compare(probe.lastMissId, "hook", r + ": the row's id, not its label")
+                compare(shownAll(body, "sdMissPicker").length, 0, r + ": answering closes it")
 
-            // ...and the chip is the focus target, and ONLY the focus target.
-            mouseClick(one(cards[0], "sdCardFocusTag"))
-            wait(0)
-            compare(probe.focusCalls, 1, "the chip declares")
-            compare(probe.detailCalls, 1, "and opens nothing")
+                const s = spied(formingSource(false))
+                s.declaredMiss = "hook"
+                s.declaredMissName = "Hook"
+                setSource(s)
+                compare(plain(oneShown(body, "sdMissChip").text), "Miss: Hook")
+                mouseClick(oneShown(body, "sdMissChip"))
+                laidOut()
+                const marked = shownAll(body, "sdMissCandidate").filter(function (c) { return c.on })
+                compare(marked.length, 1, r + ": the current one is marked")
+                compare(marked[0].missId, "hook")
+                mouseClick(oneShown(body, "sdMissClear"))
+                laidOut()
+                compare(probe.lastMissId, "", r + ": declareMiss('') is the clear")
+            }
+        }
 
-            // A rail node carries the same pair, in the same order of precedence — pressed
-            // inside the drill-in, which is where a rail node is reachable at all now.
-            setSource(spied(detailSource()))
-            one(body, "sdDetailBody").expandedCause = 1
-            laidOut()
-            probe.detailCalls = 0
-            probe.focusCalls = 0
-            mouseClick(nodeById("casting"))
-            wait(0)
-            compare(probe.detailCalls, 1, "a live rail node opens its condition too")
-            compare(probe.lastDetailId, "casting")
-            compare(probe.focusCalls, 0)
+        // ═══════════════════════════ the after-shot pulse (D1) ═══════════════════════════
 
-            mouseClick(one(nodeById("casting"), "sdChainNodeFocusTag"))
-            wait(0)
-            compare(probe.focusCalls, 1)
-            compare(probe.detailCalls, 1)
+        function rowFor(r, id) {
+            const v = viewOf("session")
+            const rows = r === "Analyse" ? shownAll(v, "sdSessionRow") : replaySessionItems(v)
+            return rows.filter(function (x) { return x.cardId === id })[0]
+        }
+        function washOf(item) { return findAll(item, "sdPulseWash")[0] }
 
-            // The screened root keeps its one verb: the CTA is the point of it being on the rail
-            // at all, and it is reached from a cause rail inside a detail anyway.
-            intoView(nodeById("pelvic_disassociation"))
-            mouseClick(nodeById("pelvic_disassociation"))
-            wait(0)
-            compare(probe.detailCalls, 1, "a screened root asks for its screen, not for a page")
-            compare(probe.lastScreenCondition, "pelvic_disassociation")
+        // NEEDS-NEW-DESIGN → rewritten (D1): after a surfaced shot, the rows that fired get ONE soft wash,
+        // the focused condition leading; a condition that did not fire does not move. Both registers.
+        function test_32_thePulseWashesWhatFiredAndLeadsWithTheFocus() {
+            for (const r of ["Analyse", "Replay"]) {
+                useRegister(r)
+                body.pulseCue = null
+                const s = spied(formingSource(false))
+                s.afterShotDelta.fired = ["face_roll", "casting"]
+                s.afterShotDelta.focusId = "casting"
+                s.cards[0].focused = true
+                s.focusConditionId = "casting"
+                setSource(s)
+                showTab("session")
+                verify(!washOf(rowFor(r, "casting")).pulsing, r + ": nothing moves before a shot lands")
 
-            // A watched condition has a ledger like any other, so it opens too.
+                body.pulseAfterShot()
+                wait(0)
+                verify(!!body.pulseCue, "a cue was published")
+                compare(body.pulseCue.ids[0], "casting", "the focus leads")
+                compare(body.pulseCue.ids.length, 2)
+                const cw = washOf(rowFor(r, "casting")), fw = washOf(rowFor(r, "face_roll"))
+                compare(cw.order, 0, r + ": the focused pattern leads the stagger")
+                compare(fw.order, 1)
+                verify(cw.pulsing && fw.pulsing, r + ": both rows that fired wash once")
+
+                const s2 = spied(formingSource(false))
+                s2.afterShotDelta.fired = ["casting"]
+                setSource(s2)
+                body.pulseAfterShot()
+                wait(0)
+                verify(washOf(rowFor(r, "casting")).pulsing, r + ": the one that fired washes")
+                verify(!washOf(rowFor(r, "face_roll")).pulsing, r + ": the one that did not stays put")
+                compare(washOf(rowFor(r, "face_roll")).order, -1)
+            }
+        }
+
+        // NEEDS-NEW-DESIGN → rewritten: reduceMotion is NO pulse — not a shorter one, and nothing deferred.
+        function test_33_thePulseHonoursReduceMotion() {
+            for (const r of ["Analyse", "Replay"]) {
+                useRegister(r)
+                const s = spied(formingSource(false))
+                s.afterShotDelta.fired = ["casting", "face_roll"]
+                setSource(s)
+                showTab("session")
+                Theme.reduceMotion = true
+                wait(0)
+                body.pulseAfterShot()
+                wait(0)
+                for (const id of ["casting", "face_roll"]) {
+                    const w = washOf(rowFor(r, id))
+                    verify(!w.pulsing, r + "/" + id + ": no animation under reduceMotion")
+                    compare(w.level, 0, r + "/" + id + ": and nothing drawn")
+                }
+                wait(150)
+                for (const id of ["casting", "face_roll"])
+                    verify(!washOf(rowFor(r, id)).pulsing, r + "/" + id + ": nothing started late")
+                Theme.reduceMotion = false
+            }
+        }
+
+        // ═══════════════════════════ nothing escapes the panel ═══════════════════════════
+
+        // KEPT, rewritten: no region overhangs the panel, and nothing inside a view hangs out of it
+        // sideways (below the fold is allowed: that is what the view's scroll is for) — at a full, a
+        // narrow and a wide stage, in both registers, on every view, for hand-written and real states.
+        function inside(item, top, label) {
+            const tl = item.mapToItem(top, 0, 0), br = item.mapToItem(top, item.width, item.height)
+            verify(tl.x >= -1 && tl.y >= -1, label + " starts inside")
+            verify(br.x <= top.width + 1, label + " ends inside sideways (" + br.x + " > " + top.width + ")")
+            return br
+        }
+        function noOverhang(label) {
+            const regions = ["sdRegister", "sdTabBar", "sdCastHead", "sdShotCardsFlick", "sdCardsFlick", "sdWatchingFlick", "sdDetailFlick"]
+            for (const n of regions) {
+                const items = shownAll(body, n)
+                for (let j = 0; j < items.length; ++j) {
+                    if (items[j].width <= 0) continue
+                    const br = inside(items[j], body, label + ": " + n)
+                    verify(br.y <= body.height + 1, label + ": " + n + " fits the panel's height")
+                }
+            }
+            const content = ["sdSessionRow", "sdFiredRow", "sdDotRow", "sdBarcodeRow", "sdSparkRow", "sdSmallMultiple",
+                             "sdExpectationCard", "sdShotRuler", "sdShotStrip", "sdCauseGraph", "sdPathChains",
+                             "sdFigureRow", "sdFeatureHead", "sdKeyFigures", "sdQuestions"]
+            for (const n of content) {
+                const items = shownAll(body, n)
+                for (let j = 0; j < items.length; ++j) {
+                    const f = flickOf(items[j])
+                    if (!f || items[j].width <= 0) continue
+                    const tl = items[j].mapToItem(f.contentItem, 0, 0)
+                    const br = items[j].mapToItem(f, items[j].width, 0)
+                    verify(tl.x >= -1 && tl.y >= -1, label + ": " + n + "[" + j + "] starts inside its view")
+                    verify(br.x <= f.width + 1, label + ": " + n + "[" + j + "] ends inside its view sideways (" + br.x + " > " + f.width + ")")
+                }
+            }
+        }
+        function test_20_nothingOverhangsTheChrome() {
+            const sizes = [[1168, 560], [396, 560], [1522, 700]]
+            const states = [
+                function () { return { source: coldSource(probe.expectationRows), readout: null } },
+                function () { return { source: formingSource(false), readout: null } },
+                function () { return { source: closingSource(), readout: null } },
+                function () { return { source: reviewSource(), readout: reviewReadout() } },
+                Real.reviewed, Real.long23, Real.liveNoPick
+            ]
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                for (let s = 0; s < states.length; ++s) {
+                    applyState(states[s]())
+                    for (const sz of sizes) {
+                        probe.width = sz[0]; probe.height = sz[1]
+                        for (const k of ["shot", "session", "watching"]) {
+                            showTab(k)
+                            noOverhang(r + " state " + s + " " + k + " at " + sz.join("x"))
+                        }
+                    }
+                }
+            }
+            useRegister("Analyse")
+            for (const mk of [function () { return { source: detailSource(), readout: null } },
+                              function () { return Real.reviewed(true) }]) {
+                applyState(mk())
+                for (const sz of sizes) {
+                    probe.width = sz[0]; probe.height = sz[1]
+                    laidOut()
+                    noOverhang("detail at " + sz.join("x"))
+                }
+            }
+        }
+
+        // ═══════════════════════════ new: what the redesign promises ═══════════════════════════
+
+        // The register is the surface's, then the mode's: the cast is always the glance (D4); Analyse mode
+        // is the read; Capture and Replay read at a glance; forceRegister (tests only) pins it. The body
+        // hands its state through, and the reader's tab survives a register swap.
+        function test_50_theRegisterFollowsTheSurfaceThenTheMode() {
             setSource(spied(formingSource(false)))
+            SessionMode.mode = SessionMode.capture
+            laidOut()
+            compare(reg().register, "Replay", "Capture reads at a glance")
+            compare(body.register, "Replay")
+            SessionMode.mode = SessionMode.replay
+            laidOut()
+            compare(reg().register, "Replay", "so does Replay")
+            SessionMode.mode = SessionMode.analyse
+            laidOut()
+            compare(reg().register, "Analyse", "Analyse is the read")
+            compare(body.registerItem, reg(), "the body exposes the register it loaded")
+
             body.tab = "watching"
             laidOut()
-            const watched = shownAll(body, "sdWatchingItem")
-            compare(watched.length, 2)
-            mouseClick(watched[0])
-            wait(0)
-            compare(probe.lastDetailId, "sway", "the watching row opens its own condition")
+            compare(reg().view, "watching")
+            SessionMode.mode = SessionMode.replay
+            laidOut()
+            compare(reg().register, "Replay")
+            compare(reg().view, "watching", "the reader's tab survives the swap")
+            verify(shown(viewOf("watching")))
 
-            // ...and so does a BOOKEND, which had carried a caret and done nothing when it was
-            // pressed. It matters more than it looks: the closing row names conditions that
-            // ranked below the card row's fold, so it is often the only place one is met at all.
+            SessionMode.mode = SessionMode.analyse
+            body.surface = "cast"
+            laidOut()
+            compare(reg().register, "Replay", "the cast is the glance whatever the stage is in")
+            compare(reg().surface, "cast")
+            body.surface = "panel"
+            laidOut()
+            compare(reg().register, "Analyse")
+
+            body.forceRegister = "Replay"
+            laidOut()
+            compare(reg().register, "Replay", "a test pins the register over the mode")
+            body.surface = "cast"
+            body.forceRegister = "Analyse"
+            laidOut()
+            compare(reg().register, "Analyse", "and over the surface")
+            body.forceRegister = ""
+            body.surface = "panel"
+            laidOut()
+            compare(reg().register, "Analyse")
+
+            body.interactive = false
+            laidOut()
+            compare(reg().interactive, false, "the register is told nobody can press it")
+            body.interactive = true
+        }
+
+        // A surface nobody can press is DRAWN, never pressed: no tab, row, cell or filter takes a click;
+        // the auto-closing cast swallows every press over its whole surface and never flips the stage; a
+        // persistent cast keeps its tabs and picks shots, but never drills into a condition (D4).
+        function test_51_aSurfaceNobodyCanPressSwallowsEveryClick() {
+            useRegister("Analyse")
+            body.interactive = false
             setSource(spied(closingSource()))
-            body.tab = "session"
+            compare(body._tab, "session", "nothing to read on This shot: the session is what it shows")
+            const v = viewOf("session")
+            compare(shownAll(v, "sdFilterTool").length, 0, "no filter to press")
+            compare(shownAll(v, "sdSessionRowFocus").length, 0, "no focus to offer")
+            const row = shownAll(v, "sdSessionRow")[0]
+            clickRow(row)
+            compare(probe.detailCalls, 0, "a row opens nothing")
+            mouseClick(findAll(oneShown(row, "sdShotStrip"), "sdShotCell")[0])
             laidOut()
-            const ends = shownAll(body, "sdBookend")
-            verify(ends.length >= 2, "the closing row is up")
-            probe.detailCalls = 0
-            mouseClick(ends[1])
-            wait(0)
-            compare(probe.detailCalls, 1, "a bookend asks for its condition's page")
-            compare(probe.lastDetailId, "face_roll", "with its own id, not the row's first")
+            compare(probe.shotCalls, 0, "a cell picks nothing")
+            mouseClick(tabByKey("watching"))
+            laidOut()
+            compare(body.tab, "session", "a tab takes no press")
+
+            // The auto-closing cast.
+            SessionMode.mode = SessionMode.analyse
+            body.surface = "cast"
+            setReview(spied(formingSource(false)), newestReadout())
+            compare(reg().register, "Replay")
+            compare(body._tab, "shot")
+            const dot = shownAll(viewOf("shot"), "sdDotRow")[0]
+            intoView(dot)
+            mouseClick(dot)
+            laidOut()
+            compare(probe.detailCalls, 0, "a condition opens nothing from the cast")
+            compare(SessionMode.mode, SessionMode.analyse, "and the main stage is never flipped")
+            const cell = findAll(oneShown(viewOf("shot"), "sdShotRuler"), "sdRulerCell")[1]
+            intoView(cell)
+            mouseClick(cell)
+            laidOut()
+            compare(probe.shotCalls, 0, "a shot column picks nothing on a surface about to vanish")
+
+            // The persistent cast (a coach's second screen).
+            body.interactive = true
+            laidOut()
+            compare(shownAll(body, "sdTab").length, 3, "a persistent cast keeps its tabs")
+            showTab("shot")
+            const dot2 = shownAll(viewOf("shot"), "sdDotRow")[0]
+            intoView(dot2)
+            mouseClick(dot2)
+            laidOut()
+            compare(probe.detailCalls, 0, "but never drills into a condition")
+            const cell2 = findAll(oneShown(viewOf("shot"), "sdShotRuler"), "sdRulerCell")[1]
+            intoView(cell2)
+            mouseClick(cell2)
+            laidOut()
+            compare(probe.shotCalls, 1, "and still picks shots")
+            compare(probe.lastShotId, cell2.shotId)
         }
 
-        // The page itself: the same cards, the same graded strokes, the same captions — the
-        // panel's vocabulary and nothing invented (brief §9 forbids inventing a design).
-        function test_39_theDetailDrawsCausesEffectsAndBothHeadlines() {
+        // D7: nothing assumes 15 shots. 23 shots (swing id 6 deleted): every strip has a cell per shot and
+        // fits its view (narrowing, then wrapping — never clipping); labels are ORDINALS ("shot 8 of 23",
+        // never the swing id 9); brushing and picking use the ids.
+        function inBarcode(item) {
+            let i = item ? item.parent : null
+            while (i && i !== body) { if (i.objectName === "sdBarcode") return true; i = i.parent }
+            return false
+        }
+        function test_52_aLongSessionFitsItsStripsAndCountsByOrdinal() {
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                applyState(Real.long23())
+                showTab("shot")
+                const h = headText(oneShown(viewOf("shot"), "sdShotHead")).toLowerCase()
+                verify(h.indexOf("shot 8 of 23") >= 0, r + ": the ordinal: " + h)
+                verify(h.indexOf("shot 9 of 23") < 0, r + ": never the swing id")
+                for (const k of ["shot", "session", "watching"]) {
+                    showTab(k)
+                    const v = viewOf(k), f = flickOf(v)
+                    const strips = shownAll(v, "sdShotStrip").filter(function (s) { return !inBarcode(s) })
+                    for (let i = 0; i < strips.length; ++i) {
+                        const cells = findAll(strips[i], "sdShotCell")
+                        compare(cells.length, 23, r + "/" + k + ": strip " + i + " has a cell per shot")
+                        for (let c = 0; c < cells.length; ++c)
+                            verify(cells[c].mapToItem(f, cells[c].width, 0).x <= f.width + 1,
+                                   r + "/" + k + ": strip " + i + " cell " + c + " is inside the view")
+                    }
+                }
+            }
+            useRegister("Replay")
+            showTab("shot")
+            const f = flickOf(viewOf("shot"))
+            const cells = findAll(oneShown(viewOf("shot"), "sdShotRuler"), "sdRulerCell")
+            compare(cells.length, 23, "the ruler has a column per shot")
+            compare(cells[5].shotId, 7, "after the deleted swing the ids skip one")
+            verify(cells[7].picked, "the 8th column is the picked shot (id 9)")
+            compare(cells[7].shotId, 9)
+            verify(cells[22].mapToItem(f, cells[22].width, 0).x <= f.width + 1, "and the ruler fits")
+
+            useRegister("Analyse")
+            showTab("session")
+            const strip = oneShown(shownAll(viewOf("session"), "sdSessionRow")[0], "sdShotStrip")
+            const sc = findAll(strip, "sdShotCell")
+            compare(sc[5].shotId, 7)
+            compare(sc.filter(function (c) { return c.picked }).map(function (c) { return c.shotId }).join(","), "9",
+                    "one picked cell, by id")
+        }
+
+        // A zero count is a WORD: "none", "every one", never "no of" / "on no" (R's decision 8).
+        function test_53_aZeroCountIsAWordNeverNo() {
+            const bad = [/\bno of\b/i, /\bon no\b/i, /\bno are\b/i, /\boutside on no\b/i]
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                applyState(Real.zeroFired())
+                for (const k of ["shot", "session", "watching"]) {
+                    showTab(k)
+                    const ts = shownTexts(reg())
+                    for (let i = 0; i < ts.length; ++i) {
+                        const p = plain(ts[i].text)
+                        for (const re of bad) verify(!re.test(p), r + "/" + k + ": '" + p + "'")
+                    }
+                }
+            }
+            useRegister("Replay")
+            showTab("shot")
+            compare(oneShown(viewOf("shot"), "sdShotHead").title, "Inside every corridor")
+            showTab("session")
+            verify(headText(oneShown(viewOf("session"), "sdSessionHead")).indexOf("outside on none") >= 0,
+                   "the glance: " + headText(oneShown(viewOf("session"), "sdSessionHead")))
+            showTab("watching")
+            verify(headText(oneShown(viewOf("watching"), "sdWatchingHead")).indexOf("outside on none") >= 0)
+            useRegister("Analyse")
+            showTab("shot")
+            compare(plain(oneShown(viewOf("shot"), "sdFiredEmpty").text), "None of this session's patterns fired on this swing.",
+                    "one line, not an empty table")
+            showTab("session")
+            verify(headText(oneShown(viewOf("session"), "sdSessionHead")).indexOf("on none of them") >= 0,
+                   "the read: " + headText(oneShown(viewOf("session"), "sdSessionHead")))
+        }
+
+        // F47: Esc closes the open detail in Analyse; not on a surface nobody can press.
+        function test_54_escClosesTheDetail() {
+            useRegister("Analyse")
             setSource(detailSource())
+            const d = viewOf("detail")
+            tryVerify(function () { return d.activeFocus }, 2000, "the open detail takes the keyboard")
+            keyClick(Qt.Key_Escape)
             laidOut()
-
-            verify(shown(one(body, "sdDetailBody")), "the detail is the body")
-            verify(!shown(one(body, "sdCardsBody")), "and the panel's own composition stood down")
-            verify(!shown(one(body, "sdCoverageLine")), "and its coverage line")
-
-            // The chrome is the panel's, and the header says which condition this is.
-            verify(shown(one(body, "sdTitle")), "the panel is still the panel")
-            verify(shown(one(body, "sdDetailBack")), "with a way back")
-            compare(one(body, "sdDetailTitle").text, "Casting")
-            verify(!shown(one(body, "sdMissChip")),
-                   "the session's opening question stands down over one condition's page")
-
-            // The condition itself, as the card the golfer tapped.
-            const head = one(body, "sdDetailHeaderCard")
-            compare(one(head, "sdCardName").text, "Casting")
-            compare(one(head, "sdCardRecurrence").text, "4 of 6 measurable shots")
-            compare(findAll(one(head, "sdTickRun"), "sdTick").length, 6,
-                    "one tick per shot, here too")
-
-            // Both headlines, in the model's words — a count, never a probability.
-            compare(one(body, "sdDetailCauseHeadline").text,
-                    "Likely driver: Rushed transition — would explain 3 of your patterns.")
-            compare(one(body, "sdDetailOutcomeHeadline").text,
-                    "Most likely outcome: Slice — 5 of 6 measurable shots.")
-
-            // One rail open per side — the most-evidenced — and the rest behind one line each,
-            // exactly as 12c collapses chain B.
-            compare(shownAll(body, "sdDetailCauseRail").length, 1, "one cause path drawn in full")
-            compare(shownAll(body, "sdDetailEffectRail").length, 1, "and one effect path")
-            compare(shownAll(body, "sdChainRail").length, 0,
-                    "and the session's own rails are off screen, not destroyed")
-            const collapsed = shownAll(body, "sdDetailPathFrame")
-            compare(collapsed.length, 2, "one collapsed line per non-primary path")
-            compare(one(collapsed[0], "sdDetailPathToggle").text, "OPEN ▸")
-            verify(one(collapsed[0], "sdDetailPathSummary").text.indexOf("Over the top") >= 0,
-                   "and the summary names what the path runs through")
-            verify(one(collapsed[0], "sdDetailPathNote").text.indexOf("screened root") >= 0,
-                   "with the marks, so a collapsed path cannot hide what it is made of")
-
-            // The link grades survive the trip: the stroke IS the claim (§4.1), and the detail
-            // draws it off the same published fields the rail does.
-            const moved = linkByGrade("movedTogether")
-            verify(moved, "the cause rail's graded edge is on screen")
-            compare(moved.strokeColor, Theme.colorAccent)
-            compare(moved.hasArrow, true)
-            compare(one(moved, "sdChainLinkNote").text, "baseline 5 · 6 since focus")
-
-            const dep = linkByGrade("conditionallyDependent")
-            verify(dep, "and the effect rail's")
-            compare(dep.strokeStyle, "solid")
-            verify(one(dep, "sdChainLinkNote").text.indexOf("Fisher exact") >= 0)
-
-            // The outcome the downstream ends at, drawn as an outcome and not as a card.
-            const outcome = nodeById("slice")
-            verify(outcome, "the downstream reaches the outcome")
-            compare(outcome.kind, "outcome")
-            compare(one(outcome, "sdChainNodeRecurrence").text, "5 of 6 measurable shots")
-
-            // The rival, named and explicitly not adjudicated — the footer's disclosure, kept.
-            verify(one(body, "sdDetailRival").text.indexOf("not adjudicated") >= 0)
-
-            // Nothing overhangs the chrome: the page scrolls inside its own Flickable.
-            const page = one(body, "sdDetailBody")
-            const br = page.mapToItem(body, page.width, page.height)
-            verify(br.x <= body.width + 1 && br.y <= body.height + 1,
-                   "the page fits the panel it is drawn in")
-
-            // A collapsed path opens IN PLACE into the same rail, not into another view (§8).
-            mouseClick(collapsed[0])
+            compare(probe.closeDetailCalls, 1, "Esc asked the model to close")
+            body.interactive = false
             laidOut()
-            compare(one(collapsed[0], "sdDetailPathToggle").text, "CLOSE ▴")
-            compare(shownAll(body, "sdDetailCauseRail").length, 2,
-                    "the second cause path opened where its summary was")
+            d.forceActiveFocus()
+            keyClick(Qt.Key_Escape)
+            laidOut()
+            compare(probe.closeDetailCalls, 1, "but not on a surface nobody can press")
         }
 
-        // BACK is a visibility change, and the panel it returns to is the panel that was left.
-        function test_40_backRestoresTheCompositionUntouched() {
-            setSource(spied(establishedSource(true)))
-            body.watchingExpanded = true
-            laidOut()
-            const before = compositionSnapshot()
-
-            setSource(detailSource())
-            laidOut()
-            verify(shown(one(body, "sdDetailBody")), "the detail took the body")
-            verify(compositionSnapshot() !== before, "and the composition stood down")
-
-            mouseClick(one(body, "sdDetailBack"))
-            wait(0)
-            compare(probe.closeDetailCalls, 1, "BACK asked the model to close")
-
-            // The model answers by clearing detailConditionId; the panel reads it back.
-            setSource(spied(establishedSource(true)))
-            body.watchingExpanded = true
-            laidOut()
-            verify(!shown(one(body, "sdDetailBody")), "the page is gone")
-            compare(compositionSnapshot(), before,
-                    "and every region is exactly as it was left")
-            // ...including the panel-local state the detail never touched.
-            compare(body.watchingExpanded, true)
+        // HOUSE RULE 2: type never scales. The same text in a 480 and a 1522 panel is the same size.
+        function fontMap(item) {
+            const ts = shownTexts(item), seen = {}, out = {}
+            for (let i = 0; i < ts.length; ++i) {
+                const p = plain(ts[i].text)
+                if (!p) continue
+                seen[p] = (seen[p] || 0) + 1
+                out[p] = ts[i].font.pixelSize
+            }
+            for (const p in seen) if (seen[p] !== 1) delete out[p]
+            return out
         }
-
-        // 12c reaches the page too: the rails turn on their side rather than shrinking.
-        function test_41_theDetailGoesVerticalWhenCompact() {
-            setSource(detailSource())
-            probe.width = 396; probe.height = 560
-            laidOut()
-
-            compare(body.compact, true)
-            const rails = shownAll(body, "sdDetailCauseRail")
-                              .concat(shownAll(body, "sdDetailEffectRail"))
-            compare(rails.length, 2, "both primary rails are still drawn")
-            for (let i = 0; i < rails.length; ++i)
-                compare(rails[i].vertical, true, "rail " + i + " is the vertical form")
-
-            // One line per node, the mark carried by the dot — the rail's own 12c reduction.
-            compare(findAll(rails[0], "sdChainNodeDot").length, 2)
-            compare(findAll(rails[1], "sdChainNodeDot").length, 4)
-
-            // The grade survives the turn, because the grade is the stroke.
-            const moved = linkByGrade("movedTogether")
-            verify(moved)
-            compare(moved.vertical, true)
-            compare(moved.strokeColor, Theme.colorAccent)
-
-            // Still one way back, and still one condition named.
-            verify(shown(one(body, "sdDetailBack")))
-            compare(one(body, "sdDetailTitle").text, "Casting")
-
-            probe.width = 1168; probe.height = 560
-            wait(0)
-        }
-
-        // Tapping a cause or an effect RE-TARGETS the page. There is no stack: BACK still
-        // returns to the panel in one step, which is the simplification this build ships.
-        function test_42_openingAConditionFromTheDetailRetargetsInPlace() {
-            setSource(detailSource())
-            laidOut()
-
-            mouseClick(nodeById("rushed_transition"))
-            wait(0)
-            compare(probe.detailCalls, 1, "the cause node asked for its own page")
-            compare(probe.lastDetailId, "rushed_transition")
-            compare(probe.closeDetailCalls, 0, "without closing the one it is on")
-
-            // ...and BACK from anywhere is one step out of the detail, never one level up.
-            mouseClick(one(body, "sdDetailBack"))
-            wait(0)
-            compare(probe.closeDetailCalls, 1)
-        }
-
-        // ── nothing escapes the panel ────────────────────────────────────────
-        // The chrome is 1 px of border and a radius; a card or a strip that overhung it
-        // would be clipped away rather than drawn, which is a finding gone missing.
-        // ── how far, not only whether ──────────────────────────────────────────────────
-        //
-        // THE CARD CARRIES TWO FIGURES, THE DETAIL CARRIES THE CHARTS. A card is back to its
-        // tick run with the session median and this shot's reading overlaid in large type; the
-        // corridor strip, the value run and the across-sessions columns live in the condition
-        // detail, drawn tall with Y labels, with the linked hover between strip and run.
-        function spreadSource() {
-            const s = spied(formingSource(false))
-            s.cards[0].spread = probe.spreadFixture()
-            return s
-        }
-        function spreadDetailSource() {
-            const s = detailSource()
-            s.detail.header.spread = probe.spreadFixture()
-            s.detail.history = probe.historyFixture()
-            return s
-        }
-
-        function test_43_aCardShowsTwoFiguresAndItsTickRunNotCharts() {
-            setSource(spreadSource())
-            laidOut()
-            const cards = visibleAll(body, "sdPatternCard")
-            compare(findAll(cards[0], "sdCorridorStrip").length, 0, "no corridor strip on a card")
-            compare(findAll(cards[0], "sdValueRun").length, 0, "…and no value run")
-            verify(shown(one(cards[0], "sdTickRun")), "the card keeps its tick run, as it was")
-            compare(findAll(one(cards[0], "sdTickRun"), "sdTick").length, 5, "…one tick per shot")
-
-            const figs = one(cards[0], "sdCardFigures")
-            verify(shown(figs), "a card with readings carries the two figures")
-            compare(one(cards[0], "sdCardMedian").text, "14", "the session MEDIAN, unit-less")
-            compare(one(cards[0], "sdCardCurrent").text, "15", "…and this shot's reading")
-            compare(one(cards[0], "sdCardCurrent").color, Theme.colorWarn, "…coloured by its verdict (fired)")
-            compare(one(cards[0], "sdCardFiguresUnit").text, "% hand rise", "the unit, once")
-            verify(one(cards[0], "sdCardMedianCaption").visible
-                   && one(cards[0], "sdCardMedianCaption").text === "session median",
-                   "captioned \"session median\" at the design size")
-            verify(one(cards[0], "sdCardCurrent").font.pixelSize > one(cards[0], "sdCardRecurrence").font.pixelSize,
-                   "the figures are larger than anything else on the card")
-            const rec = one(cards[0], "sdCardRecurrence")
-            verify(rec.mapToItem(cards[0], rec.width, 0).x <= figs.x + 0.5,
-                   "the recurrence line gives way to the figures rather than running under them")
-            verify(!shown(one(cards[1], "sdCardFigures")), "a card with no readings shows no figures")
-
-            // An unmeasured current shot: "-", in the quiet grey — never 0.
-            const s2 = spreadSource()
-            s2.cards[0].spread.currentNumber = "-"
-            s2.cards[0].spread.currentState = "notAssessable"
-            setSource(s2)
-            laidOut()
-            const c2 = visibleAll(body, "sdPatternCard")[0]
-            compare(one(c2, "sdCardCurrent").text, "-", "an unmeasured shot reads \"-\"")
-            compare(one(c2, "sdCardCurrent").color, Theme.colorText3, "…in the quiet grey")
-        }
-
-        function test_44_theDetailRunIsTallLabelledAndKeepsTheTickRunsPromises() {
-            setSource(spreadDetailSource())
-            laidOut()
-            const d = one(body, "sdDetailBody")
-            const vr = one(d, "sdDetailValueRun")
-            verify(shown(vr), "the value run is drawn in the detail")
-            verify(vr.height >= 2 * Math.round(120 * Theme.fontScale * d.fit) - 1,
-                   "…at twice its first height (" + vr.height + ")")
-            const strip = one(d, "sdDetailStrip")
-            verify(one(strip, "sdStripPlot").height >= 2 * Math.round(58 * Theme.fontScale * d.fit) - 1,
-                   "the strip's plot is twice its first height too")
-            const ticks = findAll(vr, "sdRunYTick")
-            compare(ticks.map(function (t) { return t.text }).join(" "), "0 10 20", "the run has round Y labels")
-            const marks = findAll(vr, "sdRunMark")
-            compare(marks.length, 5, "one mark per shot, the unmeasured one included — never a gap")
-            verify(marks.every(function (m) { return m.x >= vr._gutter - 1 }), "…all clear of the label gutter")
-            const na = marks[1], fired = marks[0]
-            verify(na.height > 0 && na.height < vr.height / 4, "the unmeasured shot is a SHORT stub")
-            compare(na.y + na.height, vr.height - 1, "…standing on the baseline")
-            compare(na.children[0].border.width, 0, "…a bare stub, not an outlined box that reads as 0")
-            compare(fired.children[0].color, Theme.colorWarn, "fired keeps its colour")
-            compare(marks[2].children[0].color, Theme.colorGood, "clean keeps its colour")
-            verify(marks[0].y > marks[3].y, "a higher reading is drawn higher")
-            compare(findAll(vr, "sdRunSelected").filter(function (r) { return r.visible }).length, 1,
-                    "the shot being read is the one wide outlined mark")
-            vr.pick(2)
-            compare(probe.lastShotDir, "/lib/a/s/swing_0003", "pick() asks for that swing by folder")
-            probe.lastShotDir = ""
-            intoView(marks[0])
-            mouseClick(vr, marks[0].x + marks[0].width / 2, marks[0].y + marks[0].height / 2)
-            compare(probe.lastShotDir, "/lib/a/s/swing_0001", "a click on shot 1's mark asks for shot 1")
-        }
-
-        function test_45_theDetailStripSaysWhichWayIsBetterAndHistoryHasAScale() {
-            setSource(spreadDetailSource())
-            laidOut()
-            const d = one(body, "sdDetailBody")
-            const strip = one(d, "sdDetailStrip")
-            verify(shown(strip) && strip.large, "the strip is drawn large in the detail")
-            verify(shown(one(strip, "sdStripDirRow")), "the direction has its own row above the strip")
-            const bl = one(strip, "sdStripDirBigLeft"), br = one(strip, "sdStripDirBigRight")
-            compare(bl.text, "← better"); compare(br.text, "worse →")
-            verify(bl.font.pixelSize > one(strip, "sdStripFaultLabel").font.pixelSize,
-                   "…in larger type than the labels under it")
-            const fault = 0.469 * strip.width
-            verify(bl.x + bl.implicitWidth <= fault + 0.5 && br.x >= fault - 0.5
-                       && fault - (bl.x + bl.implicitWidth) < strip.px(12) && br.x - fault < strip.px(12),
-                   "…split at the fault line: better just to its left, worse just to its right")
-            verify(!shown(one(strip, "sdStripDirLeft")), "the faint corner words are gone at this size")
-            compare(one(strip, "sdStripCaption").text,
-                    "median 14 % hand rise · 3 past the fault line · 3 of 4 outside · 1 not measured · 1 off scale, at 200 % hand rise",
-                    "the full caption")
-            compare(one(d, "sdDetailHoverReadout").text, "shot 4 · 13 % hand rise · inside the pass band · fired",
-                    "the readout line reads the current shot")
-            verify(shown(one(d, "sdDetailRunLegend")) && one(d, "sdDetailRunLegend").text.indexOf("values in % hand rise") === 0,
-                   "the run's unit is named once, in its legend")
-
-            const hist = one(d, "sdDetailHistory")
-            verify(shown(hist), "review: the across-sessions columns are drawn")
-            compare(findAll(hist, "sdHistoryYTick").map(function (t) { return t.text }).join(" "), "0 10 20",
-                    "…on the same round Y labels")
-            const cols = findAll(hist, "sdHistoryColumn")
-            compare(cols.length, 3, "one column per session")
-            verify(cols[2].current && !cols[0].current, "the last column is this session")
-            verify(cols[0].x >= 0 && cols[0].mapToItem(hist, 0, 0).x >= hist._gutter - 1, "…clear of the label gutter")
-            const meds = findAll(hist, "sdHistoryMedian")
-            verify(meds[0].y < meds[2].y, "an older, higher median is drawn higher")
-            compare(one(hist, "sdHistoryCaption").text, "median 22 → 19 → 13 % hand rise")
-
-            const s = spreadDetailSource()
-            s.detail.history = ({})
-            setSource(s)
-            laidOut()
-            verify(!shown(one(body, "sdDetailHistory")), "no history published, no columns drawn")
-        }
-
-        function test_46_theFiguresFitTheCardsAtEverySize() {
-            // The real panel's cards (142 px at a large type), the design size, and the 396 split,
-            // in both studio themes: the figures stay inside the card and never shrink; when the
-            // card is short the captions go first.
-            const sizes = [[1168, 560, 1.0], [935, 491, 1.35], [396, 700, 1.0], [396, 700, 1.35]]
-            for (const theme of [5, 4]) {
-                for (const sz of sizes) {
-                    Theme.themeIndex = theme
-                    Theme.fontScale = sz[2]
-                    probe.width = sz[0]; probe.height = sz[1]
-                    setSource(spreadSource())
+        function test_55_typeNeverScalesWithThePanel() {
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                applyState(Real.reviewed())
+                for (const k of (r === "Analyse" ? ["shot", "session", "watching"] : ["shot", "watching"])) {
+                    showTab(k)
+                    probe.width = 480; probe.height = 700
                     laidOut()
-                    const card = visibleAll(body, "sdPatternCard")[0]
-                    const tag = "theme " + theme + " " + sz.join("×") + ": "
-                    const figs = one(card, "sdCardFigures")
-                    verify(shown(figs), tag + "the figures are drawn")
-                    verify(figs.x >= 0 && figs.x + figs.width <= card.width + 0.5, tag + "…inside the card's width")
-                    verify(figs.y + figs.height <= card.height + 0.5, tag + "…and height")
-                    compare(one(card, "sdCardCurrent").font.pixelSize, card.tzFigure, tag + "…at full size")
-                    const unit = one(card, "sdCardFiguresUnit")
-                    verify(unit.visible && unit.mapToItem(card, unit.width, 0).x <= card.width + 0.5,
-                           tag + "…the unit always shown, once, inside the card ("
-                           + (one(card, "sdCardMedianCaption").visible ? "under the captions" : "beside the numbers") + ")")
-                    const run = one(card, "sdTickRun")
-                    if (shown(run) && one(card, "sdCardMedianCaption").visible)
-                        verify(figs.y + figs.height <= run.mapToItem(card, 0, 0).y + 0.5,
-                               tag + "…and with captions they never run into the tick run")
-                }
-            }
-            Theme.themeIndex = 5
-            Theme.fontScale = 1.0
-        }
-
-        // ── the linked hover in the detail, the readout, nearest-dot picking ──────────────
-        function test_47_aHoverLightsTheSameShotInBothDetailChartsAndReadsIt() {
-            // Tall enough that the whole run is inside the window: a pointer event below the
-            // window's edge is never delivered, and the run now sits well down the detail.
-            probe.height = 1200
-            setSource(spreadDetailSource())
-            laidOut()
-            const d = one(body, "sdDetailBody")
-            const strip = one(d, "sdDetailStrip"), vr = one(d, "sdDetailValueRun")
-            const line = one(d, "sdDetailHoverReadout")
-            const dots = findAll(strip, "sdStripDot"), marks = findAll(vr, "sdRunMark")
-
-            const dt = dots[1]                               // run index 2
-            const dp = dt.mapToItem(strip, dt.width / 2, dt.height / 2)
-            mouseMove(strip, dp.x, dp.y)
-            verify(dt.hot && marks[2].hot, "a strip hover lights the same shot in both charts")
-            compare(line.text, "shot 3 · 13 % hand rise · inside the pass band · clean", "…and the line reads it")
-
-            const m1 = marks[1]
-            mouseMove(vr, m1.x + m1.width / 2, m1.y + m1.height / 2)
-            verify(marks[1].hot && dots.every(function (x) { return !x.hot }),
-                   "a run hover on the unmeasured shot lights it there, and nothing on the strip")
-            compare(line.text, "shot 2 · - · not measured", "…and the line reads \"-\"")
-
-            mouseMove(d, 2, 2)
-            compare(line.text, "shot 4 · 13 % hand rise · inside the pass band · fired",
-                    "leaving the charts returns the line to the current shot")
-            compare(probe.lastShotDir, "", "hovering selects nothing")
-
-            const chev = dots[3]
-            const cp = chev.mapToItem(strip, chev.width / 2, chev.height / 2)
-            compare(strip.nearestDot(cp.x - 2, cp.y + 1), 3, "the pinned outlier is pickable by its nearest centre")
-            strip.pickDot(3)
-            compare(probe.lastShotDir, "/lib/a/s/swing_0005", "…and picking it asks for that swing")
-            compare(strip.nearestDot(cp.x - 400, -50), -1, "nothing within reach picks nothing")
-        }
-
-        // ── the open detail follows the current shot ──────────────────────────────────
-        //
-        // The model republishes `detail` when the picked swing moves or a shot lands (rebuild()),
-        // and the page must redraw every shot-dependent field off it — without closing, without
-        // re-targeting, and without dropping a hover in progress. The source object is REPLACED,
-        // never nulled in between, exactly as a republish arrives.
-        function detailAt(idx, extraShot) {
-            const s = spreadDetailSource()
-            const sp = s.detail.header.spread
-            const states = ["fired", "notAssessable", "clean", "fired", "fired", "clean"]
-            if (extraShot) {                                  // a sixth shot, live
-                sp.run.push({ index: 5, shotId: 6, swingDir: "/lib/a/s/swing_0006", state: "clean",
-                              assessable: true, fx: 0.95, fy: 0.15, clipped: 0, current: false, selected: false,
-                              valueText: "3 % hand rise", readout: "shot 6 · 3 % hand rise · inside the pass band · clean" })
-                for (let i = 0; i < 5; ++i) sp.run[i].fx = (i + 0.5) / 6
-                sp.dots.push({ index: 5, shotId: 6, swingDir: "/lib/a/s/swing_0006", f: 0.15, clipped: 0, stack: 1,
-                               state: "clean", current: false, recent: true, valueText: "3 % hand rise" })
-                s.detail.header.ticks = s.detail.header.ticks.concat([tick("clean")])
-            }
-            for (let i = 0; i < sp.run.length; ++i) { sp.run[i].current = i === idx; sp.run[i].selected = i === idx }
-            for (let i = 0; i < sp.dots.length; ++i) sp.dots[i].current = sp.dots[i].index === idx
-            const st = states[idx]
-            sp.currentState = st === "notAssessable" ? "notAssessable" : st
-            sp.currentNumber = st === "notAssessable" ? "-" : ("" + (10 + idx))
-            sp.currentReadout = sp.run[idx].readout
-            s.detail.header.thisShot = st
-            s.detail.header.statePill = st === "fired" ? "FIRED HERE" : st === "clean" ? "CLEAN HERE" : "NOT MEASURED"
-            s.detail.header.ticks = s.detail.header.ticks.map(function (t, i) {
-                return { state: t.state, shotId: i + 1, selected: i === idx } })
-            return s
-        }
-        function republish(s) { probe.src = s; wait(0); laidOut() }
-
-        function test_48_theOpenDetailFollowsTheCurrentShot() {
-            probe.height = 1200
-            setSource(detailAt(3, false))
-            laidOut()
-            const d = one(body, "sdDetailBody")
-            const head = one(d, "sdDetailHeaderCard")
-            const strip = one(d, "sdDetailStrip"), vr = one(d, "sdDetailValueRun")
-            const line = one(d, "sdDetailHoverReadout")
-            function selectedTick() {
-                const ts = findAll(one(head, "sdTickRun"), "sdTick")
-                for (let i = 0; i < ts.length; ++i) if (ts[i].selected) return i
-                return -1
-            }
-            function ringed() {
-                const ds = findAll(strip, "sdStripDot").filter(function (x) { return x.current })
-                return ds.length === 1 ? ds[0].modelData.index : -1
-            }
-            function wideMark() {
-                const ms = findAll(vr, "sdRunSelected")
-                for (let i = 0; i < ms.length; ++i) if (ms[i].visible) return i
-                return -1
-            }
-            function check(idx, number, colour, pill, tag) {
-                verify(shown(d), tag + ": the detail is still open")
-                compare(one(head, "sdCardName").text, "Casting", tag + ": …on the same condition")
-                compare(one(head, "sdCardCurrent").text, number, tag + ": the header's this-shot figure")
-                compare(one(head, "sdCardCurrent").color, colour, tag + ": …in its state's colour")
-                compare(one(head, "sdStatePill").children[0].text, pill, tag + ": the chip")
-                compare(selectedTick(), idx, tag + ": the tick run's selected tick")
-                compare(ringed(), one(head, "sdCardCurrent").text === "-" ? -1 : idx, tag + ": the strip's ringed dot")
-                compare(wideMark(), idx, tag + ": the run's wide mark")
-            }
-
-            check(3, "13", Theme.colorWarn, "FIRED HERE", "shot 4 picked")
-            compare(line.text, "shot 4 · 13 % hand rise · inside the pass band · fired", "the readout falls back to shot 4")
-
-            // A swing is picked in the carousel (or on the run): the model republishes the detail.
-            republish(detailAt(2, false))
-            check(2, "12", Theme.colorGood, "CLEAN HERE", "shot 3 picked")
-            compare(line.text, "shot 3 · 13 % hand rise · inside the pass band · clean", "…and the readout follows")
-
-            // The unmeasured swing: "-", grey, and no ringed dot on the axis.
-            republish(detailAt(1, false))
-            check(1, "-", Theme.colorText3, "NOT MEASURED", "the unmeasured shot picked")
-
-            // A HOVER IN PROGRESS survives a republish.
-            republish(detailAt(3, false))
-            const dt = findAll(strip, "sdStripDot")[1]                 // run index 2
-            const dp = dt.mapToItem(strip, dt.width / 2, dt.height / 2)
-            mouseMove(strip, dp.x, dp.y)
-            verify(dt.hot, "hovering shot 3")
-            republish(detailAt(0, false))
-            verify(findAll(strip, "sdStripDot")[1].hot, "…the hover survives the shot changing under it")
-            compare(line.text, "shot 3 · 13 % hand rise · inside the pass band · clean", "…and the line still reads it")
-            mouseMove(d, 2, 2)
-
-            // LIVE: a sixth shot lands and the detail, following the newest, moves onto it.
-            republish(detailAt(5, true))
-            check(5, "15", Theme.colorGood, "CLEAN HERE", "a new shot arrived")
-            compare(findAll(vr, "sdRunMark").length, 6, "…the run grows by one")
-            compare(findAll(strip, "sdStripDot").length, 5, "…and the strip by its dot")
-            compare(line.text, "shot 6 · 3 % hand rise · inside the pass band · clean", "…and the readout reads it")
-        }
-
-        function test_20_nothingOverhangsTheChrome() {
-            const sizes = [[1168, 560], [396, 560], [820, 420]]
-            const sources = [coldSource(probe.expectationRows), formingSource(false),
-                             closingSource(), establishedSource(true), reviewSource(),
-                             formingReviewSource()]
-            // The review arrangement is the only one with a second input; at 396 its cells
-            // stack and the grid SCROLLS, which is what this test is checking has not turned
-            // into a cell drawn outside the panel.
-            const readouts = [null, null, null, null, reviewReadout(), wideReadout()]
-
-            for (let s = 0; s < sources.length; ++s) {
-                setReview(sources[s], readouts[s])
-                for (let i = 0; i < 2 * sizes.length; ++i) {
-                    // Both tabs, at every size: each draws a different body into the same frame.
-                    body.tab = (i % 2 === 0) ? "shot" : "session"
-                    const sz = sizes[Math.floor(i / 2)]
-                    probe.width = sz[0]; probe.height = sz[1]
-                    // ⛔ `wait(0)` is ONE event-loop pass, and a resize settles on the
-                    // POLISH phase — Layouts and anchors have not necessarily re-measured
-                    // by then.  Measuring in that gap reads a card at its pre-resize width
-                    // and reports an overhang that never renders: this failed ~1 run in 5.
-                    waitForRendering(body)
-
-                    // In the 396 arrangement the rail lives in a clipped Flickable and
-                    // SCROLLS (12c), so the things inside it are checked through the
-                    // Flickable rather than against the panel — a node below the fold there
-                    // is one scroll away, not one gone missing.
-                    // sdPatternCard is NOT in this list any more and sdCardsFlick is: the cards
-                    // scroll now, so a card below the fold is one flick away rather than one
-                    // drawn outside the panel. What still has to hold of them is checked against
-                    // their own Flickable, below.
-                    const names = ["sdExpectationCard", "sdThisShotStrip", "sdTabBar",
-                                   "sdShotCardsFlick",
-                                   "sdBookends", "sdColdBody", "sdCardsBody",
-                                   "sdCardsFlick",
-                                   "sdReviewStrip", "sdReviewGrid"]
-                        .concat(body.compact ? []
-                                             : ["sdChainRail", "sdChainNode", "sdChainLink"])
-                    for (let n = 0; n < names.length; ++n) {
-                        const items = visibleAll(body, names[n])
-                        for (let j = 0; j < items.length; ++j) {
-                            if (!shown(items[j]) || items[j].width <= 0)
-                                continue
-                            const tl = items[j].mapToItem(body, 0, 0)
-                            const br = items[j].mapToItem(body, items[j].width, items[j].height)
-                            const label = "source " + s + " (" + body._tab + ") at " + sz[0] + "x" + sz[1]
-                                        + ": " + names[n] + "[" + j + "]"
-                            verify(tl.x >= -1 && tl.y >= -1, label + " starts inside the panel")
-                            verify(br.x <= body.width + 1, label + " ends inside the panel")
-                            verify(br.y <= body.height + 1, label + " fits the panel's height")
-                        }
+                    park()
+                    const a = fontMap(reg())
+                    const rolesA = one(body, "sdTabBar").roles
+                    const bodyA = rolesA.fBody.pixelSize, titleA = rolesA.fTitle.pixelSize
+                    probe.width = 1522
+                    laidOut()
+                    park()
+                    const b = fontMap(reg())
+                    let common = 0
+                    for (const t in a) {
+                        if (b[t] === undefined) continue
+                        ++common
+                        compare(b[t], a[t], r + "/" + k + ": '" + t + "' is the same size in a 480 and a 1522 panel")
                     }
-
-                    // THE CARDS, THROUGH THEIR FLICKABLE. Below the fold is allowed and is the
-                    // point of it; hanging out SIDEWAYS is a layout fault at any scroll offset,
-                    // and so is a card starting above the top of the content.
-                    const flick = visibleAll(body, "sdCardsFlick")[0]
-                    if (flick) {
-                        const cards = visibleAll(body, "sdPatternCard")
-                        for (let j = 0; j < cards.length; ++j) {
-                            if (!shown(cards[j]) || cards[j].width <= 0) continue
-                            const tl = cards[j].mapToItem(flick, 0, 0)
-                            const br = cards[j].mapToItem(flick, cards[j].width, cards[j].height)
-                            const label = "source " + s + " (" + body._tab + ") at " + sz[0] + "x" + sz[1]
-                                        + ": sdPatternCard[" + j + "]"
-                            verify(tl.x >= -1, label + " starts inside its scroller")
-                            verify(br.x <= flick.width + 1, label + " ends inside its scroller")
-                            verify(tl.y >= -1, label + " starts at or below the top of the run")
-                        }
-                    }
+                    verify(common >= 3, r + "/" + k + ": enough text in common to judge (" + common + ")")
+                    compare(one(body, "sdTabBar").roles.fBody.pixelSize, bodyA, r + ": the body role")
+                    compare(one(body, "sdTabBar").roles.fTitle.pixelSize, titleA, r + ": the title role")
                 }
             }
         }
 
+        // HOUSE RULE 12: height is a resource too. Replay's This shot admits more rows (the clean ones, by
+        // closeness to their edge) when the panel is taller — never bigger type, never a second block.
+        function test_56_aTallerReplayThisShotShowsMoreRows() {
+            useRegister("Replay")
+            applyState(Real.reviewed())
+            showTab("shot")
+            probe.height = 560
+            laidOut()
+            const short = shownAll(viewOf("shot"), "sdDotRow").length
+            probe.height = 1100
+            laidOut()
+            const tall = shownAll(viewOf("shot"), "sdDotRow").length
+            verify(short >= 10, "every firing is drawn at any height (" + short + ")")
+            verify(tall > short, "a taller panel admits more rows (" + short + " → " + tall + ")")
+            verify(tall <= 76, "and only the measured ones")
+        }
 
+        // Nothing is ellipsised: every Text the panel draws either does not elide or is not truncated —
+        // both registers, every view and the detail, from narrow to wide.
+        function noneElided(label) {
+            const ts = shownTexts(reg())
+            for (let i = 0; i < ts.length; ++i)
+                verify(ts[i].elide === Text.ElideNone || !ts[i].truncated, label + ": '" + plain(ts[i].text) + "' is ellipsised")
+        }
+        function test_57_noTextIsEllipsised() {
+            const widths = [396, 480, 820, 1168, 1522]
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                applyState(Real.reviewed())
+                for (const w of widths) {
+                    probe.width = w
+                    for (const k of ["shot", "session", "watching"]) {
+                        showTab(k)
+                        noneElided(r + "/" + k + " at " + w)
+                    }
+                }
+            }
+            useRegister("Analyse")
+            applyState(Real.reviewed(true))
+            for (const w of widths) {
+                probe.width = w
+                laidOut()
+                noneElided("detail at " + w)
+            }
+        }
+
+        // Replaces test_46 (RULES 3: fold, don't drop). A column that does not fit the width moves onto
+        // the row's second line, with its word; every row keeps every fact at every width, and nothing a
+        // row draws hangs out of it.
+        function test_58_aNarrowerLedgerFoldsAndDropsNothing() {
+            useRegister("Analyse")
+            applyState(Real.reviewed())
+            showTab("session")
+            const keys = ["Rank", "Name", "Fired", "Shot", "Median", "Trend", "Typical", "Worst", "Best"]
+            for (const w of [1522, 820, 480, 396]) {
+                probe.width = w
+                laidOut()
+                const rows = shownAll(viewOf("session"), "sdSessionRow")
+                compare(rows.length, 8, w + ": every pattern")
+                for (let i = 0; i < rows.length; ++i) {
+                    const row = rows[i], tag = w + ": " + row.cardId
+                    for (const k of keys)
+                        verify(shownAll(row, "sdSessionRow" + k).length >= 1, tag + " keeps its " + k)
+                    const median = oneShown(row, "sdSessionRowMedian").text
+                    verify(shownAll(row, "sdSessionRowUnit").length >= 1 || median.indexOf(" ") > 0,
+                           tag + " keeps its unit (its own cell, or beside the median: '" + median + "')")
+                    verify(shownAll(row, "sdShotStrip").length >= 1, tag + " keeps its strip")
+                    const ts = shownTexts(row)
+                    for (let t = 0; t < ts.length; ++t)
+                        verify(ts[t].mapToItem(row, ts[t].width, 0).x <= row.width + 1,
+                               tag + ": '" + plain(ts[t].text) + "' stays inside the row")
+                }
+            }
+        }
+
+        // D3: live, with shots but nothing picked, This shot reads the NEWEST swing (from the after-shot
+        // delta), never "No shot yet".
+        function test_59_liveWithNothingPickedReadsTheNewestSwing() {
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                setSource(spied(formingSource(false)))
+                showTab("shot")
+                const v = viewOf("shot")
+                verify(!shown(one(v, "sdShotEmpty")), r + ": shots exist, so never 'No shot yet'")
+                const h = headText(oneShown(v, "sdShotHead")).toLowerCase()
+                verify(h.indexOf("newest swing") >= 0, r + ": it says which swing: " + h)
+                verify(h.indexOf("shot 5 of 5") >= 0, r + ": by its ordinal")
+                compare(shownAll(v, "sdDotRow").filter(function (d) { return d.stateKind === "fired" }).length, 2,
+                        r + ": what the newest swing fired")
+                if (r === "Replay") {
+                    compare(shownAll(v, "sdShotRuler").length, 0, "the newest swing publishes no per-shot run to rule")
+                    compare(plain(oneShown(v, "sdQuietCount").text), "1 clean · 2 not measurable", "the rest, as counts")
+                } else {
+                    compare(shownAll(v, "sdFiredRow").length, 2)
+                    compare(shownAll(v, "sdFiredRowValue").length, 0, "no value column the delta cannot fill")
+                    verify(shownAll(v, "sdFiredRowOutBy").length >= 1, "but how far out it was")
+                }
+            }
+            useRegister("Replay")
+            applyState(Real.liveNoPick())
+            showTab("shot")
+            verify(headText(oneShown(viewOf("shot"), "sdShotHead")).toLowerCase().indexOf("shot 15 of 15") >= 0,
+                   "the real session's newest swing")
+        }
+
+        // D9: Replay never draws a detail. Opened elsewhere, the reader stays on their tab with one quiet
+        // line pointing to Analyse, and a tab press closes the detail first.
+        function test_60_replayNeverDrillsAndATabPressClosesTheDetail() {
+            useRegister("Replay")
+            setSource(detailSource())
+            compare(body.view, "detail")
+            compare(findAll(body, "sdDetailBody").length, 0, "no detail page in the glance")
+            compare(findAll(body, "sdDetailFlick").length, 0)
+            verify(shown(viewOf("session")), "the reader's own tab is under it")
+            verify(plain(oneShown(body, "sdDetailParked").text).indexOf("Casting is open in Analyse") === 0,
+                   "with one line saying where the detail is")
+            mouseClick(tabByKey("shot"))
+            laidOut()
+            compare(probe.closeDetailCalls, 1, "a tab press closes the detail first")
+            compare(body.tab, "shot", "then goes to the tab")
+        }
+
+        // F49: one measure at a time — a tab per measure, the shown one ruled, the pick asked of the model
+        // (which keeps it across a rebuild); a condition with one measure draws no tabs.
+        function test_61_theDetailsMeasureTabsPickOneMeasureAtATime() {
+            useRegister("Analyse")
+            applyState(Real.reviewed(true))
+            const det = Real.detail()
+            const d = viewOf("detail")
+            const tabs = shownAll(oneShown(d, "sdDetailMeasureTabs"), "sdDetailMeasureTab")
+            compare(tabs.length, det.measures.length, "a tab per measure")
+            const on = tabs.filter(function (t) { return t.on })
+            compare(on.length, 1, "one measure shown")
+            compare(on[0].measureId, det.measureId, "the model's pick")
+            const other = tabs.filter(function (t) { return !t.on })[0]
+            intoView(other)
+            mouseClick(other)
+            laidOut()
+            compare(probe.measureCalls, 1, "the press asks the model")
+            compare(probe.lastMeasureId, other.measureId)
+            compare(shownAll(viewOf("detail"), "sdDetailMeasureTab").filter(function (t) { return t.on })[0].measureId,
+                    det.measureId, "and the panel waits for the model's answer")
+
+            setSource(detailSource())
+            compare(shownAll(viewOf("detail"), "sdDetailMeasureTabs").length, 0, "one measure, no tabs")
+        }
     }
 }

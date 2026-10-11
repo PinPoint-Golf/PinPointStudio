@@ -29,6 +29,15 @@
 // It also grabs the panel at the design size and at the 396 split, in studio dark and light,
 // with the condition's detail open, so the pictures can be looked at.
 //
+// TYPESET REGISTERS (11 Oct): the panel is PpDiagAnalyse in Analyse. A pattern is a ledger row
+// (`sdSessionRow`, keyed by `cardId`) with its shot strip and the median / this-shot / unit cells
+// (`sdSessionRowMedian`, `sdSessionRowShot`, `sdSessionRowUnit`); the charts live in the detail's figure
+// row (`sdFigureRow`: `sdSpreadStrip`, `sdRunChart`, `sdHistoryStrip` on ONE value axis, Y labels
+// `sdRunYTick` on the row). Hover is the register's brush (`hoveredShot`, read through either chart),
+// keyed by SHOT ID; the run caption `sdDetailHoverReadout` reads the hovered shot. The probe-made bodies
+// are forced onto the Analyse register (`forceRegister`, tests only) and given the app body's readout,
+// so their pick ring is the carousel's shot, as in the app.
+//
 // RUN IT ON A COPY of the athlete folder (diagnostics.json copied, swing_* symlinked) and a COPY
 // of the settings — review re-persists diagnostics.json and the theme switch writes the ini:
 //   XDG_CONFIG_HOME=<scratch> QT_QPA_PLATFORM=offscreen PinPointStudio --probe-qml <this file> \
@@ -49,6 +58,7 @@ Item {
         return (i >= 0 && i + 1 < a.length) ? a[i + 1] : dflt
     }
     readonly property string sessionDir: arg("--probe-session", "")
+    readonly property string sessionName: sessionDir.replace(/\/+$/, "").split("/").pop()
     readonly property string condition: arg("--probe-condition", "over_the_top")
     readonly property int ordinal: parseInt(arg("--probe-ordinal", "20"))
     readonly property int sessions: parseInt(arg("--probe-sessions", "4"))
@@ -109,9 +119,34 @@ Item {
     property int idleWaits: 0
 
     function cardFor(body, id) {
-        const cs = find(body, "sdPatternCard").filter(c => c.card && c.card.id === id && shown(c, body))
+        const cs = find(body, "sdSessionRow").filter(c => c.cardId === id && shown(c, body))
         return cs.length > 0 ? cs[0] : null
     }
+    // the bodies this probe made: never the app's (a probe body reading its OWN readout is a binding loop —
+    // the first run hit it, because the body being made is not yet in wide/narrow/big when it binds)
+    property var made: []
+    // The app body's readout, FOLLOWED rather than bound: a binding that walked the window tree depended on
+    // every children list, and the probe body it fed rebuilt its views → a binding loop (second run).
+    property var liveReadout: null
+    function followReadout() {
+        const a = probe.liveAppBody()
+        const r = a ? a.readout : null
+        if (r !== probe.liveReadout) probe.liveReadout = r
+    }
+    Timer { interval: 150; repeat: true; running: probe.made.length > 0; onTriggered: probe.followReadout() }
+    function liveAppBody() {
+        const bs = find(probe.Window.window.contentItem, "sdBody").filter(b => probe.made.indexOf(b) < 0 && shown(b, null))
+        return bs.length ? bs[0] : probe.appBody
+    }
+    // a probe-made body over the same model, on the Analyse register, reading the carousel's shot
+    function makeBody(props) {
+        const b = bodyComp.createObject(probe, Object.assign({ source: probe.model, forceRegister: "Analyse" }, props))
+        probe.made = probe.made.concat([b])
+        probe.followReadout()
+        b.readout = Qt.binding(function () { return probe.liveReadout })
+        return b
+    }
+    function shownOne(root, name) { const o = find(root, name).filter(x => shown(x, root)); return o.length ? o[0] : null }
     function queueGrab(item, name) {
         if (probe.pngDir !== "") probe.grabs.push([item, probe.pngDir + "/" + name + ".png"])
     }
@@ -181,38 +216,44 @@ Item {
                 // ...and the REAL panel draws it.
                 probe.appBody.tab = "session"
             } else if (s === 6) {
+                const regs = probe.find(probe.appBody, "sdRegister")
+                probe.check(regs.length === 1 && regs[0].register === "Analyse", "the Analyse register is loaded")
                 const card = probe.cardFor(probe.appBody, probe.condition)
-                probe.check(!!card, "the panel shows a card for " + probe.condition)
+                probe.check(!!card, "the panel shows a ledger row for " + probe.condition)
                 if (card) {
                     const sp = probe.model.spreadOf(probe.condition)
-                    probe.check(probe.find(card, "sdCorridorStrip").length === 0
-                                && probe.find(card, "sdValueRun").length === 0,
-                                "…carrying no strip and no value run")
-                    probe.check(probe.shown(probe.find(card, "sdTickRun")[0], card), "…and its tick run, as before")
-                    const figs = probe.find(card, "sdCardFigures")[0]
-                    const med = probe.find(card, "sdCardMedian")[0], cur = probe.find(card, "sdCardCurrent")[0]
-                    probe.log("figures: median " + med.text + " · this shot " + cur.text + " (" + sp.currentState + ")"
-                              + " · unit '" + probe.find(card, "sdCardFiguresUnit")[0].text + "' · captions "
-                              + probe.find(card, "sdCardMedianCaption")[0].visible
-                              + " · box " + Math.round(figs.x) + "," + Math.round(figs.y) + " "
-                              + Math.round(figs.width) + "×" + Math.round(figs.height)
-                              + " in card " + Math.round(card.width) + "×" + Math.round(card.height))
-                    probe.check(probe.shown(figs, card) && med.text === sp.medianNumber && cur.text === sp.currentNumber,
-                                "…with the session median (" + med.text + ") and this shot (" + cur.text + ")")
-                    probe.check(figs.x >= 0 && figs.x + figs.width <= card.width + 0.5
-                                && figs.y + figs.height <= card.height + 0.5,
-                                "…inside the card at the real panel size")
-                    probe.log("corridor line: \"" + (card.card.corridorText || "") + "\"")
-                    probe.check((card.card.corridorText || "") === "pass up to 8.7 · fault at 13 % hand rise",
+                    probe.check(probe.find(card, "sdSpreadStrip").length === 0
+                                && probe.find(card, "sdRunChart").length === 0,
+                                "…carrying no strip chart and no run chart (they are the detail's)")
+                    const strip = probe.find(card, "sdShotStrip").filter(x => probe.shown(x, card))[0]
+                    probe.check(!!strip && probe.find(strip, "sdShotCell").length === probe.model.shotCount,
+                                "…and its shot strip, a cell per shot (" + (strip ? probe.find(strip, "sdShotCell").length : 0) + ")")
+                    const med = probe.find(card, "sdSessionRowMedian")[0], cur = probe.find(card, "sdSessionRowShot")[0]
+                    const unit = probe.find(card, "sdSessionRowUnit")[0]
+                    probe.log("figures: median '" + (med ? med.text : "-") + "' · this shot '" + (cur ? cur.text : "-")
+                              + "' (" + sp.currentState + ") · unit '" + (unit ? unit.text : "-") + "' · row "
+                              + Math.round(card.width) + "×" + Math.round(card.height))
+                    // a folded median carries its unit after it ("14 % hand rise"), so it is read as a prefix
+                    probe.check(!!med && !!cur && String(med.text).indexOf(sp.medianNumber) === 0 && cur.text === sp.currentNumber,
+                                "…with the session median (" + (med ? med.text : "-") + ") and this shot (" + (cur ? cur.text : "-") + ")")
+                    let inside = true
+                    for (const n of ["sdSessionRowMedian", "sdSessionRowShot", "sdSessionRowUnit"])
+                        for (const it of probe.find(card, n)) {
+                            const r = it.mapToItem(card, it.width, 0)
+                            if (probe.shown(it, card) && r.x > card.width + 0.5) inside = false
+                        }
+                    probe.check(inside, "…inside the row at the real panel size")
+                    // The corridor is the MODEL's line on the card; the typeset ledger draws it in the
+                    // fired table's corridor column and the detail's feature head, not on the session row.
+                    probe.log("corridor line: \"" + (card.modelData.corridorText || "") + "\"")
+                    probe.check((card.modelData.corridorText || "") === "pass up to 8.7 · fault at 13 % hand rise",
                                 "the card's corridor line states the pass band and the fault line")
                 }
                 probe.queueGrab(probe.appBody, "app_panel")
 
                 // The pictures, at the design size and the 396 split.
-                probe.wide = bodyComp.createObject(probe, { x: 0, y: 0, width: 1168, height: 560,
-                                                            source: probe.model, z: 100 })
-                probe.narrow = bodyComp.createObject(probe, { x: 0, y: 0, width: 396, height: 900,
-                                                              source: probe.model, z: 101 })
+                probe.wide = probe.makeBody({ x: 0, y: 0, width: 1168, height: 560, z: 100 })
+                probe.narrow = probe.makeBody({ x: 0, y: 0, width: 396, height: 900, z: 101 })
                 probe.wide.tab = "session"
                 probe.narrow.tab = "session"
                 Theme.themeIndex = 5
@@ -234,34 +275,41 @@ Item {
                               + " · " + h.caption)
                     probe.check(h.columns.length === probe.sessions,
                                 "one column per session of this golfer (" + h.columns.length + ")")
-                    probe.check(h.columns.length > 0 && h.columns[h.columns.length - 1].current,
-                                "…oldest first, this session last")
+                    // Oldest first (session folders are date-named, so their names sort by date), and the
+                    // current column is THIS session. ("This session last" held only while it was the
+                    // newest; the library has an 8 Oct session after 7 Oct now.)
+                    const names = h.columns.map(c => String(c.sessionDir || "").replace(/\/+$/, "").split("/").pop())
+                    const sorted = names.slice().sort()
+                    const cur = h.columns.filter(c => c.current)
+                    probe.check(names.join("|") === sorted.join("|"), "…oldest first")
+                    probe.check(cur.length === 1 && String(cur[0].sessionDir || "").indexOf(probe.sessionName) >= 0,
+                                "…and the current column is this session")
                 }
-                const hist = probe.find(probe.narrow, "sdDetailHistory")[0]
-                probe.check(!!hist && probe.shown(hist, probe.narrow), "the 396 split draws the columns")
-                const strip = probe.find(probe.narrow, "sdDetailStrip")[0]
-                probe.check(!!strip && probe.shown(strip, probe.narrow) && strip.width <= 396,
-                            "…and the large strip fits the split")
-                const vrW = probe.find(probe.wide, "sdDetailValueRun")[0]
-                probe.log("detail run " + Math.round(vrW.height) + " px tall · Y labels "
-                          + probe.find(vrW, "sdRunYTick").map(t => t.text).join(" ")
-                          + " · history labels "
-                          + probe.find(probe.wide, "sdHistoryYTick").map(t => t.text).join(" "))
-                probe.check(vrW.height >= 2 * Math.round(120 * Theme.fontScale * vrW.fit) - 1
-                            && probe.find(vrW, "sdRunYTick").length >= 3,
-                            "the detail run is twice its old height, with Y labels")
-                // Nearest-dot picking on the real strip: every dot's own centre picks that dot (or
-                // one stacked exactly on it — the same place on the axis).
-                const sW = probe.find(probe.wide, "sdDetailStrip")[0]
-                const dots = probe.find(sW, "sdStripDot")
-                let pickOk = true
+                const hist = probe.shownOne(probe.narrow, "sdHistoryStrip")
+                probe.check(!!hist && probe.find(hist, "sdHistoryColumn").length === (h && h.columns ? h.columns.length : -1),
+                            "the 396 split draws the columns")
+                const strip = probe.shownOne(probe.narrow, "sdSpreadStrip")
+                probe.check(!!strip && strip.mapToItem(probe.narrow, strip.width, 0).x <= 396 + 0.5,
+                            "…and the strip fits the split")
+                const fr = probe.shownOne(probe.wide, "sdFigureRow")
+                const vrW = probe.shownOne(probe.wide, "sdRunChart")
+                const yt = fr ? probe.find(fr, "sdRunYTick").filter(t => t.visible) : []
+                probe.log("detail run " + (vrW ? Math.round(vrW.height) : "-") + " px tall · Y labels "
+                          + yt.map(t => t.text).join(" "))
+                probe.check(!!vrW && vrW.height > 0 && yt.length >= 3,
+                            "the detail run is drawn, with Y labels on the figure row's one axis")
+                // Every measured shot is a dot, and every dot is its own pick target (a PpMark's own
+                // pick area, ≥ 12 px) — nearest-centre picking (nearestDot) went with the old strip.
+                const sW = probe.shownOne(probe.wide, "sdSpreadStrip")
+                const dots = sW ? probe.find(sW, "sdStripDot") : []
+                const spD = probe.model.spreadOf(probe.condition)
+                let pickOk = dots.length === spD.dots.length && dots.length > 0
                 for (let i = 0; i < dots.length; ++i) {
-                    const c = dots[i].mapToItem(sW, dots[i].width / 2, dots[i].height / 2)
-                    const got = sW.nearestDot(c.x, c.y)
-                    const g = got >= 0 ? dots[got].mapToItem(sW, dots[got].width / 2, dots[got].height / 2) : null
-                    if (!g || Math.hypot(g.x - c.x, g.y - c.y) > 0.5) pickOk = false
+                    let area = null
+                    for (const k of dots[i].children) if (k.containsMouse !== undefined) area = k
+                    if (!area || !area.enabled || area.width < 12) pickOk = false
                 }
-                probe.check(pickOk, "every one of " + dots.length + " stacked dots is picked by the nearest centre")
+                probe.check(pickOk, "every one of " + dots.length + " dots is a pick target of its own")
                 probe.queueGrab(probe.wide, "detail_wide_dark")
                 probe.queueGrab(probe.narrow, "detail_narrow_dark")
             } else if (s === 10) {
@@ -302,13 +350,16 @@ Item {
                 probe.narrow.destroy()
                 probe.model.openDetail(probe.condition)
             } else if (s === 14) {
-                // A TAP ON THE APP'S OWN DETAIL RUN picks the shot through the carousel's path.
-                const vr = probe.find(probe.appBody, "sdDetailValueRun")[0]
-                probe.check(!!vr, "the app's condition detail has a value run to tap")
+                // A TAP ON THE APP'S OWN DETAIL RUN picks the shot through the carousel's path: the
+                // run chart's shotActivated is exactly what a mark's click emits.
+                probe.appBody = probe.liveAppBody()
+                const vr = probe.shownOne(probe.appBody, "sdRunChart")
+                probe.check(!!vr, "the app's condition detail has a run chart to tap")
                 if (!vr) { probe.finish(); return }
-                const target = Math.min(4, vr.count - 1)          // shot 5
-                probe._wantDir = vr.spread.run[target].swingDir
-                vr.pick(target)
+                const run = vr.spread.run || []
+                const target = Math.min(4, run.length - 1)          // shot 5
+                probe._wantDir = run[target].swingDir
+                vr.shotActivated(run[target].swingDir, run[target].shotId)
             } else if (s === 15) {
                 const name = probe._wantDir.substring(probe._wantDir.lastIndexOf("/") + 1)
                 probe.check(SessionMode.focusedSwingDir.endsWith(name),
@@ -328,8 +379,7 @@ Item {
                 // Before the fix, picking a swing here republished a detail about the NEWEST shot.
                 probe.model.reviewing = false
                 probe.model.openDetail(probe.condition)
-                probe.big = bodyComp.createObject(probe, { x: 0, y: 0, width: 1168, height: 1100,
-                                                           source: probe.model, z: 102 })
+                probe.big = probe.makeBody({ x: 0, y: 0, width: 1168, height: 1100, z: 102 })
                 probe.pickOrdinal(10)
             } else if (s === 17) {
                 probe.checkDetailOn(9, "live, swing 10 picked")
@@ -365,61 +415,68 @@ Item {
     }
     // Every shot-dependent field of the OPEN detail, read off what the page draws.
     function checkDetailOn(idx, tag) {
+        probe.followReadout()              // the probe bodies read the app's pick now, not one timer tick later
         const m = probe.model
         probe.check(m.detailConditionId === probe.condition, tag + ": the detail is still open on " + probe.condition)
         const d = probe.find(probe.big, "sdDetailBody")[0]
         probe.check(!!d && probe.shown(d, probe.big), tag + ": …and on screen")
-        const h = m.detail.header, sp = h.spread
-        const head = probe.find(d, "sdDetailHeaderCard")[0]
-        const cur = probe.find(head, "sdCardCurrent")[0]
+        if (!d) return
+        const sp = m.detail.header.spread
         const want = sp.run[idx]
-        probe.log(tag + ": header " + cur.text + " (" + sp.currentState + ") · chip "
-                  + probe.find(head, "sdStatePill")[0].children[0].text + " · line \"" + sp.currentReadout + "\"")
-        probe.check(cur.text === (want.assessable ? sp.currentNumber : "-") && sp.currentReadout === want.readout,
-                    tag + ": the header figure and the readout are shot " + (idx + 1) + "'s")
-        const ticks = probe.find(probe.find(head, "sdTickRun")[0], "sdTick")
-        probe.check(!!ticks[idx] && ticks[idx].selected, tag + ": the tick run's wide tick is shot " + (idx + 1))
-        const ringed = probe.find(probe.find(d, "sdDetailStrip")[0], "sdStripDot").filter(x => x.current)
-        probe.check(!want.assessable || (ringed.length === 1 && ringed[0].modelData.index === idx),
+        const line = probe.shownOne(d, "sdDetailHoverReadout")
+        probe.log(tag + ": this shot " + (want.assessable ? sp.currentNumber : "-") + " (" + sp.currentState + ") · line \""
+                  + (line ? line.text : "-") + "\"")
+        probe.check(sp.currentReadout === want.readout && (want.assessable ? sp.currentNumber !== "-" : true),
+                    tag + ": the model's this-shot figure and readout are shot " + (idx + 1) + "'s")
+        probe.check(!!line && line.text === want.readout, tag + ": the run caption reads shot " + (idx + 1))
+        const ringed = probe.find(probe.shownOne(d, "sdSpreadStrip"), "sdStripDot").filter(x => x.ringed)
+        probe.check(!want.assessable || (ringed.length === 1 && ringed[0].shotId === want.shotId),
                     tag + ": the strip's ringed dot is shot " + (idx + 1))
-        const wide = probe.find(probe.find(d, "sdDetailValueRun")[0], "sdRunSelected")
-        probe.check(!!wide[idx] && wide[idx].visible && wide.filter(x => x.visible).length === 1,
-                    tag + ": the run's wide mark is shot " + (idx + 1))
-        const pill = probe.find(head, "sdStatePill")[0].children[0].text
-        probe.check(pill === (want.state === "fired" ? "FIRED HERE" : want.state === "clean" ? "CLEAN HERE" : "NOT MEASURED"),
-                    tag + ": the chip is this shot's (" + pill + ")")
+        const sel = probe.find(probe.shownOne(d, "sdRunChart"), "sdRunSelected")
+        probe.check(!want.assessable || (sel.length === 1 && sel[0].visible && sel[0].shotId === want.shotId),
+                    tag + ": the run's ringed mark is shot " + (idx + 1))
+        // (The state chip FIRED HERE / CLEAN HERE went with the pattern card: the typeset detail states
+        // this shot in its key figures and colours only what is outside the corridor.)
     }
     property int _phase: 0
 
-    // ── the linked hover, driven through the charts' OWN signals ─────────────
+    // ── the linked hover, driven through the register's brush ────────────────
     //
-    // Offscreen there is no pointer, so the probe raises `hovered` on the chart exactly as its
-    // pick area does; what is verified is everything downstream — the owner's one hovered-shot
-    // property, the OTHER chart lighting the same shot, and the readout line between them.
-    // Shot choice: the strip hovers the furthest-out reading, the run a clean one.
-    function hoverTargets(sp) {
+    // Offscreen there is no pointer, so the probe does what a mark's pick area does on hover —
+    // brush.hoverShot(shotId, true) — and verifies everything downstream: both charts holding that
+    // shot, both lighting it, and the run caption reading it.
+    // Shot choice: the strip hovers the furthest-out reading, the run a clean one (never the picked shot).
+    function hoverTargets(sp, pickedIdx) {
         let far = -1, farV = -Infinity, clean = -1
         for (let i = 0; i < sp.run.length; ++i) {
             const r = sp.run[i]
+            if (i === pickedIdx) continue                    // a hovered PICKED shot keeps its pick ring
             if (r.assessable && r.value > farV) { farV = r.value; far = i }
             if (clean < 0 && r.state === "clean") clean = i
         }
-        return { strip: far, run: clean >= 0 ? clean : 0 }
+        return { strip: far, run: clean >= 0 ? clean : (pickedIdx === 0 ? 1 : 0) }
     }
     function hoverIn(chart, theme) {
-        const sp = probe.model.spreadOf(probe.condition)
-        const idx = hoverTargets(sp)[chart]
         for (const b of [probe.wide, probe.narrow]) {
-            const strip = probe.find(b, "sdDetailStrip")[0]
-            const vr = probe.find(b, "sdDetailValueRun")[0]
-            const line = probe.find(b, "sdDetailHoverReadout")[0]
-            if (chart === "strip") { vr.hovered(-1); strip.hovered(idx) } else { strip.hovered(-1); vr.hovered(idx) }
-            const dot = probe.find(strip, "sdStripDot").filter(d => d.modelData.index === idx)[0]
-            const mark = probe.find(vr, "sdRunMark")[idx]
+            const fr = probe.shownOne(b, "sdFigureRow")
+            const strip = probe.shownOne(b, "sdSpreadStrip")
+            const vr = probe.shownOne(b, "sdRunChart")
+            const line = probe.shownOne(b, "sdDetailHoverReadout")
             const tag = (b === probe.wide ? "wide " : "396 ") + theme + ", hover in the " + chart
-            probe.check(strip.hoverIndex === idx && vr.hoverIndex === idx,
+            if (!fr || !strip || !vr || !line) { probe.check(false, tag + ": the figure row is drawn"); continue }
+            const sp = fr.s
+            const brush = strip.brush
+            const idx = hoverTargets(sp, sp.run.findIndex(r => brush && brush.isPicked(r.shotId)))[chart]
+            const id = sp.run[idx].shotId
+            // what a pick area does on hover: the shared brush takes the shot
+            brush.hoveredShot = -1
+            brush.hoverShot(id, true)
+            const dot = probe.find(strip, "sdStripDot").filter(x => x.shotId === id)[0]
+            const mark = probe.find(vr, "sdRunMark").filter(x => x.shotId === id)[0]
+            probe.check(strip.hoveredShot === id && vr.hoveredShot === id,
                         tag + ": both charts hold shot " + (idx + 1))
-            probe.check(!!dot && dot.hot && !!mark && mark.hot, tag + ": …and both light it")
+            probe.check((!sp.run[idx].assessable || (!!dot && dot.hovered && !!mark && mark.hovered)),
+                        tag + ": …and both light it")
             probe.check(line.text === sp.run[idx].readout, tag + ": the line reads \"" + line.text + "\"")
         }
         probe.queueGrab(probe.wide, "detail_wide_" + theme + "_hover_" + chart)
@@ -427,8 +484,8 @@ Item {
     }
     function clearHover() {
         for (const b of [probe.wide, probe.narrow]) {
-            const strip = probe.find(b, "sdDetailStrip")[0]
-            if (strip) strip.hovered(-1)
+            const strip = b ? probe.find(b, "sdSpreadStrip")[0] : null
+            if (strip && strip.brush) strip.brush.hoveredShot = -1
         }
     }
 }

@@ -220,21 +220,57 @@ set(PP_QML_FILES
     src/Gui/shot/PpSwingEditPanel.qml
     src/Gui/diagnostics/PpSessionDiagnosticsPanel.qml
     src/Gui/diagnostics/PpSessionDiagnosticsBody.qml
-    src/Gui/diagnostics/PpThisShotStrip.qml
-    src/Gui/diagnostics/PpReviewShotStrip.qml
-    src/Gui/diagnostics/PpPatternCard.qml
-    src/Gui/diagnostics/PpChainRail.qml
-    src/Gui/diagnostics/PpChainNodeCard.qml
-    src/Gui/diagnostics/PpChainLink.qml
-    src/Gui/diagnostics/PpConditionDetail.qml
-    src/Gui/diagnostics/PpTickRun.qml
-    src/Gui/diagnostics/PpCorridorStrip.qml
-    src/Gui/diagnostics/PpValueRun.qml
-    src/Gui/diagnostics/PpSessionHistory.qml
-    src/Gui/diagnostics/PpStrengthMeter.qml
-    src/Gui/diagnostics/PpWatchingRow.qml
-    src/Gui/diagnostics/PpCoverageLine.qml
-    src/Gui/diagnostics/PpDashedFrame.qml
+    # The typeset system (design system §15): the generic helper and blocks in src/Gui/typeset/,
+    # the Session diagnostics vocabulary and its blocks in src/Gui/diagnostics/. None is a singleton:
+    # PpTypeset / PpDiagRoles are per-panel instances (the medium belongs to the instance).
+    src/Gui/typeset/PpTypeset.qml
+    src/Gui/typeset/PpBrush.qml
+    src/Gui/typeset/PpFigureScale.qml
+    src/Gui/typeset/PpFolio.qml
+    src/Gui/typeset/PpInlinePicker.qml
+    src/Gui/typeset/PpMark.qml
+    src/Gui/typeset/PpNotes.qml
+    src/Gui/typeset/PpPageKey.qml
+    src/Gui/typeset/PpPager.qml
+    src/Gui/typeset/PpPulseWash.qml
+    src/Gui/typeset/PpRunningHead.qml
+    src/Gui/typeset/PpSectionHead.qml
+    src/Gui/typeset/PpShotStrip.qml
+    src/Gui/typeset/PpStandfirst.qml
+    src/Gui/typeset/PpTabs.qml
+    src/Gui/typeset/PpZonePlot.qml
+    src/Gui/diagnostics/PpDiagRoles.qml
+    src/Gui/diagnostics/PpBarcode.qml
+    src/Gui/diagnostics/PpCauseGraph.qml
+    src/Gui/diagnostics/PpDetailBar.qml
+    src/Gui/diagnostics/PpDotPlot.qml
+    src/Gui/diagnostics/PpEntryFlow.qml
+    src/Gui/diagnostics/PpExpectations.qml
+    src/Gui/diagnostics/PpFeatureHead.qml
+    src/Gui/diagnostics/PpFigureRow.qml
+    src/Gui/diagnostics/PpHistoryStrip.qml
+    src/Gui/diagnostics/PpIndexList.qml
+    src/Gui/diagnostics/PpKeyFigures.qml
+    src/Gui/diagnostics/PpLedgerTable.qml
+    src/Gui/diagnostics/PpMasthead.qml
+    src/Gui/diagnostics/PpPathChains.qml
+    src/Gui/diagnostics/PpQuestions.qml
+    src/Gui/diagnostics/PpRunChart.qml
+    src/Gui/diagnostics/PpShotRuler.qml
+    src/Gui/diagnostics/PpSmallMultiple.qml
+    src/Gui/diagnostics/PpSmallMultiples.qml
+    src/Gui/diagnostics/PpSparkHead.qml
+    src/Gui/diagnostics/PpSparkline.qml
+    src/Gui/diagnostics/PpSparkRow.qml
+    src/Gui/diagnostics/PpSpreadStrip.qml
+    # The Session diagnostics registers (§15.6), hosted by PpSessionDiagnosticsBody: the glance
+    # (Replay, Capture, the cast), the read (Analyse), the report (Print, through PpPdfPrinter).
+    src/Gui/diagnostics/PpDiagReplayState.qml
+    src/Gui/diagnostics/PpDiagReplayCold.qml
+    src/Gui/diagnostics/PpDiagReplaySessionRows.qml
+    src/Gui/diagnostics/PpDiagReplay.qml
+    src/Gui/diagnostics/PpDiagAnalyse.qml
+    src/Gui/diagnostics/PpDiagPrint.qml
     src/Gui/session/PpLaunchMonitorPanel.qml
     src/Gui/session/PpLmGraphicsBody.qml
     src/Gui/session/PpLmCard.qml
@@ -294,6 +330,9 @@ set(PP_QML_FILES
     src/Gui/session/PpMarkupPanel.qml
     src/Gui/shell/PpAboutDialog.qml
     src/Gui/shell/MacAboutMenu.qml
+    # Print is to PDF: steps a paged register's printPage and feeds PdfDocumentWriter (below).
+    # No control opens it yet.
+    src/Gui/print/PpPdfPrinter.qml
 )
 
 # The C++ types the module registers (QML_ELEMENT). Headers are listed alongside their .cpp
@@ -400,5 +439,10 @@ set(PP_QML_SOURCES
     src/Analysis/assessment_rule.h
     src/Analysis/assessment_rules.h
     src/Analysis/assessment_rules.cpp
+    # Page images -> one A4 PDF (QPdfWriter, Qt Gui only). Its directory must be on every
+    # consumer's include path: the generated registration includes it as <pdf_document_writer.h>
+    # behind __has_include, so a missing path drops the type silently rather than failing the build.
+    src/Gui/print/pdf_document_writer.h
+    src/Gui/print/pdf_document_writer.cpp
 )
 

@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// END-TO-END: HOVER ON THE CONDITION DETAIL, WITH A REAL POINTER, ON THE REPLAY VIEW.
+// END-TO-END: HOVER ON THE CONDITION DETAIL, WITH A REAL POINTER, ON THE ANALYSE VIEW.
 //
 // session_spread.qml drives the charts' `hovered` signals directly and the qml_ui tests press the
 // body in a test window, so neither can see what broke hover in the app after round 3/4: the
@@ -30,6 +30,15 @@
 //   · the hovered shot is still the one under it, and the readout line still reads it,
 // and counting what happened underneath: replay position ticks, detail/surface republishes,
 // panel recreations, and rebuilds of the charts' delegates.
+//
+// TYPESET REGISTERS (11 Oct): the detail is drawn only in Analyse now (PpDiagAnalyse; Replay never
+// drills, D9), so the probe picks the swing on Replay (the carousel's path, which starts the replay),
+// then enters ANALYSE — the stage keeps the replay loaded — and holds the pointer there. The handles are
+// the figure row's PpSpreadStrip (`sdSpreadStrip`, dots `sdStripDot`) and PpRunChart (`sdRunChart`, marks
+// `sdRunMark`): each mark is a PpMark with its own pick area (its one MouseArea), the hovered shot is the
+// register's brush (`hoveredShot`, read through either chart), and the run caption
+// `sdDetailHoverReadout` reads run[hovered].readout while a shot is hovered. A hover is identified by
+// SHOT ID (ids survive a deleted swing; ordinals do not).
 //
 // Run through --probe-qml on a COPY of the athlete folder: build/run-me/verify-detail-hover.sh.
 // Exit 0 = PASS, 1 = FAIL; "PROBE:" lines say why.
@@ -108,6 +117,11 @@ Item {
     }
     function resetCounts() { detailChanges = 0; surfaceChanges = 0; positionTicks = 0 }
 
+    function bringIntoViewCentred(item) {
+        const flick = find(body, "sdDetailFlick")[0]
+        const p = item.mapToItem(flick.contentItem, 0, 0)
+        flick.contentY = Math.max(0, Math.min(flick.contentHeight - flick.height, p.y - flick.height / 2))
+    }
     function bringIntoView(item) {
         const flick = find(body, "sdDetailFlick")[0]
         const p = item.mapToItem(flick.contentItem, 0, 0)
@@ -125,14 +139,62 @@ Item {
     property int holds: 0
     property bool okSoFar: true
 
+    property var mark: null        // the PpMark under the pointer
+    property string wantLine: ""   // what the run caption must read while `target` is hovered
     function grabCharts() {
-        strip = find(body, "sdDetailStrip")[0]
-        vr    = find(body, "sdDetailValueRun")[0]
-        line  = find(body, "sdDetailHoverReadout")[0]
+        strip = find(body, "sdSpreadStrip").filter(x => shown(x))[0] || null
+        vr    = find(body, "sdRunChart").filter(x => shown(x))[0] || null
+        line  = find(body, "sdDetailHoverReadout").filter(x => shown(x))[0] || null
+    }
+    // the mark's own pick area: a PpMark's one MouseArea child
+    // A pointer target the pointer can actually reach: inside the chart, and not under a LATER mark's pick
+    // area (later delegates are on top and take the hover — in a 50-shot beeswarm, or a 172 px split run,
+    // marks overlap; the first run picked covered ones). Prefers the middle of the reachable ones.
+    function reachable(list, chartItem, ok) {
+        const out = []
+        for (let i = 0; i < list.length; ++i) {
+            const a = list[i]
+            if (!ok(a) || a.x < 2 || a.x > chartItem.width - 2) continue
+            // and on screen: inside the detail's view (a chart wider than a very narrow panel is clipped)
+            const flick = find(body, "sdDetailFlick")[0]
+            const fp = a.mapToItem(flick, 0, 0)
+            if (fp.x < 2 || fp.x > flick.width - 2) continue
+            const pa = pickArea(a)
+            const half = (pa ? pa.width : 12) / 2 + 1
+            let covered = false
+            for (let j = i + 1; j < list.length && !covered; ++j)
+                covered = Math.abs(list[j].x - a.x) < half && Math.abs(list[j].y - a.y) < half
+            if (!covered) out.push(a)
+        }
+        return out
+    }
+    // what is under a point (window coordinates): the deepest visible item, topmost first — logged when a
+    // hold finds no hover, so a failure names what took the pointer
+    function underPoint(item, sx, sy, depth) {
+        const kids = item.children || []
+        for (let i = kids.length - 1; i >= 0; --i) {
+            const k = kids[i]
+            if (!k.visible || k.width === undefined) continue
+            const p = k.mapFromItem(null, sx, sy)
+            const inside = p.x >= 0 && p.y >= 0 && p.x <= k.width && p.y <= k.height
+            if (k.clip && !inside) continue
+            const deeper = underPoint(k, sx, sy, depth + 1)
+            if (deeper) return deeper
+            if (inside && k.width > 0 && k.height > 0)
+                return (k.objectName || String(k).split("(")[0]) + (k.containsMouse !== undefined ? "[MouseArea hover " + k.hoverEnabled + "]" : "")
+                       + " ← " + (k.parent ? (k.parent.objectName || String(k.parent).split("(")[0]) : "")
+        }
+        return ""
+    }
+    function pickArea(m) { const k = m ? m.children : []; for (let i = 0; i < k.length; ++i) if (k[i].containsMouse !== undefined) return k[i]; return null }
+    function readoutFor(shotId) {
+        const run = (vr && vr.spread && vr.spread.run) || []
+        for (let i = 0; i < run.length; ++i) if (run[i].shotId === shotId) return run[i].readout || ""
+        return ""
     }
     function hoverState() {
-        const area = chart === strip ? find(strip, "sdStripPick")[0] : find(vr, "sdRunTap")[0]
-        return { contains: !!area && area.containsMouse, idx: chart ? chart.hoverIndex : -2,
+        const area = pickArea(mark)
+        return { contains: !!area && area.containsMouse, idx: chart ? chart.hoveredShot : -2,
                  text: line ? line.text : "" }
     }
 
@@ -152,14 +214,16 @@ Item {
                 SessionMode.enterCapture()
                 sessionReviewController.loadSession(probe.sessionDir)
             } else if (step === 3) {
-                // The replay view, with the panel on beside the camera and the charts.
-                ViewLayout.setPanel(SessionMode.replay, "sessionDiagnostics", true)
-                ViewLayout.setPanel(SessionMode.replay, "camera", true)
-                ViewLayout.setPanel(SessionMode.replay, "charts", true)
+                // The analyse view, with the panel on beside the camera and the charts.
+                ViewLayout.setPanel(SessionMode.analyse, "sessionDiagnostics", true)
+                ViewLayout.setPanel(SessionMode.analyse, "camera", true)
+                ViewLayout.setPanel(SessionMode.analyse, "charts", true)
                 for (let i = 0; i < shots.count; ++i) {
                     const o = shots.objectAt(i)
                     if (o.ordinal === probe.ordinal) SessionMode.enterReplay(o.shotId, o.swingDir)
                 }
+            } else if (step === 4) {
+                SessionMode.enterAnalyse()               // the replay stays loaded (SessionMode._loadFocused)
             } else if (step === 5) {
                 probe.startArrangement()
             } else if (step > 5) {
@@ -170,7 +234,7 @@ Item {
 
     function startArrangement() {
         const arr = arrangements[arrIdx]
-        ViewLayout.setArrangement(SessionMode.replay, arr)
+        ViewLayout.setArrangement(SessionMode.analyse, arr)
         phase = 0
     }
 
@@ -191,7 +255,7 @@ Item {
             phase = 1
         } else if (phase === 1) {
             body = appBody()
-            check(!!body, arr + ": the Session diagnostics panel is up on the replay view")
+            check(!!body, arr + ": the Session diagnostics panel is up on the analyse view")
             if (!body) { nextArrangement(); return }
             model = body.source
             // LIVE, as Mark's session is: the model in the live tense over the same ledger.
@@ -203,6 +267,8 @@ Item {
             phase = 2
         } else if (phase === 2) {
             grabCharts()
+            const regs = find(body, "sdRegister")
+            check(regs.length === 1 && regs[0].register === "Analyse", arr + ": the Analyse register draws the detail")
             check(body.detailOpen && !!strip && !!vr && !!line, arr + ": clicked through to " + condition)
             if (!strip) { nextArrangement(); return }
             bringIntoView(strip)
@@ -211,13 +277,18 @@ Item {
             // ── a REAL pointer onto a strip dot, then HELD ─────────────────────
             chart = strip
             const dots = find(strip, "sdStripDot")
-            const dot = dots.filter(d => !d.current && d.modelData.clipped === 0)[Math.floor(dots.length / 3)]
-            target = dot.modelData.index
+            const free = reachable(dots, strip, d => !d.current && !d.ringed && !(d.modelData.clipped > 0))
+            check(free.length > 0, arr + ": a strip dot the pointer can reach")
+            const dot = free[Math.floor(free.length / 2)] || dots[0]
+            mark = dot
+            bringIntoViewCentred(dot)
+            target = dot.shotId
+            wantLine = readoutFor(target)
             firstDelegate = dots[0]
-            const c = dot.mapToItem(strip, dot.width / 2, dot.height / 2)
+            // a PpMark is a 0×0 item at its centre: its x / y ARE the point to hover
             resetCounts()
-            tc.mouseMove(strip, c.x - 3, c.y)
-            tc.mouseMove(strip, c.x, c.y)
+            tc.mouseMove(strip, dot.x - 3, dot.y)
+            tc.mouseMove(strip, dot.x, dot.y)
             holds = 0; okSoFar = true
             phase = 4
         } else if (phase === 4 || phase === 7) {
@@ -225,15 +296,19 @@ Item {
             // keep the replay moving: restart the window playhead whenever it reaches its end
             if (shotReplay.active && !shotReplay.playing) { shotReplay.seekToFraction(0); shotReplay.togglePlay() }
             const st = hoverState()
-            const good = st.contains && st.idx === target && st.text.indexOf("shot " + (target + 1) + " · ") === 0
+            const good = st.contains && st.idx === target && (wantLine === "" || st.text === wantLine)
             const what = chart === strip ? "strip" : "run"
             const rebuilt = chart === strip ? find(strip, "sdStripDot")[0] !== firstDelegate
                                             : find(vr, "sdRunMark")[0] !== firstDelegate
-            log(arr + " · " + what + " held " + (holds + 1) + ": containsMouse " + st.contains + " · hoverIndex "
-                + st.idx + " (want " + target + ") · line \"" + st.text + "\" · replay ticks " + positionTicks
+            log(arr + " · " + what + " held " + (holds + 1) + ": containsMouse " + st.contains + " · hovered shot "
+                + st.idx + " (want shot id " + target + ") · line \"" + st.text + "\" · replay ticks " + positionTicks
                 + " · detail republished " + detailChanges + "× · surface " + surfaceChanges
                 + "× · delegates rebuilt " + rebuilt + " · same panel " + (appBody() === body)
                 + " · loop " + shotReplay.impactLoopPlaying)
+            if (!good && holds === 0 && mark) {
+                const sp = mark.mapToItem(null, 0, 0)
+                log(arr + " · under the pointer (" + Math.round(sp.x) + "," + Math.round(sp.y) + "): " + underPoint(probe.Window.window.contentItem, sp.x, sp.y, 0))
+            }
             if (!good) okSoFar = false
             holds += 1
             if (holds >= 3) {
@@ -249,12 +324,21 @@ Item {
         } else if (phase === 6) {
             chart = vr
             const marks = find(vr, "sdRunMark")
-            target = Math.min(7, marks.length - 1)
+            const free = reachable(marks, vr, x => !x.ringed)
+            check(free.length > 0, arr + ": a run mark the pointer can reach")
+            const m = free[Math.floor(free.length / 2)] || marks[0]
+            mark = m
+            bringIntoViewCentred(m)
+            const fl = find(body, "sdDetailFlick")[0], right = vr.mapToItem(fl, vr.width, 0).x
+            if (right > fl.width + 1)
+                log(arr + " · NOTE the run chart is wider than the detail's view (right edge " + Math.round(right)
+                    + " in " + Math.round(fl.width) + " px): its right part is clipped")
+            target = m.shotId
+            wantLine = readoutFor(target)
             firstDelegate = marks[0]
-            const m = marks[target]
             resetCounts()
-            tc.mouseMove(vr, m.x + m.width / 2 - 3, m.y + m.height / 2)
-            tc.mouseMove(vr, m.x + m.width / 2, m.y + m.height / 2)
+            tc.mouseMove(vr, m.x - 3, m.y)
+            tc.mouseMove(vr, m.x, m.y)
             holds = 0; okSoFar = true
             phase = 7
         } else if (phase === 8) {

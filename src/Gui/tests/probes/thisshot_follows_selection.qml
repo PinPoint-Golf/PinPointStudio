@@ -66,6 +66,12 @@ Item {
         const kids = item.children || []
         for (let i = 0; i < kids.length; ++i) walk(kids[i], name, out)
     }
+    // On screen only if every ancestor up to `top` is visible (a hidden view keeps its items visible: true).
+    function shown(item, top) {
+        let i = item
+        while (i && i !== top) { if (!i.visible) return false; i = i.parent }
+        return !!i
+    }
 
     Instantiator {
         id: shots
@@ -113,16 +119,28 @@ Item {
                             "…for shot " + probe.ordinal + " (shotIndex " + (r ? r.shotIndex : "-") + ")")
                 probe.check(body._tab === "shot", "THIS SHOT is the tab on screen")
                 probe.check(body.readingShot === true, "the body is reading a shot")
-                const strip = [], cells = [], empty = [], label = []
-                probe.walk(body, "sdReviewStrip", strip)
-                probe.walk(body, "sdReviewCell", cells)
+                // The typeset register (PpDiagAnalyse in Analyse): THIS SHOT is the view `sdShotView`, its
+                // rows are the dot plot's `sdDotRow` and the fired ledger's `sdFiredRow`, and the head
+                // `sdShotHead` names the shot by its ORDINAL (shotIndex + 1), "Shot N of M".
+                const regs = [], views = [], dots = [], fired = [], empty = [], heads = []
+                probe.walk(body, "sdRegister", regs)
+                probe.walk(body, "sdShotView", views)
+                probe.walk(body, "sdDotRow", dots)
+                probe.walk(body, "sdFiredRow", fired)
                 probe.walk(body, "sdShotEmpty", empty)
-                probe.walk(body, "sdReviewStripLabel", label)
-                probe.check(strip.length === 1 && strip[0].visible, "the shot strip is drawn")
-                probe.check(cells.length > 0, "with " + cells.length + " condition cells")
-                probe.check(empty.length === 1 && !empty[0].visible, "and no 'pick a shot' message")
-                probe.check(label.length === 1 && label[0].text.indexOf("SHOT " + probe.ordinal + " OF") === 0,
-                            "the strip names the shot: '" + (label[0] ? label[0].text : "") + "'")
+                probe.walk(body, "sdShotHead", heads)
+                probe.check(regs.length === 1 && regs[0].register === "Analyse",
+                            "the Analyse register is loaded (" + (regs[0] ? regs[0].register : "none") + ")")
+                const view = views.filter(v => probe.shown(v, body))
+                probe.check(view.length === 1, "the THIS SHOT view is drawn")
+                const rows = dots.filter(d => probe.shown(d, body)).length + fired.filter(f => probe.shown(f, body)).length
+                probe.check(rows > 0, "with " + rows + " condition rows")
+                probe.check(empty.every(e => !probe.shown(e, body)), "and no 'pick a shot' message")
+                const head = heads.filter(h => probe.shown(h, body))[0]
+                const headText = head ? [head.kicker, head.head, head.standfirst, head.title, head.sub]
+                                            .filter(t => typeof t === "string").join(" ") : ""
+                probe.check(headText.toLowerCase().indexOf("shot " + probe.ordinal + " of") >= 0,
+                            "the head names the shot: '" + headText.slice(0, 120) + "'")
                 if (probe.png !== "") {
                     body.grabToImage(function (res) { res.saveToFile(probe.png); probe.finish() })
                     return
