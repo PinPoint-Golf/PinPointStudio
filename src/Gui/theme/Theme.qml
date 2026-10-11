@@ -92,7 +92,7 @@ QtObject {
     // railActiveBar, capsHeadings, heroSize, trackingMicro, trackingLabel, trackingData, microSize,
     // spacingScale, cardRule, heroRule, heroTinted, gradientTitlesAllowed, chartGrid,
     // chartGridOpacity, chartBaseline, chartBaselineOpacity, chartFrame, chartCurveWidth,
-    // chartMarkerHollow. Optional keys may
+    // chartMarkerHollow, typeset (a block of typeset roles, §15.3 — see _typesetDefault). Optional keys may
     // also sit in a mode block when they differ between light and dark (Folio's chart greys).
     readonly property var _themes: ({
         instrument: {
@@ -162,6 +162,17 @@ QtObject {
             label: "Vector", swatch: ["#CC3300", "#FF5500"], fontBody: "Space Grotesk", fontData: "Space Mono", fontDisplay: "Space Mono",
             fontBodyWeight: Font.Light, displayBase: 24, fontDisplayItalic: false, fontDisplayWeight: Font.Normal, radius: 0,
             radiusLg: 0, railWidth: 52, railActiveBar: true,
+            // The typeset roles (§15.3), where Vector differs from _typesetDefault. Its display is Space
+            // Grotesk Light, not the theme's Space Mono: a headline is prose. labelFamily is the theme's
+            // fontData spelled out, because reading `fontData` inside this table would be a binding loop.
+            typeset: { displayFamily: "Space Grotesk", displayWeight: Font.Light, standFamily: "Space Grotesk",
+                       labelFamily: "Space Mono", labelCaps: true, labelTracking: 0.8, labelSize: 8, kickerWeight: Font.Normal,
+                       inlineFigureFamily: "Space Grotesk",
+                       sectionCaps: true, sectionTracking: 1.2, sectionWeight: Font.Normal,
+                       ruleAlpha: 0.7, hairAlpha: 0.11, figureRuleTop: 2, zoneTint: 0.06, faultAlpha: 0.9, passDash: [1, 3],
+                       markShape: "square", markFired: 6, markClean: 4, cleanHollow: false, ring: 12, barRadius: 0,
+                       exhibitWord: "FIG.", leader: " ·", leading: 1.28, smallLeading: 1.22,
+                       linkAccent: false, linkUnderline: true },
             light: { colorBg: "#F0F1F4", colorBg2: "#E4E6EB", colorBg3: "#D8DBE3", colorSurface: "#FAFBFC",
                      colorBorder: "#12000000", colorBorderMid: "#1c000000", colorBorderStrong: "#2e000000", colorText: "#0A0B10",
                      colorText2: "#4A4E5E", colorText3: "#9098B0", colorAccent: "#CC3300", colorAccentLight: "#0fcc3300",
@@ -228,6 +239,10 @@ QtObject {
             trackingLabel: 0.1, trackingData: 0, microSize: 11, spacingScale: 1.15, cardRule: 0,
             heroRule: 0, heroTinted: false, gradientTitlesAllowed: false, chartGridOpacity: 1.0, chartBaselineOpacity: 1.0,
             chartFrame: false, chartMarkerHollow: true,
+            // The typeset roles (§15.3), where Folio differs from _typesetDefault: the display and the
+            // standfirst in the serif, the direction sentence in italic, lighter rules and wash.
+            typeset: { standFamily: serifFamily, displayFamily: serifFamily,
+                       italicNotes: true, ruleAlpha: 0.5, hairAlpha: 0.09, zoneTint: 0.04 },
             light: { colorBg: "#F6F6F3", colorBg2: "#EEEDE9", colorBg3: "#E5E4DF", colorSurface: "#FFFFFF",
                      colorBorder: "#1a0b0b0b", colorBorderMid: "#240b0b0b", colorBorderStrong: "#380b0b0b", colorText: "#2B2B2A",
                      colorText2: "#52514E", colorText3: "#898781", colorAccent: "#2573D1", colorAccentLight: "#142573d1",
@@ -727,6 +742,46 @@ QtObject {
     readonly property color colorRail:     _v("railTone", "bg") === "bg2" ? colorBg2 : colorBg
     readonly property color colorToolbar:  _v("toolbarTone", "surface") === "bg2" ? colorBg2 : colorSurface
     readonly property bool  railActiveBar: _v("railActiveBar", false)
+
+    // ── Typeset roles (design system §15.3) ──────────────────────────────────
+    // The typeset system's type, ink and mark table, as data. A theme's `typeset` block lists only
+    // where it differs from this default (Folio and Vector carry one; the other five take the
+    // default until each is judged in renders). Sizes are design units: PpTypeset turns them into px,
+    // through Theme.sp() on screen and printScale on paper. Values that depend on light or dark (the
+    // pick and hover washes) are computed by PpTypeset from `dark`, never stored. Nothing outside
+    // PpTypeset reads these tables; blocks read the helper.
+    readonly property var _typesetDefault: ({
+        textFamily: fontBody, figureFamily: fontData, displayFamily: fontDisplay,
+        standFamily: fontBody, labelFamily: fontBody, inlineFigureFamily: fontData,
+        textWeight: Font.Normal, strongWeight: Font.Medium, displayWeight: Font.Normal, kickerWeight: Font.DemiBold,
+        // seven sizes; a view uses at most four of them
+        featureSize: 21, titleSize: 16, standSize: 12.5, bodySize: 11, smallSize: 9.5, labelSize: 9, microSize: 8.5,
+        labelCaps: false, labelTracking: 0.1,          // column heads, axis labels, keys, kickers
+        sectionCaps: false, sectionTracking: 0, sectionWeight: Font.Medium,
+        italicNotes: false,                            // the direction sentence (a row's second line) in italic
+        leading: 1.32, smallLeading: 1.25,
+        exhibitWord: "Fig.",
+        // ink
+        ruleAlpha: 0.55, hairAlpha: 0.10, figureRuleTop: 1.5,
+        zoneTint: 0.045, faultAlpha: 0.75, passAlpha: 0.55, stemAlpha: 0.45, passDash: [2, 3],
+        // marks: ONE shape per theme
+        markShape: "round", markFired: 7, markClean: 5, cleanHollow: true, ring: 14, barRadius: 1,
+        stripPitch: 7.5, stripBar: 3.2, stripH: 9,
+        // links: accent, or ink with an underline where accent ≈ warn
+        linkAccent: true, linkUnderline: false,
+        leader: ".  ",
+        // gutters step down one notch below medium
+        gutter: { wide: 20, medium: 20, compact: 14, narrow: 12 }
+    })
+    // The merged table for the current aesthetic: the default, then the entry's block.
+    readonly property var typeset: Object.assign({}, _typesetDefault, _a.typeset || {})
+    // The print block, shared by every theme: the scale, the hairline and the tint for paper, and the
+    // A4 page geometry the Pager uses. PpTypeset reads it while its medium is "print".
+    readonly property var typesetPrint: ({
+        printScale: 1.18,                              // body 11 → 13 px ≈ 10 pt, never the user's fontScale
+        hair: 0.5, tintScale: 0.7, ring: 12,
+        marginX: 60, headY: 30, top: 76, bottom: 92     // A4 at 96 dpi logical
+    })
 
     // ── Border tokens ────────────────────────────────────────────────────────
     readonly property real borderWidth:         1
