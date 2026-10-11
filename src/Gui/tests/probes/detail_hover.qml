@@ -234,6 +234,11 @@ Item {
 
     function startArrangement() {
         const arr = arrangements[arrIdx]
+        // The camera leads the stage's order (since 11 Oct), so in the stage arrangement it takes the
+        // dominant slot and the panel shares the side column with everything else on — a sliver.
+        // This probe is about HOVER, not about that squeeze, so the stage pass turns the camera off
+        // and the panel leads; the other arrangements keep the camera on beside it.
+        ViewLayout.setPanel(SessionMode.analyse, "camera", arr !== "stage")
         ViewLayout.setArrangement(SessionMode.analyse, arr)
         phase = 0
     }
@@ -243,10 +248,13 @@ Item {
         const arr = arrangements[arrIdx]
         if (phase === 0) {
             if (arr === "tabs") {
-                // the panel's own tab — it leads the stage's order, so it is index 0
+                // the panel's own tab, found by key (the camera leads the stage's order)
                 const stages = []
                 walk(probe.Window.window.contentItem, it => it.arrangement !== undefined && it.tabIndex !== undefined, stages)
-                for (const st of stages) st.tabIndex = 0
+                for (const st of stages) {
+                    const i = (st.active || []).findIndex(d => d.key === "sessionDiagnostics")
+                    if (i >= 0) st.tabIndex = i
+                }
             }
             // LOOPING, as the replay view does it: the impact clip's own loop runs on its own clock
             // for as long as it is on, so the stage is never still while the pointer is held.

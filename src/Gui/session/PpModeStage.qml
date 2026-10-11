@@ -55,18 +55,17 @@ Item {
     // Layout resolves on the active session MODE, not the session type.
     readonly property string arrangement: ViewLayout.arrangementFor(SessionMode.mode)
 
-    // ⚠ THE ORDER IS THE PRIORITY, and session diagnostics leads it.
+    // ⚠ THE ORDER IS THE PRIORITY: camera leads, session diagnostics follows it.
     //
     // This list is read three times — the tab strip's order, the split row's order, and which
     // panel is DOMINANT in the stage arrangement (active[0] takes 62% of the width). So one
-    // ordering decides where the eye goes in every arrangement, which is why the swap is made
+    // ordering decides where the eye goes in every arrangement, which is why it is decided
     // here and not in three places.
     //
-    // Camera led it because a session used to be a thing you watched. It is a thing you read
-    // now: the diagnostics panel is what says what keeps happening, and a golfer who has turned
-    // it on has said that is the question they came with. It only leads WHEN IT IS ON — `active`
-    // filters on ViewLayout.isPanelOn and on the host screen having wired a delegate — so a
-    // session without it is camera-first exactly as before, with nothing to notice.
+    // Diagnostics led for a while (Aug–Oct 2026) because its old cards needed the dominant slot to
+    // be readable at all. The typeset panel (design system §15) lays itself out for whatever width
+    // it is given — full, stage, half or third — so it no longer needs to lead, and the camera,
+    // which is what the golfer watches, takes the first place back (Mark, 11 Oct 2026).
     //
     // `title` is the card's Micro heading. `tone` is a ROLE, resolved by _toneFor. EVERY card is
     // quiet (design system §15, Mark, 11 Oct 2026: "Quiet tone please"): colour on the stage means
@@ -77,10 +76,10 @@ Item {
     // Theme.caps on the titles is the exception that is allowed: it changes only when the
     // aesthetic moves into or out of one that sets headings in capitals, not on every theme.
     readonly property var _defs: [
-        { key: "sessionDiagnostics", label: qsTr("Session diagnostics"), title: Theme.caps(qsTr("Session diagnostics")),
-          tone: "quiet", comp: sessionDiagnosticsDelegate },
         { key: "camera",        label: qsTr("Camera"),                title: Theme.caps(qsTr("Camera")),
           tone: "quiet", comp: cameraDelegate },
+        { key: "sessionDiagnostics", label: qsTr("Session diagnostics"), title: Theme.caps(qsTr("Session diagnostics")),
+          tone: "quiet", comp: sessionDiagnosticsDelegate },
         { key: "swing3d",       label: qsTr("3-D swing"),             title: Theme.caps(qsTr("3-D swing")),
           tone: "quiet", comp: swing3dDelegate },
         { key: "launchMonitor", label: qsTr("Launch monitor"),        title: Theme.caps(qsTr("Launch monitor")),
