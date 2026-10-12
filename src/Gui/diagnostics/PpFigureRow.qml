@@ -18,11 +18,13 @@
 
 import QtQuick
 
-// FIGUREROW — C's chart-led detail figure: PpSpreadStrip | PpRunChart | PpHistoryStrip on ONE value axis,
+// FIGUREROW — C's chart-led detail figure: PpRunChart + PpBoxStrip | PpHistoryStrip on ONE value axis,
 // with the axis labels on the left, the zone labels once at the right of the last panel, and a caption
-// under each panel. The three sit in a row while the run panel keeps roles.flows.runPanel em; else
-// spread + run, then history, stacked. At wide the notes go to a right margin; below that they follow
+// under each panel. The run and its box plot (the session's marginal summary, immediately right of the
+// run) always stand together; the history sits beside them while the run keeps roles.flows.runPanel em,
+// else under them at their full width. At wide the notes go to a right margin; below that they follow
 // the figure in prose columns (≥ roles.flows.prose em). Same grammar at every size.
+// (12 Oct 2026: the box plot replaced PpSpreadStrip, a beeswarm with the norm's curve, at the left.)
 // PUBLIC API (stable; internals belong to the fault-forward figure work):
 //   detail     the open condition (header.spread, header.ticks, history)
 //   readout    for the picked shot's label
@@ -40,6 +42,9 @@ Item {
     property bool showNotes: true
     property bool showTravel: true             // (round 3, optional) the in-chart distance to travel; Analyse states it in its key figures
     property bool atom: true
+    // a box plot shown EXAMINED without a pointer (renders, demos): the Spread box, and/or one history column
+    property bool boxExamined: false
+    property int historyExamined: -1
     objectName: "sdFigureRow"
     readonly property var keyKinds: ["fired", "clean", "ring", "median", "fault", "pass", "corridor"]
     // the run caption READS the hovered shot (F53): run[hovered].readout while a shot is under the pointer,
@@ -64,20 +69,28 @@ Item {
     readonly property real zoneW: roles.u(96)
     readonly property real axisW: roles.u(34)
     readonly property real pg: roles.u(20)
-    readonly property real p3: roles.u(100)
-    readonly property bool rowMode: mainW - axisW - roles.u(104) - p3 - 2 * pg - zoneW >= roles.flows.runPanel * roles.em
-    readonly property real p1: rowMode && mainW > 60 * roles.em ? roles.u(132) : roles.atLeast(mainW, "compact") ? roles.u(104) : roles.u(84)
-    readonly property real p2: rowMode ? Math.max(roles.flows.runPanel * roles.em, Math.min(roles.u(440), mainW - axisW - p1 - p3 - 2 * pg - zoneW))
-                                       : Math.max(roles.flows.runPanel * roles.em, mainW - axisW - p1 - pg - zoneW)
+    // the box plot: narrow, and closer to the run than a panel gap, because it summarises that run
+    readonly property real bw: medium === "print" ? roles.u(36) : roles.u(44)
+    readonly property real bg: roles.u(12)
+    // the history panel grows with its sessions (about 56 u each, 100–240 u); too wide for the row, the
+    // figure takes the pair form and the history gets the full width under it
+    readonly property int histCols: (hist.columns || []).length
+    readonly property real p3: roles.u(Math.min(240, Math.max(100, 56 * histCols)))
+    readonly property bool rowMode: mainW - axisW - bw - bg - p3 - pg - zoneW >= roles.flows.runPanel * roles.em
+    // the run's width: in the row, beside box and history (capped); in the pair, everything the box leaves
+    readonly property real p2: rowMode ? Math.max(roles.flows.runPanel * roles.em, Math.min(roles.u(440), mainW - axisW - bw - bg - p3 - pg - zoneW))
+                                       : Math.max(13 * roles.em, mainW - axisW - bw - bg - zoneW)
     // THREE FORMS, by the width given (house rule 8: below its minimum a chart changes form):
-    //   row   — spread | run | history side by side (rowMode, as before)
-    //   pair  — spread | run, history under it, while the run keeps ~13 em beside the spread
-    //   stack — spread, run and history each alone at the full width; below ~290 px the zone-label
-    //           gutter (fault / pass edge / ≈ compressed) moves under the figure as a one-line key
-    readonly property real pairMin: axisW + roles.u(84) + pg + zoneW + 13 * roles.em
+    //   row   — run + box | history side by side (rowMode)
+    //   pair  — run + box, history under them at their full width, while the run keeps ~13 em
+    //   stack — run + box at the full width, then history alone at the full width; the measure line
+    //           stands above; below ~290 px the zone-label gutter (fault / pass edge / ≈ compressed)
+    //           moves under the figure as a one-line key
+    readonly property real pairMin: axisW + bw + bg + zoneW + 13 * roles.em
     readonly property string form: rowMode ? "row" : (mainW >= pairMin ? "pair" : "stack")
     readonly property bool zoneBelow: form === "stack" && mainW < roles.u(232)
     readonly property real stackW: Math.max(roles.u(40), mainW - axisW - (zoneBelow ? 0 : zoneW + roles.u(10)))
+    readonly property real stackRunW: Math.max(roles.u(40), stackW - bw - bg)
     readonly property real topY: roles.u(40)
     // FAULT-FORWARD: a condition that fired spends a full figure on where its shots are; a clean one
     // (opened from the index) gets the economical figure — its story is the margin to the pass edge.
@@ -120,13 +133,28 @@ Item {
         property var kinds: []
         property var widths: []
         property bool showMeasure: true
-        readonly property var xs: { let x = fg.axisW; const out = []; for (let i = 0; i < widths.length; ++i) { out.push(x); x += widths[i] + fg.pg } return out }
+        // the box stands closer to its run (bg) than one panel to the next (pg)
+        function gapBefore(i) { return kinds[i] === "box" ? fg.bg : fg.pg }
+        readonly property var xs: { let x = fg.axisW; const out = []; for (let i = 0; i < widths.length; ++i) { if (i > 0) x += gapBefore(i); out.push(x); x += widths[i] } return out }
         readonly property real zX: xs.length ? xs[xs.length - 1] + widths[widths.length - 1] + fg.roles.u(10) : 0
+        // a caption may run on into the gap after its panel, but never under the next panel; the last
+        // one runs on to the edge of the figure
+        function capW(i) {
+            if (i === kinds.length - 1) return Math.max(widths[i], fg.mainW - xs[i])
+            return kinds[i + 1] === "box" ? widths[i] : widths[i] + fg.pg - fg.roles.u(6)
+        }
         function caption(k) {
-            if (k === "spread") return fg.s.captionShort || ""
+            if (k === "box") return fg.boxCaption
             if (k === "run") return fg.hoverReadout || fg.s.currentReadout || ""
-            const c = (fg.hist.columns || []).filter(x => x.current)[0]
-            return c ? c.label + " · " + c.medianText : ""
+            // the column's rule is the MEDIAN, said once here so nobody reads it as a mean; a session
+            // with no reading of this measure is named as not measured (its column shows "-")
+            const cols = fg.hist.columns || []
+            const c = cols.filter(x => x.current)[0]
+            const parts = []
+            if (c) parts.push(c.label + " · " + ((c.values || []).length ? "median " + c.medianText : "not measured"))
+            const none = cols.filter(x => !x.current && !(x.values || []).length).map(x => x.label)
+            if (none.length) parts.push(none.join(", ") + " not measured")
+            return parts.join(" · ")
         }
         implicitHeight: fg.topY + fg.fH + fg.roles.u(26) + caps.height
         Text {
@@ -176,31 +204,54 @@ Item {
                 required property int index
                 x: vr.xs[index] || 0; width: vr.widths[index] || 0; height: vr.implicitHeight
                 active: !!fg.roles
-                sourceComponent: modelData === "spread" ? cSpread : modelData === "run" ? cRun : cHist
+                sourceComponent: modelData === "box" ? cBox : modelData === "run" ? cRun : cHist
+                // an examined box's reading draws over its neighbours
+                z: item && item.examining ? 5 : 0
             }
         }
-        Row {
+        Item {
             id: caps
-            x: fg.axisW; y: fg.topY + fg.fH + fg.roles.u(26)
-            spacing: fg.pg
+            y: fg.topY + fg.fH + fg.roles.u(26)
+            width: vr.width; height: childrenRect.height
             Repeater {
                 model: fg.roles ? (vr.kinds) : []
                 delegate: Text {
                     required property var modelData
                     required property int index
-                    objectName: modelData === "run" ? "sdDetailHoverReadout" : modelData === "hist" ? "sdHistoryCaption" : "sdSpreadCaption"
-                    width: fg.form === "stack" ? fg.mainW - fg.axisW : vr.widths[index] + (index === vr.kinds.length - 1 ? fg.roles.u(60) : 0)
+                    objectName: modelData === "run" ? "sdDetailHoverReadout" : modelData === "hist" ? "sdHistoryCaption" : "sdBoxCaption"
+                    x: vr.xs[index] || 0; width: vr.capW(index)
                     wrapMode: Text.WordWrap; font: fg.roles.fSmall; color: fg.roles.ink3; text: vr.caption(modelData)
                 }
             }
         }
     }
-    Component { id: cSpread; PpSpreadStrip { roles: fg.roles; brush: fg.brush; medium: fg.medium; interactive: fg.interactive; spread: fg.s; scale: sc
-                                           onShotActivated: (d, i) => fg.shotActivated(d, i); onShotHovered: i => fg.shotHovered(i) } }
-    Component { id: cRun; PpRunChart { roles: fg.roles; brush: fg.brush; medium: fg.medium; interactive: fg.interactive; spread: fg.s; ticks: fg.hdr.ticks || []; scale: sc; unit: fg.unitShort; showDistance: fg.showTravel
-                                     leftRoom: parent ? parent.x : 1e6; rightRoom: parent ? fg.mainW - parent.x - parent.width : 1e6
+    // the box's caption: the session median at the axis's own precision (the model's medianNumber, the
+    // same number the box's rule marks), with a symbol unit only — "median 14", short enough for the column
+    readonly property string boxCaption: {
+        const n = s.medianNumber
+        if (n === undefined || n === null || n === "" || n === "-") return (s.dots || []).length ? "" : "no shot measured"
+        return "median " + n + unitShort
+    }
+    // the zone labels' heights in the right gutter, which an examined box's reading keeps clear of; the
+    // gutter starts u(10) past the LAST panel of a row (a panel with another after it has no gutter)
+    readonly property var gutterYs: zoneBelow ? [] : sc.edges.filter(e => e.kind === "fault" || ((e.kind === "pass" || e.kind === "aim") && sc.region(e.f) === 1)).map(e => sc.y(e.f))
+                                                     .concat(sc.bandLo ? [sc.loBandTop + sc.bandPx / 2] : [], sc.bandHi ? [sc.plotTop + sc.bandPx / 2] : [])
+    function gutterXOf(loader) { return loader && loader.parent && loader.index === loader.parent.kinds.length - 1 ? loader.width + roles.u(10) : 1e6 }
+    readonly property int axisDecimals: s.decimals !== undefined ? s.decimals : (hist.decimals !== undefined ? hist.decimals : 0)
+    Component { id: cBox; PpBoxStrip { roles: fg.roles; brush: fg.brush; medium: fg.medium; interactive: fg.interactive; spread: fg.s; scale: sc
+                                     unit: fg.unitShort; decimals: fg.axisDecimals; examined: fg.boxExamined
+                                     rightRoom: parent ? fg.mainW - parent.x - parent.width : 0
+                                     gutterX: fg.gutterXOf(parent); gutterYs: fg.gutterYs
                                      onShotActivated: (d, i) => fg.shotActivated(d, i); onShotHovered: i => fg.shotHovered(i) } }
-    Component { id: cHist; PpHistoryStrip { roles: fg.roles; brush: fg.brush; medium: fg.medium; interactive: fg.interactive; history: fg.hist; scale: sc
+    // the run's labels stay inside its plot: the Y labels stand to its left, its box to its right (they may
+    // reach into the gap before the box, never over it)
+    Component { id: cRun; PpRunChart { roles: fg.roles; brush: fg.brush; medium: fg.medium; interactive: fg.interactive; spread: fg.s; ticks: fg.hdr.ticks || []; scale: sc; unit: fg.unitShort; showDistance: fg.showTravel
+                                     leftRoom: 0; rightRoom: Math.max(0, fg.bg - fg.roles.u(4))
+                                     onShotActivated: (d, i) => fg.shotActivated(d, i); onShotHovered: i => fg.shotHovered(i) } }
+    Component { id: cHist; PpHistoryStrip { roles: fg.roles; brush: fg.brush; medium: fg.medium; interactive: fg.interactive; history: fg.hist; scale: sc; unit: fg.unitShort
+                                          decimals: fg.axisDecimals; examinedColumn: fg.historyExamined
+                                          rightRoom: parent ? fg.mainW - parent.x - parent.width : 0
+                                          gutterX: fg.gutterXOf(parent); gutterYs: fg.gutterYs
                                           onSessionActivated: d => fg.sessionActivated(d) } }
 
     Column {
@@ -215,10 +266,10 @@ Item {
             font: fg.roles.fSmall; color: fg.roles.ink3
         }
         ValueRow { width: fg.mainW
-                   kinds: fg.form === "row" ? ["spread", "run", "hist"] : fg.form === "pair" ? ["spread", "run"] : ["spread"]
-                   widths: fg.form === "row" ? [fg.p1, fg.p2, fg.p3] : fg.form === "pair" ? [fg.p1, fg.p2] : [fg.stackW] }
-        ValueRow { visible: fg.form === "stack"; height: visible ? implicitHeight : 0; showMeasure: false; width: fg.mainW; kinds: fg.form === "stack" ? ["run"] : []; widths: [fg.stackW] }
-        ValueRow { visible: !fg.rowMode; height: visible ? implicitHeight : 0; showMeasure: false; width: fg.mainW; kinds: fg.rowMode ? [] : ["hist"]; widths: [fg.form === "stack" ? fg.stackW : fg.p3] }
+                   kinds: fg.form === "row" ? ["run", "box", "hist"] : ["run", "box"]
+                   widths: fg.form === "row" ? [fg.p2, fg.bw, fg.p3] : fg.form === "pair" ? [fg.p2, fg.bw] : [fg.stackRunW, fg.bw] }
+        ValueRow { visible: !fg.rowMode; height: visible ? implicitHeight : 0; showMeasure: false; width: fg.mainW; kinds: fg.rowMode ? [] : ["hist"]
+                   widths: [fg.form === "stack" ? fg.stackW : fg.p2 + fg.bg + fg.bw] }
         // below ~290 px the zone labels leave the right gutter and stand under the figure as one key line
         Flow {
             visible: fg.zoneBelow
@@ -245,7 +296,8 @@ Item {
         readonly property int cols: fg.roles.columns(width, fg.roles.flows.prose, gap)
         readonly property real colW: (width - (cols - 1) * gap) / cols
         Text { width: fn.colW; wrapMode: Text.WordWrap; font: fg.roles.fSmall; color: fg.roles.ink2
-               text: "One mark per shot; the ring is shot " + fg.shotNo + (fg.readout ? " of " + fg.readout.shotCount : "") + ". The panels share one value axis"
+               text: "One mark per shot in the run; the ring is shot " + fg.shotNo + (fg.readout ? " of " + fg.readout.shotCount : "")
+                     + ". The box beside it is the session: its middle half, the rule its median, the whiskers to the furthest shots within one and a half box-lengths, and a mark for any shot beyond them. The panels share one value axis"
                      + (sc.broken ? ", true to scale where the shots are; the empty part of the axis is compressed at the break (≈)." : ".") }
         Text { width: fn.colW; wrapMode: Text.WordWrap; font: fg.roles.fSmall; color: fg.roles.ink3; visible: !!fg.s.highMeans; text: "Higher: " + (fg.s.highMeans || "") + "." }
         Text { width: fn.colW; wrapMode: Text.WordWrap; font: fg.roles.fSmall; color: fg.roles.ink3; text: fg.s.normTagLong || "" }

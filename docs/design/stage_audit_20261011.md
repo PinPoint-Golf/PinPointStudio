@@ -243,7 +243,7 @@
 - ±1 SD as geometry, not colour.
 
 **Sketch:**
-- Replay: KeyFigures (4 to 6, ≥ 10 em each) with a SpreadStrip under each.
+- Replay: KeyFigures (4 to 6, ≥ 10 em each) with a BoxStrip under each (the SpreadStrip was retired on 12 Oct 2026 for the box plot, §15.8).
 - Analyse: LedgerTable `session` kind (reading · this shot · mean ± SD · strip · corridor), folding by tier.
 - Graphics stays as the figure voice.
 - One warn for "out", band hue only as a hairline key if at all, and no `k`.

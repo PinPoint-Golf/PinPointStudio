@@ -23,7 +23,7 @@ import QtQuick
 // Round 3: when the scale is broken (fault-forward), the wash is drawn piece by piece so the BREAK stays
 // clear, edges that fall in a compressed band are drawn there at reduced weight, and the break itself is
 // marked at both ends of the panel with the conventional pair of slashes — never hidden.
-// FIGURE-INTERNAL (used by PpSpreadStrip, PpRunChart, PpHistoryStrip).
+// FIGURE-INTERNAL (used by PpRunChart, PpBoxStrip, PpHistoryStrip).
 Item {
     id: zp
     property QtObject roles: PpTypeset {}           // the register passes its one PpTypeset; this default only covers creation order

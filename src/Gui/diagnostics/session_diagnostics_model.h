@@ -394,8 +394,7 @@ public:
     //   corridorKnown, shape      whether there is anything to grade against, and which sides
     //   bands[]                   { grade: ideal|good|watch|action|open, lo, hi, f0, f1 }
     //   faultLines[]              { value, f, text, shortText } — where Action begins, per graded side
-    //   curve[]                   { f, d } the NORM's split normal, graded side only; never fitted
-    //   normTag/normTagLong/normCitation/normSource   what that curve is: judgement or data
+    //   normTag/normTagLong/normCitation/normSource   what the corridor is: judgement or data
     //   dots[]                    one per ASSESSABLE shot: { index, shotId, swingDir, value, f,
     //                             clipped, stack, state, current, recent, valueText }
     //   stackMax                  the deepest beeswarm column, so the QML can choose a pitch
@@ -610,7 +609,7 @@ private:
     // The corridor a condition's readings are drawn against: the norm resolved for the focus
     // shot's context (else the session's commonest), from the pack's measure shape and the
     // session's grade policy — and only when no norm resolves, the Ideal band the row stored.
-    // `normInfo` gets what the curve is (source, n, citation) for the tag.
+    // `normInfo` gets what the corridor is (source, n, citation) for the tag.
     pinpoint::analysis::SpreadCorridor corridorForRow(const pinpoint::analysis::ConditionRow &r) const;
     pinpoint::analysis::SpreadCorridor spreadCorridorOf(const pinpoint::analysis::ConditionLedger &l,
                                                         int focusIdx, QVariantMap *normInfo,

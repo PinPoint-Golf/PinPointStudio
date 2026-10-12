@@ -158,10 +158,10 @@ QString fmtSpreadRun(const QStringList &numbers, const QString &unit)
     return joined + QLatin1Char(' ') + unit;
 }
 
-// What the curve under the dots IS, in words — the one thing that stops it being read as the
-// golfer's own distribution. A heuristic norm is somebody's coaching judgement, and saying so in
-// the tag is the difference between "your swings sit far out on this curve" and "your swings sit
-// far out on a curve somebody measured".
+// What the corridor behind the shots IS, in words — the one thing that stops it being read as the
+// golfer's own spread. A heuristic norm is somebody's coaching judgement, and saying so in the tag
+// is the difference between "your swings sit far outside this corridor" and "your swings sit far
+// outside a corridor somebody measured".
 QString normTagOf(bool fromNorm, NormSource src, int n)
 {
     if (!fromNorm) return QStringLiteral("norm · from the stored corridor");
@@ -178,21 +178,21 @@ QString normTagOf(bool fromNorm, NormSource src, int n)
 QString normTagLongOf(bool fromNorm, NormSource src, int n)
 {
     if (!fromNorm)
-        return QStringLiteral("The curve is the corridor this session stored — no norm resolved for "
+        return QStringLiteral("The corridor is the one this session stored — no norm resolved for "
                               "it today. It is not fitted to your shots.");
     switch (src) {
     case NormSource::Heuristic:
-        return QStringLiteral("The curve is the norm's claim, and the norm is coaching judgement "
+        return QStringLiteral("The corridor is the norm's claim, and the norm is coaching judgement "
                               "(heuristic), not measured data. It is not fitted to your shots.");
     case NormSource::Seated:
-        return QStringLiteral("The curve is the norm's claim, fitted to %1 well-positioned swings. "
+        return QStringLiteral("The corridor is the norm's claim, fitted to %1 well-positioned swings. "
                               "It is not fitted to your shots.").arg(n);
     case NormSource::Literature:
-        return QStringLiteral("The curve is the norm's claim, from published data. It is not "
+        return QStringLiteral("The corridor is the norm's claim, from published data. It is not "
                               "fitted to your shots.");
     case NormSource::Imported:
-        return QStringLiteral("The curve is the norm's claim, imported from another norm pack. It "
-                              "is not fitted to your shots.");
+        return QStringLiteral("The corridor is the norm's claim, imported from another norm pack. "
+                              "It is not fitted to your shots.");
     }
     return QString();
 }
@@ -1760,7 +1760,7 @@ SpreadCorridor SessionDiagnosticsModel::spreadCorridorOf(const ConditionLedger &
 
 namespace {
 
-// The bands, the fault lines and the curve as the QML takes them: every position a fraction of
+// The bands and the fault lines as the QML takes them: every position a fraction of
 // the axis, every edge in units beside it for whoever wants to quote it. Shared by the strip and
 // the across-sessions columns so the two cannot disagree about where a band is.
 void publishCorridor(QVariantMap &out, const SpreadCorridor &c, const SpreadAxis &a,
@@ -1867,11 +1867,6 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
     out[QStringLiteral("unit")]    = unit;
     publishCorridor(out, c, a, unit);
 
-    QVariantList curve;
-    for (const auto &pt : spreadCurve(c, a))
-        curve.append(QVariantMap{ { QStringLiteral("f"), a.fraction(pt.first) },
-                                  { QStringLiteral("d"), pt.second } });
-    out[QStringLiteral("curve")]        = curve;
     out[QStringLiteral("normSource")]   = normInfo.value(QStringLiteral("source"));
     out[QStringLiteral("normTag")]      = normInfo.value(QStringLiteral("tag"));
     out[QStringLiteral("normTagLong")]  = normInfo.value(QStringLiteral("tagLong"));

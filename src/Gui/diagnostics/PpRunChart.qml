@@ -181,8 +181,12 @@ Item {
         id: dim
         readonly property var d: rc.dist
         readonly property real px: d ? d.x * rc.width : 0
-        readonly property bool flip: px > rc.width - rc.roles.u(110)
+        // the labels go right of the line, unless that side is short of room and the left has more; on
+        // either side they wrap inside it rather than run back across the line (12 Oct: a run sharing its
+        // row with the box plot has little room past its last shots)
+        readonly property bool flip: { const r = rc.width + rc.rightRoom - px, l = px + rc.leftRoom; return r < rc.roles.u(110) && l > r }
         readonly property real lx: px + (flip ? -1 : 1) * rc.roles.u(11)
+        readonly property real sideW: Math.max(rc.roles.u(40), flip ? lx - rc.roles.u(5) + rc.leftRoom : rc.width + rc.rightRoom - lx - rc.roles.u(5))
         readonly property real y0: d && rc.scale ? rc.scale.y(d.f) : 0
         readonly property real y1: d && rc.scale ? rc.scale.y(d.passF) : 0
         readonly property real yf: d && rc.scale && isFinite(d.faultF) ? rc.scale.y(d.faultF) : NaN
@@ -198,7 +202,7 @@ Item {
                 Rectangle { x: dim.lx - rc.roles.u(3); y: Math.round(parent.ye); width: rc.roles.u(7); height: rc.roles.hw; color: rc.roles.ink2 }
                 Text {
                     x: rc.fitX(dim.flip ? dim.lx - width - rc.roles.u(5) : dim.lx + rc.roles.u(5), width)
-                    width: Math.min(implicitWidth, rc.labelMaxW); wrapMode: Text.WordWrap
+                    width: Math.min(implicitWidth, dim.sideW); wrapMode: Text.WordWrap
                     y: parent.ye < dim.y0 ? parent.ye + rc.roles.u(1) : parent.ye - height - rc.roles.u(1)
                     text: rc.fmtD(modelData.dist) + " to " + rc.roles.num(modelData.value) + rc.unit
                     font: rc.roles.fLabel; color: rc.roles.ink2; style: Text.Outline; styleColor: rc.halo
@@ -213,21 +217,21 @@ Item {
             Text {
                 visible: !!dim.d && dim.d.out && isFinite(dim.d.pastFault)
                 anchors.right: dim.flip ? parent.right : undefined
-                width: Math.min(implicitWidth, rc.labelMaxW); wrapMode: Text.WordWrap
+                width: Math.min(implicitWidth, dim.sideW); wrapMode: Text.WordWrap
                 text: dim.d ? rc.fmtD(dim.d.pastFault) + " past the fault line" : ""
                 font: rc.roles.fLabel; color: rc.roles.warn; style: Text.Outline; styleColor: rc.halo
             }
             Text {
                 visible: !!dim.d && dim.d.out && isFinite(dim.d.toFault)
                 anchors.right: dim.flip ? parent.right : undefined
-                width: Math.min(implicitWidth, rc.labelMaxW); wrapMode: Text.WordWrap
+                width: Math.min(implicitWidth, dim.sideW); wrapMode: Text.WordWrap
                 text: dim.d ? rc.fmtD(dim.d.toFault) + " short of the fault line" : ""
                 font: rc.roles.fLabel; color: rc.roles.ink2; style: Text.Outline; styleColor: rc.halo
             }
             Text {
                 visible: !!dim.d && dim.d.out
                 anchors.right: dim.flip ? parent.right : undefined
-                width: Math.min(implicitWidth, rc.labelMaxW); wrapMode: Text.WordWrap
+                width: Math.min(implicitWidth, dim.sideW); wrapMode: Text.WordWrap
                 text: dim.d ? rc.fmtD(dim.d.toPass) + " to get back inside" : ""
                 font: rc.roles.fLabel; color: rc.roles.ink; style: Text.Outline; styleColor: rc.halo
             }

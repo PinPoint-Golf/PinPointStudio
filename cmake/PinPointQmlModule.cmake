@@ -262,7 +262,8 @@ set(PP_QML_FILES
     src/Gui/diagnostics/PpSparkHead.qml
     src/Gui/diagnostics/PpSparkline.qml
     src/Gui/diagnostics/PpSparkRow.qml
-    src/Gui/diagnostics/PpSpreadStrip.qml
+    src/Gui/diagnostics/PpBoxReading.qml
+    src/Gui/diagnostics/PpBoxStrip.qml
     # The Session diagnostics registers (§15.6), hosted by PpSessionDiagnosticsBody: the glance
     # (Replay, Capture, the cast), the read (Analyse), the report (Print, through PpPdfPrinter).
     src/Gui/diagnostics/PpDiagReplayState.qml

@@ -1798,7 +1798,7 @@ bind every panel.
 | small-multiple tile | 22 | key figure | 10 |
 | watching table column | 46 | dot-plot block, rich / tight | 52 / 34 |
 | chart | 30 | run panel inside a figure row | 14 |
-| spread, run and history in one row | 62 | two prose columns side by side | 62 |
+| run + box and history in one row | 62 | two prose columns side by side | 62 |
 | Detail opening in one row | 74 | Fig. 2 beside Fig. 3 | 66 |
 | rail or sidenote margin | 18 | cause-graph column | 12 |
 | sparkline | 7 | | |
@@ -2045,7 +2045,7 @@ Of the three options weighed, this one won:
 - Ticks appear only where the scale is true.
 - A band is labelled "≈ compressed". A fault line inside a band reads "fault ≈" at its compressed
   position.
-- Shots, curves and quartile bars inside a band are still drawn there, and lines break at the gap.
+- Shots, boxes and whiskers inside a band are still drawn there, and lines break at the gap.
 - The figure's note explains the break.
 
 **The distance to travel.** The empty zone becomes the target. The run chart draws a dimension
@@ -2065,7 +2065,7 @@ fault line.
 | two-sided corridor | ±7.5 cm pelvis thrust (its Session tile) | the window takes the pass edge on the side the shots are on; the rest of the corridor and the far side share one band, and the far fault reads "fault ≈" |
 | clean condition | Stance too wide, opened from the index | the economical figure: 112 px tall instead of 170 (print 92 instead of 132); the window keeps both pass edges and collapses both fault zones; the picked shot shows its margin to each edge ("8 to 82", "28 to 118") and claims no direction |
 
-**Every figure that has a corridor uses it:** Detail's spread, run and history, the Session small
+**Every figure that has a corridor uses it:** Detail's run, box and history, the Session small
 multiples and the Replay sparklines.
 - Small multiples share one ladder: 0 is the middle of the corridor, 2 the pass edge and 3 the
   fault line.
@@ -2088,6 +2088,54 @@ multiples and the Replay sparklines.
 - Panels that share a value axis sit in one row while the run panel keeps 14 em, and stack below
   that.
 - Fault figures are 170 px tall at every width.
+
+**Detail's figure row: run + box, then history** (`PpFigureRow`).
+- **Shot by shot** (`PpRunChart`) is the time series. Immediately to its right, 12 px off it,
+  stands **Spread** (`PpBoxStrip`), a narrow box plot of the same session (44 px on screen, 36 in
+  print): the marginal summary of the run, on the same value axis, before the zone-label gutter.
+  - The box is Q1 to Q3, outlined in ink2 with a 10 % ink3 fill; the median is a 1.5 px ink rule
+    (1 px in print). The quartiles are type 7, the convention of the model's `spreadQuantile`, so the
+    box's median is the session median the key figures quote.
+  - The whiskers run to the furthest shots within 1.5 × IQR, with short caps. A shot beyond them is
+    a PpMark (fired or clean), clickable and hover-linked.
+  - The picked shot is a ringed PpMark on the box's centre line at its value; the hovered shot lights
+    there the same way. That is what links "this shot" to "the session".
+  - Caption: "median 22", at the axis's own precision, with a symbol unit only.
+  - At rest the median's value also stands just right of the box, in ink; the box steps left of
+    centre when that number would otherwise reach the zone labels.
+- **Hover to examine** (Mark, 12 Oct: *"labels appeared on box plots when you hovered over them —
+  that way the ui is clean but you can examine them with the mouse"*). The pointer anywhere over a
+  box's column (the Spread box, or any session's mini box) reveals its full reading
+  (`PpBoxReading`): upper whisker end, Q3, median (ink), Q1 and lower whisker end, each a number at
+  its own height with a hairline tick from the box, and "15 shots · 1 outlier" under them, on a
+  paper backing. Labels closer than a line are nudged apart as a group, and each tick bends to its
+  label from the true height. The reading opens right, or left when the right lacks the room or would
+  run into a zone label at its heights. Resting median labels it would cross step aside. The hover is
+  a passive `HoverHandler`: outlier clicks, a session's click and the shot-hover brush are untouched.
+  Print, and a non-interactive figure, show the resting labels only. `PpFigureRow.boxExamined` and
+  `historyExamined` drive the state for renders.
+- **Across sessions** (`PpHistoryStrip`) draws each session as its shots plus a small box plot in
+  the same grammar, with the median's value set just right of the box (this session's in ink, the
+  others in ink3; only this session's when the columns are too narrow). Its caption says "median"
+  once ("8 Oct · median 18"), so the rule is never read as a mean. A session with no reading of the
+  measure shows a centred "-" in ink3, never a blank column, and the caption names it ("9 Sep not
+  measured").
+- **Three forms.** Row: run + box | history. Pair: run + box, with the history under them at their
+  full width. Stack (narrow): run + box at the full width, then the history alone; the measure line
+  stands above, and below about 290 px the zone labels become a key line under the figure. The run
+  and its box are never parted.
+- The run's distance labels stay inside its plot: they go right of the dimension line unless that
+  side is short and the left has more room, and they wrap on their side rather than cross the line.
+
+> **Changed (Mark, 12 October 2026): the spread strip became a box plot.** Mark: *"I think the
+> spread chart isn't adding anything there and can be replaced with a box plot alongside the session
+> plot. It would use less screen estate and actually provide more meaning."*
+> - `PpSpreadStrip` (a beeswarm of the session's shots at the left of the run, with the norm's
+>   density curve standing in from its edge) is gone. The corridor bands already carry the norm's
+>   judgement, so the curve went with it: the model no longer publishes `spread.curve`, and the norm
+>   note reads "The corridor is the norm's claim, …".
+> - The same day, from Mark's screenshot of Across sessions: each column's bar became a small box
+>   plot with its median labelled, and an unmeasured session shows "-".
 
 ### 15.9 Print
 

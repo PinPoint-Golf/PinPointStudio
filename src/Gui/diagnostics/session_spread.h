@@ -53,11 +53,12 @@
 // the golfer, who would read green as praise for a direction the norm deliberately says nothing
 // about. So the open side is its own band, `open`, and the panel paints it as background.
 //
-// THE CURVE IS THE NORM'S, NEVER THE GOLFER'S. It is the split normal the norm claims, peak-
-// normalised, drawn over the GRADED side only on a one-sided corridor — the open tail has no
-// tolerance to draw. Nothing in this file fits a distribution to the shots: a Gaussian fitted to
-// one golfer's session would be a second corridor wearing the first one's clothes, and the whole
-// point of the strip is the distance between what the norm claims and where the swings landed.
+// THE CORRIDOR IS THE NORM'S, NEVER THE GOLFER'S. Nothing in this file fits a distribution to the
+// shots: a Gaussian fitted to one golfer's session would be a second corridor wearing the first
+// one's clothes, and the whole point of the figures is the distance between what the norm claims
+// and where the swings landed. (Until 12 Oct 2026 the norm's split normal was also drawn as a
+// density curve beside the shots; the box plot that replaced that strip summarises the SHOTS, by
+// their quartiles, and the corridor bands alone carry the norm.)
 //
 // ONE SHOT MUST NOT CRUSH THE SCALE. The axis spans the bands and the shots, EXCEPT a shot so far
 // out that including it would squeeze the rest into a few pixels; that one is drawn at the edge as
@@ -70,7 +71,7 @@ namespace pinpoint::analysis {
 // every edge collapses onto mu — the same convention NormBandEdges uses, for the same reason: a
 // sentinel crossing into QML becomes a corridor at the origin.
 struct SpreadCorridor {
-    bool   known    = false;     // false: nothing to grade against — no bands, no curve, no fault line
+    bool   known    = false;     // false: nothing to grade against — no bands, no fault line
     bool   fromNorm = false;     // false: reconstructed from a row's stored Ideal band (no norm resolved)
     CorridorShape shape = CorridorShape::Unknown;
     bool   lowOpen  = false;     // this tail does not grade (a ceiling)
@@ -177,19 +178,8 @@ inline SpreadCorridor spreadCorridorFromRow(const ConditionRow &r, const GradePo
     return c;
 }
 
-// The norm's own curve, peak-normalised: two half-normals meeting at mu. The same two-piece normal
-// corridor_plot.h's splitNormalPeakNormalised() draws for the corridor editor — restated here
-// rather than linked, because the model is compiled into four tool and test targets that do not
-// carry corridor_plot.cpp, and the formula is the whole of it.
-inline double spreadCurveDensity(double x, double mu, double sigmaLo, double sigmaHi)
-{
-    const double sigma = (x < mu) ? sigmaLo : sigmaHi;
-    if (!(sigma > 0.0)) return 0.0;
-    const double z = (x - mu) / sigma;
-    return std::exp(-0.5 * z * z);
-}
-
 // A sorted sample's quantile, linear between order statistics (type 7, R's default). Empty → NaN.
+// PpBoxStrip.qml restates this convention for the detail's box plot, so its median is this median.
 inline double spreadQuantile(std::vector<double> sorted, double q)
 {
     if (sorted.empty()) return std::numeric_limits<double>::quiet_NaN();
@@ -336,29 +326,6 @@ inline std::vector<SpreadBand> spreadBands(const SpreadCorridor &c, const Spread
             ++i;
         }
     }
-    return out;
-}
-
-// The norm's curve as (value, density) pairs across the axis — the graded side only on a
-// one-sided corridor, which is what makes it a HALF curve there rather than a bell the norm does
-// not claim. Empty without a corridor.
-inline std::vector<std::pair<double, double>> spreadCurve(const SpreadCorridor &c, const SpreadAxis &a,
-                                                          int steps = 96)
-{
-    std::vector<std::pair<double, double>> out;
-    if (!c.known || steps < 2) return out;
-    const double span = a.hi - a.lo;
-    for (int i = 0; i <= steps; ++i) {
-        double v = a.lo + span * double(i) / double(steps);
-        if (c.lowOpen  && v < c.mu) continue;
-        if (c.highOpen && v > c.mu) continue;
-        out.emplace_back(v, spreadCurveDensity(v, c.mu, c.sigmaLo, c.sigmaHi));
-    }
-    // A half curve starts exactly AT mu, not at the first sample past it, so its peak is drawn.
-    if (c.lowOpen && (out.empty() || out.front().first > c.mu) && c.mu >= a.lo && c.mu <= a.hi)
-        out.insert(out.begin(), { c.mu, 1.0 });
-    if (c.highOpen && (out.empty() || out.back().first < c.mu) && c.mu >= a.lo && c.mu <= a.hi)
-        out.emplace_back(c.mu, 1.0);
     return out;
 }
 

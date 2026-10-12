@@ -584,9 +584,8 @@ Item {
             ],
             faultLines: [{ value: 13, f: 0.469, text: "fault at 13 % hand rise", shortText: "13 % hand rise" }],
             muF: 0.0625, muText: "0 % hand rise",
-            curve: [{ f: 0.0625, d: 1 }, { f: 0.2, d: 0.6 }, { f: 0.33, d: 0.13 }, { f: 0.47, d: 0.01 }],
             normSource: "heuristic", normTag: "norm · coaching judgement",
-            normTagLong: "The curve is the norm's claim, and the norm is coaching judgement (heuristic), not measured data. It is not fitted to your shots.",
+            normTagLong: "The corridor is the norm's claim, and the norm is coaching judgement (heuristic), not measured data. It is not fitted to your shots.",
             normCitation: "",
             dots: [
                 { index: 0, shotId: 1, swingDir: "/lib/a/s/swing_0001", f: 0.45, clipped: 0, stack: 0, state: "fired", current: false, recent: true, valueText: "14 % hand rise" },
@@ -1916,7 +1915,7 @@ Item {
             setSource(spreadSource())
             showTab("session")
             let row = shownAll(viewOf("session"), "sdSessionRow")[0]
-            compare(findAll(row, "sdSpreadStrip").length, 0, "no spread chart on a row")
+            compare(findAll(row, "sdBoxStrip").length, 0, "no box plot on a row")
             compare(findAll(row, "sdRunChart").length, 0, "and no run chart")
             compare(findAll(oneShown(row, "sdShotStrip"), "sdShotCell").length, 5, "the row keeps its strip")
             compare(oneShown(row, "sdSessionRowMedian").text, "14", "the session median")
@@ -1969,13 +1968,61 @@ Item {
             compare(probe.lastShotId, 1)
         }
 
-        // KEPT, narrowed: the spread's caption, the run's readout line, and across sessions one column per
-        // session with the current last; no history published, no columns.
-        function test_45_theSpreadAndTheHistoryCaptionThemselves() {
+        // NEW (12 Oct, Mark: the spread chart became a box plot beside the run): ONE box per figure; its
+        // quartiles are the session's by the C++ spreadQuantile convention (type 7) over the dots' f —
+        // 0.2, 0.45, 0.5, 1.0 → Q1 0.3875, median 0.475, Q3 0.625; whiskers to the furthest shots within
+        // 1.5 × IQR, never inside the box (0.2, and Q3 itself above); shot 5, past the fence, is a fired
+        // mark that asks for its swing; the picked shot is a ringed mark on the box; the caption is the
+        // session median.
+        function test_44b_theBoxSummarisesTheSessionBesideTheRun() {
             useRegister("Analyse")
             setReview(spreadDetailSource(), spreadReadout(3))
             const fr = oneShown(viewOf("detail"), "sdFigureRow")
-            compare(plain(oneShown(fr, "sdSpreadCaption").text), spreadFixture().captionShort, "the spread's caption")
+            const boxes = shownAll(fr, "sdBoxStrip")
+            compare(boxes.length, 1, "one box per figure")
+            park()
+            const bx = boxes[0], rc = oneShown(fr, "sdRunChart")
+            verify(bx.mapToItem(fr, 0, 0).x > rc.mapToItem(fr, 0, 0).x + rc.width - 1, "standing to the right of the run")
+            verify(bx.width < rc.width / 2, "narrow beside it")
+            fuzzyCompare(bx.fQ1, 0.3875, 1e-9, "Q1")
+            fuzzyCompare(bx.fMedian, 0.475, 1e-9, "the median")
+            fuzzyCompare(bx.fQ3, 0.625, 1e-9, "Q3")
+            fuzzyCompare(bx.fLoWhisker, 0.2, 1e-9, "the low whisker reaches the lowest shot inside the fence")
+            fuzzyCompare(bx.fHiWhisker, 0.625, 1e-9, "no upper whisker: the nearest shot inside the fence (0.5) is inside the box, and 1.0 is past it")
+            function py(f) { return Math.round(bx.scale.y(f) * 2) / 2 }
+            const med = one(bx, "sdBoxMedian")
+            fuzzyCompare(med.y + med.height / 2, py(0.475), 0.01, "the median rule sits at the median")
+            const bb = one(bx, "sdBoxBody")
+            fuzzyCompare(bb.y, py(0.625), 0.01, "the box's top is Q3")
+            fuzzyCompare(bb.y + bb.height, py(0.3875), 0.01, "its foot is Q1")
+            const marks = findAll(bx, "sdBoxMark").filter(function (m) { return m.visible })
+            const outs = marks.filter(function (m) { return m.role === "outlier" })
+            compare(outs.length, 1, "one shot beyond the whiskers")
+            compare(outs[0].shotId, 5, "shot 5")
+            verify(outs[0].fired && !outs[0].ringed, "drawn as the fired mark it is")
+            const picked = marks.filter(function (m) { return m.role === "picked" })
+            compare(picked.length, 1, "the picked shot on the box")
+            compare(picked[0].shotId, 4)
+            verify(picked[0].ringed, "ringed")
+            fuzzyCompare(picked[0].cy, py(0.5), 0.01, "at its value")
+            compare(marks.filter(function (m) { return m.role === "hovered" }).length, 0, "nothing hovered, no echo")
+            compare(plain(oneShown(fr, "sdBoxCaption").text), "median 14", "the caption: the session median, short")
+
+            intoView(outs[0])
+            mouseClick(outs[0])
+            laidOut()
+            compare(probe.lastShotDir, "/lib/a/s/swing_0005", "a click on the outlier asks for shot 5 by folder")
+            compare(probe.lastShotId, 5)
+        }
+
+        // KEPT, narrowed: the box's caption, the run's readout line, and across sessions one column per
+        // session with the current last — each a small box plot with its MEDIAN labelled; no history
+        // published, no columns.
+        function test_45_theBoxAndTheHistoryCaptionThemselves() {
+            useRegister("Analyse")
+            setReview(spreadDetailSource(), spreadReadout(3))
+            const fr = oneShown(viewOf("detail"), "sdFigureRow")
+            compare(plain(oneShown(fr, "sdBoxCaption").text), "median 14", "the box's caption")
             compare(oneShown(fr, "sdDetailHoverReadout").text, "shot 4 · 13 % hand rise · inside the pass band · fired",
                     "the run's line reads the picked shot")
             const hist = oneShown(fr, "sdHistoryStrip")
@@ -1984,7 +2031,14 @@ Item {
             verify(cols[2].current && !cols[0].current, "this session is the last")
             const meds = findAll(hist, "sdHistoryMedian")
             verify(meds[0].y < meds[2].y, "an older, higher median is drawn higher")
-            compare(oneShown(fr, "sdHistoryCaption").text, "7 Oct · 13")
+            compare(oneShown(fr, "sdHistoryCaption").text, "7 Oct · median 13", "'median' said once, so nobody reads a mean")
+            compare(findAll(hist, "sdHistoryBox").length, 3, "each session a small box plot")
+            const labs = findAll(hist, "sdHistoryMedianLabel")
+            compare(labs.map(function (l) { return l.text }).join(" "), "22 19 13", "each labelled with its median")
+            verify(shown(labs[2]), "this session's median is always labelled")
+            verify(Qt.colorEqual(labs[2].color, Theme.colorText), "in ink")
+            verify(Qt.colorEqual(labs[0].color, Theme.colorText3), "the others in ink3")
+            fuzzyCompare(labs[2].y + labs[2].height / 2, Math.round(hist.scale.y(0.45)), 1, "at the median's height")
             verify(allText(viewOf("detail")).indexOf("the hands came down further outside the path they went up on") >= 0,
                    "what 'higher' means is stated")
 
@@ -1995,6 +2049,227 @@ Item {
                     "no history published, no columns drawn")
         }
 
+        // NEW (12 Oct, Mark's library: a 9 Sep column with a date and nothing in it): a session with no
+        // reading of this measure shows "-" in its column — never a blank, never 0 — draws no box, and
+        // the caption names it as not measured; the current session unmeasured says so too.
+        function test_45b_aSessionWithNoReadingShowsADash() {
+            useRegister("Analyse")
+            const s = spreadDetailSource()
+            s.detail.history.columns[1].values = []
+            s.detail.history.columns[1].n = 0
+            s.detail.history.columns[1].medianText = "-"
+            setReview(s, spreadReadout(3))
+            let fr = oneShown(viewOf("detail"), "sdFigureRow")
+            let hist = oneShown(fr, "sdHistoryStrip")
+            const cols = findAll(hist, "sdHistoryColumn")
+            compare(cols.length, 3, "the column is kept")
+            const dash = shownAll(cols[1], "sdHistoryNoReading")
+            compare(dash.length, 1, "with a dash in it")
+            compare(dash[0].text, "-")
+            verify(Qt.colorEqual(dash[0].color, Theme.colorText3), "in ink3")
+            const midY = hist.scale.plotTop + hist.scale.plotHeight / 2
+            fuzzyCompare(dash[0].y + dash[0].height / 2, midY, 1, "at mid-plot")
+            fuzzyCompare(dash[0].x + dash[0].width / 2, hist.width / 2, 1, "centred in its column")
+            compare(shownAll(cols[1], "sdHistoryBox").length, 0, "and no box")
+            compare(shownAll(cols[0], "sdHistoryNoReading").length + shownAll(cols[2], "sdHistoryNoReading").length, 0,
+                    "a measured session has no dash")
+            compare(oneShown(fr, "sdHistoryCaption").text, "7 Oct · median 13 · 5 Oct not measured", "the caption says so")
+
+            const s2 = spreadDetailSource()
+            s2.detail.history.columns[2].values = []
+            s2.detail.history.columns[2].medianText = "-"
+            republish(s2, spreadReadout(3))
+            fr = oneShown(viewOf("detail"), "sdFigureRow")
+            compare(oneShown(fr, "sdHistoryCaption").text, "7 Oct · not measured", "this session unmeasured, in words")
+            compare(shownAll(findAll(oneShown(fr, "sdHistoryStrip"), "sdHistoryColumn")[2], "sdHistoryNoReading").length, 1, "and a dash")
+        }
+
+        // NEW (12 Oct, Mark: "labels appeared on box plots when you hovered over them — that way the ui
+        // is clean but you can examine them with the mouse"). At rest the Spread box carries its median
+        // number (the model's medianNumber) in ink beside it; the REAL pointer (mouseMove → its
+        // HoverHandler) over the column reveals the full reading — upper whisker end, Q3, median, Q1, lower
+        // whisker end, top to bottom, the median in ink — and the counts; leaving hides it. Not interactive
+        // or in print: the resting label only, whatever `examined` says.
+        function readingTexts(rd) {
+            return findAll(rd, "sdBoxReadingLabel").filter(function (l) { return l.visible })
+                       .sort(function (a, b) { return a.y - b.y }).map(function (l) { return l.text })
+        }
+        function test_45c_theSpreadBoxLabelsItsMedianAndReadsOutOnHover() {
+            useRegister("Analyse")
+            setReview(spreadDetailSource(), spreadReadout(3))
+            park()
+            const fr = oneShown(viewOf("detail"), "sdFigureRow")
+            const bx = oneShown(fr, "sdBoxStrip")
+            const rd = one(bx, "sdBoxReading")
+            const rest = one(bx, "sdBoxMedianLabel")
+            verify(shown(rest), "at rest the median is labelled")
+            compare(rest.text, "14", "with the session median the model publishes")
+            verify(Qt.colorEqual(rest.color, Theme.colorText), "in ink")
+            const med = one(bx, "sdBoxMedian"), body0 = one(bx, "sdBoxBody")
+            fuzzyCompare(rest.y + rest.height / 2, med.y + med.height / 2, 1, "at the median's height")
+            verify(rest.x >= body0.x + body0.width, "right of the box, clear of the picked shot's ring")
+            verify(rest.x + rest.width <= bx.width + Theme.sp(10), "and clear of the zone labels")
+            verify(!bx.examining && !rd.visible, "no reading at rest")
+
+            // the real pointer, over the column (not on a mark: the plot's empty middle)
+            intoView(bx)
+            mouseMove(bx, bx.width / 2, bx.scale.plotTop + bx.scale.plotHeight - 4)
+            laidOut()
+            verify(bx.examining, "the pointer over the box examines it")
+            verify(shown(rd), "the reading is up")
+            verify(!shown(rest), "and the resting label steps aside for it")
+            // dots f 0.2 0.45 0.5 1.0 on −2…30: upper whisker = Q3 0.625 → 18, Q3 18, median 0.475 → 13,
+            // Q1 0.3875 → 10, lower whisker 0.2 → 4
+            compare(readingTexts(rd).join(" "), "18 18 13 10 4", "whisker end, Q3, median, Q1, whisker end, top to bottom")
+            const labs = findAll(rd, "sdBoxReadingLabel").filter(function (l) { return l.visible })
+            const medLab = labs.filter(function (l) { return Math.abs(l.f - 0.475) < 1e-9 })[0]
+            verify(Qt.colorEqual(medLab.color, Theme.colorText), "the median in ink")
+            verify(Qt.colorEqual(labs.filter(function (l) { return Math.abs(l.f - 0.3875) < 1e-9 })[0].color, Theme.colorText2), "the rest in ink2")
+            compare(one(rd, "sdBoxReadingCount").text, "4 shots · 1 outlier", "the counts")
+            for (let i = 1; i < rd.placed.length; ++i)
+                verify(rd.placed[i].ly - rd.placed[i - 1].ly >= rd.lineH - 0.01, "two labels at one value are nudged apart")
+            for (let i = 0; i < rd.placed.length; ++i)
+                fuzzyCompare(rd.placed[i].y, bx.scale.y(rd.placed[i].f), 0.01, "each tick starts at its true height")
+            compare(probe.shotCalls, 0, "examining selects nothing")
+            compare(bx.brush.hoveredShot, -1, "and hovers no shot")
+
+            park()
+            verify(!bx.examining && !rd.visible, "leaving hides the reading")
+            verify(shown(rest), "and the median label is back")
+
+            // not interactive: the pointer examines nothing
+            bx.interactive = false
+            mouseMove(bx, bx.width / 2, bx.scale.plotTop + bx.scale.plotHeight - 4)
+            laidOut()
+            verify(!bx.examining && !rd.visible, "not interactive: no reading on hover")
+            park()
+            bx.interactive = true
+            // print: the resting label only, even when asked to examine
+            bx.examined = true
+            laidOut()
+            verify(bx.examining && rd.visible, "examined on screen: the reading (the render switch)")
+            bx.medium = "print"
+            laidOut()
+            verify(!bx.examining && !rd.visible, "in print: no reading")
+            verify(rest.visible, "the resting label only")
+            bx.medium = "screen"
+            bx.examined = false
+            laidOut()
+        }
+
+        // NEW (12 Oct): a session's mini box reads out the same way. The real pointer over a column
+        // examines that session; the other columns' resting labels the reading would cross step aside;
+        // the counts are that session's; an unmeasured session cannot be examined; not interactive / in
+        // print, no reading.
+        function test_45d_aHistoryBoxReadsOutOnHover() {
+            useRegister("Analyse")
+            setReview(spreadDetailSource(), spreadReadout(3))
+            park()
+            const fr = oneShown(viewOf("detail"), "sdFigureRow")
+            const hist = oneShown(fr, "sdHistoryStrip")
+            const rd = one(hist, "sdBoxReading")
+            verify(!hist.examining && !rd.visible, "no reading at rest")
+            intoView(hist)
+            mouseMove(hist, 0.5 * hist.colW - Theme.sp(10), hist.scale.plotTop + hist.scale.plotHeight - 4)
+            laidOut()
+            compare(hist.examIdx, 0, "the pointer over 4 Jul's column examines it")
+            verify(shown(rd), "its reading is up")
+            // 4 Jul: shots 0.7 0.75 0.8, Q1 0.7 Q3 0.8 median 0.75 on −2…30 → 24 24 22 20 20
+            compare(readingTexts(rd).join(" "), "24 24 22 20 20", "that session's five values, top to bottom")
+            compare(one(rd, "sdBoxReadingCount").text, "3 shots", "its count, and no outliers named")
+            const rests = findAll(hist, "sdHistoryMedianLabel")
+            verify(!rests[0].visible, "its own resting label steps aside")
+            for (let i = 1; i < rests.length; ++i)
+                verify(!rests[i].visible || rests[i].x >= rd.x1 || rests[i].x + rests[i].width <= rd.x0,
+                       "no resting label left under the reading (" + rests[i].text + ")")
+
+            mouseMove(hist, 1.5 * hist.colW - Theme.sp(10), hist.scale.plotTop + hist.scale.plotHeight - 4)
+            laidOut()
+            compare(hist.examIdx, 1, "moving on examines the next session")
+            park()
+            compare(hist.examIdx, -1, "leaving examines none")
+            verify(!rd.visible)
+
+            // not interactive / print
+            hist.interactive = false
+            mouseMove(hist, 0.5 * hist.colW, hist.scale.plotTop + hist.scale.plotHeight - 4)
+            laidOut()
+            compare(hist.examIdx, -1, "not interactive: no reading on hover")
+            park()
+            hist.interactive = true
+            hist.examinedColumn = 2
+            laidOut()
+            compare(hist.examIdx, 2, "the render switch examines a column")
+            hist.medium = "print"
+            laidOut()
+            compare(hist.examIdx, -1, "in print: no reading")
+            verify(!rd.visible)
+            hist.medium = "screen"
+            hist.examinedColumn = -1
+            laidOut()
+
+            // an unmeasured session cannot be examined
+            const s = spreadDetailSource()
+            s.detail.history.columns[1].values = []
+            s.detail.history.columns[1].medianText = "-"
+            republish(s, spreadReadout(3))
+            const h2 = oneShown(oneShown(viewOf("detail"), "sdFigureRow"), "sdHistoryStrip")
+            h2.examinedColumn = 1
+            laidOut()
+            compare(h2.examIdx, -1, "an unmeasured session has nothing to read out")
+            verify(!one(h2, "sdBoxReading").visible)
+            h2.examinedColumn = -1
+            intoView(h2)
+            mouseMove(h2, 1.5 * h2.colW, h2.scale.plotTop + h2.scale.plotHeight / 2)
+            laidOut()
+            compare(h2.examIdx, -1, "not even under the pointer")
+            park()
+        }
+
+        // NEW (12 Oct): the reading's placement and nudging, on its own. Right of the box by default; left
+        // when the right lacks the room, or when it would run into a zone label at the reading's heights;
+        // right again when neither side fits; labels closer than a line pushed apart as a group, each tick
+        // starting at its true height.
+        function test_45e_theBoxReadingPlacesItself() {
+            const host = Qt.createQmlObject('import QtQuick; import PinPointStudio; Item { width: 300; height: 230; '
+                + 'property alias rd: r; property alias sc: s; '
+                + 'PpFigureScale { id: s; plotTop: 10; plotHeight: 200; axisLo: 0; axisHi: 100 } '
+                + 'PpBoxReading { id: r; anchors.fill: parent; roles: PpDiagRoles {} scale: s; edgeL: 100; edgeR: 110; '
+                + 'items: [{ f: 0.9 }, { f: 0.75 }, { f: 0.5, strong: true }, { f: 0.49 }, { f: 0.1 }]; footer: "5 shots" } }', body)
+            const rd = host.rd, sc = host.sc
+            wait(0)
+            compare(rd.side, "right", "right of the box by default")
+            compare(readingTexts(rd).join(" "), "90 75 50 49 10", "every value at the axis's precision, top to bottom")
+            let labs = findAll(rd, "sdBoxReadingLabel")
+            for (let i = 0; i < labs.length; ++i) verify(labs[i].x >= rd.edgeR, "labels right of the box")
+            for (let i = 1; i < rd.placed.length; ++i)
+                verify(rd.placed[i].ly - rd.placed[i - 1].ly >= rd.lineH - 0.01, "no two labels closer than a line")
+            for (let i = 0; i < rd.placed.length; ++i)
+                fuzzyCompare(rd.placed[i].y, sc.y(rd.placed[i].f), 0.01, "ticks start at the true heights")
+            const mid = rd.placed.filter(function (q) { return q.f === 0.5 || q.f === 0.49 })
+            verify(Math.abs((mid[0].ly + mid[1].ly) / 2 - (mid[0].y + mid[1].y) / 2) < 0.01, "a nudged pair stays centred on its values")
+
+            rd.roomRight = 130
+            wait(0)
+            compare(rd.side, "left", "short of room on the right: left")
+            labs = findAll(rd, "sdBoxReadingLabel")
+            for (let i = 0; i < labs.length; ++i) verify(labs[i].x + labs[i].width <= rd.edgeL, "labels left of the box")
+            rd.roomLeft = 90
+            wait(0)
+            compare(rd.side, "right", "neither side fits: right, the default")
+            rd.roomLeft = -1e6; rd.roomRight = 1e6
+            rd.gutterX = 120; rd.gutterYs = [sc.y(0.5)]
+            wait(0)
+            compare(rd.side, "left", "a zone label at the reading's heights in the gutter: left")
+            rd.gutterYs = [sc.y(0.5) + 1000]
+            wait(0)
+            compare(rd.side, "right", "a zone label clear of its heights: right")
+            rd.forceSide = "left"
+            wait(0)
+            compare(rd.side, "left", "a caller may force the side")
+            host.destroy()
+        }
+
         // KEPT, rewritten (F53): one hovered shot, lit in every chart, and the run's line READS it; an
         // unmeasured shot hovered elsewhere reads "-"; leaving restores the picked shot; a hover selects
         // nothing.
@@ -2002,16 +2277,30 @@ Item {
             useRegister("Analyse")
             setReview(spreadDetailSource(), spreadReadout(3))
             const fr = oneShown(viewOf("detail"), "sdFigureRow")
-            const strip = oneShown(fr, "sdSpreadStrip"), rc = oneShown(fr, "sdRunChart")
+            const strip = oneShown(fr, "sdBoxStrip"), rc = oneShown(fr, "sdRunChart")
             const line = oneShown(fr, "sdDetailHoverReadout")
-            const dot3 = findAll(strip, "sdStripDot").filter(function (d) { return d.shotId === 3 })[0]
-            intoView(dot3)
-            mouseMove(dot3, 0, 0)
-            laidOut()
-            compare(strip.brush.hoveredShot, 3, "the pointer on shot 3's dot hovers shot 3")
+            function boxMark(id) { return findAll(strip, "sdBoxMark").filter(function (m) { return m.visible && m.shotId === id })[0] }
+            // a shot inside the box, hovered in the run, lights on the box's centre line at its value
             const mk3 = findAll(rc, "sdRunMark").filter(function (m) { return m.shotId === 3 })[0]
-            verify(mk3.hovered, "lit in the run too")
+            intoView(mk3)
+            mouseMove(mk3, 0, 0)
+            laidOut()
+            compare(strip.brush.hoveredShot, 3, "the pointer on shot 3's run mark hovers shot 3")
+            verify(mk3.hovered, "lit in the run")
+            const echo = boxMark(3)
+            verify(!!echo && echo.hovered && echo.role === "hovered", "and on the box, together")
+            fuzzyCompare(echo.cy, Math.round(strip.scale.y(0.2) * 2) / 2, 0.01, "at its value")
             compare(line.text, "shot 3 · 13 % hand rise · inside the pass band · clean", "and the line reads it")
+
+            // the box's own mark (shot 5, past the whisker) hovers its shot in the run
+            const out5 = boxMark(5)
+            intoView(out5)
+            mouseMove(out5, 0, 0)
+            laidOut()
+            compare(strip.brush.hoveredShot, 5, "the pointer on the box's outlier hovers shot 5")
+            verify(out5.hovered, "lit on the box")
+            verify(findAll(rc, "sdRunMark").filter(function (m) { return m.shotId === 5 })[0].hovered, "and in the run")
+            verify(!boxMark(3), "the echo of shot 3 is gone")
 
             park()
             strip.brush.hoverShot(2, true)               // shot 2, hovered on a row's strip or the ruler
@@ -2047,7 +2336,7 @@ Item {
             setReview(detailAt(3, false), spreadReadout(3))
             function fr() { return oneShown(viewOf("detail"), "sdFigureRow") }
             function ringedDot() {
-                const ds = findAll(oneShown(fr(), "sdSpreadStrip"), "sdStripDot").filter(function (d) { return d.ringed })
+                const ds = findAll(oneShown(fr(), "sdBoxStrip"), "sdBoxMark").filter(function (d) { return d.visible && d.ringed })
                 return ds.length === 1 ? ds[0].shotId : -1
             }
             function check(idx, tag) {
@@ -2056,7 +2345,7 @@ Item {
                 const measured = idx !== 1
                 compare(sel.visible, measured, tag + ": the run's picked mark")
                 if (measured) compare(sel.shotId, idx + 1, tag + ": on the right shot")
-                compare(ringedDot(), measured ? idx + 1 : -1, tag + ": the spread's ringed dot")
+                compare(ringedDot(), measured ? idx + 1 : -1, tag + ": the box's ringed mark")
             }
             check(3, "shot 4 picked")
             republish(detailAt(2, false), spreadReadout(2))
@@ -2068,14 +2357,16 @@ Item {
 
             // A HOVER IN PROGRESS survives a republish.
             republish(detailAt(3, false), spreadReadout(3))
-            const strip = oneShown(fr(), "sdSpreadStrip")
-            const dot3 = findAll(strip, "sdStripDot").filter(function (d) { return d.shotId === 3 })[0]
-            intoView(dot3)
-            mouseMove(dot3, 0, 0)
+            const strip = oneShown(fr(), "sdBoxStrip")
+            const mk3 = findAll(oneShown(fr(), "sdRunChart"), "sdRunMark").filter(function (d) { return d.shotId === 3 })[0]
+            intoView(mk3)
+            mouseMove(mk3, 0, 0)
             laidOut()
             compare(strip.brush.hoveredShot, 3, "hovering shot 3")
             republish(detailAt(0, false), spreadReadout(0))
-            compare(oneShown(fr(), "sdSpreadStrip").brush.hoveredShot, 3, "the hover survives the shot changing under it")
+            compare(oneShown(fr(), "sdBoxStrip").brush.hoveredShot, 3, "the hover survives the shot changing under it")
+            const echo = findAll(oneShown(fr(), "sdBoxStrip"), "sdBoxMark").filter(function (m) { return m.visible && m.shotId === 3 })[0]
+            verify(!!echo && echo.hovered, "still lit on the box")
             compare(oneShown(fr(), "sdDetailHoverReadout").text, "shot 3 · 13 % hand rise · inside the pass band · clean",
                     "and the line still reads it")
             park()
@@ -2083,7 +2374,10 @@ Item {
             // LIVE: a sixth shot lands and the page, following the newest, moves onto it.
             republish(detailAt(5, true), spreadReadout(5))
             compare(findAll(oneShown(fr(), "sdRunChart"), "sdRunMark").length, 5, "the run grows by one")
-            compare(findAll(oneShown(fr(), "sdSpreadStrip"), "sdStripDot").length, 5, "and the spread by its dot")
+            const bx6 = oneShown(fr(), "sdBoxStrip")
+            fuzzyCompare(bx6.fMedian, 0.45, 1e-9, "and the box takes it in: the median moves")
+            compare(findAll(bx6, "sdBoxMark").filter(function (m) { return m.visible && m.ringed }).map(function (m) { return m.shotId }).join(), "6",
+                    "the new shot ringed on the box")
             compare(one(oneShown(fr(), "sdRunChart"), "sdRunSelected").shotId, 6, "on the new shot")
             compare(oneShown(fr(), "sdDetailHoverReadout").text, "shot 6 · 3 % hand rise · inside the pass band · clean")
         }

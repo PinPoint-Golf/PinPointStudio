@@ -718,7 +718,7 @@ by default. Audited from source.
   - ±1 SD is drawn as geometry, not colour.
   - The empty state is one quiet line.
 - **Sketch:**
-  - Replay: 4–6 KeyFigures (each at least 10 em), with a SpreadStrip under each.
+  - Replay: 4–6 KeyFigures (each at least 10 em), with a BoxStrip under each (the SpreadStrip was retired on 12 Oct 2026 for the box plot, §15.8).
   - Analyse: a session ledger (reading · this shot · mean ± SD · strip · corridor).
   - Graphics stays as the figure voice.
   - One warn for "out", and no `k`.

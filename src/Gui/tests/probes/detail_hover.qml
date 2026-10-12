@@ -24,7 +24,7 @@
 // open. This probe stands that up exactly — the Wrist screen's PpModeStage hosting the panel
 // alongside the camera and charts, in each arrangement the stage offers (split, stage, tabs),
 // with shotReplay playing — clicks through to Over the top, then moves a REAL pointer (QtTest's
-// synthesized events, delivered through the window) onto a strip dot and a run mark and HOLDS it
+// synthesized events, delivered through the window) onto a box mark and a run mark and HOLDS it
 // there for a couple of seconds while the replay runs, checking at every tick that:
 //   · the chart's pick area still has the pointer,
 //   · the hovered shot is still the one under it, and the readout line still reads it,
@@ -34,7 +34,8 @@
 // TYPESET REGISTERS (11 Oct): the detail is drawn only in Analyse now (PpDiagAnalyse; Replay never
 // drills, D9), so the probe picks the swing on Replay (the carousel's path, which starts the replay),
 // then enters ANALYSE — the stage keeps the replay loaded — and holds the pointer there. The handles are
-// the figure row's PpSpreadStrip (`sdSpreadStrip`, dots `sdStripDot`) and PpRunChart (`sdRunChart`, marks
+// the figure row's PpBoxStrip (`sdBoxStrip`, marks `sdBoxMark`: the shots past its whiskers and the picked
+// shot; since 12 Oct it replaces the spread strip's dots) and PpRunChart (`sdRunChart`, marks
 // `sdRunMark`): each mark is a PpMark with its own pick area (its one MouseArea), the hovered shot is the
 // register's brush (`hoveredShot`, read through either chart), and the run caption
 // `sdDetailHoverReadout` reads run[hovered].readout while a shot is hovered. A hover is identified by
@@ -142,13 +143,13 @@ Item {
     property var mark: null        // the PpMark under the pointer
     property string wantLine: ""   // what the run caption must read while `target` is hovered
     function grabCharts() {
-        strip = find(body, "sdSpreadStrip").filter(x => shown(x))[0] || null
+        strip = find(body, "sdBoxStrip").filter(x => shown(x))[0] || null
         vr    = find(body, "sdRunChart").filter(x => shown(x))[0] || null
         line  = find(body, "sdDetailHoverReadout").filter(x => shown(x))[0] || null
     }
     // the mark's own pick area: a PpMark's one MouseArea child
     // A pointer target the pointer can actually reach: inside the chart, and not under a LATER mark's pick
-    // area (later delegates are on top and take the hover — in a 50-shot beeswarm, or a 172 px split run,
+    // area (later delegates are on top and take the hover — in a crowd of box outliers, or a 172 px split run,
     // marks overlap; the first run picked covered ones). Prefers the middle of the reachable ones.
     function reachable(list, chartItem, ok) {
         const out = []
@@ -282,11 +283,13 @@ Item {
             bringIntoView(strip)
             phase = 3
         } else if (phase === 3) {
-            // ── a REAL pointer onto a strip dot, then HELD ─────────────────────
+            // ── a REAL pointer onto a box mark, then HELD ──────────────────────
+            // a shot past the whiskers when the session has one, else the picked shot on the box
             chart = strip
-            const dots = find(strip, "sdStripDot")
-            const free = reachable(dots, strip, d => !d.current && !d.ringed && !(d.modelData.clipped > 0))
-            check(free.length > 0, arr + ": a strip dot the pointer can reach")
+            const dots = find(strip, "sdBoxMark").filter(d => d.visible && d.role !== "hovered")
+            let free = reachable(dots, strip, d => d.role === "outlier" && !d.ringed && !(d.dot && d.dot.clipped > 0))
+            if (!free.length) free = reachable(dots, strip, d => d.role === "picked")
+            check(free.length > 0, arr + ": a box mark the pointer can reach")
             const dot = free[Math.floor(free.length / 2)] || dots[0]
             mark = dot
             bringIntoViewCentred(dot)
@@ -305,8 +308,8 @@ Item {
             if (shotReplay.active && !shotReplay.playing) { shotReplay.seekToFraction(0); shotReplay.togglePlay() }
             const st = hoverState()
             const good = st.contains && st.idx === target && (wantLine === "" || st.text === wantLine)
-            const what = chart === strip ? "strip" : "run"
-            const rebuilt = chart === strip ? find(strip, "sdStripDot")[0] !== firstDelegate
+            const what = chart === strip ? "box" : "run"
+            const rebuilt = chart === strip ? find(strip, "sdBoxMark")[0] !== firstDelegate
                                             : find(vr, "sdRunMark")[0] !== firstDelegate
             log(arr + " · " + what + " held " + (holds + 1) + ": containsMouse " + st.contains + " · hovered shot "
                 + st.idx + " (want shot id " + target + ") · line \"" + st.text + "\" · replay ticks " + positionTicks
@@ -320,7 +323,7 @@ Item {
             if (!good) okSoFar = false
             holds += 1
             if (holds >= 3) {
-                check(okSoFar, arr + ": a pointer held on a " + what + " " + (what === "strip" ? "dot" : "mark")
+                check(okSoFar, arr + ": a pointer held on a " + what + " " + "mark"
                       + " keeps its hover while the replay runs")
                 if (pngDir !== "")
                     body.grabToImage(r => r.saveToFile(pngDir + "/" + arr + "_hover_" + what + ".png"))

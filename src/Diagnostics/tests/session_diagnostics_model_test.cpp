@@ -1588,8 +1588,6 @@ int main(int argc, char **argv)
             for (const SpreadBand &x : spreadBands(cf, a)) g << x.grade;
             check(g.join(QLatin1Char(',')) == QLatin1String("action,watch,good,ideal,open"),
                   "…the open side is drawn as not graded, never as good");
-            check(spreadCurve(cf, a).back().first <= cf.mu + 1e-12,
-                  "…and the norm's curve is a HALF curve, on the graded side only");
         }
 
         // A norm with an explicit monitor band inside the Good edge: Watch is capped, the bands
@@ -1723,7 +1721,7 @@ int main(int argc, char **argv)
                     qPrintable(sp.value(QStringLiteral("normTag")).toString()));
         check(sp.value(QStringLiteral("normSource")).toString() == QLatin1String("heuristic")
                   && sp.value(QStringLiteral("normTag")).toString().contains(QLatin1String("judgement")),
-              "…and its curve is tagged as coaching judgement, not data");
+              "…and its corridor is tagged as coaching judgement, not data");
         QStringList bandGrades;
         for (const QVariant &b : sp.value(QStringLiteral("bands")).toList())
             bandGrades << b.toMap().value(QStringLiteral("grade")).toString();

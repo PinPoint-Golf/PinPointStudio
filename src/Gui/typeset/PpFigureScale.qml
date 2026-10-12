@@ -18,7 +18,7 @@
 
 import QtQuick
 
-// FIGURESCALE — the value axis that PpSpreadStrip, PpRunChart and PpHistoryStrip share inside a PpFigureRow
+// FIGURESCALE — the value axis that PpRunChart, PpBoxStrip and PpHistoryStrip share inside a PpFigureRow
 // (C's "one figure grammar": panels in a row share one y scale). It maps the model's normalised
 // position f (0..1 along spread.axisLo..axisHi) to a pixel y, and names the zone edges once.
 //

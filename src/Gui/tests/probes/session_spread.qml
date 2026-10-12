@@ -32,7 +32,7 @@
 // TYPESET REGISTERS (11 Oct): the panel is PpDiagAnalyse in Analyse. A pattern is a ledger row
 // (`sdSessionRow`, keyed by `cardId`) with its shot strip and the median / this-shot / unit cells
 // (`sdSessionRowMedian`, `sdSessionRowShot`, `sdSessionRowUnit`); the charts live in the detail's figure
-// row (`sdFigureRow`: `sdSpreadStrip`, `sdRunChart`, `sdHistoryStrip` on ONE value axis, Y labels
+// row (`sdFigureRow`: `sdRunChart` + its box plot `sdBoxStrip`, `sdHistoryStrip` on ONE value axis, Y labels
 // `sdRunYTick` on the row). Hover is the register's brush (`hoveredShot`, read through either chart),
 // keyed by SHOT ID; the run caption `sdDetailHoverReadout` reads the hovered shot. The probe-made bodies
 // are forced onto the Analyse register (`forceRegister`, tests only) and given the app body's readout,
@@ -178,9 +178,23 @@ Item {
                 }
                 probe.check(picked, "shot " + probe.ordinal + " is in the carousel")
             } else if (s === 3) {
+                // The panel on, in the TABS arrangement on its own tab, whatever the copied settings'
+                // layout says. The probe used to take the stage as it found it: a layout without the panel
+                // failed before anything was checked, a split squeezed the row to a sliver, and a theme
+                // switch rebuilds the panels (and their model) in split and stage, never in tabs.
+                ViewLayout.setPanel(SessionMode.analyse, "sessionDiagnostics", true)
+                ViewLayout.setArrangement(SessionMode.analyse, "tabs")
                 SessionMode.enterAnalyse()
             } else if (s === 4) {
-                const bodies = find(probe.Window.window.contentItem, "sdBody")
+                const stages = []
+                walk(probe.Window.window.contentItem, it => it.arrangement !== undefined && it.tabIndex !== undefined, stages)
+                for (const st of stages) {
+                    const i = (st.active || []).findIndex(d => d.key === "sessionDiagnostics")
+                    if (i >= 0 && st.tabIndex !== i) st.tabIndex = i
+                }
+                const bodies = find(probe.Window.window.contentItem, "sdBody").filter(b => shown(b, null))
+                if (bodies.length < 1 && probe.idleWaits++ < 6) { probe.step -= 1; return }
+                probe.idleWaits = 0
                 probe.check(bodies.length >= 1, "a Session diagnostics panel is up in Analyse")
                 if (bodies.length < 1) { probe.finish(); return }
                 probe.appBody = bodies[0]
@@ -222,9 +236,9 @@ Item {
                 probe.check(!!card, "the panel shows a ledger row for " + probe.condition)
                 if (card) {
                     const sp = probe.model.spreadOf(probe.condition)
-                    probe.check(probe.find(card, "sdSpreadStrip").length === 0
+                    probe.check(probe.find(card, "sdBoxStrip").length === 0
                                 && probe.find(card, "sdRunChart").length === 0,
-                                "…carrying no strip chart and no run chart (they are the detail's)")
+                                "…carrying no box plot and no run chart (they are the detail's)")
                     const strip = probe.find(card, "sdShotStrip").filter(x => probe.shown(x, card))[0]
                     probe.check(!!strip && probe.find(strip, "sdShotCell").length === probe.model.shotCount,
                                 "…and its shot strip, a cell per shot (" + (strip ? probe.find(strip, "sdShotCell").length : 0) + ")")
@@ -288,9 +302,9 @@ Item {
                 const hist = probe.shownOne(probe.narrow, "sdHistoryStrip")
                 probe.check(!!hist && probe.find(hist, "sdHistoryColumn").length === (h && h.columns ? h.columns.length : -1),
                             "the 396 split draws the columns")
-                const strip = probe.shownOne(probe.narrow, "sdSpreadStrip")
+                const strip = probe.shownOne(probe.narrow, "sdBoxStrip")
                 probe.check(!!strip && strip.mapToItem(probe.narrow, strip.width, 0).x <= 396 + 0.5,
-                            "…and the strip fits the split")
+                            "…and the box fits the split")
                 const fr = probe.shownOne(probe.wide, "sdFigureRow")
                 const vrW = probe.shownOne(probe.wide, "sdRunChart")
                 const yt = fr ? probe.find(fr, "sdRunYTick").filter(t => t.visible) : []
@@ -298,22 +312,28 @@ Item {
                           + yt.map(t => t.text).join(" "))
                 probe.check(!!vrW && vrW.height > 0 && yt.length >= 3,
                             "the detail run is drawn, with Y labels on the figure row's one axis")
-                // Every measured shot is a dot, and every dot is its own pick target (a PpMark's own
-                // pick area, ≥ 12 px) — nearest-centre picking (nearestDot) went with the old strip.
-                const sW = probe.shownOne(probe.wide, "sdSpreadStrip")
-                const dots = sW ? probe.find(sW, "sdStripDot") : []
+                // The box (12 Oct: it replaced the spread strip's dots): its median is the model's
+                // session median, and every shot past its whiskers, and the picked shot, is a mark with
+                // its own pick target (a PpMark's own pick area, ≥ 12 px).
+                const sW = probe.shownOne(probe.wide, "sdBoxStrip")
                 const spD = probe.model.spreadOf(probe.condition)
-                let pickOk = dots.length === spD.dots.length && dots.length > 0
+                const medV = sW ? spD.axisLo + sW.fMedian * (spD.axisHi - spD.axisLo) : NaN
+                probe.log("box: median " + medV.toFixed(3) + " (model " + spD.medianValue + ") · Q1 f " + (sW ? sW.fQ1.toFixed(3) : "-")
+                          + " · Q3 f " + (sW ? sW.fQ3.toFixed(3) : "-") + " · outliers " + (sW ? sW.outliers.length : "-"))
+                probe.check(!!sW && Math.abs(medV - spD.medianValue) < 1e-6 * Math.max(1, Math.abs(spD.axisHi - spD.axisLo)),
+                            "the box's median is the model's session median")
+                const dots = sW ? probe.find(sW, "sdBoxMark").filter(x => x.visible && x.role !== "hovered") : []
+                let pickOk = sW && dots.length === sW.outliers.length + (sW.picked && !sW.isOutlier(sW.picked.shotId) ? 1 : 0)
                 for (let i = 0; i < dots.length; ++i) {
                     let area = null
                     for (const k of dots[i].children) if (k.containsMouse !== undefined) area = k
                     if (!area || !area.enabled || area.width < 12) pickOk = false
                 }
-                probe.check(pickOk, "every one of " + dots.length + " dots is a pick target of its own")
+                probe.check(pickOk, "every one of " + dots.length + " box marks is a pick target of its own")
                 probe.queueGrab(probe.wide, "detail_wide_dark")
                 probe.queueGrab(probe.narrow, "detail_narrow_dark")
             } else if (s === 10) {
-                probe.hoverIn("strip", "dark")
+                probe.hoverIn("box", "dark")
             } else if (s === 11) {
                 probe.hoverIn("run", "dark")
             } else if (s === 12) {
@@ -324,7 +344,7 @@ Item {
                 probe.queueGrab(probe.narrow, "detail_narrow_light")
             } else if (s === 14 && probe._phase === 0) {
                 probe._phase = 1; probe.step = 13
-                probe.hoverIn("strip", "light")
+                probe.hoverIn("box", "light")
             } else if (s === 14 && probe._phase === 1) {
                 probe._phase = 2; probe.step = 13
                 probe.hoverIn("run", "light")
@@ -429,9 +449,9 @@ Item {
         probe.check(sp.currentReadout === want.readout && (want.assessable ? sp.currentNumber !== "-" : true),
                     tag + ": the model's this-shot figure and readout are shot " + (idx + 1) + "'s")
         probe.check(!!line && line.text === want.readout, tag + ": the run caption reads shot " + (idx + 1))
-        const ringed = probe.find(probe.shownOne(d, "sdSpreadStrip"), "sdStripDot").filter(x => x.ringed)
+        const ringed = probe.find(probe.shownOne(d, "sdBoxStrip"), "sdBoxMark").filter(x => x.visible && x.ringed)
         probe.check(!want.assessable || (ringed.length === 1 && ringed[0].shotId === want.shotId),
-                    tag + ": the strip's ringed dot is shot " + (idx + 1))
+                    tag + ": the box's ringed mark is shot " + (idx + 1))
         const sel = probe.find(probe.shownOne(d, "sdRunChart"), "sdRunSelected")
         probe.check(!want.assessable || (sel.length === 1 && sel[0].visible && sel[0].shotId === want.shotId),
                     tag + ": the run's ringed mark is shot " + (idx + 1))
@@ -445,7 +465,7 @@ Item {
     // Offscreen there is no pointer, so the probe does what a mark's pick area does on hover —
     // brush.hoverShot(shotId, true) — and verifies everything downstream: both charts holding that
     // shot, both lighting it, and the run caption reading it.
-    // Shot choice: the strip hovers the furthest-out reading, the run a clean one (never the picked shot).
+    // Shot choice: the box hovers the furthest-out reading, the run a clean one (never the picked shot).
     function hoverTargets(sp, pickedIdx) {
         let far = -1, farV = -Infinity, clean = -1
         for (let i = 0; i < sp.run.length; ++i) {
@@ -454,12 +474,12 @@ Item {
             if (r.assessable && r.value > farV) { farV = r.value; far = i }
             if (clean < 0 && r.state === "clean") clean = i
         }
-        return { strip: far, run: clean >= 0 ? clean : (pickedIdx === 0 ? 1 : 0) }
+        return { box: far, run: clean >= 0 ? clean : (pickedIdx === 0 ? 1 : 0) }
     }
     function hoverIn(chart, theme) {
         for (const b of [probe.wide, probe.narrow]) {
             const fr = probe.shownOne(b, "sdFigureRow")
-            const strip = probe.shownOne(b, "sdSpreadStrip")
+            const strip = probe.shownOne(b, "sdBoxStrip")
             const vr = probe.shownOne(b, "sdRunChart")
             const line = probe.shownOne(b, "sdDetailHoverReadout")
             const tag = (b === probe.wide ? "wide " : "396 ") + theme + ", hover in the " + chart
@@ -471,7 +491,8 @@ Item {
             // what a pick area does on hover: the shared brush takes the shot
             brush.hoveredShot = -1
             brush.hoverShot(id, true)
-            const dot = probe.find(strip, "sdStripDot").filter(x => x.shotId === id)[0]
+            // on the box: its own mark when past a whisker, else the hovered echo on the centre line
+            const dot = probe.find(strip, "sdBoxMark").filter(x => x.visible && x.shotId === id)[0]
             const mark = probe.find(vr, "sdRunMark").filter(x => x.shotId === id)[0]
             probe.check(strip.hoveredShot === id && vr.hoveredShot === id,
                         tag + ": both charts hold shot " + (idx + 1))
@@ -484,7 +505,7 @@ Item {
     }
     function clearHover() {
         for (const b of [probe.wide, probe.narrow]) {
-            const strip = b ? probe.find(b, "sdSpreadStrip")[0] : null
+            const strip = b ? probe.find(b, "sdBoxStrip")[0] : null
             if (strip && strip.brush) strip.brush.hoveredShot = -1
         }
     }

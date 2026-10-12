@@ -520,7 +520,7 @@ Item {
                     PpFeatureHead { width: parent.width; roles: ro; brush: br; detail: root.detail; readout: root.readout; source: root.source }
                     Caption { block: "PpKeyFigures"; note: "A" }
                     PpKeyFigures { width: parent.width; roles: ro; detail: root.detail; readout: root.readout }
-                    Caption { block: "PpFigureRow"; note: "C · PpSpreadStrip | PpRunChart | PpHistoryStrip on one PpFigureScale" }
+                    Caption { block: "PpFigureRow"; note: "C · PpRunChart + PpBoxStrip | PpHistoryStrip on one PpFigureScale" }
                     PpFigureRow { width: parent.width; roles: ro; brush: br; detail: root.detail; readout: root.readout
                                 onShotActivated: (d, s) => root.pickShot(d, s) }
                     Caption { block: "PpQuestions"; note: "Analyse only" }
