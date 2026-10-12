@@ -53,6 +53,13 @@
 //       coachLines: bool                               // the View menu's static address marks
 //                                                       // (auto_annotations_design.md §1); Replay and
 //                                                       // Analyse only — Capture never draws them
+//       sizes: {                                       // optional — the user's dragged panel sizes,
+//           split: { <panelKey>: weight },             // per ARRANGEMENT (setSizes). Relative weights,
+//           stage: { main: fraction,                   // mean 1 over the panels active when written;
+//                    side: { <panelKey>: weight } }    // `main` = the dominant panel's share of the
+//       }                                              // row (gap excluded). An absent arrangement, key
+//                                                       // or `main` takes PpModeStage's default (even;
+//                                                       // the dominant card and side column 62 : 30).
 //           traceTarget: string                        // optional — only present
 //                                                       // when the preset/edit
 //                                                       // overrides an element's
@@ -217,6 +224,13 @@ QtObject {
         return l.coachLines === true
     }
 
+    // The dragged panel sizes for a mode (see the storage shape above): a fresh object, {} when
+    // none are stored. PpModeStage reads it once per change and falls back to its defaults.
+    function sizesFor(mode) {
+        var s = _layout(mode).sizes
+        return (s && typeof s === "object") ? _cloneSizes(s) : {}
+    }
+
     // Shim — pre-existing callers (PpViewPanel.qml, PpCameraTiles.qml, Main.qml)
     // keep working unchanged.
     function overlaysOn(mode) {
@@ -278,15 +292,55 @@ QtObject {
         setMotionOn(mode, on)
     }
 
-    // motion and coachLines are optional — omitted by setPanel/setArrangement, so
+    // One arrangement's dragged sizes ("split" | "stage"), replacing what that arrangement had;
+    // null/undefined clears it, so the arrangement takes its default again. The other
+    // arrangement's sizes are kept. PpModeStage calls this once, on RELEASE — never mid-drag.
+    function setSizes(mode, arrangement, sizes) {
+        var all = sizesFor(mode)
+        if (sizes === null || sizes === undefined) delete all[arrangement]
+        else all[arrangement] = sizes
+        _write(mode, enabledKeysFor(mode).slice(), arrangementFor(mode), undefined, undefined, all)
+    }
+
+    // motion, coachLines and sizes are optional — omitted by setPanel/setArrangement and kin, so
     // preserve the mode's current value (migrating an old bool `overlays` entry into a
-    // full `motion` object at that moment; the old key is not written back).
-    function _write(mode, panels, arrangement, motion, coachLines) {
+    // full `motion` object at that moment; the old key is not written back). The entry starts
+    // from the stored one, so any field this version does not name survives a write too.
+    function _write(mode, panels, arrangement, motion, coachLines, sizes) {
         var m = _clone(appSettings.viewLayoutByMode)
+        var l = _layout(mode)
         var mo = (motion !== undefined) ? motion : _rawMotion(mode)
-        var cl = (coachLines !== undefined) ? coachLines : (_layout(mode).coachLines === true)
-        m[_key(mode)] = { panels: panels, arrangement: arrangement, motion: mo, coachLines: cl }
+        var cl = (coachLines !== undefined) ? coachLines : (l.coachLines === true)
+        var sz = (sizes !== undefined) ? sizes : l.sizes
+        var e = _clone(m[_key(mode)])
+        delete e.overlays
+        e.panels = panels
+        e.arrangement = arrangement
+        e.motion = mo
+        e.coachLines = cl
+        if (sz && typeof sz === "object" && Object.keys(sz).length > 0) e.sizes = sz
+        else delete e.sizes
+        m[_key(mode)] = e
         appSettings.viewLayoutByMode = m
+    }
+
+    // A deep copy of a sizes object (two levels of maps under it, numbers at the leaves).
+    function _cloneSizes(s) {
+        var out = {}
+        if (!s) return out
+        for (var a in s) {
+            var v = s[a]
+            if (v && typeof v === "object") {
+                var o = {}
+                for (var k in v) {
+                    var x = v[k]
+                    if (x && typeof x === "object") { var oo = {}; for (var kk in x) oo[kk] = x[kk]; o[k] = oo }
+                    else o[k] = x
+                }
+                out[a] = o
+            } else out[a] = v
+        }
+        return out
     }
 
     function _clone(m) {
