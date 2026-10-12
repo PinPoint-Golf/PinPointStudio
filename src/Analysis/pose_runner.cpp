@@ -1004,8 +1004,12 @@ double PoseRunner::warmUp(const QString &motionCaptureQuality)
     const int intraOpThreads = 0;
     // Start and end rows in the app log, so a slow first shot reads against them: the end row
     // is what a run that started earlier was waiting for (its "waited" figure).
+    // The path is resolved ONCE, here, while the app is certainly alive: the load below takes
+    // 20–97 s on the Mac, this thread is the global pool's and nothing joins it, so a quit during
+    // the load leaves it running past QGuiApplication — and applicationDirPath() then warns.
+    const QString path = PoseEstimatorViTPose::modelPath(variant);
     ppInfo() << "[PoseRunner] warm-up: building the pose session for"
-             << PoseEstimatorViTPose::modelPath(variant)
+             << path
              << (loadOpts.coremlProgram ? "(CoreML MLProgram: ~20 s from the compiled cache, ~97 s cold)"
                                         : "(CUDA ~1 s)");
     QElapsedTimer t;
@@ -1027,7 +1031,7 @@ double PoseRunner::warmUp(const QString &motionCaptureQuality)
         }
     }
     const double ms = double(t.elapsed());
-    ppInfo() << "[PoseRunner] warm-up:" << PoseEstimatorViTPose::modelPath(variant) << "session ready in"
+    ppInfo() << "[PoseRunner] warm-up:" << path << "session ready in"
              << ms << "ms";
     return ms;
 }
