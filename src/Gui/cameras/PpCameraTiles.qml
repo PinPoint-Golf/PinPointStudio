@@ -29,7 +29,6 @@
 // picture-in-picture, the telestrator) is quiet card-family chrome.
 
 import QtQuick
-import QtQuick.Layouts
 import PinPointStudio
 
 Item {
@@ -114,20 +113,159 @@ Item {
     // overlay palette's dark ink, fixed across themes, under the palette's lightest words.
     readonly property color _onScrim: Theme.dark ? Theme.colorText : Theme.colorBg
 
-    RowLayout {
-        id: tilesRow
+    // ── Best fit ────────────────────────────────────────────────────────────
+    // The tiles scale to whatever box the stage gives the card — a full-width tab, a third, a
+    // pane dragged narrow or tall. Every tile keeps its own aspect, and tiles side by side share
+    // one height. They go in one row, one column or a grid of rows, whichever gives the most
+    // picture, and the cluster sits centred in the card both ways (in Capture it sits left, or
+    // top, and the metric chart takes the rest).
+    //
+    // ⚠ THE TILES ARE POSITIONED, NEVER REBUILT. A replay stream has one QMediaPlayer with one
+    // video sink (see _replayArmed): a tile torn down and recreated loses or steals it. So a size
+    // or arrangement change only moves the same delegates — the Repeaters' models never depend on
+    // size, and every tile stays a child of tilesBox. The layout is computed from the box's size
+    // and the tiles' aspects only, never from the tiles' own laid-out sizes, so it cannot loop.
+    readonly property real _gap: Theme.gap(8)
+    // Capture shares the box with the ¼× auto-replay metric chart: the tiles best-fit beside it
+    // (or above it, when that makes them bigger) and the chart keeps at least this much.
+    readonly property real _chartMinW: Theme.sp(200)
+    readonly property real _chartMinH: Theme.sp(120)
+
+    // Bumped as tiles come and go, so the aspect list below re-reads the Repeaters.
+    property int _tilesRev: 0
+    // Each tile's aspect, live tiles first, then replay tiles — the order _fit.rects follows.
+    // videoAspect depends on the stream (a connected camera's frame size, else the crop-aware
+    // placeholderAspect), never on the tile's geometry.
+    readonly property var _tileAspects: {
+        const out = []
+        if (root._tilesRev < 0) return out   // a real read: the binding re-runs on each bump
+        for (const rep of [liveTiles, replayTiles]) {
+            for (let i = 0; i < rep.count; ++i) {
+                const it = rep.itemAt(i)
+                out.push((it && it.videoAspect > 0) ? it.videoAspect : 16.0 / 9.0)
+            }
+        }
+        return out
+    }
+
+    // The biggest arrangement for aspects `asp` in a W × H box with gap g, over every row count
+    // 1..n (row-major, ceil(n / rows) tiles to a row). In a row or a grid every tile has one
+    // height; in a single column each tile may differ (below). Of the row counts, the one with
+    // the most picture area wins; ties go to fewer rows.
+    // Returns { rows: [[index…]…], hs: [row height…], w, hgt } — the rows, their heights and
+    // the cluster's size; rows is empty when nothing fits.
+    function _bestFit(asp, W, H, g) {
+        const n = asp.length
+        let best = null
+        for (let r = 1; r <= n && W > 0 && H > 0; ++r) {
+            const per = Math.ceil(n / r)
+            if (r > 1 && Math.ceil(n / (r - 1)) === per) continue   // same rows as r - 1
+            const rows = [], sums = [], caps = []
+            for (let i = 0; i < n; i += per) {
+                const row = []
+                let sum = 0
+                for (let k = i; k < Math.min(n, i + per); ++k) { row.push(k); sum += asp[k] }
+                rows.push(row); sums.push(sum)
+                caps.push((W - g * (row.length - 1)) / sum)        // the width's limit on its height
+            }
+            const hs = new Array(rows.length)
+            if (per > 1) {
+                // A row or a grid: every tile one height, the most the width and height allow.
+                let h = (H - g * (rows.length - 1)) / rows.length
+                for (const c of caps) h = Math.min(h, c)
+                hs.fill(h)
+            } else {
+                // A column: the tiles the width holds back stop at the width, and the others share
+                // the height that leaves evenly — so a portrait face-on above a landscape down-the-
+                // line uses the column, rather than shrinking to the landscape tile's height.
+                let left = H - g * (rows.length - 1), free = rows.length
+                const order = caps.map((c, j) => j).sort((p, q) => caps[p] - caps[q])
+                for (const j of order) {
+                    hs[j] = Math.min(caps[j], left / free)
+                    left -= hs[j]; free--
+                }
+            }
+            let area = 0, ok = true
+            for (let j = 0; j < rows.length; ++j) {
+                if (!(hs[j] > 0)) ok = false
+                area += hs[j] * hs[j] * sums[j]
+            }
+            if (ok && (!best || area > best.area * 1.001)) best = { rows: rows, hs: hs, sums: sums, area: area }
+        }
+        if (!best) return { rows: [], hs: [], w: 0, hgt: 0, area: 0 }
+        let w = 0, hgt = g * (best.rows.length - 1)
+        for (let j = 0; j < best.rows.length; ++j) {
+            w = Math.max(w, best.hs[j] * best.sums[j] + g * (best.rows[j].length - 1))
+            hgt += best.hs[j]
+        }
+        best.w = w
+        best.hgt = hgt
+        return best
+    }
+
+    // The laid-out geometry, in tilesBox coordinates: rects[i] for each tile (in _tileAspects
+    // order), the cluster's box (x, y, w, h) and, in Capture, the chart's box.
+    readonly property var _fit: {
+        const asp = root._tileAspects, g = root._gap
+        const W = tilesBox.width, H = tilesBox.height
+        let f = null, chart = null
+        let aw = W, ah = H, alignX = 0.5, alignY = 0.5
+        if (!root._replay) {
+            // Capture: the chart takes what the tiles leave, beside them or below them.
+            const beside = root._bestFit(asp, W - g - root._chartMinW, H, g)
+            const below  = root._bestFit(asp, W, H - g - root._chartMinH, g)
+            if (asp.length === 0) {
+                f = beside
+                chart = { x: 0, y: 0, w: W, h: H }
+            } else if (beside.area <= 0 && below.area <= 0) {
+                f = root._bestFit(asp, W, H, g)             // too small to share: tiles only
+            } else if (beside.area >= below.area) {
+                f = beside; aw = f.w; alignX = 0
+                chart = { x: f.w + g, y: 0, w: Math.max(0, W - f.w - g), h: H }
+            } else {
+                f = below; ah = f.hgt; alignY = 0
+                chart = { x: 0, y: f.hgt + g, w: W, h: Math.max(0, H - f.hgt - g) }
+            }
+        } else {
+            f = root._bestFit(asp, W, H, g)
+        }
+        const cx = (aw - f.w) * alignX, cy = (ah - f.hgt) * alignY
+        // Edges are rounded, not sizes, so neighbours never overlap or leave a seam.
+        const rects = []
+        let y = cy
+        for (let j = 0; j < f.rows.length; ++j) {
+            const row = f.rows[j], h = f.hs[j]
+            let x = cx + (f.w - (h * f.sums[j] + g * (row.length - 1))) / 2
+            for (const k of row) {
+                const w = h * asp[k]
+                rects[k] = { x: Math.round(x), y: Math.round(y),
+                             w: Math.round(x + w) - Math.round(x), h: Math.round(y + h) - Math.round(y) }
+                x += w + g
+            }
+            y += h + g
+        }
+        return { rects: rects, x: cx, y: cy, w: f.w, h: f.hgt, chart: chart }
+    }
+
+    Item {
+        id: tilesBox
         anchors.fill: parent
         anchors.leftMargin: root._leftGutter   // reserve the telestrator gutter
-        spacing: Theme.gap(8)
 
         // ── Live camera tiles (Capture only) ───────────────────────────────
         Repeater {
+            id: liveTiles
             model: root._replay ? [] : root._liveCameras
+            onItemAdded:   root._tilesRev++
+            onItemRemoved: root._tilesRev++
             delegate: PpCameraFrame {
                 required property var modelData
-                Layout.fillHeight: true
-                Layout.fillWidth: false
-                Layout.preferredWidth: height * videoAspect
+                required property int index
+                readonly property var _slot: root._fit.rects[index]
+                x:      _slot ? _slot.x : 0
+                y:      _slot ? _slot.y : 0
+                width:  _slot ? _slot.w : 0
+                height: _slot ? _slot.h : 0
                 // ⚠ READ FROM THE SETTING, NOT FROM THE LIST ROW, AND THAT IS
                 // WHAT LETS A CROP EDIT LEAVE THE CAMERA LIST ALONE.
                 // `cameraList()` carries crop-derived initialWidth/initialHeight,
@@ -180,12 +318,20 @@ Item {
         // only once arming has settled (see _replayArmed) so a torn-down panel during
         // the Capture→Replay transition never spawns a transient tile.
         Repeater {
+            id: replayTiles
             model: root._replayArmed ? root._replayStreams : []
+            onItemAdded:   root._tilesRev++
+            onItemRemoved: root._tilesRev++
             delegate: PpCameraFrame {
                 required property var modelData
-                Layout.fillHeight: true
-                Layout.fillWidth: false
-                Layout.preferredWidth: height * videoAspect
+                required property int index
+                // After the live tiles, which are none in Replay/Analyse but can overlap them
+                // for one event-loop turn while arming settles (see _replayArmed).
+                readonly property var _slot: root._fit.rects[liveTiles.count + index]
+                x:      _slot ? _slot.x : 0
+                y:      _slot ? _slot.y : 0
+                width:  _slot ? _slot.w : 0
+                height: _slot ? _slot.h : 0
                 replayStreamIndex: modelData.index
                 placeholderAspect: modelData.aspect > 0 ? modelData.aspect : 16.0 / 9.0
                 displayName: qsTr("Replay")
@@ -208,19 +354,16 @@ Item {
             }
         }
 
-        // Trailing fill absorbs the dead space to the RIGHT of the left-aligned
-        // replay tiles (their original layout). Its left edge marks the camera
-        // cluster's right boundary, so the telestrator bar can centre over the
-        // cluster without altering the tiles. (Capture uses the metric graph as
-        // its fillWidth element instead.)
-        Item { id: tilesEnd; Layout.fillWidth: true; Layout.fillHeight: true; visible: root._replay }
-
         // In-replay metric graph — the Capture-mode ¼× auto-replay transient
         // (shotProcessor; degraded shots only). Review/Analyse draw their curves
         // in the charts panel instead.
         Item {
-            Layout.fillWidth: true; Layout.fillHeight: true
-            visible: !root._replay
+            readonly property var _slot: root._fit.chart
+            x:      _slot ? _slot.x : 0
+            y:      _slot ? _slot.y : 0
+            width:  _slot ? _slot.w : 0
+            height: _slot ? _slot.h : 0
+            visible: !root._replay && width > 0 && height > 0
             PpMetricChart {
                 anchors.fill: parent
                 compact:    true        // plot only — no toolbar / brush / summary chrome
@@ -582,13 +725,15 @@ Item {
 
     // ── Telestrator open button (in the gutter, off the footage) ──────────────
     // A ">" chevron that opens the palette; shown only while collapsed (the
-    // matching "<" collapse button lives on the palette itself). Docked top-left
-    // in the reserved gutter so the affordance never sits on the video.
+    // matching "<" collapse button lives on the palette itself). Docked in the
+    // reserved gutter's width, beside the cluster's top-left corner, so it never
+    // sits on the video.
     Rectangle {
         id: annoOpen
         visible: root._annotate && !AnnotationTool.paletteOpen
-        anchors.left: parent.left
-        anchors.top: parent.top
+        // Just left of the cluster, level with its top: beside the footage, never on it.
+        x: Math.max(0, root._fit.x)
+        y: Math.max(0, root._fit.y)
         width: Theme.sp(32); height: Theme.sp(32)
         radius: Theme.radius
         z: 50
@@ -610,22 +755,20 @@ Item {
     }
 
     // ── Telestrator palette (Analyse only) ────────────────────────────────────
-    // Centred over the camera cluster (gutter edge → tilesEnd's left edge) so its
-    // position reads as "applies to all cameras" — without moving the left-aligned
-    // tiles. Drives the AnnotationTool state every tile's PpAnnotationLayer reads.
+    // Centred over the camera cluster, at its top edge, so its position reads as "applies
+    // to all cameras". Drives the AnnotationTool state every tile's PpAnnotationLayer reads.
     PpAnnotationToolbar {
         id: annoBar
-        // cluster spans root-x [_leftGutter, _leftGutter + tilesEnd.x - spacing];
-        // place this bar's centre at the cluster centre, kept inside the card's body, which
-        // clips. A card narrower than the bar (a side column of the stage arrangement) gets
-        // the bar scaled down to fit rather than cut off: every control stays reachable.
+        // The cluster spans root-x [_leftGutter + _fit.x, … + _fit.w]: place this bar's centre
+        // at the cluster's centre, kept inside the card's body, which clips. A card narrower
+        // than the bar (a pane dragged narrow) gets the bar scaled down to fit rather than cut
+        // off: every control stays reachable.
         readonly property real fit: Math.min(1, root.width / Math.max(1, width))
         scale: fit
         transformOrigin: Item.TopLeft
         x: Math.max(0, Math.min(root.width - width * fit,
-                                root._leftGutter + (tilesEnd.x - tilesRow.spacing - width) / 2))
-        anchors.top: parent.top
-        anchors.topMargin: Theme.gap(8)
+                                root._leftGutter + root._fit.x + (root._fit.w - width * fit) / 2))
+        y: Math.max(0, root._fit.y) + Theme.gap(8)
         z: 50
         visible: root._annotate && AnnotationTool.paletteOpen
         opacity: visible ? 1 : 0
