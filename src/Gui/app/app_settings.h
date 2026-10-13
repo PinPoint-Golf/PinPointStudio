@@ -65,11 +65,6 @@ class AppSettings : public QObject
     Q_PROPERTY(double  fontScale    READ fontScale    WRITE setFontScale    NOTIFY fontScaleChanged)
     Q_PROPERTY(QString density      READ density      WRITE setDensity      NOTIFY densityChanged)
     Q_PROPERTY(QString timelineOrientation READ timelineOrientation WRITE setTimelineOrientation NOTIFY timelineOrientationChanged)
-    // Which body the launch monitor stage panel shows: "tiles" (the banded board) or
-    // "graphics" (the five schematics). PER USER and not per session mode, unlike the
-    // panel layouts in ViewLayout: which of two drawings of the same readings a golfer
-    // prefers is a fact about them, not about whether they are capturing or reviewing.
-    Q_PROPERTY(QString lmPanelMode READ lmPanelMode WRITE setLmPanelMode NOTIFY lmPanelModeChanged)
     // The GSPro Open Connect link: the port launch monitors connect TO, and whether
     // it is offered on every interface or only to this machine.
     // ⚠ CONFIGURED AND ENABLED ARE DIFFERENT QUESTIONS. A user with GSPro running
@@ -400,7 +395,6 @@ public:
         m_fontScale       = ppSettings().value(QStringLiteral("ui/fontScale"),       -1.0).toDouble();
         m_density         = ppSettings().value(QStringLiteral("ui/density"),         QStringLiteral("default")).toString();
         m_timelineOrientation = ppSettings().value(QStringLiteral("ui/timelineOrientation"), QStringLiteral("horizontal")).toString();
-        m_lmPanelMode     = ppSettings().value(QStringLiteral("ui/lmPanelMode"),     QStringLiteral("tiles")).toString();
         m_wristReferenceSwingDir = ppSettings().value(QStringLiteral("ui/wristReferenceSwingDir"), QString()).toString();
         m_timelineSnapToPhases = ppSettings().value(QStringLiteral("ui/timelineSnapToPhases"), false).toBool();
         m_metricsHidePlanned = ppSettings().value(QStringLiteral("ui/metricsHidePlanned"), false).toBool();
@@ -587,7 +581,6 @@ public:
     double  fontScale()     const { return m_fontScale; }
     QString density()       const { return m_density; }
     QString timelineOrientation() const { return m_timelineOrientation; }
-    QString lmPanelMode()   const { return m_lmPanelMode; }
     bool    launchMonitorEnabled() const { return m_launchMonitorEnabled; }
     int     gsProPort()      const { return m_gsProPort; }
     QString gsProInterface() const { return m_gsProInterface; }
@@ -768,17 +761,6 @@ public:
         m_timelineOrientation = v;
         ppSettings().setValue(QStringLiteral("ui/timelineOrientation"), v);
         emit timelineOrientationChanged();
-    }
-    void setLmPanelMode(const QString &v)
-    {
-        // Anything that is not "graphics" is the tiles board. The stored value is a
-        // preference, not a contract: a hand-edited ini, or a mode this build no longer
-        // has, must land on the default rather than on an empty panel.
-        const QString mode = (v == QStringLiteral("graphics")) ? v : QStringLiteral("tiles");
-        if (m_lmPanelMode == mode) return;
-        m_lmPanelMode = mode;
-        ppSettings().setValue(QStringLiteral("ui/lmPanelMode"), mode);
-        emit lmPanelModeChanged();
     }
     void setWristReferenceSwingDir(const QString &v)
     {
@@ -1660,7 +1642,6 @@ signals:
     void fontScaleChanged();
     void densityChanged();
     void timelineOrientationChanged();
-    void lmPanelModeChanged();
     void wristReferenceSwingDirChanged();
     void timelineSnapToPhasesChanged();
     void metricsHidePlannedChanged();
@@ -1783,7 +1764,6 @@ private:
     double  m_fontScale       = -1.0;
     QString m_density         = QStringLiteral("default");
     QString m_timelineOrientation = QStringLiteral("horizontal");
-    QString m_lmPanelMode     = QStringLiteral("tiles");
     QString m_wristReferenceSwingDir;
     bool    m_timelineSnapToPhases = false;
     bool    m_metricsHidePlanned = false;

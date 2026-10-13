@@ -4,7 +4,7 @@
 #
 #   render.sh [options] <overlay.qml | none> <tag> <layout>
 #
-#   layout   full | stage | stagecam | half | third | cast | print-portrait | print-landscape
+#   layout   full | stage | stagecam | stagediag | half | third | cast | print-portrait | print-landscape
 #   --panel <profile|target>  panels/<profile>.env (default diagnostics), or a raw target:
 #                             an objectName, or key:<stageKey> (e.g. key:charts)
 #   --slot <name>             your own copy of the session and settings (default a; created on demand)
@@ -15,6 +15,7 @@
 #   --states s1,s2            sets the mock's demoState before each grab; file names gain _<state>
 #   --screen normal|tall|mark|<file.json>    1680×1050 | 1680×2600 | 2560×1560 (Mark's window)
 #   --ordinal <n>             the shot (default 8)
+#   --nav <n>                 the app screen (Main.qml screen index: 1 Swing, 2 Wrist; default 2)
 #   --feed p1,p2  --tab-prop <p>  --target <t>   override the profile
 #   --dump                    write the fed properties (and the detail) as JSON to $TYPESET_OUT/<tag>_data/, then quit
 #   --timeout <s>             default 500
@@ -23,7 +24,7 @@
 #     or  $TYPESET_OUT/<tag>_print-<orient>_<aesthetic>_<light|dark>_p<N>.png   (A4 at 2×)
 # The full app log is kept at $TYPESET_OUT/logs/<tag>_<layout>.log; the console shows probe lines and QML errors.
 H=${0:A:h}; source $H/lib.sh
-PROFILE=diagnostics SLOT=a THEMES=7,12 MODE=analyse STATES="" SCREEN=normal ORDINAL=8 TIMEOUT=500 DUMP=""
+PROFILE=diagnostics SLOT=a THEMES=7,12 MODE=analyse STATES="" SCREEN=normal ORDINAL=8 TIMEOUT=500 DUMP="" NAV=2
 O_VIEWS="" O_DETAIL="" O_FEED="" O_TAB="" O_TARGET="" O_FEED_SET="" O_TAB_SET=""
 while [[ $1 == --* ]]; do
   case $1 in
@@ -32,6 +33,7 @@ while [[ $1 == --* ]]; do
     --states) STATES=$2; shift 2;;      --screen) SCREEN=$2; shift 2;;   --ordinal) ORDINAL=$2; shift 2;;
     --feed) O_FEED=$2; O_FEED_SET=1; shift 2;;  --tab-prop) O_TAB=$2; O_TAB_SET=1; shift 2;;
     --target) O_TARGET=$2; shift 2;;    --dump) DUMP=1; shift;;          --timeout) TIMEOUT=$2; shift 2;;
+    --nav) NAV=$2; shift 2;;
     *) echo "render.sh: unknown option $1" >&2; exit 2;;
   esac
 done
@@ -57,7 +59,7 @@ LOG=$TYPESET_OUT/logs/${TAG}_${LAYOUT}${PRINT:+-$PRINT}.log
 XDG_CONFIG_HOME=$W/cfg QML_DISABLE_DISK_CACHE=1 QT_QPA_PLATFORM="offscreen:configfile=$SCREENFILE" \
   $H/guard.sh timeout $TIMEOUT "$PPS_APP" --probe-qml $H/render_overlay.qml --probe-variant "$OVERLAY" \
   --probe-target "$TARGET" --probe-panel-key "$PANEL_KEY" --probe-feed "$FEED" --probe-tab-prop "$TAB_PROP" \
-  --probe-session $W/session/${TYPESET_SESSION:t} --probe-ordinal $ORDINAL --probe-layout $LAYOUT --probe-print "$PRINT" \
+  --probe-session $W/session/${TYPESET_SESSION:t} --probe-ordinal $ORDINAL --probe-nav $NAV --probe-layout $LAYOUT --probe-print "$PRINT" \
   --probe-themes $THEMES --probe-views "$VIEWS" --probe-detail "${DETAIL:-none}" --probe-mode $MODE \
   --probe-states "$STATES" --probe-dump "$DUMP" --probe-out $TYPESET_OUT --probe-tag $TAG > $LOG 2>&1
 RC=$?

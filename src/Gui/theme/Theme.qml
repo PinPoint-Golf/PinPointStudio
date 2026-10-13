@@ -168,6 +168,8 @@ QtObject {
             typeset: { displayFamily: "Space Grotesk", displayWeight: Font.Light, standFamily: "Space Grotesk",
                        labelFamily: "Space Mono", labelCaps: true, labelTracking: 0.8, labelSize: 8, kickerWeight: Font.Normal,
                        inlineFigureFamily: "Space Grotesk",
+                       // the launch monitor panel: Vector's accent sits too near warn for the strike's centre mark
+                       lm: { heroWeight: Font.Normal, tileLabelTracking: 0.8, clubSeries: [1, 2, 4, 5, 3], centreMark: "series:5" },
                        sectionCaps: true, sectionTracking: 1.2, sectionWeight: Font.Normal,
                        ruleAlpha: 0.7, hairAlpha: 0.11, figureRuleTop: 2, zoneTint: 0.06, faultAlpha: 0.9, passDash: [1, 3],
                        markShape: "square", markFired: 6, markClean: 4, cleanHollow: false, ring: 12, barRadius: 0,
@@ -242,7 +244,8 @@ QtObject {
             // The typeset roles (§15.3), where Folio differs from _typesetDefault: the display and the
             // standfirst in the serif, the direction sentence in italic, lighter rules and wash.
             typeset: { standFamily: serifFamily, displayFamily: serifFamily,
-                       italicNotes: true, ruleAlpha: 0.5, hairAlpha: 0.09, zoneTint: 0.04 },
+                       italicNotes: true, ruleAlpha: 0.5, hairAlpha: 0.09, zoneTint: 0.04,
+                       lm: { clubSeries: [2, 6, 4, 3, 7], tileLabelTracking: 0.7, centreMark: "accent" } },
             light: { colorBg: "#F6F6F3", colorBg2: "#EEEDE9", colorBg3: "#E5E4DF", colorSurface: "#FFFFFF",
                      colorBorder: "#1a0b0b0b", colorBorderMid: "#240b0b0b", colorBorderStrong: "#380b0b0b", colorText: "#2B2B2A",
                      colorText2: "#52514E", colorText3: "#898781", colorAccent: "#2573D1", colorAccentLight: "#142573d1",
@@ -749,7 +752,7 @@ QtObject {
     // default until each is judged in renders). Sizes are design units: PpTypeset turns them into px,
     // through Theme.sp() on screen and printScale on paper. Values that depend on light or dark (the
     // pick and hover washes) are computed by PpTypeset from `dark`, never stored. Nothing outside
-    // PpTypeset reads these tables; blocks read the helper.
+    // PpTypeset reads these tables (blocks read the helper), except PpLmGraphicsBody, which reads its own `lm` block.
     readonly property var _typesetDefault: ({
         textFamily: fontBody, figureFamily: fontData, displayFamily: fontDisplay,
         standFamily: fontBody, labelFamily: fontBody, inlineFigureFamily: fontData,
@@ -771,10 +774,57 @@ QtObject {
         linkAccent: true, linkUnderline: false,
         leader: ".  ",
         // gutters step down one notch below medium
-        gutter: { wide: 20, medium: 20, compact: 14, narrow: 12 }
+        gutter: { wide: 20, medium: 20, compact: 14, narrow: 12 },
+        // The launch monitor panel (PpLmGraphicsBody, docs/design/lm_panel_fsx.md): its design values. Sizes are
+        // design units (PpTypeset.u()), ems the body role; `centreMark` names a colour role ("accent" | "series:N" |
+        // "ink") and `clubSeries` indexes chartSeries. A theme overrides keys in its own `typeset.lm`.
+        lm: {
+            heroSize: 24, heroWeight: Font.Medium,      // the tile's big value (≈ 3× the label's cap height)
+            tileLabelTracking: 0.7,                     // tile + annotation labels: small capitals, tracked
+            tileFootAlpha: 0.055,                       // the AVG · ±σ band: an ink tint, never a hue
+            tilePad: 8, tileGap: 6, tileMinEm: 9,       // a tile ≥ 9 em; strips wrap n → n/2 → n/4
+            annoGap: 2,                                 // label → value in a figure annotation
+            angleGain: 3,                               // Path and Spin angles are drawn ×3
+            clubSeries: [1, 2, 4, 5, 3],                // club hues: indices into Theme.chartSeries
+            ghostAlpha: 0.38,                           // the other clubs' ellipses and dots
+            ellipseW: 2, tracerW: 2.25, rollW: 1.25, rollDash: [3, 3],
+            dot: 7, dotRing: 1.5,                       // landing dots: club hue, paper ring
+            arcEvery: 25, targetDash: [5, 4], refDash: [4, 3],
+            patchAlpha: 0.66,                           // the impact patch: a theme tone over the face, tape-like
+            centreMark: "accent", centreDmm: 3.0,       // its centre marker: a THEME token; ≥ 5 px
+            markerDmm: 5, markerAlpha: 0.82,            // Foresight club markers: 5 mm silver dots (near-white)
+            halvesEm: 88,                               // Session: the club half beside the ball half from 88 em
+            sesFigMinEm: 15, sesFigMaxEm: 23,           // Session: the figure row takes the height left, inside these
+            lsPairEm: 44,                               // launch × spin beside the dispersion when the ball half has 44 em
+            cfPairEm: 36,                               // impact map beside path × face when the club half has 36 em
+            mapFaceW: 0.78, mapFaceH: 1.25, mapShare: 0.58, // the impact map's face: ≤ 78 % of its cell's width, ≤ 1.25 × its height
+            scatterDot: 7,                              // a shot in the path × face and launch × spin scatters
+            ledgerColEm: 36, ledgerFullEm: 35,          // ledger columns; a row on one line from 35 em
+            qualTracking: 0.6,                          // a direction word (UP, OPEN, HEEL): small capitals beside the figure
+            hitPx: 28,                                  // a touch target (Theme.sp): every clickable shot, chip and key
+            sesStripH: 6, stripGap: 5,                  // the every-shot strip under a Session tile: height, gap over the footer
+            shotTickAlpha: 0.35, stripBandAlpha: 0.14, stripTickW: 2,
+            cardAlpha: 0.95,                            // the hover card's paper backing
+            hoverGraceMs: 350,                          // the hover card outlives the pointer this long (so it can be clicked)
+            // the four club figures (Path, Loft, Spin, Impact) are ONE size: one width, one height, one aspect range
+            cellAspectMin: 1.45, cellAspectMax: 1.9,    // a cell's width ÷ height
+            clubCellMinEm: 9.5, clubCellMaxEm: 18,      // a cell's height
+            cellMinEm: 23,                              // the least cell width: the annotations' room
+            faceCornerEm: 6.8,                          // Impact: the corner annotations' column, left and right of the face
+            shortWinEm: 62,                             // a panel shorter than 62 em is "short": the tile strip keeps to one row
+            flightBesideMinEm: 30,                      // the flight may stand beside the club group when it gets ≥ 30 em
+            flightMinK: 2.4,                            // a true-scale flight drawn smaller than this (px per yd) folds below the fold
+            ballFrac: 0.085, ballFracH: 0.15            // Path and Loft: the ball's radius ≤ 8.5 % of the cell's width, 15 % of its height
+        }
     })
     // The merged table for the current aesthetic: the default, then the entry's block.
-    readonly property var typeset: Object.assign({}, _typesetDefault, _a.typeset || {})
+    // `lm` (the launch monitor panel's block) merges one level deeper, so a theme lists only the keys it changes.
+    readonly property var typeset: {
+        const own = _a.typeset || {}
+        const t = Object.assign({}, _typesetDefault, own)
+        t.lm = Object.assign({}, _typesetDefault.lm, own.lm || {})
+        return t
+    }
     // The print block, shared by every theme: the scale, the hairline and the tint for paper, and the
     // A4 page geometry the Pager uses. PpTypeset reads it while its medium is "print".
     readonly property var typesetPrint: ({

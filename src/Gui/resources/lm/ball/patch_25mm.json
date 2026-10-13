@@ -1,0 +1,54 @@
+{
+ "contact_diameter_mm": 25.0,
+ "default": true,
+ "image": {
+  "width": 1024,
+  "height": 1024
+ },
+ "centre": [
+  512.0,
+  512.0
+ ],
+ "mm_per_px": 0.03125,
+ "image_256": {
+  "width": 256,
+  "height": 256,
+  "centre": [
+   128.0,
+   128.0
+  ],
+  "mm_per_px": 0.125
+ },
+ "svg": {
+  "file": "patch_25mm.svg",
+  "viewBox": [
+   -1600.0,
+   -1600.0,
+   3200.0,
+   3200.0
+  ],
+  "unit_mm": 0.01,
+  "origin": "centre",
+  "size_mm": [
+   32.0,
+   32.0
+  ]
+ },
+ "centred_on": "dimple",
+ "centre_hole_diameter_mm": 3.402,
+ "holes_inside": 25,
+ "holes_on_edge": 15,
+ "ink_reach_mm": 0.09,
+ "projection": "orthographic",
+ "marked_fraction": 0.505,
+ "ball_diameter_mm": 42.67,
+ "contact_dimple": {
+  "index": 88,
+  "c": [
+   -0.626413,
+   0.0,
+   0.779491
+  ]
+ },
+ "note": "px: origin top left, y down; centre = the ball contact point (the middle of a dimple hole). Same 32 mm canvas for every size. SVG: one evenodd path filled with currentColor."
+}

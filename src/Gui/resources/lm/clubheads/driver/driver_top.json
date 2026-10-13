@@ -1,0 +1,105 @@
+{
+ "club": "driver",
+ "label": "Driver 460cc",
+ "view": "top",
+ "image": {
+  "width": 1152,
+  "height": 2048
+ },
+ "mm_per_px": 0.098972,
+ "world_to_px": [
+  [
+   10.103818,
+   0.0,
+   0.0,
+   1082.932
+  ],
+  [
+   -0.0,
+   -10.103818,
+   -0.0,
+   1275.901
+  ]
+ ],
+ "world_note": "world mm: +X target, +Y toward golfer (heel), +Z up, ground z=0; px = M @ [x,y,z,1], y down",
+ "loft_deg": 10.5,
+ "lie_deg": 58.0,
+ "offset_mm": null,
+ "face_centre": [
+  1050.85,
+  1306.21
+ ],
+ "leading_edge": {
+  "heel": [
+   1073.53,
+   1092.06
+  ],
+  "toe": [
+   1073.15,
+   1526.68
+  ],
+  "mid": [
+   1084.19,
+   1334.71
+  ]
+ },
+ "face_plane": [
+  [
+   1050.85,
+   1609.33
+  ],
+  [
+   1050.85,
+   1003.1
+  ]
+ ],
+ "face_normal": [
+  1.0,
+  -0.0
+ ],
+ "face_normal_toward_viewer": false,
+ "shaft_axis": [
+  [
+   896.01,
+   1079.25
+  ],
+  [
+   896.01,
+   85.85
+  ]
+ ],
+ "ground_y": null,
+ "sole_contact": [
+  828.67,
+  1312.54
+ ],
+ "head_bbox": [
+  67.3,
+  618.3,
+  1084.7,
+  1981.0
+ ],
+ "body_bbox": [
+  67.3,
+  753.6,
+  1084.7,
+  1981.0
+ ],
+ "pivot": [
+  1050.85,
+  1306.21
+ ],
+ "alpha_bbox": [
+  66,
+  80,
+  1086,
+  1982
+ ],
+ "render_seconds": {
+  "light": 54.4,
+  "dark": 59.4,
+  "line-black": 2.9,
+  "curv": 1.8,
+  "zebra": 2.3
+ }
+}

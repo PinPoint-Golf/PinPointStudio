@@ -113,7 +113,9 @@ Item {
             o.width = Qt.binding(() => b.width); o.height = Qt.binding(() => b.height)
             o.visible = Qt.binding(() => b.visible)
             feed(o, b)
-            b.opacity = 0
+            // A pass-through overlay (root declares `property bool passThrough: true`, e.g. a no-op used to try
+            // the REAL panel) leaves the panel showing; a mock replaces it, so the panel underneath goes clear.
+            if (!(("passThrough" in o) && o.passThrough === true)) b.opacity = 0
             probe.attached.push({ body: b, overlay: o })
             log("attached over a " + Math.round(b.width) + "×" + Math.round(b.height) + " panel")
         }

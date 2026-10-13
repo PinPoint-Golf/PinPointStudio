@@ -971,6 +971,9 @@ SwingSummary summaryFromRoot(const QJsonObject &root, const QString &swingDir)
         const QJsonObject rv = root[QStringLiteral("review")].toObject();
         s.rating = std::clamp(rv[QStringLiteral("rating")].toInt(), 0, 5);
         s.note   = rv[QStringLiteral("note")].toString();
+        // The launch monitor board's annotations — optional keys, absent = not annotated.
+        s.excluded     = rv[QStringLiteral("excluded")].toBool(false);
+        s.clubOverride = rv[QStringLiteral("clubOverride")].toString();
     }
     // Which device measured it, for the row's caption.
     s.lmDeviceKind = root[QStringLiteral("launchMonitor")].toObject()
@@ -1029,6 +1032,8 @@ SwingSummary summaryFromShot(const PersistedShot &ps)
     s.note              = ps.note;
     s.lmDeviceKind      = ps.lmDeviceKind;
     s.dataWarningDetail = ps.dataWarningDetail;
+    s.excluded          = ps.excluded;
+    s.clubOverride      = ps.clubOverride;
     return s;
 }
 
@@ -1092,6 +1097,10 @@ QJsonObject summaryJson(const SwingSummary &s)
         { QStringLiteral("note"),             s.note },
         { QStringLiteral("lmDeviceKind"),     s.lmDeviceKind },
         { QStringLiteral("dataWarningDetail"),QJsonObject::fromVariantMap(s.dataWarningDetail) },
+        // The launch monitor board's annotations — additive to /4, read with defaults (see
+        // SwingSummary::excluded for why this is not a schema bump).
+        { QStringLiteral("excluded"),         s.excluded },
+        { QStringLiteral("clubOverride"),     s.clubOverride },
     };
 }
 
@@ -1121,6 +1130,9 @@ void summaryFromJson(const QJsonObject &root, const QString &swingDir, SwingSumm
     s.note              = root[QStringLiteral("note")].toString();
     s.lmDeviceKind      = root[QStringLiteral("lmDeviceKind")].toString();
     s.dataWarningDetail = root[QStringLiteral("dataWarningDetail")].toObject().toVariantMap();
+    // Additive to /4: a summary written before these existed lacks them, and is right to.
+    s.excluded          = root[QStringLiteral("excluded")].toBool(false);
+    s.clubOverride      = root[QStringLiteral("clubOverride")].toString();
     s.fromSidecar    = true;
     s.ok             = true;
 }
@@ -1561,11 +1573,15 @@ bool SwingDocWriter::updateReview(const QString &swingDir, int rating, const QSt
     // Additive "review" block — additive, readers ignore unknown keys. Club is
     // the user's chosen club for the shot (until capture-time club selection
     // exists it starts as the "DRIVER" stub and is only ever set here).
-    root[QStringLiteral("review")] = QJsonObject{
-        { QStringLiteral("rating"), std::clamp(rating, 0, 5) },
-        { QStringLiteral("note"),   note },
-        { QStringLiteral("club"),   club },
-    };
+    //
+    // MERGED INTO, NOT REPLACED: the block also holds the launch monitor board's annotations
+    // (excluded, clubOverride — updateShotAnnotations), and rewriting it from these three
+    // fields alone would silently un-exclude a shot every time its stars changed.
+    QJsonObject review = root.value(QStringLiteral("review")).toObject();
+    review[QStringLiteral("rating")] = std::clamp(rating, 0, 5);
+    review[QStringLiteral("note")]   = note;
+    review[QStringLiteral("club")]   = club;
+    root[QStringLiteral("review")] = review;
 
     // Club, stars and note live in the summary, which saveDocument rebuilds from this root.
     if (!saveDocument(swingDir, root, error))
@@ -1573,6 +1589,40 @@ bool SwingDocWriter::updateReview(const QString &swingDir, int rating, const QSt
     // This document just changed underneath any copy writeSwingJson() kept (takeJustWritten). Drop it:
     // a cached root older than its file would replay the wrong analysis, which is far worse than the
     // parse the cache saves.
+    clearJustWritten(swingDir);
+    return true;
+}
+
+bool SwingDocWriter::updateShotAnnotations(const QString &swingDir, bool excluded,
+                                           const QString &clubOverride, QString *error)
+{
+    QJsonObject root = SwingStore::load(swingDir, error);
+    if (root.isEmpty())
+        return false;
+
+    QJsonObject review = root.value(QStringLiteral("review")).toObject();
+    const QJsonObject before = review;
+
+    // Written only when set; the default REMOVES the key, so "absent" keeps meaning "never
+    // annotated" and a shot restored to the board reads back exactly like one never touched.
+    if (excluded) review[QStringLiteral("excluded")] = true;
+    else          review.remove(QStringLiteral("excluded"));
+    const QString ov = clubOverride.trimmed();
+    if (!ov.isEmpty()) review[QStringLiteral("clubOverride")] = ov;
+    else               review.remove(QStringLiteral("clubOverride"));
+
+    if (review == before)
+        return true;                    // nothing to say — and no 28 MB rewrite to say it
+    // A block that held nothing but annotations, now cleared, goes away entirely rather than
+    // lingering as an empty object a reader would have to interpret.
+    if (review.isEmpty())
+        root.remove(QStringLiteral("review"));
+    else
+        root[QStringLiteral("review")] = review;
+
+    // The summary carries both annotations; saveDocument rebuilds it from this root.
+    if (!saveDocument(swingDir, root, error))
+        return false;
     clearJustWritten(swingDir);
     return true;
 }
@@ -1862,6 +1912,10 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
         const QString club = rv[QStringLiteral("club")].toString();
         if (!club.isEmpty())
             ps.club = club;
+        // The launch monitor board's annotations (PersistedShot::excluded): optional keys,
+        // and absent is the honest default for every document that predates them.
+        ps.excluded     = rv[QStringLiteral("excluded")].toBool(false);
+        ps.clubOverride = rv[QStringLiteral("clubOverride")].toString();
     }
 
     // Data-integrity verdicts (additive top-level blocks: imuIntegrity from the

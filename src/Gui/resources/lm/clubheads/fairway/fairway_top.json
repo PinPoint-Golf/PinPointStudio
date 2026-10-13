@@ -1,0 +1,105 @@
+{
+ "club": "fairway",
+ "label": "3 wood 15deg",
+ "view": "top",
+ "image": {
+  "width": 1124,
+  "height": 2048
+ },
+ "mm_per_px": 0.08702,
+ "world_to_px": [
+  [
+   11.491606,
+   0.0,
+   0.0,
+   1053.064
+  ],
+  [
+   -0.0,
+   -11.491606,
+   -0.0,
+   1328.699
+  ]
+ ],
+ "world_note": "world mm: +X target, +Y toward golfer (heel), +Z up, ground z=0; px = M @ [x,y,z,1], y down",
+ "loft_deg": 15.0,
+ "lie_deg": 58.5,
+ "offset_mm": null,
+ "face_centre": [
+  1020.01,
+  1367.77
+ ],
+ "leading_edge": {
+  "heel": [
+   1035.87,
+   1072.15
+  ],
+  "toe": [
+   1042.41,
+   1580.08
+  ],
+  "mid": [
+   1056.88,
+   1343.7
+  ]
+ },
+ "face_plane": [
+  [
+   1020.01,
+   1712.52
+  ],
+  [
+   1020.01,
+   1023.02
+  ]
+ ],
+ "face_normal": [
+  1.0,
+  -0.0
+ ],
+ "face_normal_toward_viewer": false,
+ "shaft_axis": [
+  [
+   872.65,
+   1081.05
+  ],
+  [
+   872.65,
+   89.02
+  ]
+ ],
+ "ground_y": null,
+ "sole_contact": [
+  815.75,
+  1372.36
+ ],
+ "head_bbox": [
+  67.0,
+  685.4,
+  1057.0,
+  1981.0
+ ],
+ "body_bbox": [
+  67.0,
+  798.7,
+  1057.0,
+  1981.0
+ ],
+ "pivot": [
+  1020.01,
+  1367.77
+ ],
+ "alpha_bbox": [
+  66,
+  82,
+  1058,
+  1982
+ ],
+ "render_seconds": {
+  "light": 50.6,
+  "dark": 52.7,
+  "line-black": 2.7,
+  "curv": 1.3,
+  "zebra": 1.9
+ }
+}

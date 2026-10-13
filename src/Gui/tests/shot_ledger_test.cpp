@@ -34,6 +34,7 @@
 #include "swing_doc.h"
 #include "swing_paths.h"
 #include "temp_library.h"
+#include "swing_store.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -370,6 +371,121 @@ static void testReviewWriteThrough()
 }
 
 // ---------------------------------------------------------------------------
+// M — the launch monitor board's annotations are written through and come back
+// ---------------------------------------------------------------------------
+//
+// "Leave out" and "Club" on the FSX panel's pinned card (docs/design/lm_panel_fsx.md) are
+// persisted in the shot's review block as review.excluded / review.clubOverride. The contract
+// is that both survive a reload of the session — through the cheap summary path the live
+// carousel uses AND the full parse a reviewed session uses — that a star rating does not wipe
+// them, and that clearing them leaves the document saying nothing, as if never touched.
+
+static void testLmAnnotationsWriteThrough()
+{
+    std::printf("\nM — launch monitor annotations survive a reload\n");
+
+    TempLibrary lib;
+    if (!lib.valid()) { check(QStringLiteral("M skipped — no temp dir"), false); return; }
+    const QString session = lib.makeSession(QStringLiteral("Mark-Liversedge"),
+                                            QStringLiteral("2026-10-13_session_01"));
+    const QString swing = session + QStringLiteral("/swing_0001");
+    writeSwingDoc(swing, 1, QStringLiteral("DRIVER"), true, QDateTime::currentDateTime());
+
+    ShotListModel m;
+    m.loadSessionDir(session);
+    checkInt(QStringLiteral("M0 the fixture swing loaded"), m.rowCount(), 1);
+    const int id = m.data(m.index(0), ShotListModel::ShotIdRole).toInt();
+    check(QStringLiteral("M1 a document without the keys reads as not left out"),
+          !m.data(m.index(0), ShotListModel::LmExcludedRole).toBool());
+    checkStr(QStringLiteral("M2 …and as no club override"),
+             m.data(m.index(0), ShotListModel::LmClubOverrideRole).toString(), QString());
+
+    QSignalSpy changed(&m, &QAbstractItemModel::dataChanged);
+    m.setLmExcluded(id, true);
+    m.setLmClubOverride(id, QStringLiteral("7 IRON"));
+    checkInt(QStringLiteral("M3 each edit announces itself (the board rebuilds on it)"), changed.count(), 2);
+
+    // The cheap path: loadSessionDir reads the summary, never the document.
+    {
+        ShotListModel reloaded;
+        reloaded.loadSessionDir(session);
+        check(QStringLiteral("M4 left out comes back through the summary path"),
+              reloaded.data(reloaded.index(0), ShotListModel::LmExcludedRole).toBool());
+        checkStr(QStringLiteral("M5 the club override comes back through the summary path"),
+                 reloaded.data(reloaded.index(0), ShotListModel::LmClubOverrideRole).toString(),
+                 QStringLiteral("7 IRON"));
+        checkStr(QStringLiteral("M6 the RECORDED club is untouched by the override"),
+                 reloaded.data(reloaded.index(0), ShotListModel::ClubRole).toString(),
+                 QStringLiteral("DRIVER"));
+    }
+    // The full parse: a reviewed session (SessionReviewController) reads this.
+    {
+        const pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(swing);
+        check(QStringLiteral("M7 the full parse reads excluded"), ps.ok && ps.excluded);
+        checkStr(QStringLiteral("M8 the full parse reads clubOverride"), ps.clubOverride,
+                 QStringLiteral("7 IRON"));
+    }
+
+    // A star rating rewrites the review block — and must merge, not replace.
+    m.setRating(id, 4);
+    {
+        ShotListModel reloaded;
+        reloaded.loadSessionDir(session);
+        checkInt(QStringLiteral("M9 the rating landed"),
+                 reloaded.data(reloaded.index(0), ShotListModel::RatingRole).toInt(), 4);
+        check(QStringLiteral("M10 a rating does not un-leave-out the shot"),
+              reloaded.data(reloaded.index(0), ShotListModel::LmExcludedRole).toBool());
+        checkStr(QStringLiteral("M11 a rating does not drop the club override"),
+                 reloaded.data(reloaded.index(0), ShotListModel::LmClubOverrideRole).toString(),
+                 QStringLiteral("7 IRON"));
+    }
+
+    // Choosing the recorded club is how the golfer declines the evidence — accepted whatever
+    // its case, and stored in the recorded spelling.
+    m.setLmClubOverride(id, QStringLiteral("driver"));
+    checkStr(QStringLiteral("M12 the recorded club, any case, is stored as recorded"),
+             m.data(m.index(0), ShotListModel::LmClubOverrideRole).toString(), QStringLiteral("DRIVER"));
+    m.setLmClubOverride(id, QStringLiteral("Excalibur"));
+    checkStr(QStringLiteral("M13 a club outside the bag is refused"),
+             m.data(m.index(0), ShotListModel::LmClubOverrideRole).toString(), QStringLiteral("DRIVER"));
+    {
+        ShotListModel reloaded;
+        reloaded.loadSessionDir(session);
+        checkStr(QStringLiteral("M14 the decline survives a reload"),
+                 reloaded.data(reloaded.index(0), ShotListModel::LmClubOverrideRole).toString(),
+                 QStringLiteral("DRIVER"));
+    }
+
+    // Cleared: the keys leave the document entirely.
+    m.setLmExcluded(id, false);
+    m.setLmClubOverride(id, QString());
+    {
+        const QJsonObject review = pinpoint::SwingStore::load(swing)
+                                       .value(QStringLiteral("review")).toObject();
+        check(QStringLiteral("M15 restored: no excluded key left in the document"),
+              !review.contains(QStringLiteral("excluded")));
+        check(QStringLiteral("M16 default club: no clubOverride key left in the document"),
+              !review.contains(QStringLiteral("clubOverride")));
+        checkInt(QStringLiteral("M17 and the rating beside them is still there"),
+                 review.value(QStringLiteral("rating")).toInt(), 4);
+        ShotListModel reloaded;
+        reloaded.loadSessionDir(session);
+        check(QStringLiteral("M18 restored reads back as not left out"),
+              !reloaded.data(reloaded.index(0), ShotListModel::LmExcludedRole).toBool());
+    }
+
+    // In memory only: no folder, nothing to write, nothing goes wrong.
+    {
+        ShotListModel mem;
+        const int memId = mem.addShot(QString(), QStringLiteral("13:00"), QStringLiteral("DRIVER"),
+                                      false, QUrl(), {}, 0, {});
+        mem.setLmExcluded(memId, true);
+        check(QStringLiteral("M19 an in-memory shot still holds its left-out flag"),
+              mem.data(mem.index(0), ShotListModel::LmExcludedRole).toBool());
+    }
+}
+
+// ---------------------------------------------------------------------------
 // P — previousAnalysisDetail: the "compare to previous" ghost
 // ---------------------------------------------------------------------------
 
@@ -483,6 +599,7 @@ int main(int argc, char **argv)
     testOrdinalAgreement();
     testLoadSessionDir();
     testReviewWriteThrough();
+    testLmAnnotationsWriteThrough();
     testPreviousAnalysisDetail();
     testAttachSwingDir();
     testActiveCountSignal();

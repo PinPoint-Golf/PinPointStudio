@@ -119,6 +119,15 @@ else()
         BASE "${PP_ROOT}/src/Resources/fonts"
         FILES ${PP_FONT_FILES})
 
+    # The launch monitor art (qrc:/lm/…), the same vendored list the app compiles — the root
+    # CMakeLists' app_lm_art. Without it every club head in the panel tests is a blank Image.
+    include(${PP_ROOT}/src/Gui/resources/lm/files.cmake)
+    list(TRANSFORM PP_LM_ART_FILES PREPEND "${PP_ROOT}/src/Gui/resources/lm/" OUTPUT_VARIABLE _pp_lm_art_test)
+    qt_add_resources(qml_ui_test "test_lm_art"
+        PREFIX "/lm"
+        BASE "${PP_ROOT}/src/Gui/resources/lm"
+        FILES ${_pp_lm_art_test})
+
     set_target_properties(qml_ui_test PROPERTIES AUTOMOC ON MACOSX_BUNDLE OFF)
     target_include_directories(qml_ui_test PRIVATE
         ${SRC} ${PP_ROOT}/src/Core ${PP_ROOT}/src/Buffer ${PP_ROOT}/src/Metrics ${PP_ROOT}/src/Analysis ${PP_ROOT}/src/Diagnostics

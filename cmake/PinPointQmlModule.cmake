@@ -274,11 +274,6 @@ set(PP_QML_FILES
     src/Gui/diagnostics/PpDiagPrint.qml
     src/Gui/session/PpLaunchMonitorPanel.qml
     src/Gui/session/PpLmGraphicsBody.qml
-    src/Gui/session/PpLmCard.qml
-    src/Gui/session/PpLmDiagram.qml
-    src/Gui/session/PpLmRule.qml
-    src/Gui/session/PpLmRead.qml
-    src/Gui/session/PpLmSpread.qml
     src/Gui/shot/PpSessionDiagnosticsWindow.qml
     src/Gui/components/PpQualityPill.qml
     src/Gui/components/PpStarRating.qml
@@ -373,6 +368,9 @@ set(PP_QML_SOURCES
     src/Metrics/setup_capability.cpp
     src/Gui/launchmonitor/lm_session_model.h
     src/Gui/launchmonitor/lm_session_model.cpp
+    # The panel's vendored art (qrc:/lm/…, src/Gui/resources/lm/) — a C++ QML singleton.
+    src/Gui/launchmonitor/lm_club_art.h
+    src/Gui/launchmonitor/lm_club_art.cpp
     src/Gui/diagnosticmodel/model_browser.h
     src/Gui/diagnosticmodel/model_browser.cpp
     src/Diagnostics/anatomy_vocabulary.h

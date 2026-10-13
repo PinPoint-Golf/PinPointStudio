@@ -146,8 +146,21 @@ public:
     // setRating/setNote/setClub so edits survive a restart. Returns false (and
     // sets *error) if the doc can't be read or rewritten — a shot whose swing.json
     // was never written (e.g. export failed) simply fails here harmlessly.
+    // ⚠ MERGES rather than replaces: the review block also carries the launch monitor board's
+    // annotations (updateShotAnnotations below), and a star rating must not erase a shot the
+    // golfer left out. Only rating, note and club are written here.
     static bool updateReview(const QString &swingDir, int rating, const QString &note,
                              const QString &club, QString *error = nullptr);
+
+    // Write-through of the launch monitor board's two per-shot annotations into the "review"
+    // block: `excluded` (left out of the board's statistics) and `clubOverride` (the club the
+    // board treats the shot as; "" for the default). Both are written ONLY when set — false and
+    // "" REMOVE the key — so a document nobody annotated stays exactly as it was, and absence
+    // keeps meaning "never annotated" (PersistedShot::excluded). Touches nothing else in the
+    // block: never the club, so a document with no declared club does not acquire the stub.
+    // Same read-modify-atomic-rewrite as updateReview; no-op (true) when nothing would change.
+    static bool updateShotAnnotations(const QString &swingDir, bool excluded,
+                                      const QString &clubOverride, QString *error = nullptr);
 
     // Fold a launch monitor reading into an existing <swingDir>/swing.json.
     //
@@ -333,6 +346,18 @@ struct PersistedShot {
     // `lm.` series; this is the only place their provenance survives a reload, and without
     // it a reviewed session could only be captioned with whatever is plugged in today.
     QString     lmDeviceKind;
+    // THE LAUNCH MONITOR BOARD'S TWO USER ANNOTATIONS, from the "review" block (review.excluded,
+    // review.clubOverride). Both are the golfer's own decisions made on the panel's pinned card —
+    // "Leave out" and "Club" — and both are OPTIONAL keys: absent means not left out and no
+    // override, which is also exactly what every document written before they existed means, so
+    // absence is unambiguous (swing_json_schema rule: decide what absence means). User
+    // annotations, not analysis output — no stage version moves with them.
+    //   excluded      the shot is left out of the board's means, spreads, grades and ellipses
+    //   clubOverride  the club the board treats the shot as, "" for the default (the club
+    //                 evidence's suggestion, else the recorded club); the recorded club itself,
+    //                 chosen explicitly, declines the evidence
+    bool        excluded = false;
+    QString     clubOverride;
 };
 
 // The handful of fields a session-list row needs — everything pinpoint::ShotSummaryInput
@@ -368,6 +393,14 @@ struct SwingSummary {
     QString     note;               // free-text user note, same block
     QString     lmDeviceKind;       // launchMonitor.kind token, empty when no device block
     QVariantMap dataWarningDetail;  // the facts behind dataWarning (empty when there is none)
+    // The launch monitor board's annotations (PersistedShot::excluded / clubOverride), so a
+    // session loaded through the cheap path keeps them. ADDITIVE in the /4 summary rather than a
+    // schema bump: a bump would send every existing swing.ppsw back to the full parse on the next
+    // session load (the stall /4 exists to prevent), and an older summary lacking the keys is
+    // CORRECT as it stands — it was written before any annotation could exist, and any write
+    // that adds one rebuilds the summary from the document.
+    bool        excluded = false;
+    QString     clubOverride;
     // Provenance, never persisted: true when this came from the sidecar, false when the
     // full swing.json had to be parsed. Lets the parity test prove it actually exercised
     // the cheap path — a bug that always fell back would otherwise pass silently while

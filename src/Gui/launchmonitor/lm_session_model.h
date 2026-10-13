@@ -152,6 +152,12 @@ class LmSessionModel : public QAbstractListModel
     // are two projections of ONE set of statistics, computed once in rebuild(), and a
     // separate model would be a second chance for the board and the schematics to
     // disagree about the same shot.
+    //
+    // The FSX panel's session half reads four more keys (docs/design/lm_panel_fsx.md, "Model
+    // contract" — the names are binding): `shots` (every shot, its effective club, whether it
+    // is left out, its raw readings and its club evidence), `clubs` (per effective club: the
+    // statistics and the four enclosing ellipses), `mismatch` (the note) and `device` (whose
+    // club markers the Impact face carries). See sessionGraphics() in the .cpp.
     Q_PROPERTY(QVariantMap graphics READ graphics NOTIFY graphicsChanged)
 
 public:
@@ -190,6 +196,26 @@ public:
     QString      corridorScope() const { return m_corridorScope; }
     QVariantList bandCounts() const;
     QVariantMap  graphics()   const { return m_graphics; }
+
+    // ── The panel's two inline actions and the mismatch note's Undo (lm_panel_fsx.md) ──
+    //
+    // All three are PERSISTED, through the shot list's write-through to each shot's review
+    // block (ShotListModel::setLmExcluded / setLmClubOverride → SwingDocWriter::
+    // updateShotAnnotations), so a reload of the session comes back exactly as the golfer left
+    // it. They change no reading: they change which shots the board is computed over, and
+    // which club it computes them as. The rebuild that follows is the ordinary one, driven by
+    // the shot list's dataChanged — there is no second path to keep in step.
+    //
+    // "Leave out": the shot stays on every figure (hollow), and is left out of every mean, SD,
+    // grade, corridor, scope count, tile and ellipse.
+    Q_INVOKABLE void setShotExcluded(int shotId, bool excluded);
+    // "Club": "" restores the default (the evidence's club, else the recorded one). Choosing
+    // the RECORDED club explicitly declines the evidence for that shot — it is stored, so the
+    // evidence cannot re-apply on the next load.
+    Q_INVOKABLE void setShotClub(int shotId, const QString &club);
+    // The note's Undo: every shot the note names as evidence-relabelled is set back to its
+    // recorded club, explicitly — i.e. declined, and remembered as declined.
+    Q_INVOKABLE void undoMismatch();
 
 signals:
     void shotModelChanged();
@@ -236,6 +262,9 @@ private:
     };
 
     QPointer<ShotListModel> m_shots;
+    // Set while undoMismatch() writes several shots: each write emits dataChanged, and one
+    // rebuild at the end is the same answer as eight in a row.
+    bool                    m_batching = false;
     int                     m_focusedShotId = -1;
     bool                    m_connected = false;
     bool                    m_reviewing = false;

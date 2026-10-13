@@ -161,6 +161,20 @@ pp_add_test(lm_flight_path_test SOURCES lm_flight_path_test.cpp)
 # strings are asserted to the character: a future export has to quote them verbatim.
 pp_add_test(lm_inferred_reads_test SOURCES lm_inferred_reads_test.cpp)
 
+# Launch monitor club evidence (lm_club_evidence.h) — the three votes at every threshold,
+# two votes decide and a split decides nothing, who is checked (driver, irons, wedges; never
+# fairway woods, hybrids or unknown labels), the most-common-club suggestion with its bag-order
+# tie-break and the generic one, and the 4 Aug Wrist_05 fixture's 25 shots with every verdict
+# pinned. Backs LmSessionModel's effective club and mismatch note. Header-only, QtCore.
+pp_add_test(lm_club_evidence_test SOURCES lm_club_evidence_test.cpp)
+
+# Launch monitor enclosing ellipse (lm_enclosing_ellipse.h) — Khachiyan's minimum-area
+# ellipse made exact: encloses every point, the circumcircle and Steiner closed forms, no
+# ellipse under three points, affine equivariance, the mixed-unit floor, and parity with the
+# signed-off mock's own JS on the fixture's carries. Backs every outline the Session view
+# draws. Header-only, no Qt.
+pp_add_test(lm_enclosing_ellipse_test SOURCES lm_enclosing_ellipse_test.cpp)
+
 pp_add_test(imu_calibration_test  SOURCES imu_calibration_test.cpp)   # A·q·M solve + keystone golden
 # Phase D — the HackMotion→PinPoint frame constant. Two of its sections assert that a
 # check does NOT work (the scalar angle is blind to composition order; cross-talk is

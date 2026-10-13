@@ -147,10 +147,11 @@ Item {
         } else {
             let on
             if (probe.layout === "stagecam") on = ["camera", key]
+            else if (probe.layout === "stagediag") on = ["camera", "sessionDiagnostics", key]   // Mark's Replay view: camera, diagnostics over the panel
             else if (probe.layout === "stage") on = [key].concat(["charts", "table", "markup"].filter(k => k !== key).slice(0, 2))
             else on = [key].concat(["charts", "table", "camera"].filter(k => k !== key).slice(0, probe.layout === "half" ? 1 : 2))
             for (const k of probe.allKeys) ViewLayout.setPanel(m, k, on.indexOf(k) >= 0)
-            ViewLayout.setArrangement(m, (probe.layout === "stage" || probe.layout === "stagecam") ? "stage" : "split")
+            ViewLayout.setArrangement(m, (probe.layout === "stage" || probe.layout === "stagecam" || probe.layout === "stagediag") ? "stage" : "split")
         }
         probe.log("layout " + probe.layout + " → " + ViewLayout.arrangementFor(m) + " " + ViewLayout.enabledKeysFor(m).join(","))
     }
@@ -234,7 +235,8 @@ Item {
         v.x = Qt.binding(() => b.x); v.y = Qt.binding(() => b.y)
         v.width = Qt.binding(() => b.width); v.height = Qt.binding(() => b.height)
         probe.variant = v
-        b.opacity = 0
+        // a pass-through overlay (`property bool passThrough: true`) leaves the real panel showing
+        if (!(has(v, "passThrough") && v.passThrough === true)) b.opacity = 0
         return true
     }
     function ensureBody() {

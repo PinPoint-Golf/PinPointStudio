@@ -65,6 +65,11 @@ public:
         DataWarningRole,   // an integrity block warns (IMU re-fusion, or frames lost in capture)
         LmDeviceKindRole,  // launchMonitor.kind ("gcquad"); empty for a shot no device measured
         DataWarningDetailRole,  // the facts behind dataWarning (swing_doc.h dataWarningDetailFrom)
+        // The launch monitor board's per-shot annotations (review.excluded / review.clubOverride,
+        // PersistedShot::excluded). Read by LmSessionModel; written through setLmExcluded /
+        // setLmClubOverride. Nothing else in the app interprets them.
+        LmExcludedRole,         // bool — left out of the board's statistics
+        LmClubOverrideRole,     // QString — the club the board treats the shot as; "" = default
     };
 
     explicit ShotListModel(QObject *parent = nullptr);   // starts empty
@@ -98,7 +103,8 @@ public:
                           int score, int rating, const QString &note,
                           const QVariantMap &metrics, const QVariantMap &analysisDetail,
                           bool dataWarning = false, const QString &lmDeviceKind = {},
-                          const QVariantMap &dataWarningDetail = {});
+                          const QVariantMap &dataWarningDetail = {},
+                          bool lmExcluded = false, const QString &lmClubOverride = {});
 
     // Re-read <swingDir>/swing.json (SwingDocReader) and update the matching row's
     // score / metrics / analysisDetail in place — emits dataChanged for just those
@@ -133,6 +139,15 @@ public:
     // Set the shot's club (from clubOptions); write-through to swing.json's
     // review block so it survives a restart. No-op if unchanged / id unknown.
     Q_INVOKABLE void setClub(int id, const QString &club);
+    // The launch monitor board's two annotations (LmSessionModel::setShotExcluded / setShotClub
+    // call these). Write-through to the review block (SwingDocWriter::updateShotAnnotations), so
+    // they survive a reload. A shot with no swingDir keeps them in memory only, like a rating.
+    //   setLmExcluded      leave the shot out of the board's statistics, or restore it
+    //   setLmClubOverride  "" restores the default; otherwise a club from clubOptions, or the
+    //                      shot's own recorded club (which may predate the vocabulary) —
+    //                      anything else is refused, for the reason setClub refuses it
+    Q_INVOKABLE void setLmExcluded(int id, bool excluded);
+    Q_INVOKABLE void setLmClubOverride(int id, const QString &club);
     // Move the shot's swing_NNNN/ folder to the OS trash and remove its row.
     // Returns false (and keeps the row) if the move fails — e.g. no trash is
     // available — so a shot is never lost from view while its files remain.
@@ -192,6 +207,8 @@ private:
         bool         dataWarning = false;  // an integrity block warns (swing_doc.h dataWarningDetailFrom)
         QVariantMap  dataWarningDetail;    // its facts: { capture, imu, framesLost, worstHoleMs, … }
         QString      lmDeviceKind;    // which device measured it; only reloaded shots carry it
+        bool         lmExcluded = false;   // the launch monitor board's annotations (review block)
+        QString      lmClubOverride;
     };
 
 public:
@@ -205,6 +222,7 @@ private:
 
     int  rowForId(int id) const;
     void persistReview(int row);   // write-through rating/note/club to swing.json
+    void persistLmAnnotations(int row);   // write-through excluded/clubOverride
 
     QVector<Shot> m_shots;
     int           m_nextId = 1;

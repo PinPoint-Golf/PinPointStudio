@@ -1136,6 +1136,19 @@ qt_add_resources(PinPointStudio "app_swing3d"
         src/Resources/swing3d/hull.glb
 )
 
+# The launch monitor panel's club heads, ball and impact patch, vendored from the PinPoint Golf
+# Resources repo by tools/lm_art/vendor.sh — src/Gui/resources/lm/VENDORED.md records the commit
+# and the size arithmetic. The list is the script's own files.cmake, so CMake never globs and a
+# re-vendor arrives as one reviewable diff. Served at qrc:/lm/… and read through LmClubArt.
+# qml_ui_test compiles the same list (src/Gui/CMakeLists.txt) so the panel draws there too.
+include(${CMAKE_CURRENT_SOURCE_DIR}/src/Gui/resources/lm/files.cmake)
+list(TRANSFORM PP_LM_ART_FILES PREPEND "src/Gui/resources/lm/" OUTPUT_VARIABLE _pp_lm_art_app)
+qt_add_resources(PinPointStudio "app_lm_art"
+    PREFIX "/lm"
+    BASE   "${CMAKE_CURRENT_SOURCE_DIR}/src/Gui/resources/lm"
+    FILES  ${_pp_lm_art_app}
+)
+
 # ── Linux: deploy icon + .desktop to user dirs on every build ────────────────
 # GNOME's taskbar icon comes from the .desktop file, not setWindowIcon().
 # Copying to ~/.local/share avoids requiring cmake --install or sudo.

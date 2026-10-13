@@ -58,6 +58,8 @@ QVariant ShotListModel::data(const QModelIndex &index, int role) const
     case DataWarningRole:     return s.dataWarning;
     case DataWarningDetailRole: return s.dataWarningDetail;
     case LmDeviceKindRole:    return s.lmDeviceKind;
+    case LmExcludedRole:      return s.lmExcluded;
+    case LmClubOverrideRole:  return s.lmClubOverride;
     default:                  return {};
     }
 }
@@ -81,6 +83,8 @@ QHash<int, QByteArray> ShotListModel::roleNames() const
         { DataWarningRole,     "dataWarning"     },
         { LmDeviceKindRole,    "lmDeviceKind"    },
         { DataWarningDetailRole, "dataWarningDetail" },
+        { LmExcludedRole,      "lmExcluded"      },
+        { LmClubOverrideRole,  "lmClubOverride"  },
     };
 }
 
@@ -167,7 +171,8 @@ void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
                                      int rating, const QString &note,
                                      const QVariantMap &metrics, const QVariantMap &analysisDetail,
                                      bool dataWarning, const QString &lmDeviceKind,
-                                     const QVariantMap &dataWarningDetail)
+                                     const QVariantMap &dataWarningDetail,
+                                     bool lmExcluded, const QString &lmClubOverride)
 {
     // Reloaded numbers come from the documents, so move the allocator past them:
     // the first live shot after a reload must not be handed a number the session
@@ -190,6 +195,8 @@ void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
     shot.dataWarning     = dataWarning;
     shot.dataWarningDetail = dataWarningDetail;
     shot.lmDeviceKind    = lmDeviceKind;
+    shot.lmExcluded      = lmExcluded;       // the launch monitor board's annotations
+    shot.lmClubOverride  = lmClubOverride;
 
     // Prepend (newest first); callers reload ascending so the highest ordinal lands first.
     beginInsertRows(QModelIndex(), 0, 0);
@@ -220,7 +227,8 @@ void ShotListModel::loadSessionDir(const QString &dir)
                          s.thumbnailPath.isEmpty() ? QUrl()
                                                    : QUrl::fromLocalFile(s.thumbnailPath),
                          s.score, s.rating, s.note, s.metrics, QVariantMap{},
-                         s.dataWarning, s.lmDeviceKind, s.dataWarningDetail);
+                         s.dataWarning, s.lmDeviceKind, s.dataWarningDetail,
+                         s.excluded, s.clubOverride);
     }
 }
 
@@ -252,9 +260,14 @@ void ShotListModel::refreshShot(const QString &swingDir)
     // follow the document here — before this it survived on screen until reload.
     s.dataWarning       = p.dataWarning;
     s.dataWarningDetail = p.dataWarningDetail;
+    // The board's annotations follow the document too: they are the golfer's, and the document
+    // is where they live — a row must never show a shot as left out that the file does not.
+    s.lmExcluded        = p.excluded;
+    s.lmClubOverride    = p.clubOverride;
     emit dataChanged(index(row), index(row),
                      { ScoreRole, MetricsRole, AnalysisDetailRole, LmDeviceKindRole,
-                       DataWarningRole, DataWarningDetailRole });
+                       DataWarningRole, DataWarningDetailRole,
+                       LmExcludedRole, LmClubOverrideRole });
 }
 
 void ShotListModel::attachSwingDir(int id, const QString &swingDir)
@@ -289,10 +302,13 @@ void ShotListModel::attachSwingDir(int id, const QString &swingDir)
     s.lmDeviceKind   = p.lmDeviceKind;
     s.dataWarning       = p.dataWarning;
     s.dataWarningDetail = p.dataWarningDetail;
+    s.lmExcluded        = p.excluded;
+    s.lmClubOverride    = p.clubOverride;
     emit dataChanged(index(row), index(row),
                      { SwingDirRole, ScoreRole, MetricsRole, AnalysisDetailRole,
                        ClubRole, TimestampLabelRole, LmDeviceKindRole,
-                       DataWarningRole, DataWarningDetailRole });
+                       DataWarningRole, DataWarningDetailRole,
+                       LmExcludedRole, LmClubOverrideRole });
 }
 
 void ShotListModel::clear()
@@ -362,6 +378,53 @@ void ShotListModel::setClub(int id, const QString &club)
     m_shots[row].club = club;
     emit dataChanged(index(row), index(row), { ClubRole });
     persistReview(row);
+}
+
+// Persist the row's launch monitor annotations. Same rule as persistReview: no swingDir, no
+// write, no error — the row simply keeps them for the life of the session.
+void ShotListModel::persistLmAnnotations(int row)
+{
+    const Shot &s = m_shots.at(row);
+    if (s.swingDir.isEmpty())
+        return;
+    QString err;
+    if (!pinpoint::SwingDocWriter::updateShotAnnotations(s.swingDir, s.lmExcluded,
+                                                         s.lmClubOverride, &err))
+        ppWarn() << "[ShotListModel] launch monitor annotation write-through failed:" << err;
+}
+
+void ShotListModel::setLmExcluded(int id, bool excluded)
+{
+    const int row = rowForId(id);
+    if (row < 0 || m_shots.at(row).lmExcluded == excluded)
+        return;
+    m_shots[row].lmExcluded = excluded;
+    emit dataChanged(index(row), index(row), { LmExcludedRole });
+    persistLmAnnotations(row);
+}
+
+void ShotListModel::setLmClubOverride(int id, const QString &club)
+{
+    const int row = rowForId(id);
+    if (row < 0)
+        return;
+    const QString c = club.trimmed();
+    // ⚠ THE SAME VOCABULARY RULE AS setClub, plus the shot's OWN recorded club: choosing it is
+    // how the golfer declines the evidence's relabel, and an older document may spell it in a
+    // form the bag no longer lists ("7-iron") — refusing that would make the decline impossible.
+    const QString recorded = m_shots.at(row).club;
+    QString stored = c;
+    if (!c.isEmpty() && c.compare(recorded.trimmed(), Qt::CaseInsensitive) == 0)
+        stored = recorded.trimmed();
+    else if (!c.isEmpty() && !clubOptions().contains(c)) {
+        ppWarn() << "[ShotListModel] setLmClubOverride refused — not in the bag:" << club;
+        return;
+    }
+    if (m_shots.at(row).lmClubOverride == stored)
+        return;
+    m_shots[row].lmClubOverride = stored;
+    emit dataChanged(index(row), index(row), { LmClubOverrideRole });
+    persistLmAnnotations(row);
 }
 
 QStringList ShotListModel::clubOptions()

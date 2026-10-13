@@ -20,6 +20,8 @@
 #include "../../LaunchMonitor/launch_monitor_base.h"
 #include "../../LaunchMonitor/launch_monitor_factory.h"
 
+#include "../../Analysis/lm_club_evidence.h"
+#include "../../Analysis/lm_enclosing_ellipse.h"
 #include "../../Analysis/lm_flight_path.h"
 #include "../../Analysis/lm_inferred_reads.h"
 #include "../../Analysis/lm_session_reductions.h"
@@ -31,6 +33,7 @@
 #include "../../Diagnostics/pack_provider.h"
 
 #include <QPointF>
+#include <QRegularExpression>
 #include <QStringList>
 #include <QVariantMap>
 
@@ -218,6 +221,330 @@ QVariantMap pointMap(const LmPoint &p)
                         { QStringLiteral("z"), p.z } };
 }
 
+// ── the FSX session half: shots, effective clubs, evidence, ellipses ────────────
+//
+// One row of the session as rebuild() needs it, in the shot list's own (newest-first) order.
+// Gathered ONCE per rebuild so the board, the scope, the evidence and the session figures all
+// read the same facts about the same shot.
+struct LmShotRow {
+    int                   row = -1;
+    int                   id  = -1;
+    int                   ordinal = 0;
+    QString               recorded;       // the club the shot was recorded under (ClubRole)
+    QString               clubOverride;   // the golfer's own choice on the panel, or ""
+    bool                  excluded = false;
+    QString               kind;           // launchMonitor.kind, "" when no device measured it
+    LmShotValues          values;         // the raw readings
+    std::optional<double> optical;        // our own low point estimate — see opticalLowPointFor
+    // Resolved by resolveClubs():
+    QString               club;           // the EFFECTIVE club — the one everything scopes by
+    QString               source;         // "recorded" | "evidence" | "user"
+    LmClubEvidence        evidence;
+    bool                  declined = false;   // the golfer chose the recorded club over the evidence
+};
+
+bool sameClub(const QString &a, const QString &b)
+{
+    return a.trimmed().compare(b.trimmed(), Qt::CaseInsensitive) == 0;
+}
+
+std::optional<double> readingOf(const LmShotValues &v, const char *key)
+{
+    const auto it = v.constFind(QString::fromLatin1(key));
+    if (it == v.constEnd() || !std::isfinite(*it))
+        return std::nullopt;
+    return *it;
+}
+
+// THE EFFECTIVE CLUB, per shot, in one place.
+//
+//   1. The golfer's own choice (clubOverride) wins, always. If it IS the recorded club, the
+//      source is "recorded" — that is what it is — and the evidence is marked declined.
+//   2. Else a SPECIFIC evidence suggestion (lm_club_evidence.h) relabels the shot: "evidence".
+//      A generic one ("an iron") never does; it only flags.
+//   3. Else the recorded club.
+//
+// The evidence is computed over the whole session in SHOT ORDER and from the RECORDED clubs
+// only, so it can never feed on its own relabels, and the same session suggests the same club
+// however its rows happen to be ordered on screen.
+void resolveClubs(std::vector<LmShotRow> &rows)
+{
+    std::vector<size_t> order(rows.size());
+    for (size_t i = 0; i < rows.size(); ++i) order[i] = i;
+    std::stable_sort(order.begin(), order.end(),
+                     [&rows](size_t a, size_t b) { return rows[a].ordinal < rows[b].ordinal; });
+
+    std::vector<LmEvidenceShot> in;
+    in.reserve(rows.size());
+    for (size_t i : order) {
+        const LmShotRow &r = rows[i];
+        in.push_back({ r.recorded,
+                       readingOf(r.values, "lm.dynamicLoft"),
+                       readingOf(r.values, "lm.smashFactor"),
+                       readingOf(r.values, "lm.spinRate") });
+    }
+    const std::vector<LmClubEvidence> ev = lmClubEvidence(in);
+
+    for (size_t k = 0; k < order.size(); ++k) {
+        LmShotRow &r = rows[order[k]];
+        r.evidence = ev[k];
+        if (!r.clubOverride.isEmpty()) {
+            const bool isRecorded = sameClub(r.clubOverride, r.recorded);
+            r.club     = r.clubOverride;
+            r.source   = isRecorded ? QStringLiteral("recorded") : QStringLiteral("user");
+            r.declined = isRecorded && r.evidence.mismatch;
+        } else if (r.evidence.mismatch && r.evidence.specific) {
+            r.club   = r.evidence.suggest;
+            r.source = QStringLiteral("evidence");
+        } else {
+            r.club   = r.recorded;
+            r.source = QStringLiteral("recorded");
+        }
+    }
+}
+
+// The board's statistics with the FOCUSED shot's readings as `latest`, for the one case the
+// statistics cannot carry it themselves: the focused shot is LEFT OUT. It stays "this shot" —
+// the tiles and the figures must still show what that swing did — but it is not in the scope
+// the means and spreads were computed over. A field only the focused shot carries comes back
+// with n = 0, which every formatter already prints as "-" for the mean and spread.
+std::vector<LmFieldStats> withFocus(const std::vector<LmFieldStats> &stats, const LmShotValues &focus)
+{
+    std::vector<LmFieldStats> out;
+    out.reserve(pinpoint::lm::fieldDefs().size());
+    for (const pinpoint::lm::FieldDef &f : pinpoint::lm::fieldDefs()) {
+        const QString key = QString::fromLatin1(f.key);
+        LmFieldStats st;
+        bool found = false;
+        for (const LmFieldStats &s : stats)
+            if (s.key == key) { st = s; found = true; break; }
+        if (!found) { st.key = key; st.def = &f; }
+        st.hasLatest = false;
+        st.latest    = 0.0;
+        st.z         = 0.0;
+        const auto it = focus.constFind(key);
+        if (it != focus.constEnd() && std::isfinite(*it)) {
+            st.hasLatest = true;
+            st.latest    = *it;
+            if (st.hasSpread) st.z = (st.latest - st.mean) / st.sd;
+        }
+        if (found || st.hasLatest)
+            out.push_back(st);
+    }
+    return out;
+}
+
+QVariantMap ellipseMap(const LmEllipse &e)
+{
+    return QVariantMap{
+        { QStringLiteral("cx"),       e.cx },
+        { QStringLiteral("cy"),       e.cy },
+        { QStringLiteral("a"),        e.a },
+        { QStringLiteral("b"),        e.b },
+        { QStringLiteral("angleDeg"), e.angleDeg },
+        { QStringLiteral("n"),        e.n },
+    };
+}
+
+// One figure's enclosing ellipse over a club's included shots: the shots that carry BOTH
+// readings, and nothing under three (lm_enclosing_ellipse.h). Absent rather than empty when
+// there is none, so `ellipses.strike` is simply undefined in QML — the contract's "absent
+// when n < 3".
+void addEllipse(QVariantMap &into, const char *name, const std::vector<const LmShotRow *> &shots,
+                const char *keyX, const char *keyY)
+{
+    std::vector<std::array<double, 2>> pts;
+    pts.reserve(shots.size());
+    for (const LmShotRow *r : shots) {
+        const auto x = readingOf(r->values, keyX), y = readingOf(r->values, keyY);
+        if (x && y) pts.push_back({ *x, *y });
+    }
+    const LmEllipse e = lmEnclosingEllipse(pts);
+    if (e.has)
+        into.insert(QString::fromLatin1(name), ellipseMap(e));
+}
+
+// graphics.shots, .clubs, .mismatch and .device — the FSX session half's data (lm_panel_fsx.md,
+// "LmSessionModel additions"). `rows` is the whole session in list order; `focusRow` indexes
+// it or is −1.
+QVariantMap sessionGraphics(const std::vector<LmShotRow> &rows, int focusRow,
+                            const QString &liveDeviceName, bool reviewing)
+{
+    QVariantMap g;
+
+    // Shot order, oldest first — the order the strips and the notes number them in.
+    std::vector<const LmShotRow *> byOrdinal;
+    byOrdinal.reserve(rows.size());
+    for (const LmShotRow &r : rows) byOrdinal.push_back(&r);
+    std::stable_sort(byOrdinal.begin(), byOrdinal.end(),
+                     [](const LmShotRow *a, const LmShotRow *b) { return a->ordinal < b->ordinal; });
+
+    // ── shots ───────────────────────────────────────────────────────────────
+    QVariantList shots;
+    shots.reserve(int(byOrdinal.size()));
+    for (const LmShotRow *r : byOrdinal) {
+        // RAW doubles, so a scatter point sits where the device put it rather than stacking on
+        // a display string rounded to a whole degree (ShotListModel's MetricsRole).
+        QVariantMap values;
+        for (auto it = r->values.constBegin(); it != r->values.constEnd(); ++it)
+            if (std::isfinite(it.value())) values.insert(it.key(), it.value());
+        shots.append(QVariantMap{
+            { QStringLiteral("id"),           r->id },
+            { QStringLiteral("number"),       r->ordinal },
+            { QStringLiteral("club"),         r->club },
+            { QStringLiteral("recordedClub"), r->recorded },
+            { QStringLiteral("clubSource"),   r->source },
+            { QStringLiteral("excluded"),     r->excluded },
+            { QStringLiteral("values"),       values },
+            { QStringLiteral("evidence"), QVariantMap{
+                // The club the readings point at when they contradict the recorded one — a
+                // club the session holds, or "an iron" / "a wood" — else "".
+                { QStringLiteral("suggest"),  r->evidence.suggest },
+                { QStringLiteral("votes"),    r->evidence.votes },
+                { QStringLiteral("of"),       r->evidence.of },
+                // Beyond the contract, for the card's words: which family two votes decided
+                // ("wood" | "iron" | ""), and whether the golfer declined the suggestion.
+                { QStringLiteral("reads"),    lmClubFamilyName(r->evidence.reads) },
+                { QStringLiteral("declined"), r->declined },
+            } },
+        });
+    }
+    g.insert(QStringLiteral("shots"), shots);
+
+    // ── clubs ───────────────────────────────────────────────────────────────
+    // One per EFFECTIVE club among the INCLUDED shots that carry readings, in bag order. A
+    // left-out shot is drawn (hollow) but is in none of these numbers; a shot with no readings
+    // says nothing about what the monitor measured and is in none of them either.
+    struct Group { QString club; std::vector<const LmShotRow *> shots; };
+    std::vector<Group> groups;
+    for (const LmShotRow *r : byOrdinal) {
+        if (r->excluded || r->values.isEmpty()) continue;
+        auto it = std::find_if(groups.begin(), groups.end(),
+                               [r](const Group &gr) { return sameClub(gr.club, r->club); });
+        if (it == groups.end()) groups.push_back({ r->club, { r } });
+        else                    it->shots.push_back(r);
+    }
+    std::stable_sort(groups.begin(), groups.end(), [](const Group &a, const Group &b) {
+        const int ra = lmClubBagRank(a.club), rb = lmClubBagRank(b.club);
+        return ra != rb ? ra < rb : a.club.compare(b.club, Qt::CaseInsensitive) < 0;
+    });
+    QVariantList clubs;
+    for (const Group &gr : groups) {
+        std::vector<LmShotValues> vals;
+        vals.reserve(gr.shots.size());
+        for (const LmShotRow *r : gr.shots) vals.push_back(r->values);
+        QVariantMap stats;
+        for (const LmFieldStats &st : lmSessionStats(vals, -1)) {
+            stats.insert(st.key, QVariantMap{
+                { QStringLiteral("mean"),      st.mean },
+                // The n−1 sample SD, 0 under two values. `hasSpread` is the board's own rule
+                // (n ≥ 3 and sd > 0): below it the panel prints "-", never "±0".
+                { QStringLiteral("sd"),        st.sd },
+                { QStringLiteral("n"),         st.n },
+                { QStringLiteral("hasSpread"), st.hasSpread },
+                // The extremes over the same included shots (lm_session_reductions.h) — the
+                // Session tiles' range and spray are max − min of these.
+                { QStringLiteral("min"),       st.min },
+                { QStringLiteral("max"),       st.max },
+            });
+        }
+        QVariantMap ellipses;
+        addEllipse(ellipses, "dispersion", gr.shots, "lm.carryDistance", "lm.offline");   // yd, yd
+        addEllipse(ellipses, "launchSpin", gr.shots, "lm.launchAngle",   "lm.spinRate");  // °, rpm
+        // Face mm, measured from the FORESIGHT origin — the readings as the device reported them.
+        // LmClubArt::strikeOriginMm() places that origin on our render.
+        addEllipse(ellipses, "strike",     gr.shots, "lm.strikeLocation", "lm.strikeHeight");
+        addEllipse(ellipses, "pathFace",   gr.shots, "lm.clubPath",      "lm.faceAngle"); // °, °
+        clubs.append(QVariantMap{
+            { QStringLiteral("club"),     gr.club },
+            { QStringLiteral("head"),     lmClubHead(gr.club) },
+            { QStringLiteral("n"),        int(gr.shots.size()) },
+            { QStringLiteral("stats"),    stats },
+            { QStringLiteral("ellipses"), ellipses },
+        });
+    }
+    g.insert(QStringLiteral("clubs"), clubs);
+
+    // ── mismatch ────────────────────────────────────────────────────────────
+    // The note. The largest group of shots the evidence RELABELLED, by (recorded, suggested);
+    // failing that, the largest group it could only FLAG (a generic suggestion, nothing
+    // relabelled). Every other shot's verdict is still on its own `evidence`; the note names
+    // one group because it is one line.
+    struct MisGroup { QString recorded, suggested; QVariantList ids; };
+    auto largest = [&byOrdinal](bool relabelled) {
+        std::vector<MisGroup> mg;
+        for (const LmShotRow *r : byOrdinal) {
+            const bool want = relabelled
+                ? r->source == QLatin1String("evidence")
+                : (r->evidence.mismatch && !r->evidence.specific && r->clubOverride.isEmpty());
+            if (!want) continue;
+            auto it = std::find_if(mg.begin(), mg.end(), [r](const MisGroup &m) {
+                return sameClub(m.recorded, r->recorded) && sameClub(m.suggested, r->evidence.suggest);
+            });
+            if (it == mg.end()) mg.push_back({ r->recorded, r->evidence.suggest, { r->id } });
+            else                it->ids.append(r->id);
+        }
+        const MisGroup *best = nullptr;
+        for (const MisGroup &m : mg)
+            if (!best || m.ids.size() > best->ids.size()) best = &m;
+        return best ? std::optional<MisGroup>(*best) : std::nullopt;
+    };
+    QVariantMap mismatch;
+    std::optional<MisGroup> mg = largest(true);
+    const bool relabelled = mg.has_value();
+    if (!mg) mg = largest(false);
+    if (mg) {
+        mismatch = QVariantMap{
+            { QStringLiteral("count"),      int(mg->ids.size()) },
+            { QStringLiteral("recorded"),   mg->recorded },
+            { QStringLiteral("suggested"),  mg->suggested },
+            { QStringLiteral("shotIds"),    mg->ids },
+            // Beyond the contract: true when these shots ARE treated as `suggested` (the note
+            // offers Undo), false when the suggestion is generic and they are only flagged.
+            { QStringLiteral("relabelled"), relabelled },
+        };
+    }
+    g.insert(QStringLiteral("mismatch"), mismatch);
+
+    // ── device ──────────────────────────────────────────────────────────────
+    // FROM THE SHOTS, NOT ONLY THE CABLE. A session reviewed next week was measured by whatever
+    // its documents say; the live connector is only the fallback for a live session whose shots
+    // carry no kind yet. The focused shot's device if it has one, else the session's commonest.
+    QString kind;
+    if (focusRow >= 0 && !rows[size_t(focusRow)].values.isEmpty())
+        kind = rows[size_t(focusRow)].kind;
+    if (kind.isEmpty()) {
+        QHash<QString, int> n;
+        for (const LmShotRow &r : rows)
+            if (!r.values.isEmpty() && !r.kind.isEmpty()) ++n[r.kind];
+        int best = 0;
+        for (auto it = n.constBegin(); it != n.constEnd(); ++it)
+            if (it.value() > best || (it.value() == best && it.key() < kind)) { best = it.value(); kind = it.key(); }
+            // (ties go to the alphabetically first kind, so QHash order never picks the caption)
+    }
+    QString name = pinpoint::lm::kindShortLabel(pinpoint::lm::kindFromKey(kind));
+    if (name.isEmpty() && !reviewing)
+        name = liveDeviceName;
+    // Foresight's club-marker layouts: four dots on the GC Quad, QuadMAX, Falcon and GCHawk;
+    // one on the GC3 and an HMT on its own. Anything else carries none.
+    static const QRegularExpression reFour(QStringLiteral("quad|falcon|hawk"),
+                                           QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression reOne(QStringLiteral("gc\\s*3|hmt"),
+                                          QRegularExpression::CaseInsensitiveOption);
+    const QString markers = reFour.match(name).hasMatch() ? QStringLiteral("four")
+                          : reOne.match(name).hasMatch()  ? QStringLiteral("one")
+                                                          : QString();
+    const QString maker = (kind == QLatin1String("gcquad") || !markers.isEmpty())
+                              ? QStringLiteral("Foresight") : QString();
+    g.insert(QStringLiteral("device"), QVariantMap{
+        { QStringLiteral("name"),    name },
+        { QStringLiteral("maker"),   maker },
+        { QStringLiteral("markers"), markers },
+    });
+
+    return g;
+}
+
 } // namespace
 
 LmSessionModel::LmSessionModel(QObject *parent)
@@ -278,11 +605,15 @@ void LmSessionModel::connectShotModel()
     connect(m_shots, &QAbstractItemModel::modelReset,     this, &LmSessionModel::rebuild);
     connect(m_shots, &QAbstractItemModel::dataChanged, this,
             [this](const QModelIndex &, const QModelIndex &, const QVector<int> &roles) {
+                if (m_batching)
+                    return;                       // undoMismatch() rebuilds once at the end
                 if (roles.isEmpty()
                     || roles.contains(int(ShotListModel::AnalysisDetailRole))
                     || roles.contains(int(ShotListModel::MetricsRole))
                     || roles.contains(int(ShotListModel::ClubRole))
-                    || roles.contains(int(ShotListModel::LmDeviceKindRole)))
+                    || roles.contains(int(ShotListModel::LmDeviceKindRole))
+                    || roles.contains(int(ShotListModel::LmExcludedRole))
+                    || roles.contains(int(ShotListModel::LmClubOverrideRole)))
                     rebuild();
             });
     connect(m_shots, &QObject::destroyed, this, [this]() { rebuild(); });
@@ -445,73 +776,89 @@ void LmSessionModel::rebuild()
         return;
     }
 
-    const int rows = m_shots->rowCount();
+    const int nrows = m_shots->rowCount();
 
-    // The focused row, and the club that scopes everything. Rows are newest-first, so
-    // the first row of the scope is also the newest shot in it.
-    int focusedRow = -1;
-    for (int r = 0; r < rows && m_focusedShotId >= 0; ++r) {
-        if (m_shots->data(m_shots->index(r), ShotListModel::ShotIdRole).toInt() == m_focusedShotId) {
-            focusedRow = r;
-            break;
-        }
+    // Every row, read once: identity, the recorded club, the golfer's two annotations, the
+    // device, the raw readings and our own low point estimate. Then the effective club of each
+    // (resolveClubs) — and from here on NOTHING scopes by the recorded club. It used to, which
+    // is why fixture shot 8 read "Heel" against the Driver scope: a 7-iron strike graded and
+    // averaged as a drive because Driver was left selected on the device.
+    std::vector<LmShotRow> rows;
+    rows.reserve(size_t(nrows));
+    for (int r = 0; r < nrows; ++r) {
+        const QModelIndex ix = m_shots->index(r);
+        const QVariantMap detail = m_shots->data(ix, ShotListModel::AnalysisDetailRole).toMap();
+        LmShotRow row;
+        row.row          = r;
+        row.id           = m_shots->data(ix, ShotListModel::ShotIdRole).toInt();
+        row.ordinal      = m_shots->data(ix, ShotListModel::OrdinalRole).toInt();
+        row.recorded     = m_shots->data(ix, ShotListModel::ClubRole).toString().trimmed();
+        row.clubOverride = m_shots->data(ix, ShotListModel::LmClubOverrideRole).toString().trimmed();
+        row.excluded     = m_shots->data(ix, ShotListModel::LmExcludedRole).toBool();
+        row.kind         = m_shots->data(ix, ShotListModel::LmDeviceKindRole).toString();
+        row.values       = readingsFor(detail);
+        row.optical      = opticalLowPointFor(detail);
+        // Session-wide, deliberately: it separates "the monitor has given us nothing"
+        // from "this club has nothing yet", which are different sentences to read.
+        if (!row.values.isEmpty())
+            m_anyReadings = true;
+        rows.push_back(std::move(row));
     }
+    resolveClubs(rows);
+
+    // The focused row, and the club that scopes everything — its EFFECTIVE club. Rows are
+    // newest-first, so the first row of the scope is also the newest shot in it.
+    int focusedRow = -1;
+    for (size_t i = 0; i < rows.size() && m_focusedShotId >= 0; ++i)
+        if (rows[i].id == m_focusedShotId) { focusedRow = int(i); break; }
 
     // Aggregating across a mixed bag is meaningless — a driver and a 9-iron in one
     // carry mean is a bug, not a feature. An unknown club on the focused shot falls
     // back to the whole session and SAYS SO in the header; it never silently mixes.
-    const QString club = focusedRow >= 0
-        ? m_shots->data(m_shots->index(focusedRow), ShotListModel::ClubRole).toString().trimmed()
-        : QString();
+    const QString club = focusedRow >= 0 ? rows[size_t(focusedRow)].club.trimmed() : QString();
+
+    // A LEFT-OUT focused shot is still "this shot": its readings headline the tiles and the
+    // figures. It is only absent from the scope the statistics are computed over.
+    const bool focusExcluded = focusedRow >= 0 && rows[size_t(focusedRow)].excluded;
 
     std::vector<LmShotValues> scoped;
-    scoped.reserve(size_t(rows));
+    scoped.reserve(rows.size());
     // Kept in step with `scoped`, index for index, so the focused shot's estimate is
     // found by the same latestIndex the statistics use rather than by a second search
     // that could disagree with it about which shot is on screen.
     std::vector<std::optional<double>> opticalLowPoint;
-    opticalLowPoint.reserve(size_t(rows));
+    opticalLowPoint.reserve(rows.size());
     int latestIndex = -1;
     // The devices that actually MEASURED the shots in scope, in the order they first
     // appear. Normally one; more than one is a session hit across a device change, and
     // naming both is the only honest caption for it.
     QStringList devices;
-    for (int r = 0; r < rows; ++r) {
-        const QVariantMap detail =
-            m_shots->data(m_shots->index(r), ShotListModel::AnalysisDetailRole).toMap();
-        LmShotValues v = readingsFor(detail);
-        // Session-wide, deliberately: it separates "the monitor has given us nothing"
-        // from "this club has nothing yet", which are different sentences to read.
-        if (!v.isEmpty())
-            m_anyReadings = true;
-
-        if (!club.isEmpty()) {
-            const QString rc = m_shots->data(m_shots->index(r), ShotListModel::ClubRole)
-                                   .toString().trimmed();
-            if (rc.compare(club, Qt::CaseInsensitive) != 0)
-                continue;
-        }
+    for (size_t i = 0; i < rows.size(); ++i) {
+        const LmShotRow &row = rows[i];
+        if (!club.isEmpty() && !sameClub(row.club, club))
+            continue;
+        // Left out: in no mean, SD, grade, corridor, count or tile. Drawn hollow by the panel
+        // from graphics.shots, which is the only place it still appears.
+        if (row.excluded)
+            continue;
         // Only a shot that produced readings names a device: an unmeasured swing sitting
         // in the same session says nothing about what measured the ones beside it.
-        if (!v.isEmpty()) {
-            const QString kind = m_shots->data(m_shots->index(r),
-                                               ShotListModel::LmDeviceKindRole).toString();
-            const QString label = pinpoint::lm::kindShortLabel(pinpoint::lm::kindFromKey(kind));
+        if (!row.values.isEmpty()) {
+            const QString label = pinpoint::lm::kindShortLabel(pinpoint::lm::kindFromKey(row.kind));
             if (!label.isEmpty() && !devices.contains(label))
                 devices << label;
         }
-
-        if (r == focusedRow)
+        if (int(i) == focusedRow)
             latestIndex = int(scoped.size());
-        scoped.push_back(std::move(v));
-        opticalLowPoint.push_back(opticalLowPointFor(detail));
+        scoped.push_back(row.values);
+        opticalLowPoint.push_back(row.optical);
     }
     m_shotCount = int(scoped.size());
 
     // Nothing focused: the newest shot in scope is the one to headline, which is row 0
     // because the list is newest-first. Then the header's word really is "latest".
-    const bool focusIsNewest = latestIndex <= 0;
-    if (latestIndex < 0 && !scoped.empty())
+    const bool focusIsNewest = !focusExcluded && latestIndex <= 0;
+    if (latestIndex < 0 && !focusExcluded && !scoped.empty())
         latestIndex = 0;
     m_valueLabel = focusIsNewest ? tr("latest") : tr("this shot");
 
@@ -536,7 +883,9 @@ void LmSessionModel::rebuild()
     // The statistics, then the same vector split into the board's bands. Walking
     // fieldGroups() outside and the stats inside keeps both orders where they are
     // declared — bands in display order, fields in fieldDefs() order within a band.
-    const std::vector<LmFieldStats> stats = lmSessionStats(scoped, latestIndex);
+    const std::vector<LmFieldStats> stats =
+        focusExcluded ? withFocus(lmSessionStats(scoped, -1), rows[size_t(focusedRow)].values)
+                      : lmSessionStats(scoped, latestIndex);
 
     // WHICH CORRIDORS, AND ONLY WHEN THE SCOPE HAS A CLUB. An unknown club already puts
     // the board on the whole session and says "all clubs" in the header; grading a mixed
@@ -571,8 +920,16 @@ void LmSessionModel::rebuild()
     }
 
     buildGraphics(stats, scoped, grades,
-                  (latestIndex >= 0 && size_t(latestIndex) < opticalLowPoint.size())
+                  focusExcluded ? rows[size_t(focusedRow)].optical
+                  : (latestIndex >= 0 && size_t(latestIndex) < opticalLowPoint.size())
                       ? opticalLowPoint[size_t(latestIndex)] : std::nullopt);
+
+    // The FSX session half: every shot, every effective club with its ellipses, the note and
+    // the device. Computed from the SAME rows the board just scoped, so a shot cannot be left
+    // out of one and counted in the other.
+    const QVariantMap session = sessionGraphics(rows, focusedRow, m_deviceName, m_reviewing);
+    for (auto it = session.constBegin(); it != session.constEnd(); ++it)
+        m_graphics.insert(it.key(), it.value());
 
     endResetModel();
     emit headerChanged();
@@ -742,4 +1099,50 @@ void LmSessionModel::buildGraphics(const std::vector<LmFieldStats> &stats,
     });
 
     m_graphics = g;
+}
+
+// ── The panel's actions ────────────────────────────────────────────────────────
+//
+// Thin on purpose: the shot list owns the rows and their write-through, and its dataChanged
+// is what rebuilds this board. Doing the rebuild here as well would be a second path to the
+// same numbers, and the first one to drift would be the one nobody tested.
+
+void LmSessionModel::setShotExcluded(int shotId, bool excluded)
+{
+    if (m_shots)
+        m_shots->setLmExcluded(shotId, excluded);
+}
+
+void LmSessionModel::setShotClub(int shotId, const QString &club)
+{
+    if (m_shots)
+        m_shots->setLmClubOverride(shotId, club);
+}
+
+void LmSessionModel::undoMismatch()
+{
+    if (!m_shots)
+        return;
+    const QVariantMap mm = m_graphics.value(QStringLiteral("mismatch")).toMap();
+    // Only a note that RELABELLED anything has something to undo; a flag-only note (a generic
+    // "reads like an iron") changed no club.
+    if (!mm.value(QStringLiteral("relabelled")).toBool())
+        return;
+    const QVariantList ids = mm.value(QStringLiteral("shotIds")).toList();
+    m_batching = true;
+    for (const QVariant &v : ids) {
+        const int id = v.toInt();
+        for (int r = 0; r < m_shots->rowCount(); ++r) {
+            const QModelIndex ix = m_shots->index(r);
+            if (m_shots->data(ix, ShotListModel::ShotIdRole).toInt() != id)
+                continue;
+            // The recorded club, EXPLICITLY — the stored decline that keeps the evidence from
+            // re-applying on the next load. "" would only restore the default, which is the
+            // evidence's relabel again.
+            m_shots->setLmClubOverride(id, m_shots->data(ix, ShotListModel::ClubRole).toString());
+            break;
+        }
+    }
+    m_batching = false;
+    rebuild();
 }

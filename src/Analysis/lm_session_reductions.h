@@ -82,6 +82,12 @@ struct LmFieldStats {
     double  mean      = 0.0;     // arithmetic mean over the scoped shots that have a value
     double  sd        = 0.0;     // SAMPLE standard deviation, n-1 denominator
     int     n         = 0;       // how many scoped shots carried this field
+    // The extremes over the same shots as the mean. Meaningful whenever n >= 1 (both are the
+    // one value at n = 1); 0 with n = 0. The Session tiles' range and spray ("carry range",
+    // "spray L–R") are max − min of exactly these, so they come from here rather than from a
+    // second scan of the shots in QML that could disagree about which shots were in scope.
+    double  min       = 0.0;
+    double  max       = 0.0;
     bool    hasLatest = false;
     bool    hasSpread = false;   // n >= kMinShotsForSpread && sd > 0
     double  z         = 0.0;     // (latest - mean) / sd; 0 when !hasSpread
@@ -134,6 +140,9 @@ inline std::vector<LmFieldStats> lmSessionStats(const std::vector<LmShotValues> 
         double sum = 0.0;
         for (double v : vals) sum += v;
         st.mean = sum / double(st.n);
+        const auto [lo, hi] = std::minmax_element(vals.begin(), vals.end());
+        st.min = *lo;
+        st.max = *hi;
 
         // Two-pass, because the one-pass sum-of-squares form loses its significant
         // digits exactly where it matters here: a tight cluster of large readings

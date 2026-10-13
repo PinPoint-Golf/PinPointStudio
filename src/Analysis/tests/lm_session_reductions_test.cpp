@@ -114,6 +114,22 @@ int main()
         check(s.hasSpread, "n = 4 is above the spread floor");
         check(s.hasLatest && near(s.latest, 80.0, 1e-9), "latest = the focused shot's value");
         check(near(s.z, (80.0 - 86.0) / s.sd, 1e-12), "z = (latest − mean) / sd");
+        check(near(s.min, 80.0, 1e-12) && near(s.max, 92.0, 1e-12), "min and max are the extremes");
+    }
+
+    // ── min / max: over the shots that carried the field, NaN skipped ──────────
+    {
+        const double nan = std::numeric_limits<double>::quiet_NaN();
+        const std::vector<LmShotValues> shots = { one("lm.offline", -12.5), one("lm.offline", nan),
+                                                  one("lm.offline", 7.25), one("lm.carryDistance", 150.0),
+                                                  one("lm.offline", -3.0) };
+        const LmFieldStats s = stat(lmSessionStats(shots, 0), "lm.offline");
+        check(s.n == 3, "min/max: three shots carried a finite offline");
+        check(near(s.min, -12.5, 1e-12), "min is the leftmost (a NaN is not a reading)");
+        check(near(s.max, 7.25, 1e-12), "max is the rightmost");
+        const LmFieldStats c = stat(lmSessionStats(shots, 0), "lm.carryDistance");
+        check(c.n == 1 && near(c.min, 150.0, 1e-12) && near(c.max, 150.0, 1e-12),
+              "one value: min = max = that value");
     }
 
     // ── the spread floor ────────────────────────────────────────────────────────
