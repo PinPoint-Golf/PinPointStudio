@@ -50,7 +50,7 @@
 // Mat they got from it (the shaft trackers' frame caches share its buffers, so the 525 MB of
 // face-on grey is held once).
 //
-// WHO SEES IT. FrameDecodeStage (wrist_analyzer.cpp) builds it and publishes a FrameStoreSlot
+// WHO SEES IT. FrameDecodeStage (analysis_pipeline.cpp) builds it and publishes a FrameStoreSlot
 // for (window, source); the slot lives as long as the analysis context. Consumers deep in the
 // runners (PoseRunner, BallRunner, ShaftTracker, DtlShaftTracker) take a FrameLease for
 // (window, source): the store when it holds what they need, else the slot's reader lock, held

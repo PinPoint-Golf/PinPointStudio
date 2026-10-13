@@ -206,7 +206,7 @@ pp_add_test(hm_binding_recon_test SOURCES hm_binding_recon_test.cpp)
 # Trimming the fused streams to the swing span must change how many samples a
 # stream carries and NOTHING else about it. `hackMotion` was silently dropped by
 # this field-by-field copy the day it was added, so a wG3 swing came out keyed as a
-# Witmotion with a correct curve and a wrong name. Moved out of wrist_analyzer.cpp's
+# Witmotion with a correct curve and a wrong name. Moved out of analysis_pipeline.cpp's
 # anonymous namespace into stream_trim.h to be reachable at all; the test carries a
 # structured-binding tripwire that makes ADDING a field to SegmentStream a compile
 # error here, because the defect is a field nobody remembered.

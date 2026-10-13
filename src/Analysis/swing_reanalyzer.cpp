@@ -655,7 +655,7 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
     // Precedence (re-analysis only): a valid persisted baseline makes the
     // BallRunner re-run authoritative — the recorded "ball" stream carries a known
     // wrong-time-base accumulator snapshot (junk on live captures to date), so it
-    // must not shadow the re-run. Empty ballTrack ⇒ the wrist_analyzer ladder falls
+    // must not shadow the re-run. Empty ballTrack ⇒ the analysis_pipeline ladder falls
     // through to BallRunner.
     if (job.ballBaseline.isValid())
         job.ballTrack = {};

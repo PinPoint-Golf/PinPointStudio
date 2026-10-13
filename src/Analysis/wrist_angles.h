@@ -250,7 +250,7 @@ inline double radToDeg(double r) { return r * 180.0 / M_PI; }
 // User-facing value string per metric, in PinPoint's coaching convention
 // (docs/reference/wristmetrics.md): bow/cup, hinge (ulnar/radial), roll (pronated/supinated);
 // other keys fall back to a signed magnitude in degrees. Shared by the offline analyzer
-// (wrist_analyzer) and the live check-sensors readout (live_wrist_angles).
+// (analysis_pipeline) and the live check-sensors readout (live_wrist_angles).
 inline QString wristMetricLabel(const QString &key, double deg)
 {
     const long r = std::lround(deg);

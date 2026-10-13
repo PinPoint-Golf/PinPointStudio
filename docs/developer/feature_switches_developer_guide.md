@@ -27,7 +27,7 @@
 
 1. **`pp_tuned_constants.h`, the frozen default.** This header is the single source of truth for parameters that the validation programme tunes and then freezes (`docs/validation/pipeline_validation_and_tuning.md` §2.4). It holds only literals. `tuned_constants_parity_test` guards that the indirection stays byte-identical.
 2. **The module's `*Config` struct.** Each struct defaults its fields from `tuned::…`, or from its own literal for switches that never went through the header. Examples: most `shaft.*`, `shaft.dtl.*`, `shaft.fusion.*` and `skeleton3d.*` switches live only in their struct.
-3. **The dotted-key override.** `analysis_tuning.h` holds no keys. It provides the typed `tuning::apply(ov, "<area>.<field>", field)` overloads. Each consumer's `fromOverrides()` applies the keys it owns. The main ones are `ShaftV3Config::fromOverrides` (`shaft_track_assembly.cpp`), `DtlShaftConfig` (`dtl_shaft_config.h:404–442`), `shaft_fusion_json.h:46–72`, `skeleton3d_json.h` and `wrist_analyzer.cpp`.
+3. **The dotted-key override.** `analysis_tuning.h` holds no keys. It provides the typed `tuning::apply(ov, "<area>.<field>", field)` overloads. Each consumer's `fromOverrides()` applies the keys it owns. The main ones are `ShaftV3Config::fromOverrides` (`shaft_track_assembly.cpp`), `DtlShaftConfig` (`dtl_shaft_config.h:404–442`), `shaft_fusion_json.h:46–72`, `skeleton3d_json.h` and `analysis_pipeline.cpp`.
 
 **Production passes an empty override map**, so the struct default *is* the shipping behaviour. SwingLab sets keys with `--params <file>` (nested or flat JSON) or `--set`. **Unknown keys are logged and ignored**, so check `runner.log` when a knob seems to do nothing.
 
@@ -140,7 +140,7 @@ The strengths policy dates from 56d9eab7 (2026-06-15) and moved into the header 
 | `smoother::adapt::kMode` (PTC:378) | `poseSmooth.adapt.mode` | **"accel"** | Motion-adaptive RTS window: `off` \| `accel` \| `innov`. `off` is the exact parity switch. |
 | `smoother::adapt::kGroup` (PTC:379) | `poseSmooth.adapt.group` | "legs" | Which keypoints adapt (the WholeBody tail never does). |
 | `smoother::kReacquireRun` / `kReacquireConfMin` | `poseSmooth.reacquireRun` / `.reacquireConfMin` | **LIVE** 3 / 0.7 (2026-10-02) | Re-acquisition: after 3 consecutive gate-rejected detections at confidence ≥ 0.7 the next such detection is accepted, so a joint the filter coasted off is taken back. `reacquireRun` 0 is the parity switch. `kShaftStageVersion` 7. Record: `kinematic_sequence_design.md` §8. |
-| `PoseRunOptions::twoPass` (`pose_runner.h:85`) | — | false, **set true at runtime** | Two-pass pose. `wrist_analyzer.cpp:438` sets it on camera-only jobs unless `fullWindow` (bbbe8340). |
+| `PoseRunOptions::twoPass` (`pose_runner.h:85`) | — | false, **set true at runtime** | Two-pass pose. `analysis_pipeline.cpp:438` sets it on camera-only jobs unless `fullWindow` (bbbe8340). |
 
 History:
 - **crop + DARK decode** — dc17cd38 (2026-07-16, WB1). 16-swing subset: corpus mean 69.8 → 72.7, lead-wrist jitter −12%.
@@ -503,7 +503,7 @@ Found while compiling this guide. These are worth fixing the next time the file 
 
 - `shaft_track_assembly.h:445` and `:450` say `synth` and `impactBoundary` are "enabled=false by default (dark)". Both are LIVE.
 - `kinematic_series.h:57` comments `kinematics.enabled` as "(dark)", and so does `docs/validation/tunable_parameters_reference.md:61`. It is LIVE.
-- `ShaftPlaneConfig` (`wrist_analyzer.cpp`) says "(dark)". The PTC comment says "normless", but the measure ships with a placeholder corridor.
+- `ShaftPlaneConfig` (`analysis_pipeline.cpp`) says "(dark)". The PTC comment says "normless", but the measure ships with a placeholder corridor.
 - `hmframe.candidate` is documented as an override key, but no code reads it.
 - **UI toggles with no consumer**: `General/sendDiagnostics`, `display/hardwareAcceleration`, `camera/syncEnabled`, `General/aiCoachingOnSessionEnd` (which defaults true while the coach is dark), and `imu/saveCalibrationToFlash`. Only their settings panels read them. `display/postShotMirror` / `postShotContent` are kept only so stored profiles load.
 

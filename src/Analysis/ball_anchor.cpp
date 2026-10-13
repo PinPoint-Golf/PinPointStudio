@@ -306,7 +306,7 @@ void applyBallAnchor(ShaftTrack2D &out, const BallTrack2D &ball,
 
     // Override the reported address boundary when the ball found a genuinely
     // earlier one. Only meaningful when a trace sink is present — that's the
-    // vision Segmentation adopted for camera-only swings (wrist_analyzer.cpp's
+    // vision Segmentation adopted for camera-only swings (analysis_pipeline.cpp's
     // !hasImu fallback); fused swings' reported Address still comes from the
     // IMU today, untouched here (a separate, later question — Mark).
     // tk0 → Takeaway re-scope (LANDED): the ball's departure-from-θ_ball evidence

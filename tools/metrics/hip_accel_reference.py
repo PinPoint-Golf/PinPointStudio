@@ -20,7 +20,7 @@ Pixels, not normalised units
 ----------------------------
 `kp` is 133 keypoints x 3 floats (x, y, conf), normalised 0..1 against the FULL camera frame.
 src/Analysis/pose_smoother.cpp smoothPoseTrack does `zx = kp.x() * W` with W/H taken from the
-face-on CameraFormat (wrist_analyzer.cpp PoseSmoothStage passes `cfmt->width/height`), so
+face-on CameraFormat (analysis_pipeline.cpp PoseSmoothStage passes `cfmt->width/height`), so
 aRefPxS2 lives in those pixels and this probe has to use the same ones. In swing.json that
 format is `streams[<camera>].source.{width,height}` for the video streams in camera order
 (`encoded` is the mp4, which happens to match today); `analysis.club.frameWidth/frameHeight`
@@ -53,7 +53,7 @@ carries real setup motion and reads as loud as the downswing.
 
 Joints: hip centre (mean of COCO 11 left / 12 right), lead knee and lead ankle. Lead is the
 target side: `athlete.handedness` "Right" => the LEFT leg leads => knee 13, ankle 15 (and
-mirrored for "Left"). That matches wrist_analyzer.cpp's `leftLeads = (handedness != 2)`.
+mirrored for "Left"). That matches analysis_pipeline.cpp's `leftLeads = (handedness != 2)`.
 
 Usage:
     hip_accel_reference.py ROOT [--file swing.json|result.json] [--out CSV] [--only SUBSTR]

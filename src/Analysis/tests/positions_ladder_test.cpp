@@ -7,7 +7,7 @@
 // refine.positionsLadder key mapping with its dark default. Synthetic ladders
 // with hand-computable expectations — no fixture, no decode. (Slot order +
 // canRun skip live in analysis_stage_test's generic orchestrator coverage —
-// the PositionsLadderStage glue is file-local in wrist_analyzer.cpp.)
+// the PositionsLadderStage glue is file-local in analysis_pipeline.cpp.)
 //
 //   cmake --build build/analyzer-tests --target positions_ladder_test
 //   ctest --test-dir build/analyzer-tests -R positions_ladder --output-on-failure

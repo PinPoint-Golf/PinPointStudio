@@ -352,7 +352,7 @@ enum class ScoreKind { Adherence, Resemblance };
 // (0 ≤ lo ≤ overall ≤ hi). -1 = not computed. For the Wrist session the headline is
 // the penalty-based assessment score, whose own error model is deferred, so the
 // interval is left unset there (the §B.7 budget is computed on the resemblance value
-// and only kept while that value is itself `overall` — see wrist_analyzer.cpp).
+// and only kept while that value is itself `overall` — see analysis_pipeline.cpp).
 struct ScoreInterval {
     int halfWidth = -1;   // e.g. 9 means "±9"
     int lo = -1, hi = -1; // clamped [0,100]; convenience for UI/checks

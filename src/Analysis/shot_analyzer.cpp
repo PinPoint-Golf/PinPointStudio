@@ -17,7 +17,7 @@
  */
 
 #include "shot_analyzer.h"
-#include "wrist_analyzer.h"
+#include "analysis_pipeline.h"
 #include "analysis_stage.h"
 #include "analysis_profiling.h"
 #include "kinematic_series.h"
@@ -119,6 +119,6 @@ std::unique_ptr<ShotAnalyzer> makeShotAnalyzer(int sessionType)
     // run the shared camera-kinematics analyzer — a placeholder score today, plus the real
     // clubhead/hand speed + lag series from the face-on camera once kinematics.enabled.
     if (sessionType == 1)
-        return std::make_unique<WristAnalyzer>();
+        return std::make_unique<PipelineAnalyzer>();
     return std::make_unique<CameraKinematicsAnalyzer>();
 }

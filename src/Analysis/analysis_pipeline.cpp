@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include "wrist_analyzer.h"
+#include "analysis_pipeline.h"
 
 #include <QElapsedTimer>
 #include <QPointF>
@@ -375,7 +375,7 @@ double impactContinuityDeg(const FusedStreams &streams, int64_t impactUs, int64_
 
 // ── Stage-pipeline implementation (analysis_pipeline_fusion_architecture §10) ──
 //
-// WristAnalyzer::analyze() runs the Wrist profile (wristProfile() below) as a
+// PipelineAnalyzer::analyze() runs the Wrist profile (fullProfile() below) as a
 // capability-gated stage list over a shared AnalysisContext (constrained blackboard):
 // each stage wraps one block of the analysis, stage order is the analysis block order,
 // and the file-local helpers above serve the stages.
@@ -3396,8 +3396,9 @@ void appendBodyMetricStages(SessionProfile &p)
     p.stages.push_back(std::make_unique<TempoStage>());
 }
 
-// The Wrist session's stage list, in analysis block order.
-SessionProfile wristProfile()
+// The full stage list, in analysis block order. Its name stays "Wrist": the run history
+// (AnalysisProfileLog) records it, and the profiler matches it by session type.
+SessionProfile fullProfile()
 {
     SessionProfile p;
     p.name = QStringLiteral("Wrist");
@@ -3469,7 +3470,7 @@ ShotAnalysisResult projectResult(AnalysisContext &ctx)
 
 } // namespace
 
-ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
+ShotAnalysisResult PipelineAnalyzer::analyze(const pinpoint::SwingWindow &window,
                                           const ShotAnalysisJob &job)
 {
     // Build the capability-gated context, run the Wrist profile, and project the flat
@@ -3480,7 +3481,7 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
     ctx.detail = std::make_shared<SwingAnalysis>();
     ctx.wall.start();
 
-    runProfile(wristProfile(), ctx);
+    runProfile(fullProfile(), ctx);
 
     if (!ctx.hasImuStreams())
         ppInfo() << "[WristAnalysis] no fusable IMU streams — camera-only (pose) analysis";
@@ -3491,7 +3492,7 @@ ShotAnalysisResult WristAnalyzer::analyze(const pinpoint::SwingWindow &window,
 }
 
 // Shared camera-only profile for the non-Wrist session types (declared in
-// wrist_analyzer.h). External linkage so shot_analyzer.cpp's CameraKinematicsAnalyzer
+// analysis_pipeline.h). External linkage so shot_analyzer.cpp's CameraKinematicsAnalyzer
 // can run it; the stage structs it constructs stay file-local in the anon namespace
 // above (still visible for the rest of this translation unit). No IMU/scoring stages —
 // SegResolve adopts the vision segmentation the Shaft stage emits, BindDetail binds the
@@ -3551,7 +3552,7 @@ void runProfile(const SessionProfile &profile, AnalysisContext &ctx)
 QJsonObject analysisGraphJson(int sessionType, const std::vector<StageTiming> *timeline,
                               const ShotAnalysisJob *job)
 {
-    const SessionProfile p = sessionType == 1 ? wristProfile() : cameraKinematicsProfile();
+    const SessionProfile p = sessionType == 1 ? fullProfile() : cameraKinematicsProfile();
     return stageGraphToJson(p.name, buildStageGraph(p, job), timeline);
 }
 

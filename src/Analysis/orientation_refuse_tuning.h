@@ -25,7 +25,7 @@
 #include "../IMU/orientation_refuser.h"
 
 // SwingLab tuning for the orientation re-fusion filter (validation §5.3.1). Single source for the
-// filter.* dotted-key list, shared by the offline analyzer (wrist_analyzer → ImuVisionFuser, the
+// filter.* dotted-key list, shared by the offline analyzer (analysis_pipeline → ImuVisionFuser, the
 // metric path) and the swinglab_run --refuse-orientation parity tool. Empty map ⇒ fixed-beta from
 // betaDefault (the live behaviour). Defaults live in pp_tuned_constants.h.
 //

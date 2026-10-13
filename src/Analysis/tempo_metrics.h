@@ -22,7 +22,7 @@
 // §A.6): how long the backswing takes, and the ratio between the two halves of the
 // swing. Pure over a resolved Segmentation: no window, no context, no pose, no
 // club. Deliberately the event_refine.{h,cpp} shape — engine here, ~20 lines of
-// stage glue in wrist_analyzer.cpp.
+// stage glue in analysis_pipeline.cpp.
 //
 // BASIS — Address→Top, NOT Takeaway→Top:
 //

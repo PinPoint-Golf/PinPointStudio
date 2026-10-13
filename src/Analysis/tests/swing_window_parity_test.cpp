@@ -32,8 +32,8 @@
 //           run on both windows must produce identical fused streams.
 //   Test 3  MP4 fallback (tolerance) — reload the same swing via the lossy MP4
 //           path: counts/format match, decoded pixels are close (not bit-exact).
-//   Test 4  double-run analyzer determinism — WristAnalyzer::analyze() (the stage
-//           pipeline, wrist_analyzer.cpp) run TWICE over the SAME job with identical
+//   Test 4  double-run analyzer determinism — PipelineAnalyzer::analyze() (the stage
+//           pipeline, analysis_pipeline.cpp) run TWICE over the SAME job with identical
 //           empty overrides must produce byte-identical "analysis" JSON (serialized
 //           through the production SwingDocWriter::writeSwingJson seam, wall-clock
 //           "timings" excluded by design), over the SAME RAM window Tests 1-3 built.
@@ -74,7 +74,7 @@
 
 #include "imu_vision_fuser.h"
 #include "swing_reanalyzer.h"
-#include "wrist_analyzer.h"
+#include "analysis_pipeline.h"
 
 using namespace pinpoint;
 using namespace pinpoint::analysis;
@@ -581,7 +581,7 @@ QJsonObject serializedAnalysisMinusTimings(const QString &dir, const ShotAnalysi
     return an;
 }
 
-// Run WristAnalyzer::analyze() TWICE over the SAME job with identical (empty)
+// Run PipelineAnalyzer::analyze() TWICE over the SAME job with identical (empty)
 // tuningOverrides and assert the two results are indistinguishable — a determinism
 // check on the stage pipeline (the analyzer must be a pure function of the frozen
 // window + job). Serialization/diff machinery is shared with the RAM-vs-disk tests.
@@ -628,7 +628,7 @@ void runDoubleRunParity(const RamSwing &ram, bool withCamera)
         job.faceOnCameraCount = 1;
     }
 
-    WristAnalyzer analyzer;
+    PipelineAnalyzer analyzer;
     const ShotAnalysisResult rA = analyzer.analyze(*ram.window, job);
     const ShotAnalysisResult rB = analyzer.analyze(*ram.window, job);
 

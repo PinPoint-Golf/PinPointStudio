@@ -25,7 +25,7 @@
 // of another branch inside a monolithic analyze(). This header owns only the
 // mechanism: the typed context, the stage ABC, the profile, and the dumb
 // orchestrator. The per-session stage lists live with their analyzer (wrist
-// stages are file-local in wrist_analyzer.cpp until the Swing session needs to
+// stages are file-local in analysis_pipeline.cpp until the Swing session needs to
 // share them — §10.5 step 4).
 //
 // Anti-goals (§10.6): no stage registration, no dependency sorting, no

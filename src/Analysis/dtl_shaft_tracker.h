@@ -28,7 +28,7 @@
 // face-on metric. A witness that has been fitted to the thing it testifies about
 // is not one.
 //
-// Two callers: DtlShaftStage in the app pipeline (wrist_analyzer.cpp), which fills
+// Two callers: DtlShaftStage in the app pipeline (analysis_pipeline.cpp), which fills
 // SwingAnalysis::shaftDtl, and swinglab_run --dtl. Both build the witness with
 // buildFaceOnWitness (dtl_face_on_witness.h) and write the product with
 // dtlShaftTrackToJson (dtl_shaft_json.h). Nothing face-on reads the result, so a

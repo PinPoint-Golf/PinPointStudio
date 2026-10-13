@@ -177,7 +177,7 @@ Nothing ever flows the other way. The rule is stated in the header: "A witness t
 
 ### 1.5 Where it runs
 
-The analysis runs as a pipeline of stages (`wristProfile()` in `src/Analysis/wrist_analyzer.cpp`). The shaft-related stages, in order:
+The analysis runs as a pipeline of stages (`fullProfile()` in `src/Analysis/analysis_pipeline.cpp`). The shaft-related stages, in order:
 
 1. **Pose**, **PoseSmooth**, **Ball**. These are prerequisites. The tracker uses pose for the hands, arms and body, and the ball as a witness.
 2. **ShaftStage**: runs `ShaftTracker::track`, or *reuses* a track stored in the swing document if nothing relevant has changed (§9.2).
@@ -1731,7 +1731,7 @@ This section describes each metric that is computed from the shaft track: what i
 
 **What a coach means.** At impact, are the hands ahead of the clubhead, so the shaft leans toward the target ("forward lean"), or behind it?
 
-**How it is computed** (`buildShaftLeanSeries`, `wrist_analyzer.cpp`):
+**How it is computed** (`buildShaftLeanSeries`, `analysis_pipeline.cpp`):
 
 1. Take every face-on sample — **all tiers, without filtering**.
 2. Take the shaft's deviation from straight down (θ − 90°).

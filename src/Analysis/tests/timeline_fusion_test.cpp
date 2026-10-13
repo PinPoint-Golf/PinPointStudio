@@ -12,7 +12,7 @@
 // dispute cap. Synthetic ladders with hand-computable expectations — no fixture,
 // no decode. (Slot order + canRun skip live in analysis_stage_test's generic
 // orchestrator coverage — the TimelineFusionStage glue is file-local in
-// wrist_analyzer.cpp.)
+// analysis_pipeline.cpp.)
 //
 //   cmake --build build/analyzer-tests --target timeline_fusion_test
 //   ctest --test-dir build/analyzer-tests -R timeline_fusion --output-on-failure

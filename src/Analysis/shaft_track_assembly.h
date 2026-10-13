@@ -895,7 +895,7 @@ void resynthesizeLayerC(ShaftTrack2D& track, const ShaftV3Config& cfg);
 // them as the predictions they are. `forearmToElbowDeg` is per SAMPLE (image atan2 of
 // hands→elbow, NaN when the pose had no elbow); `impactUs` < 0 ⇒ nothing is touched.
 // Runs inside decideTrack before the anchors are located, and again on a track reused
-// from a document (wrist_analyzer.cpp ShaftStage) so old documents get the same rule.
+// from a document (analysis_pipeline.cpp ShaftStage) so old documents get the same rule.
 // Returns the number of samples demoted.
 int demoteImplausibleFollowThrough(ShaftTrack2D& track, const std::vector<double>& forearmToElbowDeg,
                                    int64_t impactUs, const ShaftV3Config& cfg);

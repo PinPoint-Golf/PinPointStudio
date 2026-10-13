@@ -43,7 +43,7 @@
 // it and the resolver's callers pass it through, but reading it here is a defect: an earlier
 // `wristSessionOk()` gate made half the catalogue answer "produced in Wrist Motion sessions only",
 // which the golfer reads as a statement about their equipment. See appendBodyMetricStages() in
-// wrist_analyzer.cpp, which removed the matching gate on the production side.
+// analysis_pipeline.cpp, which removed the matching gate on the production side.
 
 namespace pinpoint::analysis {
 
@@ -123,13 +123,13 @@ public:
     std::vector<QString> provides() const override;
 };
 
-// wrist_analyzer.cpp ShaftLeanStage — impactShaftLean needs the club track.
+// analysis_pipeline.cpp ShaftLeanStage — impactShaftLean needs the club track.
 class ShaftLeanProvider : public IMetricProvider {
 public:
     std::vector<QString> provides() const override;
 };
 
-// wrist_analyzer.cpp ShaftPlaneStage (shaft_plane.h) — transitionPlaneDelta needs the
+// analysis_pipeline.cpp ShaftPlaneStage (shaft_plane.h) — transitionPlaneDelta needs the
 // face-on club track plus a takeaway/top/impact ladder. The two absolute inclinations
 // the same stage emits (swingPlaneIotaBack/Down) are deliberately NOT claimed: they
 // carry no measure and no descriptor, because an uncalibrated absolute plane angle is
@@ -155,7 +155,7 @@ public:
     std::vector<QString> provides() const override;
 };
 
-// wrist_analyzer.cpp ShaftFusionStage (shaft_fusion.h) — swingPlane, the downswing shaft plane
+// analysis_pipeline.cpp ShaftFusionStage (shaft_fusion.h) — swingPlane, the downswing shaft plane
 // against the address shaft plane, from the two cameras' shaft angles intersected.
 class ShaftFusionProvider : public IMetricProvider {
 public:
@@ -185,7 +185,7 @@ public:
 
 // Summary scores (produced as ScoreBreakdown, not MetricSeries — hence keyed synthetically):
 //   wristScore / wristResemblance — LIVE (WristResemblanceScorer + WristAssessmentEngine,
-//     wrist_analyzer.cpp); need the lead forearm + hand IMUs.
+//     analysis_pipeline.cpp); need the lead forearm + hand IMUs.
 //   swingScore — the Swing/GRF/Coach adherence score. SwingScorer is dead code and
 //     CameraKinematicsAnalyzer returns a stub, so its only route is planned and it always resolves
 //     Unavailable. That used to be an `if (key == "swingScore")` here, saying so in a sentence the

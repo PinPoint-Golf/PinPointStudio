@@ -69,7 +69,7 @@
 // Pure over plain value types (Segmentation / ShaftPosition) — NO SwingWindow, NO
 // AnalysisContext, same cv-free contract as event_refine.h / positions_ladder.h —
 // so it is unit-testable standalone (timeline_fusion_test). The thin
-// AnalysisStage glue (TimelineFusionStage, wrist_analyzer.cpp) sits at pipeline
+// AnalysisStage glue (TimelineFusionStage, analysis_pipeline.cpp) sits at pipeline
 // slot 10c, after EventRefine and before BindDetail, mutating the resolved-AND-
 // refined ctx.seg so BindDetail persists the arbitration with zero extra
 // plumbing. Insertion into an empty slot is just arbitration against an ABSENT

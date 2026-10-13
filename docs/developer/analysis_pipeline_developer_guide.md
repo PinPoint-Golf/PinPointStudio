@@ -1,7 +1,7 @@
 # Pinpoint Analysis Pipeline — Developer Guide
 
 **Audience**: Developers adding or modifying analysis stages (metrics, tracking passes, fusion proposals)  
-**Location**: `src/Analysis/analysis_stage.h` (mechanism), `src/Analysis/wrist_analyzer.cpp` (the Wrist profile + all current stages)  
+**Location**: `src/Analysis/analysis_stage.h` (mechanism), `src/Analysis/analysis_pipeline.cpp` (the Wrist profile + all current stages)  
 **Language**: C++17 (analysis value types and math) / C++20 (app integration)  
 **Status**: Production. The Wrist profile (24 stages) is the only real profile; the original 17 passed the byte-identical staged-vs-monolith gate over the 61-swing blessed corpus before the monolith was deleted, and EventRefine (stage 11) landed afterwards through its own dark-then-freeze gate (2026-07-18). Swing / GRF profiles land as stage lists when their placement UX arrives.
 
@@ -28,16 +28,16 @@ The analysis pipeline is the orchestration *inside* an analyzer's `analyze()` �
 a **capability-gated stage pipeline over a shared typed context** (a
 constrained blackboard). It is the target architecture of
 `docs/design/analysis_pipeline_fusion_architecture_proposal.md` §10, shipped
-as-built in `WristAnalyzer`:
+as-built in `PipelineAnalyzer`:
 
 ```cpp
-ShotAnalysisResult WristAnalyzer::analyze(const SwingWindow &window,
+ShotAnalysisResult PipelineAnalyzer::analyze(const SwingWindow &window,
                                           const ShotAnalysisJob &job)
 {
     AnalysisContext ctx{ CaptureCapabilities::fromJob(job), job, &window };
     ctx.detail = std::make_shared<SwingAnalysis>();
     ctx.wall.start();
-    runStages(wristProfile(), ctx);      // authored order, canRun gates, halt short-circuit
+    runStages(fullProfile(), ctx);      // authored order, canRun gates, halt short-circuit
     return projectResult(ctx);           // flatten context → ShotAnalysisResult
 }
 ```
@@ -71,7 +71,7 @@ ShotProcessor::startAnalysis (live shot)            swinglab_run / in-app re-ana
                         │
         AnalysisContext ctx { caps, job, &window }
                         │
-        runStages(wristProfile(), ctx)         ← 24 stages, authored order
+        runStages(fullProfile(), ctx)         ← 24 stages, authored order
                         │     each: canRun? → run(ctx) → trace entry (name, ns, skip reason)
                         ▼
         projectResult(ctx)                     ← metrics map, trace, score, detail
@@ -182,9 +182,9 @@ Two telemetry layers — do not conflate them:
 
 ## 4. The Wrist Profile, Stage by Stage
 
-`wristProfile()` is file-local in `wrist_analyzer.cpp`, but its **body-metric block is not**: stages
+`fullProfile()` is file-local in `analysis_pipeline.cpp`, but its **body-metric block is not**: stages
 13–14 below and the four that joined them live in `appendBodyMetricStages()`, which BOTH
-`wristProfile()` and `cameraKinematicsProfile()` call.
+`fullProfile()` and `cameraKinematicsProfile()` call.
 
 > **Analysis is agnostic of session type.** The body-metric stages used to be listed only in the
 > Wrist profile, which put a second, invisible gate in front of conditions each stage already states
@@ -317,7 +317,7 @@ this as a checklist — every item exists because a shipped stage needed it.
 run this exact checklist end-to-end and is the best current model to crib
 from: pure engine in `event_refine.{h,cpp}` (`refineEvents` over plain
 `ShaftTrack2D`/`BallTrack2D`/`Segmentation` — no window, no context) + a
-~30-line file-local `EventRefineStage` glue in `wrist_analyzer.cpp`; dark
+~30-line file-local `EventRefineStage` glue in `analysis_pipeline.cpp`; dark
 `refine.*` keys seeded from `pinpoint::tuned::refine::` with
 `EventRefineConfig::fromOverrides`; conf-gated abstention as the safety
 posture (apply only above `minConf`, within `maxShiftS`, monotone ladder —
@@ -352,7 +352,7 @@ House rule (see HeadTrack/FootMetrics as the model): the algorithm lives in
 its own header + cpp in `src/Analysis/` (flat directory — no subfolders;
 tests in `src/Analysis/tests/`), pure over plain data, with a config struct
 that has a `fromOverrides(const QVariantMap &)` factory. The stage struct in
-`wrist_analyzer.cpp` is ~20 lines of glue:
+`analysis_pipeline.cpp` is ~20 lines of glue:
 
 ```cpp
 // src/Analysis/knee_flex.h  — pure math, own unit test, no window access
@@ -364,7 +364,7 @@ struct KneeFlexConfig {
 KneeFlexResult trackKneeFlex(const PoseTrack2D &pose, int w, int h,
                              int64_t addressUs, const KneeFlexConfig &cfg);
 
-// wrist_analyzer.cpp — the stage, file-local in the anon namespace
+// analysis_pipeline.cpp — the stage, file-local in the anon namespace
 struct KneeFlexStage : AnalysisStage {
     QString name() const override { return QStringLiteral("KneeFlex"); }
     bool canRun(const AnalysisContext &ctx) const override
@@ -450,7 +450,7 @@ old swing.json files loading forever. Round-trip it in `swing_doc_test`.
 
 ### 6.6 Insert into the profile and run the gates
 
-Add the one line to `wristProfile()` at the position 6.1 chose, then gate in
+Add the one line to `fullProfile()` at the position 6.1 chose, then gate in
 this order (cheapest first):
 
 1. **Unit test** — the math over synthetic data
@@ -725,7 +725,7 @@ only inside `run()`.
 
 ### Keeping state on the stage struct
 
-`wristProfile()` constructs fresh stages per analyze() today, but the
+`fullProfile()` constructs fresh stages per analyze() today, but the
 architecture promises stateless stages (profiles are reusable, order is the
 only contract). Anything you're tempted to cache belongs in a context slot,
 visibly.
@@ -767,8 +767,8 @@ src/Analysis/
 ├── analysis_stage.h            THE mechanism: CaptureCapabilities, AnalysisContext,
 │                                 AnalysisStage, SessionProfile, runStages, StageTraceEntry
 ├── analysis_tuning.h           tuning::apply — dotted-key overrides onto config fields
-├── wrist_analyzer.{h,cpp}      The Wrist profile: all 18 stage structs (file-local),
-│                                 wristProfile(), projectResult(), analyze()
+├── analysis_pipeline.{h,cpp}   The full profile: all 18 stage structs (file-local),
+│                                 fullProfile(), projectResult(), analyze()
 ├── swing_analysis.h            Product shapes incl. AnalysisTimings, SwingAnalysis
 ├── imu_vision_fuser.*          Stage 1's engine (FusedStreams)
 ├── phase_segmenter.*           Stage 2's engine

@@ -135,7 +135,7 @@ ShotContext contextForSetup(const SetupFacts &facts)
 
     // TIER. A recorded swing's tier is set by the analysis, and only ever to one of two values:
     // Mono3DPlusImu when the job carried IMU streams, Angles2D otherwise (ResemblanceStage,
-    // wrist_analyzer.cpp). Nothing assigns Stereo3D — a second camera does NOT raise it — so a
+    // analysis_pipeline.cpp). Nothing assigns Stereo3D — a second camera does NOT raise it — so a
     // planned setup mirrors that rule and no more. It gates nothing today either way: every rung in
     // the manifest leaves minTier at Angles2D (depth is stated as the dtlCamera device instead).
     c.tier = c.imuRoles.empty() ? ReconstructionTier::Angles2D : ReconstructionTier::Mono3DPlusImu;

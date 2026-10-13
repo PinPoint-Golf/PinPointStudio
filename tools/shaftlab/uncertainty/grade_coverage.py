@@ -227,7 +227,7 @@ def lean_rows(root, ids):
         if abs(mk["t_us"] - t7) > 10000:
             continue
         S = A["club"]["samples"]
-        # The producer's sign (wrist_analyzer.cpp buildShaftLeanSeries): −1 only for handedness 2.
+        # The producer's sign (analysis_pipeline.cpp buildShaftLeanSeries): −1 only for handedness 2.
         # Every corpus swing is one right-handed golfer; inferring it per swing from the curve's slope
         # was tried and picked the wrong sign on most swings (a +5.5° "bias" that was the sign).
         sgn = -1.0 if (T.get("meta", {}).get("handedness") == 2) else 1.0

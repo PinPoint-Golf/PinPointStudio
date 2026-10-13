@@ -24,10 +24,12 @@
 #include <QJsonObject>
 #include <vector>
 
-// Real Wrist-session (SessionController::Type::Wrist == 1) analyzer. analyze() runs a
+// The analysis pipeline: the full IMU + camera analyzer. It began as the Wrist session's
+// analyzer and grew into the general pipeline; makeShotAnalyzer() still selects it for
+// session type 1. analyze() runs a
 // capability-gated stage pipeline over a shared, typed AnalysisContext — the constrained
-// blackboard of analysis_pipeline_fusion_architecture_proposal.md §10. The Wrist profile
-// (wristProfile() in the .cpp) is an authored list of AnalysisStage objects — IMU fusion
+// blackboard of analysis_pipeline_fusion_architecture_proposal.md §10. The full profile
+// (fullProfile() in the .cpp) is an authored list of AnalysisStage objects — IMU fusion
 // → segmentation → wrist metrics → pose/smooth/ball/shaft → resemblance/assessment —
 // each gated by its CaptureCapabilities so absent devices skip stages instead of forking
 // the control flow. runStages() executes the list in order on a QtConcurrent worker over
@@ -35,7 +37,7 @@
 // Degrades gracefully by capability: an IMU-only capture yields wrist metrics + score, a
 // camera-only capture yields pose/shaft products, and a window with neither returns
 // ok=false (lands on the carousel with score 0) rather than crashing.
-class WristAnalyzer : public ShotAnalyzer
+class PipelineAnalyzer : public ShotAnalyzer
 {
 public:
     ShotAnalysisResult analyze(const pinpoint::SwingWindow &window,
@@ -49,7 +51,7 @@ namespace pinpoint::analysis {
 // profile's face-on camera stages — Pose → PoseSmooth → Ball → Shaft → SegResolve →
 // BindDetail → Kinematics — with no IMU or scoring stages. KinematicsStage self-gates
 // on kinematics.enabled, so the profile yields an empty detail when the feature is
-// dark. The stage structs stay file-local to wrist_analyzer.cpp; this builder is the
+// dark. The stage structs stay file-local to analysis_pipeline.cpp; this builder is the
 // shared seam (developer guide §10.5 — share when the second session needs it).
 SessionProfile cameraKinematicsProfile();
 

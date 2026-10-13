@@ -331,7 +331,7 @@ def score_metrics(run: RunResult, swing: Swing):
     the surfaced label is the resemblance argmax, and — *when an interval is present* — it brackets the
     central score (`0<=lo<=overall<=hi`). The live wrist headline is the assessment score, which has no
     interval model yet, so its interval is absent (a `warn`, not a fail); the resemblance FE-budget
-    interval is cleared once the assessment score becomes `overall` (see wrist_analyzer.cpp). When
+    interval is cleared once the assessment score becomes `overall` (see analysis_pipeline.cpp). When
     truth.json meta declares an `archetype`, also checks resemblance recall (the surfaced pattern
     matches the scripted archetype)."""
     score = run.analysis.get("score")

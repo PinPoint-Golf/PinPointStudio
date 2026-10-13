@@ -32,7 +32,7 @@
 // Pure over plain value types (ShaftTrack2D / BallTrack2D / Segmentation) — NO
 // SwingWindow, NO AnalysisContext, same cv-free contract as head_track.h — so it
 // is unit-testable standalone (event_refine_test). The thin AnalysisStage glue
-// (EventRefineStage, wrist_analyzer.cpp) slots between RequireProducts and
+// (EventRefineStage, analysis_pipeline.cpp) slots between RequireProducts and
 // BindDetail, mutates ctx.seg, and lets every downstream consumer (HeadTrack /
 // FootMetrics addressUs, assessment P1, buildTrace, swing.json, timeline, SwingLab)
 // pick the refined times up for free.

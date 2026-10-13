@@ -25,7 +25,7 @@
 // on the one frame nearest the swing's Address instant, read along the rows at hip height.
 //
 // Pure OpenCV, no Qt: `outerExtents` is the whole measurement and a test can press it with a
-// drawn mask. The stage (AddressMarksStage, wrist_analyzer.cpp) supplies the mask, the hip
+// drawn mask. The stage (AddressMarksStage, analysis_pipeline.cpp) supplies the mask, the hip
 // keypoints and which side the butt is on; the serialiser (address_marks_json.h) writes the
 // result as `analysis.addressMarks`; nothing reads it but the tile. Coordinates are
 // NORMALISED by the frame (x by width, y by height) once measured, like every overlay block.

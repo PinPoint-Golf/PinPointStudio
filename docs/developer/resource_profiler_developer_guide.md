@@ -190,7 +190,7 @@ registered threads `UI`, `Camera.Capture`, `IMU.IO`, `Buffer.Merger`, `Pose.Work
 stage feeds a scope `Analysis.Stage.<StageName>` (plus a whole-run
 `Analysis.analyze`) — not via a per-call-site macro but from the orchestrator's
 in-memory stage trace: `analysis_profiling.cpp` (`recordAnalysisRun`, called at
-the tail of `WristAnalyzer::analyze()` / `CameraKinematicsAnalyzer::analyze()`)
+the tail of `PipelineAnalyzer::analyze()` / `CameraKinematicsAnalyzer::analyze()`)
 reads `ctx.trace` and calls `Profiler::recordWall()` for each ran stage. A new
 analysis stage therefore appears **automatically** — no profiler edit is needed
 when adding one. These scopes are surfaced in a dedicated **ANALYSIS STAGES**

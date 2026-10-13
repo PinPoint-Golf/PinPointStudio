@@ -40,7 +40,7 @@
 // convention, exactly as InMemoryWristAngleSource / buildWristAngleSource do.
 //
 // SHIPS DARK: constructed ONLY when pose.wristAngles.enabled AND the swing has no
-// IMU wrist source (wrist_analyzer.cpp). Off ⇒ the object is never built and the
+// IMU wrist source (analysis_pipeline.cpp). Off ⇒ the object is never built and the
 // pipeline output is byte-identical. Qt-only (QPointF via swing_analysis.h),
 // cv-free; unit-tested standalone.
 

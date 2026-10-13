@@ -291,7 +291,7 @@ int main()
 
     // ── 7) mm scaling via the inter-ear head-plane ruler ───────────────────────
     // pxPerMm = addrScalePx / earWidthMm converts the ×frame displacement to mm;
-    // the caller derives it exactly as wrist_analyzer does. Square 1000×1000 so a
+    // the caller derives it exactly as analysis_pipeline does. Square 1000×1000 so a
     // normalized x move maps straight to px with no anisotropy.
     {
         std::printf("=== 7) mm scaling (inter-ear head-plane ruler) ===\n");

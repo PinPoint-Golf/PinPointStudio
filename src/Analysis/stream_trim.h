@@ -32,7 +32,7 @@
 // absolute; only the number of samples changes.
 //
 // ⚠ IT LIVES IN ITS OWN HEADER BECAUSE THE BUG IT CARRIES IS A FIELD-COPY BUG,
-// AND THAT KIND RECURS. This was a static helper inside wrist_analyzer.cpp's
+// AND THAT KIND RECURS. This was a static helper inside analysis_pipeline.cpp's
 // anonymous namespace, which put it out of reach of every test in the tree. Then
 // `SegmentStream::hackMotion` was added, this function was not updated, and a
 // HackMotion swing came out with the binding right, the fuser right, the

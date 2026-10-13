@@ -40,7 +40,7 @@
 // `leadIsLeft` once and passes it in; this module does not read handedness
 // itself.
 //
-// SCALAR-METRIC REPRESENTATION (design decision — see wrist_analyzer.cpp
+// SCALAR-METRIC REPRESENTATION (design decision — see analysis_pipeline.cpp
 // integration + docs/reference/swing_json_schema.md 2026-07-13 note): stance
 // width / per-foot flare / toe-line angle are ONE measurement each, taken at
 // address — not a per-frame curve. No dedicated "scalar metric" shape exists

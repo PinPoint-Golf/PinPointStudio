@@ -78,7 +78,7 @@
 
 #include "../../../src/Core/PpMessageLog.h"   // echo the pipeline's own log to stderr
 #include "../../../src/Analysis/shot_analyzer.h"
-#include "../../../src/Analysis/wrist_analyzer.h"   // analysisGraphJson (--dag)
+#include "../../../src/Analysis/analysis_pipeline.h"   // analysisGraphJson (--dag)
 #include "../../../src/Analysis/swing_reanalyzer.h"
 #include "../../../src/Analysis/ball_runner.h"
 #include "../../../src/Analysis/imu_vision_fuser.h"
@@ -563,7 +563,7 @@ int main(int argc, char **argv)
     if (cli.isSet(optPose))
         job.poseTrackPath = cli.value(optPose);
     // --dtl-pose pins the DOWN-THE-LINE pose for the analyzer too, not only for the --dtl shaft
-    // block below. DtlPoseStage (wrist_analyzer.cpp) runs inside analyze() on any swing with a
+    // block below. DtlPoseStage (analysis_pipeline.cpp) runs inside analyze() on any swing with a
     // down-the-line stream, and pose inference is not deterministic — so a corpus pass over the
     // paired trunk route is only reproducible if the same cached track goes in every time. Set
     // BEFORE analyze(), and independent of --dtl: pinning the pose for the sequence does not
@@ -847,7 +847,7 @@ int main(int argc, char **argv)
             : job.poseTrackPath.isEmpty()
                 ? PoseRunner::run(window, job.cameraSources.front(), opt)
                 : PoseRunner::loadFromJson(job.poseTrackPath, job.cameraSources.front());
-        // v3.4 (plan §3): same 3-way ball resolution as WristAnalyzer::analyze()
+        // v3.4 (plan §3): same 3-way ball resolution as PipelineAnalyzer::analyze()
         // — explicit --ball injection wins, else whatever the swing.json/job
         // already carries, else replay the production ball detector offline.
         const BallTrack2D ball = reuseProd ? result.detail->ball

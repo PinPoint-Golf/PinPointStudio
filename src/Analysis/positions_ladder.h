@@ -29,7 +29,7 @@
 // Pure over plain value types (Segmentation / ShaftPosition) — NO SwingWindow,
 // NO AnalysisContext, same cv-free contract as event_refine.h — so it is
 // unit-testable standalone (positions_ladder_test). The thin AnalysisStage glue
-// (PositionsLadderStage, wrist_analyzer.cpp) slots between EventRefine and
+// (PositionsLadderStage, analysis_pipeline.cpp) slots between EventRefine and
 // BindDetail, mutating the resolved-AND-refined ctx.seg so BindDetail persists
 // the appended events with zero extra plumbing.
 //

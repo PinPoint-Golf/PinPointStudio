@@ -3,7 +3,7 @@
 **Audience**: Developers working on or integrating with the Pinpoint application  
 **Location**: `src/Analysis/` (analyzers + math), `src/Gui/shot/shot_processor.{h,cpp}` (orchestration), `src/Export/swing_doc.{h,cpp}` (persistence)  
 **Language**: C++17 (analysis value types and math) / C++20 (app integration)  
-**Status**: Production. Two analyzers: `WristAnalyzer` (session type 1 — the full IMU + camera stage profile) and `CameraKinematicsAnalyzer` (types 0/2/3 and the unknown fallback). Offline re-analysis of an exported swing runs the same analyzers over a disk-backed window.
+**Status**: Production. Two analyzers: `PipelineAnalyzer` (session type 1 — the full IMU + camera stage profile) and `CameraKinematicsAnalyzer` (types 0/2/3 and the unknown fallback). Offline re-analysis of an exported swing runs the same analyzers over a disk-backed window.
 
 > **Scope.** This is the *outside* view: how `analyze()` is launched, how jobs are
 > built, how results join with the export, and how everything persists. The
@@ -50,7 +50,7 @@ Two implementations exist today:
 
 | Session type | Analyzer | What it does |
 |---|---|---|
-| 1 — Wrist | `WristAnalyzer` | The full stage profile: IMU fusion, segmentation, the offline pose pass, ball/shaft tracking, metrics, scoring |
+| 1 — Wrist | `PipelineAnalyzer` | The full stage profile: IMU fusion, segmentation, the offline pose pass, ball/shaft tracking, metrics, scoring |
 | 0 / 2 / 3 and unknown | `CameraKinematicsAnalyzer` | Shared camera-kinematics analyzer — a placeholder score plus the real clubhead/hand-speed and lag series from the face-on camera once kinematics is enabled |
 
 The same `analyze()` also runs **offline**, over a swing reconstructed from an
@@ -777,14 +777,14 @@ Only the orchestration-facing files are listed. The stage headers (there are
 ```
 src/Analysis/
 ├── shot_analyzer.h             ShotAnalyzer interface, ShotAnalysisJob/Result
-├── shot_analyzer.cpp           makeShotAnalyzer factory: WristAnalyzer (type 1),
+├── shot_analyzer.cpp           makeShotAnalyzer factory: PipelineAnalyzer (type 1),
 │                                 CameraKinematicsAnalyzer (everything else)
 ├── swing_analysis.h            All value shapes: SegmentRole, ImuSegmentBinding,
 │                                 Phase(+Event/Sample), MetricSeries, ScoredMetric,
 │                                 Fault, ScoreBreakdown, SwingAnalysis
 ├── analysis_stage.h            The stage mechanism — AnalysisStage, AnalysisContext,
 │                                 CaptureCapabilities, runStages (pipeline guide)
-├── wrist_analyzer.{h,cpp}      The Wrist profile: the stage list + projectResult
+├── analysis_pipeline.{h,cpp}   The full profile: the stage list + projectResult
 ├── swing_reanalyzer.{h,cpp}    SwingDiskLoader / SwingDiskSource / reanalyzeSwingDir —
 │                                 the offline disk-backed path (§9a)
 ├── swing_scorer.{h,cpp}        Band tables + weighted-geometric-mean scoring

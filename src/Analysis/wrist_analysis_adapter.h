@@ -64,7 +64,7 @@ inline const WristCheckpoint *wristCheckpoints()
 InMemoryWristAngleSource parseAnalysisDetail(const QVariantMap &analysisDetail);
 
 // In-memory sibling of parseAnalysisDetail: build the angle source straight from the analyzer's
-// MetricSeries + PhaseEvent vectors (no QVariantMap round-trip), for the offline WristAnalyzer's
+// MetricSeries + PhaseEvent vectors (no QVariantMap round-trip), for the offline PipelineAnalyzer's
 // Tier-2 assessment pass. Same conventions: only wrist DOFs kept, right-handed (lead-arm) producer
 // convention, a checkpoint whose phase the swing didn't produce stays unavailable.
 InMemoryWristAngleSource buildWristAngleSource(const std::vector<MetricSeries> &series,

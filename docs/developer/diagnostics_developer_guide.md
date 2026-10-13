@@ -561,7 +561,7 @@ The section to read before assuming anything here runs. "Dormant" means written 
 | `norm.h`, `norm_pack.{h,cpp}` | grading, projection, every façade |
 | `context_tree.{h,cpp}` | norm resolution, the context list in the editors |
 | `metric_corridor.h` | `metric_catalog.cpp` → MetricDetail, PpBandRail, dashboard Motion/Verdict/Setup zones |
-| `NormBandProvider` (`Analysis/reference_bands.cpp`) | the wrist grid, live (`wrist_diagnostics_model`) and offline (`wrist_analyzer`) |
+| `NormBandProvider` (`Analysis/reference_bands.cpp`) | the wrist grid, live (`wrist_diagnostics_model`) and offline (`analysis_pipeline`) |
 | `measure_sample.{h,cpp}` | the corridor editor's histogram, the corpus-share health scan |
 | `dag_layout.{h,cpp}` | `ModelGraph.qml` via `ModelBrowser::dag()` |
 | `diagnostics_health.{h,cpp}` | `ModelBrowser` (the validation strip) |

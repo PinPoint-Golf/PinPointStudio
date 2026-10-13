@@ -23,7 +23,7 @@ W, H = 640, 640
 FPS = 60
 # v3.4 (plan §4.2): the pre-takeaway address hold is stretched from the
 # original ~1.9 s so this fixture actually exercises the address-hold
-# coverage widening (WristAnalyzer's opt.addressScanPadUs, default 4 s) —
+# coverage widening (PipelineAnalyzer's opt.addressScanPadUs, default 4 s) —
 # under the original span the whole clip fit inside G3's own bound and the
 # widening was never touched. All phase times below the same delta later
 # (+ADDR_EXTRA_S), so the moving-swing geometry (durations, waggle, etc.) is

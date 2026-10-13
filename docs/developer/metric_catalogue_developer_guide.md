@@ -506,8 +506,8 @@ a magnitude — a carry, a spin rate, a duration.
 
 ### Step A — make sure something produces it
 A metric must have a live producer emitting a `MetricSeries` with your `key`. Producers are
-`AnalysisStage`s pushed into `wristProfile()` / `cameraKinematicsProfile()` in
-`src/Analysis/wrist_analyzer.cpp`; each writes into `ctx.series` (scored) or `ctx.detail->series`
+`AnalysisStage`s pushed into `fullProfile()` / `cameraKinematicsProfile()` in
+`src/Analysis/analysis_pipeline.cpp`; each writes into `ctx.series` (scored) or `ctx.detail->series`
 (unscored). If you are adding a brand-new producer, follow the analysis-pipeline guide §6 first, then
 come back here. Confirm the key, unit, `MetricType` shape, and which phases matter.
 
@@ -656,7 +656,7 @@ emit it.
 >
 > The field survives on `ShotContext` because `swing.json` carries it and callers pass it through.
 > Reading it in a provider is a defect. The production side matches:
-> `appendBodyMetricStages()` in `wrist_analyzer.cpp` lists the body-metric stages ONCE and every
+> `appendBodyMetricStages()` in `analysis_pipeline.cpp` lists the body-metric stages ONCE and every
 > profile runs them, with each stage gating in its own `canRun()` on the data it actually needs.
 
 **Getting `Bridged`.** Three states, and the middle one is not decoration. It is what an
@@ -1117,7 +1117,7 @@ the manifest. The readings they described are covered by `shoulderPlaneAngle` (B
 
 | Metric | Status | Capture | Detection | Calibration | Verification & validation |
 |---|---|---|---|---|---|
-| `headSway` | live | FaceCam | `buildHeadSeries` lateral disp, in **cm** ✓ | **inter-ear px→mm** (NOT the ball — `wrist_analyzer.cpp` builds it from `head.addrScalePx / earWidthMm`); absent without it | `head_track_test` · (corpus) |
+| `headSway` | live | FaceCam | `buildHeadSeries` lateral disp, in **cm** ✓ | **inter-ear px→mm** (NOT the ball — `analysis_pipeline.cpp` builds it from `head.addrScalePx / earWidthMm`); absent without it | `head_track_test` · (corpus) |
 | `headLift` | live | FaceCam | vertical disp, in **cm** ✓ | **inter-ear px→mm**, as `headSway`; absent without it | `head_track_test` · (corpus) |
 | `headTilt` | live | FaceCam | eye-line angle ✓ | none — an angle needs no scale | `head_track_test` · (corpus) |
 

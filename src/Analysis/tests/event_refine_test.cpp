@@ -7,7 +7,7 @@
 // coupling. Synthetic tracks with hand-computable expectations — no fixture, no
 // decode. (Key plumbing lives in tuning_overrides_test; slot order + canRun skip
 // in analysis_stage_test's generic orchestrator coverage — the EventRefineStage
-// glue is file-local in wrist_analyzer.cpp.)
+// glue is file-local in analysis_pipeline.cpp.)
 //
 //   cmake --build build/analyzer-tests --target event_refine_test
 //   ctest --test-dir build/analyzer-tests -R event_refine --output-on-failure

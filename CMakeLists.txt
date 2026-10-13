@@ -2858,7 +2858,7 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/shaft_track_shared.h
     src/Analysis/shaft_frame_io.h
     # Down-the-line shaft tracker (dtl_shaft_tracker_design.md). Run in the app by
-    # DtlShaftStage (wrist_analyzer.cpp) and by swinglab_run --dtl, through the one
+    # DtlShaftStage (analysis_pipeline.cpp) and by swinglab_run --dtl, through the one
     # witness builder and the one clubDtl/1 writer.
     src/Analysis/dtl_shaft_track.h
     src/Analysis/dtl_shaft_types.h
@@ -2920,8 +2920,8 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/wrist_resemblance.cpp
     src/Analysis/score_uncertainty.h
     src/Analysis/score_uncertainty.cpp
-    src/Analysis/wrist_analyzer.h
-    src/Analysis/wrist_analyzer.cpp
+    src/Analysis/analysis_pipeline.h
+    src/Analysis/analysis_pipeline.cpp
     src/Analysis/skeleton3d/ybot_rig.h
     src/Analysis/skeleton3d/skeleton3d_rig.h
     src/Analysis/skeleton3d/skeleton3d_fit.h
@@ -3240,7 +3240,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/swing_reanalyzer.cpp
         src/Analysis/mp4_frame_reader.cpp   # the MP4 reader it builds (decode.*)
         src/Analysis/shot_analyzer.cpp
-        src/Analysis/wrist_analyzer.cpp
+        src/Analysis/analysis_pipeline.cpp
         src/Analysis/skeleton3d/skeleton3d_fit.cpp
         src/Analysis/analysis_profiling.cpp
         src/Analysis/kinematic_series.cpp
