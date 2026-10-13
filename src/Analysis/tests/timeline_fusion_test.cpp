@@ -1,4 +1,4 @@
-// Standalone tests for the timeline arbiter (src/Analysis/timeline_fusion.h):
+// Standalone tests for the timeline arbiter (src/Timeline/timeline_fusion.h):
 // the §4.3 decision table exactly — class precedence (Anchor > Measured > Proxy
 // > Fallback), estimand ownership breaking Measured-vs-Measured, ties retaining
 // the incumbent — plus the guards (anchor window, strict time neighbours, the
@@ -17,8 +17,8 @@
 //   cmake --build build/analyzer-tests --target timeline_fusion_test
 //   ctest --test-dir build/analyzer-tests -R timeline_fusion --output-on-failure
 
-#include "../timeline_fusion.h"
-#include "../positions_ladder.h"
+#include "../../Timeline/timeline_fusion.h"
+#include "../../Timeline/positions_ladder.h"
 
 #include <algorithm>
 #include <cstdio>

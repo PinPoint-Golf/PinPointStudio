@@ -29,8 +29,8 @@
 #include <cmath>
 #include <cstdio>
 
-#include "../skeleton3d/skeleton3d_json.h"
-#include "../skeleton3d/skeleton3d_pool.h"
+#include "../../Skeleton3d/skeleton3d_json.h"
+#include "../../Skeleton3d/skeleton3d_pool.h"
 
 namespace sk = pinpoint::skeleton3d;
 

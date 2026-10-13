@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """fusion_geom.py -- the two-view shaft fusion's geometry in numpy, line for line with
-src/Analysis/shaft_fusion.h and src/Analysis/dtl_shaft_synth3d.h, so a grader can re-run
+src/Club/shaft_fusion.h and src/Club/dtl_shaft_synth3d.h, so a grader can re-run
 what the C++ did from a run root and nothing else (dtl_continuous_track_design_update.md
 §3.2a: the leave-one-band-out gate for (A), the anchored-vs-bridged comparison for (C), the
 reflected refit for (D)).

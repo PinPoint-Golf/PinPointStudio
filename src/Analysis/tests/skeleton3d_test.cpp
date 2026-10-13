@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Standalone tests for the skeleton3d fit (src/Analysis/skeleton3d/,
+// Standalone tests for the skeleton3d fit (src/Skeleton3d/,
 // docs/design/swing_3d_viz_design.md §8.1). Pure std + Eigen, no Qt, no fixture.
 //
 //   (a) the rig: the rest pose rebuilds itself, and the hinges bend the right way
@@ -29,10 +29,10 @@
 //   cmake --build build/tests --target skeleton3d_test
 //   ctest --test-dir build/tests -R skeleton3d_test --output-on-failure
 
-#include "../skeleton3d/skeleton3d_fit.h"
-#include "../skeleton3d/club_plane_catalogue.h"
-#include "../skeleton3d/skeleton3d_rig.h"
-#include "../pose_schedule.h"   // bracketAt — the DTL pose bracket (step 4)
+#include "../../Skeleton3d/skeleton3d_fit.h"
+#include "../../Skeleton3d/club_plane_catalogue.h"
+#include "../../Skeleton3d/skeleton3d_rig.h"
+#include "../../Pose/pose_schedule.h" // bracketAt — the DTL pose bracket (step 4)
 
 #include <algorithm>
 #include <cmath>

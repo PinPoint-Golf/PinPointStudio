@@ -1,4 +1,4 @@
-// Standalone test for the 3-D synthetic shaft's DTL projection (src/Analysis/dtl_shaft_synth3d.h).
+// Standalone test for the 3-D synthetic shaft's DTL projection (src/Club/dtl_shaft_synth3d.h).
 // ONE synthetic swing on known planes (a 50° backswing plane, a 60° downswing plane), imaged by
 // the face-on camera into the angle track the Layer C synth would carry, and by a DTL camera
 // with a known yaw/pitch/roll into the angle the DTL tracker WOULD have measured. The synth
@@ -7,7 +7,7 @@
 //
 //   cmake --build build/tests --target dtl_shaft_synth3d_test
 //   ctest --test-dir build/tests -R dtl_shaft_synth3d_test --output-on-failure
-#include "../dtl_shaft_synth3d.h"
+#include "../../Club/dtl_shaft_synth3d.h"
 #include <cmath>
 #include <cstdio>
 #include <vector>

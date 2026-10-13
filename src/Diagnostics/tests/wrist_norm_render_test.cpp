@@ -17,8 +17,8 @@
 //   cmake --build build/analyzer-tests --target wrist_norm_render_test
 //   ctest --test-dir build/analyzer-tests -R wrist_norm_render --output-on-failure
 
-#include "../../Analysis/reference_bands.h"
-#include "../../Analysis/wrist_assessment_engine.h"
+#include "../../Wrist/reference_bands.h"
+#include "../../Wrist/wrist_assessment_engine.h"
 
 #include <cmath>
 #include <cstdio>

@@ -12,7 +12,7 @@
 //   cmake --build build/tests --target shaft_segment_test -j 8
 //   ctest --test-dir build/tests -R shaft_segment --output-on-failure
 
-#include "../shaft_tracker_math.h"
+#include "../../Club/shaft_tracker_math.h"
 
 #include <opencv2/imgproc.hpp>
 

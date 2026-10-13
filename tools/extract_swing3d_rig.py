@@ -5,7 +5,7 @@ extract_swing3d_rig.py — the 3-D swing view's own Y-bot: segment meshes AND th
 The swing view (docs/design/swing_3d_viz_design.md) shares NOTHING with the calibration
 views (BodyVizView / ArmVizView / CapturePage / the wizard). So it has its own extraction,
 its own meshes (src/Resources/swing3d/) and its own rig constants
-(src/Analysis/skeleton3d/ybot_rig.h), all generated here from the one read-only source,
+(src/Skeleton3d/ybot_rig.h), all generated here from the one read-only source,
 src/Resources/body/ybot.glb.
 
   python3 tools/extract_swing3d_rig.py          # numpy only; no pygltflib
@@ -34,7 +34,7 @@ import numpy as np
 ROOT     = pathlib.Path(__file__).resolve().parent.parent
 GLB_PATH = ROOT / "src/Resources/body/ybot.glb"
 OUT_DIR  = ROOT / "src/Resources/swing3d"
-HDR_PATH = ROOT / "src/Analysis/skeleton3d/ybot_rig.h"
+HDR_PATH = ROOT / "src/Skeleton3d/ybot_rig.h"
 
 P = "mixamorig:"
 

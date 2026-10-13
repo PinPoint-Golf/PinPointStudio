@@ -10,7 +10,7 @@
 //   cmake --build build/tests --target lm_enclosing_ellipse_test
 //   ctest --test-dir build/tests -R lm_enclosing_ellipse --output-on-failure
 
-#include "../lm_enclosing_ellipse.h"
+#include "../../LaunchMonitor/lm_enclosing_ellipse.h"
 
 #include <cmath>
 #include <cstdio>

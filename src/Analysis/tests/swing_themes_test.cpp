@@ -25,7 +25,7 @@
 // and "next on your list"), and the JSON round-trip. The real-ledger comparison with the
 // Python reference is swing_themes_golden_test.cpp.
 
-#include "../swing_themes.h"
+#include "../../Coaching/swing_themes.h"
 
 #include <atomic>
 #include <cstdio>

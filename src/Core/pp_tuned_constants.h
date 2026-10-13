@@ -36,7 +36,7 @@
 // are expressed as {w, x, y, z} float arrays; imu_calibration.h builds the QQuaternion.
 //
 // NOT here (deliberately): the wrist axis SIGN conventions and ZXY decomposition in
-// src/Analysis/wrist_angles.h — those are sign/axis CHOICES baked into code structure,
+// src/Wrist/wrist_angles.h — those are sign/axis CHOICES baked into code structure,
 // not single numeric literals, and stay at their source of truth. The reference-band lo/hi
 // corridor arrays are no longer code at all — they are norm rows in
 // src/Resources/diagnostics/norms.json, edited as content and re-seated from a corpus.
@@ -182,14 +182,14 @@ inline constexpr double       kIntervalSigmas    = 1.0;     // coverage factor o
 } // namespace uncertainty
 } // namespace scoring
 
-// --- Wrist-angle windowed-median sampler (src/Analysis/wrist_angle_sampler.h) -------
+// --- Wrist-angle windowed-median sampler (src/Wrist/wrist_angle_sampler.h) -------
 namespace sampler {
 inline constexpr std::int64_t kWindowHalfUs       = 15000;  // ±15 ms about Pn
 inline constexpr double       kGimbalThresholdDeg = 75.0;   // pitch-proxy ≥ this ⇒ Indeterminate
 inline constexpr int          kMinValidSamples    = 1;      // fewer in window ⇒ Gap
 } // namespace sampler
 
-// --- Assessment rule engine (src/Analysis/assessment_rule.h) ------------------------
+// --- Assessment rule engine (src/Wrist/assessment_rule.h) ------------------------
 namespace rules {
 inline constexpr float  kConfidenceFloor              = 0.45f; // below ⇒ lowConfidence (demoted)
 inline constexpr double kScoreScale                   = 18.0;  // score v2 penalty scale
@@ -216,7 +216,7 @@ inline constexpr double kArchetypeFaceOffsetDeg = 10.0; // archetype face-corrid
 // path is untouched. Both upgrades default ON; setting crop.kEnabled AND decode.kDark
 // false via "pose.*" overrides reproduces the pre-WB1 full-frame + argmax pipeline
 // byte-for-byte (the WB1 parity gate). Consumed by PoseAccuracyConfig::fromOverrides
-// (src/Analysis/pose_crop.h) and PoseRunner.
+// (src/Pose/pose_crop.h) and PoseRunner.
 namespace pose {
 // Offline ViTPose ORT intra-op thread count (PoseRunner → PoseEstimatorViTPose::load).
 // The offline pose pass is 70%+ of analysis wall-time on CPU hosts, so pool sizing
@@ -425,7 +425,7 @@ inline constexpr bool   kFilterCurve     = false;   // pose.wristAngles.filterCu
 } // namespace wristAngles
 
 // Offline RTS pose smoother — the LEGS group (metric_presentation_honesty.md §5.4,
-// phase 4.1; consumed by PoseSmootherConfig in src/Analysis/pose_smoother.h via the
+// phase 4.1; consumed by PoseSmootherConfig in src/Pose/pose_smoother.h via the
 // "poseSmooth.*" dotted keys). Multiplicative scales on the measurement-σ constants
 // (measSigBasePx AND measSigSlopePx) and on σ_jerk, applied to the COCO body
 // keypoints 11–16 (L/R hip, knee, ankle) ONLY. Keypoints 0–10 keep the frozen
@@ -478,7 +478,7 @@ inline constexpr double kReacquireConfMin = 0.7;
 // corridors are seeded at P7. Hence a per-frame window: long while the joint is
 // quiet, today's window while it accelerates. Mechanism and the exponent warning
 // (the scale is on q = σ_jerk², so the window law's exponents halve) live in
-// src/Analysis/pose_smoother.h; the two policies live in the .cpp.
+// src/Pose/pose_smoother.h; the two policies live in the .cpp.
 //
 // ⚠ PROMOTED 2026-09-05 — kMode SHIPS "accel". THIS MOVES PERSISTED value[], the only
 // part of this design that does, and it is promoted on the C15 gate: 17 settings ×
@@ -657,7 +657,7 @@ inline constexpr int    kFrameStoreMaxMiB     = 4096;
 inline constexpr int  kFrameStoreBgrMinRamGiB = 24;
 } // namespace decode
 
-// --- Head tracking (WB2 — src/Analysis/head_track.h) --------------------------
+// --- Head tracking (WB2 — src/Body/head_track.h) --------------------------
 // Head position/tilt from the COCO-WholeBody head keypoints (nose/eyes/ears +
 // optional chin). Consumed by HeadTrackConfig::fromOverrides via "head.*" dotted
 // keys. FROZEN defaults; SwingLab sweeps them without rebuild.
@@ -675,7 +675,7 @@ inline constexpr int     kAddrMinFrames  = 5;       // fallback address ref = fi
 inline constexpr std::int64_t kAddrWindowUs = 250000; // ±window about the Address event for the robust ref
 } // namespace head
 
-// --- Ball stance corridor v2 (WB3 — src/Analysis/ball_runner.cpp) -------------
+// --- Ball stance corridor v2 (WB3 — src/Ball/ball_runner.cpp) -------------
 // Toe/heel span + ground line replace the ankle-based v1 corridor when foot
 // keypoint coverage is sufficient (wholebody_pose_design.md §2.1/§5). Consumed
 // by BallCorridorConfig::fromOverrides via "ball.corridor.*" dotted keys.
@@ -688,7 +688,7 @@ inline constexpr double kFootConfMin = 0.30;   // per-keypoint conf gate (codeba
 inline constexpr int    kMinFrames   = 5;      // < this many feet-confident frames ⇒ ankle fallback
 } // namespace corridor
 
-// --- Club-corridor activity (W3 — src/Analysis/ball_runner.cpp) ---------------
+// --- Club-corridor activity (W3 — src/Ball/ball_runner.cpp) ---------------
 // Per-frame "is the club moving near the ball" signal, computed over an ANNULUS
 // around the locked ball centre (inner radius excludes the ball disc so ball-lock
 // jitter isn't read as activity; outer covers the resting clubhead beside it):
@@ -714,7 +714,7 @@ inline constexpr double kActivityInnerR    = 1.5;   // ball.activityInnerR — i
 inline constexpr double kActivityOuterR    = 5.0;   // ball.activityOuterR — outer annulus radius (× ball r)
 } // namespace activity
 
-// tk0 Address override A/B (W4 — src/Analysis/ball_anchor.cpp). FROZEN OFF
+// tk0 Address override A/B (W4 — src/Club/ball_anchor.cpp). FROZEN OFF
 // 2026-07-17: the earliest-departure tk0 fires on the first FIDGET departure
 // and overwrote a good hold-end Address (w2s4: −0.134 s → −1.533 s; part of
 // the 17-swing truth freeze, Address-error median 0.564 → 0.060 s). true
@@ -723,7 +723,7 @@ inline constexpr double kActivityOuterR    = 5.0;   // ball.activityOuterR — o
 // TODO. "ball.tk0AddressOverride" dotted key.
 inline constexpr bool kTk0AddressOverride = false;
 
-// --- Offline replay cost (analysis_dag_design.md step C — src/Analysis/ball_runner.cpp) ---
+// --- Offline replay cost (analysis_dag_design.md step C — src/Ball/ball_runner.cpp) ---
 // ball.boundAfterLaunch (ms; 0 = off): stop the offline replay once a launch has been
 // seen and the frame is past max(launch, impact) + this many ms, ending on a not-found
 // sample (≤ 250 ms more) so the replay overlay, which holds the LAST sample past the
@@ -752,7 +752,7 @@ namespace segmenter {
 inline constexpr bool kSessionCache = true;          // segmenter.sessionCache
 } // namespace segmenter
 
-// --- Layer B P-position extraction (src/Analysis/shaft_positions.h) ------------
+// --- Layer B P-position extraction (src/Club/shaft_positions.h) ------------
 // "positions.*" tuning. Most PositionsConfig defaults are struct literals; the
 // club-quiet sigma is frozen here because it is the W3 addition consumed by
 // addressHoldEndFrame's optional club-quiet mask — a frame counts as club-quiet
@@ -764,7 +764,7 @@ namespace positions {
 inline constexpr double kP1ClubQuietSigma = 3.0;   // positions.p1ClubQuietSigma
 } // namespace positions
 
-// --- Setup + footwork metrics (WB3 — src/Analysis/foot_metrics.h) ------------
+// --- Setup + footwork metrics (WB3 — src/Body/foot_metrics.h) ------------
 // Stance width / per-foot flare / toe-line angle (address) + the lead-heel-lift
 // trace, from the COCO-WholeBody foot keypoints (bigtoe/heel). Consumed by
 // FootMetricsConfig::fromOverrides via "foot.*" dotted keys. FROZEN defaults;
@@ -776,7 +776,7 @@ inline constexpr int          kAddrMinFrames = 5;       // fallback address ref 
 inline constexpr std::int64_t kAddrWindowUs  = 250000;  // ±window about the Address event for the robust ref
 } // namespace foot
 
-// --- Sparse-channel resample (src/Analysis/metric_channel.h) ------------------
+// --- Sparse-channel resample (src/Metrics/metric_channel.h) ------------------
 // Every face-on producer resamples its sparse channel onto the full frame grid,
 // holding at the ends and bridging gaps so the curve is continuous and never NaN.
 // kMaxBridgeUs is where a bridge stops being a measurement: a grid sample farther
@@ -808,7 +808,7 @@ inline constexpr std::int64_t kMaxBridgeUs        = 60000;   // channel.maxBridg
 inline constexpr double       kBridgeSpacingFactor = 1.5;    // channel.bridgeSpacingFactor
 } // namespace channel
 
-// --- Robust series reducers (src/Analysis/series_reduce.h) ---------------------
+// --- Robust series reducers (src/Metrics/series_reduce.h) ---------------------
 // The windows the CHART SUMMARY and the DIAGNOSTICS PHASE GRID both reduce with, so the card and
 // the corridors cannot disagree about the same word. Design
 // docs/design/metric_presentation_honesty.md §5.2; the At window is sampler::kWindowHalfUs above,
@@ -853,7 +853,7 @@ inline constexpr std::int64_t kRateWindowUs       = 50000; // reduce.rateWindowU
 inline constexpr int          kMinRateSamples     = 3;     // reduce.minRateSamples
 } // namespace reduce
 
-// --- Lower-body frontal-plane metrics (src/Analysis/lower_body_metrics.h) -----
+// --- Lower-body frontal-plane metrics (src/Body/lower_body_metrics.h) -----
 // leadKneeDrift / hipLineTilt / pelvisSway / pelvisLift, from the COCO BODY hips,
 // knees and ankles (11–16). Consumed by LowerBodyConfig::fromOverrides via
 // "lowerBody.*" dotted keys. Same conf-gate / address-window shape as foot:: and
@@ -888,7 +888,7 @@ inline constexpr double       kMinStanceSpanPx = 40.0;   // lowerBody.minStanceS
 inline constexpr double       kMinHipSpanRatio = 0.40;   // lowerBody.minHipSpanRatio
 } // namespace lowerBody
 
-// --- Upper-body frontal-plane metrics (src/Analysis/upper_body_metrics.h) -----
+// --- Upper-body frontal-plane metrics (src/Body/upper_body_metrics.h) -----
 // secondaryAxisTilt / spineSideBend / thoraxLateralDrift / shoulderPlaneAngle /
 // elbowAlignment / trailElbowHeight / leadHandWidth / leadUpperArmToChest /
 // leadArmToTorso, resolved through the anatomy vocabulary rather than raw keypoint
@@ -930,7 +930,7 @@ inline constexpr double       kMinShoulderSpanRatio = 0.40;    // upperBody.minS
 inline constexpr double       kMinElbowSpanPx       = 25.0;    // upperBody.minElbowSpanPx
 } // namespace upperBody
 
-// --- Axial body rotation (src/Analysis/body_rotation.h) -----------------------
+// --- Axial body rotation (src/Body/body_rotation.h) -----------------------
 // pelvisRotation / thoraxRotation / xFactor / xFactorStretch, from a bound Pelvis /
 // Thorax IMU where one exists and from the face-on collapse of the hip and shoulder
 // spans where one does not. Consumed by BodyRotationConfig::fromOverrides via
@@ -966,7 +966,7 @@ inline constexpr double       kTriScaleFracCalibrated = 0.03;
 inline constexpr double       kTriMinBaselineM = 0.08;
 } // namespace bodyRotation
 
-// --- Kinematic sequence (src/Analysis/segment_rates.h) -----------------------
+// --- Kinematic sequence (src/Kinematics/segment_rates.h) -----------------------
 // Four segment angular-speed series and the ordered peaks over them, from an IMU,
 // a calibrated pair or a single face-on camera. Consumed by
 // SegmentRatesConfig::fromOverrides via "sequence.*" dotted keys.
@@ -1124,7 +1124,7 @@ inline constexpr bool         kSkel3dThoraxPlacement = false; // sequence.skel3d
 inline constexpr bool         kPeakTimes            = true;   // sequence.peakTimes
 } // namespace sequence
 
-// --- Club delivery from a face-on camera (src/Analysis/club_delivery.h) -------
+// --- Club delivery from a face-on camera (src/Club/club_delivery.h) -------
 // shaftAngleVsHorizontal / attackAngle read off the MEASURED clubhead terminus;
 // lowPointAhead read off the SYNTHESIZED ARC instead (see club_delivery.h "Two
 // channels, on purpose"). Consumed by ClubDeliveryConfig::fromOverrides via
@@ -1168,7 +1168,7 @@ inline constexpr double       kAttackSynthMaxStepRatio = 3.0;  // clubDelivery.a
 inline constexpr double       kLowPointSigmaIn    = 2.0;      // clubDelivery.lowPointSigmaIn
 } // namespace clubDelivery
 
-// --- Tempo metrics (src/Analysis/tempo_metrics.h) -----------------------------
+// --- Tempo metrics (src/Timeline/tempo_metrics.h) -----------------------------
 // tempoBackswing (Address→Top, s) and tempoRatio ((Top−Address)/(Impact−Top)).
 // Consumed by TempoConfig::fromOverrides via "tempo.*" dotted keys.
 //
@@ -1197,7 +1197,7 @@ inline constexpr double kBaseSigmaS  = 0.020;  // tempo.baseSigmaS — 1σ event
 inline constexpr double kConfInflate = 1.0;    // tempo.confInflate — σ_e = base·(1 + (1−conf)·inflate)
 } // namespace tempo
 
-// --- Ball position at address (src/Analysis/ball_position.h) ------------------
+// --- Ball position at address (src/Ball/ball_position.h) ------------------
 // Where the ball sits along the stance, as a fraction of the heel-to-heel line:
 // 0 = at the lead heel, 1 = at the trail heel. UNCLAMPED — a ball forward of the
 // lead heel is a real (and coachable) setup, not an error. The denominator is
@@ -1216,7 +1216,7 @@ inline constexpr double       kFracLo       = -0.5;    // ballpos.fracLo — pla
 inline constexpr double       kFracHi       = 1.5;     // ballpos.fracHi — plausibility ceiling
 } // namespace ballpos
 
-// --- Shaft onset segmentation (src/Analysis/shaft_track_assembly.cpp) ----------
+// --- Shaft onset segmentation (src/Club/shaft_track_assembly.cpp) ----------
 // Camera-only Address/Takeaway hardening (fidget-proofing). The Stage-A onset
 // walk-back (A1 grip speed + A2 φ witness) cannot tell fidget motion that
 // DEPARTS and RETURNS from a one-piece takeaway, so on a fidgety address it
@@ -1307,7 +1307,7 @@ inline constexpr int64_t kPeakWindowUs       = 150000;  // shaft.followThrough.p
 } // namespace followThrough
 } // namespace shaft
 
-// --- Late-pipeline timeline-event refinement (src/Analysis/event_refine.h) -----
+// --- Late-pipeline timeline-event refinement (src/Timeline/event_refine.h) -----
 // EventRefineStage (analysis_pipeline_fusion_architecture_proposal.md P3 — event
 // fusion) fine-tunes the timeline events users see from the FINISHED shaft/ball/
 // pose products, per Mark's definition (Address = the last static point before the

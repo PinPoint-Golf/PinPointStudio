@@ -20,17 +20,17 @@
 #include "../../LaunchMonitor/launch_monitor_base.h"
 #include "../../LaunchMonitor/launch_monitor_factory.h"
 
-#include "../../Analysis/lm_club_evidence.h"
-#include "../../Analysis/lm_enclosing_ellipse.h"
-#include "../../Analysis/lm_flight_path.h"
-#include "../../Analysis/lm_inferred_reads.h"
-#include "../../Analysis/lm_session_reductions.h"
+#include "../../LaunchMonitor/lm_club_evidence.h"
+#include "../../LaunchMonitor/lm_enclosing_ellipse.h"
+#include "../../LaunchMonitor/lm_flight_path.h"
+#include "../../LaunchMonitor/lm_inferred_reads.h"
+#include "../../LaunchMonitor/lm_session_reductions.h"
 #include "../../Analysis/swing_analysis.h"
 
-#include "../../Diagnostics/context_tree.h"
-#include "../../Diagnostics/metric_corridor.h"
-#include "../../Diagnostics/norm_provider.h"
-#include "../../Diagnostics/pack_provider.h"
+#include "../../Diagnostics/norms/context_tree.h"
+#include "../../Diagnostics/norms/metric_corridor.h"
+#include "../../Diagnostics/norms/norm_provider.h"
+#include "../../Diagnostics/packs/pack_provider.h"
 
 #include <QPointF>
 #include <QRegularExpression>

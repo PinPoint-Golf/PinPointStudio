@@ -24,7 +24,7 @@
 // is needed. The window is built over RamPayloadSource — the same backing the
 // offline re-analysis path uses — so no EventBuffer is involved.
 
-#include "../imu_refusion_check.h"
+#include "../../IMU/imu_refusion_check.h"
 
 #include "ram_payload_source.h"
 #include "swing_window.h"

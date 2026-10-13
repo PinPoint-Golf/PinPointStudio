@@ -1,5 +1,5 @@
 // Standalone tests for Layer B "B-fit" — the milestone fitter
-// (src/Analysis/shaft_position_fit.h): ±k-frame shift-and-stack registration +
+// (src/Club/shaft_position_fit.h): ±k-frame shift-and-stack registration +
 // joint (grip, θ, L) fit against the shared polarity-aware ridge integral, arm
 // sector, and ball evidence. Synthetic OpenCV renders with hand-placed geometry.
 //
@@ -10,7 +10,7 @@
 // deliberately 180°-FLIPPED track init recovered via the wide sector + ball;
 // (c) pure-noise reject; (d) determinism.
 
-#include "../shaft_position_fit.h"
+#include "../../Club/shaft_position_fit.h"
 
 #include <opencv2/imgproc.hpp>   // cv::line for the synthetic shafts
 

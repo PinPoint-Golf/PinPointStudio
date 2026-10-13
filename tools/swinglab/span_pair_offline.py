@@ -34,8 +34,8 @@ pixels, hypot(Δx·W_frame, Δy·H_frame), not |Δx| — resample() (4 ms grid, 
 confidence gate (0.30), the address window, and the square-up reference (the span maximum over the
 downswing). The face-on leg with |Δx| instead is reported as a variant, and agrees.
 
-PLACEMENT is the shipped C++ path re-implemented sample-for-sample from src/Analysis/angular_rate.h
-and src/Analysis/segment_rates.cpp `finishChannel`: a local quadratic over a window fixed in TIME
+PLACEMENT is the shipped C++ path re-implemented sample-for-sample from src/Kinematics/angular_rate.h
+and src/Kinematics/segment_rates.cpp `finishChannel`: a local quadratic over a window fixed in TIME
 (sequence.derivWindowMs = 25 ms), reduceExtremum's centred 40 ms windowed mean for the peak, and
 σ_t = sqrt(2·σ_r/|r̈|) with the 40 ms placement threshold. The blind-band gates (sighted band,
 rising edge, reversal spike) are NOT applied to the pair route — it has no blind band in principle —

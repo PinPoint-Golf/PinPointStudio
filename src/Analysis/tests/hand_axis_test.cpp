@@ -1,12 +1,12 @@
 // Standalone tests for the shared COCO-WholeBody hand geometry (WB4,
-// src/Analysis/hand_axis.h): handCentroid, computeGripAnchors (the
+// src/Pose/hand_axis.h): handCentroid, computeGripAnchors (the
 // pose.gripFromSmoothedHands recompute) and handAxisDirection (the ShaftTracker
 // θ prior). Pure, header-only — no OpenCV, no fixture. Own main()/check() macros.
 //
 //   cmake --build build/analyzer-tests --target hand_axis_test
 //   ctest --test-dir build/analyzer-tests -R hand_axis --output-on-failure
 
-#include "../hand_axis.h"
+#include "../../Pose/hand_axis.h"
 
 #include <cmath>
 #include <cstdio>

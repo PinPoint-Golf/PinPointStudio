@@ -1,9 +1,9 @@
 // Standalone test for the findings-weighted composite score (v2, design §7.6).
 // Run: ctest --test-dir build/analyzer-tests -R composite_score_v2_test --output-on-failure
 
-#include "../reference_bands.h"
-#include "../wrist_assessment_engine.h"
-#include "../wrist_assessment_fixtures.h"
+#include "../../Wrist/reference_bands.h"
+#include "../../Wrist/wrist_assessment_engine.h"
+#include "../../Wrist/wrist_assessment_fixtures.h"
 
 #include <cmath>
 #include <cstdio>

@@ -45,7 +45,7 @@
 #include <cstring>
 
 #include "swing_rig_driver.h"
-#include "../../Analysis/skeleton3d/skeleton3d_json.h"
+#include "../../Skeleton3d/skeleton3d_json.h"
 
 #include <QQuaternion>
 #include <QVector3D>

@@ -3,7 +3,7 @@
 
 Reads every ``<swing>/result.json`` under ``--root`` (the ``--out`` dirs a
 ``swinglab_run`` pass wrote) and summarises ``analysis.kinematicSequence``
-(src/Analysis/kinematic_sequence_json.h) — the Stage 1 corpus read of
+(src/Kinematics/kinematic_sequence_json.h) — the Stage 1 corpus read of
 docs/design/kinematic_sequence_design.md §9:
 
   * per segment: how many swings produced a rate, how many PLACED the node, how

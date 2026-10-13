@@ -22,7 +22,7 @@
 // The first sections build their own small norm set, so the PROJECTION is asserted without
 // depending on shipped content at all.
 
-#include "../reference_bands.h"
+#include "../../Wrist/reference_bands.h"
 
 #include <QSet>
 

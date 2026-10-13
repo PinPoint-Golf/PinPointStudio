@@ -17,10 +17,10 @@
 //   cmake --build build/analyzer-tests --target seed_conversion_test
 //   ctest --test-dir build/analyzer-tests -R seed_conversion --output-on-failure
 
-#include "../characteristic.h"
-#include "../norm.h"
-#include "../norm_provider.h"
-#include "../pack_provider.h"
+#include "../engine/characteristic.h"
+#include "../norms/norm.h"
+#include "../norms/norm_provider.h"
+#include "../packs/pack_provider.h"
 
 #include <QCoreApplication>
 

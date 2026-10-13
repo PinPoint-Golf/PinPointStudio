@@ -7,9 +7,9 @@
 // This is the regression net: any change to bands/rules/sampling that alters a labelled swing's
 // finding must break this loudly.
 
-#include "../reference_bands.h"
-#include "../wrist_assessment_engine.h"
-#include "../wrist_assessment_fixtures.h"
+#include "../../Wrist/reference_bands.h"
+#include "../../Wrist/wrist_assessment_engine.h"
+#include "../../Wrist/wrist_assessment_fixtures.h"
 
 #include <cstdio>
 

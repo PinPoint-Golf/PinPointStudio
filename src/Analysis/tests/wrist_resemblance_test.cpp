@@ -7,8 +7,8 @@
 // monotonicity, and the blended flag. Provisional μ_p/σ_p are re-seated at Corpus 2;
 // these checks are about the construction, not the specific centres.
 
-#include "../wrist_resemblance.h"
-#include "../score_uncertainty.h"
+#include "../../Wrist/wrist_resemblance.h"
+#include "../../Wrist/score_uncertainty.h"
 #include "../../Core/pp_tuned_constants.h"
 
 #include <cstdio>

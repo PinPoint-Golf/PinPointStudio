@@ -25,7 +25,7 @@ drill, what to aim for (`golferWell`), what happens now (`golfer`), why it matte
 and the drill to practise; every other needs-work fault is "next on your list", in group order.
 
 The page itself (subtitle, the focus, the cards, the "goes together" pairs and the note) is
-summary_view(), the reference the app's swingSummaryView() (src/Analysis/swing_themes.h) is tested
+summary_view(), the reference the app's swingSummaryView() (src/Coaching/swing_themes.h) is tested
 against through make_golden.py; swingSummaryLines() is the older flat form of the same words.
 Change a word here and the golden fixture with it.
 Co-movement, never cause: no line may say because / cause / due to / leads to.

@@ -27,7 +27,7 @@
 #include <QQuaternion>
 #include <QVector3D>
 
-#include "../phase_signals.h"
+#include "../../Timeline/phase_signals.h"
 
 using namespace pinpoint::analysis;
 namespace ps = pinpoint::analysis::phase_signals;

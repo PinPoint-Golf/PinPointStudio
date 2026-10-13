@@ -1,11 +1,11 @@
-// Standalone tests for Layer B "B-time location" (src/Analysis/shaft_positions.h):
+// Standalone tests for Layer B "B-time location" (src/Club/shaft_positions.h):
 // image-plane shaft/arm parallel crossings of θ(t)/φ(t) with hysteresis. Pure 1-D
 // math, no fixture, no OpenCV. Synthetic profiles with hand-placed crossings.
 //
 //   cmake --build build/analyzer-tests --target shaft_positions_test
 //   ctest --test-dir build/analyzer-tests -R shaft_positions --output-on-failure
 
-#include "../shaft_positions.h"
+#include "../../Club/shaft_positions.h"
 
 #include <algorithm>
 #include <cmath>

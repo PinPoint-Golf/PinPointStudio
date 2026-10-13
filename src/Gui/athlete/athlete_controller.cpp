@@ -20,7 +20,7 @@
 
 #include "pp_settings.h"
 #include "club_vocabulary.h"
-#include "../../Diagnostics/norm_pack.h"   // Cohort, cohortFor(), cohortToMap()
+#include "../../Diagnostics/norms/norm_pack.h" // Cohort, cohortFor(), cohortToMap()
 #include <QDate>
 #include <QUuid>
 #include <QDateTime>

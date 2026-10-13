@@ -20,11 +20,11 @@
 
 #include "session_diagnostics_model.h"
 
-#include "../../Diagnostics/characteristic_pack.h"
-#include "../../Diagnostics/drill_pack.h"
-#include "../../Diagnostics/pack_io.h"
-#include "../../Diagnostics/pack_provider.h"
-#include "../../Diagnostics/swing_themes_pack.h"
+#include "../../Diagnostics/packs/characteristic_pack.h"
+#include "../../Diagnostics/packs/drill_pack.h"
+#include "../../Diagnostics/engine/pack_io.h"
+#include "../../Diagnostics/packs/pack_provider.h"
+#include "../../Diagnostics/packs/swing_themes_pack.h"
 #include "../../Core/pp_debug.h"
 #include "../../Export/swing_store.h"
 

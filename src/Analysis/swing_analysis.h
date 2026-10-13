@@ -19,7 +19,7 @@
 #pragma once
 
 #include "analysis_versions.h"
-#include "address_marks.h"
+#include "../Body/address_marks.h"
 
 #include <QHash>
 #include <QMetaType>
@@ -35,11 +35,11 @@
 
 #include "types.h"   // pinpoint::SourceId, kInvalidSourceId
 #include "segment_role.h"            // SegmentRole, segmentRoleName, placement role names
-#include "wrist_assessment_result.h"   // PpWristFinding (Tier-2 offline assessment)
-#include "kinematic_sequence.h"        // KinematicSequence (segment_rates.h fills it)
-#include "dtl_shaft_track.h"          // DtlShaftTrack2D (DtlShaftStage fills it; OpenCV-free)
-#include "shaft_fusion.h"             // fusion::Track3D (ShaftFusionStage fills it; pure std)
-#include "skeleton3d/skeleton3d_fit.h" // skeleton3d::FitResult (Skeleton3DStage fills it; pure std)
+#include "../Wrist/wrist_assessment_result.h" // PpWristFinding (Tier-2 offline assessment)
+#include "../Kinematics/kinematic_sequence.h" // KinematicSequence (segment_rates.h fills it)
+#include "../Club/dtl_shaft_track.h"  // DtlShaftTrack2D (DtlShaftStage fills it; OpenCV-free)
+#include "../Club/shaft_fusion.h"     // fusion::Track3D (ShaftFusionStage fills it; pure std)
+#include "../Skeleton3d/skeleton3d_fit.h" // skeleton3d::FitResult (Skeleton3DStage fills it; pure std)
 #include "../Pose/pose_timing.h"    // PoseTiming (AnalysisTimings pose split; header-only, Qt Core)
 
 // Canonical intermediate + output data structures for the shot analyzer

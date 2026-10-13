@@ -9,9 +9,9 @@
 // rag[] arrays were hand-authored and are NOT reproducible from a clean band rule, so they are not
 // asserted verbatim.
 
-#include "../reference_bands.h"
-#include "../wrist_assessment_engine.h"
-#include "../wrist_assessment_fixtures.h"
+#include "../../Wrist/reference_bands.h"
+#include "../../Wrist/wrist_assessment_engine.h"
+#include "../../Wrist/wrist_assessment_fixtures.h"
 
 #include <cstdio>
 

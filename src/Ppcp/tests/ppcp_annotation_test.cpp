@@ -314,28 +314,40 @@ TEST(PpcpAnnotations, NothingInAnalysisReadsAnAnnotation)
     // instant on a shot — and the analysis ladder is full of code that wants
     // labelled instants.  Reading one would turn a user's drawing into an
     // observation and every metric downstream would inherit it.
-    const fs::path analysis = fs::path(PP_PPCP_SRC_DIR) / ".." / "Analysis";
-    ASSERT_TRUE(fs::exists(analysis)) << analysis.string();
+    //
+    // The analysis code is no longer one folder: src/Analysis holds the pipeline, and its
+    // producers live in the topic folders beside it. Every one of them is scanned.
+    static const char *const kAnalysisDirs[] = {
+        "Analysis", "Club", "Wrist", "Body", "Timeline", "Ball", "Kinematics", "Skeleton3d",
+        "Coaching", "Pose", "IMU", "LaunchMonitor", "Metrics",
+    };
 
     std::vector<std::string> offenders;
-    std::error_code ec;
-    for (fs::recursive_directory_iterator it(analysis, ec), end; it != end; it.increment(ec)) {
-        if (ec) break;
-        if (!it->is_regular_file()) continue;
-        const std::string ext = it->path().extension().string();
-        if (ext != ".h" && ext != ".cpp" && ext != ".hpp") continue;
-        std::ifstream f(it->path());
-        std::string line;
-        while (std::getline(f, line)) {
-            if (line.find("#include") == std::string::npos) continue;
-            if (line.find("ppcp/markup.h") != std::string::npos
-                || line.find("ppcp_annotation_store.h") != std::string::npos
-                || line.find("markup_truth.h") != std::string::npos
-                || line.find("markup_controller.h") != std::string::npos) {
-                offenders.push_back(it->path().string() + ": " + line);
+    int scanned = 0;
+    for (const char *dir : kAnalysisDirs) {
+        const fs::path analysis = fs::path(PP_PPCP_SRC_DIR) / ".." / dir;
+        ASSERT_TRUE(fs::exists(analysis)) << analysis.string();
+        std::error_code ec;
+        for (fs::recursive_directory_iterator it(analysis, ec), end; it != end; it.increment(ec)) {
+            if (ec) break;
+            if (!it->is_regular_file()) continue;
+            const std::string ext = it->path().extension().string();
+            if (ext != ".h" && ext != ".cpp" && ext != ".hpp") continue;
+            ++scanned;
+            std::ifstream f(it->path());
+            std::string line;
+            while (std::getline(f, line)) {
+                if (line.find("#include") == std::string::npos) continue;
+                if (line.find("ppcp/markup.h") != std::string::npos
+                    || line.find("ppcp_annotation_store.h") != std::string::npos
+                    || line.find("markup_truth.h") != std::string::npos
+                    || line.find("markup_controller.h") != std::string::npos) {
+                    offenders.push_back(it->path().string() + ": " + line);
+                }
             }
         }
     }
+    EXPECT_GT(scanned, 0) << "the analysis folders were actually scanned";
     EXPECT_TRUE(offenders.empty())
         << "src/Analysis must not read an Annotation (I37). Found:\n"
         << [&] { std::string s; for (const auto &o : offenders) s += "  " + o + "\n"; return s; }();

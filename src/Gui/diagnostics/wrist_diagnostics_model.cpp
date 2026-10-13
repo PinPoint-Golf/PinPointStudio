@@ -18,10 +18,10 @@
 
 #include "wrist_diagnostics_model.h"
 
-#include "../Analysis/wrist_analysis_adapter.h"
-#include "../Analysis/wrist_assessment_engine.h"
-#include "../Analysis/wrist_assessment_fixtures.h"
-#include "../Analysis/wrist_dof_metadata.h"
+#include "../Wrist/wrist_analysis_adapter.h"
+#include "../Wrist/wrist_assessment_engine.h"
+#include "../Wrist/wrist_assessment_fixtures.h"
+#include "../Wrist/wrist_dof_metadata.h"
 
 #include <QVariantMap>
 

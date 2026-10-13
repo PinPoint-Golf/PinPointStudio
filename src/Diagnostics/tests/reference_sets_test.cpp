@@ -11,10 +11,10 @@
 //   cmake --build build/analyzer-tests --target reference_sets_test
 //   ctest --test-dir build/analyzer-tests -R reference_sets --output-on-failure
 
-#include "../characteristic_pack.h"
-#include "../drill_pack.h"
-#include "../reference_pack.h"
-#include "../screen_pack.h"
+#include "../packs/characteristic_pack.h"
+#include "../packs/drill_pack.h"
+#include "../packs/reference_pack.h"
+#include "../packs/screen_pack.h"
 
 #include <QFile>
 #include <QJsonArray>

@@ -9,10 +9,10 @@
 //
 //   ctest --test-dir <build> -R diag_uncertainty --output-on-failure
 
-#include "../characteristic_engine.h"
-#include "../measure_sample.h"
-#include "../relation_resolver.h"
-#include "../../Analysis/diagnostic_ledger.h"
+#include "../engine/characteristic_engine.h"
+#include "../measures/measure_sample.h"
+#include "../engine/relation_resolver.h"
+#include "../../Coaching/diagnostic_ledger.h"
 
 #include <QJsonArray>
 #include <QJsonObject>

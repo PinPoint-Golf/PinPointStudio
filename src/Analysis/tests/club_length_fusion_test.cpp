@@ -1,11 +1,11 @@
 // Standalone tests for the multi-estimator club-length fusion + persistent prior
-// (src/Analysis/club_length_fusion.h). Pure scalar math, no fixture, no OpenCV.
+// (src/Club/club_length_fusion.h). Pure scalar math, no fixture, no OpenCV.
 // Synthetic candidate sets with hand-computable expectations.
 //
 //   cmake --build build/analyzer-tests --target club_length_fusion_test
 //   ctest --test-dir build/analyzer-tests -R club_length_fusion --output-on-failure
 
-#include "../club_length_fusion.h"
+#include "../../Club/club_length_fusion.h"
 
 #include <cstdio>
 #include <vector>

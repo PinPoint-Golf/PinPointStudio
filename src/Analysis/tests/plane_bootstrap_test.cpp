@@ -5,8 +5,8 @@
 //
 //   ctest --test-dir <build> -R plane_bootstrap --output-on-failure
 
-#include "../shaft_plane.h"
-#include "../shaft_fusion.h"
+#include "../../Club/shaft_plane.h"
+#include "../../Club/shaft_fusion.h"
 #include "../det_rng.h"
 
 #include <cmath>

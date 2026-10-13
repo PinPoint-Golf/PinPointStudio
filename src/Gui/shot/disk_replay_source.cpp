@@ -34,10 +34,10 @@
 
 #include "../Core/pp_debug.h"
 #include "../../Export/swing_doc.h"   // takeJustWritten — the document we may have just written
-#include "../../Analysis/kinematic_sequence_json.h"   // retimeKinematicSequence — one shape, three paths
+#include "../../Kinematics/kinematic_sequence_json.h" // retimeKinematicSequence — one shape, three paths
 #include "../markup/markup_truth.h"                   // streamLooksDownTheLine — the setup-less DTL rule
 #include "dtl_overlay_payload.h"                      // dtlOverlayDetail — the DTL tile's overlay
-#include "../../Analysis/address_marks_json.h"        // viewMarksPayload — the coach lines' edges
+#include "../../Body/address_marks_json.h"            // viewMarksPayload — the coach lines' edges
 #include "../../Analysis/uncertainty_json.h"          // copyPhaseSampleSigma — σ keys, one spelling
 
 namespace {

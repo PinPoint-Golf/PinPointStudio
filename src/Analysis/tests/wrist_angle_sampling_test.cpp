@@ -10,9 +10,9 @@
 // gap) with the threshold as the single tunable knob; a left-handed swing mirrors to its
 // right-handed twin; and the whole thing is deterministic run-to-run.
 
-#include "../wrist_assessment_contract.h"
-#include "../wrist_angle_sampler.h"
-#include "../wrist_assessment_fixtures.h"
+#include "../../Wrist/wrist_assessment_contract.h"
+#include "../../Wrist/wrist_angle_sampler.h"
+#include "../../Wrist/wrist_assessment_fixtures.h"
 
 #include <cmath>
 #include <cstdio>

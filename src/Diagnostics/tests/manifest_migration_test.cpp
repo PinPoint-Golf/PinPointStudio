@@ -12,8 +12,8 @@
 //   cmake --build build/analyzer-tests --target manifest_migration_test
 //   ctest --test-dir build/analyzer-tests -R manifest_migration --output-on-failure
 
-#include "../metric_corridor.h"
-#include "../pack_provider.h"
+#include "../norms/metric_corridor.h"
+#include "../packs/pack_provider.h"
 #include "../../Metrics/metric_catalogue.h"
 
 #include <cmath>

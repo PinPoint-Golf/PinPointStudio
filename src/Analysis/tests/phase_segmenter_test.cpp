@@ -30,7 +30,7 @@
 #include <QQuaternion>
 #include <QVector3D>
 
-#include "../phase_segmenter.h"
+#include "../../Timeline/phase_segmenter.h"
 
 using namespace pinpoint::analysis;
 

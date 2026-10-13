@@ -7,8 +7,8 @@
 //   cmake --build build/analyzer-tests --target shaft_decide_test
 //   ctest --test-dir build/analyzer-tests -R shaft_decide --output-on-failure
 
-#include "../shaft_track_assembly.h"
-#include "../shaft_hand_clean.h"
+#include "../../Club/shaft_track_assembly.h"
+#include "../../Club/shaft_hand_clean.h"
 
 #include <opencv2/imgproc.hpp>   // cv::line/circle for the Phase-B synthetic frames
 

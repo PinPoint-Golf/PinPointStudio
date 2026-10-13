@@ -6,7 +6,7 @@
 //   cmake --build build/analyzer-tests --target clubhead_measure_test
 //   ctest --test-dir build/analyzer-tests -R clubhead_measure --output-on-failure
 
-#include "../clubhead_track.h"
+#include "../../Club/clubhead_track.h"
 
 #include <opencv2/imgproc.hpp>
 

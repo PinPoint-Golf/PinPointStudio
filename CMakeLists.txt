@@ -826,7 +826,9 @@ target_include_directories(PinPointStudio PRIVATE
     src/Gui/media src/Gui/calibration src/Gui/diagnostics src/Gui/markup
     src/Gui/characteristics src/Gui/diagnosticmodel src/Gui/launchmonitor src/Gui/print
     src/IMU src/LaunchMonitor src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer
-    src/Analysis src/Metrics src/Diagnostics
+    src/Analysis src/Club src/Wrist src/Body src/Timeline src/Ball src/Kinematics src/Skeleton3d
+    src/Coaching src/Metrics
+    src/Diagnostics/engine src/Diagnostics/packs src/Diagnostics/norms src/Diagnostics/measures
     src/Update
     "${CMAKE_BINARY_DIR}/generated")
 
@@ -2840,106 +2842,106 @@ target_sources(PinPointStudio PRIVATE
     src/Export/session_archiver.cpp
     src/Analysis/swing_analysis.h
     src/Analysis/analysis_stage.h
-    src/Analysis/wrist_angles.h
-    src/Analysis/metric_extractor.h
-    src/Analysis/metric_extractor.cpp
-    src/Analysis/imu_vision_fuser.h
-    src/Analysis/imu_vision_fuser.cpp
+    src/Wrist/wrist_angles.h
+    src/Wrist/metric_extractor.h
+    src/Wrist/metric_extractor.cpp
+    src/IMU/imu_vision_fuser.h
+    src/IMU/imu_vision_fuser.cpp
     src/Analysis/stream_trim.h
-    src/Analysis/hm_binding_recon.h
-    src/Analysis/phase_segmenter.h
-    src/Analysis/phase_segmenter.cpp
-    src/Analysis/phase_signals.h
-    src/Analysis/phase_signals.cpp
-    src/Analysis/shaft_tracker_math.h
-    src/Analysis/shaft_tracker_math.cpp
-    src/Analysis/shaft_track_assembly.h
-    src/Analysis/shaft_track_assembly.cpp
-    src/Analysis/shaft_track_shared.h
-    src/Analysis/shaft_frame_io.h
+    src/IMU/hm_binding_recon.h
+    src/Timeline/phase_segmenter.h
+    src/Timeline/phase_segmenter.cpp
+    src/Timeline/phase_signals.h
+    src/Timeline/phase_signals.cpp
+    src/Club/shaft_tracker_math.h
+    src/Club/shaft_tracker_math.cpp
+    src/Club/shaft_track_assembly.h
+    src/Club/shaft_track_assembly.cpp
+    src/Club/shaft_track_shared.h
+    src/Club/shaft_frame_io.h
     # Down-the-line shaft tracker (dtl_shaft_tracker_design.md). Run in the app by
     # DtlShaftStage (analysis_pipeline.cpp) and by swinglab_run --dtl, through the one
     # witness builder and the one clubDtl/1 writer.
-    src/Analysis/dtl_shaft_track.h
-    src/Analysis/dtl_shaft_types.h
-    src/Analysis/dtl_posture.h
-    src/Analysis/shaft_fusion.h
-    src/Analysis/shaft_fusion_json.h
-    src/Analysis/dtl_face_on_witness.h
-    src/Analysis/dtl_face_on_witness.cpp
-    src/Analysis/dtl_shaft_json.h
-    src/Analysis/dtl_shaft_json.cpp
-    src/Analysis/dtl_shaft_config.h
-    src/Analysis/dtl_shaft_decide.h
-    src/Analysis/dtl_shaft_decide.cpp
-    src/Analysis/dtl_shaft_post.h
-    src/Analysis/dtl_shaft_post.cpp
-    src/Analysis/dtl_shaft_tracker.h
-    src/Analysis/dtl_shaft_tracker.cpp
-    src/Analysis/clubhead_track.h
-    src/Analysis/clubhead_track.cpp
-    src/Analysis/pose_smoother.h
-    src/Analysis/pose_smoother.cpp
-    src/Analysis/head_track.h
-    src/Analysis/head_track.cpp
-    src/Analysis/foot_metrics.h
-    src/Analysis/foot_metrics.cpp
-    src/Analysis/lower_body_metrics.cpp
-    src/Analysis/metric_channel.h
-    src/Analysis/series_reduce.h
-    src/Analysis/series_reduce_metric.h
-    src/Analysis/upper_body_metrics.h
-    src/Analysis/upper_body_metrics.cpp
-    src/Analysis/body_rotation.h
-    src/Analysis/body_rotation.cpp
-    src/Analysis/angular_rate.h
-    src/Analysis/kinematic_sequence.h
-    src/Analysis/kinematic_sequence_json.h
-    src/Analysis/segment_rates.h
-    src/Analysis/segment_rates.cpp
+    src/Club/dtl_shaft_track.h
+    src/Club/dtl_shaft_types.h
+    src/Body/dtl_posture.h
+    src/Club/shaft_fusion.h
+    src/Club/shaft_fusion_json.h
+    src/Club/dtl_face_on_witness.h
+    src/Club/dtl_face_on_witness.cpp
+    src/Club/dtl_shaft_json.h
+    src/Club/dtl_shaft_json.cpp
+    src/Club/dtl_shaft_config.h
+    src/Club/dtl_shaft_decide.h
+    src/Club/dtl_shaft_decide.cpp
+    src/Club/dtl_shaft_post.h
+    src/Club/dtl_shaft_post.cpp
+    src/Club/dtl_shaft_tracker.h
+    src/Club/dtl_shaft_tracker.cpp
+    src/Club/clubhead_track.h
+    src/Club/clubhead_track.cpp
+    src/Pose/pose_smoother.h
+    src/Pose/pose_smoother.cpp
+    src/Body/head_track.h
+    src/Body/head_track.cpp
+    src/Body/foot_metrics.h
+    src/Body/foot_metrics.cpp
+    src/Body/lower_body_metrics.cpp
+    src/Metrics/metric_channel.h
+    src/Metrics/series_reduce.h
+    src/Metrics/series_reduce_metric.h
+    src/Body/upper_body_metrics.h
+    src/Body/upper_body_metrics.cpp
+    src/Body/body_rotation.h
+    src/Body/body_rotation.cpp
+    src/Kinematics/angular_rate.h
+    src/Kinematics/kinematic_sequence.h
+    src/Kinematics/kinematic_sequence_json.h
+    src/Kinematics/segment_rates.h
+    src/Kinematics/segment_rates.cpp
     src/Analysis/recorded_products.h
     src/Analysis/recorded_products.cpp
-    src/Analysis/club_delivery.h
-    src/Analysis/club_delivery.cpp
-    src/Analysis/ball_position.h
-    src/Analysis/ball_position.cpp
-    src/Analysis/tempo_metrics.h
-    src/Analysis/tempo_metrics.cpp
-    src/Analysis/hand_axis.h
-    src/Analysis/pose_wrist_angle_source.h
-    src/Analysis/pose_wrist_angle_source.cpp
-    src/Analysis/shaft_tracker.h
-    src/Analysis/shaft_tracker.cpp
-    src/Analysis/ball_anchor.h
-    src/Analysis/ball_anchor.cpp
-    src/Analysis/event_refine.h
-    src/Analysis/event_refine.cpp
+    src/Club/club_delivery.h
+    src/Club/club_delivery.cpp
+    src/Ball/ball_position.h
+    src/Ball/ball_position.cpp
+    src/Timeline/tempo_metrics.h
+    src/Timeline/tempo_metrics.cpp
+    src/Pose/hand_axis.h
+    src/Wrist/pose_wrist_angle_source.h
+    src/Wrist/pose_wrist_angle_source.cpp
+    src/Club/shaft_tracker.h
+    src/Club/shaft_tracker.cpp
+    src/Club/ball_anchor.h
+    src/Club/ball_anchor.cpp
+    src/Timeline/event_refine.h
+    src/Timeline/event_refine.cpp
     src/Analysis/swing_scorer.h
     src/Analysis/swing_scorer.cpp
-    src/Analysis/wrist_resemblance.h
-    src/Analysis/wrist_resemblance.cpp
-    src/Analysis/score_uncertainty.h
-    src/Analysis/score_uncertainty.cpp
+    src/Wrist/wrist_resemblance.h
+    src/Wrist/wrist_resemblance.cpp
+    src/Wrist/score_uncertainty.h
+    src/Wrist/score_uncertainty.cpp
     src/Analysis/analysis_pipeline.h
     src/Analysis/analysis_pipeline.cpp
-    src/Analysis/skeleton3d/ybot_rig.h
-    src/Analysis/skeleton3d/skeleton3d_rig.h
-    src/Analysis/skeleton3d/skeleton3d_fit.h
-    src/Analysis/skeleton3d/skeleton3d_fit.cpp
-    src/Analysis/skeleton3d/skeleton3d_json.h
+    src/Skeleton3d/ybot_rig.h
+    src/Skeleton3d/skeleton3d_rig.h
+    src/Skeleton3d/skeleton3d_fit.h
+    src/Skeleton3d/skeleton3d_fit.cpp
+    src/Skeleton3d/skeleton3d_json.h
     src/Analysis/analysis_profiling.h
     src/Analysis/analysis_profiling.cpp
-    src/Analysis/kinematic_series.h
-    src/Analysis/kinematic_series.cpp
-    src/Analysis/pose_runner.h
-    src/Analysis/pose_runner.cpp
-    src/Analysis/ball_runner.h
-    src/Analysis/ball_runner.cpp
+    src/Kinematics/kinematic_series.h
+    src/Kinematics/kinematic_series.cpp
+    src/Pose/pose_runner.h
+    src/Pose/pose_runner.cpp
+    src/Ball/ball_runner.h
+    src/Ball/ball_runner.cpp
     src/Analysis/frame_store.h
     src/Analysis/frame_store.cpp
-    src/Analysis/impact_runner.h
-    src/Analysis/impact_runner.cpp
-    src/Analysis/ball_baseline_io.h
+    src/Ball/impact_runner.h
+    src/Ball/impact_runner.cpp
+    src/Ball/ball_baseline_io.h
     src/Analysis/shot_analyzer.h
     src/Analysis/shot_analyzer.cpp
     src/Analysis/swing_reanalyzer.h
@@ -3227,7 +3229,7 @@ endif()
 # The skeleton3d solver (Skeleton3DStage) is dense small-matrix Eigen: unoptimised it is ~20×
 # slower, which a Debug app tree would feel on every shot. Optimised and assert-free in every
 # configuration on the compilers that allow it per file (MSVC's /RTC1 forbids /O2 alongside).
-set_source_files_properties(src/Analysis/skeleton3d/skeleton3d_fit.cpp PROPERTIES
+set_source_files_properties(src/Skeleton3d/skeleton3d_fit.cpp PROPERTIES
     COMPILE_DEFINITIONS "EIGEN_NO_DEBUG"
     COMPILE_OPTIONS "$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-O2>")
 
@@ -3241,35 +3243,35 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/mp4_frame_reader.cpp   # the MP4 reader it builds (decode.*)
         src/Analysis/shot_analyzer.cpp
         src/Analysis/analysis_pipeline.cpp
-        src/Analysis/skeleton3d/skeleton3d_fit.cpp
+        src/Skeleton3d/skeleton3d_fit.cpp
         src/Analysis/analysis_profiling.cpp
-        src/Analysis/kinematic_series.cpp
-        src/Analysis/imu_vision_fuser.cpp
-        src/Analysis/phase_segmenter.cpp
-        src/Analysis/phase_signals.cpp
-        src/Analysis/metric_extractor.cpp
+        src/Kinematics/kinematic_series.cpp
+        src/IMU/imu_vision_fuser.cpp
+        src/Timeline/phase_segmenter.cpp
+        src/Timeline/phase_signals.cpp
+        src/Wrist/metric_extractor.cpp
         src/Analysis/swing_scorer.cpp
-        src/Analysis/wrist_resemblance.cpp
-        src/Analysis/score_uncertainty.cpp
+        src/Wrist/wrist_resemblance.cpp
+        src/Wrist/score_uncertainty.cpp
         # Tier-2 wrist assessment (offline known-groups, ShotAnalysisJob::runAssessment)
-        src/Analysis/wrist_analysis_adapter.cpp
-        src/Analysis/wrist_assessment_engine.cpp
-        src/Analysis/assessment_rules.cpp
-        src/Analysis/reference_bands.cpp
+        src/Wrist/wrist_analysis_adapter.cpp
+        src/Wrist/wrist_assessment_engine.cpp
+        src/Wrist/assessment_rules.cpp
+        src/Wrist/reference_bands.cpp
         # reference_bands.cpp hosts NormBandProvider — the corridors it used to compile in are now
         # content in src/Resources/diagnostics/norms.json, so the offline stack needs the norm
         # stack too. Omit these and swinglab_run / in-app re-analyse fail at link time.
-        src/Diagnostics/pack_io.cpp
-        src/Diagnostics/norm.cpp
-        src/Diagnostics/norm_pack.cpp
-        src/Diagnostics/context_tree.cpp
-        src/Diagnostics/characteristic_pack.cpp
-        src/Diagnostics/characteristic.cpp
-        src/Diagnostics/measure_facets.cpp
-        src/Diagnostics/anatomy_vocabulary.cpp
-        src/Diagnostics/resource_norm_provider.cpp
-        src/Diagnostics/file_norm_provider.cpp
-        src/Diagnostics/merged_norm_provider.cpp
+        src/Diagnostics/engine/pack_io.cpp
+        src/Diagnostics/norms/norm.cpp
+        src/Diagnostics/norms/norm_pack.cpp
+        src/Diagnostics/norms/context_tree.cpp
+        src/Diagnostics/packs/characteristic_pack.cpp
+        src/Diagnostics/engine/characteristic.cpp
+        src/Diagnostics/measures/measure_facets.cpp
+        src/Diagnostics/measures/anatomy_vocabulary.cpp
+        src/Diagnostics/norms/resource_norm_provider.cpp
+        src/Diagnostics/norms/file_norm_provider.cpp
+        src/Diagnostics/norms/merged_norm_provider.cpp
         # screens.json and drills.json are embedded into every offline target by
         # pinpoint_add_diagnostics_resources below, so their loaders belong here too — otherwise the
         # offline binaries carry two reference sets no code in them can read, which looks like
@@ -3278,37 +3280,37 @@ if(PINPOINT_BUILD_TOOLS)
         # Nothing offline CALLS them yet, so the linker drops the code and the binaries do not grow.
         # What this buys is that the day a diagnosis runs in swinglab_run — where a
         # TestRecommendation has to resolve its screenRef to a protocol — the link does not fail.
-        src/Diagnostics/screen_pack.cpp
-        src/Diagnostics/drill_pack.cpp
-        src/Diagnostics/reference_pack.cpp
-        src/Analysis/pose_runner.cpp
-        src/Analysis/ball_runner.cpp
+        src/Diagnostics/packs/screen_pack.cpp
+        src/Diagnostics/packs/drill_pack.cpp
+        src/Diagnostics/packs/reference_pack.cpp
+        src/Pose/pose_runner.cpp
+        src/Ball/ball_runner.cpp
         src/Analysis/frame_store.cpp
-        src/Analysis/impact_runner.cpp
-        src/Analysis/shaft_tracker.cpp
-        src/Analysis/ball_anchor.cpp
-        src/Analysis/event_refine.cpp
-        src/Analysis/shaft_tracker_math.cpp
-        src/Analysis/shaft_track_assembly.cpp
+        src/Ball/impact_runner.cpp
+        src/Club/shaft_tracker.cpp
+        src/Club/ball_anchor.cpp
+        src/Timeline/event_refine.cpp
+        src/Club/shaft_tracker_math.cpp
+        src/Club/shaft_track_assembly.cpp
         # DTL shaft tracker — DtlShaftStage and swinglab_run --dtl (§5.11).
-        src/Analysis/dtl_face_on_witness.cpp
-        src/Analysis/dtl_shaft_json.cpp
-        src/Analysis/dtl_shaft_decide.cpp
-        src/Analysis/dtl_shaft_post.cpp
-        src/Analysis/dtl_shaft_tracker.cpp
-        src/Analysis/clubhead_track.cpp
-        src/Analysis/pose_smoother.cpp
-        src/Analysis/head_track.cpp
-        src/Analysis/foot_metrics.cpp
-        src/Analysis/lower_body_metrics.cpp
-        src/Analysis/upper_body_metrics.cpp
-        src/Analysis/body_rotation.cpp
-        src/Analysis/segment_rates.cpp
+        src/Club/dtl_face_on_witness.cpp
+        src/Club/dtl_shaft_json.cpp
+        src/Club/dtl_shaft_decide.cpp
+        src/Club/dtl_shaft_post.cpp
+        src/Club/dtl_shaft_tracker.cpp
+        src/Club/clubhead_track.cpp
+        src/Pose/pose_smoother.cpp
+        src/Body/head_track.cpp
+        src/Body/foot_metrics.cpp
+        src/Body/lower_body_metrics.cpp
+        src/Body/upper_body_metrics.cpp
+        src/Body/body_rotation.cpp
+        src/Kinematics/segment_rates.cpp
         src/Analysis/recorded_products.cpp
-        src/Analysis/club_delivery.cpp
-        src/Analysis/ball_position.cpp
-        src/Analysis/tempo_metrics.cpp
-        src/Analysis/pose_wrist_angle_source.cpp
+        src/Club/club_delivery.cpp
+        src/Ball/ball_position.cpp
+        src/Timeline/tempo_metrics.cpp
+        src/Wrist/pose_wrist_angle_source.cpp
         src/Metrics/metric_catalogue.cpp
         src/Metrics/metric_resolver.cpp
         src/Metrics/metric_catalogue_manifest.cpp
@@ -3336,6 +3338,7 @@ if(PINPOINT_BUILD_TOOLS)
     function(pinpoint_configure_offline_target tgt)
         target_include_directories(${tgt} PRIVATE
             src/Buffer src/Analysis src/Metrics src/Export src/Pose src/Core src/IMU
+            src/Club src/Wrist src/Body src/Timeline src/Ball src/Kinematics src/Skeleton3d src/Coaching
             # src/Export/swing_doc.h includes launch_monitor_reading.h, so every
             # consumer of it needs this — the app target got it when the reading
             # was added, these offline targets did not.

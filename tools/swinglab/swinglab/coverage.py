@@ -27,7 +27,7 @@ PHASE_LABEL = {
 }
 
 # Pack reducer phase TOKEN -> Phase enum int. The token vocabulary is
-# phaseToken() (src/Diagnostics/measure_facets.cpp:74-101): phaseLabel() then
+# phaseToken() (src/Diagnostics/measures/measure_facets.cpp:74-101): phaseLabel() then
 # `.remove(' ')` then lower-case the FIRST character only — it does not
 # camel-case a multi-word label, so Phase::MaxSpeed ("max speed") tokenises to
 # "maxspeed", not "maxSpeed". Lookups below lower() the incoming token so a
@@ -60,7 +60,7 @@ def _phase_int(token):
 
 def _needed_tokens(reducer):
     """Phase tokens a reducer needs PRESENT to resolve — mirrors
-    reduceOverGrid's phase requirements (src/Diagnostics/measure_sample.cpp:219-289):
+    reduceOverGrid's phase requirements (src/Diagnostics/measures/measure_sample.cpp:219-289):
     'at' reads the anchor; 'delta'/'rate' run anchor -> window's end (window[1]);
     'extremum' searches window[0]..window[1], plus the anchor when set (for the
     signed-deviation form)."""

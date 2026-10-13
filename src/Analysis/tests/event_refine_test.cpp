@@ -12,7 +12,7 @@
 //   cmake --build build/analyzer-tests --target event_refine_test
 //   ctest --test-dir build/analyzer-tests -R event_refine --output-on-failure
 
-#include "../event_refine.h"
+#include "../../Timeline/event_refine.h"
 
 #include <QPointF>
 #include <QString>

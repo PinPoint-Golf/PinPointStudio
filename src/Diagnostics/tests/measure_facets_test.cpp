@@ -6,7 +6,7 @@
 //   cmake --build build/analyzer-tests --target measure_facets_test
 //   ctest --test-dir build/analyzer-tests -R measure_facets --output-on-failure
 
-#include "../measure_facets.h"
+#include "../measures/measure_facets.h"
 
 #include <cstdio>
 #include <set>

@@ -41,7 +41,7 @@
     "something is true of a full swing and NOT of a pitch.",
     "",
     "The wrist-grid rows below were migrated from the compiled table that used to live in",
-    "src/Analysis/reference_bands.cpp. That table, both of its providers and the parity gate",
+    "src/Wrist/reference_bands.cpp. That table, both of its providers and the parity gate",
     "that pinned this file to it are all gone (stage 9): THIS FILE is the only place those",
     "corridors exist, and nothing pins them any more. Re-seat them here.",
     "",

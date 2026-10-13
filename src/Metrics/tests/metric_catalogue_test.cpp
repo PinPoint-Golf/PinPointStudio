@@ -9,7 +9,7 @@
 // gating, IMU-role gating, club-track / face-on gating).
 //
 // NOT corridors. The catalogue no longer judges a metric — a corridor resolves through the norm set
-// (Diagnostics/metric_corridor.h) and is gated by manifest_migration_test.
+// (Diagnostics/norms/metric_corridor.h) and is gated by manifest_migration_test.
 
 #include "metric_catalogue.h"
 #include "launch_monitor_reading.h"

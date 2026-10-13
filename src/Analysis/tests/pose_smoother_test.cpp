@@ -27,7 +27,7 @@
 //   cmake --build build/analyzer-tests --target pose_smoother_test
 //   ctest --test-dir build/analyzer-tests -R pose_smoother --output-on-failure
 
-#include "../pose_smoother.h"
+#include "../../Pose/pose_smoother.h"
 
 #include <QVariantMap>
 

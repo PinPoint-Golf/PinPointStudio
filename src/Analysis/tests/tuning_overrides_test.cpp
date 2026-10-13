@@ -7,13 +7,13 @@
 //   ctest --test-dir build/analyzer-tests -R tuning_overrides_test --output-on-failure
 
 #include "../swing_scorer.h"
-#include "../wrist_assessment_tuning.h"
-#include "../reference_bands.h"
+#include "../../Wrist/wrist_assessment_tuning.h"
+#include "../../Wrist/reference_bands.h"
 #include "../analysis_tuning.h"
-#include "../ball_position.h"
-#include "../event_refine.h"
-#include "../kinematic_series.h"
-#include "../tempo_metrics.h"
+#include "../../Ball/ball_position.h"
+#include "../../Timeline/event_refine.h"
+#include "../../Kinematics/kinematic_series.h"
+#include "../../Timeline/tempo_metrics.h"
 #include "../../Core/pp_tuned_constants.h"
 
 #include <QVariantMap>

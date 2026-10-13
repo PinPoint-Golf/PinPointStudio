@@ -17,7 +17,7 @@
 // the Phase 1.3 unification, where both sites are touched.
 
 #include "../../IMU/imu_calibration.h"
-#include "../wrist_angles.h"
+#include "../../Wrist/wrist_angles.h"
 
 #include <QQuaternion>
 #include <QVector3D>

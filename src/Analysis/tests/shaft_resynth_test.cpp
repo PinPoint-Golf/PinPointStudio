@@ -25,7 +25,7 @@
 // runs from the first anchor's θ to the last's; and a track with fewer than two anchors
 // or fewer than two samples gets an EMPTY synth rather than an invented one.
 
-#include "../shaft_track_assembly.h"
+#include "../../Club/shaft_track_assembly.h"
 
 #include <cmath>
 #include <cstdio>

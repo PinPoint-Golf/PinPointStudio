@@ -1,12 +1,12 @@
 // Standalone tests for the W3 club-corridor activity helper
-// (src/Analysis/ball_activity.h): the annulus + per-pixel temporal-median math
+// (src/Ball/ball_activity.h): the annulus + per-pixel temporal-median math
 // BallRunner uses to score "is the club moving near the ball". No video fixture —
 // synthetic CV_8U crops with hand-computable expectations.
 //
 //   cmake --build build/analyzer-tests --target ball_activity_test
 //   ctest --test-dir build/analyzer-tests -R ball_activity --output-on-failure
 
-#include "../ball_activity.h"
+#include "../../Ball/ball_activity.h"
 
 #include <opencv2/core.hpp>
 

@@ -33,18 +33,18 @@
 #include "session_controller.h"
 #include "shot_list_model.h"
 #include "shot_outcome.h"
-#include "../Analysis/club_length_fusion.h"
+#include "../Club/club_length_fusion.h"
 #include "../Analysis/uncertainty_json.h"
-#include "../Analysis/imu_refusion_check.h"
+#include "../IMU/imu_refusion_check.h"
 #include "../Analysis/capture_integrity_check.h"
-#include "../Analysis/imu_vision_fuser.h"
-#include "../Analysis/phase_segmenter.h"
+#include "../IMU/imu_vision_fuser.h"
+#include "../Timeline/phase_segmenter.h"
 #include "../Analysis/swing_analysis.h"
 #include "../IMU/hm_frame.h"          // isSelected() — no frame, no binding
 #include "../Export/swing_doc.h"
-#include "../Analysis/kinematic_sequence_json.h"   // kinematicSequenceToJson — one shape, three paths
-#include "../Analysis/address_marks_json.h"        // viewMarksPayload — the coach lines' edges
-#include "../Analysis/dtl_shaft_json.h"            // dtlShaftTrackToJson — the clubDtl/1 shape
+#include "../Kinematics/kinematic_sequence_json.h" // kinematicSequenceToJson — one shape, three paths
+#include "../Body/address_marks_json.h"            // viewMarksPayload — the coach lines' edges
+#include "../Club/dtl_shaft_json.h"                // dtlShaftTrackToJson — the clubDtl/1 shape
 #include "dtl_overlay_payload.h"                   // dtlOverlayDetail — the DTL tile's overlay
 #include "../Core/club_vocabulary.h"
 #include "../Core/pp_debug.h"

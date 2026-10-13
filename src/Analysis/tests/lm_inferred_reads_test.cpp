@@ -10,7 +10,7 @@
 //   cmake --build build/analysis-tests --target lm_inferred_reads_test
 //   ctest --test-dir build/analysis-tests -R lm_inferred_reads --output-on-failure
 
-#include "../lm_inferred_reads.h"
+#include "../../LaunchMonitor/lm_inferred_reads.h"
 
 #include <cstdio>
 #include <limits>

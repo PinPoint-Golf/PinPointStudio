@@ -18,8 +18,8 @@
 
 #pragma once
 
-#include "../../Analysis/diagnostic_ledger.h"
-#include "../../Diagnostics/norm.h"
+#include "../../Coaching/diagnostic_ledger.h"
+#include "../../Diagnostics/norms/norm.h"
 
 #include <algorithm>
 #include <cmath>

@@ -25,13 +25,13 @@
 
 #include "model_browser.h"
 
-#include "../characteristic_pack.h"
-#include "../pack_provider.h"
-#include "../norm_provider.h"
-#include "../measure_facets.h"
-#include "../anatomy_vocabulary.h"
-#include "../drill_pack.h"
-#include "../screen_pack.h"
+#include "../packs/characteristic_pack.h"
+#include "../packs/pack_provider.h"
+#include "../norms/norm_provider.h"
+#include "../measures/measure_facets.h"
+#include "../measures/anatomy_vocabulary.h"
+#include "../packs/drill_pack.h"
+#include "../packs/screen_pack.h"
 
 #include <QCoreApplication>
 #include <QDir>

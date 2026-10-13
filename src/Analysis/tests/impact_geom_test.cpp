@@ -1,5 +1,5 @@
 // Standalone tests for the P7 club-at-ball impact geometry
-// (src/Analysis/impact_geom.h): the theta==theta_ball crossing detector, the
+// (src/Club/impact_geom.h): the theta==theta_ball crossing detector, the
 // anchor-vs-geometry decision, and the P6-window knock-on through
 // locatePTimes. Pure 1-D math, no fixture, no Qt/OpenCV. Synthetic profiles
 // with hand-placed crossings.
@@ -7,8 +7,8 @@
 //   cmake --build build/analyzer-tests --target impact_geom_test
 //   ctest --test-dir build/analyzer-tests -R impact_geom --output-on-failure
 
-#include "../impact_geom.h"
-#include "../shaft_positions.h"
+#include "../../Club/impact_geom.h"
+#include "../../Club/shaft_positions.h"
 
 #include <cmath>
 #include <cstdio>

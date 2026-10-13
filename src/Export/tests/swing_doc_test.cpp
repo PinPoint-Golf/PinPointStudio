@@ -6,11 +6,11 @@
 #include "../swing_paths.h"
 #include "../swing_store.h"
 #include "../../LaunchMonitor/gcquad_csv_parser.h"
-#include "../../Analysis/imu_refusion_check.h"   // ImuRefusionVerdict (header-only)
+#include "../../IMU/imu_refusion_check.h"   // ImuRefusionVerdict (header-only)
 #include "../../Analysis/capture_integrity_check.h"   // CaptureIntegrityVerdict (header-only)
 #include "../../Analysis/swing_analysis.h"
 #include "../../Analysis/recorded_products.h"   // the club / ladder readers this file round-trips
-#include "../../Analysis/dtl_shaft_json.h"      // dtlShaftTrackToJson — analysis.clubDtl's builder
+#include "../../Club/dtl_shaft_json.h"      // dtlShaftTrackToJson — analysis.clubDtl's builder
 
 // Stub — avoids linking swing_paths.cpp (which pulls in the PpLogStream logging deps).
 // SwingDocReader::latestSessionDir() (the only sanitise() user) isn't exercised here.
@@ -1582,22 +1582,29 @@ int main()
     // it first annoyed. The quoted literal is what a reader would have to write.
     {
         std::printf("\n-- origin is provenance: nothing in src/Analysis reads it --\n");
-        const QString analysisDir = QStringLiteral(PP_SRC_DIR) + QStringLiteral("/Analysis");
+        // src/Analysis holds the pipeline; its producers live in the topic folders beside it.
+        static const char *const kAnalysisDirs[] = {
+            "Analysis", "Club", "Wrist", "Body", "Timeline", "Ball", "Kinematics", "Skeleton3d",
+            "Coaching", "Pose", "IMU", "LaunchMonitor", "Metrics",
+        };
         QStringList offenders;
-        QDirIterator it(analysisDir, QStringList{ QStringLiteral("*.cpp"), QStringLiteral("*.h") },
-                        QDir::Files, QDirIterator::Subdirectories);
         int scanned = 0;
-        while (it.hasNext()) {
-            const QString f = it.next();
-            QFile in(f);
-            if (!in.open(QIODevice::ReadOnly)) continue;
-            ++scanned;
-            int lineNo = 0;
-            while (!in.atEnd()) {
-                const QString line = QString::fromUtf8(in.readLine());
-                ++lineNo;
-                if (line.contains(QStringLiteral("\"origin\"")))
-                    offenders << (f + QStringLiteral(":%1").arg(lineNo));
+        for (const char *dir : kAnalysisDirs) {
+            const QString analysisDir = QStringLiteral(PP_SRC_DIR) + QLatin1Char('/') + QLatin1String(dir);
+            QDirIterator it(analysisDir, QStringList{ QStringLiteral("*.cpp"), QStringLiteral("*.h") },
+                            QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                const QString f = it.next();
+                QFile in(f);
+                if (!in.open(QIODevice::ReadOnly)) continue;
+                ++scanned;
+                int lineNo = 0;
+                while (!in.atEnd()) {
+                    const QString line = QString::fromUtf8(in.readLine());
+                    ++lineNo;
+                    if (line.contains(QStringLiteral("\"origin\"")))
+                        offenders << (f + QStringLiteral(":%1").arg(lineNo));
+                }
             }
         }
         check(scanned > 0, "the analysis tree was actually scanned");

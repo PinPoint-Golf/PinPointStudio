@@ -29,7 +29,7 @@
 //
 // AND, since Phase 2 of docs/design/metric_presentation_honesty.md, the summary reducers — which
 // is now the larger half of this file. ChartMetrics::summaryMasked no longer computes anything
-// itself: it marshals the QML bridge's arrays into a src/Analysis/series_reduce.h SeriesView and
+// itself: it marshals the QML bridge's arrays into a src/Metrics/series_reduce.h SeriesView and
 // delegates to the four shared reducers the diagnostics engine grades with. What is at risk there
 // is therefore not arithmetic in this class but the CONTRACT — which reducer answers which key,
 // what happens when one of them cannot answer at all, and whether an invalid sample is really

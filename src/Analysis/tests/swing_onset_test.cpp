@@ -8,8 +8,8 @@
 //   cmake --build build/analyzer-tests --target swing_onset_test
 //   ctest --test-dir build/analyzer-tests -R swing_onset --output-on-failure
 
-#include "../shaft_track_assembly.h"
-#include "../shaft_positions.h"
+#include "../../Club/shaft_track_assembly.h"
+#include "../../Club/shaft_positions.h"
 
 #include <cmath>
 #include <cstdint>

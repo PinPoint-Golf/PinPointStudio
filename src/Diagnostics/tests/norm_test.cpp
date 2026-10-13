@@ -1,4 +1,4 @@
-// Standalone tests for the norm value types and the grade rule (src/Diagnostics/norm.h).
+// Standalone tests for the norm value types and the grade rule (src/Diagnostics/norms/norm.h).
 //
 // Two behaviours carry the whole design and are tested hardest:
 //
@@ -12,7 +12,7 @@
 //   cmake --build build/analyzer-tests --target norm_test
 //   ctest --test-dir build/analyzer-tests -R norm_test --output-on-failure
 
-#include "../norm.h"
+#include "../norms/norm.h"
 
 #include <cstdio>
 #include <limits>

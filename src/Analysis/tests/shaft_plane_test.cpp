@@ -1,11 +1,11 @@
-// Standalone tests for the face-on swing-plane conic (src/Analysis/shaft_plane.h
+// Standalone tests for the face-on swing-plane conic (src/Club/shaft_plane.h
 // — the port of tools/shaftlab/plane_probe.py fit_ellipse/head_path_plane).
 // Pure std, no fixture.
 //
 //   cmake --build build/analyzer-tests --target shaft_plane_test
 //   ctest --test-dir build/analyzer-tests -R shaft_plane_test --output-on-failure
 
-#include "../shaft_plane.h"
+#include "../../Club/shaft_plane.h"
 
 #include <cmath>
 #include <cstdio>

@@ -63,8 +63,8 @@
 //   §13 THE PEAK TIMES `sequence_order` reads: placed pelvis/thorax nodes only, ms relative to
 //       impact (negative before), σ = σ_t.
 
-#include "../segment_rates.h"
-#include "../kinematic_sequence_json.h"
+#include "../../Kinematics/segment_rates.h"
+#include "../../Kinematics/kinematic_sequence_json.h"
 
 #include <QJsonArray>
 #include <QJsonObject>

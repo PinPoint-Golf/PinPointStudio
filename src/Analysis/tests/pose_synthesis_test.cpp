@@ -1,12 +1,12 @@
 // Standalone tests for the motion-overlay pose synthesis
-// (src/Analysis/pose_synthesis.h): C¹ Hermite temporal upsampling of the
+// (src/Pose/pose_synthesis.h): C¹ Hermite temporal upsampling of the
 // offline-smoothed skeleton onto a dense grid, viz-only. Synthetic frames, no
 // fixture, no OpenCV (Qt only, for QPointF/PoseFrame2D).
 //
 //   cmake --build build/analyzer-tests --target pose_synthesis_test
 //   ctest --test-dir build/analyzer-tests -R pose_synthesis --output-on-failure
 
-#include "../pose_synthesis.h"
+#include "../../Pose/pose_synthesis.h"
 
 #include <cmath>
 #include <cstdio>

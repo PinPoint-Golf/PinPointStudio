@@ -18,7 +18,7 @@
 
 #include "metric_catalog.h"
 
-#include "../../Diagnostics/metric_corridor.h"
+#include "../../Diagnostics/norms/metric_corridor.h"
 #include "../../Metrics/setup_capability.h"
 
 using namespace pinpoint::analysis;

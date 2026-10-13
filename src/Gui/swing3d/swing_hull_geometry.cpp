@@ -30,7 +30,7 @@
 #include <cstring>
 #include <vector>
 
-#include "../../Analysis/skeleton3d/skeleton3d_rig.h"
+#include "../../Skeleton3d/skeleton3d_rig.h"
 
 namespace sk = pinpoint::skeleton3d;
 

@@ -48,8 +48,8 @@
 
 #include "shot_analyzer.h"      // ShotAnalysisJob
 #include "swing_analysis.h"     // Segmentation, MetricSeries, BallTrack2D, SwingAnalysis, SegmentRole, ImuSegmentBinding
-#include "imu_vision_fuser.h"   // FusedStreams
-#include "pose_runner.h"        // ShotAnalysisRunnerOptions
+#include "../IMU/imu_vision_fuser.h" // FusedStreams
+#include "../Pose/pose_runner.h" // ShotAnalysisRunnerOptions
 
 namespace pinpoint { class SwingWindow; }
 

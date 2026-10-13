@@ -42,7 +42,7 @@
 //
 // WHAT IT DOES NOT DO: decide which club a shot was hit with (LmSessionModel's effective club),
 // or what colour anything is (theme roles, in QML). It maps a club LABEL to a head through
-// lmClubHead() in src/Analysis/lm_club_evidence.h — the same function the club evidence rule
+// lmClubHead() in src/LaunchMonitor/lm_club_evidence.h — the same function the club evidence rule
 // checks families with — so the drawing and the rule can never disagree about what "3 WOOD" is.
 class LmClubArt : public QObject
 {

@@ -18,13 +18,13 @@
 
 #include "model_browser.h"
 
-#include "../../Diagnostics/corridor_plot.h"
-#include "../../Diagnostics/dag_layout.h"
-#include "../../Diagnostics/diagnostics_health.h"
-#include "../../Diagnostics/drill_pack.h"
-#include "../../Diagnostics/measure_sample.h"
-#include "../../Diagnostics/reference_pack.h"
-#include "../../Diagnostics/screen_pack.h"
+#include "../../Diagnostics/norms/corridor_plot.h"
+#include "../../Diagnostics/engine/dag_layout.h"
+#include "../../Diagnostics/engine/diagnostics_health.h"
+#include "../../Diagnostics/packs/drill_pack.h"
+#include "../../Diagnostics/measures/measure_sample.h"
+#include "../../Diagnostics/packs/reference_pack.h"
+#include "../../Diagnostics/packs/screen_pack.h"
 
 #include <QDateTime>
 #include <QFile>

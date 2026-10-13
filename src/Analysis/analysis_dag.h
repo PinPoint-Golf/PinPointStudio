@@ -88,7 +88,7 @@ inline const std::vector<std::vector<QString>> &stageSerialGroups()
     return k;
 }
 
-// StageEdge, not DagEdge: src/Diagnostics/dag_layout.h already declares a
+// StageEdge, not DagEdge: src/Diagnostics/engine/dag_layout.h already declares a
 // pinpoint::analysis::DagEdge (the diagnostics graph's drawn edge, larger, with a QString).
 // Two inline constructors of one mangled name is an ODR violation the linker resolves to
 // whichever it meets first — in the app that was the diagnostics one, whose constructor

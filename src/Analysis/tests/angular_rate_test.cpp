@@ -27,7 +27,7 @@
 // (the local fit IS a quadratic, so this is a no-tolerance check), its behaviour on an irregular
 // grid, and the domain edge flag.
 
-#include "../angular_rate.h"
+#include "../../Kinematics/angular_rate.h"
 
 #include <cmath>
 #include <cstdio>

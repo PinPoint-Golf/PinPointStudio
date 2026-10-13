@@ -26,8 +26,8 @@
 // deflection. Those two are the same picture in a face-on projection and the
 // whole reason the channel is a difference rather than a position.
 
-#include "../lower_body_metrics.h"
-#include "../metric_channel.h"   // channelValidityMask / nearestIndex — §6d and §6e test them directly
+#include "../../Body/lower_body_metrics.h"
+#include "../../Metrics/metric_channel.h" // channelValidityMask / nearestIndex — §6d and §6e test them directly
 
 #include <algorithm>
 #include <cmath>

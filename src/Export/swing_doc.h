@@ -30,7 +30,7 @@ namespace pinpoint::analysis { struct SwingAnalysis; struct ImpactTrack2D; struc
 
 namespace pinpoint {
 
-struct ImuRefusionVerdict;   // Analysis/imu_refusion_check.h — by pointer, so this
+struct ImuRefusionVerdict;   // IMU/imu_refusion_check.h — by pointer, so this
                              // header need not drag the filter/refuser chain in.
 struct CaptureIntegrityVerdict;   // Analysis/capture_integrity_check.h — same reason.
 

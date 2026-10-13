@@ -25,7 +25,7 @@
 // NOT A TEST, not registered with ctest — precedent: rank_shift_report, regrade_ledger.
 
 #include "Gui/diagnostics/session_diagnostics_model.h"
-#include "Diagnostics/pack_provider.h"
+#include "Diagnostics/packs/pack_provider.h"
 
 #include <QCoreApplication>
 #include <QDir>

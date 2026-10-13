@@ -27,7 +27,7 @@ Method choices (all small enough to port to hand-written C++):
   * Matching across resamples: Hungarian assignment on |congruence|.
   * Random numbers: theme_rng (std::mt19937_64, as the app's DetRng), ONE seed per replicate —
     parallel-analysis shuffle i from seed_for(1, i), bootstrap replicate b from seed_for(2, b) — so
-    the C++ port (src/Analysis/swing_themes.h) draws the same rows; make_golden.py pins it.
+    the C++ port (src/Coaching/swing_themes.h) draws the same rows; make_golden.py pins it.
   * numpy only, so it runs under `python3 -I`; the PNG is drawn only if matplotlib imports.
 
     python3 -I tools/themes/theme_pca.py [--out DIR] [--boot 500]

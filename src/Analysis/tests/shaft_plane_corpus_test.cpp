@@ -18,7 +18,7 @@
 // Point it elsewhere without reconfiguring:
 //   PINPOINT_PLANE_CORPUS=/some/run/root ./shaft_plane_corpus_test
 
-#include "../shaft_plane.h"
+#include "../../Club/shaft_plane.h"
 
 #include <QByteArray>
 #include <QDir>

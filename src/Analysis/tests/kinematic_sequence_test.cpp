@@ -6,7 +6,7 @@
 //   cmake --build build/analyzer-tests --target kinematic_sequence_test
 //   ctest --test-dir build/analyzer-tests -R kinematic_sequence --output-on-failure
 
-#include "../kinematic_sequence.h"
+#include "../../Kinematics/kinematic_sequence.h"
 
 #include <cmath>
 #include <cstdio>

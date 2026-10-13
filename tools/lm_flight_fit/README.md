@@ -1,6 +1,6 @@
 # lm_flight_fit
 
-Refits the aero constants in `LmFlightModel` (`src/Analysis/lm_flight_path.h`): `cd0`, `cdS`,
+Refits the aero constants in `LmFlightModel` (`src/LaunchMonitor/lm_flight_path.h`): `cd0`, `cdS`,
 `clS`, `clS2` and `clMax`. The target is every GC Quad shot in the corpus that reports carry,
 peak height and descent.
 
@@ -48,7 +48,7 @@ To reproduce its numbers, build the same tool against that header:
 
 ```sh
 mkdir -p "$TMPDIR/oldhdr"
-git show 16f12352:src/Analysis/lm_flight_path.h > "$TMPDIR/oldhdr/lm_flight_path.h"
+git show 16f12352:src/LaunchMonitor/lm_flight_path.h > "$TMPDIR/oldhdr/lm_flight_path.h"
 c++ -O2 -std=c++17 -I "$TMPDIR/oldhdr" tools/lm_flight_fit/lm_flight_fit.cpp -o "$TMPDIR/lm_flight_fit_old"
 "$TMPDIR/lm_flight_fit_old" "$TMPDIR/gcquad_shots.csv" --eval 0.255 0.16 1.90 3.25 0.45
 ```

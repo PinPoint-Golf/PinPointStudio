@@ -1,10 +1,10 @@
-// Standalone test for the sighted-band rule (src/Analysis/dtl_shaft_bands.h): the §5.8
+// Standalone test for the sighted-band rule (src/Club/dtl_shaft_bands.h): the §5.8
 // minimum and the band-EDGE rule of dtl_continuous_track_design_update.md §3.1. Pure
 // std over a sighted / end-on / well-sighted pattern, no frame, no witness.
 //
 //   cmake --build build/tests --target dtl_shaft_bands_test
 //   ctest --test-dir build/tests -R dtl_shaft_bands_test --output-on-failure
-#include "../dtl_shaft_bands.h"
+#include "../../Club/dtl_shaft_bands.h"
 #include <cstdio>
 #include <string>
 using namespace pinpoint::analysis::dtlbands;

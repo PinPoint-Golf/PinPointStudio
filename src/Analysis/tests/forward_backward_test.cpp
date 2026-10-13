@@ -4,7 +4,7 @@
 //
 //   ctest --test-dir <build> -R forward_backward --output-on-failure
 
-#include "../shaft_track_shared.h"
+#include "../../Club/shaft_track_shared.h"
 
 #include <cmath>
 #include <cstdio>

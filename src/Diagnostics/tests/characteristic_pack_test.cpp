@@ -8,9 +8,9 @@
 //   cmake --build build/analyzer-tests --target characteristic_pack_test
 //   ctest --test-dir build/analyzer-tests -R characteristic_pack --output-on-failure
 
-#include "../characteristic_pack.h"
+#include "../packs/characteristic_pack.h"
 
-#include "../enum_table_p.h"   // the shared enum-table machinery — see the UTF-8 label check below
+#include "../engine/enum_table_p.h" // the shared enum-table machinery — see the UTF-8 label check below
 
 #include <QDate>
 #include <QJsonArray>

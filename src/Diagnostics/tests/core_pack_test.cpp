@@ -7,11 +7,11 @@
 //   cmake --build build/analyzer-tests --target core_pack_test
 //   ctest --test-dir build/analyzer-tests -R core_pack --output-on-failure
 
-#include "../characteristic_pack.h"
-#include "../context_tree.h"
-#include "../norm_pack.h"
-#include "../pack_provider.h"
-#include "../reference_pack.h"
+#include "../packs/characteristic_pack.h"
+#include "../norms/context_tree.h"
+#include "../norms/norm_pack.h"
+#include "../packs/pack_provider.h"
+#include "../packs/reference_pack.h"
 
 #include <QDir>
 #include <QFile>

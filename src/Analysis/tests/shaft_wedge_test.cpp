@@ -1,12 +1,12 @@
 // Standalone tests for the R8-T1 blur-wedge plateau measure
-// (src/Analysis/shaft_wedge.h — contiguous-run finder, energy-weighted
+// (src/Club/shaft_wedge.h — contiguous-run finder, energy-weighted
 // circular centroid, absolute-threshold honesty, arm-smear veto). Pure std,
 // synthetic score rows, no fixture.
 //
 //   cmake --build build/analyzer-tests --target shaft_wedge_test
 //   ctest --test-dir build/analyzer-tests -R shaft_wedge --output-on-failure
 
-#include "../shaft_wedge.h"
+#include "../../Club/shaft_wedge.h"
 
 #include <cmath>
 #include <cstdio>

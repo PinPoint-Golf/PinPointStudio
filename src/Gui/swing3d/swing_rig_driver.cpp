@@ -27,8 +27,8 @@
 #include <cmath>
 
 #include "swing_annotation_mesh.h"
-#include "../../Analysis/skeleton3d/skeleton3d_json.h"
-#include "../../Analysis/skeleton3d/skeleton3d_rig.h"
+#include "../../Skeleton3d/skeleton3d_json.h"
+#include "../../Skeleton3d/skeleton3d_rig.h"
 #include "../../Export/swing_store.h"
 
 namespace sk = pinpoint::skeleton3d;

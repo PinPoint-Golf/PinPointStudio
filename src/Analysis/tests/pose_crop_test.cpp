@@ -17,10 +17,10 @@
  */
 
 // Standalone test for the WB1 swing-level person-crop geometry
-// (src/Analysis/pose_crop.h): union bbox → 15 % margin → 3:4 aspect → clamp →
+// (src/Pose/pose_crop.h): union bbox → 15 % margin → 3:4 aspect → clamp →
 // integer pixels, plus the full-frame fallback guards and fromOverrides plumbing.
 
-#include "../pose_crop.h"
+#include "../../Pose/pose_crop.h"
 
 #include <cstdio>
 

@@ -16,8 +16,8 @@
 // that run produces IS the old ordering, exactly. No `ExplainOptions`, and nothing reimplements the
 // greedy pass, so what is measured is the code that ships rather than a copy of it.
 
-#include "../characteristic_pack.h"
-#include "../relation_resolver.h"
+#include "../packs/characteristic_pack.h"
+#include "../engine/relation_resolver.h"
 
 #include <QFile>
 

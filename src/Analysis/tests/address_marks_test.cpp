@@ -5,7 +5,7 @@
 //   cmake --build build/tests --target address_marks_test
 //   ctest --test-dir build/tests -R address_marks_test --output-on-failure
 
-#include "../address_marks.h"
+#include "../../Body/address_marks.h"
 
 #include <cstdio>
 #include <opencv2/imgproc.hpp>

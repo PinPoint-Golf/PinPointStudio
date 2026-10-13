@@ -2,7 +2,7 @@
 """wrist_cock_fit.py -- fit and grade the wrist-cock table the shaft tracker
 already uses to predict the club from the arm.
 
-src/Analysis/shaft_kinematics.h predicts the club direction as
+src/Club/shaft_kinematics.h predicts the club direction as
 
     theta_hat(f) = phi_arm(f) + chir * beta_hat(s(f))
 
@@ -63,7 +63,7 @@ from theta_psi_model import (  # noqa: E402  - the conventions live there, once
 )
 
 # ---------------------------------------------------------------------------
-# The shipped table (src/Analysis/shaft_kinematics.h kWristCockKnots), verbatim.
+# The shipped table (src/Club/shaft_kinematics.h kWristCockKnots), verbatim.
 # Kept here as the baseline every candidate must beat; a divergence between this
 # and the header is itself a bug, and --emit-header regenerates the header form.
 SHIPPED_KNOTS = [

@@ -25,7 +25,7 @@
 #include <QString>
 #include <opencv2/core.hpp>
 
-#include "../Analysis/pose_pipeline.h"   // InstanceCache — the pose session's process-wide cache
+#include "pose_pipeline.h"               // InstanceCache — the pose session's process-wide cache
 
 // Lightweight person segmentation using a dedicated ONNX model.
 //

@@ -61,7 +61,7 @@
 #include <cmath>
 #include <string>
 
-#include "shaft_fusion.h"   // fusion::Vec3, kPi
+#include "../Club/shaft_fusion.h" // fusion::Vec3, kPi
 
 namespace pinpoint::analysis::calib {
 

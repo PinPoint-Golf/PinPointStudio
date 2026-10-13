@@ -20,9 +20,9 @@
 //   cmake --build build/tests --target dtl_shaft_post_test
 //   ctest --test-dir build/tests -R dtl_shaft_post --output-on-failure
 
-#include "../dtl_shaft_post.h"
-#include "../shaft_track_shared.h"   // snapSearch, for the raw-channel control
-#include "../dtl_shaft_json.h"       // dtlShaftTrackToJson — C8 asks the summary of the JSON
+#include "../../Club/dtl_shaft_post.h"
+#include "../../Club/shaft_track_shared.h" // snapSearch, for the raw-channel control
+#include "../../Club/dtl_shaft_json.h" // dtlShaftTrackToJson — C8 asks the summary of the JSON
 
 #include <opencv2/imgproc.hpp>
 

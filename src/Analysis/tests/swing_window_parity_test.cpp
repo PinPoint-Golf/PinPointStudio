@@ -72,7 +72,7 @@
 #include "swing_doc.h"
 #include "swing_exporter.h"
 
-#include "imu_vision_fuser.h"
+#include "../../IMU/imu_vision_fuser.h"
 #include "swing_reanalyzer.h"
 #include "analysis_pipeline.h"
 

@@ -2,9 +2,9 @@
 // over-rotation / holding-off mutual exclusion, open-face-at-top suppression (design §7.4).
 // Run: ctest --test-dir build/analyzer-tests -R relationship_rules_test --output-on-failure
 
-#include "../reference_bands.h"
-#include "../wrist_assessment_engine.h"
-#include "../wrist_assessment_fixtures.h"
+#include "../../Wrist/reference_bands.h"
+#include "../../Wrist/wrist_assessment_engine.h"
+#include "../../Wrist/wrist_assessment_fixtures.h"
 
 #include <cstdio>
 

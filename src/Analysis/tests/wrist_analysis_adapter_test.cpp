@@ -8,10 +8,10 @@
 // values/RAG, that a checkpoint whose phase is absent greys out, and that an un-supplied DOF row is
 // not present.
 
-#include "../reference_bands.h"
-#include "../wrist_analysis_adapter.h"
-#include "../wrist_angle_sampler.h"
-#include "../wrist_assessment_engine.h"
+#include "../../Wrist/reference_bands.h"
+#include "../../Wrist/wrist_analysis_adapter.h"
+#include "../../Wrist/wrist_angle_sampler.h"
+#include "../../Wrist/wrist_assessment_engine.h"
 
 #include <QVariantList>
 #include <QVariantMap>

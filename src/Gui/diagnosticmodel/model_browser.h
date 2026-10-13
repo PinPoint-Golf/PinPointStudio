@@ -18,11 +18,11 @@
 
 #pragma once
 
-#include "../../Diagnostics/drill_pack.h"
-#include "../../Diagnostics/measure_sample.h"
-#include "../../Diagnostics/norm_provider.h"
-#include "../../Diagnostics/pack_provider.h"
-#include "../../Diagnostics/screen_pack.h"
+#include "../../Diagnostics/packs/drill_pack.h"
+#include "../../Diagnostics/measures/measure_sample.h"
+#include "../../Diagnostics/norms/norm_provider.h"
+#include "../../Diagnostics/packs/pack_provider.h"
+#include "../../Diagnostics/packs/screen_pack.h"
 #include "../../Metrics/metric_catalogue.h"
 
 #include <QFutureWatcher>

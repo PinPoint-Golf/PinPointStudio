@@ -22,7 +22,7 @@
 #include <cstdint>
 #include <utility>
 
-#include "imu_vision_fuser.h"   // FusedStreams / SegmentStream
+#include "../IMU/imu_vision_fuser.h" // FusedStreams / SegmentStream
 
 // ---------------------------------------------------------------------------
 // trimStreams — restrict the fused streams to the detected swing span

@@ -1,5 +1,5 @@
 // Standalone tests for the analyzer-layer P-position bridge
-// (src/Analysis/positions_ladder.h): the p→Phase mapping (2/3/5/6/8 only —
+// (src/Timeline/positions_ladder.h): the p→Phase mapping (2/3/5/6/8 only —
 // never the 1/4/7/10 anchors), conf/provenance carry-through, time-ordered
 // insertion, the insert-if-monotone/abstain-otherwise contract (missing anchor,
 // outside window, tie with a neighbour), the duplicate-phase skip (IMU proxy
@@ -12,7 +12,7 @@
 //   cmake --build build/analyzer-tests --target positions_ladder_test
 //   ctest --test-dir build/analyzer-tests -R positions_ladder --output-on-failure
 
-#include "../positions_ladder.h"
+#include "../../Timeline/positions_ladder.h"
 
 #include <cstdio>
 #include <vector>

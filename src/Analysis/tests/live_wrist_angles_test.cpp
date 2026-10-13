@@ -20,7 +20,7 @@
 // validity gating. A future tick()-math extraction into a pure helper would let this
 // test call the real code; noted as a Phase-1 refactor candidate.
 
-#include "../wrist_angles.h"
+#include "../../Wrist/wrist_angles.h"
 
 #include <QQuaternion>
 #include <QString>

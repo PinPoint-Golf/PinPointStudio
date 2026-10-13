@@ -29,7 +29,7 @@
 
 #include "types.h"
 #include "swing_analysis.h"
-#include "skeleton3d/skeleton3d_fit.h"
+#include "../Skeleton3d/skeleton3d_fit.h"
 
 namespace pinpoint { class SwingWindow; }
 

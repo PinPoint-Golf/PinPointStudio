@@ -35,7 +35,7 @@
 #include "swing_window.h"
 #include "shot_controller.h"
 #include "hm_instance.h"
-#include "../Analysis/club_length_fusion.h"
+#include "../Club/club_length_fusion.h"
 #include "../Analysis/shot_analyzer.h"
 #include "../Export/swing_exporter.h"
 #include "../Export/swing_paths.h"

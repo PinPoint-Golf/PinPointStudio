@@ -6,7 +6,7 @@
 //   cmake --build build/analyzer-tests --target shaft_hand_axis_prior_test
 //   ctest --test-dir build/analyzer-tests -R shaft_hand_axis_prior --output-on-failure
 
-#include "../shaft_track_assembly.h"
+#include "../../Club/shaft_track_assembly.h"
 
 #include <cmath>
 #include <cstdio>

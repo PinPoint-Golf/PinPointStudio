@@ -87,7 +87,7 @@
 #include "current_swing.h"
 #include "shot_replay_controller.h"
 #include "reanalysis_controller.h"
-#include "../Analysis/pose_runner.h"
+#include "../Pose/pose_runner.h"
 #include "live_wrist_angles.h"
 #include "markup_controller.h"
 #include "markup_image_provider.h"

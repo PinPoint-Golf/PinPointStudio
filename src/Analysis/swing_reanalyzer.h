@@ -26,7 +26,7 @@
 
 #include "swing_window.h"
 #include "shot_analyzer.h"
-#include "imu_refusion_check.h"
+#include "../IMU/imu_refusion_check.h"
 #include "capture_integrity_check.h"
 
 // SwingReanalyzer — reconstruct a SwingWindow from an exported swing folder and

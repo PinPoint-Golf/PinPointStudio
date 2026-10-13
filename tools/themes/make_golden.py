@@ -1,4 +1,4 @@
-"""The golden fixture the C++ swing themes (src/Analysis/swing_themes.h) are tested against.
+"""The golden fixture the C++ swing themes (src/Coaching/swing_themes.h) are tested against.
 
 The Python prototype in this directory is the reference: the same ledgers, the same pack and the
 same random numbers (theme_rng = std::mt19937_64, one seed per replicate) must give the C++ port

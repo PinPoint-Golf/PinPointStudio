@@ -19,7 +19,7 @@ a cached smoothed track is never silently mixed in with the rest.
 Pixels, not normalised units
 ----------------------------
 `kp` is 133 keypoints x 3 floats (x, y, conf), normalised 0..1 against the FULL camera frame.
-src/Analysis/pose_smoother.cpp smoothPoseTrack does `zx = kp.x() * W` with W/H taken from the
+src/Pose/pose_smoother.cpp smoothPoseTrack does `zx = kp.x() * W` with W/H taken from the
 face-on CameraFormat (analysis_pipeline.cpp PoseSmoothStage passes `cfmt->width/height`), so
 aRefPxS2 lives in those pixels and this probe has to use the same ones. In swing.json that
 format is `streams[<camera>].source.{width,height}` for the video streams in camera order

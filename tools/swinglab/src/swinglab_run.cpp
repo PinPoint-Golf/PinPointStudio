@@ -46,7 +46,7 @@
 // Frames come from the raw sidecars (bit-faithful) when present, else the MP4s
 // (decoded to BGR24) — both streamed one frame at a time by SwingDiskSource.
 
-#include "../../../src/Analysis/skeleton3d/skeleton3d_pool.h"
+#include "../../../src/Skeleton3d/skeleton3d_pool.h"
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
@@ -80,15 +80,15 @@
 #include "../../../src/Analysis/shot_analyzer.h"
 #include "../../../src/Analysis/analysis_pipeline.h"   // analysisGraphJson (--dag)
 #include "../../../src/Analysis/swing_reanalyzer.h"
-#include "../../../src/Analysis/ball_runner.h"
-#include "../../../src/Analysis/imu_vision_fuser.h"
-#include "../../../src/Analysis/phase_segmenter.h"
-#include "../../../src/Analysis/pose_runner.h"
-#include "../../../src/Analysis/shaft_tracker.h"
-#include "../../../src/Analysis/dtl_shaft_tracker.h"    // DTL shaft track
-#include "../../../src/Analysis/dtl_face_on_witness.h"  // buildFaceOnWitness — the app's witness
-#include "../../../src/Analysis/dtl_shaft_json.h"       // dtlShaftTrackToJson — club_dtl.json == analysis.clubDtl
-#include "../../../src/Analysis/dtl_shaft_config.h"     // the resolved scalars echoed into club_dtl.json
+#include "../../../src/Ball/ball_runner.h"
+#include "../../../src/IMU/imu_vision_fuser.h"
+#include "../../../src/Timeline/phase_segmenter.h"
+#include "../../../src/Pose/pose_runner.h"
+#include "../../../src/Club/shaft_tracker.h"
+#include "../../../src/Club/dtl_shaft_tracker.h"        // DTL shaft track
+#include "../../../src/Club/dtl_face_on_witness.h"      // buildFaceOnWitness — the app's witness
+#include "../../../src/Club/dtl_shaft_json.h"           // dtlShaftTrackToJson — club_dtl.json == analysis.clubDtl
+#include "../../../src/Club/dtl_shaft_config.h"         // the resolved scalars echoed into club_dtl.json
 #include "../../../src/Export/swing_doc.h"
 #include "../../../src/Export/swing_store.h"
 #include "../../../src/IMU/orientation_filter.h"     // MadgwickFilter (header-only)

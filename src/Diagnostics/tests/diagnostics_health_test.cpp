@@ -16,10 +16,10 @@
 //   cmake --build build/analyzer-tests --target diagnostics_health_test
 //   ctest --test-dir build/analyzer-tests -R diagnostics_health --output-on-failure
 
-#include "../diagnostics_health.h"
-#include "../drill_pack.h"
-#include "../pack_provider.h"
-#include "../screen_pack.h"
+#include "../engine/diagnostics_health.h"
+#include "../packs/drill_pack.h"
+#include "../packs/pack_provider.h"
+#include "../packs/screen_pack.h"
 
 #include <QFile>
 

@@ -22,7 +22,7 @@
 // the refusal contract. Synthetic tracks only, no fixture. Mirrors
 // foot_metrics_test.cpp's structure/style.
 
-#include "../ball_position.h"
+#include "../../Ball/ball_position.h"
 #include "../../Core/pp_physical_constants.h"
 
 #include <cmath>

@@ -544,7 +544,7 @@ reader re-bases them when reconstructing `analysisDetail`.
 The kinematic sequence (`docs/design/kinematic_sequence_design.md`, schema
 `swing_json_schema.md` § `kinematicSequence`) is an **optional, additive** object
 beside `metrics[]`: the ordered peaks over the four segment angular-speed series.
-It is serialised by exactly ONE helper, `src/Analysis/kinematic_sequence_json.h`
+It is serialised by exactly ONE helper, `src/Kinematics/kinematic_sequence_json.h`
 (`kinematicSequenceToJson` / `retimeKinematicSequence`), which the document
 writer (`swing_doc.cpp`), the live `analysisDetail` map (`shot_processor.cpp`)
 and the reload (`disk_replay_source.cpp`) all call — so a live shot, its

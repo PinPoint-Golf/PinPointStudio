@@ -11,10 +11,10 @@
 //   cmake --build build/analyzer-tests --target diagnostics_catalogue_integrity_test
 //   ctest --test-dir build/analyzer-tests -R diagnostics_catalogue_integrity --output-on-failure
 
-#include "../characteristic_pack.h"
-#include "../diagnostics_health.h"    // referenceHealth()
-#include "../norm_pack.h"             // requiredNormSchemaVersion()
-#include "../reference_pack.h"
+#include "../packs/characteristic_pack.h"
+#include "../engine/diagnostics_health.h" // referenceHealth()
+#include "../norms/norm_pack.h"       // requiredNormSchemaVersion()
+#include "../packs/reference_pack.h"
 
 #include "model_browser.h"
 #include "metric_catalogue.h"

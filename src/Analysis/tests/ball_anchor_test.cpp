@@ -7,7 +7,7 @@
 //   cmake --build build/analyzer-tests --target ball_anchor_test
 //   ctest --test-dir build/analyzer-tests -R ball_anchor --output-on-failure
 
-#include "../ball_anchor.h"
+#include "../../Club/ball_anchor.h"
 #include "../shot_analyzer.h"   // ShotAnalysisJob (applyBallAnchor arg)
 
 #include <QPointF>

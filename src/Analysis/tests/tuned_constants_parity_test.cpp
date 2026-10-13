@@ -11,8 +11,8 @@
 #include "../../Core/pp_tuned_constants.h"
 #include "../../IMU/orientation_filter.h"     // MadgwickFilter default beta
 #include "../../IMU/imu_calibration.h"        // nominalArmMount / nominalHandMount
-#include "../wrist_angle_sampler.h"           // PpWristSamplingConfig defaults
-#include "../assessment_rule.h"               // RuleTuning defaults
+#include "../../Wrist/wrist_angle_sampler.h"  // PpWristSamplingConfig defaults
+#include "../../Wrist/assessment_rule.h"      // RuleTuning defaults
 
 #include <cstdio>
 

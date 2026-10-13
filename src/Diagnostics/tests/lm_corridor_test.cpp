@@ -41,13 +41,13 @@
 //   cmake --build build/analysis-tests --target lm_corridor_test
 //   ctest --test-dir build/analysis-tests -R lm_corridor --output-on-failure
 
-#include "../context_tree.h"
-#include "../metric_corridor.h"
-#include "../pack_provider.h"
+#include "../norms/context_tree.h"
+#include "../norms/metric_corridor.h"
+#include "../packs/pack_provider.h"
 
 // The panel's own tuning, so the numbers the pack authored can be checked against it rather than
 // against a second copy written here — see "one classifier, two readers" at the end of main().
-#include "../../Analysis/lm_inferred_reads.h"
+#include "../../LaunchMonitor/lm_inferred_reads.h"
 
 #include <QSet>
 #include <QStringList>

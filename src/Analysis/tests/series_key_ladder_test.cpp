@@ -27,7 +27,7 @@
 // missing anatomy.
 
 #include "../swing_analysis.h"             // findSeriesByLadder, MetricSeries
-#include "../wrist_assessment_types.h"     // dofForMetricKey, PpJointDof
+#include "../../Wrist/wrist_assessment_types.h" // dofForMetricKey, PpJointDof
 
 #include <cstdio>
 #include <vector>

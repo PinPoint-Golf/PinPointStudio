@@ -23,8 +23,8 @@
 //   cmake --build build/analyzer-tests --target dag_layout_test
 //   ctest --test-dir build/analyzer-tests -R dag_layout --output-on-failure
 
-#include "../dag_layout.h"
-#include "../reference_pack.h"
+#include "../engine/dag_layout.h"
+#include "../packs/reference_pack.h"
 
 #include <cstdio>
 #include <set>

@@ -19,7 +19,7 @@
 #pragma once
 
 // SYNTHETIC SESSION CORPUS — a seeded, parameterised generator of ShotRecord sets with
-// PLANTED GROUND TRUTH, for testing src/Analysis/diagnostic_ledger.h.
+// PLANTED GROUND TRUTH, for testing src/Coaching/diagnostic_ledger.h.
 //
 // TEST-SIDE ONLY. This lives in tests/ and ships in nothing. It exists because the design
 // document (§C2.10) calls it the keystone test asset: the ledger's whole job is to decide
@@ -38,7 +38,7 @@
 // land on exactly 0.6, and a test that asserted the request rather than the outcome would
 // be testing the generator's arithmetic instead of the ledger's.
 
-#include "../diagnostic_ledger.h"
+#include "../../Coaching/diagnostic_ledger.h"
 
 #include <QString>
 

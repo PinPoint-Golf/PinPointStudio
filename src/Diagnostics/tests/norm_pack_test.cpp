@@ -13,7 +13,7 @@
 //   cmake --build build/analyzer-tests --target norm_pack_test
 //   ctest --test-dir build/analyzer-tests -R norm_pack_test --output-on-failure
 
-#include "../norm_provider.h"
+#include "../norms/norm_provider.h"
 
 #include <QDir>
 #include <QFile>

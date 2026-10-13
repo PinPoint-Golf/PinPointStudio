@@ -17,7 +17,7 @@
  */
 
 
-// Standalone tests for the down-the-line posture producer (src/Analysis/dtl_posture.h).
+// Standalone tests for the down-the-line posture producer (src/Body/dtl_posture.h).
 // One synthetic golfer seen from down the line, ball image-right: hips that TURN (the two hip
 // joints swap depth, the midpoint stays) and then THRUST 30 px, a trunk that loses 9° of bend,
 // a trail knee that straightens at the top, and a lead wrist that rises 400 px up the inside and
@@ -26,7 +26,7 @@
 //   cmake --build build/tests --target dtl_posture_test
 //   ctest --test-dir build/tests -R dtl_posture_test --output-on-failure
 
-#include "../dtl_posture.h"
+#include "../../Body/dtl_posture.h"
 
 #include <cmath>
 #include <cstdio>

@@ -4,9 +4,9 @@
 // A faulty-but-good-elsewhere swing surfaces the adjacent strengths; the curated default suppresses
 // strengths on a swing with no fault to protect against; the relaxed flag surfaces them anyway.
 
-#include "../reference_bands.h"
-#include "../wrist_assessment_engine.h"
-#include "../wrist_assessment_fixtures.h"
+#include "../../Wrist/reference_bands.h"
+#include "../../Wrist/wrist_assessment_engine.h"
+#include "../../Wrist/wrist_assessment_fixtures.h"
 
 #include <cstdio>
 

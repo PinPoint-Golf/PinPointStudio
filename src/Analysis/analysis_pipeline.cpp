@@ -30,62 +30,62 @@
 #include "analysis_dag.h"           // runStagesParallel / buildStageGraph (analysis.parallel)
 #include "analysis_profiling.h"
 #include "analysis_tuning.h"
-#include "ball_position.h"
-#include "ball_runner.h"
-#include "body_rotation.h"
-#include "impact_runner.h"
-#include "club_delivery.h"
-#include "dtl_face_on_witness.h"
-#include "dtl_shaft_config.h"
-#include "dtl_shaft_json.h"
-#include "shaft_fusion_json.h"   // shaftFusionConfigFromOverrides (ShaftFusionStage)
-#include "dtl_shaft_synth3d.h"   // the 3-D synthetic shaft into the DTL tile (DtlSynth3DStage)
-#include "address_marks.h"       // the body's edges at hip height at address (AddressMarksStage)
+#include "../Ball/ball_position.h"
+#include "../Ball/ball_runner.h"
+#include "../Body/body_rotation.h"
+#include "../Ball/impact_runner.h"
+#include "../Club/club_delivery.h"
+#include "../Club/dtl_face_on_witness.h"
+#include "../Club/dtl_shaft_config.h"
+#include "../Club/dtl_shaft_json.h"
+#include "../Club/shaft_fusion_json.h" // shaftFusionConfigFromOverrides (ShaftFusionStage)
+#include "../Club/dtl_shaft_synth3d.h" // the 3-D synthetic shaft into the DTL tile (DtlSynth3DStage)
+#include "../Body/address_marks.h" // the body's edges at hip height at address (AddressMarksStage)
 #include <opencv2/imgcodecs.hpp>  // the address-marks debug dump
 #include <opencv2/core/utility.hpp>  // cv::getNumThreads (runProfile, analysis.parallel)
 #ifdef HAVE_SEGMENTER
 #include "../Pose/person_segmenter.h"
 #endif
-#include "dtl_posture.h"         // buildDtlPosture (DtlPostureStage)
-#include "dtl_shaft_tracker.h"
-#include "event_refine.h"
-#include "foot_metrics.h"
-#include "upper_body_metrics.h"
-#include "hand_axis.h"
-#include "head_track.h"
-#include "lower_body_metrics.h"
-#include "pose_wrist_angle_source.h"
-#include "imu_vision_fuser.h"
-#include "orientation_refuse_tuning.h"
-#include "metric_extractor.h"
-#include "kinematic_series.h"
-#include "phase_segmenter.h"
-#include "positions_ladder.h"
-#include "pose_runner.h"
-#include "pose_smoother.h"
+#include "../Body/dtl_posture.h" // buildDtlPosture (DtlPostureStage)
+#include "../Club/dtl_shaft_tracker.h"
+#include "../Timeline/event_refine.h"
+#include "../Body/foot_metrics.h"
+#include "../Body/upper_body_metrics.h"
+#include "../Pose/hand_axis.h"
+#include "../Body/head_track.h"
+#include "../Body/lower_body_metrics.h"
+#include "../Wrist/pose_wrist_angle_source.h"
+#include "../IMU/imu_vision_fuser.h"
+#include "../IMU/orientation_refuse_tuning.h"
+#include "../Wrist/metric_extractor.h"
+#include "../Kinematics/kinematic_series.h"
+#include "../Timeline/phase_segmenter.h"
+#include "../Timeline/positions_ladder.h"
+#include "../Pose/pose_runner.h"
+#include "../Pose/pose_smoother.h"
 #include "stream_trim.h"
-#include "pose_synthesis.h"
-#include "segment_rates.h"
-#include "shaft_plane.h"
+#include "../Pose/pose_synthesis.h"
+#include "../Kinematics/segment_rates.h"
+#include "../Club/shaft_plane.h"
 #include "det_rng.h"
-#include "shaft_sigma.h"           // uncertainty budgets (shaft_uncertainty_propagation_design.md)
+#include "../Club/shaft_sigma.h"   // uncertainty budgets (shaft_uncertainty_propagation_design.md)
 #include "uncertainty_config.h"
-#include "skeleton3d/skeleton3d_json.h"
-#include "shaft_tracker.h"
-#include "shaft_frame_io.h"
+#include "../Skeleton3d/skeleton3d_json.h"
+#include "../Club/shaft_tracker.h"
+#include "../Club/shaft_frame_io.h"
 #include "frame_store.h"           // decode.frameStore — FrameDecodeStage and the leases
-#include "shaft_track_assembly.h"   // estimateSwingSpanUs (DtlPose under pose.dtlEarly)
-#include "pose_schedule.h"         // dtlEarlyLadder / selectTwoPassCoarse
-#include "dtl_shaft_lie.h"
-#include "impact_anchor.h"
-#include "tempo_metrics.h"
-#include "timeline_fusion.h"
-#include "wrist_resemblance.h"
-#include "score_uncertainty.h"
-#include "wrist_angles.h"
-#include "wrist_analysis_adapter.h"
-#include "wrist_assessment_engine.h"
-#include "wrist_assessment_tuning.h"
+#include "../Club/shaft_track_assembly.h" // estimateSwingSpanUs (DtlPose under pose.dtlEarly)
+#include "../Pose/pose_schedule.h" // dtlEarlyLadder / selectTwoPassCoarse
+#include "../Club/dtl_shaft_lie.h"
+#include "../Club/impact_anchor.h"
+#include "../Timeline/tempo_metrics.h"
+#include "../Timeline/timeline_fusion.h"
+#include "../Wrist/wrist_resemblance.h"
+#include "../Wrist/score_uncertainty.h"
+#include "../Wrist/wrist_angles.h"
+#include "../Wrist/wrist_analysis_adapter.h"
+#include "../Wrist/wrist_assessment_engine.h"
+#include "../Wrist/wrist_assessment_tuning.h"
 #include "swing_window.h"
 #include "../Core/pp_debug.h"
 #include "../Core/cpu_topology.h"     // physicalCoreCount (the DAG pool, OpenCV threads)

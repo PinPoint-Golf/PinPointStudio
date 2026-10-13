@@ -9,7 +9,7 @@
 //   cmake --build build/analyzer-tests --target characteristic_engine_test
 //   ctest --test-dir build/analyzer-tests -R characteristic_engine --output-on-failure
 
-#include "../relation_resolver.h"
+#include "../engine/relation_resolver.h"
 
 #include <cstdio>
 #include <map>

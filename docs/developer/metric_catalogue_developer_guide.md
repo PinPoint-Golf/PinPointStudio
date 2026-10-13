@@ -2,7 +2,7 @@
 
 The **Metric Catalogue** owns metric *identity + metadata* (label, unit, meaning, requirements) and
 abstracts *which producer computes each metric*. It does **not** own corridors — those are norm-set
-content, resolved through `Diagnostics/metric_corridor.h`; see Step D. It is additive metadata
+content, resolved through `Diagnostics/norms/metric_corridor.h`; see Step D. It is additive metadata
 over the existing `MetricSeries` keys — no `swing.json` schema change. This guide is the recipe for
 adding a new metric so it appears (correctly) in the directory and resolves per shot.
 
@@ -717,7 +717,7 @@ diagnostics-norms work, along with `MetricCatalogue::corridor()`. A corridor is 
    `src/Resources/diagnostics/norms.json` or seat it from real swings in the corridor editor.
 3. **Nothing else is needed.** Every metric surface — `MetricDetail`, `PpBandRail`, the dashboard
    Motion / Setup / Verdict zones — resolves through `corridorForMetricAtPhase()`
-   (`src/Diagnostics/metric_corridor.h`) via `MetricCatalog::descriptor()`, in the shot's own
+   (`src/Diagnostics/norms/metric_corridor.h`) via `MetricCatalog::descriptor()`, in the shot's own
    context. With no measure or no norm it renders "no norm for this metric yet" rather than a fake
    band.
 

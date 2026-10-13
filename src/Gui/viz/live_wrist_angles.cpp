@@ -26,7 +26,7 @@
 #include "hm_instance.h"
 #include "imu_instance.h"
 #include "imu_manager.h"
-#include "../Analysis/wrist_angles.h"
+#include "../Wrist/wrist_angles.h"
 
 using namespace pinpoint::analysis;
 

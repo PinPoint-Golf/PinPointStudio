@@ -7,7 +7,7 @@
 //   cmake --build build/analyzer-tests --target lm_session_reductions_test
 //   ctest --test-dir build/analyzer-tests -R lm_session_reductions --output-on-failure
 
-#include "../lm_session_reductions.h"
+#include "../../LaunchMonitor/lm_session_reductions.h"
 
 #include <cmath>
 #include <cstdio>

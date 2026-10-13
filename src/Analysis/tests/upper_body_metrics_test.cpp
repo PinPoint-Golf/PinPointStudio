@@ -26,7 +26,7 @@
 // the whole suite again through a MIRRORED camera with a left-handed golfer, because a convention
 // that only holds for a right-hander filmed from one side is not a convention.
 
-#include "../upper_body_metrics.h"
+#include "../../Body/upper_body_metrics.h"
 
 #include <algorithm>
 #include <cmath>

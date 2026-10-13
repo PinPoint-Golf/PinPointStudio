@@ -1,11 +1,11 @@
-// The closed-form pieces of the shaft uncertainty budgets (src/Analysis/shaft_sigma.h,
+// The closed-form pieces of the shaft uncertainty budgets (src/Club/shaft_sigma.h,
 // uncertainty_config.h, uncertainty_json.h; shaft_uncertainty_propagation_design.md §5–§7):
 // each checked against a brute-force Monte Carlo or a central finite difference, and the JSON
 // helpers' absent-means-unassessed contract.
 //
 //   ctest --test-dir <build> -R uncertainty_delta --output-on-failure
 
-#include "../shaft_sigma.h"
+#include "../../Club/shaft_sigma.h"
 #include "../uncertainty_config.h"
 #include "../uncertainty_json.h"
 #include "../det_rng.h"

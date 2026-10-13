@@ -1,12 +1,12 @@
 // Standalone tests for Layer C "synthesis between anchors"
-// (src/Analysis/shaft_synthesis.h): C¹ Hermite interpolation of the shaft state
+// (src/Club/shaft_synthesis.h): C¹ Hermite interpolation of the shaft state
 // between located P-anchors, flagged ShaftSynthesized. Synthetic anchors, no
 // fixture, no OpenCV (Qt only, for QPointF/ShaftSample2D).
 //
 //   cmake --build build/analyzer-tests --target shaft_synthesis_test
 //   ctest --test-dir build/analyzer-tests -R shaft_synthesis --output-on-failure
 
-#include "../shaft_synthesis.h"
+#include "../../Club/shaft_synthesis.h"
 
 #include <cmath>
 #include <cstdio>

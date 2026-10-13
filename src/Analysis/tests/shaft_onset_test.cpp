@@ -18,7 +18,7 @@
 //   cmake --build build/analyzer-tests --target shaft_onset_test
 //   ctest --test-dir build/analyzer-tests -R shaft_onset --output-on-failure
 
-#include "../shaft_track_assembly.h"
+#include "../../Club/shaft_track_assembly.h"
 
 #include <QVariantMap>
 #include <cmath>

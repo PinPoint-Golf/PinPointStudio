@@ -18,9 +18,9 @@
 
 #pragma once
 
-#include "../Analysis/reference_bands.h"
-#include "../Analysis/wrist_assessment_contract.h"
-#include "../Analysis/wrist_assessment_result.h"
+#include "../Wrist/reference_bands.h"
+#include "../Wrist/wrist_assessment_contract.h"
+#include "../Wrist/wrist_assessment_result.h"
 #include "../review/timeline_labels.h"
 
 #include <QObject>

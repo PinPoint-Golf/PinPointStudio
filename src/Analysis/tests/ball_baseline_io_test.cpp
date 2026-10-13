@@ -21,7 +21,7 @@
 // w*h float32 into a CV_32F Mat byte-exactly) plus every reject that forces the
 // self-seed fallback — truncated file, missing file, wrong dims, degenerate dims.
 
-#include "../ball_baseline_io.h"
+#include "../../Ball/ball_baseline_io.h"
 
 #include <QByteArray>
 #include <QFile>

@@ -13,14 +13,14 @@
  * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
  */
 
-// Standalone tests for the down-the-line shaft lie producer (src/Analysis/dtl_shaft_lie.h).
+// Standalone tests for the down-the-line shaft lie producer (src/Club/dtl_shaft_lie.h).
 // One synthetic DTL club track at 120 fps: 60° at address, a Held gap, 90° near P3, 66° at
 // impact (steeper by 6°), and a mirrored twin facing the other way that must read the same.
 //
 //   cmake --build build/tests --target dtl_shaft_lie_test
 //   ctest --test-dir build/tests -R dtl_shaft_lie_test --output-on-failure
 
-#include "../dtl_shaft_lie.h"
+#include "../../Club/dtl_shaft_lie.h"
 
 #include <cmath>
 #include <cstdio>

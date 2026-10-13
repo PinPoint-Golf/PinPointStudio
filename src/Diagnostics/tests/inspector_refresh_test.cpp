@@ -41,10 +41,10 @@
 
 #include "model_browser.h"
 
-#include "../pack_provider.h"
-#include "../norm_provider.h"
-#include "../drill_pack.h"
-#include "../screen_pack.h"
+#include "../packs/pack_provider.h"
+#include "../norms/norm_provider.h"
+#include "../packs/drill_pack.h"
+#include "../packs/screen_pack.h"
 
 #include <QCoreApplication>
 #include <QFile>

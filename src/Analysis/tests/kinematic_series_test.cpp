@@ -22,7 +22,7 @@
 // constant-velocity motion so the mph scale and the lag geometry are exact-checkable,
 // plus the product-absent (no shaft / no pose) omission contract and synth preference.
 
-#include "../kinematic_series.h"
+#include "../../Kinematics/kinematic_series.h"
 
 #include <QPointF>
 

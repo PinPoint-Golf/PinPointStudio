@@ -33,16 +33,16 @@
 
 #include "swing_paths.h"
 #include "swing_store.h"
-#include "../Analysis/imu_refusion_check.h"
+#include "../IMU/imu_refusion_check.h"
 #include "../Analysis/capture_integrity_check.h"
-#include "../Analysis/lm_inferred_reads.h"
+#include "../LaunchMonitor/lm_inferred_reads.h"
 #include "../Analysis/swing_analysis.h"
-#include "../Analysis/kinematic_sequence_json.h"   // kinematicSequenceToJson — one shape, three paths
+#include "../Kinematics/kinematic_sequence_json.h" // kinematicSequenceToJson — one shape, three paths
 #include "../Analysis/uncertainty_json.h"         // σ fields — one spelling, four paths
-#include "../Analysis/shaft_fusion_json.h"         // shaftTrack3dToJson — analysis.club3d
-#include "../Analysis/skeleton3d/skeleton3d_json.h" // skeleton3dToJson — analysis.skeleton3d
-#include "../Analysis/dtl_shaft_json.h"            // dtlShaftTrackToJson — analysis.clubDtl == club_dtl.json
-#include "../Analysis/address_marks_json.h"        // addressMarksToJson — analysis.addressMarks
+#include "../Club/shaft_fusion_json.h"             // shaftTrack3dToJson — analysis.club3d
+#include "../Skeleton3d/skeleton3d_json.h" // skeleton3dToJson — analysis.skeleton3d
+#include "../Club/dtl_shaft_json.h"                // dtlShaftTrackToJson — analysis.clubDtl == club_dtl.json
+#include "../Body/address_marks_json.h"            // addressMarksToJson — analysis.addressMarks
 #include "../Core/club_vocabulary.h"
 
 namespace pinpoint {

@@ -18,8 +18,8 @@
 
 #pragma once
 
-#include "../../Diagnostics/norm_provider.h"
-#include "../../Diagnostics/pack_provider.h"
+#include "../../Diagnostics/norms/norm_provider.h"
+#include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Metrics/metric_catalogue.h"
 
 #include <QObject>

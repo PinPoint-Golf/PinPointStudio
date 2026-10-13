@@ -17,7 +17,7 @@
  */
 
 // Standalone test for the plumbing behind pose_inference_performance_plan.md
-// steps 1 and 2 (src/Analysis/pose_pipeline.h), with fakes in place of ViTPose:
+// steps 1 and 2 (src/Pose/pose_pipeline.h), with fakes in place of ViTPose:
 //   - InstanceCache: one object per key, built once, a rejected build not cached,
 //     and the one-user-at-a-time lease;
 //   - runOrderedPipeline: N = 4 producers deliver the IDENTICAL sequence to N = 1
@@ -29,8 +29,8 @@
 //   - step 4 (pose_schedule.h): the face-on selectors pick exactly the frames the old inline
 //     loops did; the zone schedule's edges, strides and fallbacks; the consumer bracket rule.
 
-#include "../pose_pipeline.h"
-#include "../pose_schedule.h"
+#include "../../Pose/pose_pipeline.h"
+#include "../../Pose/pose_schedule.h"
 #include "../../Core/pp_tuned_constants.h"
 
 #include <algorithm>

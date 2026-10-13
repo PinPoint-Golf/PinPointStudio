@@ -27,8 +27,8 @@
 //   cmake --build build/tests --target dtl_shaft_decide_test
 //   ctest --test-dir build/tests -R dtl_shaft_decide --output-on-failure
 
-#include "../dtl_shaft_decide.h"
-#include "../shaft_track_shared.h"   // normScores, for the raw-only control
+#include "../../Club/dtl_shaft_decide.h"
+#include "../../Club/shaft_track_shared.h" // normScores, for the raw-only control
 
 #include <opencv2/imgproc.hpp>
 

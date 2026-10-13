@@ -6,7 +6,7 @@
 //   cmake --build build/analyzer-tests --target clubhead_temporal_test
 //   ctest --test-dir build/analyzer-tests -R clubhead_temporal --output-on-failure
 
-#include "../clubhead_track.h"
+#include "../../Club/clubhead_track.h"
 
 #include <cmath>
 #include <cstdio>

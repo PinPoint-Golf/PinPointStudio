@@ -23,7 +23,7 @@
 // legacy 17-kp no-output contract, and the fromOverrides plumbing. Synthetic
 // tracks only — no fixture. Mirrors head_track_test.cpp's structure/style.
 
-#include "../foot_metrics.h"
+#include "../../Body/foot_metrics.h"
 
 #include <cmath>
 #include <cstdio>

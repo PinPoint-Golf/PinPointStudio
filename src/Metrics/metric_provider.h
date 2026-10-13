@@ -19,7 +19,7 @@
 #pragma once
 
 #include "metric_descriptor.h"  // MetricDescriptor, MetricRoute, MetricRequirement
-#include "reference_bands.h"    // BandContext
+#include "../Wrist/reference_bands.h" // BandContext
 #include "swing_analysis.h"     // SegmentRole, ReconstructionTier
 
 #include <QString>

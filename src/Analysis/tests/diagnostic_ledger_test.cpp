@@ -1,4 +1,4 @@
-// Standalone tests for the session diagnostics ledger (src/Analysis/diagnostic_ledger.h):
+// Standalone tests for the session diagnostics ledger (src/Coaching/diagnostic_ledger.h):
 // the statistical primitives against hand-computed values, every tier and gate boundary,
 // the stage ratchet, all five link grades with both of their caps, chain extraction over a
 // planted corpus, the anti-churn devices, serialisation, one dedicated test per never-do
@@ -9,7 +9,7 @@
 //   cmake --build build/analysis-tests --target diagnostic_ledger_test
 //   ctest --test-dir build/analysis-tests -R diagnostic_ledger --output-on-failure
 
-#include "../diagnostic_ledger.h"
+#include "../../Coaching/diagnostic_ledger.h"
 #include "synthetic_session_corpus.h"
 
 #include <QJsonDocument>

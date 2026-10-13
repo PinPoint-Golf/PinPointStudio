@@ -1,4 +1,4 @@
-// The Layer C synth posterior (src/Analysis/shaft_synthesis.h fitSynthToEvidence(post),
+// The Layer C synth posterior (src/Club/shaft_synthesis.h fitSynthToEvidence(post),
 // synthPosteriorSigma, synthDraws; shaft_uncertainty_propagation_design.md §4.5):
 // the fit's MEAN never moves when a posterior is requested, a stretch with no evidence keeps the
 // Hermite exactly, the closed-form σ matches the draws' spread, and the anchors' σ reaches the
@@ -6,7 +6,7 @@
 //
 //   ctest --test-dir <build> -R synth_posterior --output-on-failure
 
-#include "../shaft_synthesis.h"
+#include "../../Club/shaft_synthesis.h"
 #include "../det_rng.h"
 
 #include <cmath>

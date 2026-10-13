@@ -22,7 +22,7 @@
 // non-square frame), the tilt ramp, the low-confidence gap coasting without NaN,
 // and the fromOverrides plumbing. Synthetic tracks only — no fixture.
 
-#include "../head_track.h"
+#include "../../Body/head_track.h"
 
 #include <cmath>
 #include <cstdio>

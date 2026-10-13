@@ -1,0 +1,542 @@
+/*
+ * Copyright (c) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+#pragma once
+
+#include "../measures/measure_vocabulary.h" // Measure, Shape, Signal — the measurement vocabulary
+
+#include <QDate>
+#include <QHash>
+#include <QString>
+#include <QStringList>
+
+#include <optional>
+#include <vector>
+
+// The value types of a characteristic pack. Header-only, Qt-only, no Qt-GUI.
+//
+// This file carries TWO of the pack's three vocabularies: the CONDITION GRAPH (Condition, Edge,
+// CharacteristicPack — what can go wrong and what causes it) and the PROVENANCE POLICY helpers near
+// the bottom (how well sourced a claim has to be). The third, what a MEASURE is and how a Signal
+// tests it, lives in measure_vocabulary.h — split out so a reader who only needs "what is a Measure"
+// is not also pulled into the causal model.
+//
+// The one structural idea that shapes the graph here: FAULTS AND CAUSES ARE THE SAME TYPE. A
+// Condition is a named state of the swing or the golfer; whether it is a fault or a cause is
+// resolved per-swing by the explanation pass and is never stored. That is what lets a condition be
+// cited by several characteristics AND have causes of its own — early extension causes loss of
+// posture, and both are conditions.
+
+namespace pinpoint::analysis {
+
+// ── Localised narrative ─────────────────────────────────────────────────────
+// Narrative strings are keyed by locale from the start. Localisation itself is out of scope, but
+// retrofitting the key later would be a schema migration across every authored pack.
+struct LocalisedText {
+    QHash<QString, QString> byLocale;   // "en" -> "…"
+
+    bool    isEmpty() const { return byLocale.isEmpty(); }
+    QString text(const QString &locale = QStringLiteral("en")) const
+    {
+        const auto it = byLocale.constFind(locale);
+        if (it != byLocale.constEnd()) return it.value();
+        const auto en = byLocale.constFind(QStringLiteral("en"));
+        return en != byLocale.constEnd() ? en.value() : QString();
+    }
+};
+
+// ── Condition ───────────────────────────────────────────────────────────────
+//
+// The order here is the order the library and the editor list them in, and it is the order of the
+// swing: what you set up, what the body does, what the arms and club do, then the strike and what
+// the ball did about it. BallFlight sits last because an outcome is where an explanation ENDS —
+// the chain runs fault -> strike -> flight, and the golfer reads it from the bottom up.
+enum class ConditionGroup {
+    Setup, Posture, Lateral, ArmsAndClub, Release, Sequence, Impact, Finish, BallFlight
+};
+
+enum class Observability {
+    Observable,   // it can be seen in the swing
+    Latent,       // it cannot; it is inferred from what it explains
+    Both,
+};
+
+// How a condition's signals combine. See Condition::detection.
+enum class DetectionMode {
+    Any,   // the default: alternative routes to one observation, any of which is it
+    All,   // a conjunction: every signal must fire, because no one of them is the condition
+    First, // a preference: the first signal in detectedBy order that can be READ decides alone, and
+           // the rest are fallbacks. For one observation two instruments make at different quality —
+           // flying_elbow reads the down-the-line camera and falls back to face-on, whose shoulder
+           // line collapses at the top. Under Any the two would disagree out loud (a clean DTL
+           // reading beside an unreadable face-on one comes out "unavailable"), and a measure ladder
+           // (Measure::preferKeys) cannot join them because their units differ.
+};
+
+// How a condition can be established. The UI must never blur these three.
+enum class ConfirmedBy {
+    Measured,   // a signal fired — the app knows
+    Screened,   // a physical screen confirms or refutes it; unknown until entered. NEVER measurable
+                // by this product, so never a roadmap item.
+    Asserted,   // only the coach or golfer can confirm it — intent, habit, perception. The app may
+                // OFFER it as an explanation; it must never conclude it.
+};
+
+// How well sourced a claim is — and, just as importantly, whether anybody has LOOKED.
+//
+// `Proposed` and `NoSourceFound` are the pair that carries the most information between them.
+// Collapsed into one value (which is what shipped for a year) the library cannot distinguish "we
+// have not checked this" from "we checked and the literature is silent", and those call for
+// opposite actions: the first is a task, the second is a finding. A null result is a result, and it
+// is only worth anything if it records WHEN it was taken — see `Provenance::searchedOn`.
+//
+// `Indirect` exists because of what golf literature actually contains. A paper will establish that
+// limited hip internal rotation produces greater lumbopelvic compensation; it will not test
+// "early extension", because that is a coaching label and not a measured variable. Filing such a
+// source under Supported would make the citation look like it backs the EDGE when it backs the
+// reasoning behind the edge — the same overclaim in a different costume.
+// `Practice` is the tier for a claim that coaching teaches universally and nobody has tested. That
+// is NOT the same as unsupported — a fault every competent coach works from is evidence of a kind,
+// and filing it as NoSourceFound would throw away the distinction between "the field is silent" and
+// "the field agrees but has never measured it".
+//
+// It carries no citation WHERE THE SOURCE IS A COMMERCIAL SCREENING OR LAUNCH-MONITOR BODY, and
+// there the absence is forced rather than lazy: this repo's standing rule is that the TERMS are
+// common domain while the ATTRIBUTION must not enter the content in any form — not a citation, not
+// an author, not a note. `core_pack_test` greps the raw bytes for exactly that. So the tier records
+// the STATE of the evidence and `searchTerms` records what was looked for; naming who says it is
+// what we cannot do, and it is also the part that carries the least information.
+//
+// It MAY carry one where the source is a PUBLISHED BOOK. Coaching doctrine has a documented
+// literature going back decades, an ISBN names it without naming a vendor, and "the field agrees
+// but has never measured it" is better evidence when we can say who the field is. No code change
+// was needed to permit this — `citationRequired(Practice)` is already false and nothing forbids a
+// citation on the tier — so this comment is the code catching up with what it always allowed, and
+// it is the thing a future author would otherwise get wrong. The guard that keeps it honest sits
+// one tier up: a book citation may not hold `Supported` or `Established` (reference_pack.h).
+enum class ProvenanceTier {
+    Proposed,       // nobody has searched yet. The UI must badge it wherever it appears.
+    NoSourceFound,  // searched, and nothing supports it. Requires `searchedOn` to mean anything.
+    Practice,       // established coaching practice; no peer-reviewed test found. No citation.
+    Indirect,       // a source supports the MECHANISM; the named pair is our inference
+    Supported,      // a peer-reviewed source tests this cause and this effect
+    Established,    // consistently reproduced across independent sources
+};
+
+// Authoring lifecycle. The transitions are modelled now so a backtest harness can later gate
+// draft -> candidate without a schema change.
+enum class ConditionState { Draft, Candidate, Active, NeedsRevalidation, Superseded, Retired };
+
+// WHAT KIND OF THING this is. Orthogonal to ConditionGroup, which says WHERE in the body and WHEN in
+// the swing. Both facets are needed and only one existed, which is how `setup` became the group that
+// holds fourteen physical screens, nine beliefs and a set of clubs.
+//
+// The distinction the library could not previously make is between a movement error a lesson is
+// about, an impact geometry that is merely the scoreboard, and a physical capacity that constrains
+// what is coachable at all. All three were `Condition` with a group and two epistemic flags — and
+// with nothing recording the kind, those flags absorbed the job. `over_the_top` shipped `Latent` and
+// `Asserted`, which the headers below define as "cannot be seen in the swing" and "intent, habit,
+// perception". It is neither. It was tagged that way because nobody had written it a measure, so the
+// fields had quietly become a record of PRODUCER COVERAGE rather than a statement about the thing.
+//
+// The repair is the division of labour these three now keep:
+//
+//   ConditionKind   what sort of thing it is.      INTRINSIC — never moves when a producer lands.
+//   Observability   can it be seen in the swing.   INTRINSIC to the movement.
+//   ConfirmedBy     how it is established TODAY.   MOVES, when a producer or a connector lands.
+//
+// Only the third is allowed to change under us, and it is the one that means "today".
+enum class ConditionKind {
+    Fault,      // a movement error in the swing. What a lesson is about.
+    Setup,      // a static state before the swing starts. Told and rehearsed, not trained.
+    Delivery,   // impact geometry — path, face to path, attack angle, low point, shaft lean. These
+                // are the ball-flight laws and they are very nearly a CLOSED determinant set: given
+                // them, the outcome follows. A fault is explained by which of them it broke. They
+                // are not faults themselves, and a coach does not give a lesson on a number.
+    Outcome,    // what the ball did. Where an explanation ENDS.
+    Capacity,   // what the body can do. Screened, never measured from our pixels, and a CONSTRAINT
+                // on the search rather than an answer to it.
+    Intent,     // what the golfer is trying to do or believes. Asked, never concluded.
+    Equipment,  // the clubs.
+};
+
+// How often this condition is present in the population a coach actually sees — the base rate
+// `strengthWeight()` below says the pack cannot supply. Read as a frequency, stored as a rung,
+// weighted as one number in 0…1 by prominenceWeight().
+//
+// NOTHING IN THE LIBRARY IS SEATED ON A PREVALENCE STUDY, because there is not one: no peer-reviewed
+// source counts named swing faults across a population. Every value ships at `practice` tier and is
+// this library's editorial judgement, and a UI that renders a rank owes the reader that sentence. It
+// is a PRIOR. The moment the swing library has volume the posterior is measurable — count how often
+// each condition fires across the corpus — and the seat will be biased in a way that must be
+// reported, because it can only count what can FIRE. Over-the-top, early extension and every
+// launch-monitor outcome would come back under-rated for reasons that have nothing to do with golf.
+enum class Prominence { Rare, Uncommon, Occasional, Common, Ubiquitous };
+
+struct Provenance {
+    QString        author;
+    QString        citation;   // DOI, PMID or ISBN. NEVER a commercial organisation, product or
+                               // certification body — the domain terms are common property, the
+                               // attributions are not.
+    ProvenanceTier tier = ProvenanceTier::Proposed;
+
+    // What was actually done to look, and when. Without these a NoSourceFound is unfalsifiable:
+    // nobody can tell a thorough search from a lazy one, or know whether it predates the paper
+    // that would have answered it. `searchedOn` is what makes the null re-openable — a 2026 null
+    // on a question the field is actively publishing on is worth re-running in 2028, and a null
+    // with no date is worth nothing at all.
+    QDate          searchedOn;   // null QDate == never searched
+    QString        searchTerms;  // the query, so a re-run starts from what was already tried
+
+    bool searched() const { return searchedOn.isValid(); }
+};
+
+// Context binding. There is deliberately NO valence field and there must never be one: context
+// never inverts the sign of a finding. Over-the-top is over-the-top in a bunker; reporting it is
+// factual, calling it good or bad is a coaching judgement that belongs to the coach.
+//
+// A binding row is an EXCEPTION, not a declaration. Bindings resolve by walking UP the context
+// tree exactly as norms do (resolveContextBinding(), context_tree.h): the nearest row on the
+// chain wins, and a condition with no row anywhere on the chain applies everywhere and ranks
+// normally. That is why 50 shipped conditions carry no bindings at all rather than 50 x 13 rows
+// saying "yes" — an author writes a row only where the answer differs from the parent, and a
+// reader can then see at a glance which contexts somebody deliberately distinguished.
+//
+// There was a `corridorRef` field here until stage 7. It was redundant the moment norms keyed on
+// (measureId, contextId) — the corridor a signal grades against is found by that join, not named
+// by the binding — and nothing ever read it. Removed rather than left as a field a future author
+// might reasonably assume was load-bearing.
+struct ContextBinding {
+    QString       context;                 // context id (see the context tree)
+    bool          applicable = true;
+    bool          material   = true;       // RANKING WEIGHT ONLY — never "beneficial here"
+    LocalisedText consequence;             // override only where the MECHANICS genuinely differ
+};
+
+struct Condition {
+    QString                     id;                    // stable, never reused
+    QString                     label;
+    // Coach phrasing that resolves here — "flip", "early release", "standing up", "OTT". One concept
+    // has several names and a golfer searches by the one they were taught, so the aliases are how the
+    // library is reachable at all for anybody who did not write it. They also carry the glossary:
+    // rendering "Scooping — also called flipping: …" needs no second dataset. Two conditions may not
+    // claim one term (`duplicateAlias`), or a search would resolve to whichever came first.
+    QStringList                 aliases;
+    // The fault as a GOLFER, not a coach, would hear it said — "you stand up through the ball",
+    // "your hips sway away from the target going back". Second person, present tense, lower-case,
+    // plain body words, a swing position rather than a P-number. Used by the home screen's
+    // plain-language summary (docs/design/home_themes_design.md), which shows no labels, metrics or
+    // causal model at all, so this is the only name the condition has there. Not the label
+    // reworded: the label is for an author, and `golferPhraseWording` refuses the words that would
+    // make it one again. Empty is legal and loads; `golferPhraseMissing` says so where it matters.
+    QString                     golfer;
+    // The same fault's ABSENCE, said as what the golfer does instead — "you keep your arms wide at
+    // the top", "your lead arm stays connected to your chest going back". The home screen's "What you
+    // do well" card speaks in it, and it names the IDEAL the corridor rewards, not the fault negated:
+    // "you don't lose width" tells a golfer what they avoided, not what they did. So the wording lint
+    // refuses don't / doesn't / not / never / no here, on top of everything it refuses in `golfer`.
+    // Two tails of one measure may share it — flat and steep backswing are both "the club goes back
+    // on plane". Required (`golferPhraseMissing`) only where that card can name the row: a detectable
+    // Fault whose signals combine Any or First; a conjunction is never one thing the golfer does well.
+    QString                     golferWell;
+    // What the fault COSTS the golfer's shots, said the way they would say it — "A straight trail
+    // leg lets your hips slide instead of turn, so you lose power and contact gets harder to
+    // repeat." The home screen's focus card puts it under the fault so the golfer knows why this
+    // one is worth the work. It is `consequence` translated, not shortened: the coach's prose says
+    // what the move does to the swing, this says what that does to speed, distance, contact,
+    // direction, consistency or the body, and nothing else. ONE sentence, so unlike the two phrases
+    // above it starts with a capital and ends with a full stop (the wording lint checks both). "so"
+    // is the word that carries it, and it is allowed: it states a consequence for the shot, which is
+    // the point, where because / causes / leads to would claim a link between faults that the home
+    // screen has no evidence for. Never another fault as the reason. Required on the same rows as
+    // `golferWell`.
+    QString                     golferWhy;
+    QString                     axis;                // joins the two tails of one measure; may be empty
+    ConditionGroup              group        = ConditionGroup::Setup;
+    ConditionKind               kind         = ConditionKind::Fault;   // what sort of thing; see above
+    // The MIDDLE rung, deliberately, and not the first value the way every other enum here defaults.
+    // Neither `group` nor `confirmedBy` multiplies into a rank; this one will. `Rare` would silently
+    // bury every condition in an unauthored pack the day the scoring lands, and `Ubiquitous` would
+    // swamp the shipped content with it. The neutral rung is the only default that is harmless when
+    // it is wrong. Do not "fix" this back to Rare for consistency with its neighbours.
+    Prominence                  prominence   = Prominence::Occasional;
+    Observability               observability = Observability::Observable;
+    QStringList                 detectedBy;            // signal ids; empty => Latent
+    // How the signals above combine. ANY is the default and the overwhelming case: a condition is
+    // usually one tail of one measure, and where it has several signals they are alternative
+    // routes to the same observation, so any of them firing is the observation.
+    //
+    // ALL is for the conditions that are genuinely a CONJUNCTION of independent facts — a top is a
+    // thin strike AND a low point behind the ball AND an upward attack, and no one of those three
+    // is a top. Before this existed such a condition could only be written by pushing the
+    // conjunction into a producer and grading the result as a single derived number, which works
+    // but puts the definition in C++ and, worse, computes it wherever the producer happens to run
+    // rather than where measures resolve — so it cannot use `Measure::preferKeys` and silently
+    // ignores the better instrument.
+    DetectionMode               detection    = DetectionMode::Any;
+    ConfirmedBy                 confirmedBy  = ConfirmedBy::Measured;
+    QString                     screenRef;             // screen.* namespace; no UI in v1
+    LocalisedText               consequence;
+    LocalisedText               injuryNote;            // separate axis from performance; conservative
+    QStringList                 drills;
+    std::vector<ContextBinding> bindings;
+    Provenance                  provenance;
+    ConditionState              state = ConditionState::Draft;
+    QString                     supersededBy;
+};
+
+// ── Edge ────────────────────────────────────────────────────────────────────
+enum class EdgeType {
+    Causes,        // from CAUSES to
+    Corroborates,  // independent confirmation, NO causal claim. Illegal between conditions that
+                   // already have a causal path — a pair that both causes and corroborates would
+                   // double-count in the confidence ranking.
+    Excludes,
+};
+
+// Five-valued and never continuous: nobody can author 0.73 meaningfully, and rendering strength as
+// a percentage would imply a probability it is not.
+//
+// The two outer rungs are spelled in the same MAGNITUDE idiom as the middle three so that `weak`,
+// `moderate` and `strong` keep the spelling every shipped and user pack already stores — the words a
+// reader actually sees are the labels (rarely · sometimes · often · usually · always), and they have
+// never matched the stored names. See `strengthLabel()`.
+enum class Strength { VeryWeak, Weak, Moderate, Strong, VeryStrong };
+
+// ORIENTATION, NORMATIVE: `from` is the CAUSE, `to` is the EFFECT.
+//
+// The seed content's tables are written the way a coach reads them — the characteristic first, then
+// what causes it — which is the reverse of this. Every row flips on transcription. This matters
+// because no downstream count can catch the mistake: cause-coverage totals are identical under edge
+// reversal, so a wholly inverted graph passes every coverage assertion. The structural check lives
+// in the pack validator (screened causes have out-degree > 0 and in-degree 0).
+//
+// AN EDGE IS AN INDEPENDENT CLAIM, NEVER A COVERAGE DEVICE. Coverage is deliberately ONE HOP —
+// `findingsCoveredBy` reads direct edges only, no closure — so it is tempting to author A -> C
+// purely to let a distant cause "reach" a finding it only influences through B. Do not. Write
+// A -> C only when a coach would state the direct claim without mentioning B, so the edge can
+// carry its own strength and provenance honestly. Triangles (A -> B, B -> C and A -> C together)
+// are legitimate and the pack ships 55 of them — audited 2026-08-07, every one a claim coaching
+// states directly; the audit and its reasoning classes are §12 of
+// docs/design/swing_fault_ontology.md. What the rule forbids is the edge written for reach alone:
+// it inherits a strength nobody meant, and once in the pack it is indistinguishable from a claim
+// somebody did mean.
+struct Edge {
+    QString  from;
+    QString  to;
+    EdgeType type     = EdgeType::Causes;
+    Strength strength = Strength::Moderate;
+
+    // The same Provenance a Condition carries, deliberately — an edge is a CLAIM, and for a long
+    // while it was the only claim in the pack that could not say how well founded it was. A
+    // condition with no citation is forced to badge as Proposed; an edge held a bare citation
+    // string with no tier, so an uncited edge and a cited one drew identically and `strength`
+    // (which ranks which cause a coach is shown first) looked equally authoritative either way.
+    Provenance provenance;
+};
+
+// ── Pack ────────────────────────────────────────────────────────────────────
+struct CharacteristicPack {
+    QString                 id;             // "core", or a community pack's namespace
+    QString                 version;
+    int                     schemaVersion = 1;
+    QString                 sourceLabel;    // where it was loaded from, for the UI
+    bool                    readOnly = false;   // the shipped core pack is not editable in place
+
+    // Edges this pack RETIRES from the layers beneath it. Only `from`, `to` and `type` are read.
+    //
+    // A causal edge needs no such thing: a LocalUser pack replaces the whole incoming causal set of
+    // any condition it names, so "absent from my list" already means "removed". A SYMMETRIC edge
+    // belongs to neither end and is written individually, so there is no list for it to be absent
+    // from — without a tombstone, a shipped corroboration could be re-typed but never dropped, and
+    // the honest answer to "delete this" would have been "you cannot", in the user's own library.
+    //
+    // Additive and ignorable: a build that does not know the key simply sees the edge again, which
+    // is the safe direction to fail in.
+    std::vector<Edge>       retiredEdges;
+
+    std::vector<Measure>    measures;
+    // Not `signals`: Qt's moc keyword macro expands that to an access specifier, so a member of
+    // that name breaks every translation unit that includes both this header and QObject.
+    std::vector<Signal>     signalDefs;
+    std::vector<Condition>  conditions;
+    std::vector<Edge>       edges;
+
+    const Measure   *measure(const QString &id) const;
+    const Signal    *signal(const QString &id) const;
+    const Condition *condition(const QString &id) const;
+};
+
+// ── Enum <-> string (the JSON spelling) ─────────────────────────────────────
+// The measurement vocabulary's own conversions (measureKindName, shapeName, directionName, …) are
+// declared in measure_vocabulary.h, alongside the enums they spell.
+QString conditionGroupName(ConditionGroup g);
+QString conditionGroupLabel(ConditionGroup g);
+bool    conditionGroupFromName(const QString &s, ConditionGroup &out);
+
+// The groups, in list order. One definition, because the order IS the swing and two hand-written
+// copies of it (the library's filter row and the editor's picker) had already drifted apart by the
+// time a third group was added.
+const std::vector<ConditionGroup> &allConditionGroups();
+QString conditionKindName(ConditionKind k);
+QString conditionKindLabel(ConditionKind k);
+bool    conditionKindFromName(const QString &s, ConditionKind &out);
+
+// The kinds, in the order a diagnosis reads: what the golfer does, what the club then delivers, what
+// the ball does about it, and then the three things that are true of the golfer rather than of the
+// swing. One definition, for the same reason allConditionGroups() exists.
+const std::vector<ConditionKind> &allConditionKinds();
+QString prominenceName(Prominence p);
+QString prominenceLabel(Prominence p);   // words. Never a percentage, and never a rank number.
+bool    prominenceFromName(const QString &s, Prominence &out);
+
+// The rungs, rarest first — the order IS the ladder, as with allStrengths().
+const std::vector<Prominence> &allProminences();
+
+// P(condition) — the base rate strengthWeight() below says the pack cannot supply, in 0…1 exclusive
+// of both bounds. Five rungs, because nobody can author 0.17 of a prevalence nobody has counted.
+//
+// THE SPREAD IS THE DESIGN, NOT THE VALUES. This ladder runs 12x from floor to ceiling against
+// strengthWeight()'s 9.5x, and that ratio is the only thing here anybody chose on purpose: the two
+// terms have to stay commensurable, so that a Ubiquitous cause covering one weak finding does not
+// outrank a Rare cause covering two very strong ones. Widen this ladder and prevalence decides
+// nearly every ordering — which is the same failure as ranking by graph topology, with the sign
+// flipped. A finer floor was rejected for a different reason: 0.02 against 0.06 claims to
+// discriminate one-in-fifty from one-in-seventeen on an editorial judgement with no study behind it,
+// and a rung nobody can author against a real row is a rung that gets picked by feel and then
+// defended by its number.
+//
+// NOTHING CONSUMES THIS YET, deliberately. Wiring it into RankedCause::score is a separate change
+// that owes the measurement strengthWeight() demands below, and the consumption form —
+// multiplicative, log-additive, or a tie-break — is not fixed by these values.
+//
+// NEITHER BOUND IS AVAILABLE, and the reasons are NOT strengthWeight()'s reasons. This is a base
+// rate on a node, not a conditional on an edge, so both have to be re-derived. Both survive:
+//
+//   0 is worse here than there. A strength of 0 was refused because 0 is taken — edgeWeight()
+//   returns it for "there is no such edge". This one MULTIPLIES, so a zero rung annihilates the
+//   whole product and yields a score of exactly 0, which in RankedCause::score already means
+//   "explains none of these findings". That collapses "we see this, rarely" into "this is not a
+//   candidate", and those are precisely the two states this field exists to hold apart. A Rare fault
+//   covering four findings must still be able to outrank a Common one covering none.
+//
+//   1 is absorbing under Bayes, as it is for strength — but the sharper objection is that P = 1 says
+//   every golfer has this, which makes the term NON-DIAGNOSTIC: it multiplies every candidate
+//   identically and contributes nothing to any ordering. And a ceiling at 1 is unrevisable upward,
+//   which no editorial judgement awaiting a corpus re-seat has earned.
+double prominenceWeight(Prominence p);
+QString observabilityName(Observability o);
+bool    observabilityFromName(const QString &s, Observability &out);
+QString detectionModeName(DetectionMode d);
+QString detectionModeLabel(DetectionMode d);   // "every signal" — never the bare token
+bool    detectionModeFromName(const QString &s, DetectionMode &out);
+
+// Both modes, in the order a picker should offer them: the ordinary one first. One definition, for
+// the same reason allConditionGroups() exists.
+const std::vector<DetectionMode> &allDetectionModes();
+QString confirmedByName(ConfirmedBy c);
+bool    confirmedByFromName(const QString &s, ConfirmedBy &out);
+QString provenanceTierName(ProvenanceTier t);
+QString provenanceTierLabel(ProvenanceTier t);  // "Coaching practice", "No source found", … — the UI's own words
+bool    provenanceTierFromName(const QString &s, ProvenanceTier &out);
+QString conditionStateName(ConditionState s);
+bool    conditionStateFromName(const QString &s, ConditionState &out);
+QString edgeTypeName(EdgeType t);
+bool    edgeTypeFromName(const QString &s, EdgeType &out);
+QString strengthName(Strength s);
+QString strengthLabel(Strength s);      // words, never a percentage
+bool    strengthFromName(const QString &s, Strength &out);
+
+// The rungs, weakest first. One definition, for the same reason allConditionGroups() exists: the
+// order IS the ladder, and the editor's picker, the graph's collar and the analysis weight below all
+// have to walk it the same way.
+const std::vector<Strength> &allStrengths();
+
+// The ONE weight a strength carries: P(effect | cause), in 0…1 exclusive of both bounds. It is the
+// quantity the labels have always described — how OFTEN this cause produces this effect — and the
+// five rungs are the only values of it anybody may author, because nobody can defend 0.73.
+//
+// TWO THINGS IT IS NOT, both of which it looks like.
+//
+// It is not P(cause | effect), which is what ranking causes from an observed effect actually wants.
+// Bayes needs a base rate for how common each cause is, and no Condition carries one. Until the pack
+// can supply that half, a caller that treats this as a posterior is ranking by out-degree — the
+// cause with the most outgoing edges wins — while looking rigorous.
+//
+// And `RankedCause::score` is not a probability, whatever these are: it SUMS one of these per
+// covered finding, so a cause explaining four of them scores past 1 and is meant to. The sum is
+// ordinal and only ever reaches a comparison. Normalising it would break the greedy set cover it
+// feeds, which depends on the additive behaviour.
+//
+// Values are not free to move. They were re-cut once, from an ordinal ladder that ran to 1.5, after
+// measuring that the rescale preserved 98% of cause pairings on the shipped pack and that every
+// pair it reordered was a near-tie. Anything that changes them owes the same measurement.
+double strengthWeight(Strength s);
+
+// The UI badge for how a condition can be reached. "Physical" and "Behavioural" are preferred over
+// "biomechanical", which does not discriminate the body's CAPACITY from what it did with the club —
+// over-the-top is biomechanical too.
+QString reachLabel(ConfirmedBy c);
+QString reachHint(ConfirmedBy c);
+
+// True when the tier is a positive claim about the LITERATURE, so it MUST name the source it is
+// claiming. NoSourceFound and Practice are deliberately excluded, for opposite reasons: the first
+// is a claim about the ABSENCE of a source, and demanding a citation for it would make the null
+// unrecordable; the second cites a body of practice this repo is not permitted to name.
+inline bool citationRequired(ProvenanceTier t)
+{
+    return t == ProvenanceTier::Indirect || t == ProvenanceTier::Supported
+           || t == ProvenanceTier::Established;
+}
+
+// True when somebody has actually looked, whatever the answer was. The complement is the work
+// queue: `Proposed` is the only tier that means the question is still open.
+inline bool provenanceSettled(ProvenanceTier t) { return t != ProvenanceTier::Proposed; }
+
+// True when the tier is a claim about the OUTCOME OF A SEARCH and carries no citation to evidence
+// it. Only NoSourceFound qualifies: "the literature is silent" is meaningless without a date,
+// because it cannot be told from an unasked question and cannot be re-opened when the field
+// publishes. A cited tier needs no date — the citation is its own evidence.
+//
+// `Practice` is deliberately NOT here, and the reason is the whole shape of this model: the tier
+// says what the EVIDENCE is, `searchedOn` says whether anybody has LOOKED, and those are
+// independent questions. An edge asserted from coaching knowledge is `practice` on the day it is
+// written, with no date, because it is orthodoxy that nobody has yet checked against the
+// literature. Searching it later either finds a paper (it becomes indirect/supported) or does not
+// (it stays practice, now dated). Requiring the date up front collapsed the two axes and forced
+// every honestly-authored edge to masquerade as `proposed` — as though it had come from nowhere.
+inline bool searchDateRequired(ProvenanceTier t)
+{
+    return t == ProvenanceTier::NoSourceFound;
+}
+
+// The work queue, and the reason it is not `tier == Proposed`. What makes a claim outstanding is
+// that nobody has been to the literature for it — not that nobody can say where it came from.
+inline bool needsLiteratureSearch(const Provenance &p)
+{
+    return !p.searched() && p.citation.isEmpty();
+}
+
+// True when this condition can never be established by capture, so it must not appear in the
+// measure roadmap however many characteristics it blocks.
+inline bool isOutsideCaptureReach(ConfirmedBy c)
+{
+    return c == ConfirmedBy::Screened || c == ConfirmedBy::Asserted;
+}
+
+} // namespace pinpoint::analysis

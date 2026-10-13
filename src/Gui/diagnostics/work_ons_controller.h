@@ -18,8 +18,8 @@
 
 #pragma once
 
-#include "../../Analysis/swing_themes.h"
-#include "../../Analysis/work_ons.h"
+#include "../../Coaching/swing_themes.h"
+#include "../../Coaching/work_ons.h"
 
 #include <QHash>
 #include <QObject>

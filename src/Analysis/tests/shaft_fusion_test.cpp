@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Standalone tests for the two-view shaft fusion (src/Analysis/shaft_fusion.h).
+// Standalone tests for the two-view shaft fusion (src/Club/shaft_fusion.h).
 // ONE synthetic swing: a backswing on a 50° plane and a downswing on a 60° plane,
 // imaged by the two cameras, then handed back as the two angle tracks the trackers
 // publish. Pure std, no fixture.
@@ -24,7 +24,7 @@
 //   cmake --build build/analyzer-tests --target shaft_fusion_test
 //   ctest --test-dir build/analyzer-tests -R shaft_fusion_test --output-on-failure
 
-#include "../shaft_fusion.h"
+#include "../../Club/shaft_fusion.h"
 
 #include <cmath>
 #include <cstdio>

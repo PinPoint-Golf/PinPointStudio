@@ -18,11 +18,11 @@
 
 #include "chart_metrics.h"
 
-#include "../../Analysis/series_reduce.h"   // C8 — reduceAt / reduceExtremum / reduceRate
-#include "../Analysis/dashboard_reductions.h"   // barDomain
+#include "../../Metrics/series_reduce.h"    // C8 — reduceAt / reduceExtremum / reduceRate
+#include "../Coaching/dashboard_reductions.h"   // barDomain
 #include "timeline_labels.h"                    // the one phase-tag vocabulary (hasPositionTag)
 #include "../../Analysis/swing_analysis.h"      // SigmaKind (sigmaInfo)
-#include "../../Analysis/kinematic_sequence.h" // seqSegmentFromKey (the tile's tie-break)
+#include "../../Kinematics/kinematic_sequence.h" // seqSegmentFromKey (the tile's tie-break)
 #include "../../Core/pp_tuned_constants.h"     // tuned::uncertainty::kGrossWarn
 
 #include <QHash>

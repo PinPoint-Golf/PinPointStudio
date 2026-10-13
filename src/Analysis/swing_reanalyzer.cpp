@@ -20,8 +20,8 @@
 #include "recorded_products.h"   // shaftTrackFromAnalysisJson / segmentationFromAnalysisJson
 #include "analysis_versions.h"
 #include "../Export/swing_store.h"   // the document, whichever format it is in
-#include "ball_runner.h"
-#include "pose_runner.h"
+#include "../Ball/ball_runner.h"
+#include "../Pose/pose_runner.h"
 #include "mp4_frame_reader.h"
 #include "analysis_tuning.h"
 #include "../Core/pp_tuned_constants.h"
@@ -59,7 +59,7 @@
 
 #include "../Core/pp_debug.h"
 #include "../IMU/hm_unit_id.h"    // "<deviceId>#lowerArm" / "#palm" -> which segment
-#include "hm_binding_recon.h"     // rebuilding a wG3 binding from what the recording holds
+#include "../IMU/hm_binding_recon.h" // rebuilding a wG3 binding from what the recording holds
 
 using namespace pinpoint;
 

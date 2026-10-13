@@ -123,7 +123,7 @@ def invariants(run: RunResult, scope="full"):
     # don't have a comparable top, so skip it for pitch/chip/putt.
     #
     # Basis: ADDRESS(0)→Top(2) over Top(2)→Impact(5) — matching the shipped
-    # tempoRatio metric (src/Analysis/tempo_metrics.h). This check used to run on
+    # tempoRatio metric (src/Timeline/tempo_metrics.h). This check used to run on
     # Takeaway(1)→Top, which is the definition the golf literature uses; the two
     # disagreed, so the harness was measuring something the product never showed.
     # The band stays [1.2, 6.0]: it is a plausibility range, not the coaching

@@ -20,7 +20,7 @@
 #include "analysis_pipeline.h"
 #include "analysis_stage.h"
 #include "analysis_profiling.h"
-#include "kinematic_series.h"
+#include "../Kinematics/kinematic_series.h"
 
 #include <QPointF>
 #include <algorithm>

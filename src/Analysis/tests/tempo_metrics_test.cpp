@@ -23,7 +23,7 @@
 // whole reason the sigma exists. Synthetic ladders only, no fixture. Mirrors
 // foot_metrics_test.cpp's structure/style.
 
-#include "../tempo_metrics.h"
+#include "../../Timeline/tempo_metrics.h"
 
 #include <cmath>
 #include <cstdio>

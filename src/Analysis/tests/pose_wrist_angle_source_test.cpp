@@ -7,9 +7,9 @@
 //   cmake --build build/analyzer-tests --target pose_wrist_angle_source_test
 //   ctest --test-dir build/analyzer-tests -R pose_wrist_angle_source --output-on-failure
 
-#include "../pose_wrist_angle_source.h"
-#include "../wrist_angle_sampler.h"
-#include "../hand_axis.h"
+#include "../../Wrist/pose_wrist_angle_source.h"
+#include "../../Wrist/wrist_angle_sampler.h"
+#include "../../Pose/hand_axis.h"
 
 #include <cmath>
 #include <cstdio>

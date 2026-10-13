@@ -8,7 +8,7 @@
 //   cmake --build build/analyzer-tests --target shaft_evidence_test
 //   ctest --test-dir build/analyzer-tests -R shaft_evidence --output-on-failure
 
-#include "../shaft_tracker_math.h"
+#include "../../Club/shaft_tracker_math.h"
 
 #include <opencv2/imgproc.hpp>
 

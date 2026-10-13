@@ -56,7 +56,7 @@ from theta_psi_model import (  # noqa: E402  - the conventions live there, once
 LAB_ROOT_DEFAULT = "/mnt/swingdata/corpus/shaftlab/lab/tape_20260705"
 
 # COCO-WholeBody hand blocks (src/Analysis/swing_analysis.h:249-250) and the
-# hand-axis endpoint (src/Analysis/hand_axis.h:43). Used ONLY for the accuracy
+# hand-axis endpoint (src/Pose/hand_axis.h:43). Used ONLY for the accuracy
 # cross-check -- the hand keypoints are not trustworthy through a fast swing and
 # nothing here may feed a model.
 KP_LEFT_HAND_FIRST = 91
@@ -237,7 +237,7 @@ def fusion_labels(lab_dir, sample_t_us=None):
 def _pose_angles(an, events, lead_left, wpx, hpx):
     """phi as wrist_cock_fit.load_swing derives it, and the lead hand axis.
 
-    The hand axis mirrors src/Analysis/hand_axis.h handAxisDirection (hand-root
+    The hand axis mirrors src/Pose/hand_axis.h handAxisDirection (hand-root
     -> middle MCP). It is a DIAGNOSTIC ONLY -- the hand keypoints score well but
     are not trustworthy through a fast swing, so nothing may be modelled on it.
     """

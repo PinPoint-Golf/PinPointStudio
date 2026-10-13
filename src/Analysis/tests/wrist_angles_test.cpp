@@ -7,7 +7,7 @@
 // asserts, against the hardware-locked imu_calibration anatomical frame
 // (Z=flexion, Y=long/axial, X=deviation — see wrist_angles.h).
 
-#include "../wrist_angles.h"
+#include "../../Wrist/wrist_angles.h"
 
 #include <QQuaternion>
 #include <QVector3D>

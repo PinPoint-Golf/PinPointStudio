@@ -21,7 +21,7 @@
 // only movements are listed, absence is not improvement, and the aggregate is a pure function
 // of the session records.
 
-#include "../work_ons.h"
+#include "../../Coaching/work_ons.h"
 
 #include <cstdio>
 #include <vector>

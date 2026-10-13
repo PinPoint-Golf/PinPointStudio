@@ -19,7 +19,7 @@
 //   cmake --build build/analyzer-tests --target corridor_plot_test
 //   ctest --test-dir build/analyzer-tests -R corridor_plot --output-on-failure
 
-#include "corridor_plot.h"
+#include "../norms/corridor_plot.h"
 
 #include <QCoreApplication>
 

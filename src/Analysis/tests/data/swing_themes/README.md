@@ -1,6 +1,6 @@
 # Swing themes golden fixture
 
-The reference the C++ swing themes (`src/Analysis/swing_themes.h`) are tested against. The Python
+The reference the C++ swing themes (`src/Coaching/swing_themes.h`) are tested against. The Python
 prototype in `tools/themes/` is the reference implementation; this directory pins its output.
 
 - `ledgers/<session>/diagnostics.json` — copies of Mark's 5 library sessions' ledgers

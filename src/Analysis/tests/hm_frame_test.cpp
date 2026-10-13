@@ -23,7 +23,7 @@
 // Phase D's own brief originally said to.
 
 #include "../../IMU/hm_frame.h"
-#include "../wrist_angles.h"
+#include "../../Wrist/wrist_angles.h"
 
 #include <QQuaternion>
 #include <QVector3D>

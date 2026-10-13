@@ -1,11 +1,11 @@
 // Standalone tests for the minimal R6 double-pendulum club predictor
-// (src/Analysis/shaft_kinematics.h — wrist-cock knot table, swing progress,
+// (src/Club/shaft_kinematics.h — wrist-cock knot table, swing progress,
 // branch/chirality signs, envelope, predicted rate). Pure std, no fixture.
 //
 //   cmake --build build/analyzer-tests --target shaft_kinematics_test
 //   ctest --test-dir build/analyzer-tests -R shaft_kinematics --output-on-failure
 
-#include "../shaft_kinematics.h"
+#include "../../Club/shaft_kinematics.h"
 
 #include <cmath>
 #include <cstdio>

@@ -373,71 +373,71 @@ set(PP_QML_SOURCES
     src/Gui/launchmonitor/lm_club_art.cpp
     src/Gui/diagnosticmodel/model_browser.h
     src/Gui/diagnosticmodel/model_browser.cpp
-    src/Diagnostics/anatomy_vocabulary.h
-    src/Diagnostics/anatomy_vocabulary.cpp
-    src/Diagnostics/measure_facets.h
-    src/Diagnostics/measure_facets.cpp
-    src/Diagnostics/measure_vocabulary.h
-    src/Diagnostics/characteristic.h
-    src/Diagnostics/characteristic.cpp
-    src/Diagnostics/pack_io.h
-    src/Diagnostics/pack_io.cpp
-    src/Diagnostics/characteristic_pack.h
-    src/Diagnostics/characteristic_pack.cpp
-    src/Diagnostics/pack_provider.h
-    src/Diagnostics/resource_pack_provider.cpp
-    src/Diagnostics/memory_pack_provider.cpp
-    src/Diagnostics/memory_norm_provider.cpp
-    src/Diagnostics/corridor_plot.h
-    src/Diagnostics/corridor_plot.cpp
-    src/Diagnostics/file_pack_provider.cpp
-    src/Diagnostics/merged_pack_provider.cpp
-    src/Diagnostics/characteristic_engine.h
-    src/Diagnostics/characteristic_engine.cpp
-    src/Diagnostics/relation_resolver.h
-    src/Diagnostics/relation_resolver.cpp
-    src/Diagnostics/dag_layout.h
-    src/Diagnostics/dag_layout.cpp
-    src/Diagnostics/norm.h
-    src/Diagnostics/norm.cpp
-    src/Diagnostics/context_tree.h
-    src/Diagnostics/context_tree.cpp
-    src/Diagnostics/norm_pack.h
-    src/Diagnostics/norm_pack.cpp
-    src/Diagnostics/norm_provider.h
-    src/Diagnostics/norm_measure_source.h
-    src/Diagnostics/metric_corridor.h
-    src/Diagnostics/diagnostics_health.h
-    src/Diagnostics/diagnostics_health.cpp
-    src/Diagnostics/screen_pack.h
-    src/Diagnostics/screen_pack.cpp
-    src/Diagnostics/drill_pack.h
-    src/Diagnostics/drill_pack.cpp
-    src/Diagnostics/reference_pack.cpp
-    src/Diagnostics/measure_sample.h
-    src/Diagnostics/measure_sample.cpp
-    src/Diagnostics/live_measure_source.h
-    src/Diagnostics/live_measure_source.cpp
-    src/Diagnostics/resource_norm_provider.cpp
-    src/Diagnostics/file_norm_provider.cpp
-    src/Diagnostics/merged_norm_provider.cpp
+    src/Diagnostics/measures/anatomy_vocabulary.h
+    src/Diagnostics/measures/anatomy_vocabulary.cpp
+    src/Diagnostics/measures/measure_facets.h
+    src/Diagnostics/measures/measure_facets.cpp
+    src/Diagnostics/measures/measure_vocabulary.h
+    src/Diagnostics/engine/characteristic.h
+    src/Diagnostics/engine/characteristic.cpp
+    src/Diagnostics/engine/pack_io.h
+    src/Diagnostics/engine/pack_io.cpp
+    src/Diagnostics/packs/characteristic_pack.h
+    src/Diagnostics/packs/characteristic_pack.cpp
+    src/Diagnostics/packs/pack_provider.h
+    src/Diagnostics/packs/resource_pack_provider.cpp
+    src/Diagnostics/packs/memory_pack_provider.cpp
+    src/Diagnostics/norms/memory_norm_provider.cpp
+    src/Diagnostics/norms/corridor_plot.h
+    src/Diagnostics/norms/corridor_plot.cpp
+    src/Diagnostics/packs/file_pack_provider.cpp
+    src/Diagnostics/packs/merged_pack_provider.cpp
+    src/Diagnostics/engine/characteristic_engine.h
+    src/Diagnostics/engine/characteristic_engine.cpp
+    src/Diagnostics/engine/relation_resolver.h
+    src/Diagnostics/engine/relation_resolver.cpp
+    src/Diagnostics/engine/dag_layout.h
+    src/Diagnostics/engine/dag_layout.cpp
+    src/Diagnostics/norms/norm.h
+    src/Diagnostics/norms/norm.cpp
+    src/Diagnostics/norms/context_tree.h
+    src/Diagnostics/norms/context_tree.cpp
+    src/Diagnostics/norms/norm_pack.h
+    src/Diagnostics/norms/norm_pack.cpp
+    src/Diagnostics/norms/norm_provider.h
+    src/Diagnostics/norms/norm_measure_source.h
+    src/Diagnostics/norms/metric_corridor.h
+    src/Diagnostics/engine/diagnostics_health.h
+    src/Diagnostics/engine/diagnostics_health.cpp
+    src/Diagnostics/packs/screen_pack.h
+    src/Diagnostics/packs/screen_pack.cpp
+    src/Diagnostics/packs/drill_pack.h
+    src/Diagnostics/packs/drill_pack.cpp
+    src/Diagnostics/packs/reference_pack.cpp
+    src/Diagnostics/measures/measure_sample.h
+    src/Diagnostics/measures/measure_sample.cpp
+    src/Diagnostics/measures/live_measure_source.h
+    src/Diagnostics/measures/live_measure_source.cpp
+    src/Diagnostics/norms/resource_norm_provider.cpp
+    src/Diagnostics/norms/file_norm_provider.cpp
+    src/Diagnostics/norms/merged_norm_provider.cpp
     src/Gui/diagnostics/wrist_diagnostics_model.h
     src/Gui/diagnostics/wrist_diagnostics_model.cpp
     src/Gui/diagnostics/session_diagnostics_model.h
     src/Gui/diagnostics/session_spread.h
     src/Gui/diagnostics/session_diagnostics_model.cpp
-    src/Analysis/work_ons.h
+    src/Coaching/work_ons.h
     src/Gui/diagnostics/work_ons_controller.h
     src/Gui/diagnostics/work_ons_controller.cpp
-    src/Analysis/reference_bands.h
-    src/Analysis/reference_bands.cpp
-    src/Analysis/wrist_assessment_engine.h
-    src/Analysis/wrist_assessment_engine.cpp
-    src/Analysis/wrist_analysis_adapter.h
-    src/Analysis/wrist_analysis_adapter.cpp
-    src/Analysis/assessment_rule.h
-    src/Analysis/assessment_rules.h
-    src/Analysis/assessment_rules.cpp
+    src/Wrist/reference_bands.h
+    src/Wrist/reference_bands.cpp
+    src/Wrist/wrist_assessment_engine.h
+    src/Wrist/wrist_assessment_engine.cpp
+    src/Wrist/wrist_analysis_adapter.h
+    src/Wrist/wrist_analysis_adapter.cpp
+    src/Wrist/assessment_rule.h
+    src/Wrist/assessment_rules.h
+    src/Wrist/assessment_rules.cpp
     # Page images -> one A4 PDF (QPdfWriter, Qt Gui only). Its directory must be on every
     # consumer's include path: the generated registration includes it as <pdf_document_writer.h>
     # behind __has_include, so a missing path drops the type silently rather than failing the build.

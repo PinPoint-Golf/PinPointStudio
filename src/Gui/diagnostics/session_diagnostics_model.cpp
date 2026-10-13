@@ -18,12 +18,12 @@
 
 #include "session_diagnostics_model.h"
 
-#include "../../Diagnostics/live_measure_source.h"
-#include "../../Diagnostics/measure_facets.h"
-#include "../../Diagnostics/norm_provider.h"
-#include "../../Diagnostics/pack_io.h"
-#include "../../Diagnostics/pack_provider.h"
-#include "../../Diagnostics/screen_pack.h"
+#include "../../Diagnostics/measures/live_measure_source.h"
+#include "../../Diagnostics/measures/measure_facets.h"
+#include "../../Diagnostics/norms/norm_provider.h"
+#include "../../Diagnostics/engine/pack_io.h"
+#include "../../Diagnostics/packs/pack_provider.h"
+#include "../../Diagnostics/packs/screen_pack.h"
 #include "../../Export/swing_doc.h"
 
 #include <QCoreApplication>

@@ -44,7 +44,7 @@ pp_add_test(timeline_labels_test
 # shipped resources are not needed and the env is left unset.
 #
 # NO ENTRY FOR series_reduce (C8, Phase 2), and that is not an omission: summaryMasked delegates
-# every reduction to src/Analysis/series_reduce.h, which is HEADER-ONLY — the reductions run on
+# every reduction to src/Metrics/series_reduce.h, which is HEADER-ONLY — the reductions run on
 # borrowed C arrays and only viewOf() touches MetricSeries, so there is nothing to compile or link
 # here or in any other consumer target. Its own suite is series_reduce_test in src/Analysis/tests.
 pp_add_test(chart_metrics_test
@@ -57,16 +57,16 @@ pp_add_test(chart_metrics_test
             ${SRC}/Metrics/metric_resolver.cpp
             ${SRC}/Metrics/metric_catalogue_manifest.cpp
             ${SRC}/Metrics/metric_providers.cpp
-            ${SRC}/Analysis/reference_bands.cpp
-            ${SRC}/Diagnostics/norm.cpp
-            ${SRC}/Diagnostics/norm_pack.cpp ${SRC}/Diagnostics/context_tree.cpp
-            ${SRC}/Diagnostics/pack_io.cpp   # the registries' shared vocabulary and LoadResult<T>
-            ${SRC}/Diagnostics/characteristic_pack.cpp ${SRC}/Diagnostics/characteristic.cpp
-            ${SRC}/Diagnostics/reference_pack.cpp
-            ${SRC}/Diagnostics/measure_facets.cpp ${SRC}/Diagnostics/anatomy_vocabulary.cpp
-            ${SRC}/Diagnostics/resource_norm_provider.cpp
-            ${SRC}/Diagnostics/file_norm_provider.cpp
-            ${SRC}/Diagnostics/merged_norm_provider.cpp
+            ${SRC}/Wrist/reference_bands.cpp
+            ${SRC}/Diagnostics/norms/norm.cpp
+            ${SRC}/Diagnostics/norms/norm_pack.cpp ${SRC}/Diagnostics/norms/context_tree.cpp
+            ${SRC}/Diagnostics/engine/pack_io.cpp   # the registries' shared vocabulary and LoadResult<T>
+            ${SRC}/Diagnostics/packs/characteristic_pack.cpp ${SRC}/Diagnostics/engine/characteristic.cpp
+            ${SRC}/Diagnostics/packs/reference_pack.cpp
+            ${SRC}/Diagnostics/measures/measure_facets.cpp ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
+            ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
+            ${SRC}/Diagnostics/norms/file_norm_provider.cpp
+            ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
     LINK    Qt6::Qml  AUTOMOC)
 

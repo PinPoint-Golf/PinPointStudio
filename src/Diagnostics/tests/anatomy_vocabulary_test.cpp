@@ -6,7 +6,7 @@
 //   cmake --build build/analyzer-tests --target anatomy_vocabulary_test
 //   ctest --test-dir build/analyzer-tests -R anatomy_vocabulary --output-on-failure
 
-#include "../anatomy_vocabulary.h"
+#include "../measures/anatomy_vocabulary.h"
 
 #include <cmath>
 #include <cstdio>

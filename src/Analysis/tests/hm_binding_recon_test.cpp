@@ -31,7 +31,7 @@
 // Every input is a value read out of swing.json, so they are stated directly —
 // no swing folder, no analyzer, no OpenCV.
 
-#include "../hm_binding_recon.h"
+#include "../../IMU/hm_binding_recon.h"
 
 #include <QQuaternion>
 

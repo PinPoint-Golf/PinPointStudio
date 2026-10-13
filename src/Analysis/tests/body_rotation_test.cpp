@@ -30,7 +30,7 @@
 //      both. §3 asserts it directly, because getting this wrong would grade every downswing
 //      backwards while looking entirely plausible.
 
-#include "../body_rotation.h"
+#include "../../Body/body_rotation.h"
 
 #include <algorithm>
 #include <cmath>

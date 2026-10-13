@@ -1,6 +1,6 @@
 """The app's random numbers, bit for bit: std::mt19937_64 as pinpoint::analysis::DetRng uses it.
 
-The C++ port of the themes (src/Analysis/swing_themes.h) is tested against this prototype's
+The C++ port of the themes (src/Coaching/swing_themes.h) is tested against this prototype's
 output, so the parallel-analysis shuffles and the bootstrap resamples must draw the SAME numbers
 in both languages. numpy's generators are not std::mt19937_64; this is.
 

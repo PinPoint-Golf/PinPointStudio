@@ -17,7 +17,7 @@
 
 #include "lm_club_art.h"
 
-#include "../../Analysis/lm_club_evidence.h"
+#include "../../LaunchMonitor/lm_club_evidence.h"
 #include "../../Core/pp_debug.h"
 
 #include <QFile>

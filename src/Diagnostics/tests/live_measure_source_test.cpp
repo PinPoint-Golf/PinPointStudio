@@ -54,9 +54,9 @@
 //   cmake --build build/analysis-tests --target live_measure_source_test
 //   ctest --test-dir build/analysis-tests -R live_measure_source --output-on-failure
 
-#include "../live_measure_source.h"
-#include "../norm_provider.h"
-#include "../pack_provider.h"
+#include "../measures/live_measure_source.h"
+#include "../norms/norm_provider.h"
+#include "../packs/pack_provider.h"
 
 #include <QCoreApplication>
 #include <QDir>

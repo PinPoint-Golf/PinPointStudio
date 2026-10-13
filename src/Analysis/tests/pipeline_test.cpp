@@ -3,8 +3,8 @@
 //   cmake -S src/Analysis/tests -B build/analyzer-tests -DCMAKE_PREFIX_PATH=$HOME/Qt/6.11.1/gcc_64
 //   cmake --build build/analyzer-tests && ctest --test-dir build/analyzer-tests --output-on-failure
 
-#include "../phase_segmenter.h"
-#include "../metric_extractor.h"
+#include "../../Timeline/phase_segmenter.h"
+#include "../../Wrist/metric_extractor.h"
 
 #include <QQuaternion>
 #include <QVector3D>

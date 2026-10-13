@@ -18,10 +18,10 @@
 
 #pragma once
 
-#include "../../Analysis/diagnostic_ledger.h"
-#include "../../Analysis/work_ons.h"
-#include "../../Diagnostics/characteristic_engine.h"
-#include "../../Diagnostics/relation_resolver.h"
+#include "../../Coaching/diagnostic_ledger.h"
+#include "../../Coaching/work_ons.h"
+#include "../../Diagnostics/engine/characteristic_engine.h"
+#include "../../Diagnostics/engine/relation_resolver.h"
 #include "session_spread.h"
 
 #include <QHash>
@@ -49,7 +49,7 @@ class INormProvider;
 // It is a JOIN and an ORCHESTRATOR, and deliberately not a second place where diagnostics
 // arithmetic lives. Everything it publishes is one of three things:
 //
-//   · a reduction from `src/Analysis/diagnostic_ledger.h` (every tier, recurrence, trend,
+//   · a reduction from `src/Coaching/diagnostic_ledger.h` (every tier, recurrence, trend,
 //     link grade, chain, stage, bookend and anti-churn ordering),
 //   · a fact from the authored pack (`src/Diagnostics`: names, consequences, screens,
 //     causal edges, the explanation pass), or
