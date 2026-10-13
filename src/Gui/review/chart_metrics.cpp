@@ -649,11 +649,16 @@ QVariantList ChartMetrics::timeTicksMs(qint64 domStartUs, qint64 domEndUs,
     if (domEndUs <= domStartUs) return out;
 
     const double spanMs = double(domEndUs - domStartUs) / 1000.0;
-    const int step = spanMs > 900 ? 200 : spanMs > 400 ? 100 : spanMs > 180 ? 50 : 20;
+    const qint64 step = spanMs > 900 ? 200 : spanMs > 400 ? 100 : spanMs > 180 ? 50 : 20;
 
+    // ⚠ qint64, NOT int. The window can arrive in the live buffer clock — microseconds since the
+    // host booted — with no impact yet (impactUs -1), so "ms from impact" is the machine's uptime.
+    // An int holds 2^31 ms = 24.86 days: on the cabin PC, up 28.7 days, the start overflowed,
+    // `impactUs + ms * 1000` could never pass domEndUs, nothing was appended to reach the cap, and
+    // the GUI thread spun here for good at the end of every shot's analysis (13 Oct 2026).
     const double startMsFromImpact = double(domStartUs - impactUs) / 1000.0;
-    for (int ms = int(std::ceil(startMsFromImpact / step)) * step;
-         impactUs + qint64(ms) * 1000 <= domEndUs; ms += step) {
+    for (qint64 ms = qint64(std::ceil(startMsFromImpact / double(step))) * step;
+         impactUs + ms * 1000 <= domEndUs; ms += step) {
         if (impactUs + qint64(ms) * 1000 >= domStartUs) out.append(ms);
         if (out.size() > 64) break;
     }

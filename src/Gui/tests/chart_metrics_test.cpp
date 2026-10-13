@@ -272,6 +272,35 @@ int main()
 {
     ChartMetrics cm;
 
+    // ── Time ticks: ms from impact, and the live buffer clock past 24.86 days ─────
+    {
+        std::printf("timeTicksMs\n");
+        // A 1 s replay window, impact at 0.8 s: 200 ms steps from -800 to +200.
+        const QVariantList t = cm.timeTicksMs(0, 1000000, 800000);
+        checkEqI("1 s window: tick count", t.size(), 6);
+        checkEqI("1 s window: first tick", t.isEmpty() ? 0 : t.first().toLongLong(), -800);
+        checkEqI("1 s window: last tick",  t.isEmpty() ? 0 : t.last().toLongLong(),  200);
+
+        // The cabin's frozen call (13 Oct 2026, host up 28.7 days): the window in the live buffer
+        // clock and no impact yet. The int loop counter overflowed and never returned; it must
+        // return, and every tick it gives must fall inside the window.
+        const qint64 endUs   = 0x241ae0fcfd8LL;          // read off the hung process's registers
+        const qint64 startUs = endUs - 2000000;
+        const QVariantList c = cm.timeTicksMs(startUs, endUs, -1);
+        checkTrue("buffer clock, no impact: returns, capped", c.size() > 0 && c.size() <= 65);
+        bool inside = true;
+        for (const QVariant &v : c) {
+            const qint64 us = -1 + v.toLongLong() * 1000;
+            inside = inside && us >= startUs && us <= endUs;
+        }
+        checkTrue("buffer clock, no impact: every tick inside the window", inside);
+
+        // The same clock with the impact known: labels are small again, -1000 .. +1000.
+        const QVariantList k = cm.timeTicksMs(endUs - 1000000, endUs + 1000000, endUs);
+        checkEqI("buffer clock, impact known: tick count", k.size(), 11);
+        checkEqI("buffer clock, impact known: first tick", k.isEmpty() ? 0 : k.first().toLongLong(), -1000);
+    }
+
     // ── An empty / unplottable swing offers no presets at all ─────────────────────
     {
         std::printf("seriesGroups — nothing to plot\n");
