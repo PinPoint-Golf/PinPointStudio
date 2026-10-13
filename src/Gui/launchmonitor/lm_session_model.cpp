@@ -635,6 +635,7 @@ void LmSessionModel::buildGraphics(const std::vector<LmFieldStats> &stats,
     const std::optional<double> total     = valueOf(stats, "lm.totalDistance");
     const std::optional<double> offline   = valueOf(stats, "lm.offline");
     const std::optional<double> peak      = valueOf(stats, "lm.peakHeight");
+    const std::optional<double> descent   = valueOf(stats, "lm.descentAngle");
 
     QVariantMap flight{ { QStringLiteral("has"), false } };
     if (ballSpeed && launchAng && spinRate) {
@@ -646,7 +647,9 @@ void LmSessionModel::buildGraphics(const std::vector<LmFieldStats> &stats,
                                                 carry.value_or(nan),
                                                 peak.value_or(nan),
                                                 offline.value_or(nan),
-                                                total.value_or(nan));
+                                                total.value_or(nan),
+                                                *launchAng,
+                                                descent.value_or(nan));
         if (p.has) {
             flight = QVariantMap{
                 { QStringLiteral("has"),            true },

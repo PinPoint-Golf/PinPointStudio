@@ -1,11 +1,11 @@
 // Standalone tests for the launch monitor ball flight model (src/Analysis/
 // lm_flight_path.h): the drag + Magnus integration against the design brief's reference
-// shot, the asymmetry that makes the curve worth drawing at all, and the normalisation
-// that pins the drawn endpoints to the device's reported ones. Pure — no Qt, no OpenCV,
-// no fixture. Own main()/check() macros.
+// shot and two fitted corpus shots, the asymmetry that makes the curve worth drawing at
+// all, and the normalisation that pins the drawn endpoints AND end angles to the device's
+// reported ones. Pure — no Qt, no OpenCV, no fixture. Own main()/check() macros.
 //
-//   cmake --build build/analysis-tests --target lm_flight_path_test
-//   ctest --test-dir build/analysis-tests -R lm_flight_path --output-on-failure
+//   cmake --build build/tests --target lm_flight_path_test
+//   ctest --test-dir build/tests -R lm_flight_path --output-on-failure
 
 #include "../lm_flight_path.h"
 
@@ -36,17 +36,19 @@ int main()
 
     // ── The reference shot ──────────────────────────────────────────────────────
     //
-    // The design brief's own row, and the reason the coefficients are what they are.
-    // A change to LmFlightModel that does not move these is a change to a comment; a
-    // change that does move them needs a better source than the one that set them.
+    // The design brief's own row. The constants that came before were hand-set to this
+    // one shot and landed it within a yard; the fitted ones (tools/lm_flight_fit/, 36 GC
+    // Quad shots) carry it 6.6 yd long and 8.7 ft high, which is inside the fit's own
+    // spread for a mid-spin shot. These pin what the model SAYS, so a change to
+    // LmFlightModel that moves them is seen; the device's numbers are in the labels.
     const LmLaunch ref{ 118.1, 13.2, -1.3, 4686.0, 4.7 };
     {
         const LmFlightIntegration f = lmIntegrateFlight(ref);
         check(f.has, "reference shot flies");
-        checkNear(f.carryYd,   165.8, 0.6, "reference carry (device says 166.6)");
-        checkNear(f.apexFt,     64.2, 0.6, "reference apex (device says 63)");
-        checkNear(f.descentDeg, 37.4, 0.4, "reference descent (device says 37.3)");
-        checkNear(f.offlineYd,  1.63, 0.1, "reference offline from a 4.7 deg axis");
+        checkNear(f.carryYd,   173.2, 0.6, "reference carry (device says 166.6)");
+        checkNear(f.apexFt,     71.7, 0.6, "reference apex (device says 63)");
+        checkNear(f.descentDeg, 39.2, 0.4, "reference descent (device says 37.3)");
+        checkNear(f.offlineYd,  2.58, 0.1, "reference offline from a 4.7 deg axis");
 
         // The shape claim the whole card rests on. If the apex ever drifts to the
         // middle, the drawing has stopped being a model and gone back to being an arch.
@@ -54,6 +56,45 @@ int main()
               "apex sits in 0.55-0.70 of carry for a normal iron");
         check(f.descentDeg > f.launchDeg + 15.0,
               "descent is markedly steeper than launch");
+    }
+
+    // ── The corpus shots the fit was judged on ──────────────────────────────────
+    //
+    // Session 2026-08-04_Mark-Liversedge_Wrist_05, GC Quad, inputs as the device stored
+    // them. Shot 8 is the one the old constants carried 31 yd short (185.7 of 217.1): a
+    // fast, low-spin ball, the case a single drag curve set by mid-spin irons gets
+    // wrong. The tolerances are what the fit achieves on it, not what we would like —
+    // the low-spin shots are the ones it still leaves ~2% short (see LmFlightModel).
+    // Shot 18 is a typical mid-spin strike, for contrast.
+    const LmLaunch shot8{ 133.408, 11.928, 2.260, 2374.0, 0.193 };
+    const LmLaunch shot18{ 105.141, 20.860, -0.579, 4514.0, 0.990 };
+    {
+        const LmFlightIntegration f = lmIntegrateFlight(shot8);
+        check(f.has, "shot 8 flies");
+        checkNear(f.carryYd,   217.1, 3.0, "shot 8 carry within 3 yd of the device's 217.1");
+        checkNear(f.apexFt,     69.1, 1.0, "shot 8 apex within 1 ft of the device's 69.1");
+        checkNear(f.descentDeg, 32.6, 0.3, "shot 8 descent within 0.3 deg of the device's 32.6");
+
+        const LmFlightIntegration g = lmIntegrateFlight(shot18);
+        check(g.has, "shot 18 flies");
+        checkNear(g.carryYd,   150.2, 2.5, "shot 18 carry within 2.5 yd of the device's 150.2");
+        checkNear(g.apexFt,     83.3, 1.0, "shot 18 apex within 1 ft of the device's 83.3");
+        checkNear(g.descentDeg, 44.3, 0.3, "shot 18 descent within 0.3 deg of the device's 44.3");
+    }
+
+    // ── Lift is held at its peak, never taken away ──────────────────────────────
+    //
+    // Past the quadratic's peak the lift curve must stay flat. Evaluated bare, the old
+    // quadratic fell to zero at S = clS/clS2 — a wedge's spin factor — and would have
+    // flown a wedge with no lift at all.
+    {
+        const LmFlightModel m;
+        const double sPeak = m.clS / (2.0 * m.clS2);
+        checkNear(m.lift(0.6), m.lift(sPeak), 1e-12, "Cl at S = 0.6 equals Cl at the peak");
+        check(m.lift(1.0) > 0.25, "a very high spin factor still lifts");
+        check(m.lift(0.1) < m.lift(0.2) && m.lift(0.2) < m.lift(sPeak),
+              "Cl rises with S up to the peak");
+        check(m.cd0 >= 0.20 && m.cd0 + 0.4 * m.cdS <= 0.35, "Cd stays within 0.20-0.35");
     }
 
     // ── x is monotonic ──────────────────────────────────────────────────────────
@@ -123,7 +164,7 @@ int main()
     // a pixel off the carry label it sits under is the defect this replaced.
     {
         const LmFlightIntegration raw = lmIntegrateFlight(ref);
-        const LmFlightPath p = lmNormalisedPath(raw, 166.6, 63.0, 5.1, 181.9);
+        const LmFlightPath p = lmNormalisedPath(raw, 166.6, 63.0, 5.1, 181.9, 13.2, 37.3);
         check(p.has, "normalised path exists");
 
         checkNear(p.carryYd,   166.6, 1e-9, "carry is the reported carry");
@@ -162,6 +203,72 @@ int main()
         // Tangents: leaving shallower than it arrives, in the drawn space.
         check(p.launchTangent.y > 0.0,  "launch tangent climbs");
         check(p.landingTangent.y < 0.0, "landing tangent descends");
+        checkNear(p.descentDeg, 37.3, 1e-12, "descent is the reported descent");
+        checkNear(p.modelDescentDeg, raw.descentDeg, 1e-12, "the model's descent is kept beside it");
+    }
+
+    // ── The drawn curve leaves and lands at the measured angles ─────────────────
+    //
+    // Scaling x and y by different factors bends both end angles — for shot 8 to 11.7
+    // and 32.0 against a measured 11.9 and 32.6. The height remap turns them back. Read
+    // in TRUE units (yards against feet, so ÷ 3), off both the polyline's end segments
+    // and the tangent vectors, because the card draws the first and the guides the
+    // second. Carry, apex and offline must stay exact while it happens, and the curve
+    // must still only climb to the apex and only fall after it.
+    {
+        struct Case { const char *name; LmLaunch in; double carry, apex, offline, total, descent; };
+        const Case cases[] = {
+            { "shot 8",  shot8,  217.121, 69.067,  9.823, 240.031, 32.565 },
+            { "shot 18", shot18, 150.202, 83.340, -0.355, 162.546, 44.346 },
+            { "reference", ref,  166.6,   63.0,    5.1,   181.9,   37.3   },
+            // A device far from the model on both ends: the remap's r > 2 branch.
+            { "steep extreme", ref, 166.6, 63.0,   5.1,   181.9,   70.0   },
+        };
+        for (const Case &c : cases) {
+            std::printf("  -- %s\n", c.name);
+            const LmFlightIntegration raw = lmIntegrateFlight(c.in);
+            const LmFlightPath p = lmNormalisedPath(raw, c.carry, c.apex, c.offline, c.total,
+                                                    c.in.launchAngleDeg, c.descent);
+            check(p.has, "normalised");
+            const auto trueAngle = [&](double dxN, double dyN) {   // degrees above horizontal
+                return std::atan2(dyN * p.apexFt / 3.0, dxN * p.totalYd) * 180.0 / M_PI;
+            };
+            const size_t n = p.points.size();
+            const LmPoint &a0 = p.points[0], &a1 = p.points[1];
+            const LmPoint &b0 = p.points[n - 2], &b1 = p.points[n - 1];
+            const double launchSeg  =  trueAngle(a1.x - a0.x, a1.y - a0.y);
+            const double descentSeg = -trueAngle(b1.x - b0.x, b1.y - b0.y);
+            const double launchTan  =  trueAngle(p.launchTangent.x, p.launchTangent.y);
+            const double descentTan = -trueAngle(p.landingTangent.x, p.landingTangent.y);
+            std::printf("     drawn launch %.3f (tangent %.3f), descent %.3f (tangent %.3f);"
+                        " model alone %.2f / %.2f\n", launchSeg, launchTan, descentSeg,
+                        descentTan, c.in.launchAngleDeg, raw.descentDeg);
+            checkNear(launchSeg,  c.in.launchAngleDeg, 0.1, "first segment leaves at the measured launch");
+            checkNear(descentSeg, c.descent, 0.1, "last segment lands at the measured descent");
+            checkNear(launchTan,  c.in.launchAngleDeg, 0.1, "launch tangent is the measured launch");
+            checkNear(descentTan, c.descent, 0.1, "landing tangent is the measured descent");
+            checkNear(p.descentDeg, c.descent, 1e-12, "descentDeg reports the measured descent");
+
+            checkNear(p.landing.x * p.totalYd, c.carry, 1e-6, "lands at the reported carry");
+            checkNear(p.landing.z * p.lateralExtentYd, c.offline, 1e-6, "lands at the reported offline");
+            checkNear(p.landing.y, 0.0, 1e-12, "lands on the ground");
+
+            size_t apex = 0;
+            for (size_t i = 1; i < n; ++i)
+                if (p.points[i].y > p.points[apex].y) apex = i;
+            checkNear(p.points[apex].y * p.apexFt, c.apex, 1e-9, "peaks at the reported apex");
+            checkNear(p.points[apex].x / p.carryFraction, raw.apexFraction, 0.002,
+                      "apex keeps the model's fraction of carry");
+            bool up = true, down = true, inside = true;
+            for (size_t i = 1; i < n; ++i) {
+                if (i <= apex && p.points[i].y < p.points[i - 1].y) up = false;
+                if (i >  apex && p.points[i].y > p.points[i - 1].y) down = false;
+                if (p.points[i].y < 0.0 || p.points[i].y > 1.0) inside = false;
+            }
+            check(up,     "climbs monotonically to the apex");
+            check(down,   "falls monotonically after it");
+            check(inside, "never above the apex, never below the ground");
+        }
     }
 
     // ── A dead-straight model shot still draws a curved-out finish ──────────────
@@ -173,7 +280,7 @@ int main()
     {
         const LmFlightIntegration raw = lmIntegrateFlight({ 118.1, 13.2, 0.0, 4686.0, 0.0 });
         check(std::fabs(raw.offlineYd) < 1e-6, "model shot is dead straight");
-        const LmFlightPath p = lmNormalisedPath(raw, 166.6, 63.0, 5.0, 181.9);
+        const LmFlightPath p = lmNormalisedPath(raw, 166.6, 63.0, 5.0, 181.9, 13.2, 37.3);
         check(p.has, "straight model + offset report still normalises");
         checkNear(p.landing.z * p.lateralExtentYd, 5.0, 1e-6, "landing still decodes to 5.0 yd");
         bool finite = true;
@@ -186,12 +293,19 @@ int main()
     {
         const LmFlightIntegration raw = lmIntegrateFlight(ref);
         const double nan = std::numeric_limits<double>::quiet_NaN();
-        const LmFlightPath p = lmNormalisedPath(raw, nan, nan, nan, nan);
+        const LmFlightPath p = lmNormalisedPath(raw, nan, nan, nan, nan, nan, nan);
         check(p.has, "a device that reported no distances still draws");
         checkNear(p.carryYd, raw.carryYd, 1e-9, "carry falls back to the model's");
         checkNear(p.apexFt,  raw.apexFt,  1e-9, "apex falls back to the model's");
+        checkNear(p.descentDeg, raw.descentDeg, 1e-12, "descent falls back to the model's");
         checkNear(p.totalYd, p.carryYd,   1e-9, "no total means no roll");
         checkNear(p.carryFraction, 1.0,   1e-9, "and the trajectory fills the axis");
+        // Nothing reported means nothing to correct: the drawn curve IS the model's,
+        // point for point.
+        double worst = 0.0;
+        for (size_t i = 0; i < p.points.size(); ++i)
+            worst = std::max(worst, std::fabs(p.points[i].y * p.apexFt - raw.points[i].y));
+        check(worst < 0.05, "with no reports the drawn heights are the model's (within 0.05 ft)");
     }
 
     // ── Nothing in, nothing out ─────────────────────────────────────────────────
@@ -203,7 +317,7 @@ int main()
         check(!lmIntegrateFlight({ 0.0, 13.2, 0.0, 4686.0, 4.7 }).has, "no ball speed, no path");
         check(!lmIntegrateFlight({ 118.1, 0.0, 0.0, 4686.0, 4.7 }).has, "no launch angle, no path");
         check(!lmIntegrateFlight({ 118.1, -3.0, 0.0, 4686.0, 4.7 }).has, "negative launch, no path");
-        check(!lmNormalisedPath(LmFlightIntegration{}, 166.6, 63.0, 5.1, 181.9).has,
+        check(!lmNormalisedPath(LmFlightIntegration{}, 166.6, 63.0, 5.1, 181.9, 13.2, 37.3).has,
               "no integration, no normalised path");
     }
 

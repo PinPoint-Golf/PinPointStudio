@@ -34,12 +34,14 @@
 // from the launch conditions the device reported; the device also reports where that
 // trajectory ENDED. Those two disagree slightly, and we trust the device on endpoints
 // and the model on shape: lmNormalisedPath() scales the curve so carry, apex and
-// offline land exactly on the reported values while every intermediate point keeps the
-// model's proportions. The alternative — drawing the raw model — would put the ball
-// down somewhere other than where the card says it landed, on the same card.
+// offline land exactly on the reported values, then turns its two ends so it leaves at
+// the measured launch angle and lands at the measured descent angle, while every point
+// between keeps its downrange position and so the model's apex fraction. The
+// alternative — drawing the raw model — would put the ball down somewhere other than
+// where the card says it landed, on the same card.
 //
 // THE OFFLINE RESIDUAL IS KEPT, NOT SWALLOWED. For the reference shot the spin axis
-// accounts for 1.6 yd of a reported 5.1 yd finish. Normalisation stretches the curve to
+// accounts for 2.6 yd of a reported 5.1 yd finish. Normalisation stretches the curve to
 // cover the difference, which is the right thing for the drawing and the wrong thing to
 // forget: either the axis reading is soft on that strike or there was wind, and both are
 // worth knowing. residualOfflineYd carries it out so a caller can say so. Nothing in the
@@ -47,7 +49,7 @@
 // card claims a cause — but the number costs nothing to keep and everything to re-derive.
 //
 // Unit-tested standalone in src/Analysis/tests/lm_flight_path_test.cpp against the
-// reference row in the design brief.
+// reference row in the design brief and two GC Quad shots from the fitting corpus.
 
 #include <algorithm>
 #include <cmath>
@@ -65,15 +67,32 @@ inline constexpr double kRpmToRads = 2.0 * M_PI / 60.0;
 inline constexpr double kDegToRad  = M_PI / 180.0;
 inline constexpr double kRadToDeg  = 180.0 / M_PI;
 
-// Standard sphere aerodynamics for a golf ball. A DEFAULTED STRUCT RATHER THAN LITERALS
-// because these are configuration: the lift curve in particular is an empirical fit that
-// a later ball model, or a wind-tunnel number someone trusts more, should be able to
-// replace without touching the integrator or hunting constants through view code.
+// Sphere aerodynamics for a golf ball. A DEFAULTED STRUCT RATHER THAN LITERALS because
+// these are configuration: the lift curve in particular is an empirical fit that a later
+// ball model, or a wind-tunnel number someone trusts more, should be able to replace
+// without touching the integrator or hunting constants through view code.
 //
 // Cd and Cl are functions of the spin factor S = r·omega/|v| — the surface speed of the
 // ball's skin as a fraction of its speed through the air, which is the quantity both
-// coefficients actually depend on. Cl saturates: past roughly S = 0.29 a golf ball stops
-// generating more lift, and without the clamp a wedge's 11,000 rpm would fly it upwards.
+// coefficients actually depend on. Cl saturates: the quadratic rises to a peak (here
+// Cl 0.287 at S 0.243) and is HELD there beyond it — see lift() — so a wedge's 11,000 rpm
+// neither flies it upwards nor, as the bare quadratic would, takes its lift away.
+//
+// THE FIVE AERO CONSTANTS ARE FITTED, not quoted. tools/lm_flight_fit/ refits them to
+// every GC Quad shot in the corpus that reports carry, peak height and descent (36 shots,
+// 1,964–6,174 rpm, 96–133 mph), minimising the relative error in all three with the
+// low-spin and mid-spin shots weighted equally. Fitted carry is within 1.8 yd median
+// (worst 7.7 yd short), apex 1.5 ft, descent 0.4°. The constants they replaced (cd0 0.255,
+// cdS 0.16, clS 1.90, clS2 3.25, clMax 0.45) carried a 133 mph, 2,400 rpm shot 31 yd
+// short — 15% — because a single S-dependent drag curve set by mid-spin irons is too
+// draggy for a fast, low-spin ball.
+//
+// WHAT THE FIT CANNOT DO. The low-spin shots on their own want cd0 below 0.20 and still
+// come up ~3 yd short: drag here depends on S alone, and the residual looks like the
+// speed (Reynolds number) dependence it leaves out. So the fit sits at the bottom of the
+// plausible Cd band and the low-spin shots stay ~2% short. And the corpus holds one shot
+// above 6,000 rpm and no wedges: the held lift peak is what a wedge would fly on, and no
+// data here has checked it. clMax sits above the peak as a backstop and never binds.
 struct LmFlightModel {
     double massKg   = 0.04593;    // R&A / USGA maximum
     double radiusM  = 0.02134;    // R&A / USGA minimum diameter, halved
@@ -81,13 +100,23 @@ struct LmFlightModel {
     double g        = 9.80665;
     double dtS      = 0.0005;     // forward Euler; see the note on step size below
 
-    double cd0      = 0.255;      // Cd = cd0 + cdS·S
-    double cdS      = 0.16;
-    double clS      = 1.90;       // Cl = clamp(clS·S − clS2·S², 0, clMax)
-    double clS2     = 3.25;
-    double clMax    = 0.45;
+    double cd0      = 0.2017;     // Cd = cd0 + cdS·S: 0.20 at no spin, 0.33 at S = 0.4
+    double cdS      = 0.3313;
+    double clS      = 2.3648;     // Cl = clS·S − clS2·S², held at its peak, capped at clMax
+    double clS2     = 4.8747;
+    double clMax    = 0.30;
 
     double areaM2() const { return M_PI * radiusM * radiusM; }
+
+    // The lift curve. The quadratic is held at its own peak once S passes it, so Cl rises
+    // and then stays put — it never turns back down. Evaluated as written, the quadratic
+    // would fall to zero at S = clS/clS2 and give a high-spin wedge no lift at all.
+    double lift(double S) const
+    {
+        const double sPeak = clS2 > 0.0 ? clS / (2.0 * clS2) : S;
+        const double s     = std::min(S, sPeak);
+        return std::clamp(clS * s - clS2 * s * s, 0.0, clMax);
+    }
 };
 
 // What the device measured about the strike, in catalogue units. Everything the
@@ -178,7 +207,7 @@ inline LmFlightIntegration lmIntegrateFlight(const LmLaunch &in,
         // Spin factor, and the two coefficients it drives.
         const double S  = m.radiusM * omega / sp;
         const double Cd = m.cd0 + m.cdS * S;
-        const double Cl = std::clamp(m.clS * S - m.clS2 * S * S, 0.0, m.clMax);
+        const double Cl = m.lift(S);
 
         // Lift acts perpendicular to velocity. Build that perpendicular explicitly: the
         // horizontal right-hand normal to the flight path, then the "up" normal from it,
@@ -275,27 +304,47 @@ struct LmFlightPath {
     LmPoint landingTangent;
 
     // What is drawn (the device's) beside what was modelled (ours). Both, because the
-    // gap between them is a fact about the shot and not an embarrassment to hide.
+    // gap between them is a fact about the shot and not an embarrassment to hide. The
+    // drawn curve lands at exactly descentDeg: the reported descent, or the model's
+    // when the device gave none.
     double carryYd = 0.0, apexFt = 0.0, descentDeg = 0.0, offlineYd = 0.0, totalYd = 0.0;
     double modelCarryYd = 0.0, modelApexFt = 0.0, modelDescentDeg = 0.0, modelOfflineYd = 0.0;
     double residualOfflineYd = 0.0;   // reported − modelled, signed
 };
 
-// Scale the integrated shape onto the device's reported endpoints.
+// Scale the integrated shape onto the device's reported endpoints and end angles.
 //
-// Each axis is scaled independently and each by a single factor, which is what preserves
-// the shape: the apex still sits at the same FRACTION of carry, the descent is still
-// steeper than the launch by the same ratio, and only the units change. A per-point
-// correction would land the endpoints just as well and would no longer be the model's
-// curve — it would be an arch again, drawn the long way round.
+// TWO STEPS. First each axis is scaled independently, each by a single factor: carry,
+// apex height and offline land on the reported values, and the apex still sits at the
+// model's FRACTION of carry. Then height is remapped so the curve leaves at the measured
+// launch angle and lands at the measured descent angle — in true units, yards against
+// feet — because scaling x and y by different factors bends both end angles, and a card
+// that prints "descent 33°" under a curve that lands at 31° contradicts itself.
+//
+// THE REMAP IS A FUNCTION OF HEIGHT, NOT OF DISTANCE. Each half of the flight, apex to
+// ground, is redrawn as h = A·g(η) where η = H/A is the scaled height as a fraction of the
+// apex and g(η) = r·η + (1 − r)·η²: g(0) = 0 and g(1) = 1, so the tee, the apex and the
+// landing do not move; g'(0) = r, so the end slope is multiplied by exactly r and r is
+// chosen to make it the measured one; and at the apex the slope stays zero because dH is.
+// It is a correction to height that vanishes at the ground and at the apex with zero slope
+// there — but expressed through η it is monotone by construction for any r in (0, 2]: the
+// climb still climbs, the descent still descends, nothing rises above the apex or dips
+// below the ground. Past r = 2 the same shape continues as g = 1 − (1 − η)^r (the two
+// agree at r = 2), so even a wildly wrong end angle cannot fold the curve. Every point
+// keeps its downrange distance, so the apex fraction and the later, steeper descent are
+// still the model's; only the two ends are turned to the measured angles.
 //
 // A reported value that is absent or nonsensical falls back to the model's own, so a
-// device that reports carry but not apex still draws a correctly-shaped flight.
+// device that reports carry but not apex still draws a correctly-shaped flight, and one
+// that reports no descent lands at the model's descent angle — whatever the drawn curve
+// lands at is what descentDeg says, so the two cannot disagree.
 inline LmFlightPath lmNormalisedPath(const LmFlightIntegration &raw,
                                      double reportedCarryYd,
                                      double reportedApexFt,
                                      double reportedOfflineYd,
-                                     double reportedTotalYd)
+                                     double reportedTotalYd,
+                                     double reportedLaunchDeg,
+                                     double reportedDescentDeg)
 {
     LmFlightPath out;
     if (!raw.has || raw.points.size() < 3 || raw.carryYd <= 0.0 || raw.apexFt <= 0.0)
@@ -304,11 +353,15 @@ inline LmFlightPath lmNormalisedPath(const LmFlightIntegration &raw,
     const bool haveCarry   = std::isfinite(reportedCarryYd)   && reportedCarryYd > 0.0;
     const bool haveApex    = std::isfinite(reportedApexFt)    && reportedApexFt > 0.0;
     const bool haveOffline = std::isfinite(reportedOfflineYd);
+    // An end angle is only usable strictly between flat and vertical: tan() of either
+    // end is not a slope anyone can draw.
+    const auto usableAngle = [](double a) { return std::isfinite(a) && a > 0.0 && a < 89.0; };
 
     out.carryYd   = haveCarry   ? reportedCarryYd   : raw.carryYd;
     out.apexFt    = haveApex    ? reportedApexFt    : raw.apexFt;
     out.offlineYd = haveOffline ? reportedOfflineYd : raw.offlineYd;
-    out.descentDeg = raw.descentDeg;
+    out.descentDeg = usableAngle(reportedDescentDeg) ? reportedDescentDeg : raw.descentDeg;
+    const double launchDeg = usableAngle(reportedLaunchDeg) ? reportedLaunchDeg : raw.launchDeg;
     // Total below carry is a device quirk or a plugged lie, not a shot that rolled
     // backwards; clamp rather than draw a roll pointing at the golfer.
     out.totalYd = (std::isfinite(reportedTotalYd) && reportedTotalYd > out.carryYd)
@@ -327,6 +380,24 @@ inline LmFlightPath lmNormalisedPath(const LmFlightIntegration &raw,
     // "started straight, finished 5 yd right" when the model says it never moved.
     const bool lateralFromModel = std::abs(raw.offlineYd) > 1e-6;
     const double sz = lateralFromModel ? (out.offlineYd / raw.offlineYd) : 0.0;
+
+    // The end-slope multipliers. After scaling, the curve leaves at slope (sy/sx)·tan of
+    // the model's launch and lands at (sy/sx)·tan of the model's descent — both exact,
+    // because the integration starts on the launch angle and ends on the velocity it
+    // landed with. r is what turns each into the target. The units cancel: both sides
+    // of each ratio are feet per yard.
+    const auto slopeRatio = [&](double targetDeg, double modelDeg) {
+        const double drawn = (sy / sx) * std::tan(modelDeg * kDegToRad);
+        return drawn > 1e-9 ? std::tan(targetDeg * kDegToRad) / drawn : 1.0;
+    };
+    const bool modelEndsUsable = raw.launchDeg > 0.0 && raw.descentDeg > 0.0;
+    const double rUp   = modelEndsUsable ? slopeRatio(launchDeg, raw.launchDeg) : 1.0;
+    const double rDown = modelEndsUsable ? slopeRatio(out.descentDeg, raw.descentDeg) : 1.0;
+    const auto remap = [](double eta, double r) {
+        eta = std::clamp(eta, 0.0, 1.0);
+        return r <= 2.0 ? r * eta + (1.0 - r) * eta * eta
+                        : 1.0 - std::pow(1.0 - eta, r);
+    };
 
     // The roll runs on from touchdown, drifting sideways along the ball's landing
     // heading. Its DOWNRANGE extent is the device's total distance, not carry plus the
@@ -352,11 +423,24 @@ inline LmFlightPath lmNormalisedPath(const LmFlightIntegration &raw,
     }
     out.lateralExtentYd = std::max(maxAbsZ, 1e-6);
 
+    // The apex sample divides the climb from the descent: the remap on each side of it
+    // is the one that side's end angle chose. Heights are taken as a fraction of that
+    // SAMPLE, not of raw.apexFt — the integration keeps every step's height but stores
+    // every other one, and the drawn apex must come out at exactly 1.
+    size_t apexIdx = 0;
+    for (size_t i = 1; i < raw.points.size(); ++i)
+        if (raw.points[i].y > raw.points[apexIdx].y) apexIdx = i;
+    const double apexSampleFt = raw.points[apexIdx].y;
+    if (!(apexSampleFt > 0.0))
+        return out;
+
     out.points.reserve(raw.points.size());
-    for (const LmPoint &p : raw.points) {
-        const double zy = lateralFromModel ? p.z * sz : out.offlineYd * (p.x / raw.carryYd);
+    for (size_t i = 0; i < raw.points.size(); ++i) {
+        const LmPoint &p = raw.points[i];
+        const double zy  = lateralFromModel ? p.z * sz : out.offlineYd * (p.x / raw.carryYd);
+        const double eta = p.y / apexSampleFt;        // = scaled height / reported apex
         out.points.push_back({ (p.x * sx) / spanX,
-                               (p.y * sy) / out.apexFt,
+                               remap(eta, i <= apexIdx ? rUp : rDown),
                                zy / out.lateralExtentYd });
     }
 
@@ -366,17 +450,19 @@ inline LmFlightPath lmNormalisedPath(const LmFlightIntegration &raw,
     out.apexFractionOfCarry = raw.apexFraction;
     out.apexAtX = out.carryFraction * raw.apexFraction;
 
-    // Tangents in the DRAWN space, taken across a few samples so a single Euler step's
-    // noise cannot tip them.
+    // Tangents in the DRAWN space, straight from the end angles the curve was built to:
+    // a run of one yard climbs tan(launch) yards = 3·tan(launch) feet, and each axis is
+    // then divided by what 1 means on it. Exact rather than differenced off the polyline,
+    // so the guide strokes cannot disagree with the angles printed beside them.
     const auto unit = [](LmPoint v) {
         const double n = std::sqrt(v.x * v.x + v.y * v.y);
         return n > 1e-12 ? LmPoint{ v.x / n, v.y / n, 0.0 } : LmPoint{ 1.0, 0.0, 0.0 };
     };
-    const size_t k = std::min<size_t>(4, out.points.size() - 1);
-    const LmPoint &a0 = out.points.front(), &a1 = out.points[k];
-    const LmPoint &b0 = out.points[out.points.size() - 1 - k], &b1 = out.points.back();
-    out.launchTangent  = unit({ a1.x - a0.x, a1.y - a0.y, 0.0 });
-    out.landingTangent = unit({ b1.x - b0.x, b1.y - b0.y, 0.0 });
+    const double ftPerYd = kMToFt / kMToYd;           // 3
+    out.launchTangent  = unit({ 1.0 / spanX,
+                                 ftPerYd * std::tan(launchDeg * kDegToRad) / out.apexFt, 0.0 });
+    out.landingTangent = unit({ 1.0 / spanX,
+                                -ftPerYd * std::tan(out.descentDeg * kDegToRad) / out.apexFt, 0.0 });
 
     out.has = true;
     return out;
