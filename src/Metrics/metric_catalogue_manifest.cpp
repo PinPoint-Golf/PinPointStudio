@@ -1560,6 +1560,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("the club steepened in transition — the over-the-top direction"),
         .signNegative = QStringLiteral("the club shallowed in transition"),
         .phases = { P::Transition },
+        .card = { .readAt = { { P::Transition, {} } } },
         .routes = {
             via("faceOnClub", RM::Projected, Direct, { .faceOnCamera = true, .clubTrack = true },
                 QStringLiteral("the shaft vector's own ellipse over each window, from the face-on "
@@ -1602,6 +1603,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("the hands came down outside the backswing path — over the top"),
         .signNegative = QStringLiteral("the hands came down inside the backswing path"),
         .phases = { P::Top },
+        .card = { .readAt = { { P::Top, {} } } },
         .routes = {
             via("dtl", RM::Projected, Direct, { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("the lead wrist's two paths in the down-the-line image, compared at "
@@ -2153,6 +2155,9 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("a wider stance"),
         .signNegative = QString(),
         .phases = { P::Address },
+        // Read where it is sampled: a card with no readAt reads @ IMPACT (metric_descriptor.h), an
+        // instant a setup reading is never measured at. Every Address-only row carries the same line.
+        .card = { .readAt = { { P::Address, {} } } },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("heel-to-heel span over shoulder width — both spans read in the "
@@ -2182,6 +2187,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("a wider stance"),
         .signNegative = QString(),
         .phases = { P::Address },
+        .card = { .readAt = { { P::Address, {} } } },
         .routes = {
             via("faceOnBall", RM::Projected, Direct, { .faceOnCamera = true, .ballTrack = true },
                 QStringLiteral("the same heel-to-heel span through the ball-diameter ruler, which "
@@ -2217,6 +2223,7 @@ void installMetricManifest(MetricCatalogue &cat)
             "heel, the scale other golf software uses"),
         .signNegative = QStringLiteral("forward of the lead heel, which is a real driver setup"),
         .phases = { P::Address },
+        .card = { .readAt = { { P::Address, {} } } },
         .routes = {
             via("faceOnBall", RM::Projected, Direct, { .faceOnCamera = true, .ballTrack = true },
                 QStringLiteral("the ball projected onto the heel line over stance width — a same- "
@@ -2245,6 +2252,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("the lead toe turned out, away from the ball"),
         .signNegative = QStringLiteral("turned in"),
         .phases = { P::Address },
+        .card = { .readAt = { { P::Address, {} } } },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the heel-to-big-toe line's angle, in the face-on image")) },
@@ -2271,6 +2279,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("the trail toe turned out, away from the ball"),
         .signNegative = QStringLiteral("turned in"),
         .phases = { P::Address },
+        .card = { .readAt = { { P::Address, {} } } },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the heel-to-big-toe line's angle, in the face-on image")) },
@@ -2298,6 +2307,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("a closed stance line as the camera sees it"),
         .signNegative = QStringLiteral("an open stance line — and this one line metric FLIPS for a mirrored camera"),
         .phases = { P::Address },
+        .card = { .readAt = { { P::Address, {} } } },
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the big-toe-to-big-toe line's angle, in the face-on image")) },
@@ -2327,6 +2337,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("the lead heel further off the ground"),
         .signNegative = QString(),
         .phases = { P::Top },
+        .card = { .readAt = { { P::Top, {} } } },
         // ballTrack is not optional decoration: foot_metrics.cpp emits this curve only when
         // mmPerPx resolved, because the reading is centimetres and the ball diameter is the only
         // ruler at the ground plane. The rung once named the face-on camera alone, so a ball-less
@@ -2386,6 +2397,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("the shoulder line aimed right of the target — closed"),
         .signNegative = QStringLiteral("the shoulder line aimed left of the target — open"),
         .phases = { P::Address },
+        .card = { .readAt = { { P::Address, {} } } },
         .routes = {
             via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("the shoulder joints triangulated from the calibrated pair, and the "
@@ -2590,6 +2602,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("a more rounded upper back"),
         .signNegative = QStringLiteral("a flatter, more extended upper back"),
         .phases = { P::Address },
+        .card = { .readAt = { { P::Address, {} } } },
         .routes = {
             via("dtlContour", RM::Projected, Direct, { .dtlCamera = true },
                 QStringLiteral("the upper-back contour of a down-the-line silhouette — no pose "
@@ -2619,6 +2632,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("a more arched low back"),
         .signNegative = QStringLiteral("a flattened low back"),
         .phases = { P::Address },
+        .card = { .readAt = { { P::Address, {} } } },
         .routes = {
             via("dtlContour", RM::Projected, Direct, { .dtlCamera = true },
                 QStringLiteral("the low-back contour of a down-the-line silhouette — no pose "
@@ -2788,6 +2802,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("standing further from the ball"),
         .signNegative = QStringLiteral("standing closer to the ball"),
         .phases = { P::Address },
+        .card = { .readAt = { { P::Address, {} } } },
         .routes = {
             via("dtl", RM::Triangulated, Direct, { .dtlCamera = true, .ballTrack = true },
                 QStringLiteral("the ball's standoff is measured across the stance line, which is "
