@@ -236,7 +236,7 @@ QtObject {
             page: "pages/CheckArmPage.qml"
             applies: function(ctx, draft) { return ctx.groups.arm.inSession }
         },
-        // ── TRUNK — the two lines the trunk work adds (trunk_imu_design.md §6.7; design §4.10).
+        // ── TRUNK — the two lines the trunk work adds (trunk_imu_sequence_grf_design.md §6.3, §6.7; design §4.10).
         // Registering them is ALSO what offers the trunk mounts (§4.12): flip
         // ImuMounts.trunkMountsOffered in the same change until the two are wired together.
         //

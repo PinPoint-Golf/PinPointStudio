@@ -53,8 +53,8 @@ QtObject {
     //
     // ⚠ THE ONE SWITCH. A mount is offered only if its instrument group has a calibrate step
     // (design §4.12). The arm has one. The TRUNK DOES NOT YET: there is no pelvis/thorax
-    // ceremony (trunk_imu_design.md §6.7–6.8), and the trunk analysis path has never run
-    // (§0) — offering these mounts now would feed it sensors nobody calibrated, and its first
+    // ceremony (trunk_imu_sequence_grf_design.md §6.3), and the trunk analysis path has never run
+    // (§1) — offering these mounts now would feed it sensors nobody calibrated, and its first
     // run would be on garbage. The day the trunk calibrate step is registered, flip this to
     // true and nothing else: the Settings picker, its "Missing" summary and every later page
     // take the offered set from here. (Stage 4's step registry replaces this flag with

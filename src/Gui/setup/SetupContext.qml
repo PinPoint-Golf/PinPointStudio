@@ -380,7 +380,7 @@ QtObject {
     // holds at least one of its roles; COMPLETE when every role of its minimum set is so held.
     // Arm minimum: leadForearm + leadHand (the old Wrist table's required A and B); leadUpperArm is
     // optional (roll). DECISION(stage4): trunk minimum is pelvis AND thorax — the pair route and
-    // the body-rotation lanes need both (trunk_imu_design.md "With both sensors bound").
+    // the body-rotation lanes need both (trunk_imu_sequence_grf_design.md "With both sensors bound").
     readonly property var groupDefs: ({
         arm:   { roles: ImuMounts.armRoles,   minimum: ["leadForearm", "leadHand"] },
         trunk: { roles: ImuMounts.trunkRoles, minimum: ["pelvis", "thorax"] }

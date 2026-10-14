@@ -1,6 +1,6 @@
 # Session setup wizard — audit and refactor design
 
-**Status:** implemented 5 October 2026 (§11). The suite and the app probes pass; Mark ran a Witmotion session through it. The hardware checklist (§7.6, §11.5) is still to be run in the cabin, including Windows, which has not built this yet. Written 5 October 2026 as the preparation for the trunk IMU work (`trunk_imu_design.md` §5.6–5.7, §6.7), which needs new wizard pages.
+**Status:** implemented 5 October 2026 (§11). The suite and the app probes pass; Mark ran a Witmotion session through it. The hardware checklist (§7.6, §11.5) is still to be run in the cabin, including Windows, which has not built this yet. Written 5 October 2026 as the preparation for the trunk IMU work (`trunk_imu_sequence_grf_design.md` §6.7, §8.7), which needs new wizard pages.
 **Amended 5 October** after Mark's answers to §10. Three things changed, and where this document's earlier sections disagree with them, these win:
 - **There is one setup flow for every session**, and it is renamed **Session setup** (`src/Gui/setup/`, `ScreenSessionSetup.qml`, `session_setup_ui_test`). Wherever this document says `wizard_ui_test` or "keeps the file name", read the new names. See §4.12.
 - **Role-keyed placement and the in-wizard mount question are in this refactor** (§4.13), not left to the trunk work.
@@ -11,7 +11,7 @@ The stage plan in §8 is replaced by §8a.
 **Who does the work:** Fable orchestrates, reviews and runs the tests. Opus agents write the code, one work item each.
 **Protected files:** `src/Gui/session/ScreenSessionWizard.qml` and `src/Gui/calibration/ImuCalibrationFlow.qml` (memory note `do-not-touch-the-session-wizard`). The refactor session is the approval context for changing them. Each stage in §8 is shown with its test run before the next stage starts.
 **Builds on:**
-- `trunk_imu_design.md`: the pages this refactor has to make easy to add.
+- `trunk_imu_sequence_grf_design.md`: the pages this refactor has to make easy to add.
 - `pinpoint_qml_design_system.md`: the palette and components the progress indicator uses.
 - Memory notes `view3d-disappearance-watch`, `verify-ui-by-probing`, `qml-dead-statement-bindings`, `analysis-is-session-agnostic`.
 
@@ -418,7 +418,7 @@ The real adapter wraps one `BodyVizView` and owns `_animStage`-free plumbing: th
 
 One object resolves everything the pages ask about hardware. Its reactive dependencies are written **once** (fixes F12):
 - `faceOn[]`, `dtl[]`, `others[]`; `camsAllConnected`; `ballInstance`; `ballPresent`;
-- `slot(s)` → `{ id, device, unit, present, enabled, connected, vendor, unitLabel }` for `A`, `B`, `C` today, then **roles** when `trunk_imu_design.md` §6.7 lands (`pelvis`, `thorax`, `leadForearm`, …);
+- `slot(s)` → `{ id, device, unit, present, enabled, connected, vendor, unitLabel }` for `A`, `B`, `C` today, then **roles** when `trunk_imu_sequence_grf_design.md` §8.7 lands (`pelvis`, `thorax`, `leadForearm`, …);
 - `armRoutine` (`"witmotion"` | `"hackmotion"` | `""`), `trunkRoles[]`;
 - `requirements` (the per-type table moved out of the view: `sessionTypes`, `imuRequirements`, `goalDefsByType`, F14).
 
@@ -473,7 +473,7 @@ Mark, 5 Oct: the modal session type is being replaced in the new UX. A session m
 - **Instrument groups own steps.** `arm` and `trunk` (later `legs`) each have a Calibrate step and a Check step. A measurement does not own a step: trunk sensors feed both body rotation and the kinematic sequence, and are calibrated once.
 - **A group is in the session** when a device that is enabled for this session holds one of the group's roles.
 - **Found is not wanted.** A sensor the scan finds does not force a step. A found Witmotion with no remembered mount gets the mount question on the Sensors page. Unanswered, it sits out, and the closing page says so. A wG3 implies its mount (lead forearm and hand).
-- **A mount is offered only if its group has a calibrate step in the registry.** Trunk mounts appear in the picker the day the trunk pages are registered, and not before. The trunk analysis path has never run (`trunk_imu_design.md` §0) and stays dark until its ceremony exists.
+- **A mount is offered only if its group has a calibrate step in the registry.** Trunk mounts appear in the picker the day the trunk pages are registered, and not before. The trunk analysis path has never run (`trunk_imu_sequence_grf_design.md` §1) and stays dark until its ceremony exists.
 - **Mounts stick.** Sensors live in the vest and the belt. The picker confirms the remembered mount; it does not ask from scratch each session.
 - **One claim per role, enforced in `ImuManager`.** A second present, enabled device asking for a held role is refused, with the holder named. This also enforces the no-dual-instrument rule on the arm (memory note `no-dual-instrument-wear`).
 - **The session type becomes a pass-through preset.** Until the UX switch it still picks the goals list, the screen Start lands on, and the type handed to `sessionController.start` and the pipeline. No `applies` or `gate` may read it (lint W8).
@@ -783,7 +783,7 @@ Added lint rules: **W8** no `applies` or `gate` mentions `sessionType` or the pr
 | D1 | Leaving Calibrate mid-run (Back, Skip, Settings): **stop and restart** on return, or pause and resume? | Stop and restart. HackMotion cannot pause (the device times the raise). One rule for both is simpler and testable. |
 | D2 | Header ›: **Continue only** (disabled when Continue is), or also performs Connect? | Continue only. Connect stays a deliberate footer press. |
 | D3 | Back into a completed Calibrate: **show complete + Recalibrate**, or re-run as now? | Show complete. Today's re-run is the accident behind F1. |
-| D4 | Trunk: **separate Calibrate-trunk / Check-trunk steps**, or one Calibrate page sequencing routines? | Separate steps. Each is a routine with its own gate. The combined arm+trunk ceremony (`trunk_imu_design.md` D8) can later be one routine whose descriptor replaces both. |
+| D4 | Trunk: **separate Calibrate-trunk / Check-trunk steps**, or one Calibrate page sequencing routines? | Separate steps. Each is a routine with its own gate. The combined arm+trunk ceremony (`trunk_imu_sequence_grf_design.md` D8) can later be one routine whose descriptor replaces both. |
 | D5 | Indicator: **click to jump back**? Forward jumps? | Back yes, forward no in v1. |
 | D6 | A Wrist session with no arm sensor: keep showing Calibrate with "no sensor" (today), or drop the step? | Drop it once trunk roles exist. Until then keep today's behaviour. |
 | D7 | Triangulate's stub readiness issues (F11): keep as today, or stop reporting an unbuildable check? | Keep as today in this refactor (out of scope), then fix with the camera calibration work. |

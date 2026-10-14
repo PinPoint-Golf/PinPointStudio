@@ -160,7 +160,7 @@ ClaimResult claimRole(const QVariantMap &roles, const QString &deviceId, const Q
     // sensor never mentioned. This is also what keeps two instruments off one arm (memory
     // note no-dual-instrument-wear): a wG3 holding the forearm and hand blocks a Witmotion
     // from both, and vice versa. Roles are disjoint across the trunk and the arm, so a wG3
-    // and trunk Witmotions never meet here (trunk_imu_design.md §6.8).
+    // and trunk Witmotions never meet here (trunk_imu_sequence_grf_design.md §8.7).
     for (const auto &t : targets) {
         for (auto it = roles.cbegin(); it != roles.cend(); ++it) {
             if (it.value().toString() != t.second) continue;

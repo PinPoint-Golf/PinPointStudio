@@ -25,7 +25,7 @@ across studies. This document is context. It is not ground truth.
 | **NR-02** | Every surfaced normative value carries the segment definition it was measured under. Where PinPoint's definition differs from the source's, PinPoint either normalises to the source definition or withholds the comparison. |
 | **NR-03** | PinPoint reports direction of difference in preference to absolute gap. "Your pelvis peaks after your thorax; professionals peak pelvis first" is compliant. "You are 47°/s below tour average" asserts a precision the literature does not support and is not compliant. **Amended 2026-10-02 (Mark):** the kinematic-sequence tile shows each placed peak as a % of the Cheetham professional peak, plain ("70%"), with the source on the tile. Mark chose readability over the σ. |
 | **NR-04** | PinPoint surfaces variability alongside magnitude. Consistency, not peak magnitude, is the most robust discriminator in this literature (§2.3). |
-| **NR-05** | Normative values are not targets. PinPoint does not present a normative value as a goal state, and does not gate a good/bad verdict on proximity to one. **Amended 2026-10-02 (Mark):** the kinematic-sequence tile shows the professional order as the order the segments SHOULD peak in. It marks the verdict ✓ / ✗ against that categorical order (§2.3), never against a magnitude. |
+| **NR-05** | Normative values are not targets. PinPoint does not present a normative value as a goal state, and does not gate a good/bad verdict on proximity to one. **Amended 2026-10-02 (Mark):** the kinematic-sequence tile shows the professional order as the order the segments SHOULD peak in. It marks the verdict ✓ / ✗ against that categorical order (§2.3), never against a magnitude. **Amended 2026-10-14 (Mark):** the kinematic-sequence hand-off checks fire when the ratio of a segment's peak speed to the previous segment's falls below 80 % of the ratio in Cheetham et al. (2008), 19 PGA tour professionals (thorax/pelvis 1.22, arm/thorax 1.08, club/arm 1.84). The amateur ratios in the same study lie within 3 % of the professional ones, so the check marks a breakdown in the chain, not a skill gap, and is worded as such. Design: `trunk_imu_sequence_grf_design.md` §10. |
 | **NR-06** | PinPoint makes no injury-risk claim. Injury-adjacent metrics (crunch factor, lateral bend, wrist loading) may be reported as descriptive values. They are not interpreted as risk. PinPoint is not a medical device. |
 | **NR-07** | Peer-reviewed sources and commercial datasets are labelled distinctly. Trackman figures are cited as "Trackman tour averages", never as research. |
 
@@ -180,7 +180,7 @@ increased active contractile power from eccentrically pre-loaded torso musculatu
 
 | ID | Statement |
 |---|---|
-| **NR-13** | X-factor and X-factor stretch are surfaced as descriptive values. No good/bad verdict is gated on either. |
+| **NR-13** | X-factor and X-factor stretch are surfaced as descriptive values. No good/bad verdict is gated on either. **Amended 2026-10-14 (Mark):** X-factor stretch may fire a characteristic (`xfactor_deficit`, `excessive_separation_stretch`) at the extremes of a wide corridor, labelled one-golfer and heuristic until a cohort exists. X-factor at the top is never graded on its own (NR-10), and no elastic-energy language is used (NR-14). |
 | **NR-14** | PinPoint does not describe X-factor as storing or releasing elastic energy. |
 
 ---
