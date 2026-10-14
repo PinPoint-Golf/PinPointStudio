@@ -18,11 +18,14 @@
 
 // END-TO-END: A METRIC IS DRAWN IN ITS OWN COLOUR, AND THE USER'S CHOICES REACH THE CHART.
 //
-// Loads a session, opens a swing in Replay, finds the metric chart, and checks every curve is
+// Loads a session, opens a swing in Replay, finds the Charts panel's body (chBody) on This shot, and
+// checks every trace (chTrace:<key> — its curve as painted, and its label's swatch) is
 // Theme.metricColor(its key) — then re-points a metric, retunes a palette name and switches
-// theme, and checks the chart's curves FOLLOW each change (a binding that read the colour once
+// theme, and checks the traces FOLLOW each change (a binding that read the colour once
 // would pass the first check and fail these). Then opens the metric in Settings → Diagnostic Model
 // and checks the inspector's plot-colour row, and that Appearance offers the twelve tiles.
+// REDESIGNED 14 Oct 2026 for the new Charts panel (build/charts-build/STEP3.md, INVENTORY §5 Probes):
+// it used to read PpMetricChart's private `_curves`; it now reads what the panel draws, by objectName.
 //
 // Run with a COPY of the settings — it writes metricColors/metricPalette/themeIndex:
 //   XDG_CONFIG_HOME=<scratch> QT_QPA_PLATFORM=offscreen PinPointStudio --probe-qml <this file> \
@@ -69,13 +72,34 @@ Item {
         walk(probe.Window.window.contentItem, pred, out)
         return out
     }
-    function charts() {
-        return find(it => it._curves !== undefined && it._color !== undefined && it._plottable !== undefined)
+    // The Charts body on screen (the stage rebuilds it on a theme or mode switch: found afresh each step).
+    function onScreen(item, top) {
+        let i = item
+        while (i && i !== top) { if (!i.visible) return false; i = i.parent }
+        return !!i
     }
-    function curveColour(chart, key) {
-        const c = chart._curves
-        for (let i = 0; i < c.length; ++i) if (c[i].key === key) return String(c[i].color).toUpperCase()
-        return ""
+    function chartBody() {
+        const bs = find(it => it.objectName === "chBody" && it.visible && it.width > 0)
+        return bs.length ? bs[0] : null
+    }
+    // This shot's traces: [{ key, curve, swatch }] — the curve's colour as handed to the painter (the
+    // row's own line layer) and the label swatch beside its name.
+    function traces(b) {
+        const rows = []
+        walk(b, it => /^chTrace:./.test(it.objectName) && it.objectName !== "chTrace:overlay" && onScreen(it, b), rows)
+        return rows.map(r => {
+            const key = r.objectName.slice(8)
+            const plot = (r.children || []).find(k => k.layers !== undefined && k.xOf !== undefined)
+            const line = plot ? plot.layers.find(l => l.k === "line" && l.z === 3) : null
+            const lab = []
+            walk(r, it => it.objectName === "chTraceLabel:" + key, lab)
+            const sw = lab.length && lab[0].children.length ? lab[0].children[0] : null
+            return { key: key, curve: line ? String(line.color).toUpperCase() : "", swatch: sw ? String(sw.color).toUpperCase() : "" }
+        })
+    }
+    function curveColour(b, key) {
+        const t = traces(b).find(x => x.key === key)
+        return t ? t.curve : ""
     }
     function same(a, b) { return String(a).toUpperCase() === String(b).toUpperCase() }
 
@@ -90,7 +114,6 @@ Item {
     }
 
     property int startTheme: 0
-    property var chart: null
     property string key: ""
     property int step: 0
     Timer {
@@ -122,41 +145,59 @@ Item {
                 }
                 probe.check(picked, "shot " + probe.ordinal + " is in the carousel")
             } else if (s === 3) {
-                const cs = probe.charts().filter(c => c._curves.length > 0)
-                probe.check(cs.length > 0, "a metric chart with curves is up (" + cs.length + ")")
-                if (cs.length === 0) { probe.finish(); return }
-                probe.chart = cs[0]
-                const curves = probe.chart._curves
+                const b = probe.chartBody()
+                probe.check(b !== null, "the Charts panel is up")
+                if (!b) { probe.finish(); return }
+                b.tab = "shot"
+                // one trace per metric (small multiples): a reader's saved "overlaid" would draw them on one
+                // plot. Chosen through the body (saved in this run's COPY of the settings), so the stage
+                // rebuilding the panel on the theme switch below keeps it.
+                if (b.overlay) b.choose("overlay", false)
+            } else if (s === 4) {
+                const b = probe.chartBody()
+                const curves = b ? probe.traces(b) : []
+                // the session's curves are read off the GUI thread: give the panel a few ticks to publish
+                if (curves.length === 0 && probe.waits < 8) {
+                    probe.waits += 1
+                    probe.log("waiting for traces: " + (b ? "register " + b.register + ", view " + b.view + ", shot "
+                              + (b.tShot && b.tShot.available ? b.tShot.ordinal + " with " + (b.tShot.rows || []).length + " rows" : "not available")
+                              + (b.busy ? ", busy" : "") : "no body"))
+                    probe.step -= 1
+                    return
+                }
+                probe.check(curves.length > 0, "This shot draws traces (" + curves.length + ")")
+                if (curves.length === 0) { probe.finish(); return }
                 let bad = []
                 for (let i = 0; i < curves.length; ++i)
-                    if (!same(curves[i].color, Theme.metricColor(curves[i].key))) bad.push(curves[i].key)
-                probe.check(bad.length === 0, "every one of " + curves.length + " curves is its metric's colour"
+                    if (!same(curves[i].curve, Theme.metricColor(curves[i].key)) || !same(curves[i].swatch, Theme.metricColor(curves[i].key)))
+                        bad.push(curves[i].key)
+                probe.check(bad.length === 0, "every one of " + curves.length + " traces (curve and swatch) is its metric's colour"
                             + (bad.length ? " — not: " + bad.join(",") : ""))
                 const keys = curves.map(c => c.key)
-                probe.log("curves: " + curves.map(c => c.key + "=" + Theme.metricColorName(c.key)
-                                                     + " " + String(c.color).toUpperCase()).join("  "))
+                probe.log("traces: " + curves.map(c => c.key + "=" + Theme.metricColorName(c.key)
+                                                     + " " + c.curve).join("  "))
                 probe.key = keys.indexOf("clubheadSpeed") >= 0 ? "clubheadSpeed" : keys[0]
                 // Re-point the metric at another name; the chart must follow.
                 const other = Theme.metricColorName(probe.key) === "gold" ? "violet" : "gold"
                 appSettings.metricColors = ({ [probe.key]: other })
                 probe._other = other
-            } else if (s === 4) {
-                probe.check(same(probe.curveColour(probe.chart, probe.key), Theme.paletteDefault(probe._other)),
+            } else if (s === 5) {
+                probe.check(same(probe.curveColour(probe.chartBody(), probe.key), Theme.paletteDefault(probe._other)),
                             "re-pointing " + probe.key + " at " + probe._other + " repaints its curve ("
-                            + probe.curveColour(probe.chart, probe.key) + ")")
+                            + probe.curveColour(probe.chartBody(), probe.key) + ")")
                 // Retune that name in this theme; the curve must follow again.
                 appSettings.metricPalette = ({ [Theme.paletteKey(probe._other)]: "#FF00FF" })
-            } else if (s === 5) {
-                probe.check(same(probe.curveColour(probe.chart, probe.key), "#FF00FF"),
+            } else if (s === 6) {
+                probe.check(same(probe.curveColour(probe.chartBody(), probe.key), "#FF00FF"),
                             "retuning " + probe._other + " in " + Theme.aesthetic + " repaints the curve ("
-                            + probe.curveColour(probe.chart, probe.key) + ")")
+                            + probe.curveColour(probe.chartBody(), probe.key) + ")")
                 appSettings.metricColors  = ({})
                 appSettings.metricPalette = ({})
                 // Another theme: same NAME, that theme's value.
-                probe._before = probe.curveColour(probe.chart, probe.key)
+                probe._before = probe.curveColour(probe.chartBody(), probe.key)
                 Theme.themeIndex = (Theme.themeIndex + 3) % Theme.themeCount   // other aesthetic AND other mode
-            } else if (s === 6) {
-                const now = probe.curveColour(probe.chart, probe.key)
+            } else if (s === 7) {
+                const now = probe.curveColour(probe.chartBody(), probe.key)
                 probe.check(same(now, Theme.metricColor(probe.key)) && !same(now, probe._before),
                             "switching to " + Theme.aesthetic + (Theme.dark ? " dark" : " light") + " repaints "
                             + probe.key + " " + probe._before + " → " + now)
@@ -164,7 +205,7 @@ Item {
                 // Settings → Diagnostic Model → this metric.
                 MetricRoute.open(probe.key)                           // a metric tile's own click path
                 appSettings.metricColors = ({ [probe.key]: "orchid" })
-            } else if (s === 7) {
+            } else if (s === 8) {
                 // Not filtered on `visible`: offscreen the settings page is too narrow to show the
                 // inspector pane at all, so visibility is an artefact here — the row's DATA is not.
                 const rows = probe.find(it => it.objectName === "inspectorPlotColour" && it.metricKey === probe.key)
@@ -187,7 +228,7 @@ Item {
                 const dm = probe.find(it => typeof it.showMeasure === "function")
                 probe.check(dm.length === 1, "the Diagnostic Model panel is up")
                 if (dm.length === 1) dm[0].showMeasure("m_clubheadSpeedImpact")
-            } else if (s === 8) {
+            } else if (s === 9) {
                 const rows = probe.find(it => it.objectName === "inspectorPlotColour")
                 probe.check(rows.length === 1 && rows[0].metricKey === "clubheadSpeed"
                             && rows[0].current === "cornflower",
@@ -198,5 +239,6 @@ Item {
         }
     }
     property string _other: ""
+    property int waits: 0
     property string _before: ""
 }

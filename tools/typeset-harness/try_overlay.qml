@@ -141,6 +141,10 @@ Item {
     // Replay: attached; every tab followed. Analyse (a mode switch rebuilds the stage): re-attached;
     // every tab again; the detail opens and Back returns. A mock that declares `register` must read
     // "Replay" / "Analyse" in the matching mode (the one-file-per-register convention).
+    // Optional overlay hooks (a pass-through over the REAL panel uses them to check it, e.g.
+    // screens/charts_real.qml): selfCheck(tab) → "" when the panel shows that tab, else why; and, for a
+    // body with no _openDetail, selfOpen() / selfCheck("open") / selfClose() / selfCheck("closed") as
+    // its drill-in.
     readonly property bool selftest: Qt.application.arguments.indexOf("--probe-selftest") >= 0
     property int fails: 0
     function ok(c, what) { log((c ? "PASS " : "FAIL ") + what); if (!c) fails++ }
@@ -160,6 +164,11 @@ Item {
                 const b = probe.live()
                 const v = b && b.overlay && has(b.overlay, "view") ? String(b.overlay.view) : "(no view)"
                 if (probe.viewProp !== "") probe.ok(v === String(tabs[i]), modeName + ": tab " + tabs[i] + " followed (" + v + ")")
+                // an overlay that can say what the panel under it shows (a pass-through over the real panel)
+                if (b && b.overlay && typeof b.overlay.selfCheck === "function") {
+                    const why = String(b.overlay.selfCheck(String(tabs[i])))
+                    probe.ok(why === "", modeName + ": the panel shows " + tabs[i] + (why === "" ? "" : " — " + why))
+                }
                 step(i + 1)
             })
         }
@@ -191,6 +200,24 @@ Item {
                     probe.checkAttached("Analyse", "Analyse")
                     probe.driveTabs("Analyse", () => {
                         const a = probe.live()
+                        // a panel without _openDetail may have its own drill-in, driven by its overlay
+                        // (selfOpen / selfCheck("open") / selfClose / selfCheck("closed"); Charts: an Apart row)
+                        if (a && a.overlay && typeof a.overlay.selfOpen === "function" && typeof a.body._openDetail !== "function") {
+                            const what = String(a.overlay.selfOpen())
+                            probe.after(4000, () => {
+                                const b = probe.live()
+                                const why = b ? String(b.overlay.selfCheck("open")) : "detached"
+                                probe.ok(why === "", what + " opens in place" + (why === "" ? "" : " — " + why))
+                                if (b) b.overlay.selfClose()
+                                probe.after(2500, () => {
+                                    const c = probe.live()
+                                    const why2 = c ? String(c.overlay.selfCheck("closed")) : "detached"
+                                    probe.ok(why2 === "", what + " closes again" + (why2 === "" ? "" : " — " + why2))
+                                    probe.finish()
+                                })
+                            })
+                            return
+                        }
                         if (!a || typeof a.body._openDetail !== "function" || probe.views.indexOf("detail") < 0) { probe.finish(); return }
                         const back = String(a.body[probe.viewProp])
                         a.body._openDetail(probe.detailId)
