@@ -21,6 +21,7 @@
 #include "../../Diagnostics/measures/live_measure_source.h"
 #include "../../Diagnostics/measures/measure_facets.h"
 #include "../../Diagnostics/norms/norm_provider.h"
+#include "../../Diagnostics/engine/condition_reading.h"
 #include "../../Diagnostics/engine/pack_io.h"
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Diagnostics/packs/screen_pack.h"
@@ -1612,14 +1613,11 @@ QString SessionDiagnosticsModel::measureUnitOf(const QString &measureId) const
 QString SessionDiagnosticsModel::measurePhaseOf(const QString &measureId) const
 {
     if (measureId.isEmpty() || !m_packProv) return QString();
-    const Measure *m = m_packProv->pack().measure(measureId);
-    if (!m) return QString();
     // Where the reduction LANDS, which is the phase a card should name: the anchor for an
-    // `at`, the window's end for a delta or a rate. An extremum names its span's end too —
-    // the peak is somewhere inside it and the pack does not record where.
-    if (m->reducer.kind == ReducerKind::At && m->reducer.anchor)
-        return phaseLabel(*m->reducer.anchor);
-    return phaseLabel(m->reducer.window.second);
+    // `at`, the window's end for a delta, a rate or an extremum. One rule, condition_reading.h's,
+    // so the card and the charts' condition → reading link cannot name different instants.
+    const ConditionReading r = measureReading(m_packProv->pack(), measureId);
+    return r.found ? phaseLabel(Phase(r.phase)) : QString();
 }
 
 int SessionDiagnosticsModel::indexOfShot(int shotId) const

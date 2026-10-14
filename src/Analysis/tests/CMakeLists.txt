@@ -1135,6 +1135,14 @@ pp_add_test(dag_layout_test
     SOURCES ${DIAG}/tests/dag_layout_test.cpp ${DIAG}/engine/dag_layout.cpp ${DIAG_PACK}
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})
 
+# What a condition reads (condition_reading.h, header-only): every condition in the shipped pack
+# names the metric key and the instant it grades, or says it is composed. The charts panel joins a
+# fired condition to its reading through this, and the session panel's card phase is the same rule.
+pp_add_test(condition_reading_test
+    SOURCES ${DIAG}/tests/condition_reading_test.cpp ${DIAG_PACK}
+    INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS}
+    COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json")
+
 # ── Norms ───────────────────────────────────────────────────────────────────
 set(DIAG_NORM ${DIAG}/norms/norm.cpp ${DIAG}/norms/norm_pack.cpp ${DIAG}/norms/context_tree.cpp
               ${DIAG}/engine/pack_io.cpp                  # same pairing as DIAG_PACK
