@@ -1076,6 +1076,12 @@ inline constexpr double       kPairMaxGapFrames     = 2.5;    // sequence.pairMa
 // the view's own p95 separation is cos ψ = 0.35, i.e. 20° from square — five frames of turn away
 // from the crossing at the fastest rate the trunk reaches.
 //
+// 2026-10-14: the floor is NOT widened to cover the face-on shoulders' keypoint JUMPS across zero
+// (06-11 s5 / s7: −86 → +100 px and −111 → +79 px in one frame, a genuine crossing the rule called a
+// relabel). A floor that low would call real relabels genuine. Impact is a second parity anchor for
+// the face-on view instead, and decides those calls (segment_rates.cpp deswapInPlace); it reuses
+// this floor and the derivative window, so it adds no constant.
+//
 // kPairTrunkThoraxPlacement gates the THORAX node separately from the pelvis, because the two
 // segments fail differently on this route: the hips never relabel and the shoulders do.
 inline constexpr double       kPairSwapMinFrac      = 0.35;   // sequence.pairSwapMinFrac

@@ -698,10 +698,37 @@ int rateLimitInPlace(SepTrack &s, double wView, const SegmentRatesConfig &cfg)
 // or more flips inside 100 ms is not a golfer, and those frames are dropped for this route rather
 // than corrected. Saying "no data here" is the honest output; a parity guessed inside a flutter is
 // the §12.1 trap by another name.
-struct SwapReport { int flips = 0; int dropped = 0; };
+//
+// ⚠ THE COLLAPSE RULE HAS A BLIND SPOT, AND IMPACT IS THE SECOND ANCHOR THAT COVERS IT (2026-10-14,
+// thorax_pair_20261014.md §3.2, §12 (ii)). The rule reads only the two samples either side of a sign
+// change. Through the face-on SHOULDER crossing the keypoints do not always pass through the
+// collapse: on 06-11 s5 and s7 they hold −86 / −111 px for tens of ms and then JUMP to +100 / +79 px in
+// one frame — |d| ≥ 0.35 W on both sides, so the rule calls a relabel. It was the crossing: the walk
+// then ran the whole downswing 180° out and the oriented separation read −139 / −135 px AT IMPACT,
+// a trunk facing away from where it faced at address. The rigid-body bound cannot settle it either
+// — a 190 px step is impossible as motion and easy as a relabel, so it votes relabel too. What
+// settles it is physics at a second instant: at impact the trunk is near square to the face-on
+// camera again (shoulders and hips 10–60° open on every corpus swing), so the true d_fo has the
+// ADDRESS sign there, and the pose model is labelling a golfer who faces it, as at address. So,
+// for the view whose caller passes the impact window (face-on only — the down-the-line d is ~0 at
+// impact and has no parity to give): when the walk reaches that window with the parity contradicted,
+// with |d| clear of the collapse floor at both anchors, some call between them was wrong.
+//   • Exactly one ambiguous unit between the anchors — one relabel call, or one ≥ 3-flips-in-100 ms
+//     flutter cluster (whose parity was carried, not measured, across frames the drop below throws
+//     away anyway) — is that call: it is REVOKED, i.e. the parity from it onwards is turned over.
+//     A revoked lone call is no longer a flip; a revoked cluster keeps its flips so its frames
+//     still go.
+//   • Any other count — none (a "genuine" call was the wrong one) or several — cannot be pinned
+//     on one call, and the leg is refused (`anchorBroken`) rather than given a guessed parity.
+// Where the walk AGREES with impact nothing is touched, which is why no pelvis moves: the hips read
+// the address sign at impact on 34 of 34 two-camera swings. On those 34 the anchor revokes one unit
+// on 5 (06-11 s5, s7; 07-03 s4, s5 — a cluster —, s6), every one of which read the trunk 180° out at
+// impact, and refuses none.
+struct SwapReport { int flips = 0; int dropped = 0; int revoked = 0; bool anchorBroken = false; };
 
 SwapReport deswapInPlace(SepTrack &s, int64_t addrFromUs, int64_t addrToUs, double wView,
-                         const SegmentRatesConfig &cfg, bool localGap = false)
+                         const SegmentRatesConfig &cfg, bool localGap = false,
+                         int64_t anchorFromUs = -1, int64_t anchorToUs = -1)
 {
     SwapReport rep;
     const size_t n = s.t.size();
@@ -729,9 +756,11 @@ SwapReport deswapInPlace(SepTrack &s, int64_t addrFromUs, int64_t addrToUs, doub
     size_t a0 = n, a1 = 0;
     for (size_t i = 0; i < n; ++i)
         if (s.t[i] >= addrFromUs && s.t[i] <= addrToUs) { a0 = std::min(a0, i); a1 = std::max(a1, i); }
-    if (a0 > a1) { a0 = a1 = 0; }
+    const bool haveAddr = a0 <= a1;
+    if (!haveAddr) { a0 = a1 = 0; }
 
     std::vector<int64_t> flipT;
+    std::vector<size_t>  fwdFlip;      // sample index of each forward flip, ascending
     const auto step = [&](double raw, double prev, int64_t dtUs, size_t iEnd) {
         return raw * prev < 0.0 && std::min(std::fabs(raw), std::fabs(prev)) >= floorPx
             && dtUs <= gapLimitUs(iEnd);
@@ -740,9 +769,52 @@ SwapReport deswapInPlace(SepTrack &s, int64_t addrFromUs, int64_t addrToUs, doub
         double p = 1.0, prev = s.d[a1];
         int64_t prevT = s.t[a1];
         for (size_t i = a1 + 1; i < n; ++i) {
-            if (step(s.d[i] * p, prev, s.t[i] - prevT, i)) { p = -p; ++rep.flips; flipT.push_back(s.t[i]); }
+            if (step(s.d[i] * p, prev, s.t[i] - prevT, i)) {
+                p = -p; ++rep.flips; flipT.push_back(s.t[i]); fwdFlip.push_back(i);
+            }
             s.d[i] *= p;
             prev = s.d[i]; prevT = s.t[i];
+        }
+    }
+    // The impact anchor (see the head of this guard). The address-window values are untouched by
+    // the walk, so their median is the raw orientation the anchor is judged against.
+    if (haveAddr && anchorFromUs >= 0 && anchorToUs >= anchorFromUs) {
+        std::vector<double> va, vi;
+        for (size_t i = a0; i <= a1; ++i) va.push_back(s.d[i]);
+        for (size_t i = 0; i < n; ++i)
+            if (s.t[i] >= anchorFromUs && s.t[i] <= anchorToUs) vi.push_back(s.d[i]);
+        const double mA = medianOf(va), mI = vi.empty() ? 0.0 : medianOf(vi);
+        if (std::fabs(mA) >= floorPx && std::fabs(mI) >= floorPx && mA * mI < 0.0) {
+            // The forward calls up to the anchor, grouped into ambiguous units: a lone call is one,
+            // and every call inside a ≥ 3-in-100 ms window (the drop rule's own test) joins its
+            // neighbours' unit.
+            std::vector<size_t> cand;
+            for (size_t i : fwdFlip) if (s.t[i] <= anchorToUs) cand.push_back(i);
+            std::vector<size_t> unit(cand.size());
+            for (size_t q = 0; q < cand.size(); ++q) unit[q] = q;
+            for (size_t q = 0; q + 2 < cand.size(); ++q) {
+                if (s.t[cand[q + 2]] - s.t[cand[q]] > 100000) continue;
+                for (size_t r : { q + 1, q + 2 }) {
+                    const size_t old = unit[r];
+                    for (size_t &u : unit) if (u == old) u = unit[q];
+                }
+            }
+            std::vector<size_t> units(unit);
+            std::sort(units.begin(), units.end());
+            units.erase(std::unique(units.begin(), units.end()), units.end());
+            if (units.size() == 1) {
+                size_t last = 0, members = 0;
+                for (size_t q = 0; q < cand.size(); ++q)
+                    if (unit[q] == units[0]) { last = cand[q]; ++members; }
+                for (size_t i = last; i < n; ++i) s.d[i] = -s.d[i];
+                ++rep.revoked;
+                if (members == 1) {        // a lone call was the crossing: no longer a flip at all
+                    --rep.flips;
+                    flipT.erase(std::find(flipT.begin(), flipT.end(), s.t[last]));
+                }
+            } else {
+                rep.anchorBroken = true;
+            }
         }
     }
     {   // backward from the first address-window sample
@@ -798,6 +870,28 @@ struct PairInputs {
 // the hips in both views on 21 of 21 corpus swings, the down-the-line shoulders on 21 of 21 —
 // there is nothing to protect against and the smoothed track is simply the better measurement.
 // Only a view/segment that actually relabels pays the noise cost of being read raw.
+//
+// ⚠ …OR GENUINELY CROSSES ZERO (2026-10-14, thorax_pair_20261014.md §3.1, §12 (i)). "Nothing was
+// undone" is not "nothing happened". Around the top the face-on SHOULDER line really does pass 90°
+// to that camera, and the raw separation sits at 25–60 px with its sign alternating: every one of
+// those sign changes collapses, so the relabel guard rightly leaves them all alone — and the old
+// rule then called the track clean and consumed the SMOOTHED one. The RTS smoother had bridged the
+// flutter into a ramp that overshoots the line's own width: 1.30× the raw p95 on 07-04 s8 (+168 px
+// against a 130 px line — "32° from square" while the down-the-line camera sees it broadside),
+// 1.32× on 06-11 s3, and that fake turn reached the drawn thorax curve and its bound. The same
+// doctrine as the guard — detect where it is still a step — applies to the source: a face-on leg
+// whose de-swapped, rate-limited RAW track changes sign between two usable samples inside the
+// domain (P4 → P8) is consumed raw. The rate limit is applied first so that a burst of keypoint
+// nonsense (§9ii of the test), which it throws away, is not mistaken for a crossing. On the 34
+// two-camera swings (tools/swinglab/pair_deswap_fixtures.py check) this moves the face-on SHOULDERS
+// from smoothed to raw on 21 (25 read raw in all) and the hips on none — they never cross; the
+// consumed maximum is then 1.01–1.08× the raw p95 on every swing, against 1.30 and 1.32 before.
+//
+// NOT the down-the-line leg. Its separation crosses zero near impact on every swing — the line
+// pointing at that camera is the DTL square crossing — for both segments (32 of 33 pelvis, 32 of
+// 34 thorax), yet its smoothed tier never overshoots (max 1.008× the raw p95 for the hips, 1.016×
+// for the shoulders): there is no flutter there for the smoother to bridge. The same rule on that
+// leg would move every pelvis to a noisier source to fix nothing.
 struct PairViews {
     PoseView foRaw, foSm, dtlRaw, dtlSm;
     bool     foHasSm = false, dtlHasSm = false;
@@ -829,25 +923,59 @@ AngleTrack pairTurnTrack(const PairViews &vw, int lead, int trail,
         return percentileOf(v, 0.95);
     };
     const double wFo = p95Of(sfRaw), wDtl = p95Of(sdRaw);
-    const SwapReport rf = deswapInPlace(sfRaw, pin.addressUs, pin.addressUs + cfg.addrWindowUs, wFo, cfg);
+    // The face-on leg alone carries the impact parity anchor (deswapInPlace): impact ± one
+    // derivative window, the same window its read-out below is taken over.
+    const int64_t anchorUs = int64_t(std::max(cfg.derivWindowMs, 1.0) * 1000.0);
+    const SwapReport rf = deswapInPlace(sfRaw, pin.addressUs, pin.addressUs + cfg.addrWindowUs, wFo, cfg,
+                                        false, pin.impactUs - anchorUs, pin.impactUs + anchorUs);
     const SwapReport rd = deswapInPlace(sdRaw, pin.addressUs, pin.addressUs + cfg.addrWindowUs, wDtl, cfg,
                                         cfg.pairDtlLocalGap);
     diag.nSwapsFo = rf.flips;
     diag.nSwapsDtl = rd.flips;
     diag.nSwapFramesDropped = rf.dropped + rd.dropped;
+    diag.nRevokedFo = rf.revoked;
+    diag.wFoPx = wFo;
+    if (rf.anchorBroken) {
+        diag.refusal = QStringLiteral("the face-on labels contradict the impact anchor and no one relabel "
+                                      "call can be blamed");
+        return out;
+    }
 
-    // Source per view per segment: smoothed where nothing had to be undone, the de-swapped raw
-    // series where something did.
-    const bool foClean  = rf.flips == 0 && rf.dropped == 0 && vw.foHasSm;
+    // Source per view per segment: smoothed where nothing had to be undone AND (face-on) nothing
+    // crossed, the de-swapped raw series otherwise (see PairViews). The crossing is read on the raw
+    // track after the rate limit, so the limit is applied to it here — and that IS the consumed
+    // series whenever the raw one is chosen.
+    const int64_t domLoUs = (dom.drawFromUs >= 0) ? std::min(dom.fromUs, dom.drawFromUs) : dom.fromUs;
+    const int nRateLimitedFoRaw = rateLimitInPlace(sfRaw, wFo, cfg);
+    {
+        int64_t prevT = -1; double prevD = 0.0;
+        for (size_t i = 0; i < sfRaw.t.size(); ++i) {
+            if (!sfRaw.ok[i]) continue;
+            if (prevT >= 0 && sfRaw.t[i] >= domLoUs && sfRaw.t[i] <= dom.toUs && sfRaw.d[i] * prevD < 0.0)
+                ++diag.nCrossingsFo;
+            prevT = sfRaw.t[i]; prevD = sfRaw.d[i];
+        }
+    }
+    const bool foClean  = rf.flips == 0 && rf.dropped == 0 && diag.nCrossingsFo == 0 && vw.foHasSm;
     const bool dtlClean = rd.flips == 0 && rd.dropped == 0 && vw.dtlHasSm;
     SepTrack sf = foClean  ? separations(vw.foSm,  lead, trail, cfg) : std::move(sfRaw);
     SepTrack sd = dtlClean ? separations(vw.dtlSm, lead, trail, cfg) : std::move(sdRaw);
     diag.srcFo  = foClean  ? QStringLiteral("smoothed") : QStringLiteral("rawDeswapped");
     diag.srcDtl = dtlClean ? QStringLiteral("smoothed") : QStringLiteral("rawDeswapped");
 
-    // The rigid-body rate limit, on whichever series is actually consumed.
-    diag.nRateLimitedFo  = rateLimitInPlace(sf, wFo,  cfg);
+    // The rigid-body rate limit, on whichever series is actually consumed (the raw face-on one
+    // already has it).
+    diag.nRateLimitedFo  = foClean ? rateLimitInPlace(sf, wFo, cfg) : nRateLimitedFoRaw;
     diag.nRateLimitedDtl = rateLimitInPlace(sd, wDtl, cfg);
+
+    // The face-on read-out (segment_rates.h): the widest the route actually consumed over the
+    // domain — which a smoothed leg that bridged a flutter overshoots.
+    {
+        double mx = -1.0;
+        for (size_t i = 0; i < sf.t.size(); ++i)
+            if (sf.ok[i] && sf.t[i] >= domLoUs && sf.t[i] <= dom.toUs) mx = std::max(mx, std::fabs(sf.d[i]));
+        diag.foConsumedMaxPx = mx >= 0.0 ? mx : std::nan("");
+    }
 
     if (sf.valid() < 3 || sd.valid() < 3) {
         diag.refusal = QStringLiteral("only %1 / %2 usable separations left after the guards")
@@ -869,6 +997,14 @@ AngleTrack pairTurnTrack(const PairViews &vw, int lead, int trail,
     diag.signFo  = int(sgnF);
     diag.signDtl = int(sgnD);
     diag.refusal.clear();
+    {   // THE PARITY CHECK: the oriented consumed face-on separation at the ball must be positive.
+        const int64_t wUs = int64_t(std::max(cfg.derivWindowMs, 1.0) * 1000.0);
+        std::vector<double> v;
+        for (size_t i = 0; i < sf.t.size(); ++i)
+            if (sf.ok[i] && sf.t[i] >= pin.impactUs - wUs && sf.t[i] <= pin.impactUs + wUs)
+                v.push_back(sgnF * sf.d[i]);
+        diag.foAtImpactPx = v.empty() ? std::nan("") : medianOf(v);
+    }
 
     // The two streams share the window clock but not their phase or frame count: resample the
     // down-the-line separation onto the face-on sample instants by linear interpolation, and call

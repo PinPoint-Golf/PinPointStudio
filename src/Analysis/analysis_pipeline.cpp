@@ -2750,11 +2750,18 @@ struct KinematicSequenceStage : AnalysisStage {
                           .arg(d.nSwapsFo).arg(d.nSwapsDtl).arg(d.nSwapFramesDropped)
                         + QStringLiteral(" src %1/%2 rl %3/%4 invalid %5")
                               .arg(d.srcFo, d.srcDtl).arg(d.nRateLimitedFo).arg(d.nRateLimitedDtl)
-                              .arg(d.invalidFrac, 0, 'f', 3) + QStringLiteral(")")
-                    : QStringLiteral(" %1(REFUSED: %2 swaps %3/%4 drop %5 src %6/%7 rl %8/%9)")
+                              .arg(d.invalidFrac, 0, 'f', 3)
+                        // The face-on read-outs of the 14 Oct fixes (segment_rates.h): the line's
+                        // width against the widest the route consumed, the oriented separation at
+                        // the ball (negative ⇒ labels 180° out), crossings and revoked calls.
+                        + QStringLiteral(" fo w %1 max %2 imp %3 cross %4 revoked %5)")
+                              .arg(d.wFoPx, 0, 'f', 0).arg(d.foConsumedMaxPx, 0, 'f', 0)
+                              .arg(d.foAtImpactPx, 0, 'f', 0).arg(d.nCrossingsFo).arg(d.nRevokedFo)
+                    : QStringLiteral(" %1(REFUSED: %2 swaps %3/%4 drop %5 src %6/%7 rl %8/%9 revoked %10)")
                           .arg(QLatin1String(tag), d.refusal)
                           .arg(d.nSwapsFo).arg(d.nSwapsDtl).arg(d.nSwapFramesDropped)
-                          .arg(d.srcFo, d.srcDtl).arg(d.nRateLimitedFo).arg(d.nRateLimitedDtl);
+                          .arg(d.srcFo, d.srcDtl).arg(d.nRateLimitedFo).arg(d.nRateLimitedDtl)
+                          .arg(d.nRevokedFo);
             };
             QString line = QStringLiteral("[WristAnalysis] sequence pair: rVert %1 (%2/%3 px, n%4)")
                                .arg(r.pair.rVertical, 0, 'f', 3)

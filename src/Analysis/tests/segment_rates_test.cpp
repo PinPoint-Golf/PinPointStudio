@@ -62,6 +62,14 @@
 //       switch, the camera term rides the peak only, and the pair and an IMU both outrank it.
 //   §13 THE PEAK TIMES `sequence_order` reads: placed pelvis/thorax nodes only, ms relative to
 //       impact (negative before), σ = σ_t.
+//   §14 THE PAIR'S TWO FACE-ON DEFECTS (2026-10-14; thorax_pair_20261014.md §3.1, §3.2, §12), on
+//       three REAL swings' keypoints and on two synthetic swings that isolate each mechanism:
+//       (a) a face-on leg whose raw track genuinely crosses zero is consumed RAW, so the separation
+//       the pair consumes never exceeds the line's own raw p95 width (07-04 s8 — the smoothed tier
+//       bridged the crossing's flutter to 1.30× it); (b) a keypoint jump across zero with |d|
+//       intact is a crossing when impact, the second parity anchor, says so, so the oriented face-on
+//       separation at impact is POSITIVE (06-11 s5 and s7 — the collapse rule called it a relabel);
+//       and (c) the shipped PELVIS node on all three swings is unmoved, time and peak.
 
 #include "../../Kinematics/segment_rates.h"
 #include "../../Kinematics/kinematic_sequence_json.h"
@@ -74,6 +82,10 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <sstream>
+#include <string>
 #include <vector>
 
 using namespace pinpoint::analysis;
@@ -436,6 +448,118 @@ static SkeletonLeadArm makeSkelArm(bool calibrated, double usableFrac = 1.0)
 static double msFromTruth(const KsNode *n, const Bump &b)
 {
     return n ? std::fabs(double(n->tPeakUs) * 1e-3 - b.tPeakS * 1e3) : 1e9;
+}
+
+// ── §14's corpus fixtures ──────────────────────────────────────────────────────────────────────
+// One real two-camera swing as the pair route reads it, from data/segment_rates/<file>.txt (written
+// by tools/swinglab/pair_deswap_fixtures.py extract; the file's own header gives the row layout).
+// Every pose frame of both views and both tiers is there — the de-swap and bracket rules read the
+// tracks' MEDIAN spacing, so dropping a frame would change the answer — but only the keypoints the
+// pair reads: hip and shoulder x + confidence, the smoothed tier's σ, and the shoulder / ankle y
+// inside the address window, where the vertical-extent scale reads it. x, y and σ are the
+// document's own numbers, so the shipped pelvis node must come back bit for bit.
+struct CorpusSwing {
+    bool ok = false;
+    std::string name;
+    PoseTrack2D fo, dtl;
+    int foW = 0, foH = 0, dtlW = 0, dtlH = 0;
+    int64_t impactUs = -1;
+    std::vector<PhaseEvent> phases;
+    struct Shipped { std::string route; bool placed = false; int64_t tPeakUs = -1; double peakDps = 0.0; };
+    Shipped pelvis, thorax;
+};
+
+static CorpusSwing loadCorpusSwing(const std::string &file)
+{
+    CorpusSwing cs;
+    cs.name = file;
+    std::ifstream in(std::string(PP_SEGMENT_RATES_DATA) + "/" + file);
+    if (!in) return cs;
+    const int kps[4]  = { kLSh, kRSh, kLHip, kRHip };
+    const int kpsY[4] = { kLSh, kRSh, kLAnk, kRAnk };
+    const auto num = [](const std::string &s) { return std::strtod(s.c_str(), nullptr); };
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        std::istringstream ls(line);
+        std::string key;
+        ls >> key;
+        if (key == "frame") {
+            std::string v; int w = 0, h = 0;
+            ls >> v >> w >> h;
+            if (v == "fo") { cs.foW = w; cs.foH = h; } else { cs.dtlW = w; cs.dtlH = h; }
+        } else if (key == "impact") {
+            ls >> cs.impactUs;
+        } else if (key == "phase") {
+            int id = 0; int64_t t = 0;
+            ls >> id >> t;
+            cs.phases.push_back({ Phase(id), t, 1.f });
+        } else if (key == "shipped") {
+            std::string seg, route; int placed = 0; int64_t t = 0; std::string peak;
+            ls >> seg >> route >> placed >> t >> peak;
+            CorpusSwing::Shipped &s = seg == "pelvis" ? cs.pelvis : cs.thorax;
+            s.route = route; s.placed = placed != 0; s.tPeakUs = t; s.peakDps = num(peak);
+        } else if (key == "tier") {
+            std::string tier; size_t n = 0;
+            ls >> tier >> n;
+            const bool sm = tier.size() > 3 && tier.compare(tier.size() - 3, 3, "_sm") == 0;
+            PoseTrack2D &pt = tier.rfind("fo", 0) == 0 ? cs.fo : cs.dtl;
+            std::vector<PoseFrame2D> &out = sm ? pt.smoothed : pt.frames;
+            out.assign(n, PoseFrame2D{});
+            if (sm) pt.smoothedAux.assign(n, PoseKpAux{});
+            for (size_t j = 0; j < n && std::getline(in, line); ++j) {
+                std::istringstream rs(line);
+                std::vector<std::string> tok;
+                for (std::string w; rs >> w; ) tok.push_back(w);
+                PoseFrame2D &f = out[j];
+                size_t q = 0;
+                if (sm) f.t_us = pt.frames[j].t_us;
+                else    f.t_us = std::strtoll(tok[q++].c_str(), nullptr, 10);
+                for (int k : kps) {
+                    f.kp[size_t(k)] = QPointF(num(tok[q]), 0.0);
+                    f.conf[size_t(k)] = tok[q + 1] == "=" ? pt.frames[j].conf[size_t(k)] : float(num(tok[q + 1]));
+                    q += 2;
+                }
+                if (sm) {
+                    for (int k : kps) pt.smoothedAux[j].sigma[size_t(k)] = float(num(tok[q++]));
+                } else if (tok.size() >= q + 8) {
+                    for (int k : kpsY) {
+                        f.kp[size_t(k)].setY(num(tok[q]));
+                        f.conf[size_t(k)] = float(num(tok[q + 1]));
+                        q += 2;
+                    }
+                }
+            }
+        }
+    }
+    cs.ok = cs.foW > 0 && cs.dtlW > 0 && cs.impactUs > 0 && !cs.phases.empty()
+         && cs.fo.frames.size() > 10 && cs.fo.smoothed.size() == cs.fo.frames.size()
+         && cs.dtl.frames.size() > 10 && cs.dtl.smoothed.size() == cs.dtl.frames.size()
+         && cs.pelvis.tPeakUs > 0;
+    return cs;
+}
+
+static SegmentRatesResult runCorpusSwing(const CorpusSwing &cs, const SegmentRatesConfig &cfg)
+{
+    SegmentRatesInputs in;
+    in.pose = &cs.fo; in.frameW = cs.foW; in.frameH = cs.foH;
+    in.poseDtl = &cs.dtl; in.dtlFrameW = cs.dtlW; in.dtlFrameH = cs.dtlH;
+    in.leadIsLeft = true;                 // the corpus golfer is right-handed
+    in.phases = &cs.phases; in.impactUs = cs.impactUs;
+    return buildSegmentRates(in, cfg);
+}
+
+// Add `deltaPx` (one value per frame, by instant) to a keypoint pair's signed face-on separation:
+// half to each keypoint, so the line's centre does not move.
+template <typename F>
+static void addToSeparation(std::vector<PoseFrame2D> &frames, int a, int b, F deltaPx)
+{
+    for (PoseFrame2D &f : frames) {
+        const double e = 0.5 * deltaPx(f) / kW;
+        if (e == 0.0) continue;
+        f.kp[size_t(a)] = QPointF(f.kp[size_t(a)].x() + e, f.kp[size_t(a)].y());
+        f.kp[size_t(b)] = QPointF(f.kp[size_t(b)].x() - e, f.kp[size_t(b)].y());
+    }
 }
 
 int main()
@@ -1367,6 +1491,156 @@ int main()
         CHECK("§13 no arm or club peak time — the order test reads the trunk only", imuT.size() == 2);
         const std::vector<MetricSeries> foT = sequencePeakTimeSeries(faceOn.sequence);
         CHECK("§13 face-on: the bounded (unplaced) pelvis emits nothing", !find(foT, "pelvisPeakTime"));
+    }
+
+    // ── §14 the pair's two face-on defects (2026-10-14) ───────────────────────────────────────
+    {
+        // The consumed separation may sit a keypoint σ past the raw p95 — the p95 is a percentile,
+        // not a maximum — but not the 30–40 % a bridged flutter puts on it.
+        const double slackPx = std::sqrt(2.0) * cfg.kpSigmaPx;
+        SegmentRatesConfig cfgT = cfg;
+        cfgT.pairTrunkThoraxPlacement = true;      // the diagnostics are the same either way
+        const ShaftTrack2D shaft = makeShaft();
+        struct Fix { PoseTrack2D fo, dtl; };
+        const auto build = [&](double thoraxStart) {
+            Fix fx;
+            fx.fo  = makePose(true, 45.0, 0.0, kPelvis, 0.0, /*signedSpans*/ true, thoraxStart, kThorax);
+            fx.dtl = makeDtlPose(45.0, 0.0, kPelvis, 0.0, false, kDtlScale, 0.9f, 1.0, thoraxStart, kThorax);
+            fx.fo.smoothed  = fx.fo.frames;
+            fx.dtl.smoothed = fx.dtl.frames;
+            return fx;
+        };
+        const auto runFix = [&](const Fix &fx, const SegmentRatesConfig &c) {
+            SegmentRatesInputs in;
+            in.pose = &fx.fo; in.frameW = kW; in.frameH = kH; in.leadIsLeft = true;
+            in.poseDtl = &fx.dtl; in.dtlFrameW = kWD; in.dtlFrameH = kHD;
+            in.shaft = &shaft; in.phases = &ph; in.impactUs = kImpactUs;
+            return buildSegmentRates(in, c);
+        };
+        const auto shSepPx = [](const PoseFrame2D &f) { return (f.kp[kLSh].x() - f.kp[kRSh].x()) * kW; };
+        const auto showDiag = [](const char *tag, const PairSegmentDiag &d) {
+            std::printf("    %s src %s/%s swaps %d revoked %d crossings %d dropped %d rateLim %d  "
+                        "W %.1f px, consumed max %.1f px (%.3f W), oriented at impact %.1f px%s%s\n",
+                        tag, qPrintable(d.srcFo), qPrintable(d.srcDtl), d.nSwapsFo, d.nRevokedFo,
+                        d.nCrossingsFo, d.nSwapFramesDropped, d.nRateLimitedFo, d.wFoPx,
+                        d.foConsumedMaxPx, d.wFoPx > 0.0 ? d.foConsumedMaxPx / d.wFoPx : 0.0,
+                        d.foAtImpactPx, d.refusal.isEmpty() ? "" : "  refusal: ",
+                        qPrintable(d.refusal));
+        };
+
+        // (a) SOURCE CHOICE, synthetic. The shoulders start 100° closed, so the raw face-on
+        //     separation genuinely crosses zero in the downswing (§9ii). Into the SMOOTHED tier
+        //     only, plant what the RTS smoother did on 07-04 s8: a ramp that carries the separation
+        //     past the line's own width after the crossing. No relabel, no flutter drop — the old
+        //     "smoothed where clean" rule consumed it.
+        {
+            Fix fx = build(100.0);
+            int64_t tcUs = kTopUs;
+            for (int64_t t = kTopUs; t <= kImpactUs; t += 500)
+                if (closedAngleDeg(kThorax, 100.0, t * 1e-6) <= 90.0) { tcUs = t; break; }
+            double plantedMax = 0.0;
+            addToSeparation(fx.fo.smoothed, kLSh, kRSh, [&](const PoseFrame2D &f) {
+                if (f.t_us < tcUs || f.t_us > kImpactUs) return 0.0;
+                const double u = std::sin(kPi * double(f.t_us - tcUs) / double(kImpactUs - tcUs));
+                const double d = shSepPx(f);
+                const double add = (d < 0.0 ? -1.0 : 1.0) * 0.5 * kShSpanPx * u * u;
+                plantedMax = std::max(plantedMax, std::fabs(d + add));
+                return add;
+            });
+            const SegmentRatesResult r = runFix(fx, cfgT);
+            std::printf("    §14a crossing at %.1f ms; planted smoothed max %.1f px\n", tcUs * 1e-3, plantedMax);
+            showDiag("§14a thorax", r.pair.thorax);
+            showDiag("§14a pelvis", r.pair.pelvis);
+            CHECK("§14a a face-on leg whose raw track crosses zero in the domain is consumed RAW",
+                  r.pair.thorax.srcFo == QLatin1String("rawDeswapped") && r.pair.thorax.nCrossingsFo >= 1
+                  && r.pair.thorax.nSwapsFo == 0);
+            CHECK("§14a …so the separation it consumes never exceeds the raw p95 width",
+                  std::isfinite(r.pair.thorax.foConsumedMaxPx)
+                  && r.pair.thorax.foConsumedMaxPx <= r.pair.thorax.wFoPx + slackPx);
+            CHECK("§14a the hips, which never cross, keep the smoothed tier",
+                  r.pair.pelvis.srcFo == QLatin1String("smoothed") && r.pair.pelvis.nCrossingsFo == 0);
+        }
+
+        // (b) A KEYPOINT JUMP ACROSS ZERO, synthetic. The shoulders start 140° closed and cross
+        //     square in the downswing, but the keypoints do what 06-11 s7's do: they hold ±150 px
+        //     through the crossing and then jump straight across, so both sides of the sign change
+        //     clear the collapse floor. Both tiers. Impact is 55° from square, |d| 184 px.
+        const auto plantJump = [&](Fix &fx) {
+            for (std::vector<PoseFrame2D> *v : { &fx.fo.frames, &fx.fo.smoothed })
+                addToSeparation(*v, kLSh, kRSh, [&](const PoseFrame2D &f) {
+                    if (f.t_us <= kTopUs) return 0.0;
+                    const double d = shSepPx(f);
+                    return std::fabs(d) < 150.0 ? (d < 0.0 ? -150.0 : 150.0) - d : 0.0;
+                });
+        };
+        {
+            Fix fx = build(140.0);
+            plantJump(fx);
+            const SegmentRatesResult r = runFix(fx, cfgT);
+            showDiag("§14b thorax", r.pair.thorax);
+            CHECK("§14b a jump across zero with |d| intact, contradicted by impact, is read as the crossing",
+                  r.pair.thorax.nRevokedFo == 1 && r.pair.thorax.nSwapsFo == 0);
+            CHECK("§14b …so the oriented face-on separation at impact is POSITIVE",
+                  std::isfinite(r.pair.thorax.foAtImpactPx) && r.pair.thorax.foAtImpactPx > 0.0);
+            // A real relabel is still undone — and with it AND the jump between the two anchors,
+            // no one call can be blamed: the leg is refused rather than given a guessed parity.
+            Fix both = build(140.0);
+            plantJump(both);
+            plantSwap(both.fo, kLSh, kRSh, 600000, 660000);
+            const SegmentRatesResult r2 = runFix(both, cfgT);
+            showDiag("§14b +relabel", r2.pair.thorax);
+            CHECK("§14b two ambiguous calls between the anchors: the face-on leg is refused, not guessed",
+                  !r2.pair.thorax.produced && r2.pair.thorax.refusal.contains(QLatin1String("anchor"))
+                  && r2.thorax.routeId == QLatin1String("faceOn"));
+        }
+
+        // (c) THE CORPUS. Three real swings, through the shipped configuration.
+        const CorpusSwing s8  = loadCorpusSwing("2026-07-04_swing_0008.txt");
+        const CorpusSwing s5  = loadCorpusSwing("2026-06-11_swing_0005.txt");
+        const CorpusSwing s7  = loadCorpusSwing("2026-06-11_swing_0007.txt");
+        CHECK("§14c the three corpus fixtures load", s8.ok && s5.ok && s7.ok);
+        for (const CorpusSwing *cs : { &s8, &s5, &s7 }) {
+            if (!cs->ok) continue;
+            const SegmentRatesResult r = runCorpusSwing(*cs, cfg);
+            const KsNode *p = nodeOf(r, SeqSegment::Pelvis), *t = nodeOf(r, SeqSegment::Thorax);
+            std::printf("    §14c %s\n", cs->name.c_str());
+            showDiag("  thorax", r.pair.thorax);
+            showDiag("  pelvis", r.pair.pelvis);
+            // 07-04 s8 reproduces bit for bit; the two 06-11 documents differ from this build in the
+            // last places (~4e-16 of the peak, before the fix as after it — probably a different libm
+            // where they were analysed), so the check allows 1e-9 and this line says which it was.
+            std::printf("      pelvis %s %s t=%lld peak %.13g  (shipped %s %s t=%lld peak %.13g)  Δpeak %.2e rel%s\n",
+                        p ? qPrintable(p->routeId) : "-", p && p->placed ? "placed" : "UNPLACED",
+                        p ? (long long)p->tPeakUs : -1LL, p ? p->peakDps : 0.0,
+                        cs->pelvis.route.c_str(), cs->pelvis.placed ? "placed" : "UNPLACED",
+                        (long long)cs->pelvis.tPeakUs, cs->pelvis.peakDps,
+                        p ? (p->peakDps - cs->pelvis.peakDps) / cs->pelvis.peakDps : 0.0,
+                        p && p->peakDps == cs->pelvis.peakDps ? "  bit-identical" : "");
+            std::printf("      thorax %s %s t=%lld peak %.1f bound≥%.1f  (shipped %s)\n",
+                        t ? qPrintable(t->routeId) : "-", t && t->placed ? "placed" : "UNPLACED",
+                        t ? (long long)t->tPeakUs : -1LL, t ? t->peakDps : 0.0,
+                        t ? t->peakNoEarlierThanMs : -1.0, cs->thorax.route.c_str());
+            const std::string pel = "§14c " + cs->name + ": the PELVIS node is the shipped one — route, ring, time, peak";
+            CHECK(pel.c_str(),
+                  p && p->routeId.toStdString() == cs->pelvis.route && p->placed == cs->pelvis.placed
+                  && p->tPeakUs == cs->pelvis.tPeakUs
+                  && std::fabs(p->peakDps - cs->pelvis.peakDps) <= 1e-9 * std::fabs(cs->pelvis.peakDps));
+            const std::string pd = "§14c " + cs->name + ": …read off the smoothed hips, nothing revoked, no crossing";
+            CHECK(pd.c_str(), r.pair.pelvis.srcFo == QLatin1String("smoothed")
+                              && r.pair.pelvis.nRevokedFo == 0 && r.pair.pelvis.nCrossingsFo == 0);
+            if (cs == &s8) {
+                CHECK("§14c 07-04 s8 (defect 1): the face-on shoulders cross, so they are consumed raw",
+                      r.pair.thorax.srcFo == QLatin1String("rawDeswapped") && r.pair.thorax.nCrossingsFo >= 1);
+                CHECK("§14c 07-04 s8 (defect 1): the consumed face-on shoulder separation never exceeds the raw p95",
+                      std::isfinite(r.pair.thorax.foConsumedMaxPx)
+                      && r.pair.thorax.foConsumedMaxPx <= r.pair.thorax.wFoPx + slackPx);
+            } else {
+                const std::string a = "§14c " + cs->name + " (defect 2): the jump across zero is read as the crossing";
+                CHECK(a.c_str(), r.pair.thorax.nRevokedFo == 1);
+                const std::string b = "§14c " + cs->name + " (defect 2): the oriented face-on shoulder separation at impact is POSITIVE";
+                CHECK(b.c_str(), std::isfinite(r.pair.thorax.foAtImpactPx) && r.pair.thorax.foAtImpactPx > 0.0);
+            }
+        }
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

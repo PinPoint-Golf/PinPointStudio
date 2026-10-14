@@ -106,9 +106,13 @@ pp_add_test(angular_rate_test SOURCES angular_rate_test.cpp)
 # against ONE synthetic 3-D downswing — IMU gyro streams, face-on keypoints + shaft track,
 # and the de-projection geometry — asserting the club and arm nodes agree across routes to
 # a few ms, that the pelvis sign is opening-positive on both handednesses, and that a node
-# whose σ is too wide is emitted UNRESOLVED rather than placed. Qt-only, no fixture.
+# whose σ is too wide is emitted UNRESOLVED rather than placed. Qt-only. §14 also reads three
+# corpus swings' hip and shoulder keypoints, both views and both tiers (data/segment_rates, written
+# by tools/swinglab/pair_deswap_fixtures.py extract), to pin the 14 Oct 2026 pair-route fixes and the
+# shipped pelvis node they must not move.
 pp_add_test(segment_rates_test SOURCES segment_rates_test.cpp
-            ${SRC}/Kinematics/segment_rates.cpp)
+            ${SRC}/Kinematics/segment_rates.cpp
+            DEFINES PP_SEGMENT_RATES_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data/segment_rates")
 
 # Corridor-bar reduction (dashboard_reductions.h) — the corridor bar's value→x
 # domain, two-sided and one-sided. The backing for the review corridor bar

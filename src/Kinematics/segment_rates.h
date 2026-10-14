@@ -79,6 +79,7 @@
 #include <QString>
 #include <QVariantMap>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <vector>
 
@@ -217,6 +218,20 @@ struct PairSegmentDiag {
     // "smoothed" where nothing had to be undone, "rawDeswapped" where something did.
     int     nRateLimitedFo = 0, nRateLimitedDtl = 0;
     QString srcFo, srcDtl;
+    // The two face-on read-outs the 14 Oct 2026 fixes are judged by (thorax_pair_20261014.md
+    // §3.1, §3.2, §12). `wFoPx` is the face-on leg's own raw p95 |d| over takeaway→impact — the
+    // line's image width. `foConsumedMaxPx` is the largest |d| the route actually CONSUMED over the
+    // domain (P4 → P8), after the guards: a smoothed leg that bridged a crossing's flutter reads
+    // wider than the line itself here. `foAtImpactPx` is the oriented consumed face-on separation
+    // at impact (median over impact ± one derivative window): the trunk is near square to that
+    // camera at the ball, so a negative value means the labels came out 180° wrong. NaN when not
+    // measured. `nCrossingsFo` counts the genuine zero crossings of the de-swapped, rate-limited
+    // RAW face-on track inside the domain (each one forces the raw source); `nRevokedFo` the
+    // relabel calls the impact anchor overturned (deswapInPlace in the .cpp).
+    double  wFoPx = 0.0;
+    double  foConsumedMaxPx = std::nan("");
+    double  foAtImpactPx    = std::nan("");
+    int     nCrossingsFo = 0, nRevokedFo = 0;
     double  invalidFrac = 0.0;  // fraction of the domain's face-on instants with no pair sample
     QString refusal;            // empty ⇒ produced; else why this segment fell through to face-on
 };
