@@ -22,9 +22,12 @@ import QtQuick
 // figures (never repeated per figure); in print the PpPager draws one key per page in the footer holding
 // only the marks that page uses (every block exposes `keyKinds`).
 // kinds: any of fired clean ring hover median fault pass corridor other bar tick stub (gap = stub) strip
+//        box fit chance dots (the Charts panel's: a session box, a least-squares line clear of / inside
+//        chance, raw samples)
 //        n-fired n-clean n-root n-ghost n-outcome
 //        l-movedTogether l-conditionallyDependent l-coherent l-presentTogether l-unanchored
-// or set: "shot" | "session" | "watch" | "figure" | "paths" | "pathsShort".
+// or set: "shot" | "session" | "watch" | "figure" | "paths" | "pathsShort". extraWords overrides a kind's word
+// for one instance (a panel's own vocabulary); nothing else changes.
 // Round 4: a page holding a ledger strip AND a barcode keys the strip ONCE ("strip" absorbs bar/tick/stub);
 // the not-measured mark is a stub, never a gap (D5); the five link grades key with their own strokes (D6).
 Flow {
@@ -41,11 +44,17 @@ Flow {
     objectName: "sdPageKey"
 
     readonly property string shotLabel: readout ? roles.shotOfText(readout) : "this shot"
-    readonly property var words: ({
+    // A panel's own words for a kind, merged over the defaults (e.g. Charts: a hollow mark is "a shot past the
+    // whiskers", not "clean"). Empty by default, so a key that sets nothing reads exactly as before.
+    property var extraWords: ({})
+    readonly property var words: Object.assign({}, _words, extraWords || {})
+    readonly property var _words: ({
         "fired": "fired", "clean": "clean", "ring": shotLabel, "hover": "the shot under the pointer",
         "median": "median of the last 5", "fault": "fault line", "pass": "pass edge", "corridor": "inside the corridor",
         "other": "out on the other side, so clean here", "bar": "fired", "tick": "clean", "gap": "stub: not measured", "stub": "stub: not measured",
         "strip": "shots in the order struck; a bar fired, a tick clean, a stub not measured",
+        "box": "the session: middle half, median, whiskers", "fit": "least squares, clears chance",
+        "chance": "least squares, inside chance", "dots": "raw samples",
         "n-fired": "fired on this shot", "n-clean": "measured, clean", "n-root": "screened root, needs a physical screen",
         "n-ghost": "no reading on this shot", "n-outcome": "outcome, authored",
         "l-movedTogether": "moved together", "l-conditionallyDependent": "conditionally dependent",
@@ -77,7 +86,8 @@ Flow {
             spacing: pk.roles.u(5)
             Item {
                 id: sw
-                width: pk.roles.u(ki.kind.indexOf("l-") === 0 ? 22 : ki.kind === "median" || ki.kind === "fault" || ki.kind === "pass" ? 16
+                width: pk.roles.u(ki.kind.indexOf("l-") === 0 || ki.kind === "box" || ki.kind === "fit" || ki.kind === "chance" ? 22
+                                   : ki.kind === "median" || ki.kind === "fault" || ki.kind === "pass" ? 16
                                    : ki.kind === "strip" ? 30 : 10)
                 height: pk.roles.u(12)
                 anchors.verticalCenter: parent.verticalCenter
@@ -95,6 +105,18 @@ Flow {
                             width: 1; height: parent.height * 0.6; color: pk.roles.ink3 }
                 Rectangle { visible: ki.kind === "gap" || ki.kind === "stub"; anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom
                             width: Math.max(3, pk.roles.u(4)); height: pk.roles.stubH(parent.height); color: pk.roles.ink3 }
+                // a box in miniature: whisker rule, the middle half, the median
+                Rectangle { visible: ki.kind === "box"; anchors.verticalCenter: parent.verticalCenter; width: parent.width; height: pk.roles.hw; color: pk.roles.ink2 }
+                Rectangle { visible: ki.kind === "box"; x: parent.width * 0.25; anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width * 0.5; height: pk.roles.u(8); color: Qt.alpha(pk.roles.ink3, 0.10); border.width: pk.roles.hw; border.color: pk.roles.ink2 }
+                Rectangle { visible: ki.kind === "box"; x: parent.width * 0.45; anchors.verticalCenter: parent.verticalCenter
+                            width: 1.5; height: pk.roles.u(10); color: pk.roles.ink }
+                Rectangle { visible: ki.kind === "fit"; anchors.verticalCenter: parent.verticalCenter; width: parent.width
+                            height: pk.roles.u(pk.roles.r.ch.fitLineW); color: pk.roles.ink2 }
+                Row {
+                    visible: ki.kind === "dots"; anchors.centerIn: parent; spacing: 2
+                    Repeater { model: 3; Rectangle { width: 2; height: 2; color: Qt.alpha(pk.roles.ink3, 0.6) } }
+                }
                 PpShotStrip { visible: ki.kind === "strip"; roles: pk.roles; anchors.verticalCenter: parent.verticalCenter; interactive: false
                             pitch: sw.width / 4; barH: sw.height * 0.8
                             ticks: [{ state: "fired", shotId: -9 }, { state: "clean", shotId: -9 }, { state: "na", shotId: -9 }, { state: "fired", shotId: -9 }] }
@@ -109,16 +131,17 @@ Flow {
                     Rectangle { visible: parent.nk === "outcome"; anchors.centerIn: parent; width: pk.roles.u(6); height: width; rotation: 45; color: "transparent"; border.width: 1; border.color: pk.roles.ink3; antialiasing: true }
                 }
                 Canvas {
-                    visible: ki.kind === "pass" || ki.kind.indexOf("l-") === 0
+                    visible: ki.kind === "pass" || ki.kind === "chance" || ki.kind.indexOf("l-") === 0
                     anchors.fill: parent
-                    readonly property var deps: [ki.kind, pk.roles.ink2, pk.roles.passEdge, width]
+                    readonly property var deps: [ki.kind, pk.roles.ink2, pk.roles.ink3, pk.roles.passEdge, width]
                     onDepsChanged: requestPaint()
                     onPaint: {
                         const ctx = getContext("2d"); ctx.reset()
                         const R = pk.roles, y = Math.round(height / 2) + 0.5
-                        if (ki.kind === "pass") {
-                            ctx.strokeStyle = R.passEdge; ctx.lineWidth = 1
-                            const pat = R.r.passDash; let x = 0, on = true
+                        if (ki.kind === "pass" || ki.kind === "chance") {
+                            const chance = ki.kind === "chance"
+                            ctx.strokeStyle = chance ? R.ink3 : R.passEdge; ctx.lineWidth = chance ? R.u(R.r.ch.fitLineW) : 1
+                            const pat = chance ? R.r.ch.chanceDash.map(d => R.u(d)) : R.r.passDash; let x = 0, on = true
                             ctx.beginPath()
                             while (x < width) { const st = pat[on ? 0 : 1]; if (on) { ctx.moveTo(x, y); ctx.lineTo(Math.min(width, x + st), y) } x += st; on = !on }
                             ctx.stroke(); return

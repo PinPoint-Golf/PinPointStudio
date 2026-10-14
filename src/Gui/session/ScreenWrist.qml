@@ -146,7 +146,7 @@ Item {
                 cameraDelegate: Component {
                     PpCameraTiles { sessionType: SessionController.Wrist; showHittingArea: false }
                 }
-                chartsDelegate: Component { PpReplayCharts { sessionType: SessionController.Wrist } }
+                chartsDelegate: Component { PpChartsPanel { sessionType: SessionController.Wrist } }
                 // Session diagnostics — what KEEPS
                 // happening across this session's shots, and what the model authors as its
                 // cause. Takes no sessionType (analysis is gated on available data, never on

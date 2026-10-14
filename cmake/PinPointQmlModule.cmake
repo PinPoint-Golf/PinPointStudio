@@ -272,6 +272,44 @@ set(PP_QML_FILES
     src/Gui/diagnostics/PpDiagReplay.qml
     src/Gui/diagnostics/PpDiagAnalyse.qml
     src/Gui/diagnostics/PpDiagPrint.qml
+    # The Charts panel (docs/design/charts_panel_traces_relations.md; build/charts-build/STEP2B.md): the
+    # wiring (PpChartsPanel, over SessionSeriesModel and the two presenters), the body, the registers
+    # and views, and its blocks. All in src/Gui/charts/ for now; the generic ones move to src/Gui/typeset/
+    # later. None is a singleton.
+    src/Gui/charts/PpChartsPanel.qml
+    src/Gui/charts/PpChartsBody.qml
+    src/Gui/charts/PpChartsRegister.qml
+    src/Gui/charts/PpChartsReplay.qml
+    src/Gui/charts/PpChartsAnalyse.qml
+    src/Gui/charts/PpChartsShotView.qml
+    src/Gui/charts/PpChartsSessionView.qml
+    src/Gui/charts/PpChartsRelationsView.qml
+    src/Gui/charts/PpChartsKindsView.qml
+    src/Gui/charts/PpChRoles.qml
+    src/Gui/charts/PpChText.qml
+    src/Gui/charts/PpChChoices.qml
+    src/Gui/charts/PpChFoldHead.qml
+    src/Gui/charts/PpChPlot.qml
+    src/Gui/charts/PpChTraceFigure.qml
+    src/Gui/charts/PpChSessionFigure.qml
+    src/Gui/charts/PpChWindowBrush.qml
+    src/Gui/charts/PpChSeqChain.qml
+    src/Gui/charts/PpChSeqTable.qml
+    src/Gui/charts/PpChSummary.qml
+    src/Gui/charts/PpChKeyFigures.qml
+    src/Gui/charts/PpChQuestions.qml
+    src/Gui/charts/PpChBoxCell.qml
+    src/Gui/charts/PpChProfile.qml
+    src/Gui/charts/PpChReadingTrace.qml
+    src/Gui/charts/PpChRunBox.qml
+    src/Gui/charts/PpChScatter.qml
+    src/Gui/charts/PpChMovesWith.qml
+    src/Gui/charts/PpChMatrix.qml
+    src/Gui/charts/PpChReadingPicker.qml
+    src/Gui/charts/PpChSeqSession.qml
+    src/Gui/charts/PpChReplaySession.qml
+    src/Gui/charts/PpChKindTable.qml
+    src/Gui/charts/PpChKindCurve.qml
     src/Gui/session/PpLaunchMonitorPanel.qml
     src/Gui/session/PpLmGraphicsBody.qml
     src/Gui/shot/PpSessionDiagnosticsWindow.qml
@@ -360,6 +398,27 @@ set(PP_QML_SOURCES
     src/Gui/review/timeline_labels.cpp
     src/Gui/review/chart_metrics.h
     src/Gui/review/chart_metrics.cpp
+    # The Charts panel's session half (docs/design/charts_panel_traces_relations.md §6.1): the
+    # snapshot types and the model that fills them off the GUI thread.
+    src/Gui/charts/session_series_types.h
+    src/Gui/charts/session_series_model.h
+    src/Gui/charts/session_series_model.cpp
+    # The session maths (§4, §6.2): pure C++ over the snapshot, P-aligned.
+    src/Gui/charts/session_curves.h
+    src/Gui/charts/session_curves.cpp
+    src/Gui/charts/session_warp.h
+    src/Gui/charts/session_warp.cpp
+    src/Gui/charts/session_traces.h
+    src/Gui/charts/session_traces.cpp
+    src/Gui/charts/session_relations.h
+    src/Gui/charts/session_relations.cpp
+    src/Gui/charts/session_sequence.h
+    src/Gui/charts/session_sequence.cpp
+    src/Gui/charts/charts_words.h
+    src/Gui/charts/charts_traces_presenter.h
+    src/Gui/charts/charts_traces_presenter.cpp
+    src/Gui/charts/charts_relations_presenter.h
+    src/Gui/charts/charts_relations_presenter.cpp
     src/Gui/review/metric_catalog.h
     src/Gui/review/metric_catalog.cpp
     # metric_catalog.cpp's setupSummary() — listed here, not beside the other Metrics sources, so

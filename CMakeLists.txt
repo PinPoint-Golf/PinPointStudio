@@ -823,7 +823,7 @@ target_include_directories(PinPointStudio PRIVATE
     src/Gui
     src/Gui/app src/Gui/shell src/Gui/athlete src/Gui/monitor src/Gui/cameras
     src/Gui/imu src/Gui/viz src/Gui/swing3d src/Gui/session src/Gui/shot src/Gui/review
-    src/Gui/media src/Gui/calibration src/Gui/diagnostics src/Gui/markup
+    src/Gui/media src/Gui/calibration src/Gui/diagnostics src/Gui/markup src/Gui/charts
     src/Gui/characteristics src/Gui/diagnosticmodel src/Gui/launchmonitor src/Gui/print
     src/IMU src/LaunchMonitor src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer
     src/Analysis src/Club src/Wrist src/Body src/Timeline src/Ball src/Kinematics src/Skeleton3d

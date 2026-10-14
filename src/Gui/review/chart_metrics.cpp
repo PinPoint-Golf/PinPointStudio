@@ -24,6 +24,7 @@
 #include "../../Analysis/swing_analysis.h"      // SigmaKind (sigmaInfo)
 #include "../../Kinematics/kinematic_sequence.h" // seqSegmentFromKey (the tile's tie-break)
 #include "../../Core/pp_tuned_constants.h"     // tuned::uncertainty::kGrossWarn
+#include "../charts/charts_words.h"             // decimalsFor — the one per-unit decimals rule
 
 #include <QHash>
 #include <QSet>
@@ -818,14 +819,21 @@ QVariantMap ChartMetrics::sigmaInfo(const QVariantMap &series) const
 QString ChartMetrics::formatBare(double v, const QString &unit) const
 {
     const QString u = shortUnit(unit.isEmpty() ? QStringLiteral("°") : unit);
-    // Whole units, ties away from zero. σ does not coarsen this (chart_metrics.h): the ± beside the
-    // reading says how far to trust it.
-    const long long r = std::llround(v);
+    // Whole units, ties away from zero — EXCEPT where a whole unit says nothing: a 2.6:1 tempo, a
+    // 1.4 in low point, a 0.73 s backswing (design charts_panel_traces_relations.md §7). The decimals
+    // are the UNIT's, from the one rule the Charts panel's words use too (charts_words.h
+    // decimalsFor), never derived from σ (chart_metrics.h): the ± beside the reading says how far to
+    // trust it.
+    if (!std::isfinite(v)) return QStringLiteral("-");          // missing is "-", never a number
+    const int dec = pinpoint::charts::words::decimalsFor(u);
+    const double p = std::pow(10.0, dec);
+    double r = std::round(v * p) / p;       // std::round: ties away from zero, as llround was
+    if (std::fabs(r) < 0.5 / p) r = 0.0;    // never "-0" / "-0.0"
     // The leading "+" is a DEGREES-ONLY convention and is deliberately not generalised: these are
     // signed deviations from a reference posture, where the sign is the reading. A "+75 mph" or a
     // "+2 in" would be decoration on a quantity whose sign nobody is asking about.
     return ((r > 0 && u == QStringLiteral("°")) ? QStringLiteral("+") : QString())
-           + QString::number(r);
+           + QString::number(r, 'f', dec);
 }
 
 QString ChartMetrics::formatValue(double v, const QString &unit) const
@@ -1338,15 +1346,27 @@ QVariantMap ChartMetrics::sequenceTable(const QVariantMap &ks) const
     for (int i = 0; i < byTime.size(); ++i) actual.insert(byTime.at(i).seg, i + 1);
 
     const int nNorms = int(std::size(kSequenceNorms));
-    // OUT OF TURN: either end of an inverted pair — it peaked before one meant to lead it, or
-    // after one meant to follow it.
-    const auto outOfTurn = [&](int i) {
+    // INVERTED: either end of an inverted pair among the RANKED peaks (placed or not) — it peaked
+    // before one meant to lead it, or after one meant to follow it. Drives the verdict only.
+    const auto inverted = [&](int i) {
         const QString seg = QString::fromLatin1(kSequenceNorms[i].segment);
         if (!actual.contains(seg)) return false;
         for (int j = 0; j < nNorms; ++j) {
             const QString other = QString::fromLatin1(kSequenceNorms[j].segment);
             if (j == i || !actual.contains(other)) continue;
             if ((j < i) != (actual.value(other) < actual.value(seg))) return true;
+        }
+        return false;
+    };
+    // OUT OF TURN (D4): only the segment that PEAKED LATE — placed, and some PLACED segment meant to
+    // follow it peaked before it. The arm that led a late pelvis is not out of turn; the pelvis is.
+    const auto outOfTurn = [&](int i) {
+        const QString seg = QString::fromLatin1(kSequenceNorms[i].segment);
+        if (!actual.contains(seg) || !peaks.value(seg).placed) return false;
+        for (int j = i + 1; j < nNorms; ++j) {
+            const QString other = QString::fromLatin1(kSequenceNorms[j].segment);
+            if (!actual.contains(other) || !peaks.value(other).placed) continue;
+            if (actual.value(other) < actual.value(seg)) return true;
         }
         return false;
     };
@@ -1376,7 +1396,7 @@ QVariantMap ChartMetrics::sequenceTable(const QVariantMap &ks) const
             const double pct   = 100.0 * peak / norm.proDps;
             const double pctS  = 100.0 * pSig / norm.proDps;
             const bool late    = outOfTurn(i);
-            anyOut    = anyOut || late;
+            anyOut    = anyOut || inverted(i);
             anyUnsure = anyUnsure || !pk.placed;
             row.insert(QStringLiteral("actualRank"), QString::number(actual.value(seg))
                                                      + (pk.placed ? QString() : QStringLiteral("?")));

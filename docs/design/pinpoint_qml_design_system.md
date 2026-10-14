@@ -1709,6 +1709,23 @@ The mock library holds the roles in `Roles.qml`. The build moves them into Theme
 (`fig`, `unitOf`, `num`, `frac`, `word`, `corridorShort`, `trendWord`, and the standfirst and entry
 sentences). Missing values show "-" and never 0. Negative numbers use the minus sign "−".
 
+**Units are never capitalised.** A unit's case is part of its meaning ("°/S" is not "°/s", "MM" is
+not "mm"), so the label roles' capitals (`fLabel`, `fKicker`, `fTab`, `Theme.caps()`) never reach
+one: a label that carries a unit is set in `fLabelUnit` with its text from `labelUnit(words, unit)`
+(the words in the label role's case, the unit as written), and with `Theme.caps()` only the words
+are capitalised (`Theme.caps(qsTr("Loft")) + " (°)"`); a heading that is only a unit is set as written.
+
+**Panel blocks.** Two panels keep their own design values in a sub-block of the typeset table,
+merged one level deeper so a theme lists only the keys it changes: `lm{}` (the launch monitor,
+`docs/design/lm_panel_fsx.md`) and `ch{}` (Charts, `docs/design/charts_panel_traces_relations.md`
+§5): its curve weights and alphas (this shot 1.8, other shots α 0.3, median 1.0 at α 0.8), the
+envelope wash (`{ light: 0.12, dark: 0.17 }`, the one light/dark pair stored as data), the dash set
+(fit, ghost [4, 3], other facet [2, 2.5], like-this-one [5, 3], chance [4, 3]), coverage pitch,
+the box cell (row 16, body 9, fill α 0.16), swatch 7, the fired tick (warn 1.5 × 4), the
+knock-out, and its flows in em. Every one of them is drawn in the metric's own hue or in ink,
+never a second hue. `typesetPrint.ch` holds the keys that differ on paper (box fill 0.12, the kind
+curve 30 em), merged over it by the panel.
+
 ### 15.4 The shared encodings
 
 The three variants disagreed on some encodings. These were reconciled once, in the library, and

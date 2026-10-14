@@ -37,7 +37,8 @@ import QtQuick
 //      less than `minFill` full, the chain may break at its last joint INSIDE a list (never between a head
 //      and its first item). A list cut must carry at least `minWidow` atoms onto the next page, unless what
 //      it carries is already a quarter page (height-aware).
-// Furniture on every page: PpRunningHead, PpFolio (+ the page's key: only the marks its atoms use).
+// Furniture on every page: PpRunningHead (its left side `title`, else its own), PpFolio (+ the page's key: only the
+// marks its atoms use).
 // The register binds its contract to this: printPageCount: pager.pageCount, pager.printPage: printPage.
 // Cross-references: pager.pageOf(item) → the 1-based page an item starts on (re-evaluates on repagination).
 Item {
@@ -47,6 +48,7 @@ Item {
     property var readout: null
     property var source: null
     property string footer: ""
+    property string title: ""                   // the running head's left side; "" keeps PpRunningHead's own
     property int printPage: 0
     property bool showKeys: true
     property real minFill: 0.62
@@ -156,9 +158,11 @@ Item {
 
     Rectangle { anchors.fill: parent; color: "#FFFFFF" }
     PpRunningHead {
+        id: runningHead
         x: pg.roles.p.marginX; y: pg.roles.p.headY; width: pg.textW
         roles: pg.roles; source: pg.source; readout: pg.readout
     }
+    Binding { target: runningHead; property: "title"; value: pg.title; when: pg.title !== "" }
     Text {
         id: contLabel
         visible: pg.cur.cont !== ""

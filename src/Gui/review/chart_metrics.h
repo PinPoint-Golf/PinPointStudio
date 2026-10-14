@@ -386,8 +386,10 @@ public:
     // chips, the hover tooltip, the transit bead). Degrees keep the signed-deviation convention
     // ("+12°", closed up); every other unit takes a space ("75 mph", "12 %").
     //
-    // Rounded to whole units, ties away from zero (llround). σ does not touch it — see the note
-    // above seriesSigma.
+    // Rounded to the UNIT's decimals, ties away from zero: whole units, except a tempo ratio (":1")
+    // and inches at one decimal and seconds at two (charts_words.h decimalsFor, the one rule — design
+    // charts_panel_traces_relations.md §7: "2.6:1" printed "3", "−1.4 in" printed "−1"). σ does not
+    // touch it — see the note above seriesSigma. A non-finite value prints "-".
     Q_INVOKABLE QString formatValue(double v, const QString &unit) const;
 
     // formatBare = the number ALONE, for a surface whose container already names the unit — the
@@ -600,8 +602,16 @@ public:
     //     verdictText ("In sequence" | "Out of sequence" | "In order so far" | "Order unclear",
     //                  + " (? = uncertain)" when an unplaced peak is in the ranking),
     //     verdictState ("match" | "mismatch" | "incomplete" | "unresolved") }
-    // Rising nodes rank after every ring. outOfTurn marks both ends of an inverted pair. % is of
-    // the Cheetham 2008 professional peak (NR-03/05 amended at Mark's call).
+    // Rising nodes rank after every ring. % is of the Cheetham 2008 professional peak (NR-03/05
+    // amended at Mark's call).
+    //
+    // outOfTurn (D4, 14 Oct 2026) marks ONLY THE SEGMENT THAT PEAKED LATE: of a pair of PLACED peaks
+    // in the wrong order, the one that should have come first and came later (4 July shot 8: the
+    // pelvis, after the arm and the club — one warn, where both ends of every inverted pair used to
+    // make three). An unplaced peak is never marked and never makes another late: its "?" already
+    // says the order there is uncertain. The same rule as the Charts panel's session_sequence.h.
+    // verdictState is NOT narrowed with it: any inversion among the ranked peaks, placed or not,
+    // still makes the verdict "Out of sequence" (with "? = uncertain" when an unplaced one is ranked).
     Q_INVOKABLE QVariantMap sequenceTable(const QVariantMap &ks) const;
 
 private:

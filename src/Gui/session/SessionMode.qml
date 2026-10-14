@@ -61,6 +61,13 @@ QtObject {
     // a different session starts from the defaults. Not persisted. null = nothing saved.
     property var    diagnosticsNav: null
 
+    // Where the reader was in the stage's Charts panel — the open profile row and each view's scroll — kept
+    // HERE for the same reason as diagnosticsNav: PpModeStage rebuilds its panels on every Capture↔Replay
+    // flip. PpChartsPanel saves it as it changes and puts it back on build: { sessionDir, openId, scroll }.
+    // Stamped with the session folder (a different session starts at the defaults). Not persisted: the
+    // reader's CHOICES (view, preset, window, against, facet …) persist in AppSettings chartPrefs instead.
+    property var    chartsNav: null
+
     // True only while the active Replay was auto-promoted from a just-captured shot
     // (post-shot instant playback). When that replay reaches its natural end the
     // host returns to Capture; EVERY other transition below clears it, so a

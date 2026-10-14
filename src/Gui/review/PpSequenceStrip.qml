@@ -113,7 +113,7 @@ ColumnLayout {
                 HeadText { text: Theme.caps(qsTr("Should"));     Layout.preferredWidth: root._wRank }
                 HeadText { text: Theme.caps(qsTr("Actual"));     Layout.preferredWidth: root._wRank }
                 HeadText { text: Theme.caps(qsTr("Peak"));       Layout.preferredWidth: root._wPeak }
-                HeadText { text: Theme.caps(qsTr("°/s"));        Layout.preferredWidth: root._wSpeed }
+                HeadText { text: qsTr("°/s");                    Layout.preferredWidth: root._wSpeed }   // a unit: never capitalised
                 HeadText { text: Theme.caps(qsTr("% of pro"));   Layout.fillWidth: true }
             }
 

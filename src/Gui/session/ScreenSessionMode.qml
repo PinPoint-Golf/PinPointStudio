@@ -138,7 +138,7 @@ Item {
                 cameraDelegate: Component {
                     PpCameraTiles { sessionType: root.sessionType }
                 }
-                chartsDelegate: Component { PpReplayCharts { sessionType: root.sessionType } }
+                chartsDelegate: Component { PpChartsPanel { sessionType: root.sessionType } }
                 // Session diagnostics — what KEEPS happening across this session's shots,
                 // and what the model authors as its cause. Gated on available data like
                 // everything else, never on sessionType; off until the user asks for it in

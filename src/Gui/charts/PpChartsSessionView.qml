@@ -1,0 +1,179 @@
+/*
+ * Copyright (c) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+import QtQuick
+import PinPointStudio
+
+// SESSION — "what do my curves usually look like, and where do they part?" (design §2.2, A; D2, D3, D6, D9).
+//   Analyse: the head built from the data (where the curves part, the facet, the fit's payoff), its
+//     standfirst, the alignment note (§4.1), the mixed-club note, the co-occurrence caveat; quiet controls
+//     (Metrics, Window, Show: middle half · every shot · group fit, Facet: none by default, D3); up to three
+//     questions answered in place (a facet or band set, the lit shots); the P-aligned figure; then the
+//     sequence across the session (order barcode and peak-time dot plot).
+//   Replay (D6: follows the playhead): the head, the figure with "now" against "typical" in its column, and
+//     the lead reading at the latest P-position the playhead has passed (PpChReplaySession).
+// A session the presenter refuses (n < 3, nothing aligned) says its own sentence (session.why).
+// objectName: chSessionView.
+Column {
+    id: sv
+    objectName: "chSessionView"
+    property QtObject roles: null
+    property var brush: null
+    property var body: null
+    property string reg: "Analyse"
+    property bool interactive: true
+    property bool cast: false
+    property real pageH: 500
+    readonly property bool replay: reg === "Replay"
+    readonly property var se: body ? body.tSession : ({})
+    readonly property var tc: body ? body.tChoices : ({})
+    readonly property var tn: body ? body.tNow : ({})
+    readonly property bool available: !!se && se.available === true
+    readonly property int nRows: Math.max(1, available ? (se.rows || []).length : 1)
+    readonly property real headEst: !roles ? 0 : replay ? roles.u(90) + (body && body.rReplay && body.rReplay.readingId ? 0 : 0) : roles.u(240)
+    readonly property real plotH: !roles ? 60 : Math.max(roles.u(replay ? 44 : 56), Math.min(roles.u(replay ? 120 : 120), (pageH - headEst) / nRows - roles.u(14)
+                                   - (se && se.band === "fit" ? roles.u(26) : 0)))
+    spacing: roles ? roles.u(8) : 8
+
+    function currentLabel(list) { const a = (list || []).filter(function (x) { return x.current }); return a.length ? a[0].label : "" }
+    property string pickerOpen: ""
+    // a long list stays one quiet line: the common choices, and the rest opening IN PLACE under it
+    readonly property int facetShown: roles && roles.atLeast(width, "medium") ? 4 : 2
+    readonly property var facetsMain: {
+        const fs = tc.facets || [], out = [], cond = fs.filter(function (f) { return f.kind === "condition" })
+        for (const f of fs) if (f.kind !== "condition") out.push(f)
+        const cur = fs.filter(function (f) { return f.current && f.kind === "condition" })[0]
+        const lead = cond.slice(0, facetShown)
+        if (cur && lead.indexOf(cur) < 0) lead.push(cur)
+        return out.slice(0, 2).concat(lead).concat(out.slice(2))
+    }
+    readonly property var sets: {
+        if (!roles || !tc) return []
+        const s = []
+        s.push({ key: "preset", label: "Metrics", opens: true, open: pickerOpen === "preset", options: [{ key: "open", label: tc.presetTitle || "" }] })
+        if ((tc.windows || []).length) s.push({ key: "window", label: "Window", opens: true, open: pickerOpen === "window", options: [{ key: "open", label: currentLabel(tc.windows) }] })
+        s.push({ key: "band", label: "Show", current: ((tc.bands || []).filter(function (b) { return b.current })[0] || { id: "" }).id,
+                 options: (tc.bands || []).map(function (b) { return { key: b.id, label: b.label } }) })
+        const more = (tc.facets || []).length > facetsMain.length
+        s.push({ key: "facet", label: "Facet", current: ((tc.facets || []).filter(function (f) { return f.current })[0] || { id: "" }).id,
+                 options: facetsMain.map(function (f) { return { key: f.id, label: f.label } })
+                          .concat(more ? [{ key: "_more", label: pickerOpen === "facet" ? "fewer ▴" : "more ▾" }] : []) })
+        return replay ? s.filter(function (x) { return x.key === "band" }) : s
+    }
+    function picked(set, opt) {
+        if (!body) return
+        if (set === "preset" || set === "window") { pickerOpen = pickerOpen === set ? "" : set; return }
+        if (set === "facet" && opt === "_more") { pickerOpen = pickerOpen === "facet" ? "" : "facet"; return }
+        else if (set === "band") { body.choose("band", opt); body.clearAsk(brush) }
+        else if (set === "facet") { body.choose("facet", opt); body.clearAsk(brush) }
+    }
+
+    PpChText { objectName: "chSessionWhy"; visible: !sv.available && present; roles: sv.roles; sentence: sv.se ? sv.se.why : null
+               font: sv.roles ? sv.roles.fBody : Qt.font({}); tone: sv.roles ? sv.roles.ink2 : "grey" }
+    Column {
+        objectName: "chSessionHead"
+        visible: sv.available
+        width: sv.width; spacing: sv.roles ? sv.roles.u(4) : 4
+        Text { visible: !sv.cast && !!sv.se.kicker; text: sv.se.kicker || ""; font: sv.roles ? sv.roles.fKicker : Qt.font({}); color: sv.roles ? sv.roles.ink3 : "grey" }
+        PpChText { roles: sv.roles; sentence: sv.se.head; measure: false; font: sv.roles ? sv.roles.fTitle : Qt.font({}); tone: sv.roles ? sv.roles.ink : "black"; lineHeight: 1.08 }
+        PpChText { visible: !sv.replay && present; roles: sv.roles; sentence: sv.se.standfirst; font: sv.roles ? sv.roles.fStand : Qt.font({}); lineHeight: sv.roles ? sv.roles.r.leading : 1 }
+        PpChText { visible: !sv.replay && present; roles: sv.roles; sentence: sv.se.alignNote; tone: sv.roles ? sv.roles.ink3 : "grey" }
+        PpChText { visible: present; roles: sv.roles; sentence: sv.se.clubNote; tone: sv.roles ? sv.roles.ink2 : "grey" }
+        PpChText { visible: !sv.replay && present; roles: sv.roles; sentence: sv.se.caveat; tone: sv.roles ? sv.roles.ink2 : "grey" }
+    }
+    PpChChoices {
+        visible: sv.available && !sv.cast
+        objectName: "chFacetPicker"
+        width: sv.width; roles: sv.roles; interactive: sv.interactive
+        sets: sv.sets
+        onPicked: (set, opt) => sv.picked(set, opt)
+    }
+    PpInlinePicker {
+        visible: sv.pickerOpen === "preset"
+        open: visible; width: Math.min(sv.width, sv.roles ? sv.roles.u(360) : 360)
+        roles: sv.roles; interactive: sv.interactive
+        title: "Metrics to trace"
+        items: visible ? (sv.tc.presets || []).map(function (p) { return { id: p.id, label: p.label, note: String(p.count) } }) : []
+        current: sv.tc.preset || ""
+        clearLabel: "The default for this view"
+        itemObjectName: "chPresetOption"; clearObjectName: "chPresetDefault"
+        onPicked: (id) => { if (sv.body) sv.body.choose("preset", id); sv.pickerOpen = "" }
+    }
+    PpInlinePicker {
+        visible: sv.pickerOpen === "window"
+        open: visible; width: Math.min(sv.width, sv.roles ? sv.roles.u(360) : 360)
+        roles: sv.roles; interactive: sv.interactive
+        title: "The window, on the session's P-positions"
+        items: visible ? (sv.tc.windows || []).map(function (w) { return { id: w.key, label: w.label } }) : []
+        current: sv.tc.window || ""
+        clearLabel: "The default: around the data"
+        itemObjectName: "chWindowOption"; clearObjectName: "chWindowDefault"
+        onPicked: (id) => { if (sv.body) sv.body.choose("window", id === "" ? "auto" : id); sv.pickerOpen = "" }
+    }
+    PpInlinePicker {
+        visible: sv.pickerOpen === "facet"
+        open: visible; width: Math.min(sv.width, sv.roles ? sv.roles.u(420) : 420)
+        roles: sv.roles; interactive: sv.interactive
+        title: "Split the session by"
+        items: visible ? (sv.tc.facets || []).filter(function (f) { return f.id !== "" }).map(function (f) { return { id: f.id, label: f.label } }) : []
+        current: sv.body ? sv.body.facet : ""
+        clearLabel: "none"
+        itemObjectName: "chFacetOption"; clearObjectName: "chFacetNone"
+        onPicked: (id) => { if (sv.body) { sv.body.choose("facet", id); sv.body.clearAsk(sv.brush) } sv.pickerOpen = "" }
+    }
+    PpChSessionFigure {
+        visible: sv.available
+        width: sv.width
+        roles: sv.roles; brush: sv.brush; interactive: sv.interactive
+        presenter: sv.body ? sv.body.tracesP : null
+        session: sv.available ? sv.se : null
+        nowRows: sv.tn && sv.tn.valid ? (sv.tn.rows || []) : []
+        playCanon: sv.tn && sv.tn.valid && sv.tn.canonMs !== null ? sv.tn.canonMs : NaN
+        figMode: sv.replay ? "now" : "figures"
+        pickedOrdinal: sv.body && sv.body.tShot ? (sv.body.tShot.ordinal || 0) : 0
+        plotH: sv.plotH
+        onShotActivated: (o) => { if (sv.body) sv.body.pickOrdinal(o) }
+    }
+    PpChQuestions {
+        id: sessAsks
+        visible: !sv.replay && sv.available && (sv.se.questions || []).length > 0
+        width: sv.width; roles: sv.roles; interactive: sv.interactive
+        questions: sv.available ? (sv.se.questions || []) : []
+        active: sv.body ? sv.body.askedId : ""
+        onAsked: (q) => { if (sv.body) sv.body.ask(q, sv.brush) }
+    }
+    // Replay: the lead reading at the P-position the playhead has passed (D6)
+    PpChReplaySession {
+        visible: sv.replay && ok
+        width: sv.width; roles: sv.roles; brush: sv.brush; interactive: sv.interactive; cast: sv.cast
+        presenter: sv.body ? sv.body.relationsP : null
+        info: sv.body ? sv.body.rReplay : null
+        onShotActivated: (o) => { if (sv.body) sv.body.pickOrdinal(o) }
+    }
+    // Analyse: the sequence across the session
+    PpSectionHead {
+        visible: !sv.replay && sv.available && !!sv.se.sequence && sv.se.sequence.present === true
+        width: sv.width; roles: sv.roles; title: "The sequence across the session"; sub: "kinematic sequence, every shot"
+    }
+    PpChSeqSession {
+        visible: !sv.replay && sv.available && !!sv.se.sequence && sv.se.sequence.present === true
+        width: sv.width; roles: sv.roles; brush: sv.brush; interactive: sv.interactive
+        sequence: sv.available ? sv.se.sequence : null
+        onShotActivated: (o) => { if (sv.body) sv.body.pickOrdinal(o) }
+    }
+}

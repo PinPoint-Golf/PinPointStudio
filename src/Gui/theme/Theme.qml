@@ -751,8 +751,10 @@ QtObject {
     // where it differs from this default (Folio and Vector carry one; the other five take the
     // default until each is judged in renders). Sizes are design units: PpTypeset turns them into px,
     // through Theme.sp() on screen and printScale on paper. Values that depend on light or dark (the
-    // pick and hover washes) are computed by PpTypeset from `dark`, never stored. Nothing outside
-    // PpTypeset reads these tables (blocks read the helper), except PpLmGraphicsBody, which reads its own `lm` block.
+    // pick and hover washes) are computed by PpTypeset from `dark`, never stored (the Charts block's one
+    // light/dark pair is the exception, stored as { light, dark }). Nothing outside PpTypeset reads these
+    // tables (blocks read the helper), except PpLmGraphicsBody, which reads its own `lm` block, and the
+    // Charts panel, which reads its own `ch` block.
     readonly property var _typesetDefault: ({
         textFamily: fontBody, figureFamily: fontData, displayFamily: fontDisplay,
         standFamily: fontBody, labelFamily: fontBody, inlineFigureFamily: fontData,
@@ -815,14 +817,46 @@ QtObject {
             flightBesideMinEm: 30,                      // the flight may stand beside the club group when it gets ≥ 30 em
             flightMinK: 2.4,                            // a true-scale flight drawn smaller than this (px per yd) folds below the fold
             ballFrac: 0.085, ballFracH: 0.15            // Path and Loft: the ball's radius ≤ 8.5 % of the cell's width, 15 % of its height
+        },
+        // The Charts panel (docs/design/charts_panel_traces_relations.md §5): its marks' weights, alphas and dashes, the
+        // box cell, and its flows. Widths and dashes are design units (PpTypeset.u()), flows ems of the body role. A METRIC
+        // is drawn in Theme.metricColor(key) at these alphas and weights, never in a second hue; a SHOT is ink; warn is a
+        // mark plus a word. The one value that differs light and dark is stored as { light, dark }. A theme overrides keys
+        // in its own `typeset.ch`; on paper typesetPrint.ch is merged over this block by the panel.
+        ch: {
+            thisShotW: 1.8,                             // this shot's curve: the hue at full strength
+            otherShotAlpha: 0.3,                        // every other shot's curve: the same hue
+            medianW: 1.0, medianAlpha: 0.8,             // the session median
+            envelopeAlpha: { light: 0.12, dark: 0.17 }, // the middle-half band and the group fit's ±1 sd band: the hue as a wash
+            fitW: 1.3, fitDash: [8, 3],                 // the group fit: a long dash
+            ghostW: 1.1, ghostDash: [4, 3],             // a reference (ghost) shot
+            otherFacetW: 1.0, otherFacetDash: [2, 2.5], // the other facet's curve
+            likeW: 1.2, likeDash: [5, 3],               // "your typical swing like this one"
+            rawDot: 2, rawDotAlpha: 0.35,               // the raw samples under a curve
+            spreadEdgeW: 0.75, spreadEdgeAlpha: 0.45,   // a kind's ±1 sd hairlines (no wash)
+            kindW: 2, kindDash: [5, 3], kindDashAlpha: 0.85,   // the kinds' curves: the first solid, the second dashed
+            coverPitch: 1.5,                            // Traces: one coverage hairline per shot, this far apart
+            coverRowPitch: 4.5, coverBar: 2,            // Kinds: one coverage row per shot, its bar ink3
+            boxRow: 16, boxBody: 9, boxFill: 0.16,      // a box cell: the row, the box's body, the hue's fill α
+            swatch: 7,                                  // a metric's swatch beside its name
+            fitLineW: 1,                                // the least-squares line, ink2 …
+            chanceDash: [4, 3],                         // … dashed in ink3 while it is inside chance
+            firedTickW: 1.5, firedTickH: 4,             // the warn tick under a fired mark
+            knockOutAlpha: 0.85,                        // behind a label inside a plot: colorSurface at this α (paper: white)
+            facetEm: 22,                                // a facet's panel, a scatter
+            profileBoxEm: { narrow: 9, compact: 13, medium: 18, wide: 24 },   // the profile's box column, by size class
+            kindCurveEm: 34,                            // the kinds' curve figure
+            matrixCellEm: 3.3                           // a cell of the correlation matrix
         }
     })
     // The merged table for the current aesthetic: the default, then the entry's block.
-    // `lm` (the launch monitor panel's block) merges one level deeper, so a theme lists only the keys it changes.
+    // `lm` (the launch monitor panel's block) and `ch` (the Charts panel's) merge one level deeper, so a theme lists
+    // only the keys it changes.
     readonly property var typeset: {
         const own = _a.typeset || {}
         const t = Object.assign({}, _typesetDefault, own)
         t.lm = Object.assign({}, _typesetDefault.lm, own.lm || {})
+        t.ch = Object.assign({}, _typesetDefault.ch, own.ch || {})
         return t
     }
     // The print block, shared by every theme: the scale, the hairline and the tint for paper, and the
@@ -830,7 +864,8 @@ QtObject {
     readonly property var typesetPrint: ({
         printScale: 1.18,                              // body 11 → 13 px ≈ 10 pt, never the user's fontScale
         hair: 0.5, tintScale: 0.7, ring: 12,
-        marginX: 60, headY: 30, top: 76, bottom: 92     // A4 at 96 dpi logical
+        marginX: 60, headY: 30, top: 76, bottom: 92,    // A4 at 96 dpi logical
+        ch: { boxFill: 0.12, kindCurveEm: 30 }          // the Charts keys that differ on paper, merged over typeset.ch
     })
 
     // ── Border tokens ────────────────────────────────────────────────────────

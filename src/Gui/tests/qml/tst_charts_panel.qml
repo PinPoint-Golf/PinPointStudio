@@ -1,0 +1,529 @@
+/*
+ * Copyright (c) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+import QtQuick
+import QtTest
+import PinPointStudio
+import "charts"
+
+// THE CHARTS PANEL — the four views over REAL data (docs/design/charts_panel_traces_relations.md;
+// build/charts-build/CONTRACT.md D1–D9 and its Addendum; build/charts-build/STEP3.md).
+//
+// The real PpChartsPanel → PpChartsBody ("chBody") → register → views, over the real
+// ChartsTracesPresenter and ChartsRelationsPresenter, fed the real 4 July session (15 shots of a 7 iron;
+// shot 8 picked) through `chartsFixture`. Every number and sentence asserted here is the presenters' —
+// the C++ suites (charts_traces_presenter_test, charts_relations_presenter_test) pin the arithmetic; THIS
+// suite pins that the panel puts it on screen, where a reader can press it, and that a press reaches the
+// real path. Controls are pressed with the pointer, never set, except where a test says why.
+//
+// The single-shot controls the Addendum kept (metric on/off, overlay, P dots, cursor, the window, the folds)
+// are tst_chart_presets.qml's.
+Item {
+    id: probe
+    width: 1400; height: 900
+
+    ChartsHarness { id: hn }
+
+    // The 4 July fixture's conditions by how often they fired (of 15): fired on EVERY shot, or on fewer
+    // than three — neither can split the session, so neither is offered as a facet.
+    readonly property var alwaysFired: ["early_extension", "hips_closed_at_impact", "over_the_top", "pelvis_thrust_backswing"]
+    readonly property var tooRare: ["steep_downswing_shaft", "hips_under_rotated_at_top", "off_balance_finish", "ball_back",
+                                    "overswing", "deceleration", "slide"]
+
+    TestCase {
+        id: tc
+        name: "ChartsPanel"
+        when: windowShown
+
+        // ── helpers ──────────────────────────────────────────────────────────
+        function body() { return hn.body }
+        function settle() { hn.settle(tc) }
+        function shownAll(name, under) { return hn.shownAll(under || hn.body, name) }
+        function oneShown(name, under) {
+            const all = shownAll(name, under)
+            verify(all.length >= 1, "expected a '" + name + "' on screen, found none (" + hn.findAll(under || hn.body, name).length + " hidden)")
+            return all[0]
+        }
+        function textOf(item) { return hn.allText(item) }
+        function intoView(item) {
+            const f = hn.flickOf(item)
+            if (!f) return
+            const y = item.mapToItem(f.contentItem, 0, 0).y
+            const hgt = Math.max(item.height, 1)
+            if (y < f.contentY || y + hgt > f.contentY + f.height)
+                f.contentY = Math.max(0, Math.min(y - 20, f.contentHeight - f.height))
+            wait(16); waitForRendering(hn, 60)
+        }
+        function press(item) { intoView(item); mouseClick(item); settle() }
+        // a ledger row opens from its name (its MouseArea spans the name, value and unit columns)
+        function pressAt(item, x, y) { intoView(item); mouseClick(item, x, y); settle() }
+        function tabKeys() { return shownAll("sdTab").map(function (t) { return t.key }).join(",") }
+        function tabPress(key) {
+            const t = shownAll("sdTab").filter(function (x) { return x.key === key })
+            verify(t.length === 1, "one '" + key + "' tab on screen")
+            press(t[0])
+        }
+        // a quiet control line's option (PpChChoices): press its word
+        function option(set, key) {
+            const o = shownAll("chOption").filter(function (x) { return x.setKey === set && x.key === key })
+            verify(o.length >= 1, "an option '" + key + "' in the '" + set + "' line")
+            return o[0]
+        }
+        function clickOption(set, key) {
+            const o = option(set, key)
+            const word = o.children.filter(function (k) { return hn.isText(k) })[0]
+            press(word)
+        }
+        // an in-place list's entry (PpInlinePicker)
+        function pickInline(name, id) {
+            const it = shownAll(name).filter(function (x) { return x.missId === id })
+            verify(it.length === 1, "one '" + id + "' in the open " + name)
+            press(it[0])
+        }
+        function useMode(m) {
+            SessionMode.mode = m === "Analyse" ? SessionMode.analyse : SessionMode.replay
+            settle()
+            compare(hn.body.register, m, "the body loaded the " + m + " register")
+        }
+        function hueOk(c, key) { return Qt.colorEqual(c, Theme.metricColor(key)) }
+        function layers(row, pred) { const p = hn.plotOf(row); return p ? p.layers.filter(pred) : [] }
+        function fresh(opts, ordinal, detail) {
+            hn.build()
+            hn.feed(opts || {})
+            if (ordinal !== undefined && ordinal > 0) hn.pick(ordinal, detail)
+            settle()
+        }
+
+        function initTestCase() {
+            verify(chartsFixture.count() === 15, "the 4 July fixture loads (15 shots)")
+            hn.install()
+        }
+        function init() {
+            Theme.themeIndex = 12
+            Theme.fontScale = 1.0
+            SessionMode.mode = SessionMode.analyse
+            SessionMode.chartsNav = null
+            appSettings.chartPrefs = ({})
+            appSettings.sectionCollapse = ({})
+            hn.nav.currentIndex = hn.sessionType + 1
+            hn.replay.seeks = 0; hn.replay.lastSeekUs = -1; hn.replay.scrubs = 0
+            hn.unpick()
+            fresh({}, 8)
+        }
+        function cleanup() {
+            if (hn.panel) { hn.panel.destroy(); hn.panel = null }
+            hn.unpick()
+            wait(0)
+        }
+        function cleanupTestCase() {
+            SessionMode.mode = SessionMode.capture
+            SessionMode.chartsNav = null
+            appSettings.chartPrefs = ({})
+            appSettings.sectionCollapse = ({})
+        }
+
+        // ── the four views (D1) ──────────────────────────────────────────────
+        function test_01_four_views_in_analyse_and_no_kinds_in_replay() {
+            compare(hn.body.register, "Analyse")
+            compare(tabKeys(), "shot,session,relations,kinds")
+            const views = { session: "chSessionView", relations: "chRelationsView", kinds: "chKindsView", shot: "chShotView" }
+            for (const k of ["session", "relations", "kinds", "shot"]) {
+                tabPress(k)
+                compare(hn.body.tab, k, "the press reached the body")
+                verify(oneShown(views[k]).height > 0, k + " draws")
+            }
+            useMode("Replay")
+            compare(tabKeys(), "shot,session,relations", "Replay has no Kinds form")
+            // a Kinds left on from Analyse reads Session in Replay
+            hn.body.tab = "kinds"; settle()
+            compare(hn.body.shownView, "session")
+            verify(oneShown("chSessionView"))
+            compare(shownAll("chKindsView").length, 0)
+        }
+
+        // ── This shot: the answer, D4 and the neutral note (rule 5) ──────────
+        function test_02_the_answer_head_and_the_one_late_mark() {
+            compare(hn.body.tChoices.preset, "Kinematic sequence", "Analyse opens on the sequence (design §3)")
+            const head = textOf(oneShown("chHead"))
+            verify(head.indexOf("Shot 8 of 15") >= 0, head)
+            verify(head.indexOf("Out of sequence: the pelvis peaked late") >= 0, head)
+            // D4: ONE segment is said late — the one that peaked late — in the chain and on its curve
+            const lates = shownAll(/^chSeqLate:/)
+            compare(lates.length, 1)
+            compare(lates[0].objectName, "chSeqLate:pelvis")
+            verify(shownAll(/^chSeqLink:/).length >= 2, "the others are plain links")
+            const chain = textOf(oneShown("chSeqChain"))
+            verify(chain.indexOf("Lead arm") === 0 && chain.indexOf("Pelvis") > chain.indexOf("Club"), chain)
+            compare(hn.findAll(hn.body, "chPeak:pelvis")[0].p.late, true)
+            for (const seg of ["leadArm", "club"]) compare(hn.findAll(hn.body, "chPeak:" + seg)[0].p.late, false, seg + " is not late")
+            // the late pelvis is said NEUTRALLY wherever it is said late
+            const view = textOf(oneShown("chShotView"))
+            verify(view.indexOf("may be the golfer (hips held at impact, then catching up) or the two-camera measurement; it cannot yet tell them apart") >= 0,
+                   "the neutral note is on This shot")
+            // …and in Replay too: the glance opens on Club & speed, where nothing is said late; on the sequence
+            // it keeps the chain, its one late mark and the neutral note
+            useMode("Replay")
+            compare(shownAll(/^chSeqLate:/).length, 0, "Club & speed says nothing late")
+            press(oneShown("chPresetChip"))
+            pickInline("chPresetOption", "Kinematic sequence")
+            compare(shownAll(/^chSeqLate:/).map(function (x) { return x.objectName }).join(","), "chSeqLate:pelvis")
+            verify(textOf(oneShown("chShotView")).indexOf("cannot yet tell them apart") >= 0, "the neutral note in Replay")
+        }
+
+        // ── This shot's traces: one per preset member, in the metric's own hue (rule 2) ──
+        function test_03_a_trace_per_member_in_its_metric_colour() {
+            const members = hn.body.tChoices.metrics.filter(function (m) { return m.on && m.curve })
+            compare(members.map(function (m) { return m.key }).sort().join(","),
+                    "clubAngularSpeed,leadArmAngularSpeed,pelvisAngularSpeed,thoraxAngularSpeed")
+            compare(shownAll(/^chTrace:/).length, members.length, "no trace beyond the preset")
+            for (const m of members) {
+                const tr = oneShown("chTrace:" + m.key)
+                const swatch = oneShown("chTraceLabel:" + m.key, tr).children[0]
+                verify(hueOk(swatch.color, m.key), m.key + " swatch is Theme.metricColor")
+                const own = layers(tr, function (l) { return l.k === "line" && l.z === 3 })
+                compare(own.length, 1, m.key + ": this shot's curve")
+                verify(hueOk(own[0].color, m.key), m.key + " curve is Theme.metricColor")
+                const raw = layers(tr, function (l) { return l.k === "dots" })
+                verify(raw.length === 1 && hueOk(raw[0].color, m.key), m.key + ": raw samples in the same hue")
+            }
+            // another theme: the same name, that theme's value — and the curve follows
+            Theme.themeIndex = 7
+            settle()
+            for (const m of members)
+                verify(hueOk(layers(oneShown("chTrace:" + m.key), function (l) { return l.k === "line" && l.z === 3 })[0].color, m.key),
+                       m.key + " repaints with the theme")
+        }
+
+        // ── honesty: a bridged run is a bridge, never the placeholder (F18) ──
+        function test_04_a_bridged_run_draws_a_bridge_and_no_value() {
+            const tr = oneShown("chTrace:thoraxAngularSpeed")
+            const line = layers(tr, function (l) { return l.k === "line" && l.z === 3 })[0]
+            const bridges = layers(tr, function (l) { return l.k === "bridges" && l.z === 3 })
+            compare(bridges.length, 1, "the bridged runs are handed to the painter as a bridge layer")
+            const br = bridges[0].list.filter(function (b) { return b.t0 < 0 && b.t1 > 0 })[0]
+            verify(!!br, "shot 8's thorax is bridged across impact")
+            verify(br.v0 > 100 && br.v1 > 100, "from the last measured sample to the first after")
+            verify(line.runs.some(function (r) { return r.style === "bridged" }), "the run is marked bridged")
+            const raw = layers(tr, function (l) { return l.k === "dots" })[0]
+            let inside = 0
+            for (let i = 0; i < line.t.length; ++i) {
+                if (line.t[i] > br.t0 + 0.01 && line.t[i] < br.t1 - 0.01) {
+                    inside += 1
+                    verify(isNaN(line.v[i]) && isNaN(raw.v[i]), "nothing drawn at " + line.t[i] + " ms inside the bridge")
+                }
+                if (isFinite(line.v[i])) verify(line.v[i] !== 0, "no placeholder 0 on the curve")
+            }
+            verify(inside > 0, "the bridge spans samples")
+        }
+
+        // ── Against (D1): the reference in the same hue, the largest gap said ──
+        function test_05_against_the_median_draws_the_reference_and_says_the_gap() {
+            compare(shownAll("chAgainstHead").length, 0, "nothing against at rest")
+            clickOption("against", "open")
+            verify(oneShown("chAgainstPicker"))
+            pickInline("chAgainstOption", "median")
+            compare(hn.body.against, "median")
+            const head = textOf(oneShown("chAgainstHead"))
+            verify(head.indexOf("Shot 8 left your usual swing furthest") === 0, head)
+            for (const m of hn.body.tChoices.metrics.filter(function (x) { return x.on && x.curve })) {
+                const ref = layers(oneShown("chTrace:" + m.key), function (l) { return l.k === "line" && l.z === 1 })
+                compare(ref.length, 1, m.key + ": the session median drawn")
+                verify(hueOk(ref[0].color, m.key), m.key + ": the reference keeps the metric's hue")
+            }
+            // the difference strip, this − reference, on a press
+            clickOption("difference", "on")
+            compare(hn.body.difference, true)
+            verify(shownAll(/^chDiffStrip:/).length >= 1, "a difference strip under the traces")
+            // a refusal is said, not drawn: shot 1 has no shot before it
+            clickOption("difference", "off")
+            hn.pick(1); settle()
+            clickOption("against", "open")
+            pickInline("chAgainstOption", "previous")
+            verify(textOf(oneShown("chShotView")).indexOf("Shot 1 has no shot before it.") >= 0)
+        }
+
+        // ── Session: the envelope and where the curves part (§2.2) ──────────
+        function test_06_session_envelope_and_where_the_curves_part() {
+            tabPress("session")
+            const head = textOf(oneShown("chSessionHead"))
+            verify(head.indexOf(" parts most ") >= 0, head)
+            const rows = hn.body.tSession.rows
+            verify(rows.length >= 2)
+            for (const r of rows) {
+                const env = oneShown("chEnvelope:" + r.key)
+                const panel = env.children.filter(function (k) { return hn.plotOf(k) !== null })[0]
+                const ls = hn.plotOf(panel).layers
+                verify(ls.some(function (l) { return l.k === "band" }), r.key + ": the middle half")
+                verify(ls.some(function (l) { return l.k === "line" && l.z === 1 }), r.key + ": the median")
+                verify(ls.some(function (l) { return l.k === "line" && l.z === 3 }), r.key + ": this shot at full strength")
+            }
+            verify(shownAll("chPartAt").length >= 1, "the parting instant is marked")
+            // D3: no facet by default, and "every shot" draws each shot's own curve
+            compare(hn.body.facet, "")
+            clickOption("band", "every")
+            compare(hn.body.band, "every")
+            const env = oneShown("chEnvelope:" + rows[0].key)
+            const ls = hn.plotOf(env.children.filter(function (k) { return hn.plotOf(k) !== null })[0]).layers
+            verify(ls.filter(function (l) { return l.k === "line" && l.z === 0 }).length >= 10, "the other shots, each its own line")
+        }
+
+        // ── facets (D3): a fault that fired on every shot, or on too few, cannot split it ──
+        function test_07_the_facet_offer_leaves_out_what_cannot_split() {
+            tabPress("session")
+            const offered = hn.body.tChoices.facets.filter(function (f) { return f.kind === "condition" })
+            verify(offered.length > 0)
+            for (const f of offered) {
+                verify(probe.alwaysFired.indexOf(f.id) < 0, f.id + " fired on every shot and is offered")
+                verify(probe.tooRare.indexOf(f.id) < 0, f.id + " fired on too few shots and is offered")
+                verify(f.n >= 3 && f.n <= 12, f.id + " fired " + f.n)
+            }
+            // what the reader can press: the line, and the rest IN PLACE under it
+            const onLine = shownAll("chOption").filter(function (o) { return o.setKey === "facet" && o.key !== "_more" && o.key !== "" }).map(function (o) { return o.key })
+            clickOption("facet", "_more")
+            const inList = shownAll("chFacetOption").map(function (o) { return o.missId })
+            for (const id of probe.alwaysFired.concat(probe.tooRare))
+                verify(onLine.indexOf(id) < 0 && inList.indexOf(id) < 0, id + " is not pressable")
+            for (const f of offered) verify(onLine.indexOf(f.id) >= 0 || inList.indexOf(f.id) >= 0, f.id + " is reachable")
+            // picking one splits the session in two and says co-occurrence is not cause
+            pickInline("chFacetOption", offered[0].id)
+            compare(hn.body.facet, offered[0].id)
+            compare(hn.body.tSession.groups.length, 2)
+            verify(textOf(oneShown("chSessionHead")).indexOf("They occur together; that is not to say one causes another.") >= 0)
+        }
+
+        // ── the group fit is the group's (rule 3, D2): refused below three ──
+        function test_08_the_group_fit_is_refused_for_a_group_under_three() {
+            fresh({ clubs: { "3": "DRIVER", "6": "DRIVER" } }, 3)
+            tabPress("session")
+            verify(textOf(oneShown("chSessionHead")).length > 0)
+            clickOption("band", "fit")
+            clickOption("facet", "club")
+            compare(hn.body.band, "fit"); compare(hn.body.facet, "club")
+            const key = hn.body.tSession.rows[0].key
+            const fits = shownAll("chFit:" + key)
+            verify(fits.length >= 1, "the fit panels are up")
+            const refusedTexts = fits.map(function (f) { return textOf(f) }).filter(function (t) { return t.indexOf("fewer than three shots: no group fit") >= 0 })
+            verify(refusedTexts.length >= 1, "the driver pair says why it has no fit")
+            // and no curve is read from a refused fit
+            const driver = hn.body.tSession.rows[0].panels.filter(function (p) { return p.fit && p.fit.refused })[0]
+            verify(!!driver && driver.fit.v === undefined, "a refused fit carries no values")
+            const iron = hn.body.tSession.rows[0].panels.filter(function (p) { return p.fit && !p.fit.refused })[0]
+            verify(!!iron && iron.fit.label.indexOf("13 shots") >= 0, "the other group is fitted and labelled with its n")
+        }
+
+        // ── Relations (§2.3): the scatter and the chance line said out loud ──
+        function test_09_relations_scatter_and_the_chance_line() {
+            tabPress("relations")
+            const sc = oneShown("chScatter")
+            verify(sc.scatter.points.length >= 12, "a mark per shot that measured both: " + sc.scatter.points.length)
+            compare(sc.scatter.points.filter(function (p) { return p.picked }).length, 1, "shot 8 is ringed")
+            compare(textOf(oneShown("chChance")), "|r| under .51 is chance at n = 15")
+            // a "moves with" row puts that reading across the foot
+            const rows = shownAll("chMovesRow")
+            verify(rows.length >= 3)
+            const want = rows[2].readingId
+            pressAt(rows[2], 40, 10)
+            compare(hn.body.acrossId, want)
+            compare(oneShown("chScatter").scatter.xId, want, "the scatter re-drew against it")
+        }
+
+        // ── Kinds (§2.4, D7): no structure said first, then the split, then the unplaced ──
+        function test_10_kinds_say_no_structure_then_the_split() {
+            tabPress("kinds")
+            const head = textOf(oneShown("chKindsHead"))
+            verify(head.indexOf("No structure") >= 0, head)
+            const view = textOf(oneShown("chKindsView"))
+            verify(/gap in clubhead speed/.test(view) && view.indexOf(": 6 faster, 9 slower") >= 0, "the split line: " + view.slice(0, 300))
+            const members = textOf(oneShown("chKindMembers"))
+            verify(members.indexOf("Faster") >= 0 && members.indexOf("Slower") >= 0, members)
+            verify(shownAll("chKindRow").length >= 1, "what else separates them")
+            // two shots without the split reading sit in neither: a third, neutral set
+            fresh({ unmeasured: { key: "clubheadSpeed", phase: 5, ordinals: [1, 4] } }, 8)
+            tabPress("kinds")
+            verify(textOf(oneShown("chKindsHead")).indexOf("two not measured") >= 0)
+            verify(textOf(oneShown("chKindMembers")).indexOf("Not measured") >= 0)
+        }
+
+        // ── Apart from the session (§2.1 B): seven readings, a row opens in place ──
+        function test_11_the_apart_ledger_and_a_row_that_opens_in_place() {
+            const apart = oneShown("chApart")
+            verify(textOf(apart).indexOf("Seven readings apart from the session") >= 0)
+            const rows = shownAll("chApartRow", oneShown("chApartList"))
+            compare(rows.length, 7)
+            const id = rows[0].readingId
+            pressAt(rows[0], 30, 10)
+            compare(hn.body.openId, id)
+            const open = oneShown("chApartRowOpen", oneShown("chApartList"))
+            compare(open.readingId, id)
+            verify(shownAll("chReadingTrace", open).length + shownAll("chRun", open).length === 1, "it opens its curve or its run")
+            // pressed again, it closes
+            pressAt(open, 30, 10)
+            compare(hn.body.openId, "")
+            compare(shownAll("chApartRowOpen").length, 0)
+        }
+
+        // ── a press on a trace seeks the replay (F25) ───────────────────────
+        function test_12_a_trace_seeks_the_replay() {
+            const seek = oneShown("chSeek", oneShown("chTrace:clubAngularSpeed"))
+            intoView(seek)
+            mouseClick(seek, seek.width * 0.6, seek.height / 2)
+            settle()
+            verify(hn.replay.seeks >= 1, "shotReplay.seekToUs was called")
+            verify(hn.replay.lastSeekUs >= 0 && hn.replay.lastSeekUs <= hn.replay.endUs, "inside the recording: " + hn.replay.lastSeekUs)
+            compare(hn.replay.scrubs, 1, "the press brackets a scrub")
+            // the playhead follows the replay
+            verify(oneShown("chPlayhead"))
+        }
+
+        // ── a shot picked on a figure goes to the carousel's own path ───────
+        function test_13_a_shot_picked_on_a_figure_opens_it() {
+            tabPress("kinds")
+            const members = hn.findAll(oneShown("chKindMembers"), "").filter(function (t) { return hn.isText(t) && t.no === 3 && hn.shown(t) })
+            verify(members.length === 1, "shot 3 is listed as a kind member")
+            press(members[0])
+            compare(SessionMode.focusedShotId, 3)
+            compare(SessionMode.mode, SessionMode.analyse, "Analyse stays Analyse")
+            compare(hn.replay.swingDir, chartsFixture.dirOf(3), "the replay opened it")
+            settle()
+            compare(hn.body.tShot.ordinal, 3, "This shot follows")
+        }
+
+        // ── choices persist per screen × mode (F9) and restore ───────────────
+        function test_14_choices_persist_per_screen_and_mode() {
+            clickOption("draw", "overlay")
+            compare(hn.body.overlay, true)
+            const b = hn.sessionType + ":" + SessionMode.analyse + ":"
+            compare(appSettings.chartPrefs[b + "split"], false, "saved as today's key")
+            clickOption("against", "open"); pickInline("chAgainstOption", "median")
+            compare(appSettings.chartPrefs[b + "against"], "median")
+            tabPress("session")
+            compare(appSettings.chartPrefs[b + "view"], "session")
+            // Replay keeps its own
+            useMode("Replay")
+            compare(hn.body.overlay, false); compare(hn.body.against, "none"); compare(hn.body.tab, "shot")
+            useMode("Analyse")
+            compare(hn.body.overlay, true); compare(hn.body.against, "median"); compare(hn.body.tab, "session")
+            // another screen keeps its own too
+            hn.sessionType = 2; hn.nav.currentIndex = 3
+            fresh({}, 8)
+            compare(hn.body.overlay, false); compare(hn.body.tab, "shot")
+            hn.sessionType = 1; hn.nav.currentIndex = 2
+            // a rebuild (the stage, or a restart) puts them back
+            fresh({}, 8)
+            compare(hn.body.overlay, true); compare(hn.body.against, "median"); compare(hn.body.tab, "session")
+            verify(shownAll("chTrace:overlay").length === 0 || hn.body.tab !== "shot")
+            // today's saved "Custom" restores as its base preset with the switched-off series
+            appSettings.chartPrefs = ({ [b + "preset"]: "Custom", [b + "presetBase"]: "Kinematic sequence",
+                                        [b + "series"]: { pelvisAngularSpeed: false, clubAngularSpeed: true } })
+            fresh({}, 8)
+            compare(hn.body.preset, "Kinematic sequence")
+            compare(hn.body.metricsOff.join(","), "pelvisAngularSpeed")
+            compare(hn.body.tChoices.custom, true)
+            compare(shownAll("chTrace:pelvisAngularSpeed").length, 0)
+        }
+
+        // ── the reader's place (ChartsNav) survives the stage rebuilding the panel ──
+        function test_15_the_open_row_survives_a_rebuild() {
+            const row = shownAll("chApartRow", oneShown("chApartList"))[1]
+            const id = row.readingId
+            pressAt(row, 30, 10)
+            compare(hn.body.openId, id)
+            verify(SessionMode.chartsNav !== null && SessionMode.chartsNav.openId === id, "the place is saved as it changes")
+            compare(SessionMode.chartsNav.sessionDir, chartsFixture.sessionDir())
+            fresh({}, 8)                                       // a Capture↔Replay flip rebuilds it
+            compare(hn.body.openId, id, "the open row is back")
+            compare(oneShown("chApartRowOpen").readingId, id)
+            // another session starts at the defaults
+            hn.review.liveSessionDir = "/fx/another-session"
+            settle()
+            compare(hn.body.openId, "")
+            hn.review.liveSessionDir = chartsFixture.sessionDir()
+        }
+
+        // ── the cast: the auto-closing surface takes no clicks ───────────────
+        function test_16_the_noninteractive_cast_takes_no_clicks() {
+            hn.body.surface = "cast"
+            hn.body.interactive = false
+            settle()
+            compare(hn.body.register, "Replay", "the cast reads in Replay")
+            verify(oneShown("chCastHead"))
+            compare(shownAll("chTabBar").length, 0, "no tab row to press")
+            compare(hn.body.view, "shot", "it shows the shot")
+            const before = hn.replay.seeks
+            const seek = oneShown("chSeek")
+            mouseClick(seek, seek.width / 2, seek.height / 2)
+            mouseClick(hn.body, 20, 10)
+            settle()
+            compare(hn.replay.seeks, before, "a press on the cast seeks nothing")
+            compare(hn.body.tab, "shot")
+        }
+
+        // ── the live states (STEP2C): n < 3, a shot not yet landed, no session ──
+        function test_17_two_shots_refuse_the_session_and_keep_this_shot() {
+            fresh({ shots: 2 }, 2)
+            verify(textOf(oneShown("chHead")).length > 0, "This shot still reads")
+            verify(shownAll(/^chTrace:/).length >= 2)
+            tabPress("session")
+            compare(textOf(oneShown("chSessionWhy")), "Three shots are needed to draw the session; this session has two.")
+            tabPress("relations")
+            compare(textOf(oneShown("chRelationsWhy")), "Five shots are needed to relate readings across a session; this session has two.")
+            tabPress("kinds")
+            compare(textOf(oneShown("chKindsWhy")), "Three shots are needed to draw the session; this session has two.")
+        }
+        function test_18_a_shot_not_yet_in_the_session_reads_from_its_own_detail() {
+            fresh({ without: [15] }, 15)
+            compare(hn.body.rStatus.pickedFromDetail, true)
+            const head = textOf(oneShown("chHead"))
+            verify(head.indexOf("Shot 15") >= 0, head)
+            verify(shownAll(/^chTrace:/).length >= 2, "its traces draw")
+            tabPress("session")
+            verify(textOf(oneShown("chSessionHead")).length > 0, "the session draws, the shot on it")
+            // the shot lands: the place does not jump
+            tabPress("shot")
+            hn.feed({}); settle()
+            compare(hn.body.tab, "shot")
+            compare(hn.body.rStatus.pickedInSession, true)
+        }
+        function test_19_no_session_says_so() {
+            hn.unpick()
+            fresh({ none: true })
+            verify(textOf(oneShown("chShotEmpty")).length > 0, "This shot says why it is empty")
+            compare(shownAll(/^chTrace:/).length, 0)
+            tabPress("session")
+            compare(textOf(oneShown("chSessionWhy")), "No session is loaded.")
+            tabPress("relations")
+            compare(textOf(oneShown("chRelationsWhy")), "No session is loaded.")
+            // a session, nothing picked: Session and Relations read; This shot waits for a pick
+            fresh({})
+            tabPress("session")
+            verify(textOf(oneShown("chSessionHead")).length > 0)
+            tabPress("shot")
+            verify(textOf(oneShown("chShotEmpty")).length > 0)
+        }
+
+        // ── the _screenActive gate (F41): an invisible screen is fed nothing ──
+        function test_20_an_invisible_screen_follows_no_replay() {
+            hn.nav.currentIndex = 0                              // another screen is up
+            hn.pick(3); settle()
+            compare(hn.body.tShot.ordinal, 8, "the hidden panel still holds shot 8")
+            hn.nav.currentIndex = hn.sessionType + 1              // back on this screen: it catches up
+            settle()
+            compare(hn.body.tShot.ordinal, 3)
+        }
+    }
+}

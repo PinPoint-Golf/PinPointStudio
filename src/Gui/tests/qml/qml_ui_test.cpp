@@ -53,6 +53,16 @@
 // does not have.
 #include "app_settings.h"
 
+// The Charts panel's fixture feeder (below): the presenters' setSnapshot is C++-only.
+#include "charts/charts_relations_presenter.h"
+#include "charts/charts_traces_presenter.h"
+#include "tests/charts_maths_fixture.h"
+
+#include <QQmlContext>
+#include <QVariantList>
+#include <algorithm>
+#include <cmath>
+
 // ⚠ THE FONTS ARE THE UNITS THIS SUITE MEASURES IN, AND IT USED TO RUN WITHOUT THEM.
 //
 // Theme.qml names families — "Geist Mono", "Hanken Grotesk" — and notes that it "falls back to the
@@ -87,6 +97,138 @@ static void loadBundledFonts()
     }
 }
 
+// ── chartsFixture: the REAL 4 July session fed to the Charts panel's REAL presenters ─────────────
+//
+// tst_charts_panel.qml and tst_chart_presets.qml drive the Charts body over ChartsTracesPresenter and
+// ChartsRelationsPresenter — the app's own, unmodified — but a presenter is fed a SessionSnapshot only
+// from C++ (setSnapshot; in the app the SessionSeriesModel reads swing documents off-thread). This
+// object is that C++: it reads the trimmed 4 July fixture the presenter unit tests read
+// (src/Gui/tests/data/charts/session_0704.json, through charts_maths_fixture.h), gives every shot a
+// swing folder (the carousel identity the panel picks by), and hands the snapshot to the presenters.
+// No files are written and no swing document is opened, so the suite stays fast and deterministic.
+//
+// It also lets a test file put its own QML fakes of the app's controllers (shotReplay, navController,
+// sessionReviewController, shotProcessor, reanalysisController) on ITS engine's root context —
+// provide(name, object) — so PpChartsPanel's real wiring runs. Only the files that call it get them:
+// each tst_*.qml has its own engine, and nothing is put on a context by default.
+class ChartsFixture : public QObject
+{
+    Q_OBJECT
+
+public:
+    ChartsFixture(QQmlEngine *engine, QObject *parent) : QObject(parent), m_engine(engine) {}
+
+    // The fixture's session folder and a shot's swing folder (ordinal 1..15).
+    Q_INVOKABLE QString sessionDir() const { return QStringLiteral("/fx/2026-07-04_Mark-Liversedge_Wrist_01"); }
+    Q_INVOKABLE QString dirOf(int ordinal) const
+    {
+        return sessionDir() + QStringLiteral("/swing_%1").arg(ordinal, 4, 10, QLatin1Char('0'));
+    }
+    Q_INVOKABLE int count() { return load() ? int(m_fx.session.shots.size()) : 0; }
+
+    // A shot as shotReplay.analysisDetail carries it (disk_replay_source.cpp's shape).
+    Q_INVOKABLE QVariantMap detailOf(int ordinal)
+    {
+        using namespace pinpoint::charts;
+        if (!load() || ordinal < 1 || ordinal > int(m_fx.session.shots.size())) return {};
+        const ShotSeries &s = *m_fx.session.shots[size_t(ordinal - 1)];
+        QVariantList series, phases;
+        for (const QString &k : s.metricOrder) {
+            const MetricSeries *m = s.metric(k);
+            if (!m) continue;
+            QVariantList ts, vs, vd, ps;
+            for (qint64 t : m->tUs) ts << qlonglong(t);
+            for (double v : m->value) vs << v;
+            for (uint8_t b : m->valid) vd << int(b);
+            for (const PhaseSample &p : m->phaseSamples)
+                ps << QVariantMap{ { QStringLiteral("phase"), p.phase }, { QStringLiteral("t_us"), qlonglong(p.tUs) },
+                                   { QStringLiteral("value"), p.value }, { QStringLiteral("band"), p.band } };
+            QVariantMap sm{ { QStringLiteral("key"), m->key }, { QStringLiteral("label"), m->label },
+                            { QStringLiteral("unit"), m->unit }, { QStringLiteral("t_us"), ts },
+                            { QStringLiteral("value"), vs }, { QStringLiteral("phaseSamples"), ps } };
+            if (!m->valid.empty()) sm.insert(QStringLiteral("valid"), vd);
+            if (std::isfinite(m->sigma)) sm.insert(QStringLiteral("sigma"), m->sigma);
+            series << sm;
+        }
+        for (const PhaseMark &p : s.phases)
+            phases << QVariantMap{ { QStringLiteral("phase"), p.phase }, { QStringLiteral("t_us"), qlonglong(p.tUs) },
+                                   { QStringLiteral("conf"), p.conf } };
+        return { { QStringLiteral("series"), series }, { QStringLiteral("phases"), phases },
+                 { QStringLiteral("kinematicSequence"), s.kinematicSequence } };
+    }
+
+    // Feed `presenters` (any mix of ChartsTracesPresenter / ChartsRelationsPresenter) one snapshot of
+    // the fixture. A traces presenter is detached from its SessionSeriesModel first (the model's
+    // snapshot would win over a direct one). Options, all optional:
+    //   none: true           no session at all (an empty snapshot with no folder)
+    //   shots: n             the first n shots only (n < 3: the session refusals)
+    //   without: [ordinal]   shots left out of the session (a live shot not yet landed)
+    //   clubs: { "3": "DRIVER" }                    relabel shots' clubs (mixed clubs)
+    //   unmeasured: { key, phase, ordinals: [..] }  drop a reading's phase sample from shots
+    // Returns the number of shots in the snapshot fed (−1 when the fixture did not load).
+    Q_INVOKABLE int feed(const QVariantList &presenters, const QVariantMap &opts = {})
+    {
+        using namespace pinpoint::charts;
+        if (!load()) return -1;
+        auto s = std::make_shared<SessionSnapshot>();
+        s->revision = ++m_revision;
+        if (!opts.value(QStringLiteral("none")).toBool()) {
+            s->sessionDir = sessionDir();
+            s->conditions = m_fx.session.conditions;
+            const int n = opts.contains(QStringLiteral("shots")) ? opts.value(QStringLiteral("shots")).toInt()
+                                                                : int(m_fx.session.shots.size());
+            QList<int> without;
+            for (const QVariant &v : opts.value(QStringLiteral("without")).toList()) without << v.toInt();
+            const QVariantMap clubs = opts.value(QStringLiteral("clubs")).toMap();
+            const QVariantMap un = opts.value(QStringLiteral("unmeasured")).toMap();
+            QList<int> unOrd;
+            for (const QVariant &v : un.value(QStringLiteral("ordinals")).toList()) unOrd << v.toInt();
+            for (const auto &sh : m_fx.session.shots) {
+                if (sh->ordinal > n || without.contains(sh->ordinal)) continue;
+                auto c = std::make_shared<ShotSeries>(*sh);
+                c->swingDir = dirOf(c->ordinal);
+                c->shotId = c->ordinal;
+                const QString club = clubs.value(QString::number(c->ordinal)).toString();
+                if (!club.isEmpty()) { c->club = club; c->diagnostics.club = club; }
+                if (unOrd.contains(c->ordinal)) {
+                    const int ph = un.value(QStringLiteral("phase")).toInt();
+                    auto &ps = c->metrics[un.value(QStringLiteral("key")).toString()].phaseSamples;
+                    ps.erase(std::remove_if(ps.begin(), ps.end(), [ph](const PhaseSample &x) { return x.phase == ph; }), ps.end());
+                }
+                s->shots.push_back(c);
+            }
+        }
+        for (const QVariant &v : presenters) {
+            QObject *o = v.value<QObject *>();
+            if (auto *t = qobject_cast<ChartsTracesPresenter *>(o)) { t->setModel(nullptr); t->setSnapshot(s); }
+            else if (auto *r = qobject_cast<ChartsRelationsPresenter *>(o)) r->setSnapshot(s);
+        }
+        return s->count();
+    }
+
+    // Put a test's fake controller on this file's engine root context, under the app's name.
+    Q_INVOKABLE void provide(const QString &name, QObject *object)
+    {
+        if (m_engine) m_engine->rootContext()->setContextProperty(name, object);
+    }
+
+private:
+    bool load()
+    {
+        if (!m_tried) {
+            m_tried = true;
+            m_fx = charts_test::loadFixture(QStringLiteral(QUICK_TEST_SOURCE_DIR "/../data/charts/session_0704.json"));
+            if (!m_fx.ok) qWarning("chartsFixture: the 4 July fixture did not load");
+        }
+        return m_fx.ok;
+    }
+
+    QQmlEngine *m_engine = nullptr;
+    charts_test::Fixture m_fx;
+    bool m_tried = false;
+    quint64 m_revision = 100;
+};
+
 class QmlUiTestSetup : public QObject
 {
     Q_OBJECT
@@ -106,6 +248,9 @@ public slots:
 
         m_settings = new AppSettings(this);
         engine->rootContext()->setContextProperty(QStringLiteral("appSettings"), m_settings);
+
+        // The Charts fixture feeder — a new name, so no other suite's lookups change.
+        engine->rootContext()->setContextProperty(QStringLiteral("chartsFixture"), new ChartsFixture(engine, engine));
 
         // NO addImportPath, AND NO qmlRegisterType. Both were needed while this binary borrowed a
         // staged copy of the app's module: the copy carried .qml and a qmldir but none of the C++,

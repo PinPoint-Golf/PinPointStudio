@@ -244,6 +244,16 @@ QtObject {
     readonly property font fPull:    _f(r.displayFamily, r.featureSize, r.displayWeight)
     readonly property font fTab:     _f(r.labelCaps ? r.labelFamily : r.textFamily, r.labelCaps ? r.labelSize : r.bodySize, r.textWeight,
                                         { letterSpacing: r.labelCaps ? r.labelTracking : 0, capitalization: r.labelCaps ? Font.AllUppercase : Font.MixedCase })
+    // UNITS ARE NEVER CAPITALISED (§15): "°/s" set in capitals reads "°/S", "mm" reads "MM", and a unit's case is
+    // part of its meaning. fLabel / fLabelL / fKicker / fTab capitalise everything they set, so a label that carries a
+    // unit is set in fLabelUnit (the label role, case as written) with its text from labelUnit(): the words in the
+    // label role's case, the unit exactly as given. labelUnit("Peak", "°/s") → "PEAK °/s" in Vector, "Peak °/s" in Folio.
+    readonly property font fLabelUnit: _f(r.labelFamily, r.labelSize, r.textWeight, { letterSpacing: r.labelTracking })
+    function labelCase(s) { return r.labelCaps ? String(s || "").toUpperCase() : String(s || "") }
+    function labelUnit(words, unit) {
+        const w = labelCase(words), un = String(unit || "")
+        return w && un ? w + " " + un : w || un
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════════════════════
     // TEXT HELPERS — generic: case, escaping, numbers in words and figures, the inline-figure HTML,

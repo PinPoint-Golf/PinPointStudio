@@ -19,92 +19,40 @@
 import QtQuick
 import QtTest
 import PinPointStudio
+import "charts"
 
-// The chart's METRICS preset combo — the control that made the panel readable again once a full
-// capture started producing thirty-odd curves in six units.
+// THE CHARTS PANEL'S SINGLE-SHOT CONTROLS — the preset ("Metrics"), a metric on/off within it ("Custom"),
+// overlay, P dots, cursor, the time window (chips, the in-place P-pair list, the brush), the folds, and
+// their persistence. REWRITTEN 14 Oct 2026 for the new panel (build/charts-build/STEP3.md; INVENTORY §5):
+// the old suite drove PpMetricChart's private state (_applyPreset, _toggle, _visible, presetCombo,
+// sequenceStrip); the CONTRACT Addendum KEPT every one of these capabilities in the new This shot, so the
+// claims are redesigned here against the new body (objectNames ch*, INVENTORY §6b), pressed with the
+// pointer, over the REAL presenters fed the REAL 4 July session (ChartsHarness / chartsFixture).
 //
-// The grouping itself is pinned in chart_metrics_test (C++, against the real manifest). What is
-// tested HERE is the part that only exists once the component is running: that a preset actually
-// reaches the plot, that it survives a new swing, and that hand-toggling a chip stops the combo
-// claiming to show a group it no longer shows.
+// Old → new (the grouping itself stays pinned in C++: chart_metrics_test "seriesGroups"):
+//   001 default group            → test_001 (each register's own default, design §3)
+//   002 scalars not offered      → test_002 (a curve-less member is a card, never a trace)
+//   003 legend = preset          → test_003 (the Metrics line lists the preset's members)
+//   004 "All"                    → OBSOLETE: there is no "All" preset in the new panel (the design's presets
+//                                  are the catalogue's groups; "every reading" is the profile below the traces)
+//   005/006 chip → Custom        → test_005, test_006 (metricsOff; a switched-off metric stays in the line)
+//   007 Custom survives a swing  → test_007
+//   008/009 falls back           → test_009 (a preset the shot carries nothing of falls back; Custom goes with it)
+//   010 preset kept              → test_010
+//   011/012 title                → test_011, test_012 (the card's aside and the opener name the family)
+//   013 selector placement       → test_013 (in the rail at wide; folded, the head still says it; Replay's chip)
+//   014 sequence preset          → test_014
+//   015 one curve is no preset   → OBSOLETE in QML: presets are offered on the SESSION's data now, so a shot
+//                                  with one ω curve still has the preset; the ≥ 2 rule stays in chart_metrics_test
+//   016 the strip                → test_016 (the chain and the peaks under the preset only; rising, no ring)
+//   017 outside ≠ dash           → test_017 KEPT verbatim on the bare PpChartPlot (the camera tiles' compact
+//                                  graph), plus test_017b on the new traces
+//   018 the tile folds           → test_018 (the sequence table folds to its head; persisted)
+//   019 opens on the data span   → test_019 (and the window chips, the P-pair list and the brush)
+//   new: test_020 overlay (F6), test_021 P dots and their key (F7, F23), test_022 the hover reading (F26)
 Item {
     id: probe
-    width: 900; height: 700
-
-    // Two groups' worth of curves plus a setup scalar. Keys are real catalogue keys — the preset
-    // list is the catalogue's own grouping, so invented ones would all fall into "Other".
-    function curve(key, unit) {
-        var t = [], v = []
-        for (var i = 0; i < 8; ++i) { t.push(i * 10000); v.push(i) }
-        return { key: key, label: key, unit: unit, t_us: t, value: v, phaseSamples: [] }
-    }
-    readonly property var wristAndSpeed: [
-        curve("leadWristFlexExt", "°"), curve("leadWristRadUln", "°"),
-        curve("clubheadSpeed", "mph"),  curve("handSpeed", "mph"),
-        // Empty curve, one phaseSample — the shape foot_metrics/tempo_metrics emit.
-        { key: "tempoRatio", label: "Tempo ratio", unit: ":1", t_us: [], value: [],
-          phaseSamples: [{ phase: 5, t_us: 0, value: 3.0, band: "" }] }
-    ]
-    // A different swing: the wrist group is gone entirely, a new one appears.
-    readonly property var rotationOnly: [
-        curve("pelvisRotation", "°"), curve("thoraxRotation", "°"), curve("xFactor", "°")
-    ]
-    // …and one that drops the wrist group but keeps Club & speed.
-    readonly property var rotationAndSpeed: [
-        curve("pelvisRotation", "°"), curve("thoraxRotation", "°"), curve("xFactor", "°"),
-        curve("clubheadSpeed", "mph"), curve("handSpeed", "mph")
-    ]
-    // The kinematic sequence's four angular-speed curves beside a wrist pair. The four are filed
-    // under "Tempo & sequence" AND carry the cross-cutting "Kinematic sequence" preset, which is the
-    // one the strip below the plot is tied to.
-    readonly property var sequenceAndWrist: [
-        curve("leadWristFlexExt", "°"), curve("leadWristRadUln", "°"),
-        curve("pelvisAngularSpeed", "°/s"), curve("thoraxAngularSpeed", "°/s"),
-        curve("leadArmAngularSpeed", "°/s"), curve("clubAngularSpeed", "°/s")
-    ]
-    // …and a swing that produced only ONE of the four: no preset, the curve stays in its group.
-    readonly property var oneSequenceCurve: [
-        curve("leadWristFlexExt", "°"), curve("leadWristRadUln", "°"),
-        curve("clubAngularSpeed", "°/s")
-    ]
-    // A sequence map in the shape kinematic_sequence_json.h writes: pelvis (IMU) and club placed,
-    // the thorax attempted from the camera and unplaced.
-    readonly property var sequenceMap: ({
-        impactUs: 40000,
-        nodes: [
-            { segment: "pelvis", placed: true,  tPeakUs: -47000, beforeImpactMs: 87, peakDps: 480,
-              tSigmaMs: 12, peakSigmaDps: 20, routeId: "pelvisImu", quality: "direct" },
-            { segment: "thorax", placed: false, tPeakUs: 0, beforeImpactMs: 40, peakDps: 600,
-              tSigmaMs: 95, peakSigmaDps: 90, routeId: "faceOn", quality: "estimated" },
-            { segment: "club",   placed: true,  tPeakUs: 40000, beforeImpactMs: 0, peakDps: 2250,
-              tSigmaMs: 4, peakSigmaDps: 40, routeId: "faceOnClub", quality: "estimated" }
-        ],
-        order: ["pelvis", "club"], gapsMs: [87], gainsDps: [1770],
-        orderResolved: true, verdict: "partial", routeSummary: "mixed"
-    })
-    // …and the shape the PAIRED trunk route (faceOn+dtl) actually reports on the one golfer
-    // measured so far (pair_span_turn_20260920.md): the arm and the club peak before impact while
-    // the pelvis and chest are STILL ACCELERATING at it, so both trunk nodes come back unplaced
-    // with `peakNoEarlierThanMs` 0 and no `peakNoLaterThanMs`. That route has no blind band —
-    // nothing went out of sight — and the chart must not draw a ring on the ball for it.
-    // Times are in the test axis's own window (see test_016, which widens it): impact at 300 ms.
-    readonly property var risingSequenceMap: ({
-        impactUs: 300000,
-        nodes: [
-            { segment: "pelvis", placed: false, tPeakUs: 300000, beforeImpactMs: 0, peakDps: 640,
-              tSigmaMs: 0, peakSigmaDps: 70, routeId: "faceOn+dtl", quality: "estimated",
-              peakNoEarlierThanMs: 0 },
-            { segment: "thorax", placed: false, tPeakUs: 300000, beforeImpactMs: 0, peakDps: 700,
-              tSigmaMs: 0, peakSigmaDps: 60, routeId: "faceOn+dtl", quality: "estimated",
-              peakNoEarlierThanMs: 0 },
-            { segment: "leadArm", placed: true, tPeakUs: 185000, beforeImpactMs: 115, peakDps: 684,
-              tSigmaMs: 18, peakSigmaDps: 40, routeId: "faceOn", quality: "estimated" },
-            { segment: "club", placed: true, tPeakUs: 245000, beforeImpactMs: 55, peakDps: 1835,
-              tSigmaMs: 10, peakSigmaDps: 60, routeId: "faceOnClub", quality: "estimated" }
-        ],
-        order: ["leadArm", "club"], gapsMs: [60], gainsDps: [1151],
-        orderResolved: true, verdict: "partial", routeSummary: "estimated"
-    })
+    width: 1400; height: 900
 
     // A bare plot, for the run-state test (test_017): a masked series — out of its window at both
     // ends, one bridged sample in the middle.
@@ -118,236 +66,271 @@ Item {
                    valid: [0, 0, 1, 1, 0, 1, 1, 0, 0] }]
     }
 
-    PpMetricChart {
-        id: chart
-        anchors.fill: parent
-        sessionType: 1                      // a real screen, so prefs persist and presets apply
-        seriesList: probe.wristAndSpeed
-        phases: []
-        startUs: 0; endUs: 70000; impactUs: 40000
-    }
+    ChartsHarness { id: hn }
 
-    function keysOf(list) {
-        var out = []
-        for (var i = 0; i < list.length; ++i) out.push(list[i].key)
-        return out.sort().join(",")
-    }
+    readonly property var omegas: ["clubAngularSpeed", "leadArmAngularSpeed", "pelvisAngularSpeed", "thoraxAngularSpeed"]
 
     TestCase {
+        id: tc
         name: "ChartPresets"
         when: windowShown
 
-        function test_001_defaults_to_first_group_not_everything() {
-            // The state being fixed was "every curve at once", so an unset preset must NOT
-            // resolve to All.
-            compare(chart.preset, "Wrist & forearm")
-            compare(probe.keysOf(chart._visible), "leadWristFlexExt,leadWristRadUln")
+        // ── helpers ──────────────────────────────────────────────────────────
+        function settle() { hn.settle(tc) }
+        function shownAll(name, under) { return hn.shownAll(under || hn.body, name) }
+        function oneShown(name, under) {
+            const all = shownAll(name, under)
+            verify(all.length >= 1, "expected a '" + name + "' on screen, found none (" + hn.findAll(under || hn.body, name).length + " hidden)")
+            return all[0]
+        }
+        function textOf(item) { return hn.allText(item) }
+        function intoView(item) {
+            const f = hn.flickOf(item)
+            if (!f) return
+            const y = item.mapToItem(f.contentItem, 0, 0).y
+            const hgt = Math.max(item.height, 1)
+            if (y < f.contentY || y + hgt > f.contentY + f.height)
+                f.contentY = Math.max(0, Math.min(y - 20, f.contentHeight - f.height))
+            wait(16); waitForRendering(hn, 60)
+        }
+        function press(item) { intoView(item); mouseClick(item); settle() }
+        function options(set) { return shownAll("chOption").filter(function (x) { return x.setKey === set }) }
+        function option(set, key) {
+            const o = options(set).filter(function (x) { return x.key === key })
+            verify(o.length >= 1, "an option '" + key + "' in the '" + set + "' line")
+            return o[0]
+        }
+        function wordOf(opt) { return opt.children.filter(function (k) { return hn.isText(k) })[0] }
+        function clickOption(set, key) { press(wordOf(option(set, key))) }
+        function pickInline(name, id) {
+            const it = shownAll(name).filter(function (x) { return x.missId === id })
+            verify(it.length === 1, "one '" + id + "' in the open " + name)
+            press(it[0])
+        }
+        function choosePreset(name) {
+            clickOption("preset", "open")
+            pickInline("chPresetOption", name)
+            compare(hn.body.tChoices.preset, name)
+        }
+        function traceKeys() { return shownAll(/^chTrace:/).map(function (t) { return t.objectName.slice(8) }).sort().join(",") }
+        function useMode(m) {
+            SessionMode.mode = m === "Analyse" ? SessionMode.analyse : SessionMode.replay
+            settle()
+            compare(hn.body.register, m)
+        }
+        function base() { return hn.sessionType + ":" + SessionMode.mode + ":" }
+        function fresh(opts, ordinal, detail) {
+            hn.build()
+            hn.feed(opts || {})
+            if (ordinal !== undefined && ordinal > 0) hn.pick(ordinal, detail)
+            settle()
+        }
+        // a shot's detail with some of its curves dropped (a swing whose cameras missed them)
+        function detailWithout(ordinal, keys) {
+            const d = chartsFixture.detailOf(ordinal)
+            d.series = d.series.filter(function (s) { return keys.indexOf(s.key) < 0 })
+            return d
         }
 
-        function test_002_scalars_are_not_offered() {
-            // tempoRatio has no curve: not plottable and not in the legend — but its phase sample
-            // is a card, so its group is still offered (38b753dc: a card without a curve is still
-            // a member).
-            compare(probe.keysOf(chart._plottable),
-                    "clubheadSpeed,handSpeed,leadWristFlexExt,leadWristRadUln")
-            var names = []
-            for (var i = 0; i < chart._groups.length; ++i) names.push(chart._groups[i].group)
-            compare(names.join(","), "Wrist & forearm,Club & speed,Tempo & sequence")
+        function initTestCase() {
+            verify(chartsFixture.count() === 15, "the 4 July fixture loads (15 shots)")
+            hn.install()
+        }
+        function init() {
+            Theme.themeIndex = 12
+            Theme.fontScale = 1.0
+            SessionMode.mode = SessionMode.analyse
+            SessionMode.chartsNav = null
+            appSettings.chartPrefs = ({})
+            appSettings.sectionCollapse = ({})
+            hn.nav.currentIndex = hn.sessionType + 1
+            hn.unpick()
+            fresh({}, 8)
+        }
+        function cleanup() {
+            if (hn.panel) { hn.panel.destroy(); hn.panel = null }
+            hn.unpick()
+            wait(0)
+        }
+        function cleanupTestCase() {
+            SessionMode.mode = SessionMode.capture
+            appSettings.chartPrefs = ({})
+            appSettings.sectionCollapse = ({})
         }
 
-        function test_003_the_legend_carries_the_preset_not_the_swing() {
-            // The whole point of the combo. A legend listing every plottable curve would put the
-            // wall of metrics back on screen one row below the facets.
-            chart._applyPreset("Club & speed", true)
-            compare(probe.keysOf(chart._visible), "clubheadSpeed,handSpeed")
-            compare(probe.keysOf(chart._legendSeries), "clubheadSpeed,handSpeed")
-            // The swing still HAS four plottable curves — the legend is narrowed, not the data.
-            compare(chart._plottable.length, 4)
+        function test_001_each_register_opens_on_its_own_default() {
+            compare(hn.body.preset, "", "nothing chosen yet")
+            compare(hn.body.tChoices.preset, "Kinematic sequence", "Analyse reads the sequence")
+            useMode("Replay")
+            compare(hn.body.tChoices.preset, "Club & speed", "Replay glances at club and speed")
+            compare(oneShown("chPresetChip").text, "Club & speed")
         }
 
-        function test_004_all_shows_every_plottable_curve() {
-            chart._applyPreset("All", true)
-            compare(probe.keysOf(chart._visible),
-                    "clubheadSpeed,handSpeed,leadWristFlexExt,leadWristRadUln")
-            // "All" is how a reader picks freely across groups, so the legend opens right up.
-            compare(probe.keysOf(chart._legendSeries),
-                    "clubheadSpeed,handSpeed,leadWristFlexExt,leadWristRadUln")
+        function test_002_a_curveless_member_is_a_card_not_a_trace() {
+            // find a preset with an instant-only member this shot read (a card at its P-position) beside a curve
+            let found = null
+            for (const p of hn.body.tChoices.presets) {
+                hn.body.preset = p.id; settle()                // a search, not a reader's choice
+                const cards = hn.body.tShot.cards || []
+                if (cards.length && (hn.body.tShot.rows || []).length) { found = { preset: p.id, cards: cards }; break }
+            }
+            verify(found !== null, "some preset mixes curves and instant-only readings")
+            for (const c of found.cards) {
+                compare(hn.findAll(hn.body, "chTrace:" + c.key).length, 0, c.key + " draws no trace")
+                const m = hn.body.tChoices.metrics.filter(function (x) { return x.key === c.key })[0]
+                verify(!!m && m.curve === false, c.key + " is a member without a curve")
+                verify(options("metric").some(function (o) { return o.key === c.key }), c.key + " is still offered in the Metrics line")
+            }
+            verify(textOf(oneShown("chSummary")).indexOf(found.cards[0].label) >= 0, "the card is read in the summary")
         }
 
-        function test_005_hand_toggling_a_chip_drops_to_custom() {
-            chart._applyPreset("Wrist & forearm", true)
-            compare(chart.preset, "Wrist & forearm")
-            chart._toggle("leadWristRadUln")
-            // The selection has left the group, so the combo must stop naming it.
-            compare(chart.preset, "Custom")
-            compare(probe.keysOf(chart._visible), "leadWristFlexExt")
-            // …and "Custom" is offered as an option only once it is real.
-            verify(chart._presetOptions.indexOf("Custom") >= 0)
+        function test_003_the_metrics_line_carries_the_preset_not_the_swing() {
+            const shown = function () { return options("metric").map(function (o) { return o.key }).sort().join(",") }
+            compare(shown(), probe.omegas.slice().sort().join(","))
+            choosePreset("Club & speed")
+            compare(shown(), hn.body.tChoices.metrics.map(function (m) { return m.key }).sort().join(","))
+            verify(shown().indexOf("AngularSpeed") < 0, "the sequence curves left with their preset")
+            // each member wears its own hue (identity), the same as its trace
+            for (const o of options("metric")) {
+                const sw = o.children.filter(function (k) { return k.radius !== undefined && k.width > 0 })[0]
+                verify(!!sw && Qt.colorEqual(sw.color, Theme.metricColor(o.key)), o.key + " swatch")
+            }
         }
 
-        function test_006_a_switched_off_chip_stays_in_the_legend() {
-            // Following on from Custom above: the legend lists the GROUP, not what is visible, so
-            // the chip just switched off is still there (dimmed) to switch back on. A legend you
-            // can only subtract from is a one-way door.
-            compare(probe.keysOf(chart._legendSeries), "leadWristFlexExt,leadWristRadUln")
-            chart._toggle("leadWristRadUln")
-            compare(probe.keysOf(chart._visible), "leadWristFlexExt,leadWristRadUln")
+        function test_005_switching_a_metric_off_is_custom() {
+            compare(hn.body.tChoices.custom, false)
+            compare(textOf(oneShown("chChoice:metric")).indexOf("Showing"), 0)
+            clickOption("metric", "pelvisAngularSpeed")
+            compare(hn.body.metricsOff.join(","), "pelvisAngularSpeed")
+            compare(hn.body.tChoices.custom, true)
+            compare(textOf(oneShown("chChoice:metric")).indexOf("Custom"), 0, "the line says it is the reader's own")
+            compare(hn.findAll(hn.body, "chTrace:pelvisAngularSpeed").length, 0)
+            compare(traceKeys(), "clubAngularSpeed,leadArmAngularSpeed,thoraxAngularSpeed")
+            compare(appSettings.chartPrefs[base() + "metricsOff"].join(","), "pelvisAngularSpeed", "saved")
+        }
+
+        function test_006_a_switched_off_metric_stays_in_the_line() {
+            clickOption("metric", "pelvisAngularSpeed")
+            const off = option("metric", "pelvisAngularSpeed")
+            compare(off.on, false, "still there, off — never silently dropped")
+            clickOption("metric", "pelvisAngularSpeed")
+            compare(option("metric", "pelvisAngularSpeed").on, true)
+            compare(hn.body.tChoices.custom, false)
+            compare(traceKeys(), probe.omegas.slice().sort().join(","))
         }
 
         function test_007_custom_survives_a_new_swing_that_kept_its_group() {
-            chart.seriesList = probe.wristAndSpeed
-            chart._applyPreset("Club & speed", true)
-            chart._toggle("handSpeed")
-            compare(chart.preset, "Custom")
-            // The new swing has no wrist data but still has Club & speed, so the hand-picked
-            // selection is still meaningful — it is the user's own and must not be replaced.
-            chart.seriesList = probe.rotationAndSpeed
-            compare(chart.preset, "Custom")
-            compare(probe.keysOf(chart._visible), "clubheadSpeed")
-            compare(probe.keysOf(chart._legendSeries), "clubheadSpeed,handSpeed")
-        }
-
-        function test_008_custom_falls_back_when_its_group_is_gone() {
-            chart.seriesList = probe.wristAndSpeed
-            chart._applyPreset("Wrist & forearm", true)
-            chart._toggle("leadWristRadUln")
-            compare(chart.preset, "Custom")
-            // This swing measured no wrist at all, so Custom would leave an empty plot under an
-            // empty legend. A selection of nothing is not worth preserving.
-            chart.seriesList = probe.rotationOnly
-            compare(chart.preset, "Body rotation")
-            // xFactor is read at the top only — a card, no curve, no chip (MetricCardSpec::drawsCurve).
-            compare(probe.keysOf(chart._visible), "pelvisRotation,thoraxRotation")
+            clickOption("metric", "thoraxAngularSpeed")
+            hn.pick(3); settle()
+            compare(hn.body.tShot.ordinal, 3)
+            compare(hn.body.tChoices.preset, "Kinematic sequence")
+            compare(hn.body.tChoices.custom, true)
+            compare(option("metric", "thoraxAngularSpeed").on, false)
+            compare(hn.findAll(hn.body, "chTrace:thoraxAngularSpeed").length, 0)
         }
 
         function test_009_a_preset_the_new_swing_lacks_falls_back() {
-            // Rather than an empty plot under a label naming a group that was never measured,
-            // fall to the first group the swing DOES have.
-            chart.seriesList = probe.wristAndSpeed
-            chart._applyPreset("Wrist & forearm", true)
-            chart.seriesList = probe.rotationOnly
-            compare(chart.preset, "Body rotation")
-            // xFactor is read at the top only — a card, no curve, no chip (MetricCardSpec::drawsCurve).
-            compare(probe.keysOf(chart._visible), "pelvisRotation,thoraxRotation")
+            clickOption("metric", "thoraxAngularSpeed")             // Custom on the sequence
+            // a live shot whose cameras gave none of the four ω curves (and no sequence)
+            fresh({ without: [15] })
+            const d = detailWithout(15, probe.omegas)
+            d.kinematicSequence = ({})
+            hn.pick(15, d); settle()
+            verify(hn.body.tShot.available, "the shot reads from its own detail")
+            verify(hn.body.tChoices.preset !== "Kinematic sequence", "fell back to " + hn.body.tChoices.preset)
+            compare(hn.body.tChoices.custom, false, "Custom went with the preset it was made in")
+            for (const k of probe.omegas) compare(hn.findAll(hn.body, "chTrace:" + k).length, 0)
+            verify(shownAll(/^chTrace:/).length + (hn.body.tShot.cards || []).length > 0, "it draws what it has")
+            // the next shot that has the sequence opens on it again, the reader's switch-off kept
+            hn.pick(8); settle()
+            compare(hn.body.tChoices.preset, "Kinematic sequence")
+            compare(hn.body.tChoices.custom, true)
         }
 
-        function test_010_a_preset_the_new_swing_still_has_is_kept() {
-            chart.seriesList = probe.wristAndSpeed
-            chart._applyPreset("Club & speed", true)
-            chart.seriesList = probe.rotationOnly.concat([probe.curve("lagAngle", "°")])
-            compare(chart.preset, "Club & speed")
-            compare(probe.keysOf(chart._visible), "lagAngle")
-            compare(probe.keysOf(chart._legendSeries), "lagAngle")
+        function test_010_a_chosen_preset_is_kept_across_swings() {
+            choosePreset("Club & speed")
+            compare(appSettings.chartPrefs[base() + "preset"], "Club & speed")
+            hn.pick(3); settle()
+            compare(hn.body.tChoices.preset, "Club & speed")
+            fresh({}, 5)                                         // a rebuild restores it
+            compare(hn.body.tChoices.preset, "Club & speed")
         }
 
-        function test_011_the_panel_title_follows_the_preset() {
-            // The title is the combo's answer said out loud at display size, so it has to track
-            // the same state the combo does — including the fallbacks, which is where a title
-            // computed independently would drift out of step with the control beneath it.
-            chart.seriesList = probe.wristAndSpeed
-            chart._applyPreset("Wrist & forearm", true)
-            compare(chart._presetTitle, "Wrist & forearm")
-
-            // …and it is actually ON the panel, showing that string. Asserting only the
-            // property would pass just as happily with the title element deleted.
-            var titleItem = findChild(chart, "presetTitle")
-            verify(titleItem !== null)
-            verify(titleItem.visible)
-            compare(titleItem.text, "Wrist & forearm")
-
-            // ⚠ AND IT IS SIZED TO ITS TEXT. It began as a gradient assertion (the title was a
-            // PpDisplayText whose brand sweep, stretched to the panel, read as no gradient at
-            // all); since the coaching-card look it is plain body text under the card's CHARTS
-            // heading, and the claim still matters: the METRICS combo sits to its right, and a
-            // title that fills the row would push the combo off it. The panel is 900 wide and
-            // these words are not, so width must still be the natural glyph width.
-            //
-            // waitForRendering first: implicitWidth follows the new text immediately, but the
-            // ColumnLayout re-polishes on the next frame, so without it this reads the width
-            // the title had under the PREVIOUS test's preset and fails on a correct layout.
-            waitForRendering(chart)
-            verify(titleItem.width < chart.width)
-            // Within a pixel, not exactly: the layout hands out whole pixels and the glyph run is
-            // fractional (221 against 220.125). The claim is "sized to its text", and a rounding
-            // pixel does not weaken it — a filled title would be out by hundreds.
-            fuzzyCompare(titleItem.width, titleItem.implicitWidth, 1.0)
-
-            chart._applyPreset("All", true)
-            compare(chart._presetTitle, "All metrics")   // not the bare word "All"
-
-            // A swing that lacks the named group falls back, and the title follows the fallback
-            // rather than the request — the plot is Body rotation, so the title must be too.
-            chart._applyPreset("Wrist & forearm", true)
-            chart.seriesList = probe.rotationOnly
-            compare(chart.preset, "Body rotation")
-            compare(chart._presetTitle, "Body rotation")
+        function test_011_the_title_follows_the_preset() {
+            compare(hn.body.cardAside, Theme.caps("Kinematic sequence"), "the stage card's aside")
+            compare(wordOf(option("preset", "open")).text.indexOf("Kinematic sequence"), 0, "the opener names it")
+            choosePreset("Club & speed")
+            compare(hn.body.cardAside, Theme.caps("Club & speed"))
+            compare(wordOf(option("preset", "open")).text.indexOf("Club & speed"), 0)
+            // the folded Controls head still says it
+            press(oneShown("chFold:controls"))
+            verify(textOf(oneShown("chFold:controls")).indexOf("Club & speed") >= 0)
         }
 
-
-        function test_012_a_hand_picked_selection_is_still_titled_by_its_vocabulary() {
-            // ⚠ THIS TEST ASSERTED THE OPPOSITE UNTIL 2026-09-04, and the reasoning it encoded was
-            // sound: the combo drops to "Custom" so it stops claiming a group the selection has
-            // left, and a title four times the size should not re-tell that lie. It was overruled
-            // on the ground that it solves the wrong problem — the COMBO already says "Custom",
-            // two controls away, so the title was spending the largest text on the panel
-            // repeating a state the reader can already see, and spending it instead of saying the
-            // one thing only a title says: which family these curves belong to.
-            //
-            // A title is a NAME, not a status line. Under a hand-picked selection it names the
-            // group the selection was picked from, which is the vocabulary being edited and what
-            // the legend is listing.
-            chart.seriesList = probe.wristAndSpeed
-            chart._applyPreset("Wrist & forearm", true)
-            chart._toggle("leadWristRadUln")
-            compare(chart.preset, "Custom")               // the combo still tells the truth
-            compare(chart._presetTitle, "Wrist & forearm")
-
-            // Hand-picking from "All" has no group to name, so it stays on "All metrics" rather
-            // than inventing a state word for itself.
-            chart._applyPreset("All", true)
-            chart._toggle("handSpeed")
-            compare(chart.preset, "Custom")
-            compare(chart._presetTitle, "All metrics")
+        function test_012_a_custom_selection_is_still_titled_by_its_family() {
+            clickOption("metric", "clubAngularSpeed")
+            compare(hn.body.tChoices.custom, true)
+            compare(hn.body.tChoices.presetTitle, "Kinematic sequence", "a title is a name, not a status line")
+            compare(hn.body.cardAside, Theme.caps("Kinematic sequence"))
         }
 
-        function test_013_the_selector_sits_in_the_title_row_and_survives_a_collapse() {
-            // ⚠ THIS IS A PLACEMENT ASSERTION AND IT IS THE POINT OF THE CONTROL. The combo used
-            // to live inside CONTROLS, a COLLAPSIBLE section whose state is remembered per screen
-            // — so on a screen where the reader had once collapsed it, the panel's primary
-            // selector was not merely two clicks away, it was not on screen at all. Asserting
-            // "the combo exists" would have passed throughout. What has to hold is where it is:
-            // in the title row, and reachable with CONTROLS shut.
-            chart.seriesList = probe.wristAndSpeed
-            chart.controlsCollapsed = true
-            waitForRendering(chart)
-
-            var combo = findChild(chart, "presetCombo")
-            var title = findChild(chart, "presetTitle")
-            verify(combo !== null)
-            verify(combo.visible)                       // …with the accordion closed
-            compare(combo.parent, title.parent)         // the same row as the title
-            // Far right: past the title, and hard against the panel's right edge (the label and
-            // the layout's own spacing are the only gap).
-            verify(combo.x > title.x + title.width)
-            verify(combo.x + combo.width >= chart.width - Theme.sp(2))
-
-            chart.controlsCollapsed = false
+        function test_013_the_picker_is_reachable_in_both_registers() {
+            // wide: in the left rail, beside the figure
+            const picker = oneShown("chPresetPicker")
+            const view = oneShown("chShotView")
+            const at = picker.mapToItem(view, 0, 0)
+            verify(at.x + picker.width < view.width / 2, "the controls sit in the rail at wide")
+            // folding Controls keeps the choice said on the fold's own line, and is remembered
+            press(oneShown("chFold:controls"))
+            compare(hn.body.collapsed.controls, true)
+            compare(shownAll("chPresetPicker").length, 0)
+            verify(textOf(oneShown("chFold:controls")).indexOf("Kinematic sequence") >= 0)
+            compare(appSettings.sectionCollapse[base() + "controls"], true)
+            fresh({}, 8)
+            compare(hn.body.collapsed.controls, true, "the fold is restored")
+            press(oneShown("chFold:controls"))
+            verify(oneShown("chPresetPicker"))
+            // Replay: a quiet chip at the right of the tab row, opening the list in place
+            useMode("Replay")
+            press(oneShown("chPresetChip"))
+            const other = shownAll("chPresetOption").filter(function (o) { return o.missId !== "Club & speed" && o.missId !== "Kinematic sequence" })[0]
+            verify(!!other, "another preset is offered")
+            const name = other.missId
+            press(other)
+            compare(hn.body.tChoices.preset, name)
+            compare(oneShown("chPresetChip").text, name)
+            useMode("Analyse")
+            compare(hn.body.tChoices.preset, "Kinematic sequence", "each register keeps its own")
         }
-
-        // ── The "Kinematic sequence" preset and the strip it owns ─────────────────────────────
 
         function test_014_the_sequence_preset_is_offered_and_draws_the_four() {
-            // The four angular-speed curves carry the cross-cutting preset; with all four here it
-            // is in the combo and applying it narrows the plot to exactly them.
-            chart.kinematicSequence = null
-            chart.seriesList = probe.sequenceAndWrist
-            verify(chart._presetOptions.indexOf("Kinematic sequence") >= 0)
-            chart._applyPreset("Kinematic sequence", true)
-            compare(chart.preset, "Kinematic sequence")
-            compare(probe.keysOf(chart._visible),
-                    "clubAngularSpeed,leadArmAngularSpeed,pelvisAngularSpeed,thoraxAngularSpeed")
-            compare(probe.keysOf(chart._legendSeries),
-                    "clubAngularSpeed,leadArmAngularSpeed,pelvisAngularSpeed,thoraxAngularSpeed")
+            verify(hn.body.tChoices.presets.some(function (p) { return p.id === "Kinematic sequence" }))
+            compare(traceKeys(), probe.omegas.slice().sort().join(","))
+        }
+
+        function test_016_the_sequence_shows_under_its_preset_and_only_there() {
+            verify(oneShown("chSeqChain"))
+            for (const seg of ["leadArm", "club", "pelvis"]) verify(hn.findAll(hn.body, "chPeak:" + seg).length === 1, seg + " peak ringed")
+            compare(hn.findAll(hn.body, /^chRising:.+/).length, 0, "shot 8 has no trunk still rising")
+            verify(oneShown("chSeqTable"))
+            choosePreset("Club & speed")
+            compare(shownAll("chSeqChain").length, 0)
+            compare(shownAll("chSeqTable").length, 0)
+            compare(hn.findAll(hn.body, /^chPeak:.+/).length, 0, "no sequence peaks (a plain curve's peak has no segment)")
+            // a trunk that had not peaked by impact: the open chevron, never a ring on the ball (S8)
+            hn.body.choose("preset", "Kinematic sequence"); settle()
+            fresh({ without: [15] })
+            const d = chartsFixture.detailOf(15)
+            const ks = JSON.parse(JSON.stringify(d.kinematicSequence))
+            for (const n of ks.nodes) if (n.segment === "pelvis") { n.placed = false; n.peakNoEarlierThanMs = 0 }
+            ks.order = ks.order.filter(function (s) { return s !== "pelvis" })
+            d.kinematicSequence = ks
+            hn.pick(15, d); settle()
+            compare(hn.findAll(hn.body, "chPeak:pelvis").length, 0, "no ring on the ball")
+            const rising = hn.findAll(hn.body, "chRising:pelvis")
+            compare(rising.length, 1)
+            verify(textOf(rising[0]).indexOf("rising") >= 0, "it says rising")
+            verify(hn.findAll(hn.body, "chPeak:club").length === 1, "the club still rings")
         }
 
         function test_017_outside_the_window_is_not_a_dash() {
@@ -363,138 +346,100 @@ Item {
             compare(runs[0].t[runs[0].t.length - 1], 20000)
         }
 
-        function test_015_one_sequence_curve_is_no_preset() {
-            // A preset exists to put several curves on screen together: one curve is a legend
-            // chip, not a preset, so the combo must not offer it (chart_metrics' ≥ 2 rule).
-            chart.seriesList = probe.oneSequenceCurve
-            verify(chart._presetOptions.indexOf("Kinematic sequence") < 0)
-            // The lone curve is still reachable through its own group.
-            verify(chart._presetOptions.indexOf("Tempo & sequence") >= 0)
-        }
-
-        // ⚠ THIS TEST WAS RED, and had been since 2026-09-18. It was last written on the 17th
-        // (3b8dc071) and the strip was rewritten on the 18th (2adc2ac5, 3f83d18a) without it: it
-        // asserted `sequenceChip:pelvis` / `sequenceChip:thorax`, which that change DELETED when
-        // the sequence moved onto the plot (kinematic_sequence_design.md §8's dated note), and it
-        // compared the strip's one line against the bare verdict when the line has carried the
-        // chain and the verdict together ever since. Two `verify`s on a null findChild and one
-        // failed `compare`. Rewritten 2026-09-20 to assert what the strip renders now.
-        function test_016_the_strip_shows_under_its_preset_and_only_there() {
-            chart.seriesList = probe.sequenceAndWrist
-            chart.kinematicSequence = probe.sequenceMap
-            var strip = findChild(chart, "sequenceStrip")
-            verify(strip !== null)
-
-            chart._applyPreset("Kinematic sequence", true)
-            verify(strip.visible)
-
-            // The strip's strings are ChartMetrics'. Since 2026-10-02 it is the sequence TILE: a
-            // row per segment in the order it SHOULD peak, with where it actually peaked. The
-            // chips it drew before 2026-09-18 are gone for good.
-            var verdict = findChild(chart, "sequenceVerdict")
-            verify(verdict !== null)
-            compare(verdict.text, "In order so far")
-            compare(findChild(chart, "sequenceActual:pelvis").text, "1")
-            compare(findChild(chart, "sequenceActual:club").text, "2")
-            compare(findChild(chart, "sequenceActual:thorax").text, "—")
-            compare(findChild(chart, "sequenceChip:thorax"), null)
-            compare(findChild(chart, "sequenceChip:pelvis"), null)
-            // …and the peaks are rings on the curves instead.
-            verify(findChild(chart, "sequencePeak:pelvis") !== null)
-            compare(findChild(chart, "sequenceRising:pelvis"), null)
-
-            // ── The paired trunk route's "it had not peaked by impact" ────────────────────────
-            // Widen the axis so the measured leads (−115 / −55 ms) fit in the window; the curves
-            // themselves are 70 ms of synthetic ramp and are only there to give the preset its
-            // four series and the markers their colours.
-            chart.startUs = 1000; chart.endUs = 400000; chart.impactUs = 300000
-            chart.kinematicSequence = probe.risingSequenceMap
-
-            // NO RING ON THE BALL. The trunk nodes have a tPeakUs only because the sequence domain
-            // ends at impact; a dimmed ring there would read as "the chest peaked at impact",
-            // which is the one claim the producer emitted the node to decline.
-            compare(findChild(chart, "sequencePeak:pelvis"), null)
-            compare(findChild(chart, "sequencePeak:thorax"), null)
-            var risingPelvis = findChild(chart, "sequenceRising:pelvis")
-            verify(risingPelvis !== null)
-            verify(risingPelvis.visible)
-            verify(findChild(chart, "sequenceRising:thorax") !== null)
-            compare(findChild(chart, "sequenceRisingText").text, "rising")
-            // The arm and the club still ring normally.
-            verify(findChild(chart, "sequencePeak:leadArm") !== null)
-            compare(findChild(chart, "sequenceRising:club"), null)
-
-            // …and the line says the pattern rather than counting what it could place.
-            compare(verdict.text, "✗  Out of sequence (? = uncertain)")
-            compare(findChild(chart, "sequenceActual:leadArm").text, "1")
-            compare(findChild(chart, "sequencePeaked:pelvis").text, "0 ms")
-
-            chart.startUs = 0; chart.endUs = 70000; chart.impactUs = 40000
-
-            // Under any other vocabulary the strip is not shown.
-            chart._applyPreset("Wrist & forearm", true)
-            verify(!strip.visible)
-
-            // …and with no sequence at all it is not shown under its own preset either.
-            chart._applyPreset("Kinematic sequence", true)
-            chart.kinematicSequence = null
-            verify(!strip.visible)
-        }
-
-        // The tile folds to its title line (Mark, 2026-10-02): the rows go, the verdict stays, and
-        // the height goes back to the plot. The state is the chart's, persisted beside the sections'.
-        function test_018_the_sequence_tile_folds_to_its_title_line() {
-            chart.seriesList = probe.sequenceAndWrist
-            chart.kinematicSequence = probe.sequenceMap
-            chart._applyPreset("Kinematic sequence", true)
-            chart.sequenceCollapsed = false
-            var strip = findChild(chart, "sequenceStrip")
-            var row = findChild(chart, "sequenceRow:pelvis")
-            verify(strip.visible && row.visible)
-            var open = strip.implicitHeight
-
-            findChild(chart, "sequenceToggle").clicked(null)
-            verify(chart.sequenceCollapsed)
-            verify(strip.visible)                          // the tile is still there…
-            verify(!row.visible)                           // …without its rows
-            verify(findChild(chart, "sequenceVerdict").visible)
-            tryVerify(function () { return strip.implicitHeight < open / 2 })   // after the layout's polish
-            compare(appSettings.sectionCollapse[chart._sectionKeyBase + "sequence"], true)
-
-            findChild(chart, "sequenceToggle").clicked(null)
-            verify(!chart.sequenceCollapsed && row.visible)
-            chart.kinematicSequence = null
-        }
-
-        // Curves drawn over part of the swing open the chart on the P-positions around them
-        // (Mark, 2026-10-02) instead of on Address→Finish with a blank either side.
-        function test_019_a_trimmed_chart_opens_on_its_data_span() {
-            function cut(key) {                            // 200 → 290 ms, a frame inside P4 and P8
-                var t = [], v = []
-                for (var i = 0; i < 10; ++i) { t.push(201000 + i * 9800); v.push(i) }
-                return { key: key, label: key, unit: "°/s", t_us: t, value: v, phaseSamples: [] }
+        function test_017b_the_new_traces_never_dash_an_end() {
+            // the same rule on This shot's traces: a run touching either end of a curve is never "bridged"
+            hn.body.choose("window", "full"); settle()
+            for (const r of hn.body.tShot.rows) {
+                const runs = r.runs || []
+                if (!runs.length) continue
+                verify(runs[0].style !== "bridged" && runs[runs.length - 1].style !== "bridged", r.key + " ends " + runs[0].style + "/" + runs[runs.length - 1].style)
             }
-            chart.startUs = 1000; chart.endUs = 500000; chart.impactUs = 260000
-            chart.phases = [{ phase: 0, t_us: 20000 }, { phase: 2, t_us: 200000 }, { phase: 5, t_us: 260000 },
-                            { phase: 14, t_us: 295000 }, { phase: 7, t_us: 450000 }]
-            chart.seriesList = [cut("pelvisAngularSpeed"), cut("thoraxAngularSpeed"),
-                                cut("leadArmAngularSpeed"), cut("clubAngularSpeed"),
-                                probe.curve("leadWristFlexExt", "°")]
-            chart._applyPreset("Kinematic sequence", true)
-            compare(chart.viewStartUs, 200000)             // P4
-            compare(chart.viewEndUs, 295000)               // P8
-            compare(chart._preset, "P4→P8")
-            // …offered as a chip of its own, straight after the swing's.
-            compare(chart._chipSegments.length, chart._segments.length + 1)
-            compare(chart._segLabel(chart._chipSegments[2]), "P4→P8")
-            // The swing is one chip away, and a family that covers it opens on it as before.
-            chart._selectSegment(chart._chipSegments[1])
-            compare(chart.viewStartUs, 20000)
-            compare(chart.viewEndUs, 450000)
+        }
 
-            chart.phases = []
-            chart.startUs = 0; chart.endUs = 70000; chart.impactUs = 40000
-            chart.seriesList = probe.wristAndSpeed
+        function test_018_the_sequence_table_folds_to_its_head() {
+            const head = oneShown("chFold:sequence")
+            verify(oneShown("chSeqTable"))
+            press(head)
+            compare(hn.body.collapsed.sequence, true)
+            compare(shownAll("chSeqTable").length, 0, "the rows go")
+            verify(textOf(oneShown("chFold:sequence")).indexOf(hn.body.tShot.sequence.verdictText) >= 0, "the verdict stays on the head")
+            compare(appSettings.sectionCollapse[base() + "sequence"], true)
+            press(oneShown("chFold:sequence"))
+            verify(oneShown("chSeqTable"))
+        }
+
+        function test_019_a_trimmed_chart_opens_on_its_data_span() {
+            const w = hn.body.tShot.window
+            compare(hn.body.tChoices.window, "data")
+            compare(w.tagsText, "P4→P8")
+            compare(w.header, "Top → Shaft-parallel through")
+            verify(textOf(oneShown("chWindowHeader")).indexOf("P4→P8") >= 0)
+            // offered as a chip of its own, straight after the swing's
+            const keys = options("window").map(function (o) { return o.key })
+            verify(keys.indexOf("data") === keys.indexOf("swing") + 1, keys.join(","))
+            clickOption("window", "swing")
+            compare(hn.body.window, "swing")
+            compare(appSettings.chartPrefs[base() + "window"], "swing")
+            verify(hn.body.tShot.window.t0Ms < w.t0Ms, "the swing is wider than the data")
+            // a pair of adjacent P-positions, from the list that opens in place
+            clickOption("window", "_segs")
+            const segs = shownAll("chWindowOption")
+            verify(segs.length >= 3)
+            press(segs[1])
+            verify(String(hn.body.window).indexOf("seg:") === 0, hn.body.window)
+            // a sweep on the brush is a custom window
+            const br = oneShown("chWindowBrush")
+            intoView(br)
+            const ty = br.sparkH + br.roles.u(12) + br.trackH / 2       // the recording's track
+            mousePress(br, br.width * 0.05, ty)
+            mouseMove(br, br.width * 0.20, ty)
+            mouseMove(br, br.width * 0.35, ty)
+            mouseRelease(br, br.width * 0.35, ty)
+            settle()
+            compare(hn.body.window, "custom")
+            verify(hn.body.customEndUs > hn.body.customStartUs && hn.body.customStartUs >= 0)
+            compare(appSettings.chartPrefs[base() + "window"], "custom")
+            compare(hn.body.tChoices.window, "custom")
+            verify(options("window").some(function (o) { return o.key === "custom" }), "Custom is a chip while it is current")
+        }
+
+        function test_020_overlay_is_one_shared_plot() {
+            clickOption("draw", "overlay")
+            compare(hn.body.overlay, true)
+            compare(shownAll(/^chTrace:/).map(function (t) { return t.objectName }).join(","), "chTrace:overlay")
+            for (const k of probe.omegas) verify(oneShown("chTraceLabel:" + k), k + " named on the shared plot")
+            clickOption("draw", "split")
+            compare(traceKeys(), probe.omegas.slice().sort().join(","))
+        }
+
+        function test_021_p_dots_and_their_key_in_words() {
+            const key = textOf(oneShown("chDotKey"))
+            verify(key.indexOf("P dots") === 0, key)
+            verify(hn.body.tShot.dotKey.every(function (k) { return key.indexOf(k.word) >= 0 }), "every kind present is worded")
+            clickOption("toggles", "dots")
+            compare(hn.body.showDots, false)
+            compare(shownAll("chDotKey").length, 0)
+            compare(appSettings.chartPrefs[base() + "dots"], false)
+            clickOption("toggles", "dots")
+            verify(oneShown("chDotKey"))
+        }
+
+        function test_022_the_hover_reads_the_curves_in_place_and_the_cursor_toggles() {
+            const tr = oneShown("chTrace:clubAngularSpeed")
+            const seek = oneShown("chSeek", tr)
+            intoView(seek)
+            mouseMove(seek, seek.width * 0.55, seek.height / 2)
+            settle()
+            verify(oneShown("chCrosshair"), "the crosshair")
+            verify(/raw /.test(textOf(tr)), "the figure column reads the hover, raw beside the mean: " + textOf(tr))
+            mouseMove(hn.body, 2, 2); settle()
+            clickOption("toggles", "cursor")
+            compare(hn.body.showCursor, false)
+            const seek2 = oneShown("chSeek", oneShown("chTrace:clubAngularSpeed"))
+            mouseMove(seek2, seek2.width * 0.5, seek2.height / 2)
+            settle()
+            compare(shownAll("chCrosshair").length, 0, "no crosshair with the cursor off")
+            compare(appSettings.chartPrefs[base() + "cursor"], false)
         }
     }
 }

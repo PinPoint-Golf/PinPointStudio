@@ -518,7 +518,9 @@ int main()
         checkStr("degrees, negative", cm.formatValue(-8.2,  QStringLiteral("°")),  "-8°");
         checkStr("percent",           cm.formatValue(12.4,  QStringLiteral("% stance width")), "12 %");
         checkStr("mph gets a space",  cm.formatValue(75.2,  QStringLiteral("mph")), "75 mph");
-        checkStr("inches",            cm.formatValue(1.6,   QStringLiteral("in")),  "2 in");
+        // Inches keep one decimal (charts_words.h decimalsFor, design §7: a 1.4 in low point is not
+        // "1 in"); everything else here is whole units.
+        checkStr("inches, one decimal", cm.formatValue(1.6,   QStringLiteral("in")),  "1.6 in");
         // Empty unit reads as degrees — the pre-multi-unit default, kept so an uncatalogued
         // series does not render a bare number where every neighbour carries a token.
         checkStr("no unit ⇒ degrees", cm.formatValue(3.0,   QString()),             "+3°");
@@ -545,6 +547,24 @@ int main()
         checkStr("12.6° ⇒ +13",    cm.formatValue(12.6, QStringLiteral("°")), "+13°");
         checkStr("397.7 °/s ⇒ 398", cm.formatValue(397.7, QStringLiteral("°/s")), "398 °/s");
         checkStr("−0.4 ⇒ 0 (no -0)", cm.formatBare(-0.4, QStringLiteral("°")), "0");
+    }
+
+    // ── PER-UNIT DECIMALS (design charts_panel_traces_relations.md §7, 14 Oct) ────────────
+    //
+    // Whole units say nothing for three units: a 2.596:1 tempo printed "3", a −1.39 in low point
+    // "-1", a 0.7301 s backswing "1". The decimals are the UNIT's (charts_words.h decimalsFor, the one
+    // rule), never σ's: tempo and inches one decimal, seconds two, everything else whole.
+    {
+        std::printf("formatBare/formatValue — per-unit decimals\n");
+        checkStr("tempo 2.596:1 ⇒ 2.6",     cm.formatBare(2.596, QStringLiteral(":1")), "2.6");
+        checkStr("low point −1.39 in ⇒ −1.4", cm.formatBare(-1.39, QStringLiteral("in")), "-1.4");
+        checkStr("backswing 0.7301 s ⇒ 0.73", cm.formatBare(0.7301, QStringLiteral("s")), "0.73");
+        checkStr("seconds with the unit",   cm.formatValue(0.7301, QStringLiteral("s")), "0.73 s");
+        checkStr("−0.04 in ⇒ 0.0 (no -0.0)", cm.formatBare(-0.04, QStringLiteral("in")), "0.0");
+        checkStr("ties away from zero, 1.25 in ⇒ 1.3", cm.formatBare(1.25, QStringLiteral("in")), "1.3");
+        checkStr("mph stays whole",         cm.formatBare(81.58, QStringLiteral("mph")), "82");
+        checkStr("missing is \"-\"",        cm.formatBare(std::numeric_limits<double>::quiet_NaN(),
+                                                          QStringLiteral("mph")), "-");
     }
 
     // ── UNCERTAINTIES ARE QUOTED ──────────────────────────────────────────────────
@@ -2097,8 +2117,12 @@ int main()
             checkStr("tile: pelvis % ±σ",            pel.value(QStringLiteral("pctText")).toString(), "134% ±15");
             checkStr("tile: chest 4th, uncertain",   tr.at(1).toMap().value(QStringLiteral("actualRank")).toString(), "4?");
             checkStr("tile: arm actually 1st",       arm.value(QStringLiteral("actualRank")).toString(), "1");
-            checkTrue("tile: arm out of turn",       arm.value(QStringLiteral("outOfTurn")).toBool());
-            checkTrue("tile: pelvis out of turn too", pel.value(QStringLiteral("outOfTurn")).toBool());
+            // D4: only the segment that PEAKED LATE is out of turn, and only a PLACED one. The arm
+            // led (it is not late), and the pelvis that came after it is unplaced — its "?" already
+            // says the order there is uncertain — so no row is marked, while the verdict still reads
+            // the inversion (below).
+            checkTrue("tile: arm led, not out of turn (D4)", !arm.value(QStringLiteral("outOfTurn")).toBool());
+            checkTrue("tile: unplaced pelvis not marked (D4)", !pel.value(QStringLiteral("outOfTurn")).toBool());
             checkStr("tile: arm time ±σ",            arm.value(QStringLiteral("peakText")).toString(), "−115 ±18 ms");
             checkStr("tile: arm speed ±σ",           arm.value(QStringLiteral("speedText")).toString(), "684 ±40");
             checkStr("tile: arm % of pro ±σ",        arm.value(QStringLiteral("pctText")).toString(), "70% ±4");
@@ -2136,6 +2160,49 @@ int main()
             checkStr("pelvis last: actual 4 (the chest peaks at 0 ms)", lp.value(QStringLiteral("actualRank")).toString(), "4");
             checkStr("pelvis last: after the ball",  lp.value(QStringLiteral("peakText")).toString(), "+40 ±16 ms");
             checkTrue("pelvis last: out of turn",    lp.value(QStringLiteral("outOfTurn")).toBool());
+            {
+                const QVariantList lr = cm.sequenceTable(last).value(QStringLiteral("rows")).toList();
+                checkTrue("pelvis last: the arm that led it is not out of turn (D4)",
+                          !lr.at(2).toMap().value(QStringLiteral("outOfTurn")).toBool());
+                checkTrue("pelvis last: nor the club (D4)", !lr.at(3).toMap().value(QStringLiteral("outOfTurn")).toBool());
+                checkStr("pelvis last: out of sequence",
+                         cm.sequenceTable(last).value(QStringLiteral("verdictState")).toString(), "mismatch");
+            }
+
+            // 4 July SHOT 8, as recorded: lead arm −107 ms, club −49 ms, pelvis +20 ms (all placed),
+            // the chest unplaced at the pelvis' instant. ONE late segment (D4), the pelvis — not the
+            // three placed ends of the inverted pairs, and not the unplaced chest.
+            {
+                const auto node = [](const char *seg, bool placed, double before, qint64 tPeak, double tSig,
+                                     double peak, double pSig) {
+                    return QVariantMap{ { QStringLiteral("segment"), QString::fromLatin1(seg) },
+                                        { QStringLiteral("placed"), placed },
+                                        { QStringLiteral("beforeImpactMs"), before },
+                                        { QStringLiteral("tPeakUs"), tPeak },
+                                        { QStringLiteral("tSigmaMs"), tSig },
+                                        { QStringLiteral("peakDps"), peak },
+                                        { QStringLiteral("peakSigmaDps"), pSig } };
+                };
+                QVariantMap s8{ { QStringLiteral("order"), QVariantList{ QStringLiteral("leadArm"), QStringLiteral("club"),
+                                                                         QStringLiteral("pelvis") } },
+                                { QStringLiteral("nodes"), QVariantList{
+                                      node("pelvis",  true,  -20.051, 3517135, 15.2, 863.3, 152.2),
+                                      node("thorax",  false, -20.051, 3517135, 54.4, 465.8, 823.2),
+                                      node("leadArm", true,  107.224, 3389860, 12.2, 840.1, 113.0),
+                                      node("club",    true,   48.898, 3448186,  9.1, 1801.1, 66.2) } } };
+                const QVariantMap t8 = cm.sequenceTable(s8);
+                const QVariantList r8 = t8.value(QStringLiteral("rows")).toList();
+                int late = 0;
+                for (const QVariant &r : r8) late += r.toMap().value(QStringLiteral("outOfTurn")).toBool() ? 1 : 0;
+                checkEqI("shot 8: one late segment, not three (D4)", late, 1);
+                checkTrue("shot 8: the late one is the pelvis", r8.at(0).toMap().value(QStringLiteral("outOfTurn")).toBool());
+                checkTrue("shot 8: the unplaced chest is not marked", !r8.at(1).toMap().value(QStringLiteral("outOfTurn")).toBool());
+                checkStr("shot 8: arm 1st", r8.at(2).toMap().value(QStringLiteral("actualRank")).toString(), "1");
+                checkStr("shot 8: club 2nd", r8.at(3).toMap().value(QStringLiteral("actualRank")).toString(), "2");
+                checkStr("shot 8: pelvis 3rd", r8.at(0).toMap().value(QStringLiteral("actualRank")).toString(), "3");
+                checkStr("shot 8: the verdict still reads out of sequence", t8.value(QStringLiteral("verdictState")).toString(),
+                         "mismatch");
+            }
 
             checkEqI("tile: an empty map has no rows",
                      cm.sequenceTable(QVariantMap{}).value(QStringLiteral("rows")).toList().size(), 0);

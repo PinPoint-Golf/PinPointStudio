@@ -19,7 +19,8 @@
 import QtQuick
 
 // RUNNINGHEAD — print furniture: "PinPoint Studio · Session diagnostics" on the left, golfer · date ·
-// club · shot n of N on the right, a half-pixel rule under it. The PpPager draws it on every page.
+// club · shot n of N on the right, a half-pixel rule under it. The PpPager draws it on every page; its
+// `title` (PpPager.title) replaces the left side, and this default stays Session diagnostics' own.
 Item {
     id: rh
     property QtObject roles: PpTypeset {}           // the register passes its one PpTypeset; this default only covers creation order
