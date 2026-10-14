@@ -65,6 +65,28 @@ QJsonObject load(const QString &swingDir, QString *error = nullptr);
 // Empty for a JSON document, a .ppsw written without one, or a read failure.
 QJsonObject loadSummaryBlock(const QString &swingDir);
 
+// THE DOCUMENT WITHOUT ITS PER-FRAME TRACKS — everything a reader of the swing's ANALYSIS needs
+// (clock, capture, review, streams, analysis.metrics/phases/kinematicSequence and the rest of the
+// analysis block's small fields) and none of the pose. The pose is the bulk of the ~28 MB
+// document whose full parse froze the GUI at the end of a session (ShotListModel::loadSessionDir,
+// 2026-09-16); a reader of metric curves was paying 150–220 ms a swing on the share to throw
+// nearly all of it away. This reads the root chunk and the chunks on the path to
+// /analysis/metrics only — 6–9 ms a swing (the Charts panel's SessionSeriesModel).
+//
+// WHAT IS OMITTED, and the rule is one rule whatever the writer's chunking:
+//   · every chunk not on the path to /analysis/metrics is never read, and its key is removed;
+//   · analysis.{pose2d, poseDtl, skeleton3d, club, clubDtl, club3d, ball, impact} — the
+//     per-frame tracks — are removed even where a small one sat inline in a chunk that WAS read,
+//     so a caller never sees a track on one swing and not on the next because of where the
+//     writer split (splitBytes).
+// When a document's `analysis` was itself split out ("/analysis", 2 of 50 swings on 7 Oct 2026:
+// its inline children alone ran past splitBytes), that chunk is read — it is on the path — and
+// descended like the root: its metrics ref is followed, its other refs dropped unread.
+//
+// A JSON-era swing.json has no chunks: it is parsed WHOLE (the full cost) and the same keys are
+// removed, so the result has the same shape. Empty on no document or a read failure.
+QJsonObject loadAnalysis(const QString &swingDir, QString *error = nullptr);
+
 // Write the document as swing.ppsw (atomic: temp file + rename), then remove any swing.json and
 // swing_summary.json beside it — the rewrite supersedes both. Removing them is what migrates a
 // JSON-era swing the first time anything rewrites it.

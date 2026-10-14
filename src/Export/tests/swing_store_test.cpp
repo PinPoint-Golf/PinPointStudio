@@ -15,6 +15,8 @@
 #include "../swing_store.h"
 #include "../ppsw_qt.h"
 
+#include <ppswing/ppswing.h>
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
@@ -114,6 +116,86 @@ static QJsonObject awkwardTree()
         { "streams",  QJsonArray{ QJsonObject{ { "alias", "Face-On" }, { "frames", QJsonObject{ { "t_us", tUs } } } } } },
         { "analysis", QJsonObject{ { "kp", kp }, { "valid", withNull }, { "frames", frames } } },
     };
+}
+
+// A swing-shaped document for loadAnalysis(): ~30 metric curves (one /analysis/metrics chunk), a
+// pose track and a club track big enough to be chunks of their own, a small inline `ball` track,
+// and the analysis block's small fields. `bigInline` adds two inline blocks that are each under
+// splitBytes but together push `analysis` itself over it, so the writer moves the whole block to
+// an "/analysis" chunk — the shape 2 of the 50 7 Oct swings have.
+static QJsonObject analysisDoc(bool bigInline)
+{
+    const qint64 t0 = 97982181793;
+    QJsonArray metrics;
+    for (int k = 0; k < 30; ++k) {
+        QJsonArray ts, vs, valid;
+        for (int i = 0; i < 400; ++i) {
+            ts.append(qint64(t0 + 4000 * i));
+            vs.append(0.5 + 0.001 * i + k);
+            valid.append(i % 7 ? 1 : 0);
+        }
+        metrics.append(QJsonObject{
+            { "key", QStringLiteral("metric%1").arg(k) }, { "label", "A metric" }, { "unit", "°" },
+            { "t_us", ts }, { "value", vs }, { "valid", valid }, { "sigma", 1.25 }, { "sigmaKind", 2 },
+            { "phaseSamples", QJsonArray{ QJsonObject{ { "phase", 5 }, { "t_us", qint64(t0 + 120000) },
+                                                       { "value", 3.5 }, { "band", "" },
+                                                       { "sigma", 0.5 }, { "sigmaKind", 2 } } } } });
+    }
+    QJsonArray frames, clubSamples;
+    for (int i = 0; i < 4000; ++i) {
+        frames.append(QJsonObject{ { "t_us", qint64(t0 + 1000 * i) },
+                                   { "kp", QJsonArray{ 0.1 + i, 0.2 + i, 0.3 + i, 0.4 + i } } });
+        clubSamples.append(QJsonObject{ { "t_us", qint64(t0 + 1000 * i) }, { "theta", 0.01 * i } });
+    }
+    QJsonObject analysis{
+        { "metrics", metrics },
+        { "phases", QJsonArray{ QJsonObject{ { "phase", 0 }, { "t_us", qint64(t0 + 50000) }, { "conf", 1.0 } },
+                                QJsonObject{ { "phase", 5 }, { "t_us", qint64(t0 + 120000) }, { "conf", 0.75 } } } },
+        { "kinematicSequence", QJsonObject{ { "impactUs", qint64(120000) }, { "verdict", "other" },
+                                            { "nodes", QJsonArray{ QJsonObject{ { "segment", "pelvis" },
+                                                                                { "tPeakUs", qint64(125000) } } } } } },
+        { "pose2d", QJsonObject{ { "camera", 2 }, { "frames", frames } } },
+        { "club", QJsonObject{ { "samples", clubSamples } } },
+        { "ball", QJsonObject{ { "samples", QJsonArray{ QJsonObject{ { "t_us", qint64(t0) }, { "x", 0.5 } } } } } },
+        { "score", 80 }, { "tier", 2 } };
+    if (bigInline) {
+        QJsonArray a, b;
+        for (int i = 0; i < 5000; ++i) { a.append(0.25 + 0.001 * i); b.append(0.75 + 0.001 * i); }
+        analysis.insert("segmentation", QJsonObject{ { "x", a } });
+        analysis.insert("timings", QJsonObject{ { "y", b } });
+    }
+    return QJsonObject{
+        { "clock", QJsonObject{ { "t0_us", t0 }, { "unit", "us" } } },
+        { "review", QJsonObject{ { "club", "7 IRON" }, { "rating", 0 } } },
+        { "capture", QJsonObject{ { "club", QJsonObject{ { "name", "7 IRON" } } } } },
+        { "analysis", analysis } };
+}
+
+// loadAnalysis(dir) against load(dir): every top-level block but `analysis` identical, every
+// analysis field identical except the per-frame tracks, which must be absent.
+static void checkAnalysisLoad(const QString &dir, const char *label)
+{
+    QString err, where;
+    const QJsonObject full = SwingStore::load(dir, &err);
+    const QJsonObject lite = SwingStore::loadAnalysis(dir, &err);
+    const QStringList tracks{ "pose2d", "poseDtl", "skeleton3d", "club", "clubDtl", "club3d", "ball", "impact" };
+    bool same = !full.isEmpty() && !lite.isEmpty() && full.keys() == lite.keys();
+    for (const QString &k : full.keys())
+        if (same && k != "analysis" && !sameTyped(full.value(k), lite.value(k), &where, "/" + k)) same = false;
+    const QJsonObject fa = full.value("analysis").toObject(), la = lite.value("analysis").toObject();
+    bool noTracks = true;
+    for (const QString &k : tracks) noTracks = noTracks && !la.contains(k);
+    for (const QString &k : fa.keys()) {
+        if (tracks.contains(k)) continue;
+        if (!la.contains(k)) { same = false; where = "/analysis/" + k + " (missing)"; break; }
+        if (!sameTyped(fa.value(k), la.value(k), &where, "/analysis/" + k)) { same = false; break; }
+    }
+    std::printf("  %s:\n", label);
+    check(same && la.value("metrics").toArray().size() == 30,
+          "  every analysis field but the tracks equals the full load (metrics, phases, sequence, clock, club)");
+    if (!where.isEmpty()) std::printf("    first difference: %s\n", where.toUtf8().constData());
+    check(fa.contains("pose2d") && fa.contains("club") && fa.contains("ball") && noTracks,
+          "  ...and the pose, club and ball tracks are absent (inline or chunked)");
 }
 
 int main(int argc, char **argv)
@@ -228,6 +310,44 @@ int main(int argc, char **argv)
         writeText(tmp.filePath(".pinpoint-trash/x/swing.json"), "{}");
         check(!SwingStore::swingDirsUnder(tmp.path()).contains(tmp.filePath(".pinpoint-trash/x")),
               "…and never enters a dot-directory");
+    }
+
+    std::printf("\n=== loadAnalysis: the analysis without the per-frame tracks ===\n");
+    {
+        const auto chunks = [](const QString &dir) {
+            QStringList names;
+            const ppsw::Reader r = ppsw::Reader::open(SwingStore::ppswPath(dir).toStdString());
+            for (const ppsw::TocEntry &e : r.toc())
+                names << QString::fromStdString(e.name);
+            return names;
+        };
+        const QString normal = tmp.filePath("analysis_normal");
+        QDir().mkpath(normal);
+        check(SwingStore::save(normal, analysisDoc(false)), "a swing-shaped document saved");
+        const QStringList c1 = chunks(normal);
+        check(c1.contains("/analysis/metrics") && !c1.contains("/analysis")
+                  && c1.filter("/analysis/pose2d").size() > 0,
+              "...as the app writes them: metrics and pose in chunks of their own");
+        checkAnalysisLoad(normal, "root + /analysis/metrics");
+
+        const QString whole = tmp.filePath("analysis_whole");
+        QDir().mkpath(whole);
+        check(SwingStore::save(whole, analysisDoc(true)), "a document whose analysis block outgrows splitBytes");
+        const QStringList c2 = chunks(whole);
+        check(c2.contains("/analysis") && c2.contains("/analysis/metrics"),
+              "...is written with `analysis` as one chunk (\"/analysis\"), metrics inside it");
+        checkAnalysisLoad(whole, "\"/analysis\" chunk, descended");
+
+        const QString legacy = tmp.filePath("analysis_legacy");
+        QDir().mkpath(legacy);
+        writeText(SwingStore::jsonPath(legacy), QJsonDocument(analysisDoc(true)).toJson(QJsonDocument::Compact));
+        check(SwingStore::info(legacy).format == SwingStore::Format::Json, "a legacy swing.json");
+        checkAnalysisLoad(legacy, "swing.json, parsed whole");
+
+        const QString none = tmp.filePath("analysis_none");
+        QDir().mkpath(none);
+        QString err;
+        check(SwingStore::loadAnalysis(none, &err).isEmpty() && !err.isEmpty(), "no document: empty, with a reason");
     }
 
 #ifdef PP_LIBPPSWING_FIXTURES
