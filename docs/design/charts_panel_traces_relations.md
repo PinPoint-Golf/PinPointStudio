@@ -215,9 +215,16 @@ The rule (now in spec §15.4 item 1, written after round 1 drew every curve in i
 | X-factor stretch reads 0 at the top by construction | the stretch is meaningless at P4 | metric producer |
 | Shot 9's Finish at +965 ms (others about +275); Address equals Takeaway on most shots | phase ladder | timeline |
 | `ballPosition` at P1 measured on 6 of 15; `shoulderPlaneAngle` at P4 missing on 8 of 15 | sparse readings in the profile | producers |
+| Chest (thorax) angular speed is bridged from about −13 to +13 ms around impact on every shot; posture curves are bridged after impact | the single-shot curves have holes exactly where the sequence is read (the group fit spans them) | series validity |
+| 06-11 swing 1: P8 lands 3.8 ms after impact | the sequence window ends at the ball and its edge value gets placed | phase ladder |
+| A two-camera bound sits at the edge of the first raw crossing hole only ("reads only the first hole") | 06-11 s1 gains a "no later than 127 ms before impact" chest bound after the 14 Oct fix | sequence pair route, see `thorax_pair_20261014.md` §12 |
+| Vector capitalises units in labels ("°/S") | unit text changes meaning | Theme caps applied to units |
+| The swing's `truth.json` says DRIVER while the swing records 7 IRON | club labels disagree; the swing's club is shown | capture labels |
+| A condition has no link to the metric and instant it reads (also a §6 request) | the mocks join conditions to readings by equal values | diagnostics model |
+| Five conditions fire on every shot of 4 July (early extension, hips under-rotated at impact, over the top, pelvis thrust in the backswing; reverse spine on 14 of 15) | they cannot split a session, so they are never offered as facets; worth checking whether their corridors suit this golfer | diagnostics norms |
 
 Data, not defects: on 4 July the pelvis peaks after impact on 14 of 14 placed shots and the chest is never
-placed. The panel says it neutrally: "may be the golfer (hips held at impact, then catching up) or the
+placed; shot 6 orders club, pelvis, lead arm, and on one shot the lead arm peaks 70 ms after impact. The panel says it neutrally: "may be the golfer (hips held at impact, then catching up) or the
 two-camera measurement; it cannot yet tell them apart" (see `docs/research/data/kinematic_sequence/
 thorax_pair_20261014.md`). IMUs (vest + belt) will settle it.
 
