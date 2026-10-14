@@ -1716,6 +1716,18 @@ bind every panel.
 
 1. **Colour means "out".** Warn appears on values, fired marks, strip bars and the fault line,
    and nowhere else.
+
+   **Except identity: a metric keeps its own colour** (Mark, 14 Oct 2026, after the Charts round 1
+   drew every curve in ink). A curve, line, dot or box that stands for a METRIC is drawn in
+   `Theme.metricColor(key)`: the named per-metric colours (b1c1975e), user re-pointable in Settings.
+   That is identity, not judgement, and losing it made overlaid curves hard to tell apart.
+   - A mark that stands for a SHOT (a scatter dot, a strip cell, the picked-shot ring) stays ink.
+   - One metric across many shots stays in that one hue: other shots at low alpha, and the median,
+     group fit or ghost told apart by weight and dash, never by a second hue.
+   - Because a metric hue can sit near warn (pelvis is crimson), "out" is never colour alone in a
+     figure: it is a warn mark (ring, tick or underline) plus a word ("late", "out by 4°"), and it
+     must read in greyscale.
+   - Print uses the light palette's metric colours.
 2. **One strip, three marks, never a gap** (decision D5). In the shot strip:
    - a fired shot is a warn bar;
    - a clean shot is a short ink3 tick;

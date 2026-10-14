@@ -572,6 +572,9 @@ What could not be seen offscreen:
 
 **1. Charts** (`review/PpReplayCharts.qml` → `PpMetricChart.qml`, 1,545 lines). On by default in
 both registers.
+- **Design chosen 14 Oct 2026:** Traces + Relations, Reads parked. See
+  `docs/design/charts_panel_traces_relations.md`. The "identity hues" break below was over-read in round 1:
+  metric colours stay (§15.4 item 1); only warn-as-colour-alone goes.
 - **Questions:** Replay, "how fast, and when?"; Analyse, "was the sequence in order, by how much,
   and where?"
 - **Breaks:**
