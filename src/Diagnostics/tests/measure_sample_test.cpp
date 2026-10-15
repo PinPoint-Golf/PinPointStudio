@@ -862,8 +862,10 @@ int main()
         // Schema 6 (trunk_imu_sequence_grf_design.md §10.7 E3) added each metric's route: a v5
         // sidecar serves none, and "no route on either half" PERMITS a ratio, so a stale cache would
         // let through the cross-scale quotient the same-scale rule refuses.
-        check(kPhaseGridSchemaVersion == 6,
-              "the sidecar schema is 6: closed spans, no zero-width span, no endpoint seed, σ and route carried");
+        // Schema 7 (KB-18) added `withheld`: a v6 sidecar serves none, so a stale cache would let the
+        // camera club peak fire the verdicts its producer withholds.
+        check(kPhaseGridSchemaVersion == 7,
+              "the sidecar schema is 7: closed spans, no zero-width span, no endpoint seed, σ, route and withheld carried");
         for (const int old : { 2, 3 }) {
             QJsonObject prev = doc;
             prev.insert(QStringLiteral("schema"), old);

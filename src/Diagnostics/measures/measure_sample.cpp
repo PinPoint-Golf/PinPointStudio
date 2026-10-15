@@ -194,6 +194,7 @@ SwingPhaseGrid buildPhaseGrid(const QJsonObject &analysis, const PhaseGridConfig
         // The producer route (§10.7 E3), written only by a producer that states one.
         mg.routeId     = mo.value(QStringLiteral("routeId")).toString();
         mg.routeDirect = mo.value(QStringLiteral("routeDirect")).toBool(false);
+        mg.withheld    = mo.value(QStringLiteral("withheld")).toString();
         // The series σ (§A8.3). A producer that stated no sigmaKind quoted frame-to-frame noise
         // (metric presentation honesty, §5.3): a LOWER bound on the error, kept and tagged as such.
         {
@@ -463,6 +464,7 @@ std::optional<GridReading> reduceOverGridReading(const SwingPhaseGrid &grid, con
     if (!mg) return out;
     out.route  = mg->routeId;
     out.direct = mg->routeDirect;
+    out.withheld = mg->withheld;
     Budget b;
     switch (r.kind) {
     case ReducerKind::At:
@@ -564,6 +566,7 @@ QJsonObject savePhaseGrid(const SwingPhaseGrid &grid, qint64 sourceSize, qint64 
         }
         if (!m.routeId.isEmpty()) mo.insert(QStringLiteral("routeId"), m.routeId);
         if (m.routeDirect)        mo.insert(QStringLiteral("routeDirect"), true);
+        if (!m.withheld.isEmpty()) mo.insert(QStringLiteral("withheld"), m.withheld);
 
         QJsonArray vals;
         for (const PhaseGridValue &v : m.values) {
@@ -646,6 +649,7 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
         readSigma(mo, mg.seriesSigma, mg.seriesSigmaSrc);
         mg.routeId     = mo.value(QStringLiteral("routeId")).toString();
         mg.routeDirect = mo.value(QStringLiteral("routeDirect")).toBool(false);
+        mg.withheld    = mo.value(QStringLiteral("withheld")).toString();
 
         for (const QJsonValue &vv : mo.value(QStringLiteral("values")).toArray()) {
             const QJsonObject vo = vv.toObject();

@@ -172,6 +172,9 @@ struct KsNode {
     double     peakNoEarlierThanMs = std::numeric_limits<double>::quiet_NaN();
     double     peakNoLaterThanMs   = std::numeric_limits<double>::quiet_NaN();
     bool bounded() const { return std::isfinite(peakNoEarlierThanMs) || std::isfinite(peakNoLaterThanMs); }
+    // DRAWN BUT NOT JUDGED. Non-empty = why the route's node must not carry a diagnostic verdict
+    // (MetricSeries::withheld); the node is placed and charted with its σ as usual.
+    QString    withheld;
 };
 
 struct KinematicSequence {

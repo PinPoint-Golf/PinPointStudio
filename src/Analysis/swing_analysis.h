@@ -299,6 +299,10 @@ struct MetricSeries {
     // "not stated" — every series that predates the fields — and both serialise only when set.
     QString routeId;
     bool    routeDirect = false;
+    // DRAWN BUT NOT JUDGED: non-empty = why the producer says no diagnostic verdict may be drawn
+    // from this reading (the camera club peak, KB-18). The value and σ stand and are charted; the
+    // engine refuses every signal that reads it (SignalRefusal::Withheld). Serialised only when set.
+    QString withheld;
 };
 
 // Find a series by anatomical key, BEST INSTRUMENT FIRST.

@@ -383,6 +383,8 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
             sm.insert(QStringLiteral("routeId"), m.routeId);
         if (m.routeDirect)
             sm.insert(QStringLiteral("routeDirect"), true);
+        if (!m.withheld.isEmpty())
+            sm.insert(QStringLiteral("withheld"), m.withheld);
         series.append(sm);
     }
     QVariantList phases;

@@ -126,6 +126,8 @@ std::optional<IMeasureValueSource::Value> LiveMeasureSource::value(const QString
         // ratio test's same-scale rule refuses a cross-scale quotient with or without a σ on it.
         out.route  = v->route;
         out.direct = v->direct;
+        // So is the producer's "drawn but not judged": it is not a σ, and must hold either way.
+        out.withheld = v->withheld;
         // The measurement σ (session_diagnostics_design.md §A8.3), behind its switch so the off
         // state reproduces the pre-uncertainty source exactly.
         if (m_withSigma) {

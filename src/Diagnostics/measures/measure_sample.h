@@ -124,7 +124,10 @@ namespace pinpoint::analysis {
 //    bump is NOT optional: a v5 sidecar serves no route, and two readings with no route are allowed
 //    to form a ratio — so a stale cache would quietly permit exactly the cross-scale quotient the
 //    rule exists to refuse.
-inline constexpr int kPhaseGridSchemaVersion = 6;
+// 7: a metric may carry `withheld` (MetricSeries::withheld — the camera club peak, KB-18): drawn but
+//    not judged. Additive, and the bump is NOT optional for the same reason as 6: a v6 sidecar serves
+//    no `withheld`, so a stale cache would let the club peak fire the very verdicts it must not.
+inline constexpr int kPhaseGridSchemaVersion = 7;
 
 // SigmaSource — where a reading's measurement σ came from — lives in sigma_source.h.
 
@@ -211,6 +214,8 @@ struct MetricPhaseGrid {
     // producer stated none, which is every metric that is not a KS node's.
     QString     routeId;
     bool        routeDirect = false;
+    // MetricSeries::withheld: non-empty = drawn but not judged; the engine refuses its signals.
+    QString     withheld;
 
     const PhaseGridValue *at(Phase p) const;
 };
@@ -292,6 +297,7 @@ struct GridReading {
     // The route of the metric that answered — the winning rung's, on a ladder.
     QString     route;
     bool        direct    = false;
+    QString     withheld;   // the metric's MetricSeries::withheld
 };
 std::optional<GridReading> reduceOverGridReading(const SwingPhaseGrid &grid, const QString &metricKey,
                                                  const Reducer &r);

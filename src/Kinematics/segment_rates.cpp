@@ -1788,6 +1788,21 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
                           SeqSegment::Club, QStringLiteral("Club angular speed"),
                           fused ? QStringLiteral("faceOn+dtl") : QStringLiteral("faceOnClub"),
                           false, clubDom, phases, cfg, nodes, gate);
+            // THE CAMERA CANNOT TIME THE CLUB'S PEAK (KB-18, 15 Oct). Through impact the shaft-angle
+            // rate collapses on 93 of 129 library swings — 2217 °/s at −37 ms to 456 at +1 and back
+            // to 1743 at +30 on 07-04 swing 1, which no club does — and where it holds, a ~45 ms
+            // wobble from the projection still puts an early hump 40–110 ms out on half of the
+            // rest, while the clubhead's own speed peaks ~2 ms before the ball. So the node stays
+            // drawn, its σ spanning the found peak to impact (the true peak could be anywhere in
+            // between: σ² + span²/12), and no verdict is drawn from it (Mark: "refuse to signal an
+            // issue with the club speed peaking, but the measure and charting is fine so long as
+            // sigma reflects the uncertainty").
+            for (KsNode &cn : nodes) {
+                if (cn.segment != SeqSegment::Club || !cn.placed) continue;
+                const double spanMs = double(cn.tPeakUs - impactUs) / 1000.0;
+                cn.tSigmaMs = std::sqrt(cn.tSigmaMs * cn.tSigmaMs + spanMs * spanMs / 12.0);
+                cn.withheld = QStringLiteral("the camera cannot follow the club's speed through impact");
+            }
         }
     }
 
@@ -1833,6 +1848,7 @@ MetricSeries nodeReading(const KsNode &n, int64_t impactUs, const char *key, con
     m.unit        = QString::fromUtf8(unit);
     m.routeId     = n.routeId;
     m.routeDirect = n.direct;
+    m.withheld    = n.withheld;
     PhaseSample ps { Phase::Impact, impactUs, value, QString() };
     if (sigma > 0.0) {
         ps.sigma     = sigma;

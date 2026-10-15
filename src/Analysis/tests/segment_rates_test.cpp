@@ -615,6 +615,21 @@ int main()
         const KsNode *pel = nodeOf(faceOn, SeqSegment::Pelvis), *tho = nodeOf(faceOn, SeqSegment::Thorax);
         CHECK("§2 face-on: arm node placed within 6 ms of the truth",  arm && arm->placed && msFromTruth(arm, kArm) <= 6.0);
         CHECK("§2 face-on: club node placed within 6 ms of the truth", club && club->placed && msFromTruth(club, kClub) <= 6.0);
+        // KB-18: the camera club node is drawn but not judged, its σ spanning the found peak to impact.
+        CHECK("§2 face-on: the camera club node is withheld from verdicts",
+              club && !club->withheld.isEmpty() && pel && pel->withheld.isEmpty() && arm && arm->withheld.isEmpty());
+        CHECK("§2 face-on: …and its σ_t covers the span from its peak to impact (≥ span/√12)",
+              club && club->tSigmaMs >= std::fabs(double(club->tPeakUs - kImpactUs)) / 1000.0 / std::sqrt(12.0) - 1e-9);
+        {
+            const std::vector<MetricSeries> cv = sequenceNodeSeries(faceOn);
+            const auto withheldOf = [&](const char *k) {
+                for (const MetricSeries &m : cv) if (m.key == QLatin1String(k)) return m.withheld;
+                return QStringLiteral("<absent>");
+            };
+            CHECK("§2 face-on: clubPeakTime and clubPeakSpeed carry the withheld note; leadArmPeakTime does not",
+                  !withheldOf("clubPeakTime").isEmpty() && withheldOf("clubPeakTime") != QLatin1String("<absent>")
+                  && !withheldOf("clubPeakSpeed").isEmpty() && withheldOf("leadArmPeakTime").isEmpty());
+        }
         CHECK("§2 face-on: arm peak within 8 % of 980 °/s (de-projected magnitude)",
               arm && near(arm->peakDps, kArm.peakDps, 0.08 * kArm.peakDps));
         CHECK("§2 face-on: club peak within 8 % of 2254 °/s", club && near(club->peakDps, kClub.peakDps, 0.08 * kClub.peakDps));

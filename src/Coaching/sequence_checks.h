@@ -98,6 +98,7 @@ enum class SequenceGap {
     MixedScale,    // a ratio across two routes (§10.7 E3)
     Implausible,   // a reading the norm does not believe
     PeakAfterImpact, // the peak this check needs before impact came after it (hip braking)
+    Withheld,      // a peak the producer drew but marked not for judging (the camera club peak, KB-18)
 };
 
 // The piece a measure stands for, in golfer words; empty for a measure this tile does not read.
@@ -151,6 +152,11 @@ inline QString sequenceGapReason(SequenceGap gap, const QString &missingMeasureI
         const QString piece = sequencePieceOf(missingMeasureId);
         return (piece.isEmpty() ? QStringLiteral("the peak") : piece)
              + QStringLiteral(" came after impact, so there was no slowing to read");
+    }
+    case SequenceGap::Withheld: {
+        const QString piece = sequencePieceOf(missingMeasureId);
+        return (piece.isEmpty() ? QStringLiteral("this peak") : piece)
+             + QStringLiteral(" is charted but not judged: the camera cannot follow it through impact");
     }
     case SequenceGap::Unknown:     break;
     }

@@ -82,6 +82,8 @@ public:
         m[id].route  = route;
         m[id].direct = direct;
     }
+    // Drawn but not judged: the producer's MetricSeries::withheld on a reading already added.
+    void withhold(const QString &id) { m[id].withheld = QStringLiteral("not for judging"); }
     std::optional<MeasureReading> read(const QString &id) const override
     {
         const auto it = m.find(id);
@@ -884,6 +886,33 @@ int main()
         check(rm.find("c_order")->state == FindingState::Unavailable
                   && rm.find("c_order")->missingMeasures.contains(QStringLiteral("m_thoraxT")),
               "one time missing is Unavailable, naming the missing measure — never in order");
+
+        // DRAWN BUT NOT JUDGED (MeasureReading::withheld, KB-18). A withheld time never carries a
+        // verdict: as the second link it is skipped down the chain like an unplaced one; with no
+        // link to stand in, or as the subject, the signal is refused as Withheld — not Missing.
+        FakeSource held = times(-10.0, -30.0);
+        held.withhold(QStringLiteral("m_thoraxT"));
+        check(detect(p, held).find("c_order")->state == FindingState::Unavailable,
+              "a withheld second time makes the order Unavailable, though it would have fired");
+        check(evaluateSignal(p, QStringLiteral("sigOrder"), held).refusal == SignalRefusal::Withheld,
+              "…refused as withheld, not missing");
+        FakeSource heldSubject = times(-10.0, -30.0);
+        heldSubject.withhold(QStringLiteral("m_pelvisT"));
+        check(evaluateSignal(p, QStringLiteral("sigOrder"), heldSubject).refusal == SignalRefusal::Withheld,
+              "a withheld subject is refused as withheld");
+
+        CharacteristicPack pf = p;
+        Measure arm;
+        arm.id = QStringLiteral("m_armT"); arm.unit = QStringLiteral("ms"); arm.status = MeasureStatus::Live;
+        pf.measures.push_back(arm);
+        pf.signalDefs.front().fallback = { QStringLiteral("m_armT") };
+        held.addWithoutCorridor(QStringLiteral("m_armT"), -50.0);
+        const SignalOutcome fo = evaluateSignal(pf, QStringLiteral("sigOrder"), held);
+        check(fo.available && fo.fired && fo.comparedWith == QStringLiteral("m_armT"),
+              "the chain walks past a withheld link to the next placed one");
+        held.withhold(QStringLiteral("m_armT"));
+        check(evaluateSignal(pf, QStringLiteral("sigOrder"), held).refusal == SignalRefusal::Withheld,
+              "…and with every later link withheld it is refused as withheld");
     }
 
     // ── The ratio contract ─────────────────────────────────────────────────

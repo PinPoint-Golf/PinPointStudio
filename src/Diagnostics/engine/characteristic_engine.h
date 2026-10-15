@@ -112,6 +112,11 @@ struct MeasureReading {
     QString route;
     bool    direct = false;
 
+    // DRAWN BUT NOT JUDGED. Non-empty = the producer's reason no verdict may rest on this reading
+    // (MetricSeries::withheld; the camera club peak, KB-18). Every signal that reads it is
+    // unavailable (SignalRefusal::Withheld), and an order test's chain skips it as if unplaced.
+    QString withheld;
+
     // Build a graded reading from a bare corridor, for producers that have a band but no Norm.
     //
     // Use this rather than setting hasCorridor by hand: a reading with a corridor and a default
@@ -319,6 +324,7 @@ enum class SignalRefusal {
     MixedScale,              // a ratio of two readings off two scales (§10.7 E3, sameScale())
     NonPositiveDenominator,  // a ratio over zero, a negative or a NaN
     PeakAfterImpact,         // the signal's requiresBeforeImpact time came at or after impact
+    Withheld,                // a reading its producer marked drawn-but-not-judged (`missing` names it)
 };
 
 // One signal's verdict, as detect() reaches it for a condition. pFire/quantified/grossRisk follow

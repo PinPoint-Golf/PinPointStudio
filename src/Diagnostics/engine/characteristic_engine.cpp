@@ -119,9 +119,14 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
 
     std::vector<MeasureReading> readings;
     readings.reserve(size_t(sig.measures.size()));
+    // A reading its producer marked drawn-but-not-judged (MeasureReading::withheld) is read as
+    // absent — so an order chain walks past it like an unplaced link — and if nothing stands in for
+    // it the refusal names it as withheld, not missing: the value exists, it just cannot carry a verdict.
+    QStringList withheld;
     for (const QString &mid : sig.measures) {
         const auto r = src.read(mid);
-        if (!r) {
+        if (!r || !r->withheld.isEmpty()) {
+            if (r) withheld << mid;
             v.missing << mid;
             continue;
         }
@@ -146,7 +151,7 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
                 v.missing.clear();
                 break;
             }
-            if (const auto r = src.read(fid)) {
+            if (const auto r = src.read(fid); r && r->withheld.isEmpty()) {
                 readings.push_back(*r);
                 v.comparedWith = fid;
                 v.missing.clear();
@@ -154,7 +159,12 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
             }
         }
     }
-    if (!v.missing.isEmpty()) { v.refusal = SignalRefusal::MeasureMissing; return v; }   // stays unavailable
+    if (!v.missing.isEmpty()) {   // stays unavailable
+        v.refusal = std::any_of(v.missing.cbegin(), v.missing.cend(),
+                                [&](const QString &m) { return withheld.contains(m); })
+                        ? SignalRefusal::Withheld : SignalRefusal::MeasureMissing;
+        return v;
+    }
 
     // A signal that only means something while a peak precedes impact (Signal::requiresBeforeImpact).
     // Hip braking compares the hips' speed at impact with their peak; with the peak AFTER impact the
@@ -164,6 +174,7 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
     if (!sig.requiresBeforeImpact.isEmpty()) {
         const auto t = src.read(sig.requiresBeforeImpact);
         if (!t) { v.missing << sig.requiresBeforeImpact; v.refusal = SignalRefusal::MeasureMissing; return v; }
+        if (!t->withheld.isEmpty()) { v.missing << sig.requiresBeforeImpact; v.refusal = SignalRefusal::Withheld; return v; }
         if (!(t->value < 0.0)) {
             v.missing << sig.requiresBeforeImpact;
             v.refusal = SignalRefusal::PeakAfterImpact;

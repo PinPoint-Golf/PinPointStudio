@@ -642,6 +642,10 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
             // condition names several, the first is the one that stopped it.
             if (!f.missingMeasures.isEmpty())
                 r.notAssessableReason = src.missingReason(f.missingMeasures.first());
+            // A value the producer measured but marked not for judging (KB-18): its own reason.
+            if (r.notAssessableReason.isEmpty() && !f.missingMeasures.isEmpty())
+                if (const auto w = src.value(f.missingMeasures.first()); w && !w->withheld.isEmpty())
+                    r.notAssessableReason = w->withheld;
             if (r.notAssessableReason.isEmpty())
                 r.notAssessableReason = missingReasonText(MissingKind::MetricNotProduced);
             break;
@@ -703,6 +707,7 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
             case SignalRefusal::MixedScale:  gap = SequenceGap::MixedScale;  break;
             case SignalRefusal::Implausible: gap = SequenceGap::Implausible; break;
             case SignalRefusal::PeakAfterImpact: gap = SequenceGap::PeakAfterImpact; break;
+            case SignalRefusal::Withheld:    gap = SequenceGap::Withheld;    break;
             default: break;
             }
             g.reason = sequenceGapReason(gap, first);
@@ -723,7 +728,8 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
         for (const SignalOutcome &o : d.signalOutcomes)
             if (o.refusal == SignalRefusal::Implausible && o.missing.contains(mid)) implausible = true;
         if (implausible) continue;
-        if (const auto v = src.value(mid); v && std::isfinite(v->value)) {
+        // Nor does a time its producer marked not for judging (the camera club peak, KB-18).
+        if (const auto v = src.value(mid); v && std::isfinite(v->value) && v->withheld.isEmpty()) {
             PeakTimeRow t;
             t.measureId = mid;
             t.valueMs   = v->value;

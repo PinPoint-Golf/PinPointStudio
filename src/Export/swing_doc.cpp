@@ -301,6 +301,9 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
             mo.insert(QStringLiteral("routeId"), m.routeId);
         if (m.routeDirect)
             mo.insert(QStringLiteral("routeDirect"), true);
+        // Drawn but not judged (MetricSeries::withheld), same contract: only when set.
+        if (!m.withheld.isEmpty())
+            mo.insert(QStringLiteral("withheld"), m.withheld);
         metrics.append(mo);
     }
     o[QStringLiteral("metrics")] = metrics;

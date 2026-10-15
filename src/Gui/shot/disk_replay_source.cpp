@@ -316,6 +316,8 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
                 sm.insert(QStringLiteral("routeId"), m[QStringLiteral("routeId")].toString());
             if (m.contains(QStringLiteral("routeDirect")))
                 sm.insert(QStringLiteral("routeDirect"), m[QStringLiteral("routeDirect")].toBool());
+            if (m.contains(QStringLiteral("withheld")))
+                sm.insert(QStringLiteral("withheld"), m[QStringLiteral("withheld")].toString());
             series.append(sm);
         }
         QVariantList phases;

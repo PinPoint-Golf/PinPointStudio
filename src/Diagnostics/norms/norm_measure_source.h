@@ -53,6 +53,8 @@ public:
         // test's same-scale rule (MeasureReading::route). Empty + false = none stated.
         QString     route;
         bool        direct    = false;
+        // Drawn but not judged (MeasureReading::withheld). Empty = judge it as usual.
+        QString     withheld;
     };
 
     // nullopt => this measure could not be produced for this swing. Distinct from a value of zero,
@@ -109,6 +111,7 @@ public:
         r.sigmaSrc   = v->sigmaSrc;
         r.route      = v->route;
         r.direct     = v->direct;
+        r.withheld   = v->withheld;
 
         if (!m_norms)
             return r;                     // no norms wired: hasCorridor stays false, engine greys it
