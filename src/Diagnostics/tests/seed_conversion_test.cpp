@@ -80,7 +80,11 @@ int main(int argc, char **argv)
         if (shapeIsOneSided(mm.shape)) ++oneSided;
     // 14 -> 15 on 2026-09-23: m_handPathLoop is a ceiling — hands dropping inside their backswing
     // path is the shallowing good players make on purpose, so only the outside tail grades.
-    check(oneSided == 15, "…and one of exactly fifteen one-sided measures in the shipped pack");
+    // 15 -> 17 on 2026-10-08, both authored one-sided with their measures, both from down the line:
+    // m_spineBendLossDown is a floor — the fault is standing up out of the address bend, and staying
+    // more bent over through the ball is not one; m_trailForearmTop is a ceiling — the fault is the
+    // trail elbow flying behind the golfer at the top, and an elbow pointing down is not one.
+    check(oneSided == 17, "…and one of exactly seventeen one-sided measures in the shipped pack");
 
     // ── The rows ────────────────────────────────────────────────────────────
     //
