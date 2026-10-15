@@ -123,7 +123,8 @@ switch ($Components) {
             '-D "CPACK_PACKAGE_NAME=PinPoint Studio GPU Runtime" ' +
             '-D "CPACK_PACKAGE_EXECUTABLES=" ' +
             '-D "CPACK_CREATE_DESKTOP_LINKS=" ' +
-            '-D "CPACK_INNOSETUP_RUN_EXECUTABLES="'
+            '-D "CPACK_INNOSETUP_RUN_EXECUTABLES=" ' +
+            '-D "CPACK_INNOSETUP_CODE_FILES="'   # no exe here, so no firewall rule step
     }
 }
 $bat = @"

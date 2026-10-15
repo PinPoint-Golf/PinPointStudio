@@ -38,21 +38,37 @@ it). After this, skip straight to the per-release checklist.
    > normally; every release *after* it can auto-update. Plan key rollout one release
    > ahead of when you need updates to work.
 
-4. **Add the firewall rule to the installer — NOT YET DONE, and it gates the next release.**
-   PinPointStudio is the PPCP *host*: the phone dials us, so we listen. The first time an
-   unregistered exe binds a listening socket, Windows raises the "Security Alert" box — and a
-   user who clicks Cancel gets a permanent **block** rule, after which pairing never works
-   again and nothing in the UI explains why. A golf pro will click Cancel.
+4. **The installer's firewall rule — done in v0.1-beta5, `packaging/firewall_rule.pas`.**
+   PinPointStudio is the PPCP *host*: the phone dials us, so we listen (and so does the
+   GSPro Open Connect listener on 921). The first time an unregistered exe binds a listening
+   socket, Windows raises the "Security Alert" box — and a user who clicks Cancel gets a
+   permanent **block** rule, after which pairing never works again and nothing in the UI
+   explains why. A golf pro will click Cancel. Clicking Allow with the default box ticked is
+   barely better: it writes allow rules for **Private only** (every install on the dev box
+   had exactly that before beta5), and Windows never asks again on a Public network.
 
-   The installer already elevates, so it creates the rule during the UAC prompt the user
-   accepts anyway — either in the Inno Setup `[Run]` section or via `INetFwPolicy2`:
-   ```powershell
-   netsh advfirewall firewall add rule name="PinPointStudio" dir=in action=allow `
-         program="{app}\PinPointStudio.exe" enable=yes profile=any
-   ```
+   The installer does **not** elevate — it is per-user (`PrivilegesRequired=lowest`) so
+   WinSparkle can update in place. So the rule is created by a `[Code]` step at
+   `ssPostInstall`, included through `CPACK_INNOSETUP_CODE_FILES`:
+   1. Read the rules **unelevated** (a standard user may read them) and stop if the exe has
+      an enabled inbound allow rule on profile **Any** and no enabled inbound block rule.
+      Every upgrade after the first takes this path — no UAC prompt.
+   2. Otherwise `ShellExec('runas')` PowerShell **once**: delete every inbound rule naming
+      the exe (the alert's block and Private-only rules — block beats allow, so these must
+      go) or in group `PinPoint Studio` (our rule for an old install path), then add one
+      rule `PinPoint Studio`, inbound, allow, program `{app}\bin\PinPointStudio.exe`,
+      profile Any. Then re-check rather than trust the exit code.
+   3. A declined UAC prompt does not fail the install: it logs, tells the user (suppressible
+      message), and the next run of the installer asks again.
+
    - **Program-scoped, not port-scoped** — narrower, and it survives a port change.
-   - **`profile=any`** — a studio PC is often classified Public, because Windows asks "do you
+   - **Profile Any** — a studio PC is often classified Public, because Windows asks "do you
      want this PC to be discoverable" on first connect and the cautious answer is No.
+   - **Path match is case-insensitive** — the alert stores the path lowercased.
+   - The `-cuda` package clears `CPACK_INNOSETUP_CODE_FILES`; it has no exe.
+   - The rule is **left on uninstall** — removing it needs the same elevation, and an
+     allow rule for a deleted exe admits nothing.
+   - Look in the Inno log (`/LOG`) for lines starting `Firewall:`.
 
    > This is the **TCP listener only**. Discovery needs no UDP 5353 rule: with the native
    > `windns.h` API (`DnsServiceRegister`, Win10 1703+) the OS resolver owns that socket and
@@ -60,7 +76,7 @@ it). After this, skip straight to the per-release checklist.
    > not to take that dependency.
 
    A standard user cannot add a firewall rule, and a UAC prompt mid-session is worse than the
-   problem, so this cannot be done at runtime. The app may *detect* and log it (`INetFwPolicy2`,
+   problem, so this cannot be done at runtime — the installer's one prompt is the place. The app may *detect* and log it (`INetFwPolicy2`,
    `INetworkListManager`) but must not nag: `PPCP-RV` 3.6a forbids treating discovery failure as
    an error state and 3.6b requires the fallback to be silent.
 

@@ -76,6 +76,11 @@ set(CPACK_INNOSETUP_PROGRAM_MENU_FOLDER "PinPoint Studio")
 set(CPACK_INNOSETUP_CREATE_UNINSTALL_LINK ON)
 set(CPACK_INNOSETUP_RUN_EXECUTABLES "PinPointStudio")
 
+# Inbound firewall rule for the PPCP / GSPro listeners: checked unelevated after every
+# install, created behind one UAC prompt only when missing or shadowed by a block rule.
+# The -cuda package clears this list (packaging/build_installer.ps1). See the file.
+set(CPACK_INNOSETUP_CODE_FILES "${CMAKE_SOURCE_DIR}/packaging/firewall_rule.pas")
+
 if(EXISTS "${CMAKE_SOURCE_DIR}/src/Resources/icons/pinpointstudio.ico")
     set(CPACK_INNOSETUP_ICON_FILE "${CMAKE_SOURCE_DIR}/src/Resources/icons/pinpointstudio.ico")
 endif()
