@@ -120,6 +120,13 @@ void addStrength(QVariantMap &m, const ConditionRow *r)
     m[QStringLiteral("strengthKnown")] = st.known;
     m[QStringLiteral("strength")]      = level;
     m[QStringLiteral("strengthExcess")]= st.known ? st.excess : 0.0;
+    m[QStringLiteral("strengthSharp")] = r && r->sharp && r->state == ShotState::Fired;
+    // A sharp firing has no distance to quote — the line itself is the fault (Condition::sharp).
+    if (r && r->sharp && r->state == ShotState::Fired) {
+        m[QStringLiteral("strengthText")] =
+            QStringLiteral("%1 of 5 · a sharp finding: crossing this line is serious in itself").arg(level);
+        return;
+    }
     // The one sentence, and it carries the number as well as the step: a meter read off a
     // tooltip should not be less precise than the receipt two lines above it. 1.0 is the
     // graded edge exactly, which is why the distance is quoted TO the edge rather than past
@@ -616,6 +623,7 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
         r.conditionId      = f.conditionId;
         r.confidence       = f.confidence;
         r.material         = f.material;
+        r.sharp            = f.sharp;
         r.pFire            = f.pFire;        // §A8.4 — −1 when not formed
         r.grossRisk        = f.grossRisk;
         r.quantified       = f.quantified;

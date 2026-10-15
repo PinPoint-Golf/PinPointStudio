@@ -174,6 +174,10 @@ inline constexpr double kDiagWilsonZ = 1.96;
 // steps outside the corridor would have nothing to say about the shots that did not fire.
 // Two steps in, four steps out, and the second boundary is exactly the graded edge.
 inline constexpr std::array<double, 5> kDiagSeveritySteps{ 0.5, 1.0, 1.5, 2.0, 3.0 };
+// A SHARP condition's firing (Condition::sharp), on the same ladder: past every corridor excess a
+// real reading reaches, so it ranks first, and on the top step of the meter. A RANK KEY, NOT A
+// MEASUREMENT — no surface prints it as a distance (addStrength words a sharp firing on its own).
+inline constexpr double kDiagSharpExcess = 1000.0;
 
 // diagnostics.json's schema tag. Bumped when the ROW shape changes, never when a gate
 // number moves — the file persists the evidence, and the gates are applied on read.
@@ -476,6 +480,10 @@ struct ConditionRow {
     // count is how a ledger starts disagreeing with the ticks drawn beside it.
     bool    material = true;
 
+    // The pack's Condition::sharp, carried like `material`: crossing the line is serious in itself,
+    // so a firing reads at the top of the strength ladder (rowStrength, kDiagSharpExcess).
+    bool    sharp = false;
+
     // Why the capture could not assess this one — "shaft occluded at P6", "ball not
     // tracked". Never blank on a NotAssessable row: the review strip prints it in the
     // slot where a corridor would go, and a blank there reads as a bug.
@@ -610,6 +618,13 @@ inline RowStrength rowStrength(const ConditionRow &r)
 {
     RowStrength out;
     if (r.state == ShotState::NotAssessable) return out;      // rule 1: we did not look
+    // A sharp condition that fired crossed a line that is serious in itself (Condition::sharp):
+    // the top of the ladder, whatever corridor there is or is not. Clean, it says nothing here.
+    if (r.sharp && r.state == ShotState::Fired) {
+        out.known  = true;
+        out.excess = kDiagSharpExcess;
+        return out;
+    }
     if (!std::isfinite(r.z)) return out;
     if (r.corridorShape == CorridorShape::None) return out;   // no band, no scale
 
@@ -1851,6 +1866,7 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
             ro[QStringLiteral("contextId")]       = r.contextId;
             ro[QStringLiteral("contextInferred")] = r.contextInferred;
             ro[QStringLiteral("material")]        = r.material;
+            if (r.sharp) ro[QStringLiteral("sharp")] = true;
             ro[QStringLiteral("notAssessableReason")] = r.notAssessableReason;
             // §A8.4 — written only when formed, so a ledger with none is byte-identical to before.
             if (r.pFire >= 0.f) {
@@ -2002,6 +2018,7 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
             r.contextId        = ro.value(QStringLiteral("contextId")).toString();
             r.contextInferred  = ro.value(QStringLiteral("contextInferred")).toBool();
             r.material         = ro.value(QStringLiteral("material")).toBool(true);
+            r.sharp            = ro.value(QStringLiteral("sharp")).toBool(false);
             r.notAssessableReason = ro.value(QStringLiteral("notAssessableReason")).toString();
             for (const QJsonValue &mv : ro.value(QStringLiteral("readings")).toArray()) {
                 const QJsonObject mo = mv.toObject();

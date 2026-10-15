@@ -275,6 +275,14 @@ struct Condition {
     // swamp the shipped content with it. The neutral rung is the only default that is harmless when
     // it is wrong. Do not "fix" this back to Rare for consistency with its neighbours.
     Prominence                  prominence   = Prominence::Occasional;
+    // A SHARP FINDING: crossing this condition's line is serious in itself, however far past it
+    // the reading went. The kinematic sequence's after-impact and out-of-order checks have no
+    // corridor, so "how far out" (the card order, the strength meter) had nothing to read and
+    // ranked them below every corridor fault — the hips peaking after the ball sat beneath knee
+    // drift on 07-04 (Mark, 15 Oct: "out of order and peaking after impact are both really bad.
+    // both should be a sharp finding"). A firing of a sharp condition ranks at the top of the
+    // strength ladder (kDiagSharpExcess). Ranking only: it moves no tier, firing or edge.
+    bool                        sharp        = false;
     Observability               observability = Observability::Observable;
     QStringList                 detectedBy;            // signal ids; empty => Latent
     // How the signals above combine. ANY is the default and the overwhelming case: a condition is

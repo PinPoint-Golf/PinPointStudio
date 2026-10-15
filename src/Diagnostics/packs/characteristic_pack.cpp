@@ -1426,6 +1426,7 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
         c.golfer     = o.value(QStringLiteral("golfer")).toString();
         c.golferWell = o.value(QStringLiteral("golferWell")).toString();
         c.golferWhy  = o.value(QStringLiteral("golferWhy")).toString();
+        c.sharp      = o.value(QStringLiteral("sharp")).toBool(false);
         c.aliases   = readStringList(o.value(QStringLiteral("aliases")));
         c.axis       = o.value(QStringLiteral("axis")).toString();
         c.detectedBy = readStringList(o.value(QStringLiteral("detectedBy")));
@@ -1687,6 +1688,7 @@ QJsonObject savePack(const CharacteristicPack &pack)
         if (!c.golfer.isEmpty()) o.insert(QStringLiteral("golfer"), c.golfer);
         if (!c.golferWell.isEmpty()) o.insert(QStringLiteral("golferWell"), c.golferWell);
         if (!c.golferWhy.isEmpty()) o.insert(QStringLiteral("golferWhy"), c.golferWhy);
+        if (c.sharp) o.insert(QStringLiteral("sharp"), true);
         if (!c.axis.isEmpty()) o.insert(QStringLiteral("axis"), c.axis);
         o.insert(QStringLiteral("group"), conditionGroupName(c.group));
         // Written unconditionally, beside the three fields they belong with — NOT omitted when they

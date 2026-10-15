@@ -109,7 +109,7 @@ Item {
             out.push({ label: lab + " inside the pass edge by", figure: fmt(Math.min(v - lo, hi - v)) })
         }
         const rc = detail ? ro.byId(conds, detail.id) : null
-        if (rc && rc.strengthKnown && rc.stateKind === "fired") out.push({ label: lab + " out by", figure: rc.strengthExcess.toFixed(1) + "×" })
+        if (rc && rc.strengthKnown && rc.stateKind === "fired") out.push({ label: lab + " out by", figure: rc.strengthSharp ? "sharp" : rc.strengthExcess.toFixed(1) + "×" })
         return out
     }
     // F64: the screened roots on the open condition's paths, and the condition itself when it is one

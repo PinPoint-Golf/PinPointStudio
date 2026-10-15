@@ -91,7 +91,9 @@ QtObject {
             const card = byId(cs, t.id), w = byId(ws, t.id)
             return { id: t.id, name: t.name, stateKind: "fired", tierTag: t.tier || "watching",
                      strengthExcess: t.strengthExcess, strengthKnown: t.strengthKnown !== false,
-                     valueText: t.strengthKnown !== false && t.strengthExcess !== undefined ? Number(t.strengthExcess).toFixed(1) + "×" : "-",
+                     strengthSharp: t.strengthSharp === true,
+                     valueText: t.strengthSharp === true ? "sharp"
+                              : t.strengthKnown !== false && t.strengthExcess !== undefined ? Number(t.strengthExcess).toFixed(1) + "×" : "-",
                      corridorText: card ? card.corridorText : "", recurrence: card ? card.recurrence : (w ? w.recurrence : ""),
                      ticks: card ? card.ticks : [], firingsAfterText: "" }
         })

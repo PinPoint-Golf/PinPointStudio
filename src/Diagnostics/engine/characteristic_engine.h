@@ -274,6 +274,9 @@ struct Finding {
     // reworded — it simply carries no weight when the explanation pass ranks root causes. See
     // ContextBinding::material, whose comment this implements.
     bool         material   = true;
+    // Condition::sharp, carried so the ledger can rank a firing at the top of the strength
+    // ladder without holding the pack. Ranking only, like `material`.
+    bool         sharp      = false;
 
     // The reading that graded this finding. See MeasureEvidence: present for Fired and NotFired
     // alike, absent for Unavailable.

@@ -4749,6 +4749,7 @@
     },
     {
       "id": "sequence_order",
+      "sharp": true,
       "label": "Out-of-order sequence",
       "golfer": "your body turns in the wrong order coming down",
       "golferWell": "your hips lead and your shoulders follow coming down",
@@ -8100,6 +8101,7 @@
     },
     {
       "id": "hips_peak_after_impact",
+      "sharp": true,
       "label": "Hips peak after impact",
       "golfer": "your hips are still speeding up after the ball",
       "golferWell": "your hips reach full speed well before the ball",
@@ -8123,6 +8125,7 @@
     },
     {
       "id": "chest_peak_after_impact",
+      "sharp": true,
       "label": "Chest peaks after impact",
       "golfer": "your chest is still speeding up after the ball",
       "golferWell": "your chest reaches full speed before the ball",
@@ -8146,6 +8149,7 @@
     },
     {
       "id": "arms_peak_after_impact",
+      "sharp": true,
       "label": "Lead arm peaks after impact",
       "golfer": "your lead arm is still speeding up after the ball",
       "golferWell": "your lead arm reaches full speed just before the ball",
@@ -8169,6 +8173,7 @@
     },
     {
       "id": "club_peak_after_impact",
+      "sharp": true,
       "label": "Club peaks after impact",
       "golfer": "the club is still speeding up after the ball",
       "golferWell": "the club reaches full speed at the ball",

@@ -540,6 +540,7 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
         Finding f;
         f.conditionId = c.id;
         f.material    = material;
+        f.sharp       = c.sharp;
 
         if (c.detectedBy.isEmpty()) {
             f.state = FindingState::Unavailable;

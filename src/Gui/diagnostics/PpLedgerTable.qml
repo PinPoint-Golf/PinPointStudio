@@ -164,7 +164,7 @@ Item {
             case "value": return { t: roles.fig(r.valueText), c: r.stateKind === "fired" ? roles.warn : r.stateKind === "notAssessable" ? roles.ink3 : roles.ink }
             case "unit": return { t: roles.unitOf(r.valueText) }
             case "corridor": return { t: roles.corridorShort(r.corridorText) }
-            case "outby": return { t: r.stateKind === "fired" && r.strengthKnown ? r.strengthExcess.toFixed(1) + "×" : "-" }
+            case "outby": return { t: r.stateKind === "fired" && r.strengthKnown ? (r.strengthSharp ? "sharp" : r.strengthExcess.toFixed(1) + "×") : "-" }
             case "strip": return { ticks: r.ticks }
             case "frac": return { t: roles.frac(r.recurrence) }
             }

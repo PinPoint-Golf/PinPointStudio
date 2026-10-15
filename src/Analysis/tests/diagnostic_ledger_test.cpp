@@ -1194,6 +1194,21 @@ int main()
         check(near(rowStrength(row(ShotState::Clean, 1.4, CorridorShape::Ceiling)).excess, 1.4, 1e-12),
               "…out past the high edge by 1.4");
 
+        // A SHARP condition (Condition::sharp): crossing the line is the fault, so a firing sits at
+        // the top of the ladder with no corridor behind it, past any real corridor excess; clean,
+        // with no corridor, it has no step at all.
+        {
+            ConditionRow sharpFired = row(ShotState::Fired, 0.0, CorridorShape::None);
+            sharpFired.sharp = true;
+            const RowStrength s = rowStrength(sharpFired);
+            check(s.known && s.excess == kDiagSharpExcess && severityLevel(s.excess) == 5,
+                  "a sharp firing with no corridor reads at the top of the ladder");
+            check(kDiagSharpExcess > 50.0, "…past every corridor excess a real reading reaches");
+            ConditionRow sharpClean = sharpFired;
+            sharpClean.state = ShotState::Clean;
+            check(!rowStrength(sharpClean).known, "…and a clean sharp row with no corridor has no step");
+        }
+
         // A FIRING NEEDS NO SHAPE, which is what lets the meter work on sessions written
         // before the shape was recorded: it can only have happened on the graded side.
         const RowStrength firedBlind = rowStrength(row(ShotState::Fired, -2.6, CorridorShape::Unknown));

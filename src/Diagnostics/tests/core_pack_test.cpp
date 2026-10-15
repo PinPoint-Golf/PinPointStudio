@@ -448,6 +448,27 @@ int main()
         check(setup && setup->confirmedBy == ConfirmedBy::Measured, "the setup route is measured");
     }
 
+    // ── Sharp findings (Condition::sharp) ───────────────────────────────────────
+    // The sequence's after-impact and out-of-order checks are sharp (Mark, 15 Oct): crossing the
+    // line is serious in itself. The flag survives a save and reload, and nothing else carries it.
+    {
+        const QStringList sharpIds = { QStringLiteral("hips_peak_after_impact"), QStringLiteral("chest_peak_after_impact"),
+                                       QStringLiteral("arms_peak_after_impact"), QStringLiteral("club_peak_after_impact"),
+                                       QStringLiteral("sequence_order") };
+        const PackLoadResult back = loadPack(savePack(p), QStringLiteral("core_sharp_roundtrip"));
+        bool all = true, roundTrip = true;
+        int  count = 0;
+        for (const QString &id : sharpIds) {
+            const Condition *c = p.condition(id), *b = back.pack.condition(id);
+            all       = all && c && c->sharp;
+            roundTrip = roundTrip && b && b->sharp;
+        }
+        for (const Condition &c : p.conditions) count += c.sharp ? 1 : 0;
+        check(all, "the four after-impact checks and the order check are sharp");
+        check(roundTrip, "…and stay sharp through a save and reload");
+        check(count == sharpIds.size(), "…and no other condition is");
+    }
+
     // ── No brand names anywhere in the content ──────────────────────────────────
     // Several conditions are named with terms popularised by a commercial screening system. The
     // TERMS are common domain and stay; the ATTRIBUTION must not enter the repo in any form — not a
