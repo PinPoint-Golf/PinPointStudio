@@ -354,6 +354,23 @@ public:
     // The count that sits beside the pips, in the state colour.
     Q_INVOKABLE int firedCountFor(int shotId) const;
 
+    // ── The kinematic sequence checks (trunk_imu_sequence_grf_design.md §10.6, E4) ──────
+    //
+    // "Sequence checks: n of m" for one shot, read off the engine's own signal verdicts that
+    // detectShot() recorded (Coaching/sequence_checks.h has the shape). Empty map for a shot not
+    // in the ledger or one recorded before schema 5.
+    Q_INVOKABLE QVariantMap sequenceChecks(int shotId) const;
+    // The session's swings best-sequenced first (§10.6: checks failed with pFire > 0.5, then
+    // Σ pFire, then clubhead speed), as shot ids; swings with no check assessed are left out.
+    // For the replay's best/worst — first is "your best-sequenced swing", last "your worst".
+    Q_INVOKABLE QVariantList sequenceRanking() const;
+    // The session's sequence consistency (F10, §10.8 E2): "In sequence on 9 of 14 swings", the
+    // peak-timing spread against the professional spread with the cohort named, and the engine's
+    // verdict on the session condition (Coaching/sequence_checks.h sequenceConsistencyToVariant has
+    // the shape). Read over the session, never one swing. The Charts KS Session view binds this and
+    // must not recompute it.
+    Q_INVOKABLE QVariantMap sequenceConsistency() const;
+
     // ── The condition detail ────────────────────────────────────────────────────────
 
     // What might have caused this condition, and what it most likely leads to, with this
@@ -520,6 +537,8 @@ private:
     // tens of shots by ~150 conditions is arithmetic no profiler will find — so there are no
     // running totals to keep correct across a back-fill or a re-activation.
     void rebuild();
+    // The session-scope conditions as ledgers, appended to m_ledgers (§10.8 E2).
+    void appendSessionScope();
 
     // The pack's causal graph, marshalled into the ledger's pack-agnostic NodeSpec/EdgeSpec.
     // See the .cpp for WHICH conditions are marshalled and why it is not all of them.
@@ -660,6 +679,7 @@ private:
 
     // ── The reduction ───────────────────────────────────────────────────────────────
     std::vector<pinpoint::analysis::ConditionLedger> m_ledgers;
+    QVariantMap                                      m_sequenceConsistency;   // appendSessionScope()
     std::vector<pinpoint::analysis::NodeSpec>        m_nodes;
     std::vector<pinpoint::analysis::EdgeSpec>        m_edges;
     std::vector<pinpoint::analysis::LinkEvidence>    m_links;

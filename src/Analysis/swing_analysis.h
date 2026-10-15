@@ -292,6 +292,13 @@ struct MetricSeries {
     std::vector<uint8_t> valid;
     bool flexPositive = true;             // stored-sign polarity (flip only at the label)
     uint8_t sigmaKind = 0;                // SigmaKind of `sigma`; 0 = unspecified (serialised only when > 0)
+    // WHICH PRODUCER ROUTE made this series ("pelvisImu", "faceOn+dtl", "faceOn", …, the
+    // catalogue's route ids) and whether that route is Direct. The diagnostics' same-scale rule
+    // for ratios reads it: two peaks from different Estimated routes are two scales, and their
+    // ratio is not a reading (trunk_imu_sequence_grf_design.md §10.7, P4). EMPTY / false means
+    // "not stated" — every series that predates the fields — and both serialise only when set.
+    QString routeId;
+    bool    routeDirect = false;
 };
 
 // Find a series by anatomical key, BEST INSTRUMENT FIRST.

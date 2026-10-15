@@ -19,6 +19,7 @@
 #include "session_diagnostics_model.h"
 
 #include "../../Diagnostics/measures/live_measure_source.h"
+#include "../../Diagnostics/measures/session_measure_source.h"
 #include "../../Diagnostics/measures/measure_facets.h"
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Diagnostics/engine/condition_reading.h"
@@ -26,6 +27,7 @@
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Diagnostics/packs/screen_pack.h"
 #include "../../Export/swing_doc.h"
+#include "../../Coaching/sequence_checks.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -571,7 +573,10 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
     // same session costs a small read rather than a second fat parse of every document.
     LiveMeasureSource src(swingDir, pack);
     src.setWithSigma(m_withSigma);
-    const LiveDetection     d = detectForSwing(src, pack, m_norms, gradePolicyByName(m_policyName));
+    // The kinematic sequence checks' signals ride the SAME call, so each is evaluated on the graded
+    // source detect() read (§10.6 E4: the tile and the diagnosis cannot disagree).
+    const LiveDetection     d = detectForSwing(src, pack, m_norms, gradePolicyByName(m_policyName),
+                                               {}, QString(), sequenceCheckSignalIds());
 
     ShotRecord rec;
     rec.shotId    = shotId;
@@ -603,6 +608,10 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
 
     rec.rows.reserve(d.result.findings.size());
     for (const Finding &f : d.result.findings) {
+        // A SESSION-scope condition has no per-swing verdict (§10.8 E2, NR-04/NR-11): its measures
+        // are refused on every swing, and a row here would draw a tick, a pip and a "not assessable"
+        // for a question no swing is asked. rebuild() reads it over the session instead.
+        if (isSessionScopeCondition(pack, f.conditionId)) continue;
         ConditionRow r;
         r.conditionId      = f.conditionId;
         r.confidence       = f.confidence;
@@ -669,6 +678,68 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
         rec.rows.push_back(std::move(r));
     }
 
+    // Each sequence check's own verdict (schema 5), and why one could not be assessed — in golfer
+    // words, naming the missing piece where the engine's refusal says which it was.
+    rec.signalRows.reserve(d.signalOutcomes.size());
+    for (const SignalOutcome &o : d.signalOutcomes) {
+        SignalRow g;
+        g.signalId = o.signalId;
+        if (o.available) {
+            g.state      = o.fired ? ShotState::Fired : ShotState::Clean;
+            g.pFire      = o.pFire;
+            g.quantified = o.quantified;
+            g.comparedWith = o.comparedWith;
+        } else {
+            g.state = ShotState::NotAssessable;
+            const QString first = o.missing.value(0);
+            SequenceGap gap = SequenceGap::Unknown;
+            switch (o.refusal) {
+            case SignalRefusal::MeasureMissing:
+                // The KS keys are emitted only for placed nodes (§10.9 P3), so "not produced" on
+                // one of them IS an unplaced node. Every other reason (no analysis, no impact)
+                // is the pipeline's, and says so in its own words below.
+                if (src.missingKind(first) == MissingKind::MetricNotProduced) gap = SequenceGap::NotPlaced;
+                break;
+            case SignalRefusal::MixedScale:  gap = SequenceGap::MixedScale;  break;
+            case SignalRefusal::Implausible: gap = SequenceGap::Implausible; break;
+            case SignalRefusal::PeakAfterImpact: gap = SequenceGap::PeakAfterImpact; break;
+            default: break;
+            }
+            g.reason = sequenceGapReason(gap, first);
+            if (gap == SequenceGap::Unknown && o.refusal == SignalRefusal::MeasureMissing) {
+                const MissingKind k = src.missingKind(first);
+                if (k != MissingKind::None && k != MissingKind::MetricNotProduced)
+                    g.reason = missingReasonText(k);
+            }
+        }
+        rec.signalRows.push_back(std::move(g));
+    }
+    // The placed peak instants the session's timing spread is reduced from (schema 6, §10.9 P8). Only
+    // placed nodes emit, so an absent value IS an unplaced node; a time a signal refused as
+    // implausible on this swing is a capture fault, not a reading, and stays out of the spread too.
+    for (const SequenceSpreadSegmentDef &seg : sequenceSpreadSegments()) {
+        const QString mid = QLatin1String(seg.measureId);
+        bool implausible = false;
+        for (const SignalOutcome &o : d.signalOutcomes)
+            if (o.refusal == SignalRefusal::Implausible && o.missing.contains(mid)) implausible = true;
+        if (implausible) continue;
+        if (const auto v = src.value(mid); v && std::isfinite(v->value)) {
+            PeakTimeRow t;
+            t.measureId = mid;
+            t.valueMs   = v->value;
+            t.sigmaMs   = v->sigma;
+            rec.peakTimes.push_back(std::move(t));
+        }
+    }
+
+    // The ranking's last tie-break: the measured clubhead speed where there is one, else ours.
+    for (const char *mid : { "m_lmClubheadSpeed", "m_clubheadSpeedImpact" }) {
+        if (const auto v = src.value(QLatin1String(mid)); v && std::isfinite(v->value)) {
+            rec.clubheadSpeed = v->value;
+            break;
+        }
+    }
+
     // Data-integrity exclusion. A shot whose recording is known broken — frames lost
     // during capture (captureIntegrity), or an IMU record that does not reproduce
     // (imuIntegrity) — is still drawn on the strip, still carries the ⚠ the card shows,
@@ -689,6 +760,13 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
             r.direction           = 0;
             r.notAssessableReason = missingReasonText(MissingKind::CaptureDataIssue);
         }
+        for (SignalRow &g : rec.signalRows) {
+            g.state      = ShotState::NotAssessable;
+            g.pFire      = -1.f;
+            g.quantified = false;
+            g.reason     = missingReasonText(MissingKind::CaptureDataIssue);
+        }
+        rec.peakTimes.clear();
     }
 
     out.record           = std::move(rec);
@@ -1048,6 +1126,7 @@ void SessionDiagnosticsModel::recordScreenResult(const QString &conditionId, boo
 void SessionDiagnosticsModel::rebuild()
 {
     m_ledgers  = conditionLedgers(m_shots, m_opt);
+    appendSessionScope();
     m_coverage = sessionCoverage(m_ledgers, m_packProv ? int(m_packProv->pack().conditions.size()) : 0);
 
     buildGraph();
@@ -1108,6 +1187,86 @@ void SessionDiagnosticsModel::rebuild()
     emit surfaceChanged();
     if (!m_detailConditionId.isEmpty()) emit detailChanged();
 }
+
+// THE SESSION-SCOPE CONDITIONS (trunk_imu_sequence_grf_design.md §10.8 E2, F10).
+//
+// Reduced from the shot records — the persisted order-check verdicts and placed peak instants —
+// by sessionSequenceConsistency() (Coaching/sequence_checks.h), handed to the engine as the
+// session-scope measures' readings, and evaluated by the SAME detect() every swing goes through, so
+// the threshold, σ → pFire and ANY rules are the engine's own. Each session-scope finding becomes one
+// ledger that says what the session decided and nothing about any swing: its run is all
+// NotAssessable, it never sits on a ShotRecord (detectShot drops it), and every per-shot surface
+// skips it. Its magnitude is 0, so it ranks after every per-swing pattern that has a gradeable
+// excess — dispersion is shown, never ranked over a measured breakdown — and it enters the
+// explanation exactly like any other ledger, with its pFire as P(Pattern).
+void SessionDiagnosticsModel::appendSessionScope()
+{
+    m_sequenceConsistency.clear();
+    if (!m_packProv) return;
+    const CharacteristicPack &pack = m_packProv->pack();
+
+    const SessionSequenceConsistency c = sessionSequenceConsistency(m_shots, m_opt);
+
+    SessionMeasureSource src(pack);
+    if (c.share.available) {
+        MeasureReading r;
+        r.value = c.share.value;   // the Wilson bound IS its uncertainty: no σ, a hard verdict (P7)
+        src.set(QStringLiteral("m_ksOrderShare"), r);
+    }
+    if (c.spread.available) {
+        MeasureReading r;
+        r.value = c.spread.value;
+        if (m_withSigma && std::isfinite(c.spread.sigma) && c.spread.sigma > 0.0) {
+            r.measSigma = c.spread.sigma;
+            r.sigmaSrc  = SigmaSource::Reading;
+        }
+        src.set(QStringLiteral("m_ksTimingSpread"), r);
+    }
+
+    const DetectionResult det = detect(pack, src);
+    const int n = int(m_shots.size());
+    bool published = false;
+    for (const Finding &f : det.findings) {
+        if (!isSessionScopeCondition(pack, f.conditionId)) continue;
+
+        ConditionLedger L;
+        L.id           = f.conditionId;
+        L.sessionScope = true;
+        L.run.assign(size_t(n), ShotState::NotAssessable);
+        L.zRun.assign(size_t(n), std::numeric_limits<double>::quiet_NaN());
+        L.drivingMeasureId = f.evidence.hasEvidence ? f.evidence.drivingMeasureId
+                                                    : QStringLiteral("m_ksOrderShare");
+        const bool assessed = f.state != FindingState::Unavailable;
+        if (assessed) {
+            L.assessable = c.share.available
+                               ? c.share.resolved
+                               : (c.spread.available ? c.spread.segments[size_t(c.spread.best)].n : 0);
+            L.fired         = c.share.available ? c.share.resolved - c.share.inOrder : 0;
+            L.effAssessable = c.share.effN;
+            L.effFired      = c.share.effOut;
+            L.wilsonLower   = c.share.lowerOut;
+            L.tier          = f.state == FindingState::Fired ? Tier::Pattern : Tier::Clean;
+            const double hard = L.tier == Tier::Pattern ? 1.0 : 0.0;
+            L.pPattern = (m_opt.softTier && f.pFire >= 0.f) ? double(f.pFire) : hard;
+        }
+        L.recurrence = sequenceConsistencyLine(c);
+        m_ledgers.push_back(std::move(L));
+
+        if (!published) {
+            const QString state = f.state == FindingState::Fired    ? QStringLiteral("fired")
+                                : f.state == FindingState::NotFired ? QStringLiteral("clean")
+                                                                    : QStringLiteral("na");
+            m_sequenceConsistency = sequenceConsistencyToVariant(c, state, assessed ? double(f.pFire) : -1.0);
+            m_sequenceConsistency.insert(QStringLiteral("conditionId"), f.conditionId);
+            published = true;
+        }
+    }
+    // The readings are published even with no session-scope condition in the pack: the line is a
+    // count, and a surface may show it without a verdict.
+    if (!published) m_sequenceConsistency = sequenceConsistencyToVariant(c, QStringLiteral("na"), -1.0);
+}
+
+QVariantMap SessionDiagnosticsModel::sequenceConsistency() const { return m_sequenceConsistency; }
 
 // WHICH CONDITIONS ARE MARSHALLED INTO THE GRAPH, and why it is not all of them.
 //
@@ -1273,7 +1432,16 @@ void SessionDiagnosticsModel::refreshExplanation()
         // each DISTINCT set is explained once and the draw list holds copies.
         std::vector<Explanation> drawn;
         QHash<QString, int>      seen;
-        for (const QSet<QString> &pat : patternDraws(m_shots, m_opt)) {
+        // patternDraws() knows only the per-swing rows, so each session-scope ledger joins every
+        // draw by its own deterministic Bernoulli(P(Pattern)) — the same share of draws the row
+        // draws would have given it, on a stream of its own so the row draws are untouched.
+        std::vector<std::pair<QString, double>> sessionP;
+        for (const ConditionLedger &l : m_ledgers)
+            if (l.sessionScope && l.assessable >= 1) sessionP.push_back({ l.id, l.pPattern });
+        DetRng sessionRng(m_opt.mcSeed ^ 0x5E5510A5E5510A5Eull);
+        for (QSet<QString> pat : patternDraws(m_shots, m_opt)) {
+            for (const auto &sp : sessionP)
+                if (sessionRng.uniform() < sp.second) pat.insert(sp.first);
             QStringList key(pat.begin(), pat.end());
             key.sort();
             const QString k = key.join(QLatin1Char('|'));
@@ -2074,7 +2242,7 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
 QVariantMap SessionDiagnosticsModel::spreadOf(const QString &conditionId) const
 {
     const ConditionLedger *l = ledger(conditionId);
-    if (!l) return QVariantMap();
+    if (!l || l->sessionScope) return QVariantMap();   // no per-swing readings to spread
     const int fi = focusIndex();
     return spreadFor(*l, fi, (m_reviewing || m_closed) ? fi : -1);
 }
@@ -2332,7 +2500,9 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
 QVariantMap SessionDiagnosticsModel::historyOf(const QString &conditionId) const
 {
     const ConditionLedger *l = ledger(conditionId);
-    return l ? historyFor(*l, focusIndex()) : QVariantMap();
+    // A session-scope condition has no per-swing rows for a past session's ledger to re-derive
+    // from (conditionLedgers() never synthesises it), so there is no history to draw yet.
+    return (l && !l->sessionScope) ? historyFor(*l, focusIndex()) : QVariantMap();
 }
 
 // ── Zone 1: the header ──────────────────────────────────────────────────────────────────
@@ -2672,6 +2842,46 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
 {
     const QString id   = l.id;
     const QString unit = measureUnitOf(l.drivingMeasureId);
+    // A SESSION-scope card (§10.8 E2): the session's count and spread, no tick run, no strength
+    // meter, no this-shot state — there is no swing whose verdict it could show (NR-04, NR-11).
+    if (l.sessionScope) {
+        QVariantMap c;
+        c[QStringLiteral("id")]                 = id;
+        c[QStringLiteral("name")]               = conditionName(id);
+        c[QStringLiteral("consequence")]        = consequenceOf(id);
+        c[QStringLiteral("tier")]               = tierTag(l.tier);
+        c[QStringLiteral("measureId")]          = l.drivingMeasureId;
+        c[QStringLiteral("measure")]            = measureLabelOf(l.drivingMeasureId);
+        c[QStringLiteral("phase")]              = QString();
+        c[QStringLiteral("recurrence")]         = l.recurrence;
+        c[QStringLiteral("fired")]              = l.fired;
+        c[QStringLiteral("assessable")]         = l.assessable;
+        c[QStringLiteral("fresh")]              = false;
+        c[QStringLiteral("resolving")]          = false;
+        c[QStringLiteral("focused")]            = id == m_focusConditionId;
+        c[QStringLiteral("ticks")]              = QVariantList();
+        c[QStringLiteral("spread")]             = QVariantMap();
+        c[QStringLiteral("sessionScope")]       = true;
+        c[QStringLiteral("consistency")]        = m_sequenceConsistency;
+        c[QStringLiteral("directionClaimed")]   = true;
+        c[QStringLiteral("directionAgreement")] = 1.0;
+        c[QStringLiteral("directionText")]      = QString();
+        c[QStringLiteral("trendKnown")]         = false;
+        c[QStringLiteral("trend")]              = QStringLiteral("stable");
+        c[QStringLiteral("trendArrow")]         = QString();
+        c[QStringLiteral("trendText")]          = m_sequenceConsistency.value(QStringLiteral("whose")).toString();
+        c[QStringLiteral("recencyText")]        = m_sequenceConsistency.value(QStringLiteral("spreadLine")).toString();
+        c[QStringLiteral("thisShot")]           = QStringLiteral("session");
+        c[QStringLiteral("statePill")]          = QStringLiteral("SESSION");
+        c[QStringLiteral("valueText")]          = l.recurrence;
+        c[QStringLiteral("corridorText")]       = m_sequenceConsistency.value(QStringLiteral("spreadLine")).toString();
+        c[QStringLiteral("sessionExcess")]      = l.firingExcess;
+        c[QStringLiteral("rankText")]           = m_rankText.value(id);
+        c[QStringLiteral("reachesBall")]        = m_reachesBall.value(id, false);
+        c[QStringLiteral("rootHere")]           = m_rootHere.value(id, false);
+        c[QStringLiteral("evidence")]           = consequenceOf(id);
+        return c;
+    }
     {
         QVariantMap c;
         c[QStringLiteral("id")]          = id;
@@ -3369,7 +3579,7 @@ QVariantMap SessionDiagnosticsModel::shotReadout(int shotId) const
 
     for (const QString &id : std::as_const(ordered)) {
         const ConditionLedger *l = ledger(id);
-        if (!l || l->assessable < 1) continue;
+        if (!l || l->assessable < 1 || l->sessionScope) continue;   // no per-swing verdict (§10.8 E2)
 
         const ConditionRow *r = rowFor(shot, id);
         const ShotState st = r ? r->state : ShotState::NotAssessable;
@@ -3496,13 +3706,30 @@ QVariantList SessionDiagnosticsModel::pipsFor(int shotId) const
 
     for (const QString &id : std::as_const(ordered)) {
         const ConditionLedger *l = ledger(id);
-        if (!l || l->assessable < 1) continue;
+        if (!l || l->assessable < 1 || l->sessionScope) continue;   // no per-swing verdict (§10.8 E2)
         const ConditionRow *r = rowFor(shot, id);
         out.append(QVariantMap{
             { QStringLiteral("id"),    id },
             { QStringLiteral("state"), shotStateKind(r ? r->state : ShotState::NotAssessable) },
         });
     }
+    return out;
+}
+
+QVariantMap SessionDiagnosticsModel::sequenceChecks(int shotId) const
+{
+    const int idx = indexOfShot(shotId);
+    if (idx < 0) return {};
+    return sequenceChecksToVariant(sequenceChecksOf(m_shots[size_t(idx)]));
+}
+
+QVariantList SessionDiagnosticsModel::sequenceRanking() const
+{
+    std::vector<SequenceRankEntry> entries;
+    entries.reserve(m_shots.size());
+    for (const ShotRecord &s : m_shots) entries.push_back(sequenceRankEntryOf(s));
+    QVariantList out;
+    for (int id : rankBySequence(std::move(entries))) out << id;
     return out;
 }
 

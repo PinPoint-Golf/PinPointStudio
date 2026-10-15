@@ -377,6 +377,12 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
             for (const uint8_t f : m.valid) vd.append(int(f));
             sm.insert(QStringLiteral("valid"), vd);
         }
+        // The producer route (MetricSeries::routeId), present only when stated — swing_doc.cpp's
+        // rule, mirrored in disk_replay_source.cpp.
+        if (!m.routeId.isEmpty())
+            sm.insert(QStringLiteral("routeId"), m.routeId);
+        if (m.routeDirect)
+            sm.insert(QStringLiteral("routeDirect"), true);
         series.append(sm);
     }
     QVariantList phases;

@@ -952,7 +952,10 @@ QVariantMap sequenceBlock(Ctx &c)
              { QStringLiteral("links"), links },
              { QStringLiteral("note"), note.toVariant() },
              { QStringLiteral("proNote"), QStringLiteral("% of pro: the tour average, Cheetham 2008") },
-             { QStringLiteral("table"), rows } };
+             { QStringLiteral("table"), rows },
+             // "Sequence checks: n of m" (§10.6 E4) — the engine's own verdicts, as the ledger row
+             // carries them (Coaching/sequence_checks.h). Empty when the shot has none recorded.
+             { QStringLiteral("checks"), c.shot->diagnostics.sequenceChecks } };
 }
 
 QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::vector<int> &dotKinds)

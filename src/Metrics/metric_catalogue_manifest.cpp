@@ -1938,6 +1938,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
                 QStringLiteral("the hip span's cosine unfolded across the square-up and "
                                "differentiated, with the uncertainty propagated through 1/sin θ")) },
+        .usedBy = { QStringLiteral("characteristic:no_pelvis_braking") },
     });
 
     cat.addDescriptor({
@@ -2128,7 +2129,321 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the peak of the two-camera skeleton's shoulder-line turn rate")),
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
                 QStringLiteral("the peak of the face-on shoulder span's turn rate, only where in sight")) },
-        .usedBy = { QStringLiteral("characteristic:sequence_order") },
+        .usedBy = { QStringLiteral("characteristic:sequence_order"),
+                    QStringLiteral("characteristic:arms_before_chest") },
+    });
+
+    // ── The rest of the PLACED nodes (segment_rates.h sequenceNodeSeries, 2026-10-14) ───────────────
+    //
+    // What the kinematic-sequence checks read (trunk_imu_sequence_grf_design.md §10.4): the arm and
+    // club peak instants beside the trunk's, the four peak speeds the hand-off ratios divide, and the
+    // trunk reversals the transition-order check compares. Each is one Impact sample from the node
+    // the Sequence object placed — one peak finder, one σ — and carries that node's route on the
+    // series, so a ratio of two peaks from two different Estimated routes can be refused (§10.7). An
+    // unplaced node emits nothing. The routes mirror the angular-speed series each is read from.
+    // `usedBy` is filled when the pack's measures land (diagnostics_catalogue_integrity_test checks
+    // the claim in both directions).
+    const auto pelvisRungs = [&](const char *what) -> std::vector<MetricRoute> {
+        const QString w = QString::fromUtf8(what);
+        return {
+            via("pelvisImu", RM::Inertial, Direct, { .imuRoles = { R::Pelvis } },
+                w + QStringLiteral(" the pelvis gyro's vertical rate")),
+            via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                w + QStringLiteral(" the two-view hip-line turn rate (uncalibrated)")),
+            via("faceOn+dtl3d", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                w + QStringLiteral(" the two-camera skeleton's hip-line turn rate")),
+            via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
+                w + QStringLiteral(" the face-on hip span's turn rate, only where in sight")) };
+    };
+    const auto thoraxRungs = [&](const char *what) -> std::vector<MetricRoute> {
+        const QString w = QString::fromUtf8(what);
+        return {
+            via("thoraxImu", RM::Inertial, Direct, { .imuRoles = { R::Thorax } },
+                w + QStringLiteral(" the thorax gyro's vertical rate")),
+            via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                w + QStringLiteral(" the two-view shoulder-line turn rate (uncalibrated)")),
+            via("faceOn+dtl3d", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                w + QStringLiteral(" the two-camera skeleton's shoulder-line turn rate")),
+            via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
+                w + QStringLiteral(" the face-on shoulder span's turn rate, only where in sight")) };
+    };
+    const auto armRungs = [&](const char *what) -> std::vector<MetricRoute> {
+        const QString w = QString::fromUtf8(what);
+        return {
+            via("leadArmImus", RM::Inertial, Direct, { .imuRoles = { R::LeadForearm } },
+                w + QStringLiteral(" the lead-arm gyro's component across the arm")),
+            via("faceOn+dtl3d", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                w + QStringLiteral(" the two-camera skeleton's shoulder→wrist line rate, in the arm's own plane")),
+            via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
+                w + QStringLiteral(" the de-projected shoulder→wrist image angle rate")) };
+    };
+    const auto clubRungs = [&](const char *what) -> std::vector<MetricRoute> {
+        const QString w = QString::fromUtf8(what);
+        return {
+            via("clubSensorFused", RM::Fused, Direct, { .imuRoles = { R::Club }, .clubTrack = true },
+                w + QStringLiteral(" the club sensor's gyro across the shaft")),
+            via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true,
+                                                         .clubTrack = true },
+                w + QStringLiteral(" the triangulated shaft vector's angular speed"), PLANNED),
+            via("faceOnClub", RM::Projected, Estimated, { .faceOnCamera = true, .clubTrack = true },
+                w + QStringLiteral(" the tracker's de-projected shaft angle rate")) };
+    };
+
+    cat.addDescriptor({
+        .key = QStringLiteral("leadArmPeakTime"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Lead arm speed peak"),
+        .shortLabel = QStringLiteral("Arm peak"),
+        .unit = QStringLiteral("ms"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("cornflower"),
+        .description = QStringLiteral(
+            "When the lead arm reached its top swing speed in the downswing, in milliseconds relative "
+            "to impact — negative is before the ball. The third link of the kinematic sequence, the "
+            "one that hands speed to the club. Reported only when the sequence could place the peak "
+            "with confidence."),
+        .howToRead = QStringLiteral(
+            "Professionals peak the lead arm about 60 ms before impact, close behind the chest. An "
+            "arm that peaks before the chest is the amateur pattern. Absent means the peak could not "
+            "be placed."),
+        .signPositive = QStringLiteral("the peak came after impact"),
+        .signNegative = QStringLiteral("the peak came before impact"),
+        .phases = { P::Impact },
+        .routes = armRungs("the peak instant of"),
+        .usedBy = { QStringLiteral("characteristic:arms_before_chest") },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("clubPeakTime"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Club speed peak"),
+        .shortLabel = QStringLiteral("Club peak"),
+        .unit = QStringLiteral("ms"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("lavender"),
+        .description = QStringLiteral(
+            "When the club reached its top swing speed, in milliseconds relative to impact — negative "
+            "is before the ball. The last link of the kinematic sequence. Reported only when the "
+            "sequence could place the peak with confidence."),
+        .howToRead = QStringLiteral(
+            "Professionals peak the club at impact or just after, last of the four. A club that peaks "
+            "well before the ball gave some of its speed back before it arrived. Absent means the "
+            "peak could not be placed."),
+        .signPositive = QStringLiteral("the peak came after impact"),
+        .signNegative = QStringLiteral("the peak came before impact"),
+        .phases = { P::Impact },
+        .routes = clubRungs("the peak instant of"),
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("pelvisPeakSpeed"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Pelvis peak turning speed"),
+        .shortLabel = QStringLiteral("Pelvis peak ω"),
+        .unit = QStringLiteral("°/s"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("crimson"),
+        .description = QStringLiteral(
+            "The pelvis's top turning speed in the downswing, in degrees per second — the height of "
+            "the first peak of the kinematic sequence. A speed, so never negative. Reported only when "
+            "the sequence could place the peak."),
+        .howToRead = QStringLiteral(
+            "Professionals peak the pelvis around 480 °/s. Read it against the chest's peak: each link "
+            "should be faster than the one before it. A pelvis IMU measures it; the camera estimates "
+            "it, and the two are not compared with each other."),
+        .signPositive = QStringLiteral("a faster peak — a speed, never negative"),
+        .signNegative = QString(),
+        .phases = { P::Impact },
+        .routes = pelvisRungs("the peak of"),
+        .usedBy = { QStringLiteral("characteristic:chest_not_faster_than_hips"), QStringLiteral("characteristic:no_pelvis_braking") },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("thoraxPeakSpeed"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Chest peak turning speed"),
+        .shortLabel = QStringLiteral("Chest peak ω"),
+        .unit = QStringLiteral("°/s"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("mint"),
+        .description = QStringLiteral(
+            "The chest's top turning speed in the downswing, in degrees per second — the height of "
+            "the second peak of the kinematic sequence. A speed, so never negative. Reported only when "
+            "the sequence could place the peak."),
+        .howToRead = QStringLiteral(
+            "Professionals peak the chest around 730 °/s, about one and a half times their pelvis. A "
+            "chest barely faster than the hips is speed the chain did not add. A thorax IMU measures "
+            "it; the camera estimates it."),
+        .signPositive = QStringLiteral("a faster peak — a speed, never negative"),
+        .signNegative = QString(),
+        .phases = { P::Impact },
+        .routes = thoraxRungs("the peak of"),
+        .usedBy = { QStringLiteral("characteristic:chest_not_faster_than_hips"), QStringLiteral("characteristic:arms_ride_the_turn") },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("leadArmPeakSpeed"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Lead arm peak speed"),
+        .shortLabel = QStringLiteral("Arm peak ω"),
+        .unit = QStringLiteral("°/s"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("cornflower"),
+        .description = QStringLiteral(
+            "The lead arm's top swing speed in the downswing, in degrees per second — the height of "
+            "the third peak of the kinematic sequence. Reported only when the sequence could place "
+            "the peak."),
+        .howToRead = QStringLiteral(
+            "Professionals peak the lead arm around 980 °/s, a little faster than their chest. An arm "
+            "much faster than a slow chest is swinging with the arms."),
+        .signPositive = QStringLiteral("a faster peak — a speed, never negative"),
+        .signNegative = QString(),
+        .phases = { P::Impact },
+        .routes = armRungs("the peak of"),
+        .usedBy = { QStringLiteral("characteristic:arms_ride_the_turn"), QStringLiteral("characteristic:club_not_released") },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("clubPeakSpeed"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Club peak speed"),
+        .shortLabel = QStringLiteral("Club peak ω"),
+        .unit = QStringLiteral("°/s"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("lavender"),
+        .description = QStringLiteral(
+            "The club's top swing speed about the swing plane, in degrees per second — the height of "
+            "the last peak of the kinematic sequence. Reported only when the sequence could place the "
+            "peak."),
+        .howToRead = QStringLiteral(
+            "Professionals peak the club around 2250 °/s, more than double the lead arm — the biggest "
+            "gain in the chain. A small gain over the arm is speed lost at the last hand-off."),
+        .signPositive = QStringLiteral("a faster peak — a speed, never negative"),
+        .signNegative = QString(),
+        .phases = { P::Impact },
+        .routes = clubRungs("the peak of"),
+        .usedBy = { QStringLiteral("characteristic:club_not_released") },
+    });
+
+    // The reversals: the signed rate's zero crossing into the downswing — the crossing that opens
+    // the positive lobe holding the node's peak (segment_rates.h findRateReversal). Not "the first
+    // crossing after the top": the top is the club's, and the hips reverse before it.
+    cat.addDescriptor({
+        .key = QStringLiteral("pelvisReversalTime"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Hips start down"),
+        .shortLabel = QStringLiteral("Hips reverse"),
+        .unit = QStringLiteral("ms"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("crimson"),
+        .description = QStringLiteral(
+            "When the hips stopped turning back and started turning toward the target, in "
+            "milliseconds relative to impact — negative is before the ball. The instant the pelvis's "
+            "turning speed crosses zero on its way to its downswing peak. Reported only when the "
+            "sequence placed the pelvis peak and the crossing was in the record."),
+        .howToRead = QStringLiteral(
+            "In an efficient transition the hips start down first, before the chest and before the "
+            "club has finished going back. Read it beside the chest's: the hips should lead."),
+        .signPositive = QStringLiteral("the hips started down after impact"),
+        .signNegative = QStringLiteral("the hips started down before impact"),
+        .phases = { P::Impact },
+        .routes = pelvisRungs("the downswing zero crossing of"),
+        .usedBy = { QStringLiteral("characteristic:upper_body_starts_down") },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("thoraxReversalTime"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Chest starts down"),
+        .shortLabel = QStringLiteral("Chest reverses"),
+        .unit = QStringLiteral("ms"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("mint"),
+        .description = QStringLiteral(
+            "When the chest stopped turning back and started turning toward the target, in "
+            "milliseconds relative to impact — negative is before the ball. The instant the chest's "
+            "turning speed crosses zero on its way to its downswing peak. Reported only when the "
+            "sequence placed the chest peak and the crossing was in the record."),
+        .howToRead = QStringLiteral(
+            "In an efficient transition the chest starts down just after the hips. A chest that "
+            "starts down at the same moment as the hips, or before them, is the upper body starting "
+            "the downswing."),
+        .signPositive = QStringLiteral("the chest started down after impact"),
+        .signNegative = QStringLiteral("the chest started down before impact"),
+        .phases = { P::Impact },
+        .routes = thoraxRungs("the downswing zero crossing of"),
+        .usedBy = { QStringLiteral("characteristic:upper_body_starts_down") },
+    });
+
+    // ── The session's sequence consistency (trunk_imu_sequence_grf_design.md §10.4, F10) ────────
+    //
+    // Read over a SESSION, not a swing: the share of swings in the professional order and the
+    // spread of the placed peak instants. Both are what the literature says separates skill — a
+    // repeatable order and a tight timing spread — where no single swing's timing against a
+    // published mean may be graded (NR-11). The route is the session-scope reducer (§10.8 E2).
+    cat.addDescriptor({
+        .key = QStringLiteral("ksOrderShare"),
+        .type = MetricType::Summary,
+        .label = QStringLiteral("Swings in sequence"),
+        .shortLabel = QStringLiteral("In sequence"),
+        .unit = QStringLiteral("ratio"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("crimson"),
+        .description = QStringLiteral(
+            "The share of a session's swings whose kinematic sequence came in the professional order "
+            "(hips, chest, lead arm, club), counted only over the swings whose four peaks were all "
+            "placed, and stated as the generous upper end of what that count supports (the Wilson "
+            "upper bound), so a short session is never accused of an order it has not shown."),
+        .howToRead = QStringLiteral(
+            "Closer to 1 means the same order swing after swing. Below about a half, the body fires "
+            "in a different order from one swing to the next — read the swings that broke the order "
+            "beside the ones that kept it."),
+        .signPositive = QStringLiteral("more of the session's swings came in the professional order"),
+        .signNegative = QStringLiteral("fewer of the session's swings came in order"),
+        .phases = { P::Impact },
+        .routes = {
+            // ALL FOUR nodes placed, so the club's: every club rung needs the shaft track, which a
+            // face-on camera supplies — that is the smallest rig that can place the whole chain.
+            via("session", RM::Derived, Estimated, { .faceOnCamera = true, .clubTrack = true },
+                QStringLiteral("the share of the session's fully placed sequences in professional "
+                               "order, Wilson upper bound (design §10.9 P7)")) },
+        .usedBy = { QStringLiteral("characteristic:inconsistent_sequence") },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("ksTimingSpread"),
+        .type = MetricType::Summary,
+        .label = QStringLiteral("Peak-timing spread"),
+        .shortLabel = QStringLiteral("Timing spread"),
+        .unit = QStringLiteral("ratio"),
+        .group = QStringLiteral("Tempo & sequence"),
+        .color = QStringLiteral("cornflower"),
+        .description = QStringLiteral(
+            "How much the instants of the hips', chest's and lead arm's speed peaks wander across a "
+            "session, as the largest of the three spreads divided by the spread among touring "
+            "professionals (19, 14 and 8 ms; Cheetham 2008). One is a professional's repeatability; "
+            "two is twice as loose."),
+        .howToRead = QStringLiteral(
+            "Lower is more repeatable. Above two, at least one link of the chain fires at a "
+            "different moment from swing to swing by more than twice what professionals show. It "
+            "says nothing about any one swing's timing, only about how much it repeats."),
+        .signPositive = QStringLiteral("the peak instants wander more from swing to swing"),
+        .signNegative = QStringLiteral("the peak instants repeat more tightly"),
+        .phases = { P::Impact },
+        .routes = {
+            // ANY ONE of the three timed segments, off whichever rung places it: the face-on
+            // camera (every segment's projected rung) or a single body sensor on its own segment.
+            via("session", RM::Derived, Estimated, { .faceOnCamera = true },
+                QStringLiteral("the largest per-segment SD of the placed peak instants over the "
+                               "session, pooled within club, less the mean measurement variance, "
+                               "over the professional SD (design §10.9 P8)")),
+            via("sessionLeadArmImu", RM::Derived, Estimated, { .imuRoles = { R::LeadForearm } },
+                QStringLiteral("the lead arm's peak-instant spread over the session, off its sensor")),
+            via("sessionPelvisImu", RM::Derived, Estimated, { .imuRoles = { R::Pelvis } },
+                QStringLiteral("the hips' peak-instant spread over the session, off their sensor")),
+            via("sessionThoraxImu", RM::Derived, Estimated, { .imuRoles = { R::Thorax } },
+                QStringLiteral("the chest's peak-instant spread over the session, off its sensor")) },
+        .usedBy = { QStringLiteral("characteristic:inconsistent_sequence") },
     });
 
     // ------------------------------------------------ Feet & stance (whole-body pose, face-on, 2D)

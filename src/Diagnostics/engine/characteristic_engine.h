@@ -101,6 +101,17 @@ struct MeasureReading {
     // confidence is demoted for this — see the engine.
     bool    contextInferred = false;
 
+    // ── Which scale the number is on (trunk_imu_sequence_grf_design.md §10.7, E3) ───────────
+    //
+    // `route` names the producer route the value came from (a KS node's routeId: "pelvisImu",
+    // "faceOn+dtl", …); `direct` says it came from a Direct rung — a worn sensor, not a camera
+    // estimate. Read only by the ratio test, which compares two readings and is meaningless
+    // across two scales: a camera route's scale error cancels in a quotient only when both halves
+    // carry it. Empty route + direct false = the producer says nothing about its route, which is
+    // every measure that predates this field.
+    QString route;
+    bool    direct = false;
+
     // Build a graded reading from a bare corridor, for producers that have a band but no Norm.
     //
     // Use this rather than setting hasCorridor by hand: a reading with a corridor and a default
@@ -291,6 +302,47 @@ struct DetectionResult {
     QStringList    fired() const;
     QStringList    unavailable() const;
 };
+
+// ── One signal on its own (trunk_imu_sequence_grf_design.md §10.6, E4) ────────────────────
+//
+// WHY a signal could not be assessed. detect() folds this into "unavailable" plus the measures it
+// names, which is all a condition's verdict needs; a surface that lists the signals one by one (the
+// kinematic sequence checks) has to say WHICH refusal it was, because "the chest peak was never
+// placed" and "the two peaks came off two different scales" ask the golfer for different things.
+enum class SignalRefusal {
+    None,                    // it was assessed
+    UnknownSignal,           // no signal with this id in the pack
+    MeasureMissing,          // a measure it reads produced no value on this swing (`missing` names it)
+    Malformed,               // the signal reads the wrong number of measures for its test (a pack bug)
+    NoCorridor,              // a corridor test with no corridor to grade against
+    Implausible,             // a reading the norm does not believe — a capture fault, not a verdict
+    MixedScale,              // a ratio of two readings off two scales (§10.7 E3, sameScale())
+    NonPositiveDenominator,  // a ratio over zero, a negative or a NaN
+    PeakAfterImpact,         // the signal's requiresBeforeImpact time came at or after impact
+};
+
+// One signal's verdict, as detect() reaches it for a condition. pFire/quantified/grossRisk follow
+// Finding's conventions: −1 / false / −1 when not available; an unquantified pFire is the hard
+// verdict restated (1 or 0), never an invented probability.
+struct SignalOutcome {
+    QString       signalId;
+    bool          available  = false;
+    bool          fired      = false;
+    float         pFire      = -1.f;
+    bool          quantified = false;
+    float         grossRisk  = -1.f;
+    SignalRefusal refusal    = SignalRefusal::UnknownSignal;
+    QStringList   missing;   // the measures behind a refusal, as detect() records them
+    // An order test that fell back down its chain: the link it was actually compared with. Empty
+    // when it compared the two measures it names (or was not assessed).
+    QString       comparedWith;
+};
+
+// Evaluate ONE signal of the pack against `source`, through the same code path detect() uses for a
+// condition's signals. Hand it detect()'s own source and the two cannot disagree. A signal no
+// condition reads yet (sig_clubBeforeArm until D27) is evaluated all the same.
+SignalOutcome evaluateSignal(const CharacteristicPack &pack, const QString &signalId,
+                             const IMeasureSource &source);
 
 // Evaluate every Observable condition in the pack. Latent conditions are not evaluated here — they
 // have no signals by definition and are resolved by the explanation pass from what they explain.

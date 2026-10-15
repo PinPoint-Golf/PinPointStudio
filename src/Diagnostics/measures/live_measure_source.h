@@ -78,6 +78,8 @@ enum class MissingKind {
     PhaseNotSegmented,          // the metric is here, but a phase the reducer needs was never found
     CaptureDataIssue,           // the recording itself is known broken (frames lost, IMU record
                                 // inconsistent) — every row on the shot is withheld, not just one measure
+    SessionScope,               // read over the session's swings (MeasureScope::Session), never off one
+                                // swing — the session model reduces it (§10.8 E2)
 };
 
 // The sentence a not-assessable cell shows. Generic on purpose — see the header comment on why
@@ -168,6 +170,9 @@ struct LiveDetection {
     DetectionResult result;
     QString         club;        // as recorded on the swing
     QString         contextId;   // the tree node it was graded at
+    // The signals the caller asked for by id (`signalIds` below), each evaluated on the SAME graded
+    // source detect() read, in the order asked — the kinematic sequence checks (§10.6, E4).
+    std::vector<SignalOutcome> signalOutcomes;
 };
 
 // `contextIdOverride` wins when non-empty. See LiveMeasureSource::club() for the case that needs
@@ -178,6 +183,7 @@ struct LiveDetection {
 LiveDetection detectForSwing(const LiveMeasureSource &values, const CharacteristicPack &pack,
                              const std::shared_ptr<const INormProvider> &norms,
                              const GradePolicy &policy = {}, const Cohort &athlete = {},
-                             const QString &contextIdOverride = QString());
+                             const QString &contextIdOverride = QString(),
+                             const QStringList &signalIds = QStringList());
 
 } // namespace pinpoint::analysis

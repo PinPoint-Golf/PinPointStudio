@@ -312,6 +312,11 @@ const Measure *measureForMetricAtPhase(const CharacteristicPack &pack,
 
 // True when this measure is a change from address — the flag a corridor carries so a consumer knows
 // whether to plot it against the raw curve or against Δ-from-address.
+// True when every measure behind every one of the condition's signals is read over the SESSION
+// (MeasureScope::Session) — a condition with no per-swing verdict (§10.8 E2). False for a condition
+// with no signals.
+bool isSessionScopeCondition(const CharacteristicPack &pack, const QString &conditionId);
+
 bool measureIsDeltaFromAddress(const Measure &m);
 
 } // namespace pinpoint::analysis

@@ -1257,6 +1257,77 @@ int main()
               "a closure over a cyclic pack terminates and still reports what it reached");
     }
 
+    // ── Measure scope (trunk_imu_sequence_grf_design.md §10.8 E2) ───────────────────────────
+    std::printf("\nmeasure scope\n");
+    {
+        // scope_roundtrip
+        CharacteristicPack p = goodPack();
+        check(p.measures.front().scope == MeasureScope::Swing, "a measure that says nothing is read per swing");
+        check(!savePack(p).value(QStringLiteral("measures")).toArray().at(0).toObject()
+                   .contains(QStringLiteral("scope")),
+              "…and writes no scope key");
+
+        Measure sm;
+        sm.id             = QStringLiteral("sessionShare");
+        sm.kind           = MeasureKind::Provided;
+        sm.metricKey      = QStringLiteral("sessionShare");
+        sm.reducer.kind   = ReducerKind::At;
+        sm.reducer.anchor = Phase::Impact;
+        sm.status         = MeasureStatus::Live;
+        sm.scope          = MeasureScope::Session;
+        p.measures.push_back(sm);
+        Signal ss;
+        ss.id        = QStringLiteral("sigSessionShare");
+        ss.test      = SignalTest::Threshold;
+        ss.measures  = { sm.id };
+        ss.direction = Direction::Low;
+        ss.threshold = 0.5;
+        p.signalDefs.push_back(ss);
+
+        const PackLoadResult res = loadPack(savePack(p), QStringLiteral("scope"));
+        const Measure *m = res.pack.measure(QStringLiteral("sessionShare"));
+        check(m && m->scope == MeasureScope::Session, "scope_roundtrip: a session measure survives a save/load");
+        check(!hasError(res.report, "unknownScope") && !hasError(res.report, "mixedScope")
+                  && !hasError(res.report, "sessionScopeNotProvided"),
+              "…and loads with no scope error");
+
+        QJsonObject root = savePack(p);
+        QJsonArray  ms   = root.value(QStringLiteral("measures")).toArray();
+        QJsonObject first = ms.at(0).toObject();
+        first.insert(QStringLiteral("scope"), QStringLiteral("sesion"));
+        ms.replace(0, first);
+        root.insert(QStringLiteral("measures"), ms);
+        check(hasError(loadPack(root, QStringLiteral("scope-typo")).report, "unknownScope"),
+              "an unknown scope token is refused");
+
+        // mixedScope_lint
+        CharacteristicPack mixed = p;
+        for (Condition &c : mixed.conditions)
+            if (c.id == QLatin1String("stanceWide")) c.detectedBy << QStringLiteral("sigSessionShare");
+        check(hasError(validatePack(mixed), "mixedScope"),
+              "mixedScope_lint: one condition read by a session measure AND a swing measure is refused");
+        check(!isSessionScopeCondition(mixed, QStringLiteral("stanceWide")), "…and is not session-scope");
+
+        CharacteristicPack alone = p;
+        Condition c;
+        c.id            = QStringLiteral("sessionOnly");
+        c.label         = c.id;
+        c.group         = ConditionGroup::Setup;
+        c.kind          = ConditionKind::Setup;
+        c.observability = Observability::Observable;
+        c.confirmedBy   = ConfirmedBy::Measured;
+        c.state         = ConditionState::Draft;
+        c.detectedBy    = { QStringLiteral("sigSessionShare") };
+        alone.conditions.push_back(c);
+        check(!hasError(validatePack(alone), "mixedScope") && isSessionScopeCondition(alone, c.id),
+              "…a condition read only over the session is session-scope and lints clean");
+
+        CharacteristicPack composed = p;
+        composed.measures.front().scope = MeasureScope::Session;
+        check(hasError(validatePack(composed), "sessionScopeNotProvided"),
+              "a composed (per-swing facet) measure cannot be read over the session");
+    }
+
     std::printf("%s (%d failure%s)\n", g_fail ? "FAILED" : "OK", g_fail, g_fail == 1 ? "" : "s");
     return g_fail ? 1 : 0;
 }

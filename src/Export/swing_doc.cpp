@@ -294,6 +294,13 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
             for (const uint8_t f : m.valid) vd.append(int(f));
             mo.insert(QStringLiteral("valid"), vd);
         }
+        // The producer route and its quality (MetricSeries::routeId), same optional-absence
+        // contract: written only when the producer stated a route, so every other series
+        // serialises byte-identically. The phase grid (measure_sample.cpp) is the reader.
+        if (!m.routeId.isEmpty())
+            mo.insert(QStringLiteral("routeId"), m.routeId);
+        if (m.routeDirect)
+            mo.insert(QStringLiteral("routeDirect"), true);
         metrics.append(mo);
     }
     o[QStringLiteral("metrics")] = metrics;

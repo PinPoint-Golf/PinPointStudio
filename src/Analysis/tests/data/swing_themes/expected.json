@@ -8381,9 +8381,17 @@
    "drill": "",
    "when": 1
   },
+  "arms_before_chest": {
+   "drill": "",
+   "when": 7
+  },
   "arms_over_connected": {
    "drill": "",
    "when": 3
+  },
+  "arms_ride_the_turn": {
+   "drill": "",
+   "when": 7
   },
   "attack_too_shallow": {
    "drill": "",
@@ -8441,6 +8449,10 @@
    "drill": "drill.wristHold",
    "when": 6
   },
+  "chest_not_faster_than_hips": {
+   "drill": "",
+   "when": 7
+  },
   "chicken_wing": {
    "drill": "",
    "when": 8
@@ -8450,6 +8462,10 @@
    "when": 7
   },
   "closed_face_to_path": {
+   "drill": "",
+   "when": 7
+  },
+  "club_not_released": {
    "drill": "",
    "when": 7
   },
@@ -8629,6 +8645,10 @@
    "drill": "",
    "when": 7
   },
+  "inconsistent_sequence": {
+   "drill": "",
+   "when": 7
+  },
   "inside_takeaway": {
    "drill": "",
    "when": 2
@@ -8738,6 +8758,10 @@
    "when": 7
   },
   "low_point_too_far_ahead": {
+   "drill": "",
+   "when": 7
+  },
+  "no_pelvis_braking": {
    "drill": "",
    "when": 7
   },
@@ -8980,6 +9004,10 @@
   "under_plane_stuck": {
    "drill": "drill.gateForPath",
    "when": 6
+  },
+  "upper_body_starts_down": {
+   "drill": "",
+   "when": 7
   },
   "weight_back_at_finish": {
    "drill": "drill.holdTheFinish",

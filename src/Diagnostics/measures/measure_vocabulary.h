@@ -82,6 +82,24 @@ enum class MeasureStatus {
 // decision made where the signal is written — not something a loader infers from what happens to
 // be plugged in.
 
+// WHAT A MEASURE IS READ OVER: one swing's phases, or the session's swings
+// (trunk_imu_sequence_grf_design.md §10.8 E2, §10.9 P7/P8). A Session measure has no per-swing value
+// at all — LiveMeasureSource refuses it (MissingKind::SessionScope) and the session model reduces it
+// from the session's shot records — so a condition read by one is never given a per-swing verdict
+// (NR-04, NR-11). Absent in JSON => Swing, which is every measure authored before scopes existed.
+enum class MeasureScope { Swing, Session };
+
+inline QString measureScopeName(MeasureScope s)
+{
+    return s == MeasureScope::Session ? QStringLiteral("session") : QStringLiteral("swing");
+}
+inline bool measureScopeFromName(const QString &s, MeasureScope &out)
+{
+    if (s == QLatin1String("swing"))   { out = MeasureScope::Swing;   return true; }
+    if (s == QLatin1String("session")) { out = MeasureScope::Session; return true; }
+    return false;
+}
+
 // Which way a measure's corridor is open.
 //
 // ON THE MEASURE, NOT THE NORM, and that is the load-bearing decision. One-sidedness is semantics
@@ -162,6 +180,9 @@ struct Measure {
     // Which way this quantity's corridor is open. See Shape. Absent in JSON => Target, so every
     // measure authored before shapes existed keeps grading exactly as it did.
     Shape         shape      = Shape::Target;
+
+    // Read over one swing (the default) or over the session's swings. See MeasureScope.
+    MeasureScope  scope      = MeasureScope::Swing;
 
     // What a HIGH value of this measure means, in the measure's own words — "further back, toward
     // the trail foot". Rendered wherever a signal's direction is chosen, INSTEAD of High/Low.
@@ -244,6 +265,16 @@ struct Signal {
     // and Ratio — whose quotient cannot key a norm at all. Required on both and refused on the
     // other two, which inherit their numbers from the catalogue (signalThreshold).
     std::optional<double>    threshold;
+    // ORDER ONLY: the links further down the chain, in order, tried when measures[1] produced no
+    // value. The kinematic sequence is a chain — hips, chest, lead arm, club — and a link this
+    // capture never placed must not end the check: the hips are compared with the next link that
+    // WAS placed. An order signal with no fallback is the plain two-event test.
+    QStringList              fallback;
+    // A time-from-impact measure (ms, negative = before impact) that must be BEFORE impact for this
+    // signal to mean anything; at or after impact the signal is not assessable (PeakAfterImpact).
+    // Hip braking is the case: speed at impact over peak speed reads "slowed down" when the peak
+    // has not happened yet and the hips are still speeding up through the ball.
+    QString                  requiresBeforeImpact;
 };
 
 // ── Enum <-> string (the JSON spelling) ─────────────────────────────────────

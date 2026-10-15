@@ -859,8 +859,11 @@ int main()
         // superseded peaks to the corridor editor with nothing anywhere saying so.
         // Schema 5 (session_diagnostics_design.md §A8.3) added each value's measurement σ — additive,
         // numbers unchanged, but a v4 sidecar has no σ to serve, so it too must be retired.
-        check(kPhaseGridSchemaVersion == 5,
-              "the sidecar schema is 5: closed spans, no zero-width span, no endpoint seed, σ carried");
+        // Schema 6 (trunk_imu_sequence_grf_design.md §10.7 E3) added each metric's route: a v5
+        // sidecar serves none, and "no route on either half" PERMITS a ratio, so a stale cache would
+        // let through the cross-scale quotient the same-scale rule refuses.
+        check(kPhaseGridSchemaVersion == 6,
+              "the sidecar schema is 6: closed spans, no zero-width span, no endpoint seed, σ and route carried");
         for (const int old : { 2, 3 }) {
             QJsonObject prev = doc;
             prev.insert(QStringLiteral("schema"), old);

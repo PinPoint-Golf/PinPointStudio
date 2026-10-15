@@ -46,6 +46,10 @@ ColumnLayout {
     // The host owns the state (and persists it); the title line asks for the toggle.
     property bool collapsed: false
     signal toggled()
+    // "Sequence checks: n of m" (trunk_imu_sequence_grf_design.md §10.6, E4): the shape
+    // SessionDiagnosticsModel.sequenceChecks(shotId) publishes, read off the ENGINE's own signal
+    // verdicts — never re-derived from kinematicSequence. null / {} draws no line.
+    property var  checks: null
 
     spacing: Theme.gap(6)
 
@@ -182,6 +186,96 @@ ColumnLayout {
                         text: seg.modelData.pctText
                         Layout.fillWidth: true
                         font.weight: Font.DemiBold
+                    }
+                }
+            }
+
+            // ── Sequence checks: one quiet line, a mark per check; hover lists them, a tap pins ──
+            Item {
+                id: chk
+                objectName: "sequenceChecks"
+                readonly property var cs: root.checks && root.checks.checks ? root.checks : null
+                readonly property var list: cs ? cs.checks : []
+                property bool pinned: false
+                readonly property bool open: pinned || chkHover.hovered
+                function ink(state) {
+                    return state === "fail" ? Theme.colorWarn : state === "pass" ? Theme.colorGood
+                         : state === "unsure" ? Theme.colorText2 : Theme.colorText3
+                }
+                visible: !root.collapsed && !!cs
+                Layout.fillWidth: true
+                implicitHeight: chkCol.implicitHeight + Theme.sp(4)
+                HoverHandler { id: chkHover; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: chk.pinned = !chk.pinned }
+                Column {
+                    id: chkCol
+                    y: Theme.sp(4)
+                    width: parent.width
+                    spacing: Theme.gap(3)
+                    Item {
+                        width: parent.width
+                        height: chkLine.implicitHeight
+                        // The marks' face, unseen, so the marks' row can sit on the line's baseline.
+                        CellText { id: chkMarkProbe; visible: false; text: "✓"; font.weight: Font.Bold }
+                        Row {
+                            id: chkRow
+                            spacing: Theme.gap(10)
+                            CellText { id: chkLine; objectName: "sequenceChecksLine"
+                                       text: chk.cs ? chk.cs.line : ""
+                                       font.family: Theme.fontBody; font.weight: Font.Medium }
+                            // A Row places x only, so each child's y puts its baseline on the line's.
+                            Row {
+                                objectName: "sequenceChecksMarks"
+                                y: chkLine.baselineOffset - chkMarkProbe.baselineOffset
+                                spacing: Theme.gap(4)
+                                Repeater {
+                                    model: chk.list
+                                    delegate: CellText {
+                                        required property var modelData
+                                        objectName: "sequenceCheckMark:" + modelData.facet
+                                        text: modelData.mark
+                                        font.weight: Font.Bold
+                                        color: chk.ink(modelData.state)
+                                    }
+                                }
+                            }
+                            Text {
+                                id: chkGap
+                                objectName: "sequenceChecksGap"
+                                y: chkLine.baselineOffset - baselineOffset
+                                visible: text !== ""
+                                width: Math.max(0, Math.min(implicitWidth, chk.width - x - chkWhose.implicitWidth - Theme.sp(12)))
+                                elide: Text.ElideRight
+                                text: chk.cs ? (chk.cs.gapNote || "") : ""
+                                font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
+                                color: Theme.colorText3
+                            }
+                        }
+                        Text {
+                            id: chkWhose
+                            anchors.right: parent.right
+                            y: chkLine.baselineOffset - baselineOffset
+                            visible: chk.width - chkGap.x > implicitWidth + Theme.sp(12)
+                            text: chk.cs ? chk.cs.whose : ""
+                            font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro
+                            color: Theme.colorText3
+                        }
+                    }
+                    Repeater {
+                        model: chk.open ? chk.list : []
+                        delegate: Row {
+                            required property var modelData
+                            objectName: "sequenceCheck:" + modelData.facet
+                            spacing: Theme.gap(8)
+                            Text { width: Theme.sp(16); horizontalAlignment: Text.AlignHCenter
+                                   text: modelData.mark; font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
+                                   font.weight: Font.Bold; color: chk.ink(modelData.state) }
+                            Text { width: root._wLabel + root._wRank + Theme.sp(40); text: modelData.label
+                                   font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText }
+                            Text { width: Math.max(0, chk.width - root._wLabel - root._wRank - Theme.sp(80))
+                                   elide: Text.ElideRight; text: modelData.detail
+                                   font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }
+                        }
                     }
                 }
             }

@@ -29,12 +29,15 @@
 //   ctest --test-dir build/analysis-tests -R session_diagnostics_model --output-on-failure
 
 #include "../../Gui/diagnostics/session_diagnostics_model.h"
+#include "../../Coaching/sequence_checks.h"
+#include "../engine/characteristic_engine.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
@@ -44,6 +47,7 @@
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#include <map>
 #include <memory>
 
 using namespace pinpoint::analysis;
@@ -272,6 +276,592 @@ static std::unique_ptr<SessionDiagnosticsModel> freshModel(const QString &cadenc
     m->setSynchronous(true);
     m->setCadence(cadence);
     return m;
+}
+
+// A measure source holding exactly what a test puts in it — for evaluateSignal's refusals.
+class SeqFakeSource final : public IMeasureSource {
+public:
+    void add(const QString &id, double v, double sigma, const QString &route = QString(), bool direct = false)
+    {
+        MeasureReading r;
+        r.value     = v;
+        r.measSigma = sigma;
+        r.route     = route;
+        r.direct    = direct;
+        m_r[id]     = r;
+    }
+    std::optional<MeasureReading> read(const QString &id) const override
+    {
+        const auto it = m_r.find(id);
+        return it == m_r.end() ? std::nullopt : std::optional<MeasureReading>(it->second);
+    }
+private:
+    std::map<QString, MeasureReading> m_r;
+};
+
+static SignalRow seqRow(const char *sid, ShotState st, float p, bool q, const char *reason = "")
+{
+    SignalRow g;
+    g.signalId   = QLatin1String(sid);
+    g.state      = st;
+    g.pFire      = p;
+    g.quantified = q;
+    g.reason     = QString::fromUtf8(reason);
+    return g;
+}
+
+// ── K4: the kinematic sequence checks (trunk_imu_sequence_grf_design.md §10.6, E4) ─────────
+static void sequenceChecksSuite(const QTemporaryDir &tmp)
+{
+    std::printf("\nsequence checks\n");
+
+    // The state rule, at and either side of each edge.
+    auto st = [](ShotState s, float p, bool q) { return sequenceCheckStateOf(seqRow("x", s, p, q)); };
+    check(st(ShotState::NotAssessable, -1.f, false) == SequenceCheckState::NotAssessable, "unavailable: —");
+    check(st(ShotState::Fired, 0.95f, true) == SequenceCheckState::Fail,   "pFire 0.95: ✗");
+    check(st(ShotState::Fired, 0.80f, true) == SequenceCheckState::Fail,   "pFire 0.80 exactly: ✗");
+    check(st(ShotState::Fired, 0.55f, true) == SequenceCheckState::Unsure, "pFire 0.55, fired: ?");
+    check(st(ShotState::Clean, 0.45f, true) == SequenceCheckState::Unsure, "pFire 0.45, clean: ?");
+    check(st(ShotState::Clean, 0.20f, true) == SequenceCheckState::Pass,   "pFire 0.20 exactly: ✓");
+    check(st(ShotState::Fired, 1.f, false) == SequenceCheckState::Fail,    "unquantified fired: ✗");
+    check(st(ShotState::Clean, 0.f, false) == SequenceCheckState::Pass,    "unquantified clean: ✓");
+
+    // The reasons a "—" gives.
+    check(sequenceGapReason(SequenceGap::NotPlaced, QStringLiteral("m_thoraxPeakTime"))
+              == QLatin1String("chest peak not placed from these cameras"),
+          "an unplaced chest node: \"chest peak not placed from these cameras\"");
+    check(sequenceGapReason(SequenceGap::NotPlaced, QStringLiteral("m_pelvisSpeedImpact"))
+              == QLatin1String("hip speed at impact not measured from these cameras"),
+          "the hips' speed at impact is measured, not placed");
+    check(sequenceGapReason(SequenceGap::MixedScale, QStringLiteral("m_thoraxPeakSpeed"))
+              == QLatin1String("needs both peaks from one route"),
+          "a same-scale refusal: \"needs both peaks from one route\"");
+    check(sequenceGapReason(SequenceGap::Unknown, QString()) == QLatin1String("not measured on this swing")
+              && sequenceGapReason(SequenceGap::NotPlaced, QStringLiteral("m_other")) == QLatin1String("not measured on this swing"),
+          "anything else falls back to \"not measured on this swing\"");
+
+    // A shot: two ✓, three ✗, one ?, four —.
+    const QString unplaced = QStringLiteral("chest peak not placed from these cameras");
+    const std::vector<SignalRow> rows{
+        seqRow("sig_pelvisBeforeImpact", ShotState::Fired,      0.91f, true),
+        seqRow("sig_thoraxBeforeImpact", ShotState::NotAssessable, -1.f, false, "chest peak not placed from these cameras"),
+        seqRow("sig_sequenceOrder",   ShotState::Clean,         0.10f, true),
+        seqRow("sig_armBeforeThorax", ShotState::Fired,         0.95f, true),
+        seqRow("sig_clubBeforeArm",   ShotState::Clean,         0.50f, true),
+        seqRow("sig_thoraxGainLow",   ShotState::NotAssessable, -1.f, false, "chest peak not placed from these cameras"),
+        seqRow("sig_armGainLow",      ShotState::NotAssessable, -1.f, false, "chest peak not placed from these cameras"),
+        seqRow("sig_clubGainLow",     ShotState::Clean,         0.f,  false),
+        seqRow("sig_noPelvisBraking", ShotState::Fired,         1.f,  false),
+        seqRow("sig_transitionOrder", ShotState::NotAssessable, -1.f, false),   // no reason recorded
+    };
+    const SequenceChecks sc = sequenceChecksOf(rows);
+    check(sc.recorded && sc.checks.size() == 10, "ten checks: the impact anchors F0 and F0c, F1–F7 and F9");
+    check(sc.checks[0].facet == QLatin1String("F0") && sc.checks[2].facet == QLatin1String("F1")
+              && sc.checks[9].facet == QLatin1String("F9"),
+          "…in facet order");
+    check(sc.passed == 2 && sc.assessable == 6 && sc.notAssessable == 4, "n = 2 (✓), m = 6 (✓ + ✗ + ?), four —");
+    check(std::fabs(sc.expectedPassed - 2.54) < 1e-6, "expected count Σ(1 − pFire) over the assessable = 2.54");
+    check(std::fabs(sc.sumPFire - 3.46) < 1e-6 && sc.failedLikely == 3, "Σ pFire 3.46, three failed with pFire > 0.5");
+    check(sc.checks[9].reason == QLatin1String("not measured on this swing"), "a — with no recorded reason still says why");
+    check(sequenceChecksLine(sc) == QLatin1String("Sequence checks: 2 of 6"), "the line: \"Sequence checks: 2 of 6\"");
+    check(sequenceChecksGapNote(sc) == unplaced, "the gap note is the most common reason");
+    const QVariantMap v = sequenceChecksToVariant(sc);
+    const QVariantList vl = v.value(QStringLiteral("checks")).toList();
+    QString marks;
+    for (const QVariant &c : vl) marks += c.toMap().value(QStringLiteral("mark")).toString();
+    check(marks == QStringLiteral("✗—✓✗?——✓✗—"), "the marks, in order: ✗—✓✗?——✓✗—");
+    check(v.value(QStringLiteral("whose")).toString() == QLatin1String("PinPoint's own count"),
+          "labelled PinPoint's own count");
+    check(vl.value(5).toMap().value(QStringLiteral("detail")).toString() == unplaced
+              && vl.value(4).toMap().value(QStringLiteral("detail")).toString() == QLatin1String("too close to call on this swing")
+              && vl.value(2).toMap().value(QStringLiteral("detail")).toString() == QLatin1String("Do the hips peak before the chest?"),
+          "the hover detail: the reason for —, the doubt for ?, the question otherwise");
+    const SequenceChecks none = sequenceChecksOf(std::vector<SignalRow>{});
+    check(!none.recorded && none.checks.empty() && sequenceChecksToVariant(none).isEmpty(),
+          "a shot recorded before schema 5: nothing, not a row of —");
+
+    // THE CHAIN FALLS BACK, AND SAYS SO. The 4 July shape: no chest peak placed, the hips peaking
+    // after the lead arm. The check reads as the pair it actually compared.
+    {
+        std::vector<SignalRow> fb = rows;
+        for (SignalRow &g : fb)
+            if (g.signalId == QLatin1String("sig_sequenceOrder")) {
+                g.state = ShotState::Fired; g.pFire = 1.f; g.comparedWith = QStringLiteral("m_leadArmPeakTime");
+            }
+        const SequenceChecks f = sequenceChecksOf(fb);
+        check(f.checks[2].label == QLatin1String("Hips before lead arm") && f.checks[2].state == SequenceCheckState::Fail,
+              "a fallen-back hips check is labelled with the link it compared: \"Hips before lead arm\" ✗");
+        const std::vector<ShotRecord> back = fromJson(toJson(std::vector<ShotRecord>{ [&] { ShotRecord r; r.shotId = 1; r.signalRows = fb; return r; }() }));
+        check(back.size() == 1 && back[0].signalRows[2].comparedWith == QLatin1String("m_leadArmPeakTime"),
+              "comparedWith survives diagnostics.json (schema 7)");
+    }
+    check(sequenceGapReason(SequenceGap::PeakAfterImpact, QStringLiteral("m_pelvisPeakTime"))
+              == QLatin1String("hip peak came after impact, so there was no slowing to read"),
+          "hip braking with the peak after impact: says why, never a pass");
+    std::vector<SignalRow> allNa;
+    for (const QString &sid : sequenceCheckSignalIds())
+        allNa.push_back(seqRow(qPrintable(sid), ShotState::NotAssessable, -1.f, false, "chest peak not placed from these cameras"));
+    const SequenceChecks na = sequenceChecksOf(allNa);
+    check(na.assessable == 0 && sequenceChecksLine(na) == QLatin1String("Sequence checks: none assessed")
+              && sequenceChecksGapNote(na) == unplaced,
+          "a tile full of — says so, and why");
+
+    // The §10.6 ordering.
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    std::vector<SequenceRankEntry> ents{
+        { 1, 5, 1, 1.2, 90.0 },   // one likely failure: last of the ranked
+        { 2, 5, 0, 0.4, 80.0 },
+        { 3, 5, 0, 0.4, 85.0 },   // same as 2, faster clubhead: ahead of it
+        { 4, 5, 0, 0.3, nan },    // fewest expected failures: first, speed or not
+        { 5, 0, 0, 0.0, 99.0 },   // nothing assessed: not ranked
+        { 6, 5, 0, 0.4, nan },    // no speed: after the measured ties
+    };
+    const std::vector<int> order = rankBySequence(ents);
+    check(order == std::vector<int>({ 4, 3, 2, 6, 1 }),
+          "ranking: failed (pFire > 0.5) fewest first, then Σ pFire, then clubhead speed; unassessed left out");
+
+    // The ledger round trip (schema 5).
+    {
+        ShotRecord r;
+        r.shotId = 7;
+        r.signalRows = rows;
+        r.clubheadSpeed = 87.5;
+        const std::vector<ShotRecord> one{ r };
+        const std::vector<ShotRecord> back = fromJson(toJson(one));
+        const bool same = back.size() == 1 && back[0].signalRows.size() == rows.size()
+                          && back[0].clubheadSpeed == 87.5
+                          && sequenceChecksToVariant(sequenceChecksOf(back[0])) == v;
+        check(same, "signal rows and clubhead speed survive diagnostics.json");
+    }
+
+    // The engine's refusal causes, through evaluateSignal (the call detectShot makes).
+    {
+        CharacteristicPack p;
+        Signal r;
+        r.id        = QStringLiteral("sig_thoraxGainLow");
+        r.test      = SignalTest::Ratio;
+        r.measures  = { QStringLiteral("m_thoraxPeakSpeed"), QStringLiteral("m_pelvisPeakSpeed") };
+        r.direction = Direction::Low;
+        r.threshold = 1.22;
+        p.signalDefs.push_back(r);
+
+        SeqFakeSource mixed;
+        mixed.add(QStringLiteral("m_thoraxPeakSpeed"), 700, 30, QStringLiteral("faceOn+dtl"));
+        mixed.add(QStringLiteral("m_pelvisPeakSpeed"), 500, 30, QStringLiteral("pelvisImu"), true);
+        const SignalOutcome om = evaluateSignal(p, r.id, mixed);
+        check(!om.available && om.refusal == SignalRefusal::MixedScale, "two routes: refused as MixedScale");
+
+        SeqFakeSource missing;
+        missing.add(QStringLiteral("m_pelvisPeakSpeed"), 500, 30);
+        const SignalOutcome mm = evaluateSignal(p, r.id, missing);
+        check(!mm.available && mm.refusal == SignalRefusal::MeasureMissing
+                  && mm.missing.value(0) == QLatin1String("m_thoraxPeakSpeed"),
+              "an absent chest peak: MeasureMissing, naming it");
+
+        SeqFakeSource one;
+        one.add(QStringLiteral("m_thoraxPeakSpeed"), 550, 30, QStringLiteral("pelvisImu"), true);
+        one.add(QStringLiteral("m_pelvisPeakSpeed"), 500, 30, QStringLiteral("thoraxImu"), true);
+        const SignalOutcome ok = evaluateSignal(p, r.id, one);
+        check(ok.available && ok.fired && ok.quantified && ok.pFire > 0.8f && ok.refusal == SignalRefusal::None,
+              "two Direct rungs, 1.10 < 1.22: fired, with a σ-based pFire");
+        check(evaluateSignal(p, QStringLiteral("sig_nope"), one).refusal == SignalRefusal::UnknownSignal,
+              "an id not in the pack: UnknownSignal");
+    }
+
+    // THE SEQUENCE IS ANCHORED TO IMPACT — the 4 July 2026 swing 8 numbers: hips +20 ms after impact
+    // (σ 15), no chest peak placed, lead arm −107 ms (σ 12), club −49 ms (σ 9).
+    {
+        CharacteristicPack p;
+        Signal o;
+        o.id       = QStringLiteral("sig_sequenceOrder");
+        o.test     = SignalTest::Order;
+        o.measures = { QStringLiteral("m_pelvisPeakTime"), QStringLiteral("m_thoraxPeakTime") };
+        o.fallback = { QStringLiteral("m_leadArmPeakTime"), QStringLiteral("m_clubPeakTime") };
+        p.signalDefs.push_back(o);
+        Signal t;
+        t.id        = QStringLiteral("sig_pelvisBeforeImpact");
+        t.test      = SignalTest::Threshold;
+        t.measures  = { QStringLiteral("m_pelvisPeakTime") };
+        t.direction = Direction::High;
+        t.threshold = 0.0;
+        p.signalDefs.push_back(t);
+        Signal b;
+        b.id        = QStringLiteral("sig_noPelvisBraking");
+        b.test      = SignalTest::Ratio;
+        b.measures  = { QStringLiteral("m_pelvisSpeedImpact"), QStringLiteral("m_pelvisPeakSpeed") };
+        b.direction = Direction::High;
+        b.threshold = 0.95;
+        b.requiresBeforeImpact = QStringLiteral("m_pelvisPeakTime");
+        p.signalDefs.push_back(b);
+
+        SeqFakeSource s8;
+        s8.add(QStringLiteral("m_pelvisPeakTime"), 20.051, 15.19);
+        s8.add(QStringLiteral("m_leadArmPeakTime"), -107.224, 12.15);
+        s8.add(QStringLiteral("m_clubPeakTime"), -48.898, 9.13);
+        s8.add(QStringLiteral("m_pelvisSpeedImpact"), 503.0, 40.0, QStringLiteral("faceOn+dtl"));
+        s8.add(QStringLiteral("m_pelvisPeakSpeed"), 863.3, 152.0, QStringLiteral("faceOn+dtl"));
+        const SignalOutcome so = evaluateSignal(p, o.id, s8);
+        check(so.available && so.fired && so.pFire > 0.99f && so.comparedWith == QLatin1String("m_leadArmPeakTime"),
+              "no chest peak: the hips are compared with the lead arm, and peak 127 ms after it — fired");
+        const SignalOutcome si = evaluateSignal(p, t.id, s8);
+        check(si.available && si.fired && si.quantified && std::fabs(si.pFire - 0.907f) < 0.01f,
+              "hips peaking 20 ± 15 ms after impact: the impact check fires, pFire Φ(20/15) = 0.91");
+        const SignalOutcome sb = evaluateSignal(p, b.id, s8);
+        check(!sb.available && sb.refusal == SignalRefusal::PeakAfterImpact
+                  && sb.missing.value(0) == QLatin1String("m_pelvisPeakTime"),
+              "hip braking with the hip peak after impact: not assessable, never \"they slowed\"");
+
+        SeqFakeSource armOnly;   // no chest, no arm: the club is the next placed link
+        armOnly.add(QStringLiteral("m_pelvisPeakTime"), -80.0, 15.0);
+        armOnly.add(QStringLiteral("m_clubPeakTime"), -10.0, 9.0);
+        const SignalOutcome sc2 = evaluateSignal(p, o.id, armOnly);
+        check(sc2.available && !sc2.fired && sc2.comparedWith == QLatin1String("m_clubPeakTime"),
+              "…and down to the club when the arm is not placed either; hips first is a pass");
+
+        SeqFakeSource own;       // the chest placed: the check compares its own pair, no fallback
+        own.add(QStringLiteral("m_pelvisPeakTime"), -80.0, 15.0);
+        own.add(QStringLiteral("m_thoraxPeakTime"), -60.0, 15.0);
+        own.add(QStringLiteral("m_leadArmPeakTime"), -100.0, 12.0);
+        const SignalOutcome sown = evaluateSignal(p, o.id, own);
+        check(sown.available && !sown.fired && sown.comparedWith.isEmpty(),
+              "with the chest placed, the hips are judged against the chest alone");
+
+        SeqFakeSource alone;     // nothing later placed: unavailable, naming the chest
+        alone.add(QStringLiteral("m_pelvisPeakTime"), -80.0, 15.0);
+        const SignalOutcome sa = evaluateSignal(p, o.id, alone);
+        check(!sa.available && sa.refusal == SignalRefusal::MeasureMissing
+                  && sa.missing.value(0) == QLatin1String("m_thoraxPeakTime"),
+              "no later link placed: not assessable, naming the chest");
+
+        SeqFakeSource early;     // a hip peak before impact: braking is read as before
+        early.add(QStringLiteral("m_pelvisPeakTime"), -60.0, 15.0);
+        early.add(QStringLiteral("m_pelvisSpeedImpact"), 503.0, 40.0, QStringLiteral("faceOn+dtl"));
+        early.add(QStringLiteral("m_pelvisPeakSpeed"), 863.3, 152.0, QStringLiteral("faceOn+dtl"));
+        const SignalOutcome se = evaluateSignal(p, b.id, early);
+        check(se.available && !se.fired, "hip peak before impact: braking is graded (0.58 of peak, they slowed)");
+    }
+
+    // End to end: the model records each check off the engine and serves it back.
+    {
+        const QString dir = makeSession(tmp, "athlete_k4", "session_k4");
+        check(stageShot(dir, 1, "rich_7iron") && stageShot(dir, 2, "sparse_noclub"), "two swings staged");
+        auto m = freshModel();
+        m->activateSession(dir);
+        m->ingestShot(1, swingDirFor(dir, 1));
+        m->ingestShot(2, swingDirFor(dir, 2));
+        const QVariantMap c1 = m->sequenceChecks(1);
+        const QVariantList l1 = c1.value(QStringLiteral("checks")).toList();
+        check(l1.size() == 10, "the model serves ten checks for a shot");
+        bool reasons = true;
+        for (const QVariant &c : l1) {
+            const QVariantMap cm = c.toMap();
+            std::printf("      %s %s  %s\n", qPrintable(cm.value(QStringLiteral("mark")).toString()),
+                        qPrintable(cm.value(QStringLiteral("facet")).toString()),
+                        qPrintable(cm.value(QStringLiteral("detail")).toString()));
+            if (cm.value(QStringLiteral("state")).toString() == QLatin1String("na")
+                && cm.value(QStringLiteral("reason")).toString().isEmpty())
+                reasons = false;
+        }
+        check(reasons, "…every — carries its reason");
+        std::printf("      %s · %s\n", qPrintable(c1.value(QStringLiteral("line")).toString()),
+                    qPrintable(c1.value(QStringLiteral("gapNote")).toString()));
+        check(m->sequenceChecks(99).isEmpty(), "a shot not in the ledger: empty");
+        const QJsonObject j = diagnosticsJsonOf(dir);
+        const QJsonArray shots = j.value(QStringLiteral("ledger")).toObject().value(QStringLiteral("shots")).toArray();
+        check(!shots.isEmpty() && shots.first().toObject().value(QStringLiteral("signals")).toArray().size() == 10,
+              "diagnostics.json carries the ten signal rows");
+        const QVariantList rank = m->sequenceRanking();
+        bool subset = true;
+        for (const QVariant &id : rank) subset = subset && (id.toInt() == 1 || id.toInt() == 2);
+        check(subset, "the ranking names only the session's shots");
+
+        auto again = freshModel();
+        again->activateSession(dir);
+        check(again->sequenceChecks(1) == c1, "a re-activation reads the same checks back from disk");
+    }
+}
+
+// ── K5: the session's sequence consistency (§10.6 F10, §10.8 E2, §10.9 P7/P8) ─────────────────
+
+// A shot whose three order checks read `order`: 'i' in order, 'o' out of order (one fired), 'n' not
+// resolved (a chest peak unplaced: F1 and F2 not assessable).
+static ShotRecord consistencyShot(int id, char order, const QString &club = QStringLiteral("7 iron"))
+{
+    ShotRecord r;
+    r.shotId = id;
+    r.club   = club;
+    const bool na = order == 'n', out = order == 'o';
+    r.signalRows.push_back(seqRow("sig_sequenceOrder", na ? ShotState::NotAssessable : ShotState::Clean,
+                                  na ? -1.f : 0.f, false));
+    r.signalRows.push_back(seqRow("sig_armBeforeThorax", na ? ShotState::NotAssessable
+                                                            : (out ? ShotState::Fired : ShotState::Clean),
+                                  na ? -1.f : (out ? 1.f : 0.f), false));
+    r.signalRows.push_back(seqRow("sig_clubBeforeArm", ShotState::Clean, 0.f, false));
+    return r;
+}
+
+static std::vector<ShotRecord> consistencySession(int inOrder, int outOfOrder, int unresolved = 0)
+{
+    std::vector<ShotRecord> out;
+    int id = 1;
+    for (int i = 0; i < inOrder; ++i)    out.push_back(consistencyShot(id++, 'i'));
+    for (int i = 0; i < outOfOrder; ++i) out.push_back(consistencyShot(id++, 'o'));
+    for (int i = 0; i < unresolved; ++i) out.push_back(consistencyShot(id++, 'n'));
+    return out;
+}
+
+static void addPeak(ShotRecord &r, const char *mid, double v, double sigma)
+{
+    r.peakTimes.push_back({ QLatin1String(mid), v, sigma });
+}
+
+static void sequenceConsistencySuite(const QTemporaryDir &tmp)
+{
+    std::printf("\nsequence consistency (session)\n");
+    LedgerOptions hard;           // the published arithmetic: hard counts, no warm-up down-weighting
+    hard.softTier     = false;
+    hard.warmUpWeight = 1.0;
+    const auto near = [](double a, double b, double tol) { return std::fabs(a - b) <= tol; };
+
+    // consistency_share_resolved_only
+    {
+        const SessionSequenceConsistency c = sessionSequenceConsistency(consistencySession(4, 2, 3), hard);
+        check(c.share.resolved == 6 && c.share.inOrder == 4,
+              "consistency_share_resolved_only: a swing with an unplaced chest peak is not counted (6 resolved of 9)");
+        check(sequenceConsistencyLine(c) == QLatin1String("In sequence on 4 of 6 swings"),
+              "…and the line is the hard count: \"In sequence on 4 of 6 swings\"");
+    }
+
+    // consistency_upper_bound_cases (P7): 1 − wilsonLowerBound(out of order, resolved).
+    {
+        const auto share = [&](int in, int out, int minSwings) {
+            return sessionSequenceConsistency(consistencySession(in, out), hard, minSwings).share;
+        };
+        const SessionOrderShare a = share(9, 5, 5), b = share(3, 11, 5), d = share(0, 3, 3),
+                                e = share(0, 4, 4), f = share(1, 4, 5);
+        check(a.available && near(a.value, 0.8366, 1e-3) && a.value >= 0.5,
+              "consistency_upper_bound_cases: 9 of 14 in order reads 0.84 — it does not fire");
+        check(b.available && near(b.value, 0.4759, 1e-3) && b.value < 0.5, "…3 of 14 reads 0.48 — it fires");
+        check(d.available && near(d.value, 0.5615, 1e-3) && d.value >= 0.5,
+              "…3 of 3 out of order reads 0.56 — at n = 3 it cannot fire");
+        check(e.available && near(e.value, 0.4899, 1e-3) && e.value < 0.5, "…4 of 4 out of order reads 0.49 — it fires");
+        check(f.available && near(f.value, 0.6245, 1e-3) && f.value >= 0.5,
+              "…1 of 5 in order reads 0.62 — one swing in order holds it");
+        check(near(a.lowerOut, wilsonLowerBound(5.0, 14.0), 1e-12),
+              "…read through the ledger's own wilsonLowerBound on the out-of-order count");
+    }
+
+    // consistency_min_swings
+    {
+        const SessionSequenceConsistency four = sessionSequenceConsistency(consistencySession(0, 4), hard);
+        check(!four.share.available && !std::isfinite(four.share.value),
+              "consistency_min_swings: four resolved swings are not read (the floor is 5)");
+        check(sequenceConsistencyGapNote(four) == QLatin1String("needs 5 swings with all four peaks placed (4 so far)"),
+              "…and say why: \"needs 5 swings with all four peaks placed (4 so far)\"");
+        check(sessionSequenceConsistency(consistencySession(0, 5), hard).share.available, "…five are");
+        check(sequenceConsistencyGapNote(sessionSequenceConsistency(consistencySession(0, 0, 3), hard))
+                  == QLatin1String("needs 5 swings with all four peaks placed (none so far)"),
+              "…none resolved: \"(none so far)\"");
+    }
+
+    // spread_denoised (P8)
+    {
+        std::vector<ShotRecord> shots = consistencySession(5, 0);
+        for (int i = 0; i < 5; ++i) addPeak(shots[size_t(i)], "m_leadArmPeakTime", -10.0 * i, 10.0);
+        const SessionSequenceConsistency c = sessionSequenceConsistency(shots, hard);
+        const SessionSpreadSegment &arm = c.spread.segments[2];
+        check(arm.dof == 4 && near(arm.sdObsMs, std::sqrt(250.0), 1e-9) && near(arm.meanVarMs2, 100.0, 1e-9),
+              "spread_denoised: SD 15.8 ms over 4 degrees of freedom, mean σ_t² 100 ms²");
+        check(near(arm.sdTrueMs, std::sqrt(150.0), 1e-9) && near(arm.ratio, std::sqrt(150.0) / 8.0, 1e-9),
+              "…de-noised to √(250 − 100) = 12.2 ms, 1.53× the professional 8 ms");
+        check(near(arm.ratioSigma, 250.0 * std::sqrt(0.5) / (2.0 * 8.0 * std::sqrt(150.0)), 1e-9),
+              "…with σ = s²·√(2/dof) / (2·proSD·s_true)");
+        check(c.spread.available && c.spread.best == 2 && near(c.spread.value, arm.ratio, 1e-12),
+              "…and the session value is the arm's, the only segment read");
+
+        std::vector<ShotRecord> noisy = shots;
+        for (ShotRecord &r : noisy) r.peakTimes[0].sigmaMs = 30.0;
+        check(near(sessionSequenceConsistency(noisy, hard).spread.value, 0.0, 1e-12),
+              "…a spread smaller than the measurement noise de-noises to zero, not to a fault");
+
+        // The largest ratio over the segments wins.
+        std::vector<ShotRecord> two = shots;
+        for (int i = 0; i < 5; ++i) addPeak(two[size_t(i)], "m_pelvisPeakTime", -100.0 - 30.0 * i,
+                                            std::numeric_limits<double>::quiet_NaN());
+        const SessionSequenceConsistency t = sessionSequenceConsistency(two, hard);
+        check(t.spread.best == 0 && t.spread.value > arm.ratio, "…the largest ratio over the segments is the value");
+        check(sequenceSpreadLine(t).contains(QStringLiteral("19 ms SD"))
+                  && sequenceSpreadLine(t).contains(QStringLiteral("19 PGA tour professionals, Cheetham 2008")),
+              "…and the line names the segment's professional SD and the cohort");
+    }
+
+    // spread_pooled_within_club
+    {
+        std::vector<ShotRecord> shots;
+        for (int i = 0; i < 5; ++i) {
+            ShotRecord a = consistencyShot(i + 1, 'i', QStringLiteral("7 iron"));
+            addPeak(a, "m_leadArmPeakTime", -20.0 - i, std::numeric_limits<double>::quiet_NaN());
+            ShotRecord d = consistencyShot(i + 11, 'i', QStringLiteral("driver"));
+            addPeak(d, "m_leadArmPeakTime", -120.0 - i, std::numeric_limits<double>::quiet_NaN());
+            shots.push_back(a);
+            shots.push_back(d);
+        }
+        const SessionSequenceConsistency c = sessionSequenceConsistency(shots, hard);
+        const SessionSpreadSegment &arm = c.spread.segments[2];
+        check(arm.dof == 8 && near(arm.sdObsMs, std::sqrt(2.5), 1e-9) && arm.ratio < 0.25,
+              "spread_pooled_within_club: two clubs 100 ms apart pool to a 1.6 ms SD, not a 50 ms one");
+
+        std::vector<ShotRecord> four;
+        for (int i = 0; i < 4; ++i) four.push_back(shots[size_t(2 * i)]);
+        check(!sessionSequenceConsistency(four, hard).spread.available,
+              "…four swings of one club (3 degrees of freedom) are not read");
+        check(sequenceSpreadLine(sessionSequenceConsistency(four, hard))
+                  == QLatin1String("Peak-timing spread: needs 5 swings of one club with a placed peak"),
+              "…and say what they need");
+    }
+
+    // spread_absent_time_skipped — a swing whose node was not placed (or whose time detectShot
+    // withheld as implausible) has no peakTimes row and is simply not in the spread.
+    {
+        std::vector<ShotRecord> shots = consistencySession(6, 0);
+        for (int i = 0; i < 5; ++i) addPeak(shots[size_t(i)], "m_leadArmPeakTime", -10.0 * i, 10.0);
+        const SessionSpreadSegment &arm = sessionSequenceConsistency(shots, hard).spread.segments[2];
+        check(arm.n == 5 && arm.dof == 4, "spread_absent_time_skipped: a swing with no placed arm peak is not counted");
+    }
+
+    // The soft counts carry each order check's pFire, with the warm-up weights.
+    {
+        LedgerOptions soft = hard;
+        soft.softTier = true;
+        std::vector<ShotRecord> shots = consistencySession(5, 0);
+        shots[0].signalRows[1].pFire = 0.5f;            // borderline, still Clean
+        shots[0].signalRows[1].quantified = true;
+        const SessionSequenceConsistency c = sessionSequenceConsistency(shots, soft);
+        check(c.share.inOrder == 5 && near(c.share.effOut, 0.5, 1e-9),
+              "soft counts: a borderline check adds its pFire to the expected out-of-order count");
+    }
+
+    // ── End to end through the model ──
+    const QString dir = makeSession(tmp, "athlete_k5", "session_k5");
+    bool staged = true;
+    for (int i = 1; i <= 6; ++i) staged = staged && stageShot(dir, i, "rich_7iron");
+    check(staged, "six swings staged");
+    {
+        auto m = freshModel();
+        m->activateSession(dir);
+        for (int i = 1; i <= 6; ++i) m->ingestShot(i, swingDirFor(dir, i));
+
+        // session_condition_no_shot_row
+        const QJsonArray shots = diagnosticsJsonOf(dir).value(QStringLiteral("ledger")).toObject()
+                                     .value(QStringLiteral("shots")).toArray();
+        bool noRow = !shots.isEmpty();
+        for (const QJsonValue &sv : shots)
+            for (const QJsonValue &rv : sv.toObject().value(QStringLiteral("rows")).toArray())
+                if (rv.toObject().value(QStringLiteral("conditionId")).toString() == QLatin1String("inconsistent_sequence"))
+                    noRow = false;
+        check(noRow, "session_condition_no_shot_row: no swing carries an inconsistent_sequence row");
+        const ConditionLedger *sl = nullptr;
+        for (const ConditionLedger &l : m->ledgerRows())
+            if (l.id == QLatin1String("inconsistent_sequence")) sl = &l;
+        check(sl && sl->sessionScope && sl->run.size() == 6
+                  && std::all_of(sl->run.begin(), sl->run.end(),
+                                 [](ShotState st) { return st == ShotState::NotAssessable; }),
+              "…the session ledger is session-scope, with no verdict on any swing");
+        bool inPips = false;
+        for (const QVariant &p : m->pipsFor(1))
+            if (p.toMap().value(QStringLiteral("id")).toString() == QLatin1String("inconsistent_sequence")) inPips = true;
+        bool inReadout = false;
+        for (const QVariant &c : m->shotReadout(1).value(QStringLiteral("conditions")).toList())
+            if (c.toMap().value(QStringLiteral("id")).toString() == QLatin1String("inconsistent_sequence")) inReadout = true;
+        check(!inPips && !inReadout, "…and it is in neither a swing's pips nor its readout");
+        const QVariantMap sc = m->sequenceConsistency();
+        std::printf("      %s · %s · %s\n", qPrintable(sc.value(QStringLiteral("line")).toString()),
+                    qPrintable(sc.value(QStringLiteral("spreadLine")).toString()),
+                    qPrintable(sc.value(QStringLiteral("gapNote")).toString()));
+        check(sc.value(QStringLiteral("conditionId")).toString() == QLatin1String("inconsistent_sequence")
+                  && sc.value(QStringLiteral("whose")).toString() == QLatin1String("read over the session, never one swing"),
+              "sequenceConsistency_map: the model publishes the session's reading, labelled as the session's");
+        // The per-swing peak times were recorded where the fixture placed them.
+        bool timesOk = true;
+        for (const QJsonValue &sv : shots)
+            for (const QJsonValue &tv : sv.toObject().value(QStringLiteral("peakTimes")).toArray())
+                if (!tv.toObject().value(QStringLiteral("valueMs")).isDouble()) timesOk = false;
+        check(timesOk, "…every recorded peak time carries a number");
+    }
+
+    // Doctor the persisted rows into a session the sequence breaks on every swing, with a scattered
+    // arm, and reload it from disk — the stamps still match, so the rows are reduced as written.
+    {
+        QJsonObject root = diagnosticsJsonOf(dir);
+        QJsonObject ledger = root.value(QStringLiteral("ledger")).toObject();
+        QJsonArray shots = ledger.value(QStringLiteral("shots")).toArray();
+        for (int i = 0; i < shots.size(); ++i) {
+            QJsonObject so = shots.at(i).toObject();
+            QJsonArray sigs;
+            for (const char *sid : { "sig_sequenceOrder", "sig_armBeforeThorax", "sig_clubBeforeArm" })
+                sigs.append(QJsonObject{ { QStringLiteral("signalId"), QLatin1String(sid) },
+                                         { QStringLiteral("state"), QStringLiteral("fired") },
+                                         { QStringLiteral("pFire"), 1.0 },
+                                         { QStringLiteral("quantified"), false } });
+            so[QStringLiteral("signals")] = sigs;
+            so[QStringLiteral("peakTimes")] = QJsonArray{ QJsonObject{
+                { QStringLiteral("measureId"), QStringLiteral("m_leadArmPeakTime") },
+                { QStringLiteral("valueMs"), -40.0 * i }, { QStringLiteral("sigmaMs"), 5.0 } } };
+            shots[i] = so;
+        }
+        ledger[QStringLiteral("shots")] = shots;
+        root[QStringLiteral("ledger")] = ledger;
+        check(writeDiagnosticsJson(dir, root), "the rows are rewritten: every swing out of order");
+
+        auto m = freshModel();
+        m->activateSession(dir);
+        const ConditionLedger *sl = nullptr;
+        for (const ConditionLedger &l : m->ledgerRows())
+            if (l.id == QLatin1String("inconsistent_sequence")) sl = &l;
+        check(sl && sl->tier == Tier::Pattern && sl->assessable == 6 && sl->fired == 6 && sl->pPattern > 0.99,
+              "0 of 6 in order: the session condition is a pattern");
+        const QVariantMap sc = m->sequenceConsistency();
+        check(sc.value(QStringLiteral("line")).toString() == QLatin1String("In sequence on 0 of 6 swings")
+                  && sc.value(QStringLiteral("state")).toString() == QLatin1String("fired")
+                  && sc.value(QStringLiteral("spreadAvailable")).toBool()
+                  && sc.value(QStringLiteral("spreadSegment")).toString() == QLatin1String("lead arm"),
+              "sequenceConsistency_map: \"In sequence on 0 of 6 swings\", fired, the arm's spread read");
+        std::printf("      %s · %s\n", qPrintable(sc.value(QStringLiteral("line")).toString()),
+                    qPrintable(sc.value(QStringLiteral("spreadLine")).toString()));
+
+        // session_ledger_ranks_after_magnitude
+        const QVariantList cards = m->cards();
+        int at = -1;
+        bool after = true, cardOk = false;
+        for (int i = 0; i < cards.size(); ++i) {
+            const QVariantMap c = cards[i].toMap();
+            if (c.value(QStringLiteral("id")).toString() == QLatin1String("inconsistent_sequence")) {
+                at = i;
+                cardOk = c.value(QStringLiteral("sessionScope")).toBool()
+                         && c.value(QStringLiteral("ticks")).toList().isEmpty()
+                         && c.value(QStringLiteral("statePill")).toString() == QLatin1String("SESSION")
+                         && c.value(QStringLiteral("valueText")).toString() == QLatin1String("In sequence on 0 of 6 swings");
+            }
+        }
+        for (int i = 0; i < cards.size(); ++i)
+            if (i > at && at >= 0 && cards[i].toMap().value(QStringLiteral("sessionExcess")).toDouble() > 0.0)
+                after = false;
+        check(at >= 0 && cardOk, "the session card: no ticks, a SESSION pill, the count as its value");
+        check(at >= 0 && after,
+              "session_ledger_ranks_after_magnitude: every pattern with a measured magnitude ranks ahead of it");
+
+        // session_root_in_explanation — it enters explain() like any other ledger. With no authored
+        // edge nothing can explain it and it explains nothing, so the engine's own rule lists it as
+        // fired-and-unexplained, never as a root over other findings and never as their cause.
+        const Explanation &ex = m->explanation();
+        bool unexplained = ex.unexplained.contains(QStringLiteral("inconsistent_sequence")), asRoot = false, explains = false;
+        for (const RankedCause &rc : ex.roots) {
+            if (rc.conditionId == QLatin1String("inconsistent_sequence")) asRoot = true;
+            if (rc.explains.contains(QStringLiteral("inconsistent_sequence"))) explains = true;
+        }
+        check(unexplained && !asRoot && !explains,
+              "session_root_in_explanation: it reaches the explanation as fired and unexplained, and explains nothing");
+    }
 }
 
 int main(int argc, char **argv)
@@ -1909,6 +2499,9 @@ int main(int argc, char **argv)
                         qPrintable(h.value(QStringLiteral("recurrence")).toString()));
         }
     }
+
+    sequenceChecksSuite(tmp);
+    sequenceConsistencySuite(tmp);
 
     std::printf("\npatterns at close: %d\n", patternsAtClose);
     std::printf("\n%s\n", g_fail == 0 ? "OK" : "FAILURES");

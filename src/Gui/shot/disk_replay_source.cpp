@@ -311,6 +311,11 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
                     vd.append(b.toInt());
                 sm.insert(QStringLiteral("valid"), vd);
             }
+            // The producer route, ShotProcessor's twin: carried only when the document states it.
+            if (m.contains(QStringLiteral("routeId")))
+                sm.insert(QStringLiteral("routeId"), m[QStringLiteral("routeId")].toString());
+            if (m.contains(QStringLiteral("routeDirect")))
+                sm.insert(QStringLiteral("routeDirect"), m[QStringLiteral("routeDirect")].toBool());
             series.append(sm);
         }
         QVariantList phases;

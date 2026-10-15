@@ -10,7 +10,9 @@
 //   ctest --test-dir build/analyzer-tests -R characteristic_engine --output-on-failure
 
 #include "../engine/relation_resolver.h"
+#include "../measures/session_measure_source.h"
 
+#include <cmath>
 #include <cstdio>
 #include <map>
 
@@ -66,6 +68,19 @@ public:
         r.grade          = Grade::NotMeasured;
         r.implausible    = true;
         m[id]            = r;
+    }
+    // Measurement σ (and gross risk) on a reading already added — the two-reading tests need it on
+    // each half separately.
+    void setSigma(const QString &id, double sigma, float grossRisk = -1.f)
+    {
+        m[id].measSigma = sigma;
+        m[id].grossRisk = grossRisk;
+    }
+    // The route a reading came from, for the ratio test's same-scale rule.
+    void setRoute(const QString &id, const QString &route, bool direct)
+    {
+        m[id].route  = route;
+        m[id].direct = direct;
     }
     std::optional<MeasureReading> read(const QString &id) const override
     {
@@ -785,6 +800,92 @@ int main()
               "…and the open tail stays silent on the same swing");
     }
 
+    // ── The order contract ─────────────────────────────────────────────────
+    //
+    // Two event times, the subject expected to LEAD. Out of order is first >= second — a tie is
+    // not a sequence — and with both σ stated the probability is Φ((t0 − t1)/(σ0 ⊕ σ1)). The two
+    // refusals are the corridor branch's: a missing time and an unbelievable one are both "not
+    // assessed", never "in order".
+    std::printf("\norder signals\n");
+    {
+        CharacteristicPack p;
+        for (const char *id : { "m_pelvisT", "m_thoraxT" }) {
+            Measure m;
+            m.id     = QString::fromLatin1(id);
+            m.unit   = QStringLiteral("ms");
+            m.status = MeasureStatus::Live;
+            p.measures.push_back(m);
+        }
+
+        Signal order;
+        order.id       = QStringLiteral("sigOrder");
+        order.test     = SignalTest::Order;
+        order.measures = { QStringLiteral("m_pelvisT"), QStringLiteral("m_thoraxT") };
+        p.signalDefs.push_back(order);
+
+        Condition c;
+        c.id         = QStringLiteral("c_order");
+        c.detectedBy = { order.id };
+        c.state      = ConditionState::Active;
+        p.conditions.push_back(c);
+
+        auto times = [](double t0, double t1) {
+            FakeSource s;
+            s.addWithoutCorridor(QStringLiteral("m_pelvisT"), t0);
+            s.addWithoutCorridor(QStringLiteral("m_thoraxT"), t1);
+            return s;
+        };
+
+        // Hips peak 40 ms before impact, chest 20 ms: the professional order.
+        const DetectionResult ri = detect(p, times(-40.0, -20.0));
+        check(ri.find("c_order")->state == FindingState::NotFired,
+              "the subject leading is in order, and does not fire");
+        check(ri.find("c_order")->pFire == 0.f && !ri.find("c_order")->quantified,
+              "…with no σ its probability is the hard verdict restated");
+
+        const DetectionResult ro = detect(p, times(-10.0, -30.0));
+        check(ro.find("c_order")->state == FindingState::Fired,
+              "the subject peaking after the second fires");
+        check(ro.find("c_order")->pFire == 1.f, "…pFire 1 unquantified");
+        check(detect(p, times(-25.0, -25.0)).find("c_order")->state == FindingState::Fired,
+              "a tie fires: two events at one instant are not a sequence");
+
+        // σ in quadrature: Φ((−40 − (−20)) / √(10² + 10²)) = Φ(−√2).
+        FakeSource sig = times(-40.0, -20.0);
+        sig.setSigma(QStringLiteral("m_pelvisT"), 10.0, 0.05f);
+        sig.setSigma(QStringLiteral("m_thoraxT"), 10.0, 0.20f);
+        const DetectionResult rs = detect(p, sig);
+        const Finding *fs = rs.find("c_order");
+        const double z    = (-40.0 - -20.0) / std::hypot(10.0, 10.0);
+        const double want = 0.5 * std::erfc(-z / std::sqrt(2.0));
+        check(fs && fs->state == FindingState::NotFired && fs->quantified,
+              "with both σ the verdict is unchanged and quantified");
+        check(fs && std::fabs(fs->pFire - want) < 1e-5,
+              "…pFire = Φ((t0 − t1)/(σ0 ⊕ σ1))");
+        check(fs && std::fabs(fs->grossRisk - 0.20f) < 1e-6,
+              "…and its gross risk is the larger of the two");
+
+        FakeSource half = times(-40.0, -20.0);
+        half.setSigma(QStringLiteral("m_pelvisT"), 10.0);
+        check(!detect(p, half).find("c_order")->quantified,
+              "one σ alone does not quantify an order");
+
+        for (const char *bad : { "m_pelvisT", "m_thoraxT" }) {
+            FakeSource src = times(-40.0, -20.0);
+            src.addImplausible(QString::fromLatin1(bad), 9999.0, -200.0, 50.0);
+            check(detect(p, src).find("c_order")->state == FindingState::Unavailable,
+                  QByteArray("an implausible ").append(bad)
+                      .append(" makes the order Unavailable, whichever time was wrong").constData());
+        }
+
+        FakeSource oneMissing;
+        oneMissing.addWithoutCorridor(QStringLiteral("m_pelvisT"), -40.0);
+        const DetectionResult rm = detect(p, oneMissing);
+        check(rm.find("c_order")->state == FindingState::Unavailable
+                  && rm.find("c_order")->missingMeasures.contains(QStringLiteral("m_thoraxT")),
+              "one time missing is Unavailable, naming the missing measure — never in order");
+    }
+
     // ── The ratio contract ─────────────────────────────────────────────────
     //
     // A quotient is DIMENSIONLESS and it is not a measure, so no norm can key on it. The branch used
@@ -876,6 +977,90 @@ int main()
         wide.addWithoutCorridor(QStringLiteral("m_downTime"), 0.5);     // 2.0, short of 3.0
         check(detect(p, wide).find("c_slowTransition")->state == FindingState::NotFired,
               "…and a numerator outside its own corridor does not fire a ratio whose quotient is fine");
+
+        // A NEGATIVE denominator flips which side of the number is "above", so the authored
+        // direction would mean its opposite. Not assessed, like zero.
+        FakeSource negative;
+        negative.addWithoutCorridor(QStringLiteral("m_backTime"), -1.5);
+        negative.addWithoutCorridor(QStringLiteral("m_downTime"), -0.4);   // +3.75, and meaningless
+        check(detect(p, negative).find("c_slowTransition")->state == FindingState::Unavailable,
+              "a negative denominator is Unavailable, never a ratio read the wrong way round");
+
+        // ── σ by the delta method (§10.7 E1) ─────────────────────────────
+        //
+        // The expected figure is built from the textbook form σ_q = |q|·√((σa/a)² + (σb/b)²); the
+        // engine evaluates an algebraically equal rewrite, so this also pins the rewrite.
+        const double a = 1.65, sa = 0.10, b = 0.5, sb = 0.02, t = 3.0;
+        const double q  = a / b;                                           // 3.3
+        const double sq = std::fabs(q) * std::hypot(sa / a, sb / b);
+        const double pHigh = 0.5 * std::erfc(-((q - t) / sq) / std::sqrt(2.0));
+        const double pLow  = 0.5 * std::erfc(-((t - q) / sq) / std::sqrt(2.0));
+
+        FakeSource sig;
+        sig.addWithoutCorridor(QStringLiteral("m_backTime"), a);
+        sig.addWithoutCorridor(QStringLiteral("m_downTime"), b);
+        sig.setSigma(QStringLiteral("m_backTime"), sa, 0.10f);
+        sig.setSigma(QStringLiteral("m_downTime"), sb, 0.30f);
+
+        const DetectionResult rh = detect(p, sig);
+        const Finding *fh = rh.find("c_slowTransition");
+        check(fh && fh->state == FindingState::Fired && fh->quantified,
+              "a ratio with both σ is quantified, its verdict unchanged");
+        check(fh && std::fabs(fh->pFire - pHigh) < 1e-5,
+              "…high: pFire = Φ((q − t)/σ_q), σ_q by the delta method");
+        check(fh && std::fabs(fh->grossRisk - 0.30f) < 1e-6,
+              "…and its gross risk is the larger of the two halves'");
+
+        const DetectionResult rl = detect(quick, sig);
+        const Finding *fl = rl.find("c_slowTransition");
+        check(fl && fl->state == FindingState::NotFired && fl->quantified,
+              "low tail on the same swing: not fired, quantified");
+        check(fl && std::fabs(fl->pFire - pLow) < 1e-5,
+              "…low: pFire = Φ((t − q)/σ_q)");
+
+        FakeSource oneSigma;
+        oneSigma.addWithoutCorridor(QStringLiteral("m_backTime"), a);
+        oneSigma.addWithoutCorridor(QStringLiteral("m_downTime"), b);
+        oneSigma.setSigma(QStringLiteral("m_backTime"), sa);
+        const DetectionResult r1 = detect(p, oneSigma);       // held: find() points into it
+        const Finding *f1 = r1.find("c_slowTransition");
+        check(f1 && !f1->quantified && f1->pFire == 1.f,
+              "one σ alone leaves the ratio unquantified: the hard verdict restated");
+
+        // A zero numerator: σa/a is undefined, the quotient's σ is not (σa/b).
+        FakeSource zeroTop;
+        zeroTop.addWithoutCorridor(QStringLiteral("m_backTime"), 0.0);
+        zeroTop.addWithoutCorridor(QStringLiteral("m_downTime"), b);
+        zeroTop.setSigma(QStringLiteral("m_backTime"), 2.0);              // σ_q = 2.0 / 0.5 = 4
+        zeroTop.setSigma(QStringLiteral("m_downTime"), sb);
+        const DetectionResult rz = detect(quick, zeroTop);
+        const Finding *fz = rz.find("c_slowTransition");
+        const double   pz = 0.5 * std::erfc(-(t / (2.0 / b)) / std::sqrt(2.0));   // Φ(0.75)
+        check(fz && fz->state == FindingState::Fired && fz->quantified
+                  && std::isfinite(fz->pFire) && std::fabs(fz->pFire - pz) < 1e-5,
+              "a zero numerator still has a finite, correct σ_q");
+
+        // ── One scale (§10.7 E3) ─────────────────────────────────────────
+        auto routed = [&](const char *ra, bool da, const char *rb, bool db) {
+            FakeSource s;
+            s.addWithoutCorridor(QStringLiteral("m_backTime"), 1.5);
+            s.addWithoutCorridor(QStringLiteral("m_downTime"), 0.4);      // 3.75: fires if assessed
+            s.setRoute(QStringLiteral("m_backTime"), QString::fromLatin1(ra), da);
+            s.setRoute(QStringLiteral("m_downTime"), QString::fromLatin1(rb), db);
+            return detect(p, s).find("c_slowTransition")->state;
+        };
+        check(routed("pelvisImu", false, "faceOn+dtl", false) == FindingState::Unavailable,
+              "two different estimated routes: Unavailable, the scales do not cancel");
+        check(routed("faceOn+dtl", false, "", false) == FindingState::Unavailable,
+              "one route stated and the other not: Unavailable");
+        check(routed("pelvisImu", true, "faceOn+dtl", false) == FindingState::Unavailable,
+              "a Direct rung over an estimated one: Unavailable");
+        check(routed("pelvisImu", true, "thoraxImu", true) == FindingState::Fired,
+              "two Direct rungs on different routes: assessed");
+        check(routed("faceOn+dtl", false, "faceOn+dtl", false) == FindingState::Fired,
+              "one estimated route on both halves: assessed");
+        check(routed("", false, "", false) == FindingState::Fired,
+              "neither half states a route: assessed, as before routes existed");
     }
 
     // ── A finding carries the number that graded it ────────────────────────
@@ -1139,6 +1324,88 @@ int main()
         const Finding *f2 = d2.find(QStringLiteral("twoMeasures"));
         check(f2 && f2->state == FindingState::Unavailable && f2->readings.empty(),
               "an Unavailable finding carries no readings, as it carries no evidence");
+    }
+
+    // ── session_source_threshold_pFire (trunk_imu_sequence_grf_design.md §10.8 E2) ───────────
+    //
+    // The session's readings reach the engine through SessionMeasureSource and are graded by the
+    // SAME detect(): a threshold on a reading with σ forms its pFire by pBeyond, one without keeps the
+    // hard verdict, and ANY combines the two as for any swing.
+    std::printf("\nsession-scope readings\n");
+    {
+        CharacteristicPack p;
+        p.id            = QStringLiteral("s");
+        p.schemaVersion = kPackSchemaVersion;
+        auto provided = [&](const char *id, MeasureScope scope) {
+            Measure m;
+            m.id             = QString::fromLatin1(id);
+            m.kind           = MeasureKind::Provided;
+            m.metricKey      = m.id;
+            m.reducer.kind   = ReducerKind::At;
+            m.reducer.anchor = Phase::Impact;
+            m.status         = MeasureStatus::Live;
+            m.scope          = scope;
+            p.measures.push_back(m);
+        };
+        provided("mShare", MeasureScope::Session);
+        provided("mSpread", MeasureScope::Session);
+        provided("mSwing", MeasureScope::Swing);
+        auto threshold = [&](const char *id, const char *mid, Direction d, double t) {
+            Signal sg;
+            sg.id        = QString::fromLatin1(id);
+            sg.test      = SignalTest::Threshold;
+            sg.measures  = { QString::fromLatin1(mid) };
+            sg.direction = d;
+            sg.threshold = t;
+            p.signalDefs.push_back(sg);
+        };
+        threshold("sShare", "mShare", Direction::Low, 0.5);
+        threshold("sSpread", "mSpread", Direction::High, 2.0);
+        Condition c;
+        c.id            = QStringLiteral("inconsistent");
+        c.label         = c.id;
+        c.observability = Observability::Observable;
+        c.confirmedBy   = ConfirmedBy::Measured;
+        c.detectedBy    = { QStringLiteral("sShare"), QStringLiteral("sSpread") };
+        c.detection     = DetectionMode::Any;
+        c.state         = ConditionState::Active;
+        p.conditions.push_back(c);
+
+        check(isSessionScopeCondition(p, QStringLiteral("inconsistent")),
+              "a condition read only by session measures is session-scope");
+
+        SessionMeasureSource src(p);
+        MeasureReading share;
+        share.value = 0.62;                          // no σ: the Wilson bound is its uncertainty
+        src.set(QStringLiteral("mShare"), share);
+        MeasureReading spread;
+        spread.value     = 2.5;
+        spread.measSigma = 0.5;                      // one σ above the 2.0 line
+        src.set(QStringLiteral("mSpread"), spread);
+        MeasureReading swing;
+        swing.value = 1.0;
+        src.set(QStringLiteral("mSwing"), swing);
+        check(!src.read(QStringLiteral("mSwing")).has_value(),
+              "SessionMeasureSource answers for session measures only");
+
+        const SignalOutcome os = evaluateSignal(p, QStringLiteral("sShare"), src);
+        check(os.available && !os.fired && !os.quantified && os.pFire == 0.f,
+              "session_source_threshold_pFire: a share of 0.62 does not fire, a hard verdict");
+        const SignalOutcome ot = evaluateSignal(p, QStringLiteral("sSpread"), src);
+        const double expect = 0.5 * std::erfc(-1.0 / std::sqrt(2.0));
+        check(ot.available && ot.fired && ot.quantified && std::fabs(ot.pFire - expect) < 1e-5,
+              "…a spread 1σ over 2.0 fires with pFire = Φ(1) = 0.84");
+        const DetectionResult d = detect(p, src);
+        const Finding *f = d.find(QStringLiteral("inconsistent"));
+        check(f && f->state == FindingState::Fired && std::fabs(f->pFire - (1.0 - (1.0 - 0.0) * (1.0 - expect))) < 1e-5,
+              "…and ANY combines them as for any swing: Fired, pFire 1 − (1 − 0)(1 − 0.84)");
+
+        SessionMeasureSource onlyShare(p);
+        onlyShare.set(QStringLiteral("mShare"), share);
+        const DetectionResult dShare = detect(p, onlyShare);
+        const Finding *g = dShare.find(QStringLiteral("inconsistent"));
+        check(g && g->state == FindingState::Unavailable,
+              "a clean share with no spread to read is not assessed (ANY's precedence, stated in the contract)");
     }
 
     std::printf("%s (%d failure%s)\n", g_fail ? "FAILED" : "OK", g_fail, g_fail == 1 ? "" : "s");

@@ -63,6 +63,8 @@
 #include <QMap>
 #include <QStringList>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QTemporaryDir>
 
 #include <cmath>
@@ -232,7 +234,7 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
 
     std::printf("  club %s -> context %s (session %s)\n", qPrintable(d.club),
                 qPrintable(d.contextId), qPrintable(src.sessionId()));
-    std::printf("  COVERAGE: %d of 160 conditions assessable on %s"
+    std::printf("  COVERAGE: %d of 167 conditions assessable on %s"
                 "  (%d evaluated, %d fired, %d unavailable)\n",
                 cov.assessable, label, cov.findings, cov.fired, cov.unavailable);
     // The denominator is COUNTED, not written down. It was the literal 109 while the pack carried
@@ -255,6 +257,7 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
         case MissingKind::MetricNotProduced:        return "metricNotProduced";
         case MissingKind::PhaseNotSegmented:        return "phaseNotSegmented";
         case MissingKind::CaptureDataIssue:         return "captureDataIssue";
+        case MissingKind::SessionScope:             return "sessionScope";
         }
         return "?";
     };
@@ -265,8 +268,8 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
     dumpCoverage(cov, label);
 
     check(shapeOk, "every finding is assessed WITH evidence or unavailable WITHOUT it");
-    check(cov.findings == 132,
-          "detect() asked all 132 non-latent, non-withdrawn conditions (the shipped pack binds none)");   // +2 lie tails (2026-10-01)
+    check(cov.findings == 139,
+          "detect() asked all 139 non-latent, non-withdrawn conditions (the shipped pack binds none)");   // +2 lie tails (2026-10-01)   // +7 kinematic-sequence checks (2026-10-14)
 
     // (d) Where a norm resolved, the corridor on the evidence is a real band and z is finite.
     bool corridorsOk = true;
@@ -303,7 +306,7 @@ int main(int argc, char **argv)
 
     std::printf("\ncontent\n");
     // 157 -> 158 on 2026-09-23: hands_set_high, the setup habit behind reaching for the ball.
-    check(pack.conditions.size() == 160, "the shipped pack carries 160 conditions");   // +lie_steep_at_impact, +lie_flat_at_impact (2026-10-01)
+    check(pack.conditions.size() == 167, "the shipped pack carries 167 conditions");   // +7 kinematic-sequence checks (2026-10-14, design §10.4)   // +lie_steep_at_impact, +lie_flat_at_impact (2026-10-01)
     // 130 -> 135 with the plumb-bob work: hipLineTilt gained an impact reading and an
     // address-to-impact delta, and plumbBobDistance arrived with three of its own.
     //
@@ -322,7 +325,7 @@ int main(int argc, char **argv)
     // event TIMES, and was fed rotation peak ANGLES until then.
     // 140 -> 141 on 2026-10-08: m_trailForearmTop, flying_elbow's down-the-line reading.
     // 141 -> 142 on 2026-10-08: m_spineBendLossDown, early extension's standing-up half.
-    check(pack.measures.size() == 142, "…and 142 measures");   // +m_shaftLieDelta
+    check(pack.measures.size() == 153, "…and 153 measures");   // +11 kinematic-sequence measures (2026-10-14)   // +m_shaftLieDelta
     check(!norms->norms().norms.empty(), "the shipped norm set loaded");
 
     QTemporaryDir tmp;
@@ -456,6 +459,13 @@ int main(int argc, char **argv)
         // and three measures is three conditions' worth of coverage sitting behind it.
         checkMissing(rich_, "m_spineSideBendTop", MissingKind::PhaseNotSegmented);
 
+        // session_measure_refused_per_swing — a session-scope measure (§10.8 E2) has no value on
+        // any one swing, and says so rather than blaming the capture.
+        checkMissing(rich_, "m_ksOrderShare", MissingKind::SessionScope);
+        checkMissing(rich_, "m_ksTimingSpread", MissingKind::SessionScope);
+        check(missingReasonText(MissingKind::SessionScope) == QLatin1String("read over the session, never one swing"),
+              "session_measure_refused_per_swing: \"read over the session, never one swing\"");
+
         // (c) Nothing that has no producer reports a number. Zero would be a value the golfer's
         // ledger would happily plot.
         int planned = 0, wrong = 0;
@@ -520,7 +530,7 @@ int main(int argc, char **argv)
         // route's pelvisRotationSigned. This fixture is a single-camera capture, so it still
         // produces nothing for it — which the next check (no value from a non-live measure) and the
         // live measure's own absence here both stay honest about.
-        check(planned == 14, "14 shipped measures are not live yet");
+        check(planned == 14, "14 shipped measures are not live yet");   // 16 -> 14 on 2026-10-14: m_ksOrderShare, m_ksTimingSpread went live on the session reducer (scope: session — still no per-swing value, which `wrong` below confirms)
         check(wrong == 0, "…and not one of them produced a value");
     }
 
@@ -593,7 +603,7 @@ int main(int argc, char **argv)
     // 55 -> 54 on 2026-10-02: sequence_order. It now reads the PLACED trunk nodes' instants, and this
     // face-on fixture places neither, so it is Unavailable — where it used to be "assessed" by
     // comparing two rotation angles, which its Order test cannot read.
-    check(cRich.assessable == 54, "rich_7iron: 54 of 160 conditions assessable (observed)");
+    check(cRich.assessable == 54, "rich_7iron: 54 of 167 conditions assessable (observed)");
     // HOW MANY OF THOSE ANSWERS RESTED ON EVIDENCE THE CAPTURE DID NOT HAVE. A conjunction
     // settled by one known-false term is a real negative, but it is a different kind of "no"
     // from one where every term was read, and it can only ever be a no. Pinned because the
@@ -646,7 +656,7 @@ int main(int argc, char **argv)
     // and `attack_too_steep` and `attack_too_shallow` were therefore unanswerable on a swing whose
     // launch monitor had reported the attack angle outright, -2.73°, sitting in the document read
     // by nothing. Those two conditions plus `top` and `sky` are the four.
-    check(cLm.assessable   == 21, "lm_7iron: 21 of 160 conditions assessable (observed)");
+    check(cLm.assessable   == 21, "lm_7iron: 21 of 167 conditions assessable (observed)");
     check(cLm.measures     == 26, "lm_7iron: 26 live measures resolved (observed)");
     check(cSparse.assessable == 2, "sparse_noclub: 2 of 158 conditions assessable (observed)");
     check(cSparse.measures   == 1, "sparse_noclub: 1 live measure resolved (observed)");
@@ -734,6 +744,128 @@ int main(int argc, char **argv)
               "a smash of 1.389 against an iron floor of 1.38 does NOT fire smash_deficit");
         check(smash && smash->evidence.hasCorridor && smash->evidence.highOpen,
               "…and the evidence reports the open high tail rather than a fabricated upper edge");
+    }
+
+    // ── The route a reading came from (trunk_imu_sequence_grf_design.md §10.7, E3) ──────────
+    //
+    // The ratio test refuses a quotient across two scales, and it can only do that if the route a
+    // KS producer stamped on its series survives every hop to the engine: swing.json → grid →
+    // sidecar → grid reading → value → measure reading. A hop that dropped it would read as "no
+    // route on either half", which the rule PERMITS — so a lost route fails open, silently. Each
+    // hop is pinned here on a synthetic swing, since no corpus fixture carries a route yet.
+    std::printf("\nroutes carried through\n");
+    {
+        auto phaseAt = [](Phase ph, qint64 tUs) {
+            QJsonObject o;
+            o.insert(QStringLiteral("phase"), int(ph));
+            o.insert(QStringLiteral("t_us"),  tUs);
+            return o;
+        };
+        // A point-in-time metric, read at impact, as the KS peak speeds are emitted.
+        auto atImpact = [](const char *key, double value, const char *route, bool direct) {
+            QJsonObject ps;
+            ps.insert(QStringLiteral("phase"), int(Phase::Impact));
+            ps.insert(QStringLiteral("t_us"),  1'100'000);
+            ps.insert(QStringLiteral("value"), value);
+            QJsonObject o;
+            o.insert(QStringLiteral("key"),          QString::fromLatin1(key));
+            o.insert(QStringLiteral("unit"),         QStringLiteral("°/s"));
+            o.insert(QStringLiteral("t_us"),         QJsonArray{});
+            o.insert(QStringLiteral("value"),        QJsonArray{});
+            o.insert(QStringLiteral("phaseSamples"), QJsonArray{ ps });
+            if (route[0] != '\0') o.insert(QStringLiteral("routeId"), QString::fromLatin1(route));
+            if (direct)            o.insert(QStringLiteral("routeDirect"), true);
+            return o;
+        };
+
+        QJsonObject an;
+        an.insert(QStringLiteral("phases"), QJsonArray{ phaseAt(Phase::Address, 100'000),
+                                                        phaseAt(Phase::Top, 400'000),
+                                                        phaseAt(Phase::Impact, 1'100'000) });
+        an.insert(QStringLiteral("metrics"),
+                  QJsonArray{ atImpact("pelvisPeakSpeed", 480.0, "pelvisImu", true),
+                              atImpact("thoraxPeakSpeed", 700.0, "thoraxImu", true),
+                              atImpact("camThoraxPeakSpeed", 690.0, "faceOn+dtl", false),
+                              atImpact("plainSpeed", 500.0, "", false) });
+
+        CharacteristicPack rp;
+        auto measure = [&](const char *id, const char *key) {
+            Measure m;
+            m.id             = QString::fromLatin1(id);
+            m.kind           = MeasureKind::Provided;
+            m.metricKey      = QString::fromLatin1(key);
+            m.unit           = QStringLiteral("°/s");
+            m.status         = MeasureStatus::Live;
+            m.reducer.kind   = ReducerKind::At;
+            m.reducer.anchor = Phase::Impact;
+            rp.measures.push_back(m);
+        };
+        measure("m_pelvis",    "pelvisPeakSpeed");
+        measure("m_thorax",    "thoraxPeakSpeed");
+        measure("m_camThorax", "camThoraxPeakSpeed");
+        measure("m_plain",     "plainSpeed");
+
+        auto ratio = [&](const char *cid, const char *num, const char *den) {
+            Signal s;
+            s.id        = QStringLiteral("sig_") + QString::fromLatin1(cid);
+            s.test      = SignalTest::Ratio;
+            s.measures  = { QString::fromLatin1(num), QString::fromLatin1(den) };
+            s.direction = Direction::Low;
+            s.threshold = 1.22;
+            rp.signalDefs.push_back(s);
+            Condition c;
+            c.id         = QString::fromLatin1(cid);
+            c.detectedBy = { s.id };
+            c.state      = ConditionState::Active;
+            rp.conditions.push_back(c);
+        };
+        ratio("c_direct",  "m_thorax",    "m_pelvis");   // two Direct rungs: assessed
+        ratio("c_mixed",   "m_camThorax", "m_pelvis");   // camera over IMU: two scales
+
+        const SwingPhaseGrid grid = buildPhaseGrid(an);
+        const MetricPhaseGrid *gp = grid.metric(QStringLiteral("pelvisPeakSpeed"));
+        check(gp && gp->routeId == QStringLiteral("pelvisImu") && gp->routeDirect,
+              "the grid reads routeId / routeDirect off the swing.json metric");
+        const MetricPhaseGrid *gq = grid.metric(QStringLiteral("plainSpeed"));
+        check(gq && gq->routeId.isEmpty() && !gq->routeDirect,
+              "…and a metric that states no route has none");
+
+        // The sidecar is a cache of the grid: a route it dropped would fail open on every reload.
+        bool guardOk = false;
+        const SwingPhaseGrid reloaded =
+            loadPhaseGrid(savePhaseGrid(grid, 1234, 5678), 1234, 5678, &guardOk, grid.config);
+        const MetricPhaseGrid *rc = reloaded.metric(QStringLiteral("camThoraxPeakSpeed"));
+        check(guardOk && rc && rc->routeId == QStringLiteral("faceOn+dtl") && !rc->routeDirect,
+              "the sidecar round-trips the route");
+
+        const LiveMeasureSource src(reloaded, rp);
+        const auto vp = src.value(QStringLiteral("m_pelvis"));
+        const auto vc = src.value(QStringLiteral("m_camThorax"));
+        const auto vn = src.value(QStringLiteral("m_plain"));
+        check(vp && vp->route == QStringLiteral("pelvisImu") && vp->direct,
+              "the value carries a Direct rung's route");
+        check(vc && vc->route == QStringLiteral("faceOn+dtl") && !vc->direct,
+              "…and an estimated one's");
+        check(vn && vn->route.isEmpty() && !vn->direct, "…and none where none was stated");
+
+        LiveMeasureSource noSigma(reloaded, rp);
+        noSigma.setWithSigma(false);
+        const auto vs = noSigma.value(QStringLiteral("m_pelvis"));
+        check(vs && vs->route == QStringLiteral("pelvisImu") && vs->direct,
+              "the route is provenance, not σ: carried with the σ switch off");
+
+        const NormMeasureSource graded(src, nullptr);
+        const auto mr = graded.read(QStringLiteral("m_thorax"));
+        check(mr && mr->route == QStringLiteral("thoraxImu") && mr->direct,
+              "the measure reading the engine sees carries the route");
+
+        const DetectionResult d = detect(rp, graded);
+        check(d.find(QStringLiteral("c_direct"))
+                  && d.find(QStringLiteral("c_direct"))->state == FindingState::NotFired,
+              "thorax/pelvis off two Direct rungs is assessed (700/480 = 1.46, above 1.22)");
+        check(d.find(QStringLiteral("c_mixed"))
+                  && d.find(QStringLiteral("c_mixed"))->state == FindingState::Unavailable,
+              "a camera thorax over an IMU pelvis is Unavailable: two scales");
     }
 
     std::printf("\n%s\n", g_fail == 0 ? "ALL PASS" : "FAILURES");

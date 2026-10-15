@@ -139,6 +139,7 @@ struct SegmentRatesConfig {
     bool    skel3dPlacement        = tuned::sequence::kSkel3dPlacement;        // sequence.skel3d.placement
     bool    skel3dThoraxPlacement  = tuned::sequence::kSkel3dThoraxPlacement;  // sequence.skel3d.thoraxPlacement
     bool    peakTimes              = tuned::sequence::kPeakTimes;              // sequence.peakTimes
+    bool    nodeSeries             = tuned::sequence::kNodeSeries;             // sequence.nodeSeries
     // The club angle's per-sample σ from the shaft uncertainty pass (sigmaThetaDeg) in place of
     // shaftThetaSigmaRad / conf. A VALUE change, not a σ-only one: the wider σ un-places the club
     // node on some swings (the 1 Oct sigma sweep), so it has its own switch, off until Mark rules.
@@ -185,8 +186,17 @@ struct SegmentRatesConfig {
         apply(ov, "sequence.skel3d.placement",       c.skel3dPlacement);
         apply(ov, "sequence.skel3d.thoraxPlacement", c.skel3dThoraxPlacement);
         apply(ov, "sequence.peakTimes",              c.peakTimes);
+        apply(ov, "sequence.nodeSeries",             c.nodeSeries);
         return c;
     }
+};
+
+// Where a SIGNED trunk rate crossed into the downswing: the zero crossing that opens the positive
+// lobe holding the node's peak (findRateReversal below). `sigmaMs` 0 = the route stated no rate σ.
+struct RateReversal {
+    bool    found   = false;
+    int64_t tUs     = 0;        // absolute, shared timeline
+    double  sigmaMs = 0.0;      // 1σ on the instant: the rate σ at the crossing over |slope|
 };
 
 // One segment's rate curve plus how it was obtained. `series.key` empty ⇒ not produced.
@@ -195,6 +205,11 @@ struct SegmentRateChannel {
     std::vector<double>  sampleSigma;   // per-sample 1σ, parallel to series.t_us (for the peak finder)
     QString              routeId;       // "pelvisImu" | "thoraxImu" | "leadArmImus" | "clubSensorFused" | "faceOn+dtl" | "faceOn+dtl3d" | "faceOn" | "faceOnClub"
     bool                 direct = false;
+    // PELVIS AND THORAX ONLY: the reversal into the downswing, found on the route's own rate BEFORE
+    // the curve was cut to P4 and masked to the domain — the hips reverse up to 250 ms before the
+    // club's top (phase_segmenter.h transBeforeTopUs), which is outside both. Set whenever the peak
+    // finder found a peak; the series is emitted only for a PLACED node (sequenceNodeSeries).
+    RateReversal         reversal;
     bool produced() const { return !series.key.isEmpty(); }
 };
 
@@ -330,6 +345,19 @@ std::vector<MetricSeries> segmentRateSeries(const SegmentRatesResult &res);
 // times, so this is the quantity `sequence_order` must read. Unplaced (or bounded) ⇒ nothing.
 std::vector<MetricSeries> sequencePeakTimeSeries(const KinematicSequence &ks);
 
+// The rest of the PLACED nodes as point-in-time metrics, one Impact phase sample each, σ Propagated,
+// every series carrying its node's routeId / direct (MetricSeries::routeId — the diagnostics'
+// same-scale rule for ratios; trunk_imu_sequence_grf_design.md §10.4, §10.7):
+//   leadArmPeakTime, clubPeakTime          the peak instant relative to impact in ms, NEGATIVE before
+//                                          the ball — pelvisPeakTime's convention (NOT beforeImpactMs,
+//                                          which is the opposite sign; §10.9 P1); σ = σ_t
+//   pelvisPeakSpeed, thoraxPeakSpeed,      |peakDps| in °/s — a magnitude, so a ratio of two of them
+//   leadArmPeakSpeed, clubPeakSpeed        never carries a sign convention (§10.9 P3); σ = peak σ
+//   pelvisReversalTime, thoraxReversalTime the channel's RateReversal, ms relative to impact like the
+//                                          peak times; absent when no crossing was found
+// An unplaced (or bounded) node emits nothing, so a check that reads one is not assessable.
+std::vector<MetricSeries> sequenceNodeSeries(const SegmentRatesResult &res);
+
 // ── Pieces exposed for the unit test and for the pair route's future producer ───────────────────
 
 // De-project an image angle ψ (rad, unwrapped) into the in-plane angle α given the ellipse the
@@ -339,5 +367,22 @@ double deprojectPlaneAngle(double psiRad, double nuRad, double k);
 
 // dα/dψ at ψ — the σ Jacobian and the rate correction factor, in [k, 1/k].
 double deprojectGain(double psiRad, double nuRad, double k);
+
+// THE REVERSAL OF A SIGNED RATE INTO THE DOWNSWING. Walk back from the peak instant `tPeakUs` over
+// the admissible samples (`valid` non-zero, or empty ⇒ all; value finite) while the rate is
+// positive; the first sample at or below zero and the positive sample after it bracket the
+// crossing, which is linearly interpolated. σ_t = (the rate σ interpolated at the crossing) /
+// |slope|. Not found when the walk reaches the start of the track without a non-positive sample,
+// or when the bracket straddles an inadmissible sample (the rate is not known across the hole).
+//
+// ⚠ THE CROSSING THAT OPENS THE PEAK'S LOBE, NOT "THE FIRST AFTER THE TOP". The design (§10.4) says
+// "after the top", but the top on the ladder is the CLUB's, and the hips reverse before it — the
+// segmenter's own Transition is the pelvis reversal searched up to 250 ms BEFORE Top. A search
+// that starts at the top misses exactly the reversal it is there to time, and then lands on
+// whatever dither comes next. The lobe definition needs no top: it is the instant after which the
+// segment turned toward the target without stopping until its peak.
+RateReversal findRateReversal(const std::vector<int64_t> &t, const std::vector<double> &dps,
+                              const std::vector<double> &sigmaDps, const std::vector<uint8_t> &valid,
+                              int64_t tPeakUs);
 
 } // namespace pinpoint::analysis

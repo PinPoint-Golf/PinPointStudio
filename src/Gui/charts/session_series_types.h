@@ -109,6 +109,11 @@ struct ShotDiagnostics {
         int     reducer = -1;   // ADDED: as ConditionInfo::reducer
     };
     QHash<QString, Reading> drivenBy;     // conditionId → reading; fired conditions only
+
+    // ADDED 14 Oct (K4). The kinematic sequence checks, "Sequence checks: n of m", in the shape
+    // Coaching/sequence_checks.h sequenceChecksToVariant() publishes — read off the ledger's own
+    // per-signal verdicts (schema 5), never re-derived here. Empty when the row carries none.
+    QVariantMap sequenceChecks;
 };
 
 struct ShotSeries {

@@ -178,7 +178,10 @@ int main()
         // to. The second was the older gap — the same restriction already reached SWAY, the opposite
         // tail of the very same pelvis-sway measure, so the graph could account for one direction of
         // a two-tailed failure and not the other.
-        check(coverage("poor_pelvic_disassociation") == 15, "poor pelvic disassociation explains 15");
+        // 15 -> 17 with the kinematic-sequence checks (2026-10-14, design §10.5): a pelvis that will
+        // not turn apart from the chest leaves the chest nothing to overtake, and lets the shoulders
+        // start the downswing.
+        check(coverage("poor_pelvic_disassociation") == 17, "poor pelvic disassociation explains 17");
         // 15 and 9, up from 13 and 8. The face-on producer batch made six authored conditions
         // gradeable for the first time, and the "everything that can fire has a cause" check below
         // caught that they had nothing behind them. Two of the six route to a thoracic-rotation
@@ -190,7 +193,9 @@ int main()
         // the top some other way, and leaning toward the target is the cheapest substitute. Moderate
         // rather than Strong — the restriction makes the substitution available, it does not compel
         // it, and a golfer with the same restriction can shorten the backswing instead.
-        check(coverage("limited_thoracic_rotation") == 16, "limited thoracic rotation explains 16");
+        // 16 -> 18 with the kinematic-sequence checks (2026-10-14): a chest that cannot turn cannot
+        // speed up past the hips, and the arms run ahead of it coming down.
+        check(coverage("limited_thoracic_rotation") == 18, "limited thoracic rotation explains 18");
         // 9 -> 10 with the lead-side audit: the hip that cannot internally rotate cannot accept the
         // load and turn over it, so the rotation stops rather than being slow to start — which is
         // late_pelvis_rotation, a fault it already explained and a different one.
@@ -1032,6 +1037,13 @@ int main()
             if (!canFire) continue;
 
             ++fireable;
+            // THE ONE DECLARED EXCEPTION. inconsistent_sequence went live with the session reducer
+            // (§10.8 E2) and has no cause BY DECISION: both authored causes were searched and dropped
+            // unsupported (trunk_imu_sequence_grf_design.md §10.9, 14 October 2026), and the spec
+            // says it raises `noCause` rather than take a cause on intuition. It is a session-scope
+            // dispersion finding, so the explanation lists it as unexplained — the honest answer.
+            // Named, not a category: a second fireable condition with no cause still fails here.
+            if (c.id == QLatin1String("inconsistent_sequence")) continue;
             if (causesOf(p, c.id).isEmpty()) {
                 ++unexplained;
                 std::printf("        '%s' can fire today but has no cause — it would be reported "
@@ -1153,6 +1165,39 @@ int main()
                   "and its parse failure names the FILE it came from, so the health list can say "
                   "which pack to fix");
         }
+    }
+
+    // ── The session's sequence consistency (trunk_imu_sequence_grf_design.md §10.8 E2, F10) ───
+    {
+        // inconsistent_sequence_is_session_scope
+        bool live = true;
+        for (const char *mid : { "m_ksOrderShare", "m_ksTimingSpread" }) {
+            const Measure *m = p.measure(QLatin1String(mid));
+            live = live && m && m->status == MeasureStatus::Live && m->scope == MeasureScope::Session
+                   && m->kind == MeasureKind::Provided && m->gapReason.isEmpty();
+        }
+        check(live, "the two session measures are live, provided, scope session, with no gap reason");
+        check(isSessionScopeCondition(p, QStringLiteral("inconsistent_sequence")),
+              "inconsistent_sequence_is_session_scope: no per-swing verdict is possible");
+        int sessionScoped = 0;
+        for (const Measure &m : p.measures) sessionScoped += m.scope == MeasureScope::Session ? 1 : 0;
+        check(sessionScoped == 2, "…and they are the only two session measures");
+        const Signal *share = p.signal(QStringLiteral("sig_ksOrderShare"));
+        const Signal *spread = p.signal(QStringLiteral("sig_ksTimingSpread"));
+        check(share && share->test == SignalTest::Threshold && share->direction == Direction::Low
+                  && share->threshold.value_or(0) == 0.5
+                  && spread && spread->test == SignalTest::Threshold && spread->direction == Direction::High
+                  && spread->threshold.value_or(0) == 2.0,
+              "the share fires below 0.5 (the in-order upper bound, P7), the spread above 2.0 (P2)");
+
+        // inconsistent_sequence_has_no_edges — Neal 2007: felt timing tracks the strike, not the
+        // lag between peaks, so nothing may join it to a strike outcome; and its causes were dropped
+        // unsupported (§10.9), so it has none either.
+        int touching = 0;
+        for (const Edge &e : p.edges)
+            if (e.from == QLatin1String("inconsistent_sequence") || e.to == QLatin1String("inconsistent_sequence"))
+                ++touching;
+        check(touching == 0, "inconsistent_sequence_has_no_edges: no edge in or out, so none to a strike outcome");
     }
 
     std::printf("%s (%d failure%s)\n", g_fail ? "FAILED" : "OK", g_fail, g_fail == 1 ? "" : "s");

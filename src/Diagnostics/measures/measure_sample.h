@@ -119,7 +119,12 @@ namespace pinpoint::analysis {
 // 5: every value and span carries the measurement σ, gross risk and where the σ came from
 //    (session_diagnostics_design.md §A8.3). Additive — the numbers are unchanged — but a v4 sidecar
 //    has no σ to serve, so the bump retires it.
-inline constexpr int kPhaseGridSchemaVersion = 5;
+// 6: every metric carries the producer route it came from (`routeId`, `routeDirect`; the ratio
+//    test's same-scale rule, trunk_imu_sequence_grf_design.md §10.7 E3). Additive again, and the
+//    bump is NOT optional: a v5 sidecar serves no route, and two readings with no route are allowed
+//    to form a ratio — so a stale cache would quietly permit exactly the cross-scale quotient the
+//    rule exists to refuse.
+inline constexpr int kPhaseGridSchemaVersion = 6;
 
 // SigmaSource — where a reading's measurement σ came from — lives in sigma_source.h.
 
@@ -202,6 +207,10 @@ struct MetricPhaseGrid {
     // stated no sigmaKind). NaN = none.
     double      seriesSigma    = std::numeric_limits<double>::quiet_NaN();
     SigmaSource seriesSigmaSrc = SigmaSource::None;
+    // The series' producer route (MetricSeries::routeId / routeDirect). Empty + false = the
+    // producer stated none, which is every metric that is not a KS node's.
+    QString     routeId;
+    bool        routeDirect = false;
 
     const PhaseGridValue *at(Phase p) const;
 };
@@ -280,6 +289,9 @@ struct GridReading {
     double      sigma     = std::numeric_limits<double>::quiet_NaN();
     float       grossRisk = -1.f;
     SigmaSource sigmaSrc  = SigmaSource::None;   // the WEAKEST source among the terms
+    // The route of the metric that answered — the winning rung's, on a ladder.
+    QString     route;
+    bool        direct    = false;
 };
 std::optional<GridReading> reduceOverGridReading(const SwingPhaseGrid &grid, const QString &metricKey,
                                                  const Reducer &r);

@@ -2714,8 +2714,14 @@ struct KinematicSequenceStage : AnalysisStage {
         }
         for (MetricSeries &m : segmentRateSeries(r))
             ctx.seriesOut().push_back(std::move(m));
-        if (SegmentRatesConfig::fromOverrides(ctx.job.tuningOverrides).peakTimes)
+        const SegmentRatesConfig emitCfg = SegmentRatesConfig::fromOverrides(ctx.job.tuningOverrides);
+        if (emitCfg.peakTimes)
             for (MetricSeries &m : sequencePeakTimeSeries(r.sequence))
+                ctx.seriesOut().push_back(std::move(m));
+        // The other placed nodes' readings — arm / club instants, the four peak speeds, the trunk
+        // reversals — each carrying its node's route for the same-scale rule (§10.4, §10.7).
+        if (emitCfg.nodeSeries)
+            for (MetricSeries &m : sequenceNodeSeries(r))
                 ctx.seriesOut().push_back(std::move(m));
         ctx.detail->kinematicSequence = r.sequence;
 

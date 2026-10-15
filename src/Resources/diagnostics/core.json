@@ -461,6 +461,173 @@
       "highMeans": "the chest reached its top turning speed later, closer to the ball"
     },
     {
+      "id": "m_leadArmPeakTime",
+      "kind": "provided",
+      "metricKey": "leadArmPeakTime",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "label": "Lead arm speed peak, ms relative to impact",
+      "unit": "ms",
+      "golferHigh": "your lead arm moves fastest later, nearer impact",
+      "golferLow": "your lead arm moves fastest earlier coming down",
+      "highMeans": "the lead arm reached its top swinging speed later, closer to the ball"
+    },
+    {
+      "id": "m_clubPeakTime",
+      "kind": "provided",
+      "metricKey": "clubPeakTime",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "label": "Club speed peak, ms relative to impact",
+      "unit": "ms",
+      "golferHigh": "the club reaches its top speed later, nearer the ball",
+      "golferLow": "the club reaches its top speed earlier coming down",
+      "highMeans": "the club reached its top angular speed later, closer to the ball — at the ball in a good release"
+    },
+    {
+      "id": "m_pelvisPeakSpeed",
+      "kind": "provided",
+      "metricKey": "pelvisPeakSpeed",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "label": "Pelvis peak turning speed",
+      "unit": "°/s",
+      "golferHigh": "your hips turn faster at their quickest",
+      "golferLow": "your hips turn slower at their quickest",
+      "highMeans": "a faster top turning speed of the pelvis in the downswing, as a magnitude"
+    },
+    {
+      "id": "m_thoraxPeakSpeed",
+      "kind": "provided",
+      "metricKey": "thoraxPeakSpeed",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "label": "Chest peak turning speed",
+      "unit": "°/s",
+      "golferHigh": "your chest turns faster at its quickest",
+      "golferLow": "your chest turns slower at its quickest",
+      "highMeans": "a faster top turning speed of the chest in the downswing, as a magnitude"
+    },
+    {
+      "id": "m_leadArmPeakSpeed",
+      "kind": "provided",
+      "metricKey": "leadArmPeakSpeed",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "label": "Lead arm peak speed",
+      "unit": "°/s",
+      "golferHigh": "your lead arm swings faster at its quickest",
+      "golferLow": "your lead arm swings slower at its quickest",
+      "highMeans": "a faster top angular speed of the lead arm in the downswing, as a magnitude"
+    },
+    {
+      "id": "m_clubPeakSpeed",
+      "kind": "provided",
+      "metricKey": "clubPeakSpeed",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "label": "Club peak speed",
+      "unit": "°/s",
+      "golferHigh": "the club swings faster at its quickest",
+      "golferLow": "the club swings slower at its quickest",
+      "highMeans": "a faster top ANGULAR speed of the club in the downswing, as a magnitude — the shaft's turning rate, not the clubhead's speed in mph"
+    },
+    {
+      "id": "m_pelvisSpeedImpact",
+      "kind": "provided",
+      "metricKey": "pelvisAngularSpeed",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "label": "Pelvis turning speed at impact",
+      "unit": "°/s",
+      "golferHigh": "your hips are still turning hard at impact",
+      "golferLow": "your hips have slowed more by impact",
+      "highMeans": "the pelvis still turning fast toward the target as the club reaches the ball"
+    },
+    {
+      "id": "m_pelvisReversalTime",
+      "kind": "provided",
+      "metricKey": "pelvisReversalTime",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "label": "Hips start down, ms relative to impact",
+      "unit": "ms",
+      "golferHigh": "your hips start down later, nearer impact",
+      "golferLow": "your hips start down earlier",
+      "highMeans": "the pelvis changed direction out of the backswing later, closer to the ball"
+    },
+    {
+      "id": "m_thoraxReversalTime",
+      "kind": "provided",
+      "metricKey": "thoraxReversalTime",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "label": "Chest starts down, ms relative to impact",
+      "unit": "ms",
+      "golferHigh": "your chest starts down later, after your hips",
+      "golferLow": "your chest starts down earlier",
+      "highMeans": "the chest changed direction out of the backswing later, closer to the ball"
+    },
+    {
+      "id": "m_ksOrderShare",
+      "kind": "provided",
+      "metricKey": "ksOrderShare",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "scope": "session",
+      "label": "Swings in sequence, share of session",
+      "unit": "ratio",
+      "golferHigh": "more of your swings fire in the right order",
+      "golferLow": "fewer of your swings fire in the right order",
+      "highMeans": "a larger share of the session's swings peaked hips, chest, arm, club in that order. Read over the swings whose four peaks were all placed, as the Wilson UPPER bound on the in-order share (1 minus the lower bound on the out-of-order share), so a short session is never accused of an order it has not shown (trunk_imu_sequence_grf_design.md §10.9 P7)"
+    },
+    {
+      "id": "m_ksTimingSpread",
+      "kind": "provided",
+      "metricKey": "ksTimingSpread",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "scope": "session",
+      "label": "Peak-timing spread over the session",
+      "unit": "ratio",
+      "golferHigh": "your timing changes more from swing to swing",
+      "golferLow": "your timing repeats more closely from swing to swing",
+      "highMeans": "the session's peak times scatter more widely: the largest, over the placed segments, of the session SD (pooled within club, less the mean measurement variance of the placed peaks) divided by the professional SD (pelvis 19, chest 14, arm 8 ms; Cheetham et al. 2008, 19 PGA tour professionals; trunk_imu_sequence_grf_design.md §10.9 P2, P8)"
+    },
+    {
       "id": "m_thoracicCurve",
       "kind": "composed",
       "series": {
@@ -2769,7 +2936,115 @@
       "measures": [
         "m_pelvisPeakTime",
         "m_thoraxPeakTime"
+      ],
+      "fallback": [
+        "m_leadArmPeakTime",
+        "m_clubPeakTime"
       ]
+    },
+    {
+      "id": "sig_armBeforeThorax",
+      "test": "order",
+      "measures": [
+        "m_thoraxPeakTime",
+        "m_leadArmPeakTime"
+      ],
+      "fallback": [
+        "m_clubPeakTime"
+      ]
+    },
+    {
+      "id": "sig_pelvisBeforeImpact",
+      "test": "threshold",
+      "measures": [
+        "m_pelvisPeakTime"
+      ],
+      "direction": "high",
+      "threshold": 0
+    },
+    {
+      "id": "sig_thoraxBeforeImpact",
+      "test": "threshold",
+      "measures": [
+        "m_thoraxPeakTime"
+      ],
+      "direction": "high",
+      "threshold": 0
+    },
+    {
+      "id": "sig_clubBeforeArm",
+      "test": "order",
+      "measures": [
+        "m_leadArmPeakTime",
+        "m_clubPeakTime"
+      ]
+    },
+    {
+      "id": "sig_transitionOrder",
+      "test": "order",
+      "measures": [
+        "m_pelvisReversalTime",
+        "m_thoraxReversalTime"
+      ]
+    },
+    {
+      "id": "sig_thoraxGainLow",
+      "test": "ratio",
+      "measures": [
+        "m_thoraxPeakSpeed",
+        "m_pelvisPeakSpeed"
+      ],
+      "direction": "low",
+      "threshold": 1.22
+    },
+    {
+      "id": "sig_armGainLow",
+      "test": "ratio",
+      "measures": [
+        "m_leadArmPeakSpeed",
+        "m_thoraxPeakSpeed"
+      ],
+      "direction": "low",
+      "threshold": 1.08
+    },
+    {
+      "id": "sig_clubGainLow",
+      "test": "ratio",
+      "measures": [
+        "m_clubPeakSpeed",
+        "m_leadArmPeakSpeed"
+      ],
+      "direction": "low",
+      "threshold": 1.84
+    },
+    {
+      "id": "sig_noPelvisBraking",
+      "test": "ratio",
+      "measures": [
+        "m_pelvisSpeedImpact",
+        "m_pelvisPeakSpeed"
+      ],
+      "direction": "high",
+      "threshold": 0.95,
+      "requiresBeforeImpact": "m_pelvisPeakTime"
+    },
+    {
+      "id": "sig_ksOrderShare",
+      "test": "threshold",
+      "measures": [
+        "m_ksOrderShare"
+      ],
+      "direction": "low",
+      "threshold": 0.5
+    },
+    {
+      "id": "sig_ksTimingSpread",
+      "test": "threshold",
+      "measures": [
+        "m_ksTimingSpread"
+      ],
+      "direction": "high",
+      "threshold": 2.0
     },
     {
       "id": "sig_feetAlignmentOpen",
@@ -4450,22 +4725,215 @@
       "label": "Out-of-order sequence",
       "golfer": "your body turns in the wrong order coming down",
       "golferWell": "your hips lead and your shoulders follow coming down",
-      "golferWhy": "When your chest starts down before your hips, your body stops adding speed and your arms are left to make it.",
+      "golferWhy": "When your chest peaks before your hips, or your hips are still speeding up after the ball, your body stops adding speed and your arms are left to make it.",
       "group": "sequence",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
       "confirmedBy": "measured",
       "detectedBy": [
-        "sig_sequenceOrder"
+        "sig_sequenceOrder",
+        "sig_pelvisBeforeImpact",
+        "sig_thoraxBeforeImpact"
       ],
+      "detection": "any",
       "state": "active",
-      "consequence": "When the chest leads the pelvis, the chain that multiplies speed from the ground up never forms and speed has to be made by the arms.",
+      "consequence": "The sequence is read from impact. The pelvis should peak first, the chest next, then the lead arm and the club, all before the ball: Lynn et al. 2013 found the pelvis peaking 80 to 100 ms before impact in elite and recreational golfers alike. The fault fires when the pelvis peaks at or after the next link this capture placed (the chest, else the lead arm, else the club), or when the pelvis or the chest peaks after impact. Then the chain that multiplies speed from the ground up never forms and speed has to be made by the arms.",
       "provenance": {
         "tier": "supported",
         "citation": "10.1080/14763141.2010.535842",
         "searchedOn": "2026-07-27",
         "searchTerms": "proximal to distal sequencing golf swing segment angular speed"
+      }
+    },
+    {
+      "id": "arms_before_chest",
+      "label": "Arms outrun the chest",
+      "golfer": "your arms race ahead of your chest coming down",
+      "golferWell": "your chest turns and your arms follow",
+      "golferWhy": "When your arms take over before your chest has turned, the speed your body made is left behind and your arms have to make it alone.",
+      "aliases": [
+        "arms first",
+        "arms take over"
+      ],
+      "group": "sequence",
+      "kind": "fault",
+      "prominence": "common",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_armBeforeThorax"
+      ],
+      "state": "active",
+      "consequence": "The lead arm reaches its top speed at or before the chest does — the order the amateurs showed and the professionals did not. The chest never gets to hand its speed on to the arms, so the arms are swung on their own rather than delivered by the turn. Read as the ORDER of two peaks, never as a speed or a time against a published mean.",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "9780978873417",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "kinematic sequence amateur professional arm peak before thorax peak angular speed golf"
+      }
+    },
+    {
+      "id": "upper_body_starts_down",
+      "label": "Shoulders start the downswing",
+      "golfer": "your shoulders start down before your hips",
+      "golferWell": "your hips start down first",
+      "golferWhy": "Starting down with your shoulders takes away the lead your hips should have, so the club tends to come over the top with less speed.",
+      "aliases": [
+        "upper body first",
+        "starting from the top"
+      ],
+      "group": "sequence",
+      "kind": "fault",
+      "prominence": "common",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_transitionOrder"
+      ],
+      "state": "active",
+      "consequence": "The chest changes direction out of the backswing at or before the pelvis does. In professionals the pelvis reverses first and the upper torso follows, and this transition order is a separate thing from the order of the speed peaks. With it turned round the downswing starts from the top, and the chain that should build speed from the ground up starts at its second link.",
+      "provenance": {
+        "tier": "supported",
+        "citation": "10.1123/jab.27.3.242",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "pelvis reversal upper torso reversal downswing initiation professional golfers benchmarks"
+      }
+    },
+    {
+      "id": "chest_not_faster_than_hips",
+      "label": "Hips and chest turn as one block",
+      "golfer": "your chest doesn't speed up past your hips",
+      "golferWell": "your chest whips past your hips",
+      "golferWhy": "When your chest only keeps pace with your hips, the speed your hips made goes no further and the club arrives slower.",
+      "aliases": [
+        "one-block turn",
+        "blocky turn"
+      ],
+      "group": "sequence",
+      "kind": "fault",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_thoraxGainLow"
+      ],
+      "state": "draft",
+      "consequence": "The chest's peak turning speed is under 1.22 times the pelvis's: 80 % of the ratio 19 PGA tour professionals showed (Cheetham et al. 2008, 727 against 477 °/s). The chest never gets faster than the hips, so the speed the hips made is not passed on. Amateur ratios in the same study sit within a few percent of the professionals', so this marks a breakdown in the chain, not a skill level. Draft until the trunk routes are graded against worn sensors.",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1080/14763141.2010.535842",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "successive increase peak segment angular speed proximal to distal golf speed summation"
+      }
+    },
+    {
+      "id": "arms_ride_the_turn",
+      "label": "Arms ride the turn",
+      "golfer": "your arms don't speed up past your chest",
+      "golferWell": "your arms whip past your chest",
+      "golferWhy": "When your arms only move as fast as your chest turns, they add nothing of their own and the club arrives slower.",
+      "aliases": [
+        "arms along for the ride",
+        "no arm speed"
+      ],
+      "group": "sequence",
+      "kind": "fault",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_armGainLow"
+      ],
+      "state": "draft",
+      "consequence": "The lead arm's peak speed is under 1.08 times the chest's: 80 % of the ratio 19 PGA tour professionals showed (Cheetham et al. 2008, 980 against 727 °/s). The arms are carried round by the turn rather than swung past it, so the chest's speed is not built on. Amateur ratios in the same study sit within a few percent of the professionals', so this marks a breakdown in the chain, not a skill level.",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1080/14763141.2010.535842",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "successive increase peak segment angular speed proximal to distal golf speed summation"
+      }
+    },
+    {
+      "id": "club_not_released",
+      "label": "Club not released",
+      "golfer": "the club doesn't speed up much past your arms",
+      "golferWell": "the club whips past your hands",
+      "golferWhy": "When the club moves only a little faster than your arms, the last and biggest jump in speed in the chain is small, so the club arrives with less of the speed your body made.",
+      "aliases": [
+        "no release"
+      ],
+      "group": "sequence",
+      "kind": "fault",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_clubGainLow"
+      ],
+      "state": "draft",
+      "consequence": "The club's peak angular speed is under 1.84 times the lead arm's: 80 % of the ratio 19 PGA tour professionals showed (Cheetham et al. 2008, 2254 against 980 °/s). The last link is where most of the speed is made, and here it adds too little over the arms. Amateur ratios in the same study sit within a few percent of the professionals', so this marks a breakdown in the chain, not a skill level. The club's peak is the sharpest of the four and the one a smoothed track flattens most, so the line stays draft until that loss is characterised.",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1080/14763141.2010.535842",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "successive increase peak segment angular speed proximal to distal golf speed summation"
+      }
+    },
+    {
+      "id": "no_pelvis_braking",
+      "label": "Hips don't brake",
+      "golfer": "your hips keep spinning at full speed into the ball",
+      "golferWell": "your hips slow just before impact and pass the speed on",
+      "golferWhy": "Hips still turning flat out at the ball keep your chest and arms from overtaking them, so the speed stays in your body instead of reaching the club.",
+      "aliases": [
+        "hips never slow",
+        "spinning hips"
+      ],
+      "group": "sequence",
+      "kind": "fault",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_noPelvisBraking"
+      ],
+      "state": "draft",
+      "consequence": "The pelvis is still turning at 95 % or more of its peak speed when the club reaches the ball. Every one of 19 PGA tour professionals had slowed the pelvis before impact (Cheetham et al. 2008); not every amateur had. Read present or absent, never as an amount of slowing. The 95 % line is a starting heuristic, to be re-seated from swings with a worn hip sensor.",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "9780978873417",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "pelvis deceleration before impact professional amateur kinematic sequence golf"
+      }
+    },
+    {
+      "id": "inconsistent_sequence",
+      "label": "Sequence not repeatable",
+      "golfer": "your body fires in a different order from swing to swing",
+      "golferWell": "your body fires the same way every swing",
+      "golferWhy": "Skilled players fire their body in the same order swing after swing, and that repeatability is what most clearly sets them apart.",
+      "aliases": [
+        "timing varies",
+        "different every swing"
+      ],
+      "group": "sequence",
+      "kind": "fault",
+      "prominence": "common",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_ksOrderShare",
+        "sig_ksTimingSpread"
+      ],
+      "detection": "any",
+      "state": "draft",
+      "consequence": "Over the session, fewer than half the swings peak hips, chest, arm, club in that order (even the upper end of what the count supports is below half), or the peak times scatter more than twice as widely as in 19 PGA tour professionals (Cheetham et al. 2008: pelvis 19, chest 14, arm 8 ms SD). It was the timing SPREAD, not the timing mean, that separated amateurs from professionals there. It says nothing about any one swing, and nothing about the strike: how well-timed a shot feels tracks where it was struck, not the lag between peaks (Neal et al. 2007). Read over the session only, never on one swing.",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "9780978873417",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "kinematic sequence timing variability amateur professional standard deviation peak times golf"
       }
     },
     {
@@ -11890,6 +12358,307 @@
         "tier": "practice",
         "searchedOn": "2026-10-01",
         "searchTerms": "early release casting hands low impact shaft flat dynamic lie"
+      }
+    },
+    {
+      "from": "transition_rush",
+      "to": "upper_body_starts_down",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1123/jab.27.3.242",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "pelvis reversal before upper torso reversal downswing initiation transition golf"
+      }
+    },
+    {
+      "from": "transition_rush",
+      "to": "arms_before_chest",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1080/14763141.2025.2547277",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "transition phase duration complete proximal to distal sequence arm peak golf"
+      }
+    },
+    {
+      "from": "poor_pelvic_disassociation",
+      "to": "chest_not_faster_than_hips",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1080/02640410701373543",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "torso pelvis separation upper torso rotational velocity downswing golf"
+      }
+    },
+    {
+      "from": "poor_pelvic_disassociation",
+      "to": "upper_body_starts_down",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "pelvis thorax dissociation downswing initiation pelvis first upper torso reversal golf"
+      }
+    },
+    {
+      "from": "limited_thoracic_rotation",
+      "to": "chest_not_faster_than_hips",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1519/R-20606.1",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "thoracic rotation mobility upper torso rotational velocity golf flexibility training"
+      }
+    },
+    {
+      "from": "limited_thoracic_rotation",
+      "to": "arms_before_chest",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "thoracic rotation restriction arms take over downswing golf compensation"
+      }
+    },
+    {
+      "from": "disconnection",
+      "to": "arms_before_chest",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "lead arm connection chest downswing arm speed early golf"
+      }
+    },
+    {
+      "from": "arms_over_connected",
+      "to": "arms_ride_the_turn",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "arms pinned to chest arm speed relative to torso downswing golf"
+      }
+    },
+    {
+      "from": "upper_body_starts_down",
+      "to": "sequence_order",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1123/jab.27.3.242",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "transition sequence reversal order then peak sequence pelvis upper torso golf"
+      }
+    },
+    {
+      "from": "upper_body_starts_down",
+      "to": "arms_before_chest",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "downswing started from the top shoulders arms early golf"
+      }
+    },
+    {
+      "from": "no_pelvis_braking",
+      "to": "chest_not_faster_than_hips",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "9780978873417",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "pelvis deceleration before impact thorax speed gain kinematic sequence golf"
+      }
+    },
+    {
+      "from": "sequence_order",
+      "to": "chest_not_faster_than_hips",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1080/14763141.2010.535842",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "proximal to distal sequence successive increase peak angular speed golf"
+      }
+    },
+    {
+      "from": "arms_before_chest",
+      "to": "casting",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "9780978873417",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "amateur arm before thorax casting club peaks early kinematic sequence golf"
+      }
+    },
+    {
+      "from": "upper_body_starts_down",
+      "to": "over_the_top",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "shoulders start downswing upper body initiation over the top golf"
+      }
+    },
+    {
+      "from": "arms_before_chest",
+      "to": "over_the_top",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "arms dominate downswing from the top over the top path golf"
+      }
+    },
+    {
+      "from": "no_pelvis_braking",
+      "to": "hips_too_open_at_impact",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "pelvis keeps rotating into impact hips open at impact deceleration golf"
+      }
+    },
+    {
+      "from": "club_not_released",
+      "to": "face_held_open_impact",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "lack of release club angular speed open face impact forearm rotation golf"
+      }
+    },
+    {
+      "from": "sequence_order",
+      "to": "ball_speed_deficit",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "9780978873417",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "kinematic sequence order professional amateur clubhead speed golf"
+      }
+    },
+    {
+      "from": "chest_not_faster_than_hips",
+      "to": "ball_speed_deficit",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1080/02640410701373543",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "upper torso rotational velocity ball velocity golf"
+      }
+    },
+    {
+      "from": "arms_ride_the_turn",
+      "to": "ball_speed_deficit",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1080/02640414.2010.507249",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "delayed release arms ball velocity golf regression"
+      }
+    },
+    {
+      "from": "club_not_released",
+      "to": "ball_speed_deficit",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1080/02640414.2010.507249",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "delayed release wrists ball velocity golf regression"
+      }
+    },
+    {
+      "from": "late_pelvis_rotation",
+      "to": "upper_body_starts_down",
+      "type": "corroborates",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "24149396",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "earlier pelvic rotation downswing skilled low skilled golfers same late start"
+      }
+    },
+    {
+      "from": "hip_spin_out",
+      "to": "no_pelvis_braking",
+      "type": "corroborates",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "hips open early still spinning at impact pelvis deceleration golf"
+      }
+    },
+    {
+      "from": "hip_stall",
+      "to": "no_pelvis_braking",
+      "type": "excludes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "hip stall versus no pelvis deceleration opposite ends golf"
+      }
+    },
+    {
+      "from": "late_pelvis_rotation",
+      "to": "no_pelvis_braking",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1123/ijgs.2013-0011",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "timing of peak pelvis angular velocity relative to impact skilled versus less skilled golfers; pelvis deceleration before impact peak to impact time"
+      }
+    },
+    {
+      "from": "casting",
+      "to": "club_not_released",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1080/14763141.2025.2547277",
+        "searchedOn": "2026-10-14",
+        "searchTerms": "wrist release style early release delayed release peak uncocking velocity golf; golf wrist release timing club angular velocity relative to arm"
       }
     }
   ]

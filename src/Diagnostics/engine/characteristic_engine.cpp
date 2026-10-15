@@ -60,12 +60,16 @@ struct SignalVerdict {
     bool        fired     = false;
     float       confidence = 0.0f;
     QStringList missing;
+    // WHY it is unavailable — None while it is available. See SignalRefusal.
+    SignalRefusal refusal = SignalRefusal::None;
 
     // The reading this verdict was reached on, for the finding's evidence. Set only when the signal
     // was actually evaluated — an unavailable verdict has no number to report and must not pretend
     // otherwise.
     std::optional<MeasureReading> driving;
     QString                       drivingMeasureId;
+    // An order test that fell back down its chain: the link it compared with (Signal::fallback).
+    QString                       comparedWith;
 
     // The verdict as a probability (session_diagnostics_design.md §A8.4). Defaults restate the hard
     // verdict; a branch with a σ and an edge to measure it against replaces them.
@@ -88,6 +92,27 @@ float pBeyond(double value, double edge, double sigma, Direction d)
 
 bool hasSigma(const MeasureReading &r) { return std::isfinite(r.measSigma) && r.measSigma > 0.0; }
 
+// THE SAME-SCALE RULE for a ratio (trunk_imu_sequence_grf_design.md §10.7, E3). A quotient of two
+// readings is dimensionless only in name when they come off two scales: a pelvis peak from the IMU
+// over a thorax peak from the camera pair route divides one instrument's error by another's, and
+// the camera's scale error (kTriScaleFrac) cancels only when it sits on BOTH halves. So: both from
+// Direct rungs, or both from one named route.
+//
+// TWO READINGS THAT SAY NOTHING ABOUT THEIR ROUTE ARE ALLOWED, and that is a compatibility rule, not
+// a loophole. Every measure that predates the route field (a tempo ratio of two durations off one
+// clock) carries none, and darking those for want of a field their producer never had would turn a
+// rule about mixed scales into a rule about old producers. The rule bites the moment route
+// information is present on either side: one side stating a route the other lacks is as unknown a
+// pairing as two that disagree.
+bool sameScale(const MeasureReading &a, const MeasureReading &b)
+{
+    const bool aSays = !a.route.isEmpty() || a.direct;
+    const bool bSays = !b.route.isEmpty() || b.direct;
+    if (!aSays && !bSays) return true;                    // neither carries a route: today's behaviour
+    if (a.direct && b.direct) return true;                // two Direct rungs: each on its own true scale
+    return !a.route.isEmpty() && a.route == b.route;      // one route: its scale error cancels
+}
+
 SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
 {
     SignalVerdict v;
@@ -102,7 +127,39 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
         }
         readings.push_back(*r);
     }
-    if (!v.missing.isEmpty()) return v;   // stays unavailable
+    // THE CHAIN DOES NOT END AT A LINK NOBODY PLACED. An order test whose later event produced no
+    // value compares its subject with the next link of the chain that did (Signal::fallback, in
+    // chain order). The sequence runs hips → chest → lead arm → club → impact, and a capture that
+    // never placed the chest still knows whether the hips peaked before the arm: "not assessable"
+    // there would hide the one fault the swing plainly shows. Only when no later link was placed
+    // is the test unavailable, naming the link it wanted first.
+    if (sig.test == SignalTest::Order && readings.size() == 1 && v.missing.size() == 1
+        && v.missing.front() == sig.measures.value(1)) {
+        for (const QString &fid : sig.fallback) {
+            if (const auto r = src.read(fid)) {
+                readings.push_back(*r);
+                v.comparedWith = fid;
+                v.missing.clear();
+                break;
+            }
+        }
+    }
+    if (!v.missing.isEmpty()) { v.refusal = SignalRefusal::MeasureMissing; return v; }   // stays unavailable
+
+    // A signal that only means something while a peak precedes impact (Signal::requiresBeforeImpact).
+    // Hip braking compares the hips' speed at impact with their peak; with the peak AFTER impact the
+    // hips are still speeding up through the ball, and the quotient's "they slowed" is false. That
+    // lateness is a sequence fault in its own right, reported by the hips-before-impact check; here
+    // it is the reason this check cannot be read, never a pass.
+    if (!sig.requiresBeforeImpact.isEmpty()) {
+        const auto t = src.read(sig.requiresBeforeImpact);
+        if (!t) { v.missing << sig.requiresBeforeImpact; v.refusal = SignalRefusal::MeasureMissing; return v; }
+        if (!(t->value < 0.0)) {
+            v.missing << sig.requiresBeforeImpact;
+            v.refusal = SignalRefusal::PeakAfterImpact;
+            return v;
+        }
+    }
 
     const int want = (sig.test == SignalTest::Order || sig.test == SignalTest::Ratio) ? 2 : 1;
     if (int(readings.size()) != want) {
@@ -110,6 +167,7 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
         // Report unavailable rather than guessing: a wrong answer here is indistinguishable from a
         // real finding downstream.
         v.missing = sig.measures;
+        v.refusal = SignalRefusal::Malformed;
         return v;
     }
 
@@ -125,6 +183,7 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
             // this is unavailable — NOT a pass. This is the single most important branch in the
             // engine: most of the seed pack has no corridor yet.
             v.available = false;
+            v.refusal   = SignalRefusal::NoCorridor;
             v.missing << sig.measures.value(0);
             return v;
         }
@@ -135,6 +194,7 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
         // the two reasons applies.
         if (r.implausible) {
             v.available = false;
+            v.refusal   = SignalRefusal::Implausible;
             v.missing << sig.measures.value(0);
             return v;
         }
@@ -189,6 +249,7 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
         // — exactly what Norm::plausibleLo exists to prevent. Unavailable is the state for it.
         if (r.implausible) {
             v.available = false;
+            v.refusal   = SignalRefusal::Implausible;
             v.missing << sig.measures.value(0);
             return v;
         }
@@ -216,6 +277,16 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
         break;
     }
     case SignalTest::Order:
+        // The corridor branch's refusal, made here too: an order built from a reading the norm
+        // does not believe was not assessed, whichever of the two events was wrong. Answering
+        // "in order" about a peak time that is a capture fault is a clean bill of health nobody
+        // measured.
+        if (readings[0].implausible || readings[1].implausible) {
+            v.available = false;
+            v.refusal   = SignalRefusal::Implausible;
+            v.missing   = sig.measures;
+            return v;
+        }
         // Measures are ordered: the first is expected to peak before the second. Values carry the
         // event time, so "out of order" is first >= second.
         v.fired = readings[0].value >= readings[1].value;
@@ -261,13 +332,30 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
         // seconds over seconds cancels and the authored figure means something, while degrees over
         // seconds is a rate wearing a ratio's name and the figure would be in a unit nothing in the
         // model records.
+        //
+        // A zero denominator is no ratio at all, and a NEGATIVE one is not a ratio this test can
+        // grade: dividing by it turns "above the number" into "below it", so the authored direction
+        // would mean the opposite of what was written. Every ratio the pack carries is of two
+        // positive quantities (durations; the KS peak speeds are emitted as magnitudes), so a
+        // non-positive denominator is a producer fault, and Unavailable is the state for it. The
+        // negated form also refuses a NaN.
         const double denom = readings[1].value;
-        if (denom == 0.0) { v.available = false; v.missing = sig.measures; return v; }
+        if (!(denom > 0.0)) { v.available = false; v.refusal = SignalRefusal::NonPositiveDenominator; v.missing = sig.measures; return v; }
 
         if (readings[0].implausible || readings[1].implausible) {
             // Same rule as the corridor branch: a ratio built from a reading nobody believes was
             // not assessed, whichever half of it was wrong.
             v.available = false;
+            v.refusal   = SignalRefusal::Implausible;
+            v.missing   = sig.measures;
+            return v;
+        }
+
+        // Two scales: not assessed. See sameScale() for what counts as one, and why two readings
+        // that state no route at all still pass.
+        if (!sameScale(readings[0], readings[1])) {
+            v.available = false;
+            v.refusal   = SignalRefusal::MixedScale;
             v.missing   = sig.measures;
             return v;
         }
@@ -276,6 +364,20 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
         const double    t     = sig.threshold.value_or(0.0);
         const Direction d     = sig.direction.value_or(Direction::High);
         v.fired = (d == Direction::High) ? (ratio > t) : (ratio < t);
+
+        // §10.7 E1: the quotient's σ by the delta method, σ_q = |q|·√((σa/a)² + (σb/b)²), and
+        // P(fire) = Φ(±(q − t)/σ_q) like the threshold test it is. Only with BOTH σ stated — the
+        // Order rule: a half-known budget would claim a precision nobody measured.
+        //
+        // Written as √((σa/b)² + (q·σb/b)²), which is the same number (|q|·σa/|a| = σa/b with b > 0)
+        // and stays defined on a zero numerator, where σa/a is not.
+        if (hasSigma(readings[0]) && hasSigma(readings[1])) {
+            const double sq = std::hypot(readings[0].measSigma / denom,
+                                         ratio * readings[1].measSigma / denom);
+            v.pFire      = pBeyond(ratio, t, sq, d);
+            v.quantified = true;
+        }
+        v.grossRisk = std::max(readings[0].grossRisk, readings[1].grossRisk);
 
         // NO corridor requirement, and NO open-tail check. Both belong to a measure's norm and the
         // quotient has neither. Requiring a corridor would dark every ratio signal for want of a
@@ -299,7 +401,7 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
     v.driving          = readings.front();
     v.drivingMeasureId = sig.measures.value(0);
 
-    // No σ (or a Ratio, which propagates none): the probability is the hard verdict restated.
+    // No σ on a reading the test needed one from: the probability is the hard verdict restated.
     if (!v.quantified) v.pFire = v.fired ? 1.f : 0.f;
 
     return v;
@@ -353,6 +455,32 @@ std::vector<MeasureEvidence> allEvidence(const std::vector<EvidenceCandidate> &c
 }
 
 } // namespace
+
+SignalOutcome evaluateSignal(const CharacteristicPack &pack, const QString &signalId,
+                             const IMeasureSource &source)
+{
+    SignalOutcome out;
+    out.signalId = signalId;
+    const Signal *sig = pack.signal(signalId);
+    if (!sig) {
+        out.refusal = SignalRefusal::UnknownSignal;
+        return out;
+    }
+    // THE SAME evaluate() detect() runs for a condition's signal, on whatever source the caller
+    // hands in — so a caller that passes detect()'s own source reads the verdict detect() read.
+    const SignalVerdict v = evaluate(*sig, source);
+    out.available  = v.available;
+    out.fired      = v.available && v.fired;
+    out.refusal    = v.available ? SignalRefusal::None : v.refusal;
+    out.missing    = v.missing;
+    out.comparedWith = v.available ? v.comparedWith : QString();
+    if (v.available) {
+        out.pFire      = v.pFire;
+        out.quantified = v.quantified;
+        out.grossRisk  = v.grossRisk;
+    }
+    return out;
+}
 
 DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &source,
                        const ContextTree *contexts, const QString &contextId)

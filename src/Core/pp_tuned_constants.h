@@ -1128,6 +1128,20 @@ inline constexpr bool         kSkel3dThoraxPlacement = false; // sequence.skel3d
 // (it compares event TIMES; it was fed peak ANGLES until 2026-10-02). An unplaced node emits nothing,
 // so the characteristic is honestly not assessable where the sequence could not place both.
 inline constexpr bool         kPeakTimes            = true;   // sequence.peakTimes
+// The rest of the PLACED nodes as point-in-time metrics (segment_rates.h sequenceNodeSeries): the
+// arm and club peak instants (same convention as kPeakTimes), the four peak speeds |peakDps| with
+// the node's peak σ, and the pelvis / thorax REVERSAL instants — the signed rate's crossing into
+// the downswing. Each carries its node's route, which the diagnostics' same-scale rule for ratios
+// reads (trunk_imu_sequence_grf_design.md §10.4, §10.7). An unplaced node emits nothing.
+inline constexpr bool         kNodeSeries           = true;   // sequence.nodeSeries
+// The SESSION's sequence consistency (trunk_imu_sequence_grf_design.md §10.8 E2, §10.9 P7/P8): the
+// fewest swings with all four peaks placed before the in-order share is read, and — as degrees of
+// freedom + 1 — the fewest placed peaks of one segment, within club, before its timing spread is.
+// At n <= 3 the share's Wilson test cannot fire whatever happens, so a reading there would be a
+// clean verdict nobody earned; 5 is one margin swing above where firing first becomes possible, and
+// the house's five-shot window (kDiagMinPointsForTrend, kDiagResolvingWindow). At 4 degrees of
+// freedom an SD carries ~35 % sampling error, which the spread's σ propagates rather than hides.
+inline constexpr int          kSessionMinSwings     = 5;      // sequence.sessionMinSwings
 } // namespace sequence
 
 // --- Club delivery from a face-on camera (src/Club/club_delivery.h) -------

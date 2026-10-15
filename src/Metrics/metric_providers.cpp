@@ -177,7 +177,16 @@ std::vector<QString> KinematicSequenceProvider::provides() const
     return { QStringLiteral("pelvisAngularSpeed"),  QStringLiteral("thoraxAngularSpeed"),
              QStringLiteral("leadArmAngularSpeed"), QStringLiteral("clubAngularSpeed"),
              QStringLiteral("kinematicSequence"),
-             QStringLiteral("pelvisPeakTime"),      QStringLiteral("thoraxPeakTime") };   // the placed trunk instants, 2026-10-02
+             QStringLiteral("pelvisPeakTime"),      QStringLiteral("thoraxPeakTime"),     // the placed trunk instants, 2026-10-02
+             // The rest of the placed nodes (segment_rates.h sequenceNodeSeries, 2026-10-14).
+             QStringLiteral("leadArmPeakTime"),     QStringLiteral("clubPeakTime"),
+             QStringLiteral("pelvisPeakSpeed"),     QStringLiteral("thoraxPeakSpeed"),
+             QStringLiteral("leadArmPeakSpeed"),    QStringLiteral("clubPeakSpeed"),
+             QStringLiteral("pelvisReversalTime"),  QStringLiteral("thoraxReversalTime"),
+             // The session's consistency over those nodes (trunk_imu_sequence_grf_design.md §10.8
+             // E2): reduced by the session model from the shots' placed nodes, never per swing, but
+             // the nodes are this provider's, so the claim is too.
+             QStringLiteral("ksOrderShare"),        QStringLiteral("ksTimingSpread") };
 }
 
 // ---------------------------------------------------------------------------------- ScoreProvider

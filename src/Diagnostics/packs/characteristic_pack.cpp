@@ -392,6 +392,21 @@ QStringList tailsOfAxis(const CharacteristicPack &pack, const QString &axis)
     return out;
 }
 
+bool isSessionScopeCondition(const CharacteristicPack &pack, const QString &conditionId)
+{
+    const Condition *c = pack.condition(conditionId);
+    if (!c || c->detectedBy.isEmpty()) return false;
+    for (const QString &sid : c->detectedBy) {
+        const Signal *sig = pack.signal(sid);
+        if (!sig || sig->measures.isEmpty()) return false;
+        for (const QString &mid : sig->measures) {
+            const Measure *m = pack.measure(mid);
+            if (!m || m->scope != MeasureScope::Session) return false;
+        }
+    }
+    return true;
+}
+
 bool measureIsDeltaFromAddress(const Measure &m)
 {
     return (m.reducer.kind == ReducerKind::Delta || m.reducer.kind == ReducerKind::Rate)
@@ -632,12 +647,21 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
     // --- signals -------------------------------------------------------------
     QSet<QString> usedMeasures;
     for (const Signal &s : pack.signalDefs) {
-        for (const QString &mid : s.measures) {
+        QStringList named = s.measures + s.fallback;
+        if (!s.requiresBeforeImpact.isEmpty()) named << s.requiresBeforeImpact;
+        for (const QString &mid : named) {
             usedMeasures.insert(mid);
             if (!measureSet.contains(mid))
                 err(r, QStringLiteral("unknownMeasure"), s.id,
                     QStringLiteral("Signal '%1' references unknown measure '%2'.").arg(s.id, mid));
         }
+        // A fallback is the next link of an ORDER chain; on any other test it would silently
+        // swap the measure the author graded for a different one.
+        if (!s.fallback.isEmpty() && s.test != SignalTest::Order)
+            err(r, QStringLiteral("signalFallback"), s.id,
+                QStringLiteral("Signal '%1' names a fallback but is a %2 test. Only an order test "
+                               "falls back to the next link of its chain.")
+                    .arg(s.id, signalTestName(s.test)));
 
         const bool needsTwo = (s.test == SignalTest::Order || s.test == SignalTest::Ratio);
         const int  want     = needsTwo ? 2 : 1;
@@ -1004,6 +1028,37 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
                     .arg(e.from, e.to));
     }
 
+    // --- measure scope (trunk_imu_sequence_grf_design.md §10.8 E2) ----------------
+    //
+    // A session measure is reduced by the session model from the shot records, never read off a
+    // swing document, so it must be a Provided row (a facet series is a per-swing curve), and a
+    // condition may not mix the two scopes: its per-swing signals would give it a per-swing verdict
+    // while its session signals have none, and the ANY/ALL rules would then combine a swing's
+    // reading with the session's as if they answered one question.
+    for (const Measure &m : pack.measures)
+        if (m.scope == MeasureScope::Session && m.kind != MeasureKind::Provided)
+            err(r, QStringLiteral("sessionScopeNotProvided"), m.id,
+                QStringLiteral("Measure '%1' is read over the session but is not a provided measure; "
+                               "only a provided measure can be reduced from the session's swings.")
+                    .arg(m.id));
+    for (const Condition &c : pack.conditions) {
+        bool anySession = false, anySwing = false;
+        for (const QString &sid : c.detectedBy) {
+            const Signal *sig = pack.signal(sid);
+            if (!sig) continue;
+            for (const QString &mid : sig->measures) {
+                const Measure *m = pack.measure(mid);
+                if (!m) continue;
+                (m->scope == MeasureScope::Session ? anySession : anySwing) = true;
+            }
+        }
+        if (anySession && anySwing)
+            err(r, QStringLiteral("mixedScope"), c.id,
+                QStringLiteral("'%1' is detected by both session measures and per-swing measures; a "
+                               "condition is read over one swing or over the session, never both.")
+                    .arg(c.id));
+    }
+
     // --- explanation health --------------------------------------------------
     for (const Condition &c : pack.conditions) {
         const QStringList causes = causesOf(pack, c.id);
@@ -1294,6 +1349,14 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
                                "ceiling.")
                     .arg(m.id, o.value(QStringLiteral("shape")).toString()));
 
+        // Absent => Swing. An unknown token is an ERROR for the shape's reason: a session measure
+        // misread as a swing one would be read per swing, where it has no value and no meaning.
+        if (o.contains(QStringLiteral("scope"))
+            && !measureScopeFromName(o.value(QStringLiteral("scope")).toString(), m.scope))
+            err(r, QStringLiteral("unknownScope"), m.id,
+                QStringLiteral("Measure '%1' declares scope '%2'; the scopes are swing and session.")
+                    .arg(m.id, o.value(QStringLiteral("scope")).toString()));
+
         // A composed measure naming a spinal role cannot come from the pose SKELETON, and the
         // loader stamps that rather than trusting the author to remember — a measure claiming to
         // be live on a role with no keypoint would silently never produce a value.
@@ -1347,6 +1410,8 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
         }
         if (o.contains(QStringLiteral("threshold")))
             s.threshold = o.value(QStringLiteral("threshold")).toDouble();
+        s.fallback             = readStringList(o.value(QStringLiteral("fallback")));
+        s.requiresBeforeImpact = o.value(QStringLiteral("requiresBeforeImpact")).toString();
 
         out.pack.signalDefs.push_back(std::move(s));
     }
@@ -1589,6 +1654,7 @@ QJsonObject savePack(const CharacteristicPack &pack)
         // Omitted when Target, so 105 of 106 shipped measures round-trip byte-identically and the
         // key appears only where somebody actually said something.
         if (m.shape != Shape::Target) o.insert(QStringLiteral("shape"), shapeName(m.shape));
+        if (m.scope != MeasureScope::Swing) o.insert(QStringLiteral("scope"), measureScopeName(m.scope));
         if (m.unwatchedTail.has_value())
             o.insert(QStringLiteral("unwatchedTail"), directionName(*m.unwatchedTail));
         if (!m.unwatchedReason.isEmpty())
@@ -1605,6 +1671,9 @@ QJsonObject savePack(const CharacteristicPack &pack)
         o.insert(QStringLiteral("measures"), writeStringList(s.measures));
         if (s.direction.has_value()) o.insert(QStringLiteral("direction"), directionName(*s.direction));
         if (s.threshold.has_value()) o.insert(QStringLiteral("threshold"), *s.threshold);
+        if (!s.fallback.isEmpty()) o.insert(QStringLiteral("fallback"), writeStringList(s.fallback));
+        if (!s.requiresBeforeImpact.isEmpty())
+            o.insert(QStringLiteral("requiresBeforeImpact"), s.requiresBeforeImpact);
         signalArray.append(o);
     }
     root.insert(QStringLiteral("signals"), signalArray);

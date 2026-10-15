@@ -50,6 +50,7 @@ QString missingReasonText(MissingKind k)
     case MissingKind::MetricNotProduced:        return QStringLiteral("metric not produced on this capture");
     case MissingKind::PhaseNotSegmented:        return QStringLiteral("the phase this reads at was not segmented");
     case MissingKind::CaptureDataIssue:         return QStringLiteral("frames were lost during capture, so this shot is not assessed");
+    case MissingKind::SessionScope:             return QStringLiteral("read over the session, never one swing");
     }
     return QString();
 }
@@ -91,6 +92,14 @@ std::optional<IMeasureValueSource::Value> LiveMeasureSource::value(const QString
     // produces one — reduceOverGrid() says the same thing by returning nullopt on an empty
     // metricKey, and the point of checking first is that "there is no producer for this" and
     // "the producer ran and this capture has nothing" are different sentences for the panel.
+    // A SESSION measure has no per-swing value by construction (MeasureScope): it is reduced over the
+    // session's shot records by the session model, so a per-swing read is refused before the grid is
+    // consulted — and refused in words that say so, not as a metric this capture failed to produce.
+    if (m->scope == MeasureScope::Session) {
+        note(measureId, MissingKind::SessionScope);
+        return std::nullopt;
+    }
+
     if (m->metricKey.isEmpty() && m->preferKeys.isEmpty()) {
         note(measureId, MissingKind::NoMetricBinding);
         return std::nullopt;
@@ -113,6 +122,10 @@ std::optional<IMeasureValueSource::Value> LiveMeasureSource::value(const QString
         // inferred context through it — so a future grid that keeps phase confidence lands here
         // with nothing else to change.
         Value out{ v->value, 1.0f };
+        // The route is provenance, not uncertainty: carried whatever the σ switch says, because the
+        // ratio test's same-scale rule refuses a cross-scale quotient with or without a σ on it.
+        out.route  = v->route;
+        out.direct = v->direct;
         // The measurement σ (session_diagnostics_design.md §A8.3), behind its switch so the off
         // state reproduces the pre-uncertainty source exactly.
         if (m_withSigma) {
@@ -184,7 +197,7 @@ bool LiveMeasureSource::hasLaunchMonitor() const
 LiveDetection detectForSwing(const LiveMeasureSource &values, const CharacteristicPack &pack,
                              const std::shared_ptr<const INormProvider> &norms,
                              const GradePolicy &policy, const Cohort &athlete,
-                             const QString &contextIdOverride)
+                             const QString &contextIdOverride, const QStringList &signalIds)
 {
     LiveDetection out;
     out.club      = values.club();
@@ -196,6 +209,8 @@ LiveDetection detectForSwing(const LiveMeasureSource &values, const Characterist
     const NormMeasureSource graded(values, norms, out.contextId, policy, &pack, athlete);
 
     out.result = detect(pack, graded, norms ? &norms->contexts() : nullptr, out.contextId);
+    out.signalOutcomes.reserve(size_t(signalIds.size()));
+    for (const QString &sid : signalIds) out.signalOutcomes.push_back(evaluateSignal(pack, sid, graded));
     return out;
 }
 

@@ -87,7 +87,7 @@ int main()
         // sequence is read from (pelvis / thorax / leadArm / club — segment_rates.h); the
         // Sequence itself went from planned to live the same day.
         // 104 -> 105 on 2026-09-23 with handPathLoop, the down-the-line hand loop over the top reads.
-        checkEqI(static_cast<int>(cat.all().size()), 109, "descriptor count == 109");   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
+        checkEqI(static_cast<int>(cat.all().size()), 119, "descriptor count == 119");   // +ksOrderShare, +ksTimingSpread (2026-10-14: the session sequence-consistency readings, planned)   // +8 sequence node readings (2026-10-14: arm/club peak times, four peak speeds, two reversals)   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
                                "clubheadPeakLead",
@@ -136,8 +136,8 @@ int main()
         // was firing on the wrong quantity: `shoulderLineYaw` (aim is a bearing, and the tilt one
         // camera reads is set by the grip) and `clubheadPeakLead` (the fault is the CLUBHEAD peaking
         // early; hand speed falls into impact on every good release).
-        checkEqI(countType(cat, MetricType::PointInTime), 50, "PointInTime count");   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02)   // +17: a monitor reports one number per shot; +transitionPlaneDelta, +compoundMiss, +shoulderLineYaw, +clubheadPeakLead, +handPathLoop
-        checkEqI(countType(cat, MetricType::Summary),      5, "Summary count");
+        checkEqI(countType(cat, MetricType::PointInTime), 58, "PointInTime count");   // +8 sequence node readings (2026-10-14)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02)   // +17: a monitor reports one number per shot; +transitionPlaneDelta, +compoundMiss, +shoulderLineYaw, +clubheadPeakLead, +handPathLoop
+        checkEqI(countType(cat, MetricType::Summary),      7, "Summary count");   // +ksOrderShare, +ksTimingSpread
         checkEqI(countType(cat, MetricType::Sequence),     1, "Sequence count (kinematicSequence)");
 
         // 5 -> 9: forearmRotation and the three HackMotion rungs all belong to the wrist
@@ -410,7 +410,7 @@ int main()
         // 20 -> 13 on 2026-09-21: the down-the-line rungs of pelvisThrust, spineForwardBend, the two
         // knee flexions, ballBodyDistance and balanceHeelToe (dtl_posture.h) and of swingPlane
         // (shaft_fusion.h) were built.
-        checkEqI(planned, 12, "12 planned metrics — nothing produces them by any route");   // −pelvisRotationSigned (two-camera route live 2026-10-01)   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view; −kinematicSequence (live 2026-09-17, segment_rates.cpp)
+        checkEqI(planned, 12, "12 planned metrics — nothing produces them by any route");   // 14 -> 12 on 2026-10-14: ksOrderShare, ksTimingSpread went live on the session reducer (§10.8 E2)   // −pelvisRotationSigned (two-camera route live 2026-10-01)   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view; −kinematicSequence (live 2026-09-17, segment_rates.cpp)
         checkEqI(unavailable, planned,
                  "every planned metric resolves Unavailable even with every device present");
         checkEqI(saysPlanned, planned,
@@ -995,7 +995,12 @@ int main()
         // 7 -> 8 with leadArmAngularSpeed (2026-09-17): the lead arm's swing rate about the plane
         // needs the FOREARM ALONE on its IMU rung, so a two-sensor rig produces one node of the
         // kinematic sequence without any camera at all.
-        checkEqI(static_cast<int>(avail.size()), 8, "availableOnly (forearm+hand only) → 8");
+        // 8 -> 10 with leadArmPeakTime and leadArmPeakSpeed (2026-10-14): the lead arm's KS node
+        // read off the same IMU rung, so the two-sensor rig that places the node also states it.
+        // 10 -> 11 with ksTimingSpread (2026-10-14, §10.8 E2): the session's timing spread reads any
+        // one placed segment, and the forearm sensor places the arm. ksOrderShare is NOT here — it
+        // needs all four nodes, so the shaft track a face-on camera supplies.
+        checkEqI(static_cast<int>(avail.size()), 11, "availableOnly (forearm+hand only) → 11");
         check(cat.query(aq, nullptr).empty(), "availableOnly without ctx → empty");
     }
 

@@ -1531,6 +1531,47 @@ int main()
               "mock: deceleration's does too, well below the gate");
     }
 
+    // ── Schema 6: the placed peak instants (trunk_imu_sequence_grf_design.md §10.9 P8) ──────────
+    std::printf("\nschema 6 peak times\n");
+    {
+        // schema6_peakTimes_roundtrip
+        ShotRecord r;
+        r.shotId = 3;
+        r.club   = QStringLiteral("7 iron");
+        r.peakTimes.push_back({ QStringLiteral("m_pelvisPeakTime"), -82.5, 11.0 });
+        r.peakTimes.push_back({ QStringLiteral("m_leadArmPeakTime"), -21.0,
+                                std::numeric_limits<double>::quiet_NaN() });
+        const QJsonObject obj = toJson({ r });
+        check(obj.value(QStringLiteral("schemaVersion")).toInt() == 7, "the ledger is schema 7");
+        const QByteArray bytes = QJsonDocument(obj).toJson(QJsonDocument::Compact);
+        const auto back = fromJsonDocument(QJsonDocument::fromJson(bytes));
+        check(back.size() == 1 && back[0].peakTimes.size() == 2
+                  && back[0].peakTimes[0].measureId == QLatin1String("m_pelvisPeakTime")
+                  && near(back[0].peakTimes[0].valueMs, -82.5, 1e-12)
+                  && near(back[0].peakTimes[0].sigmaMs, 11.0, 1e-12),
+              "schema6_peakTimes_roundtrip: a placed peak and its σ survive diagnostics.json");
+        check(back.size() == 1 && back[0].peakTimes.size() == 2
+                  && !std::isfinite(back[0].peakTimes[1].sigmaMs),
+              "…and a peak with no σ comes back with none, not a zero");
+
+        // schema5_file_reads_without_peakTimes
+        QJsonObject old = obj;
+        QJsonArray shots = old.value(QStringLiteral("shots")).toArray();
+        QJsonObject s0 = shots.at(0).toObject();
+        s0.remove(QStringLiteral("peakTimes"));
+        shots[0] = s0;
+        old[QStringLiteral("shots")] = shots;
+        old[QStringLiteral("schemaVersion")] = 5;
+        const auto five = fromJson(old);
+        check(five.size() == 1 && five[0].peakTimes.empty() && five[0].club == QLatin1String("7 iron"),
+              "schema5_file_reads_without_peakTimes: an older ledger reads back with none");
+        ShotRecord none;
+        none.shotId = 4;
+        check(!toJson({ none }).value(QStringLiteral("shots")).toArray().at(0).toObject()
+                   .contains(QStringLiteral("peakTimes")),
+              "a shot with no placed peak writes no peakTimes key");
+    }
+
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;
 }

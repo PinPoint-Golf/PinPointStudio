@@ -93,6 +93,91 @@ Column {
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: st.roles.hw; color: st.roles.hair }
         }
     }
+    // ── "Sequence checks: n of m" (trunk_imu_sequence_grf_design.md §10.6, E4) ───────────────────
+    // One quiet line: the count, a mark per check in facet order (✓ ✗ ? —), why the "—" are there, and
+    // whose count it is. Hover lists the checks; a tap pins the list open. Every string is the presenter's
+    // (sequence.checks, off the engine's own signal verdicts); this binds and picks the ink.
+    Item {
+        id: chk
+        objectName: "chSeqChecks"
+        readonly property var cs: st.sequence && st.sequence.checks && st.sequence.checks.checks
+                                  ? st.sequence.checks : null
+        readonly property var list: cs ? cs.checks : []
+        property bool pinned: false
+        readonly property bool open: pinned || hov.hovered
+        function ink(state) {
+            return state === "fail" ? st.roles.warn : state === "pass" ? st.roles.ink
+                 : state === "unsure" ? st.roles.ink2 : st.roles.ink3
+        }
+        visible: !!cs && !!st.roles
+        width: st.width
+        height: visible ? chkCol.implicitHeight + st.roles.u(6) : 0
+        HoverHandler { id: hov; cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: chk.pinned = !chk.pinned }
+        Column {
+            id: chkCol
+            y: st.roles ? st.roles.u(6) : 6
+            width: parent.width
+            spacing: st.roles ? st.roles.u(3) : 3
+            Item {
+                width: parent.width
+                height: line.implicitHeight
+                // The marks' face, unseen, so the marks' row can sit on the line's baseline.
+                Text { id: markProbe; visible: false; text: "✓"; font: st.roles ? st.roles.fFig : Qt.font({}) }
+                Row {
+                    id: lineRow
+                    spacing: st.roles ? st.roles.u(10) : 10
+                    Text { id: line; objectName: "chSeqChecksLine"; text: chk.cs ? chk.cs.line : ""
+                           font: st.roles ? st.roles.fBody : Qt.font({}); color: st.roles ? st.roles.ink : "black" }
+                    // A Row places x only, so each child's y puts its baseline on the line's.
+                    Row {
+                        objectName: "chSeqChecksMarks"
+                        y: line.baselineOffset - markProbe.baselineOffset
+                        spacing: st.roles ? st.roles.u(4) : 4
+                        Repeater {
+                            model: chk.list
+                            delegate: Text {
+                                required property var modelData
+                                objectName: "chSeqCheckMark:" + modelData.facet
+                                text: modelData.mark
+                                font: st.roles ? st.roles.fFig : Qt.font({}); color: chk.ink(modelData.state)
+                            }
+                        }
+                    }
+                    Text {
+                        id: gapText
+                        objectName: "chSeqChecksGap"
+                        y: line.baselineOffset - baselineOffset
+                        visible: text !== ""
+                        width: Math.max(0, Math.min(implicitWidth, chk.width - x - whose.implicitWidth - (st.roles ? st.roles.u(12) : 12)))
+                        elide: Text.ElideRight
+                        text: chk.cs ? (chk.cs.gapNote || "") : ""
+                        font: st.roles ? st.roles.fSmall : Qt.font({}); color: st.roles ? st.roles.ink3 : "grey"
+                    }
+                }
+                Text {
+                    id: whose
+                    anchors.right: parent.right; y: line.baselineOffset - baselineOffset
+                    visible: chk.width - gapText.x > implicitWidth + (st.roles ? st.roles.u(12) : 12)
+                    text: chk.cs ? chk.cs.whose : ""
+                    font: st.roles ? st.roles.fSmall : Qt.font({}); color: st.roles ? st.roles.ink3 : "grey"
+                }
+            }
+            Repeater {
+                model: chk.open ? chk.list : []
+                delegate: Row {
+                    required property var modelData
+                    objectName: "chSeqCheck:" + modelData.facet
+                    spacing: st.roles.u(8)
+                    Text { width: st.roles.u(14); horizontalAlignment: Text.AlignHCenter; text: modelData.mark
+                           font: st.roles.fFigS; color: chk.ink(modelData.state) }
+                    Text { width: st.segW + st.rankW; text: modelData.label; font: st.roles.fSmall; color: st.roles.ink }
+                    Text { width: Math.max(0, chk.width - st.segW - st.rankW - st.roles.u(30)); elide: Text.ElideRight
+                           text: modelData.detail; font: st.roles.fSmall; color: st.roles.ink3 }
+                }
+            }
+        }
+    }
     Text {
         visible: !!st.sequence && !!st.sequence.proNote
         topPadding: st.roles ? st.roles.u(4) : 4

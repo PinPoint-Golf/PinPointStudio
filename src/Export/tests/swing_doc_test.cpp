@@ -108,6 +108,8 @@ int main()
     tr.label = QStringLiteral("Tempo ratio");
     tr.unit  = QStringLiteral(":1");
     tr.sigma = 0.25;
+    tr.routeId     = QStringLiteral("pelvisImu");   // the producer route (MetricSeries::routeId)
+    tr.routeDirect = true;
     tr.phaseSamples.push_back({ Phase::Impact, 1010000, 3.0, QString() });
     a.series.push_back(tr);
     a.phases.push_back({ Phase::Impact, 1010000, 1.0f });
@@ -261,6 +263,12 @@ int main()
     check(m1.contains(QStringLiteral("sigma"))
               && qFuzzyCompare(m1[QStringLiteral("sigma")].toDouble(), 0.25),
           "sigma serialized when present");
+    // The producer route: written only when stated, so a series without one keeps its old bytes.
+    check(!m0.contains(QStringLiteral("routeId")) && !m0.contains(QStringLiteral("routeDirect")),
+          "no routeId / routeDirect keys when the producer stated no route");
+    check(m1[QStringLiteral("routeId")].toString() == QStringLiteral("pelvisImu")
+              && m1[QStringLiteral("routeDirect")].toBool(),
+          "routeId and routeDirect serialized when stated");
     check(an[QStringLiteral("phases")].toArray().size() == 2, "phases array");
     check(static_cast<qint64>(an[QStringLiteral("phases")].toArray().at(0).toObject()[QStringLiteral("t_us")].toDouble()) == 1010000, "phase t_us preserved");
     check(an[QStringLiteral("phases")].toArray().at(1).toObject()[QStringLiteral("segment")].toInt()
@@ -489,6 +497,15 @@ int main()
         check(ps.wallclockMs != 0, "…alongside the absolute instant the band is read at");
         const QVariantMap fe = ps.metrics.value(QStringLiteral("leadWristFlexExt")).toMap();
         check(fe.value(QStringLiteral("value")).toString() == QStringLiteral("-8°"), "flat metric value -8 deg");
+        // The producer route survives read-back on the series that stated one, and only there.
+        {
+            const QVariantList rs = ps.analysisDetail.value(QStringLiteral("series")).toList();
+            const QVariantMap r0 = rs.value(0).toMap(), r1 = rs.value(1).toMap();
+            check(rs.size() == 2 && !r0.contains(QStringLiteral("routeId"))
+                      && r1.value(QStringLiteral("routeId")).toString() == QStringLiteral("pelvisImu")
+                      && r1.value(QStringLiteral("routeDirect")).toBool(),
+                  "reader: routeId / routeDirect round-trip, absent where never stated");
+        }
         // Non-degree metrics format in their OWN unit — this reader used to
         // hardcode "°" and rendered every ratio/speed/×frame value as degrees.
         const QVariantMap tro = ps.metrics.value(QStringLiteral("tempoRatio")).toMap();

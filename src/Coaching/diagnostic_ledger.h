@@ -185,7 +185,16 @@ inline constexpr std::array<double, 5> kDiagSeveritySteps{ 0.5, 1.0, 1.5, 2.0, 3
 // at 2 reads back with none, and every row then restates its hard verdict in the soft counts.
 // 4 added ConditionRow::readings — every signal's measure on a row read by more than one. A file
 // at 3 reads back with none, and the row shows its driving measure alone.
-inline constexpr int kDiagSchemaVersion = 4;
+// 5 added ShotRecord::signalRows (one signal's own verdict — the kinematic sequence checks,
+// trunk_imu_sequence_grf_design.md §10.6) and ShotRecord::clubheadSpeed (their ranking's last
+// tie-break). A file at 4 reads back with neither, and regrades on activation to fill them.
+// 6 added ShotRecord::peakTimes (each PLACED kinematic-sequence peak instant and its σ — what the
+// session's timing spread is reduced from, trunk_imu_sequence_grf_design.md §10.9 P8). A file at 5
+// reads back with none, and regrades on activation to fill them.
+// 7 added SignalRow::comparedWith (the link an order check fell back to when the next one was not
+// placed) and the hips/chest-before-impact checks. A file at 6 reads back with none, and regrades
+// on activation so every sequence check is anchored to impact.
+inline constexpr int kDiagSchemaVersion = 7;
 
 // Every §4 tunable in one injectable bundle.
 struct LedgerOptions {
@@ -525,6 +534,32 @@ inline double rowFireProb(const ConditionRow &r)
     return r.state == ShotState::Fired ? 1.0 : 0.0;
 }
 
+// ONE SIGNAL's own verdict on one shot (schema 5). A condition row says what its signals decided
+// together; a surface that lists signals one by one — the kinematic sequence checks, whose F3 no
+// condition reads yet — needs each signal's own answer, read off the engine (evaluateSignal) on the
+// same graded source detect() used, so the two cannot disagree.
+struct SignalRow {
+    QString   signalId;
+    ShotState state      = ShotState::NotAssessable;   // Fired / Clean / NotAssessable
+    float     pFire      = -1.f;                       // −1 = not formed (NotAssessable)
+    bool      quantified = false;
+    // Why it could not be assessed, in golfer words ("chest peak not placed from these cameras").
+    // Never blank on a NotAssessable row, empty otherwise.
+    QString   reason;
+    // Schema 7: an order check that fell back down the chain — the measure it was compared with
+    // (`m_leadArmPeakTime` when the chest was not placed). Empty when it compared its own pair.
+    QString   comparedWith;
+};
+
+// One PLACED kinematic-sequence peak instant on one shot (schema 6): the measure it was read as
+// (`m_pelvisPeakTime` …), ms relative to impact (negative = before the ball), and its σ_t in ms (NaN
+// when the source carried none). Only placed nodes emit, so an absent row IS an unplaced node.
+struct PeakTimeRow {
+    QString measureId;
+    double  valueMs = std::numeric_limits<double>::quiet_NaN();
+    double  sigmaMs = std::numeric_limits<double>::quiet_NaN();
+};
+
 // One shot: its metadata and one row per condition the pack tried to assess.
 struct ShotRecord {
     int     shotId      = 0;
@@ -535,6 +570,12 @@ struct ShotRecord {
     bool    dataWarning = false;    // recording known broken: every row NotAssessable, shot
                                     // drawn but weightless (session_diagnostics_model detectShot)
     std::vector<ConditionRow> rows;
+    // Schema 5: the signals whose own verdicts a surface lists (SignalRow), and the shot's
+    // clubhead speed in mph (NaN = none read) — the sequence ranking's last tie-break.
+    std::vector<SignalRow> signalRows;
+    double  clubheadSpeed = std::numeric_limits<double>::quiet_NaN();
+    // Schema 6: the shot's placed peak instants, for the session's timing spread (§10.9 P8).
+    std::vector<PeakTimeRow> peakTimes;
 };
 
 // The row for `conditionId` on this shot, or nullptr. Linear — a shot carries tens of
@@ -713,6 +754,12 @@ struct ConditionLedger {
     // True when the condition fired on EVERY assessable shot. Its outgoing links cap at
     // Coherent because there is no variance left to covary with (design §A4).
     bool rangeRestricted = false;
+
+    // A SESSION-scope condition (MeasureScope::Session, trunk_imu_sequence_grf_design.md §10.8 E2):
+    // one verdict for the session, never one per swing. Synthesised by the session model after
+    // conditionLedgers(), never persisted. `run` is all NotAssessable and `zRun` all NaN because no
+    // swing has a verdict of its own; every per-shot surface skips such a ledger (NR-04, NR-11).
+    bool sessionScope = false;
 };
 
 // The recurrence caption. One place, one wording.
@@ -1838,6 +1885,36 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
         so[QStringLiteral("warmUp")]      = s.warmUp;
         so[QStringLiteral("dataWarning")] = s.dataWarning;
         so[QStringLiteral("rows")]        = rowArr;
+        // Schema 5 — written only when present, so a shot with none is byte-identical to before.
+        if (!s.signalRows.empty()) {
+            QJsonArray sa;
+            for (const SignalRow &g : s.signalRows) {
+                QJsonObject go;
+                go[QStringLiteral("signalId")] = g.signalId;
+                go[QStringLiteral("state")]    = shotStateToString(g.state);
+                if (g.pFire >= 0.f) {
+                    go[QStringLiteral("pFire")]      = double(g.pFire);
+                    go[QStringLiteral("quantified")] = g.quantified;
+                }
+                if (!g.reason.isEmpty()) go[QStringLiteral("reason")] = g.reason;
+                if (!g.comparedWith.isEmpty()) go[QStringLiteral("comparedWith")] = g.comparedWith;
+                sa.append(go);
+            }
+            so[QStringLiteral("signals")] = sa;
+        }
+        if (std::isfinite(s.clubheadSpeed)) so[QStringLiteral("clubheadSpeed")] = s.clubheadSpeed;
+        // Schema 6 — written only when present.
+        if (!s.peakTimes.empty()) {
+            QJsonArray pa;
+            for (const PeakTimeRow &t : s.peakTimes) {
+                QJsonObject to;
+                to[QStringLiteral("measureId")] = t.measureId;
+                to[QStringLiteral("valueMs")]   = t.valueMs;
+                if (std::isfinite(t.sigmaMs)) to[QStringLiteral("sigmaMs")] = t.sigmaMs;
+                pa.append(to);
+            }
+            so[QStringLiteral("peakTimes")] = pa;
+        }
         shotArr.append(so);
     }
 
@@ -1940,6 +2017,30 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
                 r.readings.push_back(std::move(m));
             }
             s.rows.push_back(std::move(r));
+        }
+        for (const QJsonValue &gv : so.value(QStringLiteral("signals")).toArray()) {
+            const QJsonObject go = gv.toObject();
+            SignalRow g;
+            g.signalId   = go.value(QStringLiteral("signalId")).toString();
+            g.state      = shotStateFromString(go.value(QStringLiteral("state")).toString());
+            g.pFire      = float(go.value(QStringLiteral("pFire")).toDouble(-1.0));
+            g.quantified = go.value(QStringLiteral("quantified")).toBool();
+            g.reason     = go.value(QStringLiteral("reason")).toString();
+            g.comparedWith = go.value(QStringLiteral("comparedWith")).toString();
+            s.signalRows.push_back(std::move(g));
+        }
+        if (const QJsonValue cv = so.value(QStringLiteral("clubheadSpeed")); cv.isDouble())
+            s.clubheadSpeed = cv.toDouble();
+        for (const QJsonValue &tv : so.value(QStringLiteral("peakTimes")).toArray()) {
+            const QJsonObject to = tv.toObject();
+            const QJsonValue v = to.value(QStringLiteral("valueMs"));
+            if (!v.isDouble()) continue;                     // a time with no number is no reading
+            PeakTimeRow t;
+            t.measureId = to.value(QStringLiteral("measureId")).toString();
+            t.valueMs   = v.toDouble();
+            if (const QJsonValue sv2 = to.value(QStringLiteral("sigmaMs")); sv2.isDouble())
+                t.sigmaMs = sv2.toDouble();
+            s.peakTimes.push_back(std::move(t));
         }
         shots.push_back(std::move(s));
     }

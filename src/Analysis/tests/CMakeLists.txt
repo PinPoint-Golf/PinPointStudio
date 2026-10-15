@@ -1363,6 +1363,33 @@ set_target_properties(diag_uncertainty_report PROPERTIES AUTOMOC ON)
 target_compile_options(diag_uncertainty_report PRIVATE -O2)
 pp_apply_sanitizers(diag_uncertainty_report)
 
+# diag_rank_diff — trunk_imu_sequence_grf_design.md §10.9 P5: the panel's model run under two packs
+# over real sessions, writing what fired and which roots moved as CSVs. READ-ONLY on the library: each
+# session is mirrored (swing documents + sidecars, mtimes kept) under <out>/.work and the model runs
+# on the mirror. Same link line as diag_uncertainty_report. NOT registered with ctest.
+add_executable(diag_rank_diff
+    ${PP_REPO_ROOT}/tools/diagnostics/diag_rank_diff.cpp
+    ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
+    ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
+    ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
+    ${DIAG}/packs/screen_pack.cpp
+    ${DIAG_NORM}
+    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+    ${DIAG}/norms/merged_norm_provider.cpp
+    ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+    ${DIAG}/packs/merged_pack_provider.cpp
+    ${SRC}/Export/swing_doc.cpp
+    ${SRC}/Export/swing_paths.cpp
+    ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+    ${SRC}/Core/pp_log_stream.cpp
+    ${SRC}/Core/PpMessageLog.cpp)
+target_include_directories(diag_rank_diff PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor)
+target_link_libraries(diag_rank_diff PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
+target_compile_definitions(diag_rank_diff PRIVATE PP_DIAG_RES_DIR="${DIAGRES}")
+set_target_properties(diag_rank_diff PROPERTIES AUTOMOC ON)
+target_compile_options(diag_rank_diff PRIVATE -O2)
+pp_apply_sanitizers(diag_rank_diff)
+
 # Every corridor signal points the way its own condition claims. An inverted signal does not fail
 # loudly — it fires on the wrong swings with correct-sounding text attached — so the fixture states
 # the expected direction and the catalogue quote that decides it. A new signal with no fixture row

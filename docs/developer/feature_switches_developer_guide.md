@@ -345,6 +345,7 @@ All from b82de8a3 (2026-10-01); gate in `dtl_precalibration_20261003.md`.
 | `kSkel3dThoraxPlacement` | `sequence.skel3d.thoraxPlacement` | **DARK** | Thorax node placement on the skeleton route. |
 | — | `sequence.skel3d.scaleFrac` | LIVE (0.10) | The assumed camera's gain on a skeleton rung's peak σ; 0.03 once skeleton3d is calibrated. |
 | `kPeakTimes` | `sequence.peakTimes` | LIVE | Emit `pelvisPeakTime` / `thoraxPeakTime` (placed nodes only) — what `sequence_order` reads. |
+| `kNodeSeries` | `sequence.nodeSeries` | LIVE | Emit `leadArmPeakTime` / `clubPeakTime`, the four `*PeakSpeed` (\|peak\|) and `pelvisReversalTime` / `thoraxReversalTime` (placed nodes only), each carrying its node's route (trunk_imu_sequence_grf_design.md §10.4). |
 
 - **sequence.enabled** — ON from birth in 3b8dc071 (2026-09-17).
 - **faceOnTrunkPlacement** — born OFF in 3b8dc071: the nodes were spikes from the address *reference*. ON in c1b7c995 (09-18) after the square-up reference replaced it. Pelvis 0 placed / 45 bounded; thorax 2 / 42. Design §12.4.

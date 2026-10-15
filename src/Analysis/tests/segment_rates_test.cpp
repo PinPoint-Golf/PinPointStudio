@@ -70,6 +70,10 @@
 //       intact is a crossing when impact, the second parity anchor, says so, so the oriented face-on
 //       separation at impact is POSITIVE (06-11 s5 and s7 — the collapse rule called it a relabel);
 //       and (c) the shipped PELVIS node on all three swings is unmoved, time and peak.
+//   §15 THE OTHER NODE READINGS (sequenceNodeSeries): arm / club instants, the four peak speeds as
+//       magnitudes and the trunk reversals, from placed nodes only, each on its node's route; and
+//       the reversal finder — interpolated crossing, σ_t = σ / |slope|, the lobe's crossing rather
+//       than an earlier dither, a hole at the crossing refused, no crossing ⇒ nothing.
 
 #include "../../Kinematics/segment_rates.h"
 #include "../../Kinematics/kinematic_sequence_json.h"
@@ -1491,6 +1495,153 @@ int main()
         CHECK("§13 no arm or club peak time — the order test reads the trunk only", imuT.size() == 2);
         const std::vector<MetricSeries> foT = sequencePeakTimeSeries(faceOn.sequence);
         CHECK("§13 face-on: the bounded (unplaced) pelvis emits nothing", !find(foT, "pelvisPeakTime"));
+        CHECK("§13 the peak time carries its node's route (pelvisImu, Direct)",
+              pp && pp->routeId == QLatin1String("pelvisImu") && pp->routeDirect);
+    }
+
+    // ── §15 the other node readings and the trunk reversals (sequenceNodeSeries, 2026-10-14) ──────
+    {
+        const auto find = [](const std::vector<MetricSeries> &v, const char *k) -> const MetricSeries * {
+            for (const MetricSeries &m : v) if (m.key == QLatin1String(k)) return &m;
+            return nullptr;
+        };
+        const auto at = [](const MetricSeries *m) { return m ? m->phaseSamples[0].value : std::nan(""); };
+        const auto oneImpact = [](const MetricSeries *m) {
+            return m && m->phaseSamples.size() == 1 && m->phaseSamples[0].phase == Phase::Impact
+                && m->t_us.empty();
+        };
+        const auto sigOf = [](const MetricSeries *m) {
+            return (m && m->phaseSamples[0].sigma) ? *m->phaseSamples[0].sigma : std::nan("");
+        };
+
+        // (a) A synthetic node set: three placed on three different routes, the club unplaced.
+        SegmentRatesResult res;
+        res.sequence.impactUs = kImpactUs;
+        const auto node = [](SeqSegment seg, bool placed, int64_t tPeakUs, double peakDps, double tSig,
+                             double pSig, const char *route, bool direct) {
+            KsNode n;
+            n.segment = seg; n.placed = placed; n.tPeakUs = tPeakUs; n.peakDps = peakDps;
+            n.tSigmaMs = tSig; n.peakSigmaDps = pSig; n.routeId = QString::fromLatin1(route); n.direct = direct;
+            return n;
+        };
+        res.sequence.nodes = {
+            node(SeqSegment::Pelvis,  true,  913000,  480.0, 3.0, 12.0, "pelvisImu",  true),
+            node(SeqSegment::Thorax,  true,  925000, -727.0, 4.0, 20.0, "faceOn+dtl", false),
+            node(SeqSegment::LeadArm, true,  940000,  980.0, 2.5, 30.0, "faceOn",     false),
+            node(SeqSegment::Club,    false, 1000000, 2254.0, 9.0, 80.0, "faceOnClub", false) };
+        res.pelvis.reversal = { true, 700000, 4.0 };
+        res.thorax.reversal = { false, 0, 0.0 };
+        const std::vector<MetricSeries> v = sequenceNodeSeries(res);
+        CHECK("§15a every placed node's readings, each one Impact sample with no curve",
+              oneImpact(find(v, "pelvisPeakSpeed")) && oneImpact(find(v, "thoraxPeakSpeed"))
+              && oneImpact(find(v, "leadArmPeakTime")) && oneImpact(find(v, "leadArmPeakSpeed"))
+              && oneImpact(find(v, "pelvisReversalTime")));
+        CHECK("§15a the unplaced club emits nothing — no clubPeakTime, no clubPeakSpeed",
+              !find(v, "clubPeakTime") && !find(v, "clubPeakSpeed"));
+        CHECK("§15a no thorax reversal where the channel found no crossing", !find(v, "thoraxReversalTime"));
+        CHECK("§15a exactly the five readings", v.size() == 5);
+        CHECK("§15a the arm's instant is ms relative to impact, NEGATIVE before the ball, σ = σ_t",
+              near(at(find(v, "leadArmPeakTime")), -60.0, 1e-9) && sigOf(find(v, "leadArmPeakTime")) == 2.5
+              && find(v, "leadArmPeakTime")->phaseSamples[0].sigmaKind == uint8_t(SigmaKind::Propagated));
+        CHECK("§15a peak speeds are MAGNITUDES (the −727 chest reads 727), σ = the peak σ",
+              at(find(v, "thoraxPeakSpeed")) == 727.0 && at(find(v, "pelvisPeakSpeed")) == 480.0
+              && at(find(v, "leadArmPeakSpeed")) == 980.0 && sigOf(find(v, "thoraxPeakSpeed")) == 20.0);
+        CHECK("§15a the reversal is ms relative to impact with the crossing's σ",
+              near(at(find(v, "pelvisReversalTime")), -300.0, 1e-9) && sigOf(find(v, "pelvisReversalTime")) == 4.0);
+        const auto routeIs = [](const MetricSeries *m, const char *id, bool direct) {
+            return m && m->routeId == QLatin1String(id) && m->routeDirect == direct;
+        };
+        CHECK("§15a each reading carries its node's route and quality",
+              routeIs(find(v, "pelvisPeakSpeed"), "pelvisImu", true)
+              && routeIs(find(v, "pelvisReversalTime"), "pelvisImu", true)
+              && routeIs(find(v, "thoraxPeakSpeed"), "faceOn+dtl", false)
+              && routeIs(find(v, "leadArmPeakTime"), "faceOn", false)
+              && routeIs(find(v, "leadArmPeakSpeed"), "faceOn", false));
+        // A placed node whose route stated no σ publishes none — absent, never zero.
+        {
+            SegmentRatesResult z = res;
+            z.sequence.nodes[2].tSigmaMs = 0.0;
+            const MetricSeries *t = find(sequenceNodeSeries(z), "leadArmPeakTime");
+            CHECK("§15a a zero σ is left unset, not published as perfect",
+                  t && !t->phaseSamples[0].sigma && !t->sigma && t->sigmaKind == 0);
+        }
+        // Nothing placed ⇒ nothing at all, reversal or not.
+        {
+            SegmentRatesResult u = res;
+            for (KsNode &n : u.sequence.nodes) n.placed = false;
+            CHECK("§15a no placed node ⇒ no readings (a found reversal does not stand alone)",
+                  sequenceNodeSeries(u).empty());
+        }
+
+        // (b) The reversal finder on a signed rate with a known crossing: a ramp through zero at
+        // 701.2 ms (between the 700 and 705 ms samples), 4000 °/s per second, σ 8 °/s ⇒ σ_t 2 ms.
+        std::vector<int64_t> t;
+        std::vector<double>  r, sg;
+        for (int64_t u = 600000; u <= 900000; u += 5000) {
+            t.push_back(u);
+            r.push_back(4000.0 * (double(u) * 1e-6 - 0.7012));
+            sg.push_back(8.0);
+        }
+        const int64_t tPk = 900000;
+        const RateReversal rv = findRateReversal(t, r, sg, {}, tPk);
+        CHECK("§15b the crossing is interpolated between the bracketing samples (701.2 ms)",
+              rv.found && std::llabs(rv.tUs - 701200) <= 1);
+        CHECK("§15b σ_t = rate σ / |slope| (8 / 4000 s = 2 ms)", rv.found && near(rv.sigmaMs, 2.0, 1e-9));
+        // A dither BEFORE the lobe (a positive blip at 650–665 ms) does not move it: the crossing is
+        // the one that opens the lobe holding the peak.
+        {
+            std::vector<double> d = r;
+            for (size_t i = 0; i < t.size(); ++i) if (t[i] >= 650000 && t[i] <= 665000) d[i] = 50.0;
+            const RateReversal x = findRateReversal(t, d, sg, {}, tPk);
+            CHECK("§15b an earlier dither through zero does not move the reversal", x.found && std::llabs(x.tUs - 701200) <= 1);
+        }
+        // A hole AT the crossing ⇒ not found; a hole inside the lobe is walked over.
+        {
+            std::vector<uint8_t> vh(t.size(), 1u);
+            for (size_t i = 0; i < t.size(); ++i) if (t[i] == 700000) vh[i] = 0u;
+            CHECK("§15b a hole at the crossing ⇒ no reversal", !findRateReversal(t, r, sg, vh, tPk).found);
+            std::vector<uint8_t> vl(t.size(), 1u);
+            for (size_t i = 0; i < t.size(); ++i) if (t[i] == 800000) vl[i] = 0u;
+            const RateReversal x = findRateReversal(t, r, sg, vl, tPk);
+            CHECK("§15b a hole inside the lobe is walked over", x.found && std::llabs(x.tUs - 701200) <= 1);
+        }
+        // Positive all the way back ⇒ no crossing, no reversal.
+        {
+            std::vector<double> pos(t.size());
+            for (size_t i = 0; i < t.size(); ++i) pos[i] = 100.0 + double(i);
+            CHECK("§15b a rate positive throughout has no reversal", !findRateReversal(t, pos, sg, {}, tPk).found);
+        }
+        // No rate σ ⇒ the instant is found, its σ is not stated.
+        {
+            const RateReversal x = findRateReversal(t, r, {}, {}, tPk);
+            CHECK("§15b no rate σ ⇒ crossing found, σ_t unstated", x.found && x.sigmaMs == 0.0);
+        }
+
+        // (c) Through the producer. The IMU swing: every placed node reads out on its own route,
+        // and the channels' curves carry the route too.
+        const std::vector<MetricSeries> iv = sequenceNodeSeries(imu);
+        const KsNode *pa = nodeOf(imu, SeqSegment::LeadArm), *pc = nodeOf(imu, SeqSegment::Club);
+        const KsNode *pp = nodeOf(imu, SeqSegment::Pelvis);
+        CHECK("§15c IMU: the arm's peak time on the arm node (≈ −60 ms), route leadArmImus, Direct",
+              pa && pa->placed && near(at(find(iv, "leadArmPeakTime")), -60.0, 5.0)
+              && routeIs(find(iv, "leadArmPeakTime"), "leadArmImus", true));
+        CHECK("§15c IMU: the club readings exactly when the club node is placed",
+              pc && (pc->placed == (find(iv, "clubPeakTime") != nullptr))
+              && (pc->placed == (find(iv, "clubPeakSpeed") != nullptr)));
+        CHECK("§15c IMU: the pelvis peak speed is |the node's peak|",
+              pp && pp->placed && at(find(iv, "pelvisPeakSpeed")) == std::fabs(pp->peakDps));
+        // The synthetic gyro is still before the top and the bump's tail is positive after it, so the
+        // pelvis turns into the downswing at the top — the reversal lands within a window of it.
+        CHECK("§15c IMU: the pelvis reversal is found on the unmasked rate, within a window of the top",
+              imu.pelvis.reversal.found
+              && near(at(find(iv, "pelvisReversalTime")), double(kTopUs - kImpactUs) / 1000.0, 30.0)
+              && routeIs(find(iv, "pelvisReversalTime"), "pelvisImu", true));
+        CHECK("§15c the rate curves carry their channel's route",
+              imu.pelvis.series.routeId == QLatin1String("pelvisImu") && imu.pelvis.series.routeDirect
+              && imu.leadArm.series.routeId == QLatin1String("leadArmImus"));
+        const std::vector<MetricSeries> fv = sequenceNodeSeries(faceOn);
+        CHECK("§15c face-on: the bounded pelvis emits no peak speed and no reversal",
+              !find(fv, "pelvisPeakSpeed") && !find(fv, "pelvisReversalTime"));
     }
 
     // ── §14 the pair's two face-on defects (2026-10-14) ───────────────────────────────────────

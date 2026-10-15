@@ -96,6 +96,55 @@
       "establishes": "10 professional and 5 amateur male golfers. Benchmark curves for pelvic rotation, upper-torso rotation and X-factor across the whole swing. In professionals, peak free moment per kilogram, peak X-factor and peak S-factor were highly consistent — coefficients of variation 6.8%, 7.4% and 8.4%. The downswing was initiated by reversal of pelvic rotation followed by reversal of upper-torso rotation, and peak X-factor preceded peak free moment in every swing of every golfer, occurring during the initial downswing. For amateurs, the number of factors falling outside one to two standard deviations of the professional means increased with handicap."
     },
     {
+      "id": "ref.cheetham2008",
+      "isbn": "9780978873417",
+      "title": "Comparison of kinematic sequence parameters between amateur and professional golfers",
+      "authors": "Cheetham, Rose, Hinrichs, Neal, Mottram, Hurrion, Vint",
+      "publisher": "Energy in Motion",
+      "containerTitle": "Science and Golf V: Proceedings of the World Scientific Congress of Golf",
+      "editor": "Crews, Lutz",
+      "year": 2008,
+      "pages": "30-36",
+      "establishes": "The kinematic-sequence benchmark the library's sequence checks are built on. The ISBN identifies the proceedings volume, not the chapter, so the pack loader caps any claim resting on it at `indirect`. 19 PGA tour professionals against 19 amateurs, one swing each, 240 Hz electromagnetic tracking with no digital filter. Professionals peak pelvis, thorax, lead arm, club in that order; the amateurs' mean arm peak came BEFORE their thorax peak. Professional peak speeds 477 / 727 / 980 / 2254 deg/s (pelvis, thorax, arm, club), and the ratios between neighbouring peaks are almost the same in the two groups (thorax/pelvis 1.52 vs 1.48, arm/thorax 1.35 vs 1.31, club/arm 2.30 vs 2.35) — which is why a failed hand-off is read as a breakdown, not a skill level. Mean peak TIMES did not differ between the groups; amateur SDs were at least double (pelvis 38 vs 19, thorax 29 vs 14, arm 23 vs 8 ms). Every professional slowed the pelvis before impact; not every amateur did, and the group difference in deceleration did not reach the study's significance threshold — so braking is read present or absent. Values transcribed from the chapter's tables as recorded in docs/reference/golf_swing_normative_reference.md §2.2."
+    },
+    {
+      "id": "ref.neal2007",
+      "doi": "10.1260/174795407789705497",
+      "title": "Body Segment Sequencing and Timing in Golf",
+      "authors": "Neal, Lumsden, Holland, Mason",
+      "journal": "International Journal of Sports Science & Coaching",
+      "year": 2007,
+      "volume": "2",
+      "issue": "1_suppl",
+      "pages": "25-36",
+      "generalReading": true,
+      "establishes": "Highly skilled players hit about twenty drives each and rated every shot well-timed or mistimed. The lags between the peak angular speeds of neighbouring segments did NOT differ between the two sets: what a golfer feels as timing tracks how centred the strike was, not the kinematic-sequence lag. Recorded as general reading because it is the reason for an edge that does NOT exist — inconsistent_sequence deliberately carries no edge to any strike outcome, and nothing in the library may assert one."
+    },
+    {
+      "id": "ref.lephart2007",
+      "doi": "10.1519/R-20606.1",
+      "title": "An Eight-Week Golf-Specific Exercise Program Improves Physical Characteristics, Swing Mechanics, and Golf Performance in Recreational Golfers",
+      "authors": "Lephart, Smoliga, Myers, Sell, Tsai",
+      "journal": "The Journal of Strength and Conditioning Research",
+      "year": 2007,
+      "volume": "21",
+      "issue": "3",
+      "pages": "860-869",
+      "establishes": "Fifteen recreational male golfers, eight weeks of golf-specific flexibility, strength and balance work. Torso, shoulder and hip flexibility rose in every measure, and so did upper-torso axial rotational velocity at the acceleration point of the swing, with club velocity, ball velocity and distance. The programme was COMBINED, so it cannot isolate thoracic mobility from strength: it supports the mechanism behind a restricted upper back capping the chest's turning speed, not the named pair, which is why the edge it backs is `indirect`."
+    },
+    {
+      "id": "ref.okuda2010",
+      "pmid": "24149396",
+      "title": "Trunk Rotation and Weight Transfer Patterns between Skilled and Low Skilled Golfers",
+      "authors": "Okuda, Gribble, Armstrong",
+      "journal": "Journal of Sports Science and Medicine",
+      "year": 2010,
+      "volume": "9",
+      "issue": "1",
+      "pages": "127-133",
+      "establishes": "Thirteen skilled golfers (mean handicap 0.8) against seventeen low-skilled (30.8), driver, 3-D video and force plates. The skilled group turned the pelvis EARLIER in the downswing, with an earlier weight transfer to the lead foot; the low-skilled group lagged in both. It is the late start that late_pelvis_rotation reads from the turn and upper_body_starts_down reads from the reversal order, which is what its corroborating edge records. One swing per golfer, so it speaks to groups, not to a swing."
+    },
+    {
       "id": "ref.steele2018",
       "doi": "10.5535/arm.2018.42.5.713",
       "title": "Golf Swing Rotational Velocity: The Essential Follow-Through",
@@ -404,6 +453,18 @@
       "year": 2007,
       "generalReading": true,
       "establishes": "CARRIED AS A TRAP, NOT AS SUPPORT — it is the paper anybody searching this library's reverse-pivot content for force-plate evidence will find first, and it is about something else.\n\nCluster analysis over 62 golfers found two centre-of-pressure styles, named FRONT FOOT and REVERSE. The names invite the reading that the second is the coaching reverse pivot. It is not. BOTH clusters moved the centre of pressure onto the BACK foot during the backswing and forward again in early downswing; what separated them was what happened AFTER early downswing, where the Reverse group moved back toward the trail foot through ball contact and follow-through. That is the downswing half only, in golfers who loaded the trail side correctly going back — which is this library's `hanging_back`, not `reverse_pivot`, whose defining phase is the backswing.\n\nThe paper also reports both styles across the full skill range from professional to high handicap, and concludes neither is a technical error. Do not cite it for a fault; do not let its ~30 % Reverse base rate be read as a prevalence for reverse pivot. It is closer to evidence AGAINST conflating the two.\n\nRecorded because a null that is merely absent gets re-searched, and the next author to look would land here and mis-cite it."
+    },
+    {
+      "id": "ref.lynn2013",
+      "doi": "10.1123/ijgs.2013-0011",
+      "title": "Rotational Kinematics of the Pelvis During the Golf Swing: Skill Level Differences and Relationship to Club and Ball Impact Conditions",
+      "authors": "Lynn, Frazier, New, Wu, Cheetham, Noffal",
+      "journal": "International Journal of Golf Science",
+      "volume": "2",
+      "issue": "2",
+      "pages": "116-125",
+      "year": 2013,
+      "establishes": "15 elite (collegiate) against 14 recreational golfers, 5-iron, pelvis axial angular velocity through the downswing. The elite group accelerated the pelvis harder (2167 against 1707 deg/s^2) and peaked it EARLIER, 101.7 against 79.6 ms before impact; peak speed and average deceleration did not differ. Peak-to-impact time correlated with smash factor. The authors read the earlier peak as leaving time for the speed to pass distally, and tie it to their own earlier finding that skilled golfers shift onto the front foot and start the rotational force couples sooner. It is the mechanism behind `late_pelvis_rotation` -> `no_pelvis_braking`: a pelvis that starts turning late peaks late, closer to impact, with less time left to slow. Cited at `indirect` because it does not test that pair: every golfer in THIS sample, recreational included, did slow the pelvis before impact, and the authors conclude the amount of slowing matters less than that the peak comes and goes before the ball. Its fifth author is the first author of `ref.cheetham2008`."
     }
   ]
 }

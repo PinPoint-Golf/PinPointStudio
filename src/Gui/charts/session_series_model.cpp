@@ -20,7 +20,8 @@
 
 #include "../../Analysis/swing_analysis.h"              // Phase::Impact
 #include "../../Analysis/uncertainty_json.h"            // copyPhaseSampleSigma — σ keys, one spelling
-#include "../../Coaching/diagnostic_ledger.h"           // the ledger's one deserialiser
+#include "../../Coaching/diagnostic_ledger.h"
+#include "../../Coaching/sequence_checks.h"         // the KS checks off the ledger's signal rows           // the ledger's one deserialiser
 #include "../../Core/club_vocabulary.h"                 // swingDocDeclaredClub
 #include "../../Core/pp_debug.h"
 #include "../../Diagnostics/engine/condition_reading.h" // condition → { metricKey, phase }
@@ -81,6 +82,7 @@ bool sameDiagnostics(const ShotDiagnostics &a, const ShotDiagnostics &b)
         || a.fired != b.fired || a.clean != b.clean || a.values.size() != b.values.size())
         return false;
     if (a.drivenBy.size() != b.drivenBy.size()) return false;
+    if (a.sequenceChecks != b.sequenceChecks) return false;
     for (auto it = a.drivenBy.constBegin(); it != a.drivenBy.constEnd(); ++it) {
         const auto o = b.drivenBy.constFind(it.key());
         if (o == b.drivenBy.constEnd() || o->measureId != it->measureId || o->metricKey != it->metricKey
@@ -152,6 +154,7 @@ ShotDiagnostics diagnosticsOf(const pinpoint::analysis::ShotRecord &s,
     }
     d.fired.sort();
     d.clean.sort();
+    d.sequenceChecks = pinpoint::analysis::sequenceChecksToVariant(pinpoint::analysis::sequenceChecksOf(s));
     return d;
 }
 

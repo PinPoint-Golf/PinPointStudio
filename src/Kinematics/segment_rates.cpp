@@ -173,6 +173,12 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
 {
     if (r.t.size() < 2 || !dom.ok()) return;
 
+    // The trunk's reversal is read off the route's OWN rate, before the cut to P4 and the domain
+    // mask below — the hips turn into the downswing before the club's top, outside both.
+    const bool trunk = seg == SeqSegment::Pelvis || seg == SeqSegment::Thorax;
+    RateTrack whole;
+    if (trunk) whole = r;
+
     // Through P8 the curve STOPS at the domain end rather than running on dashed (Mark): the
     // follow-through after P8 is not part of the sequence and only cluttered the chart. And it
     // STARTS at P4, mirrored (Mark, same day): the backswing before the top is not part of it either.
@@ -221,6 +227,8 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
     if (std::find(m.valid.begin(), m.valid.end(), uint8_t(0)) == m.valid.end())
         m.valid.clear();
 
+    m.routeId      = routeId;
+    m.routeDirect  = direct;
     ch.series      = std::move(m);
     ch.sampleSigma = std::move(r.sigmaDps);
     ch.routeId     = routeId;
@@ -259,6 +267,8 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
         n.peakDps      = p.peak;
         n.peakSigmaDps = p.peakSigma;
         n.tSigmaMs     = p.tSigmaMs;
+        if (trunk)
+            ch.reversal = findRateReversal(whole.t, whole.dps, whole.sigmaDps, whole.valid, p.tPeakUs);
         // At the edge of sight: the highest sighted rate sits where the view went blind, so the
         // real peak is somewhere the route could not see. Bounded, not placed.
         bool atEntry = gate.blindFromUs >= 0 && gate.blindFromUs <= dom.toUs
@@ -1797,6 +1807,8 @@ std::vector<MetricSeries> sequencePeakTimeSeries(const KinematicSequence &ks)
         m.key   = pel ? QStringLiteral("pelvisPeakTime") : QStringLiteral("thoraxPeakTime");
         m.label = pel ? QStringLiteral("Pelvis speed peak") : QStringLiteral("Chest speed peak");
         m.unit  = QStringLiteral("ms");
+        m.routeId     = n.routeId;
+        m.routeDirect = n.direct;
         PhaseSample ps { Phase::Impact, ks.impactUs, double(n.tPeakUs - ks.impactUs) / 1000.0, QString() };
         ps.sigma     = n.tSigmaMs;
         ps.sigmaKind = uint8_t(SigmaKind::Propagated);
@@ -1806,6 +1818,115 @@ std::vector<MetricSeries> sequencePeakTimeSeries(const KinematicSequence &ks)
         out.push_back(std::move(m));
     }
     return out;
+}
+
+namespace {
+
+// One placed node's reading as a point-in-time metric: one Impact sample, σ propagated, the node's
+// route on it. `sigma` ≤ 0 leaves the σ unset — absent is "not characterised", never "perfect".
+MetricSeries nodeReading(const KsNode &n, int64_t impactUs, const char *key, const char *label,
+                         const char *unit, double value, double sigma)
+{
+    MetricSeries m;
+    m.key         = QString::fromLatin1(key);
+    m.label       = QString::fromUtf8(label);
+    m.unit        = QString::fromUtf8(unit);
+    m.routeId     = n.routeId;
+    m.routeDirect = n.direct;
+    PhaseSample ps { Phase::Impact, impactUs, value, QString() };
+    if (sigma > 0.0) {
+        ps.sigma     = sigma;
+        ps.sigmaKind = uint8_t(SigmaKind::Propagated);
+        m.sigma      = sigma;
+        m.sigmaKind  = uint8_t(SigmaKind::Propagated);
+    }
+    m.phaseSamples.push_back(ps);
+    return m;
+}
+
+} // namespace
+
+std::vector<MetricSeries> sequenceNodeSeries(const SegmentRatesResult &res)
+{
+    std::vector<MetricSeries> out;
+    const KinematicSequence &ks = res.sequence;
+    const auto msFromImpact = [&](int64_t tUs) { return double(tUs - ks.impactUs) / 1000.0; };
+    for (const KsNode &n : ks.nodes) {
+        if (!n.placed) continue;
+        switch (n.segment) {
+        case SeqSegment::Pelvis:
+            out.push_back(nodeReading(n, ks.impactUs, "pelvisPeakSpeed", "Pelvis peak turning speed", "°/s",
+                                      std::fabs(n.peakDps), n.peakSigmaDps));
+            break;
+        case SeqSegment::Thorax:
+            out.push_back(nodeReading(n, ks.impactUs, "thoraxPeakSpeed", "Chest peak turning speed", "°/s",
+                                      std::fabs(n.peakDps), n.peakSigmaDps));
+            break;
+        case SeqSegment::LeadArm:
+            out.push_back(nodeReading(n, ks.impactUs, "leadArmPeakTime", "Lead arm speed peak", "ms",
+                                      msFromImpact(n.tPeakUs), n.tSigmaMs));
+            out.push_back(nodeReading(n, ks.impactUs, "leadArmPeakSpeed", "Lead arm peak speed", "°/s",
+                                      std::fabs(n.peakDps), n.peakSigmaDps));
+            break;
+        case SeqSegment::Club:
+            out.push_back(nodeReading(n, ks.impactUs, "clubPeakTime", "Club speed peak", "ms",
+                                      msFromImpact(n.tPeakUs), n.tSigmaMs));
+            out.push_back(nodeReading(n, ks.impactUs, "clubPeakSpeed", "Club peak speed", "°/s",
+                                      std::fabs(n.peakDps), n.peakSigmaDps));
+            break;
+        }
+        // The reversal belongs to the same route as the node: the channel the peak was found on.
+        if (n.segment == SeqSegment::Pelvis || n.segment == SeqSegment::Thorax) {
+            const bool pel = n.segment == SeqSegment::Pelvis;
+            const RateReversal &rv = res.channel(n.segment).reversal;
+            if (rv.found)
+                out.push_back(nodeReading(n, ks.impactUs,
+                                          pel ? "pelvisReversalTime" : "thoraxReversalTime",
+                                          pel ? "Hips start down" : "Chest starts down", "ms",
+                                          msFromImpact(rv.tUs), rv.sigmaMs));
+        }
+    }
+    return out;
+}
+
+RateReversal findRateReversal(const std::vector<int64_t> &t, const std::vector<double> &dps,
+                              const std::vector<double> &sigmaDps, const std::vector<uint8_t> &valid,
+                              int64_t tPeakUs)
+{
+    RateReversal out;
+    const size_t n = std::min(t.size(), dps.size());
+    if (n < 2) return out;
+    const auto ok = [&](size_t i) {
+        return (valid.size() != n || valid[i]) && std::isfinite(dps[i]);
+    };
+    // The peak's sample: the last at or before the peak instant.
+    size_t ip = n;
+    for (size_t i = 0; i < n; ++i)
+        if (t[i] <= tPeakUs) ip = i;
+    if (ip == n) return out;
+
+    // Walk back through the positive lobe. `pos` is the earliest positive sample seen so far;
+    // `hole` says an inadmissible sample sits between it and the next one down.
+    size_t pos  = n;
+    bool   hole = false;
+    for (size_t k = ip + 1; k-- > 0;) {
+        if (!ok(k)) { if (pos != n) hole = true; continue; }
+        if (dps[k] > 0.0) { pos = k; hole = false; continue; }
+        if (pos == n || hole) return out;     // the peak itself not positive, or a hole at the crossing
+        const double v0 = dps[k], v1 = dps[pos];
+        const double dtS = double(t[pos] - t[k]) * 1e-6;
+        if (dtS <= 0.0) return out;
+        const double f = -v0 / (v1 - v0);    // v1 > 0 ≥ v0 ⇒ f ∈ [0, 1)
+        out.found = true;
+        out.tUs   = t[k] + int64_t(std::llround(f * double(t[pos] - t[k])));
+        const double slope = (v1 - v0) / dtS;                                   // °/s per s
+        if (sigmaDps.size() >= n) {
+            const double sig = sigmaDps[k] + f * (sigmaDps[pos] - sigmaDps[k]);
+            if (sig > 0.0 && slope > 0.0) out.sigmaMs = sig / slope * 1000.0;
+        }
+        return out;
+    }
+    return out;                               // never left the lobe: no crossing in the track
 }
 
 std::vector<MetricSeries> segmentRateSeries(const SegmentRatesResult &res)

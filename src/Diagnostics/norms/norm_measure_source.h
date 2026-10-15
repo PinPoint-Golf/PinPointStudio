@@ -49,6 +49,10 @@ public:
         double      sigma     = std::numeric_limits<double>::quiet_NaN();
         float       grossRisk = -1.f;
         SigmaSource sigmaSrc  = SigmaSource::None;
+        // The producer route the value came from, and whether it is a Direct rung — the ratio
+        // test's same-scale rule (MeasureReading::route). Empty + false = none stated.
+        QString     route;
+        bool        direct    = false;
     };
 
     // nullopt => this measure could not be produced for this swing. Distinct from a value of zero,
@@ -103,6 +107,8 @@ public:
         r.measSigma  = v->sigma;
         r.grossRisk  = v->grossRisk;
         r.sigmaSrc   = v->sigmaSrc;
+        r.route      = v->route;
+        r.direct     = v->direct;
 
         if (!m_norms)
             return r;                     // no norms wired: hasCorridor stays false, engine greys it

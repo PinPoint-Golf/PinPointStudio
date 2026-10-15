@@ -426,6 +426,36 @@ private slots:
         QVERIFY(!d.drivenBy.contains(QStringLiteral("c_posture")));
     }
 
+    // K4 (trunk_imu_sequence_grf_design.md §10.6): the ledger's per-signal verdicts (schema 5)
+    // reach the panel as the sequence checks, read off the rows, never re-derived.
+    void carriesTheSequenceChecks()
+    {
+        stage();
+        using pinpoint::analysis::ShotState;
+        std::vector<pinpoint::analysis::ShotRecord> shots = ledgerShot1();
+        auto sig = [](const char *id, ShotState st, float p, bool q, const char *why = "") {
+            pinpoint::analysis::SignalRow g;
+            g.signalId = QLatin1String(id); g.state = st; g.pFire = p; g.quantified = q;
+            g.reason = QString::fromUtf8(why);
+            return g;
+        };
+        shots[0].signalRows = { sig("sig_sequenceOrder", ShotState::Clean, 0.1f, true),
+                                sig("sig_armBeforeThorax", ShotState::Fired, 0.9f, true),
+                                sig("sig_thoraxGainLow", ShotState::NotAssessable, -1.f, false,
+                                    "chest peak not placed from these cameras") };
+        writeLedger(m_session, shots);
+        SessionSeriesModel m;
+        m.setSynchronous(true);
+        m.activateSession(m_session);
+        const auto snap = m.snapshot();
+        const QVariantMap c = snap->shots[0]->diagnostics.sequenceChecks;
+        QCOMPARE(c.value(QStringLiteral("line")).toString(), QStringLiteral("Sequence checks: 1 of 2"));
+        QCOMPARE(c.value(QStringLiteral("checks")).toList().size(), 10);
+        QCOMPARE(c.value(QStringLiteral("checks")).toList().value(5).toMap().value(QStringLiteral("reason")).toString(),
+                 QStringLiteral("chest peak not placed from these cameras"));   // F4's —, and why
+        QVERIFY(snap->shots[1]->diagnostics.sequenceChecks.isEmpty());   // no row: nothing drawn
+    }
+
     void unchangedDocumentsAreNotReadAgain()
     {
         stage();
