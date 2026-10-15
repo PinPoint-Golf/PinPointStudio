@@ -198,6 +198,14 @@ ColumnLayout {
                 readonly property var list: cs ? cs.checks : []
                 property bool pinned: false
                 readonly property bool open: pinned || chkHover.hovered
+                // The label column fits the longest label, never less than the columns it lines up under.
+                FontMetrics { id: chkFm; font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro }
+                readonly property real labelW: {
+                    var w = root._wLabel + root._wRank + Theme.sp(40)
+                    for (var i = 0; i < list.length; ++i)
+                        w = Math.max(w, chkFm.advanceWidth(list[i].label) + Theme.sp(8))
+                    return w
+                }
                 function ink(state) {
                     return state === "fail" ? Theme.colorWarn : state === "pass" ? Theme.colorGood
                          : state === "unsure" ? Theme.colorText2 : Theme.colorText3
@@ -270,9 +278,9 @@ ColumnLayout {
                             Text { width: Theme.sp(16); horizontalAlignment: Text.AlignHCenter
                                    text: modelData.mark; font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro
                                    font.weight: Font.Bold; color: chk.ink(modelData.state) }
-                            Text { width: root._wLabel + root._wRank + Theme.sp(40); text: modelData.label
+                            Text { width: chk.labelW; text: modelData.label
                                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText }
-                            Text { width: Math.max(0, chk.width - root._wLabel - root._wRank - Theme.sp(80))
+                            Text { width: Math.max(0, chk.width - chk.labelW - Theme.sp(40))
                                    elide: Text.ElideRight; text: modelData.detail
                                    font.family: Theme.fontBody; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText3 }
                         }

@@ -105,6 +105,15 @@ Column {
         readonly property var list: cs ? cs.checks : []
         property bool pinned: false
         readonly property bool open: pinned || hov.hovered
+        // The label column fits the longest label ("Lead arm peaks before impact"), never less than
+        // the segment + rank columns it lines up under.
+        FontMetrics { id: chkFm; font: st.roles ? st.roles.fSmall : Qt.font({}) }
+        readonly property real labelW: {
+            var w = st.segW + st.rankW
+            for (var i = 0; i < list.length; ++i)
+                w = Math.max(w, chkFm.advanceWidth(list[i].label) + (st.roles ? st.roles.u(8) : 8))
+            return w
+        }
         function ink(state) {
             return state === "fail" ? st.roles.warn : state === "pass" ? st.roles.ink
                  : state === "unsure" ? st.roles.ink2 : st.roles.ink3
@@ -171,8 +180,8 @@ Column {
                     spacing: st.roles.u(8)
                     Text { width: st.roles.u(14); horizontalAlignment: Text.AlignHCenter; text: modelData.mark
                            font: st.roles.fFigS; color: chk.ink(modelData.state) }
-                    Text { width: st.segW + st.rankW; text: modelData.label; font: st.roles.fSmall; color: st.roles.ink }
-                    Text { width: Math.max(0, chk.width - st.segW - st.rankW - st.roles.u(30)); elide: Text.ElideRight
+                    Text { width: chk.labelW; text: modelData.label; font: st.roles.fSmall; color: st.roles.ink }
+                    Text { width: Math.max(0, chk.width - chk.labelW - st.roles.u(30)); elide: Text.ElideRight
                            text: modelData.detail; font: st.roles.fSmall; color: st.roles.ink3 }
                 }
             }
