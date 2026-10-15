@@ -748,6 +748,54 @@ Every edge carries `provenance` with `searchedOn` and `searchTerms`, as the pack
 
 Tests: a synthetic Sequence per facet (each check firing alone, unresolved nodes giving "not assessable", mixed-scale ratios unavailable), the engine tests for E1 and E2, and the pack lint for the new nodes. Gates: the rank-shift report on the library before and after (the change in roots per session is the deliverable), and per-swing review of every condition that starts or stops firing.
 
+### 10.9 Implementation reconciliations (14 October 2026)
+
+Found when this part was planned against the code (HEAD cae12914):
+
+| # | Issue | Decision |
+|---|---|---|
+| P1 | §10.4 gives the new peak times the `beforeImpactMs` convention, "same as `pelvisPeakTime`". The two are opposite in sign. | Follow `pelvisPeakTime`: (t_peak − impact) in ms, negative = before impact, one Impact sample (as `sequencePeakTimeSeries()`). The peak speeds and reversal times are emitted the same way. |
+| P2 | `m_ksTimingSpread` is one measure with three per-segment norms | One normalised measure: the largest, over the placed segments, of session SD ÷ professional SD (pelvis 19, thorax 14, arm 8 ms). The signal is a `threshold` at 2.0. |
+| P3 | Ratios of signed peaks | The peak-speed metrics are \|peak\|. Only placed nodes emit, so an unplaced node leaves the check "not assessable", never passed. |
+| P4 | E3 needs to know each reading's route | `MetricSeries` carries `routeId` and `routeDirect` (persisted in swing.json when set); the reading carries them into the engine. A ratio between two readings that both carry routes is unavailable unless both are Direct or the routes match. |
+| P5 | The rank-shift report (`rank_shift_report`) is synthetic and cannot compare two packs on the library | A read-only `diag_rank_diff` tool runs both packs over every session and never writes `diagnostics.json`. |
+| P6 | Stage version for E5 | Segment rates and the KS have no stage version; they re-run on every analysis, so no bump is needed. |
+| P7 | §10.4 and §10.6 feed the Wilson **lower** bound of the in-order share to a `threshold low 0.5` signal. That fires because the sample is small: 3 of 3 in order reads 0.44, 9 of 14 reads 0.39, and both would say "fewer than half in order". | Assert the fault on the Wilson lower bound of the **fault** rate, the ledger's own rule. `m_ksOrderShare` = 1 − `wilsonLowerBound(outOfOrder, resolved)`, the in-order share's Wilson upper bound, and the signal stays `< 0.5`. A swing counts only when F1, F2 and F3 were all assessed (all four peaks placed), and it is in order when none of the three fired. Counts are soft under `softTier` with the warm-up weights. The share is read from 5 such swings (`tuned::sequence::kSessionMinSwings`): at 3 or fewer it cannot fire whatever happens, and from 4 to 7 only a clean sweep out of order fires. The Wilson bound is the uncertainty, so the reading carries no σ and its pFire is hard. |
+| P8 | `m_ksTimingSpread` read the raw SD. Placed peaks carry σ_t up to 40 ms (`kMaxPlaceSigmaMs`), against professional SDs of 8 to 19 ms, so the raw SD fires on camera noise. A club change also moves peak timing. | The SD is pooled within club (Σ(n_c − 1)s_c² / Σ(n_c − 1)), less the mean σ_t² of the placed peaks, over the professional SD. The value is the largest such ratio over the segments with at least 4 degrees of freedom. Its σ is s²·√(2/dof) / (2·proSD·max(s_true, proSD)), and the engine's threshold test turns that into pFire. The placed peak instants are persisted per shot (`ShotRecord::peakTimes`, ledger schema 6). |
+| P9 | The order checks only compare neighbours, so a link that is not placed ends the check. On 4 July 2026 no chest peak is placed, and the hips peak 20 to 40 ms **after** impact on 14 of 15 swings, after the lead arm (−107 ms) and the club (−49 ms) on swing 8. Every hip check read "not assessable", and hip braking read clean (503 against 863 °/s) because the hips were still speeding up through the ball. (15 October, from Mark's review.) | **The sequence is anchored to impact.** Two threshold checks: `sig_pelvisBeforeImpact` and `sig_thoraxBeforeImpact` fire when the peak is after impact (`threshold` 0 ms, pFire Φ(t/σ_t)); Lynn et al. 2013 found the pelvis peaking 80 to 100 ms before impact in elite and recreational golfers alike. Both feed `sequence_order` (`detection: any`). **The chain falls back:** an order signal's `fallback` lists the later links in chain order, and the engine compares the subject with the first one placed. `sig_sequenceOrder` falls back to the lead arm, then the club; `sig_armBeforeThorax` to the club. The ledger records the link compared (`SignalRow::comparedWith`, schema 7), and the tile names it ("Hips before lead arm"). A fallen-back check does not count towards the session's in-order share, which still needs all four peaks. **Braking needs a peak before impact:** `sig_noPelvisBraking` carries `requiresBeforeImpact: m_pelvisPeakTime`, and with the peak at or after impact it is not assessable (`PeakAfterImpact`), never a pass. |
+
+**Dropped edges** (K3, searched 14 October 2026). Each §10.5 edge was searched before it was authored. These six could not be supported, so they are not in `core.json`:
+
+| Edge | Why it was dropped | Search terms |
+|---|---|---|
+| `limited_lead_hip_ir` → `no_pelvis_braking` | No source. The mechanism also runs the other way: a restricted lead hip reaches end range sooner and stops the pelvis. The pack already says so (`limited_lead_hip_ir` → `hip_stall`), and `hip_stall` excludes `no_pelvis_braking`. | lead hip internal rotation range of motion golf pelvis rotational velocity deceleration impact |
+| `late_buckle` → `no_pelvis_braking` | No study links lead-knee flexion to pelvis deceleration. The pack already authors the opposite effect (`late_buckle` → `hip_stall`, strong), and `hip_stall` excludes `no_pelvis_braking`. | golf lead knee extension lead leg bracing downswing pelvis rotation velocity impact; lead leg braking knee extension golf downswing pelvis deceleration angular velocity |
+| `insufficient_set` → `club_not_released` | No source for the amount of wrist set driving the club's gain over the arm. Madrid et al. 2020 (`ref.madrid2020`) found clubhead speed not well associated with wrist-cock angles or ranges. Sprigings and Neal 2000 concerns the timing of wrist torque, not the amount of set. | wrist cock angle top of backswing release clubhead speed golf study delayed release simulation wrist torque |
+| `tempo_habit` → `inconsistent_sequence` | No source. `tempo_habit` is a *settled* rhythm carried between shots, so as authored it predicts a repeatable sequence, not a scattered one. | golf swing kinematic sequence variability consistency tempo timing between swings amateurs |
+| `transition_rush` → `inconsistent_sequence` | Only instruction sources make this claim, and they mean shot consistency. Neal et al. 2007 shows that felt timing tracks strike, not the lag between peaks. No study measures how a rushed transition affects swing-to-swing dispersion of segment peaks. | golf swing transition tempo rushed downswing variability of timing between swings consistency backswing downswing ratio variability |
+| `chest_not_faster_than_hips` → `arms_ride_the_turn` | No source, and it does not point one way. The two are ratios over a shared middle term, so a slow chest makes the arm/chest check *easier* to pass, not harder. | pelvis thorax dissociation separation velocity golf upper torso rotational velocity gain over pelvis segmental speed summation |
+
+That left `club_not_released`, `no_pelvis_braking` and `inconsistent_sequence` with no authored cause. A second search (14 October 2026) found a mechanism-level source for the first two. `inconsistent_sequence` still has no cause and raises a `noCause` health warning. It is not given a cause on intuition.
+
+**Added edges** (second search, 14 October 2026). Both are `indirect`: each source supports the mechanism but does not test the pair.
+
+| Edge | Source and mechanism | Search terms |
+|---|---|---|
+| `late_pelvis_rotation` → `no_pelvis_braking` (moderate) | Lynn et al. 2013 (`ref.lynn2013`, 10.1123/ijgs.2013-0011). Elite golfers peaked the pelvis earlier than recreational golfers (101.7 against 79.6 ms before impact). The later the peak, the less time the pelvis has to slow before the ball. Okuda 2010 (`ref.okuda2010`) shows the late start itself in low-skilled golfers. **Limit:** every golfer in Lynn's sample still slowed the pelvis before impact, so the edge stops at `indirect`. **Not a contradiction of `late_pelvis_rotation` → `hips_closed_at_impact`:** that edge is about how far the pelvis has turned at impact, and this one is about how fast it is still turning. A late pelvis can be both closed and still turning flat out. The authored practice edge `no_pelvis_braking` → `hips_too_open_at_impact` still points the other way two hops on. That edge has no source and should be reviewed. | timing of peak pelvis angular velocity relative to impact skilled versus less skilled golfers; pelvis deceleration before impact peak to impact time |
+| `casting` → `club_not_released` (moderate) | Cheng et al. 2025 (`ref.cheng2025`). Across 84 elite golfers, early-release styles showed smaller peak on-plane wrist uncocking velocity than delayed-release styles. On the swing plane, the club's angular speed is roughly the lead arm's plus the uncocking speed. A smaller uncocking peak therefore means a smaller gain of club over arm, which is exactly what `sig_clubGainLow` reads. **Limit:** clubhead speed did not differ between the release styles in that study. The edge rests on the gain ratio, not on speed. | wrist release style early release delayed release peak uncocking velocity golf; golf wrist release timing club angular velocity relative to arm |
+
+Considered and not authored, because they contradict an existing edge or have no source: the lead-leg candidates `lead_knee_valgus_impact`, `insufficient_knee_flex` and `poor_hip_abductor_control` (the pack routes lead-leg failure to `hip_stall`, which excludes `no_pelvis_braking`). Takagi et al. 2021 (10.1080/14763141.2019.1585472) finds that hip torques, not knee torques, drive pelvis axial rotation, and it identifies no lead-leg braking mechanism. `chest_not_faster_than_hips` is already an effect of `no_pelvis_braking`, and the reverse edge would close a cycle. `excessive_lag`, `chicken_wing`, `flipping`, `limited_wrist_mobility` and `grip_*` have no source for the club's gain over the arm.
+
+Tiers set differently from §10.5, because the citations would not hold the tier as written:
+- `transition_rush` → `upper_body_starts_down` is `indirect`, not `supported`. Meister 2011 shows the professional transition order but does not test a rushed transition.
+- `arms_before_chest` is `indirect`, not `supported`. Cheetham 2008 is a chapter in a proceedings volume and has only an ISBN. The pack refuses a peer tier on a book.
+- Several `practice` edges were found to have mechanism-level sources and are cited as `indirect`:
+  - `transition_rush` → `arms_before_chest`: Cheng 2025.
+  - `poor_pelvic_disassociation` → `chest_not_faster_than_hips`: Myers 2008.
+  - `limited_thoracic_rotation` → `chest_not_faster_than_hips`: Lephart 2007.
+  - `late_pelvis_rotation` ↔ `upper_body_starts_down`: Okuda 2010.
+- `club_not_released` → `ball_speed_deficit` is `moderate`, not `strong`. Its source, Chu 2010, is disputed by Madrid 2020, and Cheng 2025 found no clubhead-speed difference between release styles. For the same reason the condition's `golferWhy` says the club arrives with less of the body's speed, and does not say the ball comes off slower.
+
 ---
 
 # Part B — Lead-side load and drive
@@ -1062,6 +1110,30 @@ Standing rules: Mark judges results before anything is committed; commits at the
 - §14.4 paired table.
 - Part K: rank-shift report before and after; per-condition firing counts on the library; the check count against clubhead speed and smash (§10.6).
 - Part B: quiet standing, stool validation, IMU vs video sit/drive timing, impulse closure distribution.
+
+### 17.1 Part K, 14 October 2026: before the library is re-analysed
+
+**Run.** `diag_rank_diff --pack-a <HEAD pack> --pack-b src/Resources/diagnostics --out <dir> /mnt/swingdata/Mark-Liversedge/2026-*`.
+- The HEAD pack is the six files from `git show HEAD:src/Resources/diagnostics/<f>.json`.
+- The run covered 136 swings in 6 sessions, at 17 ms per swing per pack.
+- The library was read only: each session is mirrored, and nothing is written into it.
+- CSVs: `docs/research/data/ks_model/*_pre_reanalysis_20261014.csv`.
+
+**State of the data.** The library's swing documents predate the new sequence metrics: the arm and club peak times, the four peak speeds and the reversal times are absent. The chest peak is not placed on either camera route (`segment_rates.h:130`, `:140`).
+
+**Results.**
+- Every check F1–F7 and F9 reads "—" on all 136 swings (`sequence_checks_*.csv`). This is the expected state, not a fault. It stays so for the trunk checks until the chest peak is placed or a chest sensor is worn.
+- **No swing changes its firing.** `firing_changes_*.csv` is empty, and every per-condition count is unchanged. The seven new conditions are assessable on 0 swings.
+- **The roots move in 4 of 6 sessions** (`roots_by_session_*.csv`). `upper_body_starts_down` enters at #2 (sessions 10-05, 10-07 and 10-08) or #3 (07-04), at a score of 0.361. It displaces `across_the_line` (0.155) as the explanation of `over_the_top`, which fires on 118 of 126 assessable swings.
+  - Both are unassessable here. The new one ranks higher through its strong edge to `over_the_top`.
+  - **Verdict: accepted under the §10.8 gate**, because the move follows an authored §10.5 edge.
+  - **Flagged for review:** the session's #2 root is now a hypothesis no swing measured. The reversal times will either measure it or rule it out once the library is re-analysed.
+- **D27 (`casting` gains `sig_clubBeforeArm`) is held as a patch:** `build/run-me/ks-d27/d27-casting-club-before-arm.patch`, not applied. Its gate needs `clubPeakTime` and `leadArmPeakTime`, which only a re-analysis produces.
+- **§10.6 (checks passed against clubhead speed) is not yet runnable:** no swing has an assessed check.
+
+**Still owed.** A metrics-only re-analysis of the library on GOLFSIMPC, then the rank shift, D27 and §10.6 again. Both steps are scripted:
+- `build/run-me/ks-studio-reanalyse.sh` does the re-analysis. The library backup is `/mnt/swingdata/scratch/ks-model/library-pre-ks-20261014.tgz`.
+- `build/run-me/ks-after-reanalyse.sh` repeats the rank shift, D27 and §10.6.
 
 ---
 
