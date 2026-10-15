@@ -62,16 +62,20 @@ Item {
             if (c.stateKind === "notAssessable") continue
             const fired = c.stateKind === "fired", known = c.strengthKnown !== false
             const ex = Number(c.strengthExcess), other = !fired && known && ex >= 2
-            rows.push({ id: c.id, name: c.name, fired: fired, known: known, other: other,
+            // A SHARP firing (crossing the line is the fault) has no distance: its excess is a rank
+            // key, so it leads the rows and is drawn at the plot's right edge, never sizing the axis.
+            const sharp = fired && c.strengthSharp === true
+            rows.push({ id: c.id, name: c.name, fired: fired, known: known, other: other, sharp: sharp,
                         x: (other || !known) ? 0 : ex, value: c.valueText || "-", stateKind: c.stateKind, tierTag: c.tierTag || "",
                         tier: c.tierTag === "clean all session" ? "" : c.tierTag })
         }
-        rows.sort((a, b) => (b.x - a.x) || ((b.fired ? 1 : 0) - (a.fired ? 1 : 0)) || a.name.localeCompare(b.name))
+        rows.sort((a, b) => ((b.sharp ? 1 : 0) - (a.sharp ? 1 : 0)) || (b.x - a.x) || ((b.fired ? 1 : 0) - (a.fired ? 1 : 0)) || a.name.localeCompare(b.name))
         rows.forEach((r, i) => r.rank = i)
         return rows
     }
     readonly property var rows: rowsOverride ? rowsOverride : (filter === "fired" ? allRows.filter(r => r.fired) : allRows)
-    readonly property real dMax: { let m = 4; for (let i = 0; i < allRows.length; ++i) m = Math.max(m, allRows[i].x); return Math.ceil(m + 0.4) }
+    // The axis from the corridor rows alone: a sharp row's x is a rank key (xs() pins it at the edge).
+    readonly property real dMax: { let m = 4; for (let i = 0; i < allRows.length; ++i) if (!allRows[i].sharp) m = Math.max(m, allRows[i].x); return Math.ceil(m + 0.4) }
     FontMetrics { id: fmFig; font: dk.roles.fFigS }
     FontMetrics { id: fmSmall; font: dk.roles.fSmall }
     // (each measure below reads its FontMetrics' font, so it follows a theme change: advanceWidth() is a

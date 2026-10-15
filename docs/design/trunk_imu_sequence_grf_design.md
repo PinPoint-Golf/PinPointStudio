@@ -764,7 +764,7 @@ Found when this part was planned against the code (HEAD cae12914):
 | P8 | `m_ksTimingSpread` read the raw SD. Placed peaks carry σ_t up to 40 ms (`kMaxPlaceSigmaMs`), against professional SDs of 8 to 19 ms, so the raw SD fires on camera noise. A club change also moves peak timing. | The SD is pooled within club (Σ(n_c − 1)s_c² / Σ(n_c − 1)), less the mean σ_t² of the placed peaks, over the professional SD. The value is the largest such ratio over the segments with at least 4 degrees of freedom. Its σ is s²·√(2/dof) / (2·proSD·max(s_true, proSD)), and the engine's threshold test turns that into pFire. The placed peak instants are persisted per shot (`ShotRecord::peakTimes`, ledger schema 6). |
 | P9 | The order checks only compare neighbours, so a link that is not placed ends the check. On 4 July 2026 no chest peak is placed, and the hips peak 20 to 40 ms **after** impact on 14 of 15 swings, after the lead arm (−107 ms) and the club (−49 ms) on swing 8. Every hip check read "not assessable", and hip braking read clean (503 against 863 °/s) because the hips were still speeding up through the ball. (15 October, from Mark's review: "the sequence is related to impact"; "each of the 4 series should be checked independently … in all cases peaking after impact is not good"; "ideally the club peaks at impact and after the other 3"; a club peaking just before impact can be a held-off release, "a shot type as much as a fault".) | **Timing against impact, one fault per segment.** Each series is read against impact on its own, as a single-signal condition: `hips_peak_after_impact`, `chest_peak_after_impact`, `arms_peak_after_impact` and `club_peak_after_impact` (`threshold` 0 ms, high; pFire Φ(t/σ_t)), and `club_peak_early` (the club more than 20 ms before impact, a heuristic matching the `deceleration` ceiling; draft). Sources: Cheetham et al. 2008, professionals peaking the pelvis 87 ± 19, the thorax 68 ± 14 and the lead arm 65 ± 8 ms before impact; Lynn et al. 2013, every golfer's pelvis peaking and slowing before the ball. No study gives a club peak time, so both club lines are practice. Causes: `late_pelvis_rotation` → hips (Lynn 2013), then hips → chest → arm → club after impact (the proximal-to-distal chain, Cheetham 2008, indirect), and `casting` and `club_not_released` → `club_peak_early`. A held-off release played on purpose is the shot, not a fault; no shot can be declared held off yet, so the condition says so in its words (open). **Single-signal conditions are deliberate.** An `any` condition reads clean only when every signal was read, so an impact check beside an order check that could not be made would count only firings, and the pattern rate would read 100 %. **The order chain falls back:** an order signal's `fallback` lists the later links, and the engine compares the subject with the first one placed (`sig_sequenceOrder`: chest, then lead arm, then club; `sig_armBeforeThorax`: lead arm, then club). The literal `impact` may end a chain (engine support, unused by the shipped pack). The ledger records the link compared (`SignalRow::comparedWith`, schema 7), and the tile names it ("Hips before lead arm"). A fallen-back check does not count towards the in-order share. The tile shows I1–I5 beside F1–F9. **Braking needs a peak before impact:** `sig_noPelvisBraking` carries `requiresBeforeImpact: m_pelvisPeakTime`; at or after impact it is not assessable (`PeakAfterImpact`), never a pass. **D27 as drafted would dark `casting`:** it adds `sig_clubBeforeArm` under `detection: any`, so every swing without both peaks would read `casting` as not assessable unless it fired. It needs the same single-signal treatment before it is applied. |
 | P10 | After the library re-analysis (15 October 2026: 136 swings on the studio, none failed, pose reused), `club_peak_early` fired on 106 of 127 swings and lifted `club_not_released` into the top three roots in four sessions. The camera club node is the shaft angle's rate, and through impact that rate collapses on 93 of 129 swings: on 4 July swing 1 it falls from 2217 °/s at −37 ms to 456 at +1 ms and returns to 1743 at +30 ms, which no club does. Where it holds, a ~45 ms wobble from the projection still leaves an early hump 40–110 ms out on about half of the rest. The clubhead's own speed (`clubheadPeakLead`) peaks about 2 ms before the ball in four sessions. (KB-18. Mark: "we should refuse to signal an issue with the club speed peaking, but the measure and charting is fine so long as sigma reflects the uncertainty in the measure.") | **Drawn but not judged.** The camera club node (routes `faceOnClub`, `faceOn+dtl`) stays placed and charted, and its σ_t becomes √(σ_t² + span²/12), where span is the time from its peak to impact: the true peak could be anywhere in between. `MetricSeries::withheld` carries the producer's reason onto `clubPeakTime` and `clubPeakSpeed`. It travels through the swing document, the phase grid (sidecar schema 7) and the measure source to `MeasureReading::withheld`. The engine refuses every signal that reads a withheld value (`SignalRefusal::Withheld`); an order chain walks past it like an unplaced link. The tile says "club peak is charted but not judged". So `club_peak_early`, `club_peak_after_impact` and the club hand-off ratios are not assessable from cameras. The club-sensor route is unaffected. Open: the projection wobble in the shaft-angle rate (its root cause), and a peak-speed σ that includes it. |
-| P11 | The session cards are ordered by how far a fault goes outside its corridor when it fires (`firingExcess`, the strength ladder). The sequence checks are yes/no tests against a line, so they have no corridor and scored zero. On 4 July `hips_peak_after_impact` (14 of 14) and `sequence_order` (13 of 14) sat at the bottom, below `lead_knee_drifts_in_at_top`. (Mark, 15 October: "my sequence has pelvis peaking after impact, that is so so bad … i'm not convinced this is about pro level norms"; "out of order and peaking after impact are both really bad. both should be a sharp finding".) | **Sharp findings.** `Condition::sharp` (pack key `sharp`) marks a condition where crossing the line is serious in itself. It is set on `hips_`, `chest_`, `arms_` and `club_peak_after_impact` and on `sequence_order`. The engine carries it onto `Finding::sharp` and `ConditionRow::sharp`; the ledger persists it only when true. `rowStrength()` reads a sharp firing as `kDiagSharpExcess` (1000), the top step of the meter and past every corridor excess, so sharp patterns rank first on the cards and in the work-ons. That number is a rank key and is never printed: the meter reads "a sharp finding: crossing this line is serious in itself", and the out-by columns show "sharp". Ranking only: no tier, firing or edge moves. It is not a pro-norm distance. |
+| P11 | The session cards are ordered by how far a fault goes outside its corridor when it fires (`firingExcess`, the strength ladder). The sequence checks are yes/no tests against a line, so they have no corridor and scored zero. On 4 July `hips_peak_after_impact` (14 of 14) and `sequence_order` (13 of 14) sat at the bottom, below `lead_knee_drifts_in_at_top`. (Mark, 15 October: "my sequence has pelvis peaking after impact, that is so so bad … i'm not convinced this is about pro level norms"; "out of order and peaking after impact are both really bad. both should be a sharp finding".) | **Sharp findings.** `Condition::sharp` (pack key `sharp`) marks a condition where crossing the line is serious in itself. It is set on `hips_`, `chest_`, `arms_` and `club_peak_after_impact` and on `sequence_order`. The engine carries it onto `Finding::sharp` and `ConditionRow::sharp`; the ledger persists it only when true. `rowStrength()` reads a sharp firing as `kDiagSharpExcess` (1000), the top step of the meter and past every corridor excess, so sharp patterns rank first on the cards and in the work-ons. That number is a rank key and is never printed: the meter reads "a sharp finding: crossing this line is serious in itself", and the out-by columns show "sharp". Ranking only: no tier, firing or edge moves. It is not a pro-norm distance. The This-shot dot plot sizes its axis from the corridor rows alone and draws a sharp row at the right edge; the first cut let 1000 set the axis and flattened every other row (Mark's screenshot, 15 October). |
 
 **Dropped edges** (K3, searched 14 October 2026). Each §10.5 edge was searched before it was authored. These six could not be supported, so they are not in `core.json`:
 
@@ -1130,12 +1130,60 @@ Standing rules: Mark judges results before anything is committed; commits at the
   - Both are unassessable here. The new one ranks higher through its strong edge to `over_the_top`.
   - **Verdict: accepted under the §10.8 gate**, because the move follows an authored §10.5 edge.
   - **Flagged for review:** the session's #2 root is now a hypothesis no swing measured. The reversal times will either measure it or rule it out once the library is re-analysed.
-- **D27 (`casting` gains `sig_clubBeforeArm`) is held as a patch:** `build/run-me/ks-d27/d27-casting-club-before-arm.patch`, not applied. Its gate needs `clubPeakTime` and `leadArmPeakTime`, which only a re-analysis produces.
+- **D27 (`casting` gains `sig_clubBeforeArm`) is held as a patch:** `docs/research/data/ks_model/d27-casting-club-before-arm.patch`, not applied. Its gate needs `clubPeakTime` and `leadArmPeakTime`, which only a re-analysis produces.
 - **§10.6 (checks passed against clubhead speed) is not yet runnable:** no swing has an assessed check.
 
-**Still owed.** A metrics-only re-analysis of the library on GOLFSIMPC, then the rank shift, D27 and §10.6 again. Both steps are scripted:
-- `build/run-me/ks-studio-reanalyse.sh` does the re-analysis. The library backup is `/mnt/swingdata/scratch/ks-model/library-pre-ks-20261014.tgz`.
-- `build/run-me/ks-after-reanalyse.sh` repeats the rank shift, D27 and §10.6.
+**Done 15 October:** see §17.2.
+
+### 17.2 Part K, 15 October 2026: after the library re-analysis
+
+**Run.** The studio was built from `f29f79ec`, then `b4840854`, and ran a metrics-only write-back (reuse path) over the 136 library swings and Nick Henn's 2. None failed, and pose was reused on every swing.
+- The ledgers were regraded with `regrade_ledger`.
+- `diag_rank_diff` compared the pre-Part-K pack (`cae12914`) with the shipped pack.
+- CSVs: `docs/research/data/ks_model/*_post_reanalysis_20261015.csv`, after the club change and before sharp findings (sharp moves only the display order).
+
+**Firings over the library.**
+
+| Condition | Fired / assessable |
+|---|---|
+| `hips_peak_after_impact` | 54 / 59 |
+| `sequence_order` | 55 / 59 (it falls back to the lead arm) |
+| `arms_peak_after_impact` | 8 / 132 |
+| `club_peak_after_impact` | not assessable (camera club withheld, P10) |
+| `club_peak_early` | not assessable (camera club withheld, P10) |
+
+The hip peak is placed on 59 swings; the chest peak on none.
+
+**Before the club change,** `club_peak_early` fired on 106 of 127 swings. It lifted `club_not_released` into the top-three roots in four sessions. That was the KB-18 artefact, and it is gone (P10).
+
+**Roots.** `upper_body_starts_down` is #1 in 07-04, 10-05, 10-07 and 10-08, carried by `sequence_order` and `hips_peak_after_impact`. It is still unmeasured on these cameras (no chest reversal), so it stays a hypothesis the sequence faults point at.
+
+**Display order (P11).** On the session cards, the sequence faults sat at the bottom (no corridor) until they became sharp findings. They now lead in every established session.
+- **First fix:** the This-shot dot plot then sized its axis from the 1000 rank key, which pressed every corridor fault onto the fault line.
+- **Fixed:** `PpDotPlot` sizes the axis from corridor rows only and draws a sharp row at the right edge.
+- **Not changed (open):** the home screen's merged work-ons rank by the recency-weighted Wilson lower bound across sessions, and excess only breaks ties. The sequence faults are assessable on 59 swings against ~130 for the posture faults, so they rank lower there, although every session's own list puts them first.
+
+**§10.6 (checks passed against clubhead speed, Spearman within session):**
+
+| Session | Swings | ρ |
+|---|---|---|
+| 07-04 | 15 | +0.21 |
+| 09-09 | 7 | +0.21 |
+| 10-05 | 28 | +0.12 |
+| 10-07 | 45 | +0.22 |
+| 10-08 | 31 | −0.07 |
+
+These are weak and not consistent. By the plan the count should come off the tile; that is Mark's call, still open.
+
+**D27** fired `casting` on 17 more swings before the club change, and its assessable count fell only 127 → 124. With the camera club now withheld, `sig_clubBeforeArm` is refused on every camera swing, so D27 as drafted would add nothing. It needs the single-signal redesign and a club timing it may judge.
+
+**Open.**
+- Is the late hip peak real or a camera-route lag? A worn pelvis sensor settles it.
+- The shaft-angle rate's projection wobble (KB-18 root cause).
+- A "held off" shot type to excuse an intentional hold-off.
+- The tile count (§10.6).
+- Sharp findings in the home ranking.
+- The D27 redesign.
 
 ---
 
