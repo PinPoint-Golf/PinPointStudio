@@ -42,6 +42,7 @@
 #include <QtQuickTest>
 
 #include <QDir>
+#include <QFileInfo>
 #include <QFontDatabase>
 #include <QQmlContext>
 #include <QQmlEngine>
@@ -118,8 +119,13 @@ class ChartsFixture : public QObject
 public:
     ChartsFixture(QQmlEngine *engine, QObject *parent) : QObject(parent), m_engine(engine) {}
 
-    // The fixture's session folder and a shot's swing folder (ordinal 1..15).
-    Q_INVOKABLE QString sessionDir() const { return QStringLiteral("/fx/2026-07-04_Mark-Liversedge_Wrist_01"); }
+    // The fixture's session folder and a shot's swing folder (ordinal 1..15). Absolute the way
+    // SessionSeriesModel makes it (QFileInfo::absoluteFilePath): "/fx/…" on Linux and macOS,
+    // "C:/fx/…" on Windows — a bare "/fx/…" there never compares equal to what the model reports.
+    Q_INVOKABLE QString sessionDir() const
+    {
+        return QDir::cleanPath(QFileInfo(QStringLiteral("/fx/2026-07-04_Mark-Liversedge_Wrist_01")).absoluteFilePath());
+    }
     Q_INVOKABLE QString dirOf(int ordinal) const
     {
         return sessionDir() + QStringLiteral("/swing_%1").arg(ordinal, 4, 10, QLatin1Char('0'));

@@ -1576,7 +1576,9 @@ int main()
         {
             SegmentRatesResult z = res;
             z.sequence.nodes[2].tSigmaMs = 0.0;
-            const MetricSeries *t = find(sequenceNodeSeries(z), "leadArmPeakTime");
+            // Held by name: find() points INTO the vector, and a temporary dies at the semicolon.
+            const std::vector<MetricSeries> zs = sequenceNodeSeries(z);
+            const MetricSeries *t = find(zs, "leadArmPeakTime");
             CHECK("§15a a zero σ is left unset, not published as perfect",
                   t && !t->phaseSamples[0].sigma && !t->sigma && t->sigmaKind == 0);
         }
