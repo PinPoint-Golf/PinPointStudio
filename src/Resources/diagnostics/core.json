@@ -2939,7 +2939,8 @@
       ],
       "fallback": [
         "m_leadArmPeakTime",
-        "m_clubPeakTime"
+        "m_clubPeakTime",
+        "impact"
       ]
     },
     {
@@ -4725,7 +4726,7 @@
       "label": "Out-of-order sequence",
       "golfer": "your body turns in the wrong order coming down",
       "golferWell": "your hips lead and your shoulders follow coming down",
-      "golferWhy": "When your chest peaks before your hips, or your hips are still speeding up after the ball, your body stops adding speed and your arms are left to make it.",
+      "golferWhy": "When your chest or arms peak before your hips, or your hips are still speeding up after the ball, your body stops adding speed and your arms are left to make it.",
       "group": "sequence",
       "kind": "fault",
       "prominence": "common",
@@ -4733,12 +4734,11 @@
       "confirmedBy": "measured",
       "detectedBy": [
         "sig_sequenceOrder",
-        "sig_pelvisBeforeImpact",
-        "sig_thoraxBeforeImpact"
+        "sig_pelvisBeforeImpact"
       ],
       "detection": "any",
       "state": "active",
-      "consequence": "The sequence is read from impact. The pelvis should peak first, the chest next, then the lead arm and the club, all before the ball: Lynn et al. 2013 found the pelvis peaking 80 to 100 ms before impact in elite and recreational golfers alike. The fault fires when the pelvis peaks at or after the next link this capture placed (the chest, else the lead arm, else the club), or when the pelvis or the chest peaks after impact. Then the chain that multiplies speed from the ground up never forms and speed has to be made by the arms.",
+      "consequence": "The sequence is read from impact. The pelvis should peak first, the chest next, then the lead arm and the club, all before the ball: Lynn et al. 2013 found the pelvis peaking 80 to 100 ms before impact in elite and recreational golfers alike. The fault fires when the pelvis peaks at or after the next link this capture placed (the chest, else the lead arm, else the club, else impact itself), or when the pelvis peaks after impact. Impact ends the chain so the check can always be made where the hip peak is placed: a fault that could fire but never be found clean would count only its firings, and every session would read 100 %. Then the chain that multiplies speed from the ground up never forms and speed has to be made by the arms.",
       "provenance": {
         "tier": "supported",
         "citation": "10.1080/14763141.2010.535842",

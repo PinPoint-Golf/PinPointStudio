@@ -533,6 +533,30 @@ static void sequenceChecksSuite(const QTemporaryDir &tmp)
                   && sa.missing.value(0) == QLatin1String("m_thoraxPeakTime"),
               "no later link placed: not assessable, naming the chest");
 
+        // IMPACT ENDS THE CHAIN: with nothing later placed the hips are compared with impact itself,
+        // so the check is always made where the hip peak is — a fault that could fire but never read
+        // clean would count only its firings (10-05 swing 21: hips −80 ms, no other link placed).
+        Signal oi = o;
+        oi.id       = QStringLiteral("sig_sequenceOrderToImpact");
+        oi.fallback = { QStringLiteral("m_leadArmPeakTime"), QStringLiteral("m_clubPeakTime"), QStringLiteral("impact") };
+        p.signalDefs.push_back(oi);
+        const SignalOutcome si1 = evaluateSignal(p, oi.id, alone);
+        check(si1.available && !si1.fired && si1.quantified && si1.pFire < 0.001f && si1.comparedWith == QLatin1String("impact"),
+              "nothing later placed: compared with impact; hips at −80 ± 15 ms are clean");
+        SeqFakeSource late;
+        late.add(QStringLiteral("m_pelvisPeakTime"), 20.0, 15.0);
+        const SignalOutcome si2 = evaluateSignal(p, oi.id, late);
+        check(si2.available && si2.fired && std::fabs(si2.pFire - 0.909f) < 0.01f,
+              "…and +20 ± 15 ms fires, pFire Φ(20/15) on the hip peak's σ alone");
+        {
+            SignalRow g = seqRow("sig_sequenceOrder", ShotState::Clean, 0.f, true);
+            g.comparedWith = QStringLiteral("impact");
+            const SequenceChecks t = sequenceChecksOf(std::vector<SignalRow>{ g });
+            check(t.checks[2].state == SequenceCheckState::NotAssessable
+                      && t.checks[2].reason == QLatin1String("no later link placed; the impact check covers it"),
+                  "the tile does not count the hips-against-impact comparison twice");
+        }
+
         SeqFakeSource early;     // a hip peak before impact: braking is read as before
         early.add(QStringLiteral("m_pelvisPeakTime"), -60.0, 15.0);
         early.add(QStringLiteral("m_pelvisSpeedImpact"), 503.0, 40.0, QStringLiteral("faceOn+dtl"));

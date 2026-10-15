@@ -136,6 +136,16 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
     if (sig.test == SignalTest::Order && readings.size() == 1 && v.missing.size() == 1
         && v.missing.front() == sig.measures.value(1)) {
         for (const QString &fid : sig.fallback) {
+            if (fid == QLatin1String(kImpactLink)) {
+                // Impact itself: always placed, at 0 ms, its σ carried by the subject's σ_t (which
+                // is already a time FROM impact). Confidence 1 — it is the clock's origin.
+                MeasureReading at;
+                at.value = 0.0;
+                readings.push_back(at);
+                v.comparedWith = fid;
+                v.missing.clear();
+                break;
+            }
             if (const auto r = src.read(fid)) {
                 readings.push_back(*r);
                 v.comparedWith = fid;
@@ -290,8 +300,12 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
         // Measures are ordered: the first is expected to peak before the second. Values carry the
         // event time, so "out of order" is first >= second.
         v.fired = readings[0].value >= readings[1].value;
-        // §A8.4: P(first ≥ second) with both readings' σ in quadrature.
-        if (hasSigma(readings[0]) && hasSigma(readings[1])) {
+        // §A8.4: P(first ≥ second) with both readings' σ in quadrature. Against impact the second
+        // event is the clock's origin and the subject's σ_t is the whole budget.
+        if (v.comparedWith == QLatin1String(kImpactLink) && hasSigma(readings[0])) {
+            v.pFire      = float(normCdf(readings[0].value / readings[0].measSigma));
+            v.quantified = true;
+        } else if (hasSigma(readings[0]) && hasSigma(readings[1])) {
             const double s = std::hypot(readings[0].measSigma, readings[1].measSigma);
             v.pFire      = float(normCdf((readings[0].value - readings[1].value) / s));
             v.quantified = true;

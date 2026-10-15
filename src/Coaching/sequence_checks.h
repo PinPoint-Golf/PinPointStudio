@@ -246,6 +246,12 @@ inline SequenceChecks sequenceChecksOf(const std::vector<SignalRow> &rows)
             c.pFire      = row->pFire;
             c.quantified = row->quantified;
             c.reason     = row->reason;
+            // Fell all the way to impact: the hips-before-impact check (F0) already asks exactly
+            // that, so this row stands aside rather than count the same comparison twice.
+            if (row->comparedWith == QLatin1String("impact") && c.state != SequenceCheckState::NotAssessable) {
+                c.state  = SequenceCheckState::NotAssessable;
+                c.reason = QStringLiteral("no later link placed; the impact check covers it");
+            }
             // Fell back down the chain: say which pair was compared, and why.
             if (const QString link = sequenceLinkName(row->comparedWith);
                 !link.isEmpty() && c.state != SequenceCheckState::NotAssessable) {

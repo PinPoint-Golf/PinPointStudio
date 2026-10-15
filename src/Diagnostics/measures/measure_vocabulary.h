@@ -268,7 +268,9 @@ struct Signal {
     // ORDER ONLY: the links further down the chain, in order, tried when measures[1] produced no
     // value. The kinematic sequence is a chain — hips, chest, lead arm, club — and a link this
     // capture never placed must not end the check: the hips are compared with the next link that
-    // WAS placed. An order signal with no fallback is the plain two-event test.
+    // WAS placed. An order signal with no fallback is the plain two-event test. The literal
+    // kImpactLink ("impact") may end the list: every time here is read from impact, so impact is the
+    // chain's last link and is always placed, at 0 ms with no σ of its own.
     QStringList              fallback;
     // A time-from-impact measure (ms, negative = before impact) that must be BEFORE impact for this
     // signal to mean anything; at or after impact the signal is not assessable (PeakAfterImpact).
@@ -276,6 +278,9 @@ struct Signal {
     // has not happened yet and the hips are still speeding up through the ball.
     QString                  requiresBeforeImpact;
 };
+
+// The chain's last link in Signal::fallback: impact itself, t = 0 on every time-from-impact measure.
+inline constexpr const char *kImpactLink = "impact";
 
 // ── Enum <-> string (the JSON spelling) ─────────────────────────────────────
 QString measureKindName(MeasureKind k);

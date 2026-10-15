@@ -648,6 +648,7 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
     QSet<QString> usedMeasures;
     for (const Signal &s : pack.signalDefs) {
         QStringList named = s.measures + s.fallback;
+        named.removeAll(QLatin1String(kImpactLink));   // impact is the chain's end, not a measure
         if (!s.requiresBeforeImpact.isEmpty()) named << s.requiresBeforeImpact;
         for (const QString &mid : named) {
             usedMeasures.insert(mid);
