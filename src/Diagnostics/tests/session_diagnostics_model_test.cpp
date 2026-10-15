@@ -340,11 +340,13 @@ static void sequenceChecksSuite(const QTemporaryDir &tmp)
               && sequenceGapReason(SequenceGap::NotPlaced, QStringLiteral("m_other")) == QLatin1String("not measured on this swing"),
           "anything else falls back to \"not measured on this swing\"");
 
-    // A shot: two ✓, three ✗, one ?, four —.
+    // A shot: four ✓, three ✗, one ?, four —.
     const QString unplaced = QStringLiteral("chest peak not placed from these cameras");
     const std::vector<SignalRow> rows{
         seqRow("sig_pelvisBeforeImpact", ShotState::Fired,      0.91f, true),
         seqRow("sig_thoraxBeforeImpact", ShotState::NotAssessable, -1.f, false, "chest peak not placed from these cameras"),
+        seqRow("sig_leadArmBeforeImpact", ShotState::Clean,     0.05f, true),
+        seqRow("sig_clubBeforeImpact",    ShotState::Clean,     0.f,   true),
         seqRow("sig_sequenceOrder",   ShotState::Clean,         0.10f, true),
         seqRow("sig_armBeforeThorax", ShotState::Fired,         0.95f, true),
         seqRow("sig_clubBeforeArm",   ShotState::Clean,         0.50f, true),
@@ -355,26 +357,26 @@ static void sequenceChecksSuite(const QTemporaryDir &tmp)
         seqRow("sig_transitionOrder", ShotState::NotAssessable, -1.f, false),   // no reason recorded
     };
     const SequenceChecks sc = sequenceChecksOf(rows);
-    check(sc.recorded && sc.checks.size() == 10, "ten checks: the impact anchors F0 and F0c, F1–F7 and F9");
-    check(sc.checks[0].facet == QLatin1String("F0") && sc.checks[2].facet == QLatin1String("F1")
-              && sc.checks[9].facet == QLatin1String("F9"),
+    check(sc.recorded && sc.checks.size() == 13, "thirteen checks: the impact checks I1–I5, F1–F7 and F9");
+    check(sc.checks[0].facet == QLatin1String("I1") && sc.checks[5].facet == QLatin1String("F1")
+              && sc.checks[12].facet == QLatin1String("F9"),
           "…in facet order");
-    check(sc.passed == 2 && sc.assessable == 6 && sc.notAssessable == 4, "n = 2 (✓), m = 6 (✓ + ✗ + ?), four —");
-    check(std::fabs(sc.expectedPassed - 2.54) < 1e-6, "expected count Σ(1 − pFire) over the assessable = 2.54");
-    check(std::fabs(sc.sumPFire - 3.46) < 1e-6 && sc.failedLikely == 3, "Σ pFire 3.46, three failed with pFire > 0.5");
-    check(sc.checks[9].reason == QLatin1String("not measured on this swing"), "a — with no recorded reason still says why");
-    check(sequenceChecksLine(sc) == QLatin1String("Sequence checks: 2 of 6"), "the line: \"Sequence checks: 2 of 6\"");
+    check(sc.passed == 4 && sc.assessable == 8 && sc.notAssessable == 5, "n = 4 (✓), m = 8 (✓ + ✗ + ?), five —");
+    check(std::fabs(sc.expectedPassed - 4.49) < 1e-5, "expected count Σ(1 − pFire) over the assessable = 4.49");
+    check(std::fabs(sc.sumPFire - 3.51) < 1e-5 && sc.failedLikely == 3, "Σ pFire 3.51, three failed with pFire > 0.5");
+    check(sc.checks[12].reason == QLatin1String("not measured on this swing"), "a — with no recorded reason still says why");
+    check(sequenceChecksLine(sc) == QLatin1String("Sequence checks: 4 of 8"), "the line: \"Sequence checks: 4 of 8\"");
     check(sequenceChecksGapNote(sc) == unplaced, "the gap note is the most common reason");
     const QVariantMap v = sequenceChecksToVariant(sc);
     const QVariantList vl = v.value(QStringLiteral("checks")).toList();
     QString marks;
     for (const QVariant &c : vl) marks += c.toMap().value(QStringLiteral("mark")).toString();
-    check(marks == QStringLiteral("✗—✓✗?——✓✗—"), "the marks, in order: ✗—✓✗?——✓✗—");
+    check(marks == QStringLiteral("✗—✓✓—✓✗?——✓✗—"), "the marks, in order: ✗—✓✓—✓✗?——✓✗—");
     check(v.value(QStringLiteral("whose")).toString() == QLatin1String("PinPoint's own count"),
           "labelled PinPoint's own count");
-    check(vl.value(5).toMap().value(QStringLiteral("detail")).toString() == unplaced
-              && vl.value(4).toMap().value(QStringLiteral("detail")).toString() == QLatin1String("too close to call on this swing")
-              && vl.value(2).toMap().value(QStringLiteral("detail")).toString() == QLatin1String("Do the hips peak before the chest?"),
+    check(vl.value(8).toMap().value(QStringLiteral("detail")).toString() == unplaced
+              && vl.value(7).toMap().value(QStringLiteral("detail")).toString() == QLatin1String("too close to call on this swing")
+              && vl.value(5).toMap().value(QStringLiteral("detail")).toString() == QLatin1String("Do the hips peak before the chest?"),
           "the hover detail: the reason for —, the doubt for ?, the question otherwise");
     const SequenceChecks none = sequenceChecksOf(std::vector<SignalRow>{});
     check(!none.recorded && none.checks.empty() && sequenceChecksToVariant(none).isEmpty(),
@@ -389,10 +391,10 @@ static void sequenceChecksSuite(const QTemporaryDir &tmp)
                 g.state = ShotState::Fired; g.pFire = 1.f; g.comparedWith = QStringLiteral("m_leadArmPeakTime");
             }
         const SequenceChecks f = sequenceChecksOf(fb);
-        check(f.checks[2].label == QLatin1String("Hips before lead arm") && f.checks[2].state == SequenceCheckState::Fail,
+        check(f.checks[5].label == QLatin1String("Hips before lead arm") && f.checks[5].state == SequenceCheckState::Fail,
               "a fallen-back hips check is labelled with the link it compared: \"Hips before lead arm\" ✗");
         const std::vector<ShotRecord> back = fromJson(toJson(std::vector<ShotRecord>{ [&] { ShotRecord r; r.shotId = 1; r.signalRows = fb; return r; }() }));
-        check(back.size() == 1 && back[0].signalRows[2].comparedWith == QLatin1String("m_leadArmPeakTime"),
+        check(back.size() == 1 && back[0].signalRows[4].comparedWith == QLatin1String("m_leadArmPeakTime"),
               "comparedWith survives diagnostics.json (schema 7)");
     }
     check(sequenceGapReason(SequenceGap::PeakAfterImpact, QStringLiteral("m_pelvisPeakTime"))
@@ -552,8 +554,8 @@ static void sequenceChecksSuite(const QTemporaryDir &tmp)
             SignalRow g = seqRow("sig_sequenceOrder", ShotState::Clean, 0.f, true);
             g.comparedWith = QStringLiteral("impact");
             const SequenceChecks t = sequenceChecksOf(std::vector<SignalRow>{ g });
-            check(t.checks[2].state == SequenceCheckState::NotAssessable
-                      && t.checks[2].reason == QLatin1String("no later link placed; the impact check covers it"),
+            check(t.checks[5].state == SequenceCheckState::NotAssessable
+                      && t.checks[5].reason == QLatin1String("no later link placed; the impact check covers it"),
                   "the tile does not count the hips-against-impact comparison twice");
         }
 
@@ -575,7 +577,7 @@ static void sequenceChecksSuite(const QTemporaryDir &tmp)
         m->ingestShot(2, swingDirFor(dir, 2));
         const QVariantMap c1 = m->sequenceChecks(1);
         const QVariantList l1 = c1.value(QStringLiteral("checks")).toList();
-        check(l1.size() == 10, "the model serves ten checks for a shot");
+        check(l1.size() == 13, "the model serves thirteen checks for a shot");
         bool reasons = true;
         for (const QVariant &c : l1) {
             const QVariantMap cm = c.toMap();
@@ -592,8 +594,8 @@ static void sequenceChecksSuite(const QTemporaryDir &tmp)
         check(m->sequenceChecks(99).isEmpty(), "a shot not in the ledger: empty");
         const QJsonObject j = diagnosticsJsonOf(dir);
         const QJsonArray shots = j.value(QStringLiteral("ledger")).toObject().value(QStringLiteral("shots")).toArray();
-        check(!shots.isEmpty() && shots.first().toObject().value(QStringLiteral("signals")).toArray().size() == 10,
-              "diagnostics.json carries the ten signal rows");
+        check(!shots.isEmpty() && shots.first().toObject().value(QStringLiteral("signals")).toArray().size() == 13,
+              "diagnostics.json carries the thirteen signal rows");
         const QVariantList rank = m->sequenceRanking();
         bool subset = true;
         for (const QVariant &id : rank) subset = subset && (id.toInt() == 1 || id.toInt() == 2);

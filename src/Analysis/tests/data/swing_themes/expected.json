@@ -8389,6 +8389,10 @@
    "drill": "",
    "when": 3
   },
+  "arms_peak_after_impact": {
+   "drill": "",
+   "when": 7
+  },
   "arms_ride_the_turn": {
    "drill": "",
    "when": 7
@@ -8453,6 +8457,10 @@
    "drill": "",
    "when": 7
   },
+  "chest_peak_after_impact": {
+   "drill": "",
+   "when": 7
+  },
   "chicken_wing": {
    "drill": "",
    "when": 8
@@ -8466,6 +8474,14 @@
    "when": 7
   },
   "club_not_released": {
+   "drill": "",
+   "when": 7
+  },
+  "club_peak_after_impact": {
+   "drill": "",
+   "when": 7
+  },
+  "club_peak_early": {
    "drill": "",
    "when": 7
   },
@@ -8626,6 +8642,10 @@
    "when": 7
   },
   "hips_closed_at_impact": {
+   "drill": "",
+   "when": 7
+  },
+  "hips_peak_after_impact": {
    "drill": "",
    "when": 7
   },

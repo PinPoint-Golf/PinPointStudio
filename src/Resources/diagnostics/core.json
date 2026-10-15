@@ -2939,8 +2939,7 @@
       ],
       "fallback": [
         "m_leadArmPeakTime",
-        "m_clubPeakTime",
-        "impact"
+        "m_clubPeakTime"
       ]
     },
     {
@@ -2971,6 +2970,33 @@
       ],
       "direction": "high",
       "threshold": 0
+    },
+    {
+      "id": "sig_leadArmBeforeImpact",
+      "test": "threshold",
+      "measures": [
+        "m_leadArmPeakTime"
+      ],
+      "direction": "high",
+      "threshold": 0
+    },
+    {
+      "id": "sig_clubBeforeImpact",
+      "test": "threshold",
+      "measures": [
+        "m_clubPeakTime"
+      ],
+      "direction": "high",
+      "threshold": 0
+    },
+    {
+      "id": "sig_clubPeakEarly",
+      "test": "threshold",
+      "measures": [
+        "m_clubPeakTime"
+      ],
+      "direction": "low",
+      "threshold": -20
     },
     {
       "id": "sig_clubBeforeArm",
@@ -4726,19 +4752,17 @@
       "label": "Out-of-order sequence",
       "golfer": "your body turns in the wrong order coming down",
       "golferWell": "your hips lead and your shoulders follow coming down",
-      "golferWhy": "When your chest or arms peak before your hips, or your hips are still speeding up after the ball, your body stops adding speed and your arms are left to make it.",
+      "golferWhy": "When your chest or arms peak before your hips, your body stops adding speed and your arms are left to make it.",
       "group": "sequence",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
       "confirmedBy": "measured",
       "detectedBy": [
-        "sig_sequenceOrder",
-        "sig_pelvisBeforeImpact"
+        "sig_sequenceOrder"
       ],
-      "detection": "any",
       "state": "active",
-      "consequence": "The sequence is read from impact. The pelvis should peak first, the chest next, then the lead arm and the club, all before the ball: Lynn et al. 2013 found the pelvis peaking 80 to 100 ms before impact in elite and recreational golfers alike. The fault fires when the pelvis peaks at or after the next link this capture placed (the chest, else the lead arm, else the club, else impact itself), or when the pelvis peaks after impact. Impact ends the chain so the check can always be made where the hip peak is placed: a fault that could fire but never be found clean would count only its firings, and every session would read 100 %. Then the chain that multiplies speed from the ground up never forms and speed has to be made by the arms.",
+      "consequence": "The pelvis should peak first, then the chest, the lead arm and the club. The fault fires when the pelvis peaks at or after the next link this capture placed: the chest, else the lead arm, else the club. It reads the ORDER only; when each segment peaks against impact is read separately, one fault per segment. When the chest or arms lead the pelvis, the chain that multiplies speed from the ground up never forms and speed has to be made by the arms.",
       "provenance": {
         "tier": "supported",
         "citation": "10.1080/14763141.2010.535842",
@@ -8073,6 +8097,119 @@
       "drills": [
         "drill.wristHold"
       ]
+    },
+    {
+      "id": "hips_peak_after_impact",
+      "label": "Hips peak after impact",
+      "golfer": "your hips are still speeding up after the ball",
+      "golferWell": "your hips reach full speed well before the ball",
+      "golferWhy": "Hips that are still speeding up after the ball have not handed their speed on to your chest, arms and club in time for the strike.",
+      "group": "sequence",
+      "kind": "fault",
+      "prominence": "common",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_pelvisBeforeImpact"
+      ],
+      "state": "active",
+      "consequence": "The pelvis reaches its peak turning speed at or after impact. Read against impact on its own, whatever the other segments did. 19 PGA tour professionals peaked the pelvis 87 ± 19 ms before impact (Cheetham et al. 2008); Lynn et al. 2013 found 101.7 ms in elite and 79.6 ms in recreational golfers, with every golfer's pelvis peaking and slowing before the ball, and peak-to-impact time tracking smash factor. The line is impact itself, so it says the peak is late, never by how much against a published mean.",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1123/ijgs.2013-0011",
+        "searchedOn": "2026-10-15",
+        "searchTerms": "timing of peak pelvis angular velocity before impact skilled recreational golfers; kinematic sequence peak times before impact professional amateur"
+      }
+    },
+    {
+      "id": "chest_peak_after_impact",
+      "label": "Chest peaks after impact",
+      "golfer": "your chest is still speeding up after the ball",
+      "golferWell": "your chest reaches full speed before the ball",
+      "golferWhy": "A chest still speeding up after the ball has not passed its speed on to your arms and the club in time for the strike.",
+      "group": "sequence",
+      "kind": "fault",
+      "prominence": "common",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_thoraxBeforeImpact"
+      ],
+      "state": "active",
+      "consequence": "The thorax reaches its peak turning speed at or after impact. Read against impact on its own. 19 PGA tour professionals peaked it 68 ± 14 ms before impact, and 19 amateurs 59 ± 29 ms (Cheetham et al. 2008): both groups well before the ball. The line is impact itself, never a published mean.",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "9780978873417",
+        "searchedOn": "2026-10-15",
+        "searchTerms": "kinematic sequence thorax peak angular velocity time before impact professional amateur golf"
+      }
+    },
+    {
+      "id": "arms_peak_after_impact",
+      "label": "Lead arm peaks after impact",
+      "golfer": "your lead arm is still speeding up after the ball",
+      "golferWell": "your lead arm reaches full speed just before the ball",
+      "golferWhy": "When your lead arm is still speeding up after the ball, the club has not been given the arm's speed in time for the strike.",
+      "group": "sequence",
+      "kind": "fault",
+      "prominence": "common",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_leadArmBeforeImpact"
+      ],
+      "state": "active",
+      "consequence": "The lead arm reaches its peak angular speed at or after impact. Read against impact on its own. 19 PGA tour professionals peaked it 65 ± 8 ms before impact, and 19 amateurs 64 ± 23 ms (Cheetham et al. 2008). The line is impact itself, never a published mean.",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "9780978873417",
+        "searchedOn": "2026-10-15",
+        "searchTerms": "kinematic sequence lead arm peak angular velocity time before impact professional amateur golf"
+      }
+    },
+    {
+      "id": "club_peak_after_impact",
+      "label": "Club peaks after impact",
+      "golfer": "the club is still speeding up after the ball",
+      "golferWell": "the club reaches full speed at the ball",
+      "golferWhy": "When the club is still speeding up after the ball, its top speed arrives too late to be used on the strike.",
+      "group": "sequence",
+      "kind": "fault",
+      "prominence": "common",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_clubBeforeImpact"
+      ],
+      "state": "active",
+      "consequence": "The club's peak angular speed comes after impact. Read against impact on its own. Cheetham et al. 2008 publish no club peak time, so the line at impact is a coaching rule: the club is the last link and its speed is only of use at the ball. It is separate from decelerating into impact, which reads the clubhead's linear speed peaking too early.",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-15",
+        "searchTerms": "club angular velocity peak timing relative to impact kinematic sequence golf"
+      }
+    },
+    {
+      "id": "club_peak_early",
+      "label": "Club peaks before the ball",
+      "golfer": "the club reaches its top speed before the ball",
+      "golferWell": "the club reaches its top speed at the ball",
+      "golferWhy": "When the club's speed peaks before the ball, it is already slowing by the strike and that speed never reaches the ball. It often means the release was held off. If you held it off on purpose, that is the shot; if not, it needs fixing.",
+      "group": "sequence",
+      "kind": "fault",
+      "prominence": "common",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_clubPeakEarly"
+      ],
+      "state": "draft",
+      "consequence": "The club's peak angular speed comes more than 20 ms before impact. The club is the last link and should peak at the ball, after the pelvis, the chest and the lead arm. Read against impact on its own. The 20 ms line is a heuristic, set to match the clubhead-speed ceiling `deceleration` grades (3 + 15 ms on the linear speed); no study publishes a club angular peak time, so it stays draft until the re-analysed library shows where this golfer's club peaks fall. It is the club's turning speed, where `deceleration` reads the clubhead's linear speed. A club peaking just before the ball often marks a held-off release, which is a shot type as much as a fault: played on purpose it is the shot, otherwise it needs fixing. Nothing in a capture says which yet, so until a shot can be declared held off, read this beside what the golfer meant to hit.",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-15",
+        "searchTerms": "club angular velocity peak before impact early release golf kinematic sequence"
+      }
     }
   ],
   "edges": [
@@ -12659,6 +12796,77 @@
         "citation": "10.1080/14763141.2025.2547277",
         "searchedOn": "2026-10-14",
         "searchTerms": "wrist release style early release delayed release peak uncocking velocity golf; golf wrist release timing club angular velocity relative to arm"
+      }
+    },
+    {
+      "from": "late_pelvis_rotation",
+      "to": "hips_peak_after_impact",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1123/ijgs.2013-0011",
+        "searchedOn": "2026-10-15",
+        "searchTerms": "late pelvis rotation start later peak pelvis angular velocity closer to impact"
+      }
+    },
+    {
+      "from": "hips_peak_after_impact",
+      "to": "chest_peak_after_impact",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "9780978873417",
+        "searchedOn": "2026-10-15",
+        "searchTerms": "proximal to distal sequence peak timing each segment peaks after the one before golf kinematic sequence"
+      }
+    },
+    {
+      "from": "chest_peak_after_impact",
+      "to": "arms_peak_after_impact",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "9780978873417",
+        "searchedOn": "2026-10-15",
+        "searchTerms": "proximal to distal sequence peak timing each segment peaks after the one before golf kinematic sequence"
+      }
+    },
+    {
+      "from": "arms_peak_after_impact",
+      "to": "club_peak_after_impact",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "9780978873417",
+        "searchedOn": "2026-10-15",
+        "searchTerms": "proximal to distal sequence peak timing each segment peaks after the one before golf kinematic sequence"
+      }
+    },
+    {
+      "from": "casting",
+      "to": "club_peak_early",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1080/02640414.2010.507249",
+        "searchedOn": "2026-10-15",
+        "searchTerms": "early wrist release uncocking timing club angular velocity peak before impact"
+      }
+    },
+    {
+      "from": "club_not_released",
+      "to": "club_peak_early",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-10-15",
+        "searchTerms": "held off release club speed peak before impact golf; coach's review 15 October 2026"
       }
     }
   ]

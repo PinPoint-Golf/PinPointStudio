@@ -2098,7 +2098,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the peak of the two-camera skeleton's hip-line turn rate")),
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
                 QStringLiteral("the peak of the face-on hip span's turn rate, only where in sight")) },
-        .usedBy = { QStringLiteral("characteristic:sequence_order") },
+        .usedBy = { QStringLiteral("characteristic:hips_peak_after_impact"), QStringLiteral("characteristic:sequence_order") },
     });
 
     cat.addDescriptor({
@@ -2129,7 +2129,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the peak of the two-camera skeleton's shoulder-line turn rate")),
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
                 QStringLiteral("the peak of the face-on shoulder span's turn rate, only where in sight")) },
-        .usedBy = { QStringLiteral("characteristic:sequence_order"),
+        .usedBy = { QStringLiteral("characteristic:chest_peak_after_impact"), QStringLiteral("characteristic:sequence_order"),
                     QStringLiteral("characteristic:arms_before_chest") },
     });
 
@@ -2210,7 +2210,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signNegative = QStringLiteral("the peak came before impact"),
         .phases = { P::Impact },
         .routes = armRungs("the peak instant of"),
-        .usedBy = { QStringLiteral("characteristic:arms_before_chest") },
+        .usedBy = { QStringLiteral("characteristic:arms_peak_after_impact"), QStringLiteral("characteristic:arms_before_chest") },
     });
 
     cat.addDescriptor({
@@ -2233,6 +2233,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .signNegative = QStringLiteral("the peak came before impact"),
         .phases = { P::Impact },
         .routes = clubRungs("the peak instant of"),
+        .usedBy = { QStringLiteral("characteristic:club_peak_after_impact"), QStringLiteral("characteristic:club_peak_early") },
     });
 
     cat.addDescriptor({

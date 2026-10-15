@@ -19,7 +19,7 @@
 #pragma once
 
 // THE KINEMATIC SEQUENCE CHECKS — "Sequence checks: n of m" (trunk_imu_sequence_grf_design.md
-// §10.3 facets F1–F7 and F9, the impact anchors F0/F0c, §10.6 the score, §10.8 E4).
+// §10.3 facets F1–F7 and F9, the impact checks I1–I5, §10.6 the score, §10.8 E4).
 //
 // ONE SOURCE OF TRUTH. Every check here is read off a SignalRow — the engine's own verdict for one
 // signal (evaluateSignal, on the same graded source detect() used), persisted on the shot's ledger
@@ -56,15 +56,19 @@ struct SequenceCheckDef {
     const char *question;   // the §10.3 question, in golfer words
 };
 
-// THE SEQUENCE IS ANCHORED TO IMPACT. Every peak time is read from impact, and every body segment's
-// peak belongs before the ball — the hips most of all (Lynn 2013: elite and recreational golfers
-// alike peaked the pelvis 80–100 ms before impact). F0 and F0c ask that directly, so a hip peak
-// after the ball is a failed check whichever other links this capture placed.
-inline const std::array<SequenceCheckDef, 10> &sequenceCheckDefs()
+// THE TIMING IS READ AGAINST IMPACT, EACH SEGMENT ON ITS OWN. Every peak time is measured from
+// impact, and a peak after the ball is a fault in every one of the four series, whatever the others
+// did (Cheetham 2008: professionals peak the pelvis 87, the thorax 68 and the lead arm 65 ms before
+// impact). I1–I4 ask exactly that, one segment each; the club should peak AT the ball, so I5 also
+// asks that it is not well before it. F1–F3 ask the ORDER.
+inline const std::array<SequenceCheckDef, 13> &sequenceCheckDefs()
 {
-    static const std::array<SequenceCheckDef, 10> k{ {
-        { "F0",  "sig_pelvisBeforeImpact", "Hips peak before impact",  "Do the hips peak before the ball?" },
-        { "F0c", "sig_thoraxBeforeImpact", "Chest peaks before impact", "Does the chest peak before the ball?" },
+    static const std::array<SequenceCheckDef, 13> k{ {
+        { "I1", "sig_pelvisBeforeImpact",  "Hips peak before impact",     "Do the hips peak before the ball?" },
+        { "I2", "sig_thoraxBeforeImpact",  "Chest peaks before impact",    "Does the chest peak before the ball?" },
+        { "I3", "sig_leadArmBeforeImpact", "Lead arm peaks before impact", "Does the lead arm peak before the ball?" },
+        { "I4", "sig_clubBeforeImpact",    "Club not after impact",        "Does the club peak no later than the ball?" },
+        { "I5", "sig_clubPeakEarly",       "Club not early",               "Does the club peak at the ball, not well before it?" },
         { "F1", "sig_sequenceOrder",   "Hips before chest",      "Do the hips peak before the chest?" },
         { "F2", "sig_armBeforeThorax", "Chest before arm",       "Does the chest peak before the lead arm?" },
         { "F3", "sig_clubBeforeArm",   "Arm before club",        "Does the lead arm peak before the club?" },
@@ -213,7 +217,7 @@ struct SequenceCheck {
 };
 
 struct SequenceChecks {
-    std::vector<SequenceCheck> checks;   // F0, F0c, F1–F7, F9, always all ten once recorded
+    std::vector<SequenceCheck> checks;   // I1–I5, F1–F7, F9, always all thirteen once recorded
     int    passed         = 0;           // n: ✓
     int    assessable     = 0;           // m: ✓ + ✗ + ?
     int    notAssessable  = 0;           // "—"
@@ -246,7 +250,7 @@ inline SequenceChecks sequenceChecksOf(const std::vector<SignalRow> &rows)
             c.pFire      = row->pFire;
             c.quantified = row->quantified;
             c.reason     = row->reason;
-            // Fell all the way to impact: the hips-before-impact check (F0) already asks exactly
+            // Fell all the way to impact: the hips-before-impact check (I1) already asks exactly
             // that, so this row stands aside rather than count the same comparison twice.
             if (row->comparedWith == QLatin1String("impact") && c.state != SequenceCheckState::NotAssessable) {
                 c.state  = SequenceCheckState::NotAssessable;
