@@ -1028,8 +1028,7 @@ QVariantMap sequenceBlock(Ctx &c)
     for (int i = 0; i < kSequenceSegments; ++i) {
         const SegmentPeak &p = q.segments[size_t(i)];
         if (!p.present || p.placed) continue;
-        if (p.risingAtImpact) note.append(QStringLiteral(" ") + segWord(i) + QStringLiteral(" still speeding up at impact."));
-        else note.append(QStringLiteral(" ") + segWord(i) + QStringLiteral(" not placed (σ ")).figure(W::figMs(p.tSigmaMs)).append(QStringLiteral(")."));
+        note.append(QStringLiteral(" ") + segWord(i) + QStringLiteral(" ") + unplacedWhy(p).sentence + QStringLiteral("."));
     }
     return { { QStringLiteral("verdictText"), table.value(QStringLiteral("verdictText")) },
              { QStringLiteral("verdictState"), table.value(QStringLiteral("verdictState")) },
@@ -1126,10 +1125,17 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
                                     { QStringLiteral("text"), W::ordinalWord(p.rank) + QStringLiteral(" of %1 placed").arg(placedN) },
                                     { QStringLiteral("warn"), p.late } };
         } else {
+            // the gate that refused it, short enough for the figure column: the bound and why ("after −129 ms",
+            // "out of sight"), else the reason alone
+            const UnplacedWhy why = unplacedWhy(p);
+            const bool hasFig = why.figure != QLatin1String("-") && !why.unit.isEmpty();
             figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak") },
-                                    { QStringLiteral("text"), p.risingAtImpact ? QStringLiteral("still rising at impact")
-                                                                               : QStringLiteral("not placed, σ ") + W::figMs(p.tSigmaMs) },
+                                    { QStringLiteral("text"), hasFig ? why.figure + QChar(0x00A0) + why.unit : why.shortText },
                                     { QStringLiteral("warn"), false } };
+            if (hasFig)
+                figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("why") },
+                                        { QStringLiteral("text"), why.shortText },
+                                        { QStringLiteral("warn"), false } };
         }
         seqInfo = QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(seg)] },
                                { QStringLiteral("word"), segWord(seg) },
@@ -1217,12 +1223,6 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
         const QString h = c.w->specFor(k).value(QStringLiteral("mergeInto")).toString();
         return (!h.isEmpty() && c.calcs.contains(h) && !c.in->metricsOff.contains(h)) ? h : QString();
     };
-    QVariantList rows, cards;
-    std::vector<int> dotKinds;
-    for (const QString &k : c.presetKeys) {
-        if (!c.calcs.contains(k) || !hostOf(k).isEmpty()) continue;
-        const SeriesCalc &s = c.calcs.constFind(k).value();
-        const bool drawn = c.rowKeys.contains(k);
     // THE GLANCE TRIM: Replay sits beside the video, so a preset with a long list of instant readings
     // shows only the few a golfer reads at the mat; Analyse shows them all. Club delivery (the club's
     // motion and its impact numbers, one preset since 16 Oct) keeps path, face, attack angle, low point
@@ -1233,6 +1233,12 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
             QStringLiteral("attackAngle"), QStringLiteral("lm.attackAngle"),
             QStringLiteral("lowPointAhead"), QStringLiteral("lm.lowPointAhead"), QStringLiteral("lm.dynamicLoft") } } };
     const auto glanceIt = c.in->reg == QLatin1String("replay") ? kReplayGlance.constFind(c.preset) : kReplayGlance.constEnd();
+    QVariantList rows, cards;
+    std::vector<int> dotKinds;
+    for (const QString &k : c.presetKeys) {
+        if (!c.calcs.contains(k) || !hostOf(k).isEmpty()) continue;
+        const SeriesCalc &s = c.calcs.constFind(k).value();
+        const bool drawn = c.rowKeys.contains(k);
         if (!drawn && s.hasCurve && c.w->drawsCurve(k)) continue;      // a curve switched off: no card (today's rule)
         if (!s.hasCurve && s.m->phaseSamples.empty()) continue;         // nothing to show
         std::vector<const SeriesCalc *> cos;
@@ -1385,8 +1391,15 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
                 head.append(W::cap1(order.join(QStringLiteral(" then "))) + (uncertain ? QStringLiteral(", in order so far") : QStringLiteral(", in order")));
             else if (placed.size() == 1) head.append(QStringLiteral("Only the ") + order.first() + QStringLiteral(" placed"));
             else head.append(QStringLiteral("Sequence not placed"));
+            // the gate in words when it is the same for every unplaced segment (the face-on blind band, usually)
+            bool allOutOfSight = !notPlaced.isEmpty();
+            for (int i = 0; i < kSequenceSegments; ++i)
+                if (!c.seq.segments[size_t(i)].placed)
+                    allOutOfSight = allOutOfSight && c.seq.segments[size_t(i)].present
+                                 && unplacedWhy(c.seq.segments[size_t(i)]).shortText == QLatin1String("out of sight");
             if (!placed.empty() && !notPlaced.isEmpty())
-                head.append(QStringLiteral("; ") + W::list(notPlaced) + QStringLiteral(" not placed"));
+                head.append(QStringLiteral("; ") + W::list(notPlaced)
+                            + (allOutOfSight ? QStringLiteral(" out of the camera's sight") : QStringLiteral(" not placed")));
         }
         if (pelvisLate) note.append(W::latePelvisNote());
         const SegmentPeak &club = c.seq.segments[3], &pel = c.seq.segments[0], &arm = c.seq.segments[2];

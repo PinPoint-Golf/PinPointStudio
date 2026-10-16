@@ -179,7 +179,9 @@ private slots:
             if (r.toMap().value(QStringLiteral("late")).toBool()) { ++late; lateSeg = r.toMap().value(QStringLiteral("segment")).toString(); }
         QCOMPARE(late, 1);
         QCOMPARE(lateSeg, QStringLiteral("pelvis"));
-        QVERIFY(text(seq.value(QStringLiteral("note"))).contains(QStringLiteral("Chest not placed")));
+        // the unplaced chest says the gate that refused it, with the bound it kept — not its σ (trust and gates, stage 0)
+        QVERIFY2(text(seq.value(QStringLiteral("note"))).contains(QString::fromUtf8("Chest peaked after \u221247\u00A0ms, out of the camera's sight")),
+                 qPrintable(text(seq.value(QStringLiteral("note")))));
         // the late mark is a flag and a word on the curve's peak, never a colour
         const QVariantMap pel = rowOf(s.value(QStringLiteral("rows")).toList(), QStringLiteral("pelvisAngularSpeed"));
         QVERIFY(!pel.isEmpty());

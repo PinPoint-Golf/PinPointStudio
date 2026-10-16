@@ -791,13 +791,19 @@ QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
             const SegmentPeak &p = q.segments[size_t(s)];
             const SegmentSummary &sm = x.c.seq.segments[size_t(s)];
             const double v = p.placed ? p.shotMs : kNaN;
-            const QString foot = sm.placed >= 3 ? QStringLiteral("median ") + words::signedMs(sm.medianMs) : QStringLiteral("not placed");
+            // an unplaced node says the gate that refused it: the bound when the camera lost sight ("after −129 ms",
+            // "out of sight"), else the reason in short (trust_and_gates_design.md §9 stage 0)
+            const UnplacedWhy why = p.present && !p.placed ? unplacedWhy(p) : UnplacedWhy{ QStringLiteral("-"), QString(), QStringLiteral("not placed"), QString() };
+            const QString median = sm.placed >= 3 ? QStringLiteral("median ") + words::signedMs(sm.medianMs) : QString();
+            const QString foot = p.placed ? (median.isEmpty() ? QStringLiteral("median needs 3 shots") : median)
+                                          : (median.isEmpty() ? why.shortText : why.shortText + QStringLiteral("  ·  ") + median);
             items.append(QVariantMap{ { QStringLiteral("readingId"), sequenceSeriesKey(s) }, { QStringLiteral("key"), sequenceSeriesKey(s) }, { QStringLiteral("label"), kSegLabels[s] + QStringLiteral(" peak") },
-                                      { QStringLiteral("figure"), signedMsBare(v) }, { QStringLiteral("unit"), fin(v) ? QStringLiteral("ms") : QString() },
+                                      { QStringLiteral("figure"), p.placed ? signedMsBare(v) : why.figure }, { QStringLiteral("unit"), p.placed ? (fin(v) ? QStringLiteral("ms") : QString()) : why.unit },
                                       { QStringLiteral("foot"), foot }, { QStringLiteral("median"), sm.placed >= 3 ? words::signedMs(sm.medianMs) : QString() },
                                       { QStringLiteral("place"), QString() }, { QStringLiteral("warn"), p.late },
                                       { QStringLiteral("warnWord"), p.late ? QStringLiteral("late") : QString() },
-                                      { QStringLiteral("sentence"), Sentence().figure(words::signedMs(v)).append(sm.placed >= 3 ? QStringLiteral(", median ") : QString())
+                                      { QStringLiteral("sentence"), (p.placed || why.sentence.isEmpty() ? Sentence().figure(words::signedMs(v)) : Sentence().append(why.sentence))
+                                                                      .append(sm.placed >= 3 ? QStringLiteral(", median ") : QString())
                                                                       .figure(sm.placed >= 3 ? words::signedMs(sm.medianMs) : QString())
                                                                       .append(p.late ? QStringLiteral(", late") : QString()).toVariant() } });
         }

@@ -55,6 +55,9 @@ struct SegmentPeak {
     bool   present = false;             // the route found a peak
     bool   placed = false;
     bool   risingAtImpact = false;      // peakNoEarlierThanMs ≤ 0: not peaked by the end of its domain
+    // the bound an unplaced node kept (out of the camera's sight), on the shot's clock (+ after
+    // impact): the peak came after `afterMs` / before `beforeMs`; NaN = no such bound
+    double afterMs = kNaN, beforeMs = kNaN;
     double shotMs = kNaN;               // peak time, ms from impact on the shot's clock (+ after)
     double tSigmaMs = kNaN;
     double peakDps = kNaN, peakSigmaDps = kNaN;
@@ -83,6 +86,18 @@ struct SessionSequence {
     QString commonOrder;                // the most common order, ids joined by ","
     int     commonOrderCount = 0;
 };
+
+// WHY A NODE IS NOT PLACED, said as the gate that fired (trust_and_gates_design.md §9 stage 0), never
+// a field that merely happens to be there: the bound when the camera lost sight of the segment, still
+// rising at the end of the domain, a timing σ over the placement ceiling — else "not placed from this
+// view", because the producer does not yet record the reason (spike guard, route switch, club floor).
+struct UnplacedWhy {
+    QString figure;     // for a figure slot: "after −129" (with unit "ms"), "rising", or "-"
+    QString unit;       // "ms" when `figure` is a time
+    QString shortText;  // "out of sight" · "still rising" · "timing uncertain" · "not placed"
+    QString sentence;   // "peaked after −129 ms, out of the camera's sight" …
+};
+UnplacedWhy unplacedWhy(const SegmentPeak &p);
 
 ShotSequence    shotSequence(const ShotSeries &shot);
 SessionSequence sessionSequence(const SessionSnapshot &session);

@@ -19,6 +19,8 @@
 #include "session_sequence.h"
 
 #include "session_curves.h"   // quantile7
+#include "charts_words.h"
+#include "../../Core/pp_tuned_constants.h"   // sequence::kMaxPlaceSigmaMs
 
 #include <QHash>
 #include <QVariantList>
@@ -69,6 +71,11 @@ ShotSequence shotSequence(const ShotSeries &shot)
         if (n.contains(QStringLiteral("peakNoEarlierThanMs"))) {
             const double b = n.value(QStringLiteral("peakNoEarlierThanMs")).toDouble();
             p.risingAtImpact = std::isfinite(b) && b <= 0.0;
+            if (std::isfinite(b) && b > 0.0) p.afterMs = -b;          // "no earlier than b ms before impact"
+        }
+        if (n.contains(QStringLiteral("peakNoLaterThanMs"))) {
+            const double b = n.value(QStringLiteral("peakNoLaterThanMs")).toDouble();
+            if (std::isfinite(b)) p.beforeMs = -b;
         }
     }
     for (int i = 0; i < kSequenceSegments; ++i) {
@@ -84,6 +91,24 @@ ShotSequence shotSequence(const ShotSeries &shot)
         out.anyLate = out.anyLate || a.late;
     }
     return out;
+}
+
+UnplacedWhy unplacedWhy(const SegmentPeak &p)
+{
+    namespace W = words;
+    const auto bare = [](double ms) { QString s = W::signedMs(ms); return s.endsWith(QStringLiteral("ms")) ? s.chopped(3) : s; };
+    if (p.risingAtImpact)
+        return { QStringLiteral("rising"), QString(), QStringLiteral("still rising"), QStringLiteral("still speeding up at impact") };
+    if (std::isfinite(p.afterMs))
+        return { QStringLiteral("after ") + bare(p.afterMs), QStringLiteral("ms"), QStringLiteral("out of sight"),
+                 QStringLiteral("peaked after ") + W::signedMs(p.afterMs) + QStringLiteral(", out of the camera's sight") };
+    if (std::isfinite(p.beforeMs))
+        return { QStringLiteral("before ") + bare(p.beforeMs), QStringLiteral("ms"), QStringLiteral("out of sight"),
+                 QStringLiteral("peaked before ") + W::signedMs(p.beforeMs) + QStringLiteral(", out of the camera's sight") };
+    if (std::isfinite(p.tSigmaMs) && p.tSigmaMs > pinpoint::tuned::sequence::kMaxPlaceSigmaMs)
+        return { QStringLiteral("-"), QString(), QStringLiteral("timing uncertain"),
+                 QStringLiteral("timing too uncertain to place (σ ") + W::figMs(p.tSigmaMs) + QStringLiteral(")") };
+    return { QStringLiteral("-"), QString(), QStringLiteral("not placed"), QStringLiteral("not placed from this view") };
 }
 
 SessionSequence sessionSequence(const SessionSnapshot &s)
