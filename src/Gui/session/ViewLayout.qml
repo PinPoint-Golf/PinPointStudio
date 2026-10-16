@@ -25,12 +25,13 @@
 // that mode's layout in place. Motion DOES have named presets (see below).
 //
 // Panels split into two homes:
-//   stage panels — camera/charts/sessionDiagnostics/launchMonitor/table, arranged
+//   stage panels — camera/charts/sessionDiagnostics/launchMonitor/table/swing3d/markup, arranged
 //                  inside PpModeStage
 //   rail panels  — timeline/carousel, full-width rails the screen shows/hides
 //
 // A panel key is legal by being in PpModeStage's `_defs` and PpViewPanel's catalogue;
-// nothing here validates one, and a stored key no host wires is simply not shown. What
+// nothing here validates one, and a stored key no host wires is simply not shown. A RETIRED key
+// is the exception: it is read, and rewritten once, as its successor (_retiredKeys below). What
 // defaultLayout() OMITS is therefore the real switch: "launchMonitor" is deliberately
 // absent from every default, because a golfer with no monitor must never be shown an
 // empty board they did not ask for. They turn it on in View.
@@ -113,8 +114,77 @@ QtObject {
 
     function _layout(mode) {
         var m = appSettings.viewLayoutByMode, k = _key(mode)
-        return (m && m[k] !== undefined) ? m[k] : defaultLayout(mode)
+        return (m && m[k] !== undefined) ? _migrateLayout(m[k]).layout : defaultLayout(mode)
     }
+
+    // ── retired stage keys ──────────────────────────────────────────────────
+    // A saved layout naming a stage panel that no longer exists is read as its successor:
+    //   wristMotion → charts   (the Wrist motion panel, retired 15 Oct 2026: its checkpoint profile,
+    //                           findings and score are the wrist sections of Charts' This shot and Session —
+    //                           wrist_motion_into_charts.md §4)
+    // in `panels`, `sizes.split` and `sizes.stage.side`, de-duplicated: when the layout already has the
+    // successor, the retired key is dropped (and so is its dragged weight; the successor keeps its own).
+    // Every read goes through it, and the stored map is rewritten ONCE, on load (_migrateStored), so the
+    // old key does not linger in the INI. Pure: never mutates the stored entry.
+    readonly property var _retiredKeys: ({ wristMotion: "charts" })
+    function _successor(key) { return _retiredKeys[key] !== undefined ? _retiredKeys[key] : key }
+    // A weights map ({ <panelKey>: weight }) with retired keys renamed; a real key's own weight wins.
+    function _migrateWeights(w) {
+        var out = {}, changed = false, k
+        for (k in w) if (_retiredKeys[k] === undefined) out[k] = w[k]
+        for (k in w) {
+            if (_retiredKeys[k] === undefined) continue
+            changed = true
+            var to = _successor(k)
+            if (out[to] === undefined) out[to] = w[k]
+        }
+        return { weights: changed ? out : w, changed: changed }
+    }
+    // { layout, changed }: the entry with every retired key replaced (the same object when nothing changed).
+    function _migrateLayout(l) {
+        if (!l || typeof l !== "object") return { layout: l, changed: false }
+        var changed = false
+        var ps = l.panels || [], np = []
+        for (var i = 0; i < ps.length; i++) {
+            var key = _successor(ps[i])
+            if (key !== ps[i]) changed = true
+            if (np.indexOf(key) < 0) np.push(key)
+            else changed = true
+        }
+        var sz = l.sizes, nsz = sz
+        if (sz && typeof sz === "object") {
+            nsz = _cloneSizes(sz)
+            var szChanged = false
+            if (nsz.split && typeof nsz.split === "object") {
+                var sp = _migrateWeights(nsz.split)
+                if (sp.changed) { nsz.split = sp.weights; szChanged = true }
+            }
+            if (nsz.stage && typeof nsz.stage === "object" && nsz.stage.side && typeof nsz.stage.side === "object") {
+                var sd = _migrateWeights(nsz.stage.side)
+                if (sd.changed) { nsz.stage.side = sd.weights; szChanged = true }
+            }
+            if (szChanged) changed = true
+            else nsz = sz
+        }
+        if (!changed) return { layout: l, changed: false }
+        var out = _clone(l)
+        if (l.panels !== undefined) out.panels = np
+        if (sz !== undefined) out.sizes = nsz
+        return { layout: out, changed: true }
+    }
+    // Rewrites the stored map once if any mode's entry names a retired key. Called on load.
+    function _migrateStored() {
+        var m = appSettings.viewLayoutByMode
+        if (!m) return false
+        var out = _clone(m), any = false
+        for (var k in m) {
+            var r = _migrateLayout(m[k])
+            if (r.changed) { out[k] = r.layout; any = true }
+        }
+        if (any) appSettings.viewLayoutByMode = out
+        return any
+    }
+    Component.onCompleted: _migrateStored()
 
     // ── motion preset catalogue ─────────────────────────────────────────────
     // Global, read-only. Every entry lists all element keys explicitly (shaftGrip

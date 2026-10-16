@@ -44,7 +44,6 @@ Item {
     property Component chartsDelegate:      null
     property Component sessionDiagnosticsDelegate: null
     property Component launchMonitorDelegate: null
-    property Component wristMotionDelegate: null
     property Component tableDelegate:       null
     property Component markupDelegate:      null
     // The 3-D swing (swing3d/). Its delegate is only a SLOT: the View3D itself lives in the
@@ -83,8 +82,6 @@ Item {
           tone: "quiet", comp: swing3dDelegate },
         { key: "launchMonitor", label: qsTr("Launch monitor"),        title: Theme.caps(qsTr("Launch monitor")),
           tone: "quiet", comp: launchMonitorDelegate },
-        { key: "wristMotion",   label: qsTr("Wrist motion analysis"), title: Theme.caps(qsTr("Wrist motion")),
-          tone: "quiet", comp: wristMotionDelegate },
         { key: "charts",        label: qsTr("Charts"),                title: Theme.caps(qsTr("Charts")),
           tone: "quiet", comp: chartsDelegate },
         { key: "table",         label: qsTr("Table"),                 title: Theme.caps(qsTr("Table")),
@@ -95,7 +92,7 @@ Item {
     function _toneFor(role) { return role === "warn" ? Theme.colorWarn : Theme.colorText3 }
 
     // ordered; enabled AND actually wired by the host screen. A panel a screen does not provide a
-    // delegate for (e.g. "wristMotion" on screens that never wire it) is simply omitted rather
+    // delegate for (e.g. "markup" on a screen that never wires it) is simply omitted rather
     // than shown as an empty placeholder.
     readonly property var active: _defs.filter(function(d) {
         return ViewLayout.isPanelOn(SessionMode.mode, d.key) && d.comp !== null

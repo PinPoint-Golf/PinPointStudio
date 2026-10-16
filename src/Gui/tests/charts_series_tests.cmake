@@ -13,9 +13,11 @@
 # The real-data cases load each session twice — SwingStore::loadAnalysis (the model's default)
 # and the whole document — check both give the same shots, and report the cost of each when
 # PP_CHARTS_MEASURE_OUT names a file.
+include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)
 pp_add_test(charts_series_model_test
     SOURCES charts_series_model_test.cpp
             ${GUI}/charts/session_series_model.cpp
+            ${CHARTS_WRIST_SRC}
             ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
             ${SRC}/Diagnostics/packs/file_pack_provider.cpp
             ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
@@ -34,4 +36,4 @@ pp_add_test(charts_series_model_test
     LINK    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_series_model_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;PP_CHARTS_FIXTURE=${SRC}/../build/run-me/chart-variants/qml/fixture/session.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_CHARTS_FIXTURE=${SRC}/../build/run-me/chart-variants/qml/fixture/session.json")

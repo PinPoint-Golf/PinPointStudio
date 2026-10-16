@@ -199,6 +199,44 @@ std::vector<pinpoint::analysis::ShotRecord> ledgerShot1()
     return { s };
 }
 
+// A swing with the wrist unit's two lead-wrist series (hm.*, every 10 ms), a phase at every wrist
+// checkpoint (P2 both at Takeaway and at shaft-parallel back, so the test holds whichever the engine
+// reads) and the analysis' resemblance index — what SessionSeriesModel grades into ShotSeries::wrist.
+QJsonObject makeWristDoc()
+{
+    QJsonObject root;
+    root[QStringLiteral("clock")] = QJsonObject{ { QStringLiteral("t0_us"), double(kT0) }, { QStringLiteral("unit"), QStringLiteral("us") } };
+    root[QStringLiteral("review")] = QJsonObject{ { QStringLiteral("club"), QStringLiteral("7 IRON") } };
+    // (phase, ms): Address, Takeaway, P2, P3, Top, P5, P6, Impact, P8, Finish
+    const std::vector<std::pair<int, int>> ph{ { 0, 0 }, { 1, 100 }, { 12, 300 }, { 8, 500 }, { 2, 800 },
+                                               { 13, 1000 }, { 9, 1080 }, { 5, 1150 }, { 14, 1250 }, { 7, 1600 } };
+    const auto curve = [](double ms, const std::vector<std::pair<double, double>> &k) {
+        for (size_t i = 1; i < k.size(); ++i)
+            if (ms <= k[i].first) return k[i - 1].second + (k[i].second - k[i - 1].second) * (ms - k[i - 1].first) / (k[i].first - k[i - 1].first);
+        return k.back().second;
+    };
+    QJsonArray t, fe, ru;
+    for (int ms = 0; ms <= 1600; ms += 10) {
+        t.append(double(ms) * 1000.0);
+        fe.append(curve(ms, { { 0, 0 }, { 800, -30 }, { 1150, 10 }, { 1600, 20 } }));
+        ru.append(curve(ms, { { 0, 0 }, { 800, 30 }, { 1150, 5 }, { 1600, 0 } }));
+    }
+    QJsonArray metrics;
+    metrics.append(QJsonObject{ { QStringLiteral("key"), QStringLiteral("hm.leadWristFlexExt") }, { QStringLiteral("unit"), QStringLiteral("°") },
+                                { QStringLiteral("t_us"), t }, { QStringLiteral("value"), fe } });
+    metrics.append(QJsonObject{ { QStringLiteral("key"), QStringLiteral("hm.leadWristRadUln") }, { QStringLiteral("unit"), QStringLiteral("°") },
+                                { QStringLiteral("t_us"), t }, { QStringLiteral("value"), ru } });
+    QJsonArray phases;
+    for (const auto &p : ph)
+        phases.append(QJsonObject{ { QStringLiteral("phase"), p.first }, { QStringLiteral("t_us"), double(p.second) * 1000.0 }, { QStringLiteral("conf"), 1.0 } });
+    root[QStringLiteral("analysis")] = QJsonObject{
+        { QStringLiteral("metrics"), metrics }, { QStringLiteral("phases"), phases },
+        { QStringLiteral("score"), QJsonObject{ { QStringLiteral("kind"), QStringLiteral("resemblance") }, { QStringLiteral("overall"), 84 },
+                                                { QStringLiteral("resemblance"), QJsonObject{ { QStringLiteral("neutral"), 84 }, { QStringLiteral("bowed"), 7 },
+                                                                                               { QStringLiteral("cupped"), 50 } } } } } };
+    return root;
+}
+
 qint64 heapInUse()
 {
 #ifdef Q_OS_MACOS
@@ -341,6 +379,71 @@ private slots:
         // relUs itself, both branches.
         QCOMPARE(SessionSeriesModel::relUs(QJsonValue(double(kT0 + 5)), kT0), qint64(5));
         QCOMPARE(SessionSeriesModel::relUs(QJsonValue(5.0), kT0), qint64(5));
+    }
+
+    // ── The wrist checkpoint profile (build/wrist-tab CONTRACT I3) ──────────────────────────────
+    void carriesTheWristProfileAndRegradesItSessionWide()
+    {
+        using pinpoint::analysis::ShotState;
+        const QString dir = m_tmp.path() + QStringLiteral("/Athlete/2026-10-15_Wrist_01");
+        QDir(dir).removeRecursively();
+        QDir().mkpath(dir + QStringLiteral("/swing_0001"));
+        QString err;
+        QVERIFY2(pinpoint::SwingStore::save(dir + QStringLiteral("/swing_0001"), makeWristDoc(), &err), qPrintable(err));
+        pinpoint::analysis::ShotRecord rec;
+        rec.shotId = 1;
+        pinpoint::analysis::ConditionRow r = row(QStringLiteral("cupped_at_top"), ShotState::Fired, -30, -2, -20, 10, -1);
+        r.confidence = 0.75f;
+        rec.rows.push_back(r);
+        writeLedger(dir, { rec });
+
+        SessionSeriesModel m;
+        m.setSynchronous(true);
+        m.activateSession(dir);
+        const auto snap = m.snapshot();
+        QCOMPARE(snap->count(), 1);
+        const QVariantMap w = snap->shots[0]->wrist;
+        QVERIFY(!w.isEmpty());
+        QCOMPARE(w.value(QStringLiteral("archetypeMode")).toInt(), -1);
+        QCOMPARE(w.value(QStringLiteral("resemblance")).toMap().value(QStringLiteral("neutral")).toInt(), 84);
+        QCOMPARE(w.value(QStringLiteral("resemblance")).toMap().value(QStringLiteral("cupped")).toInt(), 50);
+        const QVariantList cps = w.value(QStringLiteral("checkpoints")).toList();
+        QCOMPARE(cps.size(), 8);
+        QCOMPARE(cps.at(3).toMap().value(QStringLiteral("tag")).toString(), QStringLiteral("P4"));
+        QCOMPARE(cps.at(3).toMap().value(QStringLiteral("tUs")).toLongLong(), qint64(800000));   // window-relative
+        QStringList keys;
+        for (const QVariant &d : w.value(QStringLiteral("dofs")).toList()) {
+            const QVariantMap dm = d.toMap();
+            keys << dm.value(QStringLiteral("metricKey")).toString();
+            const QVariantList cells = dm.value(QStringLiteral("cells")).toList();
+            QCOMPARE(cells.size(), 8);
+            QVERIFY(cells.at(0).toMap().value(QStringLiteral("available")).toBool());
+            QVERIFY(std::abs(cells.at(0).toMap().value(QStringLiteral("deltaDeg")).toDouble()) < 1e-6);   // P1 is the reference
+            QCOMPARE(dm.value(QStringLiteral("source")).toString(), QStringLiteral("IMU"));
+        }
+        QCOMPARE(keys, (QStringList{ QStringLiteral("hm.leadWristRadUln"), QStringLiteral("hm.leadWristFlexExt") }));   // display order
+        // the ledger: the row's confidence carried, and the session tier from the ledger's own reduction
+        QCOMPARE(snap->shots[0]->diagnostics.values.value(QStringLiteral("cupped_at_top")).confidence, 0.75);
+        QVERIFY(!snap->tiers.value(QStringLiteral("cupped_at_top")).isEmpty());
+
+        // the archetype is session-wide: a new snapshot, every shot re-graded from memory, no read
+        const int reads = m.loadStats().docReads;
+        m.setWristArchetype(2);
+        const auto snap2 = m.snapshot();
+        QVERIFY(snap2->revision > snap->revision);
+        QVERIFY(snap2->shots[0] != snap->shots[0]);
+        QCOMPARE(snap2->shots[0]->wrist.value(QStringLiteral("archetypeMode")).toInt(), 2);
+        QCOMPARE(snap2->shots[0]->wrist.value(QStringLiteral("archetype")).toInt(), 2);
+        QCOMPARE(m.loadStats().docReads, reads);
+        m.setWristArchetype(-1);
+        QCOMPARE(m.snapshot()->shots[0]->wrist.value(QStringLiteral("archetypeMode")).toInt(), -1);
+
+        // a swing with no wrist DOF carries none
+        stage();
+        SessionSeriesModel plain;
+        plain.setSynchronous(true);
+        plain.activateSession(m_session);
+        QVERIFY(plain.snapshot()->shots[0]->wrist.isEmpty());
     }
 
     void skipsAShotWithNoAnalysisAndCountsIt()

@@ -19,7 +19,7 @@ Item {
     }
     readonly property var themes: arg("--probe-themes", "12,7").split(",").map(Number)
     readonly property var layouts: arg("--probe-layouts", "full,half,third").split(",")
-    readonly property var panels: arg("--probe-panels", "camera,swing3d,launchMonitor,wristMotion,charts,table,markup").split(",")
+    readonly property var panels: arg("--probe-panels", "camera,swing3d,launchMonitor,charts,table,markup").split(",")
     readonly property string outDir: arg("--probe-out", "/tmp")
     readonly property string tag: arg("--probe-tag", "audit")
     readonly property string sessionDir: arg("--probe-session", "")
@@ -27,7 +27,7 @@ Item {
     readonly property string modeName: arg("--probe-mode", "analyse")
     readonly property int settle: parseInt(arg("--probe-settle", "3000"))
     readonly property int navIndex: parseInt(arg("--probe-nav", "2"))
-    readonly property var allKeys: ["sessionDiagnostics", "camera", "swing3d", "launchMonitor", "wristMotion", "charts", "table", "markup"]
+    readonly property var allKeys: ["sessionDiagnostics", "camera", "swing3d", "launchMonitor", "charts", "table", "markup"]
     property var jobs: []
     property int startTheme: 0
     function log(s) { console.warn("PROBE: " + s) }

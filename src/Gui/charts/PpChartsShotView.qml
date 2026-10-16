@@ -31,6 +31,9 @@ import PinPointStudio
 //     (window-scoped PEAK / Δ / PK RATE, partial, σ provenance, ⚠), the per-segment Sequence table (% of
 //     pro), "Apart from the session" with its questions, and every reading against the session (D5), a row
 //     opening its curve or run in place.
+//   The wrist section (PpChWristShotSection, "Wrist"), under the traces in either register, when this shot carries a
+//     wrist reading and a wrist metric is among the curves on show (body.wristShotShown): the standard curves first,
+//     the domain read added where it means something (Mark, 16 Oct).
 // Every word and number is a presenter's (body.t* = ChartsTracesPresenter, body.r* = ChartsRelationsPresenter,
 // each bound ONCE on the body). The presenters' own empty / refusal sentences are what an empty view says.
 // objectName: chShotView.
@@ -187,6 +190,18 @@ Column {
             itemObjectName: "chAgainstOption"; clearObjectName: "chAgainstNone"
             onPicked: (id) => { if (sv.body) sv.body.choose("against", id === "" ? "none" : id); sv.pickerOpen = "" }
         }
+        // the ★ reference (Against "reference ★", any session): this swing becomes it, or stops being it. The
+        // words are the wrist presenter's (choices.reference); the setting is the one the wrist section's ★ writes.
+        Text {
+            objectName: "chRefLink"
+            readonly property var ref: sv.body && sv.body.wChoices ? (sv.body.wChoices.reference || ({})) : ({})
+            visible: !sv.replay && !sv.cast && sv.available && ref.canSet === true && !!sv.roles && !(sv.body && sv.body.collapsed.controls === true)
+            text: ref.linkText || ""
+            font: !sv.roles ? Qt.font({}) : ref.isThisShot ? sv.roles.fSmallM : (sv.interactive ? sv.roles.fSmallL : sv.roles.fSmall)
+            color: !sv.roles ? "grey" : ref.isThisShot ? sv.roles.ink : (sv.interactive ? sv.roles.link : sv.roles.ink3)
+            MouseArea { anchors.fill: parent; enabled: sv.interactive; cursorShape: Qt.PointingHandCursor
+                        onClicked: appSettings.wristReferenceSwingDir = parent.ref.isThisShot ? "" : (sv.ts.swingDir || "") }
+        }
         PpChSeqChain {
             visible: sv.hasSeq
             width: parent.width; roles: sv.roles
@@ -284,6 +299,16 @@ Column {
                 rows: []; cards: sv.available ? (sv.ts.cards || []) : []
             }
         }
+    }
+
+    // ═══ the wrist section, when it means something (a wrist reading AND a wrist curve on show) ═══
+    Loader {
+        objectName: "chWristShotSlot"
+        active: !!sv.body && sv.body.wristShotShown && !!sv.roles
+        visible: active
+        width: sv.width
+        sourceComponent: PpChWristShotSection { roles: sv.roles; brush: sv.brush; body: sv.body; reg: sv.reg
+                                                interactive: sv.interactive; cast: sv.cast }
     }
 
     // ═══ Analyse: the readings below the figure ═══

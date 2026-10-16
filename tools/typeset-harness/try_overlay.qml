@@ -144,7 +144,8 @@ Item {
     // Optional overlay hooks (a pass-through over the REAL panel uses them to check it, e.g.
     // screens/charts_real.qml): selfCheck(tab) → "" when the panel shows that tab, else why; and, for a
     // body with no _openDetail, selfOpen() / selfCheck("open") / selfClose() / selfCheck("closed") as
-    // its drill-in.
+    // its drill-in. selfCheck("open") answering "SKIP <why>" means the drill-in has nothing to open on
+    // this data (e.g. an empty Apart list): logged as SKIP, not a pass and not a fail; close is not driven.
     readonly property bool selftest: Qt.application.arguments.indexOf("--probe-selftest") >= 0
     property int fails: 0
     function ok(c, what) { log((c ? "PASS " : "FAIL ") + what); if (!c) fails++ }
@@ -207,6 +208,11 @@ Item {
                             probe.after(4000, () => {
                                 const b = probe.live()
                                 const why = b ? String(b.overlay.selfCheck("open")) : "detached"
+                                if (why.indexOf("SKIP") === 0) {
+                                    probe.log("SKIP " + what + " opens in place — " + why.slice(4).trim())
+                                    probe.finish()
+                                    return
+                                }
                                 probe.ok(why === "", what + " opens in place" + (why === "" ? "" : " — " + why))
                                 if (b) b.overlay.selfClose()
                                 probe.after(2500, () => {

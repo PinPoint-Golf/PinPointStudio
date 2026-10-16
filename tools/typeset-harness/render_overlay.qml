@@ -19,7 +19,7 @@ import PinPointStudio
 //   --probe-detail <id>             default over_the_top
 //   --probe-layout full|stage|stagecam|half|third|cast     --probe-mode analyse|replay
 //   --probe-print portrait|landscape   A4 pages, grabbed at 2× (needs a dpr-2 screen)
-//   --probe-states s1,s2            sets the mock's demoState before each grab
+//   --probe-states s1,s2            sets the mock's demoState before each grab (overlay none: the body's, when it has one)
 //   --probe-themes 7,12   --probe-session <dir>   --probe-ordinal 8   --probe-nav 2
 //   --probe-out <dir>   --probe-tag <prefix>
 //   --probe-dump 1                  print each fed property (and each detail id) as "DUMP <name> <json>", then quit
@@ -56,7 +56,7 @@ Item {
     readonly property var states: list(arg("--probe-states", ""))
     readonly property string printMode: arg("--probe-print", "")
     readonly property bool dump: arg("--probe-dump", "") !== ""
-    readonly property var allKeys: ["camera", "sessionDiagnostics", "swing3d", "launchMonitor", "wristMotion", "charts", "table", "markup"]
+    readonly property var allKeys: ["camera", "sessionDiagnostics", "swing3d", "launchMonitor", "charts", "table", "markup"]
     property var host: null
     property var page: null
     property var jobs: []
@@ -257,8 +257,10 @@ Item {
         after(1500, () => { probe.selectTab(); after(300, () => { if (!probe.ensureBody()) return; showView(j.view, () => {
             const stem = outDir + "/" + tag + "_" + probe.layout + "_" + Theme.aesthetic + "_" + (Theme.dark ? "dark" : "light") + "_" + j.view + (j.state ? "_" + j.state : "")
             if (probe.overlay && has(probe.variant, "demoState")) probe.variant.demoState = j.state
+            // the real panel (overlay none): a body with demo states of its own takes them (Charts: body.applyDemo)
+            else if (!probe.overlay && j.state && has(probe.body, "demoState")) probe.body.demoState = j.state
             const panel = probe.layout === "cast" ? probe.host : (probe.overlay ? probe.variant : probe.body)
-            after(j.state ? 900 : 0, () => grab(Overlay.overlay.parent, stem + "_window.png",
+            after(j.state ? (probe.overlay ? 900 : 3000) : 0, () => grab(Overlay.overlay.parent, stem + "_window.png",
                 () => grab(panel, stem + "_panel.png", next)))
         }) }) })
     }

@@ -18,12 +18,14 @@
 
 // THE CHARTS STAGE PANEL: this swing's metric curves and the session behind them, in two voices — Traces (the
 // instrument) and Relations (the workbench) — across four views: This shot · Session · Relations · Kinds
-// (docs/design/charts_panel_traces_relations.md; build/charts-build/CONTRACT.md D1–D9 and its Addendum).
+// (docs/design/charts_panel_traces_relations.md; build/charts-build/CONTRACT.md D1–D9 and its Addendum). The wrist
+// read is no tab of its own: This shot and Session add a "Wrist" section when a shot carries a wrist reading and a
+// wrist metric is on show (docs/design/wrist_motion_into_charts.md §4; PpChartsBody.wristShotShown).
 //
 // THIS FILE IS THE WIRING AND NOTHING ELSE (the Session diagnostics pattern, INVENTORY §7). Everything the
 // panel LOOKS like is PpChartsBody, which takes the presenters as sources and owns none of them. Here:
-//   • THE MODEL AND THE PRESENTERS ARE INSTANTIATED, NOT REACHED FOR: one SessionSeriesModel and the two
-//     presenters (ChartsTracesPresenter, ChartsRelationsPresenter), each with a private worker thread. The
+//   • THE MODEL AND THE PRESENTERS ARE INSTANTIATED, NOT REACHED FOR: one SessionSeriesModel and the three
+//     presenters (ChartsTracesPresenter, ChartsRelationsPresenter, ChartsWristPresenter), each with a private worker thread. The
 //     model is fed exactly as its header says: the session folder (the same binding as the diagnostics
 //     panel), ShotProcessor.shotProcessed → ingestShot, the carousel's re-analysis → regradeShot, and the
 //     diagnostics ledger written (SessionMode.sessionDiagnostics busy → false) → refreshDiagnostics.
@@ -36,6 +38,7 @@
 //     written ON INTERACTION only (the body's choiceMade), so Replay and Analyse each remember their own chart
 //     across restarts. The folds keep their saved state in sectionCollapse under the same base. Keys:
 //       today's   preset · split (small multiples ↔ overlay) · dots · cursor
+//       wrist     wristAgainst · wristCurves · wristArchetype           (the Wrist sections; a saved wristScope is ignored)
 //       new       view · metricsOff · window · customStartUs · customEndUs · band · facet · against ·
 //                 difference · up · across · relFacet
 //       folds     controls · summary · sequence            (sectionCollapse)
@@ -57,6 +60,12 @@ Item {
     // The screen this panel sits on (SessionController.Swing / Wrist …): the persistence key and the
     // _screenActive gate only — the analysis never branches on it.
     property int sessionType: -1
+    // The tab and the preset this panel opens on until the reader picks one (a saved "view" / "preset" wins).
+    // The HOST says them, so the panel never branches on the screen: the Wrist screen opens This shot on the
+    // "Wrist & forearm" preset (a catalogue group, the traces presenter's preset id), so its wrist section shows.
+    // A saved "wrist" (the retired Wrist tab) reads This shot.
+    property string defaultTab: "shot"
+    property string defaultPreset: ""
     property alias framed: body.framed
     readonly property string cardAside: body.cardAside
     property alias interactive: body.interactive
@@ -68,7 +77,7 @@ Item {
     // Whether this panel keeps the reader's place across its own rebuilds (off for a cast).
     property bool remembersNav: true
 
-    // ── the session, its model and the two presenters ──
+    // ── the session, its model and the presenters ──
     readonly property bool _screenActive: navController.currentIndex === root.sessionType + 1
     readonly property string sessionDir:
         (sessionReviewController.reviewActive && sessionReviewController.activeSessionId !== "")
@@ -119,6 +128,8 @@ Item {
         against: body.against
         difference: body.difference
         playheadUs: root._playUs
+        // the ★ reference swing for Against "reference" (any session; the wrist section's ★ link writes it)
+        referenceSwingDir: appSettings.wristReferenceSwingDir
     }
     ChartsRelationsPresenter {
         id: relationsPresenter
@@ -132,6 +143,22 @@ Item {
         facetId: body.relFacet
         openId: body.openId
         playheadUs: root._playUs
+    }
+    // the Wrist sections (build/wrist-tab, CONTRACT I4): their findings and score are the wrist-domain diagnostics
+    // conditions, read off the model's snapshot — no diagnostics object is an input (the model re-joins the
+    // ledger on refreshDiagnostics below). Its scope follows the view on show.
+    ChartsWristPresenter {
+        id: wristPresenter
+        model: seriesModel
+        pickedSwingDir: root._swingDir
+        pickedDetail: root._detail
+        register: root._register
+        playheadUs: root._playUs
+        scope: body.shownView === "session" ? "session" : "shot"
+        against: body.wristAgainst
+        curvesBehind: body.wristCurves
+        archetype: body.wristArchetype
+        referenceSwingDir: appSettings.wristReferenceSwingDir
     }
 
     Connections {
@@ -157,14 +184,14 @@ Item {
         const m = appSettings.chartPrefs || {}, b = _keyBase
         const has = function (k) { return m[b + k] !== undefined && m[b + k] !== null }
         const str = function (k, d) { return has(k) ? String(m[b + k]) : d }
-        if (!keepTab) body.tab = str("view", "shot")
+        if (!keepTab) { const t = str("view", root.defaultTab); body.tab = t === "wrist" ? "shot" : t }
         // today's "Custom" (a hand-picked subset) is its base preset with the switched-off series
         if (str("preset", "") === "Custom") {
-            body.preset = str("presetBase", "")
+            body.preset = str("presetBase", root.defaultPreset)
             const s = has("series") && typeof m[b + "series"] === "object" ? m[b + "series"] : {}
             body.metricsOff = Object.keys(s).filter(function (k) { return s[k] === false })
         } else {
-            body.preset = str("preset", "")
+            body.preset = str("preset", root.defaultPreset)
             body.metricsOff = has("metricsOff") ? (m[b + "metricsOff"] || []).slice() : []
         }
         body.window = str("window", "auto")
@@ -180,6 +207,9 @@ Item {
         body.upId = str("up", "")
         body.acrossId = str("across", "")
         body.relFacet = str("relFacet", "")
+        body.wristAgainst = str("wristAgainst", "address")
+        body.wristCurves = has("wristCurves") ? m[b + "wristCurves"] === true : false
+        body.wristArchetype = has("wristArchetype") ? Math.max(-1, Math.min(2, Number(m[b + "wristArchetype"]) || 0)) : -1
     }
     function _persist(name, value) {
         if (root.sessionType < 0 || !root.remembersNav) return
@@ -322,6 +352,7 @@ Item {
         anchors.fill: parent
         tracesP: tracesPresenter
         relationsP: relationsPresenter
+        wristP: wristPresenter
         playUs: root._playUs
         spanUs: root._spanUs
         onShotRequested: (dir, id) => root._pickShot(dir)

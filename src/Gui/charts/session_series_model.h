@@ -137,6 +137,11 @@ class SessionSeriesModel : public QObject
     // SessionSnapshot::revision, for QML bindings that need to re-ask a C++ question.
     Q_PROPERTY(int revision READ revision NOTIFY snapshotChanged)
     Q_PROPERTY(bool closed READ closed NOTIFY sessionChanged)
+    // ADDED 15 Oct (build/wrist-tab/CONTRACT.md I3): the wrist corridors EVERY shot's wrist profile
+    // (ShotSeries::wrist) is graded against — -1 Auto (each shot resolves its own style), 0 Neutral,
+    // 1 Bowed, 2 Cupped. Session-wide: setting it re-grades every shot from the series already held
+    // (no document is read) and publishes a new snapshot. The Wrist tab's "Bands" choice.
+    Q_PROPERTY(int wristArchetype READ wristArchetype WRITE setWristArchetype NOTIFY wristArchetypeChanged)
 
 public:
     explicit SessionSeriesModel(QObject *parent = nullptr);
@@ -149,6 +154,8 @@ public:
     QVariantList skipped() const;
     int     revision() const { return m_snapshot ? int(m_snapshot->revision & 0x7fffffff) : 0; }
     bool    closed() const { return m_closed; }
+    int     wristArchetype() const { return m_wristArchetype; }
+    void    setWristArchetype(int a);
 
     // What the session maths reads. Never null; an empty session is an empty snapshot.
     std::shared_ptr<const SessionSnapshot> snapshot() const { return m_snapshot; }
@@ -234,6 +241,7 @@ signals:
     void busyChanged();
     // The snapshot was replaced. Every property above that reads it is re-read on this.
     void snapshotChanged();
+    void wristArchetypeChanged();
 
 private:
     // ── Worker half. Touched only by jobs, which run one at a time (decision 2). ──────────
@@ -250,12 +258,13 @@ private:
         std::shared_ptr<ShotSeries> fresh;        // read, not yet published (completed in place)
         QString skipReason;
     };
-    enum class JobKind { Activate, Ingest, Regrade, RefreshLedger };
+    enum class JobKind { Activate, Ingest, Regrade, RefreshLedger, Rearchetype };
     struct Job {
         JobKind kind = JobKind::Activate;
         int     generation = 0;
         QString dir;          // the session (Activate) or the swing (Ingest/Regrade)
         int     callerShotId = -1;
+        int     wristArchetype = -1;   // stamped by queue() from the owner's choice
     };
     struct Result {
         int  generation = 0;
@@ -287,6 +296,8 @@ private:
     qint64      m_ledgerSize    = -1;
     qint64      m_ledgerMtimeMs = -1;
     QHash<int, ShotDiagnostics> m_ledger;        // shotId → the shot's ledger row, joined
+    QHash<QString, QString>     m_ledgerTiers;   // conditionId → session tier (SessionSnapshot::tiers)
+    int         m_wArchetype = -1;               // the archetype the running job grades against
     std::shared_ptr<const SessionSnapshot> m_wLast;
     std::vector<Skip> m_wLastSkipped;
     LoadStats   m_stats;
@@ -299,6 +310,7 @@ private:
 
     QString m_sessionDir;
     bool    m_closed = false;
+    int     m_wristArchetype = -1;
     int     m_generation = 0;
     std::shared_ptr<const SessionSnapshot> m_snapshot;
     std::vector<Skip> m_skipped;

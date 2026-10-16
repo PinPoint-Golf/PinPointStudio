@@ -114,6 +114,8 @@ Item {
         }
         function traceKeys() { return shownAll(/^chTrace:/).map(function (t) { return t.objectName.slice(8) }).sort().join(",") }
         function useMode(m) {
+            // "Replay" is the glance at the mat: the auto-replay after a shot (a Replay opened to review reads Analyse)
+            SessionMode.autoReturnToCapture = m === "Replay"
             SessionMode.mode = m === "Analyse" ? SessionMode.analyse : SessionMode.replay
             settle()
             compare(hn.body.register, m)
@@ -301,6 +303,29 @@ Item {
             compare(oneShown("chPresetChip").text, name)
             useMode("Analyse")
             compare(hn.body.tChoices.preset, "Kinematic sequence", "each register keeps its own")
+        }
+
+        // Mark, 16 Oct: with Controls folded there was no way to change the preset in Analyse, nor in a Replay
+        // opened to review (which reads Analyse). Whatever is folded, every register keeps a way to the presets.
+        function test_013b_the_preset_can_be_changed_with_controls_folded_in_every_register() {
+            if (hn.body.collapsed.controls !== true) press(oneShown("chFold:controls"))
+            compare(hn.body.collapsed.controls, true)
+            const modes = [{ mode: SessionMode.analyse, auto: false, reg: "Analyse", why: "Analyse" },
+                           { mode: SessionMode.replay, auto: false, reg: "Analyse", why: "a Replay opened to review" },
+                           { mode: SessionMode.replay, auto: true, reg: "Replay", why: "the auto-replay after a shot" }]
+            for (const m of modes) {
+                SessionMode.autoReturnToCapture = m.auto
+                SessionMode.mode = m.mode
+                settle()
+                compare(hn.body.register, m.reg, m.why + " reads " + m.reg)
+                const before = hn.body.tChoices.preset
+                press(oneShown("chPresetChip"))
+                const other = shownAll("chPresetOption").filter(function (o) { return o.missId !== before })[0]
+                verify(!!other, m.why + ": another preset is offered")
+                const name = other.missId
+                press(other)
+                compare(hn.body.tChoices.preset, name, m.why + ": the preset changed")
+            }
         }
 
         function test_014_the_sequence_preset_is_offered_and_draws_the_four() {

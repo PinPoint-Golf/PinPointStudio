@@ -28,6 +28,9 @@ import PinPointStudio
 //   Replay (D6: follows the playhead): the head, the figure with "now" against "typical" in its column, and
 //     the lead reading at the latest P-position the playhead has passed (PpChReplaySession).
 // A session the presenter refuses (n < 3, nothing aligned) says its own sentence (session.why).
+// Then, in Analyse, the wrist section ("Wrist", PpChWristSession) when some shot of the session carries a wrist
+// reading and a wrist metric is among the curves on show (body.wristSessionShown; Mark, 16 Oct: the standard
+// curves first, the domain read added where it means something). The glance never adds it.
 // objectName: chSessionView.
 Column {
     id: sv
@@ -175,5 +178,17 @@ Column {
         width: sv.width; roles: sv.roles; brush: sv.brush; interactive: sv.interactive
         sequence: sv.available ? sv.se.sequence : null
         onShotActivated: (o) => { if (sv.body) sv.body.pickOrdinal(o) }
+    }
+    // the wrist section: the checkpoints across the session, the score by shot, the style, what keeps firing
+    Loader {
+        objectName: "chWristSessionSlot"
+        active: !!sv.body && sv.body.wristSessionShown && !!sv.roles
+        visible: active
+        width: sv.width
+        sourceComponent: Column {
+            spacing: sv.roles.u(14)
+            PpSectionHead { width: parent.width; roles: sv.roles; title: "Wrist"; rule: true }
+            PpChWristSession { width: parent.width; roles: sv.roles; brush: sv.brush; body: sv.body; interactive: sv.interactive }
+        }
     }
 }

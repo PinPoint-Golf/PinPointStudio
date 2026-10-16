@@ -89,6 +89,10 @@ struct ShotDiagnostics {
     struct Value {
         double value = kNaN, z = kNaN, lo = kNaN, hi = kNaN;
         int    dir   = 0;
+        // ADDED 15 Oct (additive): the row's own detector confidence (ConditionRow::confidence), NaN
+        // when the row carried none. The Wrist tab's findings show it; the wrist domain score
+        // carries it on each verdict but never weighs by it (src/Diagnostics/engine/wrist_domain_score.h).
+        double confidence = kNaN;
     };
     QString     club;
     bool        warmUp      = false;
@@ -127,6 +131,12 @@ struct ShotSeries {
     QStringList metricOrder;                   // keys in the swing's own order
     QVariantMap kinematicSequence;             // the analysisDetail.kinematicSequence shape (ChartMetrics reads it)
     ShotDiagnostics diagnostics;
+    // ADDED 15 Oct (build/wrist-tab/CONTRACT.md I3): the wrist engine's checkpoint profile of this
+    // shot, as session_wrist.h shotWristPayload() publishes it — EMPTY when the shot carries no wrist
+    // DOF. Graded against the session's archetype (SessionSeriesModel::wristArchetype; -1 = each shot
+    // resolves its own), recomputed from `metrics` + `phases` above when that changes, so no analysis
+    // blob is held for it. Shape: session_wrist.h.
+    QVariantMap wrist;
 
     const MetricSeries *metric(const QString &key) const {
         auto it = metrics.constFind(key);
@@ -156,6 +166,10 @@ struct SessionSnapshot {
     QString sessionDir;
     std::vector<std::shared_ptr<const ShotSeries>> shots;   // strike order, ordinal = index + 1
     QHash<QString, ConditionInfo> conditions;                // every condition that fired on some shot
+    // ADDED 15 Oct: the session tier of EVERY condition the ledger holds — "clean" | "watching" |
+    // "pattern" — from the ledger's own reduction (diagnostic_ledger.h conditionLedgers, over the
+    // options the file was written with), so the Wrist tab says what Session diagnostics says.
+    QHash<QString, QString> tiers;
     quint64 revision = 0;                                    // bumps on every change
 
     int count() const { return int(shots.size()); }

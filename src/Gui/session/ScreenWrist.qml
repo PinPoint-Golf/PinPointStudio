@@ -146,7 +146,9 @@ Item {
                 cameraDelegate: Component {
                     PpCameraTiles { sessionType: SessionController.Wrist; showHittingArea: false }
                 }
-                chartsDelegate: Component { PpChartsPanel { sessionType: SessionController.Wrist } }
+                // Charts opens This shot on the "Wrist & forearm" preset (a saved tab or preset wins), so the
+                // wrist section shows under the curves when the shot carries a wrist reading.
+                chartsDelegate: Component { PpChartsPanel { sessionType: SessionController.Wrist; defaultTab: "shot"; defaultPreset: "Wrist & forearm" } }
                 // Session diagnostics — what KEEPS
                 // happening across this session's shots, and what the model authors as its
                 // cause. Takes no sessionType (analysis is gated on available data, never on
@@ -159,10 +161,10 @@ Item {
                 // no sessionType and reads the same shotModel this screen already shows,
                 // and it stays off until the user turns it on in View.
                 launchMonitorDelegate: Component { PpLaunchMonitorPanel {} }
-                // Wrist motion analysis — the detailed Tier-1 assessment surface (per-DOF
-                // trajectory strips, position×phase grid, findings). A normal stage panel:
-                // place/arrange it via the View control like camera/charts/table.
-                wristMotionDelegate: Component { WristDiagnostics {} }
+                // Wrist motion analysis retired 15 Oct 2026: the checkpoint profile, findings and
+                // score are the wrist sections of Charts' This shot and Session now (docs/design/
+                // wrist_motion_into_charts.md §4); a
+                // saved layout naming "wristMotion" is migrated to "charts" by ViewLayout.
                 // Table panel — read-only inspector of the focused swing.json. The
                 // focused swing is the active replay, else the carousel's selection.
                 tableDelegate: Component {

@@ -97,8 +97,10 @@ class TimelineLabels;
 //    window,                                      resolved key ("auto" resolves to data / swing / full)
 //    bands:   [{ id: "middle"|"every"|"fit", label, current }]
 //    facets:  [{ id, label, kind: "none"|"condition"|"half"|"shape"|"club", n, current }]
-//    against: [{ id, label, current, enabled, why }]   ids "none"|"median"|"typical"|"leastTypical"|
-//                                                       "previous"|"next"|"like"
+//    against: [{ id, label, current, enabled, why }]   ids "none"|"reference"|"median"|"typical"|
+//                                                       "leastTypical"|"previous"|"next"|"like"
+//              ("reference" — the ★ reference swing, `referenceSwingDir`, any session — comes first
+//               after "none": the picker lists it first)
 //    difference: bool }
 //
 //  thisShot: {
@@ -144,7 +146,8 @@ class TimelineLabels;
 //
 //  reference (Against): {
 //    mode, active, refused, why: Sentence, label ("session median" | "shot 12, the most typical" |
-//    "7 shots shaped like this one"), ordinal, shotId, swingDir, n, group: [ordinals],
+//    "7 shots shaped like this one" | "the reference ★"), ordinal, shotId, swingDir, n, group: [ordinals],
+//    refLabel ("shot 3, 18 Aug 2026" — "reference" only: which swing the ★ is),
 //    head: Sentence (the largest gap said: "Shot 8 left your usual swing furthest 40 ms before
 //    impact, in club angular speed"), difference: bool, diffLabel ("shot 8 − session median"),
 //    rows: [{ key, t, v: QList<double> (THIS shot's clock, NaN = blank: fewer than 3 contributed, or a
@@ -213,6 +216,11 @@ class ChartsTracesPresenter : public QObject
     Q_PROPERTY(QString facet READ facet WRITE setFacet NOTIFY inputsChanged)        // "" | "half" | "shape" | "club" | conditionId
     Q_PROPERTY(QString against READ against WRITE setAgainst NOTIFY inputsChanged)
     Q_PROPERTY(bool difference READ difference WRITE setDifference NOTIFY inputsChanged)
+    // ADDED 15 Oct (build/wrist-tab): the ★ reference swing for Against "reference" — a swing dir in ANY
+    // session (QML binds appSettings.wristReferenceSwingDir). Read off the GUI thread through
+    // SwingStore::loadAnalysis + SessionSeriesModel::extractShot, cached by its document stamp, and lined
+    // up on the picked shot's own clock by their shared P-positions (warpAgainst). "" = none set.
+    Q_PROPERTY(QString referenceSwingDir READ referenceSwingDir WRITE setReferenceSwingDir NOTIFY inputsChanged)
     Q_PROPERTY(qint64 playheadUs READ playheadUs WRITE setPlayheadUs NOTIFY playheadChanged)
 
     // ── outputs ──
@@ -257,6 +265,8 @@ public:
     void setAgainst(const QString &a);
     bool difference() const { return m_in.difference; }
     void setDifference(bool on);
+    QString referenceSwingDir() const { return m_in.referenceSwingDir; }
+    void setReferenceSwingDir(const QString &d);
     qint64 playheadUs() const { return m_playheadUs; }
     void setPlayheadUs(qint64 us);
 
@@ -303,6 +313,7 @@ public:
         QString facet;
         QString against = QStringLiteral("none");
         bool difference = false;
+        QString referenceSwingDir;
     };
     struct NowRow;
     struct NowCache;

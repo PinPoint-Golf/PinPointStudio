@@ -281,6 +281,67 @@ private slots:
         report("    against median: %s\n", qPrintable(head));
     }
 
+    // ── Against the ★ reference (build/wrist-tab): any session's swing, listed first, no session needed ──
+    void againstReferenceStar()
+    {
+        const auto findA = [](const QVariantMap &choices, const QString &id) {
+            for (const QVariant &v : choices.value(QStringLiteral("against")).toList())
+                if (v.toMap().value(QStringLiteral("id")).toString() == id) return v.toMap();
+            return QVariantMap{};
+        };
+        ChartsTracesPresenter p;
+        setUp(p);
+        // unset: listed straight after "none", disabled, with why
+        const QVariantList ag = p.choices().value(QStringLiteral("against")).toList();
+        QVERIFY(ag.size() >= 2);
+        QCOMPARE(ag.at(1).toMap().value(QStringLiteral("id")).toString(), QStringLiteral("reference"));
+        QVERIFY(!ag.at(1).toMap().value(QStringLiteral("enabled")).toBool());
+        QVERIFY(!ag.at(1).toMap().value(QStringLiteral("why")).toString().isEmpty());
+        p.setAgainst(QStringLiteral("reference"));
+        QVERIFY(p.reference().value(QStringLiteral("refused")).toBool());
+        QVERIFY(text(p.reference().value(QStringLiteral("why"))).startsWith(QStringLiteral("No reference swing is set")));
+
+        // a session shot as the reference: lined up on shot 8's own clock
+        p.setReferenceSwingDir(dirOf(3));
+        QVERIFY(findA(p.choices(), QStringLiteral("reference")).value(QStringLiteral("enabled")).toBool());
+        const QVariantMap r = p.reference();
+        QVERIFY(r.value(QStringLiteral("active")).toBool());
+        QCOMPARE(r.value(QStringLiteral("label")).toString(), QStringLiteral("the reference ★"));
+        QCOMPARE(r.value(QStringLiteral("refLabel")).toString(), QStringLiteral("shot 3, 4 Jul 2026"));
+        QCOMPARE(r.value(QStringLiteral("ordinal")).toInt(), 3);
+        QVERIFY(!r.value(QStringLiteral("rows")).toList().isEmpty());
+        bool anyValue = false;
+        for (const QVariant &row : r.value(QStringLiteral("rows")).toList())
+            for (double v : dlist(row.toMap().value(QStringLiteral("v")))) anyValue = anyValue || std::isfinite(v);
+        QVERIFY(anyValue);
+
+        // the picked swing IS the reference: refused, said so
+        p.setReferenceSwingDir(dirOf(8));
+        QVERIFY(p.reference().value(QStringLiteral("refused")).toBool());
+        QCOMPARE(text(p.reference().value(QStringLiteral("why"))), QStringLiteral("This swing is your reference ★."));
+
+        // a session of two: the median is refused, the ★ is not (it needs no session)
+        auto two = std::make_shared<SessionSnapshot>(*m_snap);
+        two->shots.clear();
+        for (int o : { 3, 8 }) {                      // renumbered 1, 2: a session of its own
+            auto c = std::make_shared<ShotSeries>(*m_snap->shots[size_t(o - 1)]);
+            c->ordinal = int(two->shots.size()) + 1;
+            two->shots.push_back(c);
+        }
+        two->revision = 99;
+        ChartsTracesPresenter q;
+        setUp(q, two, 8);
+        q.setReferenceSwingDir(dirOf(3));
+        QVERIFY(!findA(q.choices(), QStringLiteral("median")).value(QStringLiteral("enabled")).toBool());
+        q.setAgainst(QStringLiteral("reference"));
+        QVERIFY(q.reference().value(QStringLiteral("active")).toBool());
+
+        // a swing that is not on disk: refused with the reason
+        q.setReferenceSwingDir(QStringLiteral("/nonexistent/2026-01-01_X/swing_0001"));
+        QVERIFY(q.reference().value(QStringLiteral("refused")).toBool());
+        QCOMPARE(text(q.reference().value(QStringLiteral("why"))), QStringLiteral("The reference swing is no longer on disk."));
+    }
+
     void againstRefusals()
     {
         ChartsTracesPresenter p;

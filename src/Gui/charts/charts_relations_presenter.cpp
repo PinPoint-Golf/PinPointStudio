@@ -373,7 +373,8 @@ void linkFired(const SessionSnapshot &s, std::vector<SessionReading> &rs, QHash<
 }
 
 void ensureSession(Cache &c, const std::shared_ptr<const SessionSnapshot> &base, const QString &pickedDir,
-                   const QVariantMap &detail, const ChartsRelationsPresenter::ReadAt &readAt, int readAtGen)
+                   const QVariantMap &detail, const ChartsRelationsPresenter::ReadAt &readAt, int readAtGen,
+                   bool full = true)
 {
     // Is the picked shot in the session? If not, and its own detail is here, it joins the session.
     bool inSession = pickedDir.isEmpty();
@@ -453,6 +454,7 @@ void ensureSession(Cache &c, const std::shared_ptr<const SessionSnapshot> &base,
             if (c.meta[i].presets.contains(p)) { f.readings.push_back(int(i)); keys.insert(c.readings[i].key); }
         if (keys.size() >= 2) c.families.push_back(f);
     }
+    if (!full) return;            // movesWith(): the readings are all it reads
     c.seq = sessionSequence(S);
     c.drifts = drifts(c.readings);
     if (S.count() >= 6) c.kinds = findKinds(c.readings);
@@ -2195,6 +2197,76 @@ bool ChartsRelationsPresenter::waitForIdle(int msTimeout)
     }
     QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
     return !m_running && !m_dirty;
+}
+
+// ── What moves with one reading (the Wrist tab's "what moves with the lead wrist at impact") ──────
+
+QVariantMap ChartsRelationsPresenter::movesWith(const std::shared_ptr<const SessionSnapshot> &snapshot,
+                                                const QString &readingId, int k, int lmK, const ReadAt &readAt)
+{
+    QVariantMap m;
+    const auto empty = std::make_shared<SessionSnapshot>();
+    Cache cache;
+    ensureSession(cache, snapshot ? snapshot : empty, QString(), {}, readAt, 0, false);
+    Vocab vocab;
+    Ctx x{ cache, *cache.snap, vocab };
+    x.n = cache.snap->count();
+    // the Relations tab's own refusal: r needs five shots both readings were read on
+    if (x.n < 5 || cache.readings.size() < 2) {
+        m.insert(QStringLiteral("available"), false);
+        m.insert(QStringLiteral("refusal"), (x.n < 5 ? tooFew(x, QStringLiteral("to relate readings across a session"), 5)
+                                                     : Sentence().append(QStringLiteral("This session has too few readings to relate."))).toVariant());
+        return m;
+    }
+    const int y = cache.indexOf(readingId);
+    if (y < 0) {
+        m.insert(QStringLiteral("available"), false);
+        m.insert(QStringLiteral("refusal"), Sentence().append(QStringLiteral("This session does not read ") + readingId
+                                                              + QStringLiteral(" on three shots or more.")).toVariant());
+        return m;
+    }
+    const SessionReading &Y = x.r(y);
+    const std::vector<CorrRow> &rows = cache.corrOf(y);
+    // the top k readings that are not the same quantity, then the top lmK launch-monitor readings not
+    // already among them — each the Relations ledger's own row
+    QVariantList out;
+    std::vector<int> taken;
+    int rank = 0;
+    for (const CorrRow &r : rows) {
+        if (r.same) continue;
+        ++rank;
+        if (int(taken.size()) >= std::max(0, k)) break;
+        taken.push_back(r.reading);
+        out.append(ledgerRow(x, r, Y, rank));
+    }
+    int lm = 0;
+    rank = 0;
+    for (const CorrRow &r : rows) {
+        if (r.same) continue;
+        ++rank;
+        if (lm >= std::max(0, lmK)) break;
+        if (!x.r(r.reading).key.startsWith(QLatin1String("lm."))) continue;
+        if (std::find(taken.begin(), taken.end(), r.reading) != taken.end()) continue;
+        out.append(ledgerRow(x, r, Y, rank));
+        ++lm;
+    }
+    const int tests = int(rows.size()), nY = Y.box.n;
+    int clear = 0;
+    for (const CorrRow &r : rows) if (r.c.clear) ++clear;
+    const double rc = rCritical(nY);
+    m.insert(QStringLiteral("available"), true);
+    m.insert(QStringLiteral("upId"), Y.id);
+    m.insert(QStringLiteral("up"), briefMap(x, y));
+    m.insert(QStringLiteral("head"), Sentence().append(QStringLiteral("What moves with ") + x.readingText(y)).toVariant());
+    m.insert(QStringLiteral("chance"), QVariantMap{
+        { QStringLiteral("n"), nY }, { QStringLiteral("tests"), tests }, { QStringLiteral("clearCount"), clear },
+        { QStringLiteral("chanceCount"), chanceCount(tests) }, { QStringLiteral("rCritical"), rc }, { QStringLiteral("rCriticalText"), r2(rc) },
+        { QStringLiteral("line"), Sentence().append(QStringLiteral("|r| under ")).figure(r2(rc)).append(QStringLiteral(" is chance at n = "))
+                                      .figure(QString::number(nY)).toVariant() } });
+    m.insert(QStringLiteral("rows"), out);
+    m.insert(QStringLiteral("note"), Sentence().append(nY < 10 ? QStringLiteral("A small session. ") : QString())
+                                         .append(words::coOccurrenceNote()).toVariant());
+    return m;
 }
 
 } // namespace pinpoint::charts

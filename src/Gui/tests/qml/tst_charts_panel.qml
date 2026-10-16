@@ -21,7 +21,7 @@ import QtTest
 import PinPointStudio
 import "charts"
 
-// THE CHARTS PANEL — the four views over REAL data (docs/design/charts_panel_traces_relations.md;
+// THE CHARTS PANEL — the four views (and the Wrist tab, test_21–25) over REAL data (docs/design/charts_panel_traces_relations.md;
 // build/charts-build/CONTRACT.md D1–D9 and its Addendum; build/charts-build/STEP3.md).
 //
 // The real PpChartsPanel → PpChartsBody ("chBody") → register → views, over the real
@@ -95,7 +95,9 @@ Item {
             verify(it.length === 1, "one '" + id + "' in the open " + name)
             press(it[0])
         }
+        // "Replay" is the glance register: the auto-replay after a shot (a Replay the golfer opens reads Analyse)
         function useMode(m) {
+            SessionMode.autoReturnToCapture = m === "Replay"
             SessionMode.mode = m === "Analyse" ? SessionMode.analyse : SessionMode.replay
             settle()
             compare(hn.body.register, m, "the body loaded the " + m + " register")
@@ -120,6 +122,10 @@ Item {
             SessionMode.chartsNav = null
             appSettings.chartPrefs = ({})
             appSettings.sectionCollapse = ({})
+            appSettings.wristReferenceSwingDir = ""
+            hn.defaultTab = "shot"
+            hn.defaultPreset = ""
+            SessionMode.autoReturnToCapture = false
             hn.nav.currentIndex = hn.sessionType + 1
             hn.replay.seeks = 0; hn.replay.lastSeekUs = -1; hn.replay.scrubs = 0
             hn.unpick()
@@ -132,14 +138,18 @@ Item {
         }
         function cleanupTestCase() {
             SessionMode.mode = SessionMode.capture
+            SessionMode.autoReturnToCapture = false
             SessionMode.chartsNav = null
             appSettings.chartPrefs = ({})
             appSettings.sectionCollapse = ({})
+            appSettings.wristReferenceSwingDir = ""
         }
 
         // ── the four views (D1) ──────────────────────────────────────────────
         function test_01_four_views_in_analyse_and_no_kinds_in_replay() {
             compare(hn.body.register, "Analyse")
+            // no shot of this feed carries a wrist profile (and no feed offers a Wrist tab: test_21)
+            compare(hn.body.wristAvailable, false)
             compare(tabKeys(), "shot,session,relations,kinds")
             const views = { session: "chSessionView", relations: "chRelationsView", kinds: "chKindsView", shot: "chShotView" }
             for (const k of ["session", "relations", "kinds", "shot"]) {
@@ -524,6 +534,183 @@ Item {
             hn.nav.currentIndex = hn.sessionType + 1              // back on this screen: it catches up
             settle()
             compare(hn.body.tShot.ordinal, 3)
+        }
+
+        // ── the Wrist tab (build/wrist-tab; docs/design/wrist_motion_into_charts.md §4 B) ──
+        // The fixture's shots carry the pose trail wrist; `wrist: true` gives each its checkpoint profile
+        // (ShotSeries::wrist, as SessionSeriesModel fills it). The words and numbers are
+        // charts_wrist_presenter_test's; these pin WHERE the panel surfaces them (Mark, 16 Oct): no Wrist tab;
+        // a "Wrist" section on This shot and Session when the session carries a wrist reading AND a wrist metric
+        // (a strip row's key, here trailWristFlexExt) is among the curves on show.
+        readonly property string wristPreset: "Wrist & forearm"
+        function useWristPreset() {
+            verify((hn.body.tChoices.presets || []).some(function (p) { return p.id === wristPreset }), "the wrist preset is offered")
+            hn.body.choose("preset", wristPreset); settle()
+            compare(hn.body.tChoices.preset, wristPreset)
+        }
+        function test_21_the_wrist_section_shows_when_a_wrist_metric_is_on_show() {
+            fresh({ wrist: true }, 8)
+            compare(hn.body.wristAvailable, true, "a shot carries a wrist reading")
+            compare(tabKeys(), "shot,session,relations,kinds", "no Wrist tab")
+            // the sequence preset shows no wrist curve: no section
+            compare(hn.body.wristOnShow, false)
+            compare(shownAll("chWristSection").length, 0, "no wrist curve on show: no section")
+            useWristPreset()
+            compare(hn.body.wristOnShow, true)
+            compare(hn.body.wristShotShown, true)
+            const sec = oneShown("chWristSection")
+            verify(sec.height > 0, "the section draws")
+            verify(textOf(oneShown("chWristHead", sec)).length > 0, "a head")
+            verify(shownAll("chWristRow", oneShown("chWristProfile", sec)).length >= 1, "a checkpoint row per wrist DOF")
+            compare(shownAll("chWristCol", sec).length, 8, "eight checkpoints")
+            verify(oneShown("chWristControls", sec))
+            verify(oneShown("chWristFindings", sec))
+            // the traces stay above it, untouched
+            verify(oneShown("chShotView"))
+            // the trimmed fixture keeps the trail wrist as phase readings only, so the traces presenter reads it as a
+            // card (instant-only), not a curve: the standard content still answers above the section
+            verify((hn.body.tShot.rows || []).length + (hn.body.tShot.cards || []).length >= 1, "the standard This shot content still answers")
+            // the wrist metric switched off: the section goes
+            hn.body.toggleMetric("trailWristFlexExt"); settle()
+            compare(hn.body.wristOnShow, false)
+            compare(shownAll("chWristSection").length, 0, "no wrist curve on show: no section")
+            hn.body.toggleMetric("trailWristFlexExt"); settle()
+            verify(oneShown("chWristSection"))
+            // Session: the session's section after the standard content; the presenter's scope follows the view
+            tabPress("session")
+            compare(hn.body.wristP.scope, "session")
+            compare(hn.body.wristSessionShown, true)
+            verify(oneShown("chWristSessionSlot"))
+            verify(oneShown("chWristSession"))
+            tabPress("shot")
+            compare(hn.body.wristP.scope, "shot")
+        }
+        function test_22_no_section_without_wrist_data_and_a_saved_wrist_tab_reads_this_shot() {
+            // a session with no wrist reading: the wrist preset draws its curves, and no section
+            fresh({}, 8)
+            useWristPreset()
+            compare(hn.body.wristAvailable, false)
+            compare(hn.body.wristShotShown, false)
+            compare(shownAll("chWristSection").length, 0)
+            tabPress("session")
+            compare(hn.body.wristSessionShown, false)
+            compare(shownAll("chWristSession").length, 0)
+            // a "wrist" saved by the retired Wrist tab reads This shot
+            const b = hn.sessionType + ":" + SessionMode.analyse + ":"
+            appSettings.chartPrefs = ({ [b + "view"]: "wrist" })
+            fresh({ wrist: true }, 8)
+            compare(hn.body.tab, "shot")
+            compare(hn.body.shownView, "shot")
+            verify(oneShown("chShotView"))
+            compare(tabKeys(), "shot,session,relations,kinds")
+        }
+        function test_23_the_wrist_choices_persist_per_screen_and_mode() {
+            fresh({ wrist: true }, 8)
+            useWristPreset()
+            const b = hn.sessionType + ":" + SessionMode.analyse + ":"
+            clickOption("against", "previous")
+            compare(hn.body.wristAgainst, "previous")
+            compare(appSettings.chartPrefs[b + "wristAgainst"], "previous")
+            clickOption("curves", "on")
+            compare(hn.body.wristCurves, true)
+            compare(appSettings.chartPrefs[b + "wristCurves"], true)
+            clickOption("archetype", "2")
+            compare(hn.body.wristArchetype, 2)
+            compare(appSettings.chartPrefs[b + "wristArchetype"], 2)
+            verify(appSettings.chartPrefs[b + "wristScope"] === undefined, "no scope is saved: it follows the view")
+            // the glance keeps its own
+            useMode("Replay")
+            compare(hn.body.wristAgainst, "address")
+            useMode("Analyse")
+            // a rebuild puts them back
+            fresh({ wrist: true }, 8)
+            compare(hn.body.tChoices.preset, wristPreset)
+            compare(hn.body.wristAgainst, "previous")
+            compare(hn.body.wristCurves, true); compare(hn.body.wristArchetype, 2)
+            verify(oneShown("chWristSection"))
+        }
+        function test_24_the_reference_star_is_set_and_cleared_in_place() {
+            fresh({ wrist: true }, 8)
+            useWristPreset()
+            const sec = oneShown("chWristSection")
+            let link = oneShown("chWristRefLink", sec)
+            compare(hn.plain(link.text), "★ set this swing as your reference")
+            press(link)
+            compare(appSettings.wristReferenceSwingDir, chartsFixture.dirOf(8), "the ★ is this swing")
+            link = oneShown("chWristRefLink")
+            compare(hn.plain(link.text), "★ this swing is your reference")
+            press(link)
+            compare(appSettings.wristReferenceSwingDir, "", "pressed again, it is cleared")
+            // the traces' own link beside Against (its "reference ★" reads the same setting)
+            const t = oneShown("chRefLink")
+            press(t)
+            compare(appSettings.wristReferenceSwingDir, chartsFixture.dirOf(8))
+            const ag = (hn.body.tChoices.against || []).filter(function (a) { return a.id === "reference" })
+            compare(ag.length, 1, "Against offers the ★ reference")
+        }
+        // ── the glance (the mat's Replay): This shot's section, compact; Session adds none ──
+        function test_27_the_glance_shows_this_shots_profile_only() {
+            fresh({ wrist: true }, 8)
+            useMode("Replay")
+            useWristPreset()
+            const sec = oneShown("chWristSection")
+            verify(textOf(oneShown("chWristHead", sec)).length > 0, "a head")
+            verify(oneShown("chWristProfile", sec))
+            compare(shownAll("chWristControls", sec).length, 0, "no controls at the glance")
+            compare(shownAll("chWristFindings", sec).length, 0, "no ledgers at the glance")
+            compare(shownAll("chWristMoves", sec).length, 0)
+            tabPress("session")
+            compare(hn.body.wristSessionShown, false)
+            compare(shownAll("chWristSession").length, 0, "Session adds no wrist section at the glance")
+        }
+        // ── the Wrist screen opens This shot on the wrist preset: the host's default, a saved preset wins ──
+        function test_26_the_wrist_screen_opens_this_shot_on_the_wrist_preset() {
+            hn.defaultPreset = wristPreset
+            fresh({ wrist: true }, 8)
+            compare(hn.body.tab, "shot")
+            compare(hn.body.preset, wristPreset, "no saved preset: the host's default")
+            compare(hn.body.tChoices.preset, wristPreset)
+            verify(oneShown("chWristSection"))
+            // the reader's pick is saved and wins over the default
+            hn.body.choose("preset", "Kinematic sequence"); settle()
+            fresh({ wrist: true }, 8)
+            compare(hn.body.preset, "Kinematic sequence", "the saved preset wins")
+            compare(shownAll("chWristSection").length, 0)
+        }
+
+        // ── the retired Wrist motion panel: a saved layout naming it reads, and is rewritten, as Charts ──
+        function test_25_a_saved_wrist_motion_layout_migrates_to_charts() {
+            let r = ViewLayout._migrateLayout({ panels: ["camera", "wristMotion", "timeline"], arrangement: "split",
+                                                sizes: { split: { camera: 1.2, wristMotion: 0.8 },
+                                                         stage: { main: 0.6, side: { wristMotion: 1.1, table: 0.9 } } } })
+            verify(r.changed)
+            compare(r.layout.panels.join(","), "camera,charts,timeline")
+            compare(r.layout.arrangement, "split")
+            compare(r.layout.sizes.split.charts, 0.8)
+            verify(r.layout.sizes.split.wristMotion === undefined)
+            compare(r.layout.sizes.stage.main, 0.6)
+            compare(r.layout.sizes.stage.side.charts, 1.1)
+            compare(r.layout.sizes.stage.side.table, 0.9)
+            // both in one layout: deduplicated, Charts keeps its own weight
+            r = ViewLayout._migrateLayout({ panels: ["charts", "wristMotion", "camera"], sizes: { split: { charts: 1.3, wristMotion: 0.7, camera: 1 } } })
+            compare(r.layout.panels.join(","), "charts,camera")
+            compare(r.layout.sizes.split.charts, 1.3)
+            verify(r.layout.sizes.split.wristMotion === undefined)
+            // nothing retired: the same entry
+            const plain = { panels: ["camera", "charts"], arrangement: "tabs" }
+            r = ViewLayout._migrateLayout(plain)
+            verify(!r.changed)
+            verify(r.layout === plain)
+            // the stored map: read as Charts at once, and rewritten once
+            const saved = appSettings.viewLayoutByMode
+            appSettings.viewLayoutByMode = ({ "1": { panels: ["camera", "wristMotion"], arrangement: "tabs" },
+                                              "2": { panels: ["camera", "charts"], arrangement: "split" } })
+            compare(ViewLayout.enabledKeysFor(1).join(","), "camera,charts", "read as Charts before the rewrite")
+            verify(ViewLayout._migrateStored(), "rewritten")
+            compare(appSettings.viewLayoutByMode["1"].panels.join(","), "camera,charts")
+            compare(appSettings.viewLayoutByMode["2"].panels.join(","), "camera,charts")
+            verify(!ViewLayout._migrateStored(), "once: nothing left to migrate")
+            appSettings.viewLayoutByMode = saved
         }
     }
 }

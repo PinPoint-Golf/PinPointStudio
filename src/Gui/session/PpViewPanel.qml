@@ -39,7 +39,6 @@ Item {
         { key: "sessionDiagnostics", label: qsTr("Session diagnostics"), ready: true },
         { key: "swing3d",     label: qsTr("3-D swing"),             ready: true  },
         { key: "launchMonitor", label: qsTr("Launch monitor"),      ready: true  },
-        { key: "wristMotion", label: qsTr("Wrist motion analysis"), ready: true  },
         { key: "carousel",    label: qsTr("Carousel"),              ready: true  },
         { key: "timeline",    label: qsTr("Timeline"),              ready: true  },
         { key: "charts",      label: qsTr("Charts"),                ready: false },

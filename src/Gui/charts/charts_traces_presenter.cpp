@@ -23,15 +23,21 @@
 #include "session_relations.h"   // the facets (conditionFacets, halfFacet, clubFacet, shapeFacet)
 #include "session_sequence.h"
 #include "session_series_model.h"
+#include "../../Core/pp_debug.h"
+#include "../../Export/swing_store.h"   // the ★ reference swing (loadAnalysis), read on the worker
 
 #include "../review/chart_metrics.h"
 #include "../review/timeline_labels.h"
 
 #include <QCoreApplication>
+#include <QDate>
 #include <QDeadlineTimer>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFileInfo>
 #include <QHash>
+#include <QJsonObject>
+#include <QLocale>
 #include <QMetaObject>
 #include <QMutex>
 #include <QMutexLocker>
@@ -101,6 +107,13 @@ struct ChartsTracesPresenter::Worker {
     QHash<QString, std::vector<double>> peaks;       // key|window → every shot's windowed peak
     QHash<QString, QVariantMap> domains, specs;      // ChartMetrics, per key (catalogue reads)
     QHash<QString, bool> draws;
+
+    // The ★ reference swing (Against "reference"), as last read: by its cleaned dir and its document's
+    // stamp, so an unchanged swing is a stat per job. Not per revision: it lives outside the session.
+    QString refDir;
+    qint64  refSize = -1, refMtimeMs = -1;
+    std::shared_ptr<const ShotSeries> refShot;
+    QString refWhy;
 
     void ensureTools()
     {
@@ -376,6 +389,73 @@ ShotWarp warpAgainst(const ShotSeries &s, const SessionAlignment &al)
     return w;
 }
 
+// The ★ reference on the PICKED SHOT'S OWN CLOCK: an alignment whose "canonical" P-times are the picked
+// shot's own (ms from impact, its low-confidence P-positions left out by the same gate), so warpAgainst
+// maps the reference's clock straight onto the picked shot's — the session's ladder, gates and outward
+// walk from impact, and no session needed (a reference from another session, a session of one).
+ShotWarp warpOnto(const ShotSeries &ref, const ShotSeries &picked)
+{
+    if (picked.impactUs < 0 || ref.impactUs < 0) return ShotWarp{};
+    SessionAlignment al;
+    const std::vector<int> &ladder = pLadder();
+    for (const PhaseMark &p : picked.phases) {
+        if (p.phase == phase::Impact || std::find(ladder.begin(), ladder.end(), p.phase) == ladder.end()) continue;
+        if (std::isfinite(p.conf) && p.conf < al.options.minConf) continue;
+        if (al.canonicalOf(p.phase)) continue;
+        CanonicalPhase cp;
+        cp.phase = p.phase;
+        cp.tMs = double(p.tUs - picked.impactUs) / 1000.0;
+        cp.n = 1;
+        al.canonical.push_back(cp);
+    }
+    return warpAgainst(ref, al);
+}
+
+// "shot 3, 18 Aug 2026": which swing the ★ is, from its folder and its session folder's date.
+QString referenceLabelOf(const QString &dir)
+{
+    const QFileInfo fi(dir);
+    const int id = SessionSeriesModel::folderShotId(dir);
+    const QString session = QFileInfo(fi.absolutePath()).fileName();
+    const QDate d = QDate::fromString(session.left(10), QStringLiteral("yyyy-MM-dd"));
+    QStringList parts;
+    if (id >= 0) parts << QStringLiteral("shot %1").arg(id);
+    if (d.isValid()) parts << QLocale(QLocale::English).toString(d, QStringLiteral("d MMM yyyy"));
+    return parts.join(QStringLiteral(", "));
+}
+
+// The reference swing, read on the worker: the session's own copy when it is one of the session's
+// shots, else SwingStore::loadAnalysis → SessionSeriesModel::extractShot (the loader's own path, never
+// the pose), cached by the document's stamp. Null with *why when it cannot be read.
+std::shared_ptr<const ShotSeries> referenceShot(ChartsTracesPresenter::Worker &w, const QString &rawDir,
+                                                const std::shared_ptr<const SessionSnapshot> &snap, QString *why)
+{
+    const QString dir = cleanDir(rawDir);
+    if (dir.isEmpty()) { *why = QStringLiteral("No reference swing is set: ★ marks one, and it stays your reference across sessions."); return {}; }
+    if (snap)
+        for (const auto &s : snap->shots) if (cleanDir(s->swingDir) == dir) return s;
+    const pinpoint::SwingStore::DocInfo info = pinpoint::SwingStore::info(dir);
+    if (dir == w.refDir && info.size == w.refSize && info.mtimeMs == w.refMtimeMs) { *why = w.refWhy; return w.refShot; }
+    w.refDir = dir; w.refSize = info.size; w.refMtimeMs = info.mtimeMs;
+    w.refShot.reset(); w.refWhy.clear();
+    if (!info.exists()) {
+        w.refWhy = QStringLiteral("The reference swing is no longer on disk.");
+    } else {
+        QString err, whyNot;
+        const QJsonObject root = pinpoint::SwingStore::loadAnalysis(dir, &err);
+        auto shot = root.isEmpty() ? nullptr : SessionSeriesModel::extractShot(root, dir, &whyNot);
+        if (shot) {
+            shot->shotId = SessionSeriesModel::folderShotId(dir);
+            w.refShot = shot;
+        } else {
+            w.refWhy = QStringLiteral("The reference swing cannot be read: ") + (whyNot.isEmpty() ? QStringLiteral("the swing document could not be read") : whyNot) + QStringLiteral(".");
+            if (!err.isEmpty()) ppWarn() << "[Charts] reference" << dir << err;
+        }
+    }
+    *why = w.refWhy;
+    return w.refShot;
+}
+
 // ── the window ──────────────────────────────────────────────────────────────────────────────
 
 struct Win {
@@ -418,6 +498,12 @@ struct Ctx {
     ShotWarp warp;
     bool aligned = false;
     ShotSequence seq;
+    // the ★ reference swing (Against "reference"): the shot, why not when null, and its clock mapped
+    // onto the picked shot's (warpOnto)
+    std::shared_ptr<const ShotSeries> ref;
+    QString refWhy, refLabel;
+    ShotWarp refWarp;
+    bool refIsPicked = false;
     // the preset
     QVariantList groups;
     QString preset;
@@ -1699,14 +1785,29 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
         R.reference = out;
     };
     const int n = c.snap ? c.snap->count() : 0;
-    if (n < 3 || alignedCount(c) < 3) return refuse(refusedSessionWhy(c));
-    if (!c.aligned) return refuse(QStringLiteral("This shot has no impact to line it up on."));
-    if (c.grid.empty() || c.rowKeys.isEmpty()) return refuse(QStringLiteral("No trace of this preset is drawn on enough shots to compare."));
+    const bool isRef = mode == QLatin1String("reference");
+    // THE ★ REFERENCE NEEDS NO SESSION: it is one swing, lined up on this shot's own clock (warpOnto).
+    if (isRef) {
+        if (c.in->referenceSwingDir.trimmed().isEmpty() || !c.ref) return refuse(c.refWhy);
+        if (c.refIsPicked) return refuse(QStringLiteral("This swing is your reference ★."));
+        if (c.shot->impactUs < 0) return refuse(QStringLiteral("This shot has no impact to line it up on."));
+        if (!c.refWarp.aligned()) return refuse(QStringLiteral("The reference swing has no impact to line it up on."));
+        if (c.rowKeys.isEmpty()) return refuse(QStringLiteral("No trace of this preset is drawn on this shot."));
+    } else {
+        if (n < 3 || alignedCount(c) < 3) return refuse(refusedSessionWhy(c));
+        if (!c.aligned) return refuse(QStringLiteral("This shot has no impact to line it up on."));
+        if (c.grid.empty() || c.rowKeys.isEmpty()) return refuse(QStringLiteral("No trace of this preset is drawn on enough shots to compare."));
+    }
+    // The session's middle half scales the head's "largest gap" when there is a session to scale it.
+    const bool sessionScale = n >= 3 && alignedCount(c) >= 3 && c.aligned && !c.grid.empty();
 
     int refOrd = 0;
     std::vector<int> group;
     QString label, phrase;
-    if (mode == QLatin1String("median")) {
+    if (isRef) {
+        label = QStringLiteral("the reference ★");
+        phrase = QStringLiteral("your reference ★");
+    } else if (mode == QLatin1String("median")) {
         label = QStringLiteral("session median");
         phrase = QStringLiteral("your usual swing");
     } else if (mode == QLatin1String("typical") || mode == QLatin1String("leastTypical")) {
@@ -1742,11 +1843,19 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
     out.insert(QStringLiteral("n"), mode == QLatin1String("like") ? int(group.size()) : mode == QLatin1String("median") ? n : 1);
     out.insert(QStringLiteral("group"), intList(group));
     if (refOrd > 0) { const QVariantMap ids = shotIds(c, refOrd); for (auto it = ids.begin(); it != ids.end(); ++it) out.insert(it.key(), it.value()); }
+    else if (isRef) {
+        // the ★ swing's own identity: its ordinal only when it is a shot of this session
+        const bool inSession = c.ref->ordinal > 0 && c.snap && c.ref->ordinal <= n && c.snap->shots[size_t(c.ref->ordinal - 1)] == c.ref;
+        out.insert(QStringLiteral("ordinal"), inSession ? c.ref->ordinal : 0);
+        out.insert(QStringLiteral("shotId"), c.ref->shotId);
+        out.insert(QStringLiteral("swingDir"), c.ref->swingDir);
+        out.insert(QStringLiteral("refLabel"), c.refLabel);
+    }
     else { out.insert(QStringLiteral("ordinal"), 0); out.insert(QStringLiteral("shotId"), -1); out.insert(QStringLiteral("swingDir"), QString()); }
-    out.insert(QStringLiteral("diffLabel"), QStringLiteral("shot %1 − %2").arg(c.ordinal).arg(mode == QLatin1String("median") ? QStringLiteral("session median") : mode == QLatin1String("like") ? QStringLiteral("shots like it") : QStringLiteral("shot %1").arg(refOrd)));
+    out.insert(QStringLiteral("diffLabel"), QStringLiteral("shot %1 − %2").arg(c.ordinal).arg(isRef ? QStringLiteral("the reference ★") : mode == QLatin1String("median") ? QStringLiteral("session median") : mode == QLatin1String("like") ? QStringLiteral("shots like it") : QStringLiteral("shot %1").arg(refOrd)));
 
     std::vector<int> all;
-    for (const auto &s : c.snap->shots) all.push_back(s->ordinal);
+    if (c.snap) for (const auto &s : c.snap->shots) all.push_back(s->ordinal);
     const double w0 = shotMsOf(c, c.win.startUs), w1 = shotMsOf(c, c.win.endUs), sp = w1 - w0;
     QVariantList rows;
     double bestZ = -1;
@@ -1755,7 +1864,12 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
     for (const QString &k : c.rowKeys) {
         std::vector<double> rt, rv;          // the reference on THIS shot's clock
         QVariantList refBridges;             // a reference SHOT's bridged runs (a median / fit blank stays blank)
-        if (mode == QLatin1String("median")) {
+        if (isRef) {
+            // the ★ swing's curve moved onto THIS shot's clock by its own P-positions; values untouched
+            const TraceCurve on = alignedCurve(shotCurve(*c.ref, k), c.refWarp);
+            for (size_t i = 0; i < on.t.size(); ++i) { rt.push_back(on.t[i]); rv.push_back(on.ok[i] ? on.v[i] : kNaN); }
+            refBridges = bridgesOf(rt, rv, on.ok);
+        } else if (mode == QLatin1String("median")) {
             const SessionEnvelope &e = envOf(c, k, all);
             for (size_t i = 0; i < e.t.size(); ++i) { rt.push_back(c.warp.unwarpMs(e.t[i])); rv.push_back(e.med[i]); }
         } else if (mode == QLatin1String("like")) {
@@ -1780,12 +1894,23 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
             gm.insert(QStringLiteral("text"), W::figSigned(g.diff, unit));
             gm.insert(QStringLiteral("when"), W::whenImpact(g.t));
             // the gap as a share of the session's middle half there, so units do not decide the head
-            const SessionEnvelope &e = envOf(c, k, all);
-            const double ct = c.warp.warpMs(g.t);
-            const double iqr = interpAt(e.t, e.q3, ct) - interpAt(e.t, e.q1, ct);
-            const int seg = segOfKey(k);
-            const bool headlines = seg < 0 || c.w->sequence.segments[size_t(seg)].placed > 0;
-            const double z = std::isfinite(iqr) && iqr > 0 ? std::abs(g.diff) / iqr : 0.0;
+            // (with no session to scale it — a ★ reference on a short session — as a share of this
+            // shot's own range of the curve)
+            double z = 0.0;
+            bool headlines = true;
+            if (sessionScale) {
+                const SessionEnvelope &e = envOf(c, k, all);
+                const double ct = c.warp.warpMs(g.t);
+                const double iqr = interpAt(e.t, e.q3, ct) - interpAt(e.t, e.q1, ct);
+                const int seg = segOfKey(k);
+                headlines = seg < 0 || c.w->sequence.segments[size_t(seg)].placed > 0;
+                z = std::isfinite(iqr) && iqr > 0 ? std::abs(g.diff) / iqr : 0.0;
+            } else {
+                double lo = kNaN, hi = kNaN;
+                for (size_t i = 0; i < mine.v.size(); ++i)
+                    if (mine.ok[i] && std::isfinite(mine.v[i])) { lo = std::isfinite(lo) ? std::min(lo, mine.v[i]) : mine.v[i]; hi = std::isfinite(hi) ? std::max(hi, mine.v[i]) : mine.v[i]; }
+                z = std::isfinite(lo) && hi > lo ? std::abs(g.diff) / (hi - lo) : 0.0;
+            }
             if (headlines && z > bestZ) { bestZ = z; bestKey = k; bestGap = g; }
         }
         rows << QVariantMap{ { QStringLiteral("key"), k }, { QStringLiteral("t"), dl(rt) }, { QStringLiteral("v"), dl(rv) },
@@ -2307,6 +2432,18 @@ void buildChoices(Ctx &c, ChartsTracesPresenter::Result &R)
                            { QStringLiteral("enabled"), enabled }, { QStringLiteral("why"), enabled ? QString() : why } };
     };
     addA(QStringLiteral("none"), QStringLiteral("nothing"), true, QString());
+    // the ★ reference first (the picker lists it first): any session's swing, so no session is needed
+    {
+        const bool set = !c.in->referenceSwingDir.trimmed().isEmpty();
+        const bool ok = set && c.ref && !c.refIsPicked && c.shot && c.shot->impactUs >= 0 && c.refWarp.aligned();
+        const QString why = !set ? QStringLiteral("no reference swing is set: ★ marks one")
+                          : !c.ref ? c.refWhy
+                          : c.refIsPicked ? QStringLiteral("this swing is your reference")
+                          : !c.shot || c.shot->impactUs < 0 ? QStringLiteral("this shot has no impact")
+                          : QStringLiteral("the reference swing has no impact to line it up on");
+        addA(QStringLiteral("reference"), c.ref && !c.refLabel.isEmpty() ? QStringLiteral("the reference ★, ") + c.refLabel : QStringLiteral("the reference ★"),
+             ok, why);
+    }
     addA(QStringLiteral("median"), QStringLiteral("the session median"), sessionOk, sessionWhy);
     const int typ = sessionOk ? scoreOf(c, false, c.ordinal).ordinal : 0;
     const int lst = sessionOk ? scoreOf(c, true, c.ordinal).ordinal : 0;
@@ -2373,6 +2510,17 @@ static std::shared_ptr<ChartsTracesPresenter::Result> computeAll(ChartsTracesPre
         else if (!w.alignment.canonical.empty()) c.warp = warpAgainst(*c.shot, w.alignment);
         c.aligned = c.warp.aligned();
         c.seq = shotSequence(*c.shot);
+    }
+    // the ★ reference swing, whenever one is set (Against lists it whatever is picked)
+    if (!in.referenceSwingDir.trimmed().isEmpty()) {
+        c.ref = referenceShot(w, in.referenceSwingDir, c.snap, &c.refWhy);
+        if (c.ref) {
+            c.refLabel = referenceLabelOf(c.ref->swingDir);
+            c.refIsPicked = c.shot && cleanDir(c.ref->swingDir) == cleanDir(c.shot->swingDir);
+            if (c.shot) c.refWarp = warpOnto(*c.ref, *c.shot);
+        }
+    } else {
+        c.refWhy = QStringLiteral("No reference swing is set: ★ marks one, and it stays your reference across sessions.");
     }
     resolvePreset(c);
     resolveWindow(c);
@@ -2470,6 +2618,7 @@ PP_SETTER(const QString &, setBand, band)
 PP_SETTER(const QString &, setFacet, facet)
 PP_SETTER(const QString &, setAgainst, against)
 PP_SETTER(bool, setDifference, difference)
+PP_SETTER(const QString &, setReferenceSwingDir, referenceSwingDir)
 #undef PP_SETTER
 
 void ChartsTracesPresenter::setPickedDetail(const QVariantMap &d)

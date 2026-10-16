@@ -24,9 +24,16 @@ import PinPointStudio
 // charts_panel_traces_relations.md; build/charts-build/STEP2B.md).
 //
 // IT TAKES THE PRESENTERS AS SOURCES AND OWNS NONE OF THEM. PpChartsPanel owns the SessionSeriesModel and the
-// two presenters (ChartsTracesPresenter, ChartsRelationsPresenter), feeds them, persists what this body
+// presenters (ChartsTracesPresenter, ChartsRelationsPresenter, ChartsWristPresenter), feeds them, persists what this body
 // chooses, and keeps the reader's place; this file binds each presenter output map ONCE (every read of a
-// QVariantMap property is a deep copy) and hands the views those bindings: t* (traces) and r* (relations).
+// QVariantMap property is a deep copy) and hands the views those bindings: t* (traces), r* (relations) and
+// w* (wrist).
+//
+// THE WRIST READ IS A SECTION, NOT A TAB (Mark, 16 Oct; docs/design/wrist_motion_into_charts.md §4): the standard
+// curves first, the domain read added when it is meaningful. wristShotShown / wristSessionShown say when This
+// shot / Session add their "Wrist" section: the shot (or some shot of the session) carries a wrist reading AND a
+// wrist metric is among the curves on show — a member of the traces' preset that is on (tChoices.metrics[].on)
+// whose key is one of the wrist presenter's strip rows (profile.rows[].key, "hm." prefix ignored on both sides).
 //
 // THE REGISTER IS CHOSEN, NOT THE LAYOUT (§15.6): forceRegister (tests) → surface "cast" → Replay →
 // SessionMode: Analyse reads in depth (PpChartsAnalyse); Capture and Replay glance (PpChartsReplay).
@@ -38,8 +45,9 @@ import PinPointStudio
 // Demo states (renders only) set choices WITHOUT choiceMade, after asking the panel to reset to the saved ones.
 //
 // THIS API IS THE INTEGRATION SEAM (the panel, the harness overlay, tests and probes reach in): tracesP,
-// relationsP, tab, view, preset, metricsOff, window, customStartUs/EndUs, band, facet, against, difference,
-// overlay, showDots, showCursor, upId, acrossId, relFacet, openId, collapsed, askedId, interactive, surface,
+// relationsP, wristP (+ wChoices wShot wSession wMoves wStandfirst wSelected wristAvailable wristOnShow
+// wristShotShown wristSessionShown), tab, view, shownView, preset, metricsOff, window, customStartUs/EndUs, band,
+// facet, against, difference, overlay, showDots, showCursor, upId, acrossId, relFacet, wristAgainst, wristCurves, wristArchetype, openId, collapsed, askedId, interactive, surface,
 // framed, cardAside, register, registerItem, demoState, forceRegister, playUs, spanUs; choose(),
 // toggleMetric(), chooseCustom(), chooseUp(), toggleSection(), openReading(), ask(), clearAsk(), pickOrdinal(),
 // applyDemo(); choiceMade, sectionToggled, navChanged, demoReset, shotRequested; objectName "chBody".
@@ -50,6 +58,7 @@ Item {
     // ── the sources (owned by the panel) ──
     property QtObject tracesP: null
     property QtObject relationsP: null
+    property QtObject wristP: null               // ChartsWristPresenter: the Wrist sections of This shot and Session
 
     // ── the outputs, each bound ONCE (a QVariantMap read is a deep copy; the views read these) ──
     readonly property var tChoices: tracesP ? tracesP.choices : ({})
@@ -64,8 +73,27 @@ Item {
     readonly property var rKinds: relationsP ? relationsP.kinds : ({})
     readonly property var rReplay: relationsP ? relationsP.replaySession : ({})
     readonly property var rPlayhead: relationsP ? relationsP.playhead : ({})
+    readonly property var wChoices: wristP ? wristP.choices : ({})
+    readonly property var wShot: wristP ? wristP.thisShot : ({})
+    readonly property var wSession: wristP ? wristP.session : ({})
+    readonly property var wMoves: wristP ? wristP.movesWith : ({})
+    readonly property var wStandfirst: wristP ? wristP.standfirst : ({})
+    readonly property int wSelected: wristP ? wristP.selected : -1
+    // some shot of the session carries a wrist reading (gated on data, never on the session type)
+    readonly property bool wristAvailable: !!wristP && wristP.available
+    // the wrist strips' metric keys, and whether one of them is a curve on show (the trigger, see the head)
+    function _bareKey(k) { return String(k || "").replace(/^hm\./, "") }
+    readonly property var _wristKeys: {
+        const rows = [].concat(wShot && wShot.profile ? (wShot.profile.rows || []) : [], wSession ? (wSession.rows || []) : [])
+        return rows.filter(function (r) { return !r.numbersOnly && !!r.key }).map(function (r) { return root._bareKey(r.key) })
+    }
+    readonly property bool wristOnShow: (tChoices && tChoices.metrics ? tChoices.metrics : [])
+                                        .some(function (m) { return m.on === true && root._wristKeys.indexOf(root._bareKey(m.key)) >= 0 })
+    readonly property bool wristShotShown: wristOnShow && !!wShot && wShot.available === true
+    // Session's section reads in depth only: the glance (Replay register) adds This shot's, never Session's
+    readonly property bool wristSessionShown: wristOnShow && wristAvailable && register !== "Replay" && !!wSession && wSession.available === true
     readonly property int pickedOrdinal: tShot && tShot.available ? (tShot.ordinal || -1) : (rStatus && rStatus.pickedOrdinal > 0 ? rStatus.pickedOrdinal : -1)
-    readonly property bool busy: (!!tracesP && tracesP.busy) || (!!relationsP && relationsP.busy)
+    readonly property bool busy: (!!tracesP && tracesP.busy) || (!!relationsP && relationsP.busy) || (!!wristP && wristP.busy)
 
     // ── the replay, fed by the panel (constants on an invisible screen) ──
     property real playUs: -1
@@ -94,6 +122,10 @@ Item {
     property string upId: ""                     // Relations: "" = the presenter's default
     property string acrossId: ""
     property string relFacet: ""
+    // the Wrist sections' choices (ChartsWristPresenter inputs; its scope follows shownView)
+    property string wristAgainst: "address"      // "address" | "previous" | "reference" | "median"
+    property bool wristCurves: false             // the curve behind the checkpoints
+    property int wristArchetype: -1              // -1 Auto | 0 Neutral | 1 Bowed | 2 Cupped
     // transient place (SessionMode.chartsNav, per session): the open profile row
     property string openId: ""
     // the folds (AppSettings sectionCollapse, per screen × mode)
@@ -159,12 +191,14 @@ Item {
     // ── demo states (renders only): reset to the saved choices, then set these WITHOUT saving them ──
     //   against:<id>  diff  overlay  split  unfold  nodots  window:<key>  band:<id>  facet:<id>|facet:first  fitShape
     //   scrub[:ms]  open:apart  open:curve  open:run  ask:<question id>  up:<readingId>  relFacet:first  preset:<name>
+    //   wristAgainst:<id>  wristCurves  wristArchetype:<-1..2>  seekP:<P tag> (the Wrist sections; also wristPrevious
+    //   wristReference  wristMedian  atP<n>, safe in a file name; wristSession, from the retired Wrist tab, opens Session)
     property string _lastDemo: ""
     function applyDemo(state, brush) {
         if (state === "" && _lastDemo === "") return
         _lastDemo = state
         demoReset()                                  // the panel puts the saved choices back
-        askedId = ""; openId = ""; _pendingAsk = ""
+        askedId = ""; openId = ""; _pendingAsk = ""; _pendingSeekTag = ""
         _demo = true
         for (const t of String(state).split("+")) {
             const i = t.indexOf(":"), k = i < 0 ? t : t.slice(0, i), v = i < 0 ? "" : t.slice(i + 1)
@@ -181,6 +215,16 @@ Item {
             else if (k === "up") { upId = v; acrossId = "" }
             else if (k === "relFacet") relFacet = v === "first" ? (((rRel && rRel.facets) || [])[0] || { id: "" }).id : v
             else if (k === "preset") preset = v
+            else if (k === "wristAgainst") wristAgainst = v
+            else if (k === "wristCurves") wristCurves = true
+            else if (k === "wristArchetype") wristArchetype = Number(v)
+            else if (k === "seekP") _pendingSeekTag = v
+            // file-name-safe spellings of the same (render tags carry the state)
+            else if (k === "wristSession") tab = "session"
+            else if (k === "wristPrevious") wristAgainst = "previous"
+            else if (k === "wristReference") wristAgainst = "reference"
+            else if (k === "wristMedian") wristAgainst = "median"
+            else if (/^atP[1-8]$/.test(k)) _pendingSeekTag = k.slice(2)
             else if (k === "open") {
                 const ap = (rShot && rShot.apart) || [], all = [].concat.apply(ap, ((rShot && rShot.groups) || []).map(function (g) { return g.rows || [] }))
                 const pick = v === "curve" ? all.filter(function (r) { return r.opens === "trace" })[0]
@@ -196,7 +240,18 @@ Item {
         }
         _demo = false
         _tryAsk()
+        _trySeek()
     }
+    // a demo seek to a checkpoint waits for the wrist presenter to know the picked shot's checkpoints
+    property string _pendingSeekTag: ""
+    function _trySeek() {
+        if (_pendingSeekTag === "" || !wristP || wristP.busy) return
+        const us = wristP.seekUsFor(_pendingSeekTag)
+        if (us < 0) return
+        _pendingSeekTag = ""
+        if (typeof shotReplay !== "undefined") shotReplay.seekToUs(us)
+    }
+    onWShotChanged: _trySeek()
     // a demo question is asked once the presenters have answered the reset choices (they recompute off-thread)
     property string _pendingAsk: ""
     property var _pendingBrush: null
@@ -207,7 +262,7 @@ Item {
         _pendingAsk = ""
         _demo = true; ask(q, _pendingBrush); _demo = false
     }
-    onBusyChanged: _tryAsk()
+    onBusyChanged: { _tryAsk(); _trySeek() }
     onTSessionChanged: _tryAsk()
     onRShotChanged: _tryAsk()
     onRRelChanged: _tryAsk()
@@ -217,8 +272,10 @@ Item {
     // shot is what the cast is for (Session when there is no shot to read).
     readonly property string _tab: interactive ? tab : (tShot && tShot.available ? "shot" : "session")
     readonly property string view: _tab
-    // the view actually drawn: Replay has no Kinds form and reads Session there
-    readonly property string shownView: register === "Replay" && view === "kinds" ? "session" : view
+    // the view actually drawn: Replay has no Kinds form and reads Session there; anything else unknown (a "wrist"
+    // saved by the retired Wrist tab) reads This shot
+    readonly property string shownView: register === "Replay" && view === "kinds" ? "session"
+                                      : ["shot", "session", "relations", "kinds"].indexOf(view) >= 0 ? view : "shot"
 
     // ── the frame: the stage owns it (PpModeStage switches `framed` off); on the cast the register draws a
     // running head; anywhere else a framed body draws the quiet card itself ──
@@ -239,9 +296,13 @@ Item {
     }
 
     // ── the register ──
+    // the glance (Replay register) is for the mat: live Capture and the auto-replay after a shot, which drops back to
+    // Capture on its own. A Replay the golfer opened to review a session reads in depth, as Analyse does (Mark, 16 Oct).
+    readonly property bool _atTheMat: SessionMode.mode === SessionMode.capture
+                                      || (SessionMode.mode === SessionMode.replay && SessionMode.autoReturnToCapture)
     readonly property string register: forceRegister !== "" ? forceRegister
                                      : surface === "cast" ? "Replay"
-                                     : SessionMode.mode === SessionMode.analyse ? "Analyse" : "Replay"
+                                     : _atTheMat ? "Replay" : "Analyse"
     readonly property var registerItem: register === "Analyse" ? analyseLoader.item : replayLoader.item
     Loader {
         id: replayLoader

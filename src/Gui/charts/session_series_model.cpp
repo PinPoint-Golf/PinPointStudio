@@ -28,6 +28,7 @@
 #include "../../Diagnostics/packs/pack_provider.h"      // condition names and groups
 #include "../../Export/swing_store.h"
 #include "../../Kinematics/kinematic_sequence_json.h"  // retimeKinematicSequence — one shape, four paths
+#include "session_wrist.h"                               // the wrist checkpoint profile (CONTRACT I3)
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>
@@ -94,7 +95,7 @@ bool sameDiagnostics(const ShotDiagnostics &a, const ShotDiagnostics &b)
         if (o == b.values.constEnd()) return false;
         const ShotDiagnostics::Value &x = it.value(), &y = o.value();
         if (!sameNumber(x.value, y.value) || !sameNumber(x.z, y.z) || !sameNumber(x.lo, y.lo)
-            || !sameNumber(x.hi, y.hi) || x.dir != y.dir)
+            || !sameNumber(x.hi, y.hi) || x.dir != y.dir || !sameNumber(x.confidence, y.confidence))
             return false;
     }
     return true;
@@ -141,6 +142,7 @@ ShotDiagnostics diagnosticsOf(const pinpoint::analysis::ShotRecord &s,
         v.lo    = r.corridorLo;
         v.hi    = r.corridorHi;
         v.dir   = r.direction;
+        v.confidence = std::isfinite(r.confidence) ? double(r.confidence) : kNaN;
         d.values.insert(r.conditionId, v);
         if (r.state == ShotState::Fired) {
             const pinpoint::analysis::ConditionReading cr = readingFor(pack, r.conditionId, r.drivingMeasureId);
@@ -316,6 +318,12 @@ std::shared_ptr<ShotSeries> SessionSeriesModel::extractShot(const QJsonObject &r
         if (shot->impactUs < 0 && shot->kinematicSequence.contains(QStringLiteral("impactUs")))
             shot->impactUs = shot->kinematicSequence.value(QStringLiteral("impactUs")).toLongLong();
     }
+
+    // ── the wrist checkpoint profile (CONTRACT I3) — from the series and phases just copied, graded
+    //    Auto; the model re-grades it against the session's archetype when that is set. The
+    //    resemblance index is the analysis' own (analysis.score.resemblance, kept by loadAnalysis:
+    //    the score object is inline in the root chunk), the one figure not in the series.
+    shot->wrist = shotWristPayload(*shot, -1, wristResemblanceOf(an));
     return shot;
 }
 
@@ -339,6 +347,8 @@ qint64 SessionSeriesModel::approxBytes(const ShotSeries &s)
     if (!s.kinematicSequence.isEmpty())
         b += 2 * qint64(QJsonDocument(QJsonObject::fromVariantMap(s.kinematicSequence))
                             .toJson(QJsonDocument::Compact).size());
+    if (!s.wrist.isEmpty())   // the same proxy for the wrist profile (5 DOFs × 8 cells, small)
+        b += 2 * qint64(QJsonDocument(QJsonObject::fromVariantMap(s.wrist)).toJson(QJsonDocument::Compact).size());
     const ShotDiagnostics &d = s.diagnostics;
     b += stringBytes(d.club);
     b += qint64(d.fired.size() + d.clean.size()) * qint64(sizeof(QString));
@@ -355,6 +365,20 @@ SessionSeriesModel::SessionSeriesModel(QObject *parent)
     // ONE worker thread (decision 2). Two would let a re-analysed shot's read overtake the
     // activation that put its session in place, and the cache would be written by both.
     m_pool.setMaxThreadCount(1);
+    // The wrist grader's norm set, built here on the owner's thread so no worker's first read races
+    // another first read of the process-wide slot (session_wrist.h).
+    warmWristBands();
+}
+
+void SessionSeriesModel::setWristArchetype(int a)
+{
+    const int v = (a < -1 || a > 2) ? -1 : a;
+    if (v == m_wristArchetype) return;
+    m_wristArchetype = v;
+    emit wristArchetypeChanged();
+    // Every shot re-graded against the new corridors, from the series already held: no document is
+    // read. Before any session is loaded there is nothing to re-grade; the next activation carries it.
+    if (!m_sessionDir.isEmpty()) queue(Job{ JobKind::Rearchetype, m_generation, QString(), -1 });
 }
 
 SessionSeriesModel::~SessionSeriesModel()
@@ -475,8 +499,12 @@ void SessionSeriesModel::closeSession()
     emit sessionChanged();
 }
 
-void SessionSeriesModel::queue(const Job &job)
+void SessionSeriesModel::queue(const Job &jobIn)
 {
+    // Every job carries the archetype the owner holds NOW, so a job queued before a change and one
+    // queued after it grade by what each was asked (the later always lands last: one thread).
+    Job job = jobIn;
+    job.wristArchetype = m_wristArchetype;
     if (m_synchronous) {
         m_pool.waitForDone();        // an earlier asynchronous job must not run after this one
         apply(runJob(job), false);
@@ -542,6 +570,7 @@ SessionSeriesModel::Result SessionSeriesModel::runJob(const Job &job)
     QElapsedTimer wall;
     wall.start();
     const LoadStats before = m_stats;
+    m_wArchetype = job.wristArchetype;
 
     switch (job.kind) {
     case JobKind::Activate: {
@@ -599,6 +628,10 @@ SessionSeriesModel::Result SessionSeriesModel::runJob(const Job &job)
         if (m_wSessionDir.isEmpty())
             return Result{ job.generation, false, m_wLast, m_wLastSkipped };
         readLedgerIfChanged();
+        return buildSnapshot(job.generation, false);
+    case JobKind::Rearchetype:
+        if (m_wSessionDir.isEmpty())
+            return Result{ job.generation, false, m_wLast, m_wLastSkipped };
         return buildSnapshot(job.generation, false);
     }
     return Result{ job.generation, false, m_wLast, m_wLastSkipped };
@@ -694,6 +727,7 @@ bool SessionSeriesModel::readLedgerIfChanged()
     m_ledgerSize    = size;
     m_ledgerMtimeMs = mtime;
     m_ledger.clear();
+    m_ledgerTiers.clear();
     if (!exists) return true;      // no diagnostics yet: every shot reads with none
 
     QFile f(fi.absoluteFilePath());
@@ -712,10 +746,17 @@ bool SessionSeriesModel::readLedgerIfChanged()
     }
     // The ledger's own deserialiser (diagnostic_ledger.h fromJson), so a row field added there
     // reaches this file without a second parser to update.
+    pinpoint::analysis::LedgerOptions opt;
     const std::vector<pinpoint::analysis::ShotRecord> shots =
-        pinpoint::analysis::fromJson(doc.object().value(QStringLiteral("ledger")).toObject());
+        pinpoint::analysis::fromJson(doc.object().value(QStringLiteral("ledger")).toObject(), &opt);
     for (const pinpoint::analysis::ShotRecord &s : shots)
         m_ledger.insert(s.shotId, diagnosticsOf(s, m_pack ? &m_pack->pack() : nullptr));
+    // The session tiers, by the ledger's own reduction over the options the file was written with —
+    // the numbers Session diagnostics shows, never a second rule (the Wrist tab's severity reads them).
+    using pinpoint::analysis::Tier;
+    for (const pinpoint::analysis::ConditionLedger &l : pinpoint::analysis::conditionLedgers(shots, opt))
+        m_ledgerTiers.insert(l.id, l.tier == Tier::Pattern ? QStringLiteral("pattern")
+                                   : l.tier == Tier::Watching ? QStringLiteral("watching") : QStringLiteral("clean"));
     return true;
 }
 
@@ -732,6 +773,7 @@ SessionSeriesModel::Result SessionSeriesModel::buildSnapshot(int generation, boo
 
     auto snap = std::make_shared<SessionSnapshot>();
     snap->sessionDir = m_wSessionDir;
+    snap->tiers      = m_ledgerTiers;
     snap->shots.reserve(size_t(dirs.size()));
     std::vector<Skip> skipped;
 
@@ -760,21 +802,27 @@ SessionSeriesModel::Result SessionSeriesModel::buildSnapshot(int generation, boo
         const int ordinal = snap->count() + 1;
         const ShotDiagnostics diag = id >= 0 ? m_ledger.value(id) : ShotDiagnostics();
         if (e.fresh) {
-            // Just read and held by nobody else: completed in place, then frozen.
+            // Just read and held by nobody else: completed in place, then frozen. It is shared as
+            // graded here; another instance on another archetype re-grades its own copy below.
             e.fresh->ordinal     = ordinal;
             e.fresh->shotId      = id;
             e.fresh->diagnostics = diag;
+            e.fresh->wrist       = regradeWristPayload(*e.fresh, e.fresh->wrist, m_wArchetype);
             e.shot = std::move(e.fresh);
             e.fresh.reset();
             if (shared().recent.contains(e.sessionDir)) shared().entries.insert(dir, e);
         } else if (e.shot->ordinal != ordinal || e.shot->shotId != id
-                   || !sameDiagnostics(e.shot->diagnostics, diag)) {
-            // A PUBLISHED SHOT NEVER CHANGES (decision 6): a new place in the order or a new
-            // ledger row is a new shot object. The copy is the series' size, once per change.
+                   || !sameDiagnostics(e.shot->diagnostics, diag)
+                   || (!e.shot->wrist.isEmpty()
+                       && e.shot->wrist.value(QStringLiteral("archetypeMode")).toInt() != m_wArchetype)) {
+            // A PUBLISHED SHOT NEVER CHANGES (decision 6): a new place in the order, a new ledger
+            // row or a new archetype is a new shot object. The copy is the series' size, once per
+            // change.
             auto copy = std::make_shared<ShotSeries>(*e.shot);
             copy->ordinal     = ordinal;
             copy->shotId      = id;
             copy->diagnostics = diag;
+            copy->wrist       = regradeWristPayload(*copy, copy->wrist, m_wArchetype);
             e.shot = std::move(copy);
         }
         snap->shots.push_back(e.shot);
@@ -825,7 +873,7 @@ SessionSeriesModel::Result SessionSeriesModel::buildSnapshot(int generation, boo
     Result r;
     r.generation = generation;
     if (m_wLast && m_wLast->sessionDir == snap->sessionDir && m_wLast->shots == snap->shots
-        && sameSkips(m_wLastSkipped, skipped)) {
+        && m_wLast->tiers == snap->tiers && sameSkips(m_wLastSkipped, skipped)) {
         // Nothing moved: the same snapshot, the same revision. An activation publishes it anyway,
         // because the owner may be holding an interim one (activateSession).
         r.changed  = forcePublish;

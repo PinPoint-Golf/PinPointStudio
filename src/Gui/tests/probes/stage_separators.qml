@@ -27,7 +27,7 @@ Item {
     readonly property string tag: arg("--probe-tag", "sep")
     readonly property string sessionDir: arg("--probe-session", "")
     readonly property int ordinal: 8
-    readonly property var allKeys: ["sessionDiagnostics", "camera", "swing3d", "launchMonitor", "wristMotion", "charts", "table", "markup"]
+    readonly property var allKeys: ["sessionDiagnostics", "camera", "swing3d", "launchMonitor", "charts", "table", "markup"]
     readonly property var onKeys: ["charts", "table", "markup"]
     readonly property int mode: SessionMode.analyse
     property int fails: 0

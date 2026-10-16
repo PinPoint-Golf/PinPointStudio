@@ -304,6 +304,10 @@ set(PP_QML_FILES
     src/Gui/charts/PpChRunBox.qml
     src/Gui/charts/PpChScatter.qml
     src/Gui/charts/PpChMovesWith.qml
+    src/Gui/charts/PpChWristShotSection.qml
+    src/Gui/charts/PpChWristProfile.qml
+    src/Gui/charts/PpChWristLedger.qml
+    src/Gui/charts/PpChWristSession.qml
     src/Gui/charts/PpChMatrix.qml
     src/Gui/charts/PpChReadingPicker.qml
     src/Gui/charts/PpChSeqSession.qml
@@ -354,13 +358,6 @@ set(PP_QML_FILES
     src/Gui/diagnosticmodel/ModelPolicyPicker.qml
     src/Gui/diagnosticmodel/ModelUnsaved.qml
     src/Gui/diagnosticmodel/ModelCorridorPlot.qml
-    src/Gui/diagnostics/WristDiagnostics.qml
-    src/Gui/diagnostics/DofTrajectoryStrip.qml
-    src/Gui/diagnostics/PositionAngleGrid.qml
-    src/Gui/diagnostics/WristScorePill.qml
-    src/Gui/diagnostics/FindingCard.qml
-    src/Gui/diagnostics/FindingsList.qml
-    src/Gui/diagnostics/StrengthsList.qml
     src/Gui/session/PpMarkupPanel.qml
     src/Gui/shell/PpAboutDialog.qml
     src/Gui/shell/MacAboutMenu.qml
@@ -419,6 +416,10 @@ set(PP_QML_SOURCES
     src/Gui/charts/charts_traces_presenter.cpp
     src/Gui/charts/charts_relations_presenter.h
     src/Gui/charts/charts_relations_presenter.cpp
+    src/Gui/charts/session_wrist.h
+    src/Gui/charts/session_wrist.cpp
+    src/Gui/charts/charts_wrist_presenter.h
+    src/Gui/charts/charts_wrist_presenter.cpp
     src/Gui/review/metric_catalog.h
     src/Gui/review/metric_catalog.cpp
     # metric_catalog.cpp's setupSummary() — listed here, not beside the other Metrics sources, so

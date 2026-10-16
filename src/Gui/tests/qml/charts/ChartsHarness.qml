@@ -32,13 +32,15 @@ import PinPointStudio
 //   build()              a fresh panel (the stage rebuilding it); the previous one is destroyed
 //   feed(opts)           the fixture into the panel's presenters (chartsFixture.feed options)
 //   pick(ordinal[, detail])   the replay opens that shot (as SessionMode.enterReplay does)
-//   settle(tc)           both presenters idle, then a frame (tc: the TestCase, for waitForRendering)
+//   settle(tc)           the presenters idle, then a frame (tc: the TestCase, for waitForRendering)
 // Tree helpers walk from the body: findAll, shown (every ancestor visible), shownAll, texts.
 Item {
     id: h
     anchors.fill: parent
 
-    property int sessionType: 1                  // SessionController.Swing; the persistence key and the gate
+    property int sessionType: 1                  // a screen index (1 is SessionController.Wrist's); the persistence key and the gate
+    property string defaultTab: "shot"           // the host's opening tab
+    property string defaultPreset: ""            // the host's opening preset (ScreenWrist passes "Wrist & forearm")
     property var panel: null
     readonly property var body: panel ? panel.chBody : null
     readonly property alias replay: fakeReplay
@@ -104,12 +106,14 @@ Item {
     function build() {
         if (panel) { panel.destroy(); panel = null }
         // unframed, as PpModeStage hosts it (the stage card draws the frame)
-        panel = panelC.createObject(h, { sessionType: h.sessionType, framed: false })
+        panel = panelC.createObject(h, { sessionType: h.sessionType, defaultTab: h.defaultTab, defaultPreset: h.defaultPreset, framed: false })
         panel.width = Qt.binding(function () { return h.width })
         panel.height = Qt.binding(function () { return h.height })
         return panel
     }
-    function feed(opts) { return chartsFixture.feed([body.tracesP, body.relationsP], opts || {}) }
+    // the wrist presenter is fed too (detached from the model): without opts.wrist no shot carries a wrist
+    // profile, so no wrist section shows — every suite but the Wrist cases sees the standard views only
+    function feed(opts) { return chartsFixture.feed([body.tracesP, body.relationsP, body.wristP], opts || {}) }
 
     // ── the replay ──
     // The span of a shot's recording: the last sample of any of its series (window-relative µs).
@@ -139,6 +143,7 @@ Item {
         for (let i = 0; i < 2; ++i) {
             if (body && body.tracesP) body.tracesP.waitForIdle(60000)
             if (body && body.relationsP) body.relationsP.waitForIdle(60000)
+            if (body && body.wristP) body.wristP.waitForIdle(60000)
             if (tc) tc.wait(16)
         }
         if (tc) tc.waitForRendering(h, 60)

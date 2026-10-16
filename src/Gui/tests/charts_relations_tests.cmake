@@ -6,6 +6,7 @@
 # makeMetricCatalogue directly), so the catalogue chain chart_metrics_test links comes along; the session
 # loader (SessionSeriesModel) and its pack stack come along for the real-data cases, which QSKIP when
 # /mnt/swingdata is not mounted. The fixture is the maths suite's trimmed 4 July session.
+include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)
 pp_add_test(charts_relations_presenter_test
     SOURCES charts_relations_presenter_test.cpp
             ${GUI}/charts/charts_relations_presenter.cpp
@@ -15,6 +16,7 @@ pp_add_test(charts_relations_presenter_test
             ${GUI}/charts/session_relations.cpp
             ${GUI}/charts/session_sequence.cpp
             ${GUI}/charts/session_series_model.cpp
+            ${CHARTS_WRIST_SRC}
             ${GUI}/review/timeline_labels.cpp
             ${SRC}/Metrics/metric_catalogue.cpp
             ${SRC}/Metrics/metric_resolver.cpp
@@ -43,4 +45,4 @@ pp_add_test(charts_relations_presenter_test
     LINK    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_relations_presenter_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")

@@ -5,10 +5,12 @@
 #
 # It links the REAL metric catalogue (ChartMetrics: presets, domains, card specs, sequenceTable) — the
 # chart_metrics_test chain — plus the session maths and the session model with its pack chain.
+include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)
 pp_add_test(charts_traces_presenter_test
     SOURCES charts_traces_presenter_test.cpp
             ${GUI}/charts/charts_traces_presenter.cpp
             ${GUI}/charts/session_series_model.cpp
+            ${CHARTS_WRIST_SRC}
             ${GUI}/charts/session_curves.cpp
             ${GUI}/charts/session_warp.cpp
             ${GUI}/charts/session_traces.cpp
@@ -43,5 +45,5 @@ pp_add_test(charts_traces_presenter_test
     LINK    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_traces_presenter_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;PP_CHARTS_MEASURE_OUT=${CMAKE_BINARY_DIR}/charts_traces_measure.txt"
+    ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_CHARTS_MEASURE_OUT=${CMAKE_BINARY_DIR}/charts_traces_measure.txt"
     TIMEOUT 600)

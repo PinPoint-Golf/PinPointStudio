@@ -95,7 +95,7 @@ Item {
     }
     function applyLayout() {
         const m = probe.modeName === "replay" ? SessionMode.replay : SessionMode.analyse
-        const others = ["camera", "swing3d", "launchMonitor", "wristMotion", "charts", "table", "markup"]
+        const others = ["camera", "swing3d", "launchMonitor", "charts", "table", "markup"]
         if (probe.layout === "full" || probe.layout === "cast") {
             ViewLayout.setPanel(m, "sessionDiagnostics", true)
             ViewLayout.setArrangement(m, "tabs")

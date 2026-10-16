@@ -5,7 +5,7 @@
 #   render_stage.sh [--slot base] [--screen normal|tall|mark|<file.json>] <tag> <mode analyse|replay> \
 #                   <themes 12,7> <layouts full,half,third> <panels camera,charts,…> [settle_ms=3000] [timeout_s=900]
 #
-#   panels: camera sessionDiagnostics swing3d launchMonitor wristMotion charts table markup
+#   panels: camera sessionDiagnostics swing3d launchMonitor charts table markup
 # Output: $TYPESET_OUT/<tag>_<mode>_<layout>_<aesthetic>_<light|dark>_<panel>_{window,panel}.png
 H=${0:A:h}; source $H/lib.sh
 SLOT=base SCREEN=normal

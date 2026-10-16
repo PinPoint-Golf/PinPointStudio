@@ -5,7 +5,8 @@
 //   selfCheck(tab)   "" when the body's register is showing that tab's view on screen (Replay has no Kinds
 //                    form: a Kinds tab reads Session there), else what is wrong
 //   selfOpen()       the charts analogue of the diagnostics detail: to This shot, then the first row of
-//                    "Apart from the session" opened IN PLACE through the body's own openReading()
+//                    "Apart from the session" opened IN PLACE through the body's own openReading(); a shot
+//                    with nothing in its Apart list answers "SKIP …" (the self-test logs a SKIP, not a fail)
 //   selfCheck("open") / selfClose() / selfCheck("closed")
 //   try.sh --selftest charts tools/typeset-harness/screens/charts_real.qml
 import QtQuick
@@ -31,9 +32,11 @@ Item {
     readonly property var viewNames: ({ shot: "chShotView", session: "chSessionView", relations: "chRelationsView", kinds: "chKindsView" })
 
     property string openedId: ""
+    property bool apartEmpty: false
     function selfCheck(what) {
         if (!body) return "no body"
         if (what === "open") {
+            if (apartEmpty) return "SKIP this shot's Apart list is empty (nothing sits past the session's whiskers)"
             // the row opens in the Apart list; the same reading also opens where "Every reading against the
             // session" lists it (one openId per panel), so count the Apart list's own
             const lists = shown("chApartList")
@@ -47,6 +50,7 @@ Item {
         if (what === "closed") return body.openId === "" && shown("chApartRowOpen").length === 0 ? "" : "still open (" + body.openId + ")"
         const reg = body.registerItem
         if (!reg) return "no register loaded"
+        // Replay has no Kinds form (the wrist read is a section of This shot / Session, not a view)
         const want = body.register === "Replay" && what === "kinds" ? "session" : what
         if (reg.shown !== want) return "the register shows " + reg.shown + ", not " + want
         const v = shown(viewNames[want])
@@ -63,7 +67,10 @@ Item {
     Timer {
         id: openLater; interval: 1500
         onTriggered: {
-            const rows = ov.shown("chApartRow")
+            // the Apart list's OWN rows: "Every reading against the session" names its rows chApartRow too
+            const lists = ov.shown("chApartList")
+            const rows = lists.length ? ov.walk(lists[0], "chApartRow", []).filter(ov.onScreen) : []
+            ov.apartEmpty = rows.length === 0
             ov.openedId = rows.length ? rows[0].readingId : ""
             if (ov.openedId !== "") ov.body.openReading(ov.openedId)
         }

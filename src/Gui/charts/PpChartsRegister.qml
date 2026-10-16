@@ -26,6 +26,8 @@ import PinPointStudio
 // both, told which register they are in.
 //   • the tab row: quiet PpTabs (underline, no capsule) — This shot · Session · Relations · Kinds in Analyse;
 //     Replay has no Kinds form, so its tab row stops at Relations and a Kinds choice reads Session there.
+//     There is no Wrist tab (Mark, 16 Oct): the wrist read is a section of This shot and of Session, drawn by
+//     those views when it is meaningful (body.wristShotShown / wristSessionShown). A saved "wrist" reads This shot.
 //     The register never owns the tab: a press writes body.tab (the body persists it).
 //   • Replay keeps the preset as a quiet chip at the right of the tab row; it opens an inline list under the
 //     row (never a menu).
@@ -54,7 +56,9 @@ Item {
     readonly property bool replay: register === "Replay"
     readonly property bool cast: surface === "cast"
     readonly property bool castHeadOnly: cast && !interactive
-    readonly property string shown: replay && view === "kinds" ? "session" : (["shot", "session", "relations", "kinds"].indexOf(view) >= 0 ? view : "shot")
+    // an unknown tab (a "wrist" saved by the retired Wrist tab) reads This shot (the body keeps the saved tab)
+    readonly property string shown: replay && view === "kinds" ? "session"
+                                  : (["shot", "session", "relations", "kinds"].indexOf(view) >= 0 ? view : "shot")
 
     // ── demo: the register-level states (hover, an open picker); the body does the choice-level ones ──
     property real demoHoverMs: NaN
@@ -92,7 +96,9 @@ Item {
     }
 
     // ═══ the surface, zoomed as a whole on the cast ═══
+    // (This shot's wrist section, when drawn, adds its profile rows: ~9 em each)
     readonly property real castEm: (shown === "shot" ? 14 + 5.5 * Math.max(1, body && body.tShot && body.tShot.rows ? body.tShot.rows.length : 1)
+                                         + (body && body.wristShotShown && body.wShot.profile ? 6 + 9 * (body.wShot.profile.rows || []).length : 0)
                                   : shown === "session" ? 12 + 5.5 * Math.max(1, body && body.tSession && body.tSession.rows ? body.tSession.rows.length : 1)
                                   : 30)
     readonly property real zoom: cast ? Math.max(1, Math.min(1.6, width / (42 * ro.em), height / ((castEm + 4) * ro.em))) : 1
@@ -145,8 +151,9 @@ Item {
             roles: ro; brush: br
             current: root.shown
             interactive: root.interactive
-            // Replay: the preset as a quiet chip at the right of the tab row
-            chip: root.replay ? (root.tc.presetTitle || "") : ""
+            // the preset as a quiet chip at the right of the tab row, in both registers: Analyse also offers it under
+            // Controls, but a folded Controls hid the only way to change it (Mark, 16 Oct)
+            chip: root.tc.presetTitle || ""
             chipOn: root.presetOpen
             chipObjectName: "chPresetChip"
             onChipActivated: root.presetOpen = !root.presetOpen
@@ -159,13 +166,13 @@ Item {
             width: parent.width
             PpInlinePicker {
                 objectName: "chPresetPicker"
-                visible: root.replay && root.presetOpen && !root.castHeadOnly
+                visible: root.presetOpen && !root.castHeadOnly
                 open: visible; width: Math.min(under.width, ro.u(380))
                 roles: ro; interactive: root.interactive
                 title: "Metrics to trace"
                 items: visible ? (root.tc.presets || []).map(function (p) { return { id: p.id, label: p.label, note: String(p.count) } }) : []
                 current: root.tc.preset || ""
-                clearLabel: "The default for Replay"
+                clearLabel: root.replay ? "The default for Replay" : "The default for Analyse"
                 itemObjectName: "chPresetOption"; clearObjectName: "chPresetDefault"
                 onPicked: (id) => { if (root.body) root.body.choose("preset", id); root.presetOpen = false }
             }

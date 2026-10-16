@@ -57,6 +57,8 @@
 // The Charts panel's fixture feeder (below): the presenters' setSnapshot is C++-only.
 #include "charts/charts_relations_presenter.h"
 #include "charts/charts_traces_presenter.h"
+#include "charts/charts_wrist_presenter.h"
+#include "charts/session_wrist.h"
 #include "tests/charts_maths_fixture.h"
 
 #include <QQmlContext>
@@ -163,14 +165,18 @@ public:
                  { QStringLiteral("kinematicSequence"), s.kinematicSequence } };
     }
 
-    // Feed `presenters` (any mix of ChartsTracesPresenter / ChartsRelationsPresenter) one snapshot of
-    // the fixture. A traces presenter is detached from its SessionSeriesModel first (the model's
-    // snapshot would win over a direct one). Options, all optional:
+    // Feed `presenters` (any mix of ChartsTracesPresenter / ChartsRelationsPresenter /
+    // ChartsWristPresenter) one snapshot of the fixture. A traces or wrist presenter is detached from its
+    // SessionSeriesModel first (the model's snapshot would win over a direct one). Options, all optional:
     //   none: true           no session at all (an empty snapshot with no folder)
     //   shots: n             the first n shots only (n < 3: the session refusals)
     //   without: [ordinal]   shots left out of the session (a live shot not yet landed)
     //   clubs: { "3": "DRIVER" }                    relabel shots' clubs (mixed clubs)
     //   unmeasured: { key, phase, ordinals: [..] }  drop a reading's phase sample from shots
+    //   wrist: true          give every shot its wrist checkpoint profile (ShotSeries::wrist, as
+    //                        SessionSeriesModel fills it; the fixture's pose trail wrist), so the Wrist
+    //                        tab is offered. Without it the payload stays empty: no shot carries a
+    //                        wrist reading and the tab is not offered.
     // Returns the number of shots in the snapshot fed (−1 when the fixture did not load).
     Q_INVOKABLE int feed(const QVariantList &presenters, const QVariantMap &opts = {})
     {
@@ -187,6 +193,7 @@ public:
             for (const QVariant &v : opts.value(QStringLiteral("without")).toList()) without << v.toInt();
             const QVariantMap clubs = opts.value(QStringLiteral("clubs")).toMap();
             const QVariantMap un = opts.value(QStringLiteral("unmeasured")).toMap();
+            const bool wrist = opts.value(QStringLiteral("wrist")).toBool();
             QList<int> unOrd;
             for (const QVariant &v : un.value(QStringLiteral("ordinals")).toList()) unOrd << v.toInt();
             for (const auto &sh : m_fx.session.shots) {
@@ -201,6 +208,8 @@ public:
                     auto &ps = c->metrics[un.value(QStringLiteral("key")).toString()].phaseSamples;
                     ps.erase(std::remove_if(ps.begin(), ps.end(), [ph](const PhaseSample &x) { return x.phase == ph; }), ps.end());
                 }
+                if (wrist) { withWristCurve(*c); c->wrist = shotWristPayload(*c, -1, {}); }
+                else c->wrist = QVariantMap{};
                 s->shots.push_back(c);
             }
         }
@@ -208,8 +217,39 @@ public:
             QObject *o = v.value<QObject *>();
             if (auto *t = qobject_cast<ChartsTracesPresenter *>(o)) { t->setModel(nullptr); t->setSnapshot(s); }
             else if (auto *r = qobject_cast<ChartsRelationsPresenter *>(o)) r->setSnapshot(s);
+            else if (auto *w = qobject_cast<ChartsWristPresenter *>(o)) { w->setModel(nullptr); w->setSnapshot(s); }
         }
         return s->count();
+    }
+
+    // ⚠ THE TRIMMED FIXTURE KEEPS NO WRIST CURVE: trim_fixture.py kept curves for the six speeds only, so
+    // the pose trail wrist (trailWristFlexExt) carries just its phase readings (address, top, impact,
+    // finish) and shotWristPayload — which builds from the series, as SessionSeriesModel does — returns
+    // an empty payload. `wrist: true` therefore draws the shot's curve THROUGH those readings: piecewise
+    // linear, flat beyond the first and last, at 4 ms over the shot's phase span. Every checkpoint the
+    // engine samples reads a value made from this swing's own readings, never an invented one.
+    static void withWristCurve(pinpoint::charts::ShotSeries &c)
+    {
+        auto it = c.metrics.find(QStringLiteral("trailWristFlexExt"));
+        if (it == c.metrics.end() || !it->tUs.empty()) return;
+        std::vector<std::pair<qint64, double>> at;
+        for (const auto &p : it->phaseSamples) if (std::isfinite(p.value)) at.emplace_back(p.tUs, p.value);
+        if (at.size() < 2) return;
+        std::sort(at.begin(), at.end());
+        qint64 t0 = at.front().first, t1 = at.back().first;
+        for (const auto &p : c.phases) { t0 = std::min(t0, p.tUs); t1 = std::max(t1, p.tUs); }
+        size_t j = 0;
+        for (qint64 t = t0; t <= t1; t += 4000) {
+            while (j + 1 < at.size() && at[j + 1].first <= t) ++j;
+            double v = at[j].second;
+            if (t <= at.front().first) v = at.front().second;
+            else if (j + 1 < at.size()) {
+                const double f = double(t - at[j].first) / double(at[j + 1].first - at[j].first);
+                v = at[j].second + f * (at[j + 1].second - at[j].second);
+            }
+            it->tUs.push_back(t);
+            it->value.push_back(v);
+        }
     }
 
     // Put a test's fake controller on this file's engine root context, under the app's name.

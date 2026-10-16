@@ -307,6 +307,19 @@ public:
     using ReadAt = std::function<std::vector<int>(const QString &key)>;
     void setReadAt(ReadAt readAt);
 
+    // ADDED 15 Oct (build/wrist-tab): "what moves with <readingId>" for a caller that asks its own
+    // question, whatever the Relations tab's Up is — the Wrist tab's "what moves with the lead wrist at
+    // impact". The SAME readings, r, interval and ledger rows as `relations.ledger` (one row builder),
+    // computed on the CALLER's thread from `snapshot` (the Wrist presenter's worker): the top `k`
+    // readings that are not the same quantity, then the top `lmK` launch-monitor (lm.*) readings not
+    // already among them, each with its rank in the full ledger. Shape:
+    //   { available, refusal (Sentence; below five shots, or the reading not read on three),
+    //     upId, up: { readingId, key, label, short, tag, unit, group, text }, head (Sentence),
+    //     chance: { n, tests, clearCount, chanceCount, rCritical, rCriticalText, line (Sentence) },
+    //     rows: [LEDGER ROW as relations.ledger], note (Sentence: "A small session. " + co-occurrence) }
+    static QVariantMap movesWith(const std::shared_ptr<const SessionSnapshot> &snapshot, const QString &readingId,
+                                 int k, int lmK, const ReadAt &readAt = {});
+
     struct Output;
     struct Cache;
 

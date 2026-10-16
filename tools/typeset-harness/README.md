@@ -3,7 +3,7 @@
 Renders QML you write over a real stage panel in the real app, fed the real data, in the real stage
 arrangement, with nothing built. The app's `--probe-qml` hook (dev builds only) loads a probe script,
 and the probe loads your mock. It is how Session diagnostics was redesigned on 11 October 2026, and
-how the other stage panels (Charts, Wrist motion, Table, Launch monitor, Markup, the camera's chrome)
+how the other stage panels (Charts, Table, Launch monitor, Markup, the camera's chrome)
 are meant to be redesigned.
 
 Read first: the method, `docs/design/stage_typeset_playbook.md`, and the spec, section 15 of
@@ -134,11 +134,11 @@ Rules that keep a mock safe:
 | Panel | Target | State |
 |---|---|---|
 | `diagnostics` | `sdBody` (the only stage body with an objectName) | Proven: three rounds and a live try-out. |
-| `charts`, `table`, `wristMotion`, `launchMonitor`, `camera`, `markup`, `swing3d` | `key:<stageKey>` | Starting points. `charts` has been rendered and dumped through `key:charts`; the others are untested. |
+| `charts` | `chBody` | The real panel since 14 Oct; views `shot,session,relations,kinds`; This shot and Session add a "Wrist" section when a wrist metric is on show on a wrist session (16 Oct; `--states "preset:Wrist & forearm"`). |
+| `table`, `launchMonitor`, `camera`, `markup`, `swing3d` | `key:<stageKey>` | Starting points, untested. (Wrist motion retired 15 Oct 2026: it is the wrist section of Charts' This shot and Session.) |
 
 Only Session diagnostics' body has an `objectName`. The others are reached through their stage card
-(`key:`), so no source change was needed. A panel whose data lives on an inner id (Wrist motion's
-`dx`, Table's `src`) has to expose it on its root before a mock can read it. That is a source change
+(`key:`), so no source change was needed. A panel whose data lives on an inner id (Table's `src`) has to expose it on its root before a mock can read it. That is a source change
 and costs a build: batch such changes into one build. A body that is to be redesigned this way should
 expose its data, its current view (Session diagnostics: `tab`, `_tab`, `view`) and its actions
 (`_openDetail(id)`, `_closeDetail()`, `detailOpen`).
@@ -147,7 +147,7 @@ expose its data, its current view (Session diagnostics: `tab`, `_tab`, `view`) a
 
 ```
 render_stage.sh [--slot base] [--screen normal|tall|mark] <tag> <analyse|replay> <themes> <layouts> <panels> [settle_ms=3000] [timeout_s=900]
-render_stage.sh audit analyse 12,7 full,half,third camera,swing3d,launchMonitor,wristMotion,charts,table,markup
+render_stage.sh audit analyse 12,7 full,half,third camera,swing3d,launchMonitor,charts,table,markup
 ```
 
 Output: `<tag>_<mode>_<layout>_<aesthetic>_<light|dark>_<panel>_{window,panel}.png`. The panel grab is
@@ -156,7 +156,7 @@ the stage card, with its title. For `assemble_review.py` that is tag `<tag>_<mod
 ## try.sh
 
 ```
-try.sh [--selftest] [--slot try] <panel profile | target> <overlay.qml>
+try.sh [--selftest] [--slot try] [--ordinal N] <panel profile | target> <overlay.qml>
 try.sh --selftest diagnostics path/to/Panel.qml       # an agent runs this first, and it must pass
 try.sh diagnostics path/to/Panel.qml                  # then Mark: windowed, quit the app to finish
 ```
@@ -169,7 +169,9 @@ try.sh diagnostics path/to/Panel.qml                  # then Mark: windowed, qui
 - In the tabs arrangement the probe selects the panel's tab.
 - The self-test runs offscreen and muted. It drives every tab in Replay, switches to Analyse (which
   rebuilds the stage), drives every tab again, then opens a detail and goes Back. It prints PASS or
-  FAIL for each step, then `RESULT`, and exits 0 only on a pass.
+  FAIL for each step, then `RESULT`, and exits 0 only on a pass. A drill-in with nothing to open on
+  this data (Charts: an empty Apart list) prints SKIP instead and counts as neither.
+- `--ordinal N` opens shot N (default 8); pick one the slot's session has.
 - The try-out runs under the guard with an 8 GB limit.
 
 ## assemble_review.py
