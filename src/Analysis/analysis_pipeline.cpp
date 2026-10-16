@@ -858,6 +858,14 @@ struct SegResolveStage : AnalysisStage {
     StageDecl decl() const override { return D({ kSegImu, kSegVision }, { kSeg }, {}); }
     void run(AnalysisContext &ctx) override
     {
+        // A REUSED LADDER IS THE LADDER. The recorded one was refined, given its P-positions and
+        // fused against the club track when it was made, and every stage that would redo that skips
+        // itself on a reuse (EventRefine, PositionsLadder, TimelineFusion: `!ladderPreloaded`). So it
+        // must win here too, IMU or not: taking the freshly re-segmented IMU ladder instead handed the
+        // rest of the run a raw version-2 ladder with the refinement and the fusion stripped (16 Oct
+        // 2026: both 18 August sessions, face-on + arm sensors, lost P8 by ~0.7 s and a phase on every
+        // swing). The wrist metrics still read ctx.segImu, which is the same IMU data re-segmented.
+        if (ctx.job.ladderPreloaded) { ctx.seg = *ctx.job.ladderPreloaded; return; }
         ctx.seg = ctx.segImu
                       ? *ctx.segImu
                       : (ctx.segVision && ctx.segVision->conf > 0.f ? *ctx.segVision
