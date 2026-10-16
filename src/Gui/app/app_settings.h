@@ -140,6 +140,9 @@ class AppSettings : public QObject
     // options, not per-mode): whether a just-captured shot auto-replays, and
     // whether replay playback is trimmed to the detected swing (Address → Finish).
     Q_PROPERTY(bool    autoReplayAfterCapture READ autoReplayAfterCapture WRITE setAutoReplayAfterCapture NOTIFY autoReplayAfterCaptureChanged)
+    // …and whether picking a swing in Replay or Analyse starts it playing, or loads it paused at
+    // its first frame. Off by default: a swing picked to be looked at should hold still.
+    Q_PROPERTY(bool    autoReplayAfterSelect  READ autoReplayAfterSelect  WRITE setAutoReplayAfterSelect  NOTIFY autoReplayAfterSelectChanged)
     Q_PROPERTY(bool    replayTrimToSwing    READ replayTrimToSwing    WRITE setReplayTrimToSwing    NOTIFY replayTrimToSwingChanged)
     Q_PROPERTY(bool    reduceMotion READ reduceMotion WRITE setReduceMotion NOTIFY reduceMotionChanged)
     Q_PROPERTY(bool    gradientTitles READ gradientTitles WRITE setGradientTitles NOTIFY gradientTitlesChanged)
@@ -415,6 +418,7 @@ public:
         m_diagnosticsRailCollapsed =
             ppSettings().value(QStringLiteral("ui/diagnosticsRailCollapsed"), false).toBool();
         m_autoReplayAfterCapture = ppSettings().value(QStringLiteral("ui/autoReplayAfterCapture"), true).toBool();
+        m_autoReplayAfterSelect  = ppSettings().value(QStringLiteral("ui/autoReplayAfterSelect"),  false).toBool();
         m_replayTrimToSwing = ppSettings().value(QStringLiteral("ui/replayTrimToSwing"), false).toBool();
         m_reduceMotion    = ppSettings().value(QStringLiteral("ui/reduceMotion"),    false).toBool();
         m_gradientTitles  = ppSettings().value(QStringLiteral("ui/gradientTitles"),  true).toBool();
@@ -596,6 +600,7 @@ public:
     bool    diagnosticsFacetsCollapsed() const { return m_diagnosticsFacetsCollapsed; }
     bool    diagnosticsRailCollapsed() const { return m_diagnosticsRailCollapsed; }
     bool    autoReplayAfterCapture() const { return m_autoReplayAfterCapture; }
+    bool    autoReplayAfterSelect()  const { return m_autoReplayAfterSelect; }
     bool    replayTrimToSwing()   const { return m_replayTrimToSwing; }
     bool    reduceMotion()  const { return m_reduceMotion; }
     bool    gradientTitles() const { return m_gradientTitles; }
@@ -863,6 +868,14 @@ public:
         m_autoReplayAfterCapture = v;
         ppSettings().setValue(QStringLiteral("ui/autoReplayAfterCapture"), v);
         emit autoReplayAfterCaptureChanged();
+    }
+
+    void setAutoReplayAfterSelect(bool v)
+    {
+        if (m_autoReplayAfterSelect == v) return;
+        m_autoReplayAfterSelect = v;
+        ppSettings().setValue(QStringLiteral("ui/autoReplayAfterSelect"), v);
+        emit autoReplayAfterSelectChanged();
     }
 
     void setReplayTrimToSwing(bool v)
@@ -1654,6 +1667,7 @@ signals:
     void diagnosticsFacetsCollapsedChanged();
     void diagnosticsRailCollapsedChanged();
     void autoReplayAfterCaptureChanged();
+    void autoReplayAfterSelectChanged();
     void replayTrimToSwingChanged();
     void reduceMotionChanged();
     void gradientTitlesChanged();
@@ -1776,6 +1790,7 @@ private:
     bool        m_diagnosticsFacetsCollapsed = false;
     bool        m_diagnosticsRailCollapsed = false;
     bool    m_autoReplayAfterCapture = true;
+    bool    m_autoReplayAfterSelect  = false;
     bool    m_replayTrimToSwing = false;
     bool    m_reduceMotion    = false;
     bool    m_gradientTitles  = true;

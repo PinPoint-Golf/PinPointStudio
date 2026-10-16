@@ -103,9 +103,9 @@ Item {
 
         // ── REPLAY ──────────────────────────────────────────────────────────
         // Global replay behaviour (like TIMELINE above, stored on appSettings, not
-        // per-mode): whether a just-captured shot auto-replays, and whether replay
-        // playback is trimmed to the detected swing (Address → Finish). Both apply
-        // to post-capture playback AND replaying a selected past swing.
+        // per-mode): whether a just-captured shot auto-replays (Capture) or a picked
+        // swing starts playing (Replay/Analyse), and whether replay playback is
+        // trimmed to the detected swing (Address → Finish).
         Column {
             width: parent.width
             spacing: Theme.gap(9)
@@ -115,14 +115,20 @@ Item {
                 height: Theme.sp(20)
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("Auto-replay after capture")
+                    text: SessionMode.mode === SessionMode.capture ? qsTr("Auto-replay after capture")
+                                                                   : qsTr("Auto-replay after select")
                     font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2
-                    color: appSettings.autoReplayAfterCapture ? Theme.colorText : Theme.colorText2
+                    color: _replayToggle.checked ? Theme.colorText : Theme.colorText2
                 }
                 MiniToggle {
+                    id: _replayToggle
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                    checked: appSettings.autoReplayAfterCapture
-                    onToggled: appSettings.autoReplayAfterCapture = !checked
+                    checked: SessionMode.mode === SessionMode.capture ? appSettings.autoReplayAfterCapture
+                                                                      : appSettings.autoReplayAfterSelect
+                    onToggled: {
+                        if (SessionMode.mode === SessionMode.capture) appSettings.autoReplayAfterCapture = !checked
+                        else                                          appSettings.autoReplayAfterSelect  = !checked
+                    }
                 }
             }
             Item {

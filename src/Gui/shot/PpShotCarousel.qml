@@ -675,7 +675,7 @@ Item {
             // the shot stays focused. Force a reload when it's the one open now
             // (mirrors what re-selecting the shot already does).
             if (shotReplay.active && shotReplay.swingDir === swingDir)
-                shotReplay.start(shotReplay.shotId, swingDir, shotReplay.speed)
+                shotReplay.start(shotReplay.shotId, swingDir, shotReplay.speed, shotReplay.playing)
         }
         function onReanalyseFinished(succeeded, failed, lastError) {
             root._reanalyseQueuedCount = 0

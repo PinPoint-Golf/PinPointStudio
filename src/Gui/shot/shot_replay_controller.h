@@ -95,8 +95,10 @@ public:
 
     // Start replaying the shot at `swingDir` for carousel row `shotId`. `speed`
     // is the capture-time multiplier (1.0 = real time), clamped to 0.1..1.
-    // Returns false if the doc has no playable video stream.
-    Q_INVOKABLE bool start(int shotId, const QString &swingDir, double speed = 0.25);
+    // Returns false if the doc has no playable video stream. `autoPlay` false loads
+    // the swing paused on its first frame (Replay/Analyse with auto-replay after
+    // select off) instead of starting playback.
+    Q_INVOKABLE bool start(int shotId, const QString &swingDir, double speed = 0.25, bool autoPlay = true);
     Q_INVOKABLE void stop();
     Q_INVOKABLE void togglePlay()                 { m_source->togglePlay(); }
     Q_INVOKABLE void seekToFraction(double frac)  { m_source->seekToFraction(frac); }

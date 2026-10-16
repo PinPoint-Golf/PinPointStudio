@@ -63,13 +63,19 @@ QVariantList ShotReplayController::streams() const
     return out;
 }
 
-bool ShotReplayController::start(int shotId, const QString &swingDir, double speed)
+bool ShotReplayController::start(int shotId, const QString &swingDir, double speed, bool autoPlay)
 {
     if (swingDir.isEmpty())
         return false;
 
     const bool trim = m_appSettings && m_appSettings->replayTrimToSwing();
     if (m_source->load(swingDir, std::clamp(speed, 0.1, 1.0), trim)) {
+        // The source always begins playing; hold it on the first frame instead. The seek
+        // after the pause is what puts that frame up on the paused players.
+        if (!autoPlay && m_source->playing()) {
+            m_source->togglePlay();
+            m_source->seekToUs(m_source->positionUs());
+        }
         m_shotId   = shotId;
         m_swingDir = swingDir;
         m_active   = true;

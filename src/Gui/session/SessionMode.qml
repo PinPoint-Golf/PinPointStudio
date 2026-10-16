@@ -112,7 +112,9 @@ QtObject {
     function enterReplay(shotId, swingDir, fromCapture) {
         focusedShotId   = shotId
         focusedSwingDir = swingDir
-        showReplay()                              // clears autoReturnToCapture
+        autoReturnToCapture = false
+        mode = replay
+        _loadFocused(fromCapture === true)
         autoReturnToCapture = (fromCapture === true)
     }
 
@@ -142,9 +144,13 @@ QtObject {
     // Load the focused swing onto the stage, unless it is already the loaded one
     // (so toggling Replay↔Analyse, or re-clicking the focused card, never restarts
     // playback). One replay surface now (the session stage) — no target arg.
-    function _loadFocused() {
+    // The post-shot replay always plays (it is already gated on "Auto-replay after
+    // capture"); a swing picked in Replay or Analyse plays only with "Auto-replay
+    // after select" on, else it loads paused on its first frame.
+    function _loadFocused(fromCapture) {
         if (focusedShotId >= 0 && focusedSwingDir !== ""
                 && shotReplay.shotId !== focusedShotId)
-            shotReplay.start(focusedShotId, focusedSwingDir, 0.25)
+            shotReplay.start(focusedShotId, focusedSwingDir, 0.25,
+                             fromCapture === true || appSettings.autoReplayAfterSelect)
     }
 }
