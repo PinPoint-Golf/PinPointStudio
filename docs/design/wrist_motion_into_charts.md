@@ -291,3 +291,52 @@ The alignment comes FIRST, under the Wrist tab, because the tab shows the condit
 
 Regrading changes results the golfer has seen, so steps 1–3 are judged on the 18 Aug swings and the
 library before commit.
+
+## 8. Build record (15–16 Oct 2026)
+
+Built as planned (§7.4 order, then B). Three app builds; every affected test target green (33 ctest
+targets incl. the full `qml_ui`). Working notes: `build/wrist-tab/` (CONTRACT, STEP_0D…STEP_5,
+before/after dumps). Try-out: `build/run-me/wrist-tab-tryout.sh` (+ `.md`).
+
+- **Engine P2** now reads shaft-parallel back (phase 12). The test fixture had also pinned P5 and P8 on
+  the wrong phases (both silently grey); it now asserts it matches `wristCheckpoints()`.
+- **Forearm rotation:** measures `m_leadForearmRotation_p2/p4/p7` read `forearmRotation`, preferring
+  `hm.forearmRotation`, with placeholder norm rows (±270° before anything flags). They are added as
+  alternative signals on the six roll conditions. Those conditions stay unassessable on wrist-sensor
+  swings until the directed capture sets real corridors.
+- **Casting** reads the lead-wrist hinge at P6 first (`detection: first`), lag angle otherwise. On a swing
+  with both, a cast that only the lag angle shows no longer fires.
+- **One judge:** a `domain: wrist` tag on 15 conditions; `scoreWristDomain` (header-only, weights from the
+  engine's rule table, pinned by a test) gives the Wrist tab's score. Findings use the session's tier
+  words (pattern / watching); cells keep their band grades, and the caption says which is which.
+- **Charts:** a `ShotSeries::wrist` payload (session-wide band override), the Reference ★ on every metric
+  (`referenceSwingDir`, cross-session), `ChartsWristPresenter`, the Wrist tab (This shot · Session,
+  Replay = This shot), the Wrist screen opens on it (`defaultTab`).
+- **Retired:** the `wristMotion` stage key (saved layouts migrated to `charts` once, on load) and seven QML
+  files. `WristDiagnosticsModel` C++ stays: nothing in the app uses it now, only the dump probe.
+
+Before → after on the 11 wrist-sensor swings: P2 cells moved from 0° on every joint to real readings
+(hinge −6…−22°, bow/cup +3…−24°); Casting fires on 1 shot (the engine's own cast rule fired on 6); the
+cupped-at-the-top and scooping verdicts are unchanged. 18 Aug Wrist_02 shot 3 scores 78 on the wrist
+conditions (the engine said 84).
+
+**Still owed:** the shot-card score is still the analysis-time engine score (moving it onto the conditions is a pipeline change not yet made; a re-analysis alone would only refresh the engine score with the new P2);
+the directed capture for the rotation sign; the conditions' `consequence` texts carry author notes with ids
+(Session diagnostics still shows them; the Wrist tab no longer does).
+
+### 8.1 Reworked after Mark's review (16 Oct 2026): the wrist folds into the standard views
+
+Mark's review of the tab: the wrist should not be a page of its own. Charts keeps one standard way of
+showing the data (the curves), and domain insight is added where it is meaningful. So there is **no Wrist
+tab**. A **Wrist section** (`PpChWristShotSection`, `PpChWristSession`) appears under the curves on This shot,
+and after the standard content on Session, when the shot (or session) carries a wrist reading **and** a wrist
+metric is among the curves on show (the wrist presenter's strip rows' keys against the traces' metrics that
+are on). The presenter's scope follows the shown view. The Wrist screen opens This shot on the
+*Wrist & forearm* preset (`defaultPreset`, used when no preset is saved for that screen); a saved "wrist" tab
+reads This shot. The old tab's "beside your session" list is dropped: This shot's "every reading against
+the session" already carries it.
+
+**Registers:** the glance (Replay register) is now for the mat only: live Capture, the auto-replay after a
+shot (`SessionMode.autoReturnToCapture`) and the cast. A Replay the golfer opens to review a session reads
+in depth, as Analyse does, across all of Charts. In the glance the wrist section is This shot only: head,
+score line and profile, no controls. Session diagnostics still uses the old rule.
