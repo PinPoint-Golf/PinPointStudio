@@ -163,7 +163,7 @@ PpTypeset {
     function afterWords(n) { return (n === undefined || n === null) ? "" : n === 0 ? "none after this one" : (word(n) + " more after this one") }
 
     // ── B's sentences (long and short forms), built from the data ──
-    function shotStandfirst(readout, long) {
+    function shotStandfirst(readout, longForm) {
         const cs = (readout && readout.conditions) || []
         const fired = cs.filter(c => c.stateKind === "fired"), clean = cs.filter(c => c.stateKind === "clean")
         const na = cs.filter(c => c.stateKind === "notAssessable")
@@ -171,11 +171,11 @@ PpTypeset {
         const naTail = na.length ? ", and " + word(na.length) + " could not be measured." : "."
         // zero counts are words, never "no" (R, round 4): "All 78 … stayed inside", "none of them is a session pattern yet"
         if (fired.length === 0) {
-            if (!long) return "All " + figHtml(m) + " conditions stayed inside their corridors."
+            if (!longForm) return "All " + figHtml(m) + " conditions stayed inside their corridors."
             return "All " + figHtml(m) + " conditions read on this swing stayed inside their corridors" + naTail
         }
         const watched = fired.length - pats
-        if (!long) return cap1(word(fired.length)) + " of " + figHtml(m) + " conditions went outside their corridor; "
+        if (!longForm) return cap1(word(fired.length)) + " of " + figHtml(m) + " conditions went outside their corridor; "
                         + (pats === 0 ? "none of them is a session pattern yet." : word(pats) + (pats === 1 ? " is a session pattern." : " are session patterns."))
         const split = pats === 0 ? "none of them among the session’s patterns, all still being watched"
                     : watched === 0 ? (fired.length === 1 ? "one of the session’s patterns" : "all of them among the session’s patterns")
@@ -183,18 +183,18 @@ PpTypeset {
         return "Of the " + figHtml(m) + " conditions read on this swing, " + word(fired.length) + " went outside their corridor: " + split
              + ". The other " + figHtml(clean.length) + " stayed inside" + naTail
     }
-    function sessionStandfirst(cards, readout, long) {
+    function sessionStandfirst(cards, readout, longForm) {
         const cs = cards || [], f = cs.filter(c => c.thisShot === "fired").length
         const n = readout ? readout.shotCount : 0, s = shotNo(readout)
-        if (!long) return "Counted over " + figHtml(n) + " shots. Shot " + figHtml(s) + " was outside on " + countWord(f) + " of them."
+        if (!longForm) return "Counted over " + figHtml(n) + " shots. Shot " + figHtml(s) + " was outside on " + countWord(f) + " of them."
         return "Counted over all " + figHtml(n) + " shots, " + word(cs.length) + (cs.length === 1 ? " condition recurs" : " conditions recur") + " often enough to call habits. Shot "
              + figHtml(s) + " went outside the corridor on " + countWord(f) + " of them."
     }
-    function watchStandfirst(source, readout, long) {
+    function watchStandfirst(source, readout, longForm) {
         const ws = (source && source.watching) || [], cs = (readout && readout.conditions) || []
         const here = ws.filter(w => { const c = byId(cs, w.id); return c && c.stateKind === "fired" }).length
         const n = readout ? readout.shotCount : 0, s = shotNo(readout)
-        if (!long) return "Outside at least once, not yet a habit. Shot " + figHtml(s) + " was outside on " + countWord(here) + "."
+        if (!longForm) return "Outside at least once, not yet a habit. Shot " + figHtml(s) + " was outside on " + countWord(here) + "."
         return cap1(word(ws.length)) + (ws.length === 1 ? " condition" : " conditions") + " went outside their corridor at least once in " + figHtml(n)
              + " shots, but not often enough to count as habits. Shot " + figHtml(s) + " went outside on " + countWord(here) + " of them."
     }

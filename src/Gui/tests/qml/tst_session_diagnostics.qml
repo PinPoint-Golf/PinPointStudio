@@ -3019,12 +3019,12 @@ Item {
             showTab("shot")
             probe.height = 560
             laidOut()
-            const short = shownAll(viewOf("shot"), "sdDotRow").length
+            const shortH = shownAll(viewOf("shot"), "sdDotRow").length
             probe.height = 1100
             laidOut()
             const tall = shownAll(viewOf("shot"), "sdDotRow").length
-            verify(short >= 10, "every firing is drawn at any height (" + short + ")")
-            verify(tall > short, "a taller panel admits more rows (" + short + " → " + tall + ")")
+            verify(shortH >= 10, "every firing is drawn at any height (" + shortH + ")")
+            verify(tall > shortH, "a taller panel admits more rows (" + shortH + " → " + tall + ")")
             verify(tall <= 76, "and only the measured ones")
         }
 
