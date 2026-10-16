@@ -263,6 +263,66 @@ inline QString routeWords(const QString &route)
     return w.value(route, route);
 }
 
+// ── Subjects ────────────────────────────────────────────────────────────────────────────────
+// A record's subject as the reader names the reading ("ks.pelvis" → "Pelvis peak"). One table, read by
+// the Trust panel, the Charts marks and the diagnostics' "not judged" reasons alike.
+inline QString subjectLabel(const QString &subject)
+{
+    static const QHash<QString, QString> w{
+        { QStringLiteral("ks.pelvis"),  QStringLiteral("Pelvis peak") },
+        { QStringLiteral("ks.thorax"),  QStringLiteral("Chest peak") },
+        { QStringLiteral("ks.leadArm"), QStringLiteral("Lead arm peak") },
+        { QStringLiteral("ks.club"),    QStringLiteral("Club peak") } };
+    if (w.contains(subject)) return w.value(subject);
+    if (subject.startsWith(QLatin1String("route.")))
+        return QStringLiteral("The ") + routeWords(subject.mid(6)) + QStringLiteral(" route");
+    return subject;
+}
+
+// The subject a PRODUCED METRIC stands on: the kinematic sequence emits its node readings
+// (segment_rates.cpp sequencePeakTimeSeries / sequenceNodeSeries) only for nodes it placed, so a
+// missing `pelvisPeakTime` IS the pelvis node a gate refused. "" for a metric no record speaks for.
+inline QString subjectForMetricKey(const QString &metricKey)
+{
+    static const struct { const char *prefix, *subject; } segs[] = {
+        { "pelvis", "ks.pelvis" }, { "thorax", "ks.thorax" }, { "leadArm", "ks.leadArm" }, { "club", "ks.club" } };
+    static const char *const kinds[] = { "PeakTime", "PeakSpeed", "ReversalTime" };
+    for (const auto &sg : segs)
+        for (const char *k : kinds)
+            if (metricKey == QLatin1String(sg.prefix) + QLatin1String(k)) return QString::fromLatin1(sg.subject);
+    return {};
+}
+
+// The record a claim about `subject` shows (trust_and_gates_design.md §3.3): of the records that
+// refused, bounded or withheld it, the one that says the most — a bound first (out of sight, in a
+// gap, still rising), then the gates that leave nothing, the σ ceiling last; a withheld record only
+// when nothing refused. nullptr when no record acted on the subject (a masked band refuses nothing).
+inline const analysis::GateRecord *primaryRecord(const std::vector<analysis::GateRecord> &recs, const QString &subject)
+{
+    static const QStringList rank{ QStringLiteral("sequence.sightedBand"), QStringLiteral("sequence.validityHole"),
+                                   QStringLiteral("sequence.risingAtEnd"), QStringLiteral("sequence.reversalSpike"),
+                                   QStringLiteral("sequence.routePlacement"), QStringLiteral("sequence.credibleClub"),
+                                   QStringLiteral("sequence.maxPlaceSigma") };
+    const auto score = [&](const analysis::GateRecord &r) {
+        const int k = int(rank.indexOf(r.gate));
+        switch (r.effect) {
+        case GateEffect::Bounded:  return 0 + (k < 0 ? 99 : k);
+        case GateEffect::Refused:  return 100 + (k < 0 ? 99 : k);
+        case GateEffect::Withheld: return 300;
+        default:                   return 1000;
+        }
+    };
+    const analysis::GateRecord *best = nullptr;
+    for (const analysis::GateRecord &r : recs)
+        if (r.subject == subject && score(r) < 1000 && (!best || score(r) < score(*best))) best = &r;
+    return best;
+}
+
+// A reading a gate kept out of a finding, in the words a "not judged" cell shows: "pelvis peak out of
+// sight", "club peak not judged". Lower-case, no full stop: it is a clause.
+inline QString notJudgedClause(const QString &subject, const QString &gateId);
+
+
 namespace detail {
 
 inline QString minusSigned(double v, int dec, bool plus)
@@ -344,6 +404,22 @@ inline QString evidenceText(const GateEntry &e, const QVariantMap &evidence)
     return out;
 }
 
+inline QString notJudgedClause(const QString &subject, const QString &gateId)
+{
+    const GateEntry *e = gateEntry(gateId);
+    const QString who = subjectLabel(subject).toLower();
+    if (!e) return who;
+    // a gate that only withholds keeps the reading on screen: "club peak drawn, not judged"
+    const bool onlyWithholds = e->effects.size() == 1 && e->effects.front() == GateEffect::Withheld;
+    return who + QLatin1Char(' ') + (onlyWithholds ? e->title.left(1).toLower() + e->title.mid(1) : e->shortText);
+}
+
+// One gate behind a reading, as every surface lists it (the Trust panel, the in-place block, the
+// diagnostics' reason): { gate, effect, effectWord, title, evidence, explain, tuning, lift, primary }.
+// `tried` = routes the swing already ran for the subject, never offered as a lift.
+inline QVariantMap gateItem(const GateEntry &e, const QString &effect, const QVariantMap &evidence,
+                            const QString &subject, const QStringList &tried, bool primary);
+
 // "Timed on swings with the down-the-line camera or a pelvis sensor." — the routes without this gate
 // that apply to `subject` (all of them when the subject is empty), less the routes this swing already
 // ran (`tried`: a two-camera swing whose two-camera route withdrew is not told to add the camera it
@@ -364,6 +440,32 @@ inline QString liftText(const GateEntry &e, const QString &subject = QString(), 
     QString list = words.size() == 1 ? words.first()
                  : QStringList(words.mid(0, words.size() - 1)).join(QStringLiteral(", ")) + QStringLiteral(" or ") + words.last();
     return QStringLiteral("Timed on swings with ") + list + QStringLiteral(".");
+}
+
+inline QVariantMap gateItem(const GateEntry &e, const QString &effect, const QVariantMap &evidence,
+                            const QString &subject, const QStringList &tried, bool primary)
+{
+    const auto effectWord = [](const QString &x) {
+        if (x == QLatin1String("withheld"))   return QStringLiteral("not judged");
+        if (x == QLatin1String("downgraded")) return QStringLiteral("fell back");
+        if (x == QLatin1String("masked"))     return QStringLiteral("marked on the chart");
+        return x;
+    };
+    QStringList tun;
+    for (const GateTuning &t : e.tuning) {
+        if (t.unit == QLatin1String("switch")) continue;
+        const QString v = detail::minusSigned(t.value, std::fabs(t.value - std::round(t.value)) < 1e-9 ? 0 : 2, false);
+        tun << (t.unit == QStringLiteral("°") ? v + t.unit : t.unit.isEmpty() ? v : v + QChar(0x00A0) + t.unit);
+    }
+    return { { QStringLiteral("gate"), e.id },
+             { QStringLiteral("effect"), effect },
+             { QStringLiteral("effectWord"), effectWord(effect) },
+             { QStringLiteral("title"), e.title },
+             { QStringLiteral("evidence"), evidenceText(e, evidence) },
+             { QStringLiteral("explain"), e.explain },
+             { QStringLiteral("tuning"), tun.isEmpty() ? QString() : QStringLiteral("Threshold ") + tun.join(QStringLiteral(", ")) },
+             { QStringLiteral("lift"), liftText(e, subject, tried) },
+             { QStringLiteral("primary"), primary } };
 }
 
 } // namespace pinpoint::gates

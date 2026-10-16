@@ -1,6 +1,6 @@
 # Trust and gates: saying why a reading was refused
 
-**Status:** stages 0–3 built 16 October 2026 (stage 3 with the Trust panel of §7.0); stages 4–7 open. Written 16 October 2026.
+**Status:** stages 0–4 built 16 October 2026 (stage 3 with the Trust panel of §7.0; stage 4 as §4.4 below); stages 5–7 open. Written 16 October 2026.
 **Owner:** Mark.
 **Audience:** developers working on the analysis producers, the diagnostics engine, the Charts and
 diagnostics panels, and the Setup page.
@@ -166,6 +166,18 @@ characteristic cannot be judged on a shot because an input reading is Bounded or
 engine adds the characteristic to that record's `blocks` and records "not judged" against the
 characteristic, with the record id as its cause. A session pattern then reads "late pelvis: 0 of 0
 judged (6 not judged: pelvis peak out of sight)" instead of a silent "0 of 6".
+
+**As built (stage 4, 16 October 2026).** The diagnostics' per-swing grid carries the swing's records
+(`swing_phasegrid.json` schema 8). When a condition or a sequence check cannot be assessed because a
+measure is missing or withheld, and that measure's metric stands on a sequence node a gate refused
+(`gates::subjectForMetricKey`, `gates::primaryRecord`), the ledger row records the gate and the reading
+(`notJudgedGate`, `notJudgedSubject`, ledger schema 8) and its reason reads the gate's clause ("pelvis
+peak out of sight"). `blocks` is derived from the ledger rather than written back into the swing
+document: the Trust panel lists, under each reading, the findings that name it. Session diagnostics
+groups a shot's not-judged findings by that reading, each opening its reason (Trust panel, else in
+place), keeps a condition judged on no shot visible when a gate is the reason, and states per group
+"pelvis peak out of sight on 6 of 6 shots, so not judged there: …", with each finding's own judged
+count where it varies. No verdict is drawn from a bound yet (open decision 2).
 
 A Bounded reading may still decide a characteristic when the bound alone settles it (a pelvis peak
 "no earlier than 30 ms after impact" is late whatever its exact time). That is the characteristic's

@@ -115,6 +115,14 @@ public:
     MissingKind missingKind(const QString &measureId) const;
     QString     missingReason(const QString &measureId) const;
 
+    // THE GATE BEHIND AN ABSENT OR WITHHELD MEASURE (trust_and_gates_design.md §4.4). When a measure's
+    // metric stands on a sequence node (gates::subjectForMetricKey) and the swing's records say a gate
+    // refused, bounded or withheld that node, this names it: the gate id, the subject, and the clause
+    // a "not judged" cell reads ("pelvis peak out of sight"). Empty `gate` when no record speaks for it
+    // — a swing analysed before records existed, or a measure no gate acts on.
+    struct GateCause { QString gate, subject, clause; };
+    GateCause gateCause(const QString &measureId) const;
+
     // ── Identity, for context resolution ────────────────────────────────────
     //
     // Both come from the grid, which read them out of the swing doc (measure_sample.cpp). The club

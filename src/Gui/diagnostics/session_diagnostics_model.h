@@ -198,6 +198,10 @@ class SessionDiagnosticsModel : public QObject
     Q_PROPERTY(QString unchainedLine READ unchainedLine NOTIFY surfaceChanged)
     Q_PROPERTY(QVariantMap driver READ driver NOTIFY surfaceChanged)
     Q_PROPERTY(QString coverageLine READ coverageLine NOTIFY surfaceChanged)
+    // trust_and_gates_design.md §4.4: the conditions a gate kept from being judged on some shot —
+    // [{ id, name, judged, of, subject, text }] — and the same as one sentence (empty when none).
+    Q_PROPERTY(QVariantList notJudged READ notJudged NOTIFY surfaceChanged)
+    Q_PROPERTY(QString notJudgedLine READ notJudgedLine NOTIFY surfaceChanged)
     // Closing only; empty otherwise.
     Q_PROPERTY(QVariantList bookends READ bookends NOTIFY surfaceChanged)
     // Cold only; empty otherwise. Expectations to TEST, never findings — the wording says so
@@ -270,6 +274,8 @@ public:
     QString      unchainedLine() const { return m_unchainedLine; }
     QVariantMap  driver() const { return m_driver; }
     QString      coverageLine() const { return m_coverageLine; }
+    QVariantList notJudged() const { return m_notJudged; }
+    QString      notJudgedLine() const { return m_notJudgedLine; }
     QVariantList bookends() const { return m_bookends; }
     QVariantList expectations() const { return m_expectations; }
     QString      detailConditionId() const { return m_detailConditionId; }
@@ -731,6 +737,8 @@ private:
     QString      m_unchainedLine;
     QVariantMap  m_driver;
     QString      m_coverageLine;
+    QVariantList m_notJudged;
+    QString      m_notJudgedLine;
     QVariantList m_bookends;
     // Which condition the drill-in is open on, and its map. Panel-local in every sense that
     // matters — never persisted, never in the envelope, cleared on activation: which page was

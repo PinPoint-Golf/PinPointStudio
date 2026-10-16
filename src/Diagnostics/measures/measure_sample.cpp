@@ -60,6 +60,9 @@ SwingPhaseGrid buildPhaseGrid(const QJsonObject &analysis, const PhaseGridConfig
 {
     SwingPhaseGrid grid;
     grid.config = cfg;      // the sidecar guard compares these windows; see savePhaseGrid
+    // why readings are absent (schema 8): carried for the engine's "not judged" reasons
+    grid.gatesVersion = analysis.value(QStringLiteral("gatesVersion")).toInt();
+    grid.gates        = gateRecordsFromJson(analysis.value(QStringLiteral("gates")).toArray());
 
     // The segmented ladder, deduplicated and time-ordered. A doc can legitimately carry the same
     // phase twice (a re-segmentation appended rather than replaced); the FIRST wins, matching
@@ -601,6 +604,10 @@ QJsonObject savePhaseGrid(const SwingPhaseGrid &grid, qint64 sourceSize, qint64 
         metrics.append(mo);
     }
     root.insert(QStringLiteral("metrics"), metrics);
+    if (grid.gatesVersion > 0) {
+        root.insert(QStringLiteral("gatesVersion"), grid.gatesVersion);
+        root.insert(QStringLiteral("gates"), gateRecordsToJson(grid.gates));
+    }
     return root;
 }
 
@@ -674,6 +681,9 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
         if (!mg.values.empty())
             grid.metrics.push_back(std::move(mg));
     }
+
+    grid.gatesVersion = root.value(QStringLiteral("gatesVersion")).toInt();
+    grid.gates        = gateRecordsFromJson(root.value(QStringLiteral("gates")).toArray());
 
     if (guardOk) *guardOk = true;
     return grid;

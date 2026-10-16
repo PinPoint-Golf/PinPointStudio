@@ -198,7 +198,11 @@ inline constexpr double kDiagSharpExcess = 1000.0;
 // 7 added SignalRow::comparedWith (the link an order check fell back to when the next one was not
 // placed) and the hips/chest-before-impact checks. A file at 6 reads back with none, and regrades
 // on activation so every sequence check is anchored to impact.
-inline constexpr int kDiagSchemaVersion = 7;
+// 8 added ConditionRow / SignalRow `notJudgedGate` + `notJudgedSubject` (trust_and_gates_design.md §4.4):
+// the gate record that kept the reading out of the finding (`sequence.sightedBand` on `ks.pelvis`), so
+// the reason names the gate and the Trust panel can list what each gate blocked. A file at 7 reads back
+// with none, and regrades on activation (the content stamp carries this version).
+inline constexpr int kDiagSchemaVersion = 8;
 
 // Every §4 tunable in one injectable bundle.
 struct LedgerOptions {
@@ -488,6 +492,11 @@ struct ConditionRow {
     // tracked". Never blank on a NotAssessable row: the review strip prints it in the
     // slot where a corridor would go, and a blank there reads as a bug.
     QString notAssessableReason;
+    // Schema 8: the gate that kept a reading out of this finding (a NotAssessable row only), and the
+    // reading it acted on — `sequence.sightedBand` / `ks.pelvis`. Empty when no gate record speaks for
+    // the missing measure (a swing analysed before records existed, or a plain absence).
+    QString notJudgedGate;
+    QString notJudgedSubject;
 
     // The verdict as a probability (session_diagnostics_design.md §A8.4) — Finding::pFire,
     // grossRisk, quantified. −1 = not formed (a row written before §A8, or NotAssessable). The
@@ -557,6 +566,9 @@ struct SignalRow {
     // Schema 7: an order check that fell back down the chain — the measure it was compared with
     // (`m_leadArmPeakTime` when the chest was not placed). Empty when it compared its own pair.
     QString   comparedWith;
+    // Schema 8: as ConditionRow — the gate behind a NotAssessable signal, and the reading it acted on.
+    QString   notJudgedGate;
+    QString   notJudgedSubject;
 };
 
 // One PLACED kinematic-sequence peak instant on one shot (schema 6): the measure it was read as
@@ -1868,6 +1880,10 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
             ro[QStringLiteral("material")]        = r.material;
             if (r.sharp) ro[QStringLiteral("sharp")] = true;
             ro[QStringLiteral("notAssessableReason")] = r.notAssessableReason;
+            if (!r.notJudgedGate.isEmpty()) {
+                ro[QStringLiteral("notJudgedGate")]    = r.notJudgedGate;
+                ro[QStringLiteral("notJudgedSubject")] = r.notJudgedSubject;
+            }
             // §A8.4 — written only when formed, so a ledger with none is byte-identical to before.
             if (r.pFire >= 0.f) {
                 ro[QStringLiteral("pFire")]      = double(r.pFire);
@@ -1914,6 +1930,10 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
                 }
                 if (!g.reason.isEmpty()) go[QStringLiteral("reason")] = g.reason;
                 if (!g.comparedWith.isEmpty()) go[QStringLiteral("comparedWith")] = g.comparedWith;
+                if (!g.notJudgedGate.isEmpty()) {
+                    go[QStringLiteral("notJudgedGate")]    = g.notJudgedGate;
+                    go[QStringLiteral("notJudgedSubject")] = g.notJudgedSubject;
+                }
                 sa.append(go);
             }
             so[QStringLiteral("signals")] = sa;
@@ -2020,6 +2040,8 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
             r.material         = ro.value(QStringLiteral("material")).toBool(true);
             r.sharp            = ro.value(QStringLiteral("sharp")).toBool(false);
             r.notAssessableReason = ro.value(QStringLiteral("notAssessableReason")).toString();
+            r.notJudgedGate       = ro.value(QStringLiteral("notJudgedGate")).toString();
+            r.notJudgedSubject    = ro.value(QStringLiteral("notJudgedSubject")).toString();
             for (const QJsonValue &mv : ro.value(QStringLiteral("readings")).toArray()) {
                 const QJsonObject mo = mv.toObject();
                 MeasureRow m;
@@ -2044,6 +2066,8 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
             g.quantified = go.value(QStringLiteral("quantified")).toBool();
             g.reason     = go.value(QStringLiteral("reason")).toString();
             g.comparedWith = go.value(QStringLiteral("comparedWith")).toString();
+            g.notJudgedGate    = go.value(QStringLiteral("notJudgedGate")).toString();
+            g.notJudgedSubject = go.value(QStringLiteral("notJudgedSubject")).toString();
             s.signalRows.push_back(std::move(g));
         }
         if (const QJsonValue cv = so.value(QStringLiteral("clubheadSpeed")); cv.isDouble())

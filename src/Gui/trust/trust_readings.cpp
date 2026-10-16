@@ -68,16 +68,6 @@ QString levelTip(int l)
     default:        return QStringLiteral("A direct route; every gate passed.");
     }
 }
-QString effectWord(const QString &e)
-{
-    if (e == QLatin1String("bounded"))    return QStringLiteral("bounded");
-    if (e == QLatin1String("refused"))    return QStringLiteral("refused");
-    if (e == QLatin1String("withheld"))   return QStringLiteral("not judged");
-    if (e == QLatin1String("downgraded")) return QStringLiteral("fell back");
-    if (e == QLatin1String("masked"))     return QStringLiteral("marked on the chart");
-    return e;
-}
-
 int segmentOf(const QString &subject)
 {
     if (!subject.startsWith(QLatin1String("ks."))) return -1;
@@ -102,37 +92,15 @@ QVariantList gatesOf(const QVariantList &records, const QVariantMap &primary, co
         const QVariantMap r = rv.toMap();
         const gates::GateEntry *e = gates::gateEntry(r.value(QStringLiteral("gate")).toString());
         if (!e) continue;
-        const QString eff = r.value(QStringLiteral("effect")).toString();
-        QStringList tun;
-        for (const gates::GateTuning &t : e->tuning) {
-            if (t.unit == QLatin1String("switch")) continue;
-            const QString v = W::fig(t.value, std::fabs(t.value - std::round(t.value)) < 1e-9 ? 0 : 2);
-            tun << (t.unit == QStringLiteral("°") ? v + t.unit : t.unit.isEmpty() ? v : v + QChar(0x00A0) + t.unit);
-        }
-        out << QVariantMap{ { QStringLiteral("gate"), e->id },
-                            { QStringLiteral("effect"), eff },
-                            { QStringLiteral("effectWord"), effectWord(eff) },
-                            { QStringLiteral("title"), e->title },
-                            { QStringLiteral("evidence"), gates::evidenceText(*e, r.value(QStringLiteral("evidence")).toMap()) },
-                            { QStringLiteral("explain"), e->explain },
-                            { QStringLiteral("tuning"), tun.isEmpty() ? QString() : QStringLiteral("Threshold ") + tun.join(QStringLiteral(", ")) },
-                            { QStringLiteral("lift"), gates::liftText(*e, subject, tried) },
-                            { QStringLiteral("primary"), r == primary } };
+        out << gates::gateItem(*e, r.value(QStringLiteral("effect")).toString(),
+                               r.value(QStringLiteral("evidence")).toMap(), subject, tried, r == primary);
     }
     return out;
 }
 
 } // namespace
 
-QString subjectLabel(const QString &subject)
-{
-    static const QStringList seg{ QStringLiteral("Pelvis peak"), QStringLiteral("Chest peak"),
-                                  QStringLiteral("Lead arm peak"), QStringLiteral("Club peak") };
-    const int s = segmentOf(subject);
-    if (s >= 0) return seg[s];
-    if (subject.startsWith(QLatin1String("route."))) return QStringLiteral("The ") + gates::routeWords(subject.mid(6)) + QStringLiteral(" route");
-    return subject;
-}
+QString subjectLabel(const QString &subject) { return gates::subjectLabel(subject); }
 
 QVariantList trustReadings(const charts::ShotSeries &shot)
 {
@@ -195,7 +163,9 @@ QVariantList trustReadings(const charts::ShotSeries &shot)
                             { QStringLiteral("levelTip"), levelTip(level) },
                             { QStringLiteral("figure"), figure },
                             { QStringLiteral("shortText"), shortText },
-                            { QStringLiteral("gates"), gatesOf(records, primary, subject) } };
+                            { QStringLiteral("gates"), gatesOf(records, primary, subject) },
+                            // what this reading kept from being judged (§4.4: the record's `blocks`, from the ledger)
+                            { QStringLiteral("blocks"), shot.diagnostics.notJudgedBy.value(subject) } };
     }
     return out;
 }

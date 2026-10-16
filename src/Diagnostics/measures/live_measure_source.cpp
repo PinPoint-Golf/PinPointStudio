@@ -17,6 +17,7 @@
  */
 
 #include "live_measure_source.h"
+#include "../../Metrics/gate_catalogue.h"   // the gate behind an absent measure (gateCause)
 
 #include "../norms/context_tree.h"
 
@@ -166,6 +167,20 @@ std::optional<IMeasureValueSource::Value> LiveMeasureSource::value(const QString
 
     note(measureId, MissingKind::PhaseNotSegmented);
     return std::nullopt;
+}
+
+LiveMeasureSource::GateCause LiveMeasureSource::gateCause(const QString &measureId) const
+{
+    const Measure *m = m_pack.measure(measureId);
+    if (!m || m_grid.gatesVersion <= 0) return {};
+    QStringList keys = measureKeyLadder(*m);
+    for (const QString &key : keys) {
+        const QString subject = gates::subjectForMetricKey(key);
+        if (subject.isEmpty()) continue;
+        if (const GateRecord *r = gates::primaryRecord(m_grid.gates, subject))
+            return { r->gate, subject, gates::notJudgedClause(subject, r->gate) };
+    }
+    return {};
 }
 
 MissingKind LiveMeasureSource::missingKind(const QString &measureId) const

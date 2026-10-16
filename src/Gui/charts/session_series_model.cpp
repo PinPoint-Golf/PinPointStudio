@@ -129,6 +129,13 @@ ShotDiagnostics diagnosticsOf(const pinpoint::analysis::ShotRecord &s,
     d.club        = s.club;
     d.warmUp      = s.warmUp;
     d.dataWarning = s.dataWarning;
+    for (const pinpoint::analysis::ConditionRow &r : s.rows)
+        if (r.state == ShotState::NotAssessable && !r.notJudgedSubject.isEmpty()) {
+            const pinpoint::analysis::Condition *c = pack ? pack->condition(r.conditionId) : nullptr;
+            QStringList &l = d.notJudgedBy[r.notJudgedSubject];
+            const QString name = (c && !c->label.isEmpty()) ? c->label : r.conditionId;
+            if (!l.contains(name)) l << name;
+        }
     for (const pinpoint::analysis::ConditionRow &r : s.rows) {
         if (r.state == ShotState::Fired)      d.fired << r.conditionId;
         else if (r.state == ShotState::Clean) d.clean << r.conditionId;

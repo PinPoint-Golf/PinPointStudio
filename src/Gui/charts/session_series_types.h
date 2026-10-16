@@ -100,6 +100,10 @@ struct ShotDiagnostics {
     QStringList fired;                    // condition ids, sorted
     QStringList clean;                    // condition ids, sorted
     QHash<QString, Value> values;         // conditionId → graded value
+    // ADDED 16 Oct (ledger schema 8): the findings a gate kept from being judged on this shot, by the
+    // reading the gate acted on — "ks.pelvis" → ["Late pelvis rotation", …] (condition labels, then the
+    // sequence checks' signal ids where no label exists). The Trust panel lists them under the reading.
+    QHash<QString, QStringList> notJudgedBy;
 
     // ADDED 14 Oct (additive; nothing above changed). Which reading drove each FIRED condition on
     // this shot: the ledger row's drivingMeasureId, resolved through the pack's condition link

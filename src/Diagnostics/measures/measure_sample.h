@@ -22,6 +22,7 @@
 #include "sigma_source.h"
 #include "../../Core/pp_tuned_constants.h"
 #include "../../Metrics/metric_reducer.h"
+#include "../../Analysis/gate_record.h"   // GateRecord — why a reading is absent (schema 8)
 
 #include <QByteArray>
 #include <QJsonObject>
@@ -127,7 +128,11 @@ namespace pinpoint::analysis {
 // 7: a metric may carry `withheld` (MetricSeries::withheld — the camera club peak, KB-18): drawn but
 //    not judged. Additive, and the bump is NOT optional for the same reason as 6: a v6 sidecar serves
 //    no `withheld`, so a stale cache would let the club peak fire the very verdicts it must not.
-inline constexpr int kPhaseGridSchemaVersion = 7;
+// 8: the swing's gate records (`gates`, `gatesVersion` — analysis.gates, trust_and_gates_design.md §4.4):
+//    why a measure the engine asks for is absent, so a finding it stopped says "not judged: pelvis peak
+//    out of sight" rather than "metric not produced". Additive; the bump retires v7 sidecars, which
+//    carry no records and would read every refusal as a plain missing metric.
+inline constexpr int kPhaseGridSchemaVersion = 8;
 
 // SigmaSource — where a reading's measurement σ came from — lives in sigma_source.h.
 
@@ -229,6 +234,10 @@ struct SwingPhaseGrid {
     int     ordinal     = 0;
 
     std::vector<MetricPhaseGrid> metrics;
+
+    // analysis.gates as stored (schema 8); gatesVersion 0 = analysed before records existed.
+    std::vector<GateRecord> gates;
+    int                     gatesVersion = 0;
 
     // The reduction these numbers were computed under. Carried so a sidecar can be REFUSED when the
     // run asking for it is configured differently — see sameGridReduction().

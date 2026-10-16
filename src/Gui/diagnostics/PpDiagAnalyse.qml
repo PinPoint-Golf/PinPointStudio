@@ -68,6 +68,22 @@ Item {
     readonly property var conds: (shot && shot.conditions) || []
     readonly property var fired: conds.filter(c => c.stateKind === "fired")
     readonly property var notMeasured: conds.filter(c => c.stateKind === "notAssessable")
+    // NOT JUDGED, AND WHY (trust_and_gates_design.md §4.4): the findings a gate kept from being judged,
+    // grouped by the reading the gate acted on — "Late pelvis rotation, Sequence order: pelvis peak out of
+    // sight". The rest of the not-measurable list stays as it was.
+    readonly property var notMeasuredPlain: notMeasured.filter(c => !c.trustSubject)
+    readonly property var notJudgedGroups: {
+        const out = [], at = {}
+        for (const c of notMeasured) {
+            if (!c.trustSubject) continue
+            if (at[c.trustSubject] === undefined) {
+                at[c.trustSubject] = out.length
+                out.push({ subject: c.trustSubject, swingDir: c.trustSwingDir || "", clause: c.reason || "", names: [] })
+            }
+            out[at[c.trustSubject]].names.push(c.name)
+        }
+        return out
+    }
     readonly property var watching: ((source && source.watching) || []).slice()
                                     .sort((a, b) => (ro.rate(b.recurrence) - ro.rate(a.recurrence)) || a.name.localeCompare(b.name))
     readonly property var detailCard: detail ? (ro.byId(cards || [], detail.id) || detail.header || null) : null
@@ -412,9 +428,52 @@ Item {
                 visible: !!ss.shot
                 width: sc.width; roles: ro
                 text: ss.partial ? (ss.shot.cleanCount + " clean · " + ss.shot.notAssessableCount + " not measurable on this swing.")
-                      : root.notMeasured.length ? "Not measurable on this shot (" + root.notMeasured.length + "): "
-                                                  + root.notMeasured.map(c => ro.esc(c.name) + " — " + ro.esc(c.reason)).join("; ") + "."
+                      : root.notMeasuredPlain.length ? "Not measurable on this shot (" + root.notMeasuredPlain.length + "): "
+                                                  + root.notMeasuredPlain.map(c => ro.esc(c.name) + " — " + ro.esc(c.reason)).join("; ") + "."
+                      : root.notJudgedGroups.length ? ""
                       : "Every condition was measurable on this shot."
+            }
+            // the findings a gate kept from being judged, each group opening the gate's reason — in the
+            // Trust panel when it is on, else in place under the line (TrustFocus, §7.0)
+            Column {
+                id: nj
+                objectName: "sdNotJudged"
+                visible: !!ss.shot && !ss.partial && root.notJudgedGroups.length > 0
+                width: sc.width
+                spacing: ro.u(5)
+                topPadding: ro.u(5)
+                property string openSubject: ""
+                Text {
+                    text: "Not judged on this shot, because a gate refused the reading they need ("
+                          + root.notJudgedGroups.reduce((n, g) => n + g.names.length, 0) + ")"
+                    font: ro.fMicro; color: ro.ink3
+                }
+                Repeater {
+                    model: root.notJudgedGroups
+                    delegate: Column {
+                        id: grp
+                        required property var modelData
+                        objectName: "sdNotJudged:" + modelData.subject
+                        width: nj.width
+                        spacing: ro.u(4)
+                        Text {
+                            width: Math.min(parent.width, ro.flows.measure * ro.em * 1.3)
+                            wrapMode: Text.WordWrap; textFormat: Text.StyledText
+                            text: ro.esc(grp.modelData.names.join(", ")) + ": " + ro.esc(grp.modelData.clause)
+                                  + "  <font color='" + ro.link + "'>Why ›</font>"
+                            font: ro.fSmall; color: ro.ink2
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                        onClicked: if (!TrustFocus.open(grp.modelData.subject, grp.modelData.swingDir))
+                                                       nj.openSubject = nj.openSubject === grp.modelData.subject ? "" : grp.modelData.subject }
+                        }
+                        PpTrustInlineFor {
+                            width: grp.width; roles: ro
+                            subject: nj.openSubject === grp.modelData.subject ? grp.modelData.subject : ""
+                            swingDir: grp.modelData.swingDir
+                            onClosed: nj.openSubject = ""
+                        }
+                    }
+                }
             }
             ReviewFoot { width: sc.width }
         }
@@ -483,6 +542,13 @@ Item {
                 visible: !!root.source && String(root.source.coverageLine || "") !== ""
                 width: ssc.width; roles: ro
                 text: root.source ? ro.cap1(root.source.coverageLine) + "." : ""
+            }
+            // the conditions a gate kept from being judged, with how many shots they were judged on (§4.4)
+            PpNotes {
+                objectName: "sdNotJudgedLine"
+                visible: !!root.source && String(root.source.notJudgedLine || "") !== ""
+                width: ssc.width; roles: ro
+                text: root.source ? ro.esc(root.source.notJudgedLine) + "." : ""
             }
             Asks { id: asks2; width: ssc.width; questions: root.sessionQuestions }
             ReviewFoot { width: ssc.width }

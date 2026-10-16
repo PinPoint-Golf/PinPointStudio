@@ -134,6 +134,27 @@ int main()
         check(tuned, "tuning carries the compiled threshold (20° today)");
     }
 
+    // ── what a finding a gate stopped says (stage 4, §4.4) ──
+    {
+        check(gates::subjectForMetricKey(QStringLiteral("pelvisPeakTime")) == QLatin1String("ks.pelvis")
+                  && gates::subjectForMetricKey(QStringLiteral("clubPeakSpeed")) == QLatin1String("ks.club")
+                  && gates::subjectForMetricKey(QStringLiteral("thoraxReversalTime")) == QLatin1String("ks.thorax")
+                  && gates::subjectForMetricKey(QStringLiteral("pelvisSway")).isEmpty(),
+              "a sequence node's metrics map to its subject, and nothing else does");
+        std::vector<GateRecord> recs{
+            { PP_GATE("sequence.maxPlaceSigma"), QStringLiteral("ks.pelvis"), GateEffect::Refused, {}, {}, {} },
+            { PP_GATE("sequence.sightedBand"), QStringLiteral("ks.pelvis"), GateEffect::Bounded, {}, { { QStringLiteral("noEarlierThanMs"), 129.0 } }, {} },
+            { PP_GATE("sequence.sightedBand"), QStringLiteral("ks.thorax"), GateEffect::Masked, {}, {}, {} },
+            { PP_GATE("sequence.clubWithheld"), QStringLiteral("ks.club"), GateEffect::Withheld, {}, {}, {} } };
+        const GateRecord *p = gates::primaryRecord(recs, QStringLiteral("ks.pelvis"));
+        check(p && p->gate == QLatin1String("sequence.sightedBand"), "the bound outranks the σ ceiling as the reason shown");
+        check(gates::primaryRecord(recs, QStringLiteral("ks.thorax")) == nullptr, "a band that only masked refuses nothing");
+        check(gates::notJudgedClause(QStringLiteral("ks.pelvis"), QStringLiteral("sequence.sightedBand")) == QStringLiteral("pelvis peak out of sight"),
+              "the not-judged clause: pelvis peak out of sight");
+        check(gates::notJudgedClause(QStringLiteral("ks.club"), QStringLiteral("sequence.clubWithheld")) == QStringLiteral("club peak drawn, not judged"),
+              "…and a withheld reading: club peak drawn, not judged");
+    }
+
     // ── the record format round-trips ─────────────────────────────────────────────────────────
     {
         GateLog log;

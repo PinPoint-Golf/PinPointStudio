@@ -414,6 +414,14 @@ Item {
                 text: root.source ? ro.cap1(root.source.coverageLine) + "." : ""
                 font: ro.fSmall; color: ro.ink3
             }
+            // the conditions a gate kept from being judged (trust_and_gates_design.md §4.4)
+            Text {
+                objectName: "sdNotJudgedLine"
+                visible: !!root.source && String(root.source.notJudgedLine || "") !== ""
+                width: sv.width; wrapMode: Text.WordWrap
+                text: root.source ? root.source.notJudgedLine + "." : ""
+                font: ro.fSmall; color: ro.ink3
+            }
             ReviewFoot { width: sv.width }
         }
     }

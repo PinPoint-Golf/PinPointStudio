@@ -656,6 +656,17 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
                     r.notAssessableReason = w->withheld;
             if (r.notAssessableReason.isEmpty())
                 r.notAssessableReason = missingReasonText(MissingKind::MetricNotProduced);
+            // THE GATE THAT STOPPED IT (trust_and_gates_design.md §4.4): a missing or withheld measure
+            // standing on a sequence node a gate refused says which gate, in its words, and the row
+            // carries the gate and the reading so the Trust panel can list what each gate blocked.
+            for (const QString &mid : f.missingMeasures) {
+                const LiveMeasureSource::GateCause gc = src.gateCause(mid);
+                if (gc.gate.isEmpty()) continue;
+                r.notJudgedGate       = gc.gate;
+                r.notJudgedSubject    = gc.subject;
+                r.notAssessableReason = gc.clause;      // "pelvis peak out of sight"
+                break;
+            }
             break;
         }
 
@@ -724,6 +735,16 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
                 if (k != MissingKind::None && k != MissingKind::MetricNotProduced)
                     g.reason = missingReasonText(k);
             }
+            // the gate behind an unplaced or withheld peak, as for the condition rows above
+            if (o.refusal == SignalRefusal::MeasureMissing || o.refusal == SignalRefusal::Withheld)
+                for (const QString &mid : o.missing) {
+                    const LiveMeasureSource::GateCause gc = src.gateCause(mid);
+                    if (gc.gate.isEmpty()) continue;
+                    g.notJudgedGate    = gc.gate;
+                    g.notJudgedSubject = gc.subject;
+                    g.reason           = gc.clause;
+                    break;
+                }
         }
         rec.signalRows.push_back(std::move(g));
     }
@@ -2230,9 +2251,31 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
         shortParts << parts.last();
     }
     parts << QStringLiteral("%1 of %2 outside").arg(l.fired).arg(l.assessable);
+    // JUDGED ON n OF m, AND WHY NOT THE REST (trust_and_gates_design.md §4.4, §7.3): of the shots it could
+    // not be measured on, those a gate refused the reading for are counted by the reading and its gate —
+    // "not judged on 6: pelvis peak out of sight" — and only the remainder reads as plainly not measured.
     if (notAssessable > 0) {
-        parts << QStringLiteral("%1 not measured").arg(notAssessable);
-        shortParts << parts.last();
+        QStringList clauses;
+        QHash<QString, int> byClause;
+        int gated = 0;
+        for (int i = 0; i < n; ++i) {
+            const ConditionRow *r = rowFor(m_shots[size_t(i)], l.id);
+            if (!r || r->state != ShotState::NotAssessable || r->notJudgedGate.isEmpty()) continue;
+            if (!byClause.contains(r->notAssessableReason)) clauses << r->notAssessableReason;
+            byClause[r->notAssessableReason] += 1;
+            ++gated;
+        }
+        if (gated > 0) {
+            QStringList bits;
+            for (const QString &c : clauses) bits << QStringLiteral("%1 on %2").arg(c).arg(byClause.value(c));
+            parts << QStringLiteral("judged on %1 of %2; not judged where %3").arg(l.assessable).arg(n).arg(bits.join(QStringLiteral(", ")));
+            shortParts << QStringLiteral("judged on %1 of %2").arg(l.assessable).arg(n);
+            out[QStringLiteral("notJudged")] = gated;
+        }
+        if (notAssessable - gated > 0) {
+            parts << QStringLiteral("%1 not measured").arg(notAssessable - gated);
+            shortParts << parts.last();
+        }
     }
     // THE OFF-SCALE READINGS ARE NAMED HERE, not beside their chevrons. A label inside the plot
     // sat on top of the dots it was describing; the caption has nothing under it.
@@ -2847,6 +2890,60 @@ void SessionDiagnosticsModel::buildCards()
             m_coverageLine += QStringLiteral(" · launch monitor contributing on %1 of %2 shots")
                                   .arg(m_lmShots.size()).arg(int(m_shots.size()));
     }
+
+    // NOT JUDGED, AND WHY (trust_and_gates_design.md §4.4, §7.3): each condition a gate kept from
+    // being judged on some shot, with its count and the reading the gate refused — "Sequence order:
+    // judged on 0 of 6; pelvis peak out of sight on 6". The coverage line counts what the capture can
+    // measure; this says what a gate refused on the swings that were captured.
+    m_notJudged.clear();
+    m_notJudgedLine.clear();
+    {
+        // grouped by the reading the gate refused, as This shot groups them: "pelvis peak out of sight
+        // on 6 of 6 shots: Out-of-order sequence, Hips don't brake … judged on none"
+        struct Group { QString clause, subject; int shots = 0; QStringList names; QList<int> judged; };
+        QList<Group> groups;
+        const int n = int(m_shots.size());
+        for (const ConditionLedger &l : m_ledgers) {
+            if (l.sessionScope) continue;
+            QHash<QString, int> byClause;
+            QString clause, subject;
+            for (const ShotRecord &s : m_shots) {
+                const ConditionRow *r = rowFor(s, l.id);
+                if (!r || r->state != ShotState::NotAssessable || r->notJudgedGate.isEmpty()) continue;
+                const int k = ++byClause[r->notAssessableReason];
+                if (clause.isEmpty() || k > byClause.value(clause)) { clause = r->notAssessableReason; subject = r->notJudgedSubject; }
+            }
+            if (clause.isEmpty()) continue;
+            int gi = -1;
+            for (int i = 0; i < groups.size(); ++i) if (groups[i].clause == clause) gi = i;
+            if (gi < 0) { groups.append(Group{ clause, subject, 0, {}, {} }); gi = int(groups.size()) - 1; }
+            groups[gi].shots = std::max(groups[gi].shots, byClause.value(clause));
+            groups[gi].names << conditionName(l.id);
+            groups[gi].judged << l.assessable;
+            m_notJudged.append(QVariantMap{ { QStringLiteral("id"), l.id },
+                                            { QStringLiteral("name"), conditionName(l.id) },
+                                            { QStringLiteral("judged"), l.assessable },
+                                            { QStringLiteral("of"), n },
+                                            { QStringLiteral("subject"), subject },
+                                            { QStringLiteral("clause"), clause } });
+        }
+        QStringList parts;
+        for (const Group &g : std::as_const(groups)) {
+            // the count each was judged on, unless the gate refused the reading on every shot (then
+            // every one of them was judged on none, and the clause already says so)
+            QStringList named;
+            for (int i = 0; i < g.names.size(); ++i)
+                named << (g.shots == n && g.judged[i] == 0 ? g.names[i]
+                          : QStringLiteral("%1 (judged on %2)").arg(g.names[i])
+                                .arg(g.judged[i] == 0 ? QStringLiteral("none") : QString::number(g.judged[i])));
+            QString part = QStringLiteral("%1 on %2 of %3 shots, so not judged there: %4")
+                               .arg(g.clause).arg(g.shots).arg(n).arg(named.join(QStringLiteral(", ")));
+            if (!part.isEmpty()) part[0] = part[0].toUpper();
+            parts << part;
+        }
+        if (!parts.isEmpty())
+            m_notJudgedLine = QStringLiteral("A gate refused the reading behind some findings. ") + parts.join(QStringLiteral(". "));
+    }
 }
 
 // ONE PATTERN CARD. Every string on it, off the ledger and the pack and nothing else — which is
@@ -3000,6 +3097,11 @@ QVariantMap SessionDiagnosticsModel::cardMap(const ConditionLedger &l, int fi, i
         } else {
             c[QStringLiteral("valueText")]    = QStringLiteral("not measurable");
             c[QStringLiteral("corridorText")] = here ? here->notAssessableReason : QString();
+            // the reading a gate kept out of this finding: its reason opens in the Trust panel (§7.0)
+            if (here && !here->notJudgedSubject.isEmpty()) {
+                c[QStringLiteral("trustSubject")]  = here->notJudgedSubject;
+                c[QStringLiteral("trustSwingDir")] = m_swingDirs.value(m_shots[size_t(fi)].shotId);
+            }
         }
         // HOW FAR OUT, beside WHETHER it was out. The pill says fired or clean and the two
         // numbers above say what was read and what it was tested against; the meter is the
@@ -3587,13 +3689,21 @@ QVariantMap SessionDiagnosticsModel::shotReadout(int shotId) const
     // under a hundred and forty rows of "not measurable", which is not honesty, it is noise
     // wearing honesty's clothes. The coverage line is where the other hundred and forty are
     // accounted for, in one sentence, as the design intends.
+    // …AND A CONDITION A GATE KEPT FROM BEING JUDGED, even when it was judged on no shot at all
+    // (trust_and_gates_design.md §4.4): "sequence order: not judged, pelvis peak out of sight" on all
+    // six shots of a face-on session is not noise — it is the finding the golfer is owed.
+    const auto gatedHere = [&](const QString &id) {
+        const ConditionRow *r = rowFor(shot, id);
+        return r && r->state == ShotState::NotAssessable && !r->notJudgedGate.isEmpty();
+    };
     QStringList ordered = m_displayOrder;
     for (const ConditionLedger &l : m_ledgers)
-        if (l.assessable >= 1 && !ordered.contains(l.id)) ordered.push_back(l.id);
+        if ((l.assessable >= 1 || gatedHere(l.id)) && !ordered.contains(l.id)) ordered.push_back(l.id);
 
     for (const QString &id : std::as_const(ordered)) {
         const ConditionLedger *l = ledger(id);
-        if (!l || l->assessable < 1 || l->sessionScope) continue;   // no per-swing verdict (§10.8 E2)
+        if (!l || l->sessionScope) continue;                          // no per-swing verdict (§10.8 E2)
+        if (l->assessable < 1 && !gatedHere(id)) continue;
 
         const ConditionRow *r = rowFor(shot, id);
         const ShotState st = r ? r->state : ShotState::NotAssessable;
@@ -3632,6 +3742,11 @@ QVariantMap SessionDiagnosticsModel::shotReadout(int shotId) const
             c[QStringLiteral("corridorText")] = r ? r->notAssessableReason
                                                   : missingReasonText(MissingKind::MetricNotProduced);
             c[QStringLiteral("reason")]       = c[QStringLiteral("corridorText")];
+            // the reading a gate kept out of this finding: its reason opens in the Trust panel (§7.0)
+            if (r && !r->notJudgedSubject.isEmpty()) {
+                c[QStringLiteral("trustSubject")]  = r->notJudgedSubject;
+                c[QStringLiteral("trustSwingDir")] = m_swingDirs.value(m_shots[size_t(idx)].shotId);
+            }
         }
         addStrength(c, r);
         c[QStringLiteral("tierTag")]      = tierTag(l->tier);

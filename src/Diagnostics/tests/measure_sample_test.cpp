@@ -824,6 +824,10 @@ int main()
         src.club        = QStringLiteral("7 IRON");
         src.ordinal     = 4;
         src.wallclockMs = 1700000001234LL;
+        // schema 8: the swing's gate records ride along
+        src.gatesVersion = 1;
+        src.gates.push_back({ QStringLiteral("sequence.sightedBand"), QStringLiteral("ks.pelvis"), GateEffect::Bounded,
+                              { { QStringLiteral("sightLostMs"), -129.0 } }, { { QStringLiteral("noEarlierThanMs"), 129.0 } }, {} });
 
         const QJsonObject doc = savePhaseGrid(src, size, mtime);
 
@@ -834,6 +838,9 @@ int main()
                   && back.ordinal == src.ordinal && back.wallclockMs == src.wallclockMs,
               "identity fields round-trip");
         check(back.metrics.size() == src.metrics.size(), "metric count round-trips");
+        check(back.gatesVersion == 1 && back.gates.size() == 1 && back.gates[0].gate == QLatin1String("sequence.sightedBand")
+                  && back.gates[0].effect == GateEffect::Bounded && back.gates[0].subject == QLatin1String("ks.pelvis"),
+              "schema 8: the gate records round-trip through the sidecar");
         near(reduceOverGrid(back, QStringLiteral("pelvisSway"),
                             extremum(Phase::Top, Phase::Impact, ExtremumSense::Min)).value_or(-999),
              kDipSpanMin, "the trough survives the round-trip — spans are persisted, not recomputed");
@@ -864,8 +871,10 @@ int main()
         // let through the cross-scale quotient the same-scale rule refuses.
         // Schema 7 (KB-18) added `withheld`: a v6 sidecar serves none, so a stale cache would let the
         // camera club peak fire the verdicts its producer withholds.
-        check(kPhaseGridSchemaVersion == 7,
-              "the sidecar schema is 7: closed spans, no zero-width span, no endpoint seed, σ, route and withheld carried");
+        // Schema 8 added the swing's gate records: a v7 sidecar serves none, so every refusal would read
+        // as a plain missing metric (trust_and_gates_design.md §4.4).
+        check(kPhaseGridSchemaVersion == 8,
+              "the sidecar schema is 8: closed spans, no zero-width span, no endpoint seed, σ, route, withheld and gate records carried");
         for (const int old : { 2, 3 }) {
             QJsonObject prev = doc;
             prev.insert(QStringLiteral("schema"), old);

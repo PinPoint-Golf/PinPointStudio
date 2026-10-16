@@ -1557,7 +1557,7 @@ int main()
         r.peakTimes.push_back({ QStringLiteral("m_leadArmPeakTime"), -21.0,
                                 std::numeric_limits<double>::quiet_NaN() });
         const QJsonObject obj = toJson({ r });
-        check(obj.value(QStringLiteral("schemaVersion")).toInt() == 7, "the ledger is schema 7");
+        check(obj.value(QStringLiteral("schemaVersion")).toInt() == 8, "the ledger is schema 8");
         const QByteArray bytes = QJsonDocument(obj).toJson(QJsonDocument::Compact);
         const auto back = fromJsonDocument(QJsonDocument::fromJson(bytes));
         check(back.size() == 1 && back[0].peakTimes.size() == 2
@@ -1568,6 +1568,41 @@ int main()
         check(back.size() == 1 && back[0].peakTimes.size() == 2
                   && !std::isfinite(back[0].peakTimes[1].sigmaMs),
               "…and a peak with no σ comes back with none, not a zero");
+
+        // schema8_notJudged_roundtrip (trust_and_gates_design.md §4.4): the gate that kept a finding
+        // from being judged, and the reading it acted on, survive diagnostics.json on both row kinds
+        {
+            ShotRecord g;
+            g.shotId = 9;
+            ConditionRow cr;
+            cr.conditionId = QStringLiteral("sequence_order");
+            cr.state = ShotState::NotAssessable;
+            cr.notAssessableReason = QStringLiteral("pelvis peak out of sight");
+            cr.notJudgedGate = QStringLiteral("sequence.sightedBand");
+            cr.notJudgedSubject = QStringLiteral("ks.pelvis");
+            g.rows.push_back(cr);
+            SignalRow sr;
+            sr.signalId = QStringLiteral("s_pelvis_before_impact");
+            sr.state = ShotState::NotAssessable;
+            sr.reason = QStringLiteral("pelvis peak out of sight");
+            sr.notJudgedGate = QStringLiteral("sequence.sightedBand");
+            sr.notJudgedSubject = QStringLiteral("ks.pelvis");
+            g.signalRows.push_back(sr);
+            ConditionRow plain;
+            plain.conditionId = QStringLiteral("ball_too_far");
+            plain.state = ShotState::NotAssessable;
+            plain.notAssessableReason = QStringLiteral("metric not produced on this capture");
+            g.rows.push_back(plain);
+            const QJsonObject go = toJson({ g });
+            const auto gb = fromJsonDocument(QJsonDocument::fromJson(QJsonDocument(go).toJson(QJsonDocument::Compact)));
+            check(gb.size() == 1 && gb[0].rows.size() == 2 && gb[0].rows[0].notJudgedGate == QLatin1String("sequence.sightedBand")
+                      && gb[0].rows[0].notJudgedSubject == QLatin1String("ks.pelvis")
+                      && gb[0].signalRows.size() == 1 && gb[0].signalRows[0].notJudgedSubject == QLatin1String("ks.pelvis"),
+                  "schema8_notJudged_roundtrip: the gate and its reading survive on condition and signal rows");
+            check(gb.size() == 1 && gb[0].rows[1].notJudgedGate.isEmpty()
+                      && !QJsonDocument(go).toJson().contains("\"notJudgedGate\": \"\""),
+                  "…and a plain absence carries none, and writes no empty key");
+        }
 
         // schema5_file_reads_without_peakTimes
         QJsonObject old = obj;
