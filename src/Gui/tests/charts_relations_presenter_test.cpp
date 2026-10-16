@@ -127,7 +127,7 @@ private slots:
     void keyFiguresSayWhereTheNumberSits()
     {
         auto p = make(m_snap, 8, QStringLiteral("replay"));
-        QCOMPARE(p->status().value(QStringLiteral("family")).toString(), QStringLiteral("Club & speed"));
+        QCOMPARE(p->status().value(QStringLiteral("family")).toString(), QStringLiteral("Club delivery"));
         const QVariantMap kf = p->thisShot().value(QStringLiteral("keyFigures")).toMap();
         const QVariantList items = kf.value(QStringLiteral("items")).toList();
         QVERIFY(!items.isEmpty());
@@ -786,11 +786,11 @@ private slots:
 
     void familyDefaultsByData()
     {
-        // shot 8 without any Club & speed reading: Replay falls to a family this shot measured
+        // shot 8 without any Club delivery reading: Replay falls to a family this shot measured
         auto p0 = make(m_snap, 8, QStringLiteral("replay"));
         QStringList keys;
         for (const QVariant &g : p0->thisShot().value(QStringLiteral("groups")).toList())
-            if (g.toMap().value(QStringLiteral("name")).toString() == QStringLiteral("Club & speed"))
+            if (g.toMap().value(QStringLiteral("name")).toString() == QStringLiteral("Club delivery"))
                 for (const QVariant &r : g.toMap().value(QStringLiteral("rows")).toList()) keys << r.toMap().value(QStringLiteral("key")).toString();
         QVERIFY(!keys.isEmpty());
         auto s = withDirs(m_fx.session);
@@ -799,12 +799,12 @@ private slots:
         s->shots[7] = c;
         auto p = make(s, 8, QStringLiteral("replay"));
         const QString fam = p->status().value(QStringLiteral("family")).toString();
-        QVERIFY2(fam != QStringLiteral("Club & speed") && !fam.isEmpty(), qPrintable(fam));
+        QVERIFY2(fam != QStringLiteral("Club delivery") && !fam.isEmpty(), qPrintable(fam));
         QVERIFY(!p->thisShot().value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList().isEmpty());
         QVERIFY(!p->thisShot().value(QStringLiteral("lead")).toMap().value(QStringLiteral("readingId")).toString().isEmpty());
         // the reader's own choice stands when the session has it
-        p->setFamily(QStringLiteral("Club & speed"));
-        QCOMPARE(p->status().value(QStringLiteral("family")).toString(), QStringLiteral("Club & speed"));
+        p->setFamily(QStringLiteral("Club delivery"));
+        QCOMPARE(p->status().value(QStringLiteral("family")).toString(), QStringLiteral("Club delivery"));
     }
 
     void edgePickedShotNotYetInTheSession()

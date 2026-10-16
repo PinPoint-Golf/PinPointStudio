@@ -28,7 +28,7 @@
 // ── THE INPUTS ───────────────────────────────────────────────────────────────────────────────
 // `model` (a SessionSeriesModel), `pickedSwingDir` (= shotReplay.swingDir), `register` ("replay" |
 // "analyse"), and the reader's choices: `family` (a catalogue group or preset name; "" = the register's
-// default, Club & speed in Replay, Kinematic sequence in Analyse), `upId` / `acrossId` (reading ids
+// default, Club delivery in Replay, Kinematic sequence in Analyse), `upId` / `acrossId` (reading ids
 // "key@phase"; "" = the defaults: clubhead speed at P7 up, its strongest partner that is not the same
 // quantity across), `facetId` ("" none, "half", "club", "shape", or a condition id), `openId` (the
 // profile row opened in place), `playheadUs` (shotReplay.positionUs, the picked shot's window-relative
@@ -114,7 +114,7 @@
 // thisShot: { available, kicker, head (Sentence), standfirst (Sentence), apartCount, total,
 //   keyFigures (published at ANY n with a picked shot: below three shots the value alone, median "" and
 //     place "", foot "Two shots: too few to place it" / "the session's only shot"; the family defaults BY
-//     DATA — the reader's choice, else the register's default, Club & speed, then manifest order, the
+//     DATA — the reader's choice, else the register's default, Club delivery, then manifest order, the
 //     first holding a reading this shot measured):
 //     { family, sequence (bool), items: [{ readingId, key, label, figure, unit, foot, median,
 //     place, warn, warnWord (as a row's firedWord; "late" for a sequence peak), sentence ("82 mph, median 72, 3rd highest") }] },

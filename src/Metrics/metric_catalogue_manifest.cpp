@@ -1280,7 +1280,10 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:lead_knee_valgus_impact") },
     });
 
-    // ------------------------------------------------------- Club & speed (face-on club track, 2D)
+    // ------------------------------------------------------- Club delivery: the club's motion (face-on club track, 2D)
+    //
+    // One group with the impact readings further down (Mark, 16 Oct): what the club did on the way
+    // in and what it did at the ball are one chart. "Club & speed" was its old name.
 
     cat.addDescriptor({
         .key = QStringLiteral("clubheadSpeed"),
@@ -1288,7 +1291,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .label = QStringLiteral("Clubhead speed"),
         .shortLabel = QStringLiteral("Club speed"),
         .unit = QStringLiteral("mph"),
-        .group = QStringLiteral("Club & speed"),
+        .group = QStringLiteral("Club delivery"),
         .color = QStringLiteral("cornflower"),
         .description = QStringLiteral(
             "How fast the clubhead is travelling as it arrives at the ball — the hands' velocity plus "
@@ -1334,7 +1337,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .label = QStringLiteral("Hand speed"),
         .shortLabel = QStringLiteral("Hand speed"),
         .unit = QStringLiteral("mph"),
-        .group = QStringLiteral("Club & speed"),
+        .group = QStringLiteral("Club delivery"),
         .color = QStringLiteral("gold"),
         .description = QStringLiteral(
             "How fast the hands (the grip end of the club) are moving, from the tracked grip point "
@@ -1377,7 +1380,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .label = QStringLiteral("Speed peak before the ball"),
         .shortLabel = QStringLiteral("Speed peak"),
         .unit = QStringLiteral("ms"),
-        .group = QStringLiteral("Club & speed"),
+        .group = QStringLiteral("Club delivery"),
         .color = QStringLiteral("orchid"),
         .description = QStringLiteral(
             "How long before impact the clubhead reached its top speed, in milliseconds. An "
@@ -1411,7 +1414,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .label = QStringLiteral("Lag angle"),
         .shortLabel = QStringLiteral("Lag"),
         .unit = QStringLiteral("°"),
-        .group = QStringLiteral("Club & speed"),
+        .group = QStringLiteral("Club delivery"),
         .color = QStringLiteral("moss"),
         .description = QStringLiteral(
             "The angle held between the lead forearm and the club shaft — the visible 'lag' that "
@@ -1441,7 +1444,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .label = QStringLiteral("Shaft lean"),
         .shortLabel = QStringLiteral("Shaft lean"),
         .unit = QStringLiteral("°"),
-        .group = QStringLiteral("Club & speed"),
+        .group = QStringLiteral("Club delivery"),
         .color = QStringLiteral("mint"),
         .description = QStringLiteral(
             "How far the shaft leans forward (toward the target) from vertical at impact, from the "
@@ -1472,14 +1475,14 @@ void installMetricManifest(MetricCatalogue &cat)
     // at address and at impact. Mark, 2026-10-01: a lie-like reading the DTL view gives for free,
     // and its Δ is "+ve is steepening" — so the Δ runs FORWARD, address → impact, unlike swingPlane's.
     // It shares shaft lean's card (card.mergeInto): one summary tile for the two shaft readings at
-    // impact. Filed under Club & speed with shaft lean so the two are on the same preset chart.
+    // impact. Filed under Club delivery with shaft lean so the two are on the same preset chart.
     cat.addDescriptor({
         .key = QStringLiteral("shaftLie"),
         .type = MetricType::TimeSeries,
         .label = QStringLiteral("Shaft lie"),
         .shortLabel = QStringLiteral("Lie"),
         .unit = QStringLiteral("°"),
-        .group = QStringLiteral("Club & speed"),
+        .group = QStringLiteral("Club delivery"),
         .color = QStringLiteral("sky"),
         .description = QStringLiteral(
             "How upright the shaft stands, seen from down the line: the angle between the shaft "
@@ -1512,7 +1515,7 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:lie_flat_at_impact") },
     });
 
-    // ------------------ Club delivery (part LIVE — club_delivery.cpp; the rest is down-the-line work)
+    // ------------------ Club delivery, at the ball (part LIVE — club_delivery.cpp; the rest is down-the-line work)
 
     cat.addDescriptor({
         .key = QStringLiteral("swingPlane"),
@@ -1521,7 +1524,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Plane"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
-        .color = QStringLiteral("moss"),
+        .color = QStringLiteral("teal"),   // moss until the Club & speed merge (16 Oct): it clashed there
         .description = QStringLiteral(
             "The plane the shaft swings on through the downswing, measured against the plane the "
             "shaft sat on at address: a best-fit plane through the shaft's three-dimensional "
@@ -3421,7 +3424,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Shaft dir"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Club delivery"),
-        .color = QStringLiteral("sky"),
+        .color = QStringLiteral("ochre"),   // sky until the Club & speed merge (16 Oct): it clashed there
         .description = QStringLiteral(
             "Where the shaft points relative to the target line, seen down the line. Read in the "
             "takeaway it says whether the club was dragged inside or pushed outside; read at the "
@@ -3630,7 +3633,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .label = QStringLiteral("Clubhead speed (measured)"),
         .shortLabel = QStringLiteral("Club spd (LM)"),
         .unit = QStringLiteral("mph"),
-        .group = QStringLiteral("Club & speed"),
+        .group = QStringLiteral("Club delivery"),
         .color = QStringLiteral("cornflower"),
         .description = QStringLiteral(
             "Clubhead speed at impact as a launch monitor measured it. Its whole value beside "

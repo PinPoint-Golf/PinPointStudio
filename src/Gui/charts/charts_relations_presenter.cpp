@@ -744,8 +744,8 @@ Sentence tooFew(const Ctx &x, const QString &what, int need)
 
 // ── This shot ──────────────────────────────────────────────────────────────────────────────
 
-// THE FAMILY, BY DATA. The reader's choice when the session has it; else the register's default (Club &
-// speed in Replay, Kinematic sequence in Analyse), then Club & speed, then every family in manifest order —
+// THE FAMILY, BY DATA. The reader's choice when the session has it; else the register's default (Club
+// delivery in Replay, Kinematic sequence in Analyse), then Club delivery, then every family in manifest order —
 // the first of those that carries a reading THIS SHOT measured (an LM-only session has no pose families,
 // a one-camera session no sequence), else the first that carries any reading at all.
 int familyIndex(const Cache &c, const QString &wanted, const QString &reg, int pick)
@@ -756,8 +756,8 @@ int familyIndex(const Cache &c, const QString &wanted, const QString &reg, int p
     };
     int f = wanted.isEmpty() ? -1 : find(wanted);
     if (f >= 0) return f;                           // the reader asked for it and the session has it
-    std::vector<int> order{ find(reg == QLatin1String("replay") ? QStringLiteral("Club & speed") : QStringLiteral("Kinematic sequence")),
-                            find(QStringLiteral("Club & speed")) };
+    std::vector<int> order{ find(reg == QLatin1String("replay") ? QStringLiteral("Club delivery") : QStringLiteral("Kinematic sequence")),
+                            find(QStringLiteral("Club delivery")) };
     for (size_t i = 0; i < c.families.size(); ++i) order.push_back(int(i));
     const auto pickedHas = [&](int fi) {
         if (pick < 0) return true;

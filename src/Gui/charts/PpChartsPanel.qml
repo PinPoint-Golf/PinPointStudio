@@ -190,13 +190,15 @@ Item {
         const has = function (k) { return m[b + k] !== undefined && m[b + k] !== null }
         const str = function (k, d) { return has(k) ? String(m[b + k]) : d }
         if (!keepTab) { const t = str("view", root.defaultTab); body.tab = t === "wrist" ? "shot" : t }
+        // a preset merged away reads as the one it went into (16 Oct): Club & speed → Club delivery
+        const renamed = function (p) { return p === "Club & speed" ? "Club delivery" : p }
         // today's "Custom" (a hand-picked subset) is its base preset with the switched-off series
         if (str("preset", "") === "Custom") {
-            body.preset = str("presetBase", root.defaultPreset)
+            body.preset = renamed(str("presetBase", root.defaultPreset))
             const s = has("series") && typeof m[b + "series"] === "object" ? m[b + "series"] : {}
             body.metricsOff = Object.keys(s).filter(function (k) { return s[k] === false })
         } else {
-            body.preset = str("preset", root.defaultPreset)
+            body.preset = renamed(str("preset", root.defaultPreset))
             body.metricsOff = has("metricsOff") ? (m[b + "metricsOff"] || []).slice() : []
         }
         body.window = str("window", "auto")

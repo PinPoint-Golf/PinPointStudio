@@ -849,10 +849,10 @@ void resolvePreset(Ctx &c)
     c.groups = c.w->cm->seriesGroups(series);
     QStringList names;
     for (const QVariant &g : c.groups) names << g.toMap().value(QStringLiteral("group")).toString();
-    const QString def = c.in->reg == QLatin1String("replay") ? QStringLiteral("Club & speed") : QStringLiteral("Kinematic sequence");
+    const QString def = c.in->reg == QLatin1String("replay") ? QStringLiteral("Club delivery") : QStringLiteral("Kinematic sequence");
     // THE PRESET BY DATA: the reader's saved choice when this shot carries a member of it, else the
-    // register's default when it does, else the first preset it does (an LM-only swing carries no
-    // Club & speed member and opens on the launch monitor's). With no shot, the session decides.
+    // register's default when it does, else the first preset it does (a swing with no club reading at
+    // all opens on whatever it measured). With no shot, the session decides.
     const auto carries = [&](const QString &name) {
         if (!c.shot) return true;
         for (const QVariant &g : c.groups) {
@@ -1223,6 +1223,16 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
         if (!c.calcs.contains(k) || !hostOf(k).isEmpty()) continue;
         const SeriesCalc &s = c.calcs.constFind(k).value();
         const bool drawn = c.rowKeys.contains(k);
+    // THE GLANCE TRIM: Replay sits beside the video, so a preset with a long list of instant readings
+    // shows only the few a golfer reads at the mat; Analyse shows them all. Club delivery (the club's
+    // motion and its impact numbers, one preset since 16 Oct) keeps path, face, attack angle, low point
+    // and dynamic loft — each with its launch-monitor twin where there is one (Mark, 16 Oct).
+    static const QHash<QString, QSet<QString>> kReplayGlance{
+        { QStringLiteral("Club delivery"),
+          { QStringLiteral("clubPath"), QStringLiteral("lm.clubPath"), QStringLiteral("lm.faceAngle"),
+            QStringLiteral("attackAngle"), QStringLiteral("lm.attackAngle"),
+            QStringLiteral("lowPointAhead"), QStringLiteral("lm.lowPointAhead"), QStringLiteral("lm.dynamicLoft") } } };
+    const auto glanceIt = c.in->reg == QLatin1String("replay") ? kReplayGlance.constFind(c.preset) : kReplayGlance.constEnd();
         if (!drawn && s.hasCurve && c.w->drawsCurve(k)) continue;      // a curve switched off: no card (today's rule)
         if (!s.hasCurve && s.m->phaseSamples.empty()) continue;         // nothing to show
         std::vector<const SeriesCalc *> cos;
@@ -1230,7 +1240,7 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
             if (k2 != k && c.calcs.contains(k2) && hostOf(k2) == k) cos.push_back(&c.calcs.find(k2).value());
         const QVariantMap card = cardOf(c, s, cos);
         if (drawn) rows << shotRow(c, s, card, dotKinds);
-        else cards << card;
+        else if (glanceIt == kReplayGlance.constEnd() || glanceIt->contains(k)) cards << card;
     }
     out.insert(QStringLiteral("rows"), rows);
     out.insert(QStringLiteral("cards"), cards);

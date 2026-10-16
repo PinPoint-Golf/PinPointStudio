@@ -106,7 +106,7 @@ falls back to Session there.
 - **Replay** (glance beside the video, and the cast). This shot: answer head, KeyFigures, the traces with
   the readings AT THE PLAYHEAD ("now"); click or drag seeks through `shotReplay.seekToUs`. Session: band,
   median and this shot, "now" against "typical", the lead reading at the latest P-position the playhead
-  has passed. Default preset Club & speed. The cast takes no clicks, shows a running head instead of tabs,
+  has passed. Default preset Club delivery (Club & speed merged into it, 16 Oct; Replay shows its curves and only path, face, attack angle, low point and dynamic loft). The cast takes no clicks, shows a running head instead of tabs,
   and zooms as a whole.
 - **Analyse** (read and interact). Default preset Kinematic sequence. At wide the head and controls move
   to a left rail so the figures get the card's full height. Hovering a shot lights it in every block;

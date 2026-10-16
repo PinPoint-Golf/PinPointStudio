@@ -164,8 +164,8 @@ Item {
             compare(hn.body.preset, "", "nothing chosen yet")
             compare(hn.body.tChoices.preset, "Kinematic sequence", "Analyse reads the sequence")
             useMode("Replay")
-            compare(hn.body.tChoices.preset, "Club & speed", "Replay glances at club and speed")
-            compare(oneShown("chPresetChip").text, "Club & speed")
+            compare(hn.body.tChoices.preset, "Club delivery", "Replay glances at club and speed")
+            compare(oneShown("chPresetChip").text, "Club delivery")
         }
 
         function test_002_a_curveless_member_is_a_card_not_a_trace() {
@@ -189,7 +189,7 @@ Item {
         function test_003_the_metrics_line_carries_the_preset_not_the_swing() {
             const shown = function () { return options("metric").map(function (o) { return o.key }).sort().join(",") }
             compare(shown(), probe.omegas.slice().sort().join(","))
-            choosePreset("Club & speed")
+            choosePreset("Club delivery")
             compare(shown(), hn.body.tChoices.metrics.map(function (m) { return m.key }).sort().join(","))
             verify(shown().indexOf("AngularSpeed") < 0, "the sequence curves left with their preset")
             // each member wears its own hue (identity), the same as its trace
@@ -250,23 +250,23 @@ Item {
         }
 
         function test_010_a_chosen_preset_is_kept_across_swings() {
-            choosePreset("Club & speed")
-            compare(appSettings.chartPrefs[base() + "preset"], "Club & speed")
+            choosePreset("Club delivery")
+            compare(appSettings.chartPrefs[base() + "preset"], "Club delivery")
             hn.pick(3); settle()
-            compare(hn.body.tChoices.preset, "Club & speed")
+            compare(hn.body.tChoices.preset, "Club delivery")
             fresh({}, 5)                                         // a rebuild restores it
-            compare(hn.body.tChoices.preset, "Club & speed")
+            compare(hn.body.tChoices.preset, "Club delivery")
         }
 
         function test_011_the_title_follows_the_preset() {
             compare(hn.body.cardAside, Theme.caps("Kinematic sequence"), "the stage card's aside")
             compare(wordOf(option("preset", "open")).text.indexOf("Kinematic sequence"), 0, "the opener names it")
-            choosePreset("Club & speed")
-            compare(hn.body.cardAside, Theme.caps("Club & speed"))
-            compare(wordOf(option("preset", "open")).text.indexOf("Club & speed"), 0)
+            choosePreset("Club delivery")
+            compare(hn.body.cardAside, Theme.caps("Club delivery"))
+            compare(wordOf(option("preset", "open")).text.indexOf("Club delivery"), 0)
             // the folded Controls head still says it
             press(oneShown("chFold:controls"))
-            verify(textOf(oneShown("chFold:controls")).indexOf("Club & speed") >= 0)
+            verify(textOf(oneShown("chFold:controls")).indexOf("Club delivery") >= 0)
         }
 
         function test_012_a_custom_selection_is_still_titled_by_its_family() {
@@ -295,7 +295,7 @@ Item {
             // Replay: a quiet chip at the right of the tab row, opening the list in place
             useMode("Replay")
             press(oneShown("chPresetChip"))
-            const other = shownAll("chPresetOption").filter(function (o) { return o.missId !== "Club & speed" && o.missId !== "Kinematic sequence" })[0]
+            const other = shownAll("chPresetOption").filter(function (o) { return o.missId !== "Club delivery" && o.missId !== "Kinematic sequence" })[0]
             verify(!!other, "another preset is offered")
             const name = other.missId
             press(other)
@@ -338,7 +338,7 @@ Item {
             for (const seg of ["leadArm", "club", "pelvis"]) verify(hn.findAll(hn.body, "chPeak:" + seg).length === 1, seg + " peak ringed")
             compare(hn.findAll(hn.body, /^chRising:.+/).length, 0, "shot 8 has no trunk still rising")
             verify(oneShown("chSeqTable"))
-            choosePreset("Club & speed")
+            choosePreset("Club delivery")
             compare(shownAll("chSeqChain").length, 0)
             compare(shownAll("chSeqTable").length, 0)
             compare(hn.findAll(hn.body, /^chPeak:.+/).length, 0, "no sequence peaks (a plain curve's peak has no segment)")

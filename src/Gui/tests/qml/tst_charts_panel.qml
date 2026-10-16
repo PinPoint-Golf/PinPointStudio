@@ -185,10 +185,10 @@ Item {
             const view = textOf(oneShown("chShotView"))
             verify(view.indexOf("may be the golfer (hips held at impact, then catching up) or the two-camera measurement; it cannot yet tell them apart") >= 0,
                    "the neutral note is on This shot")
-            // …and in Replay too: the glance opens on Club & speed, where nothing is said late; on the sequence
+            // …and in Replay too: the glance opens on Club delivery, where nothing is said late; on the sequence
             // it keeps the chain, its one late mark and the neutral note
             useMode("Replay")
-            compare(shownAll(/^chSeqLate:/).length, 0, "Club & speed says nothing late")
+            compare(shownAll(/^chSeqLate:/).length, 0, "Club delivery says nothing late")
             press(oneShown("chPresetChip"))
             pickInline("chPresetOption", "Kinematic sequence")
             compare(shownAll(/^chSeqLate:/).map(function (x) { return x.objectName }).join(","), "chSeqLate:pelvis")

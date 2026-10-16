@@ -328,9 +328,9 @@ int main()
         checkStr("trail wrist",  groupOf(g, "trailWristFlexExt"), "Wrist & forearm");
         checkStr("pelvis turn",  groupOf(g, "pelvisRotation"),   "Body rotation");
         checkStr("x-factor",     groupOf(g, "xFactor"),          "Body rotation");
-        checkStr("clubhead spd", groupOf(g, "clubheadSpeed"),    "Club & speed");
+        checkStr("clubhead spd", groupOf(g, "clubheadSpeed"),    "Club delivery");
         // lagAngle sits with the speeds rather than in its own group — the read a coach makes.
-        checkStr("lag angle",    groupOf(g, "lagAngle"),         "Club & speed");
+        checkStr("lag angle",    groupOf(g, "lagAngle"),         "Club delivery");
         checkStr("head sway",    groupOf(g, "headSway"),         "Head");
 
         // The scalars are absent entirely — not an empty group, not an "Other".
@@ -352,7 +352,7 @@ int main()
     // ── Manifest order, so the chart and the Metric Library agree ─────────────────
     {
         std::printf("seriesGroups — ordering\n");
-        // Declared in the manifest as Wrist & forearm … Body rotation … Club & speed, and the
+        // Declared in the manifest as Wrist & forearm … Body rotation … Club delivery, and the
         // result must follow that regardless of the order the analyzer appended the series in.
         const QVariantList series{ curve("clubheadSpeed"), curve("pelvisRotation"),
                                    curve("leadWristFlexExt") };
@@ -360,7 +360,7 @@ int main()
         checkEqI("three groups", g.size(), 3);
         checkStr("first",  g.at(0).toMap().value(QStringLiteral("group")).toString(), "Wrist & forearm");
         checkStr("second", g.at(1).toMap().value(QStringLiteral("group")).toString(), "Body rotation");
-        checkStr("third",  g.at(2).toMap().value(QStringLiteral("group")).toString(), "Club & speed");
+        checkStr("third",  g.at(2).toMap().value(QStringLiteral("group")).toString(), "Club delivery");
     }
 
     // ── Cards without a curve, and curves that are only cards (2026-10-01) ────────────

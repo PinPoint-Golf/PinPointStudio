@@ -400,7 +400,9 @@ a magnitude — a carry, a spin rate, a duration.
 | `comOverLeadFoot` | % stance width | live | further FROM the lead ankle — UNSIGNED, because still back and fallen through are the  same fault seen from either side | *cannot go negative* |
 | `balanceHeelToe` | % foot length | planned | the balance point further toward the toes | further back toward the heels |
 
-#### Club & speed
+#### Club delivery — the club's motion
+
+Formerly its own group, *Club & speed*; merged into Club delivery on 16 Oct 2026 so the club's motion and its impact readings are one preset. In Replay the preset shows its curves and only path, face, attack angle, low point and dynamic loft as instant readings.
 
 | Metric | Unit | Status | Positive means | Negative means |
 |---|---|---|---|---|
@@ -1061,7 +1063,7 @@ not scale with the player, and they differ **by club**, including in sign.
 > `metric_catalogue_test` now sweeps every descriptor for a claimant, which is the check that would
 > have caught the first one on the day it landed; a per-metric case would not have.
 
-### Club & speed
+### Club delivery — the club's motion (formerly Club & speed)
 
 | Metric | Status | Capture | Detection | Calibration | Verification & validation |
 |---|---|---|---|---|---|

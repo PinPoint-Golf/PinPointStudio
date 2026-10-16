@@ -209,10 +209,19 @@ private slots:
         ChartsTracesPresenter p;
         setUp(p);
         p.setRegisterName(QStringLiteral("replay"));
-        QCOMPARE(p.choices().value(QStringLiteral("preset")).toString(), QStringLiteral("Club & speed"));
+        QCOMPARE(p.choices().value(QStringLiteral("preset")).toString(), QStringLiteral("Club delivery"));
         QCOMPARE(text(p.thisShot().value(QStringLiteral("head"))), nb(QStringLiteral("Clubhead speed 82~mph at impact")));
         QVERIFY(text(p.thisShot().value(QStringLiteral("note"))).isEmpty());
-        // instant-only members are cards, not traces; shaft lie rides on shaft lean's card
+        // Replay is the glance: of the instant readings only path, face, attack angle, low point and dynamic
+        // loft (with their launch-monitor twins) are cards (16 Oct)
+        const QStringList glance{ QStringLiteral("clubPath"), QStringLiteral("lm.clubPath"), QStringLiteral("lm.faceAngle"),
+                                  QStringLiteral("attackAngle"), QStringLiteral("lm.attackAngle"), QStringLiteral("lowPointAhead"),
+                                  QStringLiteral("lm.lowPointAhead"), QStringLiteral("lm.dynamicLoft") };
+        for (const QVariant &cv : p.thisShot().value(QStringLiteral("cards")).toList())
+            QVERIFY2(glance.contains(cv.toMap().value(QStringLiteral("key")).toString()), qPrintable(cv.toMap().value(QStringLiteral("key")).toString()));
+        // Analyse shows them all: instant-only members are cards, not traces; shaft lie rides on shaft lean's card
+        p.setRegisterName(QStringLiteral("analyse"));
+        p.setPreset(QStringLiteral("Club delivery"));
         const QVariantList cards = p.thisShot().value(QStringLiteral("cards")).toList();
         bool lean = false, lieAlone = false;
         for (const QVariant &cv : cards) {
@@ -569,7 +578,7 @@ private slots:
     {
         ChartsTracesPresenter p;
         setUp(p);
-        p.setPreset(QStringLiteral("Club & speed"));
+        p.setPreset(QStringLiteral("Club delivery"));
         const ShotSeries &s8 = *m_snap->shots[7];
         auto win = [&] { return p.thisShot().value(QStringLiteral("window")).toMap(); };
         auto peakText = [&] {
@@ -679,15 +688,16 @@ private slots:
             QVERIFY(!sr.isEmpty());
             QVERIFY(sr.value(QStringLiteral("picked")).toMap().isEmpty());
         }
-        {   // a preset with no drawable curve (Club delivery): cards only, said
+        {   // a preset with no drawable curve on this shot: cards only, said (Club delivery was one until it took
+            // in Club & speed's curves on 16 Oct, so every preset is tried)
             ChartsTracesPresenter p;
             setUp(p);
             QStringList names;
             for (const QVariant &g : p.choices().value(QStringLiteral("presets")).toList()) names << g.toMap().value(QStringLiteral("id")).toString();
-            if (names.contains(QStringLiteral("Club delivery"))) {
-                p.setPreset(QStringLiteral("Club delivery"));
-                QVERIFY(p.thisShot().value(QStringLiteral("rows")).toList().isEmpty());
-                QVERIFY(!text(p.thisShot().value(QStringLiteral("noTraces"))).isEmpty());
+            for (const QString &n : names) {
+                p.setPreset(n);
+                if (p.thisShot().value(QStringLiteral("rows")).toList().isEmpty())
+                    QVERIFY2(!text(p.thisShot().value(QStringLiteral("noTraces"))).isEmpty(), qPrintable(n));
             }
         }
     }
@@ -791,7 +801,7 @@ private slots:
             QVERIFY(t.startsWith(QLatin1Char('+')) || t.startsWith(QChar(0x2212)));
         }
         // a sub-unit step keeps its decimals ("0.5", never two "1"s)
-        p.setPreset(QStringLiteral("Club & speed"));
+        p.setPreset(QStringLiteral("Club delivery"));
         QStringList seen;
         for (const QVariant &r : p.thisShot().value(QStringLiteral("rows")).toList())
             for (const QVariant &tv : r.toMap().value(QStringLiteral("yTicks")).toList()) {
@@ -806,7 +816,7 @@ private slots:
     {
         ChartsTracesPresenter p;
         setUp(p);
-        p.setPreset(QStringLiteral("Club & speed"));
+        p.setPreset(QStringLiteral("Club delivery"));
         const QVariantMap s = p.thisShot();
         const ShotSeries &s8 = *m_snap->shots[7];
         bool top = false, impact = false;
@@ -927,7 +937,7 @@ private slots:
     void lmOnlyPresetByData()
     {
         // LM-only: the picked shot carries only lm.* readings; other shots still carry a clubhead
-        // speed curve, so "Club & speed" exists in the session but not on this shot
+        // speed curve, so "Club delivery" exists in the session but not on this shot
         auto lm = std::make_shared<SessionSnapshot>(*m_snap);
         lm->revision = 40;
         auto c = std::make_shared<ShotSeries>(*lm->shots[7]);
@@ -951,7 +961,7 @@ private slots:
         QCOMPARE(text(p.thisShot().value(QStringLiteral("head"))), nb(QStringLiteral("Ball speed 112~mph, launch angle 18°")));
         QCOMPARE(p.thisShot().value(QStringLiteral("figures")).toList().size(), 1);
         // a saved choice the shot has no data for does not win; one it has data for does
-        p.setPreset(QStringLiteral("Club & speed"));
+        p.setPreset(QStringLiteral("Club delivery"));
         QCOMPARE(p.choices().value(QStringLiteral("preset")).toString(), QStringLiteral("Ball flight"));
         ChartsTracesPresenter q;
         setUp(q);
