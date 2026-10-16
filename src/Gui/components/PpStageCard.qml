@@ -23,7 +23,9 @@
 // The heading row is the title and aside, as a coaching card's; a panel with its own heading
 // (tabs, a picker) passes it as `heading` and that replaces the title. The aside stays either
 // way, at the right on the first line of the row — the place a panel says "reading…" or what
-// its columns are.
+// its columns are. A panel whose aside names what it is showing may make it the control that
+// changes it (`asideActive`: a ▾ after it, clicks raise asideClicked, `asideOn` while its picker
+// is open) — the Charts panel's preset, so the heading is the selector, not said twice.
 //
 // The body CLIPS: whatever a panel draws stays inside its card, so a panel squeezed into the
 // stage arrangement's side column is cut at the card's edge rather than spilling over the next.
@@ -37,6 +39,9 @@ Item {
     property color     tone:    Theme.colorText3
     property string    title:   ""
     property string    aside:   ""
+    property bool      asideActive: false
+    property bool      asideOn:     false
+    signal asideClicked()
     property Component heading: null
     property int       pad:     Theme.gap(14)
     property int       bodyGap: Theme.gap(10)
@@ -78,8 +83,18 @@ Item {
             x: headRow.width - width
             width: Math.min(implicitWidth, headRow.width * 0.6)
             elide: Text.ElideRight
-            text: card.aside
+            text: card.aside + (card.asideActive ? "  ▾" : "")
             font.letterSpacing: Theme.trackingData
+            color: card.asideActive && (card.asideOn || asideMouse.containsMouse) ? Theme.colorText : Theme.colorText3
+            MouseArea {
+                id: asideMouse
+                anchors.fill: parent
+                anchors.margins: -Theme.gap(4)
+                enabled: card.asideActive
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: card.asideClicked()
+            }
         }
     }
 

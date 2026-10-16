@@ -85,7 +85,8 @@ Item {
     readonly property bool diffOn: refOn && reference.difference === true
     readonly property real diffH: roles ? roles.u(32) : 32
     readonly property real nameBand: roles ? roles.u(17) : 17
-    readonly property real topH: roles ? roles.u(16) + ((playText !== "" || isFinite(hoverMs)) ? roles.u(14) : 0) : 0
+    // the time line over the P tags is always reserved: a hover that brought it in would resize the figure
+    readonly property real topH: roles ? roles.u(16) + roles.u(14) : 0
     readonly property real footH: roles ? roles.u(30) : 30
     function xOf(t) { return yGut + (t - x0) / Math.max(1e-9, x1 - x0) * innerW }
     function tOf(px) { return x0 + (px - yGut) / Math.max(1, innerW) * (x1 - x0) }
@@ -120,9 +121,10 @@ Item {
     property bool showRawDots: true
     // a row's figure column: the hover reading while the pointer is on the figure, else the row's figures
     // (Analyse) and the reading at the playhead with its Δ from Address (F5), and the reference's reading
-    function itemsFor(r) {
+    // `still` asks for the readings with no hover — what a row is sized from, so a hover never resizes it.
+    function itemsFor(r, still) {
         if (!r) return []
-        const hv = isFinite(hoverMs) ? byKey(hover.rows, r.key) : null
+        const hv = !still && isFinite(hoverMs) ? byKey(hover.rows, r.key) : null
         if (hv) return [{ label: hover.when || "", text: hv.text, sub: hv.raw || "", warn: false, word: hv.grossWarn ? "⚠" : "" }]
         const out = []
         if (figMode === "figures") for (const f of (r.figures || [])) out.push({ label: f.label, text: f.text, warn: f.warn === true })
@@ -199,7 +201,7 @@ Item {
                 readonly property bool hasDiff: tf.diffOn && !ov && !!rref && rref.diffLo !== null && rref.diffLo !== undefined && isFinite(rref.diffLo)
                 readonly property var diffGap: hasDiff && rref.gap && rref.gap.found ? rref.gap : null
                 width: tf.width
-                height: Math.max(ph, ov && tf.figSide ? figCol.height : 0) + (tf.figSide ? 0 : foldFlow.height + tf.roles.u(4))
+                height: Math.max(ph, ov && tf.figSide ? figCol.stillH : 0) + (tf.figSide ? 0 : foldMeasure.height + tf.roles.u(4))
                         + (hasDiff ? tf.diffH + tf.roles.u(4) : 0) + tf.roles.u(8)
 
                 PpChPlot {
@@ -384,6 +386,14 @@ Item {
                         }
                         return tf.itemsFor(rw.r)
                     }
+                    // the column's height with no hover, or with one hover reading per curve if that is taller
+                    function hOf(list) { let h = 0; for (const it of list) h += tf.roles.u(it.head ? 18 : 15) + (it.sub ? tf.roles.u(13) : 0); return h }
+                    readonly property real stillH: {
+                        if (!tf.roles || !tf.figSide || !rw.ov) return 0
+                        let h = 0
+                        for (const q of tf.rows) h += tf.roles.u(18) + Math.max(hOf(tf.itemsFor(q, true)), tf.roles.u(28))
+                        return h
+                    }
                     visible: tf.figSide
                     x: tf.width - tf.figW; y: tf.roles.u(1); width: tf.figW; height: figColumn.height
                     Column {
@@ -404,6 +414,31 @@ Item {
                                 }
                                 Text { visible: !!modelData.sub; anchors.right: parent.right; y: tf.roles.u(14); text: modelData.sub || ""; font: tf.roles.fFigLabel; color: tf.roles.ink3 }
                             }
+                        }
+                    }
+                }
+                // the folded line laid out with no hover, unseen: what the row is sized from
+                Flow {
+                    id: foldMeasure
+                    visible: false
+                    x: foldFlow.x; width: foldFlow.width
+                    spacing: foldFlow.spacing
+                    Repeater {
+                        // never empty: a hover reading needs its one line even where the row has no readings
+                        model: {
+                            if (tf.figSide) return []
+                            let out = []
+                            if (rw.ov) for (const q of tf.rows) out = out.concat([{ label: q.label, text: "" }]).concat(tf.itemsFor(q, true))
+                            else out = tf.itemsFor(rw.r, true)
+                            return out.length ? out : [{ label: "", text: " ", sub: " " }]
+                        }
+                        delegate: Row {
+                            required property var modelData
+                            spacing: tf.roles.u(4)
+                            Text { text: modelData.label; font: tf.roles.fLabel }
+                            Text { text: modelData.text; font: tf.roles.fFigS }
+                            Text { visible: !!modelData.sub; text: modelData.sub || ""; font: tf.roles.fFigLabel }
+                            Text { visible: !!modelData.word; text: modelData.word || ""; font: tf.roles.fSmall }
                         }
                     }
                 }
@@ -428,7 +463,7 @@ Item {
                 Item {
                     objectName: "chDiffStrip:" + rw.key
                     visible: rw.hasDiff
-                    y: rw.ph + (tf.figSide ? 0 : foldFlow.height + tf.roles.u(4)) + tf.roles.u(4)
+                    y: rw.ph + (tf.figSide ? 0 : foldMeasure.height + tf.roles.u(4)) + tf.roles.u(4)
                     width: tf.areaW; height: tf.diffH
                     PpChPlot {
                         id: dplot

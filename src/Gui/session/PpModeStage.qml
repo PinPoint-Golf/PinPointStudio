@@ -109,8 +109,12 @@ Item {
     function _asideOf(panel) {
         return (panel && panel.cardAside !== undefined) ? String(panel.cardAside) : ""
     }
+    // A panel whose aside is a control (asideActive) is told the card hosts it, so it drops its own copy.
+    function _asideActive(panel) { return !!panel && panel.asideActive === true }
+    function _asideOn(panel)     { return !!panel && panel.asideOn === true }
     function _unframe(panel) {
         if (panel && panel.framed !== undefined) panel.framed = false
+        if (panel && panel.asideHosted !== undefined) panel.asideHosted = true
     }
 
     // A panel in its card. The aside is whatever the panel offers (nothing, for most); `framed`
@@ -122,6 +126,9 @@ Item {
         tone:  stage._toneFor(pc.def ? pc.def.tone : "")
         title: pc.def ? pc.def.title : ""
         aside: stage._asideOf(panelLoader.item)
+        asideActive: stage._asideActive(panelLoader.item)
+        asideOn: stage._asideOn(panelLoader.item)
+        onAsideClicked: if (panelLoader.item && panelLoader.item.activateAside) panelLoader.item.activateAside()
         Loader {
             id: panelLoader
             anchors.fill: parent

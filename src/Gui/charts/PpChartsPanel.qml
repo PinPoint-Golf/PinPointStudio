@@ -68,6 +68,11 @@ Item {
     property string defaultPreset: ""
     property alias framed: body.framed
     readonly property string cardAside: body.cardAside
+    // the card's aside IS the preset selector (PpStageCard asideActive): set by the stage, the tab row drops its chip
+    property alias asideHosted: body.presetInHeading
+    readonly property bool asideActive: body.interactive && body.cardAside !== ""
+    readonly property bool asideOn: body.presetPickerOpen
+    function activateAside() { body.togglePresetPicker() }
     property alias interactive: body.interactive
     property alias surface: body.surface
     property alias demoState: body.demoState

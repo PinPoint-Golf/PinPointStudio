@@ -152,8 +152,9 @@ Item {
             current: root.shown
             interactive: root.interactive
             // the preset as a quiet chip at the right of the tab row, in both registers: Analyse also offers it under
-            // Controls, but a folded Controls hid the only way to change it (Mark, 16 Oct)
-            chip: root.tc.presetTitle || ""
+            // Controls, but a folded Controls hid the only way to change it (Mark, 16 Oct). Where a card heading
+            // already names the preset, that heading is the selector and the chip is not drawn (Mark, 16 Oct).
+            chip: root.body && !root.body.presetInChip ? "" : (root.tc.presetTitle || "")
             chipOn: root.presetOpen
             chipObjectName: "chPresetChip"
             onChipActivated: root.presetOpen = !root.presetOpen

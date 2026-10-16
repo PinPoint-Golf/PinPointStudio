@@ -283,6 +283,12 @@ Item {
     readonly property bool _drawFrame: framed && surface !== "cast"
     // the card heading's aside names the preset family (F1: the panel says which preset it is showing)
     readonly property string cardAside: Theme.caps(tChoices && tChoices.presetTitle ? tChoices.presetTitle : "")
+    // …and it is the selector: a heading that names the preset (the stage card's, set by the stage through the panel,
+    // or this body's own frame) opens the preset picker, and the tab row carries no second copy as a chip
+    property bool presetInHeading: false
+    readonly property bool presetInChip: !presetInHeading && !_drawFrame
+    readonly property bool presetPickerOpen: !!registerItem && registerItem.presetOpen === true
+    function togglePresetPicker() { if (registerItem && interactive) registerItem.presetOpen = !registerItem.presetOpen }
     readonly property int _framePad: Theme.gap(14)
     PpCardShell { anchors.fill: parent; visible: root._drawFrame; tone: Theme.colorText3 }
     Item {
@@ -292,7 +298,19 @@ Item {
         width: parent.width - 2 * root._framePad
         height: visible ? frameTitle.implicitHeight : 0
         PpMicro { id: frameTitle; objectName: "chTitle"; text: Theme.caps(qsTr("Charts")); color: Theme.colorText3 }
-        PpMicro { anchors.right: parent.right; text: root.cardAside; font.letterSpacing: Theme.trackingData }
+        PpMicro {
+            anchors.right: parent.right
+            text: root.cardAside + (root.interactive && root.cardAside !== "" ? "  ▾" : "")
+            font.letterSpacing: Theme.trackingData
+            color: root.presetPickerOpen || frameAsideMouse.containsMouse ? Theme.colorText : Theme.colorText3
+            MouseArea {
+                id: frameAsideMouse
+                anchors.fill: parent; anchors.margins: -Theme.gap(4)
+                enabled: root.interactive; hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.togglePresetPicker()
+            }
+        }
     }
 
     // ── the register ──
