@@ -18,6 +18,8 @@
 
 #include "setup_capability.h"
 
+#include "gate_catalogue.h"
+
 #include <QHash>
 
 #include <algorithm>
@@ -200,6 +202,26 @@ std::vector<CapabilityGroup> summariseSetup(const MetricCatalogue &catalogue,
             break;
         }
         g.upgrades << a.upgrade;
+
+        // A setup-bound gate the winning route does not lift: the reading it stands on is forecast to
+        // fall foul of it on this setup (the sighted band on a face-on-only trunk).
+        if (winner) {
+            const QString subject = gates::subjectForMetricKey(d->key);
+            if (!subject.isEmpty())
+                for (const gates::GateEntry &e : gates::gateCatalogue()) {
+                    if (!e.setupBound.contains(subject) || gates::liftedBy(e, subject, winner->id)) continue;
+                    auto n = std::find_if(g.out.gateNotes.begin(), g.out.gateNotes.end(),
+                                          [&](const CapabilityGroup::GateNote &x) { return x.gate == e.id; });
+                    if (n == g.out.gateNotes.end()) {
+                        g.out.gateNotes.push_back({ e.id, gates::claimWords(e), {}, {} });
+                        n = g.out.gateNotes.end() - 1;
+                    }
+                    if (!n->subjects.contains(subject)) {
+                        n->subjects << subject;
+                        n->subjectWords << gates::subjectLabel(subject).toLower();
+                    }
+                }
+        }
 
         // The kit that would do better: every LIVE rung above the winner, or every live rung when
         // nothing fired. Planned rungs are skipped for the resolver's own reason — a golfer must

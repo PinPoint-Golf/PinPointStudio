@@ -47,13 +47,27 @@ namespace pinpoint::trust {
 // when the shot carries no records (analysed before records existed: see trustShot's `recorded`).
 QVariantList trustReadings(const charts::ShotSeries &shot);
 
-// One shot, for the panel: { recorded, readings: [READING], head (one sentence: what this shot could not
-// measure), counts: { bounded, notSeen, notJudged } }.
+// One shot, for the panel: { recorded, readings: [READING], head (the summary's lines as one paragraph),
+// summary (trustSummary), counts: { bounded, notSeen, notJudged } }.
 QVariantMap trustShot(const charts::ShotSeries &shot);
 
 // The session, for the panel: { n, recorded (shots carrying records), gates: [{ gate, title, area,
-// subjects: [{ subject, label, shots }], shots (any subject), of (recorded) }], head }.
+// subjects: [{ subject, label, shots }], shots (any subject), of (recorded) }], head, summary }.
 QVariantMap trustSession(const charts::SessionSnapshot &session);
+
+// "HOW FAR CAN I TRUST THIS?" (§7.4) — the short answer for a shot or a session, said once: the Trust
+// panel's head and the fold at the head of Session diagnostics both read it. Built only from the records,
+// the sequence nodes (the route that ran each reading, and its quality) and the gate catalogue's words;
+// the passed readings take the Setup page's words (measured / estimated), a gated one its gate's words
+// ("out of sight"). Today only the kinematic sequence records gates, so the summary speaks for its four
+// readings and says nothing about the rest.
+//
+//   SUMMARY = { recorded, tail (the closed fold's few words: "pelvis and chest out of sight"),
+//               lines: [{ text, kind ("routes" | "passed" | "gated" | "old"), subject, swingDir }] }
+//
+// `subject` / `swingDir` on a gated line name the reading its "Why" opens (TrustFocus).
+QVariantMap trustSummary(const charts::ShotSeries &shot);
+QVariantMap trustSummary(const charts::SessionSnapshot &session);
 
 // A subject as the reader names the reading ("ks.pelvis" → "Pelvis peak").
 QString subjectLabel(const QString &subject);

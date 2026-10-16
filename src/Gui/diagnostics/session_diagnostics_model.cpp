@@ -3785,6 +3785,7 @@ QVariantMap SessionDiagnosticsModel::shotReadout(int shotId) const
     out[QStringLiteral("shotIndex")]  = idx;
     out[QStringLiteral("shotCount")]  = int(m_shots.size());
     out[QStringLiteral("club")]       = shot.club;
+    out[QStringLiteral("swingDir")]   = m_swingDirs.value(shotId);   // the trust summary's shot (§7.4)
     out[QStringLiteral("contextId")]  = shot.contextId;
     out[QStringLiteral("firedCount")] = fired;
     out[QStringLiteral("cleanCount")] = clean;

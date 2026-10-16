@@ -170,39 +170,299 @@ QVariantList trustReadings(const charts::ShotSeries &shot)
     return out;
 }
 
+// ── "How far can I trust this?" (§7.4) ──────────────────────────────────────────────────────────────
+
+namespace {
+
+// One reading on one shot, as the summary counts it.
+struct Status {
+    QString subject, level;     // level: measured | estimated | bounded | notSeen | notJudged
+    QString gate;               // the gate the claim shows, when a gate acted on it
+    QStringList blocks, tried;  // findings it kept from being judged; routes the swing already ran for it
+    bool passed() const { return level == QLatin1String("measured") || level == QLatin1String("estimated"); }
+};
+
+// "Pelvis peak" → "pelvis"; a route subject keeps its whole label.
+QString shortName(const QString &subject)
+{
+    QString l = subjectLabel(subject);
+    if (l.endsWith(QLatin1String(" peak"))) l.chop(5);
+    return l.toLower();
+}
+QString lowerLabel(const QString &subject) { return subjectLabel(subject).toLower(); }
+
+// Every sequence reading the shot has a node for, and every other subject a record names.
+QList<Status> statusesOf(const charts::ShotSeries &shot)
+{
+    QList<Status> out;
+    QHash<QString, QVariantMap> read;
+    for (const QVariant &rv : trustReadings(shot)) read.insert(rv.toMap().value(QStringLiteral("subject")).toString(), rv.toMap());
+    QHash<QString, QString> quality;
+    for (const QVariant &nv : shot.kinematicSequence.value(QStringLiteral("nodes")).toList()) {
+        const QVariantMap n = nv.toMap();
+        quality.insert(QStringLiteral("ks.") + n.value(QStringLiteral("segment")).toString(),
+                       n.value(QStringLiteral("quality")).toString() == QLatin1String("direct") ? QStringLiteral("measured")
+                                                                                               : QStringLiteral("estimated"));
+    }
+    QStringList subjects;
+    for (const QString &id : charts::sequenceSegmentIds()) subjects << QStringLiteral("ks.") + id;
+    for (auto it = read.cbegin(); it != read.cend(); ++it) if (!subjects.contains(it.key())) subjects << it.key();
+    for (const QString &subject : subjects) {
+        const bool hasNode = quality.contains(subject);
+        const auto r = read.constFind(subject);
+        if (!hasNode && r == read.cend()) continue;
+        Status st;
+        st.subject = subject;
+        st.level = r != read.cend() ? r->value(QStringLiteral("level")).toString() : quality.value(subject);
+        if (r != read.cend()) {
+            for (const QVariant &gv : r->value(QStringLiteral("gates")).toList()) {
+                const QVariantMap g = gv.toMap();
+                if (g.value(QStringLiteral("effect")).toString() == QLatin1String("masked")) continue;
+                st.gate = g.value(QStringLiteral("gate")).toString();
+                break;
+            }
+            st.blocks = r->value(QStringLiteral("blocks")).toStringList();
+        }
+        for (const QVariant &rv : shot.gates) {
+            const QVariantMap rec = rv.toMap();
+            if (rec.value(QStringLiteral("subject")).toString() != subject) continue;
+            const QString route = rec.value(QStringLiteral("evidence")).toMap().value(QStringLiteral("route")).toString();
+            if (!route.isEmpty() && !st.tried.contains(route)) st.tried << route;
+        }
+        // a route subject that was only marked on the chart, or a gate that only fell back, says nothing here
+        if (!hasNode && st.passed()) continue;
+        out << st;
+    }
+    return out;
+}
+
+// The routes the sequence ran, in segment order, each with the readings it timed: faceOn → [ks.pelvis, ks.thorax].
+QList<QPair<QString, QStringList>> routesOf(const charts::ShotSeries &shot)
+{
+    QList<QPair<QString, QStringList>> out;
+    QHash<QString, QString> bySeg;
+    for (const QVariant &nv : shot.kinematicSequence.value(QStringLiteral("nodes")).toList()) {
+        const QVariantMap n = nv.toMap();
+        bySeg.insert(n.value(QStringLiteral("segment")).toString(), n.value(QStringLiteral("routeId")).toString());
+    }
+    for (const QString &id : charts::sequenceSegmentIds()) {
+        const QString r = bySeg.value(id);
+        if (r.isEmpty()) continue;
+        auto it = std::find_if(out.begin(), out.end(), [&](const auto &x) { return x.first == r; });
+        if (it == out.end()) out.append({ r, { QStringLiteral("ks.") + id } }); else it->second << QStringLiteral("ks.") + id;
+    }
+    return out;
+}
+
+// "the face-on camera (pelvis, chest)"
+QString routeWithReadings(const QString &theRoute, const QStringList &subjects)
+{
+    QStringList names;
+    for (const QString &s : subjects) names << shortName(s);
+    return theRoute + QStringLiteral(" (") + names.join(QStringLiteral(", ")) + QLatin1Char(')');
+}
+
+QString routeThe(const QString &route)
+{
+    if (route == QLatin1String("faceOn+dtl")) return QStringLiteral("the two cameras together");
+    return QStringLiteral("the ") + gates::routeWords(route);
+}
+
+// A gated group's line. `on` is "" for one shot, " on 6 of 6 shots" for a session.
+QString gatedLine(const gates::GateEntry *e, const QStringList &subjects, const QStringList &perSubjectOn,
+                  const QString &on, const QStringList &blocks, bool everyShot, const QStringList &tried)
+{
+    QStringList who;
+    for (int i = 0; i < subjects.size(); ++i)
+        who << lowerLabel(subjects[i]) + (perSubjectOn.isEmpty() ? QString() : perSubjectOn[i]);
+    QString t = W::cap1(W::list(who)) + QLatin1Char(' ') + (e ? gates::claimWords(*e) : QStringLiteral("not timed")) + on;
+    // the findings it kept from being judged: named when a few, counted when many (the reading's own block,
+    // "Why", and This shot's not-judged list name them all) — the summary stays a few lines
+    if (!blocks.isEmpty())
+        t += QStringLiteral(", so ") + (blocks.size() <= 3 ? W::list(blocks) : W::word(int(blocks.size())) + QStringLiteral(" findings"))
+           + (blocks.size() == 1 ? QStringLiteral(" is") : QStringLiteral(" are"))
+           + QStringLiteral(" not judged") + (everyShot ? QString() : QStringLiteral(" on those shots"));
+    t += QLatin1Char('.');
+    const QString lift = e ? gates::liftTextAll(*e, subjects, tried) : QString();
+    if (!lift.isEmpty()) t += QLatin1Char(' ') + lift;
+    return t;
+}
+
+QVariantMap line(const QString &text, const QString &kind, const QString &subject = {}, const QString &swingDir = {})
+{
+    return { { QStringLiteral("text"), text }, { QStringLiteral("kind"), kind },
+             { QStringLiteral("subject"), subject }, { QStringLiteral("swingDir"), swingDir } };
+}
+
+QString tailOf(const QList<QPair<QString, QStringList>> &groups, bool anyPassed)
+{
+    QStringList parts;
+    for (const auto &g : groups) {
+        const gates::GateEntry *e = gates::gateEntry(g.first);
+        QStringList names;
+        for (const QString &s : g.second) names << shortName(s);
+        parts << W::list(names) + QLatin1Char(' ') + (e ? gates::claimWords(*e) : QStringLiteral("not timed"));
+    }
+    if (parts.isEmpty()) return anyPassed ? QStringLiteral("every reading timed") : QString();
+    return parts.join(QStringLiteral(" · "));
+}
+
+} // namespace
+
+QVariantMap trustSummary(const charts::ShotSeries &shot)
+{
+    if (shot.gatesVersion <= 0)
+        return { { QStringLiteral("recorded"), false }, { QStringLiteral("tail"), QStringLiteral("reasons not recorded") },
+                 { QStringLiteral("lines"), QVariantList{ line(QStringLiteral("This shot was analysed before the reasons were recorded. "
+                                                                              "Re-analyse it to see which gates fired."), QStringLiteral("old")) } } };
+    QVariantList lines;
+    const auto routes = routesOf(shot);
+    if (!routes.isEmpty()) {
+        QStringList w;
+        for (const auto &r : routes) w << routeWithReadings(routeThe(r.first), r.second);
+        lines << line(QStringLiteral("Kinematic sequence, timed from ") + W::list(w) + QLatin1Char('.'), QStringLiteral("routes"));
+    }
+    const QList<Status> sts = statusesOf(shot);
+    QStringList measured, estimated;
+    QList<QPair<QString, QStringList>> groups;   // gate → subjects, first seen first
+    for (const Status &st : sts) {
+        if (st.passed()) { (st.level == QLatin1String("measured") ? measured : estimated) << lowerLabel(st.subject); continue; }
+        auto g = std::find_if(groups.begin(), groups.end(), [&](const auto &x) { return x.first == st.gate; });
+        if (g == groups.end()) groups.append({ st.gate, { st.subject } }); else g->second << st.subject;
+    }
+    QStringList passed;
+    if (!measured.isEmpty()) passed << W::list(measured) + QStringLiteral(" measured");
+    if (!estimated.isEmpty()) passed << W::list(estimated) + QStringLiteral(" estimated");
+    if (!passed.isEmpty()) lines << line(W::cap1(passed.join(QStringLiteral("; "))) + QLatin1Char('.'), QStringLiteral("passed"));
+    for (const auto &g : groups) {
+        QStringList blocks, tried;
+        for (const Status &st : sts) {
+            if (!g.second.contains(st.subject)) continue;
+            for (const QString &b : st.blocks) if (!blocks.contains(b)) blocks << b;
+            for (const QString &t : st.tried) if (!tried.contains(t)) tried << t;
+        }
+        lines << line(gatedLine(gates::gateEntry(g.first), g.second, {}, QString(), blocks, true, tried),
+                      QStringLiteral("gated"), g.second.first(), shot.swingDir);
+    }
+    return { { QStringLiteral("recorded"), true }, { QStringLiteral("tail"), tailOf(groups, !passed.isEmpty()) },
+             { QStringLiteral("lines"), lines } };
+}
+
+QVariantMap trustSummary(const charts::SessionSnapshot &session)
+{
+    int recorded = 0, old = 0;
+    QHash<QString, QStringList> routeSubjects;
+    QHash<QString, int> routeSubjectShots;      // "route|subject" → shots
+    QStringList routeOrder;
+    struct Passed { QString subject, level; int shots = 0; };
+    QList<Passed> passed;
+    struct Group { QString gate; QStringList subjects; QHash<QString, int> bySubject; QStringList blocks, tried; QString swingDir;
+                   int shots = 0; };
+    QList<Group> groups;
+    for (const auto &sh : session.shots) {
+        if (!sh) continue;
+        if (sh->gatesVersion <= 0) { ++old; continue; }
+        ++recorded;
+        for (const auto &r : routesOf(*sh)) {
+            if (!routeOrder.contains(r.first)) routeOrder << r.first;
+            for (const QString &x : r.second) {
+                if (!routeSubjects[r.first].contains(x)) routeSubjects[r.first] << x;
+                routeSubjectShots[r.first + QLatin1Char('|') + x] += 1;
+            }
+        }
+        QSet<QString> gatesHere;
+        for (const Status &st : statusesOf(*sh)) {
+            if (st.passed()) {
+                auto p = std::find_if(passed.begin(), passed.end(), [&](const Passed &x) { return x.subject == st.subject && x.level == st.level; });
+                if (p == passed.end()) passed.append({ st.subject, st.level, 1 }); else p->shots += 1;
+                continue;
+            }
+            auto g = std::find_if(groups.begin(), groups.end(), [&](const Group &x) { return x.gate == st.gate; });
+            if (g == groups.end()) { groups.append(Group{ st.gate, {}, {}, {}, {}, sh->swingDir, 0 }); g = groups.end() - 1; }
+            if (!g->subjects.contains(st.subject)) g->subjects << st.subject;
+            g->bySubject[st.subject] += 1;
+            for (const QString &b : st.blocks) if (!g->blocks.contains(b)) g->blocks << b;
+            for (const QString &t : st.tried) if (!g->tried.contains(t)) g->tried << t;
+            if (!gatesHere.contains(st.gate)) { gatesHere.insert(st.gate); g->shots += 1; }
+        }
+    }
+    QVariantList lines;
+    if (recorded == 0) {
+        if (session.count() > 0)
+            lines << line(QStringLiteral("No shot in this session carries recorded reasons yet; re-analyse it to see which gates fired."),
+                          QStringLiteral("old"));
+        return { { QStringLiteral("recorded"), false }, { QStringLiteral("tail"), session.count() > 0 ? QStringLiteral("reasons not recorded") : QString() },
+                 { QStringLiteral("lines"), lines } };
+    }
+    const QString of = QStringLiteral(" of ") + QString::number(recorded);
+    if (!routeOrder.isEmpty()) {
+        QStringList w;
+        for (const QString &r : routeOrder)
+        {
+            QStringList subs = routeSubjects.value(r);
+            std::stable_sort(subs.begin(), subs.end(), [](const QString &a, const QString &b) { return segmentOf(a) < segmentOf(b); });
+            // a reading this route timed on only some shots says on how many: "(pelvis on 14 of 15, club)"
+            QStringList names;
+            for (const QString &x : subs) {
+                const int k = routeSubjectShots.value(r + QLatin1Char('|') + x);
+                names << shortName(x) + (k == recorded ? QString() : QStringLiteral(" on ") + QString::number(k) + of);
+            }
+            w << routeThe(r) + QStringLiteral(" (") + names.join(QStringLiteral(", ")) + QLatin1Char(')');
+        }
+        lines << line(QStringLiteral("Kinematic sequence, timed from ") + W::list(w) + QLatin1Char('.'), QStringLiteral("routes"));
+    }
+    // subjects in segment order, then by level: "lead arm peak measured on 6 of 6 shots; club peak estimated on 6 of 6"
+    std::stable_sort(passed.begin(), passed.end(), [](const Passed &a, const Passed &b) { return segmentOf(a.subject) < segmentOf(b.subject); });
+    QStringList pw;
+    for (const Passed &p : passed)
+        pw << lowerLabel(p.subject) + QLatin1Char(' ') + p.level + QStringLiteral(" on ") + QString::number(p.shots) + of
+              + (pw.isEmpty() ? QStringLiteral(" shots") : QString());
+    if (!pw.isEmpty()) lines << line(W::cap1(pw.join(QStringLiteral("; "))) + QLatin1Char('.'), QStringLiteral("passed"));
+    std::stable_sort(groups.begin(), groups.end(), [](const Group &a, const Group &b) { return a.shots > b.shots; });
+    QList<QPair<QString, QStringList>> tailGroups;
+    for (Group &g : groups) {
+        std::stable_sort(g.subjects.begin(), g.subjects.end(), [](const QString &a, const QString &b) {
+            const int sa = segmentOf(a), sb = segmentOf(b); return (sa < 0 ? 99 : sa) < (sb < 0 ? 99 : sb); });
+        bool same = true;
+        for (const QString &s : g.subjects) same = same && g.bySubject.value(s) == g.bySubject.value(g.subjects.first());
+        QStringList perSubject;
+        if (!same)
+            for (const QString &s : g.subjects) perSubject << QStringLiteral(" (") + QString::number(g.bySubject.value(s)) + of + QLatin1Char(')');
+        const QString on = same ? QStringLiteral(" on ") + QString::number(g.bySubject.value(g.subjects.first())) + of + QStringLiteral(" shots")
+                                : QString();
+        lines << line(gatedLine(gates::gateEntry(g.gate), g.subjects, perSubject, on, g.blocks, g.shots == recorded, g.tried),
+                      QStringLiteral("gated"), g.subjects.first(), g.swingDir);
+        tailGroups.append({ g.gate, g.subjects });
+    }
+    if (old > 0)
+        lines << line(W::cap1(W::word(old)) + (old == 1 ? QStringLiteral(" shot was") : QStringLiteral(" shots were"))
+                          + QStringLiteral(" analysed before the reasons were recorded")
+                          + (old == 1 ? QStringLiteral(" and is") : QStringLiteral(" and are"))
+                          + QStringLiteral(" not counted; re-analyse to include ")
+                          + (old == 1 ? QStringLiteral("it.") : QStringLiteral("them.")), QStringLiteral("old"));
+    return { { QStringLiteral("recorded"), true }, { QStringLiteral("tail"), tailOf(tailGroups, !pw.isEmpty()) },
+             { QStringLiteral("lines"), lines } };
+}
+
 QVariantMap trustShot(const charts::ShotSeries &shot)
 {
     const QVariantList readings = trustReadings(shot);
     int bounded = 0, notSeen = 0, notJudged = 0;
-    QStringList notTimed, notJudgedL;
     for (const QVariant &rv : readings) {
-        const QVariantMap r = rv.toMap();
-        const QString l = r.value(QStringLiteral("level")).toString();
-        const QString lab = r.value(QStringLiteral("label")).toString().toLower();
-        const QString why = r.value(QStringLiteral("shortText")).toString();
-        if (l == QLatin1String("bounded") || l == QLatin1String("notSeen")) {
-            (l == QLatin1String("bounded") ? bounded : notSeen) += 1;
-            notTimed << lab + (why.isEmpty() ? QString() : QStringLiteral(" (") + why + QStringLiteral(")"));
-        } else if (l == QLatin1String("notJudged")) {
-            ++notJudged;
-            notJudgedL << lab;
-        }
+        const QString l = rv.toMap().value(QStringLiteral("level")).toString();
+        if (l == QLatin1String("bounded")) ++bounded;
+        else if (l == QLatin1String("notSeen")) ++notSeen;
+        else if (l == QLatin1String("notJudged")) ++notJudged;
     }
-    QString head;
-    if (shot.gatesVersion <= 0)
-        head = QStringLiteral("This shot was analysed before the reasons were recorded. Re-analyse it to see which gates fired.");
-    else if (notTimed.isEmpty() && notJudgedL.isEmpty())
-        head = readings.isEmpty() ? QStringLiteral("No gate refused, bounded or withheld a reading on this shot.")
-                                  : QStringLiteral("Every reading was timed; some curves have stretches the camera could not see.");
-    else {
-        if (!notTimed.isEmpty()) head = QStringLiteral("Not timed: ") + W::list(notTimed) + QStringLiteral(".");
-        if (!notJudgedL.isEmpty())
-            head += (head.isEmpty() ? QString() : QStringLiteral(" ")) + QStringLiteral("Drawn, not judged: ")
-                  + W::list(notJudgedL) + QStringLiteral(".");
-    }
+    // the head IS the summary (§7.4): one statement for the panel and the fold
+    const QVariantMap summary = trustSummary(shot);
+    QStringList said;
+    for (const QVariant &lv : summary.value(QStringLiteral("lines")).toList()) said << lv.toMap().value(QStringLiteral("text")).toString();
+    const QString head = said.isEmpty() ? QStringLiteral("No gate refused, bounded or withheld a reading on this shot.") : said.join(QLatin1Char(' '));
     return { { QStringLiteral("recorded"), shot.gatesVersion > 0 },
              { QStringLiteral("readings"), readings },
              { QStringLiteral("head"), head },
+             { QStringLiteral("summary"), summary },
              { QStringLiteral("counts"), QVariantMap{ { QStringLiteral("bounded"), bounded },
                                                       { QStringLiteral("notSeen"), notSeen },
                                                       { QStringLiteral("notJudged"), notJudged } } } };
@@ -237,7 +497,6 @@ QVariantMap trustSession(const charts::SessionSnapshot &session)
     }
     std::stable_sort(rows.begin(), rows.end(), [](const Row &a, const Row &b) { return a.shots > b.shots; });
     QVariantList out;
-    QStringList head;
     for (const Row &r : rows) {
         const gates::GateEntry *e = gates::gateEntry(r.gate);
         QVariantList subs;
@@ -245,12 +504,9 @@ QVariantMap trustSession(const charts::SessionSnapshot &session)
         std::stable_sort(subjects.begin(), subjects.end(), [](const QString &a, const QString &b) {
             const int sa = segmentOf(a), sb = segmentOf(b);
             return (sa < 0 ? 99 : sa) < (sb < 0 ? 99 : sb); });
-        QStringList words;
-        for (const QString &s : subjects) {
+        for (const QString &s : subjects)
             subs << QVariantMap{ { QStringLiteral("subject"), s }, { QStringLiteral("label"), subjectLabel(s) },
                                  { QStringLiteral("shots"), r.bySubject.value(s) } };
-            words << subjectLabel(s).toLower();
-        }
         out << QVariantMap{ { QStringLiteral("gate"), r.gate },
                             { QStringLiteral("title"), e ? e->title : r.gate },
                             { QStringLiteral("area"), e ? e->area : QString() },
@@ -259,18 +515,17 @@ QVariantMap trustSession(const charts::SessionSnapshot &session)
                             { QStringLiteral("shots"), r.shots },
                             { QStringLiteral("of"), recorded },
                             { QStringLiteral("countText"), QStringLiteral("%1 of %2").arg(r.shots).arg(recorded) } };
-        if (r.acted && head.size() < 2 && e)
-            head << W::list(words) + QStringLiteral(": ") + e->title.left(1).toLower() + e->title.mid(1)
-                  + QStringLiteral(" on ") + W::word(r.shots) + QStringLiteral(" of ") + W::word(recorded) + QStringLiteral(" shots");
     }
-    QString h;
-    if (recorded == 0) h = session.count() > 0 ? QStringLiteral("No shot in this session carries recorded reasons yet; re-analyse it to see which gates fired.") : QString();
-    else if (head.isEmpty()) h = QStringLiteral("No gate refused a reading in this session.");
-    else h = W::cap1(head.join(QStringLiteral("; "))) + QStringLiteral(".");
+    // the head IS the summary (§7.4), as on the shot
+    const QVariantMap summary = trustSummary(session);
+    QStringList said;
+    for (const QVariant &lv : summary.value(QStringLiteral("lines")).toList()) said << lv.toMap().value(QStringLiteral("text")).toString();
+    const QString h = said.isEmpty() && recorded > 0 ? QStringLiteral("No gate refused a reading in this session.") : said.join(QLatin1Char(' '));
     return { { QStringLiteral("n"), session.count() },
              { QStringLiteral("recorded"), recorded },
              { QStringLiteral("gates"), out },
-             { QStringLiteral("head"), h } };
+             { QStringLiteral("head"), h },
+             { QStringLiteral("summary"), summary } };
 }
 
 } // namespace pinpoint::trust

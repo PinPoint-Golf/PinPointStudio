@@ -388,6 +388,14 @@ Item {
                 standfirst: !ss.shot ? "" : ss.partial ? ro.esc(ro.sentence(ss.shot.headline)) + (ss.shot.note ? " " + ro.esc(ro.sentence(ss.shot.note)) : "")
                           : ro.shotStandfirst(root.shot, ro.shows("longStandfirst", sc.width))
             }
+            // "How far can I trust this?" (§7.4): closed by default, nothing more until opened
+            PpTrustSummaryFold {
+                visible: !!ss.shot && !ss.partial && !!root.readout && String(root.readout.swingDir || "") !== "" && lines.length > 0
+                width: sc.width; roles: ro; scope: "shot"
+                topPadding: ro.u(6)
+                swingDir: root.readout ? String(root.readout.swingDir || "") : ""
+                sessionDir: root.source ? String(root.source.sessionDir || "") : ""
+            }
             Item { visible: !!ss.shot; width: 1; height: ro.u(10) }
             // S38 / F20: zero fired is one line, never an empty table
             PpNotes {
@@ -501,6 +509,14 @@ Item {
                 standfirst: !root.shot || ss.partial ? "Counted over " + ro.figHtml(ss.sessionShots) + " shots."
                           : ro.sessionStandfirst(root.cards, root.shot, ro.shows("longStandfirst", ssc.width))
             }
+            // "How far can I trust this?" (§7.4) — its open body says what a gate kept from being judged
+            // (the not-judged line lived here, below the coverage line, until stage 5)
+            PpTrustSummaryFold {
+                visible: !ss.cold && ss.tense !== "none" && !!root.source && String(root.source.sessionDir || "") !== "" && lines.length > 0
+                width: ssc.width; roles: ro; scope: "session"
+                topPadding: ro.u(6); bottomPadding: ro.u(6)
+                sessionDir: root.source ? String(root.source.sessionDir || "") : ""
+            }
             Item { visible: !ss.cold; width: 1; height: ro.u(10) }
             PpLedgerTable {
                 visible: !ss.cold && (root.cards || []).length > 0
@@ -542,13 +558,6 @@ Item {
                 visible: !!root.source && String(root.source.coverageLine || "") !== ""
                 width: ssc.width; roles: ro
                 text: root.source ? ro.cap1(root.source.coverageLine) + "." : ""
-            }
-            // the conditions a gate kept from being judged, with how many shots they were judged on (§4.4)
-            PpNotes {
-                objectName: "sdNotJudgedLine"
-                visible: !!root.source && String(root.source.notJudgedLine || "") !== ""
-                width: ssc.width; roles: ro
-                text: root.source ? ro.esc(root.source.notJudgedLine) + "." : ""
             }
             Asks { id: asks2; width: ssc.width; questions: root.sessionQuestions }
             ReviewFoot { width: ssc.width }

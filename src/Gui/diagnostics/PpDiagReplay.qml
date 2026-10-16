@@ -300,6 +300,14 @@ Item {
                         : root.firedPatterns + " of them session patterns"),
                        root.focusShotLine ].filter(s => s !== "").join(" · ")
             }
+            // "How far can I trust this?" (trust_and_gates_design.md §7.4): closed by default, one quiet line
+            PpTrustSummaryFold {
+                id: shotTrust
+                visible: !!ss.shot && !ss.quiet && !ss.partial && !!root.readout && String(root.readout.swingDir || "") !== "" && lines.length > 0
+                width: sc.width; roles: ro; scope: "shot"
+                swingDir: root.readout ? String(root.readout.swingDir || "") : ""
+                sessionDir: root.source ? String(root.source.sessionDir || "") : ""
+            }
             PpDotPlot {
                 id: dp
                 objectName: "sdDotPlot"
@@ -309,7 +317,9 @@ Item {
                 interactive: root.interactive && !root.cast
                 // Spare height admits the next tier: after the fired rows, the clean ones in order of how
                 // close they came to their edge, as many as fit — never bigger type, never a second block.
+                // the trust fold's height counts against the plot's (closed it is one line; opened, the plot gives way)
                 readonly property real room: shotFlick.height - ro.u(16) - shotHead.height - foot.height - 2 * sc.spacing
+                                             - (shotTrust.visible ? shotTrust.height + sc.spacing : 0)
                 // rows that fit, measured by the plot itself (names may wrap once the tier folds)
                 readonly property int fit: rowsFitting(room)
                 availableHeight: room
@@ -380,10 +390,19 @@ Item {
                        (root.shot ? root.shotWord + " outside on " + ro.countWord(root.sessionFiredHere) : ""),
                        (root.focusCard ? "focus: " + root.focusCard.name : "") ].filter(s => s !== "").join(" · ")
             }
+            // "How far can I trust this?" (§7.4) — its open body says what a gate kept from being judged (the
+            // not-judged line lived at the foot of this view until stage 5)
+            PpTrustSummaryFold {
+                id: sessTrust
+                visible: !ss.cold && ss.tense !== "none" && !!root.source && String(root.source.sessionDir || "") !== "" && lines.length > 0
+                width: sv.width; roles: ro; scope: "session"
+                sessionDir: root.source ? String(root.source.sessionDir || "") : ""
+            }
             // HEIGHT IS A RESOURCE TOO: when the panel is tall enough for every pattern's small multiple, the
             // glance shows the tiles (the same run against the same corridor, larger); otherwise one sparkline
             // row per pattern. Measured, never guessed: the tiles lay out (hidden) to say how tall they are.
             readonly property real room: sessionFlick.height - ro.u(16) - sessHead.height - sv.spacing - ro.u(24) - cov.height - sv.spacing
+                                         - (sessTrust.visible ? sessTrust.height + sv.spacing : 0)
             readonly property bool hasCards: !ss.cold && (root.cards || []).length > 0
             readonly property bool useTiles: hasCards && !root.cast && tiles.height > 0 && tiles.height <= room
             PpSmallMultiples {
@@ -412,14 +431,6 @@ Item {
                 visible: !!root.source && String(root.source.coverageLine || "") !== ""
                 width: sv.width; wrapMode: Text.WordWrap
                 text: root.source ? ro.cap1(root.source.coverageLine) + "." : ""
-                font: ro.fSmall; color: ro.ink3
-            }
-            // the conditions a gate kept from being judged (trust_and_gates_design.md §4.4)
-            Text {
-                objectName: "sdNotJudgedLine"
-                visible: !!root.source && String(root.source.notJudgedLine || "") !== ""
-                width: sv.width; wrapMode: Text.WordWrap
-                text: root.source ? root.source.notJudgedLine + "." : ""
                 font: ro.fSmall; color: ro.ink3
             }
             ReviewFoot { width: sv.width }

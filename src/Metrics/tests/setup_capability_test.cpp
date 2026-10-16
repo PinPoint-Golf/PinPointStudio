@@ -370,6 +370,38 @@ int main()
               "a Witmotion pair measures leadWristFlexExt");
     }
 
+    std::printf("\n-- the forecast: setup-bound gates (trust_and_gates_design.md §7.4) --\n");
+    {
+        // the sighted band's subjects on a setup, across every group
+        const auto bandSubjects = [](const std::vector<CapabilityGroup> &gs) {
+            QStringList out;
+            for (const CapabilityGroup &g : gs)
+                for (const CapabilityGroup::GateNote &n : g.gateNotes)
+                    if (n.gate == QLatin1String("sequence.sightedBand"))
+                        for (const QString &x : n.subjects) if (!out.contains(x)) out << x;
+            return out;
+        };
+        const QStringList one = bandSubjects(summary[0]);
+        check(one == QStringList{ QStringLiteral("ks.pelvis"), QStringLiteral("ks.thorax") },
+              "face-on only: pelvis and chest peaks forecast out of sight (" + one.join(QLatin1Char(',')) + ")");
+        bool onlySequence = true;
+        for (const CapabilityGroup &g : summary[0])
+            if (!g.gateNotes.empty() && g.group != QLatin1String("Tempo & sequence")) onlySequence = false;
+        check(onlySequence, "the forecast sits on the sequence family's group only");
+        for (const CapabilityGroup &g : summary[0])
+            for (const CapabilityGroup::GateNote &n : g.gateNotes)
+                check(n.words == QStringLiteral("out of sight") && n.subjectWords.size() == n.subjects.size(),
+                      "the gate's own words, a word per subject");
+        check(bandSubjects(summary[2]).size() == 2, "arm sensors alone do not lift the trunk's band");
+        check(bandSubjects(summary[3]).isEmpty(), "a second camera and trunk sensors lift it");
+        check(bandSubjects(summary[6]).isEmpty(), "a second camera alone lifts it (the two-camera route)");
+        check(bandSubjects(summary[5]).isEmpty(), "nothing mounted forecasts nothing");
+        SetupFacts pel = faceOnOnly();
+        pel.imuRoles = { SegmentRole::Pelvis };
+        check(bandSubjects(summariseSetup(cat, pel)) == QStringList{ QStringLiteral("ks.thorax") },
+              "a pelvis sensor lifts the pelvis; the chest stays forecast");
+    }
+
     std::printf("\n-- an empty rig --\n");
     {
         int recorded = 0;

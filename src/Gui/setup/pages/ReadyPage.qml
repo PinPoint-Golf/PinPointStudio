@@ -247,6 +247,7 @@ WizardPage {
                                 property string stateText: modelData.stateText
                                 property string reason:    modelData.reason
                                 property string tone:      modelData.tone
+                                property string gateLine:  modelData.gateLine || ""
                                 readonly property color _toneColor:
                                     modelData.tone === "good" ? Theme.colorGood
                                   : modelData.tone === "warn" ? Theme.colorWarn
@@ -281,6 +282,18 @@ WizardPage {
                                             visible:            modelData.reason !== ""
                                             width:              parent.width
                                             text:               modelData.reason
+                                            font.family:        Theme.fontData
+                                            font.pixelSize:     Theme.fontSzMicro
+                                            font.letterSpacing: Theme.trackingData
+                                            color:              Theme.colorText3
+                                            wrapMode:           Text.WordWrap
+                                        }
+                                        // the forecast: a gate this setup's routes cannot lift (§7.4)
+                                        Text {
+                                            objectName:         "capabilityGateLine"
+                                            visible:            (modelData.gateLine || "") !== ""
+                                            width:              parent.width
+                                            text:               modelData.gateLine || ""
                                             font.family:        Theme.fontData
                                             font.pixelSize:     Theme.fontSzMicro
                                             font.letterSpacing: Theme.trackingData

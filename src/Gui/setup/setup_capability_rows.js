@@ -184,6 +184,33 @@ function reasonsFor(gapIds, ctx) {
     return out.slice(0, maxReasons)
 }
 
+// ── The forecast (trust_and_gates_design.md §7.4) ──────────────────────────────────────────────────
+// A gate the catalogue marks SETUP-BOUND (GateEntry::setupBound — today the face-on camera's sighted
+// band) fires because of where the capture stands, not because of the swing; the catalogue's summary
+// lists one per family, with the readings this setup's routes leave it on (`gateNotes`). The family
+// row says so in one quiet line, the gate's own words: "pelvis and chest peaks often out of sight with
+// this setup". The same words the Trust summary uses once the swings are in. "often", not "always":
+// the gate bounds a peak only when it falls inside the blind stretch.
+// DECISION(trust stage 5): readings are named by their segment, "peak" said once ("pelvis and chest
+// peaks"), as the Trust summary's closed fold names them.
+function gateLineFor(notes) {
+    var out = []
+    for (var i = 0; i < notes.length; ++i) {
+        var w = notes[i].subjectWords || [], names = [], allPeaks = true
+        for (var k = 0; k < w.length; ++k) {
+            var x = String(w[k])
+            if (x.length > 5 && x.substring(x.length - 5) === " peak") names.push(x.substring(0, x.length - 5))
+            else { allPeaks = false; names.push(x) }
+        }
+        if (names.length === 0) continue
+        var who = names.length === 1 ? names[0]
+                : names.slice(0, names.length - 1).join(", ") + " and " + names[names.length - 1]
+        if (allPeaks) who += names.length === 1 ? " peak" : " peaks"
+        out.push(qsTr("%1 often %2 with this setup").arg(who).arg(notes[i].words))
+    }
+    return out.join(" · ")
+}
+
 // ── The rows ─────────────────────────────────────────────────────────────────────────────────────
 //   summary  MetricCatalog.setupSummary(...) — [{ group, measured, estimated, unavailable, derived,
 //            deviceGapIds, … }]
@@ -194,7 +221,7 @@ function reasonsFor(gapIds, ctx) {
 //            launch monitor is configured (see "Whose word it is")
 // One row per family, in family order:
 //   { key, label, state, stateText, tone, reasons: [..], reason, measured, estimated, unavailable,
-//     total, text }
+//     total, text, gateLine }   — gateLine: the forecast above, "" when no setup-bound gate applies
 // `reason` is the reasons and the estimate note joined " · "; `text` is the whole row as one line,
 // "Body turn and posture — Partly, 9 of 20 · no trunk sensors · no down-the-line camera".
 function rows(summary, context, withoutLm) {
@@ -208,7 +235,7 @@ function rows(summary, context, withoutLm) {
     var out = []
     for (var f = 0; f < families.length; ++f) {
         var fam = families[f]
-        var m = 0, e = 0, u = 0, gaps = []
+        var m = 0, e = 0, u = 0, gaps = [], notes = []
         // Something sees the swing: the phase ladder the derived metrics come off has a source.
         // An arm group only counts once it is calibrated: an uncalibrated or unconnected sensor
         // yields no usable lanes, so it sees nothing.
@@ -224,6 +251,14 @@ function rows(summary, context, withoutLm) {
             if (fam.derivedCounts && (s.derived || 0) > 0) {
                 if (seen) m += s.derived
                 else { u += s.derived; blocked = true }
+            }
+            var gn = s.gateNotes || []
+            for (var q = 0; q < gn.length; ++q) {
+                var have = null
+                for (var z = 0; z < notes.length; ++z) if (notes[z].gate === gn[q].gate) have = notes[z]
+                if (have === null) notes.push({ gate: gn[q].gate, words: gn[q].words, subjectWords: (gn[q].subjectWords || []).slice() })
+                else for (var y = 0; y < (gn[q].subjectWords || []).length; ++y)
+                    if (have.subjectWords.indexOf(gn[q].subjectWords[y]) < 0) have.subjectWords.push(gn[q].subjectWords[y])
             }
             var ids = s.deviceGapIds || []
             for (var k = 0; k < ids.length; ++k) if (gaps.indexOf(ids[k]) < 0) gaps.push(ids[k])
@@ -248,7 +283,7 @@ function rows(summary, context, withoutLm) {
         var st = state === "measuredByLm" ? lmStateText(context.lmName || "") : stateText(state, m, e, u)
         out.push({ key: fam.key, label: fam.label, state: state, stateText: st, tone: toneOf(state),
                    reasons: why, reason: reason, measured: m, estimated: e, unavailable: u,
-                   total: m + e + u, gapIds: gaps,
+                   total: m + e + u, gapIds: gaps, gateLine: gateLineFor(notes),
                    text: fam.label + " — " + st + (reason !== "" ? " · " + reason : "") })
     }
     return out

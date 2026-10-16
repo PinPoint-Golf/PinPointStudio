@@ -85,6 +85,18 @@ struct CapabilityGroup {
     // captureDeviceId(), index for index.
     QStringList deviceGaps;
     QStringList deviceGapIds;
+
+    // SETUP-BOUND GATES (trust_and_gates_design.md §7.4, the Setup line): a gate whose catalogue entry
+    // names the readings it binds because of where the capture stands (GateEntry::setupBound — the
+    // sighted band), and which the route this setup would run for the reading does not lift. One note
+    // per gate, its subjects in manifest order. Words from the gate catalogue, index for index.
+    struct GateNote {
+        QString     gate;          // "sequence.sightedBand"
+        QString     words;         // the gate's claim words, "out of sight"
+        QStringList subjects;      // "ks.pelvis", "ks.thorax"
+        QStringList subjectWords;  // "pelvis peak", "chest peak"
+    };
+    std::vector<GateNote> gateNotes;
 };
 
 std::vector<CapabilityGroup> summariseSetup(const MetricCatalogue &catalogue,

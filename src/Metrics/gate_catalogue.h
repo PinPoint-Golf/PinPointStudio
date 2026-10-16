@@ -78,6 +78,11 @@ struct GateEntry {
     int                     since = 1;     // the analysis.gatesVersion that introduced it
     QString                 producer;      // repo-relative source that fires it (the both-ways test)
     QHash<QString, QString> codes;         // for evidence carrying a "code": code → phrase template
+    // SETUP-BOUND: the subjects this gate binds because of where the capture stands, not because of the
+    // swing — it fires on every swing whose route for the subject is not one of `lift`. Only such a gate
+    // may be forecast before a swing (the Setup page's line, trust_and_gates_design.md §7.4); the rest
+    // depend on the swing and are said only once they fire. Empty for every gate but the sighted band.
+    QStringList             setupBound;
 };
 
 namespace detail {
@@ -102,7 +107,8 @@ inline std::vector<GateEntry> buildCatalogue()
                   { GateEffect::Masked, GateEffect::Bounded, GateEffect::Refused },
                   { { QStringLiteral("sequence.sightedTurnDeg"), S::kSightedTurnDeg, QStringLiteral("°") } },
                   { QStringLiteral("faceOn+dtl"), QStringLiteral("ks.pelvis:pelvisImu"), QStringLiteral("ks.thorax:thoraxImu") },
-                  ksDesign + QStringLiteral(" §12.4"), 1, prod, {} });
+                  ksDesign + QStringLiteral(" §12.4"), 1, prod, {},
+                  { QStringLiteral("ks.pelvis"), QStringLiteral("ks.thorax") } });
 
     c.push_back({ QStringLiteral("sequence.validityHole"), seq,
                   QStringLiteral("A gap in the track"), QStringLiteral("in a gap"),
@@ -440,6 +446,44 @@ inline QString liftText(const GateEntry &e, const QString &subject = QString(), 
     QString list = words.size() == 1 ? words.first()
                  : QStringList(words.mid(0, words.size() - 1)).join(QStringLiteral(", ")) + QStringLiteral(" or ") + words.last();
     return QStringLiteral("Timed on swings with ") + list + QStringLiteral(".");
+}
+
+// Several subjects at once ("pelvis peak and chest peak … timed on swings with the down-the-line camera, a
+// pelvis sensor or a chest sensor."): the union of each subject's lifts, in catalogue order.
+inline QString liftTextAll(const GateEntry &e, const QStringList &subjects, const QStringList &tried)
+{
+    QStringList words;
+    for (const QString &l : e.lift) {
+        const qsizetype c = l.lastIndexOf(QLatin1Char(':'));
+        if (c > 0 && !subjects.contains(l.left(c))) continue;
+        const QString route = c > 0 ? l.mid(c + 1) : l;
+        if (tried.contains(route)) continue;
+        const QString w = route == QLatin1String("faceOn+dtl") ? QStringLiteral("the down-the-line camera")
+                                                                : QStringLiteral("a ") + routeWords(route);
+        if (!words.contains(w)) words << w;
+    }
+    if (words.isEmpty()) return {};
+    QString list = words.size() == 1 ? words.first()
+                 : QStringList(words.mid(0, words.size() - 1)).join(QStringLiteral(", ")) + QStringLiteral(" or ") + words.last();
+    return QStringLiteral("Timed on swings with ") + list + QStringLiteral(".");
+}
+
+// Does `route` lift this gate for `subject` (a lift with no subject lifts it for every subject)?
+inline bool liftedBy(const GateEntry &e, const QString &subject, const QString &route)
+{
+    for (const QString &l : e.lift) {
+        const qsizetype c = l.lastIndexOf(QLatin1Char(':'));
+        if (c > 0 ? (l.left(c) == subject && l.mid(c + 1) == route) : l == route) return true;
+    }
+    return false;
+}
+
+// The gate's words for a reading it acted on, as a claim says them: a gate that only withholds keeps the
+// reading on screen ("drawn, not judged"); the rest give their short words ("out of sight").
+inline QString claimWords(const GateEntry &e)
+{
+    const bool onlyWithholds = e.effects.size() == 1 && e.effects.front() == GateEffect::Withheld;
+    return onlyWithholds ? e.title.left(1).toLower() + e.title.mid(1) : e.shortText;
 }
 
 inline QVariantMap gateItem(const GateEntry &e, const QString &effect, const QVariantMap &evidence,

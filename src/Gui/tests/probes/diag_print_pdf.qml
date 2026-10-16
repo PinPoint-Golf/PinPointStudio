@@ -162,6 +162,8 @@ Item {
             mute(probe.Window.window.contentItem)
             probe.log("muted " + muted + " ting players")
             for (const t of probe.themes) probe.jobs.push(t)
+            // the only panel, so in tabs it is the one on screen (else another tab hides sdBody)
+            for (const k of ["camera", "swing3d", "launchMonitor", "charts", "table", "markup", "trust"]) ViewLayout.setPanel(SessionMode.analyse, k, false)
             ViewLayout.setPanel(SessionMode.analyse, "sessionDiagnostics", true)
             ViewLayout.setArrangement(SessionMode.analyse, "tabs")
             navController.navigate(2)

@@ -279,7 +279,8 @@ the figure they explain.
 ### 7.4 Per shot and per session: "How far can I trust this?"
 
 A short trust summary, generated from the records and the catalogue, at the head of Analyse (a fold,
-collapsed by default once read):
+collapsed by default once read). *As built (stage 5, 16 Oct 2026): see "Stage 5 as built" below; the
+fold is closed by default, always (Mark), and the example's wording is superseded.*
 
 > **Face-on camera and lead-arm sensors.** Club and lead arm measured on all 6 shots. Pelvis and chest
 > timing out of the camera's sight on 6 of 6 shots, so the sequence order and late-pelvis findings
@@ -288,6 +289,32 @@ collapsed by default once read):
 The same vocabulary as the Setup page's capability rows (measured / estimated / unavailable), so the
 page that predicts what a setup can measure and the page that reports what it did measure agree.
 Setup can then add a line per family: "with this setup, pelvis timing is usually out of sight".
+
+**Stage 5 as built (16 October 2026).**
+
+- *One statement.* `trustSummary(shot)` / `trustSummary(session)` in `src/Gui/trust/trust_readings.{h,cpp}`.
+  The Trust panel's head reads it (its few words as the standfirst, its lines under them), and so does the
+  fold "How far can I trust this?" (`src/Gui/trust/PpTrustSummaryFold.qml`) under the This shot and Session
+  heads of Session diagnostics in every register (Analyse and Replay), and set open in the printed report. The fold is closed by default and shows only its few
+  words ("pelvis and chest out of sight · club drawn, not judged"); nothing is added to the chart area. A
+  gated line's "Why ›" opens the reading (§7.0). The Session view's separate not-judged line is folded in.
+- *Lines.* The routes that timed the sequence, each with its readings ("the face-on camera (pelvis, chest),
+  the arm sensors (lead arm)…"); what passed, in the Setup page's words (measured / estimated, from the
+  node's route quality); per gate, the readings it acted on in its own words, what it kept from being judged
+  (named when three or fewer, else counted), and its lift. Session lines carry "on n of m shots" over the
+  shots that carry records; older shots are named and not counted.
+- *Vocabulary.* "Unavailable" is the resolver's word for "no route on this setup" and reads "Not recorded"
+  on the Setup page. A gated reading is not unavailable (a route ran and a gate refused it), so it takes the
+  gate's words, never "not recorded".
+- *Scope.* Only the kinematic sequence records gates today, so the summary speaks for its four readings and
+  says nothing of other families (no "everything else measured"). Stage 6 widens it area by area.
+- *Devices.* The Charts snapshot carries no device list; the routes that ran (`node.routeId`, in the
+  catalogue's `routeWords`) stand in for the opening "Face-on camera and lead-arm sensors".
+- *The Setup line.* A gate entry may name the readings it binds because of where the capture stands
+  (`GateEntry::setupBound`; only `sequence.sightedBand`, on pelvis and chest). `summariseSetup` notes it on
+  the group of a reading whose winning route on the planned setup is not one of the gate's lifts, and the
+  Ready page says it under the family row: "pelvis and chest peaks often out of sight with this setup". No
+  other gate is forecast: the rest depend on the swing, and "usually" would need the library counts of §7.5.
 
 ### 7.5 The Gates page
 
@@ -354,7 +381,7 @@ Each stage is one session, graded on screen before commit.
    point Mark sees a change.
 4. **Propagation to findings** (§4.4) for the characteristics that read the sequence; "judged on n of
    m" in Session diagnostics.
-5. **The trust summary** (§7.4) and the Setup page line.
+5. **The trust summary** (§7.4) and the Setup page line. *Built 16 Oct 2026; see §7.4 "Stage 5 as built".*
 6. **Remaining areas, one per session, ordered by how often their gates fire on the library:** club
    and shaft tiers; impact camera; pose confidence and the span-ratio gates; IMU integrity and capture
    holes; launch monitor corroboration; the diagnostics' own minimum-shot rules.

@@ -321,6 +321,7 @@ set(PP_QML_FILES
     src/Gui/trust/PpTrustReading.qml
     src/Gui/trust/PpTrustInline.qml
     src/Gui/trust/PpTrustInlineFor.qml
+    src/Gui/trust/PpTrustSummaryFold.qml
     src/Gui/session/PpLmGraphicsBody.qml
     src/Gui/shot/PpSessionDiagnosticsWindow.qml
     src/Gui/components/PpQualityPill.qml

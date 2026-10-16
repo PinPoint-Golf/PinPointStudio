@@ -132,6 +132,9 @@ Item {
                 xrefId: root.detail ? (root.detail.id || "") : ""; xrefPage: pager.pageOf(detailHead)
             }
         }
+        // "How far can I trust this?" (trust_and_gates_design.md §7.4), set open: a report has nothing to unfold
+        PpTrustSummaryFold { width: pager.textW; roles: ro; printed: true; scope: "session"
+                             sessionDir: root.source ? String(root.source.sessionDir || "") : "" }
         PpNotes { property bool keepNext: true
                 width: pager.textW; roles: ro; medium: "print"; rule: true; kicker: "Asked of the data"
                 text: "The questions the app asks beside each pattern, answered from the " + root.shotCount + " shots and numbered as above. They report what happened together, never what caused what." }
@@ -157,6 +160,9 @@ Item {
                      kicker: "2  ·  This shot  ·  " + (root.header ? root.header.shotLabel : "")
                      head: root.fired.length ? ro.cap1(ro.word(root.fired.length)) + " outside the corridor" : "A clean swing"
                      standfirst: ro.shotStandfirst(root.readout, false) }
+        PpTrustSummaryFold { width: pager.textW; roles: ro; printed: true; scope: "shot"
+                             swingDir: root.readout ? String(root.readout.swingDir || "") : ""
+                             sessionDir: root.source ? String(root.source.sessionDir || "") : "" }
         PpLedgerTable {
             printGroup: "fired"
             width: pager.textW; roles: ro; brush: br; medium: "print"

@@ -467,6 +467,12 @@ QVariantList MetricCatalog::setupSummary(const QVariantMap &setup) const
         m.insert(QStringLiteral("upgrade"),            g.upgrade);
         m.insert(QStringLiteral("deviceGaps"),         toVariantList(g.deviceGaps));
         m.insert(QStringLiteral("deviceGapIds"),       toVariantList(g.deviceGapIds));
+        QVariantList notes;
+        for (const CapabilityGroup::GateNote &n : g.gateNotes)
+            notes.append(QVariantMap{ { QStringLiteral("gate"), n.gate }, { QStringLiteral("words"), n.words },
+                                      { QStringLiteral("subjects"), toVariantList(n.subjects) },
+                                      { QStringLiteral("subjectWords"), toVariantList(n.subjectWords) } });
+        m.insert(QStringLiteral("gateNotes"),          notes);
         out.append(m);
     }
     return out;

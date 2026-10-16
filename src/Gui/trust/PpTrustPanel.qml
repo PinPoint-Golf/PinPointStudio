@@ -115,9 +115,21 @@ Item {
                 spacing: ro.u(4)
                 Text { text: root.shot.available ? (root.shot.kicker || "") : "No shot picked"
                        font: ro.fKicker; color: ro.ink2 }
+                // "How far can I trust this?" (§7.4): its few words as the standfirst, its lines under it —
+                // the same statement the fold in Session diagnostics opens to
                 Text { width: ro.measureW(parent.width); wrapMode: Text.WordWrap
-                       text: root.shot.available ? (root.shot.head || "") : "Pick a shot to see which readings a gate refused, bounded or kept out of the findings, and why."
+                       text: !root.shot.available ? "Pick a shot to see which readings a gate refused, bounded or kept out of the findings, and why."
+                             : root.shot.summary && root.shot.summary.tail ? ro.cap1(root.shot.summary.tail) + "."
+                             : (root.shot.head || "")
                        font: ro.fStand; color: ro.ink }
+                Repeater {
+                    model: root.shot.available && root.shot.summary ? (root.shot.summary.lines || []) : []
+                    delegate: Text {
+                        required property var modelData
+                        width: ro.measureW(col.width); wrapMode: Text.WordWrap
+                        text: modelData.text; font: ro.fSmall; color: ro.ink2
+                    }
+                }
                 Rectangle { width: parent.width; height: ro.r.figureRuleTop; color: ro.rule }
             }
             // the readings, under their area's crosshead
@@ -155,8 +167,14 @@ Item {
                 topPadding: ro.u(10)
                 Rectangle { width: parent.width; height: ro.hw; color: ro.rule }
                 Text { text: "Across the session"; font: ro.fSection; color: ro.ink; topPadding: ro.u(6) }
-                Text { width: ro.measureW(parent.width); wrapMode: Text.WordWrap; visible: text !== ""
-                       text: root.session.head || ""; font: ro.fSmall; color: ro.ink2 }
+                Repeater {
+                    model: root.session.summary ? (root.session.summary.lines || []) : []
+                    delegate: Text {
+                        required property var modelData
+                        width: ro.measureW(col.width); wrapMode: Text.WordWrap
+                        text: modelData.text; font: ro.fSmall; color: ro.ink2
+                    }
+                }
                 Repeater {
                     model: root.session.gates || []
                     delegate: Item {

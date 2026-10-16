@@ -136,12 +136,27 @@ int main()
         check(g.size() == 1 && g[0].toMap().value(QStringLiteral("effectWord")) == QStringLiteral("marked on the chart"), "…and the gate says it is marked on the chart");
     }
 
-    // ── the shot's head sentence, and a shot analysed before records existed ──
+    // ── the shot's summary (§7.4) — the panel's head and the fold read the same lines ──
     {
-        const QVariantMap t = trust::trustShot(sh);
-        check(t.value(QStringLiteral("head")).toString()
-                  == QStringLiteral("Not timed: pelvis peak (out of sight) and chest peak (out of sight). Drawn, not judged: club peak."),
-              "head: what this shot could not measure");
+        charts::ShotSeries sb = sh;
+        sb.diagnostics.notJudgedBy.insert(QStringLiteral("ks.pelvis"), QStringList{ QStringLiteral("Sequence order"), QStringLiteral("Late pelvis") });
+        sb.diagnostics.notJudgedBy.insert(QStringLiteral("ks.thorax"), QStringList{ QStringLiteral("Sequence order") });
+        const QVariantMap sum = trust::trustSummary(sb);
+        QStringList texts;
+        for (const QVariant &l : sum.value(QStringLiteral("lines")).toList()) texts << l.toMap().value(QStringLiteral("text")).toString();
+        for (const QString &t : texts) std::printf("    | %s\n", qPrintable(t));
+        std::printf("    tail: %s\n", qPrintable(sum.value(QStringLiteral("tail")).toString()));
+        check(texts.size() == 3, "three lines: what passed, the out-of-sight readings, the withheld club (no routes on this fixture)");
+        check(texts.value(0) == QStringLiteral("Lead arm peak measured."), "passed readings take the Setup page's word: measured");
+        check(texts.value(1) == QStringLiteral("Pelvis peak and chest peak out of sight, so Sequence order and Late pelvis are not judged. "
+                                               "Timed on swings with the down-the-line camera, a pelvis sensor or a chest sensor."),
+              "the gated readings: the gate's words, what they kept from being judged, and the lift");
+        check(texts.value(2) == QStringLiteral("Club peak drawn, not judged. Timed on swings with a club sensor."),
+              "a withheld reading is drawn, not judged");
+        check(sum.value(QStringLiteral("tail")).toString() == QStringLiteral("pelvis and chest out of sight · club drawn, not judged"),
+              "the closed fold's few words");
+        const QVariantMap t = trust::trustShot(sb);
+        check(t.value(QStringLiteral("head")).toString() == texts.join(QLatin1Char(' ')), "the panel's head is the summary");
         charts::ShotSeries old = sh; old.gatesVersion = 0;
         const QVariantMap o = trust::trustShot(old);
         check(!o.value(QStringLiteral("recorded")).toBool() && o.value(QStringLiteral("readings")).toList().isEmpty()
@@ -168,6 +183,40 @@ int main()
                 && subs[0].toMap().value(QStringLiteral("shots")).toInt() == 3;
         }
         check(band, "the sighted band: 3 of 3, pelvis and chest each on 3");
+        const QVariantMap sum = t.value(QStringLiteral("summary")).toMap();
+        QStringList texts;
+        for (const QVariant &l : sum.value(QStringLiteral("lines")).toList()) texts << l.toMap().value(QStringLiteral("text")).toString();
+        for (const QString &x : texts) std::printf("    | %s\n", qPrintable(x));
+        check(texts.value(0) == QStringLiteral("Lead arm peak measured on 3 of 3 shots."), "session: passed readings with their count");
+        check(texts.value(1).startsWith(QStringLiteral("Pelvis peak and chest peak out of sight on 3 of 3 shots.")), "session: the gate's count over recorded shots");
+        check(texts.last() == QStringLiteral("One shot was analysed before the reasons were recorded and is not counted; re-analyse to include it."),
+              "the old shot is named, not counted");
+    }
+
+    // ── the routes line: each route with the readings it timed, and on how many shots when not all ──
+    {
+        const auto withRoutes = [&](const QStringList &routes) {
+            charts::ShotSeries r = sh;
+            QVariantMap ks = r.kinematicSequence;
+            QVariantList nodes = ks.value(QStringLiteral("nodes")).toList();
+            for (int i = 0; i < nodes.size(); ++i) { QVariantMap n = nodes[i].toMap(); n.insert(QStringLiteral("routeId"), routes[i]); nodes[i] = n; }
+            ks.insert(QStringLiteral("nodes"), nodes); r.kinematicSequence = ks;
+            return r;
+        };
+        const charts::ShotSeries a = withRoutes({ QStringLiteral("faceOn"), QStringLiteral("faceOn"), QStringLiteral("leadArmImus"), QStringLiteral("faceOnClub") });
+        const QVariantList l = trust::trustSummary(a).value(QStringLiteral("lines")).toList();
+        check(!l.isEmpty() && l[0].toMap().value(QStringLiteral("text")).toString()
+                  == QStringLiteral("Kinematic sequence, timed from the face-on camera (pelvis, chest), the arm sensors (lead arm) and the face-on club track (club)."),
+              "shot: each route with the readings it timed");
+        const charts::ShotSeries b = withRoutes({ QStringLiteral("faceOn+dtl"), QStringLiteral("faceOn"), QStringLiteral("leadArmImus"), QStringLiteral("faceOnClub") });
+        charts::SessionSnapshot s;
+        s.shots.push_back(std::make_shared<charts::ShotSeries>(a));
+        s.shots.push_back(std::make_shared<charts::ShotSeries>(b));
+        const QString t = trust::trustSummary(s).value(QStringLiteral("lines")).toList().value(0).toMap().value(QStringLiteral("text")).toString();
+        std::printf("    | %s\n", qPrintable(t));
+        check(t == QStringLiteral("Kinematic sequence, timed from the face-on camera (pelvis on 1 of 2, chest), the arm sensors (lead arm), "
+                                  "the face-on club track (club) and the two cameras together (pelvis on 1 of 2)."),
+              "session: a reading a route timed on some shots says on how many");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

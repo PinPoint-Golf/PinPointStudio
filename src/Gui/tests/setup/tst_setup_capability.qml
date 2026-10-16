@@ -284,6 +284,33 @@ TestCase {
         compare(CapRows.rows(catalog.setupSummary(s.facts), s.ctx)[5].text, "Ball and strike — Measured")
     }
 
+    // ── The forecast: a setup-bound gate (trust_and_gates_design.md §7.4) ─────────────
+    // Only the sequence family carries it, only where this setup's routes cannot lift the gate, and in
+    // the gate catalogue's words (the reading's name, the gate's short words) — the words the Trust
+    // summary uses once the swings are in.
+    function test_gateForecast() {
+        var want = {
+            "1 face-on only": "pelvis and chest peaks often out of sight with this setup",
+            "2 face-on + wG3": "pelvis and chest peaks often out of sight with this setup",
+            "3 face-on + two Witmotions": "pelvis and chest peaks often out of sight with this setup",
+            "4 two cameras + trunk": "",
+            "5 everything + launch monitor": "",
+            "6 nothing": "",
+            "7 two cameras, no sensors": "",
+            "8 face-on assigned, not connected": ""
+        }
+        for (var i = 0; i < setups.length; ++i) {
+            var rows = rowsFor(setups[i])
+            for (var j = 0; j < rows.length; ++j) {
+                var w = rows[j].key === "sequence" ? want[setups[i].tag] : ""
+                compare(rows[j].gateLine, w, setups[i].tag + " / " + rows[j].label)
+            }
+        }
+        compare(CapRows.gateLineFor([{ gate: "g", words: "out of sight", subjectWords: ["chest peak"] }]),
+                "chest peak often out of sight with this setup")
+        compare(CapRows.gateLineFor([]), "")
+    }
+
     // ── Nothing an engineer would write ─────────────────────────────────────
     function test_noEngineerWords() {
         var texts = []
@@ -294,6 +321,17 @@ TestCase {
         for (var k in CapRows.reasons) texts.push(CapRows.reasons[k])
         texts.push(CapRows.estimatedNote(0), CapRows.estimatedNote(1), CapRows.estimatedNote(2))
         var roleRe = /(lead|trail)\s*(forearm|hand|upper\s*arm)|LeadForearm|LeadHand|LeadUpperArm|pelvis|thorax|Pelvis|Thorax/
+        // the forecast names READINGS in the gate catalogue's words ("pelvis peak", as Charts and the
+        // Trust summary say it), not sensor roles: held to every rule here but the role-name one
+        var forecast = []
+        for (var f = 0; f < setups.length; ++f) {
+            var fr = rowsFor(setups[f])
+            for (var g = 0; g < fr.length; ++g) if (fr[g].gateLine) forecast.push(fr[g].gateLine)
+        }
+        for (var q = 0; q < forecast.length; ++q) {
+            verify(forecast[q].indexOf("IMU") < 0 && !/\bmove\b/i.test(forecast[q]) && !/\b[A-D]\b/.test(forecast[q])
+                   && !/thorax|Thorax/.test(forecast[q]), "engineer's word in '" + forecast[q] + "'")
+        }
         for (var t = 0; t < texts.length; ++t) {
             var s = texts[t]
             verify(!roleRe.test(s), "a role name in '" + s + "'")
