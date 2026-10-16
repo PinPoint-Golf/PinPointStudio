@@ -421,6 +421,11 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
                 pinpoint::analysis::retimeKinematicSequence(
                     an[QStringLiteral("kinematicSequence")].toObject(),
                     [t0](const QJsonValue &v) { return static_cast<qint64>(relUs(v, t0)); }));
+        // Gate records (gate_record.h): evidence is impact-relative, so they pass through as stored.
+        if (an.contains(QStringLiteral("gatesVersion"))) {
+            m_analysisDetail.insert(QStringLiteral("gatesVersion"), an[QStringLiteral("gatesVersion")].toInt());
+            m_analysisDetail.insert(QStringLiteral("gates"), an[QStringLiteral("gates")].toArray().toVariantList());
+        }
 
         // The down-the-line tile's overlay (dtl_overlay_payload.h): analysis.poseDtl through
         // the face-on pose shaping, analysis.clubDtl through the ONE translator the live path

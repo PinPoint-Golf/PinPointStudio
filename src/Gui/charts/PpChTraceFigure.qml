@@ -107,6 +107,10 @@ Item {
     function layersFor(r) {
         if (!roles || !r) return []
         const c = roles.ch, col = roles.hue(r.key), out = []
+        // the stretch the route could not see, shaded behind everything — in ink on its own plot, in the
+        // curve's hue when the curves are overlaid (each segment's band is its own; they overlap)
+        for (const b of (r.blind || []))
+            out.push({ k: "span", t0: b.t0, t1: b.t1, color: overlay ? Qt.alpha(col, 0.09) : Qt.alpha(roles.ink, 0.07) })
         if (showRawDots) out.push({ k: "dots", t: r.t, v: r.raw, color: col, alpha: c.rawDotAlpha, d: roles.u(c.rawDot) })
         const rr = refRowOf(r.key)
         if (rr) {
@@ -119,6 +123,8 @@ Item {
         return out
     }
     property bool showRawDots: true
+    // a click on a gate's mark on the curve (a shaded stretch, an unplaced ring): open its reason
+    signal trustClicked(string subject)
     // a row's figure column: the hover reading while the pointer is on the figure, else the row's figures
     // (Analyse) and the reading at the playhead with its Δ from Address (F5), and the reference's reading
     // `still` asks for the readings with no hover — what a row is sized from, so a hover never resizes it.
@@ -256,6 +262,36 @@ Item {
                 // ── marks on the curve(s): P dots by verdict, peaks (σ whisker, late ring + word, rising chevron) ──
                 Item {
                     x: tf.yGut; width: tf.innerW; height: rw.ph
+                    // the shaded stretch's words at its foot ("out of sight"); overlaid, one line per segment,
+                    // stacked from the bottom, each over a rule in its hue that spans its band
+                    Repeater {
+                        model: rw.ov ? [].concat.apply([], tf.rows.map(function (q) {
+                                           return (q.blind || []).map(function (b) { return { b: b, key: q.key, who: q.sequence && q.sequence.word ? q.sequence.word : q.label, subject: q.trustSubject || "" } }) }))
+                                     : (rw.r.blind || []).map(function (b) { return { b: b, key: rw.key, who: "", subject: rw.r.trustSubject || "" } })
+                        delegate: Item {
+                            id: bl
+                            required property var modelData
+                            required property int index
+                            objectName: "chBlind:" + modelData.key
+                            z: 2                 // its words take a click over the seek area (chSeek); the rest passes through
+                            readonly property real xa: Math.max(0, plot.xOf(modelData.b.t0))
+                            readonly property real xb: Math.min(tf.innerW, plot.xOf(modelData.b.t1))
+                            readonly property string text: (modelData.who ? modelData.who + " " : "") + (modelData.b.label || "")
+                            readonly property real lineH: blT.implicitHeight + tf.roles.u(3)
+                            visible: xb > xa && !!modelData.b.label
+                            x: 0; y: rw.ph - (index + 1) * lineH; width: tf.innerW; height: lineH
+                            Rectangle { visible: rw.ov; x: bl.xa; width: bl.xb - bl.xa; y: bl.height - tf.roles.u(2); height: tf.roles.u(2)
+                                        color: Qt.alpha(tf.roles.hue(bl.modelData.key), 0.8) }
+                            Text {
+                                id: blT
+                                x: Math.min(bl.xa + tf.roles.u(3), tf.innerW - implicitWidth); y: 0
+                                text: bl.text; font: tf.roles.fSmall; color: tf.roles.ink3
+                                Rectangle { z: -1; anchors.fill: parent; anchors.margins: -1; color: Qt.alpha(tf.roles.knock, 0.85) }
+                                MouseArea { enabled: !!bl.modelData.subject; anchors.fill: parent; anchors.margins: -3
+                                            cursorShape: Qt.PointingHandCursor; onClicked: tf.trustClicked(bl.modelData.subject) }
+                            }
+                        }
+                    }
                     Repeater {
                         model: tf.showDots ? (rw.ov ? [].concat.apply([], tf.rows.map(function (q) { return q.dots || [] })) : (rw.r.dots || [])) : []
                         delegate: Item {
@@ -287,6 +323,7 @@ Item {
                             required property var modelData
                             readonly property var p: modelData.p
                             objectName: p.rising ? "chRising:" + modelData.seg : "chPeak:" + modelData.seg
+                            z: 2                 // an unplaced ring takes a click over the seek area (chSeek)
                             readonly property real cx: plot.xOf(p.shotMs)
                             readonly property real cy: isFinite(p.value) ? plot.yOf(p.value) : rw.ph / 2
                             readonly property bool onRight: cx + tf.roles.u(8) + lab.implicitWidth + word.implicitWidth <= tf.innerW
@@ -297,9 +334,30 @@ Item {
                                 x: plot.xOf(pk.p.shotMs - pk.p.sigmaMs); width: Math.max(1, plot.xOf(pk.p.shotMs + pk.p.sigmaMs) - x)
                                 y: Math.round(pk.cy) - 0.5; height: 1; color: Qt.alpha(tf.roles.ink2, 0.7)
                             }
-                            // the peak: a dot; the late one a warn ring (the one warn mark, D4); unplaced a dim ring
+                            // the peak: a dot; the late one a warn ring (the one warn mark, D4); unplaced a DASHED dim
+                            // ring (trust_and_gates §7.2: a solid hollow ring read as "placed but faint")
+                            Canvas {
+                                objectName: "chUnplaced:" + pk.modelData.seg
+                                visible: !pk.p.rising && !pk.p.placed && !pk.p.late
+                                readonly property real d: 2 * Math.round(tf.roles.u(10) / 2)
+                                x: Math.round(pk.cx) - d / 2 - 1; y: Math.round(pk.cy) - d / 2 - 1; width: d + 2; height: d + 2
+                                readonly property var deps: [d, tf.roles.ink3, tf.roles.square]
+                                onDepsChanged: requestPaint()
+                                onPaint: {
+                                    const ctx = getContext("2d"); ctx.reset()
+                                    ctx.strokeStyle = tf.roles.ink2; ctx.lineWidth = 1.25
+                                    ctx.setLineDash([2, 2])
+                                    ctx.beginPath()
+                                    if (tf.roles.square) ctx.rect(1, 1, d, d)
+                                    else ctx.arc(width / 2, height / 2, d / 2, 0, 2 * Math.PI)
+                                    ctx.stroke()
+                                }
+                                MouseArea { anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor
+                                            readonly property string subject: "ks." + pk.modelData.seg
+                                            onClicked: tf.trustClicked(subject) }
+                            }
                             Rectangle {
-                                visible: !pk.p.rising
+                                visible: !pk.p.rising && (pk.p.placed || pk.p.late)
                                 readonly property real d: 2 * Math.round(tf.roles.u(pk.p.late ? 12 : pk.p.placed ? 6 : 9) / 2)
                                 x: Math.round(pk.cx) - d / 2; y: Math.round(pk.cy) - d / 2; width: d; height: d
                                 radius: tf.roles.square ? 0 : d / 2

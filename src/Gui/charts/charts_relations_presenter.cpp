@@ -176,6 +176,8 @@ std::shared_ptr<ShotSeries> shotFromDetail(const QVariantMap &d, const QString &
     s->swingDir = swingDir;
     s->shotId = SessionSeriesModel::folderShotId(swingDir);
     s->kinematicSequence = d.value(QStringLiteral("kinematicSequence")).toMap();
+    s->gatesVersion = d.value(QStringLiteral("gatesVersion")).toInt();
+    s->gates = d.value(QStringLiteral("gates")).toList();
     for (const QVariant &pv : d.value(QStringLiteral("phases")).toList()) {
         const QVariantMap p = pv.toMap();
         PhaseMark m;
@@ -802,6 +804,11 @@ QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
                                       { QStringLiteral("foot"), foot }, { QStringLiteral("median"), sm.placed >= 3 ? words::signedMs(sm.medianMs) : QString() },
                                       { QStringLiteral("place"), QString() }, { QStringLiteral("warn"), p.late },
                                       { QStringLiteral("warnWord"), p.late ? QStringLiteral("late") : QString() },
+                                      // a reading a gate refused, bounded or withheld: its foot opens the reason (TrustFocus)
+                                      { QStringLiteral("trustSubject"), p.present && !p.records.isEmpty()
+                                                                        && std::any_of(p.records.begin(), p.records.end(), [](const QVariant &r) {
+                                                                               return r.toMap().value(QStringLiteral("effect")).toString() != QLatin1String("masked"); })
+                                                                        ? QStringLiteral("ks.") + sequenceSegmentIds()[size_t(s)] : QString() },
                                       { QStringLiteral("sentence"), (p.placed || why.sentence.isEmpty() ? Sentence().figure(words::signedMs(v)) : Sentence().append(why.sentence))
                                                                       .append(sm.placed >= 3 ? QStringLiteral(", median ") : QString())
                                                                       .figure(sm.placed >= 3 ? words::signedMs(sm.medianMs) : QString())

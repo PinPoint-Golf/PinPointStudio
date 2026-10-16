@@ -43,6 +43,8 @@
 // it; the order skips it; nothing pretends it was measured. Dropping it would hide the one thing
 // the reader needs — that this route cannot see this segment.
 
+#include "../Analysis/gate_record.h"   // GateRecord — why a node is what it is
+
 #include <QString>
 
 #include <algorithm>
@@ -175,6 +177,12 @@ struct KsNode {
     // DRAWN BUT NOT JUDGED. Non-empty = why the route's node must not carry a diagnostic verdict
     // (MetricSeries::withheld); the node is placed and charted with its σ as usual.
     QString    withheld;
+    // WHY THE NODE IS WHAT IT IS (trust_and_gates_design.md §4.2): every gate that fired on this
+    // node — the sighted band (also when it only masked samples, so the chart can shade them), the σ
+    // ceiling, the spike guard, the route switch, the club floor. Travels WITH the node so a rung
+    // that withdraws its node withdraws its reasons too; buildSegmentRates flattens them into
+    // SegmentRatesResult::gates. Not part of the kinematicSequence JSON — `analysis.gates` is.
+    std::vector<GateRecord> gates;
 };
 
 struct KinematicSequence {

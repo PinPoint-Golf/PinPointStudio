@@ -1040,6 +1040,12 @@ struct SwingAnalysis {
     // ALSO sit in `series` (segment_rates.h). `valid` false ⇒ no route produced a node; the
     // document then carries no `kinematicSequence` object at all (kinematic_sequence_json.h).
     KinematicSequence         kinematicSequence;
+    // WHY READINGS WERE REFUSED, BOUNDED OR WITHHELD (gate_record.h; trust_and_gates_design.md §6):
+    // one record per gate firing, persisted as `analysis.gates`. `gatesVersion` is stamped by the
+    // stages that emit (0 = none ran), so a reader can tell "no gate fired" from "analysed before
+    // records existed" — the document writes the version only when it is set.
+    std::vector<GateRecord>   gates;
+    int                       gatesVersion = 0;
 };
 
 } // namespace pinpoint::analysis

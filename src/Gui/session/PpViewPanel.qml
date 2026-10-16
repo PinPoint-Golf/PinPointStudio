@@ -42,6 +42,7 @@ Item {
         { key: "carousel",    label: qsTr("Carousel"),              ready: true  },
         { key: "timeline",    label: qsTr("Timeline"),              ready: true  },
         { key: "charts",      label: qsTr("Charts"),                ready: false },
+        { key: "trust",       label: qsTr("Trust"),                 ready: true  },
         { key: "table",       label: qsTr("Table"),                 ready: false },
         { key: "markup",      label: qsTr("Markup"),                ready: true  }
     ]

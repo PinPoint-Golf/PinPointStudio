@@ -63,6 +63,14 @@ struct SegmentPeak {
     double peakDps = kNaN, peakSigmaDps = kNaN;
     int    rank = 0;                    // among the placed, 1 = first; 0 = not placed
     bool   late = false;                // D4
+    // FROM THE GATE RECORDS (trust_and_gates_design.md §6), when the analysis wrote them:
+    bool        reasonsRecorded = false;    // the shot carries analysis.gates (gatesVersion > 0)
+    QVariantMap refusal;                    // the record that refused / bounded the node (the one that says the most)
+    QVariantList records;                   // every record against this node, in the order written
+    // the stretch the route could not see (sequence.sightedBand / validityHole), ms from impact (+ after);
+    // NaN = no band; `blindToMs` NaN with a finite `blindFromMs` = blind to the end of the curve
+    double  blindFromMs = kNaN, blindToMs = kNaN;
+    QString blindGate;
 };
 
 struct ShotSequence {
@@ -87,10 +95,10 @@ struct SessionSequence {
     int     commonOrderCount = 0;
 };
 
-// WHY A NODE IS NOT PLACED, said as the gate that fired (trust_and_gates_design.md §9 stage 0), never
-// a field that merely happens to be there: the bound when the camera lost sight of the segment, still
-// rising at the end of the domain, a timing σ over the placement ceiling — else "not placed from this
-// view", because the producer does not yet record the reason (spike guard, route switch, club floor).
+// WHY A NODE IS NOT PLACED, said as the gate that fired, never a field that merely happens to be there.
+// From the node's gate record when the analysis wrote one (§9 stage 3: the catalogue's words, the
+// record's bound). A shot analysed before records existed falls back to what its fields say (stage 0:
+// the bound, still rising at the end) and otherwise says the reason was not recorded.
 struct UnplacedWhy {
     QString figure;     // for a figure slot: "after −129" (with unit "ms"), "rising", or "-"
     QString unit;       // "ms" when `figure` is a time
@@ -98,6 +106,11 @@ struct UnplacedWhy {
     QString sentence;   // "peaked after −129 ms, out of the camera's sight" …
 };
 UnplacedWhy unplacedWhy(const SegmentPeak &p);
+
+// THE GATES THAT FIRED ON ONE SEGMENT, opened (§7.1): one entry per record, the refusing one first —
+// { gate, effect, title, evidence (the filled sentence), explain, tuning ("20° (sequence.sightedTurnDeg)"),
+// lift }. Empty when the shot carries no records.
+QVariantList segmentGates(const SegmentPeak &p, int segment);
 
 ShotSequence    shotSequence(const ShotSeries &shot);
 SessionSequence sessionSequence(const SessionSnapshot &session);

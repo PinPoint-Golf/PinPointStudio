@@ -32,6 +32,8 @@ Item {
     property var items: []                       // [{ readingId, key, label, figure, unit, foot, warn, warnWord }]
     property bool atom: true
     readonly property var keyKinds: []
+    // a figure a gate refused, bounded or withheld (item.trustSubject): its foot opens the reason
+    signal trustClicked(string subject)
     readonly property int n: (items || []).length
     readonly property int fit: roles ? roles.columns(width, roles.flows.keyFigure, 0) : 1
     readonly property int cols: Math.max(1, fit >= n ? n : fit >= Math.ceil(n / 2) ? Math.ceil(n / 2) : Math.ceil(n / 4))
@@ -68,8 +70,13 @@ Item {
                 Text { text: it.modelData.unit || ""; font: kf.roles.fSmall; color: kf.roles.ink3; anchors.baseline: fg.baseline }
                 Text { visible: it.modelData.warn && !!it.modelData.warnWord; text: it.modelData.warnWord || ""; font: kf.roles.fSmall; color: kf.roles.warn; anchors.baseline: fg.baseline }
             }
-            Text { x: it.lx; y: kf.roles.u(42); width: parent.width - x - kf.roles.u(4); wrapMode: Text.WordWrap
-                   text: it.modelData.foot || ""; font: kf.roles.fSmall; color: kf.roles.ink3 }
+            Text { id: foot; x: it.lx; y: kf.roles.u(42); width: parent.width - x - kf.roles.u(4); wrapMode: Text.WordWrap
+                   readonly property bool why: !!it.modelData.trustSubject
+                   objectName: why ? "chKeyFigureWhy:" + it.modelData.trustSubject : ""
+                   text: (it.modelData.foot || "") + (why ? "  ›" : "")
+                   font: kf.roles.fSmall; color: why ? kf.roles.link : kf.roles.ink3
+                   MouseArea { enabled: foot.why; anchors.fill: parent; anchors.margins: -2; cursorShape: Qt.PointingHandCursor
+                               onClicked: kf.trustClicked(it.modelData.trustSubject) } }
         }
     }
 }

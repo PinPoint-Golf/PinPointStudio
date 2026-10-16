@@ -317,6 +317,15 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
         o[QStringLiteral("kinematicSequence")] =
             analysis::kinematicSequenceToJson(a.kinematicSequence, rel);
 
+    // Gate records (gate_record.h; trust_and_gates_design.md §6) — why readings were refused,
+    // bounded or withheld. Written whenever an emitting stage ran, even with no record, so a reader
+    // can tell "no gate fired" (empty array) from "analysed before records existed" (both absent).
+    // Evidence times are ms from impact and need no re-timing. Additive (schema history 2026-10-16).
+    if (a.gatesVersion > 0) {
+        o[QStringLiteral("gatesVersion")] = a.gatesVersion;
+        o[QStringLiteral("gates")]        = analysis::gateRecordsToJson(a.gates);
+    }
+
     // `timing` (TimingClass — how the instant was OBTAINED, orthogonal to conf)
     // is written ONLY on a fusion-arbitrated ladder (segmentation.version >= 5).
     // Every producer stamps the field in memory regardless, but emitting it

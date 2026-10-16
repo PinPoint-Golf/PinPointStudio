@@ -145,6 +145,8 @@ Item {
                 // View, because it owns a characteristic pack and a detection thread nobody
                 // who never opens it should pay for.
                 sessionDiagnosticsDelegate: Component { PpSessionDiagnosticsPanel {} }
+                // Readings and their limits (trust_and_gates_design.md §7.0)
+                trustDelegate: Component { PpTrustPanel { sessionType: root.sessionType } }
                 // Launch monitor session board — per SESSION and neutral. Gated on
                 // available data and devices, never on sessionType: a monitor is a
                 // monitor whatever the screen was opened to do. Off until the user

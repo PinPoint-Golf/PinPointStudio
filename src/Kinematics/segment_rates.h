@@ -249,6 +249,7 @@ struct PairSegmentDiag {
     int     nCrossingsFo = 0, nRevokedFo = 0;
     double  invalidFrac = 0.0;  // fraction of the domain's face-on instants with no pair sample
     QString refusal;            // empty ⇒ produced; else why this segment fell through to face-on
+    QVariantMap refusalEvidence; // the same, as gate-record evidence ({ code, numbers }; gate_catalogue.h)
 };
 
 struct PairDiagnostics {
@@ -257,6 +258,7 @@ struct PairDiagnostics {
     double  extentFoPx = 0.0, extentDtlPx = 0.0;
     int     addrSamples = 0;
     QString refusal;            // route-level refusal (the scale); empty ⇒ the scale was formed
+    QVariantMap refusalEvidence; // the same, as gate-record evidence ({ code, numbers })
     PairSegmentDiag pelvis, thorax;
 };
 
@@ -319,6 +321,10 @@ struct SegmentRatesResult {
     SegmentRateChannel pelvis, thorax, leadArm, club;
     KinematicSequence  sequence;
     PairDiagnostics    pair;            // what the faceOn+dtl route saw (diagnostic only)
+    // Every gate record the sequence fired (trust_and_gates_design.md §6): the nodes' own, in node
+    // order, then the route-level ones (a two-camera route that refused or withdrew). The stage
+    // appends them to `analysis.gates`.
+    std::vector<GateRecord> gates;
     bool valid = false;                 // at least one channel produced
 
     const SegmentRateChannel &channel(SeqSegment s) const

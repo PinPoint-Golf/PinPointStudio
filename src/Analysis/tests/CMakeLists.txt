@@ -96,6 +96,14 @@ endforeach()
 # header). Header-only, Qt-only (QString), no fixture.
 pp_add_test(kinematic_sequence_test SOURCES kinematic_sequence_test.cpp)
 
+# Gate catalogue + record format (Metrics/gate_catalogue.h, Analysis/gate_record.h;
+# trust_and_gates_design.md §5, §6). BOTH WAYS against the producers' sources: every
+# PP_GATE("…") id a producer fires is catalogued, every entry is fired by the producer it
+# names — read from the source tree, so a gate added without its words fails here. Also the
+# evidence templates and the JSON round-trip. Header-only.
+pp_add_test(gate_catalogue_test SOURCES gate_catalogue_test.cpp
+            DEFINES PP_SRC_ROOT="${SRC}/..")
+
 # Angular-rate derivation + peak placement (angular_rate.h) — the ONE code path every
 # kinematic-sequence route ends in. The load-bearing assertion is COVERAGE: the timing σ
 # the peak finder reports must contain the realised timing error at ≥ 68 % across a

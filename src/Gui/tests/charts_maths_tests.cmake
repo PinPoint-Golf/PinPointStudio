@@ -20,3 +20,14 @@ pp_add_test(charts_session_maths_test
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
     LINK    Qt6::Test
     AUTOMOC)
+
+# The readings a gate touched (src/Gui/trust/trust_readings.h; trust_and_gates_design.md §4.3, §7.0) — the
+# one statement the Trust panel, the in-place block and the Charts marks read: levels, the gate the claim
+# shows, lifts less the routes a swing already ran, the shot's head, the session's counts. Fixture inline
+# (18 Aug Wrist_02 shot 4's own records).
+pp_add_test(trust_readings_test
+    SOURCES trust_readings_test.cpp
+            ${GUI}/trust/trust_readings.cpp
+            ${GUI}/charts/session_sequence.cpp
+            ${GUI}/charts/session_curves.cpp
+    INCLUDE ${GUI} ${GUI}/charts ${GUI}/trust ${SRC} ${SRC}/Core)

@@ -45,6 +45,8 @@ Item {
     property Component sessionDiagnosticsDelegate: null
     property Component launchMonitorDelegate: null
     property Component tableDelegate:       null
+    // "Readings and their limits" (trust/PpTrustPanel.qml): why a reading was refused, bounded or withheld
+    property Component trustDelegate:       null
     property Component markupDelegate:      null
     // The 3-D swing (swing3d/). Its delegate is only a SLOT: the View3D itself lives in the
     // screen's SwingViz3DHost and is lent to whichever slot is showing — never rebuilt here.
@@ -84,6 +86,8 @@ Item {
           tone: "quiet", comp: launchMonitorDelegate },
         { key: "charts",        label: qsTr("Charts"),                title: Theme.caps(qsTr("Charts")),
           tone: "quiet", comp: chartsDelegate },
+        { key: "trust",         label: qsTr("Trust"),                 title: Theme.caps(qsTr("Readings and their limits")),
+          tone: "quiet", comp: trustDelegate },
         { key: "table",         label: qsTr("Table"),                 title: Theme.caps(qsTr("Table")),
           tone: "quiet", comp: tableDelegate },
         { key: "markup",        label: qsTr("Markup"),                title: Theme.caps(qsTr("Markup")),

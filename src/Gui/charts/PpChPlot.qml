@@ -86,13 +86,17 @@ Canvas {
         const hov = brush ? brush.hoveredShot : -1
         const filt = brush && brush.shotFilter
         const ls = (layers || []).slice().sort(function (a, b) {
-            const za = a.k === "band" ? -10 : a.k === "dots" ? -5 : (a.z || 0), zb = b.k === "band" ? -10 : b.k === "dots" ? -5 : (b.z || 0)
-            return za - zb })
+            const zOf = function (l) { return l.k === "span" ? -20 : l.k === "band" ? -10 : l.k === "dots" ? -5 : (l.z || 0) }
+            return zOf(a) - zOf(b) })
         for (const l of ls) {
             if (!l) continue
             const lit = !filt || l.shot === undefined || l.shot < 0 || brush.shotLit(l.shot)
             const k = lit ? 1 : 0.35
-            if (l.k === "band") {
+            if (l.k === "span") {
+                // a stretch of the time axis, full height (a gate's blind stretch, trust_and_gates §7.2)
+                const xa = Math.max(0, xOf(l.t0)), xb = Math.min(W, xOf(l.t1))
+                if (xb > xa) { ctx.fillStyle = l.color; ctx.fillRect(xa, 0, xb - xa, H) }
+            } else if (l.k === "band") {
                 ctx.fillStyle = l.color
                 let open = false; const back = []
                 const flush = function () { if (!open) return; for (let j = back.length - 1; j >= 0; --j) ctx.lineTo(back[j][0], back[j][1]); ctx.closePath(); ctx.fill(); back.length = 0; open = false }

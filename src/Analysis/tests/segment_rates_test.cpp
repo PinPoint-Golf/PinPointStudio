@@ -869,6 +869,60 @@ int main()
         }
         CHECK("§8d JSON carries peakNoEarlierThanMs on the bounded node and not on the placed one",
               boundOut && noBoundOnPlaced);
+
+        // (f) GATE RECORDS (trust_and_gates_design.md §6). The bounded pelvis carries the sighted
+        //     band as a `bounded` record whose bound IS the node's bound and whose evidence holds the
+        //     edge of sight; the placed pelvis keeps the band as `masked` (the chart shades it); the
+        //     never-in-sight pelvis is `refused` with no bound; and every record reaches the result.
+        const auto recOf = [](const KsNode *n, const char *gate) -> const GateRecord * {
+            if (!n) return nullptr;
+            for (const GateRecord &r : n->gates) if (r.gate == QLatin1String(gate)) return &r;
+            return nullptr;
+        };
+        const GateRecord *bb = recOf(bp, "sequence.sightedBand");
+        CHECK("§8f bounded pelvis: a sightedBand record, effect bounded",
+              bb && bb->effect == GateEffect::Bounded && bb->subject == QLatin1String("ks.pelvis"));
+        CHECK("§8f bounded pelvis: the record's bound is the node's",
+              bb && bp && near(bb->bound.value(QStringLiteral("noEarlierThanMs")).toDouble(), bp->peakNoEarlierThanMs, 1e-9));
+        CHECK("§8f bounded pelvis: evidence sightLostMs = −bound (ms from impact), edge = entry",
+              bb && bp && near(bb->evidence.value(QStringLiteral("sightLostMs")).toDouble(), -bp->peakNoEarlierThanMs, 1e-6)
+              && bb->evidence.value(QStringLiteral("edge")).toString() == QLatin1String("entry")
+              && near(bb->evidence.value(QStringLiteral("sightedTurnDeg")).toDouble(), cfg8.sightedTurnDeg, 1e-9));
+        const GateRecord *sb = recOf(sp, "sequence.sightedBand");
+        CHECK("§8f placed pelvis: the band is still recorded, effect masked, no bound",
+              sb && sb->effect == GateEffect::Masked && sb->bound.isEmpty());
+        CHECK("§8f placed pelvis: no refusal record of any kind",
+              sp && std::none_of(sp->gates.begin(), sp->gates.end(), [](const GateRecord &r) {
+                  return r.effect == GateEffect::Refused || r.effect == GateEffect::Bounded; }));
+        const GateRecord *nb = recOf(np, "sequence.sightedBand");
+        CHECK("§8f never in sight: refused, no bound, wholeDomain",
+              nb && nb->effect == GateEffect::Refused && nb->bound.isEmpty()
+              && nb->evidence.value(QStringLiteral("wholeDomain")).toBool());
+        size_t nodeRecs = 0;
+        for (const KsNode &n : blind.sequence.nodes) nodeRecs += n.gates.size();
+        CHECK("§8f every node record reaches SegmentRatesResult::gates", blind.gates.size() >= nodeRecs && nodeRecs > 0);
+        // σ ceiling: the default 40 ms config refuses the wide hump (σ ~65 ms) AND says so.
+        {
+            PoseTrack2D pose = makePose(true, 80.0, 0.0, wide);
+            SegmentRatesInputs in;
+            in.pose = &pose; in.frameW = kW; in.frameH = kH; in.leadIsLeft = true;
+            in.shaft = &shaft; in.phases = &ph; in.impactUs = kImpactUs;
+            const SegmentRatesResult r = buildSegmentRates(in, cfg);
+            const KsNode *wp = nodeOf(r, SeqSegment::Pelvis);
+            const GateRecord *sg = recOf(wp, "sequence.maxPlaceSigma");
+            CHECK("§8f σ over the ceiling: a maxPlaceSigma record with the σ it compared",
+                  wp && !wp->placed && sg && sg->effect == GateEffect::Refused
+                  && near(sg->evidence.value(QStringLiteral("tSigmaMs")).toDouble(), wp->tSigmaMs, 1e-9)
+                  && near(sg->evidence.value(QStringLiteral("maxPlaceSigmaMs")).toDouble(), cfg.maxPlaceSigmaMs, 1e-9));
+            // The route switch: the same swing with face-on trunk placement off.
+            SegmentRatesConfig off = cfg8;
+            off.faceOnTrunkPlacement = false;
+            const SegmentRatesResult ro = buildSegmentRates(in, off);
+            const GateRecord *rp = recOf(nodeOf(ro, SeqSegment::Pelvis), "sequence.routePlacement");
+            CHECK("§8f route switch off: a routePlacement record naming the switch",
+                  rp && rp->effect == GateEffect::Refused
+                  && rp->evidence.value(QStringLiteral("switch")).toString() == QLatin1String("sequence.faceOnTrunkPlacement"));
+        }
     }
 
     // ── §9 the paired face-on + down-the-line route ───────────────────────────────────────────

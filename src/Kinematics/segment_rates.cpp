@@ -164,6 +164,10 @@ struct PlacementGate {
     // within one derivative window of either edge of the hole was rising into it or emerging from
     // it and is bounded; a peak well clear of the hole is simply a peak.
     bool                        bandIsHole   = false;
+    // WHICH GATE `may` IS, for the record when it closes (trust_and_gates_design.md §6): the route's
+    // placement switch by default; the club's credible-speed floor sets its own id and evidence.
+    QString                     mayGate      = PP_GATE("sequence.routePlacement");
+    QVariantMap                 mayEvidence;
 };
 
 void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const QString &label,
@@ -262,6 +266,10 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
     n.segment = seg;
     n.routeId = routeId;
     n.direct  = direct;
+    // What each gate decided, kept for the records below.
+    bool atEntryRec = false, atExitRec = false, risingIntoRec = false, spikeRec = false, risingAtEndRec = false;
+    bool entryVacuousRec = false, exitVacuousRec = false;
+    int64_t reversalUs = -1;
     if (p.ok) {
         n.tPeakUs      = p.tPeakUs;
         n.peakDps      = p.peak;
@@ -295,7 +303,7 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
                 if (t >= gate.blindFromUs - windowUs) { sumL += ch.series.value[i]; ++nL; }
                 else                                   { sumE += ch.series.value[i]; ++nE; }
             }
-            if (nL > 0 && nE > 0 && sumL / nL > sumE / nE) atEntry = true;
+            if (nL > 0 && nE > 0 && sumL / nL > sumE / nE) { atEntry = true; risingIntoRec = true; }
         }
         // A PEAK ON THE HEELS OF A REVERSAL IS A SPIKE. A body segment that has just changed
         // direction (the rate through zero at the transition) cannot be at its peak rate one
@@ -312,6 +320,7 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
                 if (ch.series.value[i] <= 0.0) lastNonPositive = t;
             }
             spike = lastNonPositive >= 0 && p.tPeakUs - lastNonPositive < int64_t(cfg.minAfterReversalMs * 1000.0);
+            reversalUs = lastNonPositive;
         }
         // A bound is a claim about the part of the domain the route SAW. When the band opens at
         // the domain start, nothing was in sight and "no earlier than the transition" is the
@@ -370,6 +379,62 @@ void finishChannel(SegmentRateChannel &ch, RateTrack &&r, SeqSegment seg, const 
         // stop telling the reader what the route did establish.
         n.placed       = gate.may && !atEntry && !atExit && !spike && !risingAtEnd
                       && p.tSigmaMs <= cfg.maxPlaceSigmaMs;
+        atEntryRec = atEntry; atExitRec = atExit; spikeRec = spike; risingAtEndRec = risingAtEnd;
+        entryVacuousRec = entryVacuous; exitVacuousRec = exitVacuous;
+    }
+
+    // ── THE RECORDS (trust_and_gates_design.md §4.2, §6). Evidence only, never words; times in ms
+    //    from impact, + after. Every gate that fired is recorded — a pelvis out of sight whose σ is
+    //    also over the ceiling carries both; the reader picks the one that says the most.
+    const auto rel = [&](int64_t t) { return double(t - dom.refUs()) * 1e-3; };
+    const QString subject = QStringLiteral("ks.") + QString::fromLatin1(seqSegmentKey(seg));
+    // The band: also when it only masked samples, so the chart can shade where the route was blind.
+    if (gate.sighted && gate.blindFromUs >= 0) {
+        QVariantMap ev{ { QStringLiteral("route"), routeId },
+                        { QStringLiteral("sightLostMs"), rel(gate.blindFromUs) } };
+        if (gate.blindToUs >= 0) ev.insert(QStringLiteral("sightBackMs"), rel(gate.blindToUs));
+        if (!gate.bandIsHole) ev.insert(QStringLiteral("sightedTurnDeg"), cfg.sightedTurnDeg);
+        GateEffect eff = GateEffect::Masked;
+        QVariantMap bound;
+        if (atEntryRec || atExitRec) {
+            ev.insert(QStringLiteral("edge"), atEntryRec ? QStringLiteral("entry") : QStringLiteral("exit"));
+            if (risingIntoRec) ev.insert(QStringLiteral("rateAtEdge"), QStringLiteral("rising"));
+            if (atEntryRec && std::isfinite(n.peakNoEarlierThanMs))
+                bound.insert(QStringLiteral("noEarlierThanMs"), n.peakNoEarlierThanMs);
+            else if (atExitRec && std::isfinite(n.peakNoLaterThanMs))
+                bound.insert(QStringLiteral("noLaterThanMs"), n.peakNoLaterThanMs);
+            // A band that opens at the domain start (closes at its end) bounds nothing: refused.
+            if ((atEntryRec && entryVacuousRec) || (atExitRec && exitVacuousRec))
+                ev.insert(QStringLiteral("wholeDomain"), true);
+            eff = bound.isEmpty() ? GateEffect::Refused : GateEffect::Bounded;
+        }
+        n.gates.push_back({ gate.bandIsHole ? PP_GATE("sequence.validityHole")
+                                            : PP_GATE("sequence.sightedBand"),
+                            subject, eff, ev, bound, {} });
+    }
+    if (p.ok) {
+        if (spikeRec)
+            n.gates.push_back({ PP_GATE("sequence.reversalSpike"), subject, GateEffect::Refused,
+                                { { QStringLiteral("route"), routeId },
+                                  { QStringLiteral("reversalMs"), rel(reversalUs) },
+                                  { QStringLiteral("afterReversalMs"), double(p.tPeakUs - reversalUs) * 1e-3 },
+                                  { QStringLiteral("peakMs"), rel(p.tPeakUs) },
+                                  { QStringLiteral("minAfterReversalMs"), cfg.minAfterReversalMs } }, {}, {} });
+        if (risingAtEndRec)
+            n.gates.push_back({ PP_GATE("sequence.risingAtEnd"), subject, GateEffect::Bounded,
+                                { { QStringLiteral("route"), routeId },
+                                  { QStringLiteral("domainEndMs"), rel(dom.toUs) } },
+                                { { QStringLiteral("noEarlierThanMs"), n.peakNoEarlierThanMs } }, {} });
+        if (!gate.may) {
+            QVariantMap ev = gate.mayEvidence;
+            ev.insert(QStringLiteral("route"), routeId);
+            n.gates.push_back({ gate.mayGate, subject, GateEffect::Refused, ev, {}, {} });
+        }
+        if (p.tSigmaMs > cfg.maxPlaceSigmaMs)
+            n.gates.push_back({ PP_GATE("sequence.maxPlaceSigma"), subject, GateEffect::Refused,
+                                { { QStringLiteral("route"), routeId },
+                                  { QStringLiteral("tSigmaMs"), p.tSigmaMs },
+                                  { QStringLiteral("maxPlaceSigmaMs"), cfg.maxPlaceSigmaMs } }, {}, {} });
     }
     nodes.push_back(n);
 }
@@ -579,6 +644,7 @@ struct PairScale {
     double  extFo = 0.0, extDtl = 0.0;
     int     n = 0;
     QString refusal;
+    QVariantMap refusalEvidence;   // the same refusal as a gate record's evidence: { code, numbers }
 };
 
 double addressVerticalExtent(const PoseView &pv, int64_t addressUs, const SegmentRatesConfig &cfg,
@@ -603,17 +669,23 @@ PairScale pairScale(const PoseView &fo, const PoseView &dtl, int64_t addressUs,
                     const SegmentRatesConfig &cfg)
 {
     PairScale s;
-    if (addressUs < 0) { s.refusal = QStringLiteral("no Address on the ladder"); return s; }
+    if (addressUs < 0) {
+        s.refusalEvidence = QVariantMap{ { QStringLiteral("code"), QStringLiteral("noAddress") } };
+        s.refusal = QStringLiteral("no Address on the ladder");
+        return s;
+    }
     int nF = 0, nD = 0;
     s.extFo  = addressVerticalExtent(fo,  addressUs, cfg, nF);
     s.extDtl = addressVerticalExtent(dtl, addressUs, cfg, nD);
     s.n = std::min(nF, nD);
     if (nF < cfg.addrMinFrames || nD < cfg.addrMinFrames) {
+        s.refusalEvidence = QVariantMap{ { QStringLiteral("code"), QStringLiteral("addressFrames") }, { QStringLiteral("framesFo"), nF }, { QStringLiteral("framesDtl"), nD }, { QStringLiteral("minFrames"), cfg.addrMinFrames } };
         s.refusal = QStringLiteral("address window holds %1 / %2 usable frames (need %3)")
                         .arg(nF).arg(nD).arg(cfg.addrMinFrames);
         return s;
     }
     if (s.extFo < cfg.pairMinExtentPx || s.extDtl < cfg.pairMinExtentPx) {
+        s.refusalEvidence = QVariantMap{ { QStringLiteral("code"), QStringLiteral("extent") }, { QStringLiteral("extentFoPx"), s.extFo }, { QStringLiteral("extentDtlPx"), s.extDtl }, { QStringLiteral("minExtentPx"), cfg.pairMinExtentPx } };
         s.refusal = QStringLiteral("vertical extent %1 / %2 px below the %3 px floor")
                         .arg(s.extFo, 0, 'f', 0).arg(s.extDtl, 0, 'f', 0)
                         .arg(cfg.pairMinExtentPx, 0, 'f', 0);
@@ -917,6 +989,7 @@ AngleTrack pairTurnTrack(const PairViews &vw, int lead, int trail,
     SepTrack sfRaw = separations(vw.foRaw,  lead, trail, cfg);
     SepTrack sdRaw = separations(vw.dtlRaw, lead, trail, cfg);
     if (sfRaw.t.size() < 3 || sdRaw.t.size() < 3) {
+        diag.refusalEvidence = QVariantMap{ { QStringLiteral("code"), QStringLiteral("admittedFrames") }, { QStringLiteral("framesFo"), int(sfRaw.t.size()) }, { QStringLiteral("framesDtl"), int(sdRaw.t.size()) } };
         diag.refusal = QStringLiteral("too few admitted frames (%1 face-on, %2 down-the-line)")
                            .arg(sfRaw.t.size()).arg(sdRaw.t.size());
         return out;
@@ -946,6 +1019,7 @@ AngleTrack pairTurnTrack(const PairViews &vw, int lead, int trail,
     diag.nRevokedFo = rf.revoked;
     diag.wFoPx = wFo;
     if (rf.anchorBroken) {
+        diag.refusalEvidence = QVariantMap{ { QStringLiteral("code"), QStringLiteral("labelsContradict") } };
         diag.refusal = QStringLiteral("the face-on labels contradict the impact anchor and no one relabel "
                                       "call can be blamed");
         return out;
@@ -988,6 +1062,7 @@ AngleTrack pairTurnTrack(const PairViews &vw, int lead, int trail,
     }
 
     if (sf.valid() < 3 || sd.valid() < 3) {
+        diag.refusalEvidence = QVariantMap{ { QStringLiteral("code"), QStringLiteral("separations") }, { QStringLiteral("separationsFo"), sf.valid() }, { QStringLiteral("separationsDtl"), sd.valid() } };
         diag.refusal = QStringLiteral("only %1 / %2 usable separations left after the guards")
                            .arg(sf.valid()).arg(sd.valid());
         return AngleTrack{};
@@ -998,6 +1073,7 @@ AngleTrack pairTurnTrack(const PairViews &vw, int lead, int trail,
     const double mF = medianOver(sf, pin.addressUs, pin.addressUs + cfg.addrWindowUs);
     const double mD = medianOver(sd, pin.topUs - 150000, pin.topUs + 50000);
     if (!(std::fabs(mF) > 0.0) || !(std::fabs(mD) > 0.0)) {
+        diag.refusalEvidence = QVariantMap{ { QStringLiteral("code"), QStringLiteral("orientation") } };
         diag.refusal = QStringLiteral("no orientation: |d_fo| at address %1 px, |d_dtl| at the top %2 px")
                            .arg(std::fabs(mF), 0, 'f', 1).arg(std::fabs(mD), 0, 'f', 1);
         return out;
@@ -1024,6 +1100,7 @@ AngleTrack pairTurnTrack(const PairViews &vw, int lead, int trail,
     const double dtlStepUs = gaps.empty() ? 0.0 : medianOf(gaps);
     const double maxBracketUs = dtlStepUs > 0.0 ? cfg.pairMaxGapFrames * dtlStepUs : 0.0;
     if (!(maxBracketUs > 0.0)) {
+        diag.refusalEvidence = QVariantMap{ { QStringLiteral("code"), QStringLiteral("dtlInterval") } };
         diag.refusal = QStringLiteral("the down-the-line stream carries no usable frame interval");
         return out;
     }
@@ -1034,6 +1111,7 @@ AngleTrack pairTurnTrack(const PairViews &vw, int lead, int trail,
     for (size_t i = 0; i < sd.t.size(); ++i)
         if (sd.ok[i]) { tD.push_back(sd.t[i]); vD.push_back(sd.d[i]); gD.push_back(sd.sigma[i]); }
     if (tD.size() < 3) {
+        diag.refusalEvidence = QVariantMap{ { QStringLiteral("code"), QStringLiteral("dtlSeparations") }, { QStringLiteral("separationsDtl"), int(tD.size()) } };
         diag.refusal = QStringLiteral("only %1 usable down-the-line separations").arg(tD.size());
         return AngleTrack{};
     }
@@ -1085,6 +1163,7 @@ AngleTrack pairTurnTrack(const PairViews &vw, int lead, int trail,
         std::vector<double> adm;
         for (size_t i = 0; i < n; ++i) if (out.valid[i]) adm.push_back(out.angleRad[i]);
         if (adm.size() < 3) {
+            diag.refusalEvidence = QVariantMap{ { QStringLiteral("code"), QStringLiteral("pairedSamples") }, { QStringLiteral("paired"), int(adm.size()) } };
             diag.refusal = QStringLiteral("only %1 paired samples").arg(adm.size());
             return AngleTrack{};
         }
@@ -1138,10 +1217,12 @@ AngleTrack pairTurnTrack(const PairViews &vw, int lead, int trail,
     diag.closureP90 = percentileOf(closure, 0.90);
 
     if (diag.nPaired < cfg.addrMinFrames) {
+        diag.refusalEvidence = QVariantMap{ { QStringLiteral("code"), QStringLiteral("pairedInDomain") }, { QStringLiteral("paired"), diag.nPaired }, { QStringLiteral("minPaired"), cfg.addrMinFrames } };
         diag.refusal = QStringLiteral("only %1 paired samples in the domain").arg(diag.nPaired);
         return AngleTrack{};
     }
     if (diag.corrAbs < cfg.pairMinCorr) {
+        diag.refusalEvidence = QVariantMap{ { QStringLiteral("code"), QStringLiteral("corrFloor") }, { QStringLiteral("corr"), diag.corrAbs }, { QStringLiteral("minCorr"), cfg.pairMinCorr } };
         diag.refusal = QStringLiteral("|corr| %1 below the %2 floor")
                            .arg(diag.corrAbs, 0, 'f', 2).arg(cfg.pairMinCorr, 0, 'f', 2);
         return AngleTrack{};
@@ -1410,6 +1491,9 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
     const int64_t windowUs = int64_t(std::max(cfg.derivWindowMs, 1.0) * 1000.0);
     const double  sign     = in.leadIsLeft ? 1.0 : -1.0;   // opening = +ω_z for a right-hander
     std::vector<KsNode> nodes;
+    // Records about a ROUTE rather than a node — a rung that refused or withdrew, so the segment
+    // fell to the rung below (the nodes carry their own; trust_and_gates_design.md §6).
+    GateLog routeGates;
 
     // ── IMU routes, per segment ────────────────────────────────────────────────────────────────
     const SegmentStream *pelvisImu = nullptr, *thoraxImu = nullptr, *armImu = nullptr, *clubImu = nullptr;
@@ -1510,6 +1594,9 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             std::vector<uint8_t> seen;
             PlacementGate gate;
             gate.may          = cfg.skel3dPlacement && (seg != SeqSegment::Thorax || cfg.skel3dThoraxPlacement);
+            gate.mayEvidence  = { { QStringLiteral("switch"), !cfg.skel3dPlacement
+                                      ? QStringLiteral("sequence.skel3d.placement")
+                                      : QStringLiteral("sequence.skel3d.thoraxPlacement") } };
             gate.spikeGuard   = true;
             gate.endEdgeBound = true;
             gate.bandIsHole   = true;
@@ -1520,8 +1607,15 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             if (nodes.size() > before) {
                 KsNode &nd = nodes.back();
                 if (!nd.placed && !nd.bounded()) {
+                    QVariantMap ev{ { QStringLiteral("route"), QStringLiteral("faceOn+dtl3d") } };
+                    for (const GateRecord &g : nd.gates)
+                        if (g.gate == QLatin1String("sequence.routePlacement") && g.evidence.contains(QStringLiteral("switch")))
+                            ev.insert(QStringLiteral("switch"), g.evidence.value(QStringLiteral("switch")));
                     nodes.pop_back();
                     ch = SegmentRateChannel{};
+                    routeGates.fire(PP_GATE("sequence.routeWithdrawn"),
+                                    QStringLiteral("ks.") + QString::fromLatin1(seqSegmentKey(seg)),
+                                    GateEffect::Downgraded, ev);
                 } else {
                     const double frac = sk.camerasCalibrated ? cfg.skel3dScaleFracCalibrated : cfg.skel3dScaleFrac;
                     nd.peakSigmaDps = std::hypot(nd.peakSigmaDps, frac * std::fabs(nd.peakDps));
@@ -1632,6 +1726,7 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             res.pair.extentDtlPx = ps.extDtl;
             res.pair.addrSamples = ps.n;
             res.pair.refusal     = ps.refusal;
+            res.pair.refusalEvidence = ps.refusalEvidence;
             if (ps.ok) {
                 PairInputs pin;
                 pin.addressUs  = addressUs;
@@ -1658,6 +1753,9 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
                     // the RING only — every bound below is emitted either way.
                     gate.may          = cfg.pairTrunkPlacement
                                      && (seg != SeqSegment::Thorax || cfg.pairTrunkThoraxPlacement);
+                    gate.mayEvidence  = { { QStringLiteral("switch"), !cfg.pairTrunkPlacement
+                                              ? QStringLiteral("sequence.pairTrunk.placement")
+                                              : QStringLiteral("sequence.pairTrunk.thoraxPlacement") } };
                     gate.spikeGuard   = true;
                     gate.endEdgeBound = true;
                     gate.bandIsHole   = true;
@@ -1673,6 +1771,12 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
                     if (nodes.size() > before) {
                         const KsNode &n = nodes.back();
                         if (!n.placed && !n.bounded()) {
+                            diag.refusalEvidence = { { QStringLiteral("code"), QStringLiteral("noPlaceNoBound") } };
+                            // what stopped the placement, when it was the route's own switch (read
+                            // before the node goes)
+                            for (const GateRecord &g : n.gates)
+                                if (g.gate == QLatin1String("sequence.routePlacement") && g.evidence.contains(QStringLiteral("switch")))
+                                    diag.refusalEvidence.insert(QStringLiteral("switch"), g.evidence.value(QStringLiteral("switch")));
                             nodes.pop_back();
                             ch = SegmentRateChannel{};
                             diag.refusal = QStringLiteral("neither a placement nor a bound — "
@@ -1690,6 +1794,26 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             }
         }
 
+        // THE PAIR'S REFUSALS AS RECORDS. They were log lines only (`diag.refusal`); the segment
+        // fell to the rung below with nobody able to see why. Downgraded, not refused: the segment
+        // is still produced, by a route with a blind band of its own.
+        if (res.pair.attempted) {
+            if (!res.pair.refusalEvidence.isEmpty())
+                routeGates.fire(PP_GATE("sequence.pairRoute"), QStringLiteral("route.faceOn+dtl"),
+                                GateEffect::Downgraded, res.pair.refusalEvidence);
+            for (const auto &[segKey, d] : { std::pair<const char *, const PairSegmentDiag *>{ "pelvis", &res.pair.pelvis },
+                                             std::pair<const char *, const PairSegmentDiag *>{ "thorax", &res.pair.thorax } }) {
+                if (d->refusalEvidence.isEmpty()) continue;
+                const QString code = d->refusalEvidence.value(QStringLiteral("code")).toString();
+                QVariantMap ev = d->refusalEvidence;
+                QString id = PP_GATE("sequence.pairRoute");
+                if (code == QLatin1String("corrFloor")) { id = PP_GATE("sequence.pairMinCorr"); ev.remove(QStringLiteral("code")); }
+                else if (code == QLatin1String("noPlaceNoBound")) { id = PP_GATE("sequence.routeWithdrawn"); ev.remove(QStringLiteral("code")); }
+                ev.insert(QStringLiteral("route"), QStringLiteral("faceOn+dtl"));
+                routeGates.fire(id, QStringLiteral("ks.") + QLatin1String(segKey), GateEffect::Downgraded, ev);
+            }
+        }
+
         // The skeleton's trunk, where the pair did not produce (above).
         skeletonTrunk();
 
@@ -1701,6 +1825,7 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
             std::vector<uint8_t> sighted;
             PlacementGate gate;
             gate.may = cfg.faceOnTrunkPlacement;
+            gate.mayEvidence = { { QStringLiteral("switch"), QStringLiteral("sequence.faceOnTrunkPlacement") } };
             sightedBand(at, cfg.sightedTurnDeg, dom.fromUs, dom.toUs, sighted, gate);
             finishChannel(ch, differentiate(at, windowUs, /*opening = −dθ/dt*/ -1.0, false), seg, label,
                           QStringLiteral("faceOn"), false, dom, phases, cfg, nodes, gate);
@@ -1784,6 +1909,9 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
                                || in.clubheadSpeedPeakMph >= cfg.minCredibleClubMph;
             PlacementGate gate;
             gate.may = credible;
+            gate.mayGate = PP_GATE("sequence.credibleClub");
+            gate.mayEvidence = { { QStringLiteral("clubheadPeakMph"), in.clubheadSpeedPeakMph },
+                                 { QStringLiteral("minCredibleClubMph"), cfg.minCredibleClubMph } };
             finishChannel(res.club, differentiate(a, windowUs, 1.0, /*magnitude*/ true),
                           SeqSegment::Club, QStringLiteral("Club angular speed"),
                           fused ? QStringLiteral("faceOn+dtl") : QStringLiteral("faceOnClub"),
@@ -1802,6 +1930,10 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
                 const double spanMs = double(cn.tPeakUs - impactUs) / 1000.0;
                 cn.tSigmaMs = std::sqrt(cn.tSigmaMs * cn.tSigmaMs + spanMs * spanMs / 12.0);
                 cn.withheld = QStringLiteral("the camera cannot follow the club's speed through impact");
+                cn.gates.push_back({ PP_GATE("sequence.clubWithheld"), QStringLiteral("ks.club"),
+                                     GateEffect::Withheld,
+                                     { { QStringLiteral("route"), cn.routeId },
+                                       { QStringLiteral("peakMs"), -double(impactUs - cn.tPeakUs) / 1000.0 } }, {}, {} });
             }
         }
     }
@@ -1809,6 +1941,9 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
     res.valid = res.pelvis.produced() || res.thorax.produced() || res.leadArm.produced() || res.club.produced();
     if (res.valid)
         res.sequence = resolveKinematicSequence(std::move(nodes), impactUs, cfg.sigmaK);
+    for (const KsNode &n : res.sequence.nodes)
+        res.gates.insert(res.gates.end(), n.gates.begin(), n.gates.end());
+    for (const GateRecord &r : routeGates.records()) res.gates.push_back(r);
     return res;
 }
 

@@ -34,6 +34,7 @@ set(PP_QML_SINGLETONS
     src/Gui/settings/SettingsIndex.qml
     src/Gui/session/ViewLayout.qml
     src/Gui/session/SessionMode.qml
+    src/Gui/trust/TrustFocus.qml
     src/Gui/cameras/AnnotationTool.qml
     src/Gui/review/MetricRoute.qml
     src/Gui/imu/ImuMounts.qml
@@ -45,6 +46,7 @@ set(PP_QML_FILES
     src/Gui/shot/DataWarningFormat.qml
     src/Gui/session/ViewLayout.qml
     src/Gui/session/SessionMode.qml
+    src/Gui/trust/TrustFocus.qml
     src/Gui/shell/Main.qml
     src/Gui/media/AudioPage.qml
     src/Gui/imu/CapturePage.qml
@@ -315,6 +317,9 @@ set(PP_QML_FILES
     src/Gui/charts/PpChKindTable.qml
     src/Gui/charts/PpChKindCurve.qml
     src/Gui/session/PpLaunchMonitorPanel.qml
+    src/Gui/trust/PpTrustPanel.qml
+    src/Gui/trust/PpTrustReading.qml
+    src/Gui/trust/PpTrustInline.qml
     src/Gui/session/PpLmGraphicsBody.qml
     src/Gui/shot/PpSessionDiagnosticsWindow.qml
     src/Gui/components/PpQualityPill.qml
@@ -420,6 +425,10 @@ set(PP_QML_SOURCES
     src/Gui/charts/session_wrist.cpp
     src/Gui/charts/charts_wrist_presenter.h
     src/Gui/charts/charts_wrist_presenter.cpp
+    src/Gui/trust/trust_readings.h
+    src/Gui/trust/trust_readings.cpp
+    src/Gui/trust/trust_presenter.h
+    src/Gui/trust/trust_presenter.cpp
     src/Gui/review/metric_catalog.h
     src/Gui/review/metric_catalog.cpp
     # metric_catalog.cpp's setupSummary() — listed here, not beside the other Metrics sources, so

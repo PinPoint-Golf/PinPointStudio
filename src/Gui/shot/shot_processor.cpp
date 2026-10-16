@@ -436,6 +436,11 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
                       kinematicSequenceToJson(a.kinematicSequence,
                                               [](int64_t t) { return static_cast<qint64>(t); })
                           .toVariantMap());
+    // Gate records — the same helper and the same presence rule as swing_doc.cpp.
+    if (a.gatesVersion > 0) {
+        detail.insert(QStringLiteral("gatesVersion"), a.gatesVersion);
+        detail.insert(QStringLiteral("gates"), gateRecordsToJson(a.gates).toVariantList());
+    }
 
     // Swing bounds + ladder meta (v3 G2) — same shape the doc reader reloads.
     if (a.segmentation.swingEndUs > a.segmentation.swingStartUs)

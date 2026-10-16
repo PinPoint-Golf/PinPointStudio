@@ -318,6 +318,11 @@ std::shared_ptr<ShotSeries> SessionSeriesModel::extractShot(const QJsonObject &r
         if (shot->impactUs < 0 && shot->kinematicSequence.contains(QStringLiteral("impactUs")))
             shot->impactUs = shot->kinematicSequence.value(QStringLiteral("impactUs")).toLongLong();
     }
+    // ── analysis.gates — why readings were refused (gate_record.h); impact-relative, kept as stored.
+    if (an.contains(QStringLiteral("gatesVersion"))) {
+        shot->gatesVersion = an.value(QStringLiteral("gatesVersion")).toInt();
+        shot->gates        = an.value(QStringLiteral("gates")).toArray().toVariantList();
+    }
 
     // ── the wrist checkpoint profile (CONTRACT I3) — from the series and phases just copied, graded
     //    Auto; the model re-grades it against the session's archetype when that is set. The

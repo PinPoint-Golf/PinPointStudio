@@ -1,6 +1,6 @@
 # Trust and gates: saying why a reading was refused
 
-**Status:** design, nothing built. Written 16 October 2026.
+**Status:** stages 0–3 built 16 October 2026 (stage 3 with the Trust panel of §7.0); stages 4–7 open. Written 16 October 2026.
 **Owner:** Mark.
 **Audience:** developers working on the analysis producers, the diagnostics engine, the Charts and
 diagnostics panels, and the Setup page.
@@ -215,6 +215,29 @@ and every catalogue entry is emitted by some producer (no dead entries).
   for one release both are written. A later pass may derive the old fields from the records.
 
 ## 7. How it is shown
+
+### 7.0 Where a reason lives (decided 16 October 2026)
+
+**The reason sits where the claim is made, at the claim's weight, and opens on demand.** A claim
+carries one quiet mark: the bound or the gate's short words ("after −129 ms", "out of sight",
+"not judged"), set in the link colour where it can be opened. The reasons themselves never sit above
+the figure they explain.
+
+- **The home is the Trust panel** ("Readings and their limits", `src/Gui/trust/PpTrustPanel.qml`), a
+  stage panel beside Charts and Session diagnostics, turned on in View, following the picked shot. It
+  holds the shot's head sentence (§7.4, the shot half), one foldable section per reading a gate touched
+  (`PpTrustReading`: the reading, its trust level, and per gate what it compared, with why the gate
+  exists, its threshold and which setups do not have it folded underneath), and the session's count of
+  each gate by reading.
+- **A mark anywhere opens its reading there** (`TrustFocus.open(subject, swingDir)`): a key-figure
+  foot, the sequence strip's "Why", a shaded stretch, a dashed ring; later a finding not judged in
+  Session diagnostics, a "-" on the launch monitor board.
+- **With the panel off, the same reading expands in place** under the claim (`PpTrustInline`), full
+  width, until closed, with "Show in the Trust panel" on its head line. A reason is never more than one
+  click away and never behind a setting.
+- **Popovers are not used.** They are transient, cannot hold folds and render as small as their anchor.
+- **One statement for every surface:** `src/Gui/trust/trust_readings.h` builds the readings from the
+  records and the catalogue; the panel, the in-place block and the marks all read it.
 
 ### 7.1 On every reading (the question "can I trust this?")
 

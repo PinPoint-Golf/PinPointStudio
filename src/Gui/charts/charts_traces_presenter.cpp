@@ -21,6 +21,8 @@
 #include "charts_words.h"
 #include "session_curves.h"
 #include "session_relations.h"   // the facets (conditionFacets, halfFacet, clubFacet, shapeFacet)
+#include "../../Metrics/gate_catalogue.h"   // the gates' words (shaded stretches)
+#include "../trust/trust_readings.h"         // the readings a gate touched (the marks open them)
 #include "session_sequence.h"
 #include "session_series_model.h"
 #include "../../Core/pp_debug.h"
@@ -302,6 +304,8 @@ std::shared_ptr<ShotSeries> shotFromDetail(const QVariantMap &d, QHash<QString, 
     if (d.contains(QStringLiteral("impactUs")) && sh->impactUs < 0)
         sh->impactUs = d.value(QStringLiteral("impactUs")).toLongLong();
     sh->kinematicSequence = d.value(QStringLiteral("kinematicSequence")).toMap();
+    sh->gatesVersion = d.value(QStringLiteral("gatesVersion")).toInt();
+    sh->gates = d.value(QStringLiteral("gates")).toList();
     for (const QVariant &sv : d.value(QStringLiteral("series")).toList()) {
         const QVariantMap s = sv.toMap();
         MetricSeries m;
@@ -1030,13 +1034,18 @@ QVariantMap sequenceBlock(Ctx &c)
         if (!p.present || p.placed) continue;
         note.append(QStringLiteral(" ") + segWord(i) + QStringLiteral(" ") + unplacedWhy(p).sentence + QStringLiteral("."));
     }
+    // THE REASONS, ON DEMAND (trust_and_gates_design.md §7.0): the note says each gate in short; "Why" opens
+    // the readings a gate touched — in the Trust panel when it is on, else in place under the strip.
+    int touched = 0;
+    for (int i = 0; i < kSequenceSegments; ++i)
+        if (q.segments[size_t(i)].present && !q.segments[size_t(i)].records.isEmpty()) ++touched;
     return { { QStringLiteral("verdictText"), table.value(QStringLiteral("verdictText")) },
              { QStringLiteral("verdictState"), table.value(QStringLiteral("verdictState")) },
              { QStringLiteral("anyLate"), q.anyLate },
              { QStringLiteral("chain"), chain.toVariant() },
              { QStringLiteral("links"), links },
              { QStringLiteral("note"), note.toVariant() },
-             { QStringLiteral("proNote"), QStringLiteral("% of pro: the tour average, Cheetham 2008") },
+             { QStringLiteral("whyText"), touched == 0 ? QString() : QStringLiteral("Why") },
              { QStringLiteral("table"), rows },
              // "Sequence checks: n of m" (§10.6 E4) — the engine's own verdicts, as the ledger row
              // carries them (Coaching/sequence_checks.h). Empty when the shot has none recorded.
@@ -1188,6 +1197,23 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
     row.insert(QStringLiteral("figures"), figures);
     row.insert(QStringLiteral("windowEmpty"), s.collapsed);
     row.insert(QStringLiteral("sequence"), seqInfo);
+    // THE STRETCH THE ROUTE COULD NOT SEE (trust_and_gates_design.md §7.2), shaded behind the curve and
+    // labelled with the gate's short words: the sighted band of a face-on trunk, a gap in a two-camera
+    // track. From the record, so it is drawn whether or not the band refused the peak — the samples
+    // inside it are the ones the gate distrusts. t1 NaN = blind to the end of the curve.
+    QVariantList blind;
+    if (seg >= 0 && std::isfinite(c.seq.segments[size_t(seg)].blindFromMs)) {
+        const SegmentPeak &p = c.seq.segments[size_t(seg)];
+        const gates::GateEntry *e = gates::gateEntry(p.blindGate);
+        blind << QVariantMap{ { QStringLiteral("t0"), p.blindFromMs },
+                              { QStringLiteral("t1"), std::isfinite(p.blindToMs) ? p.blindToMs : 1e9 },
+                              { QStringLiteral("gate"), p.blindGate },
+                              { QStringLiteral("label"), e ? e->shortText : QString() } };
+    }
+    row.insert(QStringLiteral("blind"), blind);
+    // the reading a click on this curve's marks opens (a shaded stretch, an unplaced ring)
+    row.insert(QStringLiteral("trustSubject"), seg >= 0 && !c.seq.segments[size_t(seg)].records.isEmpty()
+                                                   ? QStringLiteral("ks.") + sequenceSegmentIds()[size_t(seg)] : QString());
     return row;
 }
 
@@ -1360,6 +1386,8 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
     // the sequence, the head, the standfirst, the figures
     const bool seqShown = c.sequencePreset && !c.shot->kinematicSequence.value(QStringLiteral("nodes")).toList().isEmpty();
     out.insert(QStringLiteral("sequence"), seqShown ? sequenceBlock(c) : QVariantMap{});
+    // the readings a gate touched on this shot (trust_readings.h): what a mark's click opens in place
+    out.insert(QStringLiteral("trust"), c.shot ? trust::trustReadings(*c.shot) : QVariantList{});
     W::Sentence head, stand, note;
     QVariantList figs;
     const bool replay = c.in->reg == QLatin1String("replay");

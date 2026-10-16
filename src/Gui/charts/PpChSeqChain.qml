@@ -61,4 +61,14 @@ Column {
     }
     PpChText { visible: sc.showNote && sc.showOrderNote && present; roles: sc.roles; sentence: sc.sequence ? sc.sequence.note : null; tone: sc.roles ? sc.roles.ink3 : "grey"; measure: false }
     PpChText { visible: sc.showNote && present; roles: sc.roles; sentence: sc.lateNote; tone: sc.roles ? sc.roles.ink3 : "grey"; measure: false }
+    // WHY, ON DEMAND (trust_and_gates_design.md §7.0): the note says each gate in short; this opens the
+    // readings a gate touched — in the Trust panel when it is on, else in place under the strip.
+    signal trustClicked(string subject)
+    Text {
+        objectName: "chSeqWhy"
+        visible: sc.showNote && sc.showOrderNote && !!sc.roles && !!sc.sequence && !!sc.sequence.whyText
+        text: (sc.sequence ? (sc.sequence.whyText || "") : "") + "  ›"
+        font: sc.roles ? sc.roles.fSmall : Qt.font({}); color: sc.roles ? sc.roles.link : "grey"
+        MouseArea { anchors.fill: parent; anchors.margins: -2; cursorShape: Qt.PointingHandCursor; onClicked: sc.trustClicked("") }
+    }
 }

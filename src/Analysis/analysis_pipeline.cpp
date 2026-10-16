@@ -2708,6 +2708,10 @@ struct KinematicSequenceStage : AnalysisStage {
 
         const SegmentRatesResult r =
             buildSegmentRates(in, SegmentRatesConfig::fromOverrides(ctx.job.tuningOverrides));
+        // The sequence's gate records (trust_and_gates_design.md §6) — also when nothing produced,
+        // so a two-camera route that refused still says so.
+        ctx.detail->gates.insert(ctx.detail->gates.end(), r.gates.begin(), r.gates.end());
+        ctx.detail->gatesVersion = kGatesVersion;
         if (!r.valid) {
             ppInfo() << "[WristAnalysis] sequence: no segment produced a rate";
             return;

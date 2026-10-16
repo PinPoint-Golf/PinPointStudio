@@ -60,6 +60,24 @@ Column {
     readonly property bool available: !!ts && ts.available === true
     readonly property var rows: available ? (ts.rows || []) : []
     readonly property bool hasSeq: available && !!ts.sequence && (ts.sequence.links || []).length > 0
+    // ── WHY, ON DEMAND (trust_and_gates_design.md §7.0, TrustFocus): a click on a claim's mark opens its reading
+    //    in the Trust panel when that is on, else in place under the claim (origin "figures" | "strip" | "chart").
+    //    subject "" = every sequence reading a gate touched.
+    property string trustSubject: ""
+    property string trustOrigin: ""
+    function openTrust(subject, origin) {
+        if (TrustFocus.open(subject, ts.swingDir || "")) return
+        const same = trustOrigin === origin && trustSubject === subject
+        trustSubject = same ? "" : subject
+        trustOrigin = same ? "" : origin
+    }
+    function trustReadings(origin) {
+        if (!available || trustOrigin !== origin) return []
+        return (ts.trust || []).filter(function (r) {
+            return sv.trustSubject === "" ? String(r.subject).indexOf("ks.") === 0 : r.subject === sv.trustSubject })
+    }
+    readonly property string _pickedDir: ts.swingDir || ""
+    on_PickedDirChanged: { trustSubject = ""; trustOrigin = "" }
     readonly property real em: roles ? roles.em : 14
     readonly property bool rail: !replay && !!roles && roles.shows("traceRail", width)
     readonly property real railW: Math.round(27 * em)
@@ -137,7 +155,9 @@ Column {
             PpChText { roles: sv.roles; sentence: sv.ts.head; measure: false; font: sv.roles ? sv.roles.fTitle : Qt.font({}); tone: sv.roles ? sv.roles.ink : "black"; lineHeight: 1.08 }
             PpChText { visible: !sv.replay && present; roles: sv.roles; sentence: sv.ts.standfirst; font: sv.roles ? sv.roles.fStand : Qt.font({}); lineHeight: sv.roles ? sv.roles.r.leading : 1 }
         }
-        PpChKeyFigures { width: parent.width; roles: sv.roles; items: sv.available && sv.rs && sv.rs.keyFigures ? (sv.rs.keyFigures.items || []) : [] }
+        PpChKeyFigures { width: parent.width; roles: sv.roles; items: sv.available && sv.rs && sv.rs.keyFigures ? (sv.rs.keyFigures.items || []) : []
+                         onTrustClicked: (subject) => sv.openTrust(subject, "figures") }
+        PpTrustInline { roles: sv.roles; readings: sv.trustReadings("figures"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "figures") }
         // the controls (Analyse): foldable to one line that still says what is chosen
         PpChFoldHead {
             visible: !sv.replay && sv.available
@@ -208,7 +228,9 @@ Column {
             sequence: sv.available ? sv.ts.sequence : null; lateNote: sv.available ? sv.ts.note : null
             // the glance keeps the late-pelvis note (rule 5: wherever it is said late) and drops the order note
             showOrderNote: !sv.replay
+            onTrustClicked: (subject) => sv.openTrust(subject, "strip")
         }
+        PpTrustInline { roles: sv.roles; readings: sv.trustReadings("strip"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "strip") }
         // the window header (F15): which span, how long, how many metrics, which P-positions
         Flow {
             objectName: "chWindowHeader"
@@ -291,7 +313,9 @@ Column {
                 figMode: sv.replay ? "now" : "figures"
                 plotH: sv.plotH
                 demoHoverMs: sv.demoHoverMs
+                onTrustClicked: (subject) => sv.openTrust(subject, "chart")
             }
+            PpTrustInline { roles: sv.roles; readings: sv.trustReadings("chart"); swingDir: sv._pickedDir; onClosed: sv.openTrust(sv.trustSubject, "chart") }
             // Replay: the curve-less members of the preset, read at their instants, as one quiet ledger
             PpChSummary {
                 visible: sv.replay && sv.available && (sv.ts.cards || []).length > 0

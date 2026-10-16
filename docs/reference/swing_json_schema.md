@@ -401,6 +401,24 @@ also go through.
 | `routeSummary` | str | `direct` \| `mixed` \| `estimated` over the placed nodes; `""` when none placed. |
 | `pelvisDecelerates` | bool | **Optional** — present only when the pelvis node is placed: its peak sits before impact by more than its own σ. |
 
+
+### `gates`, `gatesVersion` — why readings were refused, bounded or withheld (optional)
+
+Written whenever an emitting stage ran (the kinematic sequence today), even with no record, so a reader can
+tell "no gate fired" (`gates: []`) from "analysed before records existed" (both keys absent). One record per
+gate firing (`src/Analysis/gate_record.h`; `docs/design/trust_and_gates_design.md` §4.2, §6):
+
+| Field | Type | Meaning |
+|---|---|---|
+| `gate` | string | catalogue id, e.g. `sequence.sightedBand` (`src/Metrics/gate_catalogue.h`) |
+| `subject` | string | what it acted on: `ks.pelvis`, `ks.thorax`, `ks.leadArm`, `ks.club`, `route.faceOn+dtl` |
+| `effect` | string | `refused` · `bounded` · `withheld` · `downgraded` · `masked` |
+| `evidence` | object | the numbers the gate compared, unit in the key name (`sightLostMs`, `tSigmaMs`, `corr`); short codes (`code`, `route`, `switch`), never prose. **Times are ms from impact, + after** — not window-relative, so a record needs no re-timing |
+| `bound` | object | `effect = bounded`: `noEarlierThanMs` / `noLaterThanMs` (ms BEFORE impact, the kinematic sequence's convention) |
+| `blocks` | string[] | reserved: what the record prevented downstream (design §4.4) |
+
+`gatesVersion` is the record format's version (1 = the kinematic sequence's gates). The words are not
+stored: every surface fills the catalogue's templates from `evidence`.
 ### `phases[]` — the phase ladder
 
 ```json
@@ -670,3 +688,4 @@ A lean, regenerable cache of just the scalars the session picker needs, so openi
 | 2026-08-09 | Phase ladder gains real P5/P8 anchors: the segmenter now emits `13` ArmParallelDown (P5, lead-forearm parallel crossing) and `14` ShaftParallelThrough (P8) into `phases[]` in place of the old `4` Downswing / `6` Release ticks. `14` is a forearm PROXY for shaft-parallel-through (not shaft-measured), so its `conf` is capped ≤0.4 until a shaft-measured P8 exists. `12` ShaftParallelBack (P2) is still not emitted — P2 continues to live only in `analysis.club.positions[]`. `4`/`6` remain valid `Phase` values (still read from legacy files; readers must not assume they still appear in newly-written ladders). No schema-version bump. |
 | 2026-09-04 | Metric-series validity: `analysis.metrics[].valid` (**optional** int[] 0/1, parallel to `t_us`) added — `0` marks a sample **bridged across a gated or absent run**, where the geometry could not be resolved and the grid was filled from its neighbours to keep the curve continuous. Written only when at least one sample is invalid, so every metric with nothing to mark serialises byte-identically and every pre-existing file reads back as fully valid (`metric_presentation_honesty.md` §5.1; the mask, not `value[]`, carries the absence). Additive — no schema-version bump. |
 | 2026-09-17 | Kinematic sequence: `analysis.kinematicSequence` (**optional**, additive — absent when no route produced a node) holds the ordered peaks of four new `analysis.metrics[]` series `pelvisAngularSpeed` / `thoraxAngularSpeed` (`°/s`, SIGNED, opening toward the lead side positive) and `leadArmAngularSpeed` / `clubAngularSpeed` (`°/s`, unsigned magnitudes about the swing-plane normal), each carrying `sigma` and a downswing `valid` domain. Times inside the object (`impactUs`, `nodes[].tPeakUs`) are window-relative like every other `analysis` `t_us`. One serialisation helper (`kinematic_sequence_json.h`) is shared by the document writer, the live `analysisDetail` map and the reload. See `docs/design/kinematic_sequence_design.md`. |
+| 2026-10-16 | Gate records: `analysis.gates` + `analysis.gatesVersion` (**optional**, additive) — one record per gate firing (`gate`, `subject`, `effect`, `evidence`, `bound`), times in evidence ms from impact. Written by the kinematic sequence (sighted band, σ ceiling, spike guard, rising at the end, route switches, club floor, club withheld, two-camera refusals and withdrawals). One helper (`gate_record.h`) for the document, the live map and the reload. See `docs/design/trust_and_gates_design.md`. |

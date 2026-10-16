@@ -157,6 +157,9 @@ Item {
                 // the View control has that panel on, and the panel is off by default because
                 // it owns a characteristic pack and a detection thread.
                 sessionDiagnosticsDelegate: Component { PpSessionDiagnosticsPanel {} }
+                // Readings and their limits — why a reading was refused, bounded or withheld
+                // (trust_and_gates_design.md §7.0); a mark clicked on any panel opens its reading here.
+                trustDelegate: Component { PpTrustPanel { sessionType: SessionController.Wrist } }
                 // Launch monitor session board. Costs nothing to wire — the panel takes
                 // no sessionType and reads the same shotModel this screen already shows,
                 // and it stays off until the user turns it on in View.
