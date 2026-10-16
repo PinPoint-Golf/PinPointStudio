@@ -165,7 +165,7 @@ Item {
                         width: col.width
                         height: Math.max(sgT.implicitHeight, sgSubs.implicitHeight) + ro.u(6)
                         Text { id: sgT; width: parent.width * 0.45; wrapMode: Text.WordWrap
-                               text: sg.modelData.title + (sg.modelData.acted ? "" : "  (shaded only)")
+                               text: sg.modelData.title + (sg.modelData.acted ? "" : "  (marked on the chart only)")
                                font: ro.fSmallM; color: ro.ink }
                         Text { id: sgSubs; x: parent.width * 0.47; width: parent.width * 0.53; wrapMode: Text.WordWrap
                                text: (sg.modelData.subjects || []).map(function (s) { return s.label + " " + s.shots + " of " + sg.modelData.of }).join("  ·  ")

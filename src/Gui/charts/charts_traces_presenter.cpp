@@ -21,7 +21,7 @@
 #include "charts_words.h"
 #include "session_curves.h"
 #include "session_relations.h"   // the facets (conditionFacets, halfFacet, clubFacet, shapeFacet)
-#include "../../Metrics/gate_catalogue.h"   // the gates' words (shaded stretches)
+#include "../../Metrics/gate_catalogue.h"   // the gates' words (the out-of-sight bars)
 #include "../trust/trust_readings.h"         // the readings a gate touched (the marks open them)
 #include "session_sequence.h"
 #include "session_series_model.h"
@@ -1201,21 +1201,22 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
     row.insert(QStringLiteral("figures"), figures);
     row.insert(QStringLiteral("windowEmpty"), s.collapsed);
     row.insert(QStringLiteral("sequence"), seqInfo);
-    // THE STRETCH THE ROUTE COULD NOT SEE (trust_and_gates_design.md §7.2), shaded behind the curve and
+    // THE STRETCH THE ROUTE COULD NOT SEE (trust_and_gates_design.md §7.2), a bar along the foot of the plot,
     // labelled with the gate's short words: the sighted band of a face-on trunk, a gap in a two-camera
     // track. From the record, so it is drawn whether or not the band refused the peak — the samples
-    // inside it are the ones the gate distrusts. t1 NaN = blind to the end of the curve.
+    // inside it are the ones the gate distrusts. Never back in sight ⇒ t1 = the curve's last sample.
     QVariantList blind;
     if (seg >= 0 && std::isfinite(c.seq.segments[size_t(seg)].blindFromMs)) {
         const SegmentPeak &p = c.seq.segments[size_t(seg)];
         const gates::GateEntry *e = gates::gateEntry(p.blindGate);
         blind << QVariantMap{ { QStringLiteral("t0"), p.blindFromMs },
-                              { QStringLiteral("t1"), std::isfinite(p.blindToMs) ? p.blindToMs : 1e9 },
+                              // never back in sight: to the end of the curve, not the edge of the window
+                              { QStringLiteral("t1"), std::isfinite(p.blindToMs) ? p.blindToMs : (t.empty() ? p.blindFromMs : t.back()) },
                               { QStringLiteral("gate"), p.blindGate },
                               { QStringLiteral("label"), e ? e->shortText : QString() } };
     }
     row.insert(QStringLiteral("blind"), blind);
-    // the reading a click on this curve's marks opens (a shaded stretch, an unplaced ring)
+    // the reading a click on this curve's marks opens (an out-of-sight bar, an unplaced ring)
     row.insert(QStringLiteral("trustSubject"), seg >= 0 && !c.seq.segments[size_t(seg)].records.isEmpty()
                                                    ? QStringLiteral("ks.") + sequenceSegmentIds()[size_t(seg)] : QString());
     return row;

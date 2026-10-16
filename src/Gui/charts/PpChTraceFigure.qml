@@ -107,10 +107,6 @@ Item {
     function layersFor(r) {
         if (!roles || !r) return []
         const c = roles.ch, col = roles.hue(r.key), out = []
-        // the stretch the route could not see, shaded behind everything — in ink on its own plot, in the
-        // curve's hue when the curves are overlaid (each segment's band is its own; they overlap)
-        for (const b of (r.blind || []))
-            out.push({ k: "span", t0: b.t0, t1: b.t1, color: overlay ? Qt.alpha(col, 0.09) : Qt.alpha(roles.ink, 0.07) })
         if (showRawDots) out.push({ k: "dots", t: r.t, v: r.raw, color: col, alpha: c.rawDotAlpha, d: roles.u(c.rawDot) })
         const rr = refRowOf(r.key)
         if (rr) {
@@ -123,7 +119,7 @@ Item {
         return out
     }
     property bool showRawDots: true
-    // a click on a gate's mark on the curve (a shaded stretch, an unplaced ring): open its reason
+    // a click on a gate's mark on the curve (an out-of-sight bar, an unplaced ring): open its reason
     signal trustClicked(string subject)
     // a row's figure column: the hover reading while the pointer is on the figure, else the row's figures
     // (Analyse) and the reading at the playhead with its Δ from Address (F5), and the reference's reading
@@ -262,8 +258,9 @@ Item {
                 // ── marks on the curve(s): P dots by verdict, peaks (σ whisker, late ring + word, rising chevron) ──
                 Item {
                     x: tf.yGut; width: tf.innerW; height: rw.ph
-                    // the shaded stretch's words at its foot ("out of sight"); overlaid, one line per segment,
-                    // stacked from the bottom, each over a rule in its hue that spans its band
+                    // THE STRETCH THE ROUTE COULD NOT SEE: a rule along the foot of the plot in the curve's hue,
+                    // spanning the stretch, with its words ("Pelvis out of sight") — not a wash over the canvas
+                    // (Mark, 16 Oct). One line per segment, stacked from the bottom.
                     Repeater {
                         model: rw.ov ? [].concat.apply([], tf.rows.map(function (q) {
                                            return (q.blind || []).map(function (b) { return { b: b, key: q.key, who: q.sequence && q.sequence.word ? q.sequence.word : q.label, subject: q.trustSubject || "" } }) }))
@@ -280,7 +277,7 @@ Item {
                             readonly property real lineH: blT.implicitHeight + tf.roles.u(3)
                             visible: xb > xa && !!modelData.b.label
                             x: 0; y: rw.ph - (index + 1) * lineH; width: tf.innerW; height: lineH
-                            Rectangle { visible: rw.ov; x: bl.xa; width: bl.xb - bl.xa; y: bl.height - tf.roles.u(2); height: tf.roles.u(2)
+                            Rectangle { x: bl.xa; width: bl.xb - bl.xa; y: bl.height - tf.roles.u(2); height: tf.roles.u(2)
                                         color: Qt.alpha(tf.roles.hue(bl.modelData.key), 0.8) }
                             Text {
                                 id: blT

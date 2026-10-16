@@ -74,7 +74,7 @@ QString effectWord(const QString &e)
     if (e == QLatin1String("refused"))    return QStringLiteral("refused");
     if (e == QLatin1String("withheld"))   return QStringLiteral("not judged");
     if (e == QLatin1String("downgraded")) return QStringLiteral("fell back");
-    if (e == QLatin1String("masked"))     return QStringLiteral("shaded on the chart");
+    if (e == QLatin1String("masked"))     return QStringLiteral("marked on the chart");
     return e;
 }
 

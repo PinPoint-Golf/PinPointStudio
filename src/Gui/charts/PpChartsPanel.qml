@@ -201,9 +201,13 @@ Item {
             body.preset = renamed(str("preset", root.defaultPreset))
             body.metricsOff = has("metricsOff") ? (m[b + "metricsOff"] || []).slice() : []
         }
-        body.window = str("window", "auto")
-        body.customStartUs = has("customStartUs") ? Number(m[b + "customStartUs"]) : -1
-        body.customEndUs = has("customEndUs") ? Number(m[b + "customEndUs"]) : -1
+        // THE WINDOW BELONGS TO THE CHART, NOT THE SCREEN (Mark, 16 Oct): on first display it is the
+        // preset's own default ("auto"), never a span saved from another chart — a Custom span kept as
+        // fixed times landed at address on the next visit and the sequence chart drew nothing. Changing
+        // shot keeps the window; changing chart type resets it (_persist).
+        body.window = "auto"
+        body.customStartUs = -1
+        body.customEndUs = -1
         body.band = str("band", "middle")
         body.facet = str("facet", "")
         body.against = str("against", "none")
@@ -219,12 +223,17 @@ Item {
         body.wristArchetype = has("wristArchetype") ? Math.max(-1, Math.min(2, Number(m[b + "wristArchetype"]) || 0)) : -1
     }
     function _persist(name, value) {
+        // a new chart type opens on its own default window — whether or not this panel remembers anything
+        if (name === "preset") { body.window = "auto"; body.customStartUs = -1; body.customEndUs = -1 }
         if (root.sessionType < 0 || !root.remembersNav) return
         const key = _prefKey[name] || name
         const v = name === "overlay" ? !value : value
         const mm = Object.assign({}, appSettings.chartPrefs || {})
         mm[_keyBase + key] = v
-        if (name === "preset") { mm[_keyBase + "presetBase"] = value; mm[_keyBase + "metricsOff"] = []; body.metricsOff = [] }
+        if (name === "preset") {
+            mm[_keyBase + "presetBase"] = value; mm[_keyBase + "metricsOff"] = []; body.metricsOff = []
+            mm[_keyBase + "window"] = "auto"
+        }
         appSettings.chartPrefs = mm
     }
     function _restoreFolds() {

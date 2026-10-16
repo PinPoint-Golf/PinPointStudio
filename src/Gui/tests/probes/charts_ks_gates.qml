@@ -104,8 +104,12 @@ Item {
                 probe.walk(root, "chBody", bodies)
                 probe.body = bodies.filter(b => probe.shown(b, root))[0] || bodies[0] || null
                 if (!probe.body) { probe.log("no Charts body"); Qt.exit(1); return }
-                probe.body.preset = "Kinematic sequence"
-                probe.body.window = probe.arg("--probe-window", "down")     // P4 → P8 unless asked otherwise
+                probe.log("window on first display: '" + probe.body.window + "'")
+                probe.body.customStartUs = 0; probe.body.customEndUs = 376000; probe.body.window = "custom"
+                probe.body.choose("preset", "Kinematic sequence")          // a chart change: must reset the window
+                probe.log("window after the chart change: '" + probe.body.window + "'")
+                const w = probe.arg("--probe-window", "auto")
+                if (w !== "auto") probe.body.window = w
                 probe.body.tab = "shot"
             } else if (probe.step === 5) {
                 const b = probe.body

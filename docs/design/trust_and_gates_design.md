@@ -230,7 +230,7 @@ the figure they explain.
   exists, its threshold and which setups do not have it folded underneath), and the session's count of
   each gate by reading.
 - **A mark anywhere opens its reading there** (`TrustFocus.open(subject, swingDir)`): a key-figure
-  foot, the sequence strip's "Why", a shaded stretch, a dashed ring; later a finding not judged in
+  foot, the sequence strip's "Why", an out-of-sight bar, a dashed ring; later a finding not judged in
   Session diagnostics, a "-" on the launch monitor board.
 - **With the panel off, the same reading expands in place** under the claim (`PpTrustInline`), full
   width, until closed, with "Show in the Trust panel" on its head line. A reason is never more than one
@@ -250,8 +250,9 @@ the figure they explain.
 
 ### 7.2 On charts
 
-- A gate that masks or blinds part of a curve draws that stretch **shaded** behind the curve, labelled
-  with the gate's title. For the kinematic sequence: the sighted band per segment, so the −400 °/s
+- A gate that masks or blinds part of a curve marks that stretch with a **bar along the foot of the
+  plot** in the curve's colour, spanning the stretch and ending where the curve ends, labelled with the
+  gate's short words (Mark, 16 Oct: a bar, not a wash over the canvas). For the kinematic sequence: the sighted band per segment, so the −400 °/s
   pelvis dip is visibly inside "out of sight".
 - A ring the producer did not place is drawn hollow and dashed (today it is a hollow ring that reads
   as "placed but faint").

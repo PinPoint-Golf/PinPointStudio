@@ -133,7 +133,7 @@ int main()
         const QVariantMap r = readingOf(trust::trustReadings(m), "ks.pelvis");
         check(r.value(QStringLiteral("level")) == QStringLiteral("estimated"), "masked only: the reading stays Estimated (face-on route)");
         const QVariantList g = r.value(QStringLiteral("gates")).toList();
-        check(g.size() == 1 && g[0].toMap().value(QStringLiteral("effectWord")) == QStringLiteral("shaded on the chart"), "…and the gate says it is shaded");
+        check(g.size() == 1 && g[0].toMap().value(QStringLiteral("effectWord")) == QStringLiteral("marked on the chart"), "…and the gate says it is marked on the chart");
     }
 
     // ── the shot's head sentence, and a shot analysed before records existed ──
