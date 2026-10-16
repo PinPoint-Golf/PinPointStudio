@@ -19,6 +19,7 @@
 #pragma once
 
 #include "assessment_rule.h"
+#include "../Analysis/gate_record.h"   // GateLog, PP_GATE
 
 #include <functional>
 #include <memory>
@@ -55,7 +56,10 @@ private:
 class AssessmentRuleRegistry {
 public:
     static AssessmentRuleRegistry makeDefault();
-    std::vector<PpWristFinding> run(const RuleContext &ctx, const RuleTuning &tuning) const;
+    // `gates`, when given, receives the post-pass's records (trust stage 6): a finding demoted for
+    // low confidence, and the strengths held back for want of a fault.
+    std::vector<PpWristFinding> run(const RuleContext &ctx, const RuleTuning &tuning,
+                                    GateLog *gates = nullptr) const;
 
     // The rule definitions, read-only — for the tests that hold other tables to this one (the wrist
     // domain score carries these weights, wrist_domain_score.h, and wrist_domain_score_test fails

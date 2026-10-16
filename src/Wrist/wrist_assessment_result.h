@@ -19,6 +19,7 @@
 #pragma once
 
 #include "wrist_assessment_contract.h"
+#include "../Analysis/gate_record.h"   // GateRecord — the rule post-pass's records (trust stage 6)
 
 #include <QString>
 #include <QStringList>
@@ -114,6 +115,9 @@ struct PpWristAssessmentResult {
     std::array<PpDofRow, kNumDof>         rows{};       // indexed by (int)PpJointDof
     PpScoreBreakdown                      score;
     std::vector<PpWristFinding>           findings;     // faults + strengths (Tier 2)
+    // What the rule post-pass demoted or held back (trust stage 6; assessment_rules.cpp): the
+    // AssessmentStage hands these on to analysis.gates.
+    std::vector<GateRecord>               gates;
 
     const PpDofRow &row(PpJointDof d) const { return rows[static_cast<int>(d)]; }
 };

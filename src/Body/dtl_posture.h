@@ -83,6 +83,7 @@
 #include <vector>
 
 #include "../Analysis/analysis_tuning.h"
+#include "../Analysis/gate_record.h"   // GateRecord (trust stage 6)
 #include "../Metrics/metric_channel.h"
 #include "../Analysis/swing_analysis.h"
 
@@ -147,6 +148,10 @@ struct DtlPostureResult {
     double  scaleRatio = 0;          // DTL px per face-on px at the golfer (0 = not measured)
     double  shoulderWidthCm = 0, footLenCm = 0;
     std::vector<MetricSeries> series;
+    // Trust stage 6: what the gates below left on the swing — the address refusal as ONE cascade
+    // over every reading here, the ruler, the size floors and the hand loop each on its reading.
+    // Kept on a refusal too (`valid` false): the stage hands them on either way.
+    std::vector<GateRecord> gates;
 };
 
 namespace dtl_posture_detail {
@@ -208,6 +213,18 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
     using namespace dtl_posture_detail;
     DtlPostureResult res;
     auto refuse = [&res](const QString &why) { res.reason = why; return res; };
+    // A refusal of the whole address reference: one record on the first reading, the rest covered.
+    auto refuseAll = [&res](const QString &why, const QVariantMap &ev) {
+        res.reason = why;
+        res.gates.push_back(GateRecord{ PP_GATE("posture.address"), QStringLiteral("pelvisThrust"), GateEffect::Refused,
+                                        ev, {}, {},
+                                        { QStringLiteral("spineForwardBend"), QStringLiteral("leadKneeFlexion"),
+                                          QStringLiteral("trailKneeFlexion"), QStringLiteral("trailForearmAngle"),
+                                          QStringLiteral("balanceHeelToe"), QStringLiteral("ballBodyDistance"),
+                                          QStringLiteral("handPathLoop") } });
+        return res;
+    };
+    auto code = [](const char *c) { return QVariantMap{ { QStringLiteral("code"), QString::fromLatin1(c) } }; };
     if (!cfg.enabled)                                   return refuse(QStringLiteral("disabled (dtlPosture.enabled)"));
     if (!in.poseDtl || in.poseDtl->frames.size() < 2 || in.dtlW <= 0 || in.dtlH <= 0 || !in.phases)
         return refuse(QStringLiteral("no down-the-line pose"));
@@ -224,16 +241,24 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
                                 [&](size_t i) { return mid(v.px(i, kLBigToe), v.px(i, kRBigToe)).x(); });
     const auto heelX = medianAt(v, *addrT, half, cm, { kLHeel, kRHeel }, minN,
                                 [&](size_t i) { return mid(v.px(i, kLHeel), v.px(i, kRHeel)).x(); });
-    if (!toeX || !heelX || std::fabs(*toeX - *heelX) < 4.0)
-        return refuse(QStringLiteral("feet not resolved at address — cannot tell which way the ball is"));
+    if (!toeX || !heelX)
+        return refuseAll(QStringLiteral("feet not resolved at address — cannot tell which way the ball is"),
+                         code("feet"));
+    if (std::fabs(*toeX - *heelX) < 4.0) {
+        QVariantMap ev = code("feetEndOn");
+        ev.insert(QStringLiteral("toeHeelPx"), std::fabs(*toeX - *heelX));
+        ev.insert(QStringLiteral("minPx"), 4.0);
+        return refuseAll(QStringLiteral("feet not resolved at address — cannot tell which way the ball is"), ev);
+    }
     res.toward = (*toeX > *heelX) ? 1.0 : -1.0;
     const double tw = res.toward;
 
     const auto hipAddrX = medianAt(v, *addrT, half, cm, { kLHip, kRHip }, minN,
                                    [&](size_t i) { return mid(v.px(i, kLHip), v.px(i, kRHip)).x(); });
-    if (!hipAddrX) return refuse(QStringLiteral("hips not resolved at address"));
+    if (!hipAddrX) return refuseAll(QStringLiteral("hips not resolved at address"), code("hips"));
     if (in.ballFound && tw * (in.ballX - *hipAddrX) <= 0.0)
-        return refuse(QStringLiteral("the ball and the feet disagree on which way the golfer faces"));
+        return refuseAll(QStringLiteral("the ball and the feet disagree on which way the golfer faces"),
+                         code("ballDisagrees"));
 
     // ── the two-view scale ratio and the ruler ─────────────────────────────────────────────
     auto extent = [&](const View &w, double confMin) {
@@ -266,9 +291,21 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
         const double sw = *foShoulderPx * res.scaleRatio * res.cmPerPx;
         if (sw < cfg.shoulderMinCm || sw > cfg.shoulderMaxCm) {
             res.rulerRefused = QStringLiteral("%1 implied %2 cm of shoulders").arg(res.ruler).arg(sw, 0, 'f', 1);
+            QVariantMap ev = code("implausible");
+            ev.insert(QStringLiteral("ruler"), res.ruler);
+            ev.insert(QStringLiteral("shoulderCm"), sw);
+            ev.insert(QStringLiteral("minCm"), cfg.shoulderMinCm);
+            ev.insert(QStringLiteral("maxCm"), cfg.shoulderMaxCm);
+            res.gates.push_back(GateRecord{ PP_GATE("posture.ruler"), QStringLiteral("pelvisThrust"),
+                                            GateEffect::Refused, ev, {}, {}, {} });
             res.cmPerPx = 0.0;
             res.ruler   = QStringLiteral("none");
         }
+    } else if (res.cmPerPx <= 0.0) {
+        // No ruler at all — neither a bright DTL ball nor a face-on ruler carried across — so no
+        // centimetres: the thrust is absent rather than published in another unit.
+        res.gates.push_back(GateRecord{ PP_GATE("posture.ruler"), QStringLiteral("pelvisThrust"),
+                                        GateEffect::Refused, code("none"), {}, {}, {} });
     }
 
     // ── per-frame channels ─────────────────────────────────────────────────────────────────
@@ -350,6 +387,13 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
                      + 0.20 * mid(v.px(i, kLKnee), v.px(i, kRKnee)).x(); });
         if (com && foot > 8.0)
             scalar("balanceHeelToe", "Balance heel to toe", "% foot length", 100.0 * tw * (*com - *heelLine) / foot);
+        else if (com) {
+            QVariantMap ev = code("foot");
+            ev.insert(QStringLiteral("lengthPx"), foot);
+            ev.insert(QStringLiteral("minPx"), 8.0);
+            res.gates.push_back(GateRecord{ PP_GATE("posture.sizeFloor"), QStringLiteral("balanceHeelToe"),
+                                            GateEffect::Refused, ev, {}, {}, {} });
+        }
     }
     if (toeLine && in.ballFound && foShoulderPx && res.scaleRatio > 0.0) {
         const double shoulderDtlPx = *foShoulderPx * res.scaleRatio;
@@ -357,6 +401,13 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
         if (shoulderDtlPx > 8.0)
             scalar("ballBodyDistance", "Ball distance from the body", "% shoulder width",
                    100.0 * tw * (in.ballX - *toeLine) / shoulderDtlPx);
+        else {
+            QVariantMap ev = code("shoulder");
+            ev.insert(QStringLiteral("lengthPx"), shoulderDtlPx);
+            ev.insert(QStringLiteral("minPx"), 8.0);
+            res.gates.push_back(GateRecord{ PP_GATE("posture.sizeFloor"), QStringLiteral("ballBodyDistance"),
+                                            GateEffect::Refused, ev, {}, {}, {} });
+        }
     }
 
     // ── the hand-path loop ─────────────────────────────────────────────────────────────────
@@ -370,6 +421,14 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
     const int lWr = in.leadIsLeft ? kLWr : kRWr;
     const auto wristAddrY = medianAt(v, *addrT, half, cm, { lWr }, minN,
                                      [&](size_t i) { return v.px(i, lWr).y(); });
+    // A refused hand-path loop, by code (trust stage 6). Not recorded when the ladder has no Top or
+    // Impact — a missing event is the ladder's own record, not this reading's.
+    auto refuseLoop = [&res](QVariantMap ev) {
+        res.gates.push_back(GateRecord{ PP_GATE("posture.handLoop"), QStringLiteral("handPathLoop"),
+                                        GateEffect::Refused, std::move(ev), {}, {}, {} });
+    };
+    if (topT && impT && !wristAddrY)
+        refuseLoop(code("wristAtAddress"));
     if (topT && impT && wristAddrY && cfg.loopLevels >= 1) {
         std::optional<size_t> kTop;
         for (size_t i = 0; i < v.size(); ++i) {
@@ -377,6 +436,16 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
             if (!kTop || v.px(i, lWr).y() < v.px(*kTop, lWr).y()) kTop = i;
         }
         const double rise = kTop ? *wristAddrY - v.px(*kTop, lWr).y() : 0.0;
+        if (!kTop) {
+            QVariantMap ev = code("wristAtTop");
+            ev.insert(QStringLiteral("windowMs"), double(cfg.loopTopWindowUs) / 1000.0);
+            refuseLoop(std::move(ev));
+        } else if (rise < cfg.loopMinRisePx) {
+            QVariantMap ev = code("rise");
+            ev.insert(QStringLiteral("risePx"), rise);
+            ev.insert(QStringLiteral("minPx"), cfg.loopMinRisePx);
+            refuseLoop(std::move(ev));
+        }
         if (kTop && rise >= cfg.loopMinRisePx) {
             const int64_t tTop = v.t(*kTop);
             std::vector<QPointF> up, down;
@@ -415,6 +484,11 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
                 m.unit = QStringLiteral("% hand rise");
                 m.phaseSamples.push_back({ Phase::Top, *topT, sum / double(offs.size()), QString() });
                 res.series.push_back(std::move(m));
+            } else {
+                QVariantMap ev = code("levels");
+                ev.insert(QStringLiteral("levels"), int(offs.size()));
+                ev.insert(QStringLiteral("minLevels"), cfg.loopMinLevels);
+                refuseLoop(std::move(ev));
             }
         }
     }

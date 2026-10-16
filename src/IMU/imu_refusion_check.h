@@ -59,6 +59,11 @@
 //
 // Header-only and free of Qt so it is reusable by the GUI (ShotProcessor) and the
 // offline tools alike.
+//
+// THE GATE RECORD (trust stage 6) is not fired here: the verdict persists as the
+// manifest's imuIntegrity block, and manifest_gates.h turns that block into the
+// `shot.refusionParity` record each time the document's analysis is written. The 0.5°
+// default threshold below is catalogued there with its literal value.
 namespace pinpoint {
 
 struct ImuRefusionVerdict {

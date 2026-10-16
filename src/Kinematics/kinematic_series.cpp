@@ -333,8 +333,9 @@ MetricSeries makeSpeedSeries(const QString &key, const QString &label,
 // good release (97 of 97 corpus swings) — that is the sling working, not a fault.
 std::optional<MetricSeries> peakLeadSeries(const MetricSeries &speed,
                                            const std::vector<PhaseEvent> &phases,
-                                           int64_t anchorUs)
+                                           int64_t anchorUs, int *searchedOut = nullptr)
 {
+    if (searchedOut) *searchedOut = 0;
     if (anchorUs < 0 || speed.t_us.size() < 3) return std::nullopt;
     int64_t fromUs = std::numeric_limits<int64_t>::min();
     for (const PhaseEvent &e : phases)
@@ -349,6 +350,7 @@ std::optional<MetricSeries> peakLeadSeries(const MetricSeries &speed,
     }
     // Fewer than three valid samples between Top and the anchor is a track that never
     // covered the downswing; a peak "found" there would be the mask's edge, not the club's.
+    if (searchedOut) *searchedOut = int(idx.size());
     if (idx.size() < 3) return std::nullopt;
 
     // SPIKES ARE NOT SPEED (2026-09-23). The search runs on a running median of those samples,
@@ -669,9 +671,24 @@ std::vector<MetricSeries> buildKinematicSeries(const KinematicSeriesInputs &in)
                                   t, in.composed ? composedHeadSpeedMph(track, shaft, mPerPx, wg)
                                                  : speedMph(t, hx, hy, mPerPx),
                                   in.phases, in.impactUs, boundaryUs));
+    // THE GATE RECORDS (trust stage 6). Times against the ladder's Impact, else the job's instant.
+    int64_t gateImpactUs = in.impactUs;
+    for (const PhaseEvent &e : in.phases)
+        if (e.phase == Phase::Impact) { gateImpactUs = e.t_us; break; }
+    // The mask past the P7 knot (maskAfter) is the reading's defined span, address to impact, not a
+    // refusal: like the phase-domain mask it leaves no record (docs/design/trust_stage6_plan.md rule 4).
+    const int64_t leadAnchorUs = boundaryUs >= 0 ? boundaryUs : in.impactUs;
+    int leadSearched = 0;
     if (std::optional<MetricSeries> lead =
-            peakLeadSeries(out.back(), in.phases, boundaryUs >= 0 ? boundaryUs : in.impactUs))
+            peakLeadSeries(out.back(), in.phases, leadAnchorUs, &leadSearched))
         out.push_back(std::move(*lead));
+    else if (in.gates && leadAnchorUs >= 0)
+        // Fewer than three valid samples between Top and the anchor: no downswing to read a peak in.
+        in.gates->push_back(GateRecord{ PP_GATE("club.peakLeadSamples"), QStringLiteral("clubheadPeakLead"),
+                                        GateEffect::Refused,
+                                        QVariantMap{ { QStringLiteral("samples"), leadSearched },
+                                                     { QStringLiteral("minSamples"), 3 } },
+                                        {}, {}, {} });
     std::vector<double> hand = speedMph(t, gx, gy, mPerPx);
     if (wg)
         for (int i = 0; i < int(track.size()); ++i)

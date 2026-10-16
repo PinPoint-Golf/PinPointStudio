@@ -681,6 +681,7 @@ inline int severityLevel(double excess,
 // mock needs regenerating with §5.4 weighting before its numbers can be quoted as final.
 inline double shotWeight(const ShotRecord &shot, int index, const LedgerOptions &opt)
 {
+    // gate rule: PP_GATE("rule.diag.warmUp")
     const bool warm = shot.warmUp || index < opt.warmUpShots;
     return warm ? opt.warmUpWeight : 1.0;
 }
@@ -698,6 +699,8 @@ enum class Tier { Clean, Watching, Pattern };
 inline Tier conditionTier(int assessable, int fired, double wilsonLower,
                           const LedgerOptions &opt = LedgerOptions())
 {
+    // gate rule: PP_GATE("rule.diag.patternWilson")
+    // gate rule: PP_GATE("rule.diag.patternMinShots")
     if (assessable >= opt.minAssessableForPattern && wilsonLower >= opt.patternWilsonLb)
         return Tier::Pattern;
     if (fired >= 1) return Tier::Watching;
@@ -954,6 +957,7 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
             if (L.drivingMeasureId.isEmpty()) L.drivingMeasureId = r->drivingMeasureId;
             if (r->state == ShotState::NotAssessable) continue;   // rule 1
             soft[size_t(i)] = { rowFireProb(*r), rowTrustedShare(*r) };
+            // gate rule: PP_GATE("rule.diag.borderline")
             if ((r->pFire > float(tuned::diagUncertainty::kBorderLo) && r->pFire < float(tuned::diagUncertainty::kBorderHi))
                 || r->grossRisk > float(tuned::diagUncertainty::kBorderGross))
                 L.borderline = true;
@@ -1029,9 +1033,11 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
             L.directionAgreement = 1.0;
             L.modalDirection = 0;
         }
+        // gate rule: PP_GATE("rule.diag.directionAgreement")
         L.directionClaimed = L.directionAgreement >= opt.directionAgreementGate;
 
         L.trendPoints = int(absZ.size());
+        // gate rule: PP_GATE("rule.diag.trend")
         if (L.trendPoints >= opt.minPointsForTrend) {
             L.trendSlope = theilSenSlope(ordinal, absZ);
             L.trendTau   = kendallTau(ordinal, absZ);
@@ -1247,6 +1253,7 @@ inline LinkEvidence gradeLink(const EdgeSpec &edge,
 
     if (ev.rangeRestricted) return ev;                         // Coherent, capped
 
+    // gate rule: PP_GATE("rule.diag.dependence")
     if (ev.pairs >= opt.minPairsForDependence) {
         ev.fisherTested = true;
         ev.fisherP = fisherExactOneSided(ev.a, ev.b, ev.c, ev.d);
@@ -1711,6 +1718,7 @@ inline std::vector<QString> hystereticOrder(const std::vector<RankedCondition> &
         int prevRank = -1;
         for (int j = 0; j < int(previousOrder.size()); ++j)
             if (previousOrder[size_t(j)] == fresh[size_t(i)].id) { prevRank = j; break; }
+        // gate rule: PP_GATE("rule.diag.rankBand")
         const bool sticks = prevRank >= 0 && std::abs(i - prevRank) <= bandWidth;
         placed.push_back({ fresh[size_t(i)].id, sticks ? prevRank : i, i });
     }
@@ -1780,6 +1788,7 @@ inline bool patternSetStableAtLeast(const std::vector<ShotRecord> &shots, int k,
 inline bool driverFooterEligible(const std::vector<ShotRecord> &shots,
                                  const LedgerOptions &opt = LedgerOptions())
 {
+    // gate rule: PP_GATE("rule.diag.debounce")
     return patternSetStableAtLeast(shots, opt.driverDebounceShots, opt);
 }
 

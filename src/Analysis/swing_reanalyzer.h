@@ -28,6 +28,7 @@
 #include "shot_analyzer.h"
 #include "../IMU/imu_refusion_check.h"
 #include "capture_integrity_check.h"
+#include "gate_record.h"   // LoadedSwing::loadGates
 
 // SwingReanalyzer — reconstruct a SwingWindow from an exported swing folder and
 // re-run the production analyzer OFFLINE, the same disk → SwingWindow → analyzer
@@ -77,6 +78,11 @@ struct LoadedSwing {
     // when the recording is silent — re-fusing proves nothing about the data, and
     // an assumed "probably Madgwick" would be a fabricated provenance claim.
     QString hostOrientationFilter;
+
+    // Gate records decided while LOADING (trust stage 6): a HackMotion lane the loader could not
+    // bind (hm_binding_recon.h refusalRecords). reanalyzeSwingDir appends them to the analysis'
+    // gates, so they reach analysis.gates beside the stages' own; rebuilt on every load.
+    std::vector<GateRecord> loadGates;
 };
 
 class SwingDiskLoader {

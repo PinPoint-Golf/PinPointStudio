@@ -175,10 +175,12 @@ LiveMeasureSource::GateCause LiveMeasureSource::gateCause(const QString &measure
     if (!m || m_grid.gatesVersion <= 0) return {};
     QStringList keys = measureKeyLadder(*m);
     for (const QString &key : keys) {
-        const QString subject = gates::subjectForMetricKey(key);
-        if (subject.isEmpty()) continue;
+        // a sequence node's metric speaks through its node; any other metric through itself, or
+        // through the cascade that covers it (a refused club track) — whose subject the reason names
+        const QString ks = gates::subjectForMetricKey(key);
+        const QString subject = ks.isEmpty() ? key : ks;
         if (const GateRecord *r = gates::primaryRecord(m_grid.gates, subject))
-            return { r->gate, subject, gates::notJudgedClause(subject, r->gate) };
+            return { r->gate, r->subject, gates::notJudgedClause(r->subject, r->gate) };
     }
     return {};
 }

@@ -212,6 +212,7 @@ inline LmClubVotes lmClubVotes(std::optional<double> dynamicLoft,
 // still could not read a 1–1 split as a verdict.
 inline LmClubFamily lmReadsLike(const LmClubVotes &v, const LmClubEvidenceRule &r = {})
 {
+    // gate rule: PP_GATE("rule.lm.clubVotes")
     if (v.wood >= r.votesToDecide && v.wood > v.iron) return LmClubFamily::Wood;
     if (v.iron >= r.votesToDecide && v.iron > v.wood) return LmClubFamily::Iron;
     return LmClubFamily::None;

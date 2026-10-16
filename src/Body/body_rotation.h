@@ -88,6 +88,7 @@
 #include "../Metrics/metric_channel.h" // MetricChannel, buildChannelSeries
 #include "../Analysis/analysis_tuning.h" // tuning::apply
 #include "../Core/pp_tuned_constants.h"   // tuned::bodyRotation::
+#include "../Analysis/gate_record.h"      // GateRecord (trust stage 6)
 
 namespace pinpoint::analysis {
 
@@ -158,6 +159,12 @@ struct BodyRotationResult {
 
     double addrHipSpanPx = 0.0, addrShoulderSpanPx = 0.0;
     bool   valid = false;                      // at least one segment produced a turn curve
+
+    // Trust stage 6: the gates this route decided. trackBodyRotationTriangulated records its own
+    // refusals (body.rotation, by code) and both routes record a stretch with no Top to measure from
+    // (body.xFactorStretchTop). The IMU route's "no sensor" refusal needs to know whether the
+    // two-camera route can still fill the segment, so the stage asks bodyRotationGates for it.
+    std::vector<GateRecord> gates;
 };
 
 // Pelvis / thorax turn from the best available source.
@@ -176,6 +183,14 @@ BodyRotationResult trackBodyRotation(const PoseTrack2D &pose, const FusedStreams
 // produced is simply absent — never a curve of zeros.
 std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
                                                   const std::vector<PhaseEvent> &phases);
+
+// The IMU route's gate records (trust stage 6): `res.gates`, plus a refusal (body.rotation) for each
+// trunk segment the IMU route left empty WHEN THE OUTCOME IS FINAL — that is, when the two-camera
+// route cannot fill it: no down-the-line camera on the swing (`dtlCamera` false, code noSensor) or
+// the route switched off (`triangulatedOn` false, code routeOff). With both present the two-camera
+// stage decides and records its own refusals. `streams` says whether a stream was bound but unusable.
+std::vector<GateRecord> bodyRotationGates(const BodyRotationResult &res, const FusedStreams &streams,
+                                          bool dtlCamera, bool triangulatedOn);
 
 // ── The two-camera route ────────────────────────────────────────────────────────────────────
 //

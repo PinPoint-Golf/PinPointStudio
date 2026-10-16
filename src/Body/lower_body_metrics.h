@@ -153,6 +153,7 @@
 
 #include "../Analysis/swing_analysis.h" // PoseTrack2D, PoseFrame2D, MetricSeries, PhaseEvent
 #include "../Analysis/analysis_tuning.h" // tuning::apply
+#include "../Analysis/gate_record.h"   // GateRecord (trust stage 6)
 #include "../Core/pp_tuned_constants.h"   // tuned::lowerBody::
 
 namespace pinpoint::analysis {
@@ -316,6 +317,11 @@ struct LowerBodyResult {
     double  bridgeSpacingFactor = tuned::channel::kBridgeSpacingFactor;   // likewise
     int     frameW = 0, frameH = 0;
     bool    valid  = false;      // address reference resolved AND the span cleared its floor
+    // The gate records of a WHOLE-REFERENCE refusal (trust stage 6): no usable lower body at
+    // address, or a stance below cfg.minStanceSpanPx — one cascade record each, covering every
+    // channel it took down. Filled by trackLowerBody; lowerBodyGates adds the hip line's mask.
+    std::vector<GateRecord> gates;
+    double  minHipSpanRatio = tuned::lowerBody::kMinHipSpanRatio;   // carried for the mask's evidence
 };
 
 // Per-frame lower-body state + the address-referenced channels, from the
@@ -357,5 +363,11 @@ LowerBodyResult trackLowerBody(const PoseTrack2D &pose, int frameW, int frameH, 
 // span is unusable.
 std::vector<MetricSeries> buildLowerBodySeries(const LowerBodyResult &res,
                                                const std::vector<PhaseEvent> &phases);
+
+// Every gate record this producer leaves on the swing (trust stage 6): the whole-reference
+// refusals trackLowerBody recorded, plus ONE summary record for the hip line's foreshortening
+// gate over Address..Impact (hipLineTilt's domain), with no record when it never fired. Times in
+// the evidence are relative to the Impact event (omitted when the ladder has none).
+std::vector<GateRecord> lowerBodyGates(const LowerBodyResult &res, const std::vector<PhaseEvent> &phases);
 
 } // namespace pinpoint::analysis

@@ -50,6 +50,7 @@
 #include "dtl_shaft_track.h"
 #include "../Core/pp_tuned_constants.h"   // tuned::uncertainty (σ budget)
 #include "../Analysis/swing_analysis.h"
+#include "../Analysis/gate_record.h"     // GateRecord (trust stage 6)
 
 #include <QString>
 
@@ -70,6 +71,8 @@ struct DtlShaftLieResult {
     double  addressDeg = std::numeric_limits<double>::quiet_NaN();
     double  impactDeg  = std::numeric_limits<double>::quiet_NaN();
     int64_t addressSnapUs = -1, impactSnapUs = -1;   // |reading − phase instant|, −1 when absent
+    // Trust stage 6: a refused shaftLie, one record with the reason's code (posture.shaftLie).
+    std::vector<GateRecord> gates;
 };
 
 // The fold: the angle between the line through θ and the image horizontal, 0..90°.
@@ -93,15 +96,22 @@ inline DtlShaftLieResult buildDtlShaftLie(const DtlShaftTrack2D &track,
                                           double sigTAddrUs = 0.0, double sigTImpUs = 0.0)
 {
     DtlShaftLieResult res;
-    auto refuse = [&res](const QString &why) { res.reason = why; return res; };
-    if (!track.valid || track.samples.empty()) return refuse(QStringLiteral("no down-the-line shaft track"));
+    // Every refusal leaves its record (trust stage 6): the reason as a code, the words in the catalogue.
+    auto refuse = [&res](const QString &why, const char *code) {
+        res.reason = why;
+        res.gates.push_back(GateRecord{ PP_GATE("posture.shaftLie"), QStringLiteral("shaftLie"), GateEffect::Refused,
+                                        { { QStringLiteral("code"), QString::fromLatin1(code) } }, {}, {}, {} });
+        return res;
+    };
+    if (!track.valid || track.samples.empty())
+        return refuse(QStringLiteral("no down-the-line shaft track"), "noTrack");
 
     auto phaseUs = [&phases](Phase p) -> std::optional<int64_t> {
         for (const PhaseEvent &e : phases) if (e.phase == p) return e.t_us;
         return std::nullopt;
     };
     const auto addrUs = phaseUs(Phase::Address);
-    if (!addrUs) return refuse(QStringLiteral("no Address on the ladder"));
+    if (!addrUs) return refuse(QStringLiteral("no Address on the ladder"), "noAddress");
     const auto impactUs = phaseUs(Phase::Impact);
 
     MetricSeries &m = res.series;
@@ -120,7 +130,7 @@ inline DtlShaftLieResult buildDtlShaftLie(const DtlShaftTrack2D &track,
         pts.push_back({ s.t_us - track.clockOffsetUs, meas ? dtlShaftLieDeg(s.thetaRad) : 0.0, meas });
         if (meas) ++res.nMeasured;
     }
-    if (res.nMeasured == 0) return refuse(QStringLiteral("no measured down-the-line shaft frame"));
+    if (res.nMeasured == 0) return refuse(QStringLiteral("no measured down-the-line shaft frame"), "noMeasured");
     std::stable_sort(pts.begin(), pts.end(), [](const Pt &a, const Pt &b) { return a.t < b.t; });
 
     // Bridge the unmeasured frames: linear between the measured neighbours, held flat past the

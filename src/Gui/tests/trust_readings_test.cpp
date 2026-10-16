@@ -219,6 +219,37 @@ int main()
               "session: a reading a route timed on some shots says on how many");
     }
 
+    // ── stage 6: a cascade and a mask from other areas ──
+    {
+        charts::ShotSeries o = sh;
+        o.gates << json(R"([
+            {"gate":"club.trackRefused","subject":"track.club","effect":"refused",
+             "evidence":{"code":"coverage","coverage":0.41,"minCoverage":0.6},"covers":["clubheadSpeed","attackAngle","lowPointAhead","lagAngle"]},
+            {"gate":"body.elbowLine","subject":"elbowAlignment","effect":"masked",
+             "evidence":{"frames":12,"ofFrames":80,"frac":0.15,"fromMs":-300,"toMs":-250}}])")[0];
+        o.gates << json(R"([{"gate":"body.elbowLine","subject":"elbowAlignment","effect":"masked",
+             "evidence":{"frames":12,"ofFrames":80,"frac":0.15}}])")[0];
+        const QVariantList rr = trust::trustReadings(o);
+        const QVariantMap club = readingOf(rr, "track.club"), elbow = readingOf(rr, "elbowAlignment");
+        check(club.value(QStringLiteral("level")) == QStringLiteral("notSeen") && club.value(QStringLiteral("area")) == QStringLiteral("Club and shaft"),
+              "a refused club track: Not seen, under its area's crosshead");
+        check(club.value(QStringLiteral("covers")).toStringList().size() == 4, "…naming the four readings it took down");
+        check(elbow.value(QStringLiteral("level")) == QStringLiteral("masked") && elbow.value(QStringLiteral("levelWord")) == QStringLiteral("Partly drawn"),
+              "a reading only a mask touched: Partly drawn");
+        const QVariantMap sum = trust::trustSummary(o);
+        QStringList texts;
+        for (const QVariant &l : sum.value(QStringLiteral("lines")).toList()) texts << l.toMap().value(QStringLiteral("text")).toString();
+        for (const QString &t : texts) std::printf("    | %s\n", qPrintable(t));
+        bool cascade = false, partly = false;
+        for (const QString &t : texts) {
+            if (t.contains(QStringLiteral("taking four readings with it"))) cascade = true;
+            if (t.startsWith(QStringLiteral("Partly drawn, with stretches left out: "))) partly = true;
+        }
+        check(cascade, "the summary names how many readings a cascade took down");
+        check(partly && texts.last().startsWith(QStringLiteral("Partly drawn")), "masks share one quiet line, last");
+        check(!sum.value(QStringLiteral("tail")).toString().contains(QStringLiteral("elbow")), "…and stay out of the closed fold's words");
+    }
+
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;
 }

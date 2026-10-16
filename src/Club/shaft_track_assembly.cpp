@@ -2058,6 +2058,65 @@ int demoteImplausibleFollowThrough(ShaftTrack2D& track, const std::vector<double
     return demoted;
 }
 
+std::vector<GateRecord> faceOnTrackGates(const ShaftTrack2D& track, const ShaftV3Config& cfg,
+                                         int64_t impactUs, bool dtlCamera)
+{
+    GateLog log;
+    if (track.samples.empty()) return {};
+
+    // ── the whole track refused: one cascade record (stage 6 rule 2) ───────────
+    // valid=false with no reason is the coverage gate (decideTrack, `coverageMin`); a reason is one
+    // of the four self-checks (decideTrack's P1-ball / phase / length checks, ShaftTracker's hands).
+    if (!track.valid) {
+        static const char* const kCodes[] = { "coverage", "p1Ball", "phases", "length", "hands" };
+        const int r = track.refusedReason <= 4 ? int(track.refusedReason) : 0;
+        QVariantMap ev{ { QStringLiteral("code"), QString::fromLatin1(kCodes[r]) },
+                        { QStringLiteral("coverage"), double(track.coverage) },
+                        { QStringLiteral("minCoverage"), cfg.coverageMin },
+                        { QStringLiteral("frames"), int(track.samples.size()) } };
+        if (track.p1BallDeltaDeg >= 0.f) {
+            ev.insert(QStringLiteral("p1BallDeg"), double(track.p1BallDeltaDeg));
+            ev.insert(QStringLiteral("maxP1BallDeg"), cfg.addr.p1BallConflictDeg);
+        }
+        if (track.lenBallRatio > 0.f) {
+            ev.insert(QStringLiteral("lenBallRatio"), double(track.lenBallRatio));
+            ev.insert(QStringLiteral("lenBallTol"), cfg.addr.lenBallTol);
+        }
+        if (r == 2) ev.insert(QStringLiteral("phaseRetries"), track.phaseRetries);
+        if (r == 4) ev.insert(QStringLiteral("handFramesFixed"), track.handPairFixed);
+        // Every club reading that needs a valid face-on track (their stages' canRun, or
+        // KinematicSeriesInputs::shaft null): metric_catalogue_manifest.cpp's "Club delivery" rows on
+        // the faceOnClub routes, and the two down-the-line ones that need it as their witness.
+        QStringList covers{ QStringLiteral("clubheadSpeed"), QStringLiteral("handSpeed"),
+                            QStringLiteral("clubheadPeakLead"), QStringLiteral("lagAngle"),
+                            QStringLiteral("impactShaftLean"), QStringLiteral("transitionPlaneDelta"),
+                            QStringLiteral("attackAngle"), QStringLiteral("lowPointAhead"),
+                            QStringLiteral("shaftAngleVsHorizontal") };
+        if (dtlCamera) covers << QStringLiteral("swingPlane") << QStringLiteral("shaftLie");
+        log.fireCovering(PP_GATE("club.trackRefused"), QStringLiteral("track.club"), GateEffect::Refused,
+                         covers, ev);
+        return log.take();
+    }
+
+    // ── follow-through plausibility: the demoted post-impact samples (one summary) ──
+    if (impactUs >= 0) {
+        std::vector<int64_t> gated;
+        int after = 0;
+        for (const ShaftSample2D& s : track.samples) {
+            if (s.t_us <= impactUs) continue;
+            ++after;
+            if (s.flags & ShaftImplausible) gated.push_back(s.t_us);
+        }
+        QVariantMap ev = maskEvidence(gated, after, impactUs);
+        if (!ev.isEmpty()) {
+            ev.insert(QStringLiteral("rateFactor"), cfg.followThrough.rateFactor);
+            ev.insert(QStringLiteral("minRateCapDps"), cfg.followThrough.minRateCapDps);
+            log.fire(PP_GATE("club.followThrough"), QStringLiteral("track.club"), GateEffect::Masked, ev);
+        }
+    }
+    return log.take();
+}
+
 void resynthesizeLayerC(ShaftTrack2D& track, const ShaftV3Config& cfg)
 {
     track.synth.clear();

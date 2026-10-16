@@ -93,6 +93,7 @@ public:
         // Enabled ⇒ run the shared camera profile to produce the real kinematic series.
         AnalysisContext ctx{ CaptureCapabilities::fromJob(job, window), job, &window };
         ctx.detail = std::make_shared<SwingAnalysis>();
+        ctx.detail->gatesVersion = kGatesVersion;
         ctx.wall.start();
         runProfile(cameraKinematicsProfile(), ctx);   // the loop, or the DAG (analysis.parallel)
 

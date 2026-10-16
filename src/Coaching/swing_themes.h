@@ -1301,6 +1301,7 @@ inline Table dropSparseSwings(const Table &t, const ThemeOptions &opt, std::vect
     for (int j = 0; j < m && n > 0; ++j) {
         int c = 0;
         for (int i = 0; i < n; ++i) c += std::isfinite(t.values.at(i, j)) ? 1 : 0;
+        // gate rule: PP_GATE("rule.diag.themeCoverage")
         if (double(c) / double(n) >= opt.minColumnCoverage) wellCovered.push_back(j);
     }
     Table out;
@@ -1447,6 +1448,7 @@ inline std::vector<SeenMostRow> seenMost(const std::vector<const ThemeSessionInp
         std::vector<Judged> judged;
         std::vector<double> rate;
         for (const Judged &j : per.value(id))
+            // gate rule: PP_GATE("rule.diag.themeSessionJudged")
             if (j.assessed >= opt.minAssessed) {
                 judged.push_back(j);
                 rate.push_back(double(j.fired) / double(j.assessed));
@@ -1692,6 +1694,7 @@ inline SwingThemes reduceLayers(const std::vector<const ThemeSessionInput *> &so
         return out;
     };
     if (cancelled(cancel)) return stop();
+    // gate rule: PP_GATE("rule.diag.themesMin")
     if (out.swings < opt.minSwings || out.sessions < opt.minSessions) return out;
     out.enough   = true;
     out.measures = pr.measures;

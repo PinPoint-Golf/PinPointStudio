@@ -40,6 +40,13 @@ double medianOf(std::vector<double> v)
     return v[v.size() / 2];
 }
 
+// The readings that need the ball-diameter ruler, which a refusal before the ruler resolves takes
+// down with ballPosition (trust stage 6: one cascade record).
+QStringList rulerDependants()
+{
+    return { QStringLiteral("stanceWidthMm"), QStringLiteral("leadHeelLift"), QStringLiteral("plumbBobDistance") };
+}
+
 } // namespace
 
 BallPositionResult computeBallPosition(const BallTrack2D &ball,
@@ -70,8 +77,16 @@ BallPositionResult computeBallPosition(const BallTrack2D &ball,
         xs.push_back(double(s.center.x()) * frameW);
         ys.push_back(double(s.center.y()) * frameH);
     }
-    if (int(xs.size()) < cfg.minSamples)
+    if (int(xs.size()) < cfg.minSamples) {
+        GateLog gates;
+        gates.fireCovering(PP_GATE("body.ballPosition"), QStringLiteral("ballPosition"), GateEffect::Refused,
+                           rulerDependants(),
+                           { { QStringLiteral("code"), QStringLiteral("fewSamples") },
+                             { QStringLiteral("samples"), int(xs.size()) },
+                             { QStringLiteral("minSamples"), cfg.minSamples } });
+        res.gates = gates.take();
         return res;
+    }
 
     // Component-wise median — order-independent, so a detector warm-up mis-lock
     // on the opening frames cannot poison the estimate (ball_anchor.cpp's pass-1
@@ -94,8 +109,19 @@ BallPositionResult computeBallPosition(const BallTrack2D &ball,
         if (s.radiusNorm > 0.f)
             radii.push_back(double(s.radiusNorm) * frameW);
     }
-    if (int(cx.size()) < cfg.minSamples)
+    if (int(cx.size()) < cfg.minSamples) {
+        // The detector's samples scattered: too few sit within maxJumpPx of their median.
+        GateLog gates;
+        gates.fireCovering(PP_GATE("body.ballPosition"), QStringLiteral("ballPosition"), GateEffect::Refused,
+                           rulerDependants(),
+                           { { QStringLiteral("code"), QStringLiteral("scattered") },
+                             { QStringLiteral("samples"), int(cx.size()) },
+                             { QStringLiteral("ofSamples"), int(xs.size()) },
+                             { QStringLiteral("minSamples"), cfg.minSamples },
+                             { QStringLiteral("maxJumpPx"), cfg.maxJumpPx } });
+        res.gates = gates.take();
         return res;
+    }
 
     res.samples       = int(cx.size());
     res.addressBallPx = QPointF(medianOf(cx), medianOf(cy));
@@ -122,8 +148,16 @@ BallPositionResult computeBallPosition(const BallTrack2D &ball,
     // Plausibility. A ball well outside the stance is a detector failure, not an
     // exotic setup — refuse rather than publish it. Inside the band the value is
     // NOT clamped: forward of the lead heel is a real driver position.
-    if (frac < cfg.fracLo || frac > cfg.fracHi)
+    if (frac < cfg.fracLo || frac > cfg.fracHi) {
+        GateLog gates;
+        gates.fire(PP_GATE("body.ballPosition"), QStringLiteral("ballPosition"), GateEffect::Refused,
+                   { { QStringLiteral("code"), QStringLiteral("outsideStance") },
+                     { QStringLiteral("frac"), frac },
+                     { QStringLiteral("fracLo"), cfg.fracLo },
+                     { QStringLiteral("fracHi"), cfg.fracHi } });
+        res.gates = gates.take();
         return res;
+    }
 
     res.fracOfStance = frac;
     res.valid        = true;

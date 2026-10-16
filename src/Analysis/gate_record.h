@@ -39,6 +39,8 @@
 #include <QStringList>
 #include <QVariantMap>
 
+#include <algorithm>
+#include <cstdint>
 #include <vector>
 
 // A GATE ID AT A FIRING SITE. Every id a producer fires is spelled PP_GATE("area.name"), so
@@ -50,7 +52,8 @@ namespace pinpoint::analysis {
 // The record format's version. A document with `analysis.gatesVersion` absent was analysed before
 // records existed: a reader says "reason not recorded" and falls back, rather than reading the empty
 // array as "no gate fired". 1 = the kinematic sequence's gates (stage 2, 16 Oct 2026).
-inline constexpr int kGatesVersion = 1;
+// 2 = every per-swing gate (stage 6, 16 Oct 2026), stamped on every analysis.
+inline constexpr int kGatesVersion = 2;
 
 enum class GateEffect : unsigned char {
     Refused,     // no value
@@ -87,7 +90,48 @@ struct GateRecord {
     QVariantMap evidence;   // numbers (and short codes) the gate compared; never prose
     QVariantMap bound;      // effect = bounded: { noEarlierThanMs } / { noLaterThanMs } (ms BEFORE impact)
     QStringList blocks;     // filled downstream (§4.4): what this record prevented
+    // A CASCADE IS ONE RECORD (stage 6): a gate that refuses a whole track or a whole reference
+    // names the metric keys it took down here, once, rather than writing a record per metric. A
+    // reader asking about a metric looks for a record whose subject IS the key or whose `covers`
+    // holds it (recordsFor below).
+    QStringList covers;
 };
+
+// The records that speak for `subject` (a metric key, "ks.pelvis", "track.club" …): those naming it,
+// and those whose cascade covers it.
+inline std::vector<const GateRecord *> recordsFor(const std::vector<GateRecord> &recs, const QString &subject)
+{
+    std::vector<const GateRecord *> out;
+    for (const GateRecord &r : recs)
+        if (r.subject == subject || r.covers.contains(subject)) out.push_back(&r);
+    return out;
+}
+
+// THE SUMMARY OF A MASK (stage 6, Mark 16 Oct: one record per reading). A gate that drops a stretch
+// of a reading's samples, frame by frame, leaves one record: how many of the reading's frames it took,
+// of how many, and the first and last of them relative to impact. `gatedUs` are the instants it
+// refused; `ofFrames` the reading's frames it could have refused (the denominator the reader is told).
+// Empty when nothing in [fromUs, toUs] was refused, and then no record is written.
+inline QVariantMap maskEvidence(const std::vector<int64_t> &gatedUs, int ofFrames, int64_t impactUs,
+                                int64_t fromUs = INT64_MIN, int64_t toUs = INT64_MAX)
+{
+    int n = 0;
+    int64_t first = INT64_MAX, last = INT64_MIN;
+    for (int64_t t : gatedUs) {
+        if (t < fromUs || t > toUs) continue;
+        ++n;
+        first = std::min(first, t);
+        last = std::max(last, t);
+    }
+    if (n == 0 || ofFrames <= 0) return {};
+    QVariantMap ev{ { QStringLiteral("frames"), n }, { QStringLiteral("ofFrames"), ofFrames },
+                    { QStringLiteral("frac"), double(n) / double(ofFrames) } };
+    if (impactUs >= 0) {
+        ev.insert(QStringLiteral("fromMs"), double(first - impactUs) / 1000.0);
+        ev.insert(QStringLiteral("toMs"), double(last - impactUs) / 1000.0);
+    }
+    return ev;
+}
 
 // The helper every producer fires through (§6).
 class GateLog {
@@ -95,7 +139,13 @@ public:
     void fire(const QString &gate, const QString &subject, GateEffect effect,
               const QVariantMap &evidence = {}, const QVariantMap &bound = {})
     {
-        m_records.push_back(GateRecord{ gate, subject, effect, evidence, bound, {} });
+        m_records.push_back(GateRecord{ gate, subject, effect, evidence, bound, {}, {} });
+    }
+    // A cascade (see GateRecord::covers): one record, the readings it took down named.
+    void fireCovering(const QString &gate, const QString &subject, GateEffect effect, const QStringList &covers,
+                      const QVariantMap &evidence = {})
+    {
+        m_records.push_back(GateRecord{ gate, subject, effect, evidence, {}, {}, covers });
     }
     void append(const std::vector<GateRecord> &more) { m_records.insert(m_records.end(), more.begin(), more.end()); }
     const std::vector<GateRecord> &records() const { return m_records; }
@@ -117,6 +167,7 @@ inline QJsonArray gateRecordsToJson(const std::vector<GateRecord> &recs)
         if (!r.evidence.isEmpty()) o.insert(QStringLiteral("evidence"), QJsonObject::fromVariantMap(r.evidence));
         if (!r.bound.isEmpty())    o.insert(QStringLiteral("bound"),    QJsonObject::fromVariantMap(r.bound));
         if (!r.blocks.isEmpty())   o.insert(QStringLiteral("blocks"),   QJsonArray::fromStringList(r.blocks));
+        if (!r.covers.isEmpty())   o.insert(QStringLiteral("covers"),   QJsonArray::fromStringList(r.covers));
         out.append(o);
     }
     return out;
@@ -135,6 +186,7 @@ inline std::vector<GateRecord> gateRecordsFromJson(const QJsonArray &a)
         r.evidence = o.value(QStringLiteral("evidence")).toObject().toVariantMap();
         r.bound    = o.value(QStringLiteral("bound")).toObject().toVariantMap();
         for (const QJsonValue &b : o.value(QStringLiteral("blocks")).toArray()) r.blocks << b.toString();
+        for (const QJsonValue &c : o.value(QStringLiteral("covers")).toArray()) r.covers << c.toString();
         out.push_back(std::move(r));
     }
     return out;

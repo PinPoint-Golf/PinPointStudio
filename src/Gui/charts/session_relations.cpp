@@ -229,6 +229,7 @@ std::vector<SessionReading> sessionReadings(const SessionSnapshot &s, const Read
                 }
             }
             r.box = boxStats(r.values);
+            // gate rule: PP_GATE("rule.charts.boxMin")
             if (r.box.n < 3) continue;
             r.fired.assign(N, 0);
             for (auto it = s.conditions.constBegin(); it != s.conditions.constEnd(); ++it) {
@@ -289,6 +290,7 @@ Correlation pearson(const std::vector<double> &xs, const std::vector<double> &ys
         if (isFinite(xs[i]) && isFinite(ys[i])) { px.push_back(xs[i]); py.push_back(ys[i]); }
     const int n = int(px.size());
     c.n = n;
+    // gate rule: PP_GATE("rule.charts.correlationMin")
     if (n < 5) return c;
     double mx = 0, my = 0;
     for (int i = 0; i < n; ++i) { mx += px[size_t(i)]; my += py[size_t(i)]; }

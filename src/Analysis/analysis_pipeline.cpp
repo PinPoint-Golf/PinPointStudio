@@ -48,6 +48,7 @@
 #endif
 #include "../Body/dtl_posture.h" // buildDtlPosture (DtlPostureStage)
 #include "../Club/dtl_shaft_tracker.h"
+#include "../Club/dtl_shaft_post.h"   // dtlShaftGates (DtlShaftStage, trust stage 6)
 #include "../Timeline/event_refine.h"
 #include "../Body/foot_metrics.h"
 #include "../Body/upper_body_metrics.h"
@@ -745,7 +746,9 @@ struct ImpactStage : AnalysisStage {
     {
         QElapsedTimer wallImpact;
         wallImpact.start();
-        ctx.detail->impact = ImpactRunner::run(*ctx.window, ctx.job.impactSource, ctx.job.impactUs);
+        std::vector<GateRecord> impactGates;   // trust stage 6: path too short, head offset assumed
+        ctx.detail->impact = ImpactRunner::run(*ctx.window, ctx.job.impactSource, ctx.job.impactUs, &impactGates);
+        ctx.addGates(std::move(impactGates));
         ctx.detail->timings.impactMs = int(wallImpact.elapsed());
         ctx.detail->versions.impact = kImpactStageVersion;
     }
@@ -847,6 +850,16 @@ struct ShaftStage : AnalysisStage {
         ctx.detail->versions.shaft = kShaftStageVersion;
         // Surface the resolved ball track for the replay overlay (design §9).
         ctx.detail->ball = *ctx.ball;
+        // The face-on track's gate records (trust stage 6), from the finished track on BOTH paths
+        // (shaft_track_assembly.h faceOnTrackGates). Times against the ladder's Impact when one is
+        // known here (the reused ladder, or an IMU segmentation), else the job's impact instant.
+        {
+            const std::optional<int64_t> impactP = phaseTimeOpt(ctx.job.ladderPreloaded ? ctx.job.ladderPreloaded->events
+                                                                                          : ctx.seg.events, Phase::Impact);
+            const int64_t gateImpactUs = impactP ? *impactP : ctx.job.impactUs;
+            ctx.addGates(faceOnTrackGates(ctx.detail->shaft, ShaftV3Config::fromOverrides(ctx.job.tuningOverrides),
+                                          gateImpactUs, ctx.job.dtlSource != pinpoint::kInvalidSourceId));
+        }
     }
 };
 
@@ -1024,6 +1037,17 @@ struct ShaftLeanStage : AnalysisStage {
             }
         ctx.series.push_back(buildShaftLeanSeries(ctx.detail->shaft, ctx.job.handedness, impactUs,
                                                   &ctx.detail->pose2d, &unc, sigT));
+        // BALL SUSPECT (trust stage 6): the tracker's measured P1 disagreed with the address ball, so
+        // the ball rather than the track is doubtful — and an anchored lean IS the hands→ball line
+        // (buildShaftLeanSeries: gross risk 0.5 on that reading). Kept, at a lower trust.
+        const ShaftTrack2D &sh = ctx.detail->shaft;
+        if (sh.ballSuspect && sh.ballAnchored) {
+            QVariantMap ev{ { QStringLiteral("maxP1BallDeg"),
+                              ShaftV3Config::fromOverrides(ctx.job.tuningOverrides).addr.p1BallConflictDeg } };
+            if (sh.p1BallDeltaDeg >= 0.f) ev.insert(QStringLiteral("p1BallDeg"), double(sh.p1BallDeltaDeg));
+            ctx.addGates({ GateRecord{ PP_GATE("club.ballSuspect"), QStringLiteral("impactShaftLean"),
+                                       GateEffect::Downgraded, ev, {}, {}, {} } });
+        }
     }
 };
 
@@ -1251,6 +1275,9 @@ struct FootMetricsStage : AnalysisStage {
 
             for (const MetricSeries &m : buildFootSeries(feet, phases, bp.mmPerPx))
                 ctx.seriesOut().push_back(m);
+            // ballPosition's refusal, recorded HERE only — the stage that emits the reading. The
+            // other computeBallPosition callers (rulers, anchors) leave their copy unread.
+            ctx.addGates(std::vector<GateRecord>(bp.gates));
 
             if (bp.valid && feet.setup.heelsValid) {
                 // Anchor instant: the Address event when we have one, else the
@@ -1341,6 +1368,7 @@ struct LowerBodyMetricsStage : AnalysisStage {
                            bp.mmPerPx);
         for (const MetricSeries &m : buildLowerBodySeries(lb, phases))
             ctx.seriesOut().push_back(m);
+        ctx.addGates(lowerBodyGates(lb, phases));
     }
 };
 
@@ -1378,6 +1406,7 @@ struct UpperBodyMetricsStage : AnalysisStage {
                            UpperBodyConfig::fromOverrides(ctx.job.tuningOverrides));
         for (const MetricSeries &m : buildUpperBodySeries(ub, ctx.seg.events))
             ctx.seriesOut().push_back(m);
+        ctx.addGates(upperBodyGates(ub, ctx.seg.events));
 
         // The trail wrist's apparent bow / cup, from the same pose track. It lives with the
         // upper body rather than in its own stage because it shares this stage's inputs exactly
@@ -1422,12 +1451,18 @@ struct BodyRotationStage : AnalysisStage {
         const int w = cfmt ? int(cfmt->width) : 0;
         const int h = cfmt ? int(cfmt->height) : 0;
 
+        const BodyRotationConfig brCfg = BodyRotationConfig::fromOverrides(ctx.job.tuningOverrides);
         const BodyRotationResult br =
             trackBodyRotation(ctx.detail->pose2d, ctx.streams, w, h, ctx.job.handedness != 2,
-                              ctx.seg.events,
-                              BodyRotationConfig::fromOverrides(ctx.job.tuningOverrides));
+                              ctx.seg.events, brCfg);
         for (const MetricSeries &m : buildBodyRotationSeries(br, ctx.seg.events))
             ctx.seriesOut().push_back(m);
+        // A segment no sensor measured is refused HERE only when the two-camera route
+        // (BodyRotationTriangulatedStage) cannot fill it: no down-the-line camera, or the route or
+        // the 3-D fit switched off. Otherwise that stage records the outcome (trust stage 6).
+        const bool triOn = brCfg.triangulated
+                           && pinpoint::skeleton3d::fitConfigFromOverrides(ctx.job.tuningOverrides).enabled;
+        ctx.addGates(bodyRotationGates(br, ctx.streams, ctx.caps.hasCamera(CameraPlacement::DownTheLine), triOn));
     }
 };
 
@@ -1477,10 +1512,11 @@ struct ClubDeliveryStage : AnalysisStage {
         }
 
         const ClubDeliveryConfig cdCfg = ClubDeliveryConfig::fromOverrides(ctx.job.tuningOverrides);
-        const ClubDeliveryResult cd =
+        ClubDeliveryResult cd =
             trackClubDelivery(ctx.detail->shaft, ctx.seg.events, ballPx, ballOk,
                               bp.mmPerPx, cdCfg);
         std::vector<MetricSeries> cds = buildClubDeliverySeries(cd, ctx.seg.events);
+        ctx.addGates(std::move(cd.gates));   // trust stage 6: head confidence, attack fallback, low point
         const UncertaintyConfig unc = UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides);
         if (unc.enabled) {
             // The low point's σ replaces the old published constant: the series' sigma is reset
@@ -1509,27 +1545,28 @@ struct ClubDeliveryStage : AnalysisStage {
 //
 //      The engine refuses outright on an untrustworthy ladder (conf gate, or any
 //      of Address/Top/Impact missing — the IMU clampFallback path has no Top at
-//      all), so canRun and the engine agree: no ladder, no series, never a
-//      plausible-looking wrong number.
+//      all): no ladder, no series, never a plausible-looking wrong number — and,
+//      since trust stage 6, a `tempo.refused` record saying which test failed.
 struct TempoStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Tempo"); }
     StageDecl decl() const override { return D({ kSeg }, {}, { kSeries }); }
+    // Runs whenever tempo is switched on (trust stage 6): an untrustworthy ladder is refused INSIDE
+    // the engine, which then leaves the refusal's record rather than a silent skip.
     bool canRun(const AnalysisContext &ctx) const override
     {
-        const TempoConfig cfg = TempoConfig::fromOverrides(ctx.job.tuningOverrides);
-        return cfg.enabled && double(ctx.seg.conf) > cfg.minConf
-            && ctx.seg.eventFor(Phase::Address) && ctx.seg.eventFor(Phase::Top)
-            && ctx.seg.eventFor(Phase::Impact);
+        return TempoConfig::fromOverrides(ctx.job.tuningOverrides).enabled;
     }
     QString skipReason(const AnalysisContext &) const override
     {
-        return QStringLiteral("disabled or no confident Address/Top/Impact ladder");
+        return QStringLiteral("tempo disabled (tempo.enabled)");
     }
     void run(AnalysisContext &ctx) override
     {
+        std::vector<GateRecord> gates;
         for (const MetricSeries &m :
-             buildTempoSeries(ctx.seg, TempoConfig::fromOverrides(ctx.job.tuningOverrides)))
+             buildTempoSeries(ctx.seg, TempoConfig::fromOverrides(ctx.job.tuningOverrides), &gates))
             ctx.seriesOut().push_back(m);
+        ctx.addGates(std::move(gates));
     }
 };
 
@@ -1568,8 +1605,11 @@ struct KinematicsStage : AnalysisStage {
         const UncertaintyConfig unc = UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides);
         in.unc             = &unc;
         in.clubLengthKnown = ctx.job.clubLengthKnown;
+        std::vector<GateRecord> kinGates;   // trust stage 6: post-P7 mask, peak lead too short
+        in.gates = &kinGates;
         for (MetricSeries &m : buildKinematicSeries(in))
             ctx.seriesOut().push_back(std::move(m));
+        ctx.addGates(std::move(kinGates));
     }
 };
 
@@ -1709,6 +1749,28 @@ struct ShaftPlaneStage : AnalysisStage {
         ctx.detail->shaft.plane = est;
 
         if (!r.valid) {
+            // THE PLANE WINDOWS' RECORD (trust stage 6): neither channel fitted both windows, so
+            // transitionPlaneDelta is refused. The code is the strongest reason any window gave —
+            // a needle (axis ratio under shaft_plane.h kMinAxisRatio) first, then too few samples
+            // (the 12-sample conic floor), else no ellipse — with the measured channel's counts.
+            const PlaneWindowFit *const wins[] = { &r.measured.back, &r.measured.down, &r.synth.back, &r.synth.down };
+            bool needle = false, few = false;
+            double ratio = 1.0;
+            for (const PlaneWindowFit *w : wins) {
+                if (w->fit.reject == ConicReject::IllConditioned) { needle = true; ratio = std::min(ratio, w->fit.ratioMinorMajor); }
+                if (w->fit.reject == ConicReject::TooFewSamples) few = true;
+            }
+            QVariantMap ev{ { QStringLiteral("code"), needle ? QStringLiteral("needle")
+                                                     : few   ? QStringLiteral("fewSamples") : QStringLiteral("noEllipse") },
+                            { QStringLiteral("nBack"), r.measured.back.fit.n },
+                            { QStringLiteral("nDown"), r.measured.down.fit.n },
+                            { QStringLiteral("minSamples"), 12 } };
+            if (needle) {
+                ev.insert(QStringLiteral("ratio"), ratio);
+                ev.insert(QStringLiteral("minRatio"), kMinAxisRatio);
+            }
+            ctx.addGates({ GateRecord{ PP_GATE("club.planeWindow"), QStringLiteral("transitionPlaneDelta"),
+                                       GateEffect::Refused, ev, {}, {}, {} } });
             ppInfo() << "[WristAnalysis] shaft plane: no channel fitted — measured back/down"
                      << conicRejectName(r.measured.back.fit.reject)
                      << conicRejectName(r.measured.down.fit.reject) << "synth back/down"
@@ -1831,6 +1893,18 @@ struct AssessmentStage : AnalysisStage {
         const auto provider = makeReferenceBandProvider();
         const WristAssessmentConfig acfg = wristAssessmentConfigFor(ctx.job.tuningOverrides);
         const PpWristAssessmentResult ar = WristAssessmentEngine::assess(src, *provider, acfg);
+        // The records (trust stage 6): one masked summary per wrist reading for the P1–P8 cells
+        // the sampler refused (wrist_angle_sampler.h), named by the series key that fed each DOF —
+        // the last one, as buildWristAngleSource keeps it — then the rule post-pass's demotions
+        // and held-back strengths (assessment_rules.cpp).
+        {
+            std::array<QString, kNumDof> subjects{};
+            for (const MetricSeries &m : ctx.detail->series)
+                if (const std::optional<PpJointDof> dof = dofForMetricKey(m.key))
+                    if (!m.t_us.empty() && !m.value.empty()) subjects[size_t(*dof)] = m.key;
+            ctx.addGates(WristAngleSampler::cellGates(src, subjects, ctx.job.impactUs, acfg.sampling));
+            ctx.addGates(std::vector<GateRecord>(ar.gates));
+        }
         ctx.detail->findings        = ar.findings;
         ctx.detail->assessmentScore = ar.score.total;
         // Headline overall score is now the penalty-based assessment score (0-100).
@@ -2255,6 +2329,8 @@ struct DtlShaftStage : AnalysisStage {
         ctx.detail->shaftDtl = std::move(t);
         ctx.detail->versions.shaftDtl = kDtlShaftStageVersion;
         const DtlShaftTrack2D &d = ctx.detail->shaftDtl;
+        // Trust stage 6: top out of view, the anchor quarantine, the late escapes (dtl_shaft_post.h).
+        ctx.addGates(dtlShaftGates(d, wit, DtlShaftConfig::fromOverrides(ctx.job.tuningOverrides)));
         ppInfo() << "[WristAnalysis] dtl shaft:" << (d.valid ? "valid," : "INVALID,")
                  << published << "/" << qlonglong(d.samples.size()) << "frames published (+" << d.held << "held) in"
                  << qlonglong(d.bands.size()) << "bands, sighted" << d.sightedFrac
@@ -2425,6 +2501,38 @@ struct ShaftFusionStage : AnalysisStage {
             }
             if (m.t_us.size() >= 2) ctx.seriesOut().push_back(std::move(m));
         }
+        // THE FUSION'S GATE RECORDS (trust stage 6). A half of swingPlane whose plane FITTED but
+        // scattered too widely to be a plane is refused, one record per half: the downswing above
+        // planeOopMaxDeg (PlaneFit::offered), the backswing above backIncoherentDeg (most likely a
+        // mirrored down-the-line band). And the frames where the two cameras' view planes met too
+        // obliquely to give a direction (cond < minCond), as one summary on the 3-D club.
+        {
+            std::vector<GateRecord> fg;
+            if (t.down.fitted && !t.down.offered(cfg))
+                fg.push_back(GateRecord{ PP_GATE("club3d.planeScatter"), QStringLiteral("swingPlane"), GateEffect::Refused,
+                                         QVariantMap{ { QStringLiteral("code"), QStringLiteral("down") },
+                                                      { QStringLiteral("rmsDeg"), t.down.oopRmsDeg },
+                                                      { QStringLiteral("maxRmsDeg"), cfg.planeOopMaxDeg },
+                                                      { QStringLiteral("frames"), t.down.n } },
+                                         {}, {}, {} });
+            if (t.back.fitted && t.backIncoherent)
+                fg.push_back(GateRecord{ PP_GATE("club3d.planeScatter"), QStringLiteral("swingPlane"), GateEffect::Refused,
+                                         QVariantMap{ { QStringLiteral("code"), QStringLiteral("back") },
+                                                      { QStringLiteral("rmsDeg"), t.back.oopRmsDeg },
+                                                      { QStringLiteral("maxRmsDeg"), cfg.backIncoherentDeg },
+                                                      { QStringLiteral("frames"), t.back.n } },
+                                         {}, {}, {} });
+            std::vector<int64_t> ill;
+            for (const fusion::Sample3D &s : t.samples)
+                if (s.flags & fusion::IllConditioned) ill.push_back(s.t_us);
+            QVariantMap ev = maskEvidence(ill, int(t.samples.size()), impactUs);
+            if (!ev.isEmpty()) {
+                ev.insert(QStringLiteral("minCond"), cfg.minCond);
+                fg.push_back(GateRecord{ PP_GATE("club3d.illConditioned"), QStringLiteral("track.club3d"),
+                                         GateEffect::Masked, ev, {}, {}, {} });
+            }
+            ctx.addGates(std::move(fg));
+        }
         ppInfo() << "[WristAnalysis] shaft fusion:" << qlonglong(t.samples.size()) << "/" << t.nDtlPublished
                  << "DTL frames fused (" << t.nBridged << "against the face-on bridge," << t.nNoFaceOn
                  << "with no face-on ); downswing plane"
@@ -2500,6 +2608,7 @@ struct DtlPostureStage : AnalysisStage {
             in.ballX = b.x; in.ballY = b.y; in.ballRadiusPx = b.radiusPx;
         }
         DtlPostureResult r = buildDtlPosture(in, DtlPostureConfig::fromOverrides(ctx.job.tuningOverrides));
+        ctx.addGates(std::move(r.gates));   // trust stage 6: kept on a refusal too
         if (!r.valid) {
             ppInfo() << "[WristAnalysis] dtl posture: refused —" << qPrintable(r.reason);
             return;
@@ -2535,6 +2644,7 @@ struct DtlShaftLieStage : AnalysisStage {
             if (p.p == 1 && p.sigmaTUs >= 0.f) sigTAddr = double(p.sigmaTUs);
         DtlShaftLieResult r = buildDtlShaftLie(ctx.detail->shaftDtl, ctx.seg.events, 12500, unc.enabled,
                                                sigTAddr, shaftsigma::impactSigmaTUs(ctx.detail->shaft));
+        ctx.addGates(std::move(r.gates));   // trust stage 6
         // The card's σ: the impact reading's (the delta's other end is in its own sample).
         if (unc.enabled)
             for (const PhaseSample &ps : r.series.phaseSamples)
@@ -2718,8 +2828,7 @@ struct KinematicSequenceStage : AnalysisStage {
             buildSegmentRates(in, SegmentRatesConfig::fromOverrides(ctx.job.tuningOverrides));
         // The sequence's gate records (trust_and_gates_design.md §6) — also when nothing produced,
         // so a two-camera route that refused still says so.
-        ctx.detail->gates.insert(ctx.detail->gates.end(), r.gates.begin(), r.gates.end());
-        ctx.detail->gatesVersion = kGatesVersion;
+        ctx.addGates(std::vector<GateRecord>(r.gates));
         if (!r.valid) {
             ppInfo() << "[WristAnalysis] sequence: no segment produced a rate";
             return;
@@ -3054,6 +3163,28 @@ struct Skeleton3DStage : AnalysisStage {
                                           : "(DTL bracket 12 ms / nearest 6 ms)");
         if (!r.valid) {
             ppInfo() << "[WristAnalysis] skeleton3d: refused —" << QString::fromStdString(r.reason);
+            // The refusal's record (trust stage 6): the fit names the gate and the reason's code
+            // (skeleton3d_fit.cpp). One record for the whole track; with a down-the-line camera
+            // the refusal also takes the two-camera trunk rotation down, for every segment no
+            // sensor already measured. The sequence's own rungs record themselves.
+            if (!r.gateId.empty()) {
+                QStringList covers;
+                if (haveDtl)
+                    for (const char *k : { "pelvisRotation", "pelvisRotationSigned", "thoraxRotation",
+                                           "xFactor", "xFactorStretch" }) {
+                        bool measured = false;
+                        for (const MetricSeries &m : ctx.detail->series)
+                            if (m.key == QLatin1String(k)) { measured = true; break; }
+                        if (!measured) covers << QString::fromLatin1(k);
+                    }
+                QVariantMap ev{ { QStringLiteral("code"), QString::fromStdString(r.reasonCode) },
+                                { QStringLiteral("frames"), r.faceOnFrames },
+                                { QStringLiteral("minFrames"), r.minFaceOnFrames } };
+                GateLog log;
+                log.fireCovering(QString::fromStdString(r.gateId), QStringLiteral("track.skeleton3d"),
+                                 GateEffect::Refused, covers, ev);
+                ctx.addGates(log.take());
+            }
             return;
         }
         ppInfo() << "[WristAnalysis] skeleton3d:" << qlonglong(r.t_us.size()) << "frames,"
@@ -3106,6 +3237,7 @@ struct BodyRotationTriangulatedStage : AnalysisStage {
         const TriangulatedTurnInput in = skeletonLines(fr, ctx.job.handedness != 2).trunk;
         const BodyRotationResult br = trackBodyRotationTriangulated(in, ctx.job.handedness != 2, ctx.seg.events,
                                                                     wantPelvis, wantThorax, cfg);
+        ctx.addGates(std::vector<GateRecord>(br.gates));   // its refusals and the stretch's missing Top
         int n = 0;
         for (MetricSeries &m : buildBodyRotationSeries(br, ctx.seg.events)) {
             if (has(ctx, m.key.toLatin1().constData())) continue;   // an IMU reading always wins
@@ -3504,6 +3636,7 @@ ShotAnalysisResult PipelineAnalyzer::analyze(const pinpoint::SwingWindow &window
     // still fires when the resample stage skipped for zero IMU bindings.
     AnalysisContext ctx{ CaptureCapabilities::fromJob(job, window), job, &window };
     ctx.detail = std::make_shared<SwingAnalysis>();
+    ctx.detail->gatesVersion = kGatesVersion;   // records exist from here on, whichever stages fire
     ctx.wall.start();
 
     runProfile(fullProfile(), ctx);

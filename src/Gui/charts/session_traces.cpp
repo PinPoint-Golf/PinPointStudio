@@ -160,6 +160,7 @@ GroupFit pooledFit(std::vector<PooledSample> S, const std::vector<double> &grid,
     f.groupSize = groupSize;
     f.samplesPooled = int(S.size());
     f.t = grid;
+    // gate rule: PP_GATE("rule.charts.groupMin")
     if (groupSize < o.minShots) {
         f.refusal = FitRefusal::GroupTooSmall;
         f.t.clear();
@@ -235,6 +236,7 @@ GroupFit pooledFit(std::vector<PooledSample> S, const std::vector<double> &grid,
         }
         f.nShots[gi] = int(shots.size());
         f.nSamples[gi] = ns;
+        // gate rule: PP_GATE("rule.charts.instantMin")
         if (int(shots.size()) < o.minShots || ns < o.minSamples || sw <= 0) continue;
         const double det = sw * swtt - swt * swt;
         double a0, b1;
@@ -323,6 +325,7 @@ ShapeSplit shapeSplit(const std::vector<std::vector<TraceCurve>> &perKey, double
         for (size_t k = 0; k < perKey.size(); ++k) cs[k].push_back(i < perKey[k].size() ? &perKey[k][i] : nullptr);
     }
     const size_t n = ords.size();
+    // gate rule: PP_GATE("rule.charts.kindsMin")
     if (n < 6)
         return out;
     const std::vector<double> g = timeGrid(t0, t1, std::max(2.0, (t1 - t0) / 120.0));

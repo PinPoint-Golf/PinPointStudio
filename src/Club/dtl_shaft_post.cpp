@@ -948,4 +948,72 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
     return out;
 }
 
+std::vector<GateRecord> dtlShaftGates(const DtlShaftTrack2D& track, const FaceOnWitness* witness,
+                                      const DtlShaftConfig& cfg)
+{
+    GateLog log;
+    if (!witness || track.samples.empty()) return {};
+    const int64_t impactUs = witness->impactUs;
+    const int nAll = int(track.samples.size());
+    // The track's own clock to the face-on one (0 on the shared clock the tracker runs on today).
+    const auto foUs = [&](int64_t t) { return t - track.clockOffsetUs; };
+    const auto ladderAt = [&](int p) {
+        int64_t at = -1;
+        for (const auto& e : witness->ladder)
+            if (e.first == p && (at < 0 || e.second < at)) at = e.second;
+        return at;
+    };
+
+    // ── the top of the backswing out of view (P4 ± 80 ms, as dtlPostSolve summarised it) ──
+    if (track.topChecked && track.topOutOfView) {
+        const int64_t tP4 = ladderAt(4);
+        constexpr int64_t kTopHalfWindowUs = 80000;
+        std::vector<int64_t> inWin;
+        for (const DtlSample& s : track.samples)
+            if (tP4 >= 0 && s.t_us >= tP4 - kTopHalfWindowUs && s.t_us <= tP4 + kTopHalfWindowUs)
+                inWin.push_back(foUs(s.t_us));
+        QVariantMap ev = maskEvidence(inWin, nAll, impactUs);
+        if (!ev.isEmpty()) {
+            ev.insert(QStringLiteral("handsFromTopPx"), track.handsFromTopPx);
+            ev.insert(QStringLiteral("clubPx"), track.topClubPx);
+            ev.insert(QStringLiteral("measuredFrames"), track.topMeasuredFrames);
+            log.fire(PP_GATE("clubDtl.topOutOfView"), QStringLiteral("track.clubDtl"), GateEffect::Masked, ev);
+        }
+    }
+
+    // ── the cross-view anchor quarantine: frames whose grip was not where face-on put the hands ──
+    {
+        std::vector<int64_t> q;
+        for (const DtlSample& s : track.samples)
+            if (dtlOccluded(s.tier)) q.push_back(foUs(s.t_us));
+        QVariantMap ev = maskEvidence(q, nAll, impactUs);
+        if (!ev.isEmpty()) {
+            ev.insert(QStringLiteral("wristFrames"), track.occludedWrist);
+            ev.insert(QStringLiteral("rowFrames"), track.occludedRow);
+            ev.insert(QStringLiteral("maxRowPx"), cfg.quarantine.absPx);
+            ev.insert(QStringLiteral("maxRowLatePx"), cfg.quarantine.postAbsPx);
+            log.fire(PP_GATE("clubDtl.quarantine"), QStringLiteral("track.clubDtl"), GateEffect::Masked, ev);
+        }
+    }
+
+    // ── corridor escapes after P8, refused (dtlPostSolve's lateEscape) ──────────
+    // The frames are the unpublished corridor escapes after P8 (P8 from the ladder, else impact +
+    // 150 ms, as the rule takes it); the count is the tracker's own.
+    if (cfg.refuseLateEscape && track.lateEscapesRefused > 0) {
+        int64_t tP8 = ladderAt(8);
+        if (tP8 < 0 && impactUs >= 0) tP8 = impactUs + 150000;
+        std::vector<int64_t> late;
+        for (const DtlSample& s : track.samples)
+            if (tP8 >= 0 && s.t_us > tP8 && s.corridorEscape && !dtlDrawn(s.tier)) late.push_back(foUs(s.t_us));
+        QVariantMap ev = maskEvidence(late, nAll, impactUs);
+        if (!ev.isEmpty()) {
+            ev.insert(QStringLiteral("frames"), track.lateEscapesRefused);
+            ev.insert(QStringLiteral("frac"), double(track.lateEscapesRefused) / double(nAll));
+            if (impactUs >= 0 && tP8 >= 0) ev.insert(QStringLiteral("p8Ms"), double(tP8 - impactUs) / 1000.0);
+            log.fire(PP_GATE("clubDtl.lateEscape"), QStringLiteral("track.clubDtl"), GateEffect::Masked, ev);
+        }
+    }
+    return log.take();
+}
+
 } // namespace pinpoint::analysis

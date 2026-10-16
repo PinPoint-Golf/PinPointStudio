@@ -36,6 +36,7 @@
 #include "shaft_wedge.h"           // WedgeConfig / measureWedge (R8-T1 blur-wedge, S2)
 #include "impact_geom.h"           // ImpactGeomConfig / locateImpactGeom (P7 club-at-ball)
 #include "../Analysis/uncertainty_config.h" // UncertaintyConfig (shaft_uncertainty_propagation_design.md)
+#include "../Analysis/gate_record.h" // GateRecord (faceOnTrackGates, trust stage 6)
 
 // Shaft-tracker v3.0-r1 DECIDING HALF — the physics/statistics that turn
 // per-frame evidence into one globally-consistent shaft-angle track. Faithful
@@ -899,6 +900,21 @@ void resynthesizeLayerC(ShaftTrack2D& track, const ShaftV3Config& cfg);
 // Returns the number of samples demoted.
 int demoteImplausibleFollowThrough(ShaftTrack2D& track, const std::vector<double>& forearmToElbowDeg,
                                    int64_t impactUs, const ShaftV3Config& cfg);
+
+// THE FACE-ON TRACK'S GATE RECORDS (trust stage 6, docs/design/trust_stage6_plan.md). Derived from
+// the finished track alone, so they read the same on a fresh track and on one reused from a swing
+// document: a refused track is never reused (its refusal is re-decided by the tracker on every
+// analysis), and the follow-through demotion leaves ShaftImplausible on the samples it took, on both
+// paths. Writes, at most:
+//   club.trackRefused   — the whole track refused (coverage, or refusedReason 1–4): ONE cascade
+//                         record on track.club naming every club reading it took down; nothing else
+//                         is recorded on a refused track.
+//   club.followThrough  — the samples after impact the plausibility pass demoted (a mask summary).
+// `impactUs` is the instant the times are stated against (< 0 ⇒ no times); `dtlCamera` adds the two
+// down-the-line club readings (they need the face-on track as a witness) to what a refusal covers.
+// Nothing at all for a track with no samples (no pose, no frames: the tracker decided nothing).
+std::vector<GateRecord> faceOnTrackGates(const ShaftTrack2D& track, const ShaftV3Config& cfg,
+                                         int64_t impactUs, bool dtlCamera);
 
 ShaftTrack2D decideTrack(const FrameSource& frameAt,
                          const std::vector<int64_t>& tUs,

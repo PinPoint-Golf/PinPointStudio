@@ -312,6 +312,25 @@ FrameGeom resolveFrame(const PxFrame &px, bool leadIsLeft, double confMin, const
     return g;
 }
 
+// What a whole-reference refusal takes down (trust stage 6: one cascade record, on the first
+// reading it refused — secondaryAxisTilt — naming the rest). All nine: both refusals return before
+// any channel is pushed.
+QStringList upperBodyCovers()
+{
+    return { QStringLiteral("spineSideBend"), QStringLiteral("thoraxLateralDrift"),
+             QStringLiteral("shoulderPlaneAngle"), QStringLiteral("elbowAlignment"),
+             QStringLiteral("trailElbowHeight"), QStringLiteral("leadHandWidth"),
+             QStringLiteral("leadUpperArmToChest"), QStringLiteral("leadArmToTorso") };
+}
+
+int countWithin(const std::vector<int64_t> &ts, int64_t fromUs, int64_t toUs)
+{
+    int n = 0;
+    for (int64_t t : ts)
+        if (t >= fromUs && t <= toUs) ++n;
+    return n;
+}
+
 } // namespace
 
 UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, bool leadIsLeft,
@@ -322,6 +341,9 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
     res.frameH = frameH;
     res.maxBridgeUs = cfg.maxBridgeUs;   // the builder reads these off the result, not off a config
     res.bridgeSpacingFactor = cfg.bridgeSpacingFactor;
+    res.minShoulderSpanRatio = cfg.minShoulderSpanRatio;
+    res.minElbowSpanPx       = cfg.minElbowSpanPx;
+    res.minHipSpanRatio      = cfg.minHipSpanRatio;
     if (frameW <= 0 || frameH <= 0)
         return res;
 
@@ -372,8 +394,16 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
             if (int(ref.size()) >= cfg.addrMinFrames) break;
         }
     }
-    if (ref.empty())
-        return res;   // no usable upper body anywhere — leave valid == false
+    if (ref.empty()) {
+        // no usable upper body anywhere — leave valid == false
+        GateLog gates;
+        gates.fireCovering(PP_GATE("body.upperAddress"), QStringLiteral("secondaryAxisTilt"), GateEffect::Refused,
+                           upperBodyCovers(),
+                           { { QStringLiteral("posedFrames"), int(frames.size()) },
+                             { QStringLiteral("minConf"), cfg.confMin } });
+        res.gates = gates.take();
+        return res;
+    }
 
     std::vector<double> shoulderSpans, stanceSpans, armLens, leadAnkX, trailAnkX;
     // The body lines' HORIZONTAL address spans, the foreshortening ratios' denominators. Same
@@ -418,8 +448,15 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
 
     // The denominator floor. Below it every percentage is noise divided by noise, and the honest
     // answer is that nothing was measured — not a large number.
-    if (res.ref.shoulderSpanPx < cfg.minShoulderSpanPx)
+    if (res.ref.shoulderSpanPx < cfg.minShoulderSpanPx) {
+        GateLog gates;
+        gates.fireCovering(PP_GATE("body.shoulderSpan"), QStringLiteral("secondaryAxisTilt"), GateEffect::Refused,
+                           upperBodyCovers(),
+                           { { QStringLiteral("spanPx"), res.ref.shoulderSpanPx },
+                             { QStringLiteral("minPx"), cfg.minShoulderSpanPx } });
+        res.gates = gates.take();
         return res;
+    }
     res.ref.valid = true;
 
     const double toPctShoulder = 100.0 / res.ref.shoulderSpanPx;
@@ -484,6 +521,10 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
     };
 
     for (FrameGeom &g : geom) {
+        // The frames each line gate could have refused — its summary record's denominator.
+        if (g.shouldersValid) res.shouldersSeenUs.push_back(g.t_us);
+        if (g.elbowsValid) res.elbowsSeenUs.push_back(g.t_us);
+        if (g.shouldersValid && g.hipsValid) res.trunkSeenUs.push_back(g.t_us);
         if (g.shouldersValid)
             g.shoulderLineValid = ratioValid(std::abs(g.trailShoulder.x() - g.leadShoulder.x()),
                                              res.ref.shoulderDxPx, cfg.minShoulderSpanRatio);
@@ -872,6 +913,46 @@ std::vector<MetricSeries> buildUpperBodySeries(const UpperBodyResult &res,
     push(res.leadArmToTorso,   nullptr,
          "leadArmToTorso",      "Lead arm to torso angle", deg);
     return out;
+}
+
+std::vector<GateRecord> upperBodyGates(const UpperBodyResult &res, const std::vector<PhaseEvent> &phases)
+{
+    GateLog gates;
+    gates.append(res.gates);
+
+    const std::optional<int64_t> addrT = phaseTimeOpt(phases, Phase::Address);
+    const std::optional<int64_t> impT  = phaseTimeOpt(phases, Phase::Impact);
+    const int64_t impactUs = impT ? *impT : -1;
+    // The Address → Impact domain the three tilts are read over (applyPhaseDomainMask); the whole
+    // swing for trailElbowHeight, which is not domain-masked.
+    const int64_t fromUs = addrT ? *addrT : INT64_MIN;
+    const int64_t toUs   = impT ? *impT : INT64_MAX;
+
+    const auto summary = [&](const QString &gate, const char *subject, const std::vector<int64_t> &gated,
+                             const std::vector<int64_t> &seen, int64_t lo, int64_t hi,
+                             const char *thresholdKey, double threshold) {
+        QVariantMap ev = maskEvidence(gated, countWithin(seen, lo, hi), impactUs, lo, hi);
+        if (ev.isEmpty()) return;
+        ev.insert(QString::fromLatin1(thresholdKey), threshold);
+        gates.fire(gate, QString::fromLatin1(subject), GateEffect::Masked, ev);
+    };
+    summary(PP_GATE("body.shoulderLine"), "shoulderPlaneAngle", res.gatedShoulderLine, res.shouldersSeenUs,
+            fromUs, toUs, "minRatio", res.minShoulderSpanRatio);
+    summary(PP_GATE("body.shoulderLine"), "trailElbowHeight", res.gatedShoulderLine, res.shouldersSeenUs,
+            INT64_MIN, INT64_MAX, "minRatio", res.minShoulderSpanRatio);
+    summary(PP_GATE("body.elbowLine"), "elbowAlignment", res.gatedElbowLine, res.elbowsSeenUs,
+            fromUs, toUs, "minPx", res.minElbowSpanPx);
+    {
+        // Either line may refuse spineSideBend; the evidence carries both thresholds.
+        QVariantMap ev = maskEvidence(res.gatedSideBend, countWithin(res.trunkSeenUs, fromUs, toUs), impactUs,
+                                      fromUs, toUs);
+        if (!ev.isEmpty()) {
+            ev.insert(QStringLiteral("minShoulderRatio"), res.minShoulderSpanRatio);
+            ev.insert(QStringLiteral("minHipRatio"), res.minHipSpanRatio);
+            gates.fire(PP_GATE("body.sideBendLines"), QStringLiteral("spineSideBend"), GateEffect::Masked, ev);
+        }
+    }
+    return gates.take();
 }
 
 } // namespace pinpoint::analysis

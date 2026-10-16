@@ -62,14 +62,15 @@ int main()
         for (const gates::GateEntry &e : cat) {
             if (ids.contains(e.id)) unique = false;
             ids.insert(e.id);
+            // a rule (decided on read) leaves no record, so it has no evidence sentence to fill
             if (e.area.isEmpty() || e.title.isEmpty() || e.shortText.isEmpty() || e.explain.isEmpty()
-                || e.evidenceText.isEmpty() || e.effects.empty() || e.design.isEmpty() || e.producer.isEmpty())
+                || (!e.rule && e.evidenceText.isEmpty()) || e.effects.empty() || e.design.isEmpty() || e.producer.isEmpty())
                 complete = false;
             if (!e.id.contains(QLatin1Char('.'))) dotted = false;
         }
         check(!cat.empty(), "the catalogue has entries");
         check(unique, "ids are unique");
-        check(complete, "every entry has area, title, short text, explanation, evidence text, effects, design, producer");
+        check(complete, "every entry has area, title, short text, explanation, evidence text (gates), effects, design, producer");
         check(dotted, "ids are area.name");
         check(gates::gateEntry(QStringLiteral("sequence.sightedBand")) != nullptr, "lookup by id");
         check(gates::gateEntry(QStringLiteral("no.such")) == nullptr, "an unknown id is null");
@@ -126,6 +127,14 @@ int main()
         check(gates::liftText(*band, QStringLiteral("ks.pelvis"))
                   == QStringLiteral("Timed on swings with the down-the-line camera or a pelvis sensor."),
               "lift text for the pelvis names the second camera and the pelvis sensor, not the chest sensor");
+        {
+            const gates::GateEntry *rot = gates::gateEntry(QStringLiteral("body.rotation"));
+            check(rot && gates::liftText(*rot).startsWith(QStringLiteral("Measured on swings with")),
+                  "outside the sequence a lift says Measured, not Timed");
+        }
+        bool rules = false;
+        for (const gates::GateEntry &e : cat) if (e.rule) rules = true;
+        check(rules, "the on-read rules are catalogued");
         check(gates::liftText(*gates::gateEntry(QStringLiteral("sequence.risingAtEnd"))).isEmpty(),
               "a gate no route lifts says nothing");
         bool tuned = false;
@@ -173,6 +182,17 @@ int main()
                   && back[0].evidence.value(QStringLiteral("sightLostMs")).toDouble() == -129.0
                   && back[1].effect == GateEffect::Refused,
               "records round-trip through JSON");
+        GateLog c;
+        c.fireCovering(PP_GATE("club.trackRefused"), QStringLiteral("track.club"), GateEffect::Refused,
+                       { QStringLiteral("clubheadSpeed"), QStringLiteral("attackAngle") }, { { QStringLiteral("code"), QStringLiteral("coverage") } });
+        const std::vector<GateRecord> cb = gateRecordsFromJson(gateRecordsToJson(c.records()));
+        check(cb.size() == 1 && cb[0].covers.size() == 2 && cb[0].covers[1] == QLatin1String("attackAngle"), "a cascade's covers round-trip");
+        check(recordsFor(cb, QStringLiteral("attackAngle")).size() == 1 && recordsFor(cb, QStringLiteral("lagAngle")).empty(),
+              "a covered reading finds its cascade; another does not");
+        check(gates::primaryRecord(cb, QStringLiteral("clubheadSpeed")) == &cb[0], "the cascade is the reason a covered reading shows");
+        check(maskEvidence({ 1000, 2000, 9000 }, 10, 5000, 0, 5000).value(QStringLiteral("frames")).toInt() == 2
+                  && maskEvidence({}, 10, 5000).isEmpty(),
+              "a mask summary counts only the stretch asked about, and is empty when nothing was refused");
         QJsonArray bad = j;
         bad.append(QJsonObject{ { QStringLiteral("gate"), QStringLiteral("x.y") }, { QStringLiteral("effect"), QStringLiteral("nonsense") } });
         check(gateRecordsFromJson(bad).size() == 2, "a record with an unknown effect is dropped on read");

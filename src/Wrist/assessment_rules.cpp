@@ -268,7 +268,8 @@ AssessmentRuleRegistry AssessmentRuleRegistry::makeDefault()
 }
 
 std::vector<PpWristFinding> AssessmentRuleRegistry::run(const RuleContext &ctx,
-                                                        const RuleTuning &tuning) const
+                                                        const RuleTuning &tuning,
+                                                        GateLog *gates) const
 {
     std::vector<PpWristFinding> out;
     for (const auto &rule : m_rules)
@@ -328,11 +329,33 @@ std::vector<PpWristFinding> AssessmentRuleRegistry::run(const RuleContext &ctx,
         const bool anyFault = std::any_of(out.begin(), out.end(), [](const PpWristFinding &f) {
             return f.severity != Sev::Good;
         });
-        if (!anyFault)
+        if (!anyFault) {
+            // One record for the strengths held back (a cascade): the first names the subject,
+            // the rest are covered.
+            if (gates) {
+                QStringList held;
+                for (const PpWristFinding &f : out)
+                    if (f.severity == Sev::Good) held << f.id;
+                if (!held.isEmpty()) {
+                    const QString first = held.takeFirst();
+                    gates->fireCovering(PP_GATE("wrist.strengthWithoutFault"), first, GateEffect::Withheld,
+                                        held, { { QStringLiteral("strengths"), int(held.size()) + 1 } });
+                }
+            }
             out.erase(std::remove_if(out.begin(), out.end(),
                                      [](const PpWristFinding &f) { return f.severity == Sev::Good; }),
                       out.end());
+        }
     }
+
+    // Each low-confidence demotion that reached the result leaves a record (trust stage 6): the
+    // finding is still shown, at a lower trust level; subject = the finding's rule id.
+    if (gates)
+        for (const PpWristFinding &f : out)
+            if (f.lowConfidence)
+                gates->fire(PP_GATE("wrist.findingLowConfidence"), f.id, GateEffect::Downgraded,
+                            { { QStringLiteral("conf"), double(f.confidence) },
+                              { QStringLiteral("minConf"), double(tuning.confidenceFloor) } });
 
     return out;
 }

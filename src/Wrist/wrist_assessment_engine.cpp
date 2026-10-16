@@ -100,7 +100,9 @@ PpWristAssessmentResult WristAssessmentEngine::assess(const IWristAngleSource &s
     const PpSwingPositionTimeline timeline = source.timeline();
     const RuleContext ctx{ result, timeline, cfg.rules };
     const AssessmentRuleRegistry registry = AssessmentRuleRegistry::makeDefault();
-    result.findings = registry.run(ctx, cfg.rules);
+    GateLog ruleGates;
+    result.findings = registry.run(ctx, cfg.rules, &ruleGates);
+    result.gates = ruleGates.take();
 
     // Composite score v2 — telemetry only (the Wrist headline is the resemblance score, §B.0).
     // Penalty per fault/watch finding = severity × rule weight × scale. Confidence is DELIBERATELY

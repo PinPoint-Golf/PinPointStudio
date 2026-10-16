@@ -680,7 +680,11 @@ int main(int argc, char **argv)
     // ── Run the production pipeline ──────────────────────────────────────────
     const qint64 buildMs = wall.elapsed();
     auto analyzer = makeShotAnalyzer(job.sessionType);
-    const ShotAnalysisResult result = analyzer->analyze(window, job);
+    ShotAnalysisResult result = analyzer->analyze(window, job);
+    // gates decided while LOADING the swing (a HackMotion lane that would not bind) belong to its
+    // analysis too — reanalyzeSwingDir appends them the same way (trust stage 6)
+    if (result.detail && !ls.loadGates.empty())
+        result.detail->gates.insert(result.detail->gates.end(), ls.loadGates.begin(), ls.loadGates.end());
     const qint64 analyzeMs = wall.elapsed() - buildMs;
     std::fprintf(stderr, "[swinglab] analysis %s in %lld ms (score %d)%s%s\n",
                  result.ok ? "ok" : "FAILED", (long long)analyzeMs, result.score,

@@ -213,6 +213,7 @@ inline LmFlightShape lmFlightShape(const std::optional<double> &startDirDeg,
     // a shot, and half a shot stated confidently is worse than no read at all.
     const bool haveAxis  = spinAxisDeg   && std::isfinite(*spinAxisDeg);
     const bool haveF2p   = faceToPathDeg && std::isfinite(*faceToPathDeg);
+    // gate rule: PP_GATE("rule.lm.flightShape")
     if (!startDirDeg || !std::isfinite(*startDirDeg) || (!haveAxis && !haveF2p))
         return out;
 
@@ -425,6 +426,7 @@ inline LmStrikeRead lmStrikeQuality(const std::optional<double> &locationMm,
                                     const LmInferenceTuning &t = LmInferenceTuning())
 {
     LmStrikeRead out;
+    // gate rule: PP_GATE("rule.lm.strikeQuality")
     if (!locationMm || !heightMm
         || !std::isfinite(*locationMm) || !std::isfinite(*heightMm))
         return out;

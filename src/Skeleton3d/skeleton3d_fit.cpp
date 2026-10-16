@@ -45,6 +45,13 @@
 #include "skeleton3d_fit.h"
 #include "club_plane_catalogue.h"
 
+// A GATE ID AT A FIRING SITE (Analysis/gate_record.h's PP_GATE). The solver builds without Qt
+// (skeleton3d_test is NO_QT), so the id is a plain string literal here; gate_catalogue_test still
+// finds each id spelled with the macro below, and Skeleton3DStage turns it into the record.
+#ifndef PP_GATE
+#define PP_GATE(id) id
+#endif
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -1615,8 +1622,12 @@ FitResult fitSkeleton(const FitInput &in)
         return VectorXd(Mpinv * Eigen::Map<const VectorXd>(th48, P.nth));
     };
     if (!in.cfg.enabled) { res.reason = "disabled"; return res; }
-    if (P.T < 10 || int(in.fo.size()) != P.T || in.foW <= 0 || in.foH <= 0) {
+    res.faceOnFrames = P.T;
+    res.minFaceOnFrames = 10;
+    if (P.T < res.minFaceOnFrames || int(in.fo.size()) != P.T || in.foW <= 0 || in.foH <= 0) {
         res.reason = "fewer than 10 face-on frames";
+        res.gateId = PP_GATE("skeleton.refused");
+        res.reasonCode = "fewFrames";
         return res;
     }
     P.hasDtl = in.cfg.useDtl && int(in.dtl.size()) == P.T && in.dtlW > 0 && in.dtlH > 0;
@@ -1794,7 +1805,12 @@ FitResult fitSkeleton(const FitInput &in)
         return std::isfinite(e) && e > 20 ? e / visH : kNaN;
     };
     const double sF = scalePx(P.fo);                      // px per metre, face-on
-    if (!(sF > 0)) { res.reason = "no address legs or height extent in the face-on view"; return res; }
+    if (!(sF > 0)) {
+        res.reason = "no address legs or height extent in the face-on view";
+        res.gateId = PP_GATE("skeleton.refused");
+        res.reasonCode = "noScale";
+        return res;
+    }
     const double dF0 = in.cfg.faceOnDistanceM * s0;
     Cameras cam0;
     cam0.fF = sF * dF0;
@@ -1807,7 +1823,12 @@ FitResult fitSkeleton(const FitInput &in)
     };
     std::vector<double> hu, hv;
     for (int t : ref) { double u, v; if (obsMid(P.fo[size_t(t)], 11, 12, u, v)) { hu.push_back(u); hv.push_back(v); } }
-    if (hu.empty()) { res.reason = "no address hips in the face-on view"; return res; }
+    if (hu.empty()) {
+        res.reason = "no address hips in the face-on view";
+        res.gateId = PP_GATE("skeleton.refused");
+        res.reasonCode = "noHips";
+        return res;
+    }
     double Xh0, Zh0;
     foXZ(median(hu), median(hv), Xh0, Zh0);
     const double Yh0 = dF0;
@@ -2691,7 +2712,11 @@ FitResult fitSkeleton(const FitInput &in)
     }
 
     res.valid = std::isfinite(res.costFinal);
-    if (!res.valid) res.reason = "the solve did not converge to a finite cost";
+    if (!res.valid) {
+        res.reason = "the solve did not converge to a finite cost";
+        res.gateId = PP_GATE("skeleton.refused");
+        res.reasonCode = "noConverge";
+    }
     res.ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     return res;
 }

@@ -32,6 +32,17 @@ namespace {
 // local of the enclosing function (even a static one).
 const std::vector<int64_t> kNoneGated;
 
+// What a whole-reference refusal takes down (trust stage 6: a cascade is one record, on the first
+// reading it refused — leadKneeDrift — naming the rest). plumbBobDistance only when its ruler
+// resolved: without one it was never going to be produced, and this gate did not take it.
+QStringList lowerBodyCovers(bool rulerResolved)
+{
+    QStringList c{ QStringLiteral("pelvisSway"), QStringLiteral("pelvisLift"), QStringLiteral("hipLineTilt"),
+                   QStringLiteral("feetAlignment"), QStringLiteral("comOverLeadFoot") };
+    if (rulerResolved) c << QStringLiteral("plumbBobDistance");
+    return c;
+}
+
 // COCO-17 body indices, shared by both layouts (anatomy_vocabulary.h kp::).
 constexpr int kLHip = 11, kRHip = 12, kLKnee = 13, kRKnee = 14, kLAnkle = 15, kRAnkle = 16;
 
@@ -151,6 +162,7 @@ LowerBodyResult trackLowerBody(const PoseTrack2D &pose, int frameW, int frameH, 
     res.frameH = frameH;
     res.maxBridgeUs = cfg.maxBridgeUs;   // the builder reads these off the result, not off a config
     res.bridgeSpacingFactor = cfg.bridgeSpacingFactor;
+    res.minHipSpanRatio = cfg.minHipSpanRatio;
     if (frameW <= 0 || frameH <= 0)
         return res;
 
@@ -199,8 +211,16 @@ LowerBodyResult trackLowerBody(const PoseTrack2D &pose, int frameW, int frameH, 
             if (int(ref.size()) >= cfg.addrMinFrames) break;
         }
     }
-    if (ref.empty())
-        return res;   // no usable lower body anywhere — leave valid == false
+    if (ref.empty()) {
+        // no usable lower body anywhere — leave valid == false
+        GateLog gates;
+        gates.fireCovering(PP_GATE("body.lowerAddress"), QStringLiteral("leadKneeDrift"), GateEffect::Refused,
+                           lowerBodyCovers(mmPerPx > 0.0),
+                           { { QStringLiteral("posedFrames"), int(frames.size()) },
+                             { QStringLiteral("minConf"), cfg.confMin } });
+        res.gates = gates.take();
+        return res;
+    }
 
     std::vector<double> lhx, lhy, thx, thy, lkx, spans, hipSpans, leadAnkX, trailAnkX;
     for (const LowerBodyState *s : ref) {
@@ -239,8 +259,15 @@ LowerBodyResult trackLowerBody(const PoseTrack2D &pose, int frameW, int frameH, 
 
     // The denominator floor. Below it every percentage would be noise divided by noise, and the
     // honest answer is that nothing was measured — not a large number.
-    if (res.addrSpanPx < cfg.minStanceSpanPx)
+    if (res.addrSpanPx < cfg.minStanceSpanPx) {
+        GateLog gates;
+        gates.fireCovering(PP_GATE("body.stanceSpan"), QStringLiteral("leadKneeDrift"), GateEffect::Refused,
+                           lowerBodyCovers(mmPerPx > 0.0),
+                           { { QStringLiteral("spanPx"), res.addrSpanPx },
+                             { QStringLiteral("minPx"), cfg.minStanceSpanPx } });
+        res.gates = gates.take();
         return res;
+    }
 
     const double toPct = 100.0 / res.addrSpanPx;
     const double addrLeadHipX  = res.addrLeadHipPx.x();
@@ -649,6 +676,29 @@ std::vector<MetricSeries> buildLowerBodySeries(const LowerBodyResult &res,
     pushSeries(res.plumbBob,   QStringLiteral("plumbBobDistance"),
                QStringLiteral("Plumb bob"), QStringLiteral("in"), /*p1toP7Domain=*/true, kP1toP7);
     return out;
+}
+
+std::vector<GateRecord> lowerBodyGates(const LowerBodyResult &res, const std::vector<PhaseEvent> &phases)
+{
+    GateLog gates;
+    gates.append(res.gates);
+
+    // THE HIP LINE'S FORESHORTENING GATE, as one summary over hipLineTilt's own domain (Address →
+    // Impact): how many of the frames whose hips were confident had no hip line, and when. The
+    // denominator is those confident-hip frames — the only ones the gate could have refused.
+    const std::optional<int64_t> addrT = phaseTimeOpt(phases, Phase::Address);
+    const std::optional<int64_t> impT  = phaseTimeOpt(phases, Phase::Impact);
+    const int64_t fromUs = addrT ? *addrT : INT64_MIN;
+    const int64_t toUs   = impT ? *impT : INT64_MAX;
+    int ofFrames = 0;
+    for (const LowerBodyState &s : res.states)
+        if (s.hipsValid && s.t_us >= fromUs && s.t_us <= toUs) ++ofFrames;
+    QVariantMap ev = maskEvidence(res.gatedHipLine, ofFrames, impT ? *impT : -1, fromUs, toUs);
+    if (!ev.isEmpty()) {
+        ev.insert(QStringLiteral("minRatio"), res.minHipSpanRatio);
+        gates.fire(PP_GATE("body.hipLine"), QStringLiteral("hipLineTilt"), GateEffect::Masked, ev);
+    }
+    return gates.take();
 }
 
 } // namespace pinpoint::analysis

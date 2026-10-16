@@ -68,6 +68,15 @@ Column {
         width: tr.roles ? tr.roles.measureW(tr.width) : tr.width; wrapMode: Text.WordWrap
         text: tr.reading ? tr.reading.levelTip : ""; font: tr.roles ? tr.roles.fSmallI : Qt.font({}); color: tr.roles ? tr.roles.ink3 : "grey"
     }
+    // what a cascade took down with it (stage 6): a refused club track names the readings it removed
+    Text {
+        objectName: "trustCovers:" + (tr.reading ? tr.reading.subject : "")
+        visible: tr.open && !!tr.reading && (tr.reading.covers || []).length > 0
+        width: tr.roles ? tr.roles.measureW(tr.width) : tr.width; wrapMode: Text.WordWrap
+        leftPadding: tr.roles ? tr.roles.u(14) : 14
+        text: tr.reading ? "Not measured because of it: " + (tr.reading.covers || []).join(", ") + "." : ""
+        font: tr.roles ? tr.roles.fSmall : Qt.font({}); color: tr.roles ? tr.roles.ink2 : "grey"
+    }
     // what this reading kept from being judged (the diagnostics' findings, §4.4)
     Text {
         objectName: "trustBlocks:" + (tr.reading ? tr.reading.subject : "")

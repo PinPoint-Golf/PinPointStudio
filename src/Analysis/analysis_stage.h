@@ -310,6 +310,12 @@ struct StageDecl {
 // one thread) and splices the buffers in authored order. See AnalysisContext::seriesOut().
 inline thread_local std::vector<MetricSeries> *tl_seriesSink = nullptr;
 
+// Where a stage's gate records go (trust_and_gates_design.md §6) — the same idea as the series
+// sink. Every stage may fire gates; no stage reads them during the analysis, so the executor gives
+// every stage its own buffer and splices them in authored order once the run is over, which is
+// exactly the order the sequential loop (null sink: straight into detail->gates) produces.
+inline thread_local std::vector<GateRecord> *tl_gatesSink = nullptr;
+
 // The shared typed context the stages read and write — a constrained blackboard.
 // Typed slots (not a bag of variants) so a stage's inputs/outputs are the compiler's
 // business. `window` is a pointer so the orchestrator is unit-testable with no
@@ -354,6 +360,15 @@ struct AnalysisContext {
     // runs it when the series holds exactly its authored prefix and nothing else touches it.
     std::vector<MetricSeries> &seriesOut() {
         return tl_seriesSink ? *tl_seriesSink : detail->series;
+    }
+    // Where a stage's gate records go: detail->gates under the sequential loop, the stage's own
+    // buffer under the executor (tl_gatesSink).
+    std::vector<GateRecord> &gatesOut() {
+        return tl_gatesSink ? *tl_gatesSink : detail->gates;
+    }
+    void addGates(std::vector<GateRecord> &&more) {
+        std::vector<GateRecord> &dst = gatesOut();
+        dst.insert(dst.end(), std::make_move_iterator(more.begin()), std::make_move_iterator(more.end()));
     }
 };
 

@@ -41,6 +41,10 @@
 //
 // Header-only and free of Qt, mirroring imu_refusion_check.h, so the GUI join
 // (ShotProcessor), the offline re-analysis and the tools all reach one verdict.
+//
+// THE GATE RECORD (trust stage 6) is not fired here: the verdict persists as the
+// manifest's captureIntegrity block, and manifest_gates.h turns that block into the
+// `shot.captureHoles` record each time the document's analysis is written.
 
 #include "swing_window.h"
 #include "format_descriptor.h"
@@ -48,6 +52,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <variant>
 #include <vector>
 
@@ -60,6 +65,10 @@ struct CaptureIntegrityVerdict {
     int    framesLost     = 0;      // frames the holes swallowed (period-rounded)
     double worstHoleMs    = 0.0;    // the longest single hole
     double firstHoleUs    = -1.0;   // window-domain instant the first hole opens (−1 = none)
+    // The same instant in ms from impact, + after (the Charts' shot clock) — NaN when there is no
+    // hole or impact is unknown. Domain-free, so the gate record (manifest_gates.h) can quote it
+    // whichever window domain the check ran in.
+    double firstHoleMs    = std::numeric_limits<double>::quiet_NaN();
     bool   preImpact      = false;  // a hole opened at or before impact (or impact unknown)
     bool   postImpact     = false;  // a hole opened after impact
     double holePeriods    = 3.0;    // the boundary this verdict used
@@ -95,7 +104,10 @@ inline CaptureIntegrityVerdict captureIntegrityOf(const std::vector<int64_t> &tU
         v.framesLost += std::max(0, int(std::lround(gap / periodUs)) - 1);
         v.worstHoleMs = std::max(v.worstHoleMs, gap * 1e-3);
         const int64_t opensAt = tUs[i];                // the last frame before the hole
-        if (v.firstHoleUs < 0.0) v.firstHoleUs = double(opensAt);
+        if (v.firstHoleUs < 0.0) {
+            v.firstHoleUs = double(opensAt);
+            if (impactUs >= 0) v.firstHoleMs = double(opensAt - impactUs) / 1000.0;
+        }
         if (impactUs < 0 || opensAt <= impactUs) v.preImpact = true;
         else                                     v.postImpact = true;
     }
@@ -111,8 +123,10 @@ inline CaptureIntegrityVerdict mergeCaptureIntegrity(CaptureIntegrityVerdict a,
     a.holes          += b.holes;
     a.framesLost     += b.framesLost;
     a.worstHoleMs     = std::max(a.worstHoleMs, b.worstHoleMs);
-    if (b.firstHoleUs >= 0.0 && (a.firstHoleUs < 0.0 || b.firstHoleUs < a.firstHoleUs))
+    if (b.firstHoleUs >= 0.0 && (a.firstHoleUs < 0.0 || b.firstHoleUs < a.firstHoleUs)) {
         a.firstHoleUs = b.firstHoleUs;
+        a.firstHoleMs = b.firstHoleMs;
+    }
     a.preImpact  = a.preImpact  || b.preImpact;
     a.postImpact = a.postImpact || b.postImpact;
     a.ok = a.ok && b.ok;

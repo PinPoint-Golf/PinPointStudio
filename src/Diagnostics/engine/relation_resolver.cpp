@@ -435,6 +435,7 @@ Explanation explain(const CharacteristicPack &pack, const DetectionResult &detec
 
 QString stabilityWordFor(double share)
 {
+    // gate rule: PP_GATE("rule.diag.rootStability")
     if (share >= tuned::diagUncertainty::kFirmShare)   return QStringLiteral("firm");
     if (share >= tuned::diagUncertainty::kLikelyShare) return QStringLiteral("likely");
     return QStringLiteral("fragile");

@@ -165,6 +165,7 @@ inline SessionEvidence sessionEvidence(const ConditionLedger &l, const WorkOnOpt
 {
     if (l.assessable < 1) return SessionEvidence::NotMeasured;
     if (l.tier == Tier::Pattern) return SessionEvidence::Pattern;
+    // gate rule: PP_GATE("rule.diag.workOnQuiet")
     if (l.assessable >= opt.minAssessable
         && wilsonUpperBound(l.effFired, l.effAssessable, opt.wilsonZ) < opt.quietWilsonUb)
         return SessionEvidence::Quiet;
@@ -376,6 +377,7 @@ inline SessionWorkOns reduceSessionWorkOns(const std::vector<ShotRecord> &shots,
     std::stable_sort(delivery.begin(), delivery.end(), before);
 
     for (Candidate &c : movement) {
+        // gate rule: PP_GATE("rule.diag.workOnLimits")
         if (int(out.entries.size()) >= opt.maxPerSession) break;
         out.entries.push_back(std::move(c.e));
     }
@@ -521,6 +523,7 @@ inline std::vector<WorkOnSummary> aggregateWorkOns(std::vector<SessionWorkOns> s
             if (st == SessionEvidence::Pattern) break;
             ++quietRun;
         }
+        // gate rule: PP_GATE("rule.diag.workOnClear")
         w.status = quietRun >= opt.clearAfterQuiet ? WorkOnStatus::Cleared
                  : quietRun >= 1                   ? WorkOnStatus::Easing
                  :                                   WorkOnStatus::Active;

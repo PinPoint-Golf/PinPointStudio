@@ -22,6 +22,7 @@
 #include "../Analysis/uncertainty_config.h"
 #include "../Analysis/analysis_tuning.h"
 #include "../Core/pp_tuned_constants.h"
+#include "../Analysis/gate_record.h"   // GateRecord (trust stage 6)
 
 #include <QVariantMap>
 
@@ -109,6 +110,10 @@ struct KinematicSeriesInputs {
     // defaulted club length's σ (Q1: wide σ, not a refusal).
     const UncertaintyConfig *unc = nullptr;
     bool    clubLengthKnown = false;
+
+    // Where the gate records go (trust stage 6): null ⇒ none are written. club.peakLeadSamples
+    // (clubheadPeakLead refused for too few samples between Top and the anchor).
+    std::vector<GateRecord> *gates = nullptr;
 };
 
 // Returns up to four MetricSeries in a stable order: clubhead speed (mph), clubheadPeakLead

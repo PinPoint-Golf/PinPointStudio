@@ -236,7 +236,8 @@ void principalAxis(const std::vector<cv::Point> &pts, cv::Point2d &mean, cv::Poi
 
 ImpactTrack2D ImpactRunner::run(const pinpoint::SwingWindow &window,
                                 pinpoint::SourceId impactSource,
-                                int64_t impactHintUs)
+                                int64_t impactHintUs,
+                                std::vector<pinpoint::analysis::GateRecord> *gates)
 {
     ImpactTrack2D track;
     track.camera = impactSource;
@@ -631,6 +632,7 @@ ImpactTrack2D ImpactRunner::run(const pinpoint::SwingWindow &window,
                                    [&](const HeadPt &h) { return !inRun[size_t(h.i)]; }), heads.end());
     }
 
+    int pathPoints = 0;   // the club frames the path could be fitted on (the gate record below)
     // ── The synthesised path (impact_camera_design.md §7; proven in
     //    tools/impactlab first). Robust quadratics in time for the hosel and
     //    the shaft angle over the run, broken hosels dropped; the head as a
@@ -650,6 +652,7 @@ ImpactTrack2D ImpactRunner::run(const pinpoint::SwingWindow &window,
         }
         std::vector<const Row *> fit;
         for (const Row &r : rows) if (!r.edge) fit.push_back(&r);
+        pathPoints = int(fit.size());
         if (int(fit.size()) >= kMinPathPoints) {
             std::vector<double> t, hx, hy, th;
             for (const Row *r : fit) { t.push_back(r->t); hx.push_back(r->hx); hy.push_back(r->hy); th.push_back(r->th); }
@@ -774,6 +777,26 @@ ImpactTrack2D ImpactRunner::run(const pinpoint::SwingWindow &window,
     track.valid = !track.frames.empty();
     int clubFrames = 0, ballFrames = 0;
     for (const auto &s : track.frames) { clubFrames += s.clubFound; ballFrames += s.ballFound; }
+    // THE PATH'S GATE RECORDS (trust stage 6). Refused: too few clean club frames around the
+    // departure to fit the arc on. Downgraded: the path stands, but the head on it sits at the
+    // generic offset from the hosel because fewer than 3 frames showed the head itself.
+    if (gates && track.valid) {
+        using pinpoint::analysis::GateEffect;
+        using pinpoint::analysis::GateRecord;
+        if (!track.pathValid)
+            gates->push_back(GateRecord{ PP_GATE("impact.pathTooShort"), QStringLiteral("track.impact"),
+                                         GateEffect::Refused,
+                                         QVariantMap{ { QStringLiteral("points"), pathPoints },
+                                                      { QStringLiteral("minPoints"), kMinPathPoints },
+                                                      { QStringLiteral("clubFrames"), clubFrames } },
+                                         {}, {}, {} });
+        else if (track.headOffsetAssumed)
+            gates->push_back(GateRecord{ PP_GATE("impact.headOffsetAssumed"), QStringLiteral("track.impact"),
+                                         GateEffect::Downgraded,
+                                         QVariantMap{ { QStringLiteral("headFrames"), track.headEvidenceFrames },
+                                                      { QStringLiteral("minHeadFrames"), 3 } },
+                                         {}, {}, {} });
+    }
     ppInfo() << "[ImpactRunner] source" << impactSource << ":" << N << "frames," << clubFrames
              << "with a club," << ballFrames << "with the ball; resting ball"
              << (haveRest ? QString("r=%1px (%2 mm/px)").arg(restR, 0, 'f', 1).arg(track.mmPerPx, 0, 'f', 2)
@@ -794,10 +817,12 @@ ImpactTrack2D ImpactRunner::run(const pinpoint::SwingWindow &window,
 
 ImpactTrack2D ImpactRunner::run(const pinpoint::SwingWindow &window,
                                 pinpoint::SourceId impactSource,
-                                int64_t impactHintUs)
+                                int64_t impactHintUs,
+                                std::vector<pinpoint::analysis::GateRecord> *gates)
 {
     Q_UNUSED(window)
     Q_UNUSED(impactHintUs)
+    Q_UNUSED(gates)
     ppWarn() << "[ImpactRunner] built without OpenCV — no track";
     ImpactTrack2D track;
     track.camera = impactSource;

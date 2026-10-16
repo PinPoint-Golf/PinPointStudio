@@ -318,6 +318,14 @@ struct ClubPlane {
 struct FitResult {
     bool valid = false;
     std::string reason;
+    // THE GATE BEHIND A REFUSAL (trust stage 6): the catalogue id and a short code per reason
+    // ("fewFrames", "noScale", "noHips", "noConverge"), set where the fit refuses — empty when it
+    // did not, or when it was switched off (a switch is not a gate). Plain strings: the solver
+    // builds without Qt; Skeleton3DStage turns them into the swing's gate record.
+    std::string gateId;
+    std::string reasonCode;
+    int faceOnFrames = 0;                    // the face-on frames the fit was handed
+    int minFaceOnFrames = 10;                // the floor it compared them against
     bool   dtlUsed = false;
     // Why a DTL view that was supplied did not make it into the fit ("" when it did, or none was
     // supplied) — the caller logs it; the fit used to drop the camera without a word.

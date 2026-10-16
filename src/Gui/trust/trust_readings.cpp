@@ -36,7 +36,7 @@ namespace {
 namespace W = charts::words;
 
 // §4.3: ordered, a reading takes the LOWEST that applies.
-enum Level { NotSeen = 0, NotJudged = 1, Bounded = 2, Estimated = 3, Measured = 4 };
+enum Level { NotSeen = 0, NotJudged = 1, Bounded = 2, Masked = 3, Estimated = 4, Measured = 5 };
 
 QString levelKey(int l)
 {
@@ -44,6 +44,7 @@ QString levelKey(int l)
     case NotSeen:   return QStringLiteral("notSeen");
     case NotJudged: return QStringLiteral("notJudged");
     case Bounded:   return QStringLiteral("bounded");
+    case Masked:    return QStringLiteral("masked");
     case Estimated: return QStringLiteral("estimated");
     default:        return QStringLiteral("measured");
     }
@@ -54,6 +55,7 @@ QString levelWord(int l)
     case NotSeen:   return QStringLiteral("Not seen");
     case NotJudged: return QStringLiteral("Drawn, not judged");
     case Bounded:   return QStringLiteral("Bounded");
+    case Masked:    return QStringLiteral("Partly drawn");
     case Estimated: return QStringLiteral("Estimated");
     default:        return QStringLiteral("Measured");
     }
@@ -64,6 +66,7 @@ QString levelTip(int l)
     case NotSeen:   return QStringLiteral("Refused, and nothing about it survives.");
     case NotJudged: return QStringLiteral("Shown, but kept out of every finding.");
     case Bounded:   return QStringLiteral("The exact value is refused; a range survives.");
+    case Masked:    return QStringLiteral("Stretches a gate did not trust are left out; the rest stands.");
     case Estimated: return QStringLiteral("An estimated route; every gate passed.");
     default:        return QStringLiteral("A direct route; every gate passed.");
     }
@@ -102,6 +105,20 @@ QVariantList gatesOf(const QVariantList &records, const QVariantMap &primary, co
 
 QString subjectLabel(const QString &subject) { return gates::subjectLabel(subject); }
 
+namespace {
+// The readings the records' cascades took down, as the reader names them, without repeats.
+QStringList coversOf(const QVariantList &records)
+{
+    QStringList out;
+    for (const QVariant &rv : records)
+        for (const QVariant &k : rv.toMap().value(QStringLiteral("covers")).toList()) {
+            const QString l = subjectLabel(k.toString());
+            if (!out.contains(l)) out << l;
+        }
+    return out;
+}
+} // namespace
+
 QVariantList trustReadings(const charts::ShotSeries &shot)
 {
     QVariantList out;
@@ -129,7 +146,9 @@ QVariantList trustReadings(const charts::ShotSeries &shot)
         const int seg = segmentOf(subject);
         QVariantMap primary;
         QString figure = QStringLiteral("-"), shortText;
-        int level = direct.value(subject, false) ? Measured : Estimated;
+        // a sequence node starts at its route's quality; any other reading has no route here, so its
+        // records alone decide, from "every gate passed" down (a record that only masks: Partly drawn)
+        int level = seg >= 0 ? (direct.value(subject, false) ? Measured : Estimated) : Measured;
         if (seg >= 0) {
             const charts::SegmentPeak &p = q.segments[size_t(seg)];
             primary = p.refusal;
@@ -153,9 +172,29 @@ QVariantList trustReadings(const charts::ShotSeries &shot)
             // a non-sequence subject: the records alone decide
             if (seg < 0 && eff == QLatin1String("refused")) level = std::min(level, int(NotSeen));
             if (seg < 0 && eff == QLatin1String("bounded")) level = std::min(level, int(Bounded));
+            if (seg < 0 && eff == QLatin1String("downgraded")) level = std::min(level, int(Estimated));
+            if (seg < 0 && eff == QLatin1String("masked") && !subject.startsWith(QLatin1String("route.")))
+                level = std::min(level, int(Masked));
         }
+        // any other reading: the gate the claim shows is the one that did the most, its words the figure's
+        if (seg < 0 && primary.isEmpty()) {
+            static const QStringList order{ QStringLiteral("refused"), QStringLiteral("bounded"), QStringLiteral("withheld"),
+                                            QStringLiteral("downgraded"), QStringLiteral("masked") };
+            for (const QString &want : order) {
+                for (const QVariant &rv : records)
+                    if (rv.toMap().value(QStringLiteral("effect")).toString() == want) { primary = rv.toMap(); break; }
+                if (!primary.isEmpty()) break;
+            }
+            if (const gates::GateEntry *e = gates::gateEntry(primary.value(QStringLiteral("gate")).toString()))
+                if (shortText.isEmpty()) shortText = gates::claimWords(*e);
+        }
+        const gates::GateEntry *areaOf = gates::gateEntry((primary.isEmpty() ? records.first().toMap() : primary)
+                                                              .value(QStringLiteral("gate")).toString());
         out << QVariantMap{ { QStringLiteral("subject"), subject },
-                            { QStringLiteral("area"), seg >= 0 || subject.startsWith(QLatin1String("route.")) ? QStringLiteral("Kinematic sequence") : QString() },
+                            { QStringLiteral("area"), seg >= 0 || subject.startsWith(QLatin1String("route.")) ? QStringLiteral("Kinematic sequence")
+                                                      : areaOf ? areaOf->area : QString() },
+                            // a cascade's readings it took down (stage 6): "Club track — 14 readings"
+                            { QStringLiteral("covers"), coversOf(records) },
                             { QStringLiteral("label"), subjectLabel(subject) },
                             { QStringLiteral("key"), seg >= 0 ? charts::sequenceSeriesKey(seg) : QString() },
                             { QStringLiteral("level"), levelKey(level) },
@@ -179,6 +218,7 @@ struct Status {
     QString subject, level;     // level: measured | estimated | bounded | notSeen | notJudged
     QString gate;               // the gate the claim shows, when a gate acted on it
     QStringList blocks, tried;  // findings it kept from being judged; routes the swing already ran for it
+    QStringList covers;         // a cascade's readings it took down (their labels)
     bool passed() const { return level == QLatin1String("measured") || level == QLatin1String("estimated"); }
 };
 
@@ -215,12 +255,14 @@ QList<Status> statusesOf(const charts::ShotSeries &shot)
         st.subject = subject;
         st.level = r != read.cend() ? r->value(QStringLiteral("level")).toString() : quality.value(subject);
         if (r != read.cend()) {
+            const bool maskedOnly = st.level == QLatin1String("masked");
             for (const QVariant &gv : r->value(QStringLiteral("gates")).toList()) {
                 const QVariantMap g = gv.toMap();
-                if (g.value(QStringLiteral("effect")).toString() == QLatin1String("masked")) continue;
+                if (!maskedOnly && g.value(QStringLiteral("effect")).toString() == QLatin1String("masked")) continue;
                 st.gate = g.value(QStringLiteral("gate")).toString();
                 break;
             }
+            st.covers = r->value(QStringLiteral("covers")).toStringList();
             st.blocks = r->value(QStringLiteral("blocks")).toStringList();
         }
         for (const QVariant &rv : shot.gates) {
@@ -270,12 +312,18 @@ QString routeThe(const QString &route)
 
 // A gated group's line. `on` is "" for one shot, " on 6 of 6 shots" for a session.
 QString gatedLine(const gates::GateEntry *e, const QStringList &subjects, const QStringList &perSubjectOn,
-                  const QString &on, const QStringList &blocks, bool everyShot, const QStringList &tried)
+                  const QString &on, const QStringList &blocks, bool everyShot, const QStringList &tried,
+                  const QStringList &covers = {})
 {
     QStringList who;
     for (int i = 0; i < subjects.size(); ++i)
         who << lowerLabel(subjects[i]) + (perSubjectOn.isEmpty() ? QString() : perSubjectOn[i]);
     QString t = W::cap1(W::list(who)) + QLatin1Char(' ') + (e ? gates::claimWords(*e) : QStringLiteral("not timed")) + on;
+    // a cascade names what it took down: a few by name, many by count
+    if (!covers.isEmpty())
+        t += QStringLiteral(", taking ") + (covers.size() <= 3 ? W::list(covers).toLower()
+                                                              : W::word(int(covers.size())) + QStringLiteral(" readings"))
+           + QStringLiteral(" with it");
     // the findings it kept from being judged: named when a few, counted when many (the reading's own block,
     // "Why", and This shot's not-judged list name them all) — the summary stays a few lines
     if (!blocks.isEmpty())
@@ -323,10 +371,11 @@ QVariantMap trustSummary(const charts::ShotSeries &shot)
         lines << line(QStringLiteral("Kinematic sequence, timed from ") + W::list(w) + QLatin1Char('.'), QStringLiteral("routes"));
     }
     const QList<Status> sts = statusesOf(shot);
-    QStringList measured, estimated;
+    QStringList measured, estimated, partly;   // partly: a reading only a mask touched (one quiet line)
     QList<QPair<QString, QStringList>> groups;   // gate → subjects, first seen first
     for (const Status &st : sts) {
         if (st.passed()) { (st.level == QLatin1String("measured") ? measured : estimated) << lowerLabel(st.subject); continue; }
+        if (st.level == QLatin1String("masked")) { if (!partly.contains(lowerLabel(st.subject))) partly << lowerLabel(st.subject); continue; }
         auto g = std::find_if(groups.begin(), groups.end(), [&](const auto &x) { return x.first == st.gate; });
         if (g == groups.end()) groups.append({ st.gate, { st.subject } }); else g->second << st.subject;
     }
@@ -335,15 +384,21 @@ QVariantMap trustSummary(const charts::ShotSeries &shot)
     if (!estimated.isEmpty()) passed << W::list(estimated) + QStringLiteral(" estimated");
     if (!passed.isEmpty()) lines << line(W::cap1(passed.join(QStringLiteral("; "))) + QLatin1Char('.'), QStringLiteral("passed"));
     for (const auto &g : groups) {
-        QStringList blocks, tried;
+        QStringList blocks, tried, covers;
         for (const Status &st : sts) {
             if (!g.second.contains(st.subject)) continue;
             for (const QString &b : st.blocks) if (!blocks.contains(b)) blocks << b;
             for (const QString &t : st.tried) if (!tried.contains(t)) tried << t;
+            for (const QString &c : st.covers) if (!covers.contains(c)) covers << c;
         }
-        lines << line(gatedLine(gates::gateEntry(g.first), g.second, {}, QString(), blocks, true, tried),
+        lines << line(gatedLine(gates::gateEntry(g.first), g.second, {}, QString(), blocks, true, tried, covers),
                       QStringLiteral("gated"), g.second.first(), shot.swingDir);
     }
+    // A MASK IS NOT A REFUSAL: a reading with stretches a gate did not trust still stands, so it gets one
+    // quiet line at the end and stays out of the closed fold's words (several fire on nearly every swing)
+    if (!partly.isEmpty())
+        lines << line(QStringLiteral("Partly drawn, with stretches left out: ") + W::list(partly) + QLatin1Char('.'),
+                      QStringLiteral("masked"));
     return { { QStringLiteral("recorded"), true }, { QStringLiteral("tail"), tailOf(groups, !passed.isEmpty()) },
              { QStringLiteral("lines"), lines } };
 }
@@ -356,7 +411,9 @@ QVariantMap trustSummary(const charts::SessionSnapshot &session)
     QStringList routeOrder;
     struct Passed { QString subject, level; int shots = 0; };
     QList<Passed> passed;
-    struct Group { QString gate; QStringList subjects; QHash<QString, int> bySubject; QStringList blocks, tried; QString swingDir;
+    QStringList partlyOrder;                   // readings only a mask touched, first seen first
+    QHash<QString, int> partlyShots;
+    struct Group { QString gate; QStringList subjects; QHash<QString, int> bySubject; QStringList blocks, tried, covers; QString swingDir;
                    int shots = 0; };
     QList<Group> groups;
     for (const auto &sh : session.shots) {
@@ -377,11 +434,17 @@ QVariantMap trustSummary(const charts::SessionSnapshot &session)
                 if (p == passed.end()) passed.append({ st.subject, st.level, 1 }); else p->shots += 1;
                 continue;
             }
+            if (st.level == QLatin1String("masked")) {
+                if (!partlyOrder.contains(st.subject)) partlyOrder << st.subject;
+                partlyShots[st.subject] += 1;
+                continue;
+            }
             auto g = std::find_if(groups.begin(), groups.end(), [&](const Group &x) { return x.gate == st.gate; });
-            if (g == groups.end()) { groups.append(Group{ st.gate, {}, {}, {}, {}, sh->swingDir, 0 }); g = groups.end() - 1; }
+            if (g == groups.end()) { groups.append(Group{ st.gate, {}, {}, {}, {}, {}, sh->swingDir, 0 }); g = groups.end() - 1; }
             if (!g->subjects.contains(st.subject)) g->subjects << st.subject;
             g->bySubject[st.subject] += 1;
             for (const QString &b : st.blocks) if (!g->blocks.contains(b)) g->blocks << b;
+            for (const QString &c : st.covers) if (!g->covers.contains(c)) g->covers << c;
             for (const QString &t : st.tried) if (!g->tried.contains(t)) g->tried << t;
             if (!gatesHere.contains(st.gate)) { gatesHere.insert(st.gate); g->shots += 1; }
         }
@@ -430,9 +493,16 @@ QVariantMap trustSummary(const charts::SessionSnapshot &session)
             for (const QString &s : g.subjects) perSubject << QStringLiteral(" (") + QString::number(g.bySubject.value(s)) + of + QLatin1Char(')');
         const QString on = same ? QStringLiteral(" on ") + QString::number(g.bySubject.value(g.subjects.first())) + of + QStringLiteral(" shots")
                                 : QString();
-        lines << line(gatedLine(gates::gateEntry(g.gate), g.subjects, perSubject, on, g.blocks, g.shots == recorded, g.tried),
+        lines << line(gatedLine(gates::gateEntry(g.gate), g.subjects, perSubject, on, g.blocks, g.shots == recorded, g.tried, g.covers),
                       QStringLiteral("gated"), g.subjects.first(), g.swingDir);
         tailGroups.append({ g.gate, g.subjects });
+    }
+    if (!partlyOrder.isEmpty()) {
+        QStringList w;
+        for (const QString &sj : partlyOrder)
+            w << lowerLabel(sj) + (partlyShots.value(sj) == recorded ? QString()
+                                   : QStringLiteral(" (") + QString::number(partlyShots.value(sj)) + of + QLatin1Char(')'));
+        lines << line(QStringLiteral("Partly drawn, with stretches left out: ") + W::list(w) + QLatin1Char('.'), QStringLiteral("masked"));
     }
     if (old > 0)
         lines << line(W::cap1(W::word(old)) + (old == 1 ? QStringLiteral(" shot was") : QStringLiteral(" shots were"))

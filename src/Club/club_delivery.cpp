@@ -137,6 +137,28 @@ ClubDeliveryResult trackClubDelivery(const ShaftTrack2D &shaft, const std::vecto
                                    std::atan2(s->headPx.y() - s->gripPx.y(), dx) * kRadToDeg);
     }
 
+    // THE HEAD-CONFIDENCE GATE'S RECORD (trust stage 6): the samples the top angle could not read
+    // because the clubhead was not measured with confidence (below headConfMin, projected from the
+    // grip, or never searched for) — one summary; refused when it left the reading nothing.
+    GateLog gates;
+    const int64_t gateImpactUs = phaseTime(phases, Phase::Impact, -1);
+    {
+        std::vector<int64_t> unseen;
+        int lowConf = 0;
+        for (const ShaftSample2D &s : shaft.samples)
+            if (!headMeasured(s, cfg.headConfMin)) {
+                unseen.push_back(s.t_us);
+                if (!(s.flags & ShaftHeadProjected) && s.headConf >= 0.f) ++lowConf;
+            }
+        QVariantMap ev = maskEvidence(unseen, int(shaft.samples.size()), gateImpactUs);
+        if (!ev.isEmpty()) {
+            ev.insert(QStringLiteral("lowConfFrames"), lowConf);
+            ev.insert(QStringLiteral("minHeadConf"), cfg.headConfMin);
+            gates.fire(PP_GATE("club.headConfidence"), QStringLiteral("shaftAngleVsHorizontal"),
+                       res.shaftVsHorizontal.empty() ? GateEffect::Refused : GateEffect::Masked, ev);
+        }
+    }
+
     // ── attackAngle ────────────────────────────────────────────────────────────────────────────
     // The vertical angle of the head's velocity, POSITIVE FOR A MORE UPWARD STRIKE. A centred
     // difference over ±velHalfSpan samples: one frame either side of a ~9 px head is mostly
@@ -156,6 +178,8 @@ ClubDeliveryResult trackClubDelivery(const ShaftTrack2D &shaft, const std::vecto
     // Phase 2 stage 5). A swing whose arc does not reach impact keeps the measured estimate rather
     // than losing the metric.
     std::vector<const ShaftSample2D *> src = m;
+    bool attackFromArc = false;          // the record below: which heads the attack angle read
+    int  attackArcNear = 0;
     {
         const int64_t aimUs = phaseTime(phases, Phase::Impact, -1);
         std::vector<const ShaftSample2D *> arc;
@@ -164,6 +188,7 @@ ClubDeliveryResult trackClubDelivery(const ShaftTrack2D &shaft, const std::vecto
             arc.push_back(&s);
             if (aimUs >= 0 && std::llabs(s.t_us - aimUs) <= cfg.attackSynthWinUs) ++near;
         }
+        attackArcNear = near;
         if (near >= cfg.attackSynthMinSamples) {
             std::sort(arc.begin(), arc.end(),
                       [](const ShaftSample2D *x, const ShaftSample2D *y) { return x->t_us < y->t_us; });
@@ -195,8 +220,10 @@ ClubDeliveryResult trackClubDelivery(const ShaftTrack2D &shaft, const std::vecto
                     continuous = med > kEps && st <= cfg.attackSynthMaxStepRatio * med;
                 }
             }
-            if (continuous)
+            if (continuous) {
                 src = std::move(arc);
+                attackFromArc = true;
+            }
         }
     }
     if (int(src.size()) > 2 * cfg.velHalfSpan) {
@@ -209,6 +236,20 @@ ClubDeliveryResult trackClubDelivery(const ShaftTrack2D &shaft, const std::vecto
             // −dy because image y grows downward: rising in the world is falling in y.
             res.attackAngle.push(src[size_t(i)]->t_us, std::atan2(-dy, dx) * kRadToDeg);
         }
+    }
+    // THE ATTACK ANGLE'S FALLBACK (trust stage 6): the arc did not reach impact densely enough
+    // (`fewArc`) or jumped through it (`jump`), so the measured heads answered — a lower trust
+    // (a median 36° from the launch monitor against the arc's 3.6°), or nothing when they could not.
+    if (!attackFromArc) {
+        QVariantMap ev{ { QStringLiteral("code"), attackArcNear >= cfg.attackSynthMinSamples ? QStringLiteral("jump")
+                                                                                              : QStringLiteral("fewArc") },
+                        { QStringLiteral("arcSamples"), attackArcNear },
+                        { QStringLiteral("minArcSamples"), cfg.attackSynthMinSamples },
+                        { QStringLiteral("winMs"), double(cfg.attackSynthWinUs) / 1000.0 },
+                        { QStringLiteral("maxStepRatio"), cfg.attackSynthMaxStepRatio },
+                        { QStringLiteral("measuredHeads"), int(m.size()) } };
+        gates.fire(PP_GATE("club.attackFallback"), QStringLiteral("attackAngle"),
+                   res.attackAngle.empty() ? GateEffect::Refused : GateEffect::Downgraded, ev);
     }
 
     // ── lowPointAhead ──────────────────────────────────────────────────────────────────────────
@@ -225,6 +266,21 @@ ClubDeliveryResult trackClubDelivery(const ShaftTrack2D &shaft, const std::vecto
     // stated in). Missing either suppresses THIS metric only — the two angles above are scale-free
     // and are unaffected.
     const int64_t impactUs = phaseTime(phases, Phase::Impact, -1);
+    // THE LOW POINT'S REFUSALS (trust stage 6), each with its code: no ball or no ruler to state it
+    // against (`noBall`), too few arc samples about impact (`fewSamples`), the arc never turning
+    // over inside the window (`edge`), no sweep to give the target direction (`noSweep`). Only with
+    // an Impact on the ladder: without one there is no window to ask about.
+    const auto refuseLowPoint = [&](const char *code, int samples) {
+        gates.fire(PP_GATE("club.lowPoint"), QStringLiteral("lowPointAhead"), GateEffect::Refused,
+                   QVariantMap{ { QStringLiteral("code"), QString::fromLatin1(code) },
+                     { QStringLiteral("samples"), samples },
+                     { QStringLiteral("minSamples"), cfg.lowPointMinSamples },
+                     { QStringLiteral("winMs"), double(cfg.lowPointWinUs) / 1000.0 } });
+    };
+    if (impactUs >= 0 && !(ballValid && mmPerPx > 0.0))
+        refuseLowPoint("noBall", 0);
+    else if (impactUs >= 0 && shaft.synth.empty())
+        refuseLowPoint("fewSamples", 0);
     if (ballValid && mmPerPx > 0.0 && impactUs >= 0 && !shaft.synth.empty()) {
         std::vector<const ShaftSample2D *> win;
         for (const ShaftSample2D &s : shaft.synth)
@@ -233,7 +289,13 @@ ClubDeliveryResult trackClubDelivery(const ShaftTrack2D &shaft, const std::vecto
 
         double  lowX   = 0.0;
         int64_t lowTUs = 0;
-        if (int(win.size()) >= cfg.lowPointMinSamples && arcVertexX(win, lowX, lowTUs)) {
+        const bool enough = int(win.size()) >= cfg.lowPointMinSamples;
+        const bool turned = enough && arcVertexX(win, lowX, lowTUs);
+        if (!enough || (!turned && win.size() < 3))
+            refuseLowPoint("fewSamples", int(win.size()));
+        else if (!turned)
+            refuseLowPoint("edge", int(win.size()));
+        if (turned) {
             // Which image direction the target is. Taken from the CLUBHEAD ITSELF — at impact the
             // head is travelling toward the target, so the sign of its horizontal displacement
             // across the window IS the target direction. Deliberately not taken from pose
@@ -246,11 +308,14 @@ ClubDeliveryResult trackClubDelivery(const ShaftTrack2D &shaft, const std::vecto
                 res.lowPointTUs     = lowTUs;
                 res.lowPointSigmaIn = cfg.lowPointSigmaIn;
                 res.lowPointValid   = true;
+            } else {
+                refuseLowPoint("noSweep", int(win.size()));
             }
         }
     }
 
     res.valid = !res.shaftVsHorizontal.empty() || !res.attackAngle.empty() || res.lowPointValid;
+    res.gates = gates.take();
     return res;
 }
 

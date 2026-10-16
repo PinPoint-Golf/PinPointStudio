@@ -25,6 +25,21 @@
 
 namespace pinpoint::lm {
 
+// A FIELD THE IMPORT DROPPED (trust stage 6, docs/design/trust_stage6_plan.md; Mark 16 Oct 2026:
+// "the import keeps a list of what it dropped, from now on; older swings stay as they are"). A
+// reading leaves an unmeasured or impossible field ABSENT, which is the truth on the board — but
+// absent alone cannot say why. This is the why: kept on the reading, written into the swing's
+// `launchMonitor` block as `dropped[]` (swing_doc.cpp lmRawBlock), and turned into gate records by
+// lm_gates.h on every write of analysis.gates. Numbers and short codes only, never prose.
+struct DroppedField {
+    QString key;                    // the metric key the field would have filled: "lm.faceAngle"
+    QString code;                   // "noData" | "outOfRange" | "noInputs"
+    std::optional<double> raw;      // the cell as the file wrote it (its own unit)
+    std::optional<double> value;    // converted into the catalogue's unit
+    std::optional<double> lo, hi;   // the physical range it was held to (outOfRange), catalogue unit
+    QString unit;                   // the catalogue unit of value / lo / hi ("mph", "°", …)
+};
+
 // One shot as a launch monitor reported it, already converted into the metric
 // catalogue's units. Every field is optional because a device need not report
 // every quantity, and a connector must never invent one it did not receive.
@@ -95,6 +110,11 @@ struct LaunchMonitorReading {
     std::optional<double> peakHeight;       // ft
     std::optional<double> descentAngle;     // °
     std::optional<double> distanceToPin;    // yd
+
+    // ── What the import dropped, and why (see DroppedField) ─────────────────
+    // Filled by the GC Quad CSV parser. Empty for a GSPro reading: that connector applies no
+    // range checks and drops nothing (gspro_reading.cpp), so it has nothing to explain.
+    std::vector<DroppedField> dropped;
 
     // True once any measured field is present. A row that parsed but carried no
     // numbers is not a reading and must not be attributed to a shot.

@@ -46,6 +46,7 @@
 // few hundred ms; never reused across re-analyses (analysis_versions.h).
 
 #include "../Analysis/swing_analysis.h"
+#include "../Analysis/gate_record.h"   // GateRecord (trust stage 6)
 #include <cstdint>
 
 namespace pinpoint { class SwingWindow; }
@@ -57,7 +58,13 @@ public:
     // none) only narrows where the path is fitted; the departure the frames
     // show wins when both exist. Empty / !valid on no frames, an undecodable
     // format, or a clip too short to build a background from.
+    //
+    // `gates` (trust stage 6), when given, receives the path's records on track.impact:
+    // impact.pathTooShort (refused: fewer than kMinPathPoints club frames to fit the arc on) and
+    // impact.headOffsetAssumed (downgraded: the head's offset from the hosel is the generic prior,
+    // fewer than 3 frames showed the head). None for a clip that never decoded.
     static pinpoint::analysis::ImpactTrack2D run(const pinpoint::SwingWindow &window,
                                                  pinpoint::SourceId impactSource,
-                                                 int64_t impactHintUs);
+                                                 int64_t impactHintUs,
+                                                 std::vector<pinpoint::analysis::GateRecord> *gates = nullptr);
 };

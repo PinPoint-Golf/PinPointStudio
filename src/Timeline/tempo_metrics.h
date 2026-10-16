@@ -61,6 +61,7 @@
 #include <vector>
 
 #include "../Analysis/swing_analysis.h" // Segmentation, PhaseEvent, MetricSeries, Phase
+#include "../Analysis/gate_record.h"   // GateRecord, GateLog, PP_GATE (the refusal record)
 #include "../Analysis/analysis_tuning.h" // tuning::apply
 #include "../Core/pp_tuned_constants.h"   // tuned::tempo::
 
@@ -98,6 +99,10 @@ struct TempoResult {
     double  backswingSigmaS = 0.0; // 1σ on backswingS
     double  ratioSigma      = 0.0; // 1σ on ratio (correlated propagation — Top counted once)
     int64_t impactUs     = 0;      // where the summary phase-sample is anchored
+    // WHY IT WAS REFUSED (trust stage 6): one cascade record, subject tempoBackswing, covering
+    // tempoRatio, with a code per reason (confidence / missingEvent / order). Empty when valid or
+    // when tempo is switched off (a switch is not a gate).
+    std::vector<GateRecord> gates;
 };
 
 // Measure tempo from a resolved event ladder. Returns valid=false (and leaves
@@ -112,6 +117,8 @@ TempoResult measureTempo(const Segmentation &seg, const TempoConfig &cfg = {});
 // sample tempoRatio — phase 5.)
 // UNSCORED — these go to detail->series, never the scored local series. Empty
 // when measureTempo refuses.
-std::vector<MetricSeries> buildTempoSeries(const Segmentation &seg, const TempoConfig &cfg = {});
+// `gates`, when given, receives measureTempo's refusal record (empty when it measured).
+std::vector<MetricSeries> buildTempoSeries(const Segmentation &seg, const TempoConfig &cfg = {},
+                                           std::vector<GateRecord> *gates = nullptr);
 
 } // namespace pinpoint::analysis

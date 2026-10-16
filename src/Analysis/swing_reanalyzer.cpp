@@ -321,6 +321,9 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
     // Bindings rebuilt from each IMU stream's device.* calibration — the fallback
     // used when analysis.bindings is absent (analysis-skipped corpus swings).
     std::vector<ImuSegmentBinding> deviceBindings;
+    // The HackMotion lanes the fallback could not bind, and why (hm_binding_recon.h) — recorded
+    // below only when the fallback is the binding that is used.
+    std::vector<hm_binding::Refusal> hmRefusals;
 
     int64_t  tMin   = INT64_MAX, tMax = INT64_MIN;
     SourceId nextId = 0;
@@ -595,6 +598,8 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
                 const auto hb = hm_binding::reconstruct(
                     id, serial,
                     deviceObj[QStringLiteral("calibrationStateAtStart")].toInt(-1));
+                if (hb.refusal != hm_binding::Refusal::None)
+                    hmRefusals.push_back(hb.refusal);
                 switch (hb.refusal) {
                 case hm_binding::Refusal::NoFrameCandidate:
                     ppWarn() << "[Reanalysis]" << swingDir
@@ -812,8 +817,12 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
 
     // No analysis.bindings (analysis-skipped corpus swing) → use the per-stream
     // device.* calibration the exporter baked into each IMU stream.
-    if (job.imuBindings.empty())
+    if (job.imuBindings.empty()) {
         job.imuBindings = std::move(deviceBindings);
+        // A lane refused here is a wrist reading this re-analysis cannot produce: its record
+        // (wrist.hmBinding) joins analysis.gates via reanalyzeSwingDir.
+        out.loadGates = hm_binding::refusalRecords(hmRefusals);
+    }
 
     // Re-fusing on an uncalibrated A/M snapshot yields a confident-looking but
     // unreliable result — flag it, the way swinglab_run used to (don't silently
@@ -978,6 +987,10 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
         out.analysis  = analyzer->analyze(*ls.window, ls.job);
         out.ok        = out.analysis.ok;
         out.error     = out.analysis.error;
+        // The loader's own gate records (a HackMotion lane it could not bind) join the stages'.
+        if (out.analysis.detail && !ls.loadGates.empty())
+            out.analysis.detail->gates.insert(out.analysis.detail->gates.end(),
+                                              ls.loadGates.begin(), ls.loadGates.end());
     } catch (const std::exception& e) {
         out.error = QStringLiteral("analyzer threw: %1").arg(QString::fromUtf8(e.what()));
     } catch (...) {

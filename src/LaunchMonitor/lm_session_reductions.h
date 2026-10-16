@@ -157,6 +157,7 @@ inline std::vector<LmFieldStats> lmSessionStats(const std::vector<LmShotValues> 
         // rule 2, and the sd > 0 half of it is the no-divide guard: every scoped shot
         // reading identically is a legitimate outcome (a monitor quantising to whole
         // rpm), not a reason to divide by zero.
+        // gate rule: PP_GATE("rule.lm.spreadMin")
         st.hasSpread = st.n >= kMinShotsForSpread && st.sd > 0.0;
 
         if (haveLatestShot) {

@@ -17,6 +17,7 @@
  */
 
 #include "metric_catalogue.h"
+#include "gate_catalogue.h"
 
 #include "metric_providers.h"
 #include "metric_resolver.h"
@@ -81,10 +82,22 @@ MetricAvailability MetricCatalogue::resolve(const QString &key, const ShotContex
     return resolveAvailability(m_providers, descriptor(key), key, ctx);
 }
 
+namespace {
+// A gate record's metric subject as the reader names it ("pelvisSway" → "Pelvis sway"): the gate
+// catalogue's labeller (gate_catalogue.h subjectLabeller), installed by the first catalogue built.
+QString gateSubjectLabel(const QString &key)
+{
+    static const MetricCatalogue c = [] { MetricCatalogue x; installMetricManifest(x); return x; }();
+    const MetricDescriptor *d = c.descriptor(key);
+    return d ? d->label : QString();
+}
+} // namespace
+
 MetricCatalogue makeMetricCatalogue()
 {
     MetricCatalogue cat;
     installMetricManifest(cat);
+    gates::subjectLabeller() = &gateSubjectLabel;
 
     // Stateless, process-lifetime provider instances — the catalogue keeps non-owning pointers.
     static const WristMetricProvider     wristProvider;

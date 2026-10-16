@@ -83,11 +83,65 @@ struct GateEntry {
     // may be forecast before a swing (the Setup page's line, trust_and_gates_design.md §7.4); the rest
     // depend on the swing and are said only once they fire. Empty for every gate but the sighted band.
     QStringList             setupBound;
+    // A RULE, not a gate: decided when a screen is read (a session minimum, a statistical test, a
+    // chart's sample-size floor), so it leaves no per-swing record. Catalogued so its explanation and
+    // threshold live in one place and the Gates page lists it; `PP_GATE` still marks its code site,
+    // so the both-ways test ties it to the code. Its `evidenceText` may be empty.
+    bool                    rule = false;
 };
 
 namespace detail {
 
+// The shorthand the per-area catalogue files write their entries with (stage 6): the fields every
+// entry has, positionally; tuning, lifts, codes and the rest are set on the returned entry at once.
+inline GateEntry &add(std::vector<GateEntry> &c, const char *id, const QString &area, const char *title,
+                      const char *shortText, const QString &explain, const char *evidenceText,
+                      std::vector<GateEffect> effects, const char *producer, const char *design)
+{
+    GateEntry e;
+    e.id = QString::fromLatin1(id);
+    e.area = area;
+    e.title = QString::fromUtf8(title);
+    e.shortText = QString::fromUtf8(shortText);
+    e.explain = explain;
+    e.evidenceText = QString::fromUtf8(evidenceText);
+    e.effects = std::move(effects);
+    e.producer = QString::fromLatin1(producer);
+    e.design = QString::fromLatin1(design);
+    e.since = 2;
+    c.push_back(std::move(e));
+    return c.back();
+}
+// A rule (see GateEntry::rule): no effects recorded on a swing, no evidence sentence required.
+inline GateEntry &rule(std::vector<GateEntry> &c, const char *id, const QString &area, const char *title,
+                       const char *shortText, const QString &explain, const char *producer, const char *design)
+{
+    GateEntry &e = add(c, id, area, title, shortText, explain, "", { GateEffect::Withheld }, producer, design);
+    e.rule = true;
+    return e;
+}
+inline GateTuning tune(const char *key, double value, const char *unit)
+{
+    return { QString::fromLatin1(key), value, QString::fromUtf8(unit) };
+}
+
+} // namespace detail
+
+namespace detail {
+
 inline GateTuning sw(const char *key, bool on) { return { QString::fromLatin1(key), on ? 1.0 : 0.0, QStringLiteral("switch") }; }
+
+} // namespace detail
+} // namespace pinpoint::gates
+
+#include "gate_catalogue_body.h"
+#include "gate_catalogue_club.h"
+#include "gate_catalogue_shot.h"
+#include "gate_catalogue_lm.h"
+#include "gate_catalogue_rules.h"
+
+namespace pinpoint::gates {
+namespace detail {
 
 inline std::vector<GateEntry> buildCatalogue()
 {
@@ -236,6 +290,13 @@ inline std::vector<GateEntry> buildCatalogue()
                   {},
                   { QStringLiteral("ks.pelvis:pelvisImu"), QStringLiteral("ks.thorax:thoraxImu") },
                   ksDesign + QStringLiteral(" §5.2, §11"), 1, prod, {} });
+
+    // ── stage 6: every other per-swing gate, and the on-read rules, area by area ──
+    appendBodyGates(c);
+    appendClubGates(c);
+    appendShotGates(c);
+    appendLaunchMonitorGates(c);
+    appendRules(c);
     return c;
 }
 
@@ -272,16 +333,33 @@ inline QString routeWords(const QString &route)
 // ── Subjects ────────────────────────────────────────────────────────────────────────────────
 // A record's subject as the reader names the reading ("ks.pelvis" → "Pelvis peak"). One table, read by
 // the Trust panel, the Charts marks and the diagnostics' "not judged" reasons alike.
+//
+// A METRIC KEY ("pelvisSway") is named by the metric catalogue's label. This header cannot link the
+// catalogue (the producers and tools include it alone), so the catalogue installs a labeller at
+// start-up (metric_catalogue_manifest.cpp); without one a metric subject reads as its key.
+using SubjectLabeller = QString (*)(const QString &metricKey);
+inline SubjectLabeller &subjectLabeller() { static SubjectLabeller f = nullptr; return f; }
+
 inline QString subjectLabel(const QString &subject)
 {
     static const QHash<QString, QString> w{
-        { QStringLiteral("ks.pelvis"),  QStringLiteral("Pelvis peak") },
-        { QStringLiteral("ks.thorax"),  QStringLiteral("Chest peak") },
-        { QStringLiteral("ks.leadArm"), QStringLiteral("Lead arm peak") },
-        { QStringLiteral("ks.club"),    QStringLiteral("Club peak") } };
+        { QStringLiteral("ks.pelvis"),        QStringLiteral("Pelvis peak") },
+        { QStringLiteral("ks.thorax"),        QStringLiteral("Chest peak") },
+        { QStringLiteral("ks.leadArm"),       QStringLiteral("Lead arm peak") },
+        { QStringLiteral("ks.club"),          QStringLiteral("Club peak") },
+        { QStringLiteral("track.club"),       QStringLiteral("Club track") },
+        { QStringLiteral("track.clubDtl"),    QStringLiteral("Down-the-line club track") },
+        { QStringLiteral("track.club3d"),     QStringLiteral("3-D club") },
+        { QStringLiteral("track.impact"),     QStringLiteral("Impact camera track") },
+        { QStringLiteral("track.skeleton3d"), QStringLiteral("3-D skeleton") },
+        { QStringLiteral("shot"),             QStringLiteral("The whole swing") } };
     if (w.contains(subject)) return w.value(subject);
     if (subject.startsWith(QLatin1String("route.")))
         return QStringLiteral("The ") + routeWords(subject.mid(6)) + QStringLiteral(" route");
+    if (SubjectLabeller f = subjectLabeller()) {
+        const QString l = f(subject);
+        if (!l.isEmpty()) return l;
+    }
     return subject;
 }
 
@@ -320,7 +398,8 @@ inline const analysis::GateRecord *primaryRecord(const std::vector<analysis::Gat
     };
     const analysis::GateRecord *best = nullptr;
     for (const analysis::GateRecord &r : recs)
-        if (r.subject == subject && score(r) < 1000 && (!best || score(r) < score(*best))) best = &r;
+        if ((r.subject == subject || r.covers.contains(subject)) && score(r) < 1000 && (!best || score(r) < score(*best)))
+            best = &r;   // a cascade (stage 6) speaks for every reading it covers
     return best;
 }
 
@@ -381,6 +460,9 @@ inline QString formatValue(const QVariant &v, const QString &fmt, const GateEntr
     if (fmt == QLatin1String("deg")) return minusSigned(d, 0, false) + QStringLiteral("°");
     if (fmt == QLatin1String("mph")) return minusSigned(d, 0, false) + nb + QStringLiteral("mph");
     if (fmt == QLatin1String("px"))  return minusSigned(d, 0, false) + nb + QStringLiteral("px");
+    if (fmt == QLatin1String("pct")) return minusSigned(d * 100.0, 0, false) + QStringLiteral("%");   // a fraction 0..1
+    if (fmt == QLatin1String("cm"))  return minusSigned(d, 0, false) + nb + QStringLiteral("cm");
+    if (fmt == QLatin1String("in"))  return minusSigned(d, 1, false) + nb + QStringLiteral("in");
     const bool whole = std::fabs(d - std::round(d)) < 1e-9;
     return minusSigned(d, whole ? 0 : 2, false);
 }
@@ -445,7 +527,9 @@ inline QString liftText(const GateEntry &e, const QString &subject = QString(), 
     if (words.isEmpty()) return {};
     QString list = words.size() == 1 ? words.first()
                  : QStringList(words.mid(0, words.size() - 1)).join(QStringLiteral(", ")) + QStringLiteral(" or ") + words.last();
-    return QStringLiteral("Timed on swings with ") + list + QStringLiteral(".");
+    // the sequence times a peak; every other area measures a reading
+    return (e.area == QLatin1String("Kinematic sequence") ? QStringLiteral("Timed") : QStringLiteral("Measured"))
+           + QStringLiteral(" on swings with ") + list + QStringLiteral(".");
 }
 
 // Several subjects at once ("pelvis peak and chest peak … timed on swings with the down-the-line camera, a
@@ -465,7 +549,9 @@ inline QString liftTextAll(const GateEntry &e, const QStringList &subjects, cons
     if (words.isEmpty()) return {};
     QString list = words.size() == 1 ? words.first()
                  : QStringList(words.mid(0, words.size() - 1)).join(QStringLiteral(", ")) + QStringLiteral(" or ") + words.last();
-    return QStringLiteral("Timed on swings with ") + list + QStringLiteral(".");
+    // the sequence times a peak; every other area measures a reading
+    return (e.area == QLatin1String("Kinematic sequence") ? QStringLiteral("Timed") : QStringLiteral("Measured"))
+           + QStringLiteral(" on swings with ") + list + QStringLiteral(".");
 }
 
 // Does `route` lift this gate for `subject` (a lift with no subject lifts it for every subject)?

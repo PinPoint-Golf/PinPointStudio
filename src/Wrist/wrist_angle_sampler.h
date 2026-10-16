@@ -20,8 +20,13 @@
 
 #include "wrist_assessment_contract.h"
 #include "../Core/pp_tuned_constants.h"
+#include "../Analysis/gate_record.h"   // GateRecord, GateLog, PP_GATE (cellGates)
+
+#include <QString>
 
 #include <algorithm>
+#include <array>
+#include <climits>
 #include <cmath>
 #include <vector>
 
@@ -121,6 +126,62 @@ struct WristAngleSampler {
             }
         }
         return set;
+    }
+
+    // THE CELLS IT REFUSED, AS RECORDS (trust stage 6). One masked summary per wrist reading: of
+    // the P1–P8 cells it could have filled (a series and a timeline entry both present), how many
+    // it left empty because the window held too few samples or the wrist sat near the gimbal
+    // singularity. Cells with no series or no P-instant are not counted: nothing was refused there.
+    // `subjects[dof]` is the metric key that reading came from (empty ⇒ no record for that DOF);
+    // `impactUs` in the timeline's own domain (< 0 ⇒ no instants in the evidence). Same decisions as
+    // sample() — the two loops must stay in step.
+    static std::vector<GateRecord> cellGates(const IWristAngleSource &source,
+                                             const std::array<QString, kNumDof> &subjects,
+                                             int64_t impactUs,
+                                             const PpWristSamplingConfig &cfg = {})
+    {
+        GateLog log;
+        const PpSwingPositionTimeline timeline = source.timeline();
+        for (int d = 0; d < kNumDof; ++d) {
+            if (subjects[size_t(d)].isEmpty()) continue;
+            const PpJointAngleSeries *series = source.series(static_cast<PpJointDof>(d));
+            if (series == nullptr || !series->present) continue;
+            int ofCells = 0, tooFew = 0, gimbal = 0;
+            int64_t first = INT64_MAX, last = INT64_MIN;
+            for (int p = 0; p < kNumPos; ++p) {
+                const PpSwingPositionTimeline::Entry &entry = timeline.at(static_cast<PpSwingPosition>(p));
+                if (!entry.present) continue;
+                ++ofCells;
+                std::vector<double> pitch;
+                for (const PpJointAngleSample &s : series->samples) {
+                    if (!s.available) continue;
+                    if (std::llabs(s.t_us - entry.t_us) > cfg.windowHalfUs) continue;
+                    pitch.push_back(s.pitchProxyDeg);
+                }
+                bool refused = false;
+                if (static_cast<int>(pitch.size()) < cfg.minValidSamples) { ++tooFew; refused = true; }
+                else if (detail::medianOf(pitch) >= cfg.gimbalThresholdDeg) { ++gimbal; refused = true; }
+                if (refused) {
+                    first = std::min(first, entry.t_us);
+                    last = std::max(last, entry.t_us);
+                }
+            }
+            const int cells = tooFew + gimbal;
+            if (cells == 0 || ofCells == 0) continue;
+            QVariantMap ev{ { QStringLiteral("cells"), cells },
+                            { QStringLiteral("ofCells"), ofCells },
+                            { QStringLiteral("frac"), double(cells) / double(ofCells) },
+                            { QStringLiteral("tooFew"), tooFew },
+                            { QStringLiteral("gimbal"), gimbal },
+                            { QStringLiteral("minSamples"), cfg.minValidSamples },
+                            { QStringLiteral("gimbalDeg"), cfg.gimbalThresholdDeg } };
+            if (impactUs >= 0) {
+                ev.insert(QStringLiteral("fromMs"), double(first - impactUs) / 1000.0);
+                ev.insert(QStringLiteral("toMs"), double(last - impactUs) / 1000.0);
+            }
+            log.fire(PP_GATE("wrist.cellRefused"), subjects[size_t(d)], GateEffect::Masked, ev);
+        }
+        return log.take();
     }
 };
 

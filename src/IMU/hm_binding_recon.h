@@ -19,9 +19,12 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
 #include <optional>
+#include <vector>
 
 #include "../Analysis/swing_analysis.h" // ImuSegmentBinding, SegmentRole, SourceId
+#include "../Analysis/gate_record.h"    // GateRecord, GateLog, PP_GATE (refusalRecords)
 #include "hm_frame.h"             // the frame constant — a wG3 binding needs no calibration
 #include "hm_unit_id.h"           // "<deviceId>#lowerArm" / "#palm" -> which segment
 
@@ -120,6 +123,35 @@ inline Result reconstruct(SourceId source,
 
     r.binding = b;
     return r;
+}
+
+// THE REFUSALS AS RECORDS (trust stage 6). The binding is decided when the document is loaded for
+// re-analysis, so swing_reanalyzer collects each lane's refusal and hands them here; the records
+// join analysis.gates beside the stages' own. ONE RECORD PER REASON (a cascade): the lanes refused
+// for the same reason are counted (`lanes`), never recorded twice. The hand-relative angles need
+// both units, so any refused lane takes them down; with no frame candidate no lane binds at all, so
+// the forearm rotation goes too. A serial that names no unit cannot say which lane it was, so it
+// claims only the two angles that need both.
+inline std::vector<GateRecord> refusalRecords(const std::vector<Refusal> &refusals)
+{
+    int noFrame = 0, noUnit = 0;
+    for (const Refusal r : refusals) {
+        if (r == Refusal::NoFrameCandidate) ++noFrame;
+        else if (r == Refusal::SerialNamesNoUnit) ++noUnit;
+    }
+    GateLog log;
+    const QString subject = QStringLiteral("hm.leadWristFlexExt");
+    if (noFrame > 0)
+        log.fireCovering(PP_GATE("wrist.hmBinding"), subject, GateEffect::Refused,
+                         { QStringLiteral("hm.leadWristRadUln"), QStringLiteral("hm.forearmRotation") },
+                         { { QStringLiteral("code"), QStringLiteral("noFrame") },
+                           { QStringLiteral("lanes"), noFrame } });
+    if (noUnit > 0)
+        log.fireCovering(PP_GATE("wrist.hmBinding"), subject, GateEffect::Refused,
+                         { QStringLiteral("hm.leadWristRadUln") },
+                         { { QStringLiteral("code"), QStringLiteral("noUnit") },
+                           { QStringLiteral("lanes"), noUnit } });
+    return log.take();
 }
 
 } // namespace pinpoint::analysis::hm_binding

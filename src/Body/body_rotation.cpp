@@ -118,10 +118,11 @@ void fillFromImu(RotationChannel &out, const SegmentStream &seg, const std::vect
 // read only if the nearest usable frame sits within cfg.triAddrMaxGapUs of it. Its σ is the median
 // frame σ over √n, × 1.2533 for a median. Returns false when there is no honest reference.
 bool triReference(const std::vector<int64_t> &t, const std::vector<double> &b, const std::vector<double> &s,
-                  int64_t addressUs, const BodyRotationConfig &cfg, double &ref, double &refSigma)
+                  int64_t addressUs, const BodyRotationConfig &cfg, double &ref, double &refSigma,
+                  int64_t &nearest)
 {
     std::vector<size_t> idx;
-    int64_t nearest = std::numeric_limits<int64_t>::max();
+    nearest = std::numeric_limits<int64_t>::max();
     for (size_t i = 0; i < t.size(); ++i) {
         if (!std::isfinite(b[i])) continue;
         const int64_t d = std::llabs(t[i] - addressUs);
@@ -139,12 +140,26 @@ bool triReference(const std::vector<int64_t> &t, const std::vector<double> &b, c
 
 // One segment's triangulated turn: |Δ| into `mag`, leadSign·Δ into `sgn` (when given), each with its
 // per-sample σ. Frames with no usable bearing are skipped; the series builder masks the gaps.
+// On a refusal `why` gets the body.rotation code and its evidence (trust stage 6).
 bool fillTriangulated(RotationChannel &mag, RotationChannel *sgn, const TriangulatedTurnInput &in,
                       const std::vector<double> &b, const std::vector<double> &s, int64_t addressUs,
-                      double leadSign, const BodyRotationConfig &cfg)
+                      double leadSign, const BodyRotationConfig &cfg, QVariantMap &why)
 {
     double ref = 0.0, refSigma = 0.0;
-    if (!triReference(in.t_us, b, s, addressUs, cfg, ref, refSigma)) return false;
+    int64_t nearest = std::numeric_limits<int64_t>::max();
+    if (!triReference(in.t_us, b, s, addressUs, cfg, ref, refSigma, nearest)) {
+        if (nearest == std::numeric_limits<int64_t>::max())
+            why = QVariantMap{ { QStringLiteral("code"), QStringLiteral("noFrames") } };
+        else if (nearest > cfg.triAddrMaxGapUs)
+            // THE gate the census names: the reference must be read within triAddrMaxGapUs of Address.
+            why = QVariantMap{ { QStringLiteral("code"), QStringLiteral("addressGap") },
+                    { QStringLiteral("nearestMs"), double(nearest) / 1000.0 },
+                    { QStringLiteral("maxGapMs"), double(cfg.triAddrMaxGapUs) / 1000.0 } };
+        else
+            why = QVariantMap{ { QStringLiteral("code"), QStringLiteral("addressWindow") },
+                    { QStringLiteral("windowMs"), double(cfg.addrWindowUs) / 1000.0 } };
+        return false;
+    }
     const double frac = in.camerasCalibrated ? tuned::bodyRotation::kTriScaleFracCalibrated : cfg.triScaleFrac;
     std::vector<double> sig;
     for (size_t i = 0; i < in.t_us.size(); ++i) {
@@ -156,11 +171,32 @@ bool fillTriangulated(RotationChannel &mag, RotationChannel *sgn, const Triangul
         if (sgn) { sgn->turn.push(in.t_us[i], leadSign * d * kRadToDeg); sgn->sigmaPerSample.push_back(sd); }
         sig.push_back(sd);
     }
-    if (mag.turn.empty()) return false;
+    if (mag.turn.empty()) {
+        why = QVariantMap{ { QStringLiteral("code"), QStringLiteral("noFrames") } };
+        return false;
+    }
     mag.tier     = RotationTier::Triangulated;
     mag.sigmaDeg = medianOfCopy(sig);
     if (sgn) { sgn->tier = RotationTier::Triangulated; sgn->sigmaDeg = mag.sigmaDeg; }
     return true;
+}
+
+// The readings a trunk segment's refusal takes down with it (trust stage 6: one cascade record).
+// The separation needs both halves, so the first refused segment's record carries it.
+QStringList rotationCovers(bool pelvis, bool separationStillOpen)
+{
+    QStringList c;
+    if (pelvis) c << QStringLiteral("pelvisRotationSigned");
+    if (separationStillOpen) c << QStringLiteral("xFactor") << QStringLiteral("xFactorStretch");
+    return c;
+}
+
+// The stretch is measured FROM THE TOP: both halves present and no segmented Top is a refusal.
+void recordStretchWithoutTop(BodyRotationResult &res, bool topFound)
+{
+    if (!res.xFactor.empty() && !topFound)
+        res.gates.push_back(GateRecord{ PP_GATE("body.xFactorStretchTop"), QStringLiteral("xFactorStretch"),
+                                        GateEffect::Refused, {}, {}, {}, {} });
 }
 
 } // namespace
@@ -173,8 +209,21 @@ BodyRotationResult trackBodyRotationTriangulated(const TriangulatedTurnInput &in
     BodyRotationResult res;
     const size_t n = in.t_us.size();
     if (!cfg.triangulated || n < 2 || in.pelvisBearing.size() != n || in.thoraxBearing.size() != n
-        || in.pelvisSigma.size() != n || in.thoraxSigma.size() != n)
+        || in.pelvisSigma.size() != n || in.thoraxSigma.size() != n) {
+        // The two-camera fit handed over too little to read a bearing from (the switch itself is
+        // checked by the stage before it runs, so `routeOff` here is a direct caller's).
+        const QVariantMap ev{ { QStringLiteral("code"), cfg.triangulated ? QStringLiteral("input") : QStringLiteral("routeOff") },
+                              { QStringLiteral("frames"), int(n) } };
+        GateLog gates;
+        if (wantPelvis)
+            gates.fireCovering(PP_GATE("body.rotation"), QStringLiteral("pelvisRotation"), GateEffect::Refused,
+                               rotationCovers(true, true), ev);
+        if (wantThorax)
+            gates.fireCovering(PP_GATE("body.rotation"), QStringLiteral("thoraxRotation"), GateEffect::Refused,
+                               rotationCovers(false, !wantPelvis), ev);
+        res.gates = gates.take();
         return res;
+    }
     res.grid = in.t_us;
     const int64_t addressUs = phaseTime(phases, Phase::Address, in.t_us.front());
     // LEAD-RELATIVE (sign conventions doc): the bearing of left → right turns one way for a golfer
@@ -183,10 +232,25 @@ BodyRotationResult trackBodyRotationTriangulated(const TriangulatedTurnInput &in
     // negative at the top, positive after impact); no left-handed capture exists to check the mirror.
     const double leadSign = leadIsLeft ? 1.0 : -1.0;
 
-    if (wantPelvis)
-        fillTriangulated(res.pelvis, &res.pelvisSigned, in, in.pelvisBearing, in.pelvisSigma, addressUs, leadSign, cfg);
-    if (wantThorax)
-        fillTriangulated(res.thorax, nullptr, in, in.thoraxBearing, in.thoraxSigma, addressUs, leadSign, cfg);
+    GateLog gates;
+    bool pelvisRefused = false;
+    if (wantPelvis) {
+        QVariantMap why;
+        if (!fillTriangulated(res.pelvis, &res.pelvisSigned, in, in.pelvisBearing, in.pelvisSigma, addressUs,
+                              leadSign, cfg, why)) {
+            pelvisRefused = true;
+            gates.fireCovering(PP_GATE("body.rotation"), QStringLiteral("pelvisRotation"), GateEffect::Refused,
+                               rotationCovers(true, true), why);
+        }
+    }
+    if (wantThorax) {
+        QVariantMap why;
+        if (!fillTriangulated(res.thorax, nullptr, in, in.thoraxBearing, in.thoraxSigma, addressUs, leadSign,
+                              cfg, why))
+            gates.fireCovering(PP_GATE("body.rotation"), QStringLiteral("thoraxRotation"), GateEffect::Refused,
+                               rotationCovers(false, !pelvisRefused), why);
+    }
+    res.gates = gates.take();
 
     // A gap is three frame periods with no usable bearing (the series builder masks it).
     {
@@ -209,6 +273,7 @@ BodyRotationResult trackBodyRotationTriangulated(const TriangulatedTurnInput &in
             for (size_t i = 0; i < res.xFactor.t_us.size(); ++i)
                 res.xFactorStretch.push(res.xFactor.t_us[i], res.xFactor.value[i] - atTop);
         }
+        recordStretchWithoutTop(res, topUs >= 0);
     }
     res.valid = !res.pelvis.turn.empty() || !res.thorax.turn.empty();
     return res;
@@ -271,10 +336,35 @@ BodyRotationResult trackBodyRotation(const PoseTrack2D &pose, const FusedStreams
             for (size_t i = 0; i < res.xFactor.t_us.size(); ++i)
                 res.xFactorStretch.push(res.xFactor.t_us[i], res.xFactor.value[i] - atTop);
         }
+        recordStretchWithoutTop(res, topUs >= 0);
     }
 
     res.valid = !res.pelvis.turn.empty() || !res.thorax.turn.empty();
     return res;
+}
+
+std::vector<GateRecord> bodyRotationGates(const BodyRotationResult &res, const FusedStreams &streams,
+                                          bool dtlCamera, bool triangulatedOn)
+{
+    GateLog gates;
+    gates.append(res.gates);
+    // The two-camera route fills what the IMU left empty; only where it cannot is this final.
+    if (dtlCamera && triangulatedOn)
+        return gates.take();
+    const QString code = !dtlCamera ? QStringLiteral("noSensor") : QStringLiteral("routeOff");
+    const auto evFor = [&](SegmentRole role) {
+        // A bound stream that produced nothing (its samples off the swing's time grid) says so.
+        return QVariantMap{ { QStringLiteral("code"),
+                              streams.streamFor(role) ? QStringLiteral("sensorUnusable") : code } };
+    };
+    const bool pelvisRefused = res.pelvis.turn.empty();
+    if (pelvisRefused)
+        gates.fireCovering(PP_GATE("body.rotation"), QStringLiteral("pelvisRotation"), GateEffect::Refused,
+                           rotationCovers(true, true), evFor(SegmentRole::Pelvis));
+    if (res.thorax.turn.empty())
+        gates.fireCovering(PP_GATE("body.rotation"), QStringLiteral("thoraxRotation"), GateEffect::Refused,
+                           rotationCovers(false, !pelvisRefused), evFor(SegmentRole::Thorax));
+    return gates.take();
 }
 
 std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,

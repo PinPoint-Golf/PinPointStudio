@@ -1784,6 +1784,7 @@ QVariantMap kindsMap(Ctx &x, const Cache::Family *fam, bool nested)
         const QString cA = major(ca), cB = major(cb);
         const int grouped = int(k.groupA.size() + k.groupB.size());
         const int agree = ca.value(cA) + cb.value(cB);
+        // gate rule: PP_GATE("rule.charts.kindsAsClubs")
         if (!cA.isEmpty() && !cB.isEmpty() && cA != cB && grouped > 0 && agree >= kClubAgreement * grouped)
             m = clubKinds(x, *clubs, cA, cB, agree, grouped);
     }

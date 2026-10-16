@@ -265,6 +265,7 @@ inline void runStagesParallel(const SessionProfile &profile, const StageGraph &g
     std::vector<int> pending(static_cast<size_t>(n));
     for (int i = 0; i < n; ++i) pending[size_t(i)] = int(g.preds[size_t(i)].size());
     std::vector<std::vector<MetricSeries>> buf(static_cast<size_t>(n));
+    std::vector<std::vector<GateRecord>> gbuf(static_cast<size_t>(n));   // every stage's gate records
     std::vector<StageTraceEntry> trace(static_cast<size_t>(n));
     std::set<pinpoint::SourceId> busy;
     size_t cursor = 0;
@@ -337,6 +338,7 @@ inline void runStagesParallel(const SessionProfile &profile, const StageGraph &g
                     e.skipReason = stage.skipReason(ctx);
                 } else {
                     tl_seriesSink = g.seriesBuffered[size_t(i)] ? &buf[size_t(i)] : nullptr;
+                    tl_gatesSink = &gbuf[size_t(i)];
                     QElapsedTimer t;
                     t.start();
                     stage.run(ctx);
@@ -347,6 +349,7 @@ inline void runStagesParallel(const SessionProfile &profile, const StageGraph &g
                 thrown = std::current_exception();
             }
             tl_seriesSink = nullptr;
+            tl_gatesSink = nullptr;
             e.endNs = clock.nsecsElapsed();
 
             lk.lock();
@@ -385,6 +388,10 @@ inline void runStagesParallel(const SessionProfile &profile, const StageGraph &g
 
     ctx.trace.insert(ctx.trace.end(), std::make_move_iterator(trace.begin()),
                      std::make_move_iterator(trace.end()));
+    // the gate records, in authored stage order (what the sequential loop writes)
+    for (std::vector<GateRecord> &b : gbuf)
+        ctx.detail->gates.insert(ctx.detail->gates.end(), std::make_move_iterator(b.begin()),
+                                 std::make_move_iterator(b.end()));
     if (err) std::rethrow_exception(err);
 }
 

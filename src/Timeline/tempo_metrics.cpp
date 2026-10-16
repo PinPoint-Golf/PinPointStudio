@@ -36,6 +36,16 @@ double eventSigmaS(float conf, const TempoConfig &cfg)
     return cfg.baseSigmaS * (1.0 + (1.0 - c) * cfg.confInflate);
 }
 
+// The refusal's record: one cascade (the two readings fall together), times in ms from impact.
+void refuse(TempoResult &r, const char *code, QVariantMap ev)
+{
+    ev.insert(QStringLiteral("code"), QString::fromLatin1(code));
+    GateLog log;
+    log.fireCovering(PP_GATE("tempo.refused"), QStringLiteral("tempoBackswing"), GateEffect::Refused,
+                     { QStringLiteral("tempoRatio") }, ev);
+    r.gates = log.take();
+}
+
 } // namespace
 
 TempoResult measureTempo(const Segmentation &seg, const TempoConfig &cfg)
@@ -47,20 +57,31 @@ TempoResult measureTempo(const Segmentation &seg, const TempoConfig &cfg)
     // conf == 0 is the segmenter's own "bounds are just the window" signal — on
     // the IMU clampFallback path that means Address is the window edge and there
     // is no Top. Refuse the whole ladder rather than trust part of it.
-    if (double(seg.conf) <= cfg.minConf)
+    if (double(seg.conf) <= cfg.minConf) {
+        refuse(r, "confidence", { { QStringLiteral("conf"), double(seg.conf) },
+                                  { QStringLiteral("minConf"), cfg.minConf } });
         return r;
+    }
 
     const PhaseEvent *addr = seg.eventFor(Phase::Address);
     const PhaseEvent *top  = seg.eventFor(Phase::Top);
     const PhaseEvent *imp  = seg.eventFor(Phase::Impact);
-    if (!addr || !top || !imp)
+    if (!addr || !top || !imp) {
+        // Which event is missing, as a short code: the first of the three, in swing order.
+        const char *missing = !addr ? "address" : !top ? "top" : "impact";
+        refuse(r, "missingEvent", { { QStringLiteral("event"), QString::fromLatin1(missing) } });
         return r;
+    }
 
     const double B = double(top->t_us - addr->t_us) / 1e6;   // backswing, s
     const double D = double(imp->t_us - top->t_us)  / 1e6;   // downswing, s
-    if (B <= 0.0 || D <= 0.0)
-        return r;   // non-monotone ladder — refuse (the segmenter's monotone pass
-                    // can drop events, so this is reachable, not defensive noise)
+    if (B <= 0.0 || D <= 0.0) {
+        // non-monotone ladder — refuse (the segmenter's monotone pass can drop events, so this
+        // is reachable, not defensive noise). Instants in ms from impact, + after.
+        refuse(r, "order", { { QStringLiteral("addressMs"), double(addr->t_us - imp->t_us) / 1000.0 },
+                             { QStringLiteral("topMs"),     double(top->t_us - imp->t_us) / 1000.0 } });
+        return r;
+    }
 
     const double sA = eventSigmaS(addr->conf, cfg);
     const double sT = eventSigmaS(top->conf,  cfg);
@@ -88,10 +109,13 @@ TempoResult measureTempo(const Segmentation &seg, const TempoConfig &cfg)
     return r;
 }
 
-std::vector<MetricSeries> buildTempoSeries(const Segmentation &seg, const TempoConfig &cfg)
+std::vector<MetricSeries> buildTempoSeries(const Segmentation &seg, const TempoConfig &cfg,
+                                           std::vector<GateRecord> *gates)
 {
     std::vector<MetricSeries> out;
-    const TempoResult t = measureTempo(seg, cfg);
+    TempoResult t = measureTempo(seg, cfg);
+    if (gates)
+        gates->insert(gates->end(), t.gates.begin(), t.gates.end());
     if (!t.valid)
         return out;
 

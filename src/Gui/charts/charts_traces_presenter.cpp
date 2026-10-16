@@ -2370,6 +2370,7 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
             stand.append(c.labelOf(r.key) + QStringLiteral(" peaks at ")).figure(W::figUnit(a, unit))
                 .append(QStringLiteral(" on median ") + (half ? QStringLiteral("in the first group, ") : QStringLiteral("in the first, ")))
                 .figure(W::figUnit(b, unit)).append(QStringLiteral(" in the other."));
+            // gate rule: PP_GATE("rule.charts.leadToWatch")
             if (std::min(groups[0].ords.size(), groups[1].ords.size()) < 5)
                 stand.append(QStringLiteral(" One group has fewer than five shots: a lead to watch, not a finding."));
         }

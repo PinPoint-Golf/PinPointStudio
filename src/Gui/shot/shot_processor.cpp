@@ -37,6 +37,7 @@
 #include "../Analysis/uncertainty_json.h"
 #include "../IMU/imu_refusion_check.h"
 #include "../Analysis/capture_integrity_check.h"
+#include "../Analysis/manifest_gates.h"   // the integrity blocks → the live map's gates (shot.*)
 #include "../IMU/imu_vision_fuser.h"
 #include "../Timeline/phase_segmenter.h"
 #include "../Analysis/swing_analysis.h"
@@ -2341,9 +2342,21 @@ void ShotProcessor::onSwingDocWritten()
     //
     // Publish the analyzed detail of the shot about to replay (the ScreenWrist in-replay
     // graph binds to it) before addShot, so it's ready when REPLAYING begins.
-    m_replayAnalysisDetail.set((analysisOk && m_analysisResult.detail)
-                                   ? toAnalysisDetail(*m_analysisResult.detail)
-                                   : QVariantMap{});
+    {
+        QVariantMap liveDetail = (analysisOk && m_analysisResult.detail)
+                                     ? toAnalysisDetail(*m_analysisResult.detail)
+                                     : QVariantMap{};
+        // The whole-shot records (manifest_gates.h), derived from the integrity blocks the worker
+        // just put in the manifest — the same rule writeSwingJson applies to the document, so the
+        // live map and the reload carry the same analysis.gates.
+        if (liveDetail.contains(QStringLiteral("gatesVersion"))) {
+            QVariantList g = liveDetail.value(QStringLiteral("gates")).toList();
+            g.append(pinpoint::analysis::gateRecordsToJson(
+                         pinpoint::analysis::manifestGatesOf(res.manifest)).toVariantList());
+            liveDetail.insert(QStringLiteral("gates"), g);
+        }
+        m_replayAnalysisDetail.set(std::move(liveDetail));
+    }
     const qint64 tDetail = phase.elapsed();
     emit replayAnalysisDetailChanged();
     const qint64 tEmit = phase.elapsed();

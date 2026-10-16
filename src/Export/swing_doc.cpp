@@ -35,7 +35,9 @@
 #include "swing_store.h"
 #include "../IMU/imu_refusion_check.h"
 #include "../Analysis/capture_integrity_check.h"
+#include "../Analysis/manifest_gates.h"            // the integrity blocks → analysis.gates (shot.*)
 #include "../LaunchMonitor/lm_inferred_reads.h"
+#include "../LaunchMonitor/lm_gates.h"              // the import's dropped fields → analysis.gates
 #include "../Analysis/swing_analysis.h"
 #include "../Kinematics/kinematic_sequence_json.h" // kinematicSequenceToJson — one shape, three paths
 #include "../Analysis/uncertainty_json.h"         // σ fields — one spelling, four paths
@@ -74,7 +76,7 @@ void applyImuIntegrity(QJsonObject &manifest, const ImuRefusionVerdict *v)
 
 QJsonObject captureIntegrityJson(const CaptureIntegrityVerdict &v)
 {
-    return QJsonObject{
+    QJsonObject o{
         { QStringLiteral("ok"),             v.ok },
         { QStringLiteral("camerasChecked"), v.camerasChecked },
         { QStringLiteral("holes"),          v.holes },
@@ -84,6 +86,11 @@ QJsonObject captureIntegrityJson(const CaptureIntegrityVerdict &v)
         { QStringLiteral("preImpact"),      v.preImpact },
         { QStringLiteral("postImpact"),     v.postImpact },
         { QStringLiteral("holePeriods"),    v.holePeriods } };
+    // The first hole in ms from impact (+ after): only when there is a hole and impact was known.
+    // Additive (trust stage 6) — the shot.captureHoles record quotes it (manifest_gates.h).
+    if (std::isfinite(v.firstHoleMs))
+        o.insert(QStringLiteral("firstHoleMs"), v.firstHoleMs);
+    return o;
 }
 
 void applyCaptureIntegrity(QJsonObject &manifest, const CaptureIntegrityVerdict *v)
@@ -821,6 +828,10 @@ QJsonObject lmRawBlock(const lm::LaunchMonitorReading &reading)
     for (const lm::FieldDef &f : lm::fieldDefs())
         if (const auto &v = reading.*(f.member))
             raw.insert(QString::fromLatin1(f.rawName), *v);
+    // What the import dropped and why (trust stage 6; lm_gates.h turns it into analysis.gates on
+    // every write). Written even when empty, so "nothing was dropped" reads apart from a block
+    // imported before the list was kept (no key: those swings stay unexplained).
+    raw.insert(QStringLiteral("dropped"), lm::droppedFieldsToJson(reading.dropped));
     return raw;
 }
 
@@ -1391,6 +1402,16 @@ bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &
         if (analysis->versions.shaftDtl > 0 && !analysis->shaftDtl.streamSerial.isEmpty())
             analysis::dtlStreamName(rawManifest, analysis->shaftDtl.streamSerial, &dtlAlias, &dtlFile);
         QJsonObject an = serializeAnalysis(*analysis, t0, dtlAlias, dtlFile);
+        // THE WHOLE-SHOT RECORDS (manifest_gates.h; trust stage 6): re-derived on every write from
+        // this manifest's captureIntegrity / imuIntegrity blocks, which both write paths (the live
+        // join, the re-analysis write-back) set fresh before calling here. serializeAnalysis rebuilt
+        // analysis.gates from the stages alone, so appending cannot accumulate.
+        if (an.contains(QStringLiteral("gatesVersion"))) {
+            QJsonArray g = an.value(QStringLiteral("gates")).toArray();
+            for (const QJsonValue &v : analysis::gateRecordsToJson(analysis::manifestGatesOf(rawManifest)))
+                g.append(v);
+            an[QStringLiteral("gates")] = g;
+        }
         if (!savePose) {
             // The user chose not to keep pose keypoints (Storage → Save pose keypoints). The
             // stamps go with the tracks: a stamp promising a pose that is not there would send a
@@ -1442,6 +1463,10 @@ bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &
             }
             an[QStringLiteral("metrics")] = metrics;
         }
+        // …AND ITS GATE RECORDS, which are not carried but re-derived: serializeAnalysis rebuilt
+        // analysis.gates from the stages alone, and the launch monitor's records come from the drop
+        // list its `launchMonitor` block stores (lm_gates.h; trust stage 6). No block, no records.
+        lm::applyLmGates(an, rawManifest.value(QStringLiteral("launchMonitor")).toObject());
         root[QStringLiteral("analysis")] = an;
     }
 
@@ -1688,6 +1713,9 @@ bool SwingDocWriter::updateLaunchMonitor(const QString &swingDir,
             metrics.append(v);
 
         an[QStringLiteral("metrics")] = metrics;
+        // The fields this reading dropped, as gate records (lm_gates.h): any from an earlier
+        // pairing replaced, never accumulated, exactly as the lm. rows above.
+        lm::applyLmGates(an, root[QStringLiteral("launchMonitor")].toObject());
         root[QStringLiteral("analysis")] = an;
     }
 
@@ -1790,6 +1818,11 @@ bool SwingDocWriter::writeDeviceOnlySwing(const QString &swingDir,
         { QStringLiteral("conf"),    1.0 },
         { QStringLiteral("segment"), int(analysis::SegmentRole::Unknown) },
     } };
+    // Gate records: the only gates a device-only shot has are the fields its import dropped
+    // (lm_gates.h). Stamped like every analysis (trust stage 6, kGatesVersion), so an empty array
+    // reads "nothing was dropped" — no camera reading exists here for it to vouch for.
+    an[QStringLiteral("gatesVersion")] = analysis::kGatesVersion;
+    lm::applyLmGates(an, root[QStringLiteral("launchMonitor")].toObject());
     root[QStringLiteral("analysis")] = an;
 
     if (!QDir().mkpath(swingDir)) {

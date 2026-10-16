@@ -125,6 +125,25 @@ bool isNoDataMarker(double raw)
     return std::abs(std::abs(raw) - kNoData) < 1.0;
 }
 
+// The metric key a reading member fills ("lm.faceAngle"), for the drop list. Empty for a
+// member no FieldDef names (none today; the catalogue cross-check guards the table).
+QString fieldKeyFor(std::optional<double> LaunchMonitorReading::*member)
+{
+    for (const FieldDef &f : fieldDefs())
+        if (f.member == member)
+            return QString::fromLatin1(f.key);
+    return {};
+}
+
+// The catalogue unit as a reader sees it in a drop's evidence ("deg" → "°").
+QString unitWord(const char *u)
+{
+    const QString s = QString::fromLatin1(u);
+    if (s == QLatin1String("deg"))   return QStringLiteral("°");
+    if (s == QLatin1String("deg/s")) return QStringLiteral("°/s");
+    return s;
+}
+
 // Multiplier taking `unit` into the family's base unit (m/s, m, deg, deg/s, rpm).
 // Returns 0 for a unit we do not know, which the caller reads as "fall back".
 double toBaseFactor(Dim dim, const QString &u)
@@ -309,6 +328,12 @@ std::optional<LaunchMonitorReading> parseLastShotCsv(const QByteArray &bytes, QS
     bool faceAngleUnmeasured = false;
     bool clubPathUnmeasured  = false;
 
+    // What was dropped and why (DroppedField; trust stage 6). Collected per column, then
+    // reconciled per field after the loop: two alias columns feed one member, and a field another
+    // column did fill was not dropped.
+    struct PendingDrop { std::optional<double> LaunchMonitorReading::*member; DroppedField d; };
+    std::vector<PendingDrop> pendingDrops;
+
     for (auto it = boundColumns.cbegin(); it != boundColumns.cend(); ++it) {
         const int idx = it.key();
         if (idx >= cells.size())
@@ -330,6 +355,23 @@ std::optional<LaunchMonitorReading> parseLastShotCsv(const QByteArray &bytes, QS
         if (isNoDataMarker(raw) || !std::isfinite(v) || v < d->lo || v > d->hi) {
             if (d->member == &LaunchMonitorReading::faceAngle) faceAngleUnmeasured = true;
             if (d->member == &LaunchMonitorReading::clubPath)  clubPathUnmeasured  = true;
+            // Recorded only — the decision above is unchanged. The marker arriving unit-converted
+            // (7500086 m/s is 16777215 mph) is still the device's "no data", so it is named as such.
+            DroppedField drop;
+            drop.key  = fieldKeyFor(d->member);
+            drop.raw  = raw;
+            drop.unit = unitWord(d->targetUnit);
+            if (std::isfinite(v))
+                drop.value = v;
+            if (isNoDataMarker(raw) || (std::isfinite(v) && isNoDataMarker(v))) {
+                drop.code = QStringLiteral("noData");
+            } else {
+                drop.code = QStringLiteral("outOfRange");
+                drop.lo = d->lo;
+                drop.hi = d->hi;
+            }
+            if (!drop.key.isEmpty())
+                pendingDrops.push_back(PendingDrop{ d->member, std::move(drop) });
             continue;
         }
         r.*(d->member) = v;
@@ -341,8 +383,26 @@ std::optional<LaunchMonitorReading> parseLastShotCsv(const QByteArray &bytes, QS
     // does not look unmeasured, and a face square to the path is precisely what a
     // golfer would read it as. Drop it only when we positively saw BOTH ingredients
     // marked unmeasured; a file that simply omits those columns keeps its value.
-    if (r.faceToPath && faceAngleUnmeasured && clubPathUnmeasured)
+    if (r.faceToPath && faceAngleUnmeasured && clubPathUnmeasured) {
+        DroppedField drop;
+        drop.key   = fieldKeyFor(&LaunchMonitorReading::faceToPath);
+        drop.code  = QStringLiteral("noInputs");
+        drop.value = *r.faceToPath;
+        drop.unit  = QStringLiteral("°");
         r.faceToPath.reset();
+        r.dropped.push_back(std::move(drop));
+    }
+
+    // The drop list: one entry per field, and none for a field another column filled.
+    for (PendingDrop &p : pendingDrops) {
+        if ((r.*(p.member)).has_value())
+            continue;
+        bool seen = false;
+        for (const DroppedField &k : r.dropped)
+            if (k.key == p.d.key) { seen = true; break; }
+        if (!seen)
+            r.dropped.push_back(std::move(p.d));
+    }
 
     // ── Values the device states implicitly ─────────────────────────────────
     // Foresight prints the ingredients but not these three, and they are the ones

@@ -113,6 +113,7 @@
 #include "../Analysis/analysis_tuning.h" // tuning::apply
 #include "../Analysis/uncertainty_config.h" // UncertaintyConfig
 #include "../Core/pp_tuned_constants.h"   // tuned::clubDelivery::
+#include "../Analysis/gate_record.h"      // GateRecord (trust stage 6)
 
 namespace pinpoint::analysis {
 
@@ -169,6 +170,12 @@ struct ClubDeliveryResult {
     double lowPointSigmaIn = 0.0;       // published 1σ (in) — 0 when no low point was produced
 
     bool valid = false;                 // at least one measured-head sample was usable
+
+    // The gates this read fired (trust stage 6): the head-confidence floor on the top angle
+    // (club.headConfidence), the attack angle's fall back to the measured heads
+    // (club.attackFallback), the low point's refusals (club.lowPoint). ClubDeliveryStage hands them
+    // on; the uncertainty draws, which call trackClubDelivery again, drop theirs.
+    std::vector<GateRecord> gates;
 };
 
 // Read the club-delivery channels off a face-on shaft track.

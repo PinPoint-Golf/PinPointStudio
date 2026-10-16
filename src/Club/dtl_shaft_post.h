@@ -46,6 +46,7 @@
 #include "dtl_shaft_types.h"
 #include "shaft_track_assembly.h"   // FrameSource
 #include "shaft_tracker_math.h"     // SegmentGeom
+#include "../Analysis/gate_record.h" // GateRecord (dtlShaftGates, trust stage 6)
 
 namespace pinpoint::analysis {
 
@@ -65,5 +66,16 @@ DtlShaftTrack2D dtlPostSolve(const FrameSource& frameAt,
                              const DtlShaftConfig& cfg,
                              DtlDecideTrace* trace = nullptr,
                              bool framesOwned = false);
+
+// THE DOWN-THE-LINE TRACK'S GATE RECORDS (trust stage 6, docs/design/trust_stage6_plan.md), read off
+// the finished track (it is never reused, so this runs on every analysis). One summary each, subject
+// track.clubDtl, effect masked:
+//   clubDtl.topOutOfView — the top of the backswing left the picture (DtlShaftTrack2D::topOutOfView)
+//   clubDtl.quarantine   — the frames whose grip anchor the cross-view check quarantined
+//   clubDtl.lateEscape   — the corridor escapes after P8 the tracker refused to publish
+// Times are ms from the witness's impact instant; the P4 and P8 instants come from its ladder, by the
+// same rules dtlPostSolve used. No witness ⇒ no records (the tracker refused the whole track).
+std::vector<GateRecord> dtlShaftGates(const DtlShaftTrack2D& track, const FaceOnWitness* witness,
+                                      const DtlShaftConfig& cfg);
 
 } // namespace pinpoint::analysis

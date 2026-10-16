@@ -177,6 +177,7 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
         if (!t->withheld.isEmpty()) { v.missing << sig.requiresBeforeImpact; v.refusal = SignalRefusal::Withheld; return v; }
         if (!(t->value < 0.0)) {
             v.missing << sig.requiresBeforeImpact;
+            // gate rule: PP_GATE("rule.diag.peakAfterImpact")
             v.refusal = SignalRefusal::PeakAfterImpact;
             return v;
         }
@@ -204,6 +205,7 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
             // this is unavailable — NOT a pass. This is the single most important branch in the
             // engine: most of the seed pack has no corridor yet.
             v.available = false;
+            // gate rule: PP_GATE("rule.diag.noCorridor")
             v.refusal   = SignalRefusal::NoCorridor;
             v.missing << sig.measures.value(0);
             return v;
@@ -213,6 +215,7 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
         // NotFired would be a false negative wearing a clean bill of health. Unavailable is the
         // state that exists for exactly this, and `implausible` is what lets the UI say which of
         // the two reasons applies.
+        // gate rule: PP_GATE("rule.diag.implausible")
         if (r.implausible) {
             v.available = false;
             v.refusal   = SignalRefusal::Implausible;
@@ -251,6 +254,7 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
         // A context the shot never declared is a weaker basis for a finding than one it did. Reuse
         // the confidence channel rather than inventing a second signal for it — assessment_rules
         // already demotes on low confidence, and a parallel mechanism would need its own UI.
+        // gate rule: PP_GATE("rule.diag.inferredContext")
         if (r.contextInferred) v.confidence *= kInferredContextConfidence;
         break;
     }
@@ -365,6 +369,7 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
         // non-positive denominator is a producer fault, and Unavailable is the state for it. The
         // negated form also refuses a NaN.
         const double denom = readings[1].value;
+        // gate rule: PP_GATE("rule.diag.nonPositiveDenominator")
         if (!(denom > 0.0)) { v.available = false; v.refusal = SignalRefusal::NonPositiveDenominator; v.missing = sig.measures; return v; }
 
         if (readings[0].implausible || readings[1].implausible) {
@@ -378,6 +383,7 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
 
         // Two scales: not assessed. See sameScale() for what counts as one, and why two readings
         // that state no route at all still pass.
+        // gate rule: PP_GATE("rule.diag.mixedScale")
         if (!sameScale(readings[0], readings[1])) {
             v.available = false;
             v.refusal   = SignalRefusal::MixedScale;

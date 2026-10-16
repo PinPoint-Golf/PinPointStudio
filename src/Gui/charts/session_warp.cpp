@@ -99,6 +99,7 @@ void walkSide(const std::vector<Cand> &cands, int sign, const SegmentTable *tabl
     for (const Cand &c : cands) {
         GatedAnchor g;
         g.phase = c.phase; g.landmark = c.landmark; g.shotMs = c.ms; g.conf = c.conf;
+        // gate rule: PP_GATE("rule.charts.warpAnchors")
         if (!c.confOk) {
             g.gate = AnchorGate::LowConfidence;
         } else if (useCanon && !isFinite(c.canon)) {

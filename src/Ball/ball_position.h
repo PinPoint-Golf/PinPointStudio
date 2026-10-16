@@ -72,6 +72,9 @@
 #include "../Analysis/swing_analysis.h" // BallTrack2D, BallSample2D
 #include "../Analysis/analysis_tuning.h" // tuning::apply
 #include "../Core/pp_tuned_constants.h"   // tuned::ballpos::
+#include "../Analysis/gate_record.h"      // GateRecord (trust stage 6)
+
+#include <vector>
 
 namespace pinpoint::analysis {
 
@@ -109,6 +112,10 @@ struct BallPositionResult {
     // usable heels still yields a ruler, which is what foot_metrics wants.
     double  mmPerPx      = -1.0;
     int     samples      = 0;      // accepted (in-cluster) ball samples
+    // Trust stage 6: a refused ballPosition, one record by code (body.ballPosition). When the
+    // refusal also left no ruler, it covers the readings that needed one. Every caller gets it;
+    // ONLY FootMetricsStage (the stage that emits ballPosition) hands it on, so it is recorded once.
+    std::vector<GateRecord> gates;
 };
 
 // Measure the address ball position against a heel pair. `addressUs < 0` falls

@@ -514,7 +514,9 @@ inline SessionSequenceConsistency sessionSequenceConsistency(const std::vector<S
         out.share.effN   += w;
         out.share.effOut += w * (opt.softTier ? (1.0 - pIn) : (anyFired ? 1.0 : 0.0));
     }
+    // gate rule: PP_GATE("rule.diag.sequenceOrderShare")
     out.share.lowerOut  = wilsonLowerBound(out.share.effOut, out.share.effN, opt.wilsonZ);
+    // gate rule: PP_GATE("rule.diag.sequenceSessionMin")
     out.share.available = out.share.resolved >= minSwings;
     if (out.share.available) out.share.value = 1.0 - out.share.lowerOut;
 

@@ -113,6 +113,7 @@
 #include "../Metrics/metric_channel.h" // MetricChannel, buildChannelSeries
 #include "../Analysis/analysis_tuning.h" // tuning::apply
 #include "../Core/pp_tuned_constants.h"   // tuned::upperBody::
+#include "../Analysis/gate_record.h"      // GateRecord (trust stage 6)
 
 namespace pinpoint::analysis {
 
@@ -260,6 +261,19 @@ struct UpperBodyResult {
     double  bridgeSpacingFactor = tuned::channel::kBridgeSpacingFactor;   // likewise
     int  frameW = 0, frameH = 0;
     bool valid  = false;            // the address reference resolved AND at least one channel has samples
+
+    // ── Trust stage 6: what the gates leave on the swing ─────────────────────────────────────
+    // The whole-reference refusals (no usable upper body at address; shoulder span below
+    // cfg.minShoulderSpanPx), one cascade record each, filled by trackUpperBody. The line masks are
+    // summarised by upperBodyGates, which needs the ladder: the instants each gate COULD have
+    // refused (the joints confident) are kept here as its denominators, with the thresholds.
+    std::vector<GateRecord> gates;
+    std::vector<int64_t> shouldersSeenUs;   // both shoulders confident — the shoulder line's frames
+    std::vector<int64_t> elbowsSeenUs;      // both elbows confident — the elbow line's frames
+    std::vector<int64_t> trunkSeenUs;       // shoulders AND hips confident — spineSideBend's frames
+    double minShoulderSpanRatio = tuned::upperBody::kMinShoulderSpanRatio;
+    double minElbowSpanPx       = tuned::upperBody::kMinElbowSpanPx;
+    double minHipSpanRatio      = tuned::lowerBody::kMinHipSpanRatio;
 };
 
 // Per-frame upper-body channels from the (smoothed, else raw) pose track.
@@ -288,5 +302,11 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
 // (see UpperBodySigma). Same pattern as body_rotation.cpp's `sigmaDeg`.
 std::vector<MetricSeries> buildUpperBodySeries(const UpperBodyResult &res,
                                                const std::vector<PhaseEvent> &phases);
+
+// Every gate record this producer leaves on the swing (trust stage 6): trackUpperBody's
+// whole-reference refusals, plus one summary record per line gate that fired — the shoulder line
+// (shoulderPlaneAngle over Address..Impact, trailElbowHeight over the swing), the elbow line
+// (elbowAlignment, Address..Impact) and either line under spineSideBend (Address..Impact).
+std::vector<GateRecord> upperBodyGates(const UpperBodyResult &res, const std::vector<PhaseEvent> &phases);
 
 } // namespace pinpoint::analysis
