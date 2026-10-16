@@ -1046,6 +1046,10 @@ QVariantMap sequenceBlock(Ctx &c)
              { QStringLiteral("links"), links },
              { QStringLiteral("note"), note.toVariant() },
              { QStringLiteral("whyText"), touched == 0 ? QString() : QStringLiteral("Why") },
+             // a shot analysed before records existed (§6): say so where the "Why" would be
+             { QStringLiteral("unrecordedText"), c.shot && c.shot->gatesVersion <= 0
+                                                 ? QStringLiteral("Reasons not recorded for this shot; re-analyse it to see which gates fired.")
+                                                 : QString() },
              { QStringLiteral("table"), rows },
              // "Sequence checks: n of m" (§10.6 E4) — the engine's own verdicts, as the ledger row
              // carries them (Coaching/sequence_checks.h). Empty when the shot has none recorded.

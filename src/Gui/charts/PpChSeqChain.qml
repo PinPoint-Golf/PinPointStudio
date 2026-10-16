@@ -71,4 +71,11 @@ Column {
         font: sc.roles ? sc.roles.fSmall : Qt.font({}); color: sc.roles ? sc.roles.link : "grey"
         MouseArea { anchors.fill: parent; anchors.margins: -2; cursorShape: Qt.PointingHandCursor; onClicked: sc.trustClicked("") }
     }
+    Text {
+        objectName: "chSeqUnrecorded"
+        visible: sc.showNote && sc.showOrderNote && !!sc.roles && !!sc.sequence && !!sc.sequence.unrecordedText
+        width: sc.roles ? sc.roles.measureW(sc.width) : sc.width; wrapMode: Text.WordWrap
+        text: sc.sequence ? (sc.sequence.unrecordedText || "") : ""
+        font: sc.roles ? sc.roles.fSmallI : Qt.font({}); color: sc.roles ? sc.roles.ink3 : "grey"
+    }
 }
