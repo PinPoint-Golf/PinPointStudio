@@ -267,6 +267,18 @@ struct Condition {
     // `golferWell`.
     QString                     golferWhy;
     QString                     axis;                // joins the two tails of one measure; may be empty
+    // The DOMAIN a condition is judged in, beside the whole-swing library — "wrist" today, and
+    // empty (the overwhelming case) for none. Orthogonal to `group`, which is where in the swing:
+    // the wrist domain spans the top (cupped_at_top), the release (casting) and the strike
+    // (scooping), and is exactly the set of conditions a domain surface lists as its findings and
+    // scores (the Wrist tab; scoreWristDomain(), wrist_domain_score.h). It is how the wrist
+    // engine's own rules left the UI without a second judge: the tab shows these conditions and
+    // Session diagnostics shows the same ones (wrist_motion_into_charts.md §7.3).
+    //
+    // A closed vocabulary (conditionDomains() below) read under the pack's ONE REGIME: absent is
+    // none, a misspelt token is the load error `unknownDomain` — "wirst" silently dropping a row
+    // out of the wrist score would read as that fault having gone away.
+    QString                     domain;
     ConditionGroup              group        = ConditionGroup::Setup;
     ConditionKind               kind         = ConditionKind::Fault;   // what sort of thing; see above
     // The MIDDLE rung, deliberately, and not the first value the way every other enum here defaults.
@@ -457,6 +469,16 @@ bool    detectionModeFromName(const QString &s, DetectionMode &out);
 // Both modes, in the order a picker should offer them: the ordinary one first. One definition, for
 // the same reason allConditionGroups() exists.
 const std::vector<DetectionMode> &allDetectionModes();
+
+// The tokens Condition::domain may hold. A plain list rather than an enum because a domain is a
+// grouping a SURFACE asks for by name ("wrist" → the Wrist tab and its score) and the JSON stores
+// that name as-is; the closed set is what keeps a typo from becoming a silent second domain.
+inline const QStringList &conditionDomains()
+{
+    static const QStringList k{ QStringLiteral("wrist") };
+    return k;
+}
+inline bool isKnownConditionDomain(const QString &d) { return conditionDomains().contains(d); }
 QString confirmedByName(ConfirmedBy c);
 bool    confirmedByFromName(const QString &s, ConfirmedBy &out);
 QString provenanceTierName(ProvenanceTier t);

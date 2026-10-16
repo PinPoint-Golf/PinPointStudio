@@ -1221,6 +1221,80 @@ int main()
         check(touching == 0, "inconsistent_sequence_has_no_edges: no edge in or out, so none to a strike outcome");
     }
 
+    // ── The wrist domain (wrist_motion_into_charts.md §7.3, CONTRACT I1) ──────────
+    //
+    // The Wrist tab's findings and its score are exactly these conditions, so the set is pinned:
+    // a row silently leaving the domain would vanish from the tab and stop costing the score.
+    {
+        static const char *kWrist[] = {
+            "cupped_at_top", "bowed_at_top", "open_face_top", "shut_face_top", "early_face_roll",
+            "face_held_shut_takeaway", "scooping", "bowed_lead_wrist", "flipping",
+            "face_held_open_impact", "casting", "excessive_lag", "insufficient_set", "over_set",
+            "chicken_wing" };
+        QSet<QString> want, got;
+        for (const char *id : kWrist) want.insert(QLatin1String(id));
+        for (const Condition &c : p.conditions) {
+            if (c.domain.isEmpty()) continue;
+            got.insert(c.id);
+            check(isKnownConditionDomain(c.domain), qPrintable(QStringLiteral("'%1' carries a known domain").arg(c.id)));
+        }
+        check(got == want, "the wrist domain is exactly the fifteen conditions CONTRACT I1 lists");
+        check(res.report.withCode(QStringLiteral("unknownDomain")).empty(), "no shipped domain is misspelt");
+
+        // The rotation readings are wired as ADDITIONAL routes, beside the radioulnar ones they do
+        // not replace, and the cast rule's hinge is Casting's preferred route.
+        const auto signalsOf = [&](const char *cid) {
+            const Condition *c = p.condition(QLatin1String(cid));
+            return c ? c->detectedBy : QStringList();
+        };
+        check(signalsOf("early_face_roll") == QStringList({ QStringLiteral("sig_earlyFaceRoll"),
+                                                             QStringLiteral("sig_earlyFaceRollRotation") })
+                  && signalsOf("flipping") == QStringList({ QStringLiteral("sig_flipping"),
+                                                             QStringLiteral("sig_flippingRotation") }),
+              "the forearm-rotation signals sit beside the pronation ones, which stay first");
+        const Condition *casting = p.condition(QStringLiteral("casting"));
+        check(casting && casting->detection == DetectionMode::First
+                  && casting->detectedBy == QStringList({ QStringLiteral("sig_castingHinge"),
+                                                          QStringLiteral("sig_casting") }),
+              "casting reads the hinge where a wrist sensor is worn, the lag angle everywhere else");
+    }
+
+    // ── Forearm rotation is MONITORED, never graded ─────────────────────────────
+    //
+    // Decision rule 2 of the wrist-tab run: the rotation corridors are wide placeholders until a
+    // directed capture fixes their sign, so NOTHING may fire on them. Asserted against every grade
+    // policy a user can pick, not only the standard one: the strictest preset narrows the surfacing
+    // edge to 1.5 sigma, and it must still sit well past the largest forearm travel the catalogue
+    // quotes (150-190 deg at the top).
+    {
+        QFile nf(QStringLiteral(PP_CORE_NORMS_PATH));
+        check(nf.open(QIODevice::ReadOnly), "the shipped norm set is readable (rotation rows)");
+        const NormPackLoadResult nres = loadNormPack(nf.readAll(), QStringLiteral("norms.json"));
+        int rows = 0, reachable = 0;
+        for (const char *mid : { "m_leadForearmRotation_p2", "m_leadForearmRotation_p4",
+                                 "m_leadForearmRotation_p7" }) {
+            const Measure *m = p.measure(QLatin1String(mid));
+            check(m && m->status == MeasureStatus::Live && m->metricKey == QLatin1String("forearmRotation")
+                      && m->preferKeys == QStringList({ QStringLiteral("hm.forearmRotation") }),
+                  qPrintable(QStringLiteral("%1 is live on forearmRotation, preferring the wG3").arg(QLatin1String(mid))));
+            const Norm *n = nres.pack.find(QLatin1String(mid), QStringLiteral("any"));
+            if (!n || !m) continue;
+            ++rows;
+            check(n->citation.startsWith(QStringLiteral("PLACEHOLDER")),
+                  qPrintable(QStringLiteral("%1's norm says it is a placeholder").arg(QLatin1String(mid))));
+            for (const GradePolicyPreset &preset : gradePolicyPresets()) {
+                double lo = 0.0, hi = 0.0;
+                deviationEdges(*n, m->shape, preset.policy, lo, hi);
+                if (lo > -250.0 || hi < 250.0) {
+                    ++reachable;
+                    std::printf("        %s under '%s' surfaces at [%.0f, %.0f]\n", mid, preset.name, lo, hi);
+                }
+            }
+        }
+        check(rows == 3, "all three rotation measures carry a norm row");
+        check(reachable == 0, "no grade policy brings a rotation corridor within 250 deg of address");
+    }
+
     std::printf("%s (%d failure%s)\n", g_fail ? "FAILED" : "OK", g_fail, g_fail == 1 ? "" : "s");
     return g_fail ? 1 : 0;
 }

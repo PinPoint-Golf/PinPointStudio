@@ -325,7 +325,10 @@ int main(int argc, char **argv)
     // event TIMES, and was fed rotation peak ANGLES until then.
     // 140 -> 141 on 2026-10-08: m_trailForearmTop, flying_elbow's down-the-line reading.
     // 141 -> 142 on 2026-10-08: m_spineBendLossDown, early extension's standing-up half.
-    check(pack.measures.size() == 153, "…and 153 measures");   // +11 kinematic-sequence measures (2026-10-14)   // +m_shaftLieDelta
+    // 153 -> 156 on 2026-10-15: m_leadForearmRotation_p2/_p4/_p7, the one-segment forearm twist
+    // (forearmRotation / hm.forearmRotation) beside the radioulnar roll rows, monitored on
+    // placeholder corridors until a directed capture fixes their sign.
+    check(pack.measures.size() == 156, "…and 156 measures");   // +11 kinematic-sequence measures (2026-10-14)   // +m_shaftLieDelta
     check(!norms->norms().norms.empty(), "the shipped norm set loaded");
 
     QTemporaryDir tmp;
@@ -610,8 +613,12 @@ int main(int argc, char **argv)
     // engine's own comment expects partial settlement to be "the common case by a distance"
     // and on real swings it is not: 3 of 54 here, 2 of 21 on lm_7iron, 0 of 2 on sparse_noclub.
     // If that starts climbing, the panel is answering more and more from less and less.
-    check(cRich.assessedPartial == 1,
-          "rich_7iron: 1 of its 56 answers rests on a term it could not read (observed)");
+    // 1 -> 2 on 2026-10-15: casting now prefers the lead-wrist hinge at P6 (the wrist engine's cast
+    // rule, detection `first`) and falls back to the lag angle. This face-on fixture carries no wrist
+    // sensor, so the hinge is the term it could not read and the lag angle answers, exactly as it
+    // did before — the same shape as flying_elbow, whose down-the-line term this fixture lacks.
+    check(cRich.assessedPartial == 2,
+          "rich_7iron: 2 of its answers rest on a term it could not read (observed)");
     // 38 -> 40 with the two new hipLineTilt measures. Both read a curve this fixture ALREADY
     // carries — the reduction samples the series itself at each segmented phase and does not need
     // the producer to have listed that phase — so a swing written by an older build gains them

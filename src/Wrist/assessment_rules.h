@@ -57,6 +57,11 @@ public:
     static AssessmentRuleRegistry makeDefault();
     std::vector<PpWristFinding> run(const RuleContext &ctx, const RuleTuning &tuning) const;
 
+    // The rule definitions, read-only — for the tests that hold other tables to this one (the wrist
+    // domain score carries these weights, wrist_domain_score.h, and wrist_domain_score_test fails
+    // if the two drift).
+    const std::vector<std::unique_ptr<PredicateRule>> &rules() const { return m_rules; }
+
 private:
     std::vector<std::unique_ptr<PredicateRule>> m_rules;
 };

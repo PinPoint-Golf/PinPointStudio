@@ -66,6 +66,9 @@ inline constexpr int kPackSchemaVersion = 1;
 //                        lands the row in Fault, where the kind rules then accuse it of the wrong
 //                        defect entirely
 //   unknownProminence    a condition declares a rung that is not one of the five
+//   unknownDomain        a condition declares a domain that is not in conditionDomains() ("wrist").
+//                        A misspelt domain would silently drop the row out of the domain surface's
+//                        findings and score, which reads as the fault having gone away
 //   unknownGroup · unknownObservability · unknownConfirmedBy · unknownState · unknownViewNeeded ·
 //   unknownStatus        the same rule for the six fields that used to fall back silently. Each
 //                        decides something invisible — which section a condition appears in, which

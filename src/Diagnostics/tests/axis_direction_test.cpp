@@ -15,9 +15,11 @@
 #include "../packs/characteristic_pack.h"
 
 #include <QFile>
+#include <QSet>
 
 #include <cstdio>
 #include <map>
+#include <set>
 
 using namespace pinpoint::analysis;
 
@@ -415,6 +417,34 @@ static const Expect kExpected[] = {
       "impact — the face arriving open'; flipping turns it the other way, so the face arriving SHUT "
       "is the low end. Same convention its P2 sibling uses, where sig_earlyFaceRoll takes the high "
       "and sig_faceHeldShutTakeaway the low" },
+    // The forearm-ROTATION routes (15 Oct 2026, wrist_motion_into_charts.md §7.3): one segment's
+    // twist from address, the reading a wG3 makes, added BESIDE each forearm-roll signal on the
+    // same tail. The catalogue states the sign ('+ is the pronation direction') and each measure's
+    // highMeans reads it the way its radioulnar sibling reads pronation; which way pronation turns
+    // the FACE is unverified, which is why the corridors under them are unreachable placeholders.
+    // These rows audit the tail against the stated convention, which is all a direction can say.
+    { "sig_earlyFaceRollRotation",  Direction::High,
+      "m_leadForearmRotation_p2 highMeans 'further in the PRONATION direction … read for now as "
+      "m_leadForearmRot_p2 reads the roll: the face opening in the takeaway'; the same tail as "
+      "sig_earlyFaceRoll on the one-segment reading" },
+    { "sig_faceHeldShutTakeawayRotation", Direction::Low,
+      "…and the face held shut in the takeaway is the low end, as sig_faceHeldShutTakeaway" },
+    { "sig_openFaceTopRotation",    Direction::High,
+      "m_leadForearmRotation_p4 highMeans 'read for now as m_leadForearmRot_p4 reads the roll: the "
+      "face pointing more skyward, open, at the top'; the same tail as sig_openFaceTop" },
+    { "sig_shutFaceTopRotation",    Direction::Low,
+      "…'the low end is a face hooded at the top', as sig_shutFaceTop" },
+    { "sig_faceHeldOpenImpactRotation", Direction::High,
+      "m_leadForearmRotation_p7 highMeans 'read for now as m_leadForearmRot_p7 reads the roll: the "
+      "face arriving open'; the same tail as sig_faceHeldOpenImpact" },
+    { "sig_flippingRotation",       Direction::Low,
+      "…'the low end is the face rotated shut', the tail sig_flipping takes" },
+    // Casting's second route, the wrist engine's cast rule moved into the condition (§7.3).
+    { "sig_castingHinge",           Direction::High,
+      "leadWristRadUln: '+ IS ULNAR … THE COCK OF THE WRIST AT THE TOP IS RADIAL', so a set released "
+      "by P6 is LESS negative, the high end — the engine's `above(RU, P6)`; m_leadWristRadUln_p6 "
+      "highMeans 'more ulnar (less cocked) than at address'. sig_casting reads the same release as "
+      "the LOW end of lag angle" },
     { "sig_hipsUnderRotatedTop",    Direction::Low,
       "m_pelvisRotP4 highMeans 'a deeper hip turn at the top'; not getting round is the low end. "
       "The high end of THIS axis is deliberately unclaimed — turning too far at the top is a chest "
@@ -499,32 +529,61 @@ int main()
         // One norm, two conditions. If both tails pointed the same way they would fire together on
         // every deviation, and the axis would report a golfer as simultaneously too far forward and
         // too far back.
-        std::map<QString, std::vector<const Signal *>> byAxis;
+        //
+        // PER MEASURE, since 15 Oct 2026. An axis used to carry exactly one signal per tail, so the
+        // test took the two and compared them. The forearm pairs now read each tail TWICE (the
+        // radioulnar angle and the one-segment rotation) and Casting adds the hinge beside the lag
+        // angle, so an axis is a set of measures, and the claim is made about each one: every
+        // measure an axis reads from BOTH tails is read from opposite ends, and every axis has at
+        // least one such measure — two tails sharing no measure are not two tails of one corridor.
+        // A measure read from one tail only (the hinge on Casting) is an extra route to that tail,
+        // and is audited for its direction by the fixture above.
+        std::map<QString, std::map<QString, std::vector<std::pair<QString, const Signal *>>>> byAxis;
         for (const Condition &c : p.conditions) {
             if (c.axis.isEmpty()) continue;
             for (const QString &sid : c.detectedBy)
                 if (const Signal *s = p.signal(sid); s && s->test == SignalTest::OutsideCorridor)
-                    byAxis[c.axis].push_back(s);
+                    for (const QString &mid : s->measures)
+                        byAxis[c.axis][mid].push_back({ c.id, s });
         }
 
-        int pairs = 0, bad = 0;
-        for (const auto &[axis, sigs] : byAxis) {
-            if (sigs.size() != 2) continue;
-            ++pairs;
-            if (!sigs[0]->direction || !sigs[1]->direction
-                || *sigs[0]->direction == *sigs[1]->direction) {
-                ++bad;
-                std::printf("        axis '%s' has both tails pointing the same way\n",
-                            qPrintable(axis));
+        int axes = 0, pairs = 0, bad = 0;
+        for (const auto &[axis, byMeasure] : byAxis) {
+            int sharedHere = 0;
+            for (const auto &[mid, uses] : byMeasure) {
+                QSet<QString> conds;
+                for (const auto &u : uses) conds.insert(u.first);
+                if (conds.size() < 2) continue;   // one tail's extra route
+                ++sharedHere;
+                ++pairs;
+                std::set<int> dirs;
+                bool undirected = false;
+                for (const auto &u : uses) {
+                    if (!u.second->direction) { undirected = true; continue; }
+                    dirs.insert(static_cast<int>(*u.second->direction));
+                }
+                if (undirected || uses.size() != 2 || dirs.size() != 2) {
+                    ++bad;
+                    std::printf("        axis '%s' does not read '%s' from opposite ends\n",
+                                qPrintable(axis), qPrintable(mid));
+                }
             }
-            if (sigs[0]->measures != sigs[1]->measures) {
-                ++bad;
-                std::printf("        axis '%s' reads two different measures\n", qPrintable(axis));
+            if (byMeasure.size() > 0) {
+                QSet<QString> tails;
+                for (const auto &[mid, uses] : byMeasure)
+                    for (const auto &u : uses) tails.insert(u.first);
+                if (tails.size() < 2) continue;    // a single-tail axis: the pack validator's concern
+                ++axes;
+                if (sharedHere == 0) {
+                    ++bad;
+                    std::printf("        axis '%s' reads two different measures\n", qPrintable(axis));
+                }
             }
         }
-        std::printf("      %d two-tailed axes\n", pairs);
-        check(pairs >= 4, "the known two-tailed axes are present");
-        check(bad == 0, "each two-tailed axis reads ONE measure from opposite ends");
+        std::printf("      %d two-tailed axes, %d measures read from both tails\n", axes, pairs);
+        check(axes >= 4, "the known two-tailed axes are present");
+        check(pairs >= axes, "every two-tailed axis reads at least one measure from both ends");
+        check(bad == 0, "each two-tailed axis reads each shared measure from opposite ends");
     }
 
     std::printf("=== the outstanding debt is tracked, not forgotten ===\n");

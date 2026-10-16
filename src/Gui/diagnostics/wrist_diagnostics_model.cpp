@@ -212,19 +212,14 @@ QVariantList WristDiagnosticsModel::positions() const
         QVariantMap m;
         m[QStringLiteral("phase")]     = cps[c].phase;
         m[QStringLiteral("name")]      = m_labels.phaseFullName(cps[c].phase);
-        // ⚠ TAGGED FROM THE CHECKPOINT'S OWN P-POSITION, NOT FROM THE PHASE IT SAMPLES,
-        // and the two genuinely differ. wristCheckpoints() places P2 on phase 1
-        // (Takeaway) — "the phase the segmenter actually emits for that position", written
-        // when the segmenter did not yet emit ShaftParallelBack (phase 12), which the
-        // Phase enum calls P2 and which every wG3 swing now carries. So asking the PHASE
-        // for its tag returned "" here and blanked a column that is P2 by definition of
-        // this very table.
-        //
-        // ⚠ THIS RELABELS NOTHING AND MOVES NO MEASUREMENT. The column still samples the
-        // instant it always sampled; only its header stops being derived through a phase
-        // that disagrees. Whether P2 should sample phase 12 instead is a real question
-        // about WHERE the wrist is read and would change grades — it is not a labelling
-        // question and is deliberately not answered here.
+        // ⚠ TAGGED FROM THE CHECKPOINT'S OWN P-POSITION, NOT FROM THE PHASE IT SAMPLES.
+        // The two used to differ: wristCheckpoints() placed P2 on phase 1 (Takeaway), whose
+        // tag is "", and asking the PHASE for its tag blanked a column that is P2 by
+        // definition of this very table. Since 15 Oct 2026 P2 samples phase 12
+        // (ShaftParallelBack), the instant diagnostics also calls P2
+        // (wrist_motion_into_charts.md §7.3), so phase and position now agree — the tag
+        // still comes from the position, so the header can never again hang on which
+        // phase a checkpoint happens to sample.
         m[QStringLiteral("tag")]       = QStringLiteral("P%1").arg(static_cast<int>(cps[c].pos) + 1);
         m[QStringLiteral("note")]      = QString::fromLatin1(cps[c].note);
         m[QStringLiteral("available")] = m_timeline.positions[c].present;

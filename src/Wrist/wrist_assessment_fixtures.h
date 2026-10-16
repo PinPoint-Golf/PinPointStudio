@@ -179,7 +179,7 @@ inline FixtureWristAngleSource makeFlipSwing()
     return buildFixtureSource(t, PpHandedness::Right);
 }
 
-// F1 open face at top: excessive cup at P4 (Δ < −15°).
+// F1 lead wrist cupped at the top (engine id open_face_top): excessive cup at P4 (Δ < −15°).
 inline FixtureWristAngleSource makeOpenFaceTopSwing()
 {
     std::vector<DofTrace> t = cleanTraces();

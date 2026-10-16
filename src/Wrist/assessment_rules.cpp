@@ -66,10 +66,17 @@ std::vector<RuleDef> defaultRuleDefs()
 {
     std::vector<RuleDef> r;
 
-    // F1 — Open face at top: lead wrist cupped at P4 (Δ < −15° cup).
-    r.push_back({ QStringLiteral("open_face_top"), QStringLiteral("Open face at top"),
+    // F1 — Lead wrist cupped at the top: below the bow/cup corridor at P4 (Δ < −15° cup).
+    //
+    // ⚠ THE ID STAYS, THE NAME DOES NOT (15 Oct 2026). This rule shipped as "Open face at top", and
+    // diagnostics' `open_face_top` — "Face open at the top" — is a different reading: forearm ROLL at
+    // P4. Two judges using one name for two axes is the clash wrist_motion_into_charts.md §7.2(3)
+    // names. The cup reading is "cupped at the top" everywhere a golfer reads it (diagnostics'
+    // `cupped_at_top`, which this rule maps to in wrist_domain_score.h); the id is kept because
+    // findings already persisted in swing.json carry it.
+    r.push_back({ QStringLiteral("open_face_top"), QStringLiteral("Lead wrist cupped at the top"),
         QStringLiteral("face"), { FE }, { P4 }, { QStringLiteral("slice"), QStringLiteral("pull") },
-        QStringLiteral("The lead wrist is cupped at the top, opening the face."),
+        QStringLiteral("The lead wrist is cupped at the top, which leaves the clubface open."),
         QStringLiteral("Flatten or bow the lead wrist at the top to square the face."), QString(),
         0.85f, 0.8, [](const RuleContext &c) -> Out {
             // Below the (archetype-aware) face corridor at the top = cupped / open face.
@@ -78,10 +85,12 @@ std::vector<RuleDef> defaultRuleDefs()
             if (mag <= 0.0) return std::nullopt;
             return std::make_pair(c.rag(FE, P4) == PpRag::Red ? Sev::Fault : Sev::Watch, mag); } });
 
-    // F2 — Closed face at top: bowed past the corridor at P4 (style-dependent — archetype-aware).
-    r.push_back({ QStringLiteral("closed_face_top"), QStringLiteral("Closed face at top"),
+    // F2 — Lead wrist bowed at the top: bowed past the corridor at P4 (style-dependent —
+    // archetype-aware). Renamed from "Closed face at top" with F1, for the same reason: the bow
+    // reading is `bowed_at_top`; `shut_face_top` is the forearm roll.
+    r.push_back({ QStringLiteral("closed_face_top"), QStringLiteral("Lead wrist bowed at the top"),
         QStringLiteral("face"), { FE }, { P4 }, { QStringLiteral("hook"), QStringLiteral("block") },
-        QStringLiteral("The lead wrist is strongly bowed at the top, closing the face."),
+        QStringLiteral("The lead wrist is strongly bowed at the top, which shuts the clubface."),
         QStringLiteral("Reduce the bow or match the release to it."), QString(),
         0.70f, 0.6, [](const RuleContext &c) -> Out {
             // Above the (archetype-aware) face corridor at the top = bowed / closed face.

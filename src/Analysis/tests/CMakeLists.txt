@@ -1424,6 +1424,15 @@ pp_add_test(wrist_norm_render_test
     INCLUDE ${NORM_INC})
 pp_norm_env(wrist_norm_render_test)
 
+# The wrist score over the wrist-domain conditions (wrist_domain_score.h, header-only): the engine's
+# arithmetic and bands, the weight map held to the engine's live rule table (hence ${WRIST_ENGINE}),
+# and the map's membership held to the conditions the shipped pack tags `"domain": "wrist"`.
+pp_add_test(wrist_domain_score_test
+    SOURCES ${DIAG}/tests/wrist_domain_score_test.cpp ${WRIST_ENGINE}
+    INCLUDE ${NORM_INC}
+    COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json")
+pp_norm_env(wrist_domain_score_test)
+
 # Stage 9's own gate: the corridors the metric surfaces used to get from the manifest now come from
 # the norm set through corridorForMetricAtPhase(), and nothing a surface drew went missing. Carries
 # the last migration PIN in the suite — the four tempo numbers, which retire with ledger C9.

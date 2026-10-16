@@ -550,6 +550,36 @@
       "citation": "SIGN UNVERIFIED (2026-09-14). No swing in the corpus carries a forearm-rotation reading, so neither this row's sign nor its magnitude has been checked against data; the hinge grid beside it was found inverted against its producer on the first data that reached it. Treat as unaudited until a sensor session reads it."
     },
     {
+      "measure": "m_leadForearmRotation_p2",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 180.0,
+      "sigmaHi": 180.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "PLACEHOLDER, DELIBERATELY UNREACHABLE (15 Oct 2026) - this row exists so the forearm-rotation measure can be live and its readings accumulate, NOT so it can grade anybody; precedent m_transitionPlaneDelta. forearmRotation (and its wG3 rung hm.forearmRotation) is one segment's axial twist from address, a different quantity from the ISB radioulnar angle the m_leadForearmRot_* rows describe, so it cannot borrow their numbers. Neither its SIGN against the face nor its MAGNITUDE has been checked: 11 wrist-sensor swings from one day cannot set a corridor, and the wrist engine's over-rotation rule and this pack's roll measures already disagree on which way pronation turns the face at release. mu 0, sigma 180 on both sides puts the surfacing edge (goodMaxZ = 2) a FULL TURN from address in either direction, which no forearm reaches (the catalogue quotes 150-190 deg at the top as the largest travel seen), so no condition can fire on it. REPLACE, do not tighten: real bands wait for the directed capture (roll the face open on purpose, then hold it square) that fixes the sign, and for more than one golfer."
+    },
+    {
+      "measure": "m_leadForearmRotation_p4",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 180.0,
+      "sigmaHi": 180.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "PLACEHOLDER, DELIBERATELY UNREACHABLE (15 Oct 2026) - this row exists so the forearm-rotation measure can be live and its readings accumulate, NOT so it can grade anybody; precedent m_transitionPlaneDelta. forearmRotation (and its wG3 rung hm.forearmRotation) is one segment's axial twist from address, a different quantity from the ISB radioulnar angle the m_leadForearmRot_* rows describe, so it cannot borrow their numbers. Neither its SIGN against the face nor its MAGNITUDE has been checked: 11 wrist-sensor swings from one day cannot set a corridor, and the wrist engine's over-rotation rule and this pack's roll measures already disagree on which way pronation turns the face at release. mu 0, sigma 180 on both sides puts the surfacing edge (goodMaxZ = 2) a FULL TURN from address in either direction, which no forearm reaches (the catalogue quotes 150-190 deg at the top as the largest travel seen), so no condition can fire on it. REPLACE, do not tighten: real bands wait for the directed capture (roll the face open on purpose, then hold it square) that fixes the sign, and for more than one golfer."
+    },
+    {
+      "measure": "m_leadForearmRotation_p7",
+      "context": "any",
+      "mu": 0.0,
+      "sigmaLo": 180.0,
+      "sigmaHi": 180.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "PLACEHOLDER, DELIBERATELY UNREACHABLE (15 Oct 2026) - this row exists so the forearm-rotation measure can be live and its readings accumulate, NOT so it can grade anybody; precedent m_transitionPlaneDelta. forearmRotation (and its wG3 rung hm.forearmRotation) is one segment's axial twist from address, a different quantity from the ISB radioulnar angle the m_leadForearmRot_* rows describe, so it cannot borrow their numbers. Neither its SIGN against the face nor its MAGNITUDE has been checked: 11 wrist-sensor swings from one day cannot set a corridor, and the wrist engine's over-rotation rule and this pack's roll measures already disagree on which way pronation turns the face at release. mu 0, sigma 180 on both sides puts the surfacing edge (goodMaxZ = 2) a FULL TURN from address in either direction, which no forearm reaches (the catalogue quotes 150-190 deg at the top as the largest travel seen), so no condition can fire on it. REPLACE, do not tighten: real bands wait for the directed capture (roll the face open on purpose, then hold it square) that fixes the sign, and for more than one golfer."
+    },
+    {
       "measure": "m_leadElbowFlex_p1",
       "context": "any",
       "mu": 1.5,

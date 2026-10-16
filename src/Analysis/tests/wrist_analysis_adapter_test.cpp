@@ -34,9 +34,15 @@ static void checkNear(const char *label, double got, double want)
     if (!ok) ++g_fail;
 }
 
-// Checkpoint timestamps + the Phase int each maps to (must match wristCheckpoints()).
+// Checkpoint timestamps + the Phase int each maps to (must match wristCheckpoints(), and section 0
+// below now asserts that it does). Until 15 Oct 2026 this pinned { 0, 1, 8, 2, 4, 9, 5, 11 }: P2 on
+// Takeaway (the header's old map, now ShaftParallelBack 12) and P5/P8 on Downswing 4 /
+// FollowThrough 11, which the header had already moved to ArmParallelDown 13 /
+// ShaftParallelThrough 14. Those two silently failed to match, so P5 and P8 sat Grey here and
+// nothing noticed, because no assertion read them. The header is the source of truth; the fixture
+// follows it.
 static const qint64 P_T[8]  = { 1000000, 1100000, 1200000, 1300000, 1400000, 1500000, 1600000, 1700000 };
-static const int    P_PH[8] = { 0, 1, 8, 2, 4, 9, 5, 11 };
+static const int    P_PH[8] = { 0, 12, 8, 2, 13, 9, 5, 14 };
 
 // A metric series with `a[c]` at each checkpoint timestamp (±10 ms cloud so the median is exact).
 static QVariantMap makeSeries(const char *key, const double a[8])
@@ -59,6 +65,20 @@ static PpRag rag(const PpWristAssessmentResult &r, PpJointDof d, PpSwingPosition
 int main()
 {
     std::printf("=== Wrist analysisDetail adapter ===\n");
+
+    // 0. The fixture's phase map IS the header's, and P2 is shaft-parallel back — the instant
+    //    diagnostics calls P2 (measure_facets.cpp), so band and corridor are read at one moment.
+    std::printf("-- 0. checkpoint map --\n");
+    {
+        const WristCheckpoint *cps = wristCheckpoints();
+        bool same = true;
+        for (int c = 0; c < 8; ++c)
+            if (cps[c].phase != P_PH[c]) same = false;
+        check(same, "fixture P_PH matches wristCheckpoints()");
+        check(cps[1].phase == static_cast<int>(Phase::ShaftParallelBack), "P2 samples ShaftParallelBack");
+        check(cps[4].phase == static_cast<int>(Phase::ArmParallelDown), "P5 samples ArmParallelDown");
+        check(cps[7].phase == static_cast<int>(Phase::ShaftParallelThrough), "P8 samples ShaftParallelThrough");
+    }
 
     const double radUln[8]  = { 0, -10, -28, -38, -38, -30, -8, 0 };   // − = radial = set (2026-09-14)
     const double flexExt[8] = { 0, 1, 4, 9, 11, 12, 9, 4 };

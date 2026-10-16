@@ -42,11 +42,19 @@ struct WristCheckpoint {
 
 // The kNumPos checkpoints in P1..P8 order, each on the phase the segmenter actually emits for that
 // position; a checkpoint whose phase a swing didn't produce simply greys out.
+//
+// ⚠ P2 IS SHAFT-PARALLEL BACK (phase 12), THE SAME INSTANT DIAGNOSTICS CALLS P2
+// (measure_facets.cpp's p2 token). Until 15 Oct 2026 it sampled Takeaway (phase 1), which the
+// segmenter places on the first move away — at or a few frames past Address — so the engine's P2
+// read the SAME norm row (m_<dof>_p2) as the corridor did at a different instant, and came out
+// ~0° on every joint. One P vocabulary everywhere (docs/design/wrist_motion_into_charts.md §7.3):
+// the band the Wrist tab draws and the corridor Session diagnostics judges are now read at one
+// moment. A swing whose segmenter emitted no ShaftParallelBack greys its P2 cell, honestly.
 inline const WristCheckpoint *wristCheckpoints()
 {
     static const WristCheckpoint k[kNumPos] = {
         { PpSwingPosition::P1, 0,  "reference" },                 // Address
-        { PpSwingPosition::P2, 1,  "early set" },                 // Takeaway
+        { PpSwingPosition::P2, 12, "early set" },                 // Shaft parallel back
         { PpSwingPosition::P3, 8,  "set building" },              // Mid-backswing
         { PpSwingPosition::P4, 2,  "face checkpoint" },           // Top
         { PpSwingPosition::P5, 13, "lag retention begins" },      // Arm parallel down

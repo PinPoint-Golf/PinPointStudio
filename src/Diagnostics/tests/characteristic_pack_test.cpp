@@ -754,6 +754,35 @@ int main()
               "condition aliases survive a save/load round-trip");
     }
 
+    // ── The condition domain (Condition::domain) ────────────────────────────────
+    // Optional, closed, and round-tripped: a domain that did not survive a save would drop the row
+    // out of the Wrist tab's findings and score; a misspelt one is refused, never kept as a second
+    // domain; an absent one writes nothing, so every row authored before the field is untouched.
+    {
+        CharacteristicPack p = goodPack();
+        p.conditions.front().domain = QStringLiteral("wrist");
+        const QJsonObject   saved = savePack(p);
+        const PackLoadResult res  = loadPack(saved, QStringLiteral("domain"));
+        const Condition     *c    = res.pack.condition(p.conditions.front().id);
+        check(c && c->domain == QLatin1String("wrist"), "a condition's domain round-trips as itself");
+        check(res.report.errorCount() == 0, "…and a known domain loads clean");
+        const QJsonArray conds = saved.value(QStringLiteral("conditions")).toArray();
+        check(conds.size() >= 2 && !conds.at(1).toObject().contains(QStringLiteral("domain")),
+              "a condition with no domain writes no key");
+        check(Condition{}.domain.isEmpty(), "an unauthored condition is in no domain");
+
+        QJsonObject root  = saved;
+        QJsonArray  rows  = root.value(QStringLiteral("conditions")).toArray();
+        QJsonObject first = rows.at(0).toObject();
+        first.insert(QStringLiteral("domain"), QStringLiteral("wirst"));
+        rows.replace(0, first);
+        root.insert(QStringLiteral("conditions"), rows);
+        check(hasError(loadPack(root, QStringLiteral("domain typo")).report, "unknownDomain"),
+              "a misspelt domain is the load error unknownDomain");
+        check(isKnownConditionDomain(QStringLiteral("wrist")) && !isKnownConditionDomain(QString()),
+              "the vocabulary holds `wrist`, and the empty string is not a domain");
+    }
+
     // ── The new condition groups ────────────────────────────────────────────────
     // Impact, Finish and BallFlight were added with the outcome layer. A group whose token does not
     // round-trip silently lands every condition in it back in Setup, which is the default.

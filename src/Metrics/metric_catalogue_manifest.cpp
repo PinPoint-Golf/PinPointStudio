@@ -279,7 +279,10 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("chart:review"),
                     QStringLiteral("score:wrist"),
                     QStringLiteral("characteristic:insufficient_set"),
-                    QStringLiteral("characteristic:over_set") },
+                    QStringLiteral("characteristic:over_set"),
+                    // casting's preferred route since 15 Oct 2026: the hinge at P6, the wrist
+                    // engine's cast rule (m_leadWristRadUln_p6, sig_castingHinge).
+                    QStringLiteral("characteristic:casting") },
     });
 
     cat.addDescriptor({
@@ -412,6 +415,15 @@ void installMetricManifest(MetricCatalogue &cat)
             via("wristImus", RM::Inertial, Direct, { .imuRoles = { R::LeadForearm } },
                 QStringLiteral("the axial twist of the forearm about its own long axis, referenced "
                                "to address, from one forearm IMU")) },
+        // The six forearm-roll conditions read this as an ADDITIONAL route beside forearmPronation
+        // (m_leadForearmRotation_p2/_p4/_p7, 15 Oct 2026) — monitored on placeholder corridors that
+        // cannot fire until a directed capture fixes the sign.
+        .usedBy = { QStringLiteral("characteristic:early_face_roll"),
+                    QStringLiteral("characteristic:face_held_shut_takeaway"),
+                    QStringLiteral("characteristic:open_face_top"),
+                    QStringLiteral("characteristic:shut_face_top"),
+                    QStringLiteral("characteristic:flipping"),
+                    QStringLiteral("characteristic:face_held_open_impact") },
     });
 
     // ── The HackMotion rungs ────────────────────────────────────────────────────────────────────
@@ -496,7 +508,10 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("chart:review"),
                     QStringLiteral("score:wrist"),
                     QStringLiteral("characteristic:insufficient_set"),
-                    QStringLiteral("characteristic:over_set") },
+                    QStringLiteral("characteristic:over_set"),
+                    // casting's preferred route since 15 Oct 2026: the hinge at P6, the wrist
+                    // engine's cast rule (m_leadWristRadUln_p6, sig_castingHinge).
+                    QStringLiteral("characteristic:casting") },
     });
 
     cat.addDescriptor({
@@ -532,6 +547,15 @@ void installMetricManifest(MetricCatalogue &cat)
             via("hackMotion", RM::Device, Direct, { .hackMotion = true },
                 QStringLiteral("the axial twist of the forearm since address, read from a "
                                "HackMotion wG3's lower-arm unit")) },
+        // The six forearm-roll conditions read this as an ADDITIONAL route beside forearmPronation
+        // (m_leadForearmRotation_p2/_p4/_p7, 15 Oct 2026) — monitored on placeholder corridors that
+        // cannot fire until a directed capture fixes the sign.
+        .usedBy = { QStringLiteral("characteristic:early_face_roll"),
+                    QStringLiteral("characteristic:face_held_shut_takeaway"),
+                    QStringLiteral("characteristic:open_face_top"),
+                    QStringLiteral("characteristic:shut_face_top"),
+                    QStringLiteral("characteristic:flipping"),
+                    QStringLiteral("characteristic:face_held_open_impact") },
     });
 
     cat.addDescriptor({

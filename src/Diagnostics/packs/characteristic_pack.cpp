@@ -1429,6 +1429,15 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
         c.sharp      = o.value(QStringLiteral("sharp")).toBool(false);
         c.aliases   = readStringList(o.value(QStringLiteral("aliases")));
         c.axis       = o.value(QStringLiteral("axis")).toString();
+        // Absent => no domain. Present and not one of conditionDomains() is refused, the same
+        // regime as every closed token below: a misspelt domain would drop the row out of its
+        // domain's findings and score with nothing on screen to say so.
+        c.domain     = o.value(QStringLiteral("domain")).toString();
+        if (o.contains(QStringLiteral("domain")) && !isKnownConditionDomain(c.domain))
+            err(r, QStringLiteral("unknownDomain"), c.id,
+                QStringLiteral("Condition '%1' declares domain '%2'; the domains are %3.")
+                    .arg(c.id, o.value(QStringLiteral("domain")).toString(),
+                         conditionDomains().join(QStringLiteral(", "))));
         c.detectedBy = readStringList(o.value(QStringLiteral("detectedBy")));
         // Absent => Any, so every condition authored before conjunctions existed keeps combining
         // its signals exactly as it did. An unknown token is an error rather than a silent fall
@@ -1690,6 +1699,7 @@ QJsonObject savePack(const CharacteristicPack &pack)
         if (!c.golferWhy.isEmpty()) o.insert(QStringLiteral("golferWhy"), c.golferWhy);
         if (c.sharp) o.insert(QStringLiteral("sharp"), true);
         if (!c.axis.isEmpty()) o.insert(QStringLiteral("axis"), c.axis);
+        if (!c.domain.isEmpty()) o.insert(QStringLiteral("domain"), c.domain);
         o.insert(QStringLiteral("group"), conditionGroupName(c.group));
         // Written unconditionally, beside the three fields they belong with — NOT omitted when they
         // hold the default, the way `shape` is. That omission exists to keep 105 of 106 measures
