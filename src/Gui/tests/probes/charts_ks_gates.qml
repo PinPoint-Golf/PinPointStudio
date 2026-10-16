@@ -124,6 +124,9 @@ Item {
                 probe.log("traces: " + traces.map(t => t.objectName + (t.r && t.r.blind ? "(blind " + t.r.blind.length + ")" : "")).join(", "))
                 const blinds = []; probe.walk(b, "chBlind:*", blinds)
                 for (const x of blinds) probe.log("shaded: " + x.objectName + " '" + x.text + "' visible=" + x.visible + " px " + Math.round(x.xa) + "…" + Math.round(x.xb))
+                const figWhy = []; probe.walk(b, "chFigWhy:*", figWhy)
+                for (const f of figWhy) probe.log("figure-column link: " + f.objectName + " '" + String(f.text) + "'")
+                if (figWhy.length && probe.click === "figcol") { const fw = figWhy[0]; for (let p = fw; p; p = p.parent) if (p.trustClicked !== undefined) { p.trustClicked(fw.objectName.split(":")[1] + ":" + fw.objectName.split(":")[2]); probe.log("clicked the figure column"); break } }
                 const rings = []; probe.walk(b, "chUnplaced:*", rings)
                 for (const r of rings) if (probe.shown(r, root)) probe.log("dashed ring: " + r.objectName)
                 const views = []; probe.walk(b, "chShotView*", views)

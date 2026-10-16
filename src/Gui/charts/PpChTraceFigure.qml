@@ -129,7 +129,7 @@ Item {
         const hv = !still && isFinite(hoverMs) ? byKey(hover.rows, r.key) : null
         if (hv) return [{ label: hover.when || "", text: hv.text, sub: hv.raw || "", warn: false, word: hv.grossWarn ? "⚠" : "" }]
         const out = []
-        if (figMode === "figures") for (const f of (r.figures || [])) out.push({ label: f.label, text: f.text, warn: f.warn === true })
+        if (figMode === "figures") for (const f of (r.figures || [])) out.push({ label: f.label, text: f.text, warn: f.warn === true, trust: f.trust || "" })
         const nw = byKey(nowRows, r.key)
         if (nw) {
             out.push({ label: figMode === "now" ? "now" : "at playhead", text: nw.text, sub: nw.addrText || "" })
@@ -463,7 +463,11 @@ Item {
                                     width: parent.width
                                     Text { id: fl; text: modelData.label; font: modelData.head ? tf.roles.fSmallM : tf.roles.fLabel; color: modelData.head ? tf.roles.ink : tf.roles.ink3; anchors.baseline: fv.baseline }
                                     Item { width: Math.max(tf.roles.u(4), parent.width - fl.implicitWidth - fv.implicitWidth - (fw.visible ? fw.implicitWidth + tf.roles.u(4) : 0)); height: 1 }
-                                    Text { id: fv; text: modelData.text; font: tf.roles.fFigS; color: modelData.warn ? tf.roles.warn : tf.roles.ink }
+                                    Text { id: fv; objectName: modelData.trust ? "chFigWhy:" + modelData.trust : ""
+                                           text: modelData.text + (modelData.trust ? "  ›" : ""); font: tf.roles.fFigS
+                                           color: modelData.warn ? tf.roles.warn : modelData.trust ? tf.roles.link : tf.roles.ink
+                                           MouseArea { enabled: !!modelData.trust; anchors.fill: parent; anchors.margins: -2
+                                                       cursorShape: Qt.PointingHandCursor; onClicked: tf.trustClicked(modelData.trust) } }
                                     Item { visible: fw.visible; width: tf.roles.u(4); height: 1 }
                                     Text { id: fw; visible: !!modelData.word; anchors.baseline: fv.baseline; text: modelData.word || ""; font: tf.roles.fSmall; color: tf.roles.warn }
                                 }
@@ -508,7 +512,10 @@ Item {
                             required property var modelData
                             spacing: tf.roles.u(4)
                             Text { text: modelData.label; font: tf.roles.fLabel; color: tf.roles.ink3; anchors.baseline: fv2.baseline }
-                            Text { id: fv2; text: modelData.text; font: tf.roles.fFigS; color: modelData.warn ? tf.roles.warn : tf.roles.ink }
+                            Text { id: fv2; text: modelData.text + (modelData.trust ? "  ›" : ""); font: tf.roles.fFigS
+                                   color: modelData.warn ? tf.roles.warn : modelData.trust ? tf.roles.link : tf.roles.ink
+                                   MouseArea { enabled: !!modelData.trust; anchors.fill: parent; anchors.margins: -2
+                                               cursorShape: Qt.PointingHandCursor; onClicked: tf.trustClicked(modelData.trust) } }
                             Text { visible: !!modelData.sub; text: modelData.sub || ""; font: tf.roles.fFigLabel; color: tf.roles.ink3; anchors.baseline: fv2.baseline }
                             Text { visible: !!modelData.word; text: modelData.word || ""; font: tf.roles.fSmall; color: tf.roles.warn; anchors.baseline: fv2.baseline }
                         }

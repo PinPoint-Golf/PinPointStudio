@@ -1130,6 +1130,8 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
                               { QStringLiteral("lateWord"), p.late ? QStringLiteral("late") : QString() },
                               { QStringLiteral("rising"), p.risingAtImpact },
                               { QStringLiteral("risingWord"), p.risingAtImpact ? QStringLiteral("rising") : QString() } };
+        // the reading a gate touched opens its reason from here too (TrustFocus), as from the key figures
+        const QString trustSubj = !p.records.isEmpty() ? QStringLiteral("ks.") + sequenceSegmentIds()[size_t(seg)] : QString();
         if (p.placed) {
             figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak") },
                                     { QStringLiteral("text"), W::fig(p.peakDps) + (W::pm(p.peakSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(p.peakSigmaDps)) + QChar(0x00A0) + shortUnitOf(c, m.unit) },
@@ -1137,6 +1139,14 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
             figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("order") },
                                     { QStringLiteral("text"), W::ordinalWord(p.rank) + QStringLiteral(" of %1 placed").arg(placedN) },
                                     { QStringLiteral("warn"), p.late } };
+            // placed but kept out of the findings (the camera's club): say so, and open why
+            const bool withheld = std::any_of(p.records.begin(), p.records.end(), [](const QVariant &r) {
+                return r.toMap().value(QStringLiteral("effect")).toString() == QLatin1String("withheld"); });
+            if (withheld)
+                figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("why") },
+                                        { QStringLiteral("text"), QStringLiteral("not judged") },
+                                        { QStringLiteral("warn"), false },
+                                        { QStringLiteral("trust"), trustSubj } };
         } else {
             // the gate that refused it, short enough for the figure column: the bound and why ("after −129 ms",
             // "out of sight"), else the reason alone
@@ -1144,11 +1154,13 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
             const bool hasFig = why.figure != QLatin1String("-") && !why.unit.isEmpty();
             figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak") },
                                     { QStringLiteral("text"), hasFig ? why.figure + QChar(0x00A0) + why.unit : why.shortText },
-                                    { QStringLiteral("warn"), false } };
+                                    { QStringLiteral("warn"), false },
+                                    { QStringLiteral("trust"), hasFig ? QString() : trustSubj } };
             if (hasFig)
                 figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("why") },
                                         { QStringLiteral("text"), why.shortText },
-                                        { QStringLiteral("warn"), false } };
+                                        { QStringLiteral("warn"), false },
+                                        { QStringLiteral("trust"), trustSubj } };
         }
         seqInfo = QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(seg)] },
                                { QStringLiteral("word"), segWord(seg) },
