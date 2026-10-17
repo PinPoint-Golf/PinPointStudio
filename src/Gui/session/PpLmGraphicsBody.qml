@@ -2289,12 +2289,13 @@ Item {
             return pl ? put(pl, { rb: rb, fcx: cx, fcy: cy, fw: fw }) : null
         }
         // faceQ — Impact, one size with the others, FSX's corner readings: the head (toe to hosel) between the
-        // corner columns, centred in the height; toe up turns the head about the sole contact
+        // corner columns, centred in the height; toe up turns the head about the sole contact. Lie is drawn TRUE,
+        // never × angleGain: a tilted head reads at a glance, so an exaggerated one alarms (Mark, 17 Oct)
         const lie = num("lm.lieAngle"), cw = lr.faceCornerEm * em
         return fit((s, keep, dy) => {
             const fw = faceQW(w, h) * s
             const cx = cw + ((w - 2 * cw) - 1.12 * fw) / 2 + 0.44 * fw, cy = (h - 0.71 * fw) / 2 + 0.52 * fw + dy * h
-            const rot = hand * (isFinite(lie) ? lie : 0) * G
+            const rot = hand * (isFinite(lie) ? lie : 0)
             const pl = headPlace(model, "face", look, fw / wmm, a.fc, cx, cy, a.sole, rot, hand < 0, false, dev, paper, keep)
             return pl ? put(pl, { rb: rb, fcx: cx, fcy: cy, fw: fw }) : null
         }, [10, 5, 0], [0, 0.04, 0.08, 0.12, 0.16, 0.2])
@@ -2426,9 +2427,9 @@ Item {
             const fs = strikeAt(pl, 0, 0), fw = pl.fw
             if (under) { dash(Math.max(lr.faceCornerEm * em, fs[0] - fw * 0.6), fs[1], Math.min(w - lr.faceCornerEm * em * 0.5, fs[0] + fw * 0.8), fs[1], ink3); return }
             dash(fs[0], fs[1] - fw * 0.31, fs[0], fs[1] + fw * 0.31, ink3)
-            // the lie line through that centre, turned with the head
+            // the lie line through that centre, turned with the head (true, as the head is)
             const lie = num("lm.lieAngle")
-            if (isFinite(lie)) { const a = hand * lie * G * rad, L = fw * 0.72
+            if (isFinite(lie)) { const a = hand * lie * rad, L = fw * 0.72
                                  // the big face: the line stops short of the annotation column
                                  const lx = lr.faceCornerEm * em
                                  const L0 = lx > -1e8 ? Math.min(L, Math.max(0, fs[0] - lx - ts.u(4)) / Math.max(0.2, Math.cos(a))) : L
