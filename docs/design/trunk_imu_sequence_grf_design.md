@@ -44,8 +44,8 @@ Each part is useful on its own. Part A pays even if B and C never ship, because 
 
 **Three defects** (found 4 Oct, not re-checked since) must be fixed before any trunk number is believed:
 1. **The vertical axis.** Calibration makes the reference-pose body frame the "world" (`A = conj(refRaw·M)`, `imu_calibration.h`). For the arm, that world is Y-down. `body_rotation.cpp:90` and `segment_rates.cpp:1268` treat world **Z** as vertical; `phase_segmenter.cpp:290` reads the pelvis axial rate on segment **Y**. The unit tests feed synthetic yaw about Z and never pass through a calibration, so none of this is caught. §5 fixes it.
-2. **A pelvis IMU makes `hip_stall` unassessable.** The triangulated stage steps aside for any segment an IMU covers (`wrist_analyzer.cpp:2735`), but the IMU route for `pelvisRotationSigned` is still PLANNED (`metric_catalogue_manifest.cpp:661`), so the measure loses its only live producer.
-3. **A trunk-only IMU job replaces good vision phases with a conf-0 clamp.** `SegResolveStage` (`wrist_analyzer.cpp:727`) adopts `segImu` whenever it exists; `PhaseSegmenter` needs a hand or forearm sensor and otherwise returns `clampFallback()` at conf 0.
+2. **A pelvis IMU makes `hip_stall` unassessable.** The triangulated stage steps aside for any segment an IMU covers (`BodyRotationTriangulatedStage`, `analysis_pipeline.cpp:3207`; the Wrist analyzer became the analysis pipeline in 842095e7), but the IMU route for `pelvisRotationSigned` is still PLANNED (`metric_catalogue_manifest.cpp:661`), so the measure loses its only live producer.
+3. **A trunk-only IMU job replaces good vision phases with a conf-0 clamp.** `SegResolveStage` (`analysis_pipeline.cpp:869`) adopted `segImu` whenever it existed (fixed 17 Oct: only when its confidence is above 0); `PhaseSegmenter` needs a hand or forearm sensor and otherwise returns `clampFallback()` at conf 0.
 
 **Three smaller things already known to bite:**
 - No Witmotion swing has ever passed `imuIntegrity` parity (memory note `imu-integrity-write-once`).
@@ -283,8 +283,8 @@ Mount-yaw error δ, trunk bent forward by θ (thorax 30–45° at address, pelvi
 |---|---|---|
 | S-I rates (KS) | **None** | 0 |
 | Peak times, sequence order | **None** | 0 |
-| Turn from address, X-factor | atan(tan δ·cos θ), changing only as θ changes | about 1–2° over a swing |
-| Forward bend / tilt | second order | under 0.5° |
+| Turn from address, X-factor | atan(tan δ·cos θ), changing only as θ changes — for a turn about world vertical. For a turn about the bent spine itself it grows with the turn (`trunk_e2e_test`, 17 Oct) | about 1–2° turning about vertical; about the spine: pelvis (θ 20°) 0.5° at 45° and 1.2° at 90° of turn, thorax (θ 40°) 1.6° at 45° and **5.3° at 90°** |
+| Forward bend / tilt | none with the projection definition (inclination of q·ẑ; `trunk_e2e_test`, 17 Oct) | 0 |
 | **Side bend / obliquity** | **First order: asin(sin θ·sin δ)** | **4° at θ = 25°, 6.4° at θ = 40°** |
 | Load: vertical | second order (gravity axis known) | small |
 | **Load: lateral push, lead fraction** | **First order** (the target-line axis is the heading, which δ shifts through the bend) | to be computed in the synthetic test |
@@ -298,7 +298,7 @@ The headline uses (KS, peak times, turn, vertical load) are immune or nearly so.
 | Step | The golfer is asked | What it gives us | What it checks |
 |---|---|---|---|
 | **1. Stand tall** | "Stand tall, toes to the stick, arms relaxed. Hold still." (2 s; the hold bar fills) | **+Z** per sensor from gravity; **δ0** from the prescribed mount (forward = horizontal projection of the inward face normal); **A** from the facing direction; gyro bias; sample rate | **Mount:** long (USB) axis within 35° of up, face normal within 40° of horizontal. **Sensor health, automatic:** bias < 0.5 °/s each axis; \|f\| = 1 g ± 2 %; ≥ 95 % of expected samples. |
-| **2. Turn away** | "Cross your arms on your chest. Turn slowly as if to the top, and back. Twice." | **Checks, not solves** | Rotation axis within 15° of +Z on both sensors; ≥ 60° range; "away" on both (catches upside-down or face-in); chest turns more than hips (catches swapped sensors) |
+| **2. Turn away** | "Cross your arms on your chest. Turn slowly as if to the top, and back. Twice." | **Checks, not solves** | Rotation axis within 15° of +Z on both sensors; ≥ 60° range; "away" on both (catches upside-down; **not** face-in, 17 Oct — see below); chest turns more than hips (catches swapped sensors) |
 | **3. Turn through** | "Now the same, toward the target. Twice." | Same checks, other direction: the sign confirmed both ways (the HackMotion lesson: sign is the only thing that falsifies a frame) | As step 2 |
 | **4. Hop** | "Stand where you address the ball. One small hop, straight up." (in view of the cameras) | **The session's IMU ↔ camera clock offset** (§7.1): the landing spike in both sensors' vertical acceleration against the video pelvis's vertical acceleration | Residual < 5 ms; the two sensors agree within 5 ms. A golfer who cannot hop may skip it: the offset then falls back to per-swing cross-correlation, flagged. |
 
@@ -314,6 +314,8 @@ Then the live check (§6.7): the golfer turns freely and watches the figure foll
 | Walking | δ | Dropped (D11) |
 
 If a gate fails, the golfer is told which sensor and what to do, and repeats only that step.
+
+**Face-in cannot be caught by stand tall or the turns** (`trunk_e2e_test`, 17 Oct). A sensor worn face-in is a 180° rotation about the spine. Gravity cannot see it, and an upright turn is about that same axis, so turn and the S-I rate still read correctly. Forward bend and obliquity flip sign: a 40° address bend reads −40°. The check is therefore the first address: a forward bend that reads negative there means a face-in sensor (§6.8 baseline).
 
 **The solve:** e_z = gravity-up at stand tall; e_y = the inward face normal made orthogonal to e_z; e_x = e_y × e_z. A is the yaw about world Z taking e_y onto stance +Y. `solveTrunkSegment()`, a pure function in `imu_calibration.h`, unit-tested, never inside QML.
 
@@ -405,7 +407,7 @@ BLE packets → arrival stamps + sequence index
 
 ### 7.1 The clock
 
-Witmotion samples are stamped at host arrival (`wt9011dcl_base.cpp:156`), on the video clock, quantised to BLE connection events, with an unknown mean offset from exposure (video frames are stamped at exposure end; memory note `camera-timestamps-from-the-camera`). There is no clock fit; HackMotion alone has one.
+Witmotion samples are stamped at host arrival (`EventBuffer::nowMicros()` in the `quaternionUpdated` lambda, `imu_instance.cpp:128`), on the video clock, quantised to BLE connection events, with an unknown mean offset from exposure (video frames are stamped at exposure end; memory note `camera-timestamps-from-the-camera`). There is no clock fit; HackMotion alone has one.
 
 1. **Re-time:** sample index × nominal period, anchored by a robust linear fit to the arrival stamps per stream. The HackMotion `clockFit` idea, needing no device clock. Keep the raw arrival times; derived timelines are recomputable.
 2. **Measure the offset each session with the hop** (ceremony step 4, D14): cross-correlate both sensors' vertical acceleration through the landing with the video pelvis's vertical acceleration (face-on at 150 fps). One offset per session, with its residual.
@@ -506,7 +508,7 @@ Closes the census rows for the IMU tier ("IMU readings reach diagnostics with no
 
 ### 8.6 skeleton3d
 
-The wiring exists (`wrist_analyzer.cpp:2580`: Pelvis → Hips, Thorax → Spine2). It needs:
+The wiring exists (`analysis_pipeline.cpp:3050`: Pelvis → Hips, Thorax → Spine2). It needs:
 - the trunk q_anat (gravity Z-up) so the heading-only ψ is the right freedom;
 - `hasMount = true` from the calibration (never set today), mount prior 3°;
 - the §8.2 σ per sample replacing the fixed `imuSigmaDeg` = 4;
@@ -649,7 +651,7 @@ The hand-off thresholds are 80 % of the Cheetham professional ratios (19 PGA tou
 | `no_pelvis_braking` | Hips don't brake | "your hips keep spinning at full speed into the ball" / "your hips slow just before impact and pass the speed on" | `sig_noPelvisBraking` | draft (NR-12: present/absent only) |
 | `inconsistent_sequence` | Sequence not repeatable | "your body fires in a different order from swing to swing" / "your body fires the same way every swing" | `sig_ksOrderShare`, `sig_ksTimingSpread` (`detection: any`) | draft until E2 |
 
-**And one change to an existing node:** `casting` gains `sig_clubBeforeArm` as a second route (`detection: any`). Cheetham: "casting is directly observable — the club races ahead of the body and peaks early". It changes when `casting` fires, so it goes through the rank-shift report first (D27).
+**And one change to an existing node** (as first drafted; superseded 17 Oct by the single-signal `club_before_arms`, §18 D27): `casting` gains `sig_clubBeforeArm` as a second route (`detection: any`). Cheetham: "casting is directly observable — the club races ahead of the body and peaks early". It changes when `casting` fires, so it goes through the rank-shift report first (D27).
 
 Each new condition gets `consequence`, `golferWhy` and `provenance` in the existing style. `consequence` texts say what the chain loses ("the chest never gets faster than the hips, so the speed the hips made is not passed on") and never claim stored elastic energy (NR-14).
 
@@ -713,7 +715,7 @@ Every edge carries `provenance` with `searchedOn` and `searchTerms`, as the pack
 
 ### 10.6 The score: what is counted, and what is not
 
-**Per swing: "n of m checks".** The KS tile gains one line under the strip: **"Sequence checks: 6 of 7"**, listing each check with ✓, ✗ or "—" (not assessable). The checks are F1–F7 and F9, each read straight from its signal in the engine. This is the framing the literature supports (Meister 2011, §4.1: a count of factors outside the professional band, not a per-factor score), and NR-16 makes it PinPoint's own, labelled so.
+**Per swing: "n of m checks".** *(17 Oct 2026: the count is off the tile and the list stays — §18 D22.)* The KS tile gains one line under the strip: **"Sequence checks: 6 of 7"**, listing each check with ✓, ✗ or "—" (not assessable). The checks are F1–F7 and F9, each read straight from its signal in the engine. This is the framing the literature supports (Meister 2011, §4.1: a count of factors outside the professional band, not a per-factor score), and NR-16 makes it PinPoint's own, labelled so.
 - **What it counts:** order and hand-off checks. **What it never counts:** closeness of any magnitude or time to a published mean.
 - **σ:** each check carries its signal's pFire. The count shown is the hard count; the engine keeps the expected count Σ(1 − pFire) for ranking. A check whose pFire sits between 0.2 and 0.8 is shown as "?" rather than ✓ or ✗.
 - **One source of truth:** the tile reads the engine's readings for these signals (E4). It does not re-derive them from the Sequence object, so the tile and the diagnosis cannot disagree.
@@ -762,8 +764,8 @@ Found when this part was planned against the code (HEAD cae12914):
 | P6 | Stage version for E5 | Segment rates and the KS have no stage version; they re-run on every analysis, so no bump is needed. |
 | P7 | §10.4 and §10.6 feed the Wilson **lower** bound of the in-order share to a `threshold low 0.5` signal. That fires because the sample is small: 3 of 3 in order reads 0.44, 9 of 14 reads 0.39, and both would say "fewer than half in order". | Assert the fault on the Wilson lower bound of the **fault** rate, the ledger's own rule. `m_ksOrderShare` = 1 − `wilsonLowerBound(outOfOrder, resolved)`, the in-order share's Wilson upper bound, and the signal stays `< 0.5`. A swing counts only when F1, F2 and F3 were all assessed (all four peaks placed), and it is in order when none of the three fired. Counts are soft under `softTier` with the warm-up weights. The share is read from 5 such swings (`tuned::sequence::kSessionMinSwings`): at 3 or fewer it cannot fire whatever happens, and from 4 to 7 only a clean sweep out of order fires. The Wilson bound is the uncertainty, so the reading carries no σ and its pFire is hard. |
 | P8 | `m_ksTimingSpread` read the raw SD. Placed peaks carry σ_t up to 40 ms (`kMaxPlaceSigmaMs`), against professional SDs of 8 to 19 ms, so the raw SD fires on camera noise. A club change also moves peak timing. | The SD is pooled within club (Σ(n_c − 1)s_c² / Σ(n_c − 1)), less the mean σ_t² of the placed peaks, over the professional SD. The value is the largest such ratio over the segments with at least 4 degrees of freedom. Its σ is s²·√(2/dof) / (2·proSD·max(s_true, proSD)), and the engine's threshold test turns that into pFire. The placed peak instants are persisted per shot (`ShotRecord::peakTimes`, ledger schema 6). |
-| P9 | The order checks only compare neighbours, so a link that is not placed ends the check. On 4 July 2026 no chest peak is placed, and the hips peak 20 to 40 ms **after** impact on 14 of 15 swings, after the lead arm (−107 ms) and the club (−49 ms) on swing 8. Every hip check read "not assessable", and hip braking read clean (503 against 863 °/s) because the hips were still speeding up through the ball. (15 October, from Mark's review: "the sequence is related to impact"; "each of the 4 series should be checked independently … in all cases peaking after impact is not good"; "ideally the club peaks at impact and after the other 3"; a club peaking just before impact can be a held-off release, "a shot type as much as a fault".) | **Timing against impact, one fault per segment.** Each series is read against impact on its own, as a single-signal condition: `hips_peak_after_impact`, `chest_peak_after_impact`, `arms_peak_after_impact` and `club_peak_after_impact` (`threshold` 0 ms, high; pFire Φ(t/σ_t)), and `club_peak_early` (the club more than 20 ms before impact, a heuristic matching the `deceleration` ceiling; draft). Sources: Cheetham et al. 2008, professionals peaking the pelvis 87 ± 19, the thorax 68 ± 14 and the lead arm 65 ± 8 ms before impact; Lynn et al. 2013, every golfer's pelvis peaking and slowing before the ball. No study gives a club peak time, so both club lines are practice. Causes: `late_pelvis_rotation` → hips (Lynn 2013), then hips → chest → arm → club after impact (the proximal-to-distal chain, Cheetham 2008, indirect), and `casting` and `club_not_released` → `club_peak_early`. A held-off release played on purpose is the shot, not a fault; no shot can be declared held off yet, so the condition says so in its words (open). **Single-signal conditions are deliberate.** An `any` condition reads clean only when every signal was read, so an impact check beside an order check that could not be made would count only firings, and the pattern rate would read 100 %. **The order chain falls back:** an order signal's `fallback` lists the later links, and the engine compares the subject with the first one placed (`sig_sequenceOrder`: chest, then lead arm, then club; `sig_armBeforeThorax`: lead arm, then club). The literal `impact` may end a chain (engine support, unused by the shipped pack). The ledger records the link compared (`SignalRow::comparedWith`, schema 7), and the tile names it ("Hips before lead arm"). A fallen-back check does not count towards the in-order share. The tile shows I1–I5 beside F1–F9. **Braking needs a peak before impact:** `sig_noPelvisBraking` carries `requiresBeforeImpact: m_pelvisPeakTime`; at or after impact it is not assessable (`PeakAfterImpact`), never a pass. **D27 as drafted would dark `casting`:** it adds `sig_clubBeforeArm` under `detection: any`, so every swing without both peaks would read `casting` as not assessable unless it fired. It needs the same single-signal treatment before it is applied. |
-| P10 | After the library re-analysis (15 October 2026: 136 swings on the studio, none failed, pose reused), `club_peak_early` fired on 106 of 127 swings and lifted `club_not_released` into the top three roots in four sessions. The camera club node is the shaft angle's rate, and through impact that rate collapses on 93 of 129 swings: on 4 July swing 1 it falls from 2217 °/s at −37 ms to 456 at +1 ms and returns to 1743 at +30 ms, which no club does. Where it holds, a ~45 ms wobble from the projection still leaves an early hump 40–110 ms out on about half of the rest. The clubhead's own speed (`clubheadPeakLead`) peaks about 2 ms before the ball in four sessions. (KB-18. Mark: "we should refuse to signal an issue with the club speed peaking, but the measure and charting is fine so long as sigma reflects the uncertainty in the measure.") | **Drawn but not judged.** The camera club node (routes `faceOnClub`, `faceOn+dtl`) stays placed and charted, and its σ_t becomes √(σ_t² + span²/12), where span is the time from its peak to impact: the true peak could be anywhere in between. `MetricSeries::withheld` carries the producer's reason onto `clubPeakTime` and `clubPeakSpeed`. It travels through the swing document, the phase grid (sidecar schema 7) and the measure source to `MeasureReading::withheld`. The engine refuses every signal that reads a withheld value (`SignalRefusal::Withheld`); an order chain walks past it like an unplaced link. The tile says "club peak is charted but not judged". So `club_peak_early`, `club_peak_after_impact` and the club hand-off ratios are not assessable from cameras. The club-sensor route is unaffected. Open: the projection wobble in the shaft-angle rate (its root cause), and a peak-speed σ that includes it. |
+| P9 | The order checks only compare neighbours, so a link that is not placed ends the check. On 4 July 2026 no chest peak is placed, and the hips peak 20 to 40 ms **after** impact on 14 of 15 swings, after the lead arm (−107 ms) and the club (−49 ms) on swing 8. Every hip check read "not assessable", and hip braking read clean (503 against 863 °/s) because the hips were still speeding up through the ball. (15 October, from Mark's review: "the sequence is related to impact"; "each of the 4 series should be checked independently … in all cases peaking after impact is not good"; "ideally the club peaks at impact and after the other 3"; a club peaking just before impact can be a held-off release, "a shot type as much as a fault".) | **Timing against impact, one fault per segment.** Each series is read against impact on its own, as a single-signal condition: `hips_peak_after_impact`, `chest_peak_after_impact`, `arms_peak_after_impact` and `club_peak_after_impact` (`threshold` 0 ms, high; pFire Φ(t/σ_t)), and `club_peak_early` (the club more than 20 ms before impact, a heuristic matching the `deceleration` ceiling; draft). Sources: Cheetham et al. 2008, professionals peaking the pelvis 87 ± 19, the thorax 68 ± 14 and the lead arm 65 ± 8 ms before impact; Lynn et al. 2013, every golfer's pelvis peaking and slowing before the ball. No study gives a club peak time, so both club lines are practice. Causes: `late_pelvis_rotation` → hips (Lynn 2013), then hips → chest → arm → club after impact (the proximal-to-distal chain, Cheetham 2008, indirect), and `casting` and `club_not_released` → `club_peak_early`. A held-off release played on purpose is the shot, not a fault; PPS does not model intent (Mark, 17 Oct), so the condition reports when the club peaked, not why. **Single-signal conditions are deliberate.** An `any` condition reads clean only when every signal was read, so an impact check beside an order check that could not be made would count only firings, and the pattern rate would read 100 %. **The order chain falls back:** an order signal's `fallback` lists the later links, and the engine compares the subject with the first one placed (`sig_sequenceOrder`: chest, then lead arm, then club; `sig_armBeforeThorax`: lead arm, then club). The literal `impact` may end a chain (engine support, unused by the shipped pack). The ledger records the link compared (`SignalRow::comparedWith`, schema 7), and the tile names it ("Hips before lead arm"). A fallen-back check does not count towards the in-order share. The tile shows I1–I5 beside F1–F9. **Braking needs a peak before impact:** `sig_noPelvisBraking` carries `requiresBeforeImpact: m_pelvisPeakTime`; at or after impact it is not assessable (`PeakAfterImpact`), never a pass. **D27 as drafted would dark `casting`:** it adds `sig_clubBeforeArm` under `detection: any`, so every swing without both peaks would read `casting` as not assessable unless it fired. It needs the same single-signal treatment before it is applied. |
+| P10 | After the library re-analysis (15 October 2026: 136 swings on the studio, none failed, pose reused), `club_peak_early` fired on 106 of 127 swings and lifted `club_not_released` into the top three roots in four sessions. The camera club node is the shaft angle's rate, and through impact that rate collapses on 93 of 129 swings: on 4 July swing 1 it falls from 2217 °/s at −37 ms to 456 at +1 ms and returns to 1743 at +30 ms, which no club does. Where it holds, a ~45 ms wobble from the projection still leaves an early hump 40–110 ms out on about half of the rest. The clubhead's own speed (`clubheadPeakLead`) peaks about 2 ms before the ball in four sessions. (KB-18. Mark: "we should refuse to signal an issue with the club speed peaking, but the measure and charting is fine so long as sigma reflects the uncertainty in the measure.") | **Drawn but not judged.** The camera club node (routes `faceOnClub`, `faceOn+dtl`) stays placed and charted, and its σ_t becomes √(σ_t² + span²/12), where span is the time from its peak to impact: the true peak could be anywhere in between. `MetricSeries::withheld` carries the producer's reason onto `clubPeakTime` and `clubPeakSpeed`. It travels through the swing document, the phase grid (sidecar schema 7) and the measure source to `MeasureReading::withheld`. The engine refuses every signal that reads a withheld value (`SignalRefusal::Withheld`); an order chain walks past it like an unplaced link. The tile says "club peak is charted but not judged". So `club_peak_early`, `club_peak_after_impact` and the club hand-off ratios are not assessable from cameras. The club-sensor route is unaffected. Open: the projection wobble in the shaft-angle rate (its root cause), and a peak-speed σ that includes it. **17 Oct: root cause found, not a projection effect** (§17.3): through impact the face-on tracker reads the legs or a backward branch while the club blurs in front of the legs. A plausibility pass removes those readings, but on 77 of 139 swings nothing measured is left, so the withhold stays (`docs/research/data/kb18/`). |
 | P11 | The session cards are ordered by how far a fault goes outside its corridor when it fires (`firingExcess`, the strength ladder). The sequence checks are yes/no tests against a line, so they have no corridor and scored zero. On 4 July `hips_peak_after_impact` (14 of 14) and `sequence_order` (13 of 14) sat at the bottom, below `lead_knee_drifts_in_at_top`. (Mark, 15 October: "my sequence has pelvis peaking after impact, that is so so bad … i'm not convinced this is about pro level norms"; "out of order and peaking after impact are both really bad. both should be a sharp finding".) | **Sharp findings.** `Condition::sharp` (pack key `sharp`) marks a condition where crossing the line is serious in itself. It is set on `hips_`, `chest_`, `arms_` and `club_peak_after_impact` and on `sequence_order`. The engine carries it onto `Finding::sharp` and `ConditionRow::sharp`; the ledger persists it only when true. `rowStrength()` reads a sharp firing as `kDiagSharpExcess` (1000), the top step of the meter and past every corridor excess, so sharp patterns rank first on the cards and in the work-ons. That number is a rank key and is never printed: the meter reads "a sharp finding: crossing this line is serious in itself", and the out-by columns show "sharp". Ranking only: no tier, firing or edge moves. It is not a pro-norm distance. The This-shot dot plot sizes its axis from the corridor rows alone and draws a sharp row at the right edge; the first cut let 1000 set the axis and flattened every other row (Mark's screenshot, 15 October). |
 
 **Dropped edges** (K3, searched 14 October 2026). Each §10.5 edge was searched before it was authored. These six could not be supported, so they are not in `core.json`:
@@ -1096,6 +1098,8 @@ The 5–9 October week did not run; only role-keyed placement landed. The order 
 9. **Part C Phase 0** (net GRF from kinematics), and the split solver plus synthetic plate against synthetic ground truth — neither needs hardware.
 10. **Part C Phase 1** once D17 is decided; Phase 2; then the reference session.
 
+**Progress (17 Oct 2026):** Part K is done (step 0). Step 1 is built and tested, uncommitted at the time of writing. The step-2 tooling is built. The measurements are split (Mark, 17 Oct): the desk part (H0–H2) runs now; the worn part (H1b, H3–H5) follows step 3, the ceremony (§17.3).
+
 **What slips first:** the mixed-route X-factor (D4), the posture measures in `core.json`, the clavicle series, Part C. The ceremony, the three defects and the paired table do not slip.
 
 Standing rules: Mark judges results before anything is committed; commits at the end, push on his word; ≤ 2–3 builds per task; one item per agent run.
@@ -1161,7 +1165,7 @@ The hip peak is placed on 59 swings; the chest peak on none.
 **Display order (P11).** On the session cards, the sequence faults sat at the bottom (no corridor) until they became sharp findings. They now lead in every established session.
 - **First fix:** the This-shot dot plot then sized its axis from the 1000 rank key, which pressed every corridor fault onto the fault line.
 - **Fixed:** `PpDotPlot` sizes the axis from corridor rows only and draws a sharp row at the right edge.
-- **Not changed (open):** the home screen's merged work-ons rank by the recency-weighted Wilson lower bound across sessions, and excess only breaks ties. The sequence faults are assessable on 59 swings against ~130 for the posture faults, so they rank lower there, although every session's own list puts them first.
+- **Changed 17 Oct (Mark: "sharp first, as in sessions"):** the home screen's merged work-ons ranked by the recency-weighted Wilson lower bound across sessions, and excess only broke ties. Now a sharp pattern in its newest listing session ranks first, then the Wilson bound (`aggregateWorkOns`, work-on rule v3). Before the change: The sequence faults are assessable on 59 swings against ~130 for the posture faults, so they rank lower there, although every session's own list puts them first.
 
 **§10.6 (checks passed against clubhead speed, Spearman within session):**
 
@@ -1180,12 +1184,51 @@ These are weak and not consistent. By the plan the count should come off the til
 **Open.**
 - Is the late hip peak real or a camera-route lag? A worn pelvis sensor settles it.
 - The shaft-angle rate's projection wobble (KB-18 root cause).
-- A "held off" shot type to excuse an intentional hold-off.
+- ~~A "held off" shot type to excuse an intentional hold-off.~~ **Dropped 17 Oct (Mark):** "it is a coaching decision not for pps. we can't account for intent we just stay honest and report what we saw." `club_peak_early`'s wording no longer promises a declaration.
 - The tile count (§10.6).
 - Sharp findings in the home ranking.
-- The D27 redesign.
+- ~~The D27 redesign.~~ **Done 17 Oct:** the single-signal condition `club_before_arms` (§18 D27).
+- ~~The tile count (§10.6).~~ **Count removed 17 Oct** (§18 D22).
+- ~~Sharp findings in the home ranking.~~ **Done 17 Oct:** sharp first on home too (work-on rule v3).
 
 ---
+
+### 17.3 After Part K, 17 October 2026: leftovers, KB-18, and §16 step 1
+
+**Part K leftovers** (uncommitted at the time of writing):
+- **Home work-ons:** sharp findings first (rule v3).
+- **The tile:** the "n of m" count is gone and the list stays (D22).
+- **Held off:** no intent modelling; the wording no longer promises a declaration.
+- **D27:** the single-signal condition `club_before_arms`.
+- **D27 gate:** `diag_rank_diff` from the HEAD pack to the new pack shows **no swing changing its firing, and the same top-3 roots in every session**. `club_before_arms` is assessable on 0 swings while the camera club is withheld (CSVs `docs/research/data/ks_model/d27_*_20261017.csv`).
+
+**KB-18, the camera club through impact** (`docs/research/data/kb18/`).
+- **The audit:** 12 swings rendered from −40 to +40 ms.
+  - On 6, the face-on line sits on the legs or trousers at 85–110° while the club, a faint blur in front of the legs, is already past.
+  - On 3, wedge and recon tiers read the shaft pointing back up the downswing.
+  - 3 are clean.
+- **Not a projection effect:** the 2-D image angle already stalls before de-projection, and the projection would *speed up* the 2-D rate at impact.
+- **The pass tried:** an impact-window plausibility pass demoted the wrong readings. On GOLFSIMPC (two mirrors, one binary) it failed the library gate: the rate at ±8 ms is ≥ 0.8 of its peak on 25 of 139 swings against base's 32.
+- **Why it fails:** on 77 swings the camera has fewer than 2 measured samples on one side of impact, so a bridge has nothing to measure. On the 62 swings covered on both sides, base and fix agree at a median 0.6. That is consistent with the camera's own clubhead speed, so the early club peak there may be real.
+- **Shipped:** the pass is off, and the withhold stays.
+- **For Mark:** judge the camera club per swing by two-sided coverage.
+
+**§16 step 1, frames and the trunk solve** (uncommitted at the time of writing):
+- **The contract:** `imu_frame_contract.md` §5 now has the trunk rows, and `pinpoint_sign_conventions.md` has "Trunk IMU readings".
+- **The code:**
+  - `solveTrunkSegment()`, with its gates and messages, and `trunk_angles.h` (D13);
+  - the KS trunk rate is now the segment S-I rate (D3), and the phase segmenter reads the pelvis about world Z;
+  - defect 3 is fixed: a conf-0 IMU segmentation no longer replaces vision phases.
+- **The end-to-end test:** `trunk_e2e_test` covers Madgwick and ESKF worlds, arbitrary mounts, left-handers, drift and the gates. Two findings, written into §6.2 and §6.3:
+  - face-in is not catchable at stand tall or in the turns;
+  - the turn error from δ grows to 5.3° at 90° on a bent thorax.
+- **Step-2 tooling:**
+  - the dev switches `PINPOINT_IMU_RECORD_DIR` and `PINPOINT_DEV_TRUNK_MOUNTS`;
+  - swinglab `--trunk-calib-from`, `--ignore-role`, and per-lane tilt in `--refuse-orientation`;
+  - `tools/trunk/trunk_hw.py`;
+  - the protocols, split 17 Oct (Mark): `docs/research/trunk_imu/hardware_desk_session.md` (H0–H2, at a desk, now) and `hardware_worn_session.md` (H1b, H3–H5, after the ceremony);
+  - `build/run-me/trunk-hw-desk.sh`, `build/run-me/trunk-hw-worn.sh` and `tools/studio/trunk-hw*.cmd`.
+- **Next, in order:** the desk session (H0–H2, needs nothing new); then the calibration ceremony (§16 step 3), built on the desk numbers (rate, still-hold thresholds); then the worn session (H1b, H3–H5) with the ceremony doing the calibration live. The stand-tall-shot route stays as a fallback.
 
 ## 18. Decisions
 
@@ -1209,12 +1252,12 @@ All decided with Mark on 14 October 2026 unless dated otherwise.
 | D7 | Sensor slip | **Toast and widen σ** |
 | D8 | One arm + trunk ceremony | **Yes, after the trunk-only routine has run on hardware** |
 | D9 | Magnetometer heading | **No** |
-| D22 | "Sequence checks: n of m" on the KS tile | **Checks and count shown now**, labelled PinPoint's own; the §10.6 validation runs alongside and can take the count off |
+| D22 | "Sequence checks: n of m" on the KS tile | **Checks and count shown now**, labelled PinPoint's own; the §10.6 validation runs alongside and can take the count off. **17 Oct (Mark): count removed, list kept.** ρ against clubhead speed was −0.07…+0.22 with no consistent sign, and the count read "1 of 1" on 79 of 147 swings: it measured how many checks the cameras could make, not the sequence |
 | D23 | Hand-off thresholds | **80 % of the Cheetham professional ratio:** 1.22 / 1.08 / 1.84. **Needs an NR-05 amendment** (below) |
 | D24 | Pelvis braking | **No braking = hips still at ≥ 95 % of peak at impact**; heuristic, re-seated from worn swings |
 | D25 | The seven new KS characteristics | **Accepted as proposed** (§10.4); wording tuned later in the inspector |
 | D26 | X-factor characteristics vs NR-13 | **Amend NR-13** (below); both nodes stay |
-| D27 | `casting` gains club-before-arm | **Yes, after the rank-shift report** and a per-swing review of new firings |
+| D27 | `casting` gains club-before-arm | **Yes, after the rank-shift report** and a per-swing review of new firings. **Redesigned 17 Oct:** not a second signal on `casting` (the `any` trap, §10.9 P9) but its own single-signal condition `club_before_arms` (`sig_clubBeforeArm` alone; edge `casting → club_before_arms`, moderate, indirect). `casting` is unchanged. Not assessable from cameras while the camera club is withheld (P10) |
 | D17 | Force plates | **Wii boards first**; the DIY nRF5340 plate follows as the product device |
 | D18 | Reference session | **Deferred.** Load and GRF metrics stay `experimental`; Phase 3 waits |
 | D19 | Third camera | **Deferred as a later development**; Phase 0 runs on face-on + DTL and states its weaker feet |
