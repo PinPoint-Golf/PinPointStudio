@@ -49,7 +49,8 @@ TraceCurve shotCurve(const ShotSeries &shot, const QString &key)
     std::vector<int64_t> tCopy;
     const int64_t *tp = nullptr;
     if constexpr (std::is_same_v<qint64, int64_t>) {
-        tp = m->tUs.data();
+        // Not a template, so the discarded branch is still type-checked: cast, though it is a no-op here.
+        tp = reinterpret_cast<const int64_t *>(m->tUs.data());
     } else {
         tCopy.assign(m->tUs.begin(), m->tUs.begin() + std::ptrdiff_t(n));
         tp = tCopy.data();
