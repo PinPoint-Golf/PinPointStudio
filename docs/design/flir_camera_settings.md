@@ -35,8 +35,8 @@ each a `QVariantMap` keyed by the camera key `description|serial`:
 | `cameraPerspective` | `camera/perspective` | role: None, DownTheLine, FaceOn, Other, Impact. Impact is exclusive (`CameraManager::assignPerspective` strips it from every other camera) | decides which values the writer uses |
 | `cameraRoi` | `camera/roi` | normalised crop `{x,y,w,h}` **per role**: `<key>` for every non-Impact role, `<key>#impact` for the impact strip (`src/Gui/cameras/camera_roi.h`) | yes (hardware ROI) |
 | `cameraTargetFps` | `camera/targetFps` | frame rate | **Impact only** (§2.3) |
-| `cameraExposureUs` | `camera/exposureUs` | locked exposure, µs | Impact only |
-| `cameraTuning` | `camera/tuning` | `{gainDb, strobe, viewGain, note}` | `gainDb`, `strobe`: Impact only. `viewGain` is a display stretch on the tile and replay, `note` is stamped into the clip; neither touches the camera. A `gamma` member from older versions is ignored |
+| `cameraExposureUs` | `camera/exposureUs` | locked exposure, µs, **per role**: `<key>` for Impact, `<key>#wide` for every other role, absent = camera auto (`pp_camroi::tuningKey`, 17 Oct) | yes |
+| `cameraTuning` | `camera/tuning` | `{gainDb, strobe, viewGain, note}`; `<key>#wide` holds only `gainDb` for the other roles | `gainDb`: every role (Impact at `<key>`, the rest at `<key>#wide`); `strobe`: Impact only. `viewGain` is a display stretch on the tile and replay, `note` is stamped into the clip; neither touches the camera. A `gamma` member from older versions is ignored |
 | `cameraTriggerMode` | `camera/triggerMode` | free-run / trigger | no local backend reads it |
 | `cameraExcluded`, `cameraAlias`, `cameraIsMirrored` | | housekeeping | no |
 
@@ -66,9 +66,10 @@ exposure 70 µs, gain **18 dB**, black-level lift **4 %**, view gain 1.0
 | GAIN chips | Impact | `cameraTuning.gainDb` | live if streaming, else next connect |
 | VIEW gain, NOTE | Impact | `cameraTuning.viewGain/note` | display / clip metadata only |
 | STROBE | Impact | `cameraTuning.strobe` | next connect |
+| EXPOSURE AND GAIN row | every other role, when the backend declares `tuning.lockable` (Spinnaker, Aravis) | `cameraExposureUs` / `cameraTuning.gainDb` at `<key>#wide`; Auto removes the entry | a lock: live if streaming, else a reconnect; Auto: a reconnect (`CameraManager::reconnectCamera`) — only the connect writer returns the nodes to auto |
 
-There is deliberately no exposure or gain control for a non-Impact camera:
-those run on camera auto. There is no gamma control at all (§5).
+Face-on and DTL default to camera auto, and stay there unless locked (added 17 Oct for the clarity
+tests, `flir_image_clarity.md` §6.4–§6.5). There is no gamma control at all (§5).
 
 ### 2.3 What the backend is handed
 
@@ -78,9 +79,10 @@ the instance's lifetime:
 - The crop of the camera's role, for every instance (a settings preview
   instance reads it for the crop editor; only buffer-backed instances apply
   it).
-- The rate, exposure, gain, black-level lift and strobe **only** when the
-  instance has a buffer **and** the role is Impact. Otherwise they stay at
-  the "not requested" sentinels: rate `0`, exposure `0`, gain `-1`, lift `0`,
+- The rate, exposure, gain, black-level lift and strobe when the instance
+  has a buffer and the role is Impact. Any other buffer-backed role takes
+  only its own `<key>#wide` exposure and gain, when locked. Everything else
+  stays at the "not requested" sentinels: rate `0`, exposure `0`, gain `-1`, lift `0`,
   strobe `false` — which the writer turns into camera auto, the factory black
   level and a released Line1. A settings preview gets none of them, so the
   crop editor shows a bright full-sensor picture.

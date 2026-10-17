@@ -235,6 +235,9 @@ QVariantList CameraManager::cameraList() const
         // The sensor's gain range in dB, for the impact row's GAIN chips
         // (impact_camera_design.md §10.3); 0 max = the camera has no gain node.
         entry[QStringLiteral("gainMaxDb")] = cap.gain.readable ? cap.gain.range.max : 0.0;
+        // Exposure and gain can be locked on any role (flir_image_clarity.md §6.4).
+        entry[QStringLiteral("tuningLockable")] =
+            cap.extensions.value(QStringLiteral("tuning.lockable")).toBool();
 
         // --- Ring buffer sizing fields (mirror CameraInstance's allocation logic) ---
         // Slot width/height: largest supported resolution, not just the default.
@@ -781,6 +784,18 @@ void CameraManager::assignPerspective(const QString &key, int perspective)
         setSelected(i, true);
     }
     emit cameraListChanged();
+}
+
+void CameraManager::reconnectCamera(const QString &key)
+{
+    for (int i = 0; i < m_cameras.size(); ++i) {
+        if (m_cameras[i].selected && m_cameras[i].controller && cameraKey(m_cameras[i]) == key) {
+            ppInfo() << "[CameraManager]" << m_cameras[i].device.description
+                     << "reconnecting so its exposure and gain follow the settings";
+            setSelected(i, false);
+            setSelected(i, true);
+        }
+    }
 }
 
 void CameraManager::setIsMirrored(QObject *rawController, bool mirrored)

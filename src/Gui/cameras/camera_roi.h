@@ -87,4 +87,15 @@ inline QRectF cropFor(const QVariantMap &roiMap, const QString &cameraKey, int p
     return {};
 }
 
+// A locked exposure and gain are per role too (flir_image_clarity.md §6.4).
+// Impact keeps the camera key in cameraExposureUs / cameraTuning, as it always
+// has; every other role keeps its own under "<key>#wide", absent = camera auto.
+// They must never share: a camera that was the impact camera still holds its
+// ~100 us there, and a down-the-line camera reading it would come back black
+// (the October 2026 dark DTL, flir_camera_settings.md §6).
+inline QString tuningKey(const QString &cameraKey, int perspective)
+{
+    return perspective == kImpactPerspective ? cameraKey : cameraKey + QStringLiteral("#wide");
+}
+
 } // namespace pp_camroi

@@ -250,7 +250,7 @@ bool VideoInputAravis::start(const QString &deviceId)
 
         const QByteArray line = log.join(QLatin1Char(' ')).toUtf8();
         ppInfo() << "[VideoInputAravis] settings:"
-                 << (lockedExposure ? "impact locked" : "camera auto") << line.constData();
+                 << (lockedExposure ? "exposure locked" : "camera auto") << line.constData();
     }
     arv_camera_set_pixel_format(cam, ARV_PIXEL_FORMAT_MONO_8, nullptr); // Raw Bayer or Mono
 
@@ -474,6 +474,9 @@ CameraCapabilities VideoInputAravis::queryCapabilities() const
             caps.gain.range.defaultValue = curGain;
         }
         g_clear_error(&err);
+        // start() and applyLiveTuning lock both, so Settings offers them on every role.
+        if (caps.exposureTime.readable && caps.gain.readable)
+            caps.extensions[QStringLiteral("tuning.lockable")] = true;
 
         // --- Pixel format ---
         guint nFormats;

@@ -318,7 +318,7 @@ ConnectApplied applyConnectSettings(INodeMap &nodeMap, const ConnectSettings &s)
     nodeMap.InvalidateNodes();
 
     out.info << QStringLiteral("settings: %1 %2")
-                    .arg(lockedExposure ? QStringLiteral("impact locked") : QStringLiteral("camera auto"),
+                    .arg(lockedExposure ? QStringLiteral("exposure locked") : QStringLiteral("camera auto"),
                          log.join(QLatin1Char(' ')));
     return applied;
 }

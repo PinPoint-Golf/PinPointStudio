@@ -152,6 +152,11 @@ public slots:
     // A connected camera that moves into or out of Impact (either way, the
     // stripped one too) is reconnected so its camera settings follow the role.
     Q_INVOKABLE void assignPerspective(const QString &cameraKey, int perspective);
+    // Reconnects a connected camera so its instance re-reads the settings it
+    // freezes at construction. Settings calls it when a locked exposure or
+    // gain goes back to auto: a live write can lock either, but only the
+    // connect writer returns them to auto (flir_camera_settings.md §2.2).
+    Q_INVOKABLE void reconnectCamera(const QString &cameraKey);
     Q_INVOKABLE void setIsMirrored(QObject *controller, bool mirrored);
 
     // Sets the hitting-area ROI on one camera and persists it per cameraKey.

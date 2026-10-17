@@ -578,6 +578,10 @@ CameraCapabilities VideoInputSpinnaker::queryCapabilities() const
             caps.gain.range.step         = 0;
             caps.gain.range.defaultValue = ptrGain->GetValue();
         }
+        // The connect writer and applyLiveTuning lock both (spinnaker_settings.cpp),
+        // so Settings offers them on every role, not only Impact.
+        if (caps.exposureTime.readable && caps.gain.readable)
+            caps.extensions[QStringLiteral("tuning.lockable")] = true;
 
         // --- Exposure mode ---
         CEnumerationPtr ptrExpAuto = nodeMap.GetNode("ExposureAuto");

@@ -154,6 +154,14 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
             m_captureGainDb = tuning.value(QStringLiteral("gainDb"), kImpactDefaultGainDb).toDouble();
             m_captureBlackLift = kImpactBlackLevelLiftPct;   // not a knob: see the constant
             m_captureStrobe = tuning.value(QStringLiteral("strobe"), false).toBool();
+        } else if (buffer) {
+            // Every other role: camera auto unless the operator locked the
+            // exposure or the gain for this role (absent = auto). The rate
+            // stays at the crop's maximum.
+            const QString tk = pp_camroi::tuningKey(key, appSettings->cameraPerspective().value(key).toInt());
+            m_captureExposureUs = appSettings->cameraExposureUs().value(tk, 0.0).toDouble();
+            m_captureGainDb = appSettings->cameraTuning().value(tk).toMap()
+                                  .value(QStringLiteral("gainDb"), -1.0).toDouble();
         }
     }
 
@@ -1108,24 +1116,28 @@ QVariantMap CameraInstance::readBackSettings()
     return out;
 }
 
-// Main thread, ≤ ~8 Hz. A 256-bin histogram over every other row and column
-// of the frame: cheap at 640×240, and the statistics are unaffected by the
-// stride. Raw Bayer is read as luma, which is what the exporter's greyscale
-// preview shows too.
+// Main thread, ≤ ~8 Hz. A 256-bin histogram over an even-strided grid of the
+// frame — every other pixel at 640×240, sparser on a full frame so no camera
+// samples more than ~80k — and the statistics are unaffected by the stride.
+// Raw Bayer is read as luma, which is what the exporter's greyscale preview
+// shows too. Every role: the Settings tuning readout reads it for any camera
+// with a lockable exposure (flir_image_clarity.md §6.4).
 void CameraInstance::updateLevels(const uchar *data, int width, int height, int stride)
 {
-    if (!data || width <= 0 || height <= 0 || m_perspective != Impact)
+    if (!data || width <= 0 || height <= 0)
         return;
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
     if (now - m_levelsLastMs < 125)
         return;
     m_levelsLastMs = now;
 
+    // Even, so a Bayer frame is always read on the same CFA site.
+    const int step = std::max(2, 2 * static_cast<int>(std::sqrt(double(width) * height / 80000.0) / 2.0));
     uint32_t hist[256] = {};
     uint32_t n = 0;
-    for (int y = 0; y < height; y += 2) {
+    for (int y = 0; y < height; y += step) {
         const uchar *row = data + static_cast<size_t>(y) * stride;
-        for (int x = 0; x < width; x += 2) { ++hist[row[x]]; ++n; }
+        for (int x = 0; x < width; x += step) { ++hist[row[x]]; ++n; }
     }
     if (n == 0) return;
     auto percentile = [&](double p) {

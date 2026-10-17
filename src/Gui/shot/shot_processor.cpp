@@ -1668,14 +1668,18 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
             cam.keepStartUs = lo;
             cam.keepEndUs   = hi;
         }
-        if (cam.perspective == CameraInstance::Impact) {
-            // Tuning provenance (impact_camera_design.md §10.3): what the
-            // camera held if it told us, else what it was asked for.
+        // Gain provenance (impact_camera_design.md §10.3): what the camera
+        // held if it told us, else what it was asked for. Every camera whose
+        // gain was locked — the impact camera always, any other when its role
+        // has a lock (flir_image_clarity.md §6.4); auto gain writes nothing.
+        if (cam.perspective == CameraInstance::Impact || track.ctrl->requestedGainDb() >= 0.0) {
             const double heldGain  = track.ctrl->appliedGainDb();
             cam.gainDb     = heldGain >= 0.0 ? heldGain : track.ctrl->requestedGainDb();
-            cam.blackLevelLift = CameraInstance::kImpactBlackLevelLiftPct;
             cam.gainSource = (heldGain >= 0.0) ? QStringLiteral("applied")
                                                : QStringLiteral("requested");
+        }
+        if (cam.perspective == CameraInstance::Impact) {
+            cam.blackLevelLift = CameraInstance::kImpactBlackLevelLiftPct;
             const QVariantMap tuning = s->cameraTuning().value(track.ctrl->cameraKey()).toMap();
             cam.strobe   = tuning.value(QStringLiteral("strobe"), false).toBool();
             cam.viewGain = tuning.value(QStringLiteral("viewGain"),

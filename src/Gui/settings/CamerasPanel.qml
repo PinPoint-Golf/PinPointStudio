@@ -127,6 +127,55 @@ Item {
         }
     }
 
+    // ── Exposure and gain on every other role (flir_image_clarity.md §6.4) ──
+    // Kept under "<key>#wide" so the impact camera's ~100 µs never reaches a
+    // down-the-line camera (camera_roi.h tuningKey). Absent = camera auto. A
+    // lock reaches a streaming camera at once; going back to auto, or any
+    // change while the camera is connected but idle, reconnects it — only the
+    // connect writer returns the nodes to auto.
+    function wideTuningKey(cameraKey) { return cameraKey + "#wide" }
+
+    function wideExposureUs(cameraKey) {
+        var v = appSettings.cameraExposureUs[wideTuningKey(cameraKey)]
+        return (v !== undefined && v > 0) ? v : 0
+    }
+
+    function wideGainDb(cameraKey) {
+        var t = appSettings.cameraTuning[wideTuningKey(cameraKey)]
+        return (t && t.gainDb !== undefined && t.gainDb >= 0) ? t.gainDb : -1
+    }
+
+    function applyWideTuning(cameraKey, exposureUs, gainDb, liveInstance) {
+        if (!liveInstance)
+            return
+        var locking = exposureUs > 0 || gainDb >= 0
+        if (liveInstance.isRecording && locking)
+            liveInstance.applyLiveTuning(exposureUs, gainDb)
+        else
+            cameraManager.reconnectCamera(cameraKey)
+    }
+
+    function setWideExposure(cameraKey, us, liveInstance) {
+        var k = wideTuningKey(cameraKey)
+        var map = appSettings.cameraExposureUs
+        if (us > 0) map[k] = us
+        else        delete map[k]
+        appSettings.cameraExposureUs = map
+        applyWideTuning(cameraKey, us, -1, liveInstance)
+    }
+
+    function setWideGain(cameraKey, db, liveInstance) {
+        var k = wideTuningKey(cameraKey)
+        var map = appSettings.cameraTuning
+        var t = map[k] ? Object.assign({}, map[k]) : {}
+        if (db >= 0) t.gainDb = db
+        else         delete t.gainDb
+        if (Object.keys(t).length > 0) map[k] = t
+        else                           delete map[k]
+        appSettings.cameraTuning = map
+        applyWideTuning(cameraKey, 0, db, liveInstance)
+    }
+
     // A selectable chip for the tuning rows — the same look as the mode and
     // exposure chips, without the per-group copy of the Rectangle.
     component TuneChip: Rectangle {
@@ -264,9 +313,13 @@ Item {
             return camData.maxFps > 0 ? camData.maxFps : 30
         }
 
+        // From where the header ENDS (its top margin included): summing heights
+        // alone left the card one margin short, which clipped the last line of
+        // whatever section came last.
         implicitHeight: camRow.roiOpen
-                            ? headerRow.height + bodyRow.height + impactRow.height + roiPanel.height
-                            : headerRow.height + (camData.enabled ? bodyRow.height : excludedNote.height) + impactRow.height
+                            ? headerRow.y + headerRow.height + bodyRow.height + wideTuneRow.height + impactRow.height + roiPanel.height
+                            : headerRow.y + headerRow.height + (camData.enabled ? bodyRow.height : excludedNote.height)
+                              + wideTuneRow.height + impactRow.height
                               + (camRow.ballOpen ? ballPanel.height : 0)
 
         Behavior on implicitHeight { NumberAnimation { duration: Theme.durationFast } }
@@ -970,9 +1023,185 @@ Item {
         // Its own row beneath the body row: two chip groups with their notes
         // would push the body row's action buttons (Set crop, which is how
         // the strip is positioned over the ball) off the clipped right edge.
+        // ── Exposure and gain, every role but Impact (flir_image_clarity.md §6.4)
+        // Collapsed to one line: the toggle and what the camera runs at now.
+        ColumnLayout {
+            id: wideTuneRow
+            readonly property bool shown: camData.enabled && !camRow.isImpact && camData.tuningLockable === true
+            readonly property double exposureUs: root.wideExposureUs(camData.cameraKey)
+            readonly property double gainDb:     root.wideGainDb(camData.cameraKey)
+            readonly property double framePeriodUs: camRow.currentFps > 0 ? 1e6 / camRow.currentFps : 0
+            anchors.top:    bodyRow.bottom
+            anchors.left:   parent.left
+            anchors.right:  parent.right
+            anchors.leftMargin:  Theme.gap(14)
+            anchors.rightMargin: Theme.gap(14)
+            height: shown ? implicitHeight + Theme.sp(20) : 0
+            visible: shown
+            spacing: Theme.gap(14)
+            clip: true
+
+            RowLayout {
+                spacing: Theme.gap(12)
+                Rectangle {
+                    id: wideToggle
+                    width:  wideToggleRow.implicitWidth + Theme.sp(20)
+                    height: Theme.sp(24)
+                    radius: Theme.radius
+                    color:  camRow.tuningOpen ? Theme.colorAccentLight
+                          : wideToggleArea.containsMouse
+                              ? Qt.rgba(Theme.colorAccentLight.r, Theme.colorAccentLight.g, Theme.colorAccentLight.b, 0.4)
+                              : "transparent"
+                    border.width: 1
+                    border.color: camRow.tuningOpen ? Theme.colorAccent
+                                : wideToggleArea.containsMouse ? Theme.colorAccentMid
+                                : Theme.colorBorderStrong
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+                    Row {
+                        id: wideToggleRow
+                        anchors.centerIn: parent
+                        spacing: Theme.gap(6)
+                        Text {
+                            text:           camRow.tuningOpen ? "▾" : "▸"
+                            font.family:    Theme.fontSymbol
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          camRow.tuningOpen ? Theme.colorAccent : Theme.colorText2
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text:           qsTr("Exposure and gain")
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          camRow.tuningOpen ? Theme.colorAccent : Theme.colorText2
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                    MouseArea {
+                        id: wideToggleArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
+                        onClicked: root.openTuningIndex = camRow.tuningOpen ? -1 : camData.index
+                    }
+                }
+                // What it runs at, and — while it streams — what the raw frame
+                // measures: the number to hold when an exposure is locked.
+                Text {
+                    readonly property var inst: camRow.realInstance
+                    text: (wideTuneRow.exposureUs > 0 ? qsTr("%1 µs").arg(wideTuneRow.exposureUs.toFixed(0)) : qsTr("Auto exposure"))
+                          + " · "
+                          + (wideTuneRow.gainDb >= 0 ? qsTr("%1 dB").arg(wideTuneRow.gainDb.toFixed(0)) : qsTr("auto gain"))
+                          + ((inst && inst.isRecording)
+                             ? qsTr("   ·   levels: median %1, peak %2, clipped %3%")
+                                   .arg(inst.levelBackground.toFixed(0))
+                                   .arg(inst.levelPeak.toFixed(0))
+                                   .arg((inst.levelClipped * 100).toFixed(1))
+                             : "")
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzMicro
+                    color:          Theme.colorText3
+                }
+            }
+
+            RowLayout {
+                visible: camRow.tuningOpen
+                Layout.fillWidth: true
+                spacing: Theme.gap(24)
+
+                // Exposure: auto, or locked to cut motion blur.
+                ColumnLayout {
+                    spacing: Theme.gap(4)
+                    Layout.alignment: Qt.AlignTop
+                    TuneHeading { text: Theme.caps(qsTr("Exposure")) }
+                    Row {
+                        spacing: Theme.gap(4)
+                        TuneChip {
+                            label:    qsTr("Auto")
+                            selected: wideTuneRow.exposureUs <= 0
+                            onClicked: root.setWideExposure(camData.cameraKey, 0, camRow.realInstance)
+                        }
+                        // The frame period, as auto uses it today: the lock that keeps the
+                        // blur the shaft tracker reads when more light would let auto
+                        // shorten the exposure (flir_image_clarity.md §6.5).
+                        TuneChip {
+                            readonly property double us: Math.floor(wideTuneRow.framePeriodUs * 0.99)
+                            visible:  us > 0
+                            label:    qsTr("Full frame")
+                            selected: wideTuneRow.exposureUs > 0 && Math.abs(wideTuneRow.exposureUs - us) < 0.5
+                            onClicked: root.setWideExposure(camData.cameraKey, us, camRow.realInstance)
+                        }
+                        PpTextField {
+                            width:  Theme.sp(72)
+                            height: Theme.sp(24)
+                            implicitHeight: Theme.sp(24)
+                            leftPadding: Theme.gap(8); rightPadding: Theme.gap(8)
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            placeholderText: qsTr("µs")
+                            text: wideTuneRow.exposureUs > 0 ? wideTuneRow.exposureUs.toFixed(0) : ""
+                            validator: DoubleValidator { bottom: 5; top: 50000; decimals: 1 }
+                            onEditingFinished: {
+                                var v = parseFloat(text)
+                                if (!(v > 0) || Math.abs(v - wideTuneRow.exposureUs) < 0.05) return
+                                root.setWideExposure(camData.cameraKey, v, camRow.realInstance)
+                            }
+                        }
+                    }
+                    Text {
+                        text: (wideTuneRow.framePeriodUs > 0
+                               ? qsTr("On Auto each frame is exposed for up to %1 µs, the whole time between frames. ").arg(wideTuneRow.framePeriodUs.toFixed(0))
+                               : "")
+                              + qsTr("Keep it that long: the club's blur is how the shaft tracker times the club. If you add light, choose Full frame so the exposure stays long and the gain drops instead. Changes apply at once while the camera is streaming.")
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
+                        color: Theme.colorText3; wrapMode: Text.WordWrap
+                        Layout.preferredWidth: Theme.sp(420)
+                    }
+                }
+
+                // Gain: auto, or locked to the sensor's own range.
+                ColumnLayout {
+                    spacing: Theme.gap(4)
+                    Layout.alignment: Qt.AlignTop
+                    TuneHeading { text: Theme.caps(qsTr("Gain")) }
+                    Row {
+                        id: wideGainRow
+                        spacing: Theme.gap(4)
+                        readonly property double maxDb: camData.gainMaxDb > 0 ? camData.gainMaxDb : 24
+                        TuneChip {
+                            label:    qsTr("Auto")
+                            selected: wideTuneRow.gainDb < 0
+                            onClicked: root.setWideGain(camData.cameraKey, -1, camRow.realInstance)
+                        }
+                        Repeater {
+                            model: [0, 6, 12, 18, 24, 30, 36, 42, 48].filter(function(v) { return v <= wideGainRow.maxDb + 0.5 })
+                            delegate: TuneChip {
+                                required property var modelData
+                                label:    modelData + qsTr(" dB")
+                                selected: wideTuneRow.gainDb >= 0 && Math.abs(wideTuneRow.gainDb - modelData) < 0.5
+                                onClicked: root.setWideGain(camData.cameraKey, modelData, camRow.realInstance)
+                            }
+                        }
+                    }
+                    Text {
+                        text: {
+                            var inst = camRow.realInstance
+                            var held = (inst && inst.appliedGainDb >= 0) ? qsTr("Camera holds %1 dB. ").arg(inst.appliedGainDb.toFixed(1)) : ""
+                            return held + qsTr("Auto gain fills in for a locked exposure, up to the sensor's maximum. Every 6 dB doubles the brightness, and the noise with it.")
+                        }
+                        font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
+                        color: Theme.colorText3; wrapMode: Text.WordWrap
+                        Layout.preferredWidth: Theme.sp(260)
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+            }
+        }
+
         ColumnLayout {
             id: impactRow
-            anchors.top:    bodyRow.bottom
+            anchors.top:    wideTuneRow.bottom
             anchors.left:   parent.left
             anchors.right:  parent.right
             anchors.leftMargin:  Theme.gap(14)

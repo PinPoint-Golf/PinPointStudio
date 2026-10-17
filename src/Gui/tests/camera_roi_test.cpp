@@ -16,8 +16,8 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// camera_roi_test — the crop is per ROLE (cameras/camera_roi.h,
-// flir_camera_settings.md §2.1). The impact strip lives under "<key>#impact"
+// camera_roi_test — the crop, and a locked exposure and gain, are per ROLE
+// (cameras/camera_roi.h, flir_camera_settings.md §2.1). The impact strip lives under "<key>#impact"
 // and every other role reads the plain entry, so choosing an impact mode no
 // longer overwrites the down-the-line crop; an Impact camera with no strip of
 // its own gets the recommended mode centred, never the full frame; and the
@@ -112,7 +112,22 @@ static void testLookup()
           same(pp_camroi::cropFor(degenerate, kCam, kImpact, &caps), fallback));
 }
 
-// ── 2. AppSettings: the one-time migration ─────────────────────────────────
+// ── 2. Exposure and gain locks are per role too ────────────────────────────
+
+static void testTuningKey()
+{
+    check("T1 the impact role keeps the plain key it always had",
+          pp_camroi::tuningKey(kCam, kImpact) == kCam);
+    check("T2 every other role has its own \"#wide\" key",
+          pp_camroi::tuningKey(kCam, kDtl) == kCam + "#wide" && pp_camroi::tuningKey(kCam, kFaceOn) == kCam + "#wide"
+          && pp_camroi::tuningKey(kCam, 0) == kCam + "#wide");
+    // The dark DTL of October 2026: an ex-impact camera still holds its ~100 us.
+    const QVariantMap exposure{ { kCam, 100.0 } };
+    check("T3 a DTL camera never reads the impact camera's locked exposure (camera auto)",
+          !exposure.contains(pp_camroi::tuningKey(kCam, kDtl)));
+}
+
+// ── 3. AppSettings: the one-time migration ─────────────────────────────────
 
 static void testMigration()
 {
@@ -164,6 +179,7 @@ int main(int argc, char **argv)
     QCoreApplication app(argc, argv);
     std::printf("camera_roi_test — the crop is per role (flir_camera_settings.md §2.1)\n");
     testLookup();
+    testTuningKey();
     testMigration();
     std::printf("%d checks, %d failed\n", g_run, g_fail);
     return g_fail == 0 ? 0 : 1;
