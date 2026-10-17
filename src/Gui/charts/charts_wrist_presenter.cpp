@@ -631,16 +631,6 @@ double checkpointMs(const ShotSeries &s, const Profile &p, int i)
     const Checkpoint &k = p.cps[size_t(i)];
     return k.available && k.tUs >= 0 && s.impactUs >= 0 ? double(k.tUs - s.impactUs) / 1000.0 : kNaN;
 }
-// An empty cell's "-" becomes the gate's words, with the reading its click opens.
-void gateCell(QVariantMap &m, const ShotSeries *s, const Profile &p, const QString &dofId, const QString &key, int i)
-{
-    if (m.value(QStringLiteral("available")).toBool() || !s) return;
-    const WristGate g = wristGate(s, dofId, key, checkpointMs(*s, p, i));
-    if (g.words.isEmpty()) return;
-    m.insert(QStringLiteral("valueText"), g.words);
-    m.insert(QStringLiteral("trust"), g.subject);
-}
-
 QVariantMap pointMap(const Dof &d, const Cell &c, bool shotScope)
 {
     const bool out = shotScope && c.out() && c.banded;
@@ -900,19 +890,9 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
     }
     out.insert(QStringLiteral("standfirsts"), R.standfirsts);
     {
-        // NO SCORE BECAUSE A GATE REFUSED THE WRIST (every condition unread): its words in the score's place
-        QVariantMap sm = scoreMap(v, p);
-        if (v.graded && sm.value(QStringLiteral("scoreText")).toString() == QLatin1String("-"))
-            for (const QString &id : dofOrder()) {
-                const Dof *d = p.dof(id);
-                const WristGate g = wristGate(&s, id, d ? d->key : QString());
-                if (g.words.isEmpty()) continue;
-                sm.insert(QStringLiteral("trust"), g.subject);
-                sm.insert(QStringLiteral("gateWords"), g.words);
-                sm.insert(QStringLiteral("line"), QStringLiteral("Wrist score: ") + g.words);
-                break;
-            }
-        out.insert(QStringLiteral("score"), sm);
+        // NO SCORE BECAUSE A GATE REFUSED THE WRIST: a plain "-"; the standfirst says what was out of sight and the
+        // section's tail line names it (said once; Mark, 17 Oct 2026)
+        out.insert(QStringLiteral("score"), scoreMap(v, p));
     }
     out.insert(QStringLiteral("style"), styleMap(p));
 
@@ -944,7 +924,6 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
                 const Cell &cell = d.cells[size_t(i)];
                 QVariantMap cm{ { QStringLiteral("available"), cell.available }, { QStringLiteral("value"), nv(cell.delta) },
                                 { QStringLiteral("valueText"), cell.available ? degText(cell.delta) : QStringLiteral("-") } };
-                gateCell(cm, &s, p, d.id, d.key, i);
                 cells.append(cm);
             }
             rows.append(QVariantMap{ { QStringLiteral("numbersOnly"), true }, { QStringLiteral("dof"), d.id }, { QStringLiteral("key"), d.key },
@@ -958,7 +937,6 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
         for (int i = 0; i < kP; ++i) {
             const Cell &cell = d.cells[size_t(i)];
             QVariantMap pm = pointMap(d, cell, true);
-            gateCell(pm, &s, p, d.id, d.key, i);
             points.append(pm);
             sc.add(cell.delta);
             if (cell.banded) { sc.add(cell.lo); sc.add(cell.hi); }
@@ -1170,13 +1148,11 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
             if (mine) {
                 const Cell &cell = mine->cells[size_t(p)];
                 QVariantMap pm = pointMap(*mine, cell, false);
-                gateCell(pm, c.shot.get(), c.pick, a.id, mine->key, p);
                 points.append(pm);
                 if (cell.banded) { sc.add(cell.lo); sc.add(cell.hi); }
             } else {
                 QVariantMap pm{ { QStringLiteral("available"), false }, { QStringLiteral("banded"), false }, { QStringLiteral("value"), nullv() },
                                 { QStringLiteral("valueText"), QStringLiteral("-") }, { QStringLiteral("out"), false } };
-                gateCell(pm, c.shot.get(), c.pick, a.id, QString(), p);
                 points.append(pm);
             }
             sc.add(b.min); sc.add(b.max);

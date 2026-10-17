@@ -108,10 +108,12 @@ Column {
                     }
                 }
             }
-            // line 2: what backs the ±, the ⚠ caveat; on hover, the tiles' own notes
+            // line 2: the ⚠ caveat; on hover, what backs the ± and the tiles' own notes (the ± sentence repeated on
+            // every row was noise for a reader who is not a statistician; Mark, 17 Oct 2026)
             Text {
                 id: note
-                readonly property string txt: ma.containsMouse && rw.tips.length ? rw.tips.join("  ") : [rw.modelData.sigmaTip || "", rw.modelData.grossWarn ? (rw.modelData.grossTip || "") : ""].filter(function (s) { return s !== "" }).join("  ")
+                readonly property string txt: ma.containsMouse ? [rw.modelData.sigmaTip || ""].concat(rw.tips).filter(function (s) { return s !== "" }).join("  ")
+                                                               : (rw.modelData.grossWarn ? (rw.modelData.grossTip || "") : "")
                 visible: txt !== ""
                 y: rw.bodyH + sm.roles.u(4)
                 width: sm.width; wrapMode: Text.WordWrap

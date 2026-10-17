@@ -268,6 +268,12 @@ the figure they explain.
   pelvis dip is visibly inside "out of sight".
 - A ring the producer did not place is drawn hollow and dashed (today it is a hollow ring that reads
   as "placed but faint").
+- **Said once (Mark, 17 Oct 2026).** On the Charts panel the headline names the story ("pelvis and chest out
+  of the camera's sight"). Inside the charts a refused reading is a plain "-": no bound, no gate words, no
+  link-coloured words, no guessed rank. The reasons, the bounds and what would lift them are in the "How far
+  can I trust this?" fold directly under the plot, on This shot and on Session. The foot bars keep their
+  labels, and hover readouts keep their words. For a novice, the same fact said in several places was
+  noise; this narrows §7.0's "short words where the reading is shown" for Charts.
 
 ### 7.3 On findings
 

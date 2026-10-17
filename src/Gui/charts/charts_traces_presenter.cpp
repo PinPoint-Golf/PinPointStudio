@@ -529,7 +529,7 @@ struct Ctx {
     QStringList rowKeys;                 // drawn on This shot (on, drawsCurve, has a curve)
     QStringList sessionKeys;             // drawn in Session (on, drawsCurve, ≥ 3 shots have the curve)
     // the preset's members a gate refused on the picked shot, in manifest order, offered or not: each comes
-    // back as a stub card carrying the gate's words (trust stage 6 session 2: a refused reading keeps its place)
+    // back as a stub card with a plain "-" (trust stage 6 session 2: a refused reading keeps its place)
     QStringList refusedKeys;
     bool sequencePreset = false;
     // the window
@@ -723,19 +723,6 @@ QString gateWordsAt(const ShotSeries *shot, const QString &key, double ms, QStri
     if (subject) *subject = g.value(QStringLiteral("subject")).toString();
     return g.value(QStringLiteral("words")).toString();
 }
-// A "-" tile of `key` gets the gate's words and the reading its click opens (PpChSummary draws them as a
-// link); `ms` is the tile's instant about impact when it has one (a mask then speaks for it).
-void gateTile(const Ctx &c, QVariantMap &t, const QString &key, double ms = kNaN)
-{
-    if (t.value(QStringLiteral("text")).toString() != QLatin1String("-")) return;
-    QString subject;
-    const QString words = gateWordsAt(c.shot.get(), key, ms, &subject);
-    if (words.isEmpty()) return;
-    t.insert(QStringLiteral("text"), words);
-    t.insert(QStringLiteral("unit"), QString());
-    t.insert(QStringLiteral("sub"), QString());
-    t.insert(QStringLiteral("trust"), subject);
-}
 double msOfUs(const Ctx &c, qint64 us)
 {
     return c.shot && c.shot->impactUs >= 0 && us >= 0 ? double(us - c.shot->impactUs) / 1000.0 : kNaN;
@@ -758,7 +745,6 @@ QVariantList companionTiles(const Ctx &c, const SeriesCalc &host, const SeriesCa
         QVariantMap t = tile(lab.isEmpty() ? nm + QLatin1Char(' ') + readLabel(c, ph, QString()) : asciiLower(lab),
                              r.ok ? W::fig(r.val, s.dec) : QStringLiteral("-"), r.ok, v, QString(), r.ok ? unit : QString(),
                              QString(), false);
-        gateTile(c, t, s.m->key, msOfUs(c, r.us >= 0 ? r.us : phaseUsOf(*c.shot, ph)));
         out << t;
     }
     if (sp.value(QStringLiteral("delta")).toBool() && sp.value(QStringLiteral("deltaSpan")).toBool()) {
@@ -770,7 +756,6 @@ QVariantList companionTiles(const Ctx &c, const SeriesCalc &host, const SeriesCa
                                            : asciiLower(lab),
                              ok ? W::fig(rb.val - ra.val, s.dec) : QStringLiteral("-"), ok, QString(), QString(),
                              ok ? unit : QString(), QString(), false);
-        gateTile(c, t, s.m->key, !ra.ok ? msOfUs(c, phaseUsOf(*c.shot, a)) : msOfUs(c, phaseUsOf(*c.shot, b)));
         out << t;
     }
     return out;
@@ -855,7 +840,6 @@ QVariantMap cardOf(Ctx &c, const SeriesCalc &s, const std::vector<const SeriesCa
         }
         for (int i = 0; i < tiles.size(); ++i) {
             QVariantMap t = tiles[i].toMap();
-            gateTile(c, t, s.m->key, size_t(i) < instMs.size() ? instMs[size_t(i)] : kNaN);
             tiles[i] = t;
         }
     }
@@ -1142,14 +1126,13 @@ QVariantMap sequenceBlock(Ctx &c)
         r.insert(QStringLiteral("late"), late);
         r.insert(QStringLiteral("lateWord"), late ? QStringLiteral("late") : QString());
         r.insert(QStringLiteral("rising"), seg >= 0 && seg < kSequenceSegments && q.segments[size_t(seg)].risingAtImpact);
-        // a segment with no peak because a gate refused it: the gate's words in the peak's place, opening the
-        // reading (the node's records); an old swing keeps the "—"
-        if (r.value(QStringLiteral("peakText")).toString() == QStringLiteral("—")) {
-            const QVariantMap g = gateOf(c, QStringLiteral("ks.") + r.value(QStringLiteral("segment")).toString(), true);
-            if (!g.isEmpty()) {
-                r.insert(QStringLiteral("peakText"), g.value(QStringLiteral("words")).toString());
-                r.insert(QStringLiteral("trust"), g.value(QStringLiteral("subject")).toString());
-            }
+        // A NODE NOT PLACED IS A PLAIN "-" (Mark, 17 Oct 2026): no guessed rank ("3?"), no estimate, no gate
+        // words; the headline names it and the panel's tail says why
+        if (seg >= 0 && seg < kSequenceSegments && !q.segments[size_t(seg)].placed) {
+            r.insert(QStringLiteral("actualRank"), QStringLiteral("-"));
+            r.insert(QStringLiteral("peakText"), QStringLiteral("-"));
+            r.insert(QStringLiteral("speedText"), QStringLiteral("-"));
+            r.insert(QStringLiteral("pctText"), QStringLiteral("-"));
         }
         rows << r;
     }
@@ -1174,25 +1157,24 @@ QVariantMap sequenceBlock(Ctx &c)
                               { QStringLiteral("gapMs"), gap },
                               { QStringLiteral("gapText"), std::isfinite(gap) ? W::figMs(gap) : QString() } };
     }
+    // SAID ONCE (Mark, 17 Oct 2026): the headline names the nodes that were not placed and the panel's tail
+    // ("How far can I trust this?") says why; the strip only gives the order it reads against.
     W::Sentence note;
     note.append(QStringLiteral("Expected pelvis, chest, lead arm, club."));
-    for (int i = 0; i < kSequenceSegments; ++i) {
-        const SegmentPeak &p = q.segments[size_t(i)];
-        if (!p.present || p.placed) continue;
-        note.append(QStringLiteral(" ") + segWord(i) + QStringLiteral(" ") + unplacedWhy(p).sentence + QStringLiteral("."));
+    // the table no longer marks a guessed rank with "?", so its key goes too; and a verdict that read "out of
+    // sequence" only against those guesses says what the headline says of the placed peaks ("in order so far")
+    QString verdict = table.value(QStringLiteral("verdictText")).toString();
+    if (verdict.contains(QStringLiteral(" (? = uncertain)"))) {
+        verdict.remove(QStringLiteral(" (? = uncertain)"));
+        if (!q.anyLate) verdict = QStringLiteral("In order so far");
     }
-    // THE REASONS, ON DEMAND (trust_and_gates_design.md §7.0): the note says each gate in short; "Why" opens
-    // the readings a gate touched — in the Trust panel when it is on, else in place under the strip.
-    int touched = 0;
-    for (int i = 0; i < kSequenceSegments; ++i)
-        if (q.segments[size_t(i)].present && !q.segments[size_t(i)].records.isEmpty()) ++touched;
-    return { { QStringLiteral("verdictText"), table.value(QStringLiteral("verdictText")) },
+    return { { QStringLiteral("verdictText"), verdict },
              { QStringLiteral("verdictState"), table.value(QStringLiteral("verdictState")) },
              { QStringLiteral("anyLate"), q.anyLate },
              { QStringLiteral("chain"), chain.toVariant() },
              { QStringLiteral("links"), links },
              { QStringLiteral("note"), note.toVariant() },
-             { QStringLiteral("whyText"), touched == 0 ? QString() : QStringLiteral("Why") },
+             { QStringLiteral("whyText"), QString() },
              // a shot analysed before records existed (§6): say so where the "Why" would be
              { QStringLiteral("unrecordedText"), c.shot && c.shot->gatesVersion <= 0
                                                  ? QStringLiteral("Reasons not recorded for this shot; re-analyse it to see which gates fired.")
@@ -1277,8 +1259,6 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
                               { QStringLiteral("lateWord"), p.late ? QStringLiteral("late") : QString() },
                               { QStringLiteral("rising"), p.risingAtImpact },
                               { QStringLiteral("risingWord"), p.risingAtImpact ? QStringLiteral("rising") : QString() } };
-        // the reading a gate touched opens its reason from here too (TrustFocus), as from the key figures
-        const QString trustSubj = !p.records.isEmpty() ? QStringLiteral("ks.") + sequenceSegmentIds()[size_t(seg)] : QString();
         if (p.placed) {
             figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak") },
                                     { QStringLiteral("text"), W::fig(p.peakDps) + (W::pm(p.peakSigmaDps).isEmpty() ? QString() : QStringLiteral(" ") + W::pm(p.peakSigmaDps)) + QChar(0x00A0) + shortUnitOf(c, m.unit) },
@@ -1286,28 +1266,11 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
             figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("order") },
                                     { QStringLiteral("text"), W::ordinalWord(p.rank) + QStringLiteral(" of %1 placed").arg(placedN) },
                                     { QStringLiteral("warn"), p.late } };
-            // placed but kept out of the findings (the camera's club): say so, and open why
-            const bool withheld = std::any_of(p.records.begin(), p.records.end(), [](const QVariant &r) {
-                return r.toMap().value(QStringLiteral("effect")).toString() == QLatin1String("withheld"); });
-            if (withheld)
-                figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("why") },
-                                        { QStringLiteral("text"), QStringLiteral("not judged") },
-                                        { QStringLiteral("warn"), false },
-                                        { QStringLiteral("trust"), trustSubj } };
         } else {
-            // the gate that refused it, short enough for the figure column: the bound and why ("after −129 ms",
-            // "out of sight"), else the reason alone
-            const UnplacedWhy why = unplacedWhy(p);
-            const bool hasFig = why.figure != QLatin1String("-") && !why.unit.isEmpty();
+            // not placed: a plain "-"; the headline names it and the panel's tail says why (Mark, 17 Oct 2026)
             figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak") },
-                                    { QStringLiteral("text"), hasFig ? why.figure + QChar(0x00A0) + why.unit : why.shortText },
-                                    { QStringLiteral("warn"), false },
-                                    { QStringLiteral("trust"), hasFig ? QString() : trustSubj } };
-            if (hasFig)
-                figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("why") },
-                                        { QStringLiteral("text"), why.shortText },
-                                        { QStringLiteral("warn"), false },
-                                        { QStringLiteral("trust"), trustSubj } };
+                                    { QStringLiteral("text"), QStringLiteral("-") },
+                                    { QStringLiteral("warn"), false } };
         }
         seqInfo = QVariantMap{ { QStringLiteral("segment"), sequenceSegmentIds()[size_t(seg)] },
                                { QStringLiteral("word"), segWord(seg) },
@@ -1335,23 +1298,18 @@ QVariantMap shotRow(Ctx &c, const SeriesCalc &s, const QVariantMap &card, std::v
         figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("at") }, { QStringLiteral("text"), W::signedMs(tp) },
                                 { QStringLiteral("warn"), false } };
     } else {
-        // no peak: the gate that refused the reading says so in the slot, and opens its reason (a "-" else)
-        const QVariantMap g = gateOf(c, m.key, true);
+        // no peak: a plain "-" (why is said once, in the panel's tail)
         figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("peak") },
-                                { QStringLiteral("text"), g.isEmpty() ? QStringLiteral("-") : g.value(QStringLiteral("words")).toString() },
-                                { QStringLiteral("warn"), false },
-                                { QStringLiteral("trust"), g.value(QStringLiteral("subject")).toString() } };
+                                { QStringLiteral("text"), QStringLiteral("-") },
+                                { QStringLiteral("warn"), false } };
     }
     double atImpact = kNaN;
     for (const PhaseSample &p : m.phaseSamples) if (p.phase == phase::Impact) atImpact = p.value;
     {
-        // no reading at impact: the mask over impact, or the gate that refused it, in the slot
-        QString atSubject;
-        const QString atWords = std::isfinite(atImpact) ? QString() : gateWordsAt(c.shot.get(), m.key, 0.0, &atSubject);
+        // no reading at impact: a plain "-" (the shading on the curve and the panel's tail say why)
         figures << QVariantMap{ { QStringLiteral("label"), QStringLiteral("at P7") },
-                                { QStringLiteral("text"), atWords.isEmpty() ? W::figUnit(atImpact, m.unit) : atWords },
-                                { QStringLiteral("warn"), false },
-                                { QStringLiteral("trust"), atWords.isEmpty() ? QString() : atSubject } };
+                                { QStringLiteral("text"), W::figUnit(atImpact, m.unit) },
+                                { QStringLiteral("warn"), false } };
     }
 
     QVariantMap row = card;
@@ -1463,8 +1421,9 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
         else if (glanceIt == kReplayGlance.constEnd() || glanceIt->contains(k)) cards << card;
     }
     // A REFUSED READING KEEPS ITS PLACE (trust stage 6 session 2): a member of the preset with nothing to show
-    // on this shot because a gate refused it comes back as a stub — its name, and the gate's words as its one
-    // tile, opening the reason. On its host's card when it rides on one; never a curve.
+    // on this shot because a gate refused it comes back as a stub — its name and a plain "-". Why is said once,
+    // in the panel's tail ("How far can I trust this?"; Mark, 17 Oct 2026). On its host's card when it rides
+    // on one; never a curve.
     {
         QStringList order = c.presetKeys;
         for (const QString &k : c.refusedKeys) if (!order.contains(k)) order << k;
@@ -1475,15 +1434,13 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
             const QVariantMap g = gateOf(c, k, false);
             if (g.isEmpty()) continue;
             if (glanceIt != kReplayGlance.constEnd() && !glanceIt->contains(k)) continue;
-            const QString subject = g.value(QStringLiteral("subject")).toString();
-            const QString words = g.value(QStringLiteral("words")).toString();
+            const QString words = QStringLiteral("-");
             QString nm = c.labelOf(k);
             // a companion (MetricCardSpec::mergeInto) whose host is shown: the stub tile rides on the host's card
             const QString host = c.w->specFor(k).value(QStringLiteral("mergeInto")).toString();
             if (!host.isEmpty() && c.calcs.contains(host) && !c.in->metricsOff.contains(host)) {
                 QVariantMap t = tile(asciiLower(c.w->cm->shortLabel(k).isEmpty() ? nm : c.w->cm->shortLabel(k)), words, false,
                                      QString(), QString(), QString(), QString(), false);
-                t.insert(QStringLiteral("trust"), subject);
                 bool placed = false;
                 for (QVariantList *list : { &rows, &cards })
                     for (int i = 0; i < list->size() && !placed; ++i) {
@@ -1498,7 +1455,6 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
                 if (placed) continue;
             }
             QVariantMap t = tile(QString(), words, false, QString(), QString(), QString(), QString(), false);
-            t.insert(QStringLiteral("trust"), subject);
             cards << QVariantMap{ { QStringLiteral("key"), k },
                                   { QStringLiteral("label"), nm },
                                   { QStringLiteral("unit"), QString() },
@@ -1510,8 +1466,7 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
                                   { QStringLiteral("grossWarn"), false },
                                   { QStringLiteral("grossWord"), QString() },
                                   { QStringLiteral("grossTip"), QString() },
-                                  { QStringLiteral("stub"), true },
-                                  { QStringLiteral("trust"), subject } };
+                                  { QStringLiteral("stub"), true } };
         }
     }
     out.insert(QStringLiteral("rows"), rows);
@@ -3039,11 +2994,8 @@ void ChartsTracesPresenter::updateNow(bool force)
         }
         const double typ = interpAt(r.medT, r.medV, canonMs);
         const double ref = interpAt(r.refT, r.refV, shotMs);
-        // no value here: the gate behind it says so, in the slot (an old swing keeps the "-")
-        QString trustSubj;
-        const QString gw = std::isfinite(v) ? QString() : r.wordsAt(shotMs, &trustSubj);
-        const QString text = gw.isEmpty() ? W::figUnit(v, r.unit) : gw;
-        if (gw.isEmpty()) trustSubj.clear();
+        // no value here: a plain "-"; the shading on the curve and the panel's tail say why (Mark, 17 Oct 2026)
+        const QString text = W::figUnit(v, r.unit);
         const QString addr = std::isfinite(v) && std::isfinite(r.addr) ? QStringLiteral("Δ ") + W::figSigned(v - r.addr, r.unit) : QString();
         const QString typT = W::figUnit(typ, r.unit), refT = r.refT.empty() ? QString() : W::figUnit(ref, r.unit);
         const QString gapT = std::isfinite(v) && std::isfinite(ref) ? W::figSigned(v - ref, r.unit) : (r.refT.empty() ? QString() : QStringLiteral("-"));
@@ -3051,8 +3003,7 @@ void ChartsTracesPresenter::updateNow(bool force)
         rows << QVariantMap{ { QStringLiteral("key"), r.key }, { QStringLiteral("value"), v }, { QStringLiteral("text"), text },
                              { QStringLiteral("measured"), measured }, { QStringLiteral("addrText"), addr },
                              { QStringLiteral("typical"), typ }, { QStringLiteral("typicalText"), r.medT.empty() ? QString() : typT },
-                             { QStringLiteral("refText"), refT }, { QStringLiteral("gapText"), gapT },
-                             { QStringLiteral("trust"), trustSubj } };
+                             { QStringLiteral("refText"), refT }, { QStringLiteral("gapText"), gapT } };
     }
     out = QVariantMap{ { QStringLiteral("valid"), true }, { QStringLiteral("us"), m_playheadUs }, { QStringLiteral("shotMs"), shotMs },
                        { QStringLiteral("canonMs"), canonMs }, { QStringLiteral("when"), W::signedMs(shotMs) },

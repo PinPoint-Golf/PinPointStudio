@@ -536,19 +536,20 @@ QVariantMap rowMap(const Ctx &x, int i)
         }
     if (fired && firedWord.isEmpty()) firedWord = QStringLiteral("out of its corridor");
     const bool curve = m.drawsCurve && x.pickedHasCurve(r.key);
-    // no value on this shot because a gate refused it: the gate's words in the value's place, opening the reason
+    // no value on this shot because a gate refused it: a plain "-" in the row; why is said once, in the panel's tail
+    // (Mark, 17 Oct 2026). gateWords stays on the map for readers that name it (none on screen).
     const QVariantMap gate = x.pick >= 0 && !p.measured ? gateOfPicked(x, r.key) : QVariantMap{};
     const QString gateWords = gate.value(QStringLiteral("words")).toString();
     return {
-        { QStringLiteral("trustSubject"), gate.value(QStringLiteral("subject")).toString() },
+        { QStringLiteral("trustSubject"), QString() },
         { QStringLiteral("gateWords"), gateWords },
         { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key }, { QStringLiteral("phase"), r.phase },
         { QStringLiteral("tag"), x.v.tag(r.phase) }, { QStringLiteral("phaseName"), x.v.name(r.phase) },
         { QStringLiteral("label"), r.label }, { QStringLiteral("short"), m.shortLabel }, { QStringLiteral("unit"), r.unit },
         { QStringLiteral("unitText"), unitText(r.unit) }, { QStringLiteral("group"), m.group }, { QStringLiteral("multi"), r.multi },
         { QStringLiteral("measured"), p.measured }, { QStringLiteral("value"), num(p.measured ? p.value : kNaN) },
-        { QStringLiteral("valueText"), gateWords.isEmpty() ? figBare(p.measured ? p.value : kNaN, r.unit) : gateWords },
-        { QStringLiteral("valueFigure"), gateWords.isEmpty() ? figU(p.measured ? p.value : kNaN, r.unit) : gateWords },
+        { QStringLiteral("valueText"), figBare(p.measured ? p.value : kNaN, r.unit) },
+        { QStringLiteral("valueFigure"), figU(p.measured ? p.value : kNaN, r.unit) },
         { QStringLiteral("medianText"), figBare(r.box.med, r.unit) },
         { QStringLiteral("place"), placeWords(p, r.box.n) }, { QStringLiteral("rankHi"), p.rankHi }, { QStringLiteral("rankLo"), p.rankLo },
         { QStringLiteral("rz"), p.rz }, { QStringLiteral("side"), p.side }, { QStringLiteral("apart"), p.side != 0 },
@@ -815,33 +816,28 @@ QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
             const SegmentPeak &p = q.segments[size_t(s)];
             const SegmentSummary &sm = x.c.seq.segments[size_t(s)];
             const double v = p.placed ? p.shotMs : kNaN;
-            // an unplaced node says the gate that refused it: the bound when the camera lost sight ("after −129 ms",
-            // "out of sight"), else the reason in short (trust_and_gates_design.md §9 stage 0)
+            // why an unplaced node is unplaced, for the tile's spoken sentence only (the bound and the gate's words)
             UnplacedWhy why = p.present && !p.placed ? unplacedWhy(p) : UnplacedWhy{ QStringLiteral("-"), QString(), QStringLiteral("not placed"), QString() };
             // a node with no curve at all may still have a gate behind it: a cascade covering it (a refused club
             // track takes the club node with it), named by its own words rather than a bare "not placed"
-            QString cascadeSubject;
             if (!p.present) {
                 const QVariantMap g = gateOfPicked(x, QStringLiteral("ks.") + sequenceSegmentIds()[size_t(s)]);
                 if (!g.isEmpty()) {
                     why.shortText = g.value(QStringLiteral("words")).toString();
                     why.sentence = g.value(QStringLiteral("sentence")).toString();
-                    cascadeSubject = g.value(QStringLiteral("subject")).toString();
                 }
             }
             const QString median = sm.placed >= 3 ? QStringLiteral("median ") + words::signedMs(sm.medianMs) : QString();
-            const QString foot = p.placed ? (median.isEmpty() ? QStringLiteral("median needs 3 shots") : median)
-                                          : (median.isEmpty() ? why.shortText : why.shortText + QStringLiteral("  ·  ") + median);
+            // SAID ONCE (Mark, 17 Oct 2026): the headline names an unplaced node and the panel's tail says why; the
+            // tile is a plain "-" with the median, no bound, no gate words, no link
+            const QString foot = p.placed ? (median.isEmpty() ? QStringLiteral("median needs 3 shots") : median) : median;
             items.append(QVariantMap{ { QStringLiteral("readingId"), sequenceSeriesKey(s) }, { QStringLiteral("key"), sequenceSeriesKey(s) }, { QStringLiteral("label"), kSegLabels[s] + QStringLiteral(" peak") },
-                                      { QStringLiteral("figure"), p.placed ? signedMsBare(v) : why.figure }, { QStringLiteral("unit"), p.placed ? (fin(v) ? QStringLiteral("ms") : QString()) : why.unit },
+                                      { QStringLiteral("figure"), p.placed ? signedMsBare(v) : QStringLiteral("-") }, { QStringLiteral("unit"), p.placed && fin(v) ? QStringLiteral("ms") : QString() },
                                       { QStringLiteral("foot"), foot }, { QStringLiteral("median"), sm.placed >= 3 ? words::signedMs(sm.medianMs) : QString() },
                                       { QStringLiteral("place"), QString() }, { QStringLiteral("warn"), p.late },
                                       { QStringLiteral("warnWord"), p.late ? QStringLiteral("late") : QString() },
-                                      // a reading a gate refused, bounded or withheld: its foot opens the reason (TrustFocus)
-                                      { QStringLiteral("trustSubject"), p.present && !p.records.isEmpty()
-                                                                        && std::any_of(p.records.begin(), p.records.end(), [](const QVariant &r) {
-                                                                               return r.toMap().value(QStringLiteral("effect")).toString() != QLatin1String("masked"); })
-                                                                        ? QStringLiteral("ks.") + sequenceSegmentIds()[size_t(s)] : cascadeSubject },
+                                      // the reason lives in the panel's tail ("How far can I trust this?"), not on the tile
+                                      { QStringLiteral("trustSubject"), QString() },
                                       { QStringLiteral("sentence"), (p.placed || why.sentence.isEmpty() ? Sentence().figure(words::signedMs(v)) : Sentence().append(why.sentence))
                                                                       .append(sm.placed >= 3 ? QStringLiteral(", median ") : QString())
                                                                       .figure(sm.placed >= 3 ? words::signedMs(sm.medianMs) : QString())
@@ -853,20 +849,19 @@ QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
             const SessionReading &r = x.r(i);
             const ReadingPlace p = placeOf(r, x.pick);
             if (!p.measured) {
-                // A REFUSED READING KEEPS ITS PLACE: the figure is the gate's words, its foot opens the reason
+                // A REFUSED READING KEEPS ITS PLACE as a plain "-"; why is said once, in the panel's tail
                 const QVariantMap g = gateOfPicked(x, r.key);
                 if (g.isEmpty()) continue;
                 const bool solo = x.c.solo || x.n < 3;
                 const QString med = solo ? QString() : figBare(r.box.med, r.unit);
                 items.append(QVariantMap{ { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key },
                                           { QStringLiteral("label"), x.m(i).shortLabel + QStringLiteral(" at ") + x.v.tag(r.phase) },
-                                          { QStringLiteral("figure"), g.value(QStringLiteral("words")).toString() },
-                                          { QStringLiteral("gated"), true },
+                                          { QStringLiteral("figure"), QStringLiteral("-") },
                                           { QStringLiteral("unit"), QString() },
                                           { QStringLiteral("foot"), med.isEmpty() ? QString() : QStringLiteral("median ") + med },
                                           { QStringLiteral("median"), med }, { QStringLiteral("place"), QString() },
                                           { QStringLiteral("warn"), false }, { QStringLiteral("warnWord"), QString() },
-                                          { QStringLiteral("trustSubject"), g.value(QStringLiteral("subject")).toString() },
+                                          { QStringLiteral("trustSubject"), QString() },
                                           { QStringLiteral("sentence"), Sentence().append(g.value(QStringLiteral("words")).toString()).toVariant() } });
                 continue;
             }
@@ -1918,16 +1913,13 @@ std::vector<Output::ReplayEntry> replayEntries(Ctx &x, const Cache::Family *fam)
             if (!pl.isEmpty()) now.append(QStringLiteral("; ") + pl);
             now.append(QStringLiteral("."));
         }
-        // no value on this shot: the gate that refused it, in its words, when one did (else today's sentence)
-        const QVariantMap nowGate = p.measured ? QVariantMap{} : gateOfPicked(x, r.key);
-        const QString nowWords = nowGate.value(QStringLiteral("words")).toString();
+        // no value on this shot: said plainly; why is said once, in the panel's tail (Mark, 17 Oct 2026)
         if (!p.measured) {
-            if (nowWords.isEmpty()) now.append(QStringLiteral("Not measured on this shot; typical "));
-            else now.append(QStringLiteral("This shot: ") + nowWords + QStringLiteral("; typical "));
+            now.append(QStringLiteral("Not measured on this shot; typical "));
             now.figure(figU(r.box.med, r.unit)).append(QStringLiteral(", the session median."));
         }
-        m.insert(QStringLiteral("now"), QVariantMap{ { QStringLiteral("valueText"), nowWords.isEmpty() ? figU(p.measured ? p.value : kNaN, r.unit) : nowWords },
-                                                     { QStringLiteral("trustSubject"), nowGate.value(QStringLiteral("subject")).toString() },
+        m.insert(QStringLiteral("now"), QVariantMap{ { QStringLiteral("valueText"), figU(p.measured ? p.value : kNaN, r.unit) },
+                                                     { QStringLiteral("trustSubject"), QString() },
                                                      { QStringLiteral("medianText"), figU(r.box.med, r.unit) },
                                                      { QStringLiteral("place"), placeWords(p, r.box.n) }, { QStringLiteral("sentence"), now.toVariant() } });
         // partners: every other key's reading against this one

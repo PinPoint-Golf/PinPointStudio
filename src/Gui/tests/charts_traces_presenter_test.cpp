@@ -179,9 +179,16 @@ private slots:
             if (r.toMap().value(QStringLiteral("late")).toBool()) { ++late; lateSeg = r.toMap().value(QStringLiteral("segment")).toString(); }
         QCOMPARE(late, 1);
         QCOMPARE(lateSeg, QStringLiteral("pelvis"));
-        // the unplaced chest says the gate that refused it, with the bound it kept — not its σ (trust and gates, stage 0)
-        QVERIFY2(text(seq.value(QStringLiteral("note"))).contains(QString::fromUtf8("Chest peaked after \u221247\u00A0ms, out of the camera's sight")),
-                 qPrintable(text(seq.value(QStringLiteral("note")))));
+        // SAID ONCE (Mark, 17 Oct 2026): the strip gives only the order it reads against; the unplaced chest is a
+        // plain "-" in the table, no guessed rank and no gate words (the headline and the panel's tail say why)
+        QCOMPARE(text(seq.value(QStringLiteral("note"))), QStringLiteral("Expected pelvis, chest, lead arm, club."));
+        QVERIFY(seq.value(QStringLiteral("whyText")).toString().isEmpty());
+        QVERIFY(!seq.value(QStringLiteral("verdictText")).toString().contains(QLatin1Char('?')));
+        for (const QVariant &r : seq.value(QStringLiteral("table")).toList())
+            if (r.toMap().value(QStringLiteral("segment")).toString() == QLatin1String("thorax")) {
+                QCOMPARE(r.toMap().value(QStringLiteral("actualRank")).toString(), QStringLiteral("-"));
+                QCOMPARE(r.toMap().value(QStringLiteral("peakText")).toString(), QStringLiteral("-"));
+            }
         // the late mark is a flag and a word on the curve's peak, never a colour
         const QVariantMap pel = rowOf(s.value(QStringLiteral("rows")).toList(), QStringLiteral("pelvisAngularSpeed"));
         QVERIFY(!pel.isEmpty());
@@ -913,7 +920,7 @@ private slots:
     void oneCameraSequenceHead()
     {
         // one camera: only the lead arm and the club placed, in order; the pelvis' and chest's peaks
-        // unplaced (ChartMetrics' verdict still reads "Out of sequence (? = uncertain)" off them)
+        // unplaced (ChartMetrics' verdict reads "Out of sequence (? = uncertain)" off them; the panel does not)
         auto one = std::make_shared<SessionSnapshot>(*m_snap);
         one->revision = 30;
         auto c = std::make_shared<ShotSeries>(*one->shots[7]);
@@ -933,7 +940,9 @@ private slots:
         const QVariantMap s = p.thisShot();
         QCOMPARE(text(s.value(QStringLiteral("head"))), QStringLiteral("Lead arm then club, in order so far; pelvis and chest not placed"));
         QVERIFY(text(s.value(QStringLiteral("note"))).isEmpty());          // the pelvis is not said late
-        QVERIFY(s.value(QStringLiteral("sequence")).toMap().value(QStringLiteral("verdictText")).toString().startsWith(QStringLiteral("Out of sequence")));
+        // the sequence fold agrees with the head: ChartMetrics' "Out of sequence (? = uncertain)" read only against
+        // the unplaced peaks' guesses (Mark, 17 Oct 2026)
+        QCOMPARE(s.value(QStringLiteral("sequence")).toMap().value(QStringLiteral("verdictText")).toString(), QStringLiteral("In order so far"));
     }
 
     void lmOnlyPresetByData()
