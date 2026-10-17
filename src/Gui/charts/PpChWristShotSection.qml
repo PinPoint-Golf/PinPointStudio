@@ -153,7 +153,7 @@ Item {
                            font: why ? ws.ty.fBody : ws.ty.fFigL; color: why ? ws.ty.link : ws.ty.ink
                            MouseArea { enabled: big.why && ws.interactive; anchors.fill: parent; anchors.margins: -2
                                        cursorShape: Qt.PointingHandCursor; onClicked: ws.openTrust(ws.score.trust) } }
-                    Text { visible: !big.why; anchors.baseline: big.baseline; text: "/ " + (ws.score.base !== undefined ? ws.score.base : 100); font: ws.ty.fFigS; color: ws.ty.ink3 }
+                    Text { visible: !big.why && ws.score.score !== null && ws.score.score !== undefined; anchors.baseline: big.baseline; text: "/ " + (ws.score.base !== undefined ? ws.score.base : 100); font: ws.ty.fFigS; color: ws.ty.ink3 }
                     Text { anchors.baseline: big.baseline; text: ws.score.band || ""; font: ws.ty.fBody; color: ws.ty.ink2 }
                 }
                 Text { visible: !!ws.score.sumText; text: ws.score.sumText || ""; font: ws.ty.fFigS; color: ws.ty.ink2 }

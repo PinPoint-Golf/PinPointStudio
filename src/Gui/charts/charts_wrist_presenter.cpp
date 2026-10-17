@@ -414,6 +414,7 @@ qint64 phaseUsOf(const ShotSeries &s, int ph)
 
 struct Verdicts {
     bool graded = false;                         // some wrist condition was assessed on the shot
+    bool refused = false;                        // a gate refused (or bounded) one of the shot's wrist readings
     std::vector<const Cond *> fired, clean;
     pa::WristDomainScoreResult score;
 };
@@ -431,9 +432,14 @@ double confidenceOf(const ShotSeries &s, const QString &id)
     return it != s.diagnostics.values.constEnd() && std::isfinite(it->confidence) ? it->confidence : 1.0;
 }
 
+struct WristGate;
+WristGate wristGate(const ShotSeries *s, const QString &dofId, const QString &key, double atMs);
+bool wristRefused(const ShotSeries &s);
+
 Verdicts verdictsOf(const Ctx &c, const ShotSeries &s)
 {
     Verdicts v;
+    v.refused = wristRefused(s);
     std::vector<pa::WristDomainVerdict> vs;
     for (const Cond &k : c.w.conds) {
         const bool f = s.diagnostics.fired.contains(k.id);
@@ -602,7 +608,7 @@ bool namesDof(const QString &k, const QString &dofId, const QString &key)
     const auto d = pa::dofForMetricKey(k);
     return d && QString::fromLatin1(pa::dofName(*d)) == dofId;
 }
-WristGate wristGate(const ShotSeries *s, const QString &dofId, const QString &key, double atMs = kNaN)
+WristGate wristGate(const ShotSeries *s, const QString &dofId, const QString &key, double atMs)
 {
     WristGate mask;
     if (!s || s->gatesVersion <= 0 || s->gates.isEmpty()) return mask;
@@ -624,6 +630,15 @@ WristGate wristGate(const ShotSeries *s, const QString &dofId, const QString &ke
         }
     }
     return mask;
+}
+// A GATE REFUSED THE WRIST (Mark, 17 Oct 2026): any wrist reading a gate refused or bounded leaves the shot with no
+// wrist score — what is left (a camera fallback, the trail wrist) would score the swing on the readings it kept
+// and call a refused lead wrist "good". The reason is said where the reading is missing, not in the score.
+bool wristRefused(const ShotSeries &s)
+{
+    for (const QString &id : dofOrder())
+        if (!wristGate(&s, id, QString(), kNaN).words.isEmpty()) return true;
+    return false;
 }
 // A checkpoint's instant about impact (ms), NaN when the swing has no impact or no such checkpoint.
 double checkpointMs(const ShotSeries &s, const Profile &p, int i)
@@ -785,7 +800,7 @@ QVariantMap styleMap(const Profile &p)
 QVariantMap scoreMap(const Verdicts &v, const Profile &p)
 {
     QVariantMap m;
-    const bool ok = v.graded && v.score.score >= 0;
+    const bool ok = v.graded && !v.refused && v.score.score >= 0;
     double pen = 0.0;
     QVariantList cs;
     for (const pa::WristDomainContribution &c : v.score.contributions) {
@@ -800,8 +815,9 @@ QVariantMap scoreMap(const Verdicts &v, const Profile &p)
     m.insert(QStringLiteral("band"), ok ? v.score.band : QString());
     m.insert(QStringLiteral("base"), v.score.base);
     m.insert(QStringLiteral("sumText"), sum);
-    m.insert(QStringLiteral("contributions"), cs);
+    m.insert(QStringLiteral("contributions"), ok ? cs : QVariantList());
     m.insert(QStringLiteral("line"), ok ? QStringLiteral("Wrist score %1 of 100, %2  ·  %3").arg(v.score.score).arg(v.score.band, sum)
+                                        : v.refused ? QStringLiteral("Wrist score -")
                                         : v.graded ? QStringLiteral("Wrist score -: no wrist condition could be read on this swing")
                                                    : QStringLiteral("Wrist score -: diagnostics have not graded this swing yet"));
     m.insert(QStringLiteral("engineScore"), p.has && p.engineScore >= 0 ? QVariant(p.engineScore) : nullv());
@@ -847,7 +863,9 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
     // THE HEAD: the first finding; or, with none, the cells said honestly (W-D6)
     W::Sentence head;
     const QString cells = QStringLiteral("%1 checkpoint%2").arg(outCells).arg(outCells == 1 ? QString() : QStringLiteral("s"));
-    if (!v.graded) {
+    // a gate refused the wrist: no all-clear without the readings to back it (Mark, 17 Oct 2026); a finding still heads
+    if (v.refused && findings.isEmpty()) {
+    } else if (!v.graded) {
         if (outCells == 0) head.append(QStringLiteral("The wrist stayed inside its bands at every checkpoint; diagnostics have not graded this swing yet"));
         else head.figure(W::cap1(cells)).append(QStringLiteral(" sat outside a band; diagnostics have not graded this swing yet"));
     } else if (findings.isEmpty()) {
@@ -982,7 +1000,7 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
         if (present.contains(id)) continue;
         if (id == QLatin1String("leadForearmRot") && forearmRotation) { rollNote = true; continue; }
         missing << longName(id);
-        const WristGate g = wristGate(&s, id, QString());
+        const WristGate g = wristGate(&s, id, QString(), kNaN);
         missingNamed << (g.words.isEmpty() ? longName(id) : longName(id) + QStringLiteral(" (") + g.words + QLatin1Char(')'));
         missingParts << QVariantMap{ { QStringLiteral("name"), longName(id) }, { QStringLiteral("words"), g.words },
                                      { QStringLiteral("subject"), g.subject } };
@@ -1063,7 +1081,7 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
     for (int i = 0; i < c.n; ++i) {
         const ShotSeries &s = *c.snap->shots[size_t(i)];
         vs[size_t(i)] = verdictsOf(c, s);
-        if (vs[size_t(i)].graded && vs[size_t(i)].score.score >= 0) scores[size_t(i)] = vs[size_t(i)].score.score;
+        if (vs[size_t(i)].graded && !vs[size_t(i)].refused && vs[size_t(i)].score.score >= 0) scores[size_t(i)] = vs[size_t(i)].score.score;
         if (c.profs[size_t(i)].has) ++styles[c.profs[size_t(i)].archetypeName];
     }
     std::vector<std::pair<QString, int>> styleList;
