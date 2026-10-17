@@ -73,7 +73,8 @@ namespace pinpoint::analysis {
 inline constexpr int kWorkOnSchemaVersion = 1;
 // 2: a symptom goes behind its cause only when the session's swings SUPPORT the link (see
 // linkSupported); an authored link they cannot test is named (mayFollow) but does not demote.
-inline constexpr int kWorkOnRuleVersion   = 2;
+// 3: the golfer's list puts SHARP work-ons first (WorkOnSummary::sharp), as every session's does.
+inline constexpr int kWorkOnRuleVersion   = 3;
 
 // "The top 3–5". Five is a cap; three is how far Delivery conditions may fill a session that
 // measured fewer movement faults than that. Neither is a quota — a session with two patterns
@@ -441,6 +442,12 @@ struct WorkOnSummary {
     bool        hasLatest = false;
     WorkOnEntry latest;                 // from the newest session that listed it
     QString     latestSessionId;
+
+    // The newest listing fired as a SHARP pattern (Condition::sharp). The entry's excess is the
+    // median rowStrength over its firings, and every firing of a sharp condition reads exactly
+    // kDiagSharpExcess — past any corridor excess a real reading reaches — so the median is that
+    // number for a sharp condition and under it for every other.
+    bool sharp() const { return hasLatest && latest.excess >= kDiagSharpExcess; }
 };
 
 // Sessions in any order; they are sorted here by start time, then id.
@@ -530,8 +537,12 @@ inline std::vector<WorkOnSummary> aggregateWorkOns(std::vector<SessionWorkOns> s
         out.push_back(std::move(w));
     }
 
+    // Status, then SHARP FIRST, as in sessions: a sharp fault is serious in itself, and the
+    // Wilson bound would otherwise sink the sequence faults, which few swings can assess, under
+    // posture faults every swing can. Then the bound, then how far out, then the id.
     std::stable_sort(out.begin(), out.end(), [](const WorkOnSummary &a, const WorkOnSummary &b) {
         if (a.status != b.status) return int(a.status) < int(b.status);
+        if (a.sharp() != b.sharp()) return a.sharp();
         if (a.score != b.score)   return a.score > b.score;
         if (a.latest.excess != b.latest.excess) return a.latest.excess > b.latest.excess;
         return a.id < b.id;

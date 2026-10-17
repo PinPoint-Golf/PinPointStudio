@@ -42,11 +42,19 @@ struct Plan {
     std::vector<int> states;
     double z = 3.0;             // every firing's distance out
     double lo = -2.0, hi = 2.0; // the corridor every row is graded against
+    bool sharp = false;         // Condition::sharp: a firing reads kDiagSharpExcess
 };
 
 static Plan plan(const char *id, std::vector<int> states, double z = 3.0)
 {
     return Plan{ QString::fromLatin1(id), std::move(states), z };
+}
+
+static Plan sharpPlan(const char *id, std::vector<int> states)
+{
+    Plan p = plan(id, std::move(states));
+    p.sharp = true;
+    return p;
 }
 
 static std::vector<ShotRecord> sessionOf(const std::vector<Plan> &plans, qint64 t0 = 1'700'000'000'000LL)
@@ -66,6 +74,7 @@ static std::vector<ShotRecord> sessionOf(const std::vector<Plan> &plans, qint64 
             r.corridorLo = p.lo;
             r.corridorHi = p.hi;
             r.corridorShape = CorridorShape::TwoSided;
+            r.sharp = p.sharp;
             const int v = i < p.states.size() ? p.states[i] : -1;
             if (v == 1)      { r.state = ShotState::Fired; r.direction = 1; r.z = p.z; r.value = p.z * 2.0; }
             else if (v == 0) { r.state = ShotState::Clean; r.z = 0.5; r.value = 1.0; }
@@ -325,6 +334,26 @@ int main()
             reduce({ plan("half", {1,0,1,1,1,0,1,0,1,1,1,0,1,0,1,0,1,0,1,0}), plan("all", {1,1,1,1,1,1}) }, hv, {}, "h1", t0) });
         check(h.size() == 2 && h.front().id == QStringLiteral("all") && h.back().swingsFired == 12,
               "six of six outranks twelve of twenty: the rate where it could be judged, not the raw count");
+
+        // SHARP FIRST, as in sessions. A sequence fault few swings can assess has a low bound; a
+        // posture fault on every swing of two sessions a high one. The sharp ones still lead, in
+        // the order of their own bounds.
+        const QHash<QString, WorkOnClass> sq{ { "posture", M }, { "seq", M }, { "order", M } };
+        const std::vector<WorkOnSummary> sh = aggregateWorkOns({
+            reduce({ plan("posture", rep(1, 20)) }, sq, {}, "q1", t0),
+            reduce({ plan("posture", rep(1, 20)), sharpPlan("seq", rep(1, 3)), sharpPlan("order", rep(1, 5)) },
+                   sq, {}, "q2", t0 + day) });
+        const WorkOnSummary *posture = find(sh, "posture"), *seq = find(sh, "seq"), *order = find(sh, "order");
+        check(posture && seq && order && seq->sharp() && order->sharp() && !posture->sharp()
+                  && near(seq->latest.excess, kDiagSharpExcess, 1e-9),
+              "a sharp firing is sharp on the golfer's list; a corridor fault is not");
+        if (posture && seq && order) {
+            check(seq->score < posture->score && order->score < posture->score,
+                  "…the sharp faults' bounds are the lower (3 of 3 and 5 of 5 against 35 of 35)");
+            check(sh.size() == 3 && sh[0].id == QStringLiteral("order") && sh[1].id == QStringLiteral("seq")
+                      && sh[2].id == QStringLiteral("posture"),
+                  "sharp first, then the bound: the sequence faults lead the posture fault, as in the session");
+        }
 
         check(aggregateWorkOns({}).empty(), "no sessions, no work-ons");
     }
