@@ -116,7 +116,7 @@ inline void appendBodyGates(std::vector<GateEntry> &c)
 
     // ── Body rotation (body_rotation.cpp) ───────────────────────────────────────────────────────
     {
-        GateEntry &e = add(c, "body.rotation", body, "Turn not measured", "turn not measured",
+        GateEntry &e = add(c, "body.rotation", body, "Turn not measured", "not measured",
             QStringLiteral("Turn about the body's own vertical axis cannot be seen by one face-on camera: it can "
                            "tell how narrow the hips or shoulders look, not which way they turned or by how much. It "
                            "is measured by a sensor on the pelvis or chest, or triangulated from the face-on and "

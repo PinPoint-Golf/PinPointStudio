@@ -260,7 +260,12 @@ QList<Status> statusesOf(const charts::ShotSeries &shot)
 {
     QList<Status> out;
     QHash<QString, QVariantMap> read;
-    for (const QVariant &rv : trustReadings(shot)) read.insert(rv.toMap().value(QStringLiteral("subject")).toString(), rv.toMap());
+    QStringList readOrder;   // trustReadings' own (record) order: a QHash walk would reorder the lines on every launch
+    for (const QVariant &rv : trustReadings(shot)) {
+        const QString subject = rv.toMap().value(QStringLiteral("subject")).toString();
+        read.insert(subject, rv.toMap());
+        readOrder << subject;
+    }
     QHash<QString, QString> quality;
     for (const QVariant &nv : shot.kinematicSequence.value(QStringLiteral("nodes")).toList()) {
         const QVariantMap n = nv.toMap();
@@ -270,7 +275,7 @@ QList<Status> statusesOf(const charts::ShotSeries &shot)
     }
     QStringList subjects;
     for (const QString &id : charts::sequenceSegmentIds()) subjects << QStringLiteral("ks.") + id;
-    for (auto it = read.cbegin(); it != read.cend(); ++it) if (!subjects.contains(it.key())) subjects << it.key();
+    for (const QString &s : readOrder) if (!subjects.contains(s)) subjects << s;
     for (const QString &subject : subjects) {
         const bool hasNode = quality.contains(subject);
         const auto r = read.constFind(subject);
@@ -366,6 +371,20 @@ QVariantMap line(const QString &text, const QString &kind, const QString &subjec
              { QStringLiteral("subject"), subject }, { QStringLiteral("swingDir"), swingDir } };
 }
 
+// Names that end in the same word say it once, as English does: "pelvis rotation", "thorax rotation" →
+// "pelvis and thorax rotation" (Mark, 17 Oct 2026); anything else is the plain list.
+QString sharedNounList(const QStringList &names)
+{
+    if (names.size() < 2) return W::list(names);
+    const QString last = names.first().section(QLatin1Char(' '), -1);
+    QStringList heads;
+    for (const QString &n : names) {
+        if (!n.contains(QLatin1Char(' ')) || n.section(QLatin1Char(' '), -1) != last) return W::list(names);
+        heads << n.section(QLatin1Char(' '), 0, -2);
+    }
+    return W::list(heads) + QLatin1Char(' ') + last;
+}
+
 QString tailOf(const QList<QPair<QString, QStringList>> &groups, bool anyPassed)
 {
     QStringList parts;
@@ -373,7 +392,7 @@ QString tailOf(const QList<QPair<QString, QStringList>> &groups, bool anyPassed)
         const gates::GateEntry *e = gates::gateEntry(g.first);
         QStringList names;
         for (const QString &s : g.second) names << shortName(s);
-        parts << W::list(names) + QLatin1Char(' ') + (e ? gates::claimWords(*e) : QStringLiteral("not timed"));
+        parts << sharedNounList(names) + QLatin1Char(' ') + (e ? gates::claimWords(*e) : QStringLiteral("not timed"));
     }
     if (parts.isEmpty()) return anyPassed ? QStringLiteral("every reading timed") : QString();
     return parts.join(QStringLiteral(" · "));
