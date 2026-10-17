@@ -27,7 +27,8 @@
 //
 //   swinglab_run <swing_dir> --out <run_dir> [--params p.json] [--trace]
 //                [--session-type 1] [--face-on Face] [--impact-us N] [--pose p.json]
-//                [--bind <index>=<role> ...] [--dtl [--dtl-pose p.json]]
+//                [--bind <index>=<role> ...] [--ignore-role <role[,role...]>]
+//                [--trunk-calib-from <standTallSwingDir>] [--dtl [--dtl-pose p.json]]
 //                [--bands <csv mm>] [--club-length-mm N] [--hosel-mm N]
 //                [--shaft-length-mm N] [--hands-end-mm N] [--height-m N]
 //
@@ -64,10 +65,14 @@
 #include <QSysInfo>
 #include <QVariantMap>
 
+#include <QHash>
+#include <QSet>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <deque>
 #include <limits>
 #include <variant>
 #include <vector>
@@ -77,6 +82,8 @@
 #include "format_descriptor.h"
 
 #include "../../../src/Core/PpMessageLog.h"   // echo the pipeline's own log to stderr
+#include "../../../src/Core/pp_debug.h"      // ppInfo / ppWarn
+#include "../../../src/IMU/imu_calibration.h" // solveTrunkSegment (--trunk-calib-from)
 #include "../../../src/Analysis/shot_analyzer.h"
 #include "../../../src/Analysis/analysis_pipeline.h"   // analysisGraphJson (--dag)
 #include "../../../src/Analysis/swing_reanalyzer.h"
@@ -159,10 +166,70 @@ RefuseConfig refuseConfigFor(const QVariantMap &ov, float fixedBeta, int64_t imp
     return cfg;
 }
 
+// The four instants the re-fusion tilt is read at (trunk design §16 step 2, "live vs re-fused
+// tilt"), window-relative µs like every IndexEntry. "phases": the recorded Address/Top/Impact/
+// Finish events of analysis.phases, all four present. "fallback": impact from the job (the
+// loader's resolution — capture.impactUs, else the Impact phase, else the thumbnail) with
+// address = impact − 1.0 s, top = impact − 0.3 s, finish = impact + 1.0 s. "none": no impact at
+// all, so no tilt is read.
+struct RefusionInstants {
+    QString source = QStringLiteral("none");
+    int64_t addressUs = -1, topUs = -1, impactUs = -1, finishUs = -1;
+};
+
+RefusionInstants refusionInstants(const QJsonObject &analysisIn, qint64 t0Us, int64_t jobImpactUs)
+{
+    // analysis.phases t_us: absolute on older documents, window-relative on newer ones. The
+    // writer's own domain rule (SwingDocWriter rel()): an absolute value is ≥ clock.t0_us and
+    // has it subtracted; an already-relative value passes through.
+    int64_t at[8];
+    std::fill(std::begin(at), std::end(at), int64_t(-1));
+    for (const QJsonValue &pv : analysisIn[QStringLiteral("phases")].toArray()) {
+        const QJsonObject p = pv.toObject();
+        const int ph = p[QStringLiteral("phase")].toInt(-1);
+        if (ph < 0 || ph > int(Phase::Finish))
+            continue;
+        const qint64 t = qint64(p[QStringLiteral("t_us")].toDouble(-1));
+        at[ph] = (t0Us > 0 && t >= t0Us) ? t - t0Us : t;
+    }
+    RefusionInstants in;
+    const int64_t a = at[int(Phase::Address)], tp = at[int(Phase::Top)],
+                  im = at[int(Phase::Impact)], fi = at[int(Phase::Finish)];
+    if (a >= 0 && tp >= 0 && im >= 0 && fi >= 0) {
+        in.source = QStringLiteral("phases");
+        in.addressUs = a; in.topUs = tp; in.impactUs = im; in.finishUs = fi;
+    } else if (jobImpactUs > 0) {
+        in.source = QStringLiteral("fallback");
+        in.impactUs  = jobImpactUs;
+        in.addressUs = jobImpactUs - 1000000;
+        in.topUs     = jobImpactUs -  300000;
+        in.finishUs  = jobImpactUs + 1000000;
+    }
+    return in;
+}
+
+// World-up seen from the sensor: q⁻¹·ẑ for a sensor→world quaternion (wxyz). Madgwick's world
+// is Z-up, so this is the filter's estimate of the up direction in the raw sensor frame.
+QVector3D upInSensor(float w, float x, float y, float z)
+{
+    return QQuaternion(w, x, y, z).normalized().conjugated().rotatedVector(QVector3D(0.0f, 0.0f, 1.0f));
+}
+
+// Angle between two directions (deg), via atan2 so a sub-degree angle keeps its precision.
+double angleBetweenDeg(const QVector3D &a, const QVector3D &b)
+{
+    const double c = QVector3D::dotProduct(a, b);
+    const double s = QVector3D::crossProduct(a, b).length();
+    if (c == 0.0 && s == 0.0)
+        return std::numeric_limits<double>::quiet_NaN();
+    return std::atan2(s, c) * 57.29577951308232087;
+}
+
 int runRefusionParity(const SwingWindow &window,
                       const std::vector<ImuSegmentBinding> &bindings,
                       const QString &outDir, double betaOverride,
-                      const QVariantMap &tuning, int64_t impactUs)
+                      const QVariantMap &tuning, int64_t impactUs,
+                      const RefusionInstants &instants)
 {
     constexpr double kThreshDeg = 0.5;
     const float beta = betaOverride > 0.0 ? float(betaOverride) : MadgwickFilter().beta();
@@ -231,13 +298,98 @@ int runRefusionParity(const SwingWindow &window,
         if (pass) ++nPass;
         worst = std::max(worst, p.maxDeg);
 
+        // ── Tilt: live vs re-fused estimate of up (trunk design §16 step 2) ──────────────────
+        // Tilt error at an instant = the angle between the live and the re-fused estimate of
+        // world-up expressed in the sensor frame (q⁻¹·ẑ for each), at the sample nearest the
+        // instant; null when no sample lies within 100 ms of it. Yaw is invisible to it by
+        // construction — this is the tilt the accelerometer correction is there to hold.
+        //
+        // finishVsAddressGravityDeg is the quantity §7.2 asks to measure before the trunk
+        // estimator is built: the LIVE filter's gravity residual at the finish stillness — the
+        // angle between the live estimate of up (q_live⁻¹·ẑ) and the measured accel direction
+        // (accel normalised; at stillness the accelerometer reads +1 g along up), taken between
+        // the MEAN of each over the 200 ms nearest the finish instant (a window centred on it,
+        // shifted to stay inside the recording). The address hold is where the live filter was
+        // last anchored by a still body, so this residual is how much tilt the live filter lost
+        // across the swing. finishWindowMaxGyroDps says whether the "finish" really was still:
+        // a large value means the residual includes motion, not just lost tilt. Meaningful only
+        // for a Z-up (Madgwick) capture — the same assumption as the parity gate above.
+        QJsonObject tilt{ { "instants", instants.source } };
+        if (instants.source != QLatin1String("none") && r.quat.size() == samples.size()) {
+            constexpr int64_t kNearestTolUs = 100000;
+            const auto nearest = [&](int64_t t) -> long {
+                long best = -1;
+                int64_t bestD = std::numeric_limits<int64_t>::max();
+                for (size_t i = 0; i < samples.size(); ++i) {
+                    const int64_t d = std::llabs(samples[i].t_us - t);
+                    if (d < bestD) { bestD = d; best = long(i); }
+                }
+                return bestD <= kNearestTolUs ? best : -1;
+            };
+            const auto tiltAt = [&](int64_t t) -> QJsonValue {
+                const long i = nearest(t);
+                if (i < 0) return QJsonValue(QJsonValue::Null);
+                const RefuseSample &s = samples[size_t(i)];
+                const auto &q = r.quat[size_t(i)];
+                const double deg = angleBetweenDeg(upInSensor(s.qw, s.qx, s.qy, s.qz),
+                                                   upInSensor(q[0], q[1], q[2], q[3]));
+                return std::isfinite(deg) ? QJsonValue(deg) : QJsonValue(QJsonValue::Null);
+            };
+            tilt.insert("addressUs", double(instants.addressUs));
+            tilt.insert("topUs",     double(instants.topUs));
+            tilt.insert("impactUs",  double(instants.impactUs));
+            tilt.insert("finishUs",  double(instants.finishUs));
+            tilt.insert("addressDeg", tiltAt(instants.addressUs));
+            tilt.insert("topDeg",     tiltAt(instants.topUs));
+            tilt.insert("impactDeg",  tiltAt(instants.impactUs));
+            tilt.insert("finishDeg",  tiltAt(instants.finishUs));
+
+            constexpr int64_t kFinishHalfUs = 100000;   // 200 ms window
+            int64_t lo = instants.finishUs - kFinishHalfUs, hi = instants.finishUs + kFinishHalfUs;
+            const int64_t tFirst = samples.front().t_us, tLast = samples.back().t_us;
+            if (hi > tLast)  { lo -= hi - tLast;  hi = tLast; }
+            if (lo < tFirst) { hi = std::min(tLast, hi + (tFirst - lo)); lo = tFirst; }
+            QVector3D upSum, accSum;
+            int nWin = 0;
+            float maxGyro = 0.0f;
+            for (const RefuseSample &s : samples) {
+                if (s.t_us < lo || s.t_us > hi) continue;
+                const QVector3D a(s.ax, s.ay, s.az);
+                if (a.length() < 0.1f) continue;   // a zeroed row is no gravity reading
+                accSum += a.normalized();
+                upSum  += upInSensor(s.qw, s.qx, s.qy, s.qz);
+                maxGyro = std::max(maxGyro, QVector3D(s.gx, s.gy, s.gz).length());
+                ++nWin;
+            }
+            const double resid = nWin > 0 ? angleBetweenDeg(upSum, accSum)
+                                          : std::numeric_limits<double>::quiet_NaN();
+            tilt.insert("finishVsAddressGravityDeg",
+                        std::isfinite(resid) ? QJsonValue(resid) : QJsonValue(QJsonValue::Null));
+            tilt.insert("finishWindowMs", 200);
+            tilt.insert("finishWindowLoUs", double(lo));   // where the window landed after
+            tilt.insert("finishWindowHiUs", double(hi));   // clamping to the recording
+            tilt.insert("finishWindowSamples", nWin);
+            tilt.insert("finishWindowMaxGyroDps", double(maxGyro));
+            const auto num = [](const QJsonValue &v) {
+                return v.isDouble() ? QString::number(v.toDouble(), 'f', 3) : QStringLiteral("-");
+            };
+            ppInfo() << qPrintable(QStringLiteral("[refuse] %1 tilt (%2) addr %3 top %4 impact %5 finish %6 deg; "
+                                                  "live gravity residual at finish %7 deg (%8 samples, max %9 dps)")
+                                       .arg(serial.isEmpty() ? QStringLiteral("(imu)") : serial, instants.source,
+                                            num(tilt["addressDeg"]), num(tilt["topDeg"]),
+                                            num(tilt["impactDeg"]), num(tilt["finishDeg"]),
+                                            num(tilt["finishVsAddressGravityDeg"]))
+                                       .arg(nWin).arg(double(maxGyro), 0, 'f', 1));
+        }
+
         perSource.append(QJsonObject{
             { "serial", serial }, { "role", roleOf(sid) },
             { "samples", int(samples.size()) }, { "rateHz", rate },
             { "warmStarted", r.warmStarted },
             { "meanDeg", p.meanDeg }, { "rmsDeg", p.rmsDeg },
             { "maxDeg", p.maxDeg }, { "p95Deg", p.p95Deg },
-            { "maxAtSample", int(p.maxAt) }, { "pass", pass } });
+            { "maxAtSample", int(p.maxAt) }, { "pass", pass },
+            { "tilt", tilt } });
 
         std::fprintf(stderr,
             "[refuse] %-12s role=%d n=%zu rate=%.0fHz warm=%d  max=%.5f mean=%.5f p95=%.5f deg  %s\n",
@@ -252,6 +404,7 @@ int runRefusionParity(const SwingWindow &window,
         { "thresholdDeg", kThreshDeg },
         { "sourcesChecked", nChecked }, { "sourcesPassed", nPass },
         { "worstMaxDeg", worst }, { "pass", ok }, { "sources", perSource },
+        { "tiltInstants", instants.source },
         { "note", "Warm-start parity reproduces the live Madgwick fusion exactly when the "
                   "swing was captured with the Madgwick default filter; a large disagreement "
                   "means an ESKF capture or a schema gap (the corpus-1 E1 gate catches the "
@@ -270,6 +423,151 @@ int runRefusionParity(const SwingWindow &window,
     std::fprintf(stderr, "[refuse] %d/%d IMU sources pass (worst max %.5f deg, threshold %.2f) -> %s\n",
                  nPass, nChecked, worst, kThreshDeg, ok ? "PASS" : "FAIL");
     return ok ? 0 : 3;
+}
+
+// The role vocabulary of --bind and --ignore-role (the settings spelling, segment_role.h).
+bool segmentRoleFromCliName(const QString &name, SegmentRole *out)
+{
+    static const struct { const char *name; SegmentRole role; } kRoles[] = {
+        { "pelvis",       SegmentRole::Pelvis },
+        { "thorax",       SegmentRole::Thorax },
+        { "t12",          SegmentRole::T12 },
+        { "leadUpperArm", SegmentRole::LeadUpperArm },
+        { "leadForearm",  SegmentRole::LeadForearm },
+        { "leadHand",     SegmentRole::LeadHand },
+        { "trailThigh",   SegmentRole::TrailThigh },
+        { "leadThigh",    SegmentRole::LeadThigh },
+        { "club",         SegmentRole::Club },
+    };
+    for (const auto &r : kRoles)
+        if (name == QLatin1String(r.name)) { *out = r.role; return true; }
+    return false;
+}
+
+// ── --trunk-calib-from: the stand-tall solve, replayed offline ───────────────────────────────
+// trunk_imu_sequence_grf_design.md §16 steps 1–2; imu_frame_contract.md §5 "Trunk segments".
+// The live ceremony is not recorded as a ceremony, but a shot recorded while the golfer stood
+// tall carries the same raw lanes, so the solve can be run on it here and its A/M put on the
+// swing under analysis — matched by sensor serial, since the stand-tall shot may have been
+// recorded under different roles (or before the session knew trunk slots at all).
+
+constexpr double kStandTallSpanS = 2.0;   // the still window the ceremony holds (≥ 2 s)
+
+struct StandTallLane {
+    QString serial;
+    int     role   = 0;                   // SegmentRole as the stand-tall document recorded it
+    int     rateHz = 200;                 // nominal device.outputRateHz
+    std::vector<int64_t>   tUs;
+    std::vector<ImuSample> rows;
+};
+
+// Every host-fused IMU lane of a swing document. The role comes from analysis.bindings[] by
+// serial when the shot was analysed, else the stream's own device.role. HackMotion lanes are
+// skipped: a wG3 is never a trunk sensor, and its accel/quaternion conventions differ.
+std::vector<StandTallLane> standTallLanes(const QJsonObject &root)
+{
+    QHash<QString, int> boundRole;
+    for (const QJsonValue &bv : root[QStringLiteral("analysis")].toObject()[QStringLiteral("bindings")].toArray()) {
+        const QJsonObject b = bv.toObject();
+        boundRole.insert(b[QStringLiteral("serial")].toString(), b[QStringLiteral("role")].toInt());
+    }
+    std::vector<StandTallLane> out;
+    for (const QJsonValue &sv : root[QStringLiteral("streams")].toArray()) {
+        const QJsonObject s = sv.toObject();
+        if (s[QStringLiteral("kind")].toString() != QLatin1String("imu")
+            || s[QStringLiteral("instrument")].toString() == QLatin1String("hackmotion"))
+            continue;
+        const QJsonObject samples = s[QStringLiteral("samples")].toObject();
+        const QJsonArray  tArr    = samples[QStringLiteral("t_us")].toArray();
+        const QJsonArray  dArr    = samples[QStringLiteral("data")].toArray();
+        if (tArr.isEmpty() || tArr.size() != dArr.size())
+            continue;
+        StandTallLane L;
+        L.serial = s[QStringLiteral("source")].toObject()[QStringLiteral("serial")].toString();
+        const QJsonObject dev = s[QStringLiteral("device")].toObject();
+        if (dev[QStringLiteral("outputRateHz")].toInt() > 0)
+            L.rateHz = dev[QStringLiteral("outputRateHz")].toInt();
+        L.role = boundRole.value(L.serial, dev[QStringLiteral("role")].toInt(0));
+        L.tUs.reserve(size_t(tArr.size()));
+        L.rows.reserve(size_t(dArr.size()));
+        for (int i = 0; i < tArr.size(); ++i) {
+            const QJsonArray d = dArr.at(i).toArray();
+            float a[10] = {};
+            for (int k = 0; k < 10 && k < d.size(); ++k)
+                a[k] = float(d.at(k).toDouble());
+            L.tUs.push_back(int64_t(tArr.at(i).toDouble()));
+            L.rows.push_back(makeImuSample(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]));
+        }
+        out.push_back(std::move(L));
+    }
+    return out;
+}
+
+struct StillestWindow {
+    bool    found = false;
+    bool    shorterThanSpan = false;      // the whole lane, which is shorter than the span
+    size_t  lo = 0, hi = 0;               // sample range [lo, hi)
+    float   peakGyroDps = 0.0f;           // max |ω| inside it — the quantity minimised
+    imu_calibration::StandTallWindow w;
+};
+
+// The stillest kStandTallSpanS window of a lane: the window minimising the peak gyro magnitude
+// |ω| over its samples (a sliding max over every start sample whose span fits inside the
+// recording), summarised as the ceremony would: mean accel, mean gyro, and the mean quaternion
+// — each sample sign-aligned to the running sum (q and −q are one rotation) and the sum
+// normalised. samplesExpected is span × the NOMINAL rate, so a lane that dropped samples in its
+// stillest stretch fails the solve's sample gate rather than passing on fewer samples.
+StillestWindow stillestWindow(const StandTallLane &L, double spanS)
+{
+    StillestWindow out;
+    const size_t n = L.tUs.size();
+    if (n == 0)
+        return out;
+    const int64_t spanUs = int64_t(std::llround(spanS * 1e6));
+    const int64_t dtUs   = L.rateHz > 0 ? int64_t(1000000 / L.rateHz) : 5000;
+    std::vector<float> g(n);
+    for (size_t i = 0; i < n; ++i)
+        g[i] = QVector3D(L.rows[i].gyro_x, L.rows[i].gyro_y, L.rows[i].gyro_z).length();
+
+    std::deque<size_t> dq;   // indices of [i, j) with decreasing |ω| — front = window max
+    size_t j = 0;
+    float best = std::numeric_limits<float>::max();
+    for (size_t i = 0; i < n; ++i) {
+        if (L.tUs[i] + spanUs > L.tUs[n - 1] + dtUs)
+            break;           // this window would run past the end of the recording
+        while (j < n && L.tUs[j] < L.tUs[i] + spanUs) {
+            while (!dq.empty() && g[dq.back()] <= g[j]) dq.pop_back();
+            dq.push_back(j++);
+        }
+        while (!dq.empty() && dq.front() < i) dq.pop_front();
+        if (dq.empty()) continue;
+        if (g[dq.front()] < best) {
+            best = g[dq.front()];
+            out.found = true; out.lo = i; out.hi = j;
+        }
+    }
+    if (!out.found) {        // shorter than the span: the whole lane, and the sample gate decides
+        out.found = true; out.shorterThanSpan = true; out.lo = 0; out.hi = n;
+        best = *std::max_element(g.begin(), g.end());
+    }
+    out.peakGyroDps = best;
+
+    double f[3] = { 0, 0, 0 }, w[3] = { 0, 0, 0 }, q[4] = { 0, 0, 0, 0 };
+    int cnt = 0;
+    for (size_t k = out.lo; k < out.hi; ++k, ++cnt) {
+        const ImuSample &s = L.rows[k];
+        f[0] += s.accel_x; f[1] += s.accel_y; f[2] += s.accel_z;
+        w[0] += s.gyro_x;  w[1] += s.gyro_y;  w[2] += s.gyro_z;
+        const double dot = s.quat_w * q[0] + s.quat_x * q[1] + s.quat_y * q[2] + s.quat_z * q[3];
+        const double sgn = (cnt == 0 || dot >= 0.0) ? 1.0 : -1.0;
+        q[0] += sgn * s.quat_w; q[1] += sgn * s.quat_x; q[2] += sgn * s.quat_y; q[3] += sgn * s.quat_z;
+    }
+    out.w.meanAccelG  = QVector3D(float(f[0] / cnt), float(f[1] / cnt), float(f[2] / cnt));
+    out.w.meanGyroDps = QVector3D(float(w[0] / cnt), float(w[1] / cnt), float(w[2] / cnt));
+    out.w.meanQuat    = QQuaternion(float(q[0]), float(q[1]), float(q[2]), float(q[3])).normalized();
+    out.w.samplesReceived = cnt;
+    out.w.samplesExpected = int(std::lround(spanS * double(L.rateHz)));
+    return out;
 }
 
 } // namespace
@@ -302,7 +600,12 @@ int main(int argc, char **argv)
     QCommandLineOption optRefuse("refuse-orientation",
         "Offline orientation re-fusion parity (corpus-1 gate E1): re-run Madgwick "
         "from the recorded raw accel+gyro and report disagreement vs the stored "
-        "quaternion. Writes refusion.json and exits (no pose/shaft pipeline).");
+        "quaternion. Writes refusion.json and exits (no pose/shaft pipeline). Each source "
+        "also carries `tilt`: the angle between the live and re-fused estimate of up in the "
+        "sensor frame at address, top, impact and finish (the recorded phases when all four "
+        "exist, else impact -1.0/-0.3/+1.0 s; `instants` says which), and "
+        "finishVsAddressGravityDeg, the live filter's gravity residual over the 200 ms nearest "
+        "the finish (trunk design section 7.2).");
     QCommandLineOption optRefuseBeta("refuse-beta",
         "Madgwick gain for re-fusion (default = production 0.05; perturb to confirm "
         "the tool detects a parameter change).", "float");
@@ -314,6 +617,21 @@ int main(int argc, char **argv)
         "leadThigh|club. For the kinematic-sequence truth capture "
         "(kinematic_sequence_design.md section 9): a belt and a chest Witmotion recorded in a "
         "session whose placement UX has no such slot. Repeatable.", "index=role");
+    QCommandLineOption optIgnoreRole("ignore-role",
+        "Drop the recorded IMU bindings with these roles before analysis (same names as --bind, "
+        "comma-separated, repeatable; applied AFTER --bind), e.g. pelvis,thorax for the unbound "
+        "half of the truth session's bound-vs-unbound comparison (trunk design section 13). Every "
+        "binding on a dropped binding's sensor goes with it, so the stream is not analysed under "
+        "another role. Echoed into runmeta.json as `ignoredRoles`.", "role[,role...]");
+    QCommandLineOption optTrunkCalib("trunk-calib-from",
+        "Replay the trunk stand-tall solve (imu_frame_contract.md section 5, solveTrunkSegment) "
+        "from another recorded shot in which the golfer stood tall: in each of its IMU lanes the "
+        "stillest 2.0 s window (least peak |gyro|) is summarised and solved, and the result "
+        "replaces alignA/mountM (and sets calibrated) on this swing's pelvis/thorax bindings, "
+        "matched by sensor serial — applied after --bind and --ignore-role, before analysis. A "
+        "failed solve or an unmatched serial warns and leaves the binding as recorded. The "
+        "per-sensor record goes to result.json and runmeta.json as `trunkCalibration`.",
+        "standTallSwingDir");
     QCommandLineOption optDtl("dtl",
         "Run the down-the-line shaft tracker (dtl_shaft_tracker_design.md) beside the "
         "production analysis: pose the DTL stream, build the face-on witness from this "
@@ -377,7 +695,8 @@ int main(int argc, char **argv)
     QCommandLineOption optPoolPrefix("pool-prefix", "Pool mode: only the result directories whose name starts with this.", "str");
     QCommandLineOption optPoolOut("pool-out", "Pool mode: where to write the pool JSON.", "file");
     cli.addOptions({ optOut, optParams, optTrace, optSession, optFaceOn, optImpact, optPose, optForce, optFullWindow,
-                     optBall, optRefuse, optRefuseBeta, optWriteBack, optBind, optDtl, optDtlPose, optDtlCalib,
+                     optBall, optRefuse, optRefuseBeta, optWriteBack, optBind, optIgnoreRole, optTrunkCalib,
+                     optDtl, optDtlPose, optDtlCalib,
                      optBands, optClubLen, optHosel, optShaftLen, optHandsEnd, optHeight,
                      optCalib, optPool, optPoolPrefix, optPoolOut, optDag });
     cli.process(app);
@@ -408,7 +727,8 @@ int main(int argc, char **argv)
 
     if (cli.positionalArguments().isEmpty() || (!cli.isSet(optOut) && !cli.isSet(optWriteBack)))
         return fail("usage: swinglab_run <swing_dir> --out <run_dir> [--params f] [--trace]\n"
-                    "                    [--bind <index>=<role> ...]\n"
+                    "                    [--bind <index>=<role> ...] [--ignore-role <role[,role...]>]\n"
+                    "                    [--trunk-calib-from <standTallSwingDir>]\n"
                     "       swinglab_run <swing_dir> --write-back");
     const QString swingDir = cli.positionalArguments().first();
 
@@ -513,17 +833,6 @@ int main(int argc, char **argv)
     // the corrected role exactly as if the wizard had known it. Nothing is
     // written back to the source swing.json.
     for (const QString &spec : cli.values(optBind)) {
-        static const struct { const char *name; SegmentRole role; } kRoles[] = {
-            { "pelvis",       SegmentRole::Pelvis },
-            { "thorax",       SegmentRole::Thorax },
-            { "t12",          SegmentRole::T12 },
-            { "leadUpperArm", SegmentRole::LeadUpperArm },
-            { "leadForearm",  SegmentRole::LeadForearm },
-            { "leadHand",     SegmentRole::LeadHand },
-            { "trailThigh",   SegmentRole::TrailThigh },
-            { "leadThigh",    SegmentRole::LeadThigh },
-            { "club",         SegmentRole::Club },
-        };
         const int eq = spec.indexOf(QLatin1Char('='));
         bool okIdx = false;
         const int idx = eq > 0 ? spec.left(eq).trimmed().toInt(&okIdx) : -1;
@@ -531,16 +840,165 @@ int main(int argc, char **argv)
         if (!okIdx || idx < 0 || idx >= int(job.imuBindings.size()))
             return fail(QStringLiteral("--bind %1: no recorded binding at index %2 (%3 bindings)")
                             .arg(spec).arg(idx).arg(int(job.imuBindings.size())));
-        const SegmentRole *found = nullptr;
-        for (const auto &r : kRoles)
-            if (roleName == QLatin1String(r.name)) { found = &r.role; break; }
-        if (!found)
+        SegmentRole found = SegmentRole::Unknown;
+        if (!segmentRoleFromCliName(roleName, &found))
             return fail(QStringLiteral("--bind %1: unknown role '%2' (pelvis|thorax|t12|leadUpperArm|"
                                        "leadForearm|leadHand|trailThigh|leadThigh|club)")
                             .arg(spec, roleName));
         std::fprintf(stderr, "[swinglab] bind %d: role %d -> %s\n", idx,
                      int(job.imuBindings[size_t(idx)].role), roleName.toUtf8().constData());
-        job.imuBindings[size_t(idx)].role = *found;
+        job.imuBindings[size_t(idx)].role = found;
+    }
+
+    // ── --ignore-role: the unbound half of the bound-vs-unbound comparison ───
+    // Trunk design §13: every truth-session swing is analysed twice, bound and with the trunk
+    // roles ignored. After --bind (so a remapped role is dropped by its NEW name) and before
+    // anything reads the job. Dropping is by SENSOR, not only by binding: should the document
+    // carry a second binding on the same source under another role, it goes too — an ignored
+    // sensor must not come back into the analysis by a side door.
+    QJsonObject ignoredRoles;
+    if (cli.isSet(optIgnoreRole)) {
+        QSet<int> dropRoles;
+        QJsonArray roleNames;
+        for (const QString &arg : cli.values(optIgnoreRole))
+            for (const QString &part : arg.split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+                SegmentRole r = SegmentRole::Unknown;
+                if (!segmentRoleFromCliName(part.trimmed(), &r))
+                    return fail(QStringLiteral("--ignore-role: unknown role '%1' (pelvis|thorax|t12|"
+                                               "leadUpperArm|leadForearm|leadHand|trailThigh|leadThigh|club)")
+                                    .arg(part.trimmed()));
+                dropRoles.insert(int(r));
+                roleNames.append(part.trimmed());
+            }
+        QSet<SourceId> dropSources;
+        for (const ImuSegmentBinding &b : job.imuBindings)
+            if (dropRoles.contains(int(b.role)))
+                dropSources.insert(b.source);
+        std::vector<ImuSegmentBinding> kept;
+        QJsonArray dropped;
+        for (size_t i = 0; i < job.imuBindings.size(); ++i) {
+            const ImuSegmentBinding &b = job.imuBindings[i];
+            if (!dropSources.contains(b.source)) {
+                kept.push_back(b);
+                continue;
+            }
+            const QString serial = QString::fromStdString(window.formatOf(b.source).device_serial);
+            const bool byRole = dropRoles.contains(int(b.role));
+            dropped.append(QJsonObject{ { "index", int(i) }, { "serial", serial },
+                                        { "role", segmentRoleName(b.role) },
+                                        { "reason", byRole ? "role" : "sameSensor" } });
+            ppInfo() << qPrintable(QStringLiteral("[swinglab] ignore-role: binding %1 (%2, sensor %3) dropped%4")
+                                       .arg(int(i)).arg(segmentRoleName(b.role), serial,
+                                            byRole ? QString() : QStringLiteral(" — its sensor carries an ignored role")));
+        }
+        if (dropped.isEmpty())
+            ppWarn() << qPrintable(QStringLiteral("[swinglab] ignore-role: no recorded binding has any of the "
+                                                  "roles %1 — nothing dropped")
+                                       .arg(cli.values(optIgnoreRole).join(QLatin1Char(','))));
+        job.imuBindings = std::move(kept);
+        ignoredRoles = QJsonObject{ { "roles", roleNames }, { "dropped", dropped } };
+    }
+
+    // ── --trunk-calib-from: the stand-tall solve, on this swing's trunk bindings ──
+    // Same place as --bind and for the same reason: before anything reads the job, so every
+    // stage (ImuResample, BodyRotation, KinematicSequence, the phase segmenter's trunk axis)
+    // sees the replayed A/M exactly as if the live ceremony had produced it. A failed solve is
+    // never applied — the binding keeps what was recorded, and the run says so.
+    QJsonObject trunkCalib;
+    if (cli.isSet(optTrunkCalib)) {
+        const QString stDir = cli.value(optTrunkCalib);
+        QString stErr;
+        const QJsonObject stRoot = SwingStore::load(stDir, &stErr);
+        if (stRoot.isEmpty())
+            return fail(QStringLiteral("--trunk-calib-from %1: cannot read the swing document (%2)")
+                            .arg(stDir, stErr));
+        const std::vector<StandTallLane> lanes = standTallLanes(stRoot);
+        if (lanes.empty())
+            ppWarn() << qPrintable(QStringLiteral("[swinglab] trunk-calib: %1 has no IMU lanes").arg(stDir));
+
+        QJsonObject sensors;
+        QSet<QString> usedSerials;
+        int nTrunk = 0, nApplied = 0;
+        for (ImuSegmentBinding &b : job.imuBindings) {
+            if (b.role != SegmentRole::Pelvis && b.role != SegmentRole::Thorax)
+                continue;
+            ++nTrunk;
+            const QString serial = QString::fromStdString(window.formatOf(b.source).device_serial);
+            const QString key = serial.isEmpty() ? QStringLiteral("(source %1)").arg(int(b.source)) : serial;
+            QJsonObject rec{ { "role", segmentRoleName(b.role) }, { "matched", false }, { "applied", false } };
+            const auto lane = std::find_if(lanes.begin(), lanes.end(), [&](const StandTallLane &L) {
+                return !serial.isEmpty() && L.serial == serial;
+            });
+            if (lane == lanes.end()) {
+                ppWarn() << qPrintable(QStringLiteral("[swinglab] trunk-calib: %1 binding on sensor %2 has no lane "
+                                                      "in the stand-tall shot — left as recorded")
+                                           .arg(segmentRoleName(b.role), key));
+                sensors.insert(key, rec);
+                continue;
+            }
+            usedSerials.insert(serial);
+            const StillestWindow sw = stillestWindow(*lane, kStandTallSpanS);
+            if (sw.shorterThanSpan)
+                ppWarn() << qPrintable(QStringLiteral("[swinglab] trunk-calib: sensor %1's stand-tall lane is shorter "
+                                                      "than %2 s — the whole lane is used").arg(key).arg(kStandTallSpanS));
+            const imu_calibration::TrunkAlignment al = imu_calibration::solveTrunkSegment(
+                sw.w, b.role == SegmentRole::Pelvis ? imu_calibration::TrunkSensor::Pelvis
+                                                    : imu_calibration::TrunkSensor::Thorax);
+            const imu_calibration::TrunkSolveRecord &r = al.record;
+            rec["matched"]       = true;
+            rec["standTallRole"] = segmentRoleName(SegmentRole(lane->role));
+            rec["valid"]         = al.valid;
+            rec["failure"]       = r.failure;
+            rec["deltaTier"]     = r.deltaTier;
+            rec["sigmaDeltaDeg"] = double(r.sigmaDeltaDeg);
+            rec["residuals"] = QJsonObject{
+                { "sampleFraction",        double(r.sampleFraction) },
+                { "maxAbsGyroDps",         double(r.maxAbsGyroDps) },
+                { "gravityErrPct",         double(r.gravityErrPct) },
+                { "longAxisFromUpDeg",     double(r.longAxisFromUpDeg) },
+                { "faceFromHorizontalDeg", double(r.faceFromHorizontalDeg) },
+                { "samplesOk", r.samplesOk }, { "stillOk", r.stillOk }, { "gravityOk", r.gravityOk },
+                { "longAxisOk", r.longAxisOk }, { "faceOk", r.faceOk } };
+            rec["window"] = QJsonObject{
+                { "t0Us", double(lane->tUs[sw.lo]) }, { "t1Us", double(lane->tUs[sw.hi - 1]) },
+                { "samplesReceived", sw.w.samplesReceived }, { "samplesExpected", sw.w.samplesExpected },
+                { "peakGyroDps", double(sw.peakGyroDps) }, { "rateHz", lane->rateHz } };
+            const QString line = QStringLiteral(
+                "[swinglab] trunk-calib: %1 %2 %3%4 — samples %5 gyro %6 dps gravity %7 % long axis %8 deg "
+                "face %9 deg, %10 (sigma %11 deg)")
+                .arg(segmentRoleName(b.role), key, al.valid ? QStringLiteral("VALID") : QStringLiteral("INVALID"),
+                     r.failure.isEmpty() ? QString() : QStringLiteral(" (") + r.failure + QStringLiteral(")"))
+                .arg(double(r.sampleFraction), 0, 'f', 3).arg(double(r.maxAbsGyroDps), 0, 'f', 2)
+                .arg(double(r.gravityErrPct), 0, 'f', 2).arg(double(r.longAxisFromUpDeg), 0, 'f', 1)
+                .arg(double(r.faceFromHorizontalDeg), 0, 'f', 1).arg(r.deltaTier)
+                .arg(double(r.sigmaDeltaDeg), 0, 'f', 1);
+            if (al.valid) {
+                b.alignA = al.A;
+                b.mountM = al.M;
+                b.anatCalibrated = true;
+                b.calibrated     = true;
+                rec["applied"] = true;
+                ++nApplied;
+                ppInfo() << qPrintable(line);
+            } else {
+                ppWarn() << qPrintable(line + QStringLiteral(" — NOT applied, binding left as recorded"));
+            }
+            sensors.insert(key, rec);
+        }
+        if (nTrunk == 0)
+            ppWarn() << qPrintable(QStringLiteral("[swinglab] trunk-calib: this swing has no pelvis/thorax binding — "
+                                                  "nothing to calibrate (use --bind to name them)"));
+        // Stand-tall lanes recorded under a trunk role that no trunk binding here asked for —
+        // usually a sensor swap between the two shots, worth seeing in the record.
+        QJsonArray unmatched;
+        for (const StandTallLane &L : lanes)
+            if (!usedSerials.contains(L.serial)
+                && (L.role == int(SegmentRole::Pelvis) || L.role == int(SegmentRole::Thorax)))
+                unmatched.append(QJsonObject{ { "serial", L.serial },
+                                              { "role", segmentRoleName(SegmentRole(L.role)) } });
+        trunkCalib = QJsonObject{ { "source", stDir }, { "windowS", kStandTallSpanS },
+                                  { "trunkBindings", nTrunk }, { "applied", nApplied },
+                                  { "sensors", sensors }, { "unmatchedStandTallLanes", unmatched } };
     }
 
     // ── Orientation re-fusion parity (corpus-1 gate E1) ──────────────────────
@@ -553,13 +1011,19 @@ int main(int argc, char **argv)
         std::fprintf(stderr, "[swinglab] window rebuilt: %zu entries (%s)\n",
                      window.entries().size(), ls.usedRaw ? "raw" : "mp4");
         const double beta = cli.isSet(optRefuseBeta) ? cli.value(optRefuseBeta).toDouble() : -1.0;
-        return runRefusionParity(window, job.imuBindings, outDir, beta, tuning, job.impactUs);
+        const qint64 t0Us = qint64(SwingStore::load(swingDir)[QStringLiteral("clock")].toObject()
+                                       [QStringLiteral("t0_us")].toDouble(0));
+        const RefusionInstants inst = refusionInstants(ls.analysisIn, t0Us, job.impactUs);
+        return runRefusionParity(window, job.imuBindings, outDir, beta, tuning, job.impactUs, inst);
     }
 
     // CLI overrides on the resolved job. Session type: explicit option wins; else
     // the recorded capture.sessionType (load()); else the option default (1).
     job.tuningOverrides = tuning;
     job.runAssessment   = true;   // SwingLab: emit Tier-2 findings into swing.json (known-groups)
+    // --full-window on the --out path too: the whole captured window, one pass, every frame
+    // posed (no two-pass coarse/dense schedule). The trunk hop analysis needs the dense pose.
+    job.fullWindow      = cli.isSet(optFullWindow);
     if (cli.isSet(optPose))
         job.poseTrackPath = cli.value(optPose);
     // --dtl-pose pins the DOWN-THE-LINE pose for the analyzer too, not only for the --dtl shaft
@@ -708,6 +1172,8 @@ int main(int argc, char **argv)
         } else {
             QJsonObject doc = SwingStore::load(outDir, &werr);
             doc.remove(QStringLiteral("summary"));   // the library's list index; not analysis
+            if (!trunkCalib.isEmpty())                // --trunk-calib-from: what was solved and applied
+                doc.insert(QStringLiteral("trunkCalibration"), trunkCalib);
             QSaveFile rf(outDir + "/result.json");
             if (doc.isEmpty() || !rf.open(QIODevice::WriteOnly)
                 || rf.write(SwingStore::toJsonText(doc)) < 0 || !rf.commit())
@@ -781,6 +1247,11 @@ int main(int argc, char **argv)
     // same runmeta.json it always did.
     if (!clubOverride.isEmpty())
         meta["clubOverride"] = clubOverride;
+    // Same rule for the binding edits: only when asked for.
+    if (!ignoredRoles.isEmpty())
+        meta["ignoredRoles"] = ignoredRoles;
+    if (!trunkCalib.isEmpty())
+        meta["trunkCalibration"] = trunkCalib;
     // Written here as always, and AGAIN at the end of a --dtl run once the `dtl`
     // block exists — so a run without --dtl produces exactly the file it did before.
     const auto writeRunmeta = [&]() {
