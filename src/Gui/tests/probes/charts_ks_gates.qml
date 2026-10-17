@@ -30,6 +30,7 @@
 //       the glance at the mat (Replay with autoReturnToCapture: the Replay register)
 //   --probe-open first | <readingId> — on the Readings tab, click that row (the profile's own rowActivated)
 //       and report the curve it opens
+//   --probe-verdict all | fault | outside | inside — on the Readings tab, pick that verdict and report the rows it keeps
 //   --probe-wrist — report the Wrist section's words (score, cells, standfirst, missing line) and the trust fold
 //   --probe-panels camera,table — the panels beside Charts (default camera); --probe-region Delivery — the Table's
 //       region; the camera's gate chip (overlayGateChip) and the Table's "Not shown" line (dataNotShown) are reported
@@ -156,6 +157,19 @@ Item {
                 const views = []; probe.walk(b, "chShotView*", views)
                 const filt = probe.arg("--probe-filter", "")   // --probe-filter <text>: the Readings tab's name filter
                 if (filt !== "") { const rvs = []; probe.walk(b, "chReadingsView", rvs); for (const rv of rvs) rv.filter = filt }
+                // --probe-verdict all|fault|outside|inside: the Readings tab's verdict, clicked through its own chip
+                const verd = probe.arg("--probe-verdict", "")
+                { const rvs = []; probe.walk(b, "chReadingsView", rvs)
+                  for (const rv of rvs) if (probe.shown(rv, root)) {
+                      const c = rv.counts
+                      probe.log("verdicts: all " + c.all + ", faults " + c.fault + ", outside " + c.outside + ", inside " + c.inside + (rv.graded ? "" : " (nothing graded)"))
+                      if (verd !== "") {
+                          const chips = []; probe.walk(rv, "chReadingsVerdict:" + verd, chips)
+                          const ma = chips.length ? chips[0].children.filter(k => k.cursorShape !== undefined)[0] : null
+                          if (ma && ma.enabled) ma.clicked(null); else rv.verdict = verd
+                          probe.log("verdict '" + rv.verdict + "': " + rv.shownCount + " row(s): " + rv.groups.map(g => g.rows.map(r => r.short + " [" + r.verdict + (r.fired ? ", " + r.firedWord : "") + "]").join(", ")).join(" | "))
+                      }
+                  } }
                 const cautions = []; probe.walk(b, "chProfileCaution", cautions)
                 for (const c of cautions) if (probe.shown(c, root)) probe.log("caution: '" + c.text + "'")
                 const open = probe.arg("--probe-open", "")
