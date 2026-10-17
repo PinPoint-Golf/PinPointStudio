@@ -1,6 +1,6 @@
 # Trust and gates: saying why a reading was refused
 
-**Status:** stages 0–4 built 16 October 2026 (stage 3 with the Trust panel of §7.0; stage 4 as §4.4 below); stages 5–7 open. Written 16 October 2026.
+**Status:** **closed 17 October 2026.** Stages 0–7 built and pushed (stage 3 with the Trust panel of §7.0; stage 4 as §4.4; stage 5 as §7.4; stage 6 as `trust_stage6_plan.md`; stage 7 as §7.5). Three styling and policy questions are left open on purpose (§11). Written 16 October 2026.
 **Owner:** Mark.
 **Audience:** developers working on the analysis producers, the diagnostics engine, the Charts and
 diagnostics panels, and the Setup page.
@@ -323,6 +323,11 @@ routes; and per gate, how often it fired on the current library (a count, from t
 That count is also the developer's view: a gate firing on 100% of a setup's swings is either right
 about that setup or wrong about everything.
 
+*As built (stage 7, 16 Oct 2026):* Settings → Diagnostic Model → Gates. Every catalogue entry (per-swing
+gates and rules), filterable by area, kind and effect. The counts come from the swings' phase-grid sidecars,
+read in the background, and are broken down by session. The page is read-only. A gate firing on every swing
+is not coloured (colour means outside the corridor); its count says so.
+
 ## 8. The census of gates in the code today
 
 The full inventory, gate by gate with file and line, is
@@ -384,8 +389,10 @@ Each stage is one session, graded on screen before commit.
 5. **The trust summary** (§7.4) and the Setup page line. *Built 16 Oct 2026; see §7.4 "Stage 5 as built".*
 6. **Remaining areas, one per session, ordered by how often their gates fire on the library:** club
    and shaft tiers; impact camera; pose confidence and the span-ratio gates; IMU integrity and capture
-   holes; launch monitor corroboration; the diagnostics' own minimum-shot rules.
-7. **The Gates page** in the Metric Library, with library firing counts.
+   holes; launch monitor corroboration; the diagnostics' own minimum-shot rules. *Built 16–17 Oct 2026
+   in two sessions instead of one per area (record everything, then show it everywhere); see
+   `trust_stage6_plan.md`.*
+7. **The Gates page** in the Metric Library, with library firing counts. *Built 16 Oct 2026; see §7.5.*
 
 Stages 1–3 are the minimum that answers the question that prompted this.
 
@@ -401,12 +408,33 @@ Stages 1–3 are the minimum that answers the question that prompted this.
 5. The trust summary exists for every analysed session, and agrees with the Setup page's vocabulary.
 6. A unit test ties emitted gate ids to the catalogue both ways.
 
+**Where each is met (17 October 2026).** 1: the catalogue holds the per-swing gates and the on-read rules
+(`gate_catalogue_*.h`); what the census listed and is not a gate is below. 2: every surface reads the record
+through `TrustWords` / `PpGateNote` (Charts, Session diagnostics in Analyse, Replay and Print, the 3-D view,
+shot card, edit panel, camera frames, data viewer, launch monitor board). The camera chips, the Table's
+"Not shown" line and the launch monitor field words could not be rendered offscreen; they are checked
+in the app.
+3: words come only from the catalogue entry of the recorded gate. 4: stage 4 (§4.4) and the diagnostics'
+`rule.diag.*` refusals. 5: stage 5 (§7.4). 6: `gate_catalogue_test`.
+
+**Census entries that are not gates, and why** (not recorded): capture-time and device checks with no swing
+to attach to (phone-shot corroboration, the sensor impact detector, filter seeding, the calibration axis
+test, launch monitor pairing and standalone refusals); provenance labels (sample tier, timing class); the
+phase-domain mask and the clubhead speed past the club's impact position (a metric's defined span, not a
+refusal); σ-only filters (the pose smoother's coasting, an assumed club length); the phase retiming and
+fusion abstentions (silent on reuse, no change for the reader); the impact anchor (reused, not stored);
+bridged detector gaps (a hold, not a refusal).
+
 ## 11. Decisions taken, and the ones still open
 
 **Taken (16 October 2026):**
 - Gates become data: a catalogue written once plus per-swing records (Mark).
 - This design explains and labels; it changes no gate threshold.
 - The kinematic sequence is the first producer, because it prompted this.
+- Record retention (was open 4): the library is re-analysed on the studio after each stage lands, with a
+  backup on the share first (Mark, 16 Oct).
+- The design closes with open 1–3 still open (Mark, 17 Oct). They are styling and per-finding policy
+  calls for later sessions, not missing pieces of the model.
 
 **Open:**
 1. **Trust mark styling.** Text marks (`est.`, `≥`) or a glyph; decided in the typeset playbook with
@@ -416,5 +444,4 @@ Stages 1–3 are the minimum that answers the question that prompted this.
 3. **Showing the best guess.** Whether a Bounded reading also shows the refused value ("+45 ms,
    estimated, out of sight") greyed. The 16 October discussion argued against it for the sequence:
    on that shot the guess is very likely wrong and reads as "pelvis late".
-4. **Record retention for old swings.** Whether stage 6's re-analyses run library-wide as each area
-   lands, or once at the end.
+*(4, record retention: taken, see above.)*

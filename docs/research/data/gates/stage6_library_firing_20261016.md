@@ -40,3 +40,16 @@ sequence.reversalSpike           refused       3/147     2%
 shot.captureHoles                withheld      1/147     1%
 skeleton.refused                 refused       1/147     1%
 ```
+
+## Addendum, 17 October 2026 (after trust stage 6 session 2, c8b3a5cd)
+
+The library re-analysed again on the studio, same path; 147 of 147 swings clean, all at gatesVersion 2. Every
+count above is unchanged. One new line:
+
+```
+sequence.noPeak                  refused       1/147     1%
+```
+
+It is 2026-10-05 swing 2, pelvis and chest peaks ("nothing to time"): a node that was unplaced with no record
+before. The club track refusal (club.trackRefused, 7 swings) now covers the sequence's club peak (ks.club) on all
+seven.
