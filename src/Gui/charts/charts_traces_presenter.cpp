@@ -2022,6 +2022,13 @@ int alignedCount(const Ctx &c)
     return k;
 }
 
+// Session would draw (buildSession's refusals, none of them met): the tab row counts its shots on every tab
+bool sessionDrawable(const Ctx &c)
+{
+    const int n = c.snap ? c.snap->count() : 0;
+    return n >= 3 && alignedCount(c) >= 3 && !c.sessionKeys.isEmpty() && !c.grid.empty();
+}
+
 void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
 {
     QVariantMap out;
@@ -2289,6 +2296,7 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
         return refuse(c.presetKeys.isEmpty() ? QStringLiteral("No metric of this preset was measured on three shots.")
                                              : QStringLiteral("No trace of this preset was measured on three shots: it is read at instants only."));
     out.insert(QStringLiteral("available"), true);
+    out.insert(QStringLiteral("tabCount"), n);
     {
         // every club of the session, in strike order of first use ("7 iron and gap wedge"); past three, "mixed clubs"
         QStringList clubs;
@@ -2792,7 +2800,11 @@ static std::shared_ptr<ChartsTracesPresenter::Result> computeAll(ChartsTracesPre
     const qint64 refNs = part.nsecsElapsed();
     part.restart();
     if (in.view != QLatin1String("shot")) buildSession(c, *R);
-    else R->session = QVariantMap{ { QStringLiteral("available"), false } };
+    else {
+        // not drawn on This shot, but the tab row still counts it, so the label does not jump on a tab change
+        R->session = QVariantMap{ { QStringLiteral("available"), false } };
+        if (sessionDrawable(c)) R->session.insert(QStringLiteral("tabCount"), c.snap->count());
+    }
     const qint64 sesNs = part.nsecsElapsed();
     buildChoices(c, *R);
 
