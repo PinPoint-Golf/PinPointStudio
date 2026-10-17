@@ -915,6 +915,147 @@ int main()
               "…and with every later link withheld it is refused as withheld");
     }
 
+    // ── D27: the club racing ahead of the arms is its own condition ─────────────
+    //
+    // The shipped shapes, by id: `club_before_arms` reads sig_clubBeforeArm ALONE (an order on
+    // [lead-arm peak, club peak]), and `casting` keeps its wrist preference (hinge first, lag angle
+    // after it). D27 was drafted as a second signal on casting under ANY, which is the trap this
+    // pins shut: ANY reads clean only when EVERY signal was read, so beside the usually-missing
+    // club peak casting would have counted firings and never a clean swing. As a single-signal
+    // condition the order decides club_before_arms, casting never moves with it, and the camera
+    // club — drawn but not judged (KB-18) — is refused as Withheld, never read as in order.
+    std::printf("\nclub before arms (D27)\n");
+    {
+        CharacteristicPack p;
+        p.id            = QStringLiteral("d27");
+        p.schemaVersion = kPackSchemaVersion;
+        for (const char *id : { "m_leadArmPeakTime", "m_clubPeakTime", "m_lagAngleDown", "m_leadWristRadUln_p6" }) {
+            Measure m;
+            m.id     = QString::fromLatin1(id);
+            m.status = MeasureStatus::Live;
+            p.measures.push_back(m);
+        }
+
+        Signal order;
+        order.id       = QStringLiteral("sig_clubBeforeArm");
+        order.test     = SignalTest::Order;
+        order.measures = { QStringLiteral("m_leadArmPeakTime"), QStringLiteral("m_clubPeakTime") };
+        p.signalDefs.push_back(order);
+        auto corridor = [&](const char *id, const char *mid, Direction d) {
+            Signal s;
+            s.id        = QString::fromLatin1(id);
+            s.test      = SignalTest::OutsideCorridor;
+            s.measures  = { QString::fromLatin1(mid) };
+            s.direction = d;
+            p.signalDefs.push_back(s);
+        };
+        corridor("sig_castingHinge", "m_leadWristRadUln_p6", Direction::High);
+        corridor("sig_casting", "m_lagAngleDown", Direction::Low);
+
+        Condition casting;
+        casting.id            = QStringLiteral("casting");
+        casting.label         = casting.id;
+        casting.group         = ConditionGroup::Release;
+        casting.observability = Observability::Observable;
+        casting.confirmedBy   = ConfirmedBy::Measured;
+        casting.detectedBy    = { QStringLiteral("sig_castingHinge"), QStringLiteral("sig_casting") };
+        casting.detection     = DetectionMode::First;
+        casting.state         = ConditionState::Active;
+        p.conditions.push_back(casting);
+
+        // The pack as it stood before D27: casting alone, so its finding can be compared with one
+        // computed beside the new condition.
+        const CharacteristicPack before = p;
+
+        Condition club;
+        club.id            = QStringLiteral("club_before_arms");
+        club.label         = club.id;
+        club.group         = ConditionGroup::Sequence;
+        club.observability = Observability::Observable;
+        club.confirmedBy   = ConfirmedBy::Measured;
+        club.detectedBy    = { QStringLiteral("sig_clubBeforeArm") };
+        club.state         = ConditionState::Active;
+        p.conditions.push_back(club);
+
+        const QString kClub    = QStringLiteral("club_before_arms");
+        const QString kCasting = QStringLiteral("casting");
+
+        // Both peaks off worn sensors: the club node from the club-sensor route, not withheld.
+        auto peaks = [](double arm, double clubT) {
+            FakeSource s;
+            s.addWithoutCorridor(QStringLiteral("m_leadArmPeakTime"), arm);
+            s.setRoute(QStringLiteral("m_leadArmPeakTime"), QStringLiteral("leadArmImu"), true);
+            s.addWithoutCorridor(QStringLiteral("m_clubPeakTime"), clubT);
+            s.setRoute(QStringLiteral("m_clubPeakTime"), QStringLiteral("clubImu"), true);
+            return s;
+        };
+
+        // (1) The club peaking before the lead arm fires, and so does a tie — and casting's finding
+        // is the one it would have been without the condition, whether casting fires or not.
+        for (const double lag : { -30.0, 0.0 }) {   // far below the lag corridor (z −6: Action, casting fires), inside it
+            FakeSource src = peaks(-40.0, -60.0);
+            src.add(QStringLiteral("m_lagAngleDown"), lag, -5.0, 5.0);
+            const DetectionResult d  = detect(p, src);
+            const DetectionResult d0 = detect(before, src);
+            const Finding *f  = d.find(kClub);
+            const Finding *c  = d.find(kCasting);
+            const Finding *c0 = d0.find(kCasting);
+            const bool castFires = lag < -5.0;
+            check(f && f->state == FindingState::Fired,
+                  castFires ? "club_before_arms: the club peaking before the lead arm fires (casting firing)"
+                            : "club_before_arms: the club peaking before the lead arm fires (casting clean)");
+            check(f && f->firedSignals == QStringList{ QStringLiteral("sig_clubBeforeArm") }
+                      && f->readings.size() == 1,
+                  "…on its one signal, carrying one reading");
+            check(c && c0 && c->state == c0->state && c->firedSignals == c0->firedSignals
+                      && c->readings.size() == c0->readings.size()
+                      && c->evidence.drivingMeasureId == c0->evidence.drivingMeasureId,
+                  "…and casting's finding is unchanged by it");
+            check(c && c->state == (castFires ? FindingState::Fired : FindingState::NotFired)
+                      && !c->firedSignals.contains(QStringLiteral("sig_clubBeforeArm")),
+                  castFires ? "…casting fires on its own lag angle, not on the club's order"
+                            : "…a clean lag angle keeps casting clean beside a club that came first");
+        }
+        check(detect(p, peaks(-50.0, -50.0)).find(kClub)->state == FindingState::Fired,
+              "club_before_arms: a tie fires — two peaks at one instant are not a sequence");
+
+        // (2) The lead arm before the club is the order the chain should have: clean.
+        {
+            const DetectionResult d = detect(p, peaks(-60.0, -5.0));
+            const Finding *f = d.find(kClub);
+            check(f && f->state == FindingState::NotFired && f->readings.size() == 1,
+                  "club_before_arms: the arm peaking before the club is clean, and assessed");
+        }
+
+        // (3) The camera club, drawn but not judged: not assessable, never clean — even where the
+        // drawn value would have read in order.
+        for (const double clubT : { -60.0, -5.0 }) {
+            FakeSource held = peaks(-40.0, clubT);
+            held.setRoute(QStringLiteral("m_clubPeakTime"), QStringLiteral("faceOn"), false);
+            held.withhold(QStringLiteral("m_clubPeakTime"));
+            const DetectionResult d = detect(p, held);
+            const Finding *f = d.find(kClub);
+            check(f && f->state == FindingState::Unavailable && f->refusal == SignalRefusal::Withheld
+                      && f->missingMeasures.contains(QStringLiteral("m_clubPeakTime")),
+                  clubT < -40.0 ? "club_before_arms: a withheld club peak is not assessed (it would have fired)"
+                                : "club_before_arms: a withheld club peak is not assessed, never clean");
+            check(evaluateSignal(p, QStringLiteral("sig_clubBeforeArm"), held).refusal == SignalRefusal::Withheld,
+                  "…the signal is refused as withheld, not missing");
+        }
+
+        // (4) No lead-arm peak: not assessable, naming the arm.
+        {
+            FakeSource noArm;
+            noArm.addWithoutCorridor(QStringLiteral("m_clubPeakTime"), -60.0);
+            noArm.setRoute(QStringLiteral("m_clubPeakTime"), QStringLiteral("clubImu"), true);
+            const DetectionResult d = detect(p, noArm);
+            const Finding *f = d.find(kClub);
+            check(f && f->state == FindingState::Unavailable && f->refusal == SignalRefusal::MeasureMissing
+                      && f->missingMeasures.contains(QStringLiteral("m_leadArmPeakTime")),
+                  "club_before_arms: no lead-arm peak is not assessed, naming the missing arm");
+        }
+    }
+
     // ── The ratio contract ─────────────────────────────────────────────────
     //
     // A quotient is DIMENSIONLESS and it is not a measure, so no norm can key on it. The branch used

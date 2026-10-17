@@ -4927,6 +4927,32 @@
       }
     },
     {
+      "id": "club_before_arms",
+      "label": "Club races ahead of the arms",
+      "golfer": "the club gets to full speed before your arms do",
+      "golferWell": "your arms lead and the club speeds up last",
+      "golferWhy": "When the club reaches full speed before your arms have, your arms can no longer add to it, and the club is already past its best by the time it reaches the ball.",
+      "aliases": [
+        "club first"
+      ],
+      "group": "sequence",
+      "kind": "fault",
+      "prominence": "common",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_clubBeforeArm"
+      ],
+      "state": "active",
+      "consequence": "The club reaches its peak angular speed at or before the lead arm does — the last two links of the chain turned round. The club is the last link and should peak after the arm that delivers it; once the club has peaked first it is slowing while the arm is still speeding up, so the arm's speed no longer reaches it and the chain loses its final hand-off. Casting is the usual way it happens, and it can be seen: the club races ahead of the body and peaks early. Read as the ORDER of two peaks, never as a speed or a time against a published mean: the order is categorical, so it says the club came first, never by how much against professionals. A separate reading from `casting`, which reads the wrist angle, and from `club_peak_early`, which times the club against impact. Where the club's peak is drawn but not for judging — the camera club today — it is not assessed, never read as in order.",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "9780978873417",
+        "searchedOn": "2026-10-17",
+        "searchTerms": "kinematic sequence amateur professional lead arm peak before club peak angular speed golf"
+      }
+    },
+    {
       "id": "upper_body_starts_down",
       "label": "Shoulders start the downswing",
       "golfer": "your shoulders start down before your hips",
@@ -8344,7 +8370,7 @@
       "label": "Club peaks before the ball",
       "golfer": "the club reaches its top speed before the ball",
       "golferWell": "the club reaches its top speed at the ball",
-      "golferWhy": "When the club's speed peaks before the ball, it is already slowing by the strike and that speed never reaches the ball. It often means the release was held off. If you held it off on purpose, that is the shot; if not, it needs fixing.",
+      "golferWhy": "When the club's speed peaks before the ball, it is already slowing by the strike and that speed never reaches the ball. Holding the release off can do this too.",
       "group": "sequence",
       "kind": "fault",
       "prominence": "common",
@@ -8354,7 +8380,7 @@
         "sig_clubPeakEarly"
       ],
       "state": "draft",
-      "consequence": "The club's peak angular speed comes more than 20 ms before impact. The club is the last link and should peak at the ball, after the pelvis, the chest and the lead arm. Read against impact on its own. The 20 ms line is a heuristic, set to match the clubhead-speed ceiling `deceleration` grades (3 + 15 ms on the linear speed); no study publishes a club angular peak time, so it stays draft until the re-analysed library shows where this golfer's club peaks fall. It is the club's turning speed, where `deceleration` reads the clubhead's linear speed. A club peaking just before the ball often marks a held-off release, which is a shot type as much as a fault: played on purpose it is the shot, otherwise it needs fixing. Nothing in a capture says which yet, so until a shot can be declared held off, read this beside what the golfer meant to hit.",
+      "consequence": "The club's peak angular speed comes more than 20 ms before impact. The club is the last link and should peak at the ball, after the pelvis, the chest and the lead arm. Read against impact on its own. The 20 ms line is a heuristic, set to match the clubhead-speed ceiling `deceleration` grades (3 + 15 ms on the linear speed); no study publishes a club angular peak time, so it stays draft until the re-analysed library shows where this golfer's club peaks fall. It is the club's turning speed, where `deceleration` reads the clubhead's linear speed. A club peaking well before the ball can come from a held-off release as well as an early one. This reports when the club peaked, not why: what the golfer meant to play is not in a capture, and whether it was the shot they wanted is the coach's call.",
       "provenance": {
         "tier": "practice",
         "searchedOn": "2026-10-15",
@@ -13006,6 +13032,18 @@
         "citation": "10.1080/02640414.2010.507249",
         "searchedOn": "2026-10-15",
         "searchTerms": "early wrist release uncocking timing club angular velocity peak before impact"
+      }
+    },
+    {
+      "from": "casting",
+      "to": "club_before_arms",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "indirect",
+        "citation": "9780978873417",
+        "searchedOn": "2026-10-17",
+        "searchTerms": "casting early release club peaks before lead arm kinematic sequence amateur professional golf"
       }
     },
     {

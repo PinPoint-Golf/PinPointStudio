@@ -234,7 +234,7 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
 
     std::printf("  club %s -> context %s (session %s)\n", qPrintable(d.club),
                 qPrintable(d.contextId), qPrintable(src.sessionId()));
-    std::printf("  COVERAGE: %d of 172 conditions assessable on %s"
+    std::printf("  COVERAGE: %d of 173 conditions assessable on %s"
                 "  (%d evaluated, %d fired, %d unavailable)\n",
                 cov.assessable, label, cov.findings, cov.fired, cov.unavailable);
     // The denominator is COUNTED, not written down. It was the literal 109 while the pack carried
@@ -268,8 +268,8 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
     dumpCoverage(cov, label);
 
     check(shapeOk, "every finding is assessed WITH evidence or unavailable WITHOUT it");
-    check(cov.findings == 144,
-          "detect() asked all 144 non-latent, non-withdrawn conditions (the shipped pack binds none)");   // +2 lie tails (2026-10-01)   // +7 kinematic-sequence checks (2026-10-14)   // +5 peak-against-impact faults (2026-10-15)
+    check(cov.findings == 145,
+          "detect() asked all 145 non-latent, non-withdrawn conditions (the shipped pack binds none)");   // +club_before_arms, D27 (2026-10-17)   // +2 lie tails (2026-10-01)   // +7 kinematic-sequence checks (2026-10-14)   // +5 peak-against-impact faults (2026-10-15)
 
     // (d) Where a norm resolved, the corridor on the evidence is a real band and z is finite.
     bool corridorsOk = true;
@@ -306,7 +306,7 @@ int main(int argc, char **argv)
 
     std::printf("\ncontent\n");
     // 157 -> 158 on 2026-09-23: hands_set_high, the setup habit behind reaching for the ball.
-    check(pack.conditions.size() == 172, "the shipped pack carries 172 conditions");   // +5 peak-against-impact faults (2026-10-15)   // +7 kinematic-sequence checks (2026-10-14, design §10.4)   // +lie_steep_at_impact, +lie_flat_at_impact (2026-10-01)
+    check(pack.conditions.size() == 173, "the shipped pack carries 173 conditions");   // +club_before_arms, D27 (2026-10-17)   // +5 peak-against-impact faults (2026-10-15)   // +7 kinematic-sequence checks (2026-10-14, design §10.4)   // +lie_steep_at_impact, +lie_flat_at_impact (2026-10-01)
     // 130 -> 135 with the plumb-bob work: hipLineTilt gained an impact reading and an
     // address-to-impact delta, and plumbBobDistance arrived with three of its own.
     //
@@ -606,7 +606,7 @@ int main(int argc, char **argv)
     // 55 -> 54 on 2026-10-02: sequence_order. It now reads the PLACED trunk nodes' instants, and this
     // face-on fixture places neither, so it is Unavailable — where it used to be "assessed" by
     // comparing two rotation angles, which its Order test cannot read.
-    check(cRich.assessable == 54, "rich_7iron: 54 of 172 conditions assessable (observed)");
+    check(cRich.assessable == 54, "rich_7iron: 54 of 173 conditions assessable (observed)");
     // HOW MANY OF THOSE ANSWERS RESTED ON EVIDENCE THE CAPTURE DID NOT HAVE. A conjunction
     // settled by one known-false term is a real negative, but it is a different kind of "no"
     // from one where every term was read, and it can only ever be a no. Pinned because the
@@ -663,7 +663,7 @@ int main(int argc, char **argv)
     // and `attack_too_steep` and `attack_too_shallow` were therefore unanswerable on a swing whose
     // launch monitor had reported the attack angle outright, -2.73°, sitting in the document read
     // by nothing. Those two conditions plus `top` and `sky` are the four.
-    check(cLm.assessable   == 21, "lm_7iron: 21 of 172 conditions assessable (observed)");
+    check(cLm.assessable   == 21, "lm_7iron: 21 of 173 conditions assessable (observed)");
     check(cLm.measures     == 26, "lm_7iron: 26 live measures resolved (observed)");
     check(cSparse.assessable == 2, "sparse_noclub: 2 of 158 conditions assessable (observed)");
     check(cSparse.measures   == 1, "sparse_noclub: 1 live measure resolved (observed)");

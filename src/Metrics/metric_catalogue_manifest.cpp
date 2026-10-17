@@ -2237,7 +2237,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .signNegative = QStringLiteral("the peak came before impact"),
         .phases = { P::Impact },
         .routes = armRungs("the peak instant of"),
-        .usedBy = { QStringLiteral("characteristic:arms_peak_after_impact"), QStringLiteral("characteristic:arms_before_chest") },
+        .usedBy = { QStringLiteral("characteristic:arms_peak_after_impact"), QStringLiteral("characteristic:arms_before_chest"),
+                    QStringLiteral("characteristic:club_before_arms") },
     });
 
     cat.addDescriptor({
@@ -2260,7 +2261,8 @@ void installMetricManifest(MetricCatalogue &cat)
         .signNegative = QStringLiteral("the peak came before impact"),
         .phases = { P::Impact },
         .routes = clubRungs("the peak instant of"),
-        .usedBy = { QStringLiteral("characteristic:club_peak_after_impact"), QStringLiteral("characteristic:club_peak_early") },
+        .usedBy = { QStringLiteral("characteristic:club_peak_after_impact"), QStringLiteral("characteristic:club_peak_early"),
+                    QStringLiteral("characteristic:club_before_arms") },
     });
 
     cat.addDescriptor({

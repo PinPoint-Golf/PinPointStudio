@@ -371,7 +371,7 @@ struct SignalOutcome {
 
 // Evaluate ONE signal of the pack against `source`, through the same code path detect() uses for a
 // condition's signals. Hand it detect()'s own source and the two cannot disagree. A signal no
-// condition reads yet (sig_clubBeforeArm until D27) is evaluated all the same.
+// condition reads is evaluated all the same (the sequence-check table reads signals directly).
 SignalOutcome evaluateSignal(const CharacteristicPack &pack, const QString &signalId,
                              const IMeasureSource &source);
 

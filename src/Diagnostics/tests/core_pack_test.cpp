@@ -469,6 +469,34 @@ int main()
         check(count == sharpIds.size(), "…and no other condition is");
     }
 
+    // ── D27: the club racing ahead of the arms is its own condition (17 Oct) ────
+    // Drafted as a second signal on casting under ANY, which reads clean only when EVERY signal was
+    // read — so beside the usually-missing club peak, casting would have counted firings and never a
+    // clean swing. It ships instead as a single-signal sequence condition, casting keeps its wrist
+    // preference untouched, and the one edge says casting is the usual way the club gets there first.
+    {
+        const Condition *club    = p.condition(QStringLiteral("club_before_arms"));
+        const Condition *casting = p.condition(QStringLiteral("casting"));
+        check(club && club->detectedBy == QStringList{ QStringLiteral("sig_clubBeforeArm") }
+                  && club->group == ConditionGroup::Sequence && club->kind == ConditionKind::Fault
+                  && club->confirmedBy == ConfirmedBy::Measured && club->state == ConditionState::Active
+                  && !club->sharp,
+              "club_before_arms reads sig_clubBeforeArm alone: an active, measured sequence fault, not sharp");
+        check(casting && casting->detectedBy
+                             == QStringList({ QStringLiteral("sig_castingHinge"), QStringLiteral("sig_casting") })
+                  && casting->detection == DetectionMode::First,
+              "…casting keeps its two wrist signals as a preference, with no club order among them");
+        bool edge = false;
+        for (const Edge &e : p.edges)
+            if (e.from == QLatin1String("casting") && e.to == QLatin1String("club_before_arms"))
+                edge = e.type == EdgeType::Causes && e.strength == Strength::Moderate
+                       && e.provenance.tier == ProvenanceTier::Indirect
+                       && e.provenance.citation == QLatin1String("9780978873417");
+        check(edge, "…and casting causes it: moderate, indirect, on Cheetham et al. 2008");
+        check(causesOf(p, QStringLiteral("club_before_arms")) == QStringList{ QStringLiteral("casting") },
+              "…its only cause");
+    }
+
     // ── No brand names anywhere in the content ──────────────────────────────────
     // Several conditions are named with terms popularised by a commercial screening system. The
     // TERMS are common domain and stay; the ATTRIBUTION must not enter the repo in any form — not a
