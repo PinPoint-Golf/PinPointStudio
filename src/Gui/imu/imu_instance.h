@@ -20,12 +20,15 @@
 
 #include <QDateTime>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QList>
 #include <QObject>
 #include <QQuaternion>
 #include <QStringList>
 #include <QTimer>
 #include <QVector3D>
+
+#include <memory>
 
 #include "device_enumerator.h"
 #include "imu_device.h"
@@ -34,6 +37,7 @@
 
 class ImuIoWorker;
 class QThread;
+struct ImuRawRecordQueue;   // imu_instance.cpp — dev raw recording hand-off
 namespace pinpoint { class EventBuffer; }
 
 // Manages the BLE connection lifecycle and live data for a single IMU device.
@@ -234,11 +238,6 @@ public:
 
     Q_INVOKABLE void    beginZeroing();
 
-    // beginRawDump/endRawDump: stream every packet's RAW euler/accel/gyro/quaternion
-    // to ~/pinpoint_imu_raw.log between begin/end, for offline analysis.
-    Q_INVOKABLE void    beginRawDump(const QString &tag);
-    Q_INVOKABLE void    endRawDump();
-
 signals:
     // stateLabelChanged / imuConnectedChanged / busyChanged / batteryPercentChanged /
     // dataRateHzChanged / logEntryAdded now live on ImuDeviceBase — declaring them
@@ -277,6 +276,13 @@ private:
     void onConnectionLost(bool fromError);
     void handleConnectFailure();         // schedule a backoff retry, or give up
     int  retryDelayMs(int attempt) const;
+
+    // Dev raw recording (PINPOINT_IMU_RECORD_DIR, trunk IMU design §16 step 2). Each
+    // connection (Ready) opens its own file; a connection loss, stop() or destruction
+    // closes it. All three run on the GUI thread and are no-ops when the env var is unset.
+    void startRawRecording();
+    void stopRawRecording();
+    void flushRawRecording();
 
     pinpoint::EventBuffer *m_eventBuffer  = nullptr;
     pinpoint::SourceId     m_imuSourceId  = pinpoint::kInvalidSourceId;
@@ -342,13 +348,15 @@ private:
     double m_dataRateHz = 0.0;
     float  m_angularVelocityDps = 0.0f;
 
-    // Raw packet streaming state for beginRawDump/endRawDump (off by default).
-    // While active, a per-packet queued connection feeds the GUI (diagnostic
-    // mode only — zero hot-path cost when off).
-    bool        m_rawDump = false;
-    QString     m_rawDumpTag;
-    QStringList m_rawDumpLines;
-    QMetaObject::Connection m_rawDumpConn;
+    // Dev raw recording (PINPOINT_IMU_RECORD_DIR). The I/O-thread data lambda appends
+    // to m_rawRecorder's pending list (a short mutex, no disk); m_rawRecordTimer drains
+    // it to m_rawRecordFile on the GUI thread every 500 ms. m_rawRecorder is null when
+    // the env var is unset — the hot path then pays one null test per sample.
+    std::shared_ptr<ImuRawRecordQueue> m_rawRecorder;
+    std::unique_ptr<QFile>             m_rawRecordFile;
+    QString                            m_rawRecordPath;
+    quint64                            m_rawRecordSamples = 0;
+    QTimer                             m_rawRecordTimer;
 
     // Zeroing confirmation — settle-timer approach (no hardware ACK on WT901)
     // Future devices that emit ImuBase::zeroingConfirmed() take precedence over settle.

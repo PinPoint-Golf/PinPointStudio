@@ -62,7 +62,12 @@ QtObject {
     //
     // A sensor already HOLDING a trunk role (a hand-edited settings file) is still shown with
     // its mount by every reader below; not offered means not ASKED FOR, never hidden.
-    property bool trunkMountsOffered: false
+    //
+    // DEV SEAM: PINPOINT_DEV_TRUNK_MOUNTS=1 (main.cpp, context property devTrunkMounts) turns
+    // it on for a hardware measurement session (trunk design §16 step 2) — offered with no
+    // ceremony, on purpose, by someone who knows. Unset (and in every test, which has no such
+    // context property) it stays false. Still a plain property: tests assign it directly.
+    property bool trunkMountsOffered: typeof devTrunkMounts !== "undefined" && devTrunkMounts === true
 
     readonly property var offeredRoles: trunkMountsOffered ? allRoles : armRoles
 

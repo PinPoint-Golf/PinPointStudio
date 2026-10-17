@@ -29,13 +29,30 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QMutex>
+#include <QMutexLocker>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QThread>
 #include <QtMath>
+#include <atomic>
 #include <cmath>
 #include <chrono>
+#include <cstdio>
 #include <cstring>
+#include <vector>
+
+// Dev raw recording (PINPOINT_IMU_RECORD_DIR): the hand-off between the I/O-thread
+// data lambda (producer) and the GUI-thread flush timer (consumer). `active` is the
+// lock-free fast path; it is re-checked under the mutex so a sample can never land in
+// `pending` after stopRawRecording() drained it.
+struct ImuRawRecordQueue
+{
+    std::atomic<bool>                      active { false };
+    QMutex                                 mutex;
+    std::vector<ImuIoWorker::RawSample>    pending;   // guarded by mutex
+};
 
 namespace {
 
@@ -59,6 +76,13 @@ pinpoint::FormatDescriptor imuFormatDescriptor(uint32_t rateHz)
     fd.device = pinpoint::DeviceKind::IMU_WitMotion;
     fd.format = fmt;
     return fd;
+}
+
+// PINPOINT_IMU_RECORD_DIR, read once (the switch is "set at app start"). Empty = off.
+const QString &rawRecordDir()
+{
+    static const QString dir = qEnvironmentVariable("PINPOINT_IMU_RECORD_DIR");
+    return dir;
 }
 
 } // namespace
@@ -115,12 +139,21 @@ ImuInstance::ImuInstance(const Device &device,
     if (m_eventBuffer && m_imuSourceId != pinpoint::kInvalidSourceId)
         m_worker->attachBuffer(m_eventBuffer, m_imuSourceId);
 
+    // Dev raw recording: the queue exists only when PINPOINT_IMU_RECORD_DIR is set,
+    // so with it unset the lambda below carries a null pointer and does nothing more.
+    if (!rawRecordDir().isEmpty()) {
+        m_rawRecorder = std::make_shared<ImuRawRecordQueue>();
+        m_rawRecordTimer.setInterval(500);   // the format promises a flush at least once a second
+        m_rawRecordTimer.setSingleShot(false);
+        connect(&m_rawRecordTimer, &QTimer::timeout, this, [this]() { flushRawRecording(); });
+    }
+
     // Data path, entirely on the I/O thread: one DirectConnection from the
     // driver's combined-packet signal into the worker's hot path. accel/gyro/
     // euler accessors are same-thread reads (dispatchCombinedPacket sets them
     // before emitting quaternionUpdated).
     connect(m_imu, &WT9011DCL_Base::quaternionUpdated, m_worker,
-            [imu = m_imu, worker = m_worker](const WT9011DCL_Base::QuaternionData &q) {
+            [imu = m_imu, worker = m_worker, rec = m_rawRecorder](const WT9011DCL_Base::QuaternionData &q) {
                 const auto a = imu->accelData();
                 const auto g = imu->gyroData();
                 const auto e = imu->eulerData();
@@ -131,6 +164,13 @@ ImuInstance::ImuInstance(const Device &device,
                 in.gx = g.x; in.gy = g.y; in.gz = g.z;
                 in.eulerRoll = e.roll; in.eulerPitch = e.pitch; in.eulerYaw = e.yaw;
                 worker->processSample(in);
+                // Dev raw recording: the SAME stamp the EventBuffer gets, queued for the
+                // GUI-thread flush — never a disk write on this thread.
+                if (rec && rec->active.load(std::memory_order_acquire)) {
+                    QMutexLocker lock(&rec->mutex);
+                    if (rec->active.load(std::memory_order_relaxed))
+                        rec->pending.push_back(in);
+                }
             },
             Qt::DirectConnection);
 
@@ -312,6 +352,7 @@ ImuInstance::~ImuInstance()
     m_logTimer.stop();
     m_batteryTimer.stop();
     m_gimbalPollTimer.stop();
+    stopRawRecording();
 
     // Defensive: ImuManager always calls stop() (the producer barrier) before
     // destroying an instance; detachBuffer() is idempotent if it didn't.
@@ -394,6 +435,7 @@ void ImuInstance::stop()
         imu->disconnectFromDevice();
     }, Qt::BlockingQueuedConnection);
     m_worker->detachBuffer();
+    stopRawRecording();   // after the barrier, so the drain catches every queued sample
 }
 
 void ImuInstance::deregisterFromBuffer()
@@ -472,47 +514,117 @@ QString ImuInstance::saveLog()
     return path;
 }
 
-// Raw packet streaming (retained dev tool) — see header. A per-packet queued
-// connection exists ONLY between begin/end, so the diagnostic costs nothing
-// when off; lines are built from the worker snapshot (same-packet values: the
-// snapshot is published before the queued signal is delivered here).
-void ImuInstance::beginRawDump(const QString &tag)
+// Dev raw recording (PINPOINT_IMU_RECORD_DIR; trunk IMU design §16 step 2). One file
+// per connection, named <dir>/imu_<serial-or-address>_<yyyyMMdd-HHmmss>.csv, in the
+// pinpoint.imu_record/1 format another tool parses — keep the header lines and the
+// column order exactly as written here.
+void ImuInstance::startRawRecording()
 {
-    m_rawDumpTag = tag;
-    m_rawDumpLines.clear();
-    m_rawDump = true;
-    m_rawDumpConn = connect(m_imu, &WT9011DCL_Base::quaternionUpdated,
-                            this, [this](const WT9011DCL_Base::QuaternionData &) {
-        const ImuIoWorker::LiveSample snap = m_worker->snapshot();
-        m_rawDumpLines.append(
-            QStringLiteral("euler=(%1,%2,%3) accel=(%4,%5,%6) gyro=(%7,%8,%9) qraw=(%10,%11,%12,%13)")
-                .arg(snap.eulerRoll, 0, 'f', 4).arg(snap.eulerPitch, 0, 'f', 4).arg(snap.eulerYaw, 0, 'f', 4)
-                .arg(snap.accelX, 0, 'f', 5).arg(snap.accelY, 0, 'f', 5).arg(snap.accelZ, 0, 'f', 5)
-                .arg(snap.gyroX, 0, 'f', 4).arg(snap.gyroY, 0, 'f', 4).arg(snap.gyroZ, 0, 'f', 4)
-                .arg(snap.quatW, 0, 'f', 6).arg(snap.quatX, 0, 'f', 6)
-                .arg(snap.quatY, 0, 'f', 6).arg(snap.quatZ, 0, 'f', 6));
-    });
-}
+    if (!m_rawRecorder) return;
+    stopRawRecording();   // a Ready without the loss that should have closed the last one
 
-void ImuInstance::endRawDump()
-{
-    m_rawDump = false;
-    disconnect(m_rawDumpConn);
-    const QString path = QDir(QStandardPaths::writableLocation(QStandardPaths::HomeLocation))
-                             .filePath(QStringLiteral("pinpointstudio_imu_raw.log"));
-    QFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-        ppWarn() << "[ImuInstance] endRawDump: cannot open" << path;
+    const QString dirPath = rawRecordDir();
+    QDir dir(dirPath);
+    if (!dir.exists() && !QDir().mkpath(dirPath)) {
+        ppWarn() << "[ImuInstance]" << m_deviceDescription
+                 << "— IMU raw recording: cannot create" << dirPath;
         return;
     }
-    QTextStream out(&f);
-    out << "# BEGIN " << m_rawDumpTag << "  dev=" << m_deviceId
-        << "  samples=" << m_rawDumpLines.size() << '\n';
-    for (const QString &line : std::as_const(m_rawDumpLines))
-        out << line << '\n';
-    out << "# END " << m_rawDumpTag << '\n';
-    out.flush();
-    m_rawDumpLines.clear();
+
+    const QString serial = m_device.imuCapabilities.serialNumber;
+    QString tag = serial.isEmpty() ? m_deviceId : serial;
+    tag.remove(QLatin1Char(':'));
+    tag.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9_-]")), QStringLiteral("_"));
+    const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
+    QString path = dir.filePath(QStringLiteral("imu_%1_%2.csv").arg(tag, stamp));
+    // A reconnect inside the same second must not clobber the file it just closed.
+    for (int n = 2; QFile::exists(path); ++n)
+        path = dir.filePath(QStringLiteral("imu_%1_%2_%3.csv").arg(tag, stamp).arg(n));
+
+    auto file = std::make_unique<QFile>(path);
+    if (!file->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        ppWarn() << "[ImuInstance]" << m_deviceDescription
+                 << "— IMU raw recording: cannot open" << path << file->errorString();
+        return;
+    }
+
+    // The placement role, from the owning ImuManager (Q_INVOKABLE roleForDevice) — looked
+    // up by name so this class takes no dependency on the manager; "" when unassigned or
+    // when the parent is not a manager (tests).
+    QString role;
+    if (QObject *mgr = parent()) {
+        if (mgr->metaObject()->indexOfMethod("roleForDevice(QString)") >= 0)
+            QMetaObject::invokeMethod(mgr, "roleForDevice", Qt::DirectConnection,
+                                      Q_RETURN_ARG(QString, role), Q_ARG(QString, m_deviceId));
+    }
+
+    const QByteArray header =
+        QByteArrayLiteral("# pinpoint.imu_record/1\n")
+        + QStringLiteral("# serial=%1 name=%2 role=%3 configuredRateHz=%4 startedUtc=%5\n")
+              .arg(serial, m_deviceDescription, role)
+              .arg(m_outputRateHz)
+              .arg(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs))
+              .toUtf8()
+        + QByteArrayLiteral("t_us,ax,ay,az,gx,gy,gz,qw,qx,qy,qz\n");
+    file->write(header);
+    file->flush();
+
+    m_rawRecordFile    = std::move(file);
+    m_rawRecordPath    = path;
+    m_rawRecordSamples = 0;
+    {
+        QMutexLocker lock(&m_rawRecorder->mutex);
+        m_rawRecorder->pending.clear();
+        m_rawRecorder->active.store(true, std::memory_order_release);
+    }
+    m_rawRecordTimer.start();
+    ppInfo() << "[ImuInstance]" << m_deviceDescription
+             << "— IMU raw recording started:" << m_rawRecordPath;
+}
+
+void ImuInstance::flushRawRecording()
+{
+    if (!m_rawRecorder || !m_rawRecordFile) return;
+    std::vector<ImuIoWorker::RawSample> batch;
+    {
+        QMutexLocker lock(&m_rawRecorder->mutex);
+        batch.swap(m_rawRecorder->pending);
+    }
+    if (batch.empty()) return;
+
+    QByteArray out;
+    out.reserve(int(batch.size()) * 128);
+    char line[320];
+    for (const ImuIoWorker::RawSample &r : batch) {
+        const int n = std::snprintf(line, sizeof line,
+            "%lld,%.6g,%.6g,%.6g,%.6g,%.6g,%.6g,%.6g,%.6g,%.6g,%.6g\n",
+            static_cast<long long>(r.nowUs),
+            double(r.ax), double(r.ay), double(r.az),
+            double(r.gx), double(r.gy), double(r.gz),
+            double(r.qw), double(r.qx), double(r.qy), double(r.qz));
+        if (n > 0) out.append(line, qMin(n, int(sizeof line) - 1));
+    }
+    m_rawRecordFile->write(out);
+    m_rawRecordFile->flush();
+    m_rawRecordSamples += batch.size();
+}
+
+void ImuInstance::stopRawRecording()
+{
+    if (!m_rawRecorder || !m_rawRecordFile) return;
+    m_rawRecordTimer.stop();
+    {
+        QMutexLocker lock(&m_rawRecorder->mutex);
+        m_rawRecorder->active.store(false, std::memory_order_release);
+    }
+    flushRawRecording();   // the tail queued before `active` went false
+    m_rawRecordFile->close();
+    ppInfo() << "[ImuInstance]" << m_deviceDescription
+             << "— IMU raw recording stopped:" << m_rawRecordPath
+             << "samples" << m_rawRecordSamples;
+    m_rawRecordFile.reset();
+    m_rawRecordPath.clear();
+    m_rawRecordSamples = 0;
 }
 
 void ImuInstance::setCalibration(const QQuaternion &armDown, const QQuaternion &tPose)
@@ -777,6 +889,7 @@ void ImuInstance::onConnectionLost(bool fromError)
 {
     m_attemptingConn = false;
     resetStreamingState();
+    stopRawRecording();   // the next Ready opens a new file
     if (m_connected) { m_connected = false; emit imuConnectedChanged(); }
 
     if (m_connecting) {
@@ -847,6 +960,7 @@ void ImuInstance::onStateChanged(WT9011DCL_BLE::State s)
         appendLog(timestamp() + "  IMU ready — receiving data");
         // Poke the device to start streaming.
         setOutputRateHz(m_outputRateHz);
+        startRawRecording();   // dev-only (PINPOINT_IMU_RECORD_DIR); no-op when unset
         QTimer::singleShot(1500, this, [this]() {
             if (m_connected) {
                 appendLog(timestamp() + "  Requesting battery level…");

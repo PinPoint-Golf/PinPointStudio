@@ -866,6 +866,13 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("updateController"),   &updateController);
     engine.rootContext()->setContextProperty(QStringLiteral("cudaRuntime"),        &cudaRuntime);
     engine.rootContext()->setContextProperty(QStringLiteral("appLog"),             &appLog);
+    // Dev seam, read once: PINPOINT_DEV_TRUNK_MOUNTS=1 makes the mount pickers offer the trunk
+    // roles before the trunk calibrate step exists (trunk IMU design §16 step 2 — a measurement
+    // session, not a feature). ImuMounts.trunkMountsOffered binds to it; unset, it is false and
+    // nothing changes.
+    engine.rootContext()->setContextProperty(QStringLiteral("devTrunkMounts"),
+                                             qEnvironmentVariable("PINPOINT_DEV_TRUNK_MOUNTS")
+                                                 == QLatin1String("1"));
 
     // H3 — the PPCP session import engine. A context property and not a QML
     // type because libppcp is an OPTIONAL dependency (H0): a build without it
