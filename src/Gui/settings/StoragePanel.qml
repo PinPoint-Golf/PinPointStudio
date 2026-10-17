@@ -172,8 +172,8 @@ Item {
     ]
 
     readonly property var qualityOptions: [
-        // Stored values unchanged ("low" = CRF 28 is the default since 23 Sept 2026); only the
-        // labels changed — "Low" read as a warning on the option most people should keep.
+        // Stored values unchanged ("medium" = CRF 23 is the default since 17 Oct 2026; "low" =
+        // CRF 28, the analysis floor, was it from 23 Sept). "Low" read as a warning, hence the labels.
         { label: qsTr("Compact"),  value: "low"      },
         { label: qsTr("Standard"), value: "medium"   },
         { label: qsTr("High"),     value: "high"     },

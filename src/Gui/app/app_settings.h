@@ -538,10 +538,11 @@ public:
         // retired value ("prores"/"raw") so the UI selection and exporter agree.
         if (m_videoCodec != QLatin1String("h264") && m_videoCodec != QLatin1String("h265"))
             m_videoCodec = QStringLiteral("h264");
-        // Default "low" = CRF 28 since 23 Sept 2026 (swing_storage_impl.md stage 4): 2.5 MB a swing per
-        // camera against 7.1 at CRF 23, for ~0.5 px more pose error on re-analysis — and no mp4 at any
-        // CRF re-analyses like the raw frames anyway. An install that saved a choice keeps it.
-        m_videoQuality          = ppSettings().value(QStringLiteral("storage/videoQuality"),          QStringLiteral("low")).toString();
+        // Default "medium" = CRF 23 since 17 Oct 2026. CRF 28 (23 Sept, swing_storage_impl.md stage 4)
+        // is the floor for analysis, but the clip is also what a golfer looks at: CRF 23 is about the
+        // bits per pixel Swing Catalyst records on the same cameras (flir_image_clarity.md §2–§3), at
+        // 7.1 MB a swing per camera against 2.5. An install that saved a choice keeps it.
+        m_videoQuality          = ppSettings().value(QStringLiteral("storage/videoQuality"),          QStringLiteral("medium")).toString();
         m_saveRawFrames         = ppSettings().value(QStringLiteral("storage/saveRawFrames"),         false).toBool();
         m_skipAnalysisForRawCapture = ppSettings().value(QStringLiteral("storage/skipAnalysisForRawCapture"), false).toBool();
         m_savePoseKeypoints     = ppSettings().value(QStringLiteral("storage/savePoseKeypoints"),     true).toBool();
@@ -1875,7 +1876,7 @@ private:
     QString m_sessionNamingPattern  = QStringLiteral("date-name-type");
     QString m_videoResolutionMode   = QStringLiteral("native");
     QString m_videoCodec            = QStringLiteral("h264");
-    QString m_videoQuality          = QStringLiteral("low");   // CRF 28 — see the load above
+    QString m_videoQuality          = QStringLiteral("medium");   // CRF 23 — see the load above
     bool    m_saveRawFrames         = false;
     bool    m_skipAnalysisForRawCapture = false;
     bool    m_savePoseKeypoints     = true;
