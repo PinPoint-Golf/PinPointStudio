@@ -18,6 +18,7 @@
 
 #include "motion_capture_probe.h"
 
+#include <QElapsedTimer>
 #include <QMetaObject>
 #include <QUrl>
 #include <cmath>
@@ -135,9 +136,17 @@ void MotionCaptureProbe::kickTimingBenchmark()
     m_cancel.store(false, std::memory_order_relaxed);
     emit stateChanged();
 
+    // Start and end rows in the app log: the benchmark loads both pose models, so a slow pose
+    // load or first shot reads against them.
+    ppInfo() << "[MotionCaptureProbe] timing benchmark started"
+             << (m_highModelPresent ? "(Medium + High)" : "(Medium)");
     m_worker = std::thread([this]() {
+        QElapsedTimer t;
+        t.start();
         double mediumMs = -1.0, highMs = -1.0;
         runBenchmark(mediumMs, highMs);
+        ppInfo() << "[MotionCaptureProbe] timing benchmark finished in" << t.elapsed() << "ms —"
+                 << "Medium" << mediumMs << "ms/frame, High" << highMs << "ms/frame";
 
         // Marshal back to the GUI thread. If `this` is being destroyed the dtor
         // joins us first, then ~QObject purges this posted event — no dangling.

@@ -36,6 +36,12 @@ Item {
     // screen (its own screen — back returns here).
     signal resourceMonitorRequested()
 
+    // The Settings screen is actually on screen. `visible` alone is not enough: Main.qml's
+    // StackLayout creates every screen visible and hides the non-current ones only once it lays
+    // out, so `visible` reads true for a moment at launch — long enough for GeneralPanel to kick
+    // the motion-capture benchmark (two pose models loaded) on every launch.
+    readonly property bool shown: visible && StackLayout.isCurrentItem
+
     // ── Full-text search ──────────────────────────────────────────────────────
 
     readonly property bool isSearching: root.searchQuery.trim().length >= 2
@@ -568,13 +574,13 @@ Item {
                 anchors.fill:  parent
                 currentIndex:  root.activeNavIndex
 
-                GeneralPanel {    id: generalPanel;    hostVisible: root.visible; Layout.fillWidth: true; Layout.fillHeight: true }  // 0
+                GeneralPanel {    id: generalPanel;    hostVisible: root.shown; Layout.fillWidth: true; Layout.fillHeight: true }  // 0
                 AppearancePanel { id: appearancePanel; Layout.fillWidth: true; Layout.fillHeight: true }  // 1
                 DisplaysPanel {   id: displaysPanel;   Layout.fillWidth: true; Layout.fillHeight: true }  // 2
                 CamerasPanel {    id: camerasPanel;    Layout.fillWidth: true; Layout.fillHeight: true }  // 3
                 ImusPanel {       id: imusPanel;       Layout.fillWidth: true; Layout.fillHeight: true }  // 4
                 PhonesPanel {     id: phonesPanel;     Layout.fillWidth: true; Layout.fillHeight: true }  // 5
-                MicrophonesPanel { id: microphonesPanel; hostVisible: root.visible; Layout.fillWidth: true; Layout.fillHeight: true }  // 6
+                MicrophonesPanel { id: microphonesPanel; hostVisible: root.shown; Layout.fillWidth: true; Layout.fillHeight: true }  // 6
                 LaunchMonitorPanel { id: launchMonitorPanel; Layout.fillWidth: true; Layout.fillHeight: true } // 7
                 StoragePanel {    id: storagePanel;    Layout.fillWidth: true; Layout.fillHeight: true }  // 8
                 ArchivingPanel {  id: archivingPanel;  Layout.fillWidth: true; Layout.fillHeight: true }  // 9
