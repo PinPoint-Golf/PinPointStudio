@@ -374,6 +374,19 @@ pp_add_test(series_reduce_test SOURCES series_reduce_test.cpp)
 pp_add_test(body_rotation_test SOURCES body_rotation_test.cpp
             ${SRC}/Body/body_rotation.cpp)
 
+# The END-TO-END trunk test (trunk_imu_sequence_grf_design.md §14.1; imu_frame_contract.md §5
+# "Trunk segments"): a synthetic body with sensors at arbitrary mounts, in a Madgwick or ESKF world,
+# through solveTrunkSegment → q_anat → the real body_rotation, segment_rates and phase_segmenter, plus
+# the skeleton3d IMU term evaluated in its own types (skeleton3d_rig.h, header-only). Reproduces the
+# design §6.2 δ table, the left-hander, the per-swing heading reset and the stand-tall gates. The test
+# whose absence let the trunk frame defect survive: each consumer's own test built q_anat in the
+# frame that consumer assumed.
+pp_add_test(trunk_e2e_test SOURCES trunk_e2e_test.cpp
+            ${SRC}/Body/body_rotation.cpp
+            ${SRC}/Kinematics/segment_rates.cpp
+            ${SRC}/Timeline/phase_segmenter.cpp
+            ${SRC}/Timeline/phase_signals.cpp)
+
 # Face-on club delivery (club_delivery.{h,cpp}): past-parallel / short-of-parallel
 # sign, upward-is-positive attack angle, the sub-frame parabola vertex the low point
 # needs (a whole frame is inches at impact speeds), and — the one that matters most —

@@ -283,11 +283,16 @@ Segmentation PhaseSegmenter::segment(const FusedStreams &streams, int64_t impact
     const int idxTop = idxAtOrBelow(grid, top.tUs);
 
     // ── 2. Transition — pelvis axial reversal shortly before Top ────────────
+    // The pelvis turn rate about WORLD Z through q_anat (trunk design §8.5, defect 1). The trunk
+    // frame is gravity-aligned and Z-up (imu_frame_contract.md §5 "Trunk segments": +X right,
+    // +Y anterior, +Z superior), so world z of the world gyro is the turn rate whatever the forward
+    // bend. Segment +Y — what this read until 17 Oct 2026 — is the trunk's ANTERIOR axis, not a
+    // long axis: about it a pelvis tips sideways, it does not turn.
     Cand transition;
     if (const SegmentStream *pel = streams.streamFor(SegmentRole::Pelvis);
         usable(pel, N)) {
         const std::vector<double> axial = ps::lowpassZeroPhase(
-            ps::axialRate(*pel, QVector3D(0, 1, 0)), fsHz, cfg.fcEnvelopeHz);
+            ps::signedRate(ps::worldGyro(*pel), QVector3D(0, 0, 1)), fsHz, cfg.fcEnvelopeHz);
         double mean = 0.0;
         int cnt = 0;
         for (int i = idxTop; i <= idxImpact; ++i, ++cnt)

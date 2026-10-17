@@ -355,7 +355,9 @@ static ShaftTrack2D makeShaft()
 
 // IMU streams on a 200 Hz grid. Pelvis / thorax: yaw about world Z, opening = +Z for a
 // right-hander (negative for a left-hander); gyro in the anatomical frame is the same vector since
-// a rotation about Z leaves Z alone. Arm / club: the long axis (anatomical +Y) swung about world X.
+// a rotation about Z leaves Z alone. Upright, so the segment's S-I rate (the reported trunk rate,
+// design D3) and the world-vertical rate are the same number; §3b bends the trunk to separate them.
+// Arm / club: the long axis (anatomical +Y) swung about world X.
 static FusedStreams makeStreams(bool leadIsLeft, bool withGyro = true)
 {
     FusedStreams fs;
@@ -735,6 +737,39 @@ int main()
             std::printf("    imu    %-8s %s  t=%.1f ms before impact ±%.1f  peak %.0f ±%.0f\n",
                         seqSegmentKey(n.segment), n.placed ? "placed  " : "UNPLACED", n.beforeImpactMs,
                         n.tSigmaMs, n.peakDps, n.peakSigmaDps);
+    }
+
+    // ── §3b the trunk rate is the segment's own S-I rate (design D3), not the world-vertical one ──
+    // The same IMU swing with pelvis and thorax bent 40° toward the ball and turning about world
+    // vertical, as the trunk frame (imu_frame_contract.md §5) carries it: q = Rz(yaw)·Rx(−40°), the
+    // segment gyro Rx(−40°)⁻¹ of the world one. The world-vertical rate is still the bump; the S-I
+    // rate — the reported one — is cos 40° of it, at the same instant.
+    {
+        FusedStreams fs = makeStreams(true);
+        const QQuaternion bend = QQuaternion::fromAxisAndAngle(1.f, 0.f, 0.f, -40.f);
+        for (SegmentStream &s : fs.segments) {
+            if (s.role != SegmentRole::Pelvis && s.role != SegmentRole::Thorax) continue;
+            for (size_t i = 0; i < s.qAnat.size(); ++i) {
+                s.qAnat[i]   = s.qAnat[i] * bend;
+                s.gyroDps[i] = bend.conjugated().rotatedVector(s.gyroDps[i]);
+                s.accelG[i]  = bend.conjugated().rotatedVector(s.accelG[i]);
+            }
+        }
+        SegmentRatesInputs in;
+        in.streams = &fs; in.leadIsLeft = true; in.phases = &ph; in.impactUs = kImpactUs;
+        const SegmentRatesResult bent = buildSegmentRates(in, cfg);
+        const KsNode *p = nodeOf(bent, SeqSegment::Pelvis), *t = nodeOf(bent, SeqSegment::Thorax);
+        const double c40 = std::cos(40.0 * kD2R);
+        std::printf("    bent 40°: pelvis peak %.1f (S-I truth %.1f), thorax peak %.1f (S-I truth %.1f)\n",
+                    p ? p->peakDps : 0.0, 480.0 * c40, t ? t->peakDps : 0.0, 727.0 * c40);
+        CHECK("§3b bent 40°: pelvis peak is the S-I rate, 480·cos 40° within 5 %",
+              p && p->placed && near(p->peakDps, 480.0 * c40, 0.05 * 480.0 * c40));
+        CHECK("§3b bent 40°: thorax peak is the S-I rate, 727·cos 40° within 5 %",
+              t && t->placed && near(t->peakDps, 727.0 * c40, 0.05 * 727.0 * c40));
+        CHECK("§3b …and not the world-vertical rate (which would read the full 480)",
+              p && p->peakDps < 0.9 * 480.0);
+        CHECK("§3b bent 40°: the peak instants do not move (within 5 ms of the truth)",
+              msFromTruth(p, kPelvis) <= 5.0 && msFromTruth(t, kThorax) <= 5.0);
     }
 
     // ── §4 the common measure: routes agree ───────────────────────────────────────────────────

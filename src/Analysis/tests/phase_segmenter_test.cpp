@@ -129,10 +129,15 @@ SegmentStream makeSegment(SegmentRole role, const std::vector<int64_t> &grid,
     return s;
 }
 
-// Pelvis: axial rotation about its own +Y long axis — reverses BEFORE Top.
+// Pelvis: a Z-up trunk segment (imu_frame_contract.md §5 "Trunk segments": +X right, +Y anterior,
+// +Z superior) bent 20° toward the ball and turning about WORLD Z — reverses BEFORE Top. The bend
+// is what makes the read matter: about world Z the turn rate is χ', while the segment's own +Y (its
+// anterior axis — what the segmenter read until 17 Oct 2026) sees −sin 20°·χ', a third of it with
+// the sign the other way round.
 SegmentStream makePelvis(const std::vector<int64_t> &grid, const SwingTimes &st,
-                         double reversalS)
+                         double reversalS, double bendDeg = 20.0)
 {
+    const QQuaternion bend = QQuaternion::fromAxisAndAngle(QVector3D(1, 0, 0), float(-bendDeg));
     SegmentStream s;
     s.role = SegmentRole::Pelvis;
     const size_t n = grid.size();
@@ -145,7 +150,7 @@ SegmentStream makePelvis(const std::vector<int64_t> &grid, const SwingTimes &st,
             chi = -45.0 + 85.0 * smoothstep((t - reversalS) / (st.impact - reversalS));
         else if (t >= st.impact)
             chi = 40.0;
-        s.qAnat.push_back(QQuaternion::fromAxisAndAngle(QVector3D(0, 1, 0), float(chi)));
+        s.qAnat.push_back(QQuaternion::fromAxisAndAngle(QVector3D(0, 0, 1), float(chi)) * bend);
     }
     s.gyroDps.assign(n, QVector3D());
     s.accelG.assign(n, QVector3D());
@@ -322,6 +327,14 @@ int main()
             PhaseSegmenter::segment(makeStreams(base, 5000, true, true, false), impactUs);
         CHECK_TRUE("no pelvis -> Transition omitted (not synthesized)",
                    noPel.eventFor(Phase::Transition) == nullptr);
+
+        // An UPRIGHT pelvis turns about world Z with nothing on its anterior (+Y) axis at all: the
+        // segment-Y read saw a flat zero and dropped Transition; the world-Z read finds it.
+        FusedStreams upright = makeStreams(base, 5000, true, true, false);
+        upright.segments.push_back(makePelvis(upright.timeGrid, base, 3.10, 0.0));
+        const Segmentation up = PhaseSegmenter::segment(upright, impactUs);
+        CHECK_NEAR("upright pelvis: Transition from the world-Z turn rate",
+                   evT(up, Phase::Transition), 3.10, 0.02);
 
         const Segmentation handOnly =
             PhaseSegmenter::segment(makeStreams(base, 5000, true, false, false), impactUs);

@@ -196,6 +196,129 @@ int main()
                   QQuaternion(0.54168f, -0.45452f, -0.45452f, -0.54168f), 1e-3f);
     }
 
+    // -- G. solveTrunkSegment — the trunk's Z-up, stance-headed solve (imu_frame_contract.md §5
+    //    "Trunk segments"). The sensor at its nominal mount, "USB end up, label facing out": segment
+    //    +Z (superior) = sensor +Y, +Y (anterior) = sensor −Z, +X (right) = sensor +X, so
+    //    M = fromAxes(X, −Z, Y) = Rx(−90°). Standing tall the true segment is the identity in the
+    //    stance frame, so the fused raw quaternion is W·M⁻¹ for the filter's world W.
+    std::printf("\n-- G. solveTrunkSegment (trunk stand tall) --\n");
+    {
+        const QQuaternion mNom = QQuaternion::fromAxisAndAngle(X, -90);
+        const QQuaternion eskf = QQuaternion::fromAxisAndAngle(X, 180);   // §7: ESKF world = Rx(180°)·Madgwick
+        const auto window = [&](const QQuaternion &W, const QQuaternion &M) {
+            StandTallWindow w;
+            w.meanQuat   = (W * M.conjugated()).normalized();
+            w.meanAccelG = M.rotatedVector(Z);     // gravity-up in the sensor frame: M·ẑ_anat
+            w.samplesReceived = w.samplesExpected = 400;        // 2 s at 200 Hz
+            return w;
+        };
+
+        // G1. nominal mount, identity Madgwick world → M = Rx(−90°), A = I, q_anat = I.
+        {
+            const TrunkAlignment t = solveTrunkSegment(window(I, mNom), TrunkSensor::Pelvis);
+            checkQuat("nominal: M == Rx(-90)", t.M, QQuaternion(0.70711f, -0.70711f, 0.0f, 0.0f), 1e-4f);
+            checkQuat("nominal: A == I", t.A, I, 1e-4f);
+            checkBool("nominal: valid", t.valid, true);
+            checkBool("nominal: no failure text", t.record.failure.isEmpty(), true);
+            checkNear("nominal: long axis from up", t.record.longAxisFromUpDeg, 0.0, 0.01);
+            checkNear("nominal: face from horizontal", t.record.faceFromHorizontalDeg, 0.0, 0.01);
+            checkBool("nominal: tier δ0", t.record.deltaTier == QStringLiteral("δ0"), true);
+            checkNear("nominal: σ_δ", t.record.sigmaDeltaDeg, 10.0, 1e-6);
+        }
+        // G2. an arbitrary fusion heading is absorbed by A (the stance frame faces where the golfer
+        //     did), and an ESKF world (Rx(180°)) solves to the SAME q_anat for every later pose.
+        {
+            const QQuaternion W = QQuaternion::fromAxisAndAngle(Z, 73);
+            const TrunkAlignment m = solveTrunkSegment(window(W, mNom), TrunkSensor::Thorax);
+            const TrunkAlignment e = solveTrunkSegment(window(eskf * W, mNom), TrunkSensor::Thorax);
+            checkQuat("Madgwick yawed: A == Rz(-73)", m.A, QQuaternion::fromAxisAndAngle(Z, -73), 1e-4f);
+            checkQuat("Madgwick yawed: q_anat(stand tall) == I",
+                      toAnatomical(m.A, window(W, mNom).meanQuat, m.M), I, 1e-4f);
+            checkQuat("ESKF: same M as Madgwick", e.M, m.M, 1e-4f);
+            checkQuat("ESKF: q_anat(stand tall) == I",
+                      toAnatomical(e.A, window(eskf * W, mNom).meanQuat, e.M), I, 1e-4f);
+            // A later pose: bent 30° toward the ball, turned 40°.
+            const QQuaternion pose = (QQuaternion::fromAxisAndAngle(Z, 40) * QQuaternion::fromAxisAndAngle(X, -30)).normalized();
+            const QQuaternion rawM = (W * pose * mNom.conjugated()).normalized();
+            const QQuaternion rawE = (eskf * rawM).normalized();
+            checkQuat("Madgwick: q_anat(pose) == the pose", toAnatomical(m.A, rawM, m.M), pose, 1e-4f);
+            checkQuat("ESKF: q_anat(pose) == the pose", toAnatomical(e.A, rawE, e.M), pose, 1e-4f);
+        }
+        // G3. a tilted mount (a 20° kyphotic lean of the pocket, 8° of roll) is absorbed exactly:
+        //     the solved frame is the true one, so a bent pose reads back unchanged.
+        {
+            const QQuaternion mountInv = (QQuaternion::fromAxisAndAngle(X, 20) * QQuaternion::fromAxisAndAngle(Y, 8)
+                                          * mNom.conjugated()).normalized();
+            const QQuaternion mTrue = mountInv.conjugated();
+            const TrunkAlignment t = solveTrunkSegment(window(I, mTrue), TrunkSensor::Thorax);
+            checkBool("tilted 20°: valid", t.valid, true);
+            checkQuat("tilted 20°: M == the true mount", t.M, mTrue, 1e-4f);
+            const QQuaternion pose = QQuaternion::fromAxisAndAngle(X, -40);
+            checkQuat("tilted 20°: q_anat(bent 40°) == the pose",
+                      toAnatomical(t.A, pose * mTrue.conjugated(), t.M), pose, 1e-4f);
+        }
+        // G4. gates — each failure names the sensor and the cause.
+        {
+            // Upside down (USB end down): the long axis is 180° from up.
+            const QQuaternion upside = (mNom * QQuaternion::fromAxisAndAngle(Y, 180)).normalized();
+            const TrunkAlignment u = solveTrunkSegment(window(I, upside), TrunkSensor::Pelvis);
+            checkBool("USB down: rejected", u.valid, false);
+            checkBool("USB down: long-axis gate fails", u.record.longAxisOk, false);
+            checkNear("USB down: long axis from up", u.record.longAxisFromUpDeg, 180.0, 0.01);
+            checkBool("USB down: \"Hip sensor: turn it USB-up, label out\"",
+                      u.record.failure == QStringLiteral("Hip sensor: turn it USB-up, label out"), true);
+
+            // Lying flat, label to the sky: the face normal is vertical.
+            StandTallWindow flat = window(I, mNom);
+            flat.meanAccelG = Z;
+            const TrunkAlignment f = solveTrunkSegment(flat, TrunkSensor::Thorax);
+            checkBool("lying flat: rejected", f.valid, false);
+            checkNear("lying flat: face from horizontal", f.record.faceFromHorizontalDeg, 90.0, 0.01);
+            checkBool("lying flat: \"Chest sensor faces the wrong way …\"",
+                      f.record.failure == QStringLiteral("Chest sensor faces the wrong way — label out, against your back"), true);
+
+            // Moving: 2 °/s of mean gyro.
+            StandTallWindow mv = window(I, mNom);
+            mv.meanGyroDps = QVector3D(0.3f, -2.0f, 0.1f);
+            const TrunkAlignment m = solveTrunkSegment(mv, TrunkSensor::Pelvis);
+            checkBool("moving 2 °/s: rejected", m.valid, false);
+            checkNear("moving 2 °/s: max |gyro|", m.record.maxAbsGyroDps, 2.0, 1e-5);
+            checkBool("moving: \"Hip sensor moved — hold still and try again\"",
+                      m.record.failure == QStringLiteral("Hip sensor moved — hold still and try again"), true);
+            // Still, but under 0.5 °/s is a pass.
+            mv.meanGyroDps = QVector3D(0.4f, -0.4f, 0.4f);
+            checkBool("0.4 °/s bias: valid", solveTrunkSegment(mv, TrunkSensor::Pelvis).valid, true);
+
+            // |f̄| 3 % off 1 g.
+            StandTallWindow heavy = window(I, mNom);
+            heavy.meanAccelG *= 1.03f;
+            const TrunkAlignment h = solveTrunkSegment(heavy, TrunkSensor::Thorax);
+            checkBool("|f| = 1.03 g: rejected", h.valid, false);
+            checkNear("|f| = 1.03 g: error %", h.record.gravityErrPct, 3.0, 1e-3);
+            checkBool("|f|: \"Chest sensor moved …\"",
+                      h.record.failure == QStringLiteral("Chest sensor moved — hold still and try again"), true);
+
+            // A short window: 80 % of the expected samples.
+            StandTallWindow shortW = window(I, mNom);
+            shortW.samplesReceived = 320;
+            const TrunkAlignment s = solveTrunkSegment(shortW, TrunkSensor::Thorax);
+            checkBool("80 % samples: rejected", s.valid, false);
+            checkNear("80 % samples: fraction", s.record.sampleFraction, 0.80, 1e-6);
+            checkBool("samples: \"Chest sensor dropped samples …\"",
+                      s.record.failure == QStringLiteral("Chest sensor dropped samples — move closer or check the battery"), true);
+
+            // FACE-IN (label against the body, USB still up) is INVISIBLE to stand tall: it reads the
+            // same gravity, solves, and passes every gate here, with the stance frame 180° about +Z.
+            // The turn-away step rejects it (design §6.3 step 2). Pinned so nobody mistakes the pass
+            // for a check.
+            const QQuaternion faceIn = (mNom * QQuaternion::fromAxisAndAngle(Z, 180)).normalized();
+            const TrunkAlignment fi = solveTrunkSegment(window(I, faceIn), TrunkSensor::Thorax);
+            checkBool("face-in: stand tall cannot see it (valid)", fi.valid, true);
+            checkQuat("face-in: solved M is 180° about the spine from the truth", fi.M,
+                      (faceIn * QQuaternion::fromAxisAndAngle(Z, 180)).normalized(), 1e-4f);
+        }
+    }
+
     std::printf("\n=== %s (%d assert failures) ===\n",
                 g_fail ? "FAILURES PRESENT" : "ALL ASSERTS PASS", g_fail);
     return g_fail ? 1 : 0;

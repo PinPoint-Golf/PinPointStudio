@@ -65,6 +65,7 @@
 #include "../Pose/pose_runner.h"
 #include "../Pose/pose_smoother.h"
 #include "stream_trim.h"
+#include "seg_resolve.h"
 #include "../Pose/pose_synthesis.h"
 #include "../Kinematics/segment_rates.h"
 #include "../Club/shaft_plane.h"
@@ -830,7 +831,7 @@ struct ShaftStage : AnalysisStage {
                     ppInfo() << "[WristAnalysis] shaft: follow-through plausibility demoted" << demoted << "reused samples";
             }
             resynthesizeLayerC(ctx.detail->shaft, v3);
-            if (!ctx.hasImuStreams() && ctx.job.ladderPreloaded)
+            if (!imuSegmentationAdopted(ctx.segImu) && ctx.job.ladderPreloaded)
                 ctx.segVision = *ctx.job.ladderPreloaded;
             ppInfo() << "[WristAnalysis] shaft: recorded track reused —"
                      << ctx.detail->shaft.samples.size() << "samples,"
@@ -841,11 +842,13 @@ struct ShaftStage : AnalysisStage {
                 ctx.foWitness = std::make_shared<const FaceOnWitness>(
                     buildFaceOnWitness(ctx.detail->shaft, nullptr, ctx.job.impactUs));
         } else {
-            const bool traced = !ctx.hasImuStreams() || wantWitness;
+            // "No IMU segmentation to fall back on" is one that SegResolve will not adopt
+            // (seg_resolve.h): a trunk-only job's conf-0 clamp fallback is not a ladder.
+            const bool traced = !imuSegmentationAdopted(ctx.segImu) || wantWitness;
             ctx.detail->shaft = ShaftTracker::track(*ctx.window, ctx.detail->pose2d, *ctx.ball,
                                                     ctx.streams, ctx.segImu.value_or(Segmentation{}),
                                                     sub, traced ? &strace : nullptr);
-            if (!ctx.hasImuStreams())
+            if (!imuSegmentationAdopted(ctx.segImu))
                 ctx.segVision = strace.segmentation;
             // Built HERE, off the tracker's own output and its own trace, before the ladder
             // stages rewrite positions — the pair SwingLab's --dtl block builds from.
@@ -871,8 +874,9 @@ struct ShaftStage : AnalysisStage {
 };
 
 // 8. Segmentation resolve — the mutable-local semantics: keep the
-//    IMU segmentation if present, else adopt the vision one when it has confidence,
-//    else the default (conf 0 ⇒ "bounds are just the window").
+//    IMU segmentation when it has confidence, else adopt the vision one when it has
+//    confidence, else the conf-0 IMU fallback or the default (conf 0 ⇒ "bounds are just
+//    the window"). The rule and its defect live in seg_resolve.h, where a test holds them.
 struct SegResolveStage : AnalysisStage {
     QString name() const override { return QStringLiteral("SegResolve"); }
     StageDecl decl() const override { return D({ kSegImu, kSegVision }, { kSeg }, {}); }
@@ -885,11 +889,9 @@ struct SegResolveStage : AnalysisStage {
         // rest of the run a raw version-2 ladder with the refinement and the fusion stripped (16 Oct
         // 2026: both 18 August sessions, face-on + arm sensors, lost P8 by ~0.7 s and a phase on every
         // swing). The wrist metrics still read ctx.segImu, which is the same IMU data re-segmented.
-        if (ctx.job.ladderPreloaded) { ctx.seg = *ctx.job.ladderPreloaded; return; }
-        ctx.seg = ctx.segImu
-                      ? *ctx.segImu
-                      : (ctx.segVision && ctx.segVision->conf > 0.f ? *ctx.segVision
-                                                                    : Segmentation{});
+        // A conf-0 IMU segmentation (trunk design §8.5, defect 3: a trunk-only job's clamp
+        // fallback) is NOT adopted over a confident vision ladder.
+        ctx.seg = resolveSegmentation(ctx.segImu, ctx.segVision, ctx.job.ladderPreloaded);
     }
 };
 
@@ -1081,7 +1083,7 @@ struct RequireProductsStage : AnalysisStage {
 //     refined ctx.seg binds with zero extra plumbing (every downstream consumer —
 //     HeadTrack/FootMetrics addressUs, assessment P1, buildTrace, swing.json,
 //     timeline — picks the refined times up automatically). canRun gates on "the
-//     ladder we'd mutate is the VISION one" (no IMU segmentation — fused-swing
+//     ladder we'd mutate is the VISION one" (no ADOPTED IMU segmentation — fused-swing
 //     refine is documented future work, cross-ref ball_anchor.cpp's tk0 TODO) plus
 //     a valid shaft product and real vision conf. The refine.enabled gate lives in
 //     canRun too (mirroring PoseAssessmentStage): dark ⇒ the stage is SKIPPED, not
@@ -1093,7 +1095,8 @@ struct EventRefineStage : AnalysisStage {
     {
         return EventRefineConfig::fromOverrides(ctx.job.tuningOverrides).enabled
             && !ctx.job.ladderPreloaded   // a reused ladder is already refined (recorded_products.h)
-            && !ctx.segImu.has_value() && ctx.caps.hasCamera(CameraPlacement::FaceOn)
+            && !imuSegmentationAdopted(ctx.segImu)   // the vision ladder is the one in ctx.seg
+            && ctx.caps.hasCamera(CameraPlacement::FaceOn)
             && ctx.detail->shaft.valid && ctx.seg.conf > 0.f;
     }
     void run(AnalysisContext &ctx) override

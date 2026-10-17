@@ -1523,17 +1523,21 @@ SegmentRatesResult buildSegmentRates(const SegmentRatesInputs &in, const Segment
         return s && in.streams && s->qAnat.size() == in.streams->timeGrid.size() && s->qAnat.size() >= 2;
     };
 
-    // Axial (vertical-axis) rate: the world gyro's z, signed so opening is positive. When the
-    // stream carries no gyro (older documents), the bearing of the medio-lateral axis is
-    // differentiated instead — the same construction body_rotation.cpp's IMU tier uses.
+    // The trunk KS rate (trunk design D3; imu_frame_contract.md §5 "Trunk segments"): the segment's
+    // OWN superior–inferior rate, gyro_segment · ẑ_segment, signed so opening is positive. gyroDps is
+    // already in the segment frame (M⁻¹·v_sensor), so it is the z component as it stands. It is NOT
+    // the world-vertical rate (q_anat·gyro)·ẑ, which this read until 17 Oct 2026: the two differ by
+    // the cosine of forward bend (thorax 35–45° at address), and the difference moves through the
+    // swing — peak values and possibly the order. The S-I rate is what Cheetham's norms read, and it
+    // does not depend on the mount yaw δ (design §6.2). When the stream carries no gyro (older
+    // documents), the bearing of the medio-lateral axis is differentiated instead — the same
+    // construction body_rotation.cpp's IMU tier uses; that one IS a world-vertical rate.
     const auto axialFromImu = [&](const SegmentStream &s) -> RateTrack {
         const std::vector<int64_t> &grid = in.streams->timeGrid;
         if (s.gyroDps.size() == s.qAnat.size()) {
             std::vector<double> dps(grid.size());
-            for (size_t i = 0; i < grid.size(); ++i) {
-                const QVector3D w = s.qAnat[i].rotatedVector(s.gyroDps[i]);
-                dps[i] = sign * double(w.z());
-            }
+            for (size_t i = 0; i < grid.size(); ++i)
+                dps[i] = sign * double(s.gyroDps[i].z());
             return smoothRate(grid, dps, cfg.gyroNoiseDps, windowUs);
         }
         AngleTrack a;

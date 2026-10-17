@@ -14,7 +14,7 @@ reference, that doc is the rationale.*
 |---|---|---|
 | **World** (`imu_world`) | Right-handed, **gravity-aligned, +Z up**. Yaw is **arbitrary-but-fixed per session** (re-zeroable via calibration `A`) — **NOT** magnetic-north referenced (we run 6-axis, no magnetometer). REP-103 ENU *vocabulary*, REP-145 *no-mag semantics*. | Host fusion (`orientation_filter.h` Madgwick / `eskf_orientation_filter.h`) |
 | **Sensor body** (`imu_link`) | Right-handed, **+X = device-right, +Y = USB-end (long), +Z = face-normal**. Identity quaternion at the neutral pose. | Device characterization ([`imu_axis_reference.md`](../reference/imu_axis_reference.md)) |
-| **Anatomical body** | Per-segment frame from `imu_calibration::solveSegment`. Axis table in §4. | `imu_calibration.h` (`A`, `M`) |
+| **Anatomical body** | Per-segment frame from `imu_calibration::solveSegment` (limbs) or `solveTrunkSegment` (pelvis, thorax). Axis tables in §5. | `imu_calibration.h` (`A`, `M`) |
 
 The fused quaternion produced by host fusion **is** the world→sensor-body orientation in
 this contract — the contract *names and owns* the frame host fusion already produces; it
@@ -69,6 +69,63 @@ e_x × e_y`):
 | Upper arm | flexion axis (medio-lateral) | long axis, distal (shoulder→elbow) | `e_x × e_y` (anterior / abduction) |
 
 Anatomical "up" at the hanging reference pose is **−Y**.
+
+### Trunk segments — pelvis and thorax (`solveTrunkSegment`, 17 Oct 2026)
+
+The trunk does **not** use the limb construction. The limb solve makes the reference-pose
+body frame the world (`A = conj(refRaw·M)`), so its world is Y-down and the reference
+posture is zeroed. Every trunk consumer reads world **Z** as vertical, and the trunk's
+posture is itself a measurement. So the trunk keeps a **gravity-aligned, Z-up,
+stance-headed world**.
+
+| Segment | **+X** | **+Y** | **+Z** |
+|---|---|---|---|
+| Pelvis (hip sensor, sacrum) | medio-lateral, toward the golfer's **right** | anterior | superior |
+| Thorax (chest sensor, T2–T5) | medio-lateral, toward the golfer's **right** | anterior | superior |
+
+Right-handed: right × anterior = up.
+
+**Stance frame (the trunk world).**
+- +Z is up (against gravity).
+- +Y is the horizontal direction the golfer faced during stand tall (toward the ball).
+- +X = Y × Z, which is the golfer's right.
+- ⚠ For a right-hander, stance +X therefore points **away from** the target. The 4 Oct text said "toward the target"; that was wrong (design R3).
+- Lead/trail and the handedness flip are owned by `pinpoint_sign_conventions.md`.
+
+**The solve,** from a stand-tall still window (≥ 2 s; mean accel `f̄` and mean fused quaternion `q̄` in the sensor frame):
+- `e_z` = `f̄` normalised. At rest the accelerometer reads +1 g along "up", so this is up in the sensor frame.
+- `e_y` = the **inward** face normal, sensor **−Z** (the label faces out, §1), made orthogonal to `e_z`.
+- `e_x` = `e_y × e_z`.
+- `M = fromAxes(e_x, e_y, e_z)`, so that `M·v_anat = v_sensor`.
+- `A = Rz(ψ)·L`:
+  - **L** is the smallest rotation taking the filter's own up, `q̄·e_z`, onto +Z. It is about identity for Madgwick and about Rx(180°) for ESKF (§7). It is solved, never assumed.
+  - **ψ** is the yaw about +Z taking `L·q̄·e_y` (horizontal by construction) onto +Y.
+- At stand tall, `q_anat = A·q̄·M` is the identity. After that, `q_anat` is the true segment orientation in the stance frame: forward bend at address reads as forward bend, and world z is vertical for every consumer.
+
+**The nominal mount** ("USB end up, label facing out", design §4.1), before the solve refines it:
+
+| Segment axis | Sensor axis |
+|---|---|
+| +Z (superior) | ≈ +Y (USB end) |
+| +Y (anterior) | ≈ −Z (into the body) |
+| +X (right) | ≈ +X (device right) |
+
+**What stand tall cannot give.**
+- Mount yaw about the spine (δ) is assumed zero (tier δ0, σ_δ = 10°). It is refined later from the swings and the two-camera fit (design §6.5).
+- The S-I rate and peak times do not depend on δ (design §6.2).
+
+**Gates** (a failure names the sensor and the cause):
+- long (USB) axis within 35° of up;
+- face normal within 40° of horizontal;
+- |f̄| = 1 g ± 2 %;
+- mean gyro < 0.5 °/s on each axis;
+- ≥ 95 % of the expected samples.
+
+**Consumers that read this frame:**
+- `body_rotation` turn: the heading of `q_anat·x̂`.
+- `segment_rates` KS rate: the S-I rate, `gyro_segment · ẑ` (design D3).
+- `phase_segmenter` transition: the axial rate about world Z through `q_anat` (design §8.5).
+- The skeleton3d IMU term, whose heading-only ψ freedom is right for a Z-up world.
 
 ### Joint DOFs — read from the RELATIVE rotation (not the segment-axis names above)
 

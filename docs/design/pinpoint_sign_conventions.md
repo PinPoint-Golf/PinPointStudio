@@ -312,6 +312,26 @@ downswing domain already fixes the direction.
 | `leadArmAngularSpeed` | *(unsigned)* the lead shoulder→wrist axis swinging about the swing-plane normal | roll about the long axis excluded |
 | `clubAngularSpeed` | *(unsigned)* the shaft swinging about the swing-plane normal | roll about the shaft excluded |
 
+### Trunk IMU readings (hip and chest sensors, 17 Oct 2026)
+
+The trunk frame and its stand-tall solve are owned by
+[`imu_frame_contract.md`](imu_frame_contract.md) §5, "Trunk segments": +X is the golfer's right, +Y anterior, +Z superior, in a gravity-up, stance-headed world. The angles are **projections of segment axes** (trunk design D13), not Cardan angles: there is no sequence dependence at large turn, and they match the coaches' vocabulary. All are relative to the swing's own address unless stated.
+
+| Reading | Definition | Positive means |
+|---|---|---|
+| Turn (`pelvisRotation`, `thoraxRotation` from the IMU) | heading of the ML axis `q_anat·x̂`, projected onto the horizontal plane, from its address heading | unsigned magnitude, as the camera turn above |
+| X-factor | thorax turn − pelvis turn | as `xFactor` |
+| Obliquity / side bend | elevation of the ML axis above horizontal | **lead side higher** |
+| Forward bend / tilt | inclination of the long axis `q_anat·ẑ` from vertical, in the sagittal direction | **anterior** (bent toward the ball) |
+| KS trunk rate (`pelvisAngularSpeed`, `thoraxAngularSpeed` IMU route) | the segment's own **S-I rate**, `gyro_segment · ẑ_segment` (D3), not the world-vertical rate | turning toward the **lead** side, as the camera rates above |
+
+**Handedness (D15).** The flip happens at ingest. The trunk frame is the same for both hands (+X is always the golfer's right). The producer mirrors the lateral readings for a left-hander, so stored metrics are handedness-neutral and handedness lives in the binding.
+
+- For a right-hander, opening is a positive rate about +Z; for a left-hander the producer negates it.
+- Obliquity is mirrored the same way: "lead side up" is +X-side up for a left-hander and −X-side up for a right-hander.
+
+**The measurement site.** A back-mounted thorax sensor reads spine rotation at T2–T5, not the shoulder line. Norms must match the site, and each descriptor's provenance says which it is.
+
 ## Not covered by either rule
 
 A metric on neither axis **must state its own convention**: `pelvisThrust` is toward the ball, which

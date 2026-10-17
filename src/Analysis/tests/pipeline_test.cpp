@@ -5,11 +5,14 @@
 
 #include "../../Timeline/phase_segmenter.h"
 #include "../../Wrist/metric_extractor.h"
+#include "../seg_resolve.h"
 
 #include <QQuaternion>
 #include <QVector3D>
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <optional>
 
 using namespace pinpoint::analysis;
 
@@ -128,6 +131,71 @@ int main()
         std::printf("  [%s] pronation/elbow suppressed\n", noPron ? "PASS" : "FAIL");
         if (!hasWrist) ++g_fail;
         if (!noPron)   ++g_fail;
+    }
+
+    // SegResolve's rule (seg_resolve.h; trunk design §8.5, defect 3). A TRUNK-ONLY job — hip and
+    // chest sensors, no hand or forearm — still gets an IMU segmentation from the segmenter: the
+    // clamp fallback, conf 0. It must not replace a confident camera ladder.
+    std::printf("\n=== SegResolve: a conf-0 IMU segmentation does not replace vision phases ===\n");
+    {
+        FusedStreams trunk;
+        trunk.timeGrid = fs.timeGrid;
+        SegmentStream pel, thx;
+        pel.role = SegmentRole::Pelvis;
+        thx.role = SegmentRole::Thorax;
+        for (int i = 0; i < N; ++i) {
+            const double ts = fs.timeGrid[i] * 1e-6;
+            const float turn = float(ts < 0.8 ? -45.0 * ts / 0.8 : -45.0 + 90.0 * std::min((ts - 0.8) / 0.4, 1.0));
+            pel.qAnat.push_back(QQuaternion::fromAxisAndAngle(Z, turn));
+            thx.qAnat.push_back(QQuaternion::fromAxisAndAngle(Z, 2.f * turn));
+        }
+        fillInertials(pel, trunk.timeGrid);
+        fillInertials(thx, trunk.timeGrid);
+        trunk.segments = { pel, thx };
+        const std::optional<Segmentation> segImu = PhaseSegmenter::segment(trunk, impactUs);
+        std::printf("  trunk-only IMU segmentation: conf %.2f, %zu events\n", segImu->conf, segImu->events.size());
+        CHECK_NEAR("trunk-only IMU segmentation conf", segImu->conf, 0.0, 1e-6);
+        const bool adopted = imuSegmentationAdopted(segImu);
+        std::printf("  [%s] a conf-0 IMU segmentation is not adopted\n", !adopted ? "PASS" : "FAIL");
+        if (adopted) ++g_fail;
+
+        Segmentation vision;
+        vision.conf = 0.8f;
+        vision.swingStartUs = 100000;
+        vision.swingEndUs   = 1400000;
+        vision.events = { { Phase::Address, 150000, 0.9f }, { Phase::Top, 790000, 0.9f },
+                          { Phase::Impact, impactUs, 1.0f }, { Phase::Finish, 1350000, 0.8f } };
+        const Segmentation r = resolveSegmentation(segImu, vision, std::nullopt);
+        const PhaseEvent *top = r.eventFor(Phase::Top);
+        const bool keptVision = r.conf == vision.conf && r.events.size() == vision.events.size()
+                             && top && top->t_us == 790000 && r.swingStartUs == vision.swingStartUs;
+        std::printf("  [%s] the vision ladder wins over the conf-0 IMU one\n", keptVision ? "PASS" : "FAIL");
+        if (!keptVision) ++g_fail;
+
+        // Without a confident vision ladder the conf-0 IMU fallback stays (its anchored Impact is
+        // what an IMU-only job always had) — the same as before the rule.
+        const Segmentation noVis = resolveSegmentation(segImu, std::nullopt, std::nullopt);
+        const PhaseEvent *imp = noVis.eventFor(Phase::Impact);
+        const bool keptFallback = noVis.conf == 0.f && imp && imp->t_us == impactUs;
+        std::printf("  [%s] no vision: the conf-0 IMU fallback is kept\n", keptFallback ? "PASS" : "FAIL");
+        if (!keptFallback) ++g_fail;
+
+        // A confident IMU segmentation is adopted over vision, and a reused ladder outranks both.
+        Segmentation imuGood = vision;
+        imuGood.conf = 0.9f;
+        imuGood.events[1].t_us = 800000;
+        const Segmentation ri = resolveSegmentation(imuGood, vision, std::nullopt);
+        const bool imuWins = imuSegmentationAdopted(imuGood) && ri.conf == 0.9f
+                          && ri.eventFor(Phase::Top) && ri.eventFor(Phase::Top)->t_us == 800000;
+        std::printf("  [%s] a confident IMU segmentation is adopted over vision\n", imuWins ? "PASS" : "FAIL");
+        if (!imuWins) ++g_fail;
+        Segmentation reused = vision;
+        reused.conf = 0.5f;
+        reused.version = 5;
+        const Segmentation rp = resolveSegmentation(imuGood, vision, reused);
+        const bool reusedWins = rp.version == 5 && rp.conf == 0.5f;
+        std::printf("  [%s] a reused ladder outranks both\n", reusedWins ? "PASS" : "FAIL");
+        if (!reusedWins) ++g_fail;
     }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES PRESENT" : "ALL PASS", g_fail);

@@ -70,6 +70,19 @@ inline constexpr float kAxisAngleMaxDeg = 120.0f;
 inline constexpr float kNominalArmMount[4]  = { 0.5f, -0.5f, -0.5f, -0.5f };
 // Hand (dorsal) mount, solved numerically from a characterization capture.
 inline constexpr float kNominalHandMount[4] = { 0.4388f, 0.6054f, 0.4965f, -0.4409f };
+
+// Trunk stand-tall gates (solveTrunkSegment; imu_frame_contract.md §5 "Trunk segments",
+// trunk_imu_sequence_grf_design.md §6.3). Mount: the long (USB) axis within this many degrees of
+// up, the face normal within this many of horizontal. Sensor health: |f̄| within ± this % of 1 g,
+// the mean gyro under this on every axis, and at least this fraction of the expected samples.
+inline constexpr float kTrunkLongAxisMaxFromUpDeg     = 35.0f;
+inline constexpr float kTrunkFaceMaxFromHorizontalDeg = 40.0f;
+inline constexpr float kTrunkGravityTolPct            = 2.0f;
+inline constexpr float kTrunkStillGyroMaxDps          = 0.5f;
+inline constexpr float kTrunkMinSampleFraction        = 0.95f;
+// Mount yaw about the spine (δ) at tier δ0 — "USB up, label out" fixes it to about this 1σ
+// until the swings refine it (design §6.5). Stand tall cannot see δ at all.
+inline constexpr float kTrunkMountYawSigmaDeg         = 10.0f;
 } // namespace calib
 
 // --- HackMotion frame reconciliation (src/IMU/hm_frame.h) --------------------------
